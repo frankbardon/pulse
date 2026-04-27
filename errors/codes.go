@@ -1,0 +1,180 @@
+package errors
+
+// Code is a typed string representing categorical error codes.
+// Each code identifies a specific error category within a domain.
+type Code string
+
+// ENCODING domain - Binary format and data encoding operations
+const (
+	// ENCODING_INVALID indicates invalid data format or structure.
+	ENCODING_INVALID Code = "ENCODING_INVALID"
+
+	// ENCODING_IO indicates I/O failures during read/write operations.
+	ENCODING_IO Code = "ENCODING_IO"
+
+	// ENCODING_TYPE_MISMATCH indicates type conversion or casting errors.
+	ENCODING_TYPE_MISMATCH Code = "ENCODING_TYPE_MISMATCH"
+
+	// ENCODING_INTERNAL indicates unexpected errors in encoding layer.
+	ENCODING_INTERNAL Code = "ENCODING_INTERNAL"
+)
+
+// PROCESSING domain - Processing engine and pipeline operations
+const (
+	// PROCESSING_CONFIG indicates component configuration errors.
+	PROCESSING_CONFIG Code = "PROCESSING_CONFIG"
+
+	// PROCESSING_STATE indicates context state management errors.
+	PROCESSING_STATE Code = "PROCESSING_STATE"
+
+	// PROCESSING_RUNTIME indicates runtime execution errors.
+	PROCESSING_RUNTIME Code = "PROCESSING_RUNTIME"
+
+	// PROCESSING_GROUP indicates group-related processing errors.
+	PROCESSING_GROUP Code = "PROCESSING_GROUP"
+
+	// PROCESSING_INTERNAL indicates unexpected errors in processing layer.
+	PROCESSING_INTERNAL Code = "PROCESSING_INTERNAL"
+)
+
+// SERVICE domain - HTTP/API layer and service operations
+const (
+	// SERVICE_VALIDATION indicates request validation failures.
+	SERVICE_VALIDATION Code = "SERVICE_VALIDATION"
+
+	// SERVICE_RESOURCE indicates resource loading or access failures.
+	SERVICE_RESOURCE Code = "SERVICE_RESOURCE"
+
+	// SERVICE_REGISTRY indicates registry lookup failures.
+	SERVICE_REGISTRY Code = "SERVICE_REGISTRY"
+
+	// SERVICE_INTERNAL indicates unexpected errors in service layer.
+	SERVICE_INTERNAL Code = "SERVICE_INTERNAL"
+)
+
+// DATA domain - Data file and dataset management operations
+const (
+	// DATA_FILE indicates file access or format errors.
+	DATA_FILE Code = "DATA_FILE"
+
+	// DATA_PARSE indicates data parsing or deserialization errors.
+	DATA_PARSE Code = "DATA_PARSE"
+
+	// DATA_CONFIG indicates data configuration errors.
+	DATA_CONFIG Code = "DATA_CONFIG"
+
+	// DATA_CALCULATION indicates errors during data field access or calculation.
+	DATA_CALCULATION Code = "DATA_CALCULATION"
+
+	// DATA_INTERNAL indicates unexpected errors in data layer.
+	DATA_INTERNAL Code = "DATA_INTERNAL"
+)
+
+// CLI domain - Command-line interface operations
+const (
+	// CLI_INPUT indicates command input or argument errors.
+	CLI_INPUT Code = "CLI_INPUT"
+
+	// CLI_OUTPUT indicates output generation or file write errors.
+	CLI_OUTPUT Code = "CLI_OUTPUT"
+
+	// CLI_COMMAND indicates command execution errors.
+	CLI_COMMAND Code = "CLI_COMMAND"
+
+	// CLI_INTERNAL indicates unexpected errors in CLI layer.
+	CLI_INTERNAL Code = "CLI_INTERNAL"
+)
+
+// PULSE domain - Pulse-specific error codes for I/O pipelines,
+// categorical handling, description validation, and aggregation warnings.
+const (
+	// PULSE_IMPORT_SCHEMA_AMBIGUOUS indicates type ambiguity during schema inference.
+	PULSE_IMPORT_SCHEMA_AMBIGUOUS Code = "PULSE_IMPORT_SCHEMA_AMBIGUOUS"
+
+	// PULSE_IMPORT_ROW_ERROR indicates a per-row import error.
+	PULSE_IMPORT_ROW_ERROR Code = "PULSE_IMPORT_ROW_ERROR"
+
+	// PULSE_EXPORT_ROW_ERROR indicates a per-row export error.
+	PULSE_EXPORT_ROW_ERROR Code = "PULSE_EXPORT_ROW_ERROR"
+
+	// PULSE_IMPORT_CATEGORICAL_OVERFLOW indicates dictionary exceeds width capacity.
+	PULSE_IMPORT_CATEGORICAL_OVERFLOW Code = "PULSE_IMPORT_CATEGORICAL_OVERFLOW"
+
+	// PULSE_IMPORT_CATEGORICAL_UNBOUNDED indicates sample suggests unbounded cardinality.
+	PULSE_IMPORT_CATEGORICAL_UNBOUNDED Code = "PULSE_IMPORT_CATEGORICAL_UNBOUNDED"
+
+	// PULSE_IMPORT_DESCRIPTION_TOO_LONG indicates description exceeds 1000 bytes.
+	PULSE_IMPORT_DESCRIPTION_TOO_LONG Code = "PULSE_IMPORT_DESCRIPTION_TOO_LONG"
+
+	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL indicates a numeric aggregation
+	// was requested on a categorical field.
+	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
+
+	// PULSE_FIELD_DESCRIPTION_LOW_QUALITY indicates a field description quality warning.
+	PULSE_FIELD_DESCRIPTION_LOW_QUALITY Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
+)
+
+// allCodes is the authoritative registry of every defined error code.
+// Update this slice whenever a new code is added.
+var allCodes = []Code{
+	// ENCODING
+	ENCODING_INVALID,
+	ENCODING_IO,
+	ENCODING_TYPE_MISMATCH,
+	ENCODING_INTERNAL,
+	// PROCESSING
+	PROCESSING_CONFIG,
+	PROCESSING_STATE,
+	PROCESSING_RUNTIME,
+	PROCESSING_GROUP,
+	PROCESSING_INTERNAL,
+	// SERVICE
+	SERVICE_VALIDATION,
+	SERVICE_RESOURCE,
+	SERVICE_REGISTRY,
+	SERVICE_INTERNAL,
+	// DATA
+	DATA_FILE,
+	DATA_PARSE,
+	DATA_CONFIG,
+	DATA_CALCULATION,
+	DATA_INTERNAL,
+	// CLI
+	CLI_INPUT,
+	CLI_OUTPUT,
+	CLI_COMMAND,
+	CLI_INTERNAL,
+	// PULSE
+	PULSE_IMPORT_SCHEMA_AMBIGUOUS,
+	PULSE_IMPORT_ROW_ERROR,
+	PULSE_EXPORT_ROW_ERROR,
+	PULSE_IMPORT_CATEGORICAL_OVERFLOW,
+	PULSE_IMPORT_CATEGORICAL_UNBOUNDED,
+	PULSE_IMPORT_DESCRIPTION_TOO_LONG,
+	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
+	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
+}
+
+// codeIndex is a lookup table for fast string→Code parsing.
+var codeIndex map[string]Code
+
+func init() {
+	codeIndex = make(map[string]Code, len(allCodes))
+	for _, c := range allCodes {
+		codeIndex[string(c)] = c
+	}
+}
+
+// AllCodes returns a copy of all defined error codes.
+func AllCodes() []Code {
+	out := make([]Code, len(allCodes))
+	copy(out, allCodes)
+	return out
+}
+
+// ParseCode attempts to parse a string into a known Code.
+// Returns the Code and true if found, or the zero value and false otherwise.
+func ParseCode(s string) (Code, bool) {
+	c, ok := codeIndex[s]
+	return c, ok
+}

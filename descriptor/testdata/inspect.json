@@ -1,0 +1,47 @@
+{
+  "format_version": "1.0",
+  "data": {
+    "field_count": 3,
+    "fields": [
+      {
+        "name": "score",
+        "type": "f64",
+        "byte_offset": 0,
+        "bit_position": 0,
+        "description": "Student test score value",
+        "description_source": "schema",
+        "categorical": false
+      },
+      {
+        "name": "age",
+        "type": "u8",
+        "byte_offset": 0,
+        "bit_position": 0,
+        "description": "Age of the participant in years",
+        "description_source": "schema",
+        "categorical": false
+      },
+      {
+        "name": "color",
+        "type": "categorical_u8",
+        "byte_offset": 0,
+        "bit_position": 0,
+        "description": "Primary color category",
+        "description_source": "schema",
+        "categorical": true,
+        "dictionary": {
+          "total_entries": 3,
+          "truncated": false,
+          "values": [
+            "red",
+            "green",
+            "blue"
+          ]
+        }
+      }
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: cf71e715945ab9d959fe96876d1f5f7ad005854de01277d55348c5bdbda789a6

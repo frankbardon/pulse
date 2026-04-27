@@ -1,0 +1,4 @@
+// Placeholder for pulse protobuf definitions.
+syntax = "proto3";
+package pulse;
+option go_package = "github.com/frankbardon/pulse/types/proto";

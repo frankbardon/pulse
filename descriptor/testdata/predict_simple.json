@@ -1,0 +1,25 @@
+{
+  "format_version": "1.0",
+  "data": {
+    "valid": true,
+    "request": {
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "score",
+          "label": "avg_score"
+        }
+      ]
+    },
+    "schema_info": {
+      "field_count": 2,
+      "fields": [
+        "score",
+        "age"
+      ]
+    }
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 86537aefd2221e0e50feab1440d3366b8800e4ceb79dabb52a415bbe3bfc4400

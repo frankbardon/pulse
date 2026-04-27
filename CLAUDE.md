@@ -1,0 +1,399 @@
+# CLAUDE.md
+
+## Project Overview
+
+Pulse is a high-performance, self-describing tabular data processing engine. It ships as a Go library (`github.com/frankbardon/pulse`) and as a CLI binary (`cmd/pulse/`). The library is the primary deliverable; the CLI is a thin adapter over it.
+
+**Design principles:**
+
+- **Library-first.** The `pulse.go` facade (`pulse.New`, `pulse.Options`, `pulse.Process`, `pulse.Compose`, `pulse.Import`, `pulse.Export`, `pulse.Convert`, `pulse.Inspect`, `pulse.Predict`, `pulse.Sample`, `pulse.Facet`) is the public API. The CLI calls the library; it never contains business logic.
+- **Self-describing.** Every `.pulse` file carries its schema in the header. The `descriptor/` package provides `manifest`, `predict`, and `inspect` operations that expose the system's capabilities and validate requests without executing them.
+- **Skill-augmented.** The `skills/` package embeds 12 markdown skill files into the binary via `//go:embed`. LLM agents (and Nexus, the orchestration layer that consumes Pulse) can call `skills.List()` and `skills.Get(name)` at boot time to inject domain-specific guidance into their context.
+- **Nexus relationship.** Pulse is a standalone processing engine. Nexus is the upstream orchestration agent that calls Pulse's library API or CLI. Pulse has no dependency on Nexus. Nexus discovers Pulse's capabilities via `pulse manifest --json` and loads skills from the embedded skill pack.
+
+**Module path:** `github.com/frankbardon/pulse`
+
+## The Update Demand
+
+Any change to Pulse code, configuration, file format, or public surface MUST update the corresponding skill file(s) and CLAUDE.md in the same PR. This is not a courtesy. It is a non-skippable CI failure if any of the trigger conditions below is met without the corresponding doc update.
+
+**Trigger => required update:**
+
+| If you change... | You MUST also update... | Enforced by |
+|---|---|---|
+| A registered aggregator | `skills/aggregation-guide.md` (add or update the section for that aggregator) | `TestSkillsCoverAllComponents` |
+| A registered attribute | `skills/attribute-composition.md` | `TestSkillsCoverAllComponents` |
+| A registered filterer | `skills/aggregation-guide.md` filtering section + relevant skill | `TestSkillsCoverAllComponents` |
+| A registered grouper | `skills/grouper-design.md` | `TestSkillsCoverAllComponents` |
+| An error code (added/removed/renamed) | `skills/error-code-reference.md` | `TestSkillsCoverAllErrorCodes` |
+| A CLI leaf (added/removed/flag added) | `CLAUDE.md` "Common Claude Code Workflows" + `skills/getting-started.md` if user-facing | `TestSkillsCoverAllCliLeaves` |
+| A `--json` envelope or `format_version` | `CLAUDE.md` "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
+| A `.pulse` file format change (header layout, new field type) | `CLAUDE.md` "Code Conventions" + `skills/cohort-schema-design.md` | `TestClaudeMdMentionsFormatVersion`, `TestSkillsCoverAllFieldTypes` |
+| A new non-skippable CI gate | `CLAUDE.md` (gate listed by name in the relevant section) | `TestClaudeMdMentionsAllNonSkippableGates` |
+| A new architectural decision | `CLAUDE.md` (relevant section) + PRD if applicable | reviewer enforcement |
+| An environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
+
+**The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
+
+If you find yourself wanting to defer the doc/skill update to "a follow-up PR," stop. The follow-up PR will not happen, and the next Claude Code session will read a stale CLAUDE.md and produce wrong code. Update in the same PR or do not merge.
+
+## Architecture
+
+### Package layout
+
+```
+pulse/
+├── cmd/
+│   └── pulse/              # CLI binary (the only binary)
+├── pulse.go                # Public facade — pulse.New, pulse.Options
+├── service/                # Orchestration layer; wires processing to encoding
+├── processing/             # Aggregators, attributes, filterers, groupers
+├── encoding/               # Dynamic schema + record codec (.pulse binary format)
+├── io/                     # Bidirectional tabular <-> .pulse adapters
+│   ├── csv/                # CSV reader + writer
+│   ├── tsv/                # TSV reader + writer
+│   ├── ndjson/             # NDJSON reader + writer
+│   ├── parquet/            # Parquet reader + writer (Arrow)
+│   └── excel/              # Excel reader + writer (Excelize)
+├── fs/                     # afero-based filesystem abstraction + extension hook
+├── errors/                 # Typed error codes (CodedError system)
+├── types/                  # Request/response structs (JSON-serializable)
+├── descriptor/             # Self-description: manifest, predict, inspect, envelope
+├── skills/                 # Embedded markdown skill pack (//go:embed)
+│   ├── index.json          # Manifest of all 12 bundled skills
+│   └── *.md               # Individual skill files with YAML frontmatter
+├── internal/
+│   └── cli/                # CLI internals (descriptor walker, json action)
+```
+
+### Library-first pattern
+
+`pulse.go` is the public API surface. It wraps `service.Service` and provides: `New`, `Open`, `Process`, `Compose`, `Import`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`. Embedders use `pulse.New(pulse.Options{...})` and call methods directly. The `types.Request`, `types.Response`, and `types.ComposedRequest` are re-exported as `pulse.Request`, `pulse.Response`, `pulse.ComposedRequest`.
+
+### CLI-as-thin-adapter
+
+`cmd/pulse/main.go` is the only binary. It parses flags, constructs a `pulse.Pulse` instance, calls library methods, and formats output. It never contains processing logic. The CLI commands map 1:1 to the manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`.
+
+### I/O subsystem
+
+The `io/` package defines two interfaces:
+
+- `io.Reader` — `ReadHeader() ([]string, error)`, `ReadRows(ctx, fn) error`, `Close() error`
+- `io.Writer` — `WriteHeader(columns) error`, `WriteRow(values) error`, `Close() error`
+
+Each format sub-package (`csv/`, `tsv/`, `ndjson/`, `parquet/`, `excel/`) implements both interfaces. `io.ResetReader` extends `Reader` with `Reset()` for schema inference followed by import.
+
+Import, export, and convert are orchestrated by job structs (`ImportJob`, `ExportJob`, `ConvertJob`) that accept a reader/writer pair and an optional `afero.Fs`.
+
+### Descriptor and skills
+
+The `descriptor/` package provides three no-execution operations:
+
+- **Manifest** (`BuildManifest()`) — deterministic self-description of all commands, components, field types, and skills.
+- **Predict** (`Predict(fileData, req, opts)`) — validates a request against a `.pulse` file's schema without reading record data.
+- **Inspect** (`Inspect(fileData, opts)`) — reads a `.pulse` file's header and schema, returning structured field information.
+
+All three return an `Envelope` (see Output Format Contract below).
+
+The `skills/` package embeds 12 skill files via `//go:embed *.md` and an `index.json` manifest. Each skill has YAML frontmatter with `name`, `description`, `type`, and `applies_to` fields. Skills are loaded with `skills.Get(name)` and listed with `skills.List()`.
+
+## Code Conventions
+
+### Naming patterns
+
+- All identifiers, comments, and documentation are Pulse-native. No references to predecessor projects.
+- Module path: `github.com/frankbardon/pulse`
+- Package imports use the module path. The `io/` sub-packages are imported as `pio "github.com/frankbardon/pulse/io"` when needed to avoid collision with stdlib `io`.
+- Component types use SCREAMING_SNAKE: `AGG_COUNT`, `ATTR_ZSCORE`, `FILTER_INCLUDE`, `GROUP_CATEGORY`.
+- Error codes use DOMAIN_CATEGORY format: `ENCODING_INVALID`, `PROCESSING_CONFIG`, `SERVICE_VALIDATION`, `DATA_FILE`, `CLI_INPUT`, `PULSE_IMPORT_ROW_ERROR`.
+
+### Error handling
+
+Errors use the `errors.Code` system. There are 6 domains with typed codes:
+
+- **ENCODING:** `ENCODING_INVALID`, `ENCODING_IO`, `ENCODING_TYPE_MISMATCH`, `ENCODING_INTERNAL`
+- **PROCESSING:** `PROCESSING_CONFIG`, `PROCESSING_STATE`, `PROCESSING_RUNTIME`, `PROCESSING_GROUP`, `PROCESSING_INTERNAL`
+- **SERVICE:** `SERVICE_VALIDATION`, `SERVICE_RESOURCE`, `SERVICE_REGISTRY`, `SERVICE_INTERNAL`
+- **DATA:** `DATA_FILE`, `DATA_PARSE`, `DATA_CONFIG`, `DATA_CALCULATION`, `DATA_INTERNAL`
+- **CLI:** `CLI_INPUT`, `CLI_OUTPUT`, `CLI_COMMAND`, `CLI_INTERNAL`
+- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`
+
+Every new error code MUST be added to the `allCodes` slice in `errors/codes.go` and to `skills/error-code-reference.md` (enforced by `TestSkillsCoverAllErrorCodes`).
+
+### Accessor and component description style
+
+- Field descriptions stored in `.pulse` files are capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_TOO_LONG`).
+- Low-quality descriptions (empty, under 10 characters, or generic words like "n/a", "tbd", "unknown", "field", "data", "value", "column") trigger `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` warnings (errors in `--strict` mode).
+- Descriptions should be concise, third-person, present-tense sentences that describe what the field represents.
+
+### Byte-layout invariants for .pulse files
+
+The `.pulse` binary format has a fixed structure:
+
+1. **9-byte header:** 8-byte magic (`PULSE\x00\x00\x00`) + 1-byte format version (currently `0x01`). Defined as `encoding.MagicBytes`, `encoding.FormatVersion`, `encoding.HeaderSize = 9`.
+2. **Schema block:** field descriptors immediately after the header. Each field has a name, type byte, byte offset, bit position, and optional description suffix.
+3. **Dictionary blocks:** categorical fields (`categorical_u8`, `categorical_u16`, `categorical_u32`) store their dictionaries inline in the header after the schema.
+4. **Record data:** fixed-width rows follow the schema block. Record size is determined by the schema's field types.
+
+### All 15 field types
+
+| Type | Byte value | ByteSize | Notes |
+|---|---|---|---|
+| `u8` | 0 | 1 | Unsigned 8-bit integer |
+| `u16` | 1 | 2 | Unsigned 16-bit integer |
+| `u32` | 2 | 4 | Unsigned 32-bit integer |
+| `u64` | 3 | 8 | Unsigned 64-bit integer |
+| `f32` | 4 | 4 | 32-bit float |
+| `f64` | 5 | 8 | 64-bit float |
+| `nullable_bool` | 6 | 0 | Bit-packed, tri-state (null/true/false) |
+| `nullable_u4` | 7 | 0 | Bit-packed, 4-bit nullable unsigned |
+| `nullable_u8` | 8 | 1 | Nullable 8-bit unsigned |
+| `nullable_u16` | 9 | 2 | Nullable 16-bit unsigned |
+| `date` | 10 | 4 | Date as 32-bit value |
+| `packed_bool` | 11 | 0 | Bit-packed boolean |
+| `categorical_u8` | 12 | 1 | Categorical with up to 256 dictionary entries |
+| `categorical_u16` | 13 | 2 | Categorical with up to 65,536 dictionary entries |
+| `categorical_u32` | 14 | 4 | Categorical with up to 4,294,967,295 dictionary entries |
+
+Bit-packed types (`nullable_bool`, `nullable_u4`, `packed_bool`) return `ByteSize() == 0` because they share bytes with adjacent fields.
+
+## Output Format Contract
+
+### --json envelope
+
+All `--json` CLI output and all descriptor operations use the `descriptor.Envelope` struct:
+
+```json
+{
+  "format_version": "1.0",
+  "data": { ... },
+  "errors": [],
+  "warnings": []
+}
+```
+
+- `format_version` is always `"1.0"` (the current value). Changes to this value MUST update this section of CLAUDE.md (enforced by `TestClaudeMdMentionsFormatVersion`).
+- `data` contains the operation-specific result (e.g., `PredictResult`, `InspectResult`, `Manifest`).
+- `errors` is an array of `{"code": "...", "message": "...", "details": {...}}` entries. Empty array (not null) when no errors.
+- `warnings` is an array with the same shape. Empty array (not null) when no warnings.
+
+### Additive-only format_version policy
+
+`format_version` is bumped only when a backward-incompatible change is made to the envelope shape. New fields added to `data` do not require a version bump. Removing or renaming existing fields does.
+
+### Structural defense bans
+
+- **No `fmt.Sprintf`-built JSON.** All JSON output MUST go through `encoding/json` marshaling. The `descriptor/` package is grep-gated: `TestDescriptorNoFmtSprintf` scans `envelope.go`, `manifest.go`, `predict.go`, and `inspect.go` for `fmt.Sprintf` and fails if found.
+- **No hand-built XML/CDATA.** If any XML output is ever added, it must use `encoding/xml`, not string concatenation.
+- Envelope construction uses `descriptor.NewEnvelope(data)` which sets `format_version`, empty `errors`, and empty `warnings` automatically.
+
+## Predict / Inspect / Manifest Contracts
+
+### Predict: no-execute structural ban
+
+`descriptor/predict.go` validates a `types.Request` against a `.pulse` file's schema without ever executing the request. It reads only the header and schema (no record data). **Structural ban:** `predict.go` MUST NOT import `service/` or `processing/`. This is enforced by `TestPredictNoExecutionImports`, which grep-scans the source file for banned import paths:
+
+- `"github.com/frankbardon/pulse/service"` — banned
+- `"github.com/frankbardon/pulse/processing"` — banned
+
+If predict ever needs to know about component capabilities, it must use `types/` constants (e.g., `types.AllAggregationTypes()`), not the processing registries.
+
+### Inspect: header-only invariant
+
+`descriptor/inspect.go` reads the `.pulse` file header and schema, returning field names, types, byte offsets, bit positions, descriptions, and categorical dictionaries. It MUST NOT read record data. The `Inspect` function accepts an `io.ReadSeeker` and calls only `encoding.ReadHeader` and `encoding.ReadSchema`.
+
+Dictionary output is truncated to `DefaultDictionaryLimit` (100) entries unless `InspectOptions.FullDict` is true or a custom `DictionaryLimit` is set.
+
+Fields without stored descriptions get a synthesized fallback (`"Categorical field: <name>"` or `"Numeric field: <name>"`), with `description_source` set to `"synthesized"` vs `"schema"`.
+
+### Manifest: determinism
+
+`descriptor.BuildManifest()` returns a deterministic `Manifest` struct. All component lists (aggregators, attributes, filterers, groupers) are sorted alphabetically. The manifest includes: commands (7 CLI leaves), components, cohort field types (all 15), and skills metadata. `format_version` is `"1.0"`.
+
+### CI gates
+
+- `TestPredictNoExecutionImports` — grep gate enforcing the no-execute ban on `predict.go`
+- `TestDescriptorNoFmtSprintf` — grep gate banning `fmt.Sprintf` in all descriptor source files
+- `TestGoldensNotHandEdited` — verifies golden files have valid SHA-256 hashes, preventing hand edits
+- `TestClaudeMdMentionsFormatVersion` — asserts CLAUDE.md mentions the current `format_version` value
+- `TestClaudeMdMentionsAllEnvVars` — asserts every `PULSE_*` env var in the codebase is listed in CLAUDE.md
+- `TestClaudeMdMentionsAllNonSkippableGates` — asserts every non-skippable test name appears in CLAUDE.md
+- `TestUpdateDemandTableCovers` — asserts the Update Demand table covers every registered component category and contract type
+- `TestPerPackageCoverageFloors` — placeholder documenting target per-package coverage floors; verifies package directories exist
+- `TestNoOrbitPrefixes` — verifies no error code string contains predecessor project references
+- `TestNoOrbitPrefix` — verifies no type constant string contains predecessor project references
+
+## Skill Pack Maintenance
+
+### How to add a new skill
+
+1. Create `skills/<skill-name>.md` with YAML frontmatter (see requirements below).
+2. Add an entry to `skills/index.json` with matching `name`, `description`, `type`, and `applies_to` fields.
+3. Update `TestSkillsList_ReturnsAll` and `TestSkillsNames` in `skills/skills_test.go` to reflect the new count.
+4. Run `go test ./skills/...` to verify all consistency gates pass.
+
+### Frontmatter requirements
+
+Every skill file MUST begin with a YAML frontmatter block:
+
+```yaml
+---
+name: skill-name
+description: What the skill teaches
+type: guide
+applies_to: process, compose, predict
+---
+```
+
+Required fields:
+- `name` — must match the filename (without `.md`) and the `name` in `index.json`
+- `description` — concise summary of the skill's purpose
+- `type` — either `guide` or `reference`
+- `applies_to` — comma-separated list of CLI leaf commands this skill is relevant to (must be valid leaves from the manifest: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`)
+
+### Consistency CI gates
+
+- `TestSkillsFrontmatter_RequiredFields` — every skill has `name`, `description`, `type`, `applies_to` in its frontmatter
+- `TestSkillsManifestConsistent` — every skill in `index.json` has a matching `.md` file, frontmatter name matches, and `applies_to` entries reference valid CLI leaves
+- `TestSkillsCoverAllComponents` — every aggregator, attribute, filterer, and grouper in the registries is mentioned in its target skill
+- `TestSkillsCoverAllErrorCodes` — every error code in `errors/codes.go` appears in `skills/error-code-reference.md`
+- `TestSkillsCoverAllCliLeaves` — every CLI leaf command appears in `skills/getting-started.md`
+- `TestSkillsCoverAllFieldTypes` — every field type appears in `skills/cohort-schema-design.md`
+
+### Per-component update rules
+
+| Component category | Target skill file |
+|---|---|
+| Aggregator (`AGG_*`) | `skills/aggregation-guide.md` |
+| Attribute (`ATTR_*`) | `skills/attribute-composition.md` |
+| Filterer (`FILTER_*`) | At least one skill must mention it; typically `skills/aggregation-guide.md` or `skills/getting-started.md` |
+| Grouper (`GROUP_*`) | `skills/grouper-design.md` |
+| Error code | `skills/error-code-reference.md` |
+| CLI leaf command | `skills/getting-started.md` |
+| Field type | `skills/cohort-schema-design.md` |
+
+### Current registered components
+
+**9 aggregators:** `AGG_AVERAGE`, `AGG_COUNT`, `AGG_FREQUENCY`, `AGG_MAX`, `AGG_MIN`, `AGG_RANGE`, `AGG_STDDEV`, `AGG_SUM`, `AGG_ZSCORE`
+
+**6 attributes:** `ATTR_FORMULA`, `ATTR_NORMALIZED`, `ATTR_PERCENTILE`, `ATTR_RANK`, `ATTR_TSCORE`, `ATTR_ZSCORE`
+
+**4 filterers:** `FILTER_EXCLUDE`, `FILTER_EXPRESSION`, `FILTER_INCLUDE`, `FILTER_RANGE`
+
+**2 groupers:** `GROUP_CATEGORY`, `GROUP_ROUNDED`
+
+## Build / Dev / Test Workflow
+
+### Make targets
+
+| Command | What it does |
+|---|---|
+| `make build` | Builds the CLI binary to `bin/pulse` |
+| `make test` | Runs `go test ./...` |
+| `make lint` | Runs `golangci-lint run ./...` |
+| `make cover` | Runs tests with coverage, outputs `coverage.out` and prints function coverage |
+| `make clean` | Removes `bin/` and `coverage.out` |
+
+### Environment variables
+
+- `PULSE_DATA_DIR` — the base directory for `.pulse` cohort files. Used by `fs.Default()` when no explicit `DataDir` or custom `afero.Fs` is provided. This is the only required environment variable for runtime operation. When embedding the library, you can bypass it entirely by passing `pulse.Options{DataDir: "/path"}` or `pulse.Options{FS: myFs}`.
+
+### Running subsets of CI gates locally
+
+```bash
+# All tests
+go test ./...
+
+# Just the descriptor contract gates
+go test ./descriptor/ -run 'TestPredictNoExecution|TestDescriptorNoFmtSprintf|TestGoldensNotHandEdited'
+
+# Just the skill coverage gates
+go test ./skills/ -run 'TestSkillsCoverAll|TestSkillsManifestConsistent|TestSkillsFrontmatter'
+
+# Just the hygiene gate (no predecessor references)
+go test . -run TestNoOrbitReferences
+
+# Just the CLAUDE.md enforcement gates
+go test . -run 'TestClaudeMd|TestUpdateDemandTable'
+```
+
+### Golden file regeneration
+
+Golden files live in `descriptor/testdata/`. They are hash-protected: each golden file ends with a `// golden-hash: <sha256>` line. To regenerate after a legitimate change:
+
+```bash
+go test ./descriptor/ -run 'Test.*Golden' -update
+```
+
+This overwrites the golden files and recomputes the SHA-256 hashes. **Never hand-edit golden files** — `TestGoldensNotHandEdited` verifies the hash and will fail if the file was modified outside the test framework.
+
+### Testing with in-memory filesystem
+
+For tests that need filesystem access, use `fs.NewMemMap()` which returns a `Config` backed by `afero.NewMemMapFs()`. This avoids touching disk and makes tests hermetic.
+
+## Common Claude Code Workflows
+
+### Adding a new aggregator
+
+1. Define the aggregation type constant in `types/types.go` (e.g., `AGG_MEDIAN`). Add it to `AllAggregationTypes()`.
+2. Implement the aggregator in `processing/` — write the factory function and register it in `aggregatorRegistry` in `processing/registry.go`.
+3. Write tests in `processing/aggregator_test.go`.
+4. Add a section for the new aggregator in `skills/aggregation-guide.md`.
+5. Run `go test ./skills/ -run TestSkillsCoverAllComponents` to verify the skill mentions the new aggregator.
+6. Update this CLAUDE.md: add the new aggregator to the "Current registered components" list in the Skill Pack Maintenance section.
+7. If the aggregator interacts with categorical fields in a special way, update `descriptor/predict.go`'s `numericAggregations` map.
+
+### Adding a new I/O format
+
+1. Create `io/<format>/` with a reader and writer implementing `io.Reader` and `io.Writer`.
+2. Write tests in `io/<format>/<format>_test.go`.
+3. Wire the format into `ImportJob` and `ExportJob` if needed.
+4. Add or update a skill file (e.g., `skills/export-format-selection.md`) to document when to use the format.
+5. If the format adds a CLI flag, update `skills/getting-started.md` and run `TestSkillsCoverAllCliLeaves`.
+
+### Debugging a predict mismatch
+
+1. Run `pulse predict --json < request.json` against your `.pulse` file.
+2. Check the envelope's `errors` and `warnings` arrays.
+3. Common issues: field name typo (error: `SERVICE_VALIDATION`), numeric aggregation on categorical field (warning: `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`), low-quality description (warning: `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`).
+4. Use `pulse inspect --json <file.pulse>` to see the actual schema fields and types.
+5. Predict reads only the header and schema. If it reports valid but execution fails, the bug is in the processing layer, not predict.
+
+### Regenerating goldens
+
+```bash
+go test ./descriptor/ -run 'Test.*Golden' -update
+```
+
+Then verify: `go test ./descriptor/ -run TestGoldensNotHandEdited`
+
+### Porting workflow checklist
+
+When porting functionality into Pulse:
+
+1. Identify the source behavior and the destination Pulse package.
+2. Write Pulse-native tests first, in the destination package, covering the target behavior (with all identifiers renamed per the Zero-Predecessor-Reference Rule).
+3. Run `go test ./...` and confirm the new tests fail with informative messages. If they pass, the test is wrong — fix the test, do not move on.
+4. Port the implementation file, refactor for Pulse-native idioms.
+5. Run the test suite again. Iterate until green.
+6. Add or update the corresponding skill file(s) per the Update Demand. Run the skill-coverage gates locally.
+7. Update CLAUDE.md if the change touches a contract, env var, format version, or registered surface.
+8. Run the predecessor-reference grep gate and confirm zero matches before opening the PR.
+
+## What NOT to Do
+
+**Do not import `service/` or `processing/` from `descriptor/` commands.** Predict, inspect, and manifest are no-execute operations. They read headers and schemas only. Importing the service or processing package from descriptor breaks the structural ban and will fail `TestPredictNoExecutionImports`.
+
+**Do not hand-edit golden files.** Golden files in `descriptor/testdata/` are hash-protected. Edit the code that produces the output, then regenerate with `go test ./descriptor/ -run 'Test.*Golden' -update`. Hand edits will fail `TestGoldensNotHandEdited`.
+
+**Do not add implementation without tests in the same PR.** Tests come first (TDD). A PR that adds a new aggregator, field type, or I/O format without corresponding tests will not be merged. A PR that adds tests that pass without implementation is suspicious — the test is probably wrong.
+
+**Do not use `fmt.Sprintf` for JSON or XML construction.** All structured output goes through `encoding/json` (or `encoding/xml`). The `descriptor/` package is grep-gated by `TestDescriptorNoFmtSprintf`. Use `descriptor.NewEnvelope(data)` for envelope construction and `json.Marshal` for serialization.
+
+**Do not defer skill or CLAUDE.md updates to follow-up PRs.** The follow-up PR will not happen. The next Claude Code session will read stale guidance and produce wrong code. The Update Demand table above lists every trigger and its enforcing CI gate. If the gate exists, it will catch you. If it does not (reviewer enforcement rows), discipline is required.
+
+**Do not add a component without updating the registry.** Every aggregator must be in `aggregatorRegistry`, every attribute in `attributeRegistry`, every filterer in `filtererRegistry`, every grouper in `grouperRegistry` (all in `processing/registry.go`). The corresponding type constant must be in `types/types.go` and its `All*Types()` function.
+
+**Do not bypass the `afero.Fs` abstraction for file access.** All file I/O in the library goes through the `afero.Fs` interface injected via `fs.Config`. Direct `os.Open` or `os.ReadFile` calls defeat testing with `fs.NewMemMap()` and break the extension hook for custom storage backends.
+
+**Do not put business logic in `cmd/pulse/`.** The CLI binary is a thin adapter. It parses flags, constructs library objects, calls library methods, and formats output. Processing logic, validation logic, and schema logic belong in their respective packages.

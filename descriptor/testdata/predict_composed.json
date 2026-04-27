@@ -1,0 +1,45 @@
+{
+  "format_version": "1.0",
+  "data": {
+    "valid": true,
+    "request": {
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "score",
+          "label": "avg_score"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "grade",
+          "label": "sum_grade"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "grade"
+        }
+      ]
+    },
+    "schema_info": {
+      "field_count": 2,
+      "fields": [
+        "score",
+        "grade"
+      ]
+    }
+  },
+  "errors": [],
+  "warnings": [
+    {
+      "code": "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
+      "message": "numeric aggregation AGG_SUM is not meaningful for categorical field grade",
+      "details": {
+        "aggregation": "AGG_SUM",
+        "field": "grade"
+      }
+    }
+  ]
+}
+// golden-hash: facd33a9a88aedc85f196cd53ae70697599593f8aa725f473ddfd741535a160e

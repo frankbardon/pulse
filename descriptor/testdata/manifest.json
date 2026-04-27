@@ -1,0 +1,133 @@
+{
+  "format_version": "1.0",
+  "data": {
+    "format_version": "1.0",
+    "commands": [
+      {
+        "name": "process",
+        "description": "Execute a processing request against a cohort"
+      },
+      {
+        "name": "compose",
+        "description": "Execute multiple processing requests in batch"
+      },
+      {
+        "name": "sample",
+        "description": "Return sample rows from a cohort"
+      },
+      {
+        "name": "facet",
+        "description": "Return distinct values for a field"
+      },
+      {
+        "name": "inspect",
+        "description": "Inspect a .pulse file header and schema"
+      },
+      {
+        "name": "predict",
+        "description": "Validate a request without executing"
+      },
+      {
+        "name": "manifest",
+        "description": "Output the root manifest"
+      }
+    ],
+    "components": {
+      "aggregators": [
+        "AGG_AVERAGE",
+        "AGG_COUNT",
+        "AGG_FREQUENCY",
+        "AGG_MAX",
+        "AGG_MIN",
+        "AGG_RANGE",
+        "AGG_STDDEV",
+        "AGG_SUM",
+        "AGG_ZSCORE"
+      ],
+      "attributes": [
+        "ATTR_FORMULA",
+        "ATTR_NORMALIZED",
+        "ATTR_PERCENTILE",
+        "ATTR_RANK",
+        "ATTR_TSCORE",
+        "ATTR_ZSCORE"
+      ],
+      "filterers": [
+        "FILTER_EXCLUDE",
+        "FILTER_EXPRESSION",
+        "FILTER_INCLUDE",
+        "FILTER_RANGE"
+      ],
+      "groupers": [
+        "GROUP_CATEGORY",
+        "GROUP_ROUNDED"
+      ]
+    },
+    "cohort_types": [
+      {
+        "name": "u8",
+        "categorical": false
+      },
+      {
+        "name": "u16",
+        "categorical": false
+      },
+      {
+        "name": "u32",
+        "categorical": false
+      },
+      {
+        "name": "u64",
+        "categorical": false
+      },
+      {
+        "name": "f32",
+        "categorical": false
+      },
+      {
+        "name": "f64",
+        "categorical": false
+      },
+      {
+        "name": "nullable_bool",
+        "categorical": false
+      },
+      {
+        "name": "nullable_u4",
+        "categorical": false
+      },
+      {
+        "name": "nullable_u8",
+        "categorical": false
+      },
+      {
+        "name": "nullable_u16",
+        "categorical": false
+      },
+      {
+        "name": "date",
+        "categorical": false
+      },
+      {
+        "name": "packed_bool",
+        "categorical": false
+      },
+      {
+        "name": "categorical_u8",
+        "categorical": true
+      },
+      {
+        "name": "categorical_u16",
+        "categorical": true
+      },
+      {
+        "name": "categorical_u32",
+        "categorical": true
+      }
+    ],
+    "skills": []
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 1ef05ad04c67bc69ed37016d1eea2501ec4cd463bdac95b7b94d6aaf6a183b03
