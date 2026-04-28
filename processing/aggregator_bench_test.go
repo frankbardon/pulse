@@ -50,6 +50,62 @@ func BenchmarkProcessor_ManyAggregationsSameField(b *testing.B) {
 	}
 }
 
+// BenchmarkProcessor_StreamingVsBuffered_OnlineOnly issues only online
+// aggregations so Process takes the streaming path. Memory profile
+// should be O(1) — the iterator is consumed without materializing a
+// full record slice. Compare against the *_ForceBuffered counterpart.
+func BenchmarkProcessor_StreamingVsBuffered_OnlineOnly(b *testing.B) {
+	records, schema := benchRecords(1_000_000)
+	proc := NewProcessor(schema)
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "score", Label: "n"},
+			{Type: types.AGG_SUM, Field: "score", Label: "s"},
+			{Type: types.AGG_AVERAGE, Field: "score", Label: "avg"},
+		},
+	}
+	ctx := context.Background()
+	b.ReportAllocs()
+	for b.Loop() {
+		iter := NewSliceIterator(records)
+		if _, err := proc.Process(ctx, req, iter); err != nil {
+			b.Fatal(err)
+		}
+	}
+	if proc.LastPath() != PathStreaming {
+		b.Fatalf("expected streaming, got %s", proc.LastPath())
+	}
+}
+
+// BenchmarkProcessor_StreamingVsBuffered_ForceBuffered injects a MEDIAN
+// aggregation alongside online ones to force the buffered path. The
+// difference vs. *_OnlineOnly is the cost of materialization plus the
+// extra MEDIAN sort. Subtract a quick MEDIAN-only run to isolate the
+// materialization tax.
+func BenchmarkProcessor_StreamingVsBuffered_ForceBuffered(b *testing.B) {
+	records, schema := benchRecords(1_000_000)
+	proc := NewProcessor(schema)
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "score", Label: "n"},
+			{Type: types.AGG_SUM, Field: "score", Label: "s"},
+			{Type: types.AGG_AVERAGE, Field: "score", Label: "avg"},
+			{Type: types.AGG_MEDIAN, Field: "score", Label: "med"},
+		},
+	}
+	ctx := context.Background()
+	b.ReportAllocs()
+	for b.Loop() {
+		iter := NewSliceIterator(records)
+		if _, err := proc.Process(ctx, req, iter); err != nil {
+			b.Fatal(err)
+		}
+	}
+	if proc.LastPath() != PathBuffered {
+		b.Fatalf("expected buffered, got %s", proc.LastPath())
+	}
+}
+
 // BenchmarkProcessor_ManyAggregationsManyFields issues aggregations over
 // different fields; the cache populates one slice per field but doesn't
 // share work across fields. Validates the pool path.

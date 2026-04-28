@@ -146,7 +146,11 @@ func populationStdDev(vals []float64) float64 {
 
 // --- Count ---
 
-type countAggregator struct{}
+// countAggregator counts non-null values for a field. The streaming path
+// uses the n field; the buffered path ignores it (collectValues + len).
+type countAggregator struct {
+	n int64
+}
 
 func newCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &countAggregator{}, nil
@@ -163,7 +167,12 @@ func (a *countAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Sum ---
 
-type sumAggregator struct{}
+// sumAggregator sums non-null values. The sum field is used by the
+// streaming path; the buffered path computes from a slice and does not
+// rely on it.
+type sumAggregator struct {
+	sum float64
+}
 
 func newSumAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &sumAggregator{}, nil
@@ -184,7 +193,11 @@ func (a *sumAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Average ---
 
-type averageAggregator struct{}
+// averageAggregator tracks running sum and count for streaming mean.
+type averageAggregator struct {
+	sum float64
+	n   int64
+}
 
 func newAverageAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &averageAggregator{}, nil
@@ -201,7 +214,10 @@ func (a *averageAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Min ---
 
-type minAggregator struct{}
+type minAggregator struct {
+	min  float64
+	seen bool
+}
 
 func newMinAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &minAggregator{}, nil
@@ -227,7 +243,10 @@ func (a *minAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Max ---
 
-type maxAggregator struct{}
+type maxAggregator struct {
+	max  float64
+	seen bool
+}
 
 func newMaxAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &maxAggregator{}, nil
@@ -253,7 +272,13 @@ func (a *maxAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- StdDev ---
 
-type stdDevAggregator struct{}
+// stdDevAggregator tracks Welford's running mean and M2 for streaming
+// computation. Buffered path ignores these and uses populationStdDev.
+type stdDevAggregator struct {
+	n    int64
+	mean float64
+	m2   float64
+}
 
 func newStdDevAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &stdDevAggregator{}, nil
@@ -270,7 +295,10 @@ func (a *stdDevAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Range ---
 
-type rangeAggregator struct{}
+type rangeAggregator struct {
+	min, max float64
+	seen     bool
+}
 
 func newRangeAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &rangeAggregator{}, nil
@@ -299,7 +327,9 @@ func (a *rangeAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Frequency ---
 
-type frequencyAggregator struct{}
+type frequencyAggregator struct {
+	counts map[float64]int
+}
 
 func newFrequencyAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &frequencyAggregator{}, nil
@@ -387,7 +417,13 @@ func (a *medianAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Variance ---
 
-type varianceAggregator struct{}
+// varianceAggregator uses Welford's online recurrence in the streaming
+// path. Buffered path uses populationVariance and does not read these.
+type varianceAggregator struct {
+	n    int64
+	mean float64
+	m2   float64
+}
 
 func newVarianceAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &varianceAggregator{}, nil
@@ -404,7 +440,9 @@ func (a *varianceAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Mode ---
 
-type modeAggregator struct{}
+type modeAggregator struct {
+	counts map[float64]int
+}
 
 func newModeAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &modeAggregator{}, nil
@@ -445,7 +483,14 @@ func (a *modeAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Skewness ---
 
-type skewnessAggregator struct{}
+// skewnessAggregator uses the Welford-Pébaÿ recurrence through M3 for
+// online streaming. Buffered path is independent.
+type skewnessAggregator struct {
+	n    int64
+	mean float64
+	m2   float64
+	m3   float64
+}
 
 func newSkewnessAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &skewnessAggregator{}, nil
@@ -475,7 +520,14 @@ func (a *skewnessAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Kurtosis ---
 
-type kurtosisAggregator struct{}
+// kurtosisAggregator uses the Welford-Pébaÿ recurrence through M4.
+type kurtosisAggregator struct {
+	n    int64
+	mean float64
+	m2   float64
+	m3   float64
+	m4   float64
+}
 
 func newKurtosisAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &kurtosisAggregator{}, nil
@@ -505,7 +557,9 @@ func (a *kurtosisAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Distinct Count ---
 
-type distinctCountAggregator struct{}
+type distinctCountAggregator struct {
+	set map[float64]struct{}
+}
 
 func newDistinctCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &distinctCountAggregator{}, nil

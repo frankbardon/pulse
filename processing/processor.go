@@ -9,11 +9,46 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+// ProcessPath identifies which execution path Process took. The
+// streaming path runs aggregations in a single pass over the iterator
+// without materializing the full record set. The buffered path
+// collects every record into a slice first. This is exposed primarily
+// for tests and benchmarks; production callers do not need it.
+type ProcessPath int
+
+const (
+	// PathUnknown is the zero value; set before the first Process call.
+	PathUnknown ProcessPath = iota
+	// PathBuffered is the legacy materialize-then-aggregate path. It is
+	// always correct and is the fallback whenever streaming would be
+	// unsafe (groups, attributes, non-online aggregators, expression
+	// filters that need the full set, etc.).
+	PathBuffered
+	// PathStreaming runs aggregations in a single pass over the iterator,
+	// folding each record into the running state of every aggregator.
+	// Selected only when every aggregation is an OnlineAggregator and
+	// the request has no groups, no attributes, and only row-level
+	// filters.
+	PathStreaming
+)
+
+func (p ProcessPath) String() string {
+	switch p {
+	case PathBuffered:
+		return "buffered"
+	case PathStreaming:
+		return "streaming"
+	default:
+		return "unknown"
+	}
+}
+
 // Processor is the single dynamic processing engine for Pulse.
 // It handles filtering, attribute computation, grouping, and aggregation
 // over record iterators backed by .pulse encoded data.
 type Processor struct {
-	schema *encoding.Schema
+	schema   *encoding.Schema
+	lastPath ProcessPath
 }
 
 // NewProcessor creates a new Processor for the given schema.
@@ -21,15 +56,194 @@ func NewProcessor(schema *encoding.Schema) *Processor {
 	return &Processor{schema: schema}
 }
 
+// LastPath returns the ProcessPath taken by the most recent Process call
+// on this processor instance. Returns PathUnknown before any call. Used
+// by tests to verify that the orchestrator selected the streaming path
+// for online-only requests; not part of the stable API contract.
+func (p *Processor) LastPath() ProcessPath {
+	return p.lastPath
+}
+
 // Process executes a single request against the record iterator.
+//
+// Selects between two execution strategies:
+//
+//  1. Streaming: when every aggregation supports OnlineAggregator and
+//     the request has no groups, no attributes, the iterator is consumed
+//     in one pass. Filters are applied per row before each aggregator
+//     folds the row into its running state. Memory is O(distinct values)
+//     for FREQUENCY/MODE/DISTINCT_COUNT and O(1) for everything else.
+//
+//  2. Buffered: the legacy path. Every record is collected into a slice
+//     first, then filters, attributes, grouping, and aggregations run
+//     over the materialized set. Memory is O(rows). Always correct.
+//
+// Output is identical between paths to float64 precision on
+// well-conditioned inputs (variance/stddev/skewness/kurtosis use
+// Welford-Pébaÿ recurrences in the streaming path).
 func (p *Processor) Process(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
-	// Collect all records from iterator
+	if p.canStream(req) {
+		resp, err := p.processStreaming(ctx, req, iter)
+		if err != nil {
+			return nil, err
+		}
+		p.lastPath = PathStreaming
+		return resp, nil
+	}
+
+	// Buffered path: collect every record then dispatch.
 	var allRecords []*Record
 	for iter.Next() {
 		allRecords = append(allRecords, iter.Record())
 	}
+	resp, err := p.processRecords(ctx, req, allRecords)
+	if err != nil {
+		return nil, err
+	}
+	p.lastPath = PathBuffered
+	return resp, nil
+}
 
-	return p.processRecords(ctx, req, allRecords)
+// canStream reports whether the request can be safely executed via the
+// streaming path. Streaming requires:
+//   - no grouping (groups need the full record set partitioned by key)
+//   - no attributes (ZSCORE/PERCENTILE/RANK/NORMALIZED need a first
+//     pass to compute population stats; FORMULA is row-local but is
+//     bundled in for simplicity — every attribute today is buffered)
+//   - every aggregation type supports OnlineAggregator
+//   - filters are row-level only (every registered filter today is)
+//
+// Returns false on any unknown component type so the buffered path can
+// surface the canonical error message.
+func (p *Processor) canStream(req *types.Request) bool {
+	if len(req.Groups) > 0 || len(req.Attributes) > 0 {
+		return false
+	}
+	if len(req.Aggregations) == 0 {
+		// No aggregations: buffered path produces the same empty data
+		// payload and exposes the same error surface (e.g., when a
+		// downstream component validates against the materialized set).
+		return false
+	}
+	for _, agg := range req.Aggregations {
+		factory, ok := aggregatorRegistry[agg.Type]
+		if !ok {
+			return false
+		}
+		instance, err := factory(agg, p.schema)
+		if err != nil {
+			return false
+		}
+		if _, ok := instance.(OnlineAggregator); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// processStreaming runs the streaming execution path. The iterator is
+// consumed exactly once. Filters are applied row-by-row before each
+// aggregator's UpdateRow is called.
+func (p *Processor) processStreaming(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	// Build filter functions once.
+	filterFns, err := p.buildFilterFuncs(req.Filterers)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build aggregator instances and their online interfaces. Each
+	// factory call produces a fresh, zero-state instance; safe to use
+	// directly as a streaming accumulator.
+	type onlineEntry struct {
+		agg    *types.Aggregation
+		online OnlineAggregator
+	}
+	entries := make([]onlineEntry, len(req.Aggregations))
+	for i, agg := range req.Aggregations {
+		factory := aggregatorRegistry[agg.Type] // canStream verified existence
+		instance, err := factory(agg, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		online, ok := instance.(OnlineAggregator)
+		if !ok {
+			// canStream verified online support; defensive.
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("aggregator %s does not implement OnlineAggregator", agg.Type))
+		}
+		entries[i] = onlineEntry{agg: agg, online: online}
+	}
+
+	var totalRows, filteredRows int64
+	for iter.Next() {
+		totalRows++
+		r := iter.Record()
+		pass := true
+		for _, fn := range filterFns {
+			ok, err := fn(r)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				pass = false
+				break
+			}
+		}
+		if !pass {
+			continue
+		}
+		filteredRows++
+		for _, e := range entries {
+			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	row := make(map[string]any, len(entries))
+	for _, e := range entries {
+		val, err := e.online.Finalize()
+		if err != nil {
+			return nil, err
+		}
+		label := e.agg.Label
+		if label == "" {
+			label = fmt.Sprintf("%s_%s", e.agg.Type, e.agg.Field)
+		}
+		row[label] = val
+	}
+
+	_ = ctx
+	return &types.Response{
+		Data: []map[string]any{row},
+		Metadata: &types.ResponseMetadata{
+			TotalRows:    totalRows,
+			FilteredRows: filteredRows,
+		},
+	}, nil
+}
+
+// buildFilterFuncs constructs FilterFuncs from filter specifications.
+// Shared between streaming and buffered paths to keep error semantics
+// identical.
+func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc, error) {
+	if len(filterers) == 0 {
+		return nil, nil
+	}
+	out := make([]FilterFunc, 0, len(filterers))
+	for _, f := range filterers {
+		factory, ok := filtererRegistry[f.Type]
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("unknown filter type: %s", f.Type))
+		}
+		fn, err := factory().Build(f, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, fn)
+	}
+	return out, nil
 }
 
 // ProcessComposed executes multiple requests against a shared record set.
@@ -92,20 +306,9 @@ func (p *Processor) applyFilters(filterers []*types.Filterer, records []*Record)
 		return records, nil
 	}
 
-	// Build all filter functions
-	var filterFns []FilterFunc
-	for _, f := range filterers {
-		factory, ok := filtererRegistry[f.Type]
-		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("unknown filter type: %s", f.Type))
-		}
-		builder := factory()
-		fn, err := builder.Build(f, p.schema)
-		if err != nil {
-			return nil, err
-		}
-		filterFns = append(filterFns, fn)
+	filterFns, err := p.buildFilterFuncs(filterers)
+	if err != nil {
+		return nil, err
 	}
 
 	// Apply all filters (AND logic)
