@@ -11,6 +11,10 @@ applies_to: process, compose, predict
 
 Every error in Pulse carries a typed error code that identifies the category and domain of the failure. This reference lists every error code with its description and recovery steps.
 
+## Shared *_INTERNAL note
+
+All `*_INTERNAL` codes (`ENCODING_INTERNAL`, `PROCESSING_INTERNAL`, `SERVICE_INTERNAL`, `DATA_INTERNAL`, `CLI_INTERNAL`) indicate Pulse bugs. File an issue with the reproducer and the JSON envelope.
+
 ## ENCODING Domain
 
 Errors from the binary format and data encoding layer.
@@ -59,13 +63,7 @@ Errors from the binary format and data encoding layer.
 
 ### ENCODING_INTERNAL
 
-**Description**: Unexpected internal error in the encoding layer.
-
-**Causes**:
-- Bug in the encoder/decoder implementation
-
-**Recovery**:
-- This is a bug. Report it with the full error message and the `.pulse` file if possible.
+Unexpected failure in the encoder/decoder. Recovery: see shared *_INTERNAL note above.
 
 ## PROCESSING Domain
 
@@ -124,13 +122,7 @@ Errors from the processing engine and pipeline.
 
 ### PROCESSING_INTERNAL
 
-**Description**: Unexpected internal error in the processing layer.
-
-**Causes**:
-- Bug in the processing pipeline implementation
-
-**Recovery**:
-- This is a bug. Report it with the request JSON and cohort metadata.
+Unexpected failure in the processing pipeline. Recovery: see shared *_INTERNAL note above.
 
 ## SERVICE Domain
 
@@ -179,13 +171,7 @@ Errors from the HTTP/API layer and service operations.
 
 ### SERVICE_INTERNAL
 
-**Description**: Unexpected internal error in the service layer.
-
-**Causes**:
-- Bug in the service layer implementation
-
-**Recovery**:
-- This is a bug. Report it with the full error message and request.
+Unexpected failure in the service/orchestration layer. Recovery: see shared *_INTERNAL note above.
 
 ## DATA Domain
 
@@ -248,13 +234,7 @@ Errors from data file and dataset management operations.
 
 ### DATA_INTERNAL
 
-**Description**: Unexpected internal error in the data layer.
-
-**Causes**:
-- Bug in the data layer implementation
-
-**Recovery**:
-- This is a bug. Report it with the input file metadata and operation details.
+Unexpected failure in the data file/dataset layer. Recovery: see shared *_INTERNAL note above.
 
 ## CLI Domain
 
@@ -299,13 +279,7 @@ Errors from command-line interface operations.
 
 ### CLI_INTERNAL
 
-**Description**: Unexpected internal error in the CLI layer.
-
-**Causes**:
-- Bug in the CLI layer implementation
-
-**Recovery**:
-- This is a bug. Report it with the full command line and error output.
+Unexpected failure in the CLI adapter layer. Recovery: see shared *_INTERNAL note above.
 
 ## PULSE Domain
 
@@ -386,14 +360,14 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 
 ### PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL
 
-**Description**: A numeric aggregation (SUM, AVERAGE, MIN, MAX, STDDEV, RANGE, ZSCORE) was requested on a categorical field. The operation will execute on the dictionary indices, but the result has no semantic meaning.
+**Description**: A numeric aggregation (SUM, AVERAGE, MIN, MAX, RANGE, MEDIAN, PERCENTILE, STDDEV, VARIANCE, SKEWNESS, KURTOSIS, ZSCORE) was requested on a categorical field. The operation will execute on dictionary indices, but the result has no semantic meaning.
 
 **Causes**:
-- Applying AGG_SUM, AGG_AVERAGE, etc. to a categorical field
+- Applying any of AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_MEDIAN, AGG_PERCENTILE, AGG_STDDEV, AGG_VARIANCE, AGG_SKEWNESS, AGG_KURTOSIS, or AGG_ZSCORE to a categorical field.
 
 **Recovery**:
-- Use AGG_COUNT or AGG_FREQUENCY for categorical fields.
-- If you need numeric analysis, use a non-categorical field.
+- Use AGG_COUNT, AGG_DISTINCT_COUNT, AGG_FREQUENCY, or AGG_MODE for categorical fields.
+- If you need any of SUM, AVERAGE, MIN, MAX, RANGE, MEDIAN, PERCENTILE, STDDEV, VARIANCE, SKEWNESS, KURTOSIS, or ZSCORE, use a non-categorical numeric field.
 
 ### PULSE_FIELD_DESCRIPTION_LOW_QUALITY
 
