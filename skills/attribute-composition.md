@@ -1,6 +1,6 @@
 ---
 name: attribute-composition
-description: z-score, t-score, normalized, formula — composition rules
+description: z-score, t-score, normalized, formula, date-part — composition rules
 type: guide
 applies_to: process, compose, predict
 ---
@@ -71,6 +71,22 @@ Computes the ordinal rank of each record's value within the field.
 - **Null handling**: Null values receive null rank.
 - **Categorical**: Not applicable.
 - **Use when**: You need ordered ranking for leaderboards or stratification.
+
+### ATTR_DATE_PART
+
+Extracts a date component from a date field and converts it to an integer value suitable for grouping.
+
+- **Params**: `{"part": "<part>"}` where part is one of: `year`, `month`, `day`, `year_month`, `year_month_day`, `month_day`.
+- **Output formats**:
+  - `year` → YYYY (e.g., 2024)
+  - `month` → M (e.g., 3 for March, no zero-padding)
+  - `day` → D (e.g., 15, no zero-padding)
+  - `year_month` → YYYYM[M] (e.g., 202403)
+  - `year_month_day` → YYYYM[M]DD (e.g., 20240315)
+  - `month_day` → M[M]DD (e.g., 315 for March 15, 1201 for December 1)
+- **Input**: Must be a `date` field. Errors on non-date fields with `PROCESSING_CONFIG`.
+- **Null handling**: Null date values produce 0.
+- **Use when**: You need to group or aggregate records by date components (e.g., group by year-month to see monthly trends).
 
 ## Composition Rules
 

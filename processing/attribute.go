@@ -1,8 +1,10 @@
 package processing
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/expr-lang/expr"
 	"github.com/frankbardon/pulse/encoding"
@@ -250,6 +252,88 @@ func (a *rankAttribute) Compute(records []*Record, field string) ([]float64, err
 	result := make([]float64, len(records))
 	for rank, iv := range indexed {
 		result[iv.idx] = float64(rank + 1)
+	}
+	return result, nil
+}
+
+// --- DatePart Attribute ---
+
+// datePartParams holds the configuration for ATTR_DATE_PART.
+type datePartParams struct {
+	Part string `json:"part"`
+}
+
+var validDateParts = map[string]bool{
+	"year":           true,
+	"month":          true,
+	"day":            true,
+	"year_month":     true,
+	"year_month_day": true,
+	"month_day":      true,
+}
+
+type datePartAttribute struct {
+	part string
+}
+
+func newDatePartAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
+	if len(attr.Params) == 0 {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "date_part attribute requires params with a \"part\" field")
+	}
+
+	var params datePartParams
+	if err := json.Unmarshal(attr.Params, &params); err != nil {
+		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "parsing date_part params")
+	}
+
+	if params.Part == "" {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "date_part attribute requires a \"part\" field in params")
+	}
+
+	if !validDateParts[params.Part] {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("invalid date part %q: must be one of year, month, day, year_month, year_month_day, month_day", params.Part))
+	}
+
+	f := schema.Field(attr.Field)
+	if f == nil || f.Type != encoding.FieldTypeDate {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("date_part attribute requires a date field, got %q", attr.Field))
+	}
+
+	return &datePartAttribute{part: params.Part}, nil
+}
+
+func (a *datePartAttribute) Compute(records []*Record, field string) ([]float64, error) {
+	if len(records) == 0 {
+		return []float64{}, nil
+	}
+
+	result := make([]float64, len(records))
+	for i, r := range records {
+		v, ok := r.NumericValue(field)
+		if !ok {
+			result[i] = 0
+			continue
+		}
+
+		t := time.Unix(int64(v)*86400, 0).UTC()
+		year, month, day := t.Date()
+
+		switch a.part {
+		case "year":
+			result[i] = float64(year)
+		case "month":
+			result[i] = float64(month)
+		case "day":
+			result[i] = float64(day)
+		case "year_month":
+			result[i] = float64(year*100 + int(month))
+		case "year_month_day":
+			result[i] = float64(year*10000 + int(month)*100 + day)
+		case "month_day":
+			result[i] = float64(int(month)*100 + day)
+		}
 	}
 	return result, nil
 }
