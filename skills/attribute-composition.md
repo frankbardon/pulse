@@ -7,10 +7,11 @@ applies_to: process, compose, predict
 
 # Attribute Composition
 
-## Overview
+<skill_overview>
+Attributes are derived values computed per-record from existing fields, extending output with calculated columns without modifying underlying cohort data. Invoke this skill when adding z-scores, normalized values, formulas, percentile ranks, or date-part extractions to a request.
+</skill_overview>
 
-Attributes are derived values computed per-record from existing fields. They extend the output with calculated columns without modifying the underlying cohort data.
-
+<reference>
 ## Attribute Types
 
 ### ATTR_ZSCORE
@@ -48,29 +49,11 @@ Normalizes each value to a 0..1 range using min-max normalization.
 Computes a derived value using a runtime expression (evaluated by `expr-lang/expr` v1.17.x) that can reference any field in the record.
 
 - **Config**: `type: "ATTR_FORMULA"`, `field` (the source field used by predict for null-propagation bookkeeping), `label` (output column name), and `expression` (the expression string). There is no `result_type` field.
-- **Allowed operators**:
-  - Arithmetic: `+`, `-`, `*`, `/`, `%`, `**` (or `^`) for exponentiation, unary `-` and `+`.
-  - Comparison: `==`, `!=`, `<`, `<=`, `>`, `>=`.
-  - Logical: `and` / `&&`, `or` / `||`, `not` / `!`.
-  - Membership / pattern: `in`, `contains`, `startsWith`, `endsWith`, `matches`.
-  - Range / nil-coalescing / pipe: `..`, `??`, `|`.
-  - Grouping: parentheses `( ... )`.
-  - Ternary: `cond ? a : b`.
-- **Allowed functions** (verified against expr-lang v1.17.8 builtins): `abs`, `ceil`, `floor`, `round`, `int`, `float`, `string`, `len`, `type`, `min`, `max`, `sum`, `mean`, `median`, `first`, `last`, `get`, `take`, `keys`, `values`, `concat`, `flatten`, `reverse`, `sort`, `sortBy`, `uniq`, `join`, `split`, `splitAfter`, `replace`, `repeat`, `indexOf`, `lastIndexOf`, `hasPrefix`, `hasSuffix`, `trim`, `trimPrefix`, `trimSuffix`, `lower`, `upper`, `toJSON`, `fromJSON`, `toBase64`, `fromBase64`, `toPairs`, `fromPairs`, `groupBy`, `count`, `find`, `findIndex`, `findLast`, `findLastIndex`, `filter`, `map`, `reduce`, `all`, `any`, `none`, `one`, `bitnot`, `now`, `date`, `duration`, `timezone`. **Common gap**: there is no `sqrt`, `log`, `exp`, `pow`, `sin`, or `cos` builtin — use `**` for powers (e.g., `value ** 0.5` for square root) or precompute trigonometric values upstream.
 - **Field references**: by bare field name. Numeric fields (u8/u16/u32/u64/f32/f64/date/nullable_*/packed_bool) appear as numbers. Categorical fields (`categorical_u8`/`u16`/`u32`) are auto-resolved to their **dictionary string** before evaluation, so use string equality (`brand == "Apple"`) or membership (`brand in ["Apple", "Samsung"]`), not the integer index.
 - **Null handling**: Null fields are omitted from the expression environment; referencing one yields an evaluation error and the row fails (`PROCESSING_RUNTIME`). Use `??` to provide a fallback (e.g., `weight ?? 0`).
 - **Output**: The result is coerced to a number. `float64`, `float32`, `int`, and `int64` pass through; `bool` becomes `1.0`/`0.0`; any other type errors with `PROCESSING_RUNTIME`.
 - **Composition**: Formulas can only reference original fields, not other computed attributes (see Composition Rules).
 - **Use when**: You need a custom derived field like BMI or a categorical flag.
-
-```json
-{
-  "type": "ATTR_FORMULA",
-  "field": "weight_kg",
-  "label": "bmi",
-  "expression": "weight_kg / (height_m * height_m)"
-}
-```
 
 ### ATTR_PERCENTILE
 
@@ -106,7 +89,36 @@ Extracts a date component from a date field and converts it to an integer value 
 - **Input**: Must be a `date` field. Errors on non-date fields with `PROCESSING_CONFIG`.
 - **Null handling**: Null date values produce 0.
 - **Use when**: You need to group or aggregate records by date components (e.g., group by year-month to see monthly trends).
+</reference>
 
+<reference>
+## ATTR_FORMULA operator and function allowlist
+
+- **Allowed operators**:
+  - Arithmetic: `+`, `-`, `*`, `/`, `%`, `**` (or `^`) for exponentiation, unary `-` and `+`.
+  - Comparison: `==`, `!=`, `<`, `<=`, `>`, `>=`.
+  - Logical: `and` / `&&`, `or` / `||`, `not` / `!`.
+  - Membership / pattern: `in`, `contains`, `startsWith`, `endsWith`, `matches`.
+  - Range / nil-coalescing / pipe: `..`, `??`, `|`.
+  - Grouping: parentheses `( ... )`.
+  - Ternary: `cond ? a : b`.
+- **Allowed functions** (verified against expr-lang v1.17.8 builtins): `abs`, `ceil`, `floor`, `round`, `int`, `float`, `string`, `len`, `type`, `min`, `max`, `sum`, `mean`, `median`, `first`, `last`, `get`, `take`, `keys`, `values`, `concat`, `flatten`, `reverse`, `sort`, `sortBy`, `uniq`, `join`, `split`, `splitAfter`, `replace`, `repeat`, `indexOf`, `lastIndexOf`, `hasPrefix`, `hasSuffix`, `trim`, `trimPrefix`, `trimSuffix`, `lower`, `upper`, `toJSON`, `fromJSON`, `toBase64`, `fromBase64`, `toPairs`, `fromPairs`, `groupBy`, `count`, `find`, `findIndex`, `findLast`, `findLastIndex`, `filter`, `map`, `reduce`, `all`, `any`, `none`, `one`, `bitnot`, `now`, `date`, `duration`, `timezone`. **Common gap**: there is no `sqrt`, `log`, `exp`, `pow`, `sin`, or `cos` builtin — use `**` for powers (e.g., `value ** 0.5` for square root) or precompute trigonometric values upstream.
+</reference>
+
+<example name="attr-formula-bmi">
+BMI computation from weight and height fields.
+
+```json
+{
+  "type": "ATTR_FORMULA",
+  "field": "weight_kg",
+  "label": "bmi",
+  "expression": "weight_kg / (height_m * height_m)"
+}
+```
+</example>
+
+<rule severity="must" topic="composition">
 ## Composition Rules
 
 1. **Attributes are computed after aggregation and grouping.** They operate on the final record set.
@@ -114,13 +126,18 @@ Extracts a date component from a date field and converts it to an integer value 
 3. **Attributes cannot reference other attributes.** There is no chaining; each attribute reads from the original data.
 4. **Labels must be unique.** Each attribute must have a distinct label in the output.
 5. **Formula expressions** are evaluated in a sandboxed environment with access only to field values from the current record.
+</rule>
 
+<reference>
 ## Categorical String Access
 
 When a formula references a categorical field, the expression environment provides the string label (not the integer index). This allows expressions like:
 
+<example name="attr-formula-categorical-flag">
 ```
 if(category == "Group A", 1, 0)
 ```
+</example>
 
 The dictionary lookup is performed automatically before expression evaluation. Arithmetic on categorical fields in formulas is not supported; use string comparisons (`==`, `!=`, `in`) or branch on the label and emit a numeric result.
+</reference>
