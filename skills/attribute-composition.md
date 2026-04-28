@@ -123,4 +123,4 @@ When a formula references a categorical field, the expression environment provid
 if(category == "Group A", 1, 0)
 ```
 
-The dictionary lookup is performed automatically before expression evaluation.
+The dictionary lookup is performed automatically before expression evaluation. Arithmetic on categorical fields in formulas is not supported; use string comparisons (`==`, `!=`, `in`) or branch on the label and emit a numeric result.
