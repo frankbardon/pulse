@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
@@ -179,9 +180,52 @@ func (w *Writer) WriteHeader(columns []string) error {
 func (w *Writer) WriteRow(values []any) error {
 	record := make([]string, len(values))
 	for i, v := range values {
-		record[i] = fmt.Sprintf("%v", v)
+		record[i] = formatCell(v)
 	}
 	return w.cw.Write(record)
+}
+
+// formatCell converts a cell value to its string representation without the
+// reflection cost of fmt.Sprintf("%v", v). Float formatting uses 'g' to match
+// the previous fmt verb output. Unknown types fall back to fmt.Sprint to
+// preserve correctness for callers passing custom types.
+func formatCell(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return x
+	case bool:
+		return strconv.FormatBool(x)
+	case int:
+		return strconv.FormatInt(int64(x), 10)
+	case int8:
+		return strconv.FormatInt(int64(x), 10)
+	case int16:
+		return strconv.FormatInt(int64(x), 10)
+	case int32:
+		return strconv.FormatInt(int64(x), 10)
+	case int64:
+		return strconv.FormatInt(x, 10)
+	case uint:
+		return strconv.FormatUint(uint64(x), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(x), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(x), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(x), 10)
+	case uint64:
+		return strconv.FormatUint(x, 10)
+	case float32:
+		return strconv.FormatFloat(float64(x), 'g', -1, 32)
+	case float64:
+		return strconv.FormatFloat(x, 'g', -1, 64)
+	case []byte:
+		return string(x)
+	default:
+		return fmt.Sprint(x)
+	}
 }
 
 // Close flushes and writes to the target path if configured.
