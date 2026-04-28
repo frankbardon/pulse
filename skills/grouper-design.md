@@ -7,13 +7,12 @@ applies_to: process, compose, predict
 
 # Grouper Design
 
-## Overview
+<skill_overview>
+Groupers partition records into groups before aggregation; each group is aggregated independently and the output rows include a key column identifying the partition. Invoke this skill when choosing a grouper type, configuring its params, or reasoning about how group keys appear in output.
+</skill_overview>
 
-Groupers partition records into groups before aggregation. Each group is aggregated independently, and the output rows include a key column identifying which partition each row belongs to.
-
-## Group Types
-
-### GROUP_CATEGORY
+<reference>
+## GROUP_CATEGORY
 
 Groups records by the distinct values of a field. Each unique value becomes a separate group.
 
@@ -22,8 +21,25 @@ Groups records by the distinct values of a field. Each unique value becomes a se
 - **Null handling**: Records with null values are skipped (not grouped).
 - **Use when**: You want to segment results by category (e.g., by department, by diagnosis code, by treatment group).
 - **Config**: No extra params; only `field` is required.
+</reference>
 
-### GROUP_RANGE
+<example name="group-category">
+Group records by department.
+
+```json
+{
+  "groups": [
+    {"type": "GROUP_CATEGORY", "field": "department"}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id"}
+  ]
+}
+```
+</example>
+
+<reference>
+## GROUP_RANGE
 
 Groups records into fixed-width numeric bins with human-readable range keys. Each key shows the bin boundaries as `"low-high"`, where the bin is `[low, high)` (inclusive lower bound, exclusive upper bound).
 
@@ -34,8 +50,25 @@ Groups records into fixed-width numeric bins with human-readable range keys. Eac
 - **Bin boundaries**: Half-open `[low, high)`. A value of exactly 10 with interval 10 falls into the `"10-20"` bin, not `"0-10"`.
 - **Null handling**: Records with null values are skipped (not grouped).
 - **vs GROUP_ROUNDED**: GROUP_ROUNDED keys are a single number (the bin's lower bound). GROUP_RANGE keys are a `"low-high"` string. Same binning formula, different key formatting.
+</reference>
 
-### GROUP_DATE
+<example name="group-range">
+Bin ages into 10-year ranges.
+
+```json
+{
+  "groups": [
+    {"type": "GROUP_RANGE", "field": "age", "interval": 10}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id"}
+  ]
+}
+```
+</example>
+
+<reference>
+## GROUP_DATE
 
 Groups records by a date component extracted from a `date` type field. The field value is interpreted as epoch days since Unix epoch (1970-01-01) and converted to a UTC timestamp for component extraction.
 
@@ -50,8 +83,25 @@ Groups records by a date component extracted from a `date` type field. The field
   - `day_of_week` → `"Monday"`
 - **Null handling**: Records with null values are skipped (not grouped).
 - **Use when**: You want to segment time-series data by calendar periods (e.g., monthly enrollment counts, quarterly revenue, day-of-week patterns).
+</reference>
 
-### GROUP_QUANTILE
+<example name="group-date">
+Group enrollments by month.
+
+```json
+{
+  "groups": [
+    {"type": "GROUP_DATE", "field": "enrolled_on", "params": {"component": "month"}}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id"}
+  ]
+}
+```
+</example>
+
+<reference>
+## GROUP_QUANTILE
 
 Groups records into equal-sized quantile buckets based on rank position within a numeric field. Records are sorted by value and divided into N buckets of approximately equal size.
 
@@ -66,8 +116,25 @@ Groups records into equal-sized quantile buckets based on rank position within a
 - **Null handling**: Records with null values are skipped (not grouped).
 - **Uneven distribution**: When the record count is not evenly divisible by the bucket count, some buckets will have one more record than others.
 - **Use when**: You want to partition records by relative position in the distribution (e.g., top quartile vs bottom quartile, decile analysis).
+</reference>
 
-### GROUP_ROUNDED
+<example name="group-quantile">
+Partition records into income quartiles.
+
+```json
+{
+  "groups": [
+    {"type": "GROUP_QUANTILE", "field": "income", "interval": 4}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id"}
+  ]
+}
+```
+</example>
+
+<reference>
+## GROUP_ROUNDED
 
 Groups records by rounding a numeric field down to a specified interval. The group key is the rounded value as a string.
 
@@ -77,22 +144,29 @@ Groups records by rounding a numeric field down to a specified interval. The gro
 - **Key format**: Integer string when the rounded value is integer-valued, otherwise minimal float string.
 - **Null handling**: Records with null values are skipped (not grouped).
 - **Use when**: You want to bucket continuous values into ranges (e.g., age groups by decade, score bands).
+</reference>
 
-## Nesting
-
-The current processor honors a single grouper per request: only the first entry of the `groups` array is used. To compute multi-level breakdowns, run separate `process` requests (one per grouping level) or compose them via `compose`.
+<example name="group-rounded">
+Bucket scores into bands of 10.
 
 ```json
 {
   "groups": [
-    {"type": "GROUP_CATEGORY", "field": "department"}
+    {"type": "GROUP_ROUNDED", "field": "score", "interval": 10}
   ],
   "aggregations": [
     {"type": "AGG_COUNT", "field": "id"}
   ]
 }
 ```
+</example>
 
+<rule severity="must" topic="single-grouper-only">
+The current processor honors a single grouper per request: only `req.Groups[0]` is used. Additional entries in the `groups` array are ignored. To compute multi-level breakdowns, run separate `process` requests (one per grouping level) or compose them via `compose`.
+</rule>
+
+<reference>
 ## Output Key Resolution
 
 Each output row contains the aggregation values plus one extra key whose name is the grouper's `field` and whose value is the group key string (e.g., `"department": "Engineering"`). Reserve aggregation `label`s that do not collide with the group field name.
+</reference>
