@@ -200,6 +200,12 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 		return nil, nil
 	}
 
+	// Cache collected non-null float64 slices per field for the duration of
+	// this call so multiple aggregations on the same field don't each scan
+	// the record set. The cache owns pooled buffers; release returns them.
+	cache := newCollectCache()
+	defer cache.release()
+
 	row := make(map[string]any)
 	for _, agg := range aggs {
 		factory, ok := aggregatorRegistry[agg.Type]
@@ -211,7 +217,13 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 		if err != nil {
 			return nil, err
 		}
-		val, err := aggregator.Aggregate(records, agg.Field)
+		var val float64
+		if va, ok := aggregator.(valueAggregator); ok {
+			vals := cache.get(records, agg.Field)
+			val, err = va.aggregateValues(vals)
+		} else {
+			val, err = aggregator.Aggregate(records, agg.Field)
+		}
 		if err != nil {
 			return nil, err
 		}

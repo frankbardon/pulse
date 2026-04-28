@@ -4,11 +4,103 @@ import (
 	"encoding/json"
 	"math"
 	"sort"
+	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
+
+// float64BufPool reuses []float64 working buffers across aggregations.
+// Buffers obtained from getFloat64Buf must be returned via putFloat64Buf
+// after use. Returned buffers have length 0; capacity is preserved.
+var float64BufPool = sync.Pool{
+	New: func() any {
+		// Pool stores *[]float64 to avoid allocating a slice header on each Put.
+		s := make([]float64, 0, 64)
+		return &s
+	},
+}
+
+// acquireFloat64Buf retrieves a buffer pointer from the pool with at least
+// the requested capacity. The slice's length is 0. The returned pointer must
+// be returned via releaseFloat64Buf.
+func acquireFloat64Buf(minCap int) *[]float64 {
+	bp := float64BufPool.Get().(*[]float64)
+	buf := (*bp)[:0]
+	if cap(buf) < minCap {
+		buf = make([]float64, 0, minCap)
+	}
+	*bp = buf
+	return bp
+}
+
+// releaseFloat64Buf returns a buffer pointer to the pool. The buffer's
+// underlying capacity is preserved; the length is reset to 0.
+func releaseFloat64Buf(bp *[]float64) {
+	if bp == nil {
+		return
+	}
+	*bp = (*bp)[:0]
+	float64BufPool.Put(bp)
+}
+
+// collectCache memoizes collected non-null float64 values per field for the
+// duration of a single Process call. The cache owns the underlying buffer
+// pointers; release() returns them all to the pool. Slices handed out by
+// get() are read-only — aggregators that mutate (sort, partition) must copy
+// the slice before mutating.
+type collectCache struct {
+	bufs map[string]*[]float64
+}
+
+func newCollectCache() *collectCache {
+	return &collectCache{bufs: make(map[string]*[]float64)}
+}
+
+// get returns the cached non-null float64 slice for field, populating the
+// cache on first access. The returned slice must NOT be mutated by the
+// caller; sort-dependent aggregators must copy first.
+func (c *collectCache) get(records []*Record, field string) []float64 {
+	if c == nil {
+		return collectValues(records, field)
+	}
+	if bp, ok := c.bufs[field]; ok {
+		return *bp
+	}
+	bp := acquireFloat64Buf(len(records))
+	buf := *bp
+	for _, r := range records {
+		if v, ok := r.NumericValue(field); ok {
+			buf = append(buf, v)
+		}
+	}
+	*bp = buf
+	c.bufs[field] = bp
+	return buf
+}
+
+// release returns every buffer held by the cache to the pool.
+func (c *collectCache) release() {
+	if c == nil {
+		return
+	}
+	for k, bp := range c.bufs {
+		releaseFloat64Buf(bp)
+		delete(c.bufs, k)
+	}
+}
+
+// valueAggregator is the unexported sibling of Aggregator that operates on a
+// pre-collected []float64 slice. Built-in aggregators implement this so the
+// orchestrator can collect each field's values once per Process call and
+// share the slice across aggregations.
+//
+// Implementations MUST NOT mutate the input slice. Aggregators that need a
+// sorted view (median, percentile) must copy the slice before sorting.
+type valueAggregator interface {
+	aggregateValues(vals []float64) (float64, error)
+}
 
 // collectValues extracts non-null float64 values from records for the given field.
 func collectValues(records []*Record, field string) []float64 {
@@ -62,6 +154,10 @@ func newCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, e
 
 func (a *countAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *countAggregator) aggregateValues(vals []float64) (float64, error) {
 	return float64(len(vals)), nil
 }
 
@@ -75,6 +171,10 @@ func newSumAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, err
 
 func (a *sumAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *sumAggregator) aggregateValues(vals []float64) (float64, error) {
 	sum := 0.0
 	for _, v := range vals {
 		sum += v
@@ -92,6 +192,10 @@ func newAverageAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator,
 
 func (a *averageAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *averageAggregator) aggregateValues(vals []float64) (float64, error) {
 	return mean(vals), nil
 }
 
@@ -105,6 +209,10 @@ func newMinAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, err
 
 func (a *minAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *minAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
 		return 0, nil
 	}
@@ -127,6 +235,10 @@ func newMaxAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, err
 
 func (a *maxAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *maxAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
 		return 0, nil
 	}
@@ -149,6 +261,10 @@ func newStdDevAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, 
 
 func (a *stdDevAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *stdDevAggregator) aggregateValues(vals []float64) (float64, error) {
 	return populationStdDev(vals), nil
 }
 
@@ -162,6 +278,10 @@ func newRangeAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, e
 
 func (a *rangeAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *rangeAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
 		return 0, nil
 	}
@@ -187,6 +307,10 @@ func newFrequencyAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregato
 
 func (a *frequencyAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *frequencyAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
 		return 0, nil
 	}
@@ -213,6 +337,10 @@ func newZScoreAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, 
 
 func (a *zscoreAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *zscoreAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
 		return 0, nil
 	}
@@ -239,15 +367,22 @@ func newMedianAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, 
 
 func (a *medianAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *medianAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
 		return 0, nil
 	}
-	sort.Float64s(vals)
-	n := len(vals)
+	// median sorts in place — copy first to avoid mutating a shared cached slice.
+	work := make([]float64, len(vals))
+	copy(work, vals)
+	sort.Float64s(work)
+	n := len(work)
 	if n%2 == 1 {
-		return vals[n/2], nil
+		return work[n/2], nil
 	}
-	return (vals[n/2-1] + vals[n/2]) / 2, nil
+	return (work[n/2-1] + work[n/2]) / 2, nil
 }
 
 // --- Variance ---
@@ -260,6 +395,10 @@ func newVarianceAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator
 
 func (a *varianceAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *varianceAggregator) aggregateValues(vals []float64) (float64, error) {
 	return populationVariance(vals), nil
 }
 
@@ -273,6 +412,10 @@ func newModeAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, er
 
 func (a *modeAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *modeAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
 		return 0, nil
 	}
@@ -310,6 +453,10 @@ func newSkewnessAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator
 
 func (a *skewnessAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *skewnessAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) <= 1 {
 		return 0, nil
 	}
@@ -336,6 +483,10 @@ func newKurtosisAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator
 
 func (a *kurtosisAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *kurtosisAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) <= 1 {
 		return 0, nil
 	}
@@ -362,6 +513,10 @@ func newDistinctCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggre
 
 func (a *distinctCountAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *distinctCountAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
 		return 0, nil
 	}
@@ -399,19 +554,26 @@ func newPercentileAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggreg
 
 func (a *percentileAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
+	return a.aggregateValues(vals)
+}
+
+func (a *percentileAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
 		return 0, nil
 	}
-	sort.Float64s(vals)
-	n := len(vals)
+	// percentile sorts in place — copy first to avoid mutating a shared cached slice.
+	work := make([]float64, len(vals))
+	copy(work, vals)
+	sort.Float64s(work)
+	n := len(work)
 	if n == 1 {
-		return vals[0], nil
+		return work[0], nil
 	}
 	rank := a.percentile / 100.0 * float64(n-1)
 	lower := int(math.Floor(rank))
 	upper := int(math.Ceil(rank))
 	if lower == upper {
-		return vals[lower], nil
+		return work[lower], nil
 	}
-	return vals[lower] + (rank-float64(lower))*(vals[upper]-vals[lower]), nil
+	return work[lower] + (rank-float64(lower))*(work[upper]-work[lower]), nil
 }
