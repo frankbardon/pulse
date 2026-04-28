@@ -1,9 +1,12 @@
 package processing
 
 import (
+	"encoding/json"
 	"math"
+	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -30,8 +33,8 @@ func mean(vals []float64) float64 {
 	return sum / float64(len(vals))
 }
 
-// populationStdDev computes population standard deviation.
-func populationStdDev(vals []float64) float64 {
+// populationVariance computes population variance.
+func populationVariance(vals []float64) float64 {
 	if len(vals) == 0 {
 		return 0
 	}
@@ -41,7 +44,12 @@ func populationStdDev(vals []float64) float64 {
 		d := v - m
 		sumSq += d * d
 	}
-	return math.Sqrt(sumSq / float64(len(vals)))
+	return sumSq / float64(len(vals))
+}
+
+// populationStdDev computes population standard deviation.
+func populationStdDev(vals []float64) float64 {
+	return math.Sqrt(populationVariance(vals))
 }
 
 // --- Count ---
@@ -219,4 +227,191 @@ func (a *zscoreAggregator) Aggregate(records []*Record, field string) (float64, 
 		zSum += (v - m) / sd
 	}
 	return zSum / float64(len(vals)), nil
+}
+
+// --- Median ---
+
+type medianAggregator struct{}
+
+func newMedianAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	return &medianAggregator{}, nil
+}
+
+func (a *medianAggregator) Aggregate(records []*Record, field string) (float64, error) {
+	vals := collectValues(records, field)
+	if len(vals) == 0 {
+		return 0, nil
+	}
+	sort.Float64s(vals)
+	n := len(vals)
+	if n%2 == 1 {
+		return vals[n/2], nil
+	}
+	return (vals[n/2-1] + vals[n/2]) / 2, nil
+}
+
+// --- Variance ---
+
+type varianceAggregator struct{}
+
+func newVarianceAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	return &varianceAggregator{}, nil
+}
+
+func (a *varianceAggregator) Aggregate(records []*Record, field string) (float64, error) {
+	vals := collectValues(records, field)
+	return populationVariance(vals), nil
+}
+
+// --- Mode ---
+
+type modeAggregator struct{}
+
+func newModeAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	return &modeAggregator{}, nil
+}
+
+func (a *modeAggregator) Aggregate(records []*Record, field string) (float64, error) {
+	vals := collectValues(records, field)
+	if len(vals) == 0 {
+		return 0, nil
+	}
+	counts := make(map[float64]int)
+	for _, v := range vals {
+		counts[v]++
+	}
+	maxCount := 0
+	for _, c := range counts {
+		if c > maxCount {
+			maxCount = c
+		}
+	}
+	// Among values with max frequency, return the smallest (deterministic tie-breaking).
+	var result float64
+	first := true
+	for v, c := range counts {
+		if c == maxCount {
+			if first || v < result {
+				result = v
+				first = false
+			}
+		}
+	}
+	return result, nil
+}
+
+// --- Skewness ---
+
+type skewnessAggregator struct{}
+
+func newSkewnessAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	return &skewnessAggregator{}, nil
+}
+
+func (a *skewnessAggregator) Aggregate(records []*Record, field string) (float64, error) {
+	vals := collectValues(records, field)
+	if len(vals) <= 1 {
+		return 0, nil
+	}
+	m := mean(vals)
+	sd := populationStdDev(vals)
+	if sd == 0 {
+		return 0, nil
+	}
+	n := float64(len(vals))
+	sum := 0.0
+	for _, v := range vals {
+		sum += math.Pow((v-m)/sd, 3)
+	}
+	return sum / n, nil
+}
+
+// --- Kurtosis ---
+
+type kurtosisAggregator struct{}
+
+func newKurtosisAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	return &kurtosisAggregator{}, nil
+}
+
+func (a *kurtosisAggregator) Aggregate(records []*Record, field string) (float64, error) {
+	vals := collectValues(records, field)
+	if len(vals) <= 1 {
+		return 0, nil
+	}
+	m := mean(vals)
+	sd := populationStdDev(vals)
+	if sd == 0 {
+		return 0, nil
+	}
+	n := float64(len(vals))
+	sum := 0.0
+	for _, v := range vals {
+		sum += math.Pow((v-m)/sd, 4)
+	}
+	return sum/n - 3, nil
+}
+
+// --- Distinct Count ---
+
+type distinctCountAggregator struct{}
+
+func newDistinctCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	return &distinctCountAggregator{}, nil
+}
+
+func (a *distinctCountAggregator) Aggregate(records []*Record, field string) (float64, error) {
+	vals := collectValues(records, field)
+	if len(vals) == 0 {
+		return 0, nil
+	}
+	set := make(map[float64]struct{})
+	for _, v := range vals {
+		set[v] = struct{}{}
+	}
+	return float64(len(set)), nil
+}
+
+// --- Percentile ---
+
+type percentileParams struct {
+	Percentile float64 `json:"percentile"`
+}
+
+type percentileAggregator struct {
+	percentile float64
+}
+
+func newPercentileAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	p := 50.0
+	if len(agg.Params) > 0 {
+		var params percentileParams
+		if err := json.Unmarshal(agg.Params, &params); err != nil {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid percentile params: "+err.Error())
+		}
+		p = params.Percentile
+	}
+	if p < 0 || p > 100 {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "percentile must be between 0 and 100")
+	}
+	return &percentileAggregator{percentile: p}, nil
+}
+
+func (a *percentileAggregator) Aggregate(records []*Record, field string) (float64, error) {
+	vals := collectValues(records, field)
+	if len(vals) == 0 {
+		return 0, nil
+	}
+	sort.Float64s(vals)
+	n := len(vals)
+	if n == 1 {
+		return vals[0], nil
+	}
+	rank := a.percentile / 100.0 * float64(n-1)
+	lower := int(math.Floor(rank))
+	upper := int(math.Ceil(rank))
+	if lower == upper {
+		return vals[lower], nil
+	}
+	return vals[lower] + (rank-float64(lower))*(vals[upper]-vals[lower]), nil
 }

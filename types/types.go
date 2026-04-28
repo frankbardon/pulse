@@ -23,6 +23,13 @@ const (
 	AGG_RANGE     AggregationType = "AGG_RANGE"
 	AGG_FREQUENCY AggregationType = "AGG_FREQUENCY"
 	AGG_ZSCORE    AggregationType = "AGG_ZSCORE"
+	AGG_MEDIAN    AggregationType = "AGG_MEDIAN"
+	AGG_VARIANCE  AggregationType = "AGG_VARIANCE"
+	AGG_MODE      AggregationType = "AGG_MODE"
+	AGG_SKEWNESS       AggregationType = "AGG_SKEWNESS"
+	AGG_KURTOSIS       AggregationType = "AGG_KURTOSIS"
+	AGG_DISTINCT_COUNT AggregationType = "AGG_DISTINCT_COUNT"
+	AGG_PERCENTILE     AggregationType = "AGG_PERCENTILE"
 )
 
 // AllAggregationTypes returns all defined aggregation types.
@@ -30,6 +37,8 @@ func AllAggregationTypes() []AggregationType {
 	return []AggregationType{
 		AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX,
 		AGG_STDDEV, AGG_RANGE, AGG_FREQUENCY, AGG_ZSCORE,
+		AGG_MEDIAN, AGG_VARIANCE, AGG_MODE, AGG_SKEWNESS, AGG_KURTOSIS,
+		AGG_DISTINCT_COUNT, AGG_PERCENTILE,
 	}
 }
 
@@ -56,11 +65,14 @@ type GroupType string
 const (
 	GROUP_CATEGORY GroupType = "GROUP_CATEGORY"
 	GROUP_ROUNDED  GroupType = "GROUP_ROUNDED"
+	GROUP_RANGE    GroupType = "GROUP_RANGE"
+	GROUP_QUANTILE GroupType = "GROUP_QUANTILE"
+	GROUP_DATE     GroupType = "GROUP_DATE"
 )
 
 // AllGroupTypes returns all defined group types.
 func AllGroupTypes() []GroupType {
-	return []GroupType{GROUP_CATEGORY, GROUP_ROUNDED}
+	return []GroupType{GROUP_CATEGORY, GROUP_DATE, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED}
 }
 
 // AttributeType identifies a specific derived-attribute computation.
@@ -95,6 +107,10 @@ type Aggregation struct {
 
 	// Label is an optional output label for the aggregation result.
 	Label string `json:"label,omitempty"`
+
+	// Params holds type-specific configuration as raw JSON.
+	// Used by aggregation types that require additional parameters (e.g., AGG_PERCENTILE).
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // Filterer defines a filter to apply to records before processing.
@@ -121,8 +137,12 @@ type Group struct {
 	// Field is the name of the data field to group by.
 	Field string `json:"field"`
 
-	// Interval is used by GROUP_ROUNDED to define the rounding interval.
+	// Interval is used by GROUP_ROUNDED and GROUP_RANGE to define the bucket width.
 	Interval float64 `json:"interval,omitempty"`
+
+	// Params holds type-specific configuration as raw JSON.
+	// Used by group types that require additional parameters (e.g., GROUP_DATE).
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // Attribute defines a derived attribute computation.

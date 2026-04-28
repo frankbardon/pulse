@@ -98,7 +98,7 @@ func WriteSchema(w io.Writer, s *Schema) error {
 
 		// Dictionary block for categorical types.
 		if f.Type.IsCategorical() && f.Dictionary != nil {
-			if err := f.Dictionary.WriteTo(w); err != nil {
+			if _, err := f.Dictionary.WriteTo(w); err != nil {
 				return err
 			}
 		} else if f.Type.IsCategorical() {
@@ -174,7 +174,7 @@ func ReadSchema(r io.Reader) (*Schema, error) {
 		// Dictionary for categorical types.
 		if f.Type.IsCategorical() {
 			dict := NewDictionary()
-			if err := dict.ReadFrom(r); err != nil {
+			if _, err := dict.ReadFrom(r); err != nil {
 				return nil, err
 			}
 			f.Dictionary = dict

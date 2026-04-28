@@ -81,12 +81,12 @@ func TestCategoricalDictionary_WriteRead(t *testing.T) {
 	d.Add("world")
 
 	var buf bytes.Buffer
-	if err := d.WriteTo(&buf); err != nil {
+	if _, err := d.WriteTo(&buf); err != nil {
 		t.Fatalf("WriteTo: %v", err)
 	}
 
 	d2 := NewDictionary()
-	if err := d2.ReadFrom(bytes.NewReader(buf.Bytes())); err != nil {
+	if _, err := d2.ReadFrom(bytes.NewReader(buf.Bytes())); err != nil {
 		t.Fatalf("ReadFrom: %v", err)
 	}
 
@@ -154,12 +154,12 @@ func TestCategoricalDictionaryRoundTrip(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := d.WriteTo(&buf); err != nil {
+	if _, err := d.WriteTo(&buf); err != nil {
 		t.Fatalf("WriteTo: %v", err)
 	}
 
 	d2 := NewDictionary()
-	if err := d2.ReadFrom(bytes.NewReader(buf.Bytes())); err != nil {
+	if _, err := d2.ReadFrom(bytes.NewReader(buf.Bytes())); err != nil {
 		t.Fatalf("ReadFrom: %v", err)
 	}
 
