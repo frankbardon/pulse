@@ -5,113 +5,104 @@ type: guide
 applies_to: process, compose, sample, facet, inspect, predict, manifest
 ---
 
-# Getting Started with Pulse
+# Getting Started
 
-## Overview
+## Vocabulary
 
-Pulse is a high-performance tabular data processing engine built around a compact binary format called `.pulse`. It is designed for cohort-level analytics where schema fidelity, null handling, and categorical encoding matter.
+| Term | Meaning |
+|---|---|
+| Cohort | A `.pulse` binary file: schema header + fixed-width records. |
+| Schema | Field list (name, type, description) embedded in the cohort header. |
+| Field | One column. Typed with one of 15 field types (u8..categorical_u32). |
+| Record | One row. Fixed-width binary block. |
+| Aggregation | One of 16 `AGG_*` ops (COUNT, SUM, AVERAGE, ...) producing a per-group scalar. |
+| Attribute | One of 7 `ATTR_*` ops producing a per-record derived value. |
+| Filterer | One of 4 `FILTER_*` predicates run before grouping. |
+| Grouper | One of 5 `GROUP_*` partition strategies run before aggregation. |
+| Request | JSON: `{cohort, filterers, groups, aggregations, attributes, outputs}`. |
+| ComposedRequest | `{requests: [Request, ...]}` — batch over a shared cohort. |
+| Manifest | Self-description envelope: commands, components, cohort_types, skills. |
 
-## Core Vocabulary
+## Workflows
 
-- **Cohort**: A dataset stored in `.pulse` binary format. Each cohort has a schema header followed by fixed-width records.
-- **Schema**: The field definitions (name, type, description, nullability) that describe the structure of a cohort.
-- **Field**: A single column within a cohort schema, identified by name and typed with one of the 15 field types.
-- **Record**: A single row of data within a cohort, encoded as a fixed-width binary block.
-- **Aggregation**: A computation applied across records to produce summary statistics (e.g., COUNT, SUM, AVERAGE).
-- **Attribute**: A derived value computed per-record from existing fields (e.g., z-score, formula).
-- **Filterer**: A predicate that includes or excludes records before processing.
-- **Grouper**: A partitioning strategy that segments records into groups before aggregation.
-- **Request**: A JSON object describing the processing pipeline: cohort, filters, aggregations, attributes, groups, output config.
-- **ComposedRequest**: A batch of multiple Request objects sharing a cohort.
-- **Manifest**: The self-describing root object listing all commands, components, field types, and skills.
+### Analyze non-`.pulse` source data
 
-## The .pulse File Format
+1. `pulse import schema-template data.csv > schema.json` — emit an editable field list with empty descriptions.
+2. Edit `schema.json`: fill in `description` for each field; adjust `type` if inference was wrong.
+3. `pulse import csv --input data.csv --output data.pulse --schema schema.json` — write the cohort.
+4. `pulse cohort inspect data.pulse --json` — confirm fields, types, and dictionaries.
+5. `pulse api process --request request.json --json` — run the analysis (see canonical request below).
 
-The `.pulse` format is a binary columnar format optimized for:
+### Convert between supported formats
 
-- Fixed-width records for O(1) random access
-- Bit-packing for boolean and small nullable fields
-- Inline categorical dictionaries for string-valued columns
-- Schema-first design: the header encodes all field metadata
-
-## CLI Command Tree
-
-Pulse provides the following CLI leaf commands:
-
-### `process`
-
-Execute a processing request against a cohort. Accepts a JSON request and returns aggregation results.
+`pulse convert INPUT OUTPUT` auto-detects formats from extensions. Use `--from` / `--to` to override, `--schema` to pin the schema, and `--keep-pulse PATH` to retain the intermediate cohort:
 
 ```
-pulse api process --request FILE [--json]
+pulse convert data.csv data.parquet --keep-pulse cache.pulse
 ```
 
-### `compose`
+Use `pulse convert predict INPUT OUTPUT --json` to validate without writing.
 
-Execute multiple processing requests in batch using ComposedRequest. Runs all requests against a shared cohort and returns combined results.
+### Process an existing `.pulse` file
+
+1. `pulse cohort inspect data.pulse --json` — confirm the schema you are coding against.
+2. Author `request.json` matching the schema's field names and types.
+3. `pulse api predict --request request.json --json [--strict]` — validate, no execute.
+4. `pulse api process --request request.json --json` — execute.
+
+## Canonical process request
+
+```json
+{
+  "cohort": {"filename": "data.pulse"},
+  "filterers": [
+    {"type": "FILTER_INCLUDE", "field": "status", "values": ["active"]}
+  ],
+  "groups": [
+    {"type": "GROUP_CATEGORY", "field": "region"}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    {"type": "AGG_AVERAGE", "field": "score", "label": "mean_score"}
+  ],
+  "attributes": [],
+  "outputs": [{"format": "json"}]
+}
+```
+
+JSON tags are verified against `types.Request`: `cohort`, `filterers`, `groups`, `aggregations`, `attributes`, `outputs`.
+
+## CLI command tree
 
 ```
-pulse api compose --request FILE [--json]
-```
-
-### `sample`
-
-Return sample rows from a cohort for data inspection.
-
-```
-pulse api sample --input FILE --count N
-```
-
-### `facet`
-
-Return distinct values for a field. Useful for exploring categorical distributions and validating data.
-
-```
-pulse api facet --input FILE --field NAME
-```
-
-### `inspect`
-
-Inspect a .pulse file header and schema. Shows field names, types, record counts, and dictionary contents.
-
-```
+pulse [--json]                                               # manifest at root
+pulse api process    --request FILE [--json]
+pulse api compose    --request FILE [--json]
+pulse api sample     --input FILE [--count N] [--json]
+pulse api facet      --input FILE --field NAME [--json]
+pulse api predict    --request FILE [--json] [--strict]
 pulse cohort inspect PATH [--json] [--full-dict]
+pulse cohort filter  --input FILE --output FILE --filter EXPR [--json]
+pulse import csv|tsv|ndjson|parquet --input F --output F [--schema F] [--sample-rows N] [--json]
+pulse import excel   --input F --output F [--schema F] [--sample-rows N] [--sheet S] [--json]
+pulse import predict --input F [--format F] [--schema F] [--sample-rows N] [--json]
+pulse import schema-template INPUT [--format F] [--sample-rows N]
+pulse export csv|tsv|ndjson|parquet|excel --input F --output F [--json]
+pulse export predict --input F [--format F] [--json]
+pulse convert INPUT OUTPUT [--from F] [--to F] [--schema F] [--keep-pulse PATH] [--sample-rows N] [--json]
+pulse convert predict INPUT OUTPUT [--from F] [--to F] [--sample-rows N] [--json]
+pulse skills list  [--json]
+pulse skills show  NAME
 ```
 
-### `predict`
+## Pipeline order
 
-Validate a request without executing. Reports warnings, errors, and compatibility issues. Use with `--strict` for fail-on-warning behavior.
+Load -> Filter -> Group -> Aggregate -> Attributes -> Output.
 
-```
-pulse api predict --request FILE --json [--strict]
-```
+## Envelope
 
-### `manifest`
+Every `--json` response: `{"format_version":"1.0","data":{...},"errors":[],"warnings":[]}`.
 
-Output the root manifest describing all commands, components, field types, and skills.
+## See also
 
-```
-pulse --json
-```
-
-## Processing Pipeline
-
-The processing pipeline follows this order:
-
-1. **Load** the cohort from a `.pulse` file
-2. **Filter** records using the specified filterers
-3. **Group** filtered records by grouper configuration
-4. **Aggregate** within each group
-5. **Compute** derived attributes
-6. **Output** results in the requested format
-
-## JSON Envelope
-
-Every CLI leaf supports `--json` output, which wraps results in a structured envelope with metadata, data, and optional warnings.
-
-## Next Steps
-
-- Read **cohort-schema-design** to learn about field types and schema definition
-- Read **aggregation-guide** to understand available aggregators
-- Read **error-code-reference** for troubleshooting
-- Read **import-best-practices** for creating cohorts from external data
+cohort-schema-design, aggregation-guide, attribute-composition, grouper-design, compose-requests, debugging-with-predict, error-code-reference, import-best-practices, export-format-selection, statistical-concepts, categorical-fields-guide.
