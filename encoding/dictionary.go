@@ -85,31 +85,38 @@ func (d *Dictionary) Values() []string {
 
 // WriteTo serializes the dictionary to w.
 // Format: u32 count + (u16 strlen + utf8 bytes) x count
-func (d *Dictionary) WriteTo(w io.Writer) error {
+func (d *Dictionary) WriteTo(w io.Writer) (int64, error) {
+	var written int64
 	count := uint32(len(d.values))
 	if err := binary.Write(w, binary.LittleEndian, count); err != nil {
-		return errors.WrapCodedError(err, errors.ENCODING_IO, "writing dictionary count")
+		return written, errors.WrapCodedError(err, errors.ENCODING_IO, "writing dictionary count")
 	}
+	written += 4
 	for _, s := range d.values {
 		b := []byte(s)
 		slen := uint16(len(b))
 		if err := binary.Write(w, binary.LittleEndian, slen); err != nil {
-			return errors.WrapCodedError(err, errors.ENCODING_IO, "writing dictionary string length")
+			return written, errors.WrapCodedError(err, errors.ENCODING_IO, "writing dictionary string length")
 		}
-		if _, err := w.Write(b); err != nil {
-			return errors.WrapCodedError(err, errors.ENCODING_IO, "writing dictionary string")
+		written += 2
+		n, err := w.Write(b)
+		written += int64(n)
+		if err != nil {
+			return written, errors.WrapCodedError(err, errors.ENCODING_IO, "writing dictionary string")
 		}
 	}
-	return nil
+	return written, nil
 }
 
 // ReadFrom deserializes a dictionary from r, replacing current contents.
 // Format: u32 count + (u16 strlen + utf8 bytes) x count
-func (d *Dictionary) ReadFrom(r io.Reader) error {
+func (d *Dictionary) ReadFrom(r io.Reader) (int64, error) {
+	var read int64
 	var count uint32
 	if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
-		return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary count")
+		return read, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary count")
 	}
+	read += 4
 
 	d.values = make([]string, 0, count)
 	d.lookup = make(map[string]uint32, count)
@@ -117,15 +124,18 @@ func (d *Dictionary) ReadFrom(r io.Reader) error {
 	for i := uint32(0); i < count; i++ {
 		var slen uint16
 		if err := binary.Read(r, binary.LittleEndian, &slen); err != nil {
-			return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string length")
+			return read, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string length")
 		}
+		read += 2
 		buf := make([]byte, slen)
-		if _, err := io.ReadFull(r, buf); err != nil {
-			return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string")
+		n, err := io.ReadFull(r, buf)
+		read += int64(n)
+		if err != nil {
+			return read, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string")
 		}
 		s := string(buf)
 		d.values = append(d.values, s)
 		d.lookup[s] = i
 	}
-	return nil
+	return read, nil
 }

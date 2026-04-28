@@ -155,7 +155,7 @@ func TestReadDescription_TruncatedLength(t *testing.T) {
 func TestDictionary_WriteTo_IOError(t *testing.T) {
 	d := NewDictionary()
 	d.Add("test")
-	err := d.WriteTo(errWriter{})
+	_, err := d.WriteTo(errWriter{})
 	if err == nil {
 		t.Fatal("expected IO error")
 	}
@@ -164,7 +164,7 @@ func TestDictionary_WriteTo_IOError(t *testing.T) {
 func TestDictionary_ReadFrom_Truncated(t *testing.T) {
 	// Truncated count.
 	d := NewDictionary()
-	err := d.ReadFrom(bytes.NewReader([]byte{0x01}))
+	_, err := d.ReadFrom(bytes.NewReader([]byte{0x01}))
 	if err == nil {
 		t.Fatal("expected error for truncated count")
 	}
@@ -177,7 +177,7 @@ func TestDictionary_ReadFrom_TruncatedString(t *testing.T) {
 	buf.Write([]byte{0x41}) // only 1 byte
 
 	d := NewDictionary()
-	err := d.ReadFrom(bytes.NewReader(buf.Bytes()))
+	_, err := d.ReadFrom(bytes.NewReader(buf.Bytes()))
 	if err == nil {
 		t.Fatal("expected error for truncated string")
 	}
@@ -189,7 +189,7 @@ func TestDictionary_ReadFrom_TruncatedStringLen(t *testing.T) {
 	buf.Write([]byte{0x01})                             // only 1 byte for u16 strlen
 
 	d := NewDictionary()
-	err := d.ReadFrom(bytes.NewReader(buf.Bytes()))
+	_, err := d.ReadFrom(bytes.NewReader(buf.Bytes()))
 	if err == nil {
 		t.Fatal("expected error for truncated string length")
 	}
@@ -361,7 +361,7 @@ func TestDictionary_WriteTo_StringLenIOError(t *testing.T) {
 	d.Add("test")
 	// Allow count (4 bytes) then fail on string length write.
 	lw := &limitWriter{n: 4}
-	err := d.WriteTo(lw)
+	_, err := d.WriteTo(lw)
 	if err == nil {
 		t.Fatal("expected IO error on string length write")
 	}
@@ -372,7 +372,7 @@ func TestDictionary_WriteTo_StringBodyIOError(t *testing.T) {
 	d.Add("test")
 	// Allow count (4) + strlen (2) = 6 bytes, then fail on string body.
 	lw := &limitWriter{n: 6}
-	err := d.WriteTo(lw)
+	_, err := d.WriteTo(lw)
 	if err == nil {
 		t.Fatal("expected IO error on string body write")
 	}

@@ -55,17 +55,17 @@ func FuzzCategoricalDictionary(f *testing.F) {
 	d.Add("hello")
 	d.Add("world")
 	var buf bytes.Buffer
-	d.WriteTo(&buf)
+	d.WriteTo(&buf) //nolint:errcheck
 	f.Add(buf.Bytes())
 
 	// Seed empty.
 	d2 := NewDictionary()
 	var buf2 bytes.Buffer
-	d2.WriteTo(&buf2)
+	d2.WriteTo(&buf2) //nolint:errcheck
 	f.Add(buf2.Bytes())
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		dict := NewDictionary()
-		dict.ReadFrom(bytes.NewReader(data))
+		dict.ReadFrom(bytes.NewReader(data)) //nolint:errcheck
 	})
 }
