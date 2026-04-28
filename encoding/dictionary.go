@@ -110,30 +110,72 @@ func (d *Dictionary) WriteTo(w io.Writer) (int64, error) {
 
 // ReadFrom deserializes a dictionary from r, replacing current contents.
 // Format: u32 count + (u16 strlen + utf8 bytes) x count
+//
+// Performance: a single byte buffer is grown to hold all string payloads
+// across the dictionary, instead of allocating one []byte per entry. Each
+// resolved string is copied once via the standard string([]byte) conversion
+// (no unsafe), so we drop one allocation per entry while preserving the
+// safety contract that callers can mutate the underlying buffer afterwards
+// without affecting the stored strings.
 func (d *Dictionary) ReadFrom(r io.Reader) (int64, error) {
 	var read int64
-	var count uint32
-	if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
+	// Read count via a small fixed-size buffer to avoid binary.Read's
+	// reflective path.
+	var hdr [4]byte
+	n, err := io.ReadFull(r, hdr[:])
+	read += int64(n)
+	if err != nil {
 		return read, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary count")
 	}
-	read += 4
+	count := binary.LittleEndian.Uint32(hdr[:])
 
 	d.values = make([]string, 0, count)
 	d.lookup = make(map[string]uint32, count)
 
-	for i := uint32(0); i < count; i++ {
-		var slen uint16
-		if err := binary.Read(r, binary.LittleEndian, &slen); err != nil {
+	if count == 0 {
+		return read, nil
+	}
+
+	// Single shared byte buffer for all string payloads. We can't precompute
+	// the exact total without consuming the stream first, so we grow on demand
+	// from a heuristic initial capacity of 64 bytes per entry (typical for
+	// short categorical labels).
+	const avgBytesPerEntry = 64
+	bufCap := max(int(count)*avgBytesPerEntry, 256)
+	buf := make([]byte, 0, bufCap)
+
+	var lenBuf [2]byte
+	for i := range count {
+		ln, err := io.ReadFull(r, lenBuf[:])
+		read += int64(ln)
+		if err != nil {
 			return read, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string length")
 		}
-		read += 2
-		buf := make([]byte, slen)
-		n, err := io.ReadFull(r, buf)
-		read += int64(n)
-		if err != nil {
-			return read, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string")
+		slen := int(binary.LittleEndian.Uint16(lenBuf[:]))
+
+		// Grow shared buffer to fit this entry, then read directly into the
+		// new tail slice. This keeps all string bytes in one backing array.
+		start := len(buf)
+		end := start + slen
+		if cap(buf) < end {
+			// Double capacity until it fits, like append's growth strategy.
+			newCap := max(cap(buf)*2, end)
+			grown := make([]byte, len(buf), newCap)
+			copy(grown, buf)
+			buf = grown
 		}
-		s := string(buf)
+		buf = buf[:end]
+
+		if slen > 0 {
+			rn, err := io.ReadFull(r, buf[start:end])
+			read += int64(rn)
+			if err != nil {
+				return read, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string")
+			}
+		}
+
+		// string([]byte) copies once; that's the only per-entry alloc now.
+		s := string(buf[start:end])
 		d.values = append(d.values, s)
 		d.lookup[s] = i
 	}
