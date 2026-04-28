@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
@@ -58,58 +59,92 @@ func commands() []Command {
 // cohortFieldTypes returns all field types as CohortFieldType descriptors.
 func cohortFieldTypes() []CohortFieldType {
 	var out []CohortFieldType
-	for i := encoding.FieldType(0); i < encoding.FieldType(15); i++ {
-		name := i.String()
+	for i := range 15 {
+		ft := encoding.FieldType(i)
+		name := ft.String()
 		if len(name) > 7 && name[:7] == "unknown" {
 			continue
 		}
 		out = append(out, CohortFieldType{
 			Name:        name,
-			Categorical: i.IsCategorical(),
+			Categorical: ft.IsCategorical(),
 		})
 	}
 	return out
 }
 
-// sortedStrings returns a sorted copy of string representations.
+// Component type lists are immutable after process init: the registries in
+// types/ never mutate at runtime. We compute the sorted slices exactly once
+// and return the cached value on subsequent calls. Callers do not mutate
+// these slices (they JSON-marshal the manifest), so sharing the underlying
+// array across calls is safe.
+var (
+	sortedAggregationTypesOnce sync.Once
+	sortedAggregationTypesVal  []string
+
+	sortedAttributeTypesOnce sync.Once
+	sortedAttributeTypesVal  []string
+
+	sortedFiltererTypesOnce sync.Once
+	sortedFiltererTypesVal  []string
+
+	sortedGroupTypesOnce sync.Once
+	sortedGroupTypesVal  []string
+)
+
+// sortedAggregationTypes returns the cached sorted list of aggregation type
+// identifiers. The list is computed on first call and shared on every call
+// thereafter.
 func sortedAggregationTypes() []string {
-	raw := types.AllAggregationTypes()
-	out := make([]string, len(raw))
-	for i, v := range raw {
-		out[i] = string(v)
-	}
-	sort.Strings(out)
-	return out
+	sortedAggregationTypesOnce.Do(func() {
+		raw := types.AllAggregationTypes()
+		out := make([]string, len(raw))
+		for i, v := range raw {
+			out[i] = string(v)
+		}
+		sort.Strings(out)
+		sortedAggregationTypesVal = out
+	})
+	return sortedAggregationTypesVal
 }
 
 func sortedAttributeTypes() []string {
-	raw := types.AllAttributeTypes()
-	out := make([]string, len(raw))
-	for i, v := range raw {
-		out[i] = string(v)
-	}
-	sort.Strings(out)
-	return out
+	sortedAttributeTypesOnce.Do(func() {
+		raw := types.AllAttributeTypes()
+		out := make([]string, len(raw))
+		for i, v := range raw {
+			out[i] = string(v)
+		}
+		sort.Strings(out)
+		sortedAttributeTypesVal = out
+	})
+	return sortedAttributeTypesVal
 }
 
 func sortedFiltererTypes() []string {
-	raw := types.AllFiltererTypes()
-	out := make([]string, len(raw))
-	for i, v := range raw {
-		out[i] = string(v)
-	}
-	sort.Strings(out)
-	return out
+	sortedFiltererTypesOnce.Do(func() {
+		raw := types.AllFiltererTypes()
+		out := make([]string, len(raw))
+		for i, v := range raw {
+			out[i] = string(v)
+		}
+		sort.Strings(out)
+		sortedFiltererTypesVal = out
+	})
+	return sortedFiltererTypesVal
 }
 
 func sortedGroupTypes() []string {
-	raw := types.AllGroupTypes()
-	out := make([]string, len(raw))
-	for i, v := range raw {
-		out[i] = string(v)
-	}
-	sort.Strings(out)
-	return out
+	sortedGroupTypesOnce.Do(func() {
+		raw := types.AllGroupTypes()
+		out := make([]string, len(raw))
+		for i, v := range raw {
+			out[i] = string(v)
+		}
+		sort.Strings(out)
+		sortedGroupTypesVal = out
+	})
+	return sortedGroupTypesVal
 }
 
 // BuildManifest constructs a deterministic Manifest from the current registries.

@@ -1,6 +1,7 @@
 package io
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -12,18 +13,24 @@ import (
 	"github.com/spf13/afero"
 )
 
+// exportReadBufferSize is the buffered-reader size used when streaming a
+// .pulse file during export. 64KB amortises syscall overhead without holding
+// the full catalog in RAM.
+const exportReadBufferSize = 64 << 10
+
 // Run executes the export job, converting a .pulse file to a tabular target.
 func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	if j.FS == nil {
 		return nil, fmt.Errorf("ExportJob.FS is required")
 	}
 
-	data, err := afero.ReadFile(j.FS, j.Source)
+	f, err := j.FS.Open(j.Source)
 	if err != nil {
 		return nil, fmt.Errorf("reading pulse file: %w", err)
 	}
+	defer f.Close()
 
-	r := bytes.NewReader(data)
+	r := bufio.NewReaderSize(f, exportReadBufferSize)
 
 	// Read header.
 	if err := encoding.ReadHeader(r); err != nil {
@@ -45,10 +52,14 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		return nil, err
 	}
 
-	// Read and export records until EOF.
+	// Read and export records until EOF. The values slice is hoisted out of
+	// the loop and reused per row; every Writer implementation either
+	// stringifies, marshals, or copies values before returning, so retaining
+	// no references after WriteRow is safe.
 	var rowErrors []RowError
 	exported := 0
 	row := 0
+	values := make([]any, len(schema.Fields))
 
 	for {
 		select {
@@ -57,16 +68,15 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		default:
 		}
 
-		values := make([]any, len(schema.Fields))
 		hitEOF := false
 		for i, f := range schema.Fields {
 			if f.Type == encoding.FieldTypePackedBool || f.Type == encoding.FieldTypeNullableBool || f.Type == encoding.FieldTypeNullableU4 {
-				var b [1]byte
-				if _, err := r.Read(b[:]); err != nil {
+				b, err := r.ReadByte()
+				if err != nil {
 					hitEOF = true
 					break
 				}
-				values[i] = formatPackedValue(f.Type, b[0], f.Dictionary)
+				values[i] = formatPackedValue(f.Type, b)
 				continue
 			}
 
@@ -178,7 +188,7 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 }
 
 // formatPackedValue formats bit-packed types.
-func formatPackedValue(ft encoding.FieldType, b byte, dict *encoding.Dictionary) string {
+func formatPackedValue(ft encoding.FieldType, b byte) string {
 	switch ft {
 	case encoding.FieldTypePackedBool:
 		if b != 0 {

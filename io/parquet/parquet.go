@@ -320,13 +320,28 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 
 // ---------- Writer ----------
 
-// Writer writes tabular data as Parquet.
+// defaultRowGroupSize is the target number of rows per Parquet row group.
+// Each batch of this many rows is flushed as its own row group via the
+// pqarrow FileWriter.Write API. Hardcoded for now; not user-configurable.
+const defaultRowGroupSize = 64 * 1024
+
+// Writer writes tabular data as Parquet, flushing rows in row-group sized
+// batches to bound peak memory usage on large exports.
 type Writer struct {
 	fs      afero.Fs
 	path    string
 	buf     bytes.Buffer
 	columns []string
-	rows    [][]any
+
+	// Lazily-initialized parquet writer state. Built on first WriteRow once
+	// the schema (column names) is known. Reused across all batches.
+	alloc   memory.Allocator
+	sc      *arrow.Schema
+	pw      *pqarrow.FileWriter
+	bldr    *array.RecordBuilder
+	strBs   []*array.StringBuilder // cached per-column builders
+	pending int                    // rows currently buffered in bldr
+	closed  bool
 }
 
 // NewWriter creates a Parquet writer targeting a filesystem path.
@@ -346,57 +361,128 @@ func (w *Writer) WriteHeader(columns []string) error {
 	return nil
 }
 
-// WriteRow writes a single row of values. Values are stored as strings.
-func (w *Writer) WriteRow(values []any) error {
-	row := make([]any, len(values))
-	copy(row, values)
-	w.rows = append(w.rows, row)
-	return nil
-}
-
-// Close flushes and writes the Parquet file.
-func (w *Writer) Close() error {
-	if w.columns == nil {
+// initWriter builds the Arrow schema, RecordBuilder, and pqarrow FileWriter.
+// Called once, lazily, before the first batch is buffered.
+func (w *Writer) initWriter() error {
+	if w.pw != nil {
 		return nil
 	}
 
-	alloc := memory.NewGoAllocator()
+	w.alloc = memory.NewGoAllocator()
 
-	// Build Arrow schema: all columns as string type.
+	// Arrow schema: all columns as string. Built once and reused for every
+	// row group to avoid repeated schema construction.
 	arrowFields := make([]arrow.Field, len(w.columns))
 	for i, name := range w.columns {
 		arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
 	}
-	sc := arrow.NewSchema(arrowFields, nil)
+	w.sc = arrow.NewSchema(arrowFields, nil)
 
-	bldr := array.NewRecordBuilder(alloc, sc)
-	defer bldr.Release()
-
-	for _, row := range w.rows {
-		for c, val := range row {
-			if c < len(w.columns) {
-				bldr.Field(c).(*array.StringBuilder).Append(fmt.Sprintf("%v", val))
-			}
-		}
+	w.bldr = array.NewRecordBuilder(w.alloc, w.sc)
+	w.strBs = make([]*array.StringBuilder, len(w.columns))
+	for i := range w.columns {
+		w.strBs[i] = w.bldr.Field(i).(*array.StringBuilder)
 	}
-
-	rec := bldr.NewRecord()
-	defer rec.Release()
 
 	w.buf.Reset()
 	props := pq.NewWriterProperties(pq.WithDictionaryDefault(true))
 	arrowProps := pqarrow.DefaultWriterProps()
-	pw, err := pqarrow.NewFileWriter(sc, &w.buf, props, arrowProps)
+	pw, err := pqarrow.NewFileWriter(w.sc, &w.buf, props, arrowProps)
 	if err != nil {
 		return fmt.Errorf("parquet.Writer: creating file writer: %w", err)
 	}
+	w.pw = pw
+	return nil
+}
 
-	if err := pw.Write(rec); err != nil {
+// flushBatch builds an arrow.Record from the buffered rows and writes it as a
+// single row group via pqarrow.FileWriter.Write (which always emits at least
+// one row group per call). Resets the builder afterwards. No-op if no rows
+// are pending.
+func (w *Writer) flushBatch() error {
+	if w.pending == 0 {
+		return nil
+	}
+	rec := w.bldr.NewRecordBatch()
+	if err := w.pw.Write(rec); err != nil {
+		rec.Release()
 		return fmt.Errorf("parquet.Writer: writing record: %w", err)
 	}
-	if err := pw.Close(); err != nil {
+	rec.Release()
+	w.pending = 0
+	return nil
+}
+
+// WriteRow writes a single row of values. Values are stringified. Rows are
+// accumulated in an Arrow RecordBuilder; once the batch reaches
+// defaultRowGroupSize, it is flushed as a row group and the builder is
+// reset. Row-group boundaries fall between rows — never inside a row.
+func (w *Writer) WriteRow(values []any) error {
+	if w.columns == nil {
+		return fmt.Errorf("parquet.Writer: WriteRow called before WriteHeader")
+	}
+	if err := w.initWriter(); err != nil {
+		return err
+	}
+
+	// Append the row to the current batch. Each column's StringBuilder gets
+	// exactly one value, so all columns stay aligned and the row is atomic.
+	for c := 0; c < len(w.columns); c++ {
+		var s string
+		if c < len(values) {
+			s = fmt.Sprintf("%v", values[c])
+		}
+		w.strBs[c].Append(s)
+	}
+	w.pending++
+
+	if w.pending >= defaultRowGroupSize {
+		return w.flushBatch()
+	}
+	return nil
+}
+
+// Close flushes any remaining buffered rows as a final row group, closes the
+// underlying parquet writer, and writes the file to the filesystem if a path
+// was configured.
+func (w *Writer) Close() error {
+	if w.closed {
+		return nil
+	}
+	w.closed = true
+
+	if w.columns == nil {
+		// No header was ever written; preserve the empty-output behavior.
+		return nil
+	}
+
+	// If no rows were ever written, we still emit a schema-only file to
+	// preserve the prior behavior of Close after WriteHeader.
+	if w.pw == nil {
+		if err := w.initWriter(); err != nil {
+			return err
+		}
+		// Emit one empty record so the file has a valid (empty) row group.
+		rec := w.bldr.NewRecordBatch()
+		if err := w.pw.Write(rec); err != nil {
+			rec.Release()
+			return fmt.Errorf("parquet.Writer: writing empty record: %w", err)
+		}
+		rec.Release()
+	} else {
+		if err := w.flushBatch(); err != nil {
+			return err
+		}
+	}
+
+	if err := w.pw.Close(); err != nil {
 		return fmt.Errorf("parquet.Writer: closing: %w", err)
 	}
+	if w.bldr != nil {
+		w.bldr.Release()
+		w.bldr = nil
+	}
+	w.pw = nil
 
 	if w.fs != nil && w.path != "" {
 		return afero.WriteFile(w.fs, w.path, w.buf.Bytes(), 0644)

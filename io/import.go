@@ -62,15 +62,19 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		return nil, err
 	}
 
-	// We need to collect all rows first to build dictionaries,
-	// then write schema + records.
-	type rowData struct {
-		values []uint64
-	}
-
-	var rows []rowData
+	// Records are encoded into a separate buffer during the read loop so
+	// the per-row scratch slice can be reused. The records buffer is
+	// appended to the main buffer after the schema is written, since the
+	// schema must precede records and dictionaries are populated as rows
+	// are converted.
+	var recordsBuf bytes.Buffer
 	var rowErrors []RowError
+	rowsImported := 0
 	rowNum := 0
+
+	// Reusable per-row scratch slice. Single goroutine via ReadRows callback,
+	// so reuse is safe.
+	vals := make([]uint64, len(schema.Fields))
 
 	err := j.Source.ReadRows(ctx, func(row []string) error {
 		select {
@@ -79,8 +83,8 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		default:
 		}
 		rowNum++
-		vals := make([]uint64, len(schema.Fields))
 
+		rowOK := true
 		for i, f := range schema.Fields {
 			colIdx := f.CsvColumnIdx
 			var raw string
@@ -98,12 +102,28 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 						map[string]any{"row": rowNum, "column": f.Name},
 					),
 				})
-				return nil // continue processing
+				rowOK = false
+				break
 			}
 			vals[i] = v
 		}
+		if !rowOK {
+			return nil // skip row, continue processing
+		}
 
-		rows = append(rows, rowData{values: vals})
+		// Encode this row immediately. Buffer is owned per call; values
+		// are not retained across iterations.
+		for i, f := range schema.Fields {
+			if f.Type == encoding.FieldTypePackedBool || f.Type == encoding.FieldTypeNullableBool || f.Type == encoding.FieldTypeNullableU4 {
+				// Bit-packed types: write as single byte for simplicity.
+				recordsBuf.WriteByte(byte(vals[i]))
+				continue
+			}
+			if err := encoding.WriteFieldValue(&recordsBuf, f.Type, vals[i]); err != nil {
+				return err
+			}
+		}
+		rowsImported++
 		return nil
 	})
 	if err != nil {
@@ -115,19 +135,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		return nil, err
 	}
 
-	// Write each record. No record count prefix — the format is header + schema + records
-	// per §5.3. Record count is derived from file size and per-record byte size.
-	for _, r := range rows {
-		for i, f := range schema.Fields {
-			if f.Type == encoding.FieldTypePackedBool || f.Type == encoding.FieldTypeNullableBool || f.Type == encoding.FieldTypeNullableU4 {
-				// Bit-packed types: write as single byte for simplicity.
-				buf.WriteByte(byte(r.values[i]))
-				continue
-			}
-			if err := encoding.WriteFieldValue(&buf, f.Type, r.values[i]); err != nil {
-				return nil, err
-			}
-		}
+	// Append the encoded records. No record count prefix — the format is
+	// header + schema + records per §5.3. Record count is derived from
+	// file size and per-record byte size.
+	if _, err := buf.Write(recordsBuf.Bytes()); err != nil {
+		return nil, err
 	}
 
 	// Write to filesystem.
@@ -136,7 +148,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	}
 
 	return &ImportReport{
-		RowsImported: len(rows),
+		RowsImported: rowsImported,
 		Schema:       schema,
 		RowErrors:    rowErrors,
 	}, nil
@@ -182,9 +194,30 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	}, nil
 }
 
+// isNullToken reports whether raw is one of the recognized null-sentinel
+// tokens. Matching is case-insensitive: "", "null", "na", "n/a" (any case).
+// The fixed set is small enough that a single ToLower + length-gated switch
+// outperforms repeated strings.EqualFold calls in the import hot loop.
+func isNullToken(raw string) bool {
+	switch len(raw) {
+	case 0:
+		return true
+	case 2: // "na" / "NA"
+		return (raw[0] == 'n' || raw[0] == 'N') && (raw[1] == 'a' || raw[1] == 'A')
+	case 3: // "n/a" / "N/A"
+		return (raw[0] == 'n' || raw[0] == 'N') && raw[1] == '/' && (raw[2] == 'a' || raw[2] == 'A')
+	case 4: // "null" / "NULL" / etc.
+		return (raw[0] == 'n' || raw[0] == 'N') &&
+			(raw[1] == 'u' || raw[1] == 'U') &&
+			(raw[2] == 'l' || raw[2] == 'L') &&
+			(raw[3] == 'l' || raw[3] == 'L')
+	}
+	return false
+}
+
 // convertValue converts a string value to the uint64 representation for the given type.
 func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary) (uint64, error) {
-	isNull := raw == "" || strings.EqualFold(raw, "null") || strings.EqualFold(raw, "na") || strings.EqualFold(raw, "n/a")
+	isNull := isNullToken(raw)
 
 	switch ft {
 	case encoding.FieldTypeU8:

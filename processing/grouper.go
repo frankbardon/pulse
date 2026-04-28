@@ -24,12 +24,14 @@ func newCategoryGrouper(_ *types.Group, schema *encoding.Schema) (Grouper, error
 }
 
 func (g *categoryGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
-	groups := make(map[string][]*Record)
-
 	f := g.schema.Field(field)
 	isCategorical := f != nil && f.Type.IsCategorical() && f.Dictionary != nil
 
-	for _, r := range records {
+	// Pass 1: compute keys (buffered to avoid recomputation) and per-key counts.
+	keys := make([]string, len(records))
+	used := make([]bool, len(records))
+	counts := make(map[string]int)
+	for i, r := range records {
 		v, ok := r.NumericValue(field)
 		if !ok {
 			continue // skip null values
@@ -50,7 +52,22 @@ func (g *categoryGrouper) Group(records []*Record, field string) (map[string][]*
 			}
 		}
 
-		groups[key] = append(groups[key], r)
+		keys[i] = key
+		used[i] = true
+		counts[key]++
+	}
+
+	// Pass 2: pre-allocate per-key slices to known final size, then append.
+	groups := make(map[string][]*Record, len(counts))
+	for k, n := range counts {
+		groups[k] = make([]*Record, 0, n)
+	}
+	for i, r := range records {
+		if !used[i] {
+			continue
+		}
+		k := keys[i]
+		groups[k] = append(groups[k], r)
 	}
 	return groups, nil
 }
@@ -69,9 +86,11 @@ func newRoundedGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 }
 
 func (g *roundedGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
-	groups := make(map[string][]*Record)
-
-	for _, r := range records {
+	// Pass 1: compute keys (buffered) and per-key counts.
+	keys := make([]string, len(records))
+	used := make([]bool, len(records))
+	counts := make(map[string]int)
+	for i, r := range records {
 		v, ok := r.NumericValue(field)
 		if !ok {
 			continue
@@ -86,7 +105,22 @@ func (g *roundedGrouper) Group(records []*Record, field string) (map[string][]*R
 			key = strconv.FormatFloat(rounded, 'f', -1, 64)
 		}
 
-		groups[key] = append(groups[key], r)
+		keys[i] = key
+		used[i] = true
+		counts[key]++
+	}
+
+	// Pass 2: pre-allocate per-key slices, then append.
+	groups := make(map[string][]*Record, len(counts))
+	for k, n := range counts {
+		groups[k] = make([]*Record, 0, n)
+	}
+	for i, r := range records {
+		if !used[i] {
+			continue
+		}
+		k := keys[i]
+		groups[k] = append(groups[k], r)
 	}
 	return groups, nil
 }
@@ -105,9 +139,11 @@ func newRangeGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 }
 
 func (g *rangeGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
-	groups := make(map[string][]*Record)
-
-	for _, r := range records {
+	// Pass 1: compute keys (buffered) and per-key counts.
+	keys := make([]string, len(records))
+	used := make([]bool, len(records))
+	counts := make(map[string]int)
+	for i, r := range records {
 		v, ok := r.NumericValue(field)
 		if !ok {
 			continue
@@ -129,7 +165,22 @@ func (g *rangeGrouper) Group(records []*Record, field string) (map[string][]*Rec
 		}
 
 		key := lowStr + "-" + highStr
-		groups[key] = append(groups[key], r)
+		keys[i] = key
+		used[i] = true
+		counts[key]++
+	}
+
+	// Pass 2: pre-allocate per-key slices, then append.
+	groups := make(map[string][]*Record, len(counts))
+	for k, n := range counts {
+		groups[k] = make([]*Record, 0, n)
+	}
+	for i, r := range records {
+		if !used[i] {
+			continue
+		}
+		k := keys[i]
+		groups[k] = append(groups[k], r)
 	}
 	return groups, nil
 }
@@ -157,7 +208,7 @@ func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*
 	groups := make(map[string][]*Record)
 
 	// Collect non-null (record, value) pairs.
-	var items []indexedValue
+	items := make([]indexedValue, 0, len(records))
 	for _, r := range records {
 		v, ok := r.NumericValue(field)
 		if !ok {
@@ -187,13 +238,34 @@ func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*
 		prefix = "P"
 	}
 
-	// Assign each item to a bucket by rank position.
+	// Pass 1: count records per bucket.
+	bucketCounts := make([]int, g.buckets)
+	for rank := range n {
+		bucket := rank * g.buckets / n
+		if bucket >= g.buckets {
+			bucket = g.buckets - 1
+		}
+		bucketCounts[bucket]++
+	}
+
+	// Pre-allocate per-key slices to known final size.
+	bucketKeys := make([]string, g.buckets)
+	for b := 0; b < g.buckets; b++ {
+		if bucketCounts[b] == 0 {
+			continue
+		}
+		key := prefix + strconv.Itoa(b+1)
+		bucketKeys[b] = key
+		groups[key] = make([]*Record, 0, bucketCounts[b])
+	}
+
+	// Pass 2: assign each item to its pre-sized bucket.
 	for rank, item := range items {
 		bucket := rank * g.buckets / n
 		if bucket >= g.buckets {
 			bucket = g.buckets - 1
 		}
-		key := prefix + strconv.Itoa(bucket+1)
+		key := bucketKeys[bucket]
 		groups[key] = append(groups[key], item.record)
 	}
 
@@ -237,9 +309,11 @@ func newDateGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 }
 
 func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
-	groups := make(map[string][]*Record)
-
-	for _, r := range records {
+	// Pass 1: compute keys (buffered to avoid recomputing time formatting) and per-key counts.
+	keys := make([]string, len(records))
+	used := make([]bool, len(records))
+	counts := make(map[string]int)
+	for i, r := range records {
 		v, ok := r.NumericValue(field)
 		if !ok {
 			continue // skip null values
@@ -264,7 +338,22 @@ func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Reco
 			key = t.Weekday().String()
 		}
 
-		groups[key] = append(groups[key], r)
+		keys[i] = key
+		used[i] = true
+		counts[key]++
+	}
+
+	// Pass 2: pre-allocate per-key slices, then append.
+	groups := make(map[string][]*Record, len(counts))
+	for k, n := range counts {
+		groups[k] = make([]*Record, 0, n)
+	}
+	for i, r := range records {
+		if !used[i] {
+			continue
+		}
+		k := keys[i]
+		groups[k] = append(groups[k], r)
 	}
 	return groups, nil
 }

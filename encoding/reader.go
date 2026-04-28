@@ -23,6 +23,15 @@ func NewRecordReader(r io.Reader, schema *Schema) *RecordReader {
 //
 // The caller provides pre-allocated maps to avoid per-record allocation.
 // Maps are cleared at the start of each call.
+//
+// Reuse contract: the maps are owned by the caller. ReadRecord does not retain
+// references to them after returning. If the caller plans to reuse the same
+// maps across calls (the typical pattern), they must consume the populated
+// values BEFORE invoking ReadRecord again, because the next call clears and
+// repopulates the maps in-place. If the caller needs to retain the values
+// past the next call (e.g., collecting Records into a slice for later
+// aggregation), it must pass distinct map instances per record OR copy the
+// contents out before the next ReadRecord call.
 func (rr *RecordReader) ReadRecord(values map[string]float64, nulls map[string]bool) error {
 	// Clear caller-provided maps.
 	for k := range values {
