@@ -5,71 +5,40 @@ type: guide
 applies_to: predict
 ---
 
-# Debugging with Predict
+# Debugging With Predict
 
-## Overview
-
-The `api predict` command validates a processing request without executing it. This enables fast iteration on request construction by catching errors before committing to a full processing run.
+Predict reads only the cohort header and schema; it never executes the request. Use it to validate cheaply before paying for a full `process` run.
 
 ## Workflow
 
-1. **Draft your request** as a JSON file.
-2. **Run predict**: `pulse api predict --request draft.json --json`
-3. **Review the output**: check for errors and warnings.
-4. **Fix issues** and re-run predict until clean.
-5. **Execute**: `pulse api process --request draft.json --json`
+1. Build `req.json` with cohort, aggregations, filters, groups, and attributes.
+2. Run `pulse api predict --request req.json --json`.
+3. Resolve every entry in `errors` and review `warnings`.
+4. Optionally re-run with `--strict` to promote warnings to errors (CI gate).
+5. Once clean, run `pulse api process --request req.json --json`.
 
-## What Predict Checks
+## What predict checks
 
-Predict validates the following aspects of a request:
+- Field names exist in the cohort schema.
+- Field types are compatible with each component.
+- Required params are present (e.g., `AGG_PERCENTILE` p, `GROUP_RANGE` bounds).
+- Numeric ops on categorical fields emit `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`.
+- Description quality emits `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`.
 
-- **Cohort existence**: Does the referenced `.pulse` file exist and have a valid header?
-- **Field references**: Do all field names in aggregations, filters, groups, and attributes reference fields that exist in the schema?
-- **Type compatibility**: Are aggregations applied to compatible field types?
-- **Categorical warnings**: Does the request apply numeric aggregations to categorical fields?
-- **Grouper validity**: Is GROUP_ROUNDED applied only to numeric fields? Is the interval positive?
-- **Filter consistency**: Are FILTER_INCLUDE/FILTER_EXCLUDE values parseable for the target field type?
-- **Attribute configuration**: Are formula expressions syntactically valid? Are labels unique?
-- **Output format**: Is the requested output format supported?
+## Common scenarios
 
-## Reading Warnings
+| Scenario | Symptom | Fix |
+|---|---|---|
+| Field name typo | `SERVICE_VALIDATION` error citing unknown field | Run `pulse api inspect` and copy the exact name. |
+| Numeric agg on categorical | `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning | Switch to `AGG_FREQUENCY` or `AGG_COUNT`. |
+| Missing aggregator param | `PROCESSING_CONFIG` error (e.g., percentile without `p`) | Add the required parameter to the aggregator config. |
+| Wrong filterer key | `SERVICE_VALIDATION` error on filter shape | Match the filterer's expected keys (`values`, `min`/`max`, `expression`). |
+| Low-quality description | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` warning | Rewrite the field description as a concrete sentence ≥10 chars. |
 
-Predict output includes a list of warnings, each with:
+## Predict cannot detect
 
-- **code**: The error code (e.g., `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`)
-- **message**: A human-readable description of the issue
-- **field**: The field name involved, if applicable
+- Runtime numeric overflow during aggregation.
+- Empty groups produced after filtering.
+- Post-import dictionary growth on categorical fields.
 
-Warnings do not prevent execution by default. They indicate potential issues that may produce misleading results.
-
-## Strict Mode
-
-Use `--strict` to treat warnings as errors:
-
-```
-pulse api predict --request draft.json --json --strict
-```
-
-In strict mode, any warning causes predict to exit with a non-zero status code. This is useful in CI pipelines or when you want to enforce best practices.
-
-## Common Predict Scenarios
-
-### Scenario: Wrong Field Name
-
-If you reference a field that does not exist in the schema, predict returns an error immediately rather than failing mid-processing.
-
-### Scenario: Categorical Aggregation
-
-If you apply AGG_SUM to a categorical field, predict emits `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`. Switch to AGG_FREQUENCY or AGG_COUNT.
-
-### Scenario: Invalid Filter Values
-
-If you use FILTER_RANGE with non-numeric values on a numeric field, predict catches the parsing error.
-
-### Scenario: Formula Syntax
-
-If an ATTR_FORMULA expression has a syntax error or references a nonexistent field, predict reports the issue with the exact expression location.
-
-## Integration with Compose
-
-Predict also works with ComposedRequest. Each sub-request is validated independently, and all errors/warnings are collected and returned together.
+For those, run `process` and inspect output.
