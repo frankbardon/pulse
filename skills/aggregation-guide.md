@@ -7,6 +7,11 @@ applies_to: process, compose, predict
 
 # Aggregation Guide
 
+<skill_overview>
+Pulse exposes 16 aggregators and 4 filterers that run during `process` and `compose`. Invoke this skill when choosing aggregators for a request, validating numeric-vs-categorical compatibility, or shaping filterers before grouping.
+</skill_overview>
+
+<reference>
 ## Aggregators (16)
 
 | Type | Meaning | Input |
@@ -27,14 +32,18 @@ applies_to: process, compose, predict
 | AGG_SKEWNESS | Population skewness (asymmetry). | numeric |
 | AGG_KURTOSIS | Excess kurtosis (tail heaviness vs normal). | numeric |
 | AGG_ZSCORE | Mean of per-value z-scores over the group (always ~0 by construction; useful as a sentinel). | numeric |
+</reference>
 
+<rule severity="caveat" topic="aggregator-quirks">
 ## Notes on non-obvious aggregators
 
 - **AGG_PERCENTILE** takes a `params` object with key `percentile` (float, 0-100). Defaults to 50 (median) if `params` is omitted; out-of-range values produce `PROCESSING_CONFIG`.
 - **AGG_ZSCORE** computes `(x - mean) / stddev` for each value, then returns the mean of those z-scores. By definition this is ~0 for any non-degenerate group; use ATTR_ZSCORE for per-record scores instead.
 - **AGG_FREQUENCY** returns the count of the most-frequent value (not a histogram). Nulls are skipped before counting; they do not get their own bucket. Use AGG_MODE if you want the value itself.
 - **AGG_MODE** breaks ties by returning the smallest value among those tied for highest frequency, so output is deterministic.
+</rule>
 
+<rule severity="must" topic="numeric-on-categorical">
 ## Numeric vs categorical-meaningful
 
 Numeric-only (12) — applying to a categorical field emits `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`:
@@ -42,7 +51,9 @@ Numeric-only (12) — applying to a categorical field emits `PULSE_AGG_NOT_MEANI
 
 Categorical-safe (4):
 `AGG_COUNT`, `AGG_DISTINCT_COUNT`, `AGG_FREQUENCY`, `AGG_MODE`.
+</rule>
 
+<reference>
 ## Null handling
 
 | Aggregator | Behavior |
@@ -63,7 +74,9 @@ Categorical-safe (4):
 | AGG_SKEWNESS | Excludes nulls. |
 | AGG_KURTOSIS | Excludes nulls. |
 | AGG_ZSCORE | Skips nulls; returns 0 for empty groups or zero-stddev groups. |
+</reference>
 
+<reference>
 ## Filterers (4)
 
 Filterers run before grouping and aggregation. The `types.Filterer` JSON shape is `{"type", "field", "values", "expression"}`; only the keys relevant to each filterer type are used.
@@ -74,16 +87,41 @@ Filterers run before grouping and aggregation. The `types.Filterer` JSON shape i
 | FILTER_EXCLUDE | `field`, `values` (string list) | Drop records whose field value is in `values`. Nulls pass through. |
 | FILTER_RANGE | `field`, `values` (exactly `[min, max]`) | Keep records where `min <= value <= max` (both bounds inclusive). Nulls are dropped. |
 | FILTER_EXPRESSION | `expression` (expr-lang string returning bool) | Evaluate `expression` against the record's field map; keep records where it returns `true`. No `field` key. |
+</reference>
+
+<example name="filter-include">
+Keep records whose `grade` is `A` or `B`.
 
 ```json
-[
-  {"type": "FILTER_INCLUDE", "field": "grade", "values": ["A", "B"]},
-  {"type": "FILTER_EXCLUDE", "field": "status", "values": ["archived"]},
-  {"type": "FILTER_RANGE",   "field": "age",    "values": ["18", "65"]},
-  {"type": "FILTER_EXPRESSION", "expression": "score > 90 && active == true"}
-]
+{"type": "FILTER_INCLUDE", "field": "grade", "values": ["A", "B"]}
 ```
+</example>
 
+<example name="filter-exclude">
+Drop records whose `status` is `archived`.
+
+```json
+{"type": "FILTER_EXCLUDE", "field": "status", "values": ["archived"]}
+```
+</example>
+
+<example name="filter-range">
+Keep records where `age` is between 18 and 65 inclusive.
+
+```json
+{"type": "FILTER_RANGE", "field": "age", "values": ["18", "65"]}
+```
+</example>
+
+<example name="filter-expression">
+Keep records that match an expr-lang predicate.
+
+```json
+{"type": "FILTER_EXPRESSION", "expression": "score > 90 && active == true"}
+```
+</example>
+
+<rule severity="should" topic="null-strategy">
 ## Null strategy and small-group caveats
 
 Aggregations skip nulls (see the table above); the choice is what to do about records that became null upstream.
@@ -95,8 +133,9 @@ Aggregations skip nulls (see the table above); the choice is what to do about re
 Tiny groups produce unstable summary stats. Pair non-trivial aggregations with `AGG_COUNT` (alias `n`) so the consumer can flag thin slices and downweight or hide them.
 
 Higher moments (`AGG_STDDEV`, `AGG_VARIANCE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`) require n ≥ 2 non-null values; below that, they return 0 rather than erroring (skewness/kurtosis also return 0 when stddev is 0).
+</rule>
 
-## See also
-
-- `attribute-composition.md` — per-record attributes (including ATTR_ZSCORE).
-- `grouper-design.md` — how groupers partition data before aggregation runs.
+<see_also>
+- attribute-composition — per-record attributes (including ATTR_ZSCORE).
+- grouper-design — how groupers partition data before aggregation runs.
+</see_also>
