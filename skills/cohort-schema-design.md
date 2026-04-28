@@ -7,152 +7,83 @@ applies_to: inspect, predict
 
 # Cohort Schema Design
 
-## Overview
-
-Every `.pulse` cohort begins with a schema that defines each field's name, type, description, and nullability. Choosing the right field type is critical for storage efficiency, query performance, and semantic correctness.
-
-## The 15 Field Types
-
-Pulse supports exactly 15 field types, organized into four categories: unsigned integers, floating point, nullable/packed, and categorical.
-
-### Unsigned Integer Types
-
-#### u8
-
-An 8-bit unsigned integer (0..255). Use for small counters, age values, ordinal scales, or any non-negative integer fitting in one byte.
-
-- Byte size: 1
-- Range: 0 to 255
-
-#### u16
-
-A 16-bit unsigned integer (0..65535). Use for larger counters, year values, or medium-range non-negative integers.
-
-- Byte size: 2
-- Range: 0 to 65,535
-
-#### u32
-
-A 32-bit unsigned integer (0..4,294,967,295). Use for record identifiers, large counts, or epoch-day date values.
-
-- Byte size: 4
-- Range: 0 to 4,294,967,295
-
-#### u64
-
-A 64-bit unsigned integer. Use for very large identifiers, timestamps as integer microseconds, or hash values.
-
-- Byte size: 8
-- Range: 0 to 18,446,744,073,709,551,615
-
-### Floating Point Types
-
-#### f32
-
-A 32-bit IEEE 754 float. Use for measurements where 7 significant digits of precision suffice (e.g., temperature, weight).
-
-- Byte size: 4
-- Precision: ~7 significant digits
-
-#### f64
-
-A 64-bit IEEE 754 double. Use for high-precision measurements, financial calculations, or computed scores.
-
-- Byte size: 8
-- Precision: ~15 significant digits
-
-### Nullable and Packed Types
-
-These types use bit-packing to share bytes across adjacent fields, reducing per-record storage.
-
-#### nullable_bool
-
-A tri-state boolean: true, false, or null. Uses 2 bits (1 value bit + 1 null bit) packed alongside adjacent fields.
-
-- Byte size: 0 (bit-packed)
-- Values: true, false, null
-
-#### nullable_u4
-
-A 4-bit unsigned integer with a null sentinel. Range 0..14 with 15 reserved as null. Ideal for small ordinal scales with missing values (e.g., Likert 1-5).
-
-- Byte size: 0 (bit-packed)
-- Range: 0 to 14 (15 = null)
-
-#### nullable_u8
-
-An 8-bit unsigned integer with a separate null bit. Range 0..255 with independent null tracking.
-
-- Byte size: 1
-- Range: 0 to 255, plus null
-
-#### nullable_u16
-
-A 16-bit unsigned integer with a separate null bit. Range 0..65535 with independent null tracking.
-
-- Byte size: 2
-- Range: 0 to 65,535, plus null
-
-#### date
-
-A date stored as a 32-bit epoch-day offset. Represents calendar dates without time components.
-
-- Byte size: 4
-- Range: dates relative to epoch
-
-#### packed_bool
-
-A simple boolean that uses 1 bit, packed alongside adjacent fields. No null support; every record must have a value.
-
-- Byte size: 0 (bit-packed)
-- Values: true, false
-
-### Categorical Types
-
-Categorical fields store string values as dictionary-encoded integers. The dictionary is stored in the schema header.
-
-#### categorical_u8
-
-A categorical field with up to 256 distinct values, encoded as a u8 index into the dictionary.
-
-- Byte size: 1
-- Max entries: 256
-
-#### categorical_u16
-
-A categorical field with up to 65,536 distinct values, encoded as a u16 index.
-
-- Byte size: 2
-- Max entries: 65,536
-
-#### categorical_u32
-
-A categorical field with up to 4,294,967,295 distinct values, encoded as a u32 index.
-
-- Byte size: 4
-- Max entries: 4,294,967,295
-
-## Nullability
-
-Nullability in Pulse is type-level, not field-level. A field is nullable if and only if its type supports null:
-
-- **Always nullable**: `nullable_bool`, `nullable_u4`, `nullable_u8`, `nullable_u16`
-- **Never nullable**: all other types
-
-When importing data with missing values, choose a nullable type or define a sentinel value convention.
-
-## Bit-Packing
-
-The packed types (`packed_bool`, `nullable_bool`, `nullable_u4`) share bytes with adjacent packed fields. The encoder groups consecutive packed fields and allocates the minimum number of bytes to hold all their bits.
-
-This means reordering fields in a schema can change the byte layout. Place packed fields adjacent to each other for optimal packing.
-
-## Description Quality
-
-Every field should have a description that explains what the field represents, its units, and any domain-specific semantics. Descriptions are limited to 1000 bytes and are checked for quality during import.
-
-Good descriptions help downstream consumers (both human and LLM) understand the data without external documentation.
-
-## Schema Template Workflow
-
-Use `pulse import schema-template` to generate a starting schema from a CSV/TSV file. The template infers types from sample rows and provides a JSON schema you can edit before importing.
+<skill_overview>
+Schema design determines storage layout, encoding width, and downstream aggregation behavior for a `.pulse` cohort. Invoke this skill when authoring or reviewing a schema template, picking field types, or planning bit-packed runs.
+</skill_overview>
+
+<reference>
+## Field types (all 15)
+
+| Type | Byte | Notes |
+|---|---|---|
+| `u8` | 1 | Unsigned 8-bit (0..255) |
+| `u16` | 2 | Unsigned 16-bit (0..65,535) |
+| `u32` | 4 | Unsigned 32-bit (0..~4.29B) |
+| `u64` | 8 | Unsigned 64-bit |
+| `f32` | 4 | IEEE 754, ~7 significant digits |
+| `f64` | 8 | IEEE 754, ~15 significant digits |
+| `nullable_bool` | 0 | Bit-packed tri-state (null/true/false) |
+| `nullable_u4` | 0 | Bit-packed nibble; range 0..14, 15 = null |
+| `nullable_u8` | 1 | 8-bit unsigned with separate null bit |
+| `nullable_u16` | 2 | 16-bit unsigned with separate null bit |
+| `date` | 4 | Epoch days since Unix epoch (1970-01-01), no time component |
+| `packed_bool` | 0 | Bit-packed boolean, no null support |
+| `categorical_u8` | 1 | Dictionary-encoded, ≤256 entries |
+| `categorical_u16` | 2 | Dictionary-encoded, ≤65,536 entries |
+| `categorical_u32` | 4 | Dictionary-encoded, ≤~4.29B entries |
+</reference>
+
+<reference>
+## Type selection heuristics
+
+- Counts and IDs: pick the smallest unsigned width that fits the maximum value (`u8` < `u16` < `u32` < `u64`).
+- Floats: prefer `f32` for measurements where ~7 significant digits suffice; use `f64` for financial math, computed scores, or wide dynamic range.
+- Booleans without nulls: `packed_bool`. With nulls: `nullable_bool`.
+- Small ordinals with missing values (Likert 1-5, grades): `nullable_u4`.
+- Calendar dates: `date`. For sub-day timestamps, store as `u64` microseconds.
+- Strings: always categorical. Pick the width by expected distinct cardinality.
+</reference>
+
+<reference>
+## Categorical width selection
+
+| Distinct values | Width |
+|---|---|
+| ≤ 256 | `categorical_u8` |
+| ≤ 65,536 | `categorical_u16` |
+| up to ~4.29B | `categorical_u32` |
+
+Exceeding the chosen width raises `PULSE_IMPORT_CATEGORICAL_OVERFLOW`; an unbounded inferred dictionary raises `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`.
+</reference>
+
+<rule severity="should" topic="bit-packing">
+## Bit-packing rules
+
+- `packed_bool`, `nullable_bool`, and `nullable_u4` return `ByteSize() == 0` and share bytes with adjacent packed fields.
+- The encoder coalesces a run of consecutive packed fields into the minimum number of bytes; place packed fields next to each other for optimal layout.
+- Reordering schema fields can change byte offsets even when types are unchanged.
+</rule>
+
+<rule severity="must" topic="descriptions">
+## Descriptions
+
+- Capped at 1000 bytes per field; longer values raise `PULSE_IMPORT_DESCRIPTION_TOO_LONG`.
+- Empty, sub-10-character, or generic descriptions ("n/a", "tbd", "unknown", "field", "data", "value", "column") trigger `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (warning by default, error under `--strict`).
+- Style: concise, third-person, present-tense; state what the field represents, its units, and any domain semantics.
+</rule>
+
+<workflow id="A" name="schema-template">
+## Schema-template workflow
+
+```bash
+pulse import schema-template data.csv > schema.json
+$EDITOR schema.json
+pulse import data.csv --schema schema.json --output data.pulse
+```
+</workflow>
+
+<reference>
+## Inspect post-import
+
+Run `pulse cohort inspect --full-dict --json FILE.pulse` to verify field types, byte offsets, descriptions, and full categorical dictionaries.
+</reference>

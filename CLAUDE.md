@@ -23,7 +23,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 |---|---|---|
 | A registered aggregator | `skills/aggregation-guide.md` (add or update the section for that aggregator) | `TestSkillsCoverAllComponents` |
 | A registered attribute | `skills/attribute-composition.md` | `TestSkillsCoverAllComponents` |
-| A registered filterer | `skills/aggregation-guide.md` filtering section + relevant skill | `TestSkillsCoverAllComponents` |
+| A registered filterer | `skills/aggregation-guide.md` (filtering section) | `TestSkillsCoverAllComponents` |
 | A registered grouper | `skills/grouper-design.md` | `TestSkillsCoverAllComponents` |
 | An error code (added/removed/renamed) | `skills/error-code-reference.md` | `TestSkillsCoverAllErrorCodes` |
 | A CLI leaf (added/removed/flag added) | `CLAUDE.md` "Common Claude Code Workflows" + `skills/getting-started.md` if user-facing | `TestSkillsCoverAllCliLeaves` |

@@ -7,176 +7,135 @@ applies_to: process, compose, predict
 
 # Aggregation Guide
 
-## Overview
+<skill_overview>
+Pulse exposes 16 aggregators and 4 filterers that run during `process` and `compose`. Invoke this skill when choosing aggregators for a request, validating numeric-vs-categorical compatibility, or shaping filterers before grouping.
+</skill_overview>
 
-Pulse provides 16 aggregation operations that compute summary statistics over filtered, grouped records. Each aggregator has specific semantics for null handling and categorical field behavior.
+<reference>
+## Aggregators (16)
 
-## Aggregators
+| Type | Meaning | Input |
+|------|---------|-------|
+| AGG_COUNT | Number of non-null values. | any |
+| AGG_DISTINCT_COUNT | Number of distinct non-null values. | any |
+| AGG_FREQUENCY | Highest frequency count among observed values. | any |
+| AGG_MODE | Most common value (smallest on tie). | any |
+| AGG_SUM | Arithmetic sum. | numeric |
+| AGG_AVERAGE | Arithmetic mean (`SUM / COUNT`). | numeric |
+| AGG_MIN | Smallest value. | numeric |
+| AGG_MAX | Largest value. | numeric |
+| AGG_RANGE | `MAX - MIN`. | numeric |
+| AGG_MEDIAN | 50th percentile (linear interpolation). | numeric |
+| AGG_PERCENTILE | Value at `percentile` rank, linear interpolation. | numeric |
+| AGG_STDDEV | Population standard deviation. | numeric |
+| AGG_VARIANCE | Population variance (`STDDEV^2`). | numeric |
+| AGG_SKEWNESS | Population skewness (asymmetry). | numeric |
+| AGG_KURTOSIS | Excess kurtosis (tail heaviness vs normal). | numeric |
+| AGG_ZSCORE | Mean of per-value z-scores over the group (always ~0 by construction; useful as a sentinel). | numeric |
+</reference>
 
-### AGG_COUNT
+<rule severity="caveat" topic="aggregator-quirks">
+## Notes on non-obvious aggregators
 
-Counts the number of non-null values in a field. If applied to a non-nullable field, this equals the number of records in the group.
+- **AGG_PERCENTILE** takes a `params` object with key `percentile` (float, 0-100). Defaults to 50 (median) if `params` is omitted; out-of-range values produce `PROCESSING_CONFIG`.
+- **AGG_ZSCORE** computes `(x - mean) / stddev` for each value, then returns the mean of those z-scores. By definition this is ~0 for any non-degenerate group; use ATTR_ZSCORE for per-record scores instead.
+- **AGG_FREQUENCY** returns the count of the most-frequent value (not a histogram). Nulls are skipped before counting; they do not get their own bucket. Use AGG_MODE if you want the value itself.
+- **AGG_MODE** breaks ties by returning the smallest value among those tied for highest frequency, so output is deterministic.
+</rule>
 
-- **Use when**: You need to know how many records have a value for a field.
-- **Null handling**: Null values are excluded from the count.
-- **Categorical**: Valid. Counts the number of records with a category assigned.
+<rule severity="must" topic="numeric-on-categorical">
+## Numeric vs categorical-meaningful
 
-### AGG_SUM
+Numeric-only (12) — applying to a categorical field emits `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`:
+`AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_RANGE`, `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_STDDEV`, `AGG_VARIANCE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_ZSCORE`.
 
-Computes the arithmetic sum of all non-null values in a numeric field.
+Categorical-safe (4):
+`AGG_COUNT`, `AGG_DISTINCT_COUNT`, `AGG_FREQUENCY`, `AGG_MODE`.
+</rule>
 
-- **Use when**: You need a total (e.g., total revenue, total hours).
-- **Null handling**: Null values are skipped.
-- **Categorical**: Not meaningful. Summing category indices has no semantic value. Pulse will emit a `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning.
+<reference>
+## Null handling
 
-### AGG_AVERAGE
+| Aggregator | Behavior |
+|------------|----------|
+| AGG_COUNT | Excludes nulls. |
+| AGG_DISTINCT_COUNT | Excludes nulls before deduplication. |
+| AGG_FREQUENCY | Skips nulls; no separate null bucket. |
+| AGG_MODE | Excludes nulls before frequency counting. |
+| AGG_SUM | Skips nulls. |
+| AGG_AVERAGE | Excludes from numerator and denominator. |
+| AGG_MIN | Ignores nulls. |
+| AGG_MAX | Ignores nulls. |
+| AGG_RANGE | Excludes nulls. |
+| AGG_MEDIAN | Excludes nulls before sorting. |
+| AGG_PERCENTILE | Excludes nulls before interpolation. |
+| AGG_STDDEV | Excludes nulls. |
+| AGG_VARIANCE | Excludes nulls. |
+| AGG_SKEWNESS | Excludes nulls. |
+| AGG_KURTOSIS | Excludes nulls. |
+| AGG_ZSCORE | Skips nulls; returns 0 for empty groups or zero-stddev groups. |
+</reference>
 
-Computes the arithmetic mean of all non-null values. Equivalent to SUM / COUNT.
+<reference>
+## Filterers (4)
 
-- **Use when**: You need a central tendency measure for numeric data.
-- **Null handling**: Null values are excluded from both numerator and denominator.
-- **Categorical**: Not meaningful. Averaging category indices produces nonsensical results.
+Filterers run before grouping and aggregation. The `types.Filterer` JSON shape is `{"type", "field", "values", "expression"}`; only the keys relevant to each filterer type are used.
 
-### AGG_MIN
+| Type | Config | Effect |
+|------|--------|--------|
+| FILTER_INCLUDE | `field`, `values` (string list) | Keep records whose field value is in `values`. Categorical values resolved through the field's dictionary; nulls are dropped. |
+| FILTER_EXCLUDE | `field`, `values` (string list) | Drop records whose field value is in `values`. Nulls pass through. |
+| FILTER_RANGE | `field`, `values` (exactly `[min, max]`) | Keep records where `min <= value <= max` (both bounds inclusive). Nulls are dropped. |
+| FILTER_EXPRESSION | `expression` (expr-lang string returning bool) | Evaluate `expression` against the record's field map; keep records where it returns `true`. No `field` key. |
+</reference>
 
-Returns the minimum non-null value in a numeric field.
+<example name="filter-include">
+Keep records whose `grade` is `A` or `B`.
 
-- **Use when**: You need the smallest observed value (e.g., lowest score, earliest date).
-- **Null handling**: Null values are ignored.
-- **Categorical**: Not meaningful for semantic purposes. The minimum dictionary index does not correspond to a meaningful ordering unless categories are ordinal.
+```json
+{"type": "FILTER_INCLUDE", "field": "grade", "values": ["A", "B"]}
+```
+</example>
 
-### AGG_MAX
+<example name="filter-exclude">
+Drop records whose `status` is `archived`.
 
-Returns the maximum non-null value in a numeric field.
+```json
+{"type": "FILTER_EXCLUDE", "field": "status", "values": ["archived"]}
+```
+</example>
 
-- **Use when**: You need the largest observed value (e.g., highest score, latest date).
-- **Null handling**: Null values are ignored.
-- **Categorical**: Not meaningful. Same caveat as AGG_MIN.
+<example name="filter-range">
+Keep records where `age` is between 18 and 65 inclusive.
 
-### AGG_STDDEV
+```json
+{"type": "FILTER_RANGE", "field": "age", "values": ["18", "65"]}
+```
+</example>
 
-Computes the population standard deviation of all non-null values.
+<example name="filter-expression">
+Keep records that match an expr-lang predicate.
 
-- **Use when**: You need to measure spread or variability in numeric data.
-- **Null handling**: Null values are excluded from the calculation.
-- **Categorical**: Not meaningful. Standard deviation of category indices is semantically meaningless.
-- **Formula**: `sqrt(sum((x - mean)^2) / N)`
+```json
+{"type": "FILTER_EXPRESSION", "expression": "score > 90 && active == true"}
+```
+</example>
 
-### AGG_RANGE
+<rule severity="should" topic="null-strategy">
+## Null strategy and small-group caveats
 
-Computes the difference between the maximum and minimum non-null values: `MAX - MIN`.
+Aggregations skip nulls (see the table above); the choice is what to do about records that became null upstream.
 
-- **Use when**: You need to know the spread of values in a field.
-- **Null handling**: Null values are excluded.
-- **Categorical**: Not meaningful.
+- **Filter when null means "out of scope."** Use `FILTER_INCLUDE` on the field, or `FILTER_EXPRESSION` checking non-null, to drop those records before aggregation.
+- **Re-import with imputed values when null is a known stand-in.** Pulse does not impute at process-time; substitute the value (mean, median, sentinel) in the source data and re-run import.
+- **Default: filter, and document the choice in the request comment** so downstream consumers see which records were excluded.
 
-### AGG_FREQUENCY
+Tiny groups produce unstable summary stats. Pair non-trivial aggregations with `AGG_COUNT` (alias `n`) so the consumer can flag thin slices and downweight or hide them.
 
-Returns a frequency distribution (histogram) of values in a field. For numeric fields, counts occurrences of each distinct value. For categorical fields, counts occurrences of each category label.
+Higher moments (`AGG_STDDEV`, `AGG_VARIANCE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`) require n ≥ 2 non-null values; below that, they return 0 rather than erroring (skewness/kurtosis also return 0 when stddev is 0).
+</rule>
 
-- **Use when**: You need a distribution breakdown or want to see the most common values.
-- **Null handling**: Null values get their own count entry.
-- **Categorical**: Valid and recommended. This is the primary aggregation for understanding categorical distributions.
-
-### AGG_MEDIAN
-
-Returns the middle value of sorted non-null numeric values. For even-length sets, returns the average of the two middle values.
-
-- **Use when**: You need a central tendency measure that is robust to outliers, unlike the arithmetic mean.
-- **Null handling**: Null values are excluded before sorting.
-- **Categorical**: Not meaningful. The median of dictionary indices has no semantic value. Pulse will emit a `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning.
-
-### AGG_VARIANCE
-
-Computes the population variance of all non-null values. This is the square of the standard deviation (stddev^2).
-
-- **Use when**: You need to measure the dispersion of numeric data, especially when comparing variability across datasets or when variance is needed directly (e.g., for statistical tests, ANOVA).
-- **Null handling**: Null values are excluded from the calculation.
-- **Categorical**: Not meaningful. Variance of category indices is semantically meaningless. Pulse will emit a `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning.
-- **Formula**: `sum((x - mean)^2) / N`
-
-### AGG_MODE
-
-Returns the most frequently occurring non-null value. When multiple values tie for highest frequency, returns the smallest value (deterministic tie-breaking).
-
-- **Use when**: You need to find the most common value in a field, such as the most popular category or the most frequent measurement.
-- **Null handling**: Null values are excluded from frequency counting.
-- **Categorical**: Valid. Mode is the natural summary statistic for categorical data, identifying the most common category.
-
-### AGG_SKEWNESS
-
-Computes the population skewness of all non-null values, measuring the asymmetry of the distribution. Positive skewness indicates a longer right tail, negative skewness indicates a longer left tail, and zero indicates symmetry.
-
-- **Use when**: You need to assess whether a distribution is symmetric or skewed, such as detecting outlier-heavy tails in financial or measurement data.
-- **Null handling**: Null values are excluded from the calculation.
-- **Categorical**: Not meaningful. Skewness of category indices is semantically meaningless. Pulse will emit a `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning.
-- **Formula**: `(1/N) * sum(((x - mean) / stddev)^3)`
-- **Edge cases**: Returns 0 for empty sets, single values, or when all values are identical (stddev = 0).
-
-### AGG_KURTOSIS
-
-Computes the excess kurtosis of all non-null values, measuring the tail heaviness of the distribution relative to a normal distribution. Positive kurtosis (leptokurtic) indicates heavy tails, negative kurtosis (platykurtic) indicates light tails, and zero indicates normal-like tails.
-
-- **Use when**: You need to assess whether a distribution has heavier or lighter tails than a normal distribution, such as detecting extreme outlier risk in financial data or measurement quality.
-- **Null handling**: Null values are excluded from the calculation.
-- **Categorical**: Not meaningful. Kurtosis of category indices is semantically meaningless. Pulse will emit a `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning.
-- **Formula**: `((1/N) * sum(((x - mean) / stddev)^4)) - 3`
-- **Edge cases**: Returns 0 for empty sets, single values, or when all values are identical (stddev = 0).
-
-### AGG_DISTINCT_COUNT
-
-Counts the number of unique non-null values in a field. Unlike AGG_COUNT which counts all non-null values, AGG_DISTINCT_COUNT deduplicates before counting.
-
-- **Use when**: You need to know how many unique values exist in a field (e.g., number of distinct categories, unique patient IDs, unique scores).
-- **Null handling**: Null values are excluded before counting unique values.
-- **Categorical**: Valid. Counts the number of distinct categories present in the data.
-
-### AGG_PERCENTILE
-
-Returns the value at a given percentile rank using linear interpolation. This is the first aggregator that accepts configuration parameters via the `params` field.
-
-- **Use when**: You need a specific quantile value (e.g., 90th percentile response time, 25th percentile score). More flexible than AGG_MEDIAN, which is fixed at the 50th percentile.
-- **Null handling**: Null values are excluded before sorting and interpolation.
-- **Categorical**: Not meaningful. Percentile of category indices is semantically meaningless. Pulse will emit a `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning.
-- **Params**: Requires a `params` JSON object with a `percentile` field (float64, 0-100). If `params` is omitted, defaults to 50 (equivalent to median).
-  ```json
-  {"percentile": 90}
-  ```
-- **Formula**: Linear interpolation: `rank = percentile / 100 * (N - 1)`, then interpolate between `vals[floor(rank)]` and `vals[ceil(rank)]`.
-- **Edge cases**: Returns 0 for empty sets. Returns the single value for single-element sets regardless of percentile. Returns an error if percentile is outside [0, 100].
-
-### AGG_ZSCORE
-
-Computes the z-score (standard score) for each value relative to the field's mean and standard deviation. This is an aggregation that produces per-record output rather than a single summary value.
-
-- **Use when**: You need to identify outliers or normalize values for comparison across fields.
-- **Null handling**: Null values produce null z-scores.
-- **Categorical**: Not meaningful.
-- **Formula**: `(x - mean) / stddev`
-
-## Null Handling Summary
-
-| Aggregator | Null Behavior |
-|------------|---------------|
-| AGG_COUNT | Excludes nulls |
-| AGG_SUM | Skips nulls |
-| AGG_AVERAGE | Excludes from both numerator and denominator |
-| AGG_MIN | Ignores nulls |
-| AGG_MAX | Ignores nulls |
-| AGG_STDDEV | Excludes nulls |
-| AGG_RANGE | Excludes nulls |
-| AGG_VARIANCE | Excludes nulls |
-| AGG_FREQUENCY | Counts nulls separately |
-| AGG_MODE | Excludes nulls |
-| AGG_MEDIAN | Excludes nulls |
-| AGG_SKEWNESS | Excludes nulls |
-| AGG_KURTOSIS | Excludes nulls |
-| AGG_DISTINCT_COUNT | Excludes nulls |
-| AGG_PERCENTILE | Excludes nulls |
-| AGG_ZSCORE | Produces null output for null input |
-
-## Categorical Field Warnings
-
-When a numeric aggregation (SUM, AVERAGE, MIN, MAX, STDDEV, RANGE, VARIANCE, MEDIAN, PERCENTILE, SKEWNESS, KURTOSIS, ZSCORE) is applied to a categorical field, Pulse emits the warning code `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`. The operation will still execute (operating on the dictionary index integers), but the results have no semantic meaning.
-
-Use `AGG_COUNT`, `AGG_FREQUENCY`, `AGG_MODE`, or `AGG_DISTINCT_COUNT` for categorical fields.
+<see_also>
+- attribute-composition — per-record attributes (including ATTR_ZSCORE).
+- grouper-design — how groupers partition data before aggregation runs.
+</see_also>

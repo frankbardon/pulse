@@ -291,8 +291,6 @@ pulse skills show aggregation-guide
 | `error-code-reference` | Error codes and recovery steps |
 | `import-best-practices` | Schema inference, fail-closed semantics |
 | `export-format-selection` | Choosing the right output format |
-| `statistical-concepts` | Null handling, sampling, categorical caveats |
-| `categorical-fields-guide` | String fields as dictionary-encoded categoricals |
 
 ### Integrating with an LLM agent
 

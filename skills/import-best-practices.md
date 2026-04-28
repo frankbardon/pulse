@@ -7,87 +7,88 @@ applies_to: inspect, predict
 
 # Import Best Practices
 
-## Overview
+<skill_overview>
+Pulse imports are fail-closed and schema-driven: review an inferred schema, write meaningful descriptions, then materialize a `.pulse` cohort. Invoke this skill when bringing a CSV, TSV, NDJSON, Parquet, or Excel source into Pulse.
+</skill_overview>
 
-Importing data into the `.pulse` format is the first step in any Pulse workflow. Getting the import right means choosing correct types, handling nulls properly, and validating the schema before committing to a full import.
+<workflow id="A" name="analyze-non-pulse">
+## Workflow A — Analyze non-`.pulse` source
 
-## Schema Inference
+Use this workflow when starting from a CSV, TSV, NDJSON, Parquet, or Excel file.
 
-When importing without an explicit schema, Pulse infers field types from a sample of the input data. The inference process:
+1. Generate a schema template by sampling the source. Output goes to stdout — redirect it to a file you will edit:
 
-1. Reads the first N rows (controlled by `--sample-rows`, default 500, minimum 50).
-2. For each column, tests candidate types from narrowest to widest.
-3. Selects the narrowest type that accommodates all sampled values.
-4. Detects categorical columns by cardinality analysis.
+   ```
+   pulse import schema-template input.csv > schema.json
+   ```
 
-### Inference Caveats
+   The emitted JSON is an array of `{"name", "type", "description"}` objects with empty descriptions.
 
-- **Small samples may miss edge cases.** A column of small integers in the first 500 rows might be typed as u8, but row 501 could have a value of 300. Increase `--sample-rows` or provide an explicit schema.
-- **Ambiguous columns** trigger `PULSE_IMPORT_SCHEMA_AMBIGUOUS`. This happens when the sample contains mixed types.
-- **Null markers** affect inference. If nulls are represented as empty strings, the column may be inferred as non-nullable string rather than a nullable numeric type.
+2. Edit `schema.json`. Fix any inferred types you disagree with, then write a meaningful description for every field. Descriptions are mandatory for quality (see below).
 
-## Fail-Closed Semantics
+3. Run the import with your reviewed schema:
 
-Pulse imports use fail-closed semantics by default:
+   ```
+   pulse import csv --schema schema.json --input input.csv --output cohort.pulse
+   ```
 
-- If a row cannot be encoded, the import fails entirely (no partial output).
-- This prevents silently corrupted data.
-- Every row error produces a `PULSE_IMPORT_ROW_ERROR` with the row number and field.
+   Replace `csv` with `tsv`, `ndjson`, `parquet`, or `excel` as needed. Excel additionally accepts `--sheet`.
 
-This design ensures that if an import succeeds, every row is correctly encoded.
+4. Inspect the materialized cohort to confirm the schema, descriptions, and dictionary contents:
 
-## Null Markers
+   ```
+   pulse cohort inspect --full-dict --json cohort.pulse
+   ```
 
-Source data represents missing values in various ways:
+5. Iterate on `schema.json` and re-import if anything looks wrong. The import is fail-closed, so a clean exit means every row encoded.
+</workflow>
 
-- Empty string (`""`)
-- Literal `"null"` or `"NULL"`
-- Literal `"NA"` or `"N/A"`
-- Special sentinel values (e.g., `-999`)
+<reference>
+## Schema inference
 
-Pulse recognizes common null markers during import. For custom null markers, specify them in the schema definition.
+- `--sample-rows` defaults to 500 and has a minimum of 50. Use 1000+ for production data.
+- Inference picks the narrowest numeric type that fits every sampled value.
+- Categorical detection runs by cardinality; widen the dictionary type if you expect more distinct values than the sample shows.
+</reference>
 
-When a null is encountered for a non-nullable field type, the import fails with `PULSE_IMPORT_ROW_ERROR`. Choose nullable types for fields that may have missing values.
+<rule severity="caveat" topic="inference-risks">
+## Inference risks
 
-## Schema Template Workflow
+- Small samples miss edge cases — a `u8`-typed column may overflow once a later row carries a value above 255.
+- Mixed types in the same column trigger `PULSE_IMPORT_SCHEMA_AMBIGUOUS`.
+- Empty strings interpreted as nulls can flip a column to a non-nullable string when you expected a nullable numeric.
+</rule>
 
-The recommended workflow for new imports:
+<rule severity="must" topic="fail-closed">
+## Fail-closed semantics
 
-1. **Generate a template**: `pulse import schema-template input.csv`
-2. **Review and edit**: Adjust inferred types, add descriptions, set nullability.
-3. **Import with schema**: `pulse import csv --input input.csv --output data.pulse --schema schema.json`
-4. **Inspect the result**: `pulse cohort inspect data.pulse`
+- A single unencodable row aborts the entire import.
+- No partial `.pulse` file is written when the import fails.
+- Each row failure surfaces as `PULSE_IMPORT_ROW_ERROR` with the row number and offending field.
+</rule>
 
-This workflow gives you full control over the schema while leveraging inference as a starting point.
+<reference>
+## Null markers
 
-## Sample Rows
+The import recognizes the following case-insensitive null tokens out of the box:
 
-The `--sample-rows` flag controls how many rows are used for schema inference:
+- `""` (empty string)
+- `null`
+- `na`
+- `n/a`
 
-- **Default**: 500 rows
-- **Minimum**: 50 rows
-- **Recommendation**: Use at least 1000 rows for production imports to catch edge cases.
+Custom sentinels (e.g., `-999`) are not auto-detected; treat them in your source pipeline before import or use a nullable type and pre-clean the value. Encountering a null for a non-nullable field type aborts the import with `PULSE_IMPORT_ROW_ERROR`.
+</reference>
 
-More sample rows increase confidence in type inference but take longer to process.
+<rule severity="must" topic="descriptions">
+## Field descriptions
 
-## Field Descriptions
+- Cap is 1000 bytes. Exceeding it raises `PULSE_IMPORT_DESCRIPTION_TOO_LONG`.
+- Empty descriptions, descriptions under 10 characters, or any of the generic tokens `n/a`, `na`, `none`, `tbd`, `todo`, `unknown`, `field`, `data`, `value`, `column` raise `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`. The check runs via `pulse api predict`; pass `--strict` there to promote the warning to an error.
+- Write concise, third-person, present-tense sentences. Mention units, valid range, and domain context when relevant.
+</rule>
 
-Every field should have a meaningful description. During import, Pulse validates descriptions:
-
-- Maximum length: 1000 bytes (`PULSE_IMPORT_DESCRIPTION_TOO_LONG` if exceeded)
-- Quality check: descriptions that are too short or generic trigger `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`
-
-Good descriptions include:
-- What the field represents
-- Units (e.g., "Height in centimeters")
-- Valid range (e.g., "Score from 0 to 100")
-- Domain context (e.g., "PHQ-9 depression screening total")
-
-## Categorical Import Considerations
-
-When importing categorical fields:
-
-- Choose the narrowest width that fits the cardinality: categorical_u8 for up to 256 values, categorical_u16 for up to 65,536.
-- Overflow triggers `PULSE_IMPORT_CATEGORICAL_OVERFLOW`.
-- If sample analysis suggests unbounded cardinality, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED` is emitted.
-- The dictionary is built during import and stored in the schema header.
+<see_also>
+- `cohort-schema-design` — choosing field types, nullability tradeoffs, and categorical width selection (including `PULSE_IMPORT_CATEGORICAL_OVERFLOW` and `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`).
+- `error-code-reference` — full recovery playbook for every import error code.
+</see_also>

@@ -7,10 +7,11 @@ applies_to: process, compose
 
 # Export Format Selection
 
-## Overview
+<skill_overview>
+After processing, Pulse can export results in multiple formats with tradeoffs in type fidelity, file size, tooling compatibility, and categorical representation. Invoke this skill when choosing an export target for a downstream consumer.
+</skill_overview>
 
-After processing, Pulse can export results in multiple formats. Each format has tradeoffs in terms of type fidelity, file size, tooling compatibility, and categorical representation.
-
+<reference>
 ## Format Comparison
 
 | Feature | CSV | TSV | NDJSON | Parquet | Excel |
@@ -22,7 +23,9 @@ After processing, Pulse can export results in multiple formats. Each format has 
 | Streaming | Yes | Yes | Yes | No (columnar) | No |
 | Human-readable | Yes | Yes | Yes | No | Yes (GUI) |
 | Schema included | No | No | No | Yes | No |
+</reference>
 
+<reference>
 ## When to Use Each Format
 
 ### CSV
@@ -75,22 +78,45 @@ Limitations:
 - Row limit of ~1 million rows
 - No native categorical encoding (values appear as strings)
 - Larger file size than Parquet
+</reference>
 
+<reference>
 ## Categorical Behavior per Format
 
 - **CSV/TSV**: Categorical fields are exported as their string labels. The dictionary is lost.
 - **NDJSON**: Categorical fields appear as string values in JSON.
 - **Parquet**: Categorical fields are exported as dictionary-encoded columns, preserving the encoding.
 - **Excel**: Categorical fields appear as string values in cells.
+</reference>
 
+<rule severity="should" topic="round-trip-preservation">
 If you need to round-trip data back into Pulse, use Parquet to preserve categorical encoding.
+</rule>
 
-## CLI Usage
+<example name="export-csv">
+Export processed results to CSV for spreadsheet consumers.
 
 ```
 pulse export csv --input data.pulse --output results.csv
+```
+</example>
+
+<example name="export-parquet">
+Export to Parquet for machine-to-machine transfer with full type fidelity.
+
+```
 pulse export parquet --input data.pulse --output results.parquet
+```
+</example>
+
+<example name="export-excel">
+Export to Excel for non-technical end users.
+
+```
 pulse export excel --input data.pulse --output results.xlsx
 ```
+</example>
 
+<rule severity="should" topic="validate-before-write">
 Use `pulse export predict` to validate the export configuration before writing.
+</rule>
