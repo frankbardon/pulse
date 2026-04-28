@@ -262,7 +262,7 @@ func TestFormatPackedValue_AllTypes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := formatPackedValue(tc.ft, tc.b, nil)
+			got := formatPackedValue(tc.ft, tc.b)
 			if got != tc.want {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}
