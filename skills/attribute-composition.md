@@ -45,13 +45,32 @@ Normalizes each value to a 0..1 range using min-max normalization.
 
 ### ATTR_FORMULA
 
-Computes a derived value using a runtime expression that can reference any field in the record.
+Computes a derived value using a runtime expression (evaluated by `expr-lang/expr` v1.17.x) that can reference any field in the record.
 
-- **Expression**: A string expression evaluated per-record. Supports arithmetic operators (+, -, *, /), field references by name, and standard math functions.
-- **Output**: The result of evaluating the expression.
-- **Null handling**: If any referenced field is null, the result is null.
-- **Categorical**: Categorical fields can be accessed in formulas. When referenced, the categorical string label is available for string operations, not the dictionary index.
-- **Use when**: You need custom derived fields like BMI = weight / (height * height), or composite scores.
+- **Config**: `type: "ATTR_FORMULA"`, `field` (the source field used by predict for null-propagation bookkeeping), `label` (output column name), and `expression` (the expression string). There is no `result_type` field.
+- **Allowed operators**:
+  - Arithmetic: `+`, `-`, `*`, `/`, `%`, `**` (or `^`) for exponentiation, unary `-` and `+`.
+  - Comparison: `==`, `!=`, `<`, `<=`, `>`, `>=`.
+  - Logical: `and` / `&&`, `or` / `||`, `not` / `!`.
+  - Membership / pattern: `in`, `contains`, `startsWith`, `endsWith`, `matches`.
+  - Range / nil-coalescing / pipe: `..`, `??`, `|`.
+  - Grouping: parentheses `( ... )`.
+  - Ternary: `cond ? a : b`.
+- **Allowed functions** (verified against expr-lang v1.17.8 builtins): `abs`, `ceil`, `floor`, `round`, `int`, `float`, `string`, `len`, `type`, `min`, `max`, `sum`, `mean`, `median`, `first`, `last`, `get`, `take`, `keys`, `values`, `concat`, `flatten`, `reverse`, `sort`, `sortBy`, `uniq`, `join`, `split`, `splitAfter`, `replace`, `repeat`, `indexOf`, `lastIndexOf`, `hasPrefix`, `hasSuffix`, `trim`, `trimPrefix`, `trimSuffix`, `lower`, `upper`, `toJSON`, `fromJSON`, `toBase64`, `fromBase64`, `toPairs`, `fromPairs`, `groupBy`, `count`, `find`, `findIndex`, `findLast`, `findLastIndex`, `filter`, `map`, `reduce`, `all`, `any`, `none`, `one`, `bitnot`, `now`, `date`, `duration`, `timezone`. **Common gap**: there is no `sqrt`, `log`, `exp`, `pow`, `sin`, or `cos` builtin — use `**` for powers (e.g., `value ** 0.5` for square root) or precompute trigonometric values upstream.
+- **Field references**: by bare field name. Numeric fields (u8/u16/u32/u64/f32/f64/date/nullable_*/packed_bool) appear as numbers. Categorical fields (`categorical_u8`/`u16`/`u32`) are auto-resolved to their **dictionary string** before evaluation, so use string equality (`brand == "Apple"`) or membership (`brand in ["Apple", "Samsung"]`), not the integer index.
+- **Null handling**: Null fields are omitted from the expression environment; referencing one yields an evaluation error and the row fails (`PROCESSING_RUNTIME`). Use `??` to provide a fallback (e.g., `weight ?? 0`).
+- **Output**: The result is coerced to a number. `float64`, `float32`, `int`, and `int64` pass through; `bool` becomes `1.0`/`0.0`; any other type errors with `PROCESSING_RUNTIME`.
+- **Composition**: Formulas can only reference original fields, not other computed attributes (see Composition Rules).
+- **Use when**: You need a custom derived field like BMI or a categorical flag.
+
+```json
+{
+  "type": "ATTR_FORMULA",
+  "field": "weight_kg",
+  "label": "bmi",
+  "expression": "weight_kg / (height_m * height_m)"
+}
+```
 
 ### ATTR_PERCENTILE
 
