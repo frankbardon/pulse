@@ -45,6 +45,7 @@
         "AGG_ZSCORE"
       ],
       "attributes": [
+        "ATTR_DATE_PART",
         "ATTR_FORMULA",
         "ATTR_NORMALIZED",
         "ATTR_PERCENTILE",
@@ -130,4 +131,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1ef05ad04c67bc69ed37016d1eea2501ec4cd463bdac95b7b94d6aaf6a183b03
+// golden-hash: c151d3d196cb3541a5ef01a78b3f2a712049af2a4eed6073ae8c5448e252d60f

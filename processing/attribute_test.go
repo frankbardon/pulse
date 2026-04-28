@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 
@@ -275,6 +276,255 @@ func TestAttribute_Rank_Empty(t *testing.T) {
 	}
 	if len(result) != 0 {
 		t.Errorf("result length = %d, want 0", len(result))
+	}
+}
+
+// --- DatePart Attribute ---
+
+func dateSchema() *encoding.Schema {
+	return &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "enrolled", Type: encoding.FieldTypeDate},
+			{Name: "score", Type: encoding.FieldTypeF64},
+		},
+	}
+}
+
+func makeDatePartAttribute(t *testing.T, field string, schema *encoding.Schema, part string) AttributeComputer {
+	t.Helper()
+	factory, ok := attributeRegistry[types.ATTR_DATE_PART]
+	if !ok {
+		t.Fatalf("no attribute registered for ATTR_DATE_PART")
+	}
+	params := json.RawMessage(`{"part":"` + part + `"}`)
+	attr, err := factory(&types.Attribute{
+		Type:   types.ATTR_DATE_PART,
+		Field:  field,
+		Label:  "result",
+		Params: params,
+	}, schema)
+	if err != nil {
+		t.Fatalf("create date_part attribute: %v", err)
+	}
+	return attr
+}
+
+// 2024-03-15 = 19797 days since epoch
+// 2023-12-01 = 19692 days since epoch
+// 2025-01-31 = 20119 days since epoch
+
+func TestAttribute_DatePart_Year(t *testing.T) {
+	schema := dateSchema()
+	attr := makeDatePartAttribute(t, "enrolled", schema, "year")
+	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
+
+	result, err := attr.Compute(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 3 {
+		t.Fatalf("result length = %d, want 3", len(result))
+	}
+	if result[0] != 2024 {
+		t.Errorf("year[0] = %f, want 2024", result[0])
+	}
+	if result[1] != 2023 {
+		t.Errorf("year[1] = %f, want 2023", result[1])
+	}
+	if result[2] != 2025 {
+		t.Errorf("year[2] = %f, want 2025", result[2])
+	}
+}
+
+func TestAttribute_DatePart_Month(t *testing.T) {
+	schema := dateSchema()
+	attr := makeDatePartAttribute(t, "enrolled", schema, "month")
+	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
+
+	result, err := attr.Compute(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result[0] != 3 {
+		t.Errorf("month[0] = %f, want 3", result[0])
+	}
+	if result[1] != 12 {
+		t.Errorf("month[1] = %f, want 12", result[1])
+	}
+	if result[2] != 1 {
+		t.Errorf("month[2] = %f, want 1", result[2])
+	}
+}
+
+func TestAttribute_DatePart_Day(t *testing.T) {
+	schema := dateSchema()
+	attr := makeDatePartAttribute(t, "enrolled", schema, "day")
+	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
+
+	result, err := attr.Compute(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result[0] != 15 {
+		t.Errorf("day[0] = %f, want 15", result[0])
+	}
+	if result[1] != 1 {
+		t.Errorf("day[1] = %f, want 1", result[1])
+	}
+	if result[2] != 31 {
+		t.Errorf("day[2] = %f, want 31", result[2])
+	}
+}
+
+func TestAttribute_DatePart_YearMonth(t *testing.T) {
+	schema := dateSchema()
+	attr := makeDatePartAttribute(t, "enrolled", schema, "year_month")
+	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
+
+	result, err := attr.Compute(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// 2024-03 => 202403, 2023-12 => 202312, 2025-01 => 202501
+	if result[0] != 202403 {
+		t.Errorf("year_month[0] = %f, want 202403", result[0])
+	}
+	if result[1] != 202312 {
+		t.Errorf("year_month[1] = %f, want 202312", result[1])
+	}
+	if result[2] != 202501 {
+		t.Errorf("year_month[2] = %f, want 202501", result[2])
+	}
+}
+
+func TestAttribute_DatePart_YearMonthDay(t *testing.T) {
+	schema := dateSchema()
+	attr := makeDatePartAttribute(t, "enrolled", schema, "year_month_day")
+	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
+
+	result, err := attr.Compute(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// 2024-03-15 => 20240315, 2023-12-01 => 20231201, 2025-01-31 => 20250131
+	if result[0] != 20240315 {
+		t.Errorf("year_month_day[0] = %f, want 20240315", result[0])
+	}
+	if result[1] != 20231201 {
+		t.Errorf("year_month_day[1] = %f, want 20231201", result[1])
+	}
+	if result[2] != 20250131 {
+		t.Errorf("year_month_day[2] = %f, want 20250131", result[2])
+	}
+}
+
+func TestAttribute_DatePart_MonthDay(t *testing.T) {
+	schema := dateSchema()
+	attr := makeDatePartAttribute(t, "enrolled", schema, "month_day")
+	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
+
+	result, err := attr.Compute(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// 03-15 => 315, 12-01 => 1201, 01-31 => 131
+	if result[0] != 315 {
+		t.Errorf("month_day[0] = %f, want 315", result[0])
+	}
+	if result[1] != 1201 {
+		t.Errorf("month_day[1] = %f, want 1201", result[1])
+	}
+	if result[2] != 131 {
+		t.Errorf("month_day[2] = %f, want 131", result[2])
+	}
+}
+
+func TestAttribute_DatePart_Empty(t *testing.T) {
+	schema := dateSchema()
+	attr := makeDatePartAttribute(t, "enrolled", schema, "year")
+	records := makeRecords(schema, "enrolled", []float64{})
+
+	result, err := attr.Compute(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("result length = %d, want 0", len(result))
+	}
+}
+
+func TestAttribute_DatePart_NullReturnsZero(t *testing.T) {
+	schema := dateSchema()
+	attr := makeDatePartAttribute(t, "enrolled", schema, "year")
+	records := makeRecordsWithNulls(schema, "enrolled", []float64{19797, 0}, []int{1})
+
+	result, err := attr.Compute(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result[0] != 2024 {
+		t.Errorf("year[0] = %f, want 2024", result[0])
+	}
+	if result[1] != 0 {
+		t.Errorf("year[1] = %f, want 0 (null)", result[1])
+	}
+}
+
+func TestAttribute_DatePart_NonDateFieldErrors(t *testing.T) {
+	schema := dateSchema()
+	factory := attributeRegistry[types.ATTR_DATE_PART]
+	params := json.RawMessage(`{"part":"year"}`)
+	_, err := factory(&types.Attribute{
+		Type:   types.ATTR_DATE_PART,
+		Field:  "score",
+		Label:  "result",
+		Params: params,
+	}, schema)
+	if err == nil {
+		t.Fatal("expected error for non-date field, got nil")
+	}
+}
+
+func TestAttribute_DatePart_MissingPartErrors(t *testing.T) {
+	schema := dateSchema()
+	factory := attributeRegistry[types.ATTR_DATE_PART]
+	params := json.RawMessage(`{}`)
+	_, err := factory(&types.Attribute{
+		Type:   types.ATTR_DATE_PART,
+		Field:  "enrolled",
+		Label:  "result",
+		Params: params,
+	}, schema)
+	if err == nil {
+		t.Fatal("expected error for missing part, got nil")
+	}
+}
+
+func TestAttribute_DatePart_InvalidPartErrors(t *testing.T) {
+	schema := dateSchema()
+	factory := attributeRegistry[types.ATTR_DATE_PART]
+	params := json.RawMessage(`{"part":"quarter"}`)
+	_, err := factory(&types.Attribute{
+		Type:   types.ATTR_DATE_PART,
+		Field:  "enrolled",
+		Label:  "result",
+		Params: params,
+	}, schema)
+	if err == nil {
+		t.Fatal("expected error for invalid part, got nil")
+	}
+}
+
+func TestAttribute_DatePart_NilParamsErrors(t *testing.T) {
+	schema := dateSchema()
+	factory := attributeRegistry[types.ATTR_DATE_PART]
+	_, err := factory(&types.Attribute{
+		Type:  types.ATTR_DATE_PART,
+		Field: "enrolled",
+		Label: "result",
+	}, schema)
+	if err == nil {
+		t.Fatal("expected error for nil params, got nil")
 	}
 }
 

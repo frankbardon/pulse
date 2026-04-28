@@ -1,5 +1,7 @@
 package types
 
+import "encoding/json"
+
 // This file defines the request/response types for Pulse as plain Go structs
 // with JSON tags. These types are the JSON-serializable shapes used by the
 // processing pipeline, CLI --json envelopes, and api predict.
@@ -71,6 +73,7 @@ const (
 	ATTR_FORMULA    AttributeType = "ATTR_FORMULA"
 	ATTR_PERCENTILE AttributeType = "ATTR_PERCENTILE"
 	ATTR_RANK       AttributeType = "ATTR_RANK"
+	ATTR_DATE_PART  AttributeType = "ATTR_DATE_PART"
 )
 
 // AllAttributeTypes returns all defined attribute types.
@@ -78,6 +81,7 @@ func AllAttributeTypes() []AttributeType {
 	return []AttributeType{
 		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
 		ATTR_FORMULA, ATTR_PERCENTILE, ATTR_RANK,
+		ATTR_DATE_PART,
 	}
 }
 
@@ -134,6 +138,10 @@ type Attribute struct {
 
 	// Expression is a runtime expression for ATTR_FORMULA type.
 	Expression string `json:"expression,omitempty"`
+
+	// Params holds type-specific configuration as raw JSON.
+	// Each attribute type defines its own params schema.
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // Output configures how processing results are formatted.
