@@ -7,6 +7,11 @@ applies_to: inspect, predict
 
 # Cohort Schema Design
 
+<skill_overview>
+Schema design determines storage layout, encoding width, and downstream aggregation behavior for a `.pulse` cohort. Invoke this skill when authoring or reviewing a schema template, picking field types, or planning bit-packed runs.
+</skill_overview>
+
+<reference>
 ## Field types (all 15)
 
 | Type | Byte | Notes |
@@ -26,7 +31,9 @@ applies_to: inspect, predict
 | `categorical_u8` | 1 | Dictionary-encoded, ≤256 entries |
 | `categorical_u16` | 2 | Dictionary-encoded, ≤65,536 entries |
 | `categorical_u32` | 4 | Dictionary-encoded, ≤~4.29B entries |
+</reference>
 
+<reference>
 ## Type selection heuristics
 
 - Counts and IDs: pick the smallest unsigned width that fits the maximum value (`u8` < `u16` < `u32` < `u64`).
@@ -35,7 +42,9 @@ applies_to: inspect, predict
 - Small ordinals with missing values (Likert 1-5, grades): `nullable_u4`.
 - Calendar dates: `date`. For sub-day timestamps, store as `u64` microseconds.
 - Strings: always categorical. Pick the width by expected distinct cardinality.
+</reference>
 
+<reference>
 ## Categorical width selection
 
 | Distinct values | Width |
@@ -45,19 +54,25 @@ applies_to: inspect, predict
 | up to ~4.29B | `categorical_u32` |
 
 Exceeding the chosen width raises `PULSE_IMPORT_CATEGORICAL_OVERFLOW`; an unbounded inferred dictionary raises `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`.
+</reference>
 
+<rule severity="should" topic="bit-packing">
 ## Bit-packing rules
 
 - `packed_bool`, `nullable_bool`, and `nullable_u4` return `ByteSize() == 0` and share bytes with adjacent packed fields.
 - The encoder coalesces a run of consecutive packed fields into the minimum number of bytes; place packed fields next to each other for optimal layout.
 - Reordering schema fields can change byte offsets even when types are unchanged.
+</rule>
 
+<rule severity="must" topic="descriptions">
 ## Descriptions
 
 - Capped at 1000 bytes per field; longer values raise `PULSE_IMPORT_DESCRIPTION_TOO_LONG`.
 - Empty, sub-10-character, or generic descriptions ("n/a", "tbd", "unknown", "field", "data", "value", "column") trigger `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (warning by default, error under `--strict`).
 - Style: concise, third-person, present-tense; state what the field represents, its units, and any domain semantics.
+</rule>
 
+<workflow id="A" name="schema-template">
 ## Schema-template workflow
 
 ```bash
@@ -65,7 +80,10 @@ pulse import schema-template data.csv > schema.json
 $EDITOR schema.json
 pulse import data.csv --schema schema.json --output data.pulse
 ```
+</workflow>
 
+<reference>
 ## Inspect post-import
 
 Run `pulse cohort inspect --full-dict --json FILE.pulse` to verify field types, byte offsets, descriptions, and full categorical dictionaries.
+</reference>
