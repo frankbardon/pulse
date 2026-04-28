@@ -153,6 +153,9 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 		for i, r := range records {
 			if i < len(values) {
 				r.values[label] = values[i]
+				// Direct mutation of values map invalidates any cached
+				// AllValues() result on this Record.
+				r.invalidateAllValuesCache()
 			}
 		}
 	}

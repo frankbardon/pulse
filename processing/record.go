@@ -10,6 +10,13 @@ type Record struct {
 	schema *encoding.Schema
 	values map[string]float64
 	nulls  map[string]bool
+
+	// allValuesCache memoizes the result of AllValues(). It is populated on
+	// the first call and reused on subsequent calls. Callers must not mutate
+	// the returned map; mutations would persist across calls. Cache is
+	// invalidated when the underlying values map changes (see attribute
+	// injection in processor.go).
+	allValuesCache map[string]any
 }
 
 // NewRecord creates a record with the given schema and field values.
@@ -77,7 +84,15 @@ func (r *Record) Schema() *encoding.Schema {
 }
 
 // AllValues returns all field values as a map (for expression evaluation).
+//
+// The returned map is cached on the Record after the first call and reused on
+// subsequent calls; callers MUST NOT mutate it. If a caller mutates the
+// underlying values map directly (e.g., the processor injecting computed
+// attributes), it must call invalidateAllValuesCache to discard the cache.
 func (r *Record) AllValues() map[string]any {
+	if r.allValuesCache != nil {
+		return r.allValuesCache
+	}
 	out := make(map[string]any, len(r.values))
 	for k, v := range r.values {
 		if r.nulls[k] {
@@ -90,7 +105,15 @@ func (r *Record) AllValues() map[string]any {
 			out[k] = v
 		}
 	}
+	r.allValuesCache = out
 	return out
+}
+
+// invalidateAllValuesCache discards the cached result of AllValues. Call this
+// after directly mutating the Record's values map so the next AllValues call
+// reflects the new state.
+func (r *Record) invalidateAllValuesCache() {
+	r.allValuesCache = nil
 }
 
 // RecordIterator provides sequential access to records.

@@ -25,10 +25,12 @@ type streamingIterator struct {
 	closer    io.Closer // non-nil when reading from afero.File
 	rawReader io.Reader // may be *bytes.Reader for Reset support
 
-	// Current record — reused across Next() calls to reduce allocation.
+	// Current record. A fresh Record (with its own values/nulls maps) is
+	// produced per Next() call because downstream consumers (notably
+	// processing.Processor.Process) collect Records into a slice and require
+	// each Record's maps to remain valid past the next iteration. See the
+	// reuse contract on encoding.RecordReader.ReadRecord.
 	current *processing.Record
-	values  map[string]float64
-	nulls   map[string]bool
 	done    bool
 	err     error
 }
@@ -40,8 +42,6 @@ func newStreamingIterator(fs afero.Fs, path string, schema *encoding.Schema) *st
 		fs:     fs,
 		path:   path,
 		schema: schema,
-		values: make(map[string]float64, len(schema.Fields)),
-		nulls:  make(map[string]bool),
 	}
 }
 
@@ -50,8 +50,6 @@ func newStreamingIterator(fs afero.Fs, path string, schema *encoding.Schema) *st
 func newStreamingIteratorFromBytes(data []byte, schema *encoding.Schema) *streamingIterator {
 	it := &streamingIterator{
 		schema: schema,
-		values: make(map[string]float64, len(schema.Fields)),
-		nulls:  make(map[string]bool),
 	}
 	it.initFromReader(bytes.NewReader(data))
 	return it
@@ -103,7 +101,14 @@ func (it *streamingIterator) Next() bool {
 		}
 	}
 
-	err := it.reader.ReadRecord(it.values, it.nulls)
+	// Allocate fresh maps directly into the next Record. Downstream consumers
+	// (processing.Processor.Process) retain Records past the next ReadRecord
+	// call, so each Record needs its own backing maps. Allocating once and
+	// having ReadRecord populate them in-place is cheaper than allocating
+	// reusable buffers and then range-copying out.
+	values := make(map[string]float64, len(it.schema.Fields))
+	nulls := make(map[string]bool)
+	err := it.reader.ReadRecord(values, nulls)
 	if err == io.EOF {
 		it.done = true
 		return false
@@ -114,18 +119,7 @@ func (it *streamingIterator) Next() bool {
 		return false
 	}
 
-	// Build record from the reusable maps. We must copy values because the
-	// processing layer may hold references across iterations (e.g., collecting
-	// filtered records into a slice for aggregation).
-	valsCopy := make(map[string]float64, len(it.values))
-	for k, v := range it.values {
-		valsCopy[k] = v
-	}
-	nullsCopy := make(map[string]bool, len(it.nulls))
-	for k, v := range it.nulls {
-		nullsCopy[k] = v
-	}
-	it.current = processing.NewRecordWithNulls(it.schema, valsCopy, nullsCopy)
+	it.current = processing.NewRecordWithNulls(it.schema, values, nulls)
 	return true
 }
 
