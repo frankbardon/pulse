@@ -7,8 +7,11 @@ applies_to: predict
 
 # Debugging With Predict
 
-Predict reads only the cohort header and schema; it never executes the request. Use it to validate cheaply before paying for a full `process` run.
+<skill_overview>
+Predict reads only the cohort header and schema; it never executes the request. Invoke this skill when validating a request shape before paying for a full `process` run.
+</skill_overview>
 
+<workflow id="A" name="iterate-on-request">
 ## Workflow
 
 1. Build `req.json` with cohort, aggregations, filters, groups, and attributes.
@@ -16,7 +19,9 @@ Predict reads only the cohort header and schema; it never executes the request. 
 3. Resolve every entry in `errors` and review `warnings`.
 4. Optionally re-run with `--strict` to promote warnings to errors (CI gate).
 5. Once clean, run `pulse api process --request req.json --json`.
+</workflow>
 
+<reference>
 ## What predict checks
 
 - Field names exist in the cohort schema.
@@ -24,7 +29,9 @@ Predict reads only the cohort header and schema; it never executes the request. 
 - Required params are present (e.g., `AGG_PERCENTILE` p, `GROUP_RANGE` bounds).
 - Numeric ops on categorical fields emit `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`.
 - Description quality emits `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`.
+</reference>
 
+<reference>
 ## Common scenarios
 
 | Scenario | Symptom | Fix |
@@ -34,7 +41,9 @@ Predict reads only the cohort header and schema; it never executes the request. 
 | Missing aggregator param | `PROCESSING_CONFIG` error (e.g., percentile without `p`) | Add the required parameter to the aggregator config. |
 | Wrong filterer key | `SERVICE_VALIDATION` error on filter shape | Match the filterer's expected keys (`values`, `min`/`max`, `expression`). |
 | Low-quality description | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` warning | Rewrite the field description as a concrete sentence ≥10 chars. |
+</reference>
 
+<rule severity="caveat" topic="predict-blind-spots">
 ## Predict cannot detect
 
 - Runtime numeric overflow during aggregation.
@@ -42,3 +51,4 @@ Predict reads only the cohort header and schema; it never executes the request. 
 - Post-import dictionary growth on categorical fields.
 
 For those, run `process` and inspect output.
+</rule>
