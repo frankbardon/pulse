@@ -9,6 +9,5 @@
     {"name": "error-code-reference", "description": "Recovery playbook per error code", "type": "reference", "applies_to": ["process", "compose", "predict"]},
     {"name": "import-best-practices", "description": "Schema inference, fail-closed semantics, null markers", "type": "guide", "applies_to": ["inspect", "predict"]},
     {"name": "export-format-selection", "description": "CSV vs Parquet vs Excel for downstream tools", "type": "guide", "applies_to": ["process", "compose"]},
-    {"name": "statistical-concepts", "description": "Null handling, when to filter vs impute, sampling caveats", "type": "guide", "applies_to": ["process", "compose", "predict"]},
     {"name": "categorical-fields-guide", "description": "When to use categorical fields, width selection, aggregator policy", "type": "guide", "applies_to": ["process", "compose", "inspect", "predict"]}
 ]

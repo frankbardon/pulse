@@ -86,7 +86,15 @@ Filterers run before grouping and aggregation. The `types.Filterer` JSON shape i
 
 ## Null strategy and small-group caveats
 
-(see plan 09 — fills this in after statistical-concepts merge)
+Aggregations skip nulls (see the table above); the choice is what to do about records that became null upstream.
+
+- **Filter when null means "out of scope."** Use `FILTER_INCLUDE` on the field, or `FILTER_EXPRESSION` checking non-null, to drop those records before aggregation.
+- **Re-import with imputed values when null is a known stand-in.** Pulse does not impute at process-time; substitute the value (mean, median, sentinel) in the source data and re-run import.
+- **Default: filter, and document the choice in the request comment** so downstream consumers see which records were excluded.
+
+Tiny groups produce unstable summary stats. Pair non-trivial aggregations with `AGG_COUNT` (alias `n`) so the consumer can flag thin slices and downweight or hide them.
+
+Higher moments (`AGG_STDDEV`, `AGG_VARIANCE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`) require n ≥ 2 non-null values; below that, they return 0 rather than erroring (skewness/kurtosis also return 0 when stddev is 0).
 
 ## See also
 

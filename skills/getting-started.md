@@ -105,4 +105,4 @@ Every `--json` response: `{"format_version":"1.0","data":{...},"errors":[],"warn
 
 ## See also
 
-cohort-schema-design, aggregation-guide, attribute-composition, grouper-design, compose-requests, debugging-with-predict, error-code-reference, import-best-practices, export-format-selection, statistical-concepts, categorical-fields-guide.
+cohort-schema-design, aggregation-guide, attribute-composition, grouper-design, compose-requests, debugging-with-predict, error-code-reference, import-best-practices, export-format-selection, categorical-fields-guide.
