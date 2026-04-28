@@ -7,6 +7,11 @@ applies_to: process, compose, sample, facet, inspect, predict, manifest
 
 # Getting Started
 
+<skill_overview>
+Pulse is a self-describing tabular processing engine over `.pulse` cohort files; this skill teaches the vocabulary, request shape, CLI surface, and pipeline order. Invoke it first when authoring requests or onboarding to any other Pulse skill.
+</skill_overview>
+
+<reference>
 ## Vocabulary
 
 | Term | Meaning |
@@ -22,9 +27,11 @@ applies_to: process, compose, sample, facet, inspect, predict, manifest
 | Request | JSON: `{cohort, filterers, groups, aggregations, attributes, outputs}`. |
 | ComposedRequest | `{requests: [Request, ...]}` — batch over a shared cohort. |
 | Manifest | Self-description envelope: commands, components, cohort_types, skills. |
+</reference>
 
 ## Workflows
 
+<workflow id="A" name="analyze-non-pulse-source">
 ### Analyze non-`.pulse` source data
 
 1. `pulse import schema-template data.csv > schema.json` — emit an editable field list with empty descriptions.
@@ -32,7 +39,9 @@ applies_to: process, compose, sample, facet, inspect, predict, manifest
 3. `pulse import csv --input data.csv --output data.pulse --schema schema.json` — write the cohort.
 4. `pulse cohort inspect data.pulse --json` — confirm fields, types, and dictionaries.
 5. `pulse api process --request request.json --json` — run the analysis (see canonical request below).
+</workflow>
 
+<workflow id="B" name="convert-between-formats">
 ### Convert between supported formats
 
 `pulse convert INPUT OUTPUT` auto-detects formats from extensions. Use `--from` / `--to` to override, `--schema` to pin the schema, and `--keep-pulse PATH` to retain the intermediate cohort:
@@ -42,14 +51,18 @@ pulse convert data.csv data.parquet --keep-pulse cache.pulse
 ```
 
 Use `pulse convert predict INPUT OUTPUT --json` to validate without writing.
+</workflow>
 
+<workflow id="C" name="process-existing-pulse">
 ### Process an existing `.pulse` file
 
 1. `pulse cohort inspect data.pulse --json` — confirm the schema you are coding against.
 2. Author `request.json` matching the schema's field names and types.
 3. `pulse api predict --request request.json --json [--strict]` — validate, no execute.
 4. `pulse api process --request request.json --json` — execute.
+</workflow>
 
+<example name="canonical-process-request">
 ## Canonical process request
 
 ```json
@@ -71,7 +84,9 @@ Use `pulse convert predict INPUT OUTPUT --json` to validate without writing.
 ```
 
 JSON tags are verified against `types.Request`: `cohort`, `filterers`, `groups`, `aggregations`, `attributes`, `outputs`.
+</example>
 
+<reference>
 ## CLI command tree
 
 ```
@@ -94,15 +109,28 @@ pulse convert predict INPUT OUTPUT [--from F] [--to F] [--sample-rows N] [--json
 pulse skills list  [--json]
 pulse skills show  NAME
 ```
+</reference>
 
+<reference>
 ## Pipeline order
 
 Load -> Filter -> Group -> Aggregate -> Attributes -> Output.
+</reference>
 
+<reference>
 ## Envelope
 
 Every `--json` response: `{"format_version":"1.0","data":{...},"errors":[],"warnings":[]}`.
+</reference>
 
-## See also
-
-cohort-schema-design, aggregation-guide, attribute-composition, grouper-design, compose-requests, debugging-with-predict, error-code-reference, import-best-practices, export-format-selection.
+<see_also>
+- cohort-schema-design — field types and schema authoring
+- aggregation-guide — `AGG_*` operations and filtering
+- attribute-composition — `ATTR_*` per-record derivations
+- grouper-design — `GROUP_*` partition strategies
+- compose-requests — batching with `ComposedRequest`
+- debugging-with-predict — iterating on a request before processing
+- error-code-reference — every error code by domain
+- import-best-practices — schema templates and import tuning
+- export-format-selection — picking an output format
+</see_also>
