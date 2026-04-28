@@ -19,6 +19,11 @@ var numericAggregations = map[types.AggregationType]bool{
 	types.AGG_STDDEV:  true,
 	types.AGG_RANGE:   true,
 	types.AGG_ZSCORE:  true,
+	types.AGG_MEDIAN:    true,
+	types.AGG_VARIANCE:  true,
+	types.AGG_SKEWNESS:  true,
+	types.AGG_KURTOSIS:   true,
+	types.AGG_PERCENTILE: true,
 }
 
 // PredictOptions controls predict behavior.

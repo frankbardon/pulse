@@ -1,9 +1,9 @@
 [
     {"name": "getting-started", "description": "Pulse vocabulary, file format, mental model", "type": "guide", "applies_to": ["process", "compose", "sample", "facet", "inspect", "predict", "manifest"]},
     {"name": "cohort-schema-design", "description": "Choosing types, nullability, bit-packing tradeoffs", "type": "guide", "applies_to": ["inspect", "predict"]},
-    {"name": "aggregation-guide", "description": "When to use each of the 9 aggregators", "type": "guide", "applies_to": ["process", "compose", "predict"]},
+    {"name": "aggregation-guide", "description": "When to use each of the 15 aggregators", "type": "guide", "applies_to": ["process", "compose", "predict"]},
     {"name": "attribute-composition", "description": "z-score, t-score, normalized, formula — composition rules", "type": "guide", "applies_to": ["process", "compose", "predict"]},
-    {"name": "grouper-design", "description": "GROUP_CATEGORY vs GROUP_ROUNDED, nesting semantics", "type": "guide", "applies_to": ["process", "compose", "predict"]},
+    {"name": "grouper-design", "description": "GROUP_CATEGORY, GROUP_DATE, GROUP_QUANTILE, GROUP_RANGE, and GROUP_ROUNDED, nesting semantics", "type": "guide", "applies_to": ["process", "compose", "predict"]},
     {"name": "compose-requests", "description": "When and how to use ComposedRequest", "type": "guide", "applies_to": ["compose"]},
     {"name": "debugging-with-predict", "description": "Iterating on a request using api predict", "type": "guide", "applies_to": ["predict"]},
     {"name": "error-code-reference", "description": "Recovery playbook per error code", "type": "reference", "applies_to": ["process", "compose", "predict"]},

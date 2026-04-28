@@ -36,12 +36,19 @@
       "aggregators": [
         "AGG_AVERAGE",
         "AGG_COUNT",
+        "AGG_DISTINCT_COUNT",
         "AGG_FREQUENCY",
+        "AGG_KURTOSIS",
         "AGG_MAX",
+        "AGG_MEDIAN",
         "AGG_MIN",
+        "AGG_MODE",
+        "AGG_PERCENTILE",
         "AGG_RANGE",
+        "AGG_SKEWNESS",
         "AGG_STDDEV",
         "AGG_SUM",
+        "AGG_VARIANCE",
         "AGG_ZSCORE"
       ],
       "attributes": [
@@ -61,6 +68,9 @@
       ],
       "groupers": [
         "GROUP_CATEGORY",
+        "GROUP_DATE",
+        "GROUP_QUANTILE",
+        "GROUP_RANGE",
         "GROUP_ROUNDED"
       ]
     },
@@ -131,4 +141,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c151d3d196cb3541a5ef01a78b3f2a712049af2a4eed6073ae8c5448e252d60f
+// golden-hash: defc6455d192f244111bfd26cbd9d16f373ac25bf7b0fd4621f33bbf44522b22

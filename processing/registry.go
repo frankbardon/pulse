@@ -15,6 +15,13 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_RANGE:     newRangeAggregator,
 	types.AGG_FREQUENCY: newFrequencyAggregator,
 	types.AGG_ZSCORE:    newZScoreAggregator,
+	types.AGG_MEDIAN:    newMedianAggregator,
+	types.AGG_VARIANCE:  newVarianceAggregator,
+	types.AGG_MODE:      newModeAggregator,
+	types.AGG_SKEWNESS:  newSkewnessAggregator,
+	types.AGG_KURTOSIS:       newKurtosisAggregator,
+	types.AGG_DISTINCT_COUNT: newDistinctCountAggregator,
+	types.AGG_PERCENTILE:     newPercentileAggregator,
 }
 
 // attributeRegistry maps attribute types to their factory functions.
@@ -39,5 +46,8 @@ var filtererRegistry = map[types.FiltererType]FiltererFactory{
 // grouperRegistry maps group types to their factory functions.
 var grouperRegistry = map[types.GroupType]GrouperFactory{
 	types.GROUP_CATEGORY: newCategoryGrouper,
+	types.GROUP_DATE:     newDateGrouper,
+	types.GROUP_QUANTILE: newQuantileGrouper,
+	types.GROUP_RANGE:    newRangeGrouper,
 	types.GROUP_ROUNDED:  newRoundedGrouper,
 }
