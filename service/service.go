@@ -150,18 +150,18 @@ func (s *Service) Facet(ctx context.Context, path string, field string) ([]strin
 	iter := newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
 	defer iter.Close()
 
-	seen := make(map[string]bool)
+	seen := make(map[float64]struct{})
 	var values []string
 	for iter.Next() {
 		v, ok := iter.Record().NumericValue(field)
 		if !ok {
 			continue
 		}
-		sv := strconv.FormatFloat(v, 'f', -1, 64)
-		if !seen[sv] {
-			seen[sv] = true
-			values = append(values, sv)
+		if _, dup := seen[v]; dup {
+			continue
 		}
+		seen[v] = struct{}{}
+		values = append(values, strconv.FormatFloat(v, 'f', -1, 64))
 	}
 	if iter.Err() != nil {
 		return nil, iter.Err()

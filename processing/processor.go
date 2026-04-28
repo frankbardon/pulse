@@ -180,14 +180,15 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 		return nil, err
 	}
 
-	var data []map[string]any
+	data := make([]map[string]any, 0, len(groups))
 	for key, groupRecords := range groups {
 		row, err := p.aggregate(req.Aggregations, groupRecords)
 		if err != nil {
 			return nil, err
 		}
 		if row == nil {
-			row = make(map[string]any)
+			// +1 reserved for the group key written below.
+			row = make(map[string]any, 1)
 		}
 		row[grp.Field] = key
 		data = append(data, row)
@@ -206,7 +207,9 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 	cache := newCollectCache()
 	defer cache.release()
 
-	row := make(map[string]any)
+	// Pre-size: one entry per aggregation. Grouped path adds +1 for the group
+	// key after this returns; map will grow once but only in that branch.
+	row := make(map[string]any, len(aggs))
 	for _, agg := range aggs {
 		factory, ok := aggregatorRegistry[agg.Type]
 		if !ok {
