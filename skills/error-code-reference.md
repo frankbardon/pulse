@@ -7,14 +7,17 @@ applies_to: process, compose, predict
 
 # Error Code Reference
 
-## Overview
+<skill_overview>
+Every error in Pulse carries a typed error code that identifies the category and domain of the failure. Invoke this skill when an envelope returns a non-empty `errors` or `warnings` array and you need the cause and recovery for a specific code.
+</skill_overview>
 
-Every error in Pulse carries a typed error code that identifies the category and domain of the failure. This reference lists every error code with its description and recovery steps.
-
+<rule severity="caveat" topic="internal-codes">
 ## Shared *_INTERNAL note
 
 All `*_INTERNAL` codes (`ENCODING_INTERNAL`, `PROCESSING_INTERNAL`, `SERVICE_INTERNAL`, `DATA_INTERNAL`, `CLI_INTERNAL`) indicate Pulse bugs. File an issue with the reproducer and the JSON envelope.
+</rule>
 
+<reference>
 ## ENCODING Domain
 
 Errors from the binary format and data encoding layer.
@@ -64,7 +67,9 @@ Errors from the binary format and data encoding layer.
 ### ENCODING_INTERNAL
 
 Unexpected failure in the encoder/decoder. Recovery: see shared *_INTERNAL note above.
+</reference>
 
+<reference>
 ## PROCESSING Domain
 
 Errors from the processing engine and pipeline.
@@ -123,7 +128,9 @@ Errors from the processing engine and pipeline.
 ### PROCESSING_INTERNAL
 
 Unexpected failure in the processing pipeline. Recovery: see shared *_INTERNAL note above.
+</reference>
 
+<reference>
 ## SERVICE Domain
 
 Errors from the HTTP/API layer and service operations.
@@ -172,7 +179,9 @@ Errors from the HTTP/API layer and service operations.
 ### SERVICE_INTERNAL
 
 Unexpected failure in the service/orchestration layer. Recovery: see shared *_INTERNAL note above.
+</reference>
 
+<reference>
 ## DATA Domain
 
 Errors from data file and dataset management operations.
@@ -235,7 +244,9 @@ Errors from data file and dataset management operations.
 ### DATA_INTERNAL
 
 Unexpected failure in the data file/dataset layer. Recovery: see shared *_INTERNAL note above.
+</reference>
 
+<reference>
 ## CLI Domain
 
 Errors from command-line interface operations.
@@ -280,7 +291,9 @@ Errors from command-line interface operations.
 ### CLI_INTERNAL
 
 Unexpected failure in the CLI adapter layer. Recovery: see shared *_INTERNAL note above.
+</reference>
 
+<reference>
 ## PULSE Domain
 
 Pulse-specific error codes for I/O pipelines, categorical handling, description validation, and aggregation warnings.
@@ -381,3 +394,4 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Improve the description with units, range, and domain meaning.
 - Include what the field represents, not just its name.
+</reference>
