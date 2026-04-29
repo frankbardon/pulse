@@ -292,7 +292,7 @@ Required fields:
 | `make test` | Runs `go test ./...` |
 | `make fmt` | Runs `go fmt ./...` |
 | `make vet` | Runs `go vet ./...` |
-| `make lint` | Runs `go vet` then `golangci-lint run ./...` |
+| `make lint` | Runs `go vet` then `staticcheck ./...` |
 | `make cover` | Runs tests with coverage, outputs `coverage.out` and prints function coverage |
 | `make clean` | Removes `bin/` and `coverage.out` |
 

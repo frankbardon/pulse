@@ -363,7 +363,7 @@ No config files. No install command.
 ```bash
 make build    # Binary at ./bin/pulse
 make test     # go test ./...
-make lint     # golangci-lint (install separately)
+make lint     # staticcheck (auto-installed via go run)
 make cover    # Coverage report
 make clean    # Remove artifacts
 ```

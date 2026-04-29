@@ -19,7 +19,7 @@ Thanks for your interest in contributing to Pulse! This guide covers the basics.
 ```bash
 make build    # Build CLI binary to bin/pulse
 make test     # Run tests
-make lint     # Run golangci-lint
+make lint     # Run staticcheck (includes vet)
 make cover    # Run tests with coverage
 ```
 
