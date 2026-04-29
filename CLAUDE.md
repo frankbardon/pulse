@@ -288,11 +288,15 @@ Required fields:
 
 | Command | What it does |
 |---|---|
-| `make build` | Builds the CLI binary to `bin/pulse` |
+| `make build` | Builds the CLI binary to `bin/pulse` (default goal) |
 | `make test` | Runs `go test ./...` |
-| `make lint` | Runs `golangci-lint run ./...` |
+| `make fmt` | Runs `go fmt ./...` |
+| `make vet` | Runs `go vet ./...` |
+| `make lint` | Runs `go vet` then `golangci-lint run ./...` |
 | `make cover` | Runs tests with coverage, outputs `coverage.out` and prints function coverage |
 | `make clean` | Removes `bin/` and `coverage.out` |
+
+A `.env` file at the repo root is auto-loaded and exported by the Makefile, so `PULSE_DATA_DIR` (and any other `PULSE_*` env vars) can live there for local development.
 
 ### Environment variables
 

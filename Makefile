@@ -1,17 +1,34 @@
-.PHONY: build test lint cover clean
+.PHONY: build clean test cover fmt vet lint
+
+BINARY_NAME=pulse
+BUILD_DIR=bin
+GO=go
+
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
 
 build:
-	go build -o bin/pulse ./cmd/pulse/
-
-test:
-	go test ./...
-
-lint:
-	golangci-lint run ./...
-
-cover:
-	go test -coverprofile=coverage.out ./...
-	go tool cover -func=coverage.out
+	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/pulse
 
 clean:
-	rm -rf bin/ coverage.out
+	rm -rf $(BUILD_DIR) coverage.out
+
+test:
+	$(GO) test ./...
+
+cover:
+	$(GO) test -coverprofile=coverage.out ./...
+	$(GO) tool cover -func=coverage.out
+
+fmt:
+	$(GO) fmt ./...
+
+vet:
+	$(GO) vet ./...
+
+lint: vet
+	$(GO) run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run ./...
+
+.DEFAULT_GOAL := build
