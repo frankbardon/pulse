@@ -20,7 +20,7 @@ import (
 )
 
 // helperWriteParquet creates a Parquet file in memory with the given Arrow schema and records.
-func helperWriteParquet(t *testing.T, sc *arrow.Schema, records []arrow.Record) []byte {
+func helperWriteParquet(t *testing.T, sc *arrow.Schema, records []arrow.RecordBatch) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	props := parquet.NewWriterProperties(parquet.WithDictionaryDefault(true))
@@ -57,10 +57,10 @@ func helperSimpleParquet(t *testing.T) []byte {
 	bldr.Field(1).(*array.Int32Builder).AppendValues([]int32{30, 25, 35}, nil)
 	bldr.Field(2).(*array.Float64Builder).AppendValues([]float64{95.5, 88.0, 72.3}, nil)
 
-	rec := bldr.NewRecord()
+	rec := bldr.NewRecordBatch()
 	defer rec.Release()
 
-	return helperWriteParquet(t, sc, []arrow.Record{rec})
+	return helperWriteParquet(t, sc, []arrow.RecordBatch{rec})
 }
 
 func TestParquetReader_ReadHeader(t *testing.T) {
@@ -115,7 +115,7 @@ func TestParquetReader_EmptyFile(t *testing.T) {
 
 	bldr := array.NewRecordBuilder(alloc, sc)
 	defer bldr.Release()
-	rec := bldr.NewRecord()
+	rec := bldr.NewRecordBatch()
 	defer rec.Release()
 
 	// Write record with 0 rows.
@@ -173,10 +173,10 @@ func TestParquetReader_AllArrowTypes(t *testing.T) {
 	bldr.Field(8).(*array.StringBuilder).Append("hello")
 	bldr.Field(9).(*array.Int32Builder).Append(-5)
 
-	rec := bldr.NewRecord()
+	rec := bldr.NewRecordBatch()
 	defer rec.Release()
 
-	data := helperWriteParquet(t, sc, []arrow.Record{rec})
+	data := helperWriteParquet(t, sc, []arrow.RecordBatch{rec})
 	r := NewReaderFromBytes(data)
 	defer r.Close()
 
@@ -278,9 +278,9 @@ func TestParquetImportExportRoundTrip(t *testing.T) {
 	bldr.Field(0).(*array.Uint8Builder).AppendValues([]uint8{10, 20, 30}, nil)
 	bldr.Field(1).(*array.Float64Builder).AppendValues([]float64{95.5, 88.0, 72.3}, nil)
 
-	rec := bldr.NewRecord()
+	rec := bldr.NewRecordBatch()
 	defer rec.Release()
-	pqData := helperWriteParquet(t, sc, []arrow.Record{rec})
+	pqData := helperWriteParquet(t, sc, []arrow.RecordBatch{rec})
 
 	// Import the Parquet file into .pulse format.
 	reader := NewReaderFromBytes(pqData)
@@ -360,9 +360,9 @@ func TestParquetImport_SchemaFromParquetMetadata(t *testing.T) {
 	bldr.Field(2).(*array.Date32Builder).Append(arrow.Date32(18000))
 	bldr.Field(3).(*array.BooleanBuilder).Append(true)
 
-	rec := bldr.NewRecord()
+	rec := bldr.NewRecordBatch()
 	defer rec.Release()
-	data := helperWriteParquet(t, sc, []arrow.Record{rec})
+	data := helperWriteParquet(t, sc, []arrow.RecordBatch{rec})
 
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -404,9 +404,9 @@ func TestParquetImport_CategoricalColumn(t *testing.T) {
 	defer bldr.Release()
 	bldr.Field(0).(*array.StringBuilder).AppendValues(vals, nil)
 
-	rec := bldr.NewRecord()
+	rec := bldr.NewRecordBatch()
 	defer rec.Release()
-	data := helperWriteParquet(t, sc, []arrow.Record{rec})
+	data := helperWriteParquet(t, sc, []arrow.RecordBatch{rec})
 
 	reader := NewReaderFromBytes(data)
 	fs := afero.NewMemMapFs()
@@ -451,9 +451,9 @@ func TestParquetExport_CategoricalAsDictEncoded(t *testing.T) {
 	bldr := array.NewRecordBuilder(alloc, sc)
 	defer bldr.Release()
 	bldr.Field(0).(*array.StringBuilder).AppendValues(vals, nil)
-	rec := bldr.NewRecord()
+	rec := bldr.NewRecordBatch()
 	defer rec.Release()
-	pqData := helperWriteParquet(t, sc, []arrow.Record{rec})
+	pqData := helperWriteParquet(t, sc, []arrow.RecordBatch{rec})
 
 	// Import.
 	reader := NewReaderFromBytes(pqData)
@@ -611,7 +611,7 @@ func TestParquetImport_RowGroupParallelism(t *testing.T) {
 		vals[i] = int32(i)
 	}
 	bldr.Field(0).(*array.Int32Builder).AppendValues(vals, nil)
-	rec := bldr.NewRecord()
+	rec := bldr.NewRecordBatch()
 	if err := pw.Write(rec); err != nil {
 		t.Fatalf("writing record: %v", err)
 	}
@@ -920,9 +920,9 @@ func TestParquetReader_NullableColumns(t *testing.T) {
 	bldr.Field(0).(*array.Uint8Builder).AppendNull()
 	bldr.Field(0).(*array.Uint8Builder).Append(30)
 
-	rec := bldr.NewRecord()
+	rec := bldr.NewRecordBatch()
 	defer rec.Release()
-	data := helperWriteParquet(t, sc, []arrow.Record{rec})
+	data := helperWriteParquet(t, sc, []arrow.RecordBatch{rec})
 
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -968,9 +968,9 @@ func TestParquetReader_DictionaryEncoded(t *testing.T) {
 	db.AppendString("red")
 	db.AppendString("blue")
 
-	rec := bldr.NewRecord()
+	rec := bldr.NewRecordBatch()
 	defer rec.Release()
-	data := helperWriteParquet(t, sc, []arrow.Record{rec})
+	data := helperWriteParquet(t, sc, []arrow.RecordBatch{rec})
 
 	r := NewReaderFromBytes(data)
 	defer r.Close()

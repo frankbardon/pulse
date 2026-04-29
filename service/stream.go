@@ -45,16 +45,6 @@ func newStreamingIterator(fs afero.Fs, path string, schema *encoding.Schema) *st
 	}
 }
 
-// newStreamingIteratorFromBytes creates a streaming iterator from raw bytes.
-// Used for testing and when file data is already in memory.
-func newStreamingIteratorFromBytes(data []byte, schema *encoding.Schema) *streamingIterator {
-	it := &streamingIterator{
-		schema: schema,
-	}
-	it.initFromReader(bytes.NewReader(data))
-	return it
-}
-
 func (it *streamingIterator) initFromFile() error {
 	data, err := afero.ReadFile(it.fs, it.path)
 	if err != nil {

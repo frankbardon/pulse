@@ -239,9 +239,7 @@ func TestCsvImport_WithExplicitSchema(t *testing.T) {
 func TestCsvImport_CategoricalColumn(t *testing.T) {
 	lines := []string{"color"}
 	colors := []string{"red", "green", "blue", "red", "green"}
-	for _, c := range colors {
-		lines = append(lines, c)
-	}
+	lines = append(lines, colors...)
 	// Need enough rows for inference.
 	for i := 0; i < 95; i++ {
 		lines = append(lines, colors[i%len(colors)])
