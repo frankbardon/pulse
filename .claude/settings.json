@@ -16,5 +16,19 @@
       "Bash(./bin/pulse import:*)",
       "Bash(./bin/pulse skills:*)"
     ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/fetch-issue-context.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }
