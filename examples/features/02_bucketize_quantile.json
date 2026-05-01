@@ -1,0 +1,40 @@
+{
+  "_comment": "Discretize income into 10 equal-frequency buckets, then count rows per bucket. Replace cohort and field as needed.",
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_BUCKETIZE",
+      "field": "income",
+      "label": "income_decile",
+      "params": {
+        "quantiles": 10
+      }
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "income_decile"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "mean_income"
+    }
+  ],
+  "sort": [
+    {
+      "field": "income_decile"
+    }
+  ]
+}

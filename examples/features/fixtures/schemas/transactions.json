@@ -1,0 +1,4 @@
+[
+  {"name": "id", "type": "u32", "description": "Unique transaction identifier (1..N)"},
+  {"name": "amount", "type": "f64", "description": "Transaction amount in USD; log-normally distributed"}
+]

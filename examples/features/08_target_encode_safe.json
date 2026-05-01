@@ -1,0 +1,50 @@
+{
+  "_comment": "LEAKAGE-SAFE target encoding. FEAT_TRAIN_TEST_SPLIT runs first so PULSE_FEAT_TARGET_LEAKAGE_RISK does not fire. Smoothing=5 pulls rare categories toward the global mean.",
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_TRAIN_TEST_SPLIT",
+      "params": {
+        "ratios": [
+          0.7,
+          0.15,
+          0.15
+        ],
+        "seed": 42
+      }
+    },
+    {
+      "type": "FEAT_TARGET_ENCODE",
+      "field": "category",
+      "label": "category_target_mean",
+      "params": {
+        "target": "price",
+        "smoothing": 5.0
+      }
+    }
+  ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "split",
+      "values": [
+        "0"
+      ]
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "category_target_mean",
+      "label": "avg_encoded"
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n_train"
+    }
+  ]
+}

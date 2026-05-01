@@ -1,0 +1,7 @@
+[
+  {"name": "id", "type": "u32", "description": "Unique customer identifier (1..N)"},
+  {"name": "age", "type": "u8", "description": "Customer age in completed years (18-77)"},
+  {"name": "income", "type": "f64", "description": "Annual income in USD; log-normally distributed"},
+  {"name": "region", "type": "categorical_u8", "description": "Geographic region (north, south, east, west)"},
+  {"name": "city", "type": "categorical_u8", "description": "City of residence; long-tail distribution for frequency encoding"}
+]
