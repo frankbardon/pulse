@@ -33,6 +33,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A new non-skippable CI gate | `CLAUDE.md` (gate listed by name in the relevant section) | `TestClaudeMdMentionsAllNonSkippableGates` |
 | A new architectural decision | `CLAUDE.md` (relevant section) + PRD if applicable | reviewer enforcement |
 | An environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
+| A registered MCP tool (added/removed) | `skills/mcp-integration.md` (Tool surface table) | `TestSkillsCoverAllMCPTools` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 
@@ -68,7 +69,8 @@ pulse/
 │   ├── index.json          # Manifest of all 12 bundled skills
 │   └── *.md               # Individual skill files with YAML frontmatter
 ├── internal/
-│   └── cli/                # CLI internals (descriptor walker, json action)
+│   ├── cli/                # CLI internals (descriptor walker, json action)
+│   └── mcp/                # MCP server: tool + resource handlers wrapping pulse.Pulse
 ```
 
 ### Library-first pattern
@@ -77,7 +79,13 @@ pulse/
 
 ### CLI-as-thin-adapter
 
-`cmd/pulse/main.go` is the only binary. It parses flags, constructs a `pulse.Pulse` instance, calls library methods, and formats output. It never contains processing logic. The CLI commands map 1:1 to the manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`.
+`cmd/pulse/main.go` is the only binary. It parses flags, constructs a `pulse.Pulse` instance, calls library methods, and formats output. It never contains processing logic. The CLI commands map 1:1 to the manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`.
+
+### MCP surface
+
+`internal/mcp/` translates the Pulse facade into Model Context Protocol tools and resources. The library has no dependency on this package; only the `pulse mcp` CLI leaf imports it. Eight tools (one per facade method) and two resource schemes (`pulse://` for `.pulse` files, `pulse-skill://` for embedded skills) are registered at server start.
+
+The canonical tool list is `mcp.RegisteredTools()` in `internal/mcp/tools.go`. Adding or removing a tool requires updating `skills/mcp-integration.md` in the same PR (`TestSkillsCoverAllMCPTools`).
 
 ### I/O subsystem
 
@@ -364,6 +372,13 @@ For tests that need filesystem access, use `fs.NewMemMap()` which returns a `Con
 3. Wire the format into `ImportJob` and `ExportJob` if needed.
 4. Add or update a skill file (e.g., `skills/export-format-selection.md`) to document when to use the format.
 5. If the format adds a CLI flag, update `skills/getting-started.md` and run `TestSkillsCoverAllCliLeaves`.
+
+### Wiring Pulse into an MCP client
+
+1. Build the binary: `make build`. The resulting `bin/pulse` must be on the client's `PATH` (or referenced absolutely).
+2. Configure the client (Claude Desktop's `claude_desktop_config.json` or Claude Code's `~/.claude.json`) with an `mcpServers.pulse` entry running `pulse mcp` and exporting `PULSE_DATA_DIR`.
+3. Restart the client. Pulse tools (`pulse_inspect`, `pulse_predict`, `pulse_process`, etc.) and resources (`pulse://*.pulse`, `pulse-skill://*`) appear in the tool/resource list.
+4. See `skills/mcp-integration.md` for the full configuration recipe.
 
 ### Debugging a predict mismatch
 
