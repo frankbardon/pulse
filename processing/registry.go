@@ -31,7 +31,6 @@ var attributeRegistry = map[types.AttributeType]AttributeFactory{
 	types.ATTR_NORMALIZED: newNormalizedAttribute,
 	types.ATTR_FORMULA:    newFormulaAttribute,
 	types.ATTR_PERCENTILE: newPercentileAttribute,
-	types.ATTR_RANK:       newRankAttribute,
 	types.ATTR_DATE_PART:  newDatePartAttribute,
 }
 

@@ -84,7 +84,6 @@ const (
 	ATTR_NORMALIZED AttributeType = "ATTR_NORMALIZED"
 	ATTR_FORMULA    AttributeType = "ATTR_FORMULA"
 	ATTR_PERCENTILE AttributeType = "ATTR_PERCENTILE"
-	ATTR_RANK       AttributeType = "ATTR_RANK"
 	ATTR_DATE_PART  AttributeType = "ATTR_DATE_PART"
 )
 
@@ -92,9 +91,89 @@ const (
 func AllAttributeTypes() []AttributeType {
 	return []AttributeType{
 		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
-		ATTR_FORMULA, ATTR_PERCENTILE, ATTR_RANK,
+		ATTR_FORMULA, ATTR_PERCENTILE,
 		ATTR_DATE_PART,
 	}
+}
+
+// WindowType identifies a specific window operation.
+type WindowType string
+
+const (
+	WIN_LAG         WindowType = "WIN_LAG"
+	WIN_LEAD        WindowType = "WIN_LEAD"
+	WIN_ROW_NUMBER  WindowType = "WIN_ROW_NUMBER"
+	WIN_RANK        WindowType = "WIN_RANK"
+	WIN_DENSE_RANK  WindowType = "WIN_DENSE_RANK"
+	WIN_RUNNING_SUM WindowType = "WIN_RUNNING_SUM"
+	WIN_RUNNING_AVG WindowType = "WIN_RUNNING_AVG"
+	WIN_MOVING_AVG  WindowType = "WIN_MOVING_AVG"
+	WIN_EWMA        WindowType = "WIN_EWMA"
+	WIN_PCT_CHANGE  WindowType = "WIN_PCT_CHANGE"
+)
+
+// AllWindowTypes returns all defined window types in alphabetical order.
+func AllWindowTypes() []WindowType {
+	return []WindowType{
+		WIN_DENSE_RANK,
+		WIN_EWMA,
+		WIN_LAG,
+		WIN_LEAD,
+		WIN_MOVING_AVG,
+		WIN_PCT_CHANGE,
+		WIN_RANK,
+		WIN_ROW_NUMBER,
+		WIN_RUNNING_AVG,
+		WIN_RUNNING_SUM,
+	}
+}
+
+// OrderKey specifies an ordering key for a window's ORDER BY clause.
+type OrderKey struct {
+	Field string `json:"field"`
+	Desc  bool   `json:"desc,omitempty"`
+}
+
+// FrameSpec specifies the window frame bounds.
+// Mode is "rows" — only frame mode supported in v1.
+// Preceding nil means UNBOUNDED PRECEDING; Following nil means UNBOUNDED FOLLOWING.
+// Following==0 with Preceding==0 selects the current row only.
+type FrameSpec struct {
+	Mode      string `json:"mode"`
+	Preceding *int   `json:"preceding,omitempty"`
+	Following *int   `json:"following,omitempty"`
+}
+
+// Window defines a window operation.
+type Window struct {
+	// Type is the window operation to perform.
+	Type WindowType `json:"type"`
+
+	// Field is the source field name. Required for all operators except
+	// ROW_NUMBER, RANK, and DENSE_RANK.
+	Field string `json:"field,omitempty"`
+
+	// Label is the output column name. When empty, defaults to "<TYPE>_<field>"
+	// or "<TYPE>" for ROW_NUMBER/RANK/DENSE_RANK.
+	Label string `json:"label,omitempty"`
+
+	// PartitionBy is the list of fields whose distinct values define
+	// independent partitions for window evaluation. Empty means a single
+	// partition over all rows.
+	PartitionBy []string `json:"partition_by,omitempty"`
+
+	// OrderBy is the list of order keys. Required (≥1) for every window operator.
+	OrderBy []OrderKey `json:"order_by"`
+
+	// Frame is the window frame specification. Required for RUNNING_*, MOVING_AVG,
+	// and EWMA. Rejected for LAG, LEAD, ROW_NUMBER, RANK, DENSE_RANK, PCT_CHANGE.
+	Frame *FrameSpec `json:"frame,omitempty"`
+
+	// Params holds operator-specific parameters as raw JSON.
+	// LAG/LEAD: {"offset": 1, "default": null}
+	// EWMA: {"alpha": 0.5}
+	// PCT_CHANGE: {"periods": 1}
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // Aggregation defines a single aggregation operation to apply to a field.
@@ -208,6 +287,16 @@ type Request struct {
 
 	// Outputs configures result formatting.
 	Outputs []*Output `json:"outputs,omitempty"`
+
+	// Windows is the list of window operations evaluated after aggregation.
+	Windows []*Window `json:"windows,omitempty"`
+
+	// Sort orders response rows by the listed keys. Applied last in the
+	// pipeline (after windows). Each key field must reference a schema
+	// field, an aggregation/attribute/group/window output label, or any
+	// column produced by upstream stages. Stable sort; nulls last
+	// regardless of direction.
+	Sort []OrderKey `json:"sort,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.

@@ -209,6 +209,7 @@ func TestNoOrbitPrefix(t *testing.T) {
 		"FileRequest", "FileResponse", "ComposedRequest",
 		"VersionResponse", "FiltererType", "AggregationType",
 		"GroupType", "AttributeType", "ResponseMetadata",
+		"Window", "WindowType", "OrderKey", "FrameSpec",
 	}
 
 	for _, name := range typeNames {
@@ -230,7 +231,12 @@ func TestNoOrbitPrefix(t *testing.T) {
 		string(types.GROUP_CATEGORY), string(types.GROUP_ROUNDED),
 		string(types.ATTR_ZSCORE), string(types.ATTR_TSCORE),
 		string(types.ATTR_NORMALIZED), string(types.ATTR_FORMULA),
-		string(types.ATTR_PERCENTILE), string(types.ATTR_RANK),
+		string(types.ATTR_PERCENTILE),
+		string(types.WIN_LAG), string(types.WIN_LEAD),
+		string(types.WIN_ROW_NUMBER), string(types.WIN_RANK),
+		string(types.WIN_DENSE_RANK), string(types.WIN_RUNNING_SUM),
+		string(types.WIN_RUNNING_AVG), string(types.WIN_MOVING_AVG),
+		string(types.WIN_EWMA), string(types.WIN_PCT_CHANGE),
 	}
 
 	for _, v := range enumValues {
@@ -361,7 +367,8 @@ func TestVersionResponseMarshalJSON(t *testing.T) {
 	}
 }
 
-// TestAttributeEnumValues verifies all 6 attribute types are present (minus adjustment).
+// TestAttributeEnumValues verifies the registered attribute types are present.
+// ATTR_RANK was removed; use WIN_RANK instead.
 func TestAttributeEnumValues(t *testing.T) {
 	expected := []types.AttributeType{
 		types.ATTR_ZSCORE,
@@ -369,7 +376,7 @@ func TestAttributeEnumValues(t *testing.T) {
 		types.ATTR_NORMALIZED,
 		types.ATTR_FORMULA,
 		types.ATTR_PERCENTILE,
-		types.ATTR_RANK,
+		types.ATTR_DATE_PART,
 	}
 
 	if len(expected) != 6 {
@@ -506,6 +513,169 @@ func TestFiltererWithExpression(t *testing.T) {
 
 	if got.Expression != "age > 18 && age < 65" {
 		t.Errorf("Expression = %s, want age > 18 && age < 65", got.Expression)
+	}
+}
+
+// TestWindowEnumValues verifies all 10 window types are present and round-trip via JSON.
+func TestWindowEnumValues(t *testing.T) {
+	expected := []types.WindowType{
+		types.WIN_LAG,
+		types.WIN_LEAD,
+		types.WIN_ROW_NUMBER,
+		types.WIN_RANK,
+		types.WIN_DENSE_RANK,
+		types.WIN_RUNNING_SUM,
+		types.WIN_RUNNING_AVG,
+		types.WIN_MOVING_AVG,
+		types.WIN_EWMA,
+		types.WIN_PCT_CHANGE,
+	}
+
+	if len(expected) != 10 {
+		t.Errorf("expected 10 window types, got %d", len(expected))
+	}
+
+	for _, wt := range expected {
+		w := types.Window{Type: wt, Field: "x", OrderBy: []types.OrderKey{{Field: "ts"}}}
+		data, err := json.Marshal(w)
+		if err != nil {
+			t.Errorf("marshal window with type %s: %v", wt, err)
+			continue
+		}
+		var got types.Window
+		if err := json.Unmarshal(data, &got); err != nil {
+			t.Errorf("unmarshal window with type %s: %v", wt, err)
+			continue
+		}
+		if got.Type != wt {
+			t.Errorf("WindowType round-trip: got %s, want %s", got.Type, wt)
+		}
+	}
+}
+
+// TestAllWindowTypesAlphabetical verifies AllWindowTypes returns alphabetically sorted entries.
+func TestAllWindowTypesAlphabetical(t *testing.T) {
+	all := types.AllWindowTypes()
+	if len(all) != 10 {
+		t.Fatalf("AllWindowTypes returned %d entries, want 10", len(all))
+	}
+	for i := 1; i < len(all); i++ {
+		if string(all[i]) < string(all[i-1]) {
+			t.Errorf("AllWindowTypes not sorted: %s before %s", all[i-1], all[i])
+		}
+	}
+}
+
+// TestWindowMarshalJSON verifies a Window with all fields round-trips.
+func TestWindowMarshalJSON(t *testing.T) {
+	preceding := 3
+	following := 0
+	w := types.Window{
+		Type:        types.WIN_MOVING_AVG,
+		Field:       "revenue",
+		Label:       "ma_3",
+		PartitionBy: []string{"region"},
+		OrderBy:     []types.OrderKey{{Field: "ts"}, {Field: "id", Desc: true}},
+		Frame: &types.FrameSpec{
+			Mode:      "rows",
+			Preceding: &preceding,
+			Following: &following,
+		},
+		Params: json.RawMessage(`{"alpha": 0.5}`),
+	}
+
+	data, err := json.Marshal(w)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got types.Window
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if got.Type != types.WIN_MOVING_AVG {
+		t.Errorf("Type = %s, want WIN_MOVING_AVG", got.Type)
+	}
+	if got.Label != "ma_3" {
+		t.Errorf("Label = %s, want ma_3", got.Label)
+	}
+	if len(got.PartitionBy) != 1 || got.PartitionBy[0] != "region" {
+		t.Errorf("PartitionBy = %v, want [region]", got.PartitionBy)
+	}
+	if len(got.OrderBy) != 2 || got.OrderBy[0].Field != "ts" || !got.OrderBy[1].Desc {
+		t.Errorf("OrderBy round-trip failed: %+v", got.OrderBy)
+	}
+	if got.Frame == nil || got.Frame.Mode != "rows" {
+		t.Fatalf("Frame round-trip failed: %+v", got.Frame)
+	}
+	if got.Frame.Preceding == nil || *got.Frame.Preceding != 3 {
+		t.Errorf("Frame.Preceding = %v, want 3", got.Frame.Preceding)
+	}
+	if got.Frame.Following == nil || *got.Frame.Following != 0 {
+		t.Errorf("Frame.Following = %v, want 0", got.Frame.Following)
+	}
+}
+
+// TestRequestWithSortRoundTrip verifies Request.Sort round-trips via JSON.
+func TestRequestWithSortRoundTrip(t *testing.T) {
+	req := types.Request{
+		Cohort: &types.Cohort{Filename: "ts.pulse"},
+		Sort: []types.OrderKey{
+			{Field: "ts"},
+			{Field: "score", Desc: true},
+		},
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got types.Request
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(got.Sort) != 2 {
+		t.Fatalf("Sort length = %d, want 2", len(got.Sort))
+	}
+	if got.Sort[0].Field != "ts" || got.Sort[0].Desc {
+		t.Errorf("Sort[0] = %+v, want {ts, false}", got.Sort[0])
+	}
+	if got.Sort[1].Field != "score" || !got.Sort[1].Desc {
+		t.Errorf("Sort[1] = %+v, want {score, true}", got.Sort[1])
+	}
+}
+
+// TestRequestWithWindowsRoundTrip verifies Request.Windows round-trips via JSON.
+func TestRequestWithWindowsRoundTrip(t *testing.T) {
+	req := types.Request{
+		Cohort: &types.Cohort{Filename: "ts.pulse"},
+		Windows: []*types.Window{
+			{
+				Type:    types.WIN_LAG,
+				Field:   "revenue",
+				OrderBy: []types.OrderKey{{Field: "date"}},
+			},
+		},
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got types.Request
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(got.Windows) != 1 || got.Windows[0].Type != types.WIN_LAG {
+		t.Errorf("Windows round-trip failed: %+v", got.Windows)
+	}
+	if got.Windows[0].OrderBy[0].Field != "date" {
+		t.Errorf("OrderBy field = %s, want date", got.Windows[0].OrderBy[0].Field)
 	}
 }
 

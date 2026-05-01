@@ -56,7 +56,6 @@
         "ATTR_FORMULA",
         "ATTR_NORMALIZED",
         "ATTR_PERCENTILE",
-        "ATTR_RANK",
         "ATTR_TSCORE",
         "ATTR_ZSCORE"
       ],
@@ -72,6 +71,18 @@
         "GROUP_QUANTILE",
         "GROUP_RANGE",
         "GROUP_ROUNDED"
+      ],
+      "windows": [
+        "WIN_DENSE_RANK",
+        "WIN_EWMA",
+        "WIN_LAG",
+        "WIN_LEAD",
+        "WIN_MOVING_AVG",
+        "WIN_PCT_CHANGE",
+        "WIN_RANK",
+        "WIN_ROW_NUMBER",
+        "WIN_RUNNING_AVG",
+        "WIN_RUNNING_SUM"
       ]
     },
     "cohort_types": [
@@ -141,4 +152,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: defc6455d192f244111bfd26cbd9d16f373ac25bf7b0fd4621f33bbf44522b22
+// golden-hash: b263225c8fe010e5059b7d7698d818cc7c5fb8adceb7592cec44942985db496b

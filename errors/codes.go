@@ -112,6 +112,11 @@ const (
 
 	// PULSE_FIELD_DESCRIPTION_LOW_QUALITY indicates a field description quality warning.
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
+
+	// PULSE_WINDOW_INVALID indicates a structural validation failure for a
+	// window operation: invalid frame matrix, alpha out of bounds,
+	// non-orderable order key, label collision, or unsupported window type.
+	PULSE_WINDOW_INVALID Code = "PULSE_WINDOW_INVALID"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -153,6 +158,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_DESCRIPTION_TOO_LONG,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
+	PULSE_WINDOW_INVALID,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

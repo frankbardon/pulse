@@ -214,48 +214,6 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 	return result, nil
 }
 
-// --- Rank Attribute ---
-
-type rankAttribute struct{}
-
-func newRankAttribute(_ *types.Attribute, _ *encoding.Schema) (AttributeComputer, error) {
-	return &rankAttribute{}, nil
-}
-
-func (a *rankAttribute) Compute(records []*Record, field string) ([]float64, error) {
-	if len(records) == 0 {
-		return []float64{}, nil
-	}
-
-	type indexedVal struct {
-		idx int
-		val float64
-	}
-	var indexed []indexedVal
-	for i, r := range records {
-		v, ok := r.NumericValue(field)
-		if ok {
-			indexed = append(indexed, indexedVal{idx: i, val: v})
-		}
-	}
-
-	if len(indexed) == 0 {
-		return make([]float64, len(records)), nil
-	}
-
-	// Sort by value (ascending)
-	sort.Slice(indexed, func(i, j int) bool {
-		return indexed[i].val < indexed[j].val
-	})
-
-	// Assign ranks (1-based, ascending)
-	result := make([]float64, len(records))
-	for rank, iv := range indexed {
-		result[iv.idx] = float64(rank + 1)
-	}
-	return result, nil
-}
-
 // --- DatePart Attribute ---
 
 // datePartParams holds the configuration for ATTR_DATE_PART.

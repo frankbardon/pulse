@@ -8,5 +8,6 @@
     {"name": "debugging-with-predict", "description": "Iterating on a request using api predict", "type": "guide", "applies_to": ["predict"]},
     {"name": "error-code-reference", "description": "Recovery playbook per error code", "type": "reference", "applies_to": ["process", "compose", "predict"]},
     {"name": "import-best-practices", "description": "Schema inference, fail-closed semantics, null markers", "type": "guide", "applies_to": ["inspect", "predict"]},
-    {"name": "export-format-selection", "description": "CSV vs Parquet vs Excel for downstream tools", "type": "guide", "applies_to": ["process", "compose"]}
+    {"name": "export-format-selection", "description": "CSV vs Parquet vs Excel for downstream tools", "type": "guide", "applies_to": ["process", "compose"]},
+    {"name": "window-operations", "description": "WIN_* operators — partitioning, ordering, frames, and per-operator semantics", "type": "guide", "applies_to": ["process", "compose", "predict"]}
 ]
