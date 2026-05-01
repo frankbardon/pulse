@@ -54,6 +54,7 @@ func commands() []Command {
 		{Name: "inspect", Description: "Inspect a .pulse file header and schema"},
 		{Name: "predict", Description: "Validate a request without executing"},
 		{Name: "manifest", Description: "Output the root manifest"},
+		{Name: "mcp", Description: "Serve the Model Context Protocol over stdio"},
 	}
 }
 
