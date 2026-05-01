@@ -210,6 +210,7 @@ func TestNoOrbitPrefix(t *testing.T) {
 		"VersionResponse", "FiltererType", "AggregationType",
 		"GroupType", "AttributeType", "ResponseMetadata",
 		"Window", "WindowType", "OrderKey", "FrameSpec",
+		"Feature", "FeatureType",
 	}
 
 	for _, name := range typeNames {
@@ -237,6 +238,10 @@ func TestNoOrbitPrefix(t *testing.T) {
 		string(types.WIN_DENSE_RANK), string(types.WIN_RUNNING_SUM),
 		string(types.WIN_RUNNING_AVG), string(types.WIN_MOVING_AVG),
 		string(types.WIN_EWMA), string(types.WIN_PCT_CHANGE),
+		string(types.FEAT_LOG), string(types.FEAT_SQRT),
+		string(types.FEAT_BUCKETIZE), string(types.FEAT_ONE_HOT),
+		string(types.FEAT_DATE_FEATURES), string(types.FEAT_FREQUENCY_ENCODE),
+		string(types.FEAT_TARGET_ENCODE), string(types.FEAT_TRAIN_TEST_SPLIT),
 	}
 
 	for _, v := range enumValues {
