@@ -53,7 +53,10 @@ pulse/
 │   ├── csv/                # CSV reader + writer
 │   ├── tsv/                # TSV reader + writer
 │   ├── ndjson/             # NDJSON reader + writer
-│   ├── parquet/            # Parquet reader + writer (Arrow)
+│   ├── jsonarray/          # JSON-array reader + writer (single top-level array of flat objects)
+│   ├── jsonshared/         # Value coercion helpers shared by ndjson and jsonarray
+│   ├── arrow/              # Arrow IPC / Feather V2 reader + writer; shared Arrow<->Pulse type maps
+│   ├── parquet/            # Parquet reader + writer (delegates type maps to io/arrow)
 │   └── excel/              # Excel reader + writer (Excelize)
 ├── fs/                     # afero-based filesystem abstraction + extension hook
 ├── errors/                 # Typed error codes (CodedError system)

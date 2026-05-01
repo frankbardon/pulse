@@ -7,10 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/io/jsonshared"
 	"github.com/spf13/afero"
 )
 
@@ -119,26 +119,6 @@ func decodeLine(line []byte) (map[string]any, []string, error) {
 	return obj, keys, nil
 }
 
-// valueToString converts a JSON value to its string representation for the tabular interface.
-func valueToString(v any) string {
-	if v == nil {
-		return ""
-	}
-	switch val := v.(type) {
-	case json.Number:
-		return val.String()
-	case string:
-		return val
-	case bool:
-		if val {
-			return "true"
-		}
-		return "false"
-	default:
-		return fmt.Sprintf("%v", v)
-	}
-}
-
 // ReadHeader returns column names derived from the keys of the first JSON object.
 func (r *Reader) ReadHeader() ([]string, error) {
 	if err := r.init(); err != nil {
@@ -213,7 +193,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		row := make([]string, len(r.header))
 		for i, key := range r.header {
 			if v, ok := obj[key]; ok {
-				row[i] = valueToString(v)
+				row[i] = jsonshared.ValueToString(v)
 			} else {
 				row[i] = ""
 			}
@@ -289,7 +269,7 @@ func (w *Writer) WriteRow(values []any) error {
 	obj := make(map[string]any, len(w.columns))
 	for i, col := range w.columns {
 		if i < len(values) {
-			obj[col] = coerceValue(values[i])
+			obj[col] = jsonshared.CoerceValue(values[i])
 		} else {
 			obj[col] = nil
 		}
@@ -314,36 +294,6 @@ func (w *Writer) WriteRow(values []any) error {
 	w.buf.WriteByte('\n')
 
 	return nil
-}
-
-// coerceValue attempts to convert string values to native JSON types
-// (number, boolean, null) for cleaner NDJSON output.
-func coerceValue(v any) any {
-	s, ok := v.(string)
-	if !ok {
-		return v
-	}
-	if s == "" {
-		return nil
-	}
-
-	// Try integer.
-	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
-		return n
-	}
-	// Try float.
-	if f, err := strconv.ParseFloat(s, 64); err == nil {
-		return f
-	}
-	// Try boolean.
-	switch s {
-	case "true":
-		return true
-	case "false":
-		return false
-	}
-
-	return s
 }
 
 // Close flushes and writes to the target path if configured.
