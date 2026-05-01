@@ -239,43 +239,12 @@ func TestAttribute_Percentile_Basic(t *testing.T) {
 	}
 }
 
-// --- Rank Attribute ---
-
-func TestAttribute_Rank_Basic(t *testing.T) {
-	schema := numericSchema()
-	attr := makeAttribute(t, types.ATTR_RANK, "score", schema, "")
-	records := makeRecords(schema, "score", []float64{30, 10, 20})
-
-	result, err := attr.Compute(records, "score")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(result) != 3 {
-		t.Fatalf("result length = %d, want 3", len(result))
-	}
-	// Ranks: 30=>3, 10=>1, 20=>2 (ascending rank)
-	if !floatClose(result[0], 3.0, 0.001) {
-		t.Errorf("rank[0] (30) = %f, want 3.0", result[0])
-	}
-	if !floatClose(result[1], 1.0, 0.001) {
-		t.Errorf("rank[1] (10) = %f, want 1.0", result[1])
-	}
-	if !floatClose(result[2], 2.0, 0.001) {
-		t.Errorf("rank[2] (20) = %f, want 2.0", result[2])
-	}
-}
-
-func TestAttribute_Rank_Empty(t *testing.T) {
-	schema := numericSchema()
-	attr := makeAttribute(t, types.ATTR_RANK, "score", schema, "")
-	records := makeRecords(schema, "score", []float64{})
-
-	result, err := attr.Compute(records, "score")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(result) != 0 {
-		t.Errorf("result length = %d, want 0", len(result))
+// TestAttribute_RankRemoved verifies the registry no longer resolves ATTR_RANK.
+// Migration: use WIN_RANK with empty PartitionBy and one ASC OrderBy on the
+// same field. See skills/window-operations.md.
+func TestAttribute_RankRemoved(t *testing.T) {
+	if _, ok := attributeRegistry[types.AttributeType("ATTR_RANK")]; ok {
+		t.Error("ATTR_RANK still registered; expected removal in favor of WIN_RANK")
 	}
 }
 

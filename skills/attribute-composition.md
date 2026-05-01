@@ -65,14 +65,9 @@ Computes the percentile rank of each record's value within the field distributio
 - **Categorical**: Not applicable.
 - **Use when**: You need to know where a value falls in the distribution (e.g., "this score is in the 85th percentile").
 
-### ATTR_RANK
+### ATTR_RANK (removed)
 
-Computes the ordinal rank of each record's value within the field.
-
-- **Output**: An integer rank (1 = smallest value).
-- **Null handling**: Null values receive null rank.
-- **Categorical**: Not applicable.
-- **Use when**: You need ordered ranking for leaderboards or stratification.
+`ATTR_RANK` was removed in this release. Use `WIN_RANK` (with empty `partition_by` and a single ASC `order_by` on the same field) for the equivalent behavior, plus proper tie semantics. See `skills/window-operations.md` for the migration recipe.
 
 ### ATTR_DATE_PART
 

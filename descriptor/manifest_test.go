@@ -73,6 +73,9 @@ func TestManifestIncludesComponents(t *testing.T) {
 	if len(m.Components.Groupers) == 0 {
 		t.Error("Groupers is empty")
 	}
+	if len(m.Components.Windows) == 0 {
+		t.Error("Windows is empty")
+	}
 
 	// Check aggregators are sorted.
 	for i := 1; i < len(m.Components.Aggregators); i++ {
@@ -80,6 +83,22 @@ func TestManifestIncludesComponents(t *testing.T) {
 			t.Errorf("aggregators not sorted: %s before %s",
 				m.Components.Aggregators[i-1], m.Components.Aggregators[i])
 		}
+	}
+
+	// Check windows are sorted.
+	for i := 1; i < len(m.Components.Windows); i++ {
+		if m.Components.Windows[i] < m.Components.Windows[i-1] {
+			t.Errorf("windows not sorted: %s before %s",
+				m.Components.Windows[i-1], m.Components.Windows[i])
+		}
+	}
+}
+
+// TestManifestWindowsCount verifies all 10 window types are present.
+func TestManifestWindowsCount(t *testing.T) {
+	m := BuildManifest()
+	if len(m.Components.Windows) != 10 {
+		t.Errorf("Windows count = %d, want 10", len(m.Components.Windows))
 	}
 }
 

@@ -6,25 +6,28 @@ import (
 	"testing"
 )
 
-// TestPredictNoExecutionImports verifies that predict.go does not import
-// the service package (which contains execution methods).
+// TestPredictNoExecutionImports verifies that predict.go and predict_window.go
+// do not import the service package (which contains execution methods).
 // This is a structural ban enforced by grep gate.
 func TestPredictNoExecutionImports(t *testing.T) {
-	data, err := os.ReadFile("predict.go")
-	if err != nil {
-		t.Fatalf("reading predict.go: %v", err)
-	}
+	files := []string{"predict.go", "predict_window.go"}
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("reading %s: %v", file, err)
+		}
 
-	source := string(data)
+		source := string(data)
 
-	// Must not import the service package.
-	banned := []string{
-		`"github.com/frankbardon/pulse/service"`,
-		`"github.com/frankbardon/pulse/processing"`,
-	}
-	for _, b := range banned {
-		if strings.Contains(source, b) {
-			t.Errorf("predict.go imports banned package: %s", b)
+		// Must not import the service package.
+		banned := []string{
+			`"github.com/frankbardon/pulse/service"`,
+			`"github.com/frankbardon/pulse/processing"`,
+		}
+		for _, b := range banned {
+			if strings.Contains(source, b) {
+				t.Errorf("%s imports banned package: %s", file, b)
+			}
 		}
 	}
 }
@@ -36,6 +39,7 @@ func TestDescriptorNoFmtSprintf(t *testing.T) {
 		"envelope.go",
 		"manifest.go",
 		"predict.go",
+		"predict_window.go",
 		"inspect.go",
 	}
 

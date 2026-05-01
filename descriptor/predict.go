@@ -85,6 +85,9 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Validate request fields exist in schema.
 	validateRequestFields(env, req, schema, opts)
 
+	// Validate window operations (structural checks; no execution).
+	validateWindows(env, req, schema, opts)
+
 	// Check description quality.
 	validateDescriptionQuality(env, schema, opts)
 
@@ -162,6 +165,16 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 
 	// Check attribute fields.
 	for _, attr := range req.Attributes {
+		// Removed-type sentinel: ATTR_RANK was retired in favor of WIN_RANK.
+		// Surface a migration hint instead of the generic registry-miss error.
+		if attr.Type == "ATTR_RANK" {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"ATTR_RANK was removed in this release; use WIN_RANK with empty partition_by and a single ASC order_by on the same field",
+				map[string]any{"attribute": "ATTR_RANK", "replacement": "WIN_RANK"},
+			)
+			continue
+		}
 		f := schema.Field(attr.Field)
 		if f == nil {
 			env.AddError(

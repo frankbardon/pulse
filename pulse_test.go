@@ -271,6 +271,61 @@ func TestProcess_WithGroup(t *testing.T) {
 	}
 }
 
+// TestProcess_WithWindow exercises the windowed pipeline through the public
+// pulse.Process facade. It verifies the WIN_LAG output column lands on the
+// response with one row per record.
+func TestProcess_WithWindow(t *testing.T) {
+	memFs := afero.NewMemMapFs()
+	createTestPulseFile(t, memFs, "test.pulse", []string{"ts", "x"}, [][]string{
+		{"1", "10"},
+		{"2", "20"},
+		{"3", "30"},
+	})
+
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	resp, err := p.Process(context.Background(), &Request{
+		Cohort: &types.Cohort{Filename: "test.pulse"},
+		Windows: []*types.Window{
+			{
+				Type:    types.WIN_LAG,
+				Field:   "x",
+				Label:   "x_lag",
+				OrderBy: []types.OrderKey{{Field: "ts"}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("Process returned nil")
+	}
+	if len(resp.Data) != 3 {
+		t.Fatalf("Data length = %d, want 3", len(resp.Data))
+	}
+	for _, r := range resp.Data {
+		ts, _ := r["ts"].(float64)
+		switch ts {
+		case 1.0:
+			if r["x_lag"] != nil {
+				t.Errorf("ts=1 x_lag = %v, want nil", r["x_lag"])
+			}
+		case 2.0:
+			if v, _ := r["x_lag"].(float64); v != 10.0 {
+				t.Errorf("ts=2 x_lag = %v, want 10", r["x_lag"])
+			}
+		case 3.0:
+			if v, _ := r["x_lag"].(float64); v != 20.0 {
+				t.Errorf("ts=3 x_lag = %v, want 20", r["x_lag"])
+			}
+		}
+	}
+}
+
 func TestProcess_ComposedRequest(t *testing.T) {
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{

@@ -25,6 +25,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A registered attribute | `skills/attribute-composition.md` | `TestSkillsCoverAllComponents` |
 | A registered filterer | `skills/aggregation-guide.md` (filtering section) | `TestSkillsCoverAllComponents` |
 | A registered grouper | `skills/grouper-design.md` | `TestSkillsCoverAllComponents` |
+| A registered window operator | `skills/window-operations.md` | `TestSkillsCoverAllWindowTypes` |
 | An error code (added/removed/renamed) | `skills/error-code-reference.md` | `TestSkillsCoverAllErrorCodes` |
 | A CLI leaf (added/removed/flag added) | `CLAUDE.md` "Common Claude Code Workflows" + `skills/getting-started.md` if user-facing | `TestSkillsCoverAllCliLeaves` |
 | A `--json` envelope or `format_version` | `CLAUDE.md` "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
@@ -47,7 +48,8 @@ pulse/
 │   └── pulse/              # CLI binary (the only binary)
 ├── pulse.go                # Public facade — pulse.New, pulse.Options
 ├── service/                # Orchestration layer; wires processing to encoding
-├── processing/             # Aggregators, attributes, filterers, groupers
+├── processing/             # Aggregators, attributes, filterers, groupers, windows
+│   └── window/             # WIN_* operators (LAG, LEAD, RANK, RUNNING_*, EWMA, ...)
 ├── encoding/               # Dynamic schema + record codec (.pulse binary format)
 ├── io/                     # Bidirectional tabular <-> .pulse adapters
 │   ├── csv/                # CSV reader + writer
@@ -262,6 +264,7 @@ Required fields:
 - `TestSkillsCoverAllErrorCodes` — every error code in `errors/codes.go` appears in `skills/error-code-reference.md`
 - `TestSkillsCoverAllCliLeaves` — every CLI leaf command appears in `skills/getting-started.md`
 - `TestSkillsCoverAllFieldTypes` — every field type appears in `skills/cohort-schema-design.md`
+- `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator in `types.AllWindowTypes` appears in `skills/window-operations.md`
 
 ### Per-component update rules
 
@@ -271,6 +274,7 @@ Required fields:
 | Attribute (`ATTR_*`) | `skills/attribute-composition.md` |
 | Filterer (`FILTER_*`) | At least one skill must mention it; typically `skills/aggregation-guide.md` or `skills/getting-started.md` |
 | Grouper (`GROUP_*`) | `skills/grouper-design.md` |
+| Window operator (`WIN_*`) | `skills/window-operations.md` |
 | Error code | `skills/error-code-reference.md` |
 | CLI leaf command | `skills/getting-started.md` |
 | Field type | `skills/cohort-schema-design.md` |
@@ -279,11 +283,13 @@ Required fields:
 
 **16 aggregators:** `AGG_AVERAGE`, `AGG_COUNT`, `AGG_DISTINCT_COUNT`, `AGG_FREQUENCY`, `AGG_KURTOSIS`, `AGG_MAX`, `AGG_MEDIAN`, `AGG_MIN`, `AGG_MODE`, `AGG_PERCENTILE`, `AGG_RANGE`, `AGG_SKEWNESS`, `AGG_STDDEV`, `AGG_SUM`, `AGG_VARIANCE`, `AGG_ZSCORE`
 
-**7 attributes:** `ATTR_DATE_PART`, `ATTR_FORMULA`, `ATTR_NORMALIZED`, `ATTR_PERCENTILE`, `ATTR_RANK`, `ATTR_TSCORE`, `ATTR_ZSCORE`
+**6 attributes:** `ATTR_DATE_PART`, `ATTR_FORMULA`, `ATTR_NORMALIZED`, `ATTR_PERCENTILE`, `ATTR_TSCORE`, `ATTR_ZSCORE`
 
 **4 filterers:** `FILTER_EXCLUDE`, `FILTER_EXPRESSION`, `FILTER_INCLUDE`, `FILTER_RANGE`
 
 **5 groupers:** `GROUP_CATEGORY`, `GROUP_DATE`, `GROUP_QUANTILE`, `GROUP_RANGE`, `GROUP_ROUNDED`
+
+**10 window operators:** `WIN_DENSE_RANK`, `WIN_EWMA`, `WIN_LAG`, `WIN_LEAD`, `WIN_MOVING_AVG`, `WIN_PCT_CHANGE`, `WIN_RANK`, `WIN_ROW_NUMBER`, `WIN_RUNNING_AVG`, `WIN_RUNNING_SUM`
 
 ## Build / Dev / Test Workflow
 

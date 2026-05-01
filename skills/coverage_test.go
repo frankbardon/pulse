@@ -129,6 +129,20 @@ func TestSkillsCoverAllFieldTypes(t *testing.T) {
 	}
 }
 
+// TestSkillsCoverAllWindowTypes verifies that every constant in
+// types.AllWindowTypes appears in window-operations.md.
+func TestSkillsCoverAllWindowTypes(t *testing.T) {
+	content, ok := Get("window-operations")
+	if !ok {
+		t.Fatal("window-operations.md not found")
+	}
+	for _, w := range types.AllWindowTypes() {
+		if !strings.Contains(content, string(w)) {
+			t.Errorf("window-operations.md does not mention window type %s", w)
+		}
+	}
+}
+
 // collectAllSkillContent returns the concatenated content of all skills.
 func collectAllSkillContent(t *testing.T) string {
 	t.Helper()

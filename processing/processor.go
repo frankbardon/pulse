@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -116,7 +117,7 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 // Returns false on any unknown component type so the buffered path can
 // surface the canonical error message.
 func (p *Processor) canStream(req *types.Request) bool {
-	if len(req.Groups) > 0 || len(req.Attributes) > 0 {
+	if len(req.Groups) > 0 || len(req.Attributes) > 0 || len(req.Windows) > 0 {
 		return false
 	}
 	if len(req.Aggregations) == 0 {
@@ -282,13 +283,23 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		if err != nil {
 			return nil, err
 		}
-	} else {
+	} else if len(req.Aggregations) > 0 {
 		row, err := p.aggregate(req.Aggregations, filtered)
 		if err != nil {
 			return nil, err
 		}
 		if row != nil {
 			data = []map[string]any{row}
+		}
+	} else if len(req.Windows) > 0 {
+		// No group, no aggregation, but we have windows. Materialize one row
+		// per filtered record so windows can compute over the full set.
+		data = recordsToRows(filtered)
+	}
+
+	if len(req.Windows) > 0 {
+		if err := window.Apply(ctx, data, req.Windows); err != nil {
+			return nil, err
 		}
 	}
 
@@ -299,6 +310,26 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			FilteredRows: int64(len(filtered)),
 		},
 	}, nil
+}
+
+// recordsToRows materializes Records into the post-aggregate row shape
+// used by the window pipeline stage. Each record contributes one row
+// containing every non-null value (categorical fields resolve to strings).
+//
+// AllValues returns a cached map owned by the Record; window operators
+// mutate rows in place to write their output column, so we clone here to
+// avoid leaking window outputs back into the Record's cache.
+func recordsToRows(records []*Record) []map[string]any {
+	rows := make([]map[string]any, len(records))
+	for i, r := range records {
+		src := r.AllValues()
+		clone := make(map[string]any, len(src)+2)
+		for k, v := range src {
+			clone[k] = v
+		}
+		rows[i] = clone
+	}
+	return rows
 }
 
 func (p *Processor) applyFilters(filterers []*types.Filterer, records []*Record) ([]*Record, error) {

@@ -143,10 +143,12 @@ Errors from the HTTP/API layer and service operations.
 - Malformed JSON in request body
 - Missing required fields (e.g., cohort filename)
 - Invalid enum values for aggregation/filter/group types
+- Use of a removed attribute type (e.g., `ATTR_RANK` — replaced by `WIN_RANK`)
 
 **Recovery**:
 - Validate the request JSON structure.
 - Ensure all required fields are present.
+- For removed attribute types, follow the migration hint in the error message; e.g., `ATTR_RANK` request emits a hint with `details.replacement = "WIN_RANK"`. See `skills/window-operations.md`.
 - Use `api predict` to check the request.
 
 ### SERVICE_RESOURCE
@@ -394,4 +396,26 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Improve the description with units, range, and domain meaning.
 - Include what the field represents, not just its name.
+
+### PULSE_WINDOW_INVALID
+
+**Description**: Structural validation failure for a window operation. Predict rejects requests that violate the window contract before execution.
+
+**Causes**:
+- Unknown `WIN_*` type
+- Missing `order_by` (every window operator requires at least one order key)
+- `order_by` field references an unknown field or is not orderable (categorical / bool / packed_bool order keys are rejected)
+- `partition_by` references an unknown field
+- `frame` present on a non-frame operator (LAG, LEAD, ROW_NUMBER, RANK, DENSE_RANK, PCT_CHANGE)
+- `frame` missing on a frame-required operator (RUNNING_SUM, RUNNING_AVG, MOVING_AVG, EWMA)
+- `frame.mode` is not `"rows"`
+- `MOVING_AVG` without bounded `preceding` and `following`
+- `EWMA` `params.alpha` outside `(0, 1]`
+- `LAG`/`LEAD`/`PCT_CHANGE`/`RUNNING_*`/`MOVING_AVG`/`EWMA` `field` is non-numeric
+- Output `label` collides with an aggregation, group, or attribute label
+
+**Recovery**:
+- Run `pulse predict --json` and read the `details` payload — it identifies the offending window index and rule.
+- Fix the request per the rule above. Most fixes are mechanical: add `order_by`, drop the `frame` for ROW_NUMBER/RANK/DENSE_RANK, or pick a numeric field for the value-bearing operators.
+- See `skills/window-operations.md` for the full contract and per-operator semantics.
 </reference>
