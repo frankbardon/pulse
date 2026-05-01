@@ -7,8 +7,10 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	pio "github.com/frankbardon/pulse/io"
+	parrow "github.com/frankbardon/pulse/io/arrow"
 	"github.com/frankbardon/pulse/io/csv"
 	"github.com/frankbardon/pulse/io/excel"
+	"github.com/frankbardon/pulse/io/jsonarray"
 	"github.com/frankbardon/pulse/io/ndjson"
 	"github.com/frankbardon/pulse/io/parquet"
 	"github.com/frankbardon/pulse/io/tsv"
@@ -34,7 +36,9 @@ func ImportCommand() *cli.Command {
 			importFormatCmd("csv"),
 			importFormatCmd("tsv"),
 			importFormatCmd("ndjson"),
+			importFormatCmd("jsonarray"),
 			importFormatCmd("parquet"),
+			importFormatCmd("arrow"),
 			importExcelCmd(),
 			importPredictCmd(),
 			importSchemaTemplateCmd(),
@@ -125,7 +129,7 @@ func importPredictCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, parquet, excel)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel)"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
@@ -199,7 +203,7 @@ func importSchemaTemplateCmd() *cli.Command {
 		Usage:     "Generate an editable schema template from input data",
 		ArgsUsage: "INPUT",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, parquet, excel)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel)"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -264,8 +268,12 @@ func makeImportReader(format string, fs afero.Fs, path string, sheet string) (pi
 		return tsv.NewReader(fs, path), nil
 	case "ndjson":
 		return ndjson.NewReader(fs, path), nil
+	case "jsonarray":
+		return jsonarray.NewReader(fs, path), nil
 	case "parquet":
 		return parquet.NewReader(fs, path), nil
+	case "arrow":
+		return parrow.NewReader(fs, path), nil
 	case "excel":
 		opts := []excel.Option{}
 		if sheet != "" {

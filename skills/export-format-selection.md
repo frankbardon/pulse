@@ -1,6 +1,6 @@
 ---
 name: export-format-selection
-description: CSV vs Parquet vs Excel for downstream tools
+description: CSV vs Parquet vs Arrow IPC vs Excel for downstream tools
 type: guide
 applies_to: process, compose
 ---
@@ -14,15 +14,15 @@ After processing, Pulse can export results in multiple formats with tradeoffs in
 <reference>
 ## Format Comparison
 
-| Feature | CSV | TSV | NDJSON | Parquet | Excel |
-|---------|-----|-----|--------|---------|-------|
-| Type fidelity | Low (all text) | Low (all text) | Medium (JSON types) | High (native types) | Medium |
-| Null representation | Empty string | Empty string | `null` | Native null | Empty cell |
-| Categorical | String labels | String labels | String labels | Dictionary-encoded | String labels |
-| File size | Medium | Medium | Large | Small (compressed) | Medium |
-| Streaming | Yes | Yes | Yes | No (columnar) | No |
-| Human-readable | Yes | Yes | Yes | No | Yes (GUI) |
-| Schema included | No | No | No | Yes | No |
+| Feature | CSV | TSV | NDJSON | JSON Array | Parquet | Arrow IPC | Excel |
+|---------|-----|-----|--------|------------|---------|-----------|-------|
+| Type fidelity | Low (all text) | Low (all text) | Medium (JSON types) | Medium (JSON types) | High (native types) | High (native Arrow types) | Medium |
+| Null representation | Empty string | Empty string | `null` | `null` | Native null | Native null | Empty cell |
+| Categorical | String labels | String labels | String labels | String labels | Dictionary-encoded | Dictionary-encodable | String labels |
+| File size | Medium | Medium | Large | Large | Small (compressed) | Small (LZ4 by default) | Medium |
+| Streaming | Yes | Yes | Yes | Producer streams; consumers usually parse whole file | No (columnar) | Batch-by-batch | No |
+| Human-readable | Yes | Yes | Yes | Yes | No | No | Yes (GUI) |
+| Schema included | No | No | No | No | Yes | Yes | No |
 </reference>
 
 <reference>
@@ -58,6 +58,19 @@ Limitations:
 - Larger file size than CSV due to repeated keys
 - No schema metadata in the file itself
 
+### JSON Array
+
+Use JSON Array (`.json`) when:
+- The consumer is a browser, REST API, or scripting environment that expects a single top-level array (`JSON.parse`, Python `json.load`, etc.)
+- The dataset is small enough that whole-file parsing is acceptable
+- You want a single self-contained JSON document rather than line-delimited records
+
+Limitations:
+- Most consumers parse the whole array at once; not as memory-friendly as NDJSON for very large datasets
+- No schema metadata in the file
+- Only flat objects are supported on import (nested objects/arrays are rejected with `PULSE_IMPORT_ROW_ERROR`, same rule as NDJSON)
+- The `.json` extension always means "top-level array of flat objects"; NDJSON should use `.ndjson` or `.jsonl`
+
 ### Parquet
 
 Use Parquet when:
@@ -67,6 +80,21 @@ Use Parquet when:
 - Categorical fields should remain dictionary-encoded
 
 Parquet is the best format for machine-to-machine data transfer.
+
+### Arrow IPC (Feather V2)
+
+Use Arrow IPC (`.arrow`, `.feather`) when:
+- The downstream tool already speaks Arrow natively (Polars, DuckDB, pandas via `pyarrow`, R `arrow`)
+- You want zero-copy columnar interchange without the Parquet encode/decode overhead
+- You need batch-level streaming on read while still keeping schema metadata in the file
+- You want to round-trip a dataset through an Arrow-native pipeline and back into Pulse
+
+The `.arrow` and `.feather` extensions both produce the same Arrow IPC file format. Feather V2 is a re-branding of the IPC file format on disk.
+
+Limitations:
+- Not as widely consumed as Parquet by non-Arrow tooling
+- Pulse's writer emits all columns as Arrow `String`; consumers that need native numeric Arrow types should round-trip through Parquet or import the data with a typed schema first
+- Stream-format Arrow IPC (`.arrows`) is not supported — use the file format only
 
 ### Excel
 
@@ -85,7 +113,9 @@ Limitations:
 
 - **CSV/TSV**: Categorical fields are exported as their string labels. The dictionary is lost.
 - **NDJSON**: Categorical fields appear as string values in JSON.
+- **JSON Array**: Categorical fields appear as string values; the dictionary is lost.
 - **Parquet**: Categorical fields are exported as dictionary-encoded columns, preserving the encoding.
+- **Arrow IPC**: Categorical fields are exported as Arrow `String` columns. Consumers that need dictionary encoding can call `.dictionary_encode()` after read.
 - **Excel**: Categorical fields appear as string values in cells.
 </reference>
 
@@ -106,6 +136,23 @@ Export to Parquet for machine-to-machine transfer with full type fidelity.
 
 ```
 pulse export parquet --input data.pulse --output results.parquet
+```
+</example>
+
+<example name="export-jsonarray">
+Export to a top-level JSON array for browsers, REST consumers, or scripts.
+
+```
+pulse export jsonarray --input data.pulse --output results.json
+```
+</example>
+
+<example name="export-arrow">
+Export to Arrow IPC (Feather V2) for Arrow-native consumers via the convert command.
+
+```
+pulse convert data.pulse results.arrow
+pulse convert data.pulse results.feather
 ```
 </example>
 

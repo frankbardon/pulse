@@ -6,8 +6,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strconv"
-	"time"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
@@ -17,6 +15,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	pio "github.com/frankbardon/pulse/io"
+	parrow "github.com/frankbardon/pulse/io/arrow"
 	"github.com/spf13/afero"
 
 	pq "github.com/apache/arrow-go/v18/parquet"
@@ -204,63 +203,11 @@ func getValueAsString(chunks []arrow.Array, rowIdx int) string {
 			if chunk.IsNull(offset) {
 				return ""
 			}
-			return formatArrowValue(chunk, offset)
+			return parrow.FormatValue(chunk, offset)
 		}
 		offset -= chunk.Len()
 	}
 	return ""
-}
-
-// formatArrowValue converts an Arrow array element to a string.
-func formatArrowValue(arr arrow.Array, idx int) string {
-	switch a := arr.(type) {
-	case *array.Uint8:
-		return strconv.FormatUint(uint64(a.Value(idx)), 10)
-	case *array.Uint16:
-		return strconv.FormatUint(uint64(a.Value(idx)), 10)
-	case *array.Uint32:
-		return strconv.FormatUint(uint64(a.Value(idx)), 10)
-	case *array.Uint64:
-		return strconv.FormatUint(a.Value(idx), 10)
-	case *array.Int8:
-		return strconv.FormatInt(int64(a.Value(idx)), 10)
-	case *array.Int16:
-		return strconv.FormatInt(int64(a.Value(idx)), 10)
-	case *array.Int32:
-		return strconv.FormatInt(int64(a.Value(idx)), 10)
-	case *array.Int64:
-		return strconv.FormatInt(a.Value(idx), 10)
-	case *array.Float32:
-		return strconv.FormatFloat(float64(a.Value(idx)), 'f', -1, 32)
-	case *array.Float64:
-		return strconv.FormatFloat(a.Value(idx), 'f', -1, 64)
-	case *array.Boolean:
-		if a.Value(idx) {
-			return "true"
-		}
-		return "false"
-	case *array.String:
-		return a.Value(idx)
-	case *array.Date32:
-		days := int64(a.Value(idx))
-		t := time.Unix(days*86400, 0).UTC()
-		return t.Format("2006-01-02")
-	case *array.Date64:
-		ms := int64(a.Value(idx))
-		t := time.Unix(ms/1000, (ms%1000)*1e6).UTC()
-		return t.Format("2006-01-02")
-	case *array.Dictionary:
-		// Dictionary-encoded: resolve to the string value.
-		dict := a.Dictionary()
-		index := a.GetValueIndex(idx)
-		if strDict, ok := dict.(*array.String); ok {
-			return strDict.Value(index)
-		}
-		return fmt.Sprintf("%v", index)
-	default:
-		// Fallback: use the String representation from the array.
-		return fmt.Sprintf("%v", a.GetOneForMarshal(idx))
-	}
 }
 
 // Close releases underlying resources.
@@ -305,7 +252,7 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 
 	for i := 0; i < numFields; i++ {
 		af := r.arrowSc.Field(i)
-		ft := arrowTypeToPulse(af.Type, af.Nullable)
+		ft := parrow.TypeToPulse(af.Type, af.Nullable)
 		fields[i] = encoding.Field{
 			Name:         af.Name,
 			Type:         ft,
@@ -496,94 +443,20 @@ func (w *Writer) Bytes() []byte {
 }
 
 // ---------- Type Mapping ----------
+//
+// Type-mapping helpers live in io/arrow as parrow.TypeToPulse and
+// parrow.TypeFromPulse so the Parquet and Arrow IPC paths share a single
+// source of truth. The thin wrappers below preserve the historical local
+// names (used by parquet's tests) without re-implementing the logic.
 
-// arrowTypeToPulse maps an Arrow data type to a Pulse FieldType.
+// arrowTypeToPulse delegates to the shared io/arrow type map.
 func arrowTypeToPulse(dt arrow.DataType, nullable bool) encoding.FieldType {
-	switch dt.ID() {
-	case arrow.UINT8:
-		if nullable {
-			return encoding.FieldTypeNullableU8
-		}
-		return encoding.FieldTypeU8
-	case arrow.UINT16:
-		if nullable {
-			return encoding.FieldTypeNullableU16
-		}
-		return encoding.FieldTypeU16
-	case arrow.UINT32:
-		return encoding.FieldTypeU32
-	case arrow.UINT64:
-		return encoding.FieldTypeU64
-	case arrow.INT8:
-		if nullable {
-			return encoding.FieldTypeNullableU8
-		}
-		return encoding.FieldTypeU8
-	case arrow.INT16:
-		if nullable {
-			return encoding.FieldTypeNullableU16
-		}
-		return encoding.FieldTypeU16
-	case arrow.INT32:
-		return encoding.FieldTypeU32
-	case arrow.INT64:
-		return encoding.FieldTypeU64
-	case arrow.FLOAT32:
-		return encoding.FieldTypeF32
-	case arrow.FLOAT64:
-		return encoding.FieldTypeF64
-	case arrow.BOOL:
-		if nullable {
-			return encoding.FieldTypeNullableBool
-		}
-		return encoding.FieldTypePackedBool
-	case arrow.DATE32:
-		return encoding.FieldTypeDate
-	case arrow.DATE64:
-		return encoding.FieldTypeDate
-	case arrow.STRING, arrow.LARGE_STRING, arrow.BINARY, arrow.LARGE_BINARY:
-		return encoding.FieldTypeCategoricalU8
-	case arrow.DICTIONARY:
-		// Dictionary-encoded -> categorical.
-		return encoding.FieldTypeCategoricalU8
-	default:
-		// Default to f64 for unknown types.
-		return encoding.FieldTypeF64
-	}
+	return parrow.TypeToPulse(dt, nullable)
 }
 
-// pulseTypeToArrow maps a Pulse FieldType to an Arrow DataType.
+// pulseTypeToArrow delegates to the shared io/arrow type map.
 func pulseTypeToArrow(ft encoding.FieldType) arrow.DataType {
-	switch ft {
-	case encoding.FieldTypeU8:
-		return arrow.PrimitiveTypes.Uint8
-	case encoding.FieldTypeU16:
-		return arrow.PrimitiveTypes.Uint16
-	case encoding.FieldTypeU32:
-		return arrow.PrimitiveTypes.Uint32
-	case encoding.FieldTypeU64:
-		return arrow.PrimitiveTypes.Uint64
-	case encoding.FieldTypeF32:
-		return arrow.PrimitiveTypes.Float32
-	case encoding.FieldTypeF64:
-		return arrow.PrimitiveTypes.Float64
-	case encoding.FieldTypeDate:
-		return arrow.FixedWidthTypes.Date32
-	case encoding.FieldTypePackedBool:
-		return arrow.FixedWidthTypes.Boolean
-	case encoding.FieldTypeNullableBool:
-		return arrow.FixedWidthTypes.Boolean
-	case encoding.FieldTypeNullableU4:
-		return arrow.PrimitiveTypes.Uint8
-	case encoding.FieldTypeNullableU8:
-		return arrow.PrimitiveTypes.Uint8
-	case encoding.FieldTypeNullableU16:
-		return arrow.PrimitiveTypes.Uint16
-	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
-		return arrow.BinaryTypes.String
-	default:
-		return arrow.PrimitiveTypes.Float64
-	}
+	return parrow.TypeFromPulse(ft)
 }
 
 // Ensure interfaces are satisfied at compile time.

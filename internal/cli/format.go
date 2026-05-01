@@ -6,8 +6,10 @@ import (
 	"strings"
 
 	pio "github.com/frankbardon/pulse/io"
+	parrow "github.com/frankbardon/pulse/io/arrow"
 	"github.com/frankbardon/pulse/io/csv"
 	"github.com/frankbardon/pulse/io/excel"
+	"github.com/frankbardon/pulse/io/jsonarray"
 	"github.com/frankbardon/pulse/io/ndjson"
 	"github.com/frankbardon/pulse/io/parquet"
 	"github.com/frankbardon/pulse/io/tsv"
@@ -24,8 +26,12 @@ func formatFromExt(path string) string {
 		return "tsv"
 	case ".ndjson", ".jsonl":
 		return "ndjson"
+	case ".json":
+		return "jsonarray"
 	case ".parquet", ".pq":
 		return "parquet"
+	case ".arrow", ".feather":
+		return "arrow"
 	case ".xlsx", ".xls":
 		return "excel"
 	case ".pulse":
@@ -44,8 +50,12 @@ func newReaderForFormat(format string, fs afero.Fs, path string, sheet string) (
 		return tsv.NewReader(fs, path), nil
 	case "ndjson":
 		return ndjson.NewReader(fs, path), nil
+	case "jsonarray":
+		return jsonarray.NewReader(fs, path), nil
 	case "parquet":
 		return parquet.NewReader(fs, path), nil
+	case "arrow":
+		return parrow.NewReader(fs, path), nil
 	case "excel":
 		opts := []excel.Option{}
 		if sheet != "" {
@@ -66,8 +76,12 @@ func newWriterForFormat(format string, fs afero.Fs, path string) (pio.Writer, er
 		return tsv.NewWriter(fs, path), nil
 	case "ndjson":
 		return ndjson.NewWriter(fs, path), nil
+	case "jsonarray":
+		return jsonarray.NewWriter(fs, path), nil
 	case "parquet":
 		return parquet.NewWriter(fs, path), nil
+	case "arrow":
+		return parrow.NewWriter(fs, path), nil
 	case "excel":
 		return excel.NewWriter(fs, path), nil
 	default:
