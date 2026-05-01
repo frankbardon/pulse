@@ -51,6 +51,16 @@ func TestSkillsCoverAllComponents(t *testing.T) {
 			t.Errorf("grouper-design.md does not mention grouper %s", g)
 		}
 	}
+
+	featureContent, ok := Get("feature-engineering")
+	if !ok {
+		t.Fatal("feature-engineering.md not found")
+	}
+	for _, f := range types.AllFeatureTypes() {
+		if !strings.Contains(featureContent, string(f)) {
+			t.Errorf("feature-engineering.md does not mention feature %s", f)
+		}
+	}
 }
 
 // TestSkillsCoverAllErrorCodes verifies that every constant in errors/codes.go

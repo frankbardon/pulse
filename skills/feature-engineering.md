@@ -1,0 +1,198 @@
+---
+name: feature-engineering
+description: FEAT_* operators — pre-filter feature engineering for ML pipelines, with the target leakage trap
+type: guide
+applies_to: process, compose, predict
+---
+
+# Feature Engineering
+
+<skill_overview>
+The `FEAT_*` operators are pre-filter feature engineers: each one runs over the unfiltered record set and adds one or more derived columns that downstream filters, attributes, groupers, aggregators, and windows can reference by label. Use them as the last mile of an ML pipeline (raw → cleaned → featurized → train/test) without leaving the engine. The most important rule in this skill is the leakage trap on `FEAT_TARGET_ENCODE` — read that section before reaching for it.
+</skill_overview>
+
+<reference>
+## Pipeline position
+
+Features run **before** filters. The order is:
+
+```
+Load -> Features -> Filter -> Attributes -> Group -> Aggregate -> Windows -> Sort -> Output
+```
+
+A feature's output column is addressable by every stage that follows. This is why bucketize → filter on the bucket column works, and why train/test/split tags are usable as filter values.
+</reference>
+
+<reference>
+## Why features are buffered
+
+Features force the buffered execution path. Global-pass operators (`FEAT_FREQUENCY_ENCODE`, `FEAT_TARGET_ENCODE`) need a stats sweep before per-row write; per-row operators (`FEAT_LOG`, `FEAT_SQRT`) could stream but are bundled in for consistency. If your request has only stream-eligible aggregations and no features, processing stays on the streaming path; adding any feature switches to buffered.
+</reference>
+
+<reference>
+## Operator catalog
+
+### FEAT_LOG
+
+`log(x + 1)` (log1p) on a numeric field. Null-safe. Inputs `<= -1` produce null.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `field` | string | yes | Source numeric field |
+| `label` | string | no | Output column name (default `LOG_<field>`) |
+
+### FEAT_SQRT
+
+`sqrt(x)` on a numeric field. Null-safe. Negative inputs produce null.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `field` | string | yes | Source numeric field |
+| `label` | string | no | Output column name (default `SQRT_<field>`) |
+
+### FEAT_BUCKETIZE
+
+Discretize a numeric field into bucket indexes (`0..N`). Provide either `boundaries` (explicit edges) or `quantiles` (equal-frequency bin count). The two are mutually exclusive.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `field` | string | yes | Source numeric field |
+| `label` | string | no | Output column name (default `BUCKET_<field>`) |
+| `params.boundaries` | []float | conditional | Sorted edge values |
+| `params.quantiles` | int | conditional | Number of equal-frequency bins (>= 2) |
+
+### FEAT_ONE_HOT
+
+Expand a categorical field into N boolean columns sourced from the schema dictionary. Output column set is deterministic regardless of which categories appear at runtime — `predict` materializes the same column set the executor will produce.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `field` | string | yes | Source categorical field |
+| `label` | string | no | Column prefix (default `<field>`) |
+
+Output columns are `<prefix>_<category>`. Spaces in category strings normalize to underscores.
+
+### FEAT_DATE_FEATURES
+
+Decompose a date-typed field into five derived columns: `year`, `month`, `day`, `dow` (0=Sunday..6=Saturday), `quarter` (1..4). Decoding mirrors `ATTR_DATE_PART`.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `field` | string | yes | Source field of type `date` |
+| `label` | string | no | Column prefix (default `<field>`) |
+
+Output columns: `<prefix>_year`, `<prefix>_month`, `<prefix>_day`, `<prefix>_dow`, `<prefix>_quarter`.
+
+### FEAT_FREQUENCY_ENCODE
+
+Replace a categorical with the proportion of rows that share its value (count / total non-null). Two-pass.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `field` | string | yes | Source categorical field |
+| `label` | string | no | Output column name (default `FREQ_<field>`) |
+
+### FEAT_TARGET_ENCODE
+
+Replace a categorical with the mean of a numeric target field over rows sharing that category. Optional smoothing pulls rare categories toward the global mean.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `field` | string | yes | Source categorical field |
+| `label` | string | no | Output column name (default `TARGET_<field>`) |
+| `params.target` | string | yes | Numeric target field |
+| `params.smoothing` | float | no | Additive prior toward global mean (default 0) |
+
+Smoothing formula: `(n * mean_cat + s * mean_global) / (n + s)`. Larger `s` → more shrinkage.
+
+**LEAKAGE TRAP (read this):** target encoding mixes target signal from validation/test rows into the training feature unless you split first. The canonical fix is to place a `FEAT_TRAIN_TEST_SPLIT` operator BEFORE every `FEAT_TARGET_ENCODE` in the same `features` list. Predict emits `PULSE_FEAT_TARGET_LEAKAGE_RISK` (warning by default; error in `--strict`) when a TARGET_ENCODE has no preceding TRAIN_TEST_SPLIT.
+
+### FEAT_TRAIN_TEST_SPLIT
+
+Tag each row with a partition assignment in a numeric `split` column (`0=train`, `1=val`, `2=test`). Two- or three-element ratio vectors supported. Optional stratification preserves class balance across partitions.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `field` | string | no | Unused unless stratifying |
+| `label` | string | no | Output column name (default `split`) |
+| `params.ratios` | []float | yes | 2 or 3 elements summing to 1.0 |
+| `params.seed` | int | no | Deterministic shuffle seed (default 0) |
+| `params.stratify` | string | no | Categorical field to stratify by |
+
+The encoded values are the constants `feature.SplitTrain` (0), `feature.SplitVal` (1), `feature.SplitTest` (2). Filter by `split == 0` for training-only operations downstream.
+</reference>
+
+<workflow id="A" name="basic-featurize-then-aggregate">
+### Featurize then aggregate
+
+```json
+{
+  "cohort": {"filename": "transactions.pulse"},
+  "features": [
+    {"type": "FEAT_LOG", "field": "amount", "label": "log_amount"},
+    {"type": "FEAT_BUCKETIZE", "field": "log_amount", "label": "amount_bucket",
+     "params": {"quantiles": 10}}
+  ],
+  "groups": [{"type": "GROUP_CATEGORY", "field": "amount_bucket"}],
+  "aggregations": [{"type": "AGG_COUNT", "field": "id", "label": "n"}]
+}
+```
+
+Note `FEAT_BUCKETIZE` references `log_amount` — the output of the previous feature. Features compose in order.
+</workflow>
+
+<workflow id="B" name="safe-target-encoding">
+### Target encoding without leakage
+
+Order matters:
+
+```json
+{
+  "features": [
+    {"type": "FEAT_TRAIN_TEST_SPLIT",
+     "params": {"ratios": [0.7, 0.15, 0.15], "seed": 42, "stratify": "label"}},
+    {"type": "FEAT_TARGET_ENCODE", "field": "region",
+     "params": {"target": "price", "smoothing": 5.0}}
+  ]
+}
+```
+
+`FEAT_TRAIN_TEST_SPLIT` first, then `FEAT_TARGET_ENCODE`. Reverse the order and predict surfaces `PULSE_FEAT_TARGET_LEAKAGE_RISK`.
+</workflow>
+
+<workflow id="C" name="one-hot-then-filter">
+### One-hot then filter on a category
+
+```json
+{
+  "features": [{"type": "FEAT_ONE_HOT", "field": "region"}],
+  "filterers": [
+    {"type": "FILTER_INCLUDE", "field": "region_north", "values": ["1"]}
+  ]
+}
+```
+
+`region_north` is reachable to the filter because features run before filters in the pipeline.
+</workflow>
+
+<reference>
+## Predict surface
+
+Run `pulse predict --json` against any feature-using request. Predict will:
+- Reject unknown `FEAT_*` types (`SERVICE_VALIDATION`).
+- Verify required input fields exist in the cohort schema.
+- Verify type compatibility (categorical for ONE_HOT/FREQUENCY/TARGET, date for DATE_FEATURES, numeric target for TARGET_ENCODE).
+- Validate parameter shape (boundaries vs quantiles mutual exclusion, ratios summing to 1.0, smoothing >= 0).
+- Materialize the post-feature column set so downstream filter/group/attribute/aggregation references are checked against derived columns too.
+- Surface `PULSE_FEAT_TARGET_LEAKAGE_RISK` for misordered TARGET_ENCODE.
+
+The post-feature schema is virtual — `pulse inspect` still reports only on-disk fields.
+</reference>
+
+<see_also>
+- getting-started — pipeline order, vocabulary, command tree
+- aggregation-guide — `AGG_*` operations that consume feature outputs
+- attribute-composition — `ATTR_*` derivations that compose with features
+- error-code-reference — `PULSE_FEAT_TARGET_LEAKAGE_RISK` recovery playbook
+- mcp-integration — calling features through the MCP tool surface
+</see_also>
