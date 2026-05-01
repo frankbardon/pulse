@@ -84,6 +84,7 @@ func TestSkillsCoverAllCliLeaves(t *testing.T) {
 		"inspect",
 		"predict",
 		"manifest",
+		"mcp",
 	}
 
 	for _, leaf := range leaves {

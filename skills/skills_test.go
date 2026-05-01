@@ -8,8 +8,8 @@ import (
 
 func TestSkillsList_ReturnsAll(t *testing.T) {
 	items := List()
-	if len(items) != 11 {
-		t.Fatalf("List() returned %d skills, want 11", len(items))
+	if len(items) != 12 {
+		t.Fatalf("List() returned %d skills, want 12", len(items))
 	}
 }
 
@@ -80,6 +80,7 @@ func TestSkillsManifestConsistent(t *testing.T) {
 		"inspect":  true,
 		"predict":  true,
 		"manifest": true,
+		"mcp":      true,
 	}
 
 	items := List()
@@ -108,8 +109,8 @@ func TestSkillsManifestConsistent(t *testing.T) {
 
 func TestSkillsNames(t *testing.T) {
 	names := Names()
-	if len(names) != 11 {
-		t.Fatalf("Names() returned %d, want 11", len(names))
+	if len(names) != 12 {
+		t.Fatalf("Names() returned %d, want 12", len(names))
 	}
 	// Check a known name is present
 	found := false
