@@ -184,6 +184,13 @@ func (p *Pulse) Facet(ctx context.Context, path string, field string) ([]string,
 	return p.svc.Facet(ctx, path, field)
 }
 
+// Fs returns the underlying afero.Fs. Embedders (e.g. the MCP server) need
+// this to enumerate .pulse files; processing methods route through service
+// and never expose the filesystem directly.
+func (p *Pulse) Fs() afero.Fs {
+	return p.fsys
+}
+
 // resolveCohortPath builds the file path from a Cohort specification.
 func resolveCohortPath(c *types.Cohort) string {
 	if c.DataDir != "" {

@@ -29,6 +29,7 @@ func New(p *pulse.Pulse) *server.MCPServer {
 		server.WithResourceCapabilities(true, true),
 	)
 	registerTools(s, p)
+	registerResources(s, p)
 	return s
 }
 
