@@ -1,8 +1,8 @@
 # Feature Pack Examples
 
 Runnable JSON requests demonstrating each `FEAT_*` operator and idiomatic
-combinations. Each example points at a small fixture cohort built from a
-checked-in CSV.
+combinations. Every example resolves its cohort from the shared fixture
+set documented in [`../README.md`](../README.md).
 
 ## One-time setup
 
@@ -10,7 +10,7 @@ Build the binary and the four `.pulse` fixture cohorts:
 
 ```
 make build
-./examples/features/fixtures/build.sh
+./examples/fixtures/build.sh
 ```
 
 That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`, and
@@ -55,21 +55,6 @@ errors.
 | `08_target_encode_safe.json` | `FEAT_TARGET_ENCODE` (safe) | Split-then-encode order, smoothing=5 |
 | `09_target_encode_leaky.json` | `FEAT_TARGET_ENCODE` (unsafe) | Triggers `PULSE_FEAT_TARGET_LEAKAGE_RISK` |
 | `10_full_ml_pipeline.json` | All eight | Compose the full preprocessing graph |
-
-## Fixture cohorts
-
-CSV sources and matching schemas live under `fixtures/`. The generator
-(`fixtures/gen.go`) is deterministic — re-running it produces identical
-output. Re-generate from scratch:
-
-```
-go run examples/features/fixtures/gen.go
-./examples/features/fixtures/build.sh
-```
-
-Schemas are hand-tuned for description quality and explicit type
-choices (`u32` ids, `categorical_u8` for low-cardinality strings,
-`date` for calendar fields).
 
 ## Required fields per example
 

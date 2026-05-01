@@ -1,12 +1,12 @@
 //go:build ignore
 
-// Generator for the four CSV fixtures used by the FEAT_* examples.
-// Run from the repo root:
+// Generator for the shared CSV fixtures referenced by every category
+// under examples/. Run from the repo root:
 //
-//	go run examples/features/fixtures/gen.go
+//	go run examples/fixtures/gen.go
 //
-// Output is written into examples/features/fixtures/. The same seed
-// produces byte-identical output so the CSVs are checked in.
+// Output is written into examples/fixtures/. The same seed produces
+// byte-identical output so the CSVs are checked in.
 package main
 
 import (
@@ -21,7 +21,7 @@ import (
 
 const (
 	seed       = 20260501
-	outputDir  = "examples/features/fixtures"
+	outputDir  = "examples/fixtures"
 	dateFormat = "2006-01-02"
 )
 

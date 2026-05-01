@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-// TestFeatureExamples_RunEndToEnd builds the four CSV fixture cohorts
+// TestFeatureExamples_RunEndToEnd builds the shared fixture cohorts
 // into a temp directory, then loads each example JSON in
 // examples/features/, rewrites the cohort.data_dir to the temp path,
 // and runs the request through pulse.Process. Asserts no errors come
@@ -31,8 +31,8 @@ func TestFeatureExamples_RunEndToEnd(t *testing.T) {
 
 	cohorts := []string{"transactions", "customers", "orders", "training_data"}
 	for _, name := range cohorts {
-		csvPath := filepath.Join("examples", "features", "fixtures", name+".csv")
-		schemaPath := filepath.Join("examples", "features", "fixtures", "schemas", name+".json")
+		csvPath := filepath.Join("examples", "fixtures", name+".csv")
+		schemaPath := filepath.Join("examples", "fixtures", "schemas", name+".json")
 		outPath := filepath.Join(tmp, name+".pulse")
 
 		schema, err := loadFixtureSchema(schemaPath)

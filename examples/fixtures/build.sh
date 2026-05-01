@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Build the four .pulse cohort fixtures from the checked-in CSVs and
-# hand-tuned schemas. Output goes to a directory the examples can use as
-# PULSE_DATA_DIR. By default that's the repo-local ".data" directory;
-# override by exporting PULSE_DATA_DIR before invoking.
+# Build the shared .pulse cohort fixtures from the checked-in CSVs and
+# hand-tuned schemas. Every example category under examples/ resolves
+# its cohorts from the same output directory.
+#
+# By default that's the repo-local ".data" directory; override by
+# exporting PULSE_DATA_DIR before invoking.
 #
 # Usage:
-#   ./examples/features/fixtures/build.sh
-#   PULSE_DATA_DIR=/tmp/pulse-data ./examples/features/fixtures/build.sh
+#   ./examples/fixtures/build.sh
+#   PULSE_DATA_DIR=/tmp/pulse-data ./examples/fixtures/build.sh
 set -euo pipefail
 
-cd "$(dirname "$0")/../../.."
+cd "$(dirname "$0")/../.."
 
 PULSE_BIN=${PULSE_BIN:-bin/pulse}
 if [[ ! -x "$PULSE_BIN" ]]; then
@@ -20,7 +22,7 @@ fi
 DATA_DIR=${PULSE_DATA_DIR:-.data}
 mkdir -p "$DATA_DIR"
 
-FIXTURES=examples/features/fixtures
+FIXTURES=examples/fixtures
 
 for cohort in transactions customers orders training_data; do
   echo "==> building $cohort.pulse"
@@ -33,4 +35,4 @@ done
 
 echo
 echo "Cohorts written to: $DATA_DIR"
-echo "Set PULSE_DATA_DIR=$DATA_DIR before running the examples."
+echo "Examples reference cohort.data_dir = \"$DATA_DIR\" so requests run unmodified."

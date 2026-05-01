@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Smoke-runs every example request through `pulse api process`. Assumes
-# the fixture cohorts have been built into ./.data via
-# examples/features/fixtures/build.sh.
+# Smoke-runs every feature-pack example request through `pulse api process`.
+# Assumes the shared fixture cohorts have been built into ./.data via
+# examples/fixtures/build.sh.
 #
 # Exits non-zero on the first failure.
 set -euo pipefail
@@ -15,8 +15,8 @@ if [[ ! -x "$PULSE_BIN" ]]; then
 fi
 
 if [[ ! -d .data ]]; then
-  echo ".data not found; running fixtures/build.sh" >&2
-  ./examples/features/fixtures/build.sh
+  echo ".data not found; running examples/fixtures/build.sh" >&2
+  ./examples/fixtures/build.sh
 fi
 
 shopt -s nullglob
