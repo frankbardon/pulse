@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/processing/feature"
 	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
@@ -111,13 +112,16 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 //   - no attributes (ZSCORE/PERCENTILE/RANK/NORMALIZED need a first
 //     pass to compute population stats; FORMULA is row-local but is
 //     bundled in for simplicity — every attribute today is buffered)
+//   - no features (every FEAT_* operator runs over the full record set —
+//     global-pass operators need stats before per-row emit, and per-row
+//     operators inject derived columns that downstream stages reference)
 //   - every aggregation type supports OnlineAggregator
 //   - filters are row-level only (every registered filter today is)
 //
 // Returns false on any unknown component type so the buffered path can
 // surface the canonical error message.
 func (p *Processor) canStream(req *types.Request) bool {
-	if len(req.Groups) > 0 || len(req.Attributes) > 0 || len(req.Windows) > 0 {
+	if len(req.Groups) > 0 || len(req.Attributes) > 0 || len(req.Windows) > 0 || len(req.Features) > 0 {
 		return false
 	}
 	if len(req.Aggregations) == 0 {
@@ -264,6 +268,15 @@ func (p *Processor) ProcessComposed(ctx context.Context, composed *types.Compose
 func (p *Processor) processRecords(ctx context.Context, req *types.Request, records []*Record) (*types.Response, error) {
 	totalRows := int64(len(records))
 
+	// Step 0: Apply pre-filter features. They mutate records in place to
+	// add derived columns so filters and downstream stages can reference
+	// them. Features run over the full unfiltered set so global-pass
+	// operators (FREQUENCY_ENCODE, TARGET_ENCODE) see every row's
+	// contribution to the stats.
+	if err := p.applyFeatures(req.Features, records); err != nil {
+		return nil, err
+	}
+
 	// Step 1: Apply filters
 	filtered, err := p.applyFilters(req.Filterers, records)
 	if err != nil {
@@ -365,6 +378,21 @@ func (p *Processor) applyFilters(filterers []*types.Filterer, records []*Record)
 		}
 	}
 	return result, nil
+}
+
+// applyFeatures runs pre-filter feature operators over the unfiltered
+// record set. The feature subpackage owns operator dispatch; this method
+// adapts processing.Record into the feature.Record interface and forwards
+// to feature.Apply. Empty feature lists are a fast no-op.
+func (p *Processor) applyFeatures(features []*types.Feature, records []*Record) error {
+	if len(features) == 0 || len(records) == 0 {
+		return nil
+	}
+	view := make([]feature.Record, len(records))
+	for i, r := range records {
+		view[i] = r
+	}
+	return feature.Apply(view, features, p.schema)
 }
 
 func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record) error {
