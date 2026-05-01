@@ -140,6 +140,28 @@ Predict raises `PULSE_WINDOW_INVALID` for every structural violation listed in `
 Behavior delta: tied values now share a rank (gap rank), where the legacy `ATTR_RANK` produced arbitrary distinct ranks for ties. Any caller depending on the old behavior must reconcile against the new contract.
 </reference>
 
+<rule severity="caveat" topic="date-ordering">
+## Ordering by dates and date parts
+
+Pulse stores `date` fields as days-since-epoch (numeric), so a window ordered directly on a `date` column sorts correctly without any encoding work.
+
+When you order by a derived date component, mind which producer you use:
+
+- **`ATTR_DATE_PART`** emits `float64`. Encodings that include the year preserve calendar order via arithmetic packing (no zero-padding needed):
+  - `year_month` → `year*100 + month` → `202401 < 202411 < 202501` ✓
+  - `year_month_day` → `year*10000 + month*100 + day` → `20240115 < 20240301` ✓
+  - `month_day` → `month*100 + day` → `315 < 1201` ✓ within a year
+- **`GROUP_DATE`** emits zero-padded strings (`"2024-01"`, `"2024-01-15"`, `"2024-W03"`), which lex-sort correctly. The padding is handled by Go's `time.Format`; you do not have to add it.
+
+**Pitfalls:**
+
+- `ATTR_DATE_PART` with bare `"month"` (1..12) or `"day"` (1..31) strips the year. A window ordered on those will mix calendar years and reset on every January — almost never what you want for time-series.
+- `GROUP_DATE` with `"day_of_week"` produces weekday names (`"Monday"`, ...) that sort lexicographically, not Sunday→Saturday. Do not order windows on day-of-week.
+- Mixing a date `order_by` with a `partition_by` on the raw `date` field collapses every row into its own partition. Partition by a coarser key (region, product, brand) and order by the date.
+
+**Recommended:** for time-series windows over a `date` field, order directly on the `date` column. Use `ATTR_DATE_PART` only when you actually need the bucket value as a column in the response.
+</rule>
+
 <rule severity="caveat" topic="cost">
 ## Cost notes
 
