@@ -117,6 +117,14 @@ const (
 	// window operation: invalid frame matrix, alpha out of bounds,
 	// non-orderable order key, label collision, or unsupported window type.
 	PULSE_WINDOW_INVALID Code = "PULSE_WINDOW_INVALID"
+
+	// PULSE_FEAT_TARGET_LEAKAGE_RISK indicates that FEAT_TARGET_ENCODE was
+	// requested without a prior FEAT_TRAIN_TEST_SPLIT in the same Features
+	// list. The encoded values include rows that should belong to the
+	// validation/test partitions, leaking target information into the
+	// training feature. Mitigation: place a FEAT_TRAIN_TEST_SPLIT operator
+	// before any FEAT_TARGET_ENCODE.
+	PULSE_FEAT_TARGET_LEAKAGE_RISK Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -159,6 +167,7 @@ var allCodes = []Code{
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
+	PULSE_FEAT_TARGET_LEAKAGE_RISK,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

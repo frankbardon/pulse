@@ -28,7 +28,8 @@ func validateFeatures(env *Envelope, req *types.Request, schema *encoding.Schema
 		return cols
 	}
 
-	for _, feat := range req.Features {
+	splitSeenAt := -1
+	for idx, feat := range req.Features {
 		if !isKnownFeatureType(feat.Type) {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
@@ -40,6 +41,26 @@ func validateFeatures(env *Envelope, req *types.Request, schema *encoding.Schema
 
 		// Field-presence and per-operator type checks.
 		validateFeatureSpec(env, feat, schema, opts)
+
+		// Detect target encoding without a preceding train/test split. The
+		// canonical mitigation is to place FEAT_TRAIN_TEST_SPLIT before any
+		// FEAT_TARGET_ENCODE; otherwise the encoder mixes statistics from
+		// rows that will land in val/test, leaking the target.
+		if feat.Type == types.FEAT_TARGET_ENCODE && splitSeenAt < 0 {
+			entry := &EnvelopeEntry{
+				Code:    string(errors.PULSE_FEAT_TARGET_LEAKAGE_RISK),
+				Message: "FEAT_TARGET_ENCODE applied without a preceding FEAT_TRAIN_TEST_SPLIT; target information may leak from val/test rows into training features",
+				Details: map[string]any{"feature": string(feat.Type), "feature_index": idx},
+			}
+			if opts.Strict {
+				env.Errors = append(env.Errors, entry)
+			} else {
+				env.Warnings = append(env.Warnings, entry)
+			}
+		}
+		if feat.Type == types.FEAT_TRAIN_TEST_SPLIT {
+			splitSeenAt = idx
+		}
 
 		// Add output columns to the projected set even if validation found
 		// problems — downstream errors are more useful when they don't
