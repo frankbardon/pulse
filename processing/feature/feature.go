@@ -26,16 +26,28 @@ type Record interface {
 	// StringValue returns the resolved string value for categorical fields.
 	StringValue(name string) (string, bool)
 
-	// Set writes a derived value. Implementations clear any prior null
-	// marker and invalidate any cached views.
+	// Set writes a derived non-null value. Implementations clear any prior
+	// null marker and invalidate any cached views.
 	Set(name string, value float64)
+
+	// SetNull marks the named field null on this record.
+	SetNull(name string)
+}
+
+// Output is one column's worth of derived values plus an aligned null mask.
+// Values has one entry per input record; Nulls (when non-nil) has the same
+// length and Nulls[i]==true means Values[i] is undefined for record i (the
+// orchestrator writes a null marker instead of the numeric value).
+type Output struct {
+	Values []float64
+	Nulls  []bool
 }
 
 // Computer produces one or more derived columns from a record set. The
-// returned map is keyed by output column name; each value slice has one
-// entry per input record (indexes line up with the input slice).
+// returned map is keyed by output column name; each Output's Values slice
+// has length equal to len(records) (Apply enforces this).
 type Computer interface {
-	Compute(records []Record, field string) (map[string][]float64, error)
+	Compute(records []Record, field string) (map[string]Output, error)
 }
 
 // Factory constructs a Computer from a feature specification. The schema is

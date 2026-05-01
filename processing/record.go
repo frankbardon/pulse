@@ -129,6 +129,14 @@ func (r *Record) Set(name string, value float64) {
 	r.invalidateAllValuesCache()
 }
 
+// SetNull marks the named field as null. Used by feature operators to
+// propagate input nulls into the derived column.
+func (r *Record) SetNull(name string) {
+	r.nulls[name] = true
+	delete(r.values, name)
+	r.invalidateAllValuesCache()
+}
+
 // RecordIterator provides sequential access to records.
 type RecordIterator interface {
 	// Next advances to the next record. Returns false when exhausted.

@@ -47,12 +47,17 @@ func (r *fakeRecord) Set(name string, value float64) {
 	delete(r.nulls, name)
 }
 
+func (r *fakeRecord) SetNull(name string) {
+	r.nulls[name] = true
+	delete(r.num, name)
+}
+
 // noopComputer returns a constant zero column for verifying Apply plumbing.
 type noopComputer struct{ outputLabel string }
 
-func (c *noopComputer) Compute(records []Record, _ string) (map[string][]float64, error) {
+func (c *noopComputer) Compute(records []Record, _ string) (map[string]Output, error) {
 	out := make([]float64, len(records))
-	return map[string][]float64{c.outputLabel: out}, nil
+	return map[string]Output{c.outputLabel: {Values: out}}, nil
 }
 
 func TestRegistry_LookupAfterRegister(t *testing.T) {

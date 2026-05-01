@@ -63,14 +63,23 @@ func Apply(records []Record, features []*types.Feature, schema *encoding.Schema)
 		if err != nil {
 			return err
 		}
-		for label, values := range outputs {
-			if len(values) != len(records) {
+		for label, out := range outputs {
+			if len(out.Values) != len(records) {
 				return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 					fmt.Sprintf("feature %s produced %d values for %d records (label %s)",
-						feat.Type, len(values), len(records), label))
+						feat.Type, len(out.Values), len(records), label))
+			}
+			if out.Nulls != nil && len(out.Nulls) != len(records) {
+				return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+					fmt.Sprintf("feature %s null mask length %d != %d records (label %s)",
+						feat.Type, len(out.Nulls), len(records), label))
 			}
 			for i, r := range records {
-				r.Set(label, values[i])
+				if out.Nulls != nil && out.Nulls[i] {
+					r.SetNull(label)
+				} else {
+					r.Set(label, out.Values[i])
+				}
 			}
 		}
 	}
