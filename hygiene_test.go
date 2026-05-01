@@ -193,6 +193,7 @@ func TestUpdateDemandTableCovers(t *testing.T) {
 		"CI gate",
 		"environment variable",
 		"MCP tool",
+		"feature operator",
 	}
 
 	// Extract the Update Demand section (from "## The Update Demand" to the next "##").
