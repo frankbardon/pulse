@@ -227,6 +227,7 @@ Fields without stored descriptions get a synthesized fallback (`"Categorical fie
 - `TestPerPackageCoverageFloors` — placeholder documenting target per-package coverage floors; verifies package directories exist
 - `TestNoOrbitPrefixes` — verifies no error code string contains predecessor project references
 - `TestNoOrbitPrefix` — verifies no type constant string contains predecessor project references
+- `TestSkillsCoverAllMCPTools` — asserts every MCP tool registered in `internal/mcp` appears in `skills/mcp-integration.md`
 
 ## Skill Pack Maintenance
 
