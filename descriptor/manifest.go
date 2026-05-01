@@ -21,6 +21,7 @@ type Components struct {
 	Filterers   []string `json:"filterers"`
 	Groupers    []string `json:"groupers"`
 	Windows     []string `json:"windows"`
+	Features    []string `json:"features"`
 }
 
 // CohortFieldType describes a field type available in .pulse files.
@@ -95,6 +96,9 @@ var (
 
 	sortedWindowTypesOnce sync.Once
 	sortedWindowTypesVal  []string
+
+	sortedFeatureTypesOnce sync.Once
+	sortedFeatureTypesVal  []string
 )
 
 // sortedAggregationTypes returns the cached sorted list of aggregation type
@@ -165,6 +169,19 @@ func sortedWindowTypes() []string {
 	return sortedWindowTypesVal
 }
 
+func sortedFeatureTypes() []string {
+	sortedFeatureTypesOnce.Do(func() {
+		raw := types.AllFeatureTypes()
+		out := make([]string, len(raw))
+		for i, v := range raw {
+			out[i] = string(v)
+		}
+		sort.Strings(out)
+		sortedFeatureTypesVal = out
+	})
+	return sortedFeatureTypesVal
+}
+
 // BuildManifest constructs a deterministic Manifest from the current registries.
 func BuildManifest() *Manifest {
 	return &Manifest{
@@ -176,6 +193,7 @@ func BuildManifest() *Manifest {
 			Filterers:   sortedFiltererTypes(),
 			Groupers:    sortedGroupTypes(),
 			Windows:     sortedWindowTypes(),
+			Features:    sortedFeatureTypes(),
 		},
 		CohortTypes: cohortFieldTypes(),
 		Skills:      []SkillMeta{},

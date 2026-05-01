@@ -87,6 +87,16 @@
         "WIN_ROW_NUMBER",
         "WIN_RUNNING_AVG",
         "WIN_RUNNING_SUM"
+      ],
+      "features": [
+        "FEAT_BUCKETIZE",
+        "FEAT_DATE_FEATURES",
+        "FEAT_FREQUENCY_ENCODE",
+        "FEAT_LOG",
+        "FEAT_ONE_HOT",
+        "FEAT_SQRT",
+        "FEAT_TARGET_ENCODE",
+        "FEAT_TRAIN_TEST_SPLIT"
       ]
     },
     "cohort_types": [
@@ -156,4 +166,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 26527159c6ef4fc69682e4da11bc01a2fbc6d9e3e60b648406dc12d9e4773fb5
+// golden-hash: 0372b146a4c3bbef06447c1c2100e88139655b69b10a4e1c557a1fa3a782d1ae

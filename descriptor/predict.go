@@ -82,8 +82,12 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		result.SchemaInfo.Fields = append(result.SchemaInfo.Fields, f.Name)
 	}
 
-	// Validate request fields exist in schema.
-	validateRequestFields(env, req, schema, opts)
+	// Validate pre-filter feature operators and compute the post-feature
+	// column set so downstream stages can reference derived columns.
+	projected := validateFeatures(env, req, schema, opts)
+
+	// Validate request fields exist in schema (or in feature outputs).
+	validateRequestFields(env, req, schema, projected, opts)
 
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
@@ -108,12 +112,17 @@ func PredictFromBytes(data []byte, req *types.Request, opts *PredictOptions) *En
 }
 
 // validateRequestFields checks that all referenced fields exist and that
-// numeric aggregations on categorical fields produce warnings.
-func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions) {
+// numeric aggregations on categorical fields produce warnings. The
+// projected column set augments the schema with feature output names so
+// downstream stages can address derived columns.
+func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, opts *PredictOptions) {
 	// Check aggregation fields.
 	for _, agg := range req.Aggregations {
 		f := schema.Field(agg.Field)
 		if f == nil {
+			if projected[agg.Field] {
+				continue // derived column from feature stage
+			}
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"aggregation references unknown field: "+agg.Field,
@@ -144,7 +153,7 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 		}
 		if fil.Field != "" {
 			f := schema.Field(fil.Field)
-			if f == nil {
+			if f == nil && !projected[fil.Field] {
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
 					"filter references unknown field: "+fil.Field,
@@ -157,7 +166,7 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 	// Check group fields.
 	for _, grp := range req.Groups {
 		f := schema.Field(grp.Field)
-		if f == nil {
+		if f == nil && !projected[grp.Field] {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"group references unknown field: "+grp.Field,
@@ -179,7 +188,7 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 			continue
 		}
 		f := schema.Field(attr.Field)
-		if f == nil {
+		if f == nil && !projected[attr.Field] {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"attribute references unknown field: "+attr.Field,
