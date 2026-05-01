@@ -77,6 +77,70 @@ func isNumericType(ft encoding.FieldType) bool {
 	return false
 }
 
+// availableOutputColumns returns the set of column names that will be
+// present on response rows after the pipeline runs. Includes:
+//   - every schema field
+//   - every aggregation/attribute output label (or default <TYPE>_<field>)
+//   - every group-by field name
+//   - every window output label
+//
+// Used by validateSort to confirm that Request.Sort references a real column.
+func availableOutputColumns(req *types.Request, schema *encoding.Schema) map[string]bool {
+	out := make(map[string]bool, len(schema.Fields)+len(req.Aggregations)+len(req.Attributes)+len(req.Groups)+len(req.Windows))
+	for i := range schema.Fields {
+		out[schema.Fields[i].Name] = true
+	}
+	for _, agg := range req.Aggregations {
+		label := agg.Label
+		if label == "" {
+			label = string(agg.Type) + "_" + agg.Field
+		}
+		out[label] = true
+	}
+	for _, attr := range req.Attributes {
+		label := attr.Label
+		if label == "" {
+			label = string(attr.Type) + "_" + attr.Field
+		}
+		out[label] = true
+	}
+	for _, grp := range req.Groups {
+		out[grp.Field] = true
+	}
+	for _, w := range req.Windows {
+		out[windowLabel(w)] = true
+	}
+	return out
+}
+
+// validateSort checks that every Request.Sort key references an available
+// output column. Missing-field rejections use SERVICE_VALIDATION (mirrors
+// other validators).
+func validateSort(env *Envelope, req *types.Request, schema *encoding.Schema) {
+	if len(req.Sort) == 0 {
+		return
+	}
+	available := availableOutputColumns(req, schema)
+	for i, k := range req.Sort {
+		idx := strconv.Itoa(i)
+		if k.Field == "" {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"sort["+idx+"]: field is required",
+				map[string]any{"sort_index": i},
+			)
+			continue
+		}
+		if !available[k.Field] {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"sort["+idx+"]: field "+k.Field+" is not produced by the pipeline (no schema field, aggregation, attribute, group, or window output matches)",
+				map[string]any{"sort_index": i, "field": k.Field},
+			)
+		}
+	}
+}
+
 // validateWindows applies the predict-side validation rules for req.Windows.
 // All rejections produce errors via env.AddError. The function does not execute
 // any window logic; it inspects only the schema and the request.

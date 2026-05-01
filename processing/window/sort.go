@@ -64,6 +64,30 @@ func tupleKey(partitionBy []string, orderBy []types.OrderKey) string {
 	return sb.String()
 }
 
+// Sort orders rows in place by keys. Stable sort; nulls last regardless of
+// each key's Desc direction. Used by the processor for response-level sort
+// (Request.Sort) and reusable by callers who want a top-level reorder.
+//
+// When keys is empty, Sort is a no-op.
+func Sort(rows []map[string]any, keys []types.OrderKey) {
+	if len(keys) == 0 || len(rows) == 0 {
+		return
+	}
+	sort.SliceStable(rows, func(a, b int) bool {
+		for _, k := range keys {
+			cmp := compareCell(rows[a][k.Field], rows[b][k.Field])
+			if cmp == 0 {
+				continue
+			}
+			if k.Desc {
+				return cmp > 0
+			}
+			return cmp < 0
+		}
+		return false
+	})
+}
+
 // sortIndices sorts idx by (partitionBy ASC, orderBy). Stable. Nulls last.
 func sortIndices(rows []map[string]any, idx []int, partitionBy []string, orderBy []types.OrderKey) {
 	sort.SliceStable(idx, func(a, b int) bool {

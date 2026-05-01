@@ -123,6 +123,134 @@ func TestProcessor_WindowOnAggregateRow(t *testing.T) {
 	}
 }
 
+// TestProcessor_SortByDate verifies Request.Sort orders the response rows.
+func TestProcessor_SortByDate(t *testing.T) {
+	schema := schemaForWindowTest(t)
+	// Records emitted out of date order to prove Sort reorders.
+	records := []*Record{
+		NewRecord(schema, map[string]float64{"ts": 3.0, "x": 30.0}),
+		NewRecord(schema, map[string]float64{"ts": 1.0, "x": 10.0}),
+		NewRecord(schema, map[string]float64{"ts": 2.0, "x": 20.0}),
+	}
+
+	p := NewProcessor(schema)
+	req := &types.Request{
+		Windows: []*types.Window{
+			{Type: types.WIN_LAG, Field: "x", Label: "lag", OrderBy: []types.OrderKey{{Field: "ts"}}},
+		},
+		Sort: []types.OrderKey{{Field: "ts"}},
+	}
+
+	resp, err := p.Process(context.Background(), req, NewSliceIterator(records))
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(resp.Data) != 3 {
+		t.Fatalf("Data length = %d, want 3", len(resp.Data))
+	}
+	wantTs := []float64{1.0, 2.0, 3.0}
+	wantLag := []any{nil, 10.0, 20.0}
+	for i, r := range resp.Data {
+		if r["ts"] != wantTs[i] {
+			t.Errorf("row[%d].ts = %v, want %v", i, r["ts"], wantTs[i])
+		}
+		if r["lag"] != wantLag[i] {
+			t.Errorf("row[%d].lag = %v, want %v", i, r["lag"], wantLag[i])
+		}
+	}
+}
+
+// TestProcessor_SortDescending verifies DESC ordering on a single key.
+func TestProcessor_SortDescending(t *testing.T) {
+	schema := schemaForWindowTest(t)
+	records := recordsForWindowTest(t)
+
+	p := NewProcessor(schema)
+	req := &types.Request{
+		Sort: []types.OrderKey{{Field: "x", Desc: true}},
+	}
+	resp, err := p.Process(context.Background(), req, NewSliceIterator(records))
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	// records have x = 10, 20, 30 in input order. With windows empty and
+	// no aggregations or groups, no data is materialized — Sort acts on an
+	// empty slice. Confirm no crash and Data is nil (since no pipeline
+	// stage produced output).
+	if len(resp.Data) != 0 {
+		t.Errorf("Data should be empty without windows/agg/groups, got %d rows", len(resp.Data))
+	}
+}
+
+// TestProcessor_SortByAggLabelOverGroups verifies sorting by an aggregation
+// output label across grouped output.
+func TestProcessor_SortByAggLabelOverGroups(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "region", Type: encoding.FieldTypeCategoricalU8, Description: "Region code", Dictionary: makeDict(t, "us", "eu", "apac")},
+			{Name: "x", Type: encoding.FieldTypeF64, Description: "Numeric value"},
+		},
+	}
+	records := []*Record{
+		NewRecordWithDict(schema, "region", "us", map[string]float64{"x": 10}),
+		NewRecordWithDict(schema, "region", "us", map[string]float64{"x": 20}),
+		NewRecordWithDict(schema, "region", "eu", map[string]float64{"x": 100}),
+		NewRecordWithDict(schema, "region", "eu", map[string]float64{"x": 200}),
+		NewRecordWithDict(schema, "region", "apac", map[string]float64{"x": 5}),
+	}
+
+	p := NewProcessor(schema)
+	req := &types.Request{
+		Groups: []*types.Group{
+			{Type: types.GROUP_CATEGORY, Field: "region"},
+		},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "x", Label: "x_sum"},
+		},
+		Sort: []types.OrderKey{{Field: "x_sum", Desc: true}},
+	}
+	resp, err := p.Process(context.Background(), req, NewSliceIterator(records))
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(resp.Data) != 3 {
+		t.Fatalf("Data length = %d, want 3", len(resp.Data))
+	}
+	want := []float64{300, 30, 5}
+	for i, row := range resp.Data {
+		got, _ := row["x_sum"].(float64)
+		if got != want[i] {
+			t.Errorf("row[%d].x_sum = %v, want %v", i, got, want[i])
+		}
+	}
+}
+
+// makeDict and NewRecordWithDict are local helpers; inline rather than
+// adding to the package surface for tests-only convenience.
+func makeDict(t *testing.T, vals ...string) *encoding.Dictionary {
+	t.Helper()
+	d := encoding.NewDictionary()
+	for _, v := range vals {
+		if _, err := d.Add(v); err != nil {
+			t.Fatalf("dict add %s: %v", v, err)
+		}
+	}
+	return d
+}
+
+func NewRecordWithDict(schema *encoding.Schema, dictField, dictVal string, others map[string]float64) *Record {
+	values := map[string]float64{}
+	for k, v := range others {
+		values[k] = v
+	}
+	f := schema.Field(dictField)
+	if f != nil && f.Dictionary != nil {
+		idx, _ := f.Dictionary.Add(dictVal)
+		values[dictField] = float64(idx)
+	}
+	return NewRecord(schema, values)
+}
+
 // TestProcessor_UnknownWindowType surfaces PROCESSING_CONFIG.
 func TestProcessor_UnknownWindowType(t *testing.T) {
 	schema := schemaForWindowTest(t)

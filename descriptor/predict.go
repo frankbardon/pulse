@@ -88,6 +88,9 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
 
+	// Validate response-level sort keys against the projected output columns.
+	validateSort(env, req, schema)
+
 	// Check description quality.
 	validateDescriptionQuality(env, schema, opts)
 

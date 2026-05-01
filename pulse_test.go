@@ -326,6 +326,60 @@ func TestProcess_WithWindow(t *testing.T) {
 	}
 }
 
+// TestProcess_WithSort exercises the response-level sort through the public
+// pulse.Process facade. Verifies output rows arrive in the requested order
+// regardless of input record order.
+func TestProcess_WithSort(t *testing.T) {
+	memFs := afero.NewMemMapFs()
+	createTestPulseFile(t, memFs, "test.pulse", []string{"ts", "x"}, [][]string{
+		{"3", "30"},
+		{"1", "10"},
+		{"2", "20"},
+	})
+
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	resp, err := p.Process(context.Background(), &Request{
+		Cohort: &types.Cohort{Filename: "test.pulse"},
+		Windows: []*types.Window{
+			{
+				Type:    types.WIN_RUNNING_SUM,
+				Field:   "x",
+				Label:   "x_cum",
+				OrderBy: []types.OrderKey{{Field: "ts"}},
+				Frame:   &types.FrameSpec{Mode: "rows", Following: ptrIntFacade(0)},
+			},
+		},
+		Sort: []types.OrderKey{{Field: "ts"}},
+	})
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(resp.Data) != 3 {
+		t.Fatalf("Data length = %d, want 3", len(resp.Data))
+	}
+	want := []struct {
+		ts  float64
+		cum float64
+	}{
+		{1.0, 10.0},
+		{2.0, 30.0},
+		{3.0, 60.0},
+	}
+	for i, r := range resp.Data {
+		ts, _ := r["ts"].(float64)
+		cum, _ := r["x_cum"].(float64)
+		if ts != want[i].ts || cum != want[i].cum {
+			t.Errorf("row[%d] = (ts=%v cum=%v), want (ts=%v cum=%v)", i, ts, cum, want[i].ts, want[i].cum)
+		}
+	}
+}
+
+func ptrIntFacade(v int) *int { return &v }
+
 func TestProcess_ComposedRequest(t *testing.T) {
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{

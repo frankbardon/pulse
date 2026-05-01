@@ -402,6 +402,88 @@ func TestPredictWindow_LagWithOffsetParams(t *testing.T) {
 	}
 }
 
+// --- Sort validation ---
+
+func TestPredictSort_SchemaField(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Sort: []types.OrderKey{{Field: "ts"}},
+	}
+	env := PredictFromBytes(data, req, nil)
+	for _, e := range env.Errors {
+		if strings.Contains(e.Message, "sort[") {
+			t.Errorf("unexpected sort error: %+v", e)
+		}
+	}
+}
+
+func TestPredictSort_UnknownField(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Sort: []types.OrderKey{{Field: "nope"}},
+	}
+	env := PredictFromBytes(data, req, nil)
+	if !envHasErrorContaining(env, "is not produced by the pipeline") {
+		t.Fatalf("expected unknown-field error, got %+v", env.Errors)
+	}
+}
+
+func TestPredictSort_AggregationLabel(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_AVERAGE, Field: "revenue", Label: "avg_rev"},
+		},
+		Groups: []*types.Group{
+			{Type: types.GROUP_CATEGORY, Field: "region"},
+		},
+		Sort: []types.OrderKey{{Field: "avg_rev", Desc: true}},
+	}
+	env := PredictFromBytes(data, req, nil)
+	for _, e := range env.Errors {
+		if strings.Contains(e.Message, "sort[") {
+			t.Errorf("unexpected sort error: %+v", e)
+		}
+	}
+}
+
+func TestPredictSort_WindowLabel(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Windows: []*types.Window{
+			{Type: types.WIN_LAG, Field: "revenue", Label: "rev_lag", OrderBy: []types.OrderKey{{Field: "ts"}}},
+		},
+		Sort: []types.OrderKey{{Field: "rev_lag"}},
+	}
+	env := PredictFromBytes(data, req, nil)
+	for _, e := range env.Errors {
+		if strings.Contains(e.Message, "sort[") {
+			t.Errorf("unexpected sort error: %+v", e)
+		}
+	}
+}
+
+func TestPredictSort_MissingFieldName(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Sort: []types.OrderKey{{Field: ""}},
+	}
+	env := PredictFromBytes(data, req, nil)
+	if !envHasErrorContaining(env, "field is required") {
+		t.Fatalf("expected field-required error, got %+v", env.Errors)
+	}
+}
+
 // TestPredictAttrRank_MigrationHint verifies that submitting an ATTR_RANK
 // request returns a SERVICE_VALIDATION error with replacement=WIN_RANK
 // in the details payload.

@@ -19,6 +19,30 @@ Pulse evaluates windows AFTER aggregation, on the post-aggregate `[]map[string]a
 Any request with a non-empty `windows` array forces the buffered execution path. Windows require a sort over the row set, which is fundamentally incompatible with the single-pass streaming aggregator path. For very large cohorts, document this loudly to your callers — pre-partition the import or split into smaller cohorts.
 </rule>
 
+<rule severity="critical" topic="output-order">
+## Windows do not reorder output rows
+
+A window's `order_by` defines the **scan order** for the window math, not the order of result rows. This matches SQL semantics (Postgres, DuckDB, BigQuery): a `LAG()` ordered by `ts` computes the lag against the ts-sorted partition, but the outer query result rows arrive in whatever order upstream produced.
+
+In Pulse: with no aggregation/group, response rows arrive in record-iteration order; with grouping, in map-iteration order (non-deterministic per Go map semantics).
+
+To order the response, use `Request.Sort`:
+
+```json
+{
+  "cohort": {"filename": "data.pulse"},
+  "windows": [
+    {"type": "WIN_RUNNING_SUM", "field": "x", "label": "x_cum",
+     "order_by": [{"field": "ts"}],
+     "frame": {"mode": "rows", "following": 0}}
+  ],
+  "sort": [{"field": "ts"}]
+}
+```
+
+`Request.Sort` runs last in the pipeline (after windows), accepts any column the pipeline produces (schema fields, aggregation/attribute/group/window output labels), and uses the same nulls-last comparator as window operators. Predict rejects sort keys that don't match a produced column.
+</rule>
+
 <reference>
 ## Window spec shape
 

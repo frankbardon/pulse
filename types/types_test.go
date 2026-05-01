@@ -617,6 +617,37 @@ func TestWindowMarshalJSON(t *testing.T) {
 	}
 }
 
+// TestRequestWithSortRoundTrip verifies Request.Sort round-trips via JSON.
+func TestRequestWithSortRoundTrip(t *testing.T) {
+	req := types.Request{
+		Cohort: &types.Cohort{Filename: "ts.pulse"},
+		Sort: []types.OrderKey{
+			{Field: "ts"},
+			{Field: "score", Desc: true},
+		},
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got types.Request
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(got.Sort) != 2 {
+		t.Fatalf("Sort length = %d, want 2", len(got.Sort))
+	}
+	if got.Sort[0].Field != "ts" || got.Sort[0].Desc {
+		t.Errorf("Sort[0] = %+v, want {ts, false}", got.Sort[0])
+	}
+	if got.Sort[1].Field != "score" || !got.Sort[1].Desc {
+		t.Errorf("Sort[1] = %+v, want {score, true}", got.Sort[1])
+	}
+}
+
 // TestRequestWithWindowsRoundTrip verifies Request.Windows round-trips via JSON.
 func TestRequestWithWindowsRoundTrip(t *testing.T) {
 	req := types.Request{

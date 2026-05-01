@@ -290,6 +290,13 @@ type Request struct {
 
 	// Windows is the list of window operations evaluated after aggregation.
 	Windows []*Window `json:"windows,omitempty"`
+
+	// Sort orders response rows by the listed keys. Applied last in the
+	// pipeline (after windows). Each key field must reference a schema
+	// field, an aggregation/attribute/group/window output label, or any
+	// column produced by upstream stages. Stable sort; nulls last
+	// regardless of direction.
+	Sort []OrderKey `json:"sort,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.

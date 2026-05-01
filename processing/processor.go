@@ -303,6 +303,10 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		}
 	}
 
+	if len(req.Sort) > 0 {
+		window.Sort(data, req.Sort)
+	}
+
 	return &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{
