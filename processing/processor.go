@@ -134,6 +134,18 @@ func (p *Processor) canStream(req *types.Request) bool {
 		return false
 	}
 	for _, agg := range req.Aggregations {
+		// Geo aggregations dispatch through the buffered AggregateGeoField
+		// path; the streaming numeric fold does not apply.
+		if IsGeoAggregation(agg.Type) {
+			return false
+		}
+		// Decimal-typed fields are aggregated via AggregateDecimalField;
+		// the streaming numeric fold loses precision.
+		if p.schema != nil {
+			if f := p.schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
+				return false
+			}
+		}
 		factory, ok := aggregatorRegistry[agg.Type]
 		if !ok {
 			return false
@@ -531,6 +543,35 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 	// key after this returns; map will grow once but only in that branch.
 	row := make(map[string]any, len(aggs))
 	for _, agg := range aggs {
+		label := agg.Label
+		if label == "" {
+			label = fmt.Sprintf("%s_%s", agg.Type, agg.Field)
+		}
+		// Geo aggregations dispatch to typed AggregateGeoField.
+		if IsGeoAggregation(agg.Type) {
+			out, err := AggregateGeoField(agg.Type, records, agg.Field)
+			if err != nil {
+				return nil, err
+			}
+			row[label] = out
+			continue
+		}
+		// Decimal-typed fields dispatch to AggregateDecimalField.
+		if p.schema != nil {
+			if f := p.schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
+				if !IsDecimalAggregationSupported(agg.Type) {
+					return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+						"aggregation has no decimal128 implementation",
+						map[string]any{"aggregation": string(agg.Type), "field": agg.Field})
+				}
+				out, err := AggregateDecimalField(agg.Type, records, agg.Field, f.Scale)
+				if err != nil {
+					return nil, err
+				}
+				row[label] = out
+				continue
+			}
+		}
 		factory, ok := aggregatorRegistry[agg.Type]
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
@@ -549,10 +590,6 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 		}
 		if err != nil {
 			return nil, err
-		}
-		label := agg.Label
-		if label == "" {
-			label = fmt.Sprintf("%s_%s", agg.Type, agg.Field)
 		}
 		row[label] = val
 	}
