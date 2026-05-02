@@ -51,10 +51,8 @@ func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[
 	for k := range nulls {
 		delete(nulls, k)
 	}
-	if wide != nil {
-		for k := range wide {
-			delete(wide, k)
-		}
+	for k := range wide {
+		delete(wide, k)
 	}
 
 	for _, field := range rr.schema.Fields {
