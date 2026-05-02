@@ -80,10 +80,38 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 				continue
 			}
 
+			if f.Type.IsDecimal() {
+				d, isNull, err := encoding.ReadDecimal128(r)
+				if err != nil {
+					hitEOF = true
+					break
+				}
+				if isNull {
+					values[i] = ""
+				} else {
+					values[i] = d.String(f.Scale)
+				}
+				continue
+			}
+
+			if f.Type == encoding.FieldTypePointF64 {
+				p, err := encoding.ReadPointF64(r)
+				if err != nil {
+					hitEOF = true
+					break
+				}
+				values[i] = encoding.FormatWKTPoint(p)
+				continue
+			}
+
 			raw, err := encoding.ReadFieldValue(r, f.Type)
 			if err != nil {
 				hitEOF = true
 				break
+			}
+			if f.Type == encoding.FieldTypeH3Cell {
+				values[i] = encoding.FormatH3CellHex(encoding.H3Cell(raw))
+				continue
 			}
 			values[i] = formatFieldValue(f.Type, raw, f.Dictionary)
 		}
