@@ -12,7 +12,7 @@ Schema design determines storage layout, encoding width, and downstream aggregat
 </skill_overview>
 
 <reference>
-## Field types (all 15)
+## Field types (all 19)
 
 | Type | Byte | Notes |
 |---|---|---|
@@ -31,6 +31,16 @@ Schema design determines storage layout, encoding width, and downstream aggregat
 | `categorical_u8` | 1 | Dictionary-encoded, ≤256 entries |
 | `categorical_u16` | 2 | Dictionary-encoded, ≤65,536 entries |
 | `categorical_u32` | 4 | Dictionary-encoded, ≤~4.29B entries |
+| `decimal128` | 16 | Fixed-point exact decimal, per-field (precision, scale) |
+| `nullable_decimal128` | 16 | `decimal128` plus an INT128_MIN null sentinel |
+| `point_f64` | 16 | Packed (lat, lon) f64 pair for geo points |
+| `h3_cell` | 8 | Uber H3 cell index as `uint64` |
+</reference>
+
+<reference>
+## Backwards compatibility
+
+Files containing `decimal128`, `nullable_decimal128`, `point_f64`, or `h3_cell` fields are unreadable by pre-imp19 binaries by design. The reader rejects unknown FieldType bytes at schema parse time with `ENCODING_INVALID` — failure is loud and immediate, not silent at row decode. The format version byte stays at `0x01`; there is no flag-day version bump.
 </reference>
 
 <reference>

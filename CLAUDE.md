@@ -131,7 +131,7 @@ Errors use the `errors.Code` system. There are 6 domains with typed codes:
 - **SERVICE:** `SERVICE_VALIDATION`, `SERVICE_RESOURCE`, `SERVICE_REGISTRY`, `SERVICE_INTERNAL`
 - **DATA:** `DATA_FILE`, `DATA_PARSE`, `DATA_CONFIG`, `DATA_CALCULATION`, `DATA_INTERNAL`
 - **CLI:** `CLI_INPUT`, `CLI_OUTPUT`, `CLI_COMMAND`, `CLI_INTERNAL`
-- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`
+- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`, `PULSE_DECIMAL_OVERFLOW`, `PULSE_DECIMAL_PRECISION_LOSS`, `PULSE_DECIMAL_DIVIDE_BY_ZERO`, `PULSE_GEO_INVALID_POINT`, `PULSE_GEO_INVALID_POLYGON`, `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`, `PULSE_GEO_INVALID_RESOLUTION`, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`
 
 Every new error code MUST be added to the `allCodes` slice in `errors/codes.go` and to `skills/error-code-reference.md` (enforced by `TestSkillsCoverAllErrorCodes`).
 
@@ -150,7 +150,7 @@ The `.pulse` binary format has a fixed structure:
 3. **Dictionary blocks:** categorical fields (`categorical_u8`, `categorical_u16`, `categorical_u32`) store their dictionaries inline in the header after the schema.
 4. **Record data:** fixed-width rows follow the schema block. Record size is determined by the schema's field types.
 
-### All 15 field types
+### All 19 field types
 
 | Type | Byte value | ByteSize | Notes |
 |---|---|---|---|
@@ -169,8 +169,14 @@ The `.pulse` binary format has a fixed structure:
 | `categorical_u8` | 12 | 1 | Categorical with up to 256 dictionary entries |
 | `categorical_u16` | 13 | 2 | Categorical with up to 65,536 dictionary entries |
 | `categorical_u32` | 14 | 4 | Categorical with up to 4,294,967,295 dictionary entries |
+| `decimal128` | 15 | 16 | Fixed-point exact decimal; per-field `(precision, scale)` ≤ (38, 38) |
+| `nullable_decimal128` | 16 | 16 | `decimal128` plus an `INT128_MIN` null sentinel |
+| `point_f64` | 17 | 16 | Packed `(lat, lon)` f64 pair (LE) |
+| `h3_cell` | 18 | 8 | Uber H3 cell index as `uint64` |
 
 Bit-packed types (`nullable_bool`, `nullable_u4`, `packed_bool`) return `ByteSize() == 0` because they share bytes with adjacent fields.
+
+Schema reader rejects unknown FieldType bytes at parse time with `ENCODING_INVALID`. Files written by future-version binaries that introduce new types fail loud at schema parse, not silent at row decode.
 
 ## Output Format Contract
 
@@ -293,13 +299,13 @@ Required fields:
 
 ### Current registered components
 
-**16 aggregators:** `AGG_AVERAGE`, `AGG_COUNT`, `AGG_DISTINCT_COUNT`, `AGG_FREQUENCY`, `AGG_KURTOSIS`, `AGG_MAX`, `AGG_MEDIAN`, `AGG_MIN`, `AGG_MODE`, `AGG_PERCENTILE`, `AGG_RANGE`, `AGG_SKEWNESS`, `AGG_STDDEV`, `AGG_SUM`, `AGG_VARIANCE`, `AGG_ZSCORE`
+**18 aggregators:** `AGG_AVERAGE`, `AGG_COUNT`, `AGG_DISTINCT_COUNT`, `AGG_FREQUENCY`, `AGG_GEO_BBOX`, `AGG_GEO_CENTROID`, `AGG_KURTOSIS`, `AGG_MAX`, `AGG_MEDIAN`, `AGG_MIN`, `AGG_MODE`, `AGG_PERCENTILE`, `AGG_RANGE`, `AGG_SKEWNESS`, `AGG_STDDEV`, `AGG_SUM`, `AGG_VARIANCE`, `AGG_ZSCORE`
 
 **6 attributes:** `ATTR_DATE_PART`, `ATTR_FORMULA`, `ATTR_NORMALIZED`, `ATTR_PERCENTILE`, `ATTR_TSCORE`, `ATTR_ZSCORE`
 
-**4 filterers:** `FILTER_EXCLUDE`, `FILTER_EXPRESSION`, `FILTER_INCLUDE`, `FILTER_RANGE`
+**6 filterers:** `FILTER_EXCLUDE`, `FILTER_EXPRESSION`, `FILTER_GEO_WITHIN`, `FILTER_GEO_WITHIN_RADIUS_M`, `FILTER_INCLUDE`, `FILTER_RANGE`
 
-**5 groupers:** `GROUP_CATEGORY`, `GROUP_DATE`, `GROUP_QUANTILE`, `GROUP_RANGE`, `GROUP_ROUNDED`
+**6 groupers:** `GROUP_CATEGORY`, `GROUP_DATE`, `GROUP_H3_CELL`, `GROUP_QUANTILE`, `GROUP_RANGE`, `GROUP_ROUNDED`
 
 **10 window operators:** `WIN_DENSE_RANK`, `WIN_EWMA`, `WIN_LAG`, `WIN_LEAD`, `WIN_MOVING_AVG`, `WIN_PCT_CHANGE`, `WIN_RANK`, `WIN_ROW_NUMBER`, `WIN_RUNNING_AVG`, `WIN_RUNNING_SUM`
 

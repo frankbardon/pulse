@@ -1,6 +1,6 @@
 ---
 name: grouper-design
-description: GROUP_CATEGORY, GROUP_DATE, GROUP_QUANTILE, GROUP_RANGE, and GROUP_ROUNDED, nesting semantics
+description: GROUP_CATEGORY, GROUP_DATE, GROUP_H3_CELL, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED — nesting semantics
 type: guide
 applies_to: process, compose, predict
 ---
@@ -170,3 +170,29 @@ The current processor honors a single grouper per request: only `req.Groups[0]` 
 
 Each output row contains the aggregation values plus one extra key whose name is the grouper's `field` and whose value is the group key string (e.g., `"department": "Engineering"`). Reserve aggregation `label`s that do not collide with the group field name.
 </reference>
+
+<reference>
+## GROUP_H3_CELL
+
+Buckets records into Uber H3 hexagonal grid cells. Group keys are 15-character lowercase hex H3 indices.
+
+- **Fields**: `point_f64` (resolution param **required**, points convert at run time) or `h3_cell` (resolution param **optional**; defaults to the cell's native resolution; supplying a coarser resolution walks parents).
+- **Config**: `params.resolution` (int 0–15). Higher = finer cells. See `skills/geospatial-cohorts.md` for the resolution table.
+- **Errors**: `PULSE_GEO_INVALID_RESOLUTION` for out-of-range or finer-than-native; `PULSE_GEO_INVALID_POINT` for unparseable points.
+- **Use when**: You want to bin geographic activity into hexagonal cells for heat maps, density analysis, or geospatial joins.
+</reference>
+
+<example name="group-h3-cell">
+Count rides per H3 cell at resolution 9.
+
+```json
+{
+  "groups": [
+    {"type": "GROUP_H3_CELL", "field": "pickup_location", "params": {"resolution": 9}}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "ride_id"}
+  ]
+}
+```
+</example>
