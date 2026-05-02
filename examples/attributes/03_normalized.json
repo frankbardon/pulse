@@ -1,0 +1,12 @@
+{
+  "_comment": "Min-max normalize income to [0,1] for visualization or downstream model input.",
+  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "attributes": [
+    {"type": "ATTR_NORMALIZED", "field": "income", "label": "income_norm"}
+  ],
+  "aggregations": [
+    {"type": "AGG_MIN", "field": "income_norm", "label": "min_norm"},
+    {"type": "AGG_MAX", "field": "income_norm", "label": "max_norm"},
+    {"type": "AGG_AVERAGE", "field": "income_norm", "label": "mean_norm"}
+  ]
+}

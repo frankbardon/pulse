@@ -1,0 +1,10 @@
+[
+  {"name": "id", "type": "u32", "description": "Unique observation identifier (1..N)"},
+  {"name": "region", "type": "categorical_u8", "description": "Geographic region (north, south, east, west)"},
+  {"name": "occupation", "type": "categorical_u8", "description": "Occupation class (engineer, teacher, nurse, ...)"},
+  {"name": "label", "type": "u8", "description": "Binary outcome label encoded as 0 or 1"},
+  {"name": "category", "type": "categorical_u8", "description": "Categorical product class (A, B, C, D, E)"},
+  {"name": "price", "type": "f64", "description": "Item price in USD; log-normally distributed"},
+  {"name": "income", "type": "f64", "description": "Annual income in USD; log-normally distributed"},
+  {"name": "signup_date", "type": "date", "description": "Account signup date spanning January 2024 through April 2025"}
+]

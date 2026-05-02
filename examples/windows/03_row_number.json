@@ -1,0 +1,12 @@
+{
+  "_comment": "1-based row number after sorting by amount descending. Useful for top-N selection. ROW_NUMBER takes no field.",
+  "cohort": {"filename": "transactions.pulse", "data_dir": ".data"},
+  "windows": [
+    {
+      "type": "WIN_ROW_NUMBER",
+      "label": "rank_pos",
+      "order_by": [{"field": "amount", "desc": true}]
+    }
+  ],
+  "sort": [{"field": "rank_pos"}]
+}

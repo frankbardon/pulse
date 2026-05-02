@@ -418,4 +418,16 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Run `pulse predict --json` and read the `details` payload — it identifies the offending window index and rule.
 - Fix the request per the rule above. Most fixes are mechanical: add `order_by`, drop the `frame` for ROW_NUMBER/RANK/DENSE_RANK, or pick a numeric field for the value-bearing operators.
 - See `skills/window-operations.md` for the full contract and per-operator semantics.
+
+### PULSE_FEAT_TARGET_LEAKAGE_RISK
+
+**Description**: `FEAT_TARGET_ENCODE` was requested without a preceding `FEAT_TRAIN_TEST_SPLIT` in the same `features` list. The encoder's per-category mean is computed across every row in the cohort, which means rows destined for the validation/test partitions contribute target signal to the training feature.
+
+**When it fires**:
+- Predict scans `req.Features` in order; if it sees a `FEAT_TARGET_ENCODE` before any `FEAT_TRAIN_TEST_SPLIT`, it emits this code as a warning.
+- In `--strict` mode the warning is upgraded to an error.
+
+**Recovery**:
+- Reorder features so `FEAT_TRAIN_TEST_SPLIT` precedes every `FEAT_TARGET_ENCODE`.
+- See `skills/feature-engineering.md` for the leakage trap discussion.
 </reference>

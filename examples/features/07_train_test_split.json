@@ -1,0 +1,39 @@
+{
+  "_comment": "Stratified 70/15/15 split on the category field (categorical). Emits 'split' column with 0=train, 1=val, 2=test. Group-count to verify partition sizes. Stratify must reference a categorical field, not a numeric label.",
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_TRAIN_TEST_SPLIT",
+      "params": {
+        "ratios": [
+          0.7,
+          0.15,
+          0.15
+        ],
+        "seed": 42,
+        "stratify": "category"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "split"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    }
+  ],
+  "sort": [
+    {
+      "field": "split"
+    }
+  ]
+}

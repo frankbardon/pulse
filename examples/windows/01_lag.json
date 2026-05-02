@@ -1,0 +1,17 @@
+{
+  "_comment": "Look back one row in the partition. params.offset defaults to 1; first row is null. order_by is mandatory.",
+  "cohort": {"filename": "transactions.pulse", "data_dir": ".data"},
+  "filterers": [
+    {"type": "FILTER_RANGE", "field": "id", "values": ["1", "20"]}
+  ],
+  "windows": [
+    {
+      "type": "WIN_LAG",
+      "field": "amount",
+      "label": "prev_amount",
+      "order_by": [{"field": "id"}],
+      "params": {"offset": 1}
+    }
+  ],
+  "sort": [{"field": "id"}]
+}

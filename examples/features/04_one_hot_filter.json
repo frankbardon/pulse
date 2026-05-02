@@ -1,0 +1,29 @@
+{
+  "_comment": "Expand region into one-hot columns, filter to north-only via the derived column, count survivors. Demonstrates feature output reachable to a downstream filter.",
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "region"
+    }
+  ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "region_north",
+      "values": [
+        "1"
+      ]
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n_north"
+    }
+  ]
+}

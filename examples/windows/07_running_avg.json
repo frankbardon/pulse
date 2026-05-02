@@ -1,0 +1,14 @@
+{
+  "_comment": "Running mean of revenue across the partition. Frame is unbounded preceding to current row.",
+  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "windows": [
+    {
+      "type": "WIN_RUNNING_AVG",
+      "field": "revenue",
+      "label": "running_mean_revenue",
+      "order_by": [{"field": "order_date"}],
+      "frame": {"mode": "rows", "preceding": null, "following": 0}
+    }
+  ],
+  "sort": [{"field": "order_date"}]
+}

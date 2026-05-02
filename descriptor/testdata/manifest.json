@@ -30,6 +30,10 @@
       {
         "name": "manifest",
         "description": "Output the root manifest"
+      },
+      {
+        "name": "mcp",
+        "description": "Serve the Model Context Protocol over stdio"
       }
     ],
     "components": {
@@ -83,6 +87,16 @@
         "WIN_ROW_NUMBER",
         "WIN_RUNNING_AVG",
         "WIN_RUNNING_SUM"
+      ],
+      "features": [
+        "FEAT_BUCKETIZE",
+        "FEAT_DATE_FEATURES",
+        "FEAT_FREQUENCY_ENCODE",
+        "FEAT_LOG",
+        "FEAT_ONE_HOT",
+        "FEAT_SQRT",
+        "FEAT_TARGET_ENCODE",
+        "FEAT_TRAIN_TEST_SPLIT"
       ]
     },
     "cohort_types": [
@@ -152,4 +166,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b263225c8fe010e5059b7d7698d818cc7c5fb8adceb7592cec44942985db496b
+// golden-hash: 0372b146a4c3bbef06447c1c2100e88139655b69b10a4e1c557a1fa3a782d1ae

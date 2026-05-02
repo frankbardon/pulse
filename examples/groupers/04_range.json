@@ -1,0 +1,12 @@
+{
+  "_comment": "Bucket income into ranges of width 25000 USD. Keys are 'low-high' strings.",
+  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "groups": [
+    {"type": "GROUP_RANGE", "field": "income", "interval": 25000}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    {"type": "AGG_AVERAGE", "field": "age", "label": "avg_age"}
+  ],
+  "sort": [{"field": "income"}]
+}

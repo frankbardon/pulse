@@ -116,6 +116,27 @@ func (r *Record) invalidateAllValuesCache() {
 	r.allValuesCache = nil
 }
 
+// Set assigns a numeric value to the named field on this record. It clears
+// any prior null marker and invalidates the AllValues cache. Used by
+// pre-filter feature operators to inject derived columns into the record
+// stream so downstream stages (filters, attributes, groupers, aggregators)
+// can reference them by label.
+func (r *Record) Set(name string, value float64) {
+	r.values[name] = value
+	if r.nulls[name] {
+		delete(r.nulls, name)
+	}
+	r.invalidateAllValuesCache()
+}
+
+// SetNull marks the named field as null. Used by feature operators to
+// propagate input nulls into the derived column.
+func (r *Record) SetNull(name string) {
+	r.nulls[name] = true
+	delete(r.values, name)
+	r.invalidateAllValuesCache()
+}
+
 // RecordIterator provides sequential access to records.
 type RecordIterator interface {
 	// Next advances to the next record. Returns false when exhausted.

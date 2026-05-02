@@ -9,5 +9,7 @@
     {"name": "error-code-reference", "description": "Recovery playbook per error code", "type": "reference", "applies_to": ["process", "compose", "predict"]},
     {"name": "import-best-practices", "description": "Schema inference, fail-closed semantics, null markers", "type": "guide", "applies_to": ["inspect", "predict"]},
     {"name": "export-format-selection", "description": "CSV vs Parquet vs Excel for downstream tools", "type": "guide", "applies_to": ["process", "compose"]},
-    {"name": "window-operations", "description": "WIN_* operators — partitioning, ordering, frames, and per-operator semantics", "type": "guide", "applies_to": ["process", "compose", "predict"]}
+    {"name": "window-operations", "description": "WIN_* operators — partitioning, ordering, frames, and per-operator semantics", "type": "guide", "applies_to": ["process", "compose", "predict"]},
+    {"name": "mcp-integration", "description": "Wire Pulse into MCP-aware AI clients and call its tools and resources", "type": "guide", "applies_to": ["process", "compose", "sample", "facet", "inspect", "predict", "manifest"]},
+    {"name": "feature-engineering", "description": "FEAT_* operators - pre-filter feature engineering for ML pipelines, with the target leakage trap", "type": "guide", "applies_to": ["process", "compose", "predict"]}
 ]

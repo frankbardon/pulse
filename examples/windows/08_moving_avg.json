@@ -1,0 +1,14 @@
+{
+  "_comment": "7-day centered moving average (3 preceding + current + 3 following). Both bounds must be set; an unbounded frame degenerates to RUNNING_AVG and predict rejects it.",
+  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "windows": [
+    {
+      "type": "WIN_MOVING_AVG",
+      "field": "revenue",
+      "label": "ma7_revenue",
+      "order_by": [{"field": "order_date"}],
+      "frame": {"mode": "rows", "preceding": 3, "following": 3}
+    }
+  ],
+  "sort": [{"field": "order_date"}]
+}

@@ -1,0 +1,11 @@
+{
+  "_comment": "T-score (z*10 + 50) on age. Output centers at 50 with stddev 10.",
+  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "attributes": [
+    {"type": "ATTR_TSCORE", "field": "age", "label": "age_t"}
+  ],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "age_t", "label": "mean_t"},
+    {"type": "AGG_STDDEV", "field": "age_t", "label": "stddev_t"}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "_comment": "Bucket orders by ISO month from a date field. params.component drives the key format (year/quarter/month/week/day/day_of_week).",
+  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "order_date",
+      "params": {"component": "month"}
+    }
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    {"type": "AGG_SUM", "field": "revenue", "label": "total"}
+  ],
+  "sort": [{"field": "order_date"}]
+}

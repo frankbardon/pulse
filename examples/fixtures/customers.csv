@@ -1,0 +1,201 @@
+id,age,income,region,city
+1,49,46033.03,east,Austin
+2,43,28935.05,west,Boston
+3,74,37509.43,north,El Paso
+4,39,144526.34,west,Boston
+5,62,88061.35,west,Boston
+6,74,24352.44,south,Austin
+7,28,80888.37,east,Boston
+8,61,71224.33,north,Austin
+9,25,23288.65,north,Kansas City
+10,57,68571.42,south,Chicago
+11,27,29342.29,north,Jacksonville
+12,24,56288.63,south,El Paso
+13,39,20535.13,west,Fresno
+14,51,39685.20,south,Boston
+15,36,19041.03,west,Indianapolis
+16,34,28562.54,north,Denver
+17,62,122473.08,west,Denver
+18,44,39449.64,west,Chicago
+19,39,68183.90,north,Fresno
+20,75,101767.73,east,Austin
+21,48,24260.13,north,Denver
+22,30,31373.57,south,Houston
+23,34,34165.65,east,Austin
+24,48,30366.64,west,Chicago
+25,46,7879.97,west,Denver
+26,45,42722.76,west,Boston
+27,46,24036.29,east,Chicago
+28,66,50299.29,west,Gainesville
+29,33,26886.10,south,Chicago
+30,46,42586.27,east,Chicago
+31,77,51003.23,west,Denver
+32,50,43513.31,south,Austin
+33,34,39563.77,east,Austin
+34,33,40337.08,west,Austin
+35,41,38695.53,north,Chicago
+36,73,14896.31,south,El Paso
+37,46,11862.50,south,Austin
+38,35,39762.14,north,El Paso
+39,51,14717.03,east,Boston
+40,55,102163.84,north,Chicago
+41,66,37506.21,west,Austin
+42,53,40234.19,west,Denver
+43,68,14795.56,west,Memphis
+44,66,19453.19,south,Boston
+45,47,19489.52,south,Austin
+46,64,94360.95,east,Austin
+47,54,24616.97,east,Chicago
+48,54,24131.42,north,Chicago
+49,30,35857.15,east,Austin
+50,38,14800.83,west,Gainesville
+51,39,16549.23,west,Boston
+52,61,27534.65,south,Boston
+53,49,23277.79,south,Chicago
+54,53,13575.75,south,Denver
+55,67,27228.03,north,El Paso
+56,41,22373.56,west,Denver
+57,44,26508.60,east,Indianapolis
+58,27,35939.02,east,Kansas City
+59,21,20671.25,south,Fresno
+60,62,66554.05,east,Austin
+61,57,73209.50,north,Boston
+62,48,53811.80,north,Boston
+63,77,27576.12,east,Denver
+64,57,71639.42,east,Denver
+65,52,34585.45,west,Austin
+66,43,15986.36,west,Austin
+67,43,54955.47,south,Denver
+68,76,62765.62,west,Jacksonville
+69,34,131734.41,north,Chicago
+70,34,12195.52,south,Indianapolis
+71,54,69889.11,north,Denver
+72,74,123280.36,west,El Paso
+73,36,42329.87,east,Indianapolis
+74,76,99410.85,south,Indianapolis
+75,26,51391.71,west,Austin
+76,38,66976.25,west,Chicago
+77,63,47563.91,north,Denver
+78,38,51021.99,east,Fresno
+79,66,84552.07,west,Chicago
+80,26,58616.55,west,Fresno
+81,57,9370.76,north,Boston
+82,35,18507.30,east,El Paso
+83,27,24781.33,east,Kansas City
+84,35,25848.78,north,Boston
+85,55,57705.84,west,El Paso
+86,21,159085.12,west,Gainesville
+87,37,20943.04,east,Denver
+88,75,27455.15,west,El Paso
+89,73,12468.61,north,Jacksonville
+90,26,31358.61,south,Chicago
+91,18,52604.98,west,Jacksonville
+92,65,17930.24,south,Austin
+93,38,102154.67,north,Boston
+94,72,19689.02,west,Houston
+95,31,48426.03,south,Chicago
+96,44,38801.90,east,Austin
+97,25,47415.80,east,Houston
+98,46,68344.44,west,Boston
+99,40,30293.69,south,Boston
+100,51,49086.90,west,Memphis
+101,70,46979.87,east,Boston
+102,54,104103.37,east,Chicago
+103,62,93545.04,north,Chicago
+104,38,56037.78,south,Austin
+105,43,56022.88,west,Austin
+106,55,35489.60,north,Chicago
+107,33,37903.39,north,Austin
+108,27,34301.68,west,Boston
+109,59,42774.55,east,Chicago
+110,77,28103.30,east,Chicago
+111,44,36062.71,north,Fresno
+112,77,107909.91,south,Boston
+113,70,71226.05,east,Chicago
+114,24,20553.62,east,Austin
+115,50,22706.94,south,Chicago
+116,70,70045.80,west,Boston
+117,34,17611.36,east,Fresno
+118,34,94134.33,east,Houston
+119,47,32084.02,south,Fresno
+120,39,34110.49,east,Boston
+121,68,72844.70,west,Austin
+122,57,99731.42,south,Fresno
+123,32,18940.31,south,Boston
+124,76,31016.68,north,Houston
+125,18,45575.56,north,Fresno
+126,52,66426.98,north,Indianapolis
+127,59,18184.36,east,Boston
+128,77,27250.80,east,Fresno
+129,70,20031.33,west,El Paso
+130,45,22975.87,west,Chicago
+131,68,21178.28,north,Boston
+132,25,86558.52,east,El Paso
+133,57,37428.59,north,Denver
+134,18,24866.40,west,Austin
+135,22,33384.67,south,Denver
+136,23,38150.99,west,Gainesville
+137,42,29027.36,west,Austin
+138,64,29386.87,north,Houston
+139,64,86735.43,east,El Paso
+140,69,53950.53,west,Kansas City
+141,71,46058.80,east,Austin
+142,68,56020.17,south,Fresno
+143,66,15925.34,east,Boston
+144,65,20601.59,east,Denver
+145,39,67832.99,east,Gainesville
+146,42,20763.73,north,Chicago
+147,53,34609.07,east,El Paso
+148,76,20621.60,west,Denver
+149,46,40163.21,east,Austin
+150,58,32404.24,south,Kansas City
+151,52,90339.68,west,Chicago
+152,43,64667.74,west,Denver
+153,35,21834.14,east,Indianapolis
+154,73,37953.10,east,Fresno
+155,72,79724.97,north,El Paso
+156,75,35733.70,east,Denver
+157,62,54599.72,east,El Paso
+158,29,36346.53,east,Chicago
+159,72,103119.60,north,Austin
+160,35,14974.71,east,Austin
+161,40,27153.27,west,Chicago
+162,43,50043.52,east,Houston
+163,56,19767.01,east,Austin
+164,59,70356.74,west,Austin
+165,74,146243.36,north,Boston
+166,18,74021.83,west,Chicago
+167,18,27956.31,west,Fresno
+168,57,35799.91,south,Chicago
+169,56,70293.36,south,El Paso
+170,25,18288.13,west,Fresno
+171,62,46153.60,south,Gainesville
+172,30,43623.09,west,Omaha
+173,70,30602.59,north,Indianapolis
+174,33,25790.87,east,Gainesville
+175,50,43645.45,north,Gainesville
+176,36,55809.22,north,Boston
+177,73,38143.24,west,Houston
+178,58,43048.24,south,Chicago
+179,65,122941.47,south,Boston
+180,73,30588.99,south,Boston
+181,60,142781.74,west,Austin
+182,21,50707.61,south,Denver
+183,51,63112.54,west,Denver
+184,61,40129.84,south,Gainesville
+185,21,89097.73,south,Chicago
+186,48,44260.40,west,Chicago
+187,27,62389.19,west,Indianapolis
+188,55,46030.41,east,Fresno
+189,50,69254.66,north,Denver
+190,38,62120.26,east,Austin
+191,77,22174.20,north,Boston
+192,35,37931.03,east,Gainesville
+193,37,75933.32,south,Austin
+194,52,225900.79,west,Austin
+195,67,18331.87,north,Chicago
+196,48,14630.00,east,Houston
+197,21,75952.97,west,El Paso
+198,45,16438.93,west,Boston
+199,75,23531.41,south,Austin
+200,20,56676.33,north,Austin

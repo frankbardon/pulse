@@ -128,6 +128,59 @@ func AllWindowTypes() []WindowType {
 	}
 }
 
+// FeatureType identifies a specific ML feature engineering operator.
+// Features run pre-filter and may emit one or more output columns.
+type FeatureType string
+
+const (
+	FEAT_LOG               FeatureType = "FEAT_LOG"
+	FEAT_SQRT              FeatureType = "FEAT_SQRT"
+	FEAT_BUCKETIZE         FeatureType = "FEAT_BUCKETIZE"
+	FEAT_ONE_HOT           FeatureType = "FEAT_ONE_HOT"
+	FEAT_DATE_FEATURES     FeatureType = "FEAT_DATE_FEATURES"
+	FEAT_FREQUENCY_ENCODE  FeatureType = "FEAT_FREQUENCY_ENCODE"
+	FEAT_TARGET_ENCODE     FeatureType = "FEAT_TARGET_ENCODE"
+	FEAT_TRAIN_TEST_SPLIT  FeatureType = "FEAT_TRAIN_TEST_SPLIT"
+)
+
+// AllFeatureTypes returns every defined feature type in alphabetical order.
+func AllFeatureTypes() []FeatureType {
+	return []FeatureType{
+		FEAT_BUCKETIZE,
+		FEAT_DATE_FEATURES,
+		FEAT_FREQUENCY_ENCODE,
+		FEAT_LOG,
+		FEAT_ONE_HOT,
+		FEAT_SQRT,
+		FEAT_TARGET_ENCODE,
+		FEAT_TRAIN_TEST_SPLIT,
+	}
+}
+
+// Feature defines a feature engineering operation. Features run pre-filter
+// (before any FILTER_* predicate) and may produce one or more derived
+// columns. Global-pass features (TARGET_ENCODE, FREQUENCY_ENCODE) require a
+// stats sweep before per-row write; per-row features compute one row at a
+// time.
+type Feature struct {
+	// Type is the feature operator to perform.
+	Type FeatureType `json:"type"`
+
+	// Field is the source field name. Required by every operator except
+	// FEAT_TRAIN_TEST_SPLIT (which reads no field by default — params may
+	// optionally name a stratify field).
+	Field string `json:"field,omitempty"`
+
+	// Label is an output column name (single-output operators) or output
+	// column prefix (multi-output operators). When empty, the operator
+	// derives a default — typically "<TYPE>_<field>".
+	Label string `json:"label,omitempty"`
+
+	// Params holds operator-specific parameters as raw JSON. See the
+	// feature-engineering skill for the per-operator schema.
+	Params json.RawMessage `json:"params,omitempty"`
+}
+
 // OrderKey specifies an ordering key for a window's ORDER BY clause.
 type OrderKey struct {
 	Field string `json:"field"`
@@ -290,6 +343,11 @@ type Request struct {
 
 	// Windows is the list of window operations evaluated after aggregation.
 	Windows []*Window `json:"windows,omitempty"`
+
+	// Features is the list of pre-filter feature engineering operators.
+	// Each operator may add one or more derived columns to the working
+	// schema before filters and downstream stages run.
+	Features []*Feature `json:"features,omitempty"`
 
 	// Sort orders response rows by the listed keys. Applied last in the
 	// pipeline (after windows). Each key field must reference a schema

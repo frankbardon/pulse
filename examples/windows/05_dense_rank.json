@@ -1,0 +1,13 @@
+{
+  "_comment": "Dense rank by age within each region. No gaps on ties (1,2,2,3,...). Compare with WIN_RANK to see the difference on ties.",
+  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "windows": [
+    {
+      "type": "WIN_DENSE_RANK",
+      "label": "age_dense_rank",
+      "partition_by": ["region"],
+      "order_by": [{"field": "age"}]
+    }
+  ],
+  "sort": [{"field": "region"}, {"field": "age_dense_rank"}]
+}

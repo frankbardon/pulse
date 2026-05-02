@@ -1,0 +1,16 @@
+{
+  "_comment": "ATTR_FORMULA computes a derived monthly transaction estimate (annual/12) using the expr-lang/expr engine. The 'field' references the source for null bookkeeping; 'expression' is the arithmetic.",
+  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "field": "income",
+      "label": "monthly_income",
+      "expression": "income / 12"
+    }
+  ],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "monthly_income", "label": "avg_monthly"},
+    {"type": "AGG_MAX", "field": "monthly_income", "label": "max_monthly"}
+  ]
+}

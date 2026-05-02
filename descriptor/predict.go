@@ -82,8 +82,18 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		result.SchemaInfo.Fields = append(result.SchemaInfo.Fields, f.Name)
 	}
 
-	// Validate request fields exist in schema.
-	validateRequestFields(env, req, schema, opts)
+	// Validate pre-filter feature operators and compute the post-feature
+	// column set so downstream stages can reference derived columns.
+	projected := validateFeatures(env, req, schema, opts)
+
+	// Project attribute output labels into the column set too. Attributes
+	// inject labels mid-pipeline (after features, before grouping); without
+	// this projection, aggregations and sort keys that reference attribute
+	// labels would falsely trip the unknown-field check.
+	projectAttributeOutputs(req, projected)
+
+	// Validate request fields exist in schema (or in feature outputs).
+	validateRequestFields(env, req, schema, projected, opts)
 
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
@@ -108,12 +118,17 @@ func PredictFromBytes(data []byte, req *types.Request, opts *PredictOptions) *En
 }
 
 // validateRequestFields checks that all referenced fields exist and that
-// numeric aggregations on categorical fields produce warnings.
-func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions) {
+// numeric aggregations on categorical fields produce warnings. The
+// projected column set augments the schema with feature output names so
+// downstream stages can address derived columns.
+func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, opts *PredictOptions) {
 	// Check aggregation fields.
 	for _, agg := range req.Aggregations {
 		f := schema.Field(agg.Field)
 		if f == nil {
+			if projected[agg.Field] {
+				continue // derived column from feature stage
+			}
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"aggregation references unknown field: "+agg.Field,
@@ -144,7 +159,7 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 		}
 		if fil.Field != "" {
 			f := schema.Field(fil.Field)
-			if f == nil {
+			if f == nil && !projected[fil.Field] {
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
 					"filter references unknown field: "+fil.Field,
@@ -157,7 +172,7 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 	// Check group fields.
 	for _, grp := range req.Groups {
 		f := schema.Field(grp.Field)
-		if f == nil {
+		if f == nil && !projected[grp.Field] {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"group references unknown field: "+grp.Field,
@@ -179,13 +194,28 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 			continue
 		}
 		f := schema.Field(attr.Field)
-		if f == nil {
+		if f == nil && !projected[attr.Field] {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"attribute references unknown field: "+attr.Field,
 				map[string]any{"field": attr.Field, "attribute": string(attr.Type)},
 			)
 		}
+	}
+}
+
+// projectAttributeOutputs adds each attribute's output label to the
+// projected column set. The label rule mirrors processor.go's
+// applyAttributes: an explicit label wins; otherwise the default is
+// "<TYPE>_<field>" so aggregations referencing the implicit label
+// resolve under predict the same way they do under process.
+func projectAttributeOutputs(req *types.Request, projected map[string]bool) {
+	for _, attr := range req.Attributes {
+		label := attr.Label
+		if label == "" {
+			label = string(attr.Type) + "_" + attr.Field
+		}
+		projected[label] = true
 	}
 }
 

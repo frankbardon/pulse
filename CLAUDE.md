@@ -33,6 +33,8 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A new non-skippable CI gate | `CLAUDE.md` (gate listed by name in the relevant section) | `TestClaudeMdMentionsAllNonSkippableGates` |
 | A new architectural decision | `CLAUDE.md` (relevant section) + PRD if applicable | reviewer enforcement |
 | An environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
+| A registered MCP tool (added/removed) | `skills/mcp-integration.md` (Tool surface table) | `TestSkillsCoverAllMCPTools` |
+| A registered feature operator | `skills/feature-engineering.md` (operator catalog) | `TestSkillsCoverAllComponents` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 
@@ -48,8 +50,9 @@ pulse/
 │   └── pulse/              # CLI binary (the only binary)
 ├── pulse.go                # Public facade — pulse.New, pulse.Options
 ├── service/                # Orchestration layer; wires processing to encoding
-├── processing/             # Aggregators, attributes, filterers, groupers, windows
-│   └── window/             # WIN_* operators (LAG, LEAD, RANK, RUNNING_*, EWMA, ...)
+├── processing/             # Aggregators, attributes, filterers, groupers, windows, features
+│   ├── window/             # WIN_* operators (LAG, LEAD, RANK, RUNNING_*, EWMA, ...)
+│   └── feature/            # FEAT_* pre-filter feature engineers (LOG, SQRT, BUCKETIZE, ...)
 ├── encoding/               # Dynamic schema + record codec (.pulse binary format)
 ├── io/                     # Bidirectional tabular <-> .pulse adapters
 │   ├── csv/                # CSV reader + writer
@@ -65,10 +68,11 @@ pulse/
 ├── types/                  # Request/response structs (JSON-serializable)
 ├── descriptor/             # Self-description: manifest, predict, inspect, envelope
 ├── skills/                 # Embedded markdown skill pack (//go:embed)
-│   ├── index.json          # Manifest of all 12 bundled skills
+│   ├── index.json          # Manifest of all 13 bundled skills
 │   └── *.md               # Individual skill files with YAML frontmatter
 ├── internal/
-│   └── cli/                # CLI internals (descriptor walker, json action)
+│   ├── cli/                # CLI internals (descriptor walker, json action)
+│   └── mcp/                # MCP server: tool + resource handlers wrapping pulse.Pulse
 ```
 
 ### Library-first pattern
@@ -77,7 +81,13 @@ pulse/
 
 ### CLI-as-thin-adapter
 
-`cmd/pulse/main.go` is the only binary. It parses flags, constructs a `pulse.Pulse` instance, calls library methods, and formats output. It never contains processing logic. The CLI commands map 1:1 to the manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`.
+`cmd/pulse/main.go` is the only binary. It parses flags, constructs a `pulse.Pulse` instance, calls library methods, and formats output. It never contains processing logic. The CLI commands map 1:1 to the manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`.
+
+### MCP surface
+
+`internal/mcp/` translates the Pulse facade into Model Context Protocol tools and resources. The library has no dependency on this package; only the `pulse mcp` CLI leaf imports it. Eight tools (one per facade method) and two resource schemes (`pulse://` for `.pulse` files, `pulse-skill://` for embedded skills) are registered at server start.
+
+The canonical tool list is `mcp.RegisteredTools()` in `internal/mcp/tools.go`. Adding or removing a tool requires updating `skills/mcp-integration.md` in the same PR (`TestSkillsCoverAllMCPTools`).
 
 ### I/O subsystem
 
@@ -121,7 +131,7 @@ Errors use the `errors.Code` system. There are 6 domains with typed codes:
 - **SERVICE:** `SERVICE_VALIDATION`, `SERVICE_RESOURCE`, `SERVICE_REGISTRY`, `SERVICE_INTERNAL`
 - **DATA:** `DATA_FILE`, `DATA_PARSE`, `DATA_CONFIG`, `DATA_CALCULATION`, `DATA_INTERNAL`
 - **CLI:** `CLI_INPUT`, `CLI_OUTPUT`, `CLI_COMMAND`, `CLI_INTERNAL`
-- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`
+- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`
 
 Every new error code MUST be added to the `allCodes` slice in `errors/codes.go` and to `skills/error-code-reference.md` (enforced by `TestSkillsCoverAllErrorCodes`).
 
@@ -227,6 +237,7 @@ Fields without stored descriptions get a synthesized fallback (`"Categorical fie
 - `TestPerPackageCoverageFloors` — placeholder documenting target per-package coverage floors; verifies package directories exist
 - `TestNoOrbitPrefixes` — verifies no error code string contains predecessor project references
 - `TestNoOrbitPrefix` — verifies no type constant string contains predecessor project references
+- `TestSkillsCoverAllMCPTools` — asserts every MCP tool registered in `internal/mcp` appears in `skills/mcp-integration.md`
 
 ## Skill Pack Maintenance
 
@@ -275,6 +286,7 @@ Required fields:
 | Filterer (`FILTER_*`) | At least one skill must mention it; typically `skills/aggregation-guide.md` or `skills/getting-started.md` |
 | Grouper (`GROUP_*`) | `skills/grouper-design.md` |
 | Window operator (`WIN_*`) | `skills/window-operations.md` |
+| Feature operator (`FEAT_*`) | `skills/feature-engineering.md` |
 | Error code | `skills/error-code-reference.md` |
 | CLI leaf command | `skills/getting-started.md` |
 | Field type | `skills/cohort-schema-design.md` |
@@ -290,6 +302,8 @@ Required fields:
 **5 groupers:** `GROUP_CATEGORY`, `GROUP_DATE`, `GROUP_QUANTILE`, `GROUP_RANGE`, `GROUP_ROUNDED`
 
 **10 window operators:** `WIN_DENSE_RANK`, `WIN_EWMA`, `WIN_LAG`, `WIN_LEAD`, `WIN_MOVING_AVG`, `WIN_PCT_CHANGE`, `WIN_RANK`, `WIN_ROW_NUMBER`, `WIN_RUNNING_AVG`, `WIN_RUNNING_SUM`
+
+**8 feature operators:** `FEAT_BUCKETIZE`, `FEAT_DATE_FEATURES`, `FEAT_FREQUENCY_ENCODE`, `FEAT_LOG`, `FEAT_ONE_HOT`, `FEAT_SQRT`, `FEAT_TARGET_ENCODE`, `FEAT_TRAIN_TEST_SPLIT`
 
 ## Build / Dev / Test Workflow
 
@@ -363,6 +377,22 @@ For tests that need filesystem access, use `fs.NewMemMap()` which returns a `Con
 3. Wire the format into `ImportJob` and `ExportJob` if needed.
 4. Add or update a skill file (e.g., `skills/export-format-selection.md`) to document when to use the format.
 5. If the format adds a CLI flag, update `skills/getting-started.md` and run `TestSkillsCoverAllCliLeaves`.
+
+### Adding a new feature operator
+
+1. Define the type constant in `types/types.go` (e.g., `FEAT_TARGET_ENCODE`). Add it to `AllFeatureTypes()`.
+2. Implement the operator in `processing/feature/<name>.go`. Register via `init()` calling `register(types.FEAT_X, newX)`.
+3. Add a section to `skills/feature-engineering.md` describing the operator, its params, and its output column naming.
+4. Update `descriptor/predict_feature.go` to validate the new operator's params and emit the right output labels in `featureOutputLabels`.
+5. Run `go test ./skills/ -run TestSkillsCoverAllComponents` and `go test ./descriptor/ -run TestPredict_Feature` to confirm coverage.
+6. Update this CLAUDE.md: add the new operator to "Current registered components" -> "feature operators".
+
+### Wiring Pulse into an MCP client
+
+1. Build the binary: `make build`. The resulting `bin/pulse` must be on the client's `PATH` (or referenced absolutely).
+2. Configure the client (Claude Desktop's `claude_desktop_config.json` or Claude Code's `~/.claude.json`) with an `mcpServers.pulse` entry running `pulse mcp` and exporting `PULSE_DATA_DIR`.
+3. Restart the client. Pulse tools (`pulse_inspect`, `pulse_predict`, `pulse_process`, etc.) and resources (`pulse://*.pulse`, `pulse-skill://*`) appear in the tool/resource list.
+4. See `skills/mcp-integration.md` for the full configuration recipe.
 
 ### Debugging a predict mismatch
 

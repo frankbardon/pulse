@@ -1,0 +1,31 @@
+{
+  "_comment": "Replace city with its frequency in the cohort. Useful for high-cardinality categoricals where one-hot would explode the column count.",
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_FREQUENCY_ENCODE",
+      "field": "city",
+      "label": "city_freq"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "city_freq",
+      "label": "mean_city_freq"
+    },
+    {
+      "type": "AGG_MAX",
+      "field": "city_freq",
+      "label": "most_common_city_share"
+    },
+    {
+      "type": "AGG_MIN",
+      "field": "city_freq",
+      "label": "rarest_city_share"
+    }
+  ]
+}

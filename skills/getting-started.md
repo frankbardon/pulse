@@ -108,6 +108,7 @@ pulse convert INPUT OUTPUT [--from F] [--to F] [--schema F] [--keep-pulse PATH] 
 pulse convert predict INPUT OUTPUT [--from F] [--to F] [--sample-rows N] [--json]
 pulse skills list  [--json]
 pulse skills show  NAME
+pulse mcp          [--data-dir DIR]   # serve Model Context Protocol over stdio
 ```
 </reference>
 
@@ -133,4 +134,5 @@ Every `--json` response: `{"format_version":"1.0","data":{...},"errors":[],"warn
 - error-code-reference — every error code by domain
 - import-best-practices — schema templates and import tuning
 - export-format-selection — picking an output format
+- mcp-integration — wiring Pulse into MCP-aware AI clients
 </see_also>

@@ -1,0 +1,14 @@
+{
+  "_comment": "Percentile rank on income. Each record's value is replaced by its percentile (0-100). Useful for cohort-relative scoring.",
+  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "attributes": [
+    {"type": "ATTR_PERCENTILE", "field": "income", "label": "income_pct"}
+  ],
+  "groups": [
+    {"type": "GROUP_CATEGORY", "field": "region"}
+  ],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "income_pct", "label": "mean_pct_in_region"}
+  ],
+  "sort": [{"field": "region"}]
+}

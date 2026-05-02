@@ -1,0 +1,14 @@
+{
+  "_comment": "Drop drivers and artists, then count rows per remaining occupation.",
+  "cohort": {"filename": "training_data.pulse", "data_dir": ".data"},
+  "filterers": [
+    {"type": "FILTER_EXCLUDE", "field": "occupation", "values": ["driver", "artist"]}
+  ],
+  "groups": [
+    {"type": "GROUP_CATEGORY", "field": "occupation"}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "n"}
+  ],
+  "sort": [{"field": "occupation"}]
+}

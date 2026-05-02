@@ -1,0 +1,44 @@
+{
+  "_comment": "Discretize age into 4 explicit life stages, then aggregate per stage.",
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_BUCKETIZE",
+      "field": "age",
+      "label": "life_stage",
+      "params": {
+        "boundaries": [
+          18,
+          35,
+          55
+        ]
+      }
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "life_stage"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_MEDIAN",
+      "field": "income",
+      "label": "median_income"
+    }
+  ],
+  "sort": [
+    {
+      "field": "life_stage"
+    }
+  ]
+}

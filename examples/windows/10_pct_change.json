@@ -1,0 +1,14 @@
+{
+  "_comment": "Percent change versus the row 1 period earlier in the order. Emits null for the first row (no prior). params.periods overrides the default lag.",
+  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "windows": [
+    {
+      "type": "WIN_PCT_CHANGE",
+      "field": "revenue",
+      "label": "revenue_pct_change",
+      "order_by": [{"field": "order_date"}],
+      "params": {"periods": 1}
+    }
+  ],
+  "sort": [{"field": "order_date"}]
+}

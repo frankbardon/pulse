@@ -1,0 +1,12 @@
+{
+  "_comment": "Bucket age into decades. floor(age/10)*10 yields keys 10, 20, 30, ... Each key is the bucket's lower bound.",
+  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "groups": [
+    {"type": "GROUP_ROUNDED", "field": "age", "interval": 10}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    {"type": "AGG_AVERAGE", "field": "income", "label": "avg_income"}
+  ],
+  "sort": [{"field": "age"}]
+}

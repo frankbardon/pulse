@@ -1,0 +1,87 @@
+{
+  "_comment": "End-to-end ML preprocessing in one request: split first, then log-transform, bucketize, one-hot, and target-encode. Filter to train rows, group by income decile, aggregate label rate. Demonstrates feature composition (BUCKETIZE references LOG output) and leakage-safe ordering.",
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_TRAIN_TEST_SPLIT",
+      "params": {
+        "ratios": [
+          0.8,
+          0.2
+        ],
+        "seed": 42,
+        "stratify": "category"
+      }
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "income",
+      "label": "log_income"
+    },
+    {
+      "type": "FEAT_BUCKETIZE",
+      "field": "log_income",
+      "label": "log_income_decile",
+      "params": {
+        "quantiles": 10
+      }
+    },
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "region"
+    },
+    {
+      "type": "FEAT_DATE_FEATURES",
+      "field": "signup_date"
+    },
+    {
+      "type": "FEAT_TARGET_ENCODE",
+      "field": "occupation",
+      "label": "occupation_target_rate",
+      "params": {
+        "target": "label",
+        "smoothing": 10.0
+      }
+    }
+  ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "split",
+      "values": [
+        "0"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "log_income_decile"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "label",
+      "label": "label_rate"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "occupation_target_rate",
+      "label": "mean_occ_te"
+    }
+  ],
+  "sort": [
+    {
+      "field": "log_income_decile"
+    }
+  ]
+}

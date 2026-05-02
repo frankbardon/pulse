@@ -1,0 +1,12 @@
+{
+  "_comment": "Per-record z-score on income, then summarize the resulting distribution. ATTR_ZSCORE is buffered (needs population mean/stddev).",
+  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "attributes": [
+    {"type": "ATTR_ZSCORE", "field": "income", "label": "income_z"}
+  ],
+  "aggregations": [
+    {"type": "AGG_MIN", "field": "income_z", "label": "min_z"},
+    {"type": "AGG_MAX", "field": "income_z", "label": "max_z"},
+    {"type": "AGG_AVERAGE", "field": "income_z", "label": "mean_z"}
+  ]
+}
