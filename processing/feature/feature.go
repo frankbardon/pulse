@@ -50,6 +50,28 @@ type Computer interface {
 	Compute(records []Record, field string) (map[string]Output, error)
 }
 
+// StreamingComputer is the streaming sibling of Computer. Operators that
+// implement it can run on the streaming execution path; operators that do
+// not force a buffered fallback even on otherwise stream-eligible requests.
+//
+// Lifecycle: PrePass is called once per record on pass 1. Finalize closes
+// the precompute sweep; per-row outputs become deterministic from this
+// point. EmitRow is called once per record on pass 2 (in iteration order)
+// and returns the derived column values for that record. Each Output's
+// Values slice has length 1; if the row's output is null, Output.Nulls is
+// length 1 with a true entry and the orchestrator writes a null marker
+// instead of the value.
+//
+// Stateless per-row operators (LOG, SQRT, ONE_HOT, BUCKETIZE-explicit,
+// DATE_FEATURES) implement PrePass and Finalize as no-ops. Global-pass
+// operators accumulate state in PrePass, materialize derived state in
+// Finalize, and look it up in EmitRow.
+type StreamingComputer interface {
+	PrePass(record Record, field string) error
+	Finalize() error
+	EmitRow(record Record, field string) (map[string]Output, error)
+}
+
 // Factory constructs a Computer from a feature specification. The schema is
 // the cohort schema before any feature output is added; Computers consult it
 // to validate field types and resolve dictionaries.

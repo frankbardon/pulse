@@ -37,6 +37,63 @@ func RegisteredTypes() []types.FeatureType {
 	return out
 }
 
+// StreamingHandle pairs a feature spec with its constructed
+// StreamingComputer. processStreaming holds a slice of these for the
+// duration of a request; PrePass / Finalize / EmitRow drive each handle.
+type StreamingHandle struct {
+	Feature  *types.Feature
+	Computer StreamingComputer
+}
+
+// IsStreamable reports whether every feature's Computer implements
+// StreamingComputer. Returns false on any unknown type or factory error
+// so the buffered path can surface the canonical error.
+func IsStreamable(features []*types.Feature, schema *encoding.Schema) bool {
+	for _, feat := range features {
+		factory, ok := Lookup(feat.Type)
+		if !ok {
+			return false
+		}
+		c, err := factory(feat, schema)
+		if err != nil {
+			return false
+		}
+		if _, ok := c.(StreamingComputer); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// BuildStreaming constructs StreamingComputer instances for each feature
+// in order. Caller should verify streamability via IsStreamable first;
+// PROCESSING_INTERNAL is returned when an operator lacks streaming
+// support, PROCESSING_CONFIG for unknown types or factory failures.
+func BuildStreaming(features []*types.Feature, schema *encoding.Schema) ([]StreamingHandle, error) {
+	if len(features) == 0 {
+		return nil, nil
+	}
+	out := make([]StreamingHandle, 0, len(features))
+	for _, feat := range features {
+		factory, ok := Lookup(feat.Type)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("unknown feature type: %s", feat.Type))
+		}
+		c, err := factory(feat, schema)
+		if err != nil {
+			return nil, err
+		}
+		sc, ok := c.(StreamingComputer)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("feature %s does not implement StreamingComputer", feat.Type))
+		}
+		out = append(out, StreamingHandle{Feature: feat, Computer: sc})
+	}
+	return out, nil
+}
+
 // Apply runs every feature in features against the record set, mutating
 // records in place to add derived columns. Failures return coded errors:
 // PROCESSING_CONFIG for unknown types or factory errors, PROCESSING_RUNTIME
