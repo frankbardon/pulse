@@ -17,7 +17,16 @@ func init() {
 // counts per category; pass two writes the per-row encoded value. Rows
 // whose category does not appear in the count pass (only possible if the
 // record set changes between passes — which it does not here) get null.
-type frequencyEncode struct{ label string }
+type frequencyEncode struct {
+	label string
+	// Streaming state. PrePass populates counts and total; Finalize
+	// captures denom (or marks empty=true when total is zero) so EmitRow
+	// can serve per-row lookups without re-scanning.
+	counts map[string]int
+	total  int
+	denom  float64
+	empty  bool
+}
 
 func newFrequencyEncode(feat *types.Feature, schema *encoding.Schema) (Computer, error) {
 	if feat.Field == "" {
@@ -36,6 +45,44 @@ func newFrequencyEncode(feat *types.Feature, schema *encoding.Schema) (Computer,
 		label = fmt.Sprintf("FREQ_%s", feat.Field)
 	}
 	return &frequencyEncode{label: label}, nil
+}
+
+// PrePass tallies the category for one record into the operator's
+// running counts. Records whose target field is null contribute nothing.
+func (c *frequencyEncode) PrePass(r Record, field string) error {
+	if c.counts == nil {
+		c.counts = make(map[string]int, 16)
+	}
+	if s, ok := r.StringValue(field); ok {
+		c.counts[s]++
+		c.total++
+	}
+	return nil
+}
+
+// Finalize freezes the denominator so EmitRow is O(1) per row. When no
+// non-null categories were observed, every emitted row is null.
+func (c *frequencyEncode) Finalize() error {
+	if c.total == 0 {
+		c.empty = true
+		return nil
+	}
+	c.denom = float64(c.total)
+	return nil
+}
+
+// EmitRow returns the proportion (count[s]/total) for the record's
+// category, or null if the category is missing on this record or the
+// cohort had no non-null categories at all.
+func (c *frequencyEncode) EmitRow(r Record, field string) (map[string]Output, error) {
+	if c.empty {
+		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
+	}
+	s, ok := r.StringValue(field)
+	if !ok {
+		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
+	}
+	return map[string]Output{c.label: {Values: []float64{float64(c.counts[s]) / c.denom}}}, nil
 }
 
 func (c *frequencyEncode) Compute(records []Record, field string) (map[string]Output, error) {

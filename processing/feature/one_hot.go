@@ -74,6 +74,28 @@ func (c *oneHot) Compute(records []Record, field string) (map[string]Output, err
 	return out, nil
 }
 
+func (c *oneHot) PrePass(_ Record, _ string) error { return nil }
+
+func (c *oneHot) Finalize() error { return nil }
+
+// EmitRow returns one column per known category; the column matching the
+// record's category is 1, the rest are 0. Unknown / null categories
+// produce all-zero columns (mirrors Compute's behavior).
+func (c *oneHot) EmitRow(r Record, field string) (map[string]Output, error) {
+	out := make(map[string]Output, len(c.categories))
+	for _, cat := range c.categories {
+		out[c.columnName(cat)] = Output{Values: []float64{0}}
+	}
+	s, ok := r.StringValue(field)
+	if !ok {
+		return out, nil
+	}
+	if o, exists := out[c.columnName(s)]; exists {
+		o.Values[0] = 1
+	}
+	return out, nil
+}
+
 func (c *oneHot) columnName(category string) string {
 	// Sanitize whitespace and reserved separators so labels stay
 	// addressable as field references downstream. Replace spaces with

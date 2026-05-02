@@ -42,10 +42,11 @@ func newDateFeatures(feat *types.Feature, schema *encoding.Schema) (Computer, er
 	return &dateFeatures{prefix: prefix}, nil
 }
 
+var dateFeatureParts = []string{"year", "month", "day", "dow", "quarter"}
+
 func (c *dateFeatures) Compute(records []Record, field string) (map[string]Output, error) {
-	parts := []string{"year", "month", "day", "dow", "quarter"}
-	out := make(map[string]Output, len(parts))
-	for _, p := range parts {
+	out := make(map[string]Output, len(dateFeatureParts))
+	for _, p := range dateFeatureParts {
 		out[c.columnName(p)] = Output{
 			Values: make([]float64, len(records)),
 			Nulls:  make([]bool, len(records)),
@@ -55,21 +56,50 @@ func (c *dateFeatures) Compute(records []Record, field string) (map[string]Outpu
 	for i, r := range records {
 		v, ok := r.NumericValue(field)
 		if !ok {
-			for _, p := range parts {
+			for _, p := range dateFeatureParts {
 				out[c.columnName(p)].Nulls[i] = true
 			}
 			continue
 		}
-		t := time.Unix(int64(v)*86400, 0).UTC()
-		year, month, day := t.Date()
-
-		out[c.columnName("year")].Values[i] = float64(year)
-		out[c.columnName("month")].Values[i] = float64(month)
-		out[c.columnName("day")].Values[i] = float64(day)
-		out[c.columnName("dow")].Values[i] = float64(t.Weekday())
-		out[c.columnName("quarter")].Values[i] = float64((int(month)-1)/3 + 1)
+		y, m, d, dow, q := decodeDateParts(v)
+		out[c.columnName("year")].Values[i] = y
+		out[c.columnName("month")].Values[i] = m
+		out[c.columnName("day")].Values[i] = d
+		out[c.columnName("dow")].Values[i] = dow
+		out[c.columnName("quarter")].Values[i] = q
 	}
 	return out, nil
+}
+
+func (c *dateFeatures) PrePass(_ Record, _ string) error { return nil }
+
+func (c *dateFeatures) Finalize() error { return nil }
+
+func (c *dateFeatures) EmitRow(r Record, field string) (map[string]Output, error) {
+	out := make(map[string]Output, len(dateFeatureParts))
+	v, ok := r.NumericValue(field)
+	if !ok {
+		for _, p := range dateFeatureParts {
+			out[c.columnName(p)] = Output{Values: []float64{0}, Nulls: []bool{true}}
+		}
+		return out, nil
+	}
+	y, m, d, dow, q := decodeDateParts(v)
+	out[c.columnName("year")] = Output{Values: []float64{y}}
+	out[c.columnName("month")] = Output{Values: []float64{m}}
+	out[c.columnName("day")] = Output{Values: []float64{d}}
+	out[c.columnName("dow")] = Output{Values: []float64{dow}}
+	out[c.columnName("quarter")] = Output{Values: []float64{q}}
+	return out, nil
+}
+
+// decodeDateParts converts a days-since-Unix-epoch value into the five
+// derived parts (year, month, day, day-of-week, quarter) that
+// FEAT_DATE_FEATURES emits. Shared between Compute and EmitRow.
+func decodeDateParts(v float64) (year, month, day, dow, quarter float64) {
+	t := time.Unix(int64(v)*86400, 0).UTC()
+	yy, mm, dd := t.Date()
+	return float64(yy), float64(mm), float64(dd), float64(t.Weekday()), float64((int(mm)-1)/3 + 1)
 }
 
 func (c *dateFeatures) columnName(part string) string {

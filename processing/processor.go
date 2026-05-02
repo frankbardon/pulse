@@ -112,16 +112,19 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 //   - no attributes (ZSCORE/PERCENTILE/RANK/NORMALIZED need a first
 //     pass to compute population stats; FORMULA is row-local but is
 //     bundled in for simplicity — every attribute today is buffered)
-//   - no features (every FEAT_* operator runs over the full record set —
-//     global-pass operators need stats before per-row emit, and per-row
-//     operators inject derived columns that downstream stages reference)
+//   - no windows (window operators run over the post-aggregate row set)
+//   - features either empty or every operator implements
+//     feature.StreamingComputer (PrePass + Finalize + EmitRow)
 //   - every aggregation type supports OnlineAggregator
 //   - filters are row-level only (every registered filter today is)
 //
 // Returns false on any unknown component type so the buffered path can
 // surface the canonical error message.
 func (p *Processor) canStream(req *types.Request) bool {
-	if len(req.Groups) > 0 || len(req.Attributes) > 0 || len(req.Windows) > 0 || len(req.Features) > 0 {
+	if len(req.Groups) > 0 || len(req.Attributes) > 0 || len(req.Windows) > 0 {
+		return false
+	}
+	if len(req.Features) > 0 && !feature.IsStreamable(req.Features, p.schema) {
 		return false
 	}
 	if len(req.Aggregations) == 0 {
@@ -146,10 +149,42 @@ func (p *Processor) canStream(req *types.Request) bool {
 	return true
 }
 
-// processStreaming runs the streaming execution path. The iterator is
-// consumed exactly once. Filters are applied row-by-row before each
-// aggregator's UpdateRow is called.
+// processStreaming runs the streaming execution path. With no features
+// the iterator is consumed exactly once: filters apply row-by-row, then
+// each aggregator's UpdateRow is called. With features, the iterator is
+// consumed twice: pass 1 drives feature.StreamingComputer.PrePass, then
+// Finalize captures any global state, iter.Reset() rewinds, and pass 2
+// emits derived columns into each record before filters and online
+// aggregators see it.
 func (p *Processor) processStreaming(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	// Build streaming feature handles, if any. canStream verified that
+	// every operator supports streaming, so factory failures here are
+	// PROCESSING_CONFIG bubbling up the canonical error.
+	var streamingFeatures []feature.StreamingHandle
+	if len(req.Features) > 0 {
+		handles, err := feature.BuildStreaming(req.Features, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		streamingFeatures = handles
+
+		// Pass 1: feed every record through each computer's PrePass.
+		for iter.Next() {
+			rec := iter.Record()
+			for _, h := range streamingFeatures {
+				if err := h.Computer.PrePass(rec, h.Feature.Field); err != nil {
+					return nil, err
+				}
+			}
+		}
+		for _, h := range streamingFeatures {
+			if err := h.Computer.Finalize(); err != nil {
+				return nil, err
+			}
+		}
+		iter.Reset()
+	}
+
 	// Build filter functions once.
 	filterFns, err := p.buildFilterFuncs(req.Filterers)
 	if err != nil {
@@ -183,6 +218,25 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	for iter.Next() {
 		totalRows++
 		r := iter.Record()
+
+		// Inject derived feature columns onto the record so filters and
+		// online aggregators see them. EmitRow is called once per record
+		// in iteration order; operators that need positional state
+		// (e.g., FEAT_TRAIN_TEST_SPLIT) rely on that ordering.
+		for _, h := range streamingFeatures {
+			outputs, err := h.Computer.EmitRow(r, h.Feature.Field)
+			if err != nil {
+				return nil, err
+			}
+			for label, out := range outputs {
+				if len(out.Nulls) > 0 && out.Nulls[0] {
+					r.SetNull(label)
+				} else {
+					r.Set(label, out.Values[0])
+				}
+			}
+		}
+
 		pass := true
 		for _, fn := range filterFns {
 			ok, err := fn(r)

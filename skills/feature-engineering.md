@@ -24,9 +24,13 @@ A feature's output column is addressable by every stage that follows. This is wh
 </reference>
 
 <reference>
-## Why features are buffered
+## Streaming eligibility
 
-Features force the buffered execution path. Global-pass operators (`FEAT_FREQUENCY_ENCODE`, `FEAT_TARGET_ENCODE`) need a stats sweep before per-row write; per-row operators (`FEAT_LOG`, `FEAT_SQRT`) could stream but are bundled in for consistency. If your request has only stream-eligible aggregations and no features, processing stays on the streaming path; adding any feature switches to buffered.
+Feature requests run on the streaming path when every requested operator implements `feature.StreamingComputer` and the rest of the request is stream-eligible (online-capable aggregators, no groups, no attributes, no windows). Per-row operators (`FEAT_LOG`, `FEAT_SQRT`, `FEAT_BUCKETIZE` with explicit boundaries, `FEAT_ONE_HOT`, `FEAT_DATE_FEATURES`) emit derived columns one record at a time. Global-pass operators (`FEAT_FREQUENCY_ENCODE`, `FEAT_TARGET_ENCODE`, `FEAT_BUCKETIZE` with quantiles, `FEAT_TRAIN_TEST_SPLIT`) run a precompute sweep, then the iterator is rewound and per-row emit drives filters and online aggregators.
+
+The streaming path requires the iterator to support `Reset()`. The slice iterator resets in O(1); the file-backed streaming iterator re-reads the file from disk, which doubles I/O cost for global-pass operators. The buffered path remains the fallback whenever streaming is unsafe — and is selected automatically.
+
+`FEAT_TRAIN_TEST_SPLIT` materializes its assignment table during the precompute sweep, so streaming mode pays the same `O(rows)` memory as buffered for the split column. Per-row operators add no extra allocations beyond the derived column.
 </reference>
 
 <reference>

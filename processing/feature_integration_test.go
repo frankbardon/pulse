@@ -57,10 +57,10 @@ func TestFeaturePipeline_LogThenAggregate(t *testing.T) {
 	}
 }
 
-// TestFeaturePipeline_FeatureForcesBufferedPath verifies the streaming
-// path is bypassed when features are present, even with online-capable
-// aggregators.
-func TestFeaturePipeline_FeatureForcesBufferedPath(t *testing.T) {
+// TestFeaturePipeline_StreamableFeaturePicksStreamingPath verifies that
+// requests whose every feature implements StreamingComputer flow
+// through the streaming path with online-capable aggregators.
+func TestFeaturePipeline_StreamableFeaturePicksStreamingPath(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "stream-eligible numeric field"},
@@ -96,8 +96,8 @@ func TestFeaturePipeline_FeatureForcesBufferedPath(t *testing.T) {
 	if _, err := p.Process(context.Background(), featReq, NewSliceIterator(records)); err != nil {
 		t.Fatalf("Process (with features): %v", err)
 	}
-	if p.lastPath != PathBuffered {
-		t.Errorf("with features expected buffered, got %s", p.lastPath)
+	if p.lastPath != PathStreaming {
+		t.Errorf("with stream-eligible features expected streaming, got %s", p.lastPath)
 	}
 }
 

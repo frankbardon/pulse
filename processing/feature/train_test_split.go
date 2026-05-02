@@ -45,6 +45,13 @@ type trainTestSplit struct {
 	ratios   []float64
 	seed     int64
 	stratify string
+	// Streaming state. PrePass records either the row count alone (no
+	// stratify) or the per-row stratify key in iteration order. Finalize
+	// materializes the assignment table so EmitRow can index by emitIdx.
+	rowCount     int
+	stratifyKeys []string
+	assignments  []float64
+	emitIdx      int
 }
 
 func newTrainTestSplit(feat *types.Feature, schema *encoding.Schema) (Computer, error) {
@@ -124,6 +131,64 @@ func (c *trainTestSplit) Compute(records []Record, _ string) (map[string]Output,
 		c.assignBucket(groups[k], values)
 	}
 	return map[string]Output{c.label: {Values: values}}, nil
+}
+
+// PrePass records the row's stratify key (when configured) or just
+// counts the row. The stratifyKeys slice grows with iteration order so
+// Finalize can rebuild the same per-group index lists Compute uses.
+func (c *trainTestSplit) PrePass(r Record, _ string) error {
+	c.rowCount++
+	if c.stratify == "" {
+		return nil
+	}
+	s, ok := r.StringValue(c.stratify)
+	if !ok {
+		s = ""
+	}
+	c.stratifyKeys = append(c.stratifyKeys, s)
+	return nil
+}
+
+// Finalize materializes the per-row split assignment, mirroring the
+// buffered Compute branch. Memory is O(rows) — same as the buffered
+// path's output slice.
+func (c *trainTestSplit) Finalize() error {
+	c.assignments = make([]float64, c.rowCount)
+	if c.rowCount == 0 {
+		return nil
+	}
+	if c.stratify == "" {
+		c.assignBucket(rangeIndices(c.rowCount), c.assignments)
+		return nil
+	}
+	groups := make(map[string][]int, 16)
+	for i, k := range c.stratifyKeys {
+		groups[k] = append(groups[k], i)
+	}
+	c.stratifyKeys = nil
+	keys := make([]string, 0, len(groups))
+	for k := range groups {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		c.assignBucket(groups[k], c.assignments)
+	}
+	return nil
+}
+
+// EmitRow returns the precomputed split assignment for the next record
+// in iteration order. Records must be consumed in the same order as
+// PrePass observed them; the streaming dispatcher guarantees this via
+// iter.Reset().
+func (c *trainTestSplit) EmitRow(_ Record, _ string) (map[string]Output, error) {
+	if c.emitIdx >= len(c.assignments) {
+		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+			"FEAT_TRAIN_TEST_SPLIT: EmitRow called more times than PrePass observed")
+	}
+	v := c.assignments[c.emitIdx]
+	c.emitIdx++
+	return map[string]Output{c.label: {Values: []float64{v}}}, nil
 }
 
 // assignBucket shuffles indices using the operator's seed (each call adds a
