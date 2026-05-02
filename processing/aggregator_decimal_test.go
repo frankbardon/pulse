@@ -150,6 +150,55 @@ func TestAggregateDecimalField_AgainstReference(t *testing.T) {
 	}
 }
 
+func TestAggregateDecimalField_VarianceExact(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "v", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2},
+	}}
+	// Population variance of {1, 2, 3, 4, 5}:
+	// mean = 3, deviations 4, 1, 0, 1, 4 -> variance = 10/5 = 2.
+	records := []*Record{
+		makeDecimalRecord(t, schema, "v", "1.00", 2),
+		makeDecimalRecord(t, schema, "v", "2.00", 2),
+		makeDecimalRecord(t, schema, "v", "3.00", 2),
+		makeDecimalRecord(t, schema, "v", "4.00", 2),
+		makeDecimalRecord(t, schema, "v", "5.00", 2),
+	}
+	out, err := AggregateDecimalField(types.AGG_VARIANCE, records, "v", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.FellBack {
+		t.Errorf("expected decimal variance, got f64 fallback %v", out.Float)
+	}
+	got := out.Value.String(out.Scale)
+	if got != "2.00000000" {
+		t.Errorf("variance = %s, want 2.00000000", got)
+	}
+}
+
+func TestAggregateDecimalField_StddevExact(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "v", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2},
+	}}
+	// Population stddev of {2, 4, 4, 4, 5, 5, 7, 9} = 2.0 exactly.
+	values := []string{"2.00", "4.00", "4.00", "4.00", "5.00", "5.00", "7.00", "9.00"}
+	records := make([]*Record, 0, len(values))
+	for _, v := range values {
+		records = append(records, makeDecimalRecord(t, schema, "v", v, 2))
+	}
+	out, err := AggregateDecimalField(types.AGG_STDDEV, records, "v", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.FellBack {
+		t.Errorf("expected decimal stddev, got f64 fallback %v", out.Float)
+	}
+	got := out.Value.String(out.Scale)
+	if got != "2.0000" {
+		t.Errorf("stddev = %s, want 2.0000", got)
+	}
+}
+
 func TestProcessor_DecimalSumDispatch(t *testing.T) {
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2},

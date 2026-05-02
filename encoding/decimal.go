@@ -517,6 +517,63 @@ func ReadDecimal128(r io.Reader) (Decimal128, bool, error) {
 	return d, isNull, nil
 }
 
+// Sqrt returns floor-banker-rounded sqrt(d) at the target scale, given
+// the source value at sourceScale. The result is computed entirely in
+// decimal arithmetic via big.Int.Sqrt and a half-to-even rounding step
+// on the residual. Returns PULSE_DECIMAL_OVERFLOW if intermediate state
+// cannot fit in the integer representation; returns PROCESSING_RUNTIME
+// for negative inputs (sqrt of a negative decimal is undefined).
+func (d Decimal128) Sqrt(sourceScale, targetScale uint8) (Decimal128, error) {
+	if d.Sign() < 0 {
+		return Decimal128{}, errors.NewCodedError(errors.PROCESSING_RUNTIME,
+			"decimal sqrt of negative value")
+	}
+	if d.Sign() == 0 {
+		return ZeroDecimal128(), nil
+	}
+	// Want r such that r * r ≈ d, with r at targetScale.
+	// (r_mantissa * 10^-target)^2 ≈ d_mantissa * 10^-source
+	// r_mantissa^2 * 10^(2*target - source) ≈ d_mantissa
+	// r_mantissa = sqrt(d_mantissa * 10^(source - 2*target)) when source >= 2*target,
+	//            = sqrt(d_mantissa / 10^(2*target - source)) otherwise.
+	//
+	// We instead scale d_mantissa to a value M whose integer sqrt has
+	// the right number of digits: M = d_mantissa * 10^(2*target - source).
+	shift := 2*int(targetScale) - int(sourceScale)
+	mantissa := new(big.Int).Set(d.mantissa)
+	if shift > 0 {
+		if shift > 2*MaxDecimalPrecision {
+			return Decimal128{}, errors.NewCodedError(errors.PULSE_DECIMAL_OVERFLOW,
+				"decimal sqrt intermediate scale exceeds 76")
+		}
+		factor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(shift)), nil)
+		mantissa.Mul(mantissa, factor)
+	} else if shift < 0 {
+		factor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(-shift)), nil)
+		mantissa.Quo(mantissa, factor)
+	}
+	floor := new(big.Int).Sqrt(mantissa)
+	// Banker's-rounding toward the nearest integer using the residual:
+	// d - floor^2; compare with floor + 1 candidate (floor+1)^2 - floor^2 = 2*floor + 1.
+	floorSq := new(big.Int).Mul(floor, floor)
+	residual := new(big.Int).Sub(mantissa, floorSq)
+	// Half-distance is (2*floor + 1) / 2. Compare 2*residual with (2*floor + 1).
+	twoR := new(big.Int).Lsh(residual, 1)
+	threshold := new(big.Int).Add(new(big.Int).Lsh(floor, 1), big.NewInt(1))
+	cmp := twoR.Cmp(threshold)
+	out := new(big.Int).Set(floor)
+	switch {
+	case cmp > 0:
+		out.Add(out, big.NewInt(1))
+	case cmp == 0:
+		// Tie: round to even.
+		if out.Bit(0) != 0 {
+			out.Add(out, big.NewInt(1))
+		}
+	}
+	return NewDecimal128FromBigInt(out)
+}
+
 // ValidatePrecisionScale reports whether (precision, scale) form a legal
 // decimal128 type spec (1 ≤ precision ≤ 38, 0 ≤ scale ≤ precision).
 func ValidatePrecisionScale(precision, scale uint8) error {

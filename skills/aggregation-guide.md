@@ -53,7 +53,8 @@ Aggregations on `decimal128` / `nullable_decimal128` fields are dispatched to a 
 - **AGG_SUM** errors with `PULSE_DECIMAL_OVERFLOW` on accumulator overflow.
 - **AGG_AVERAGE** preserves precision; falls back to f64 with `PULSE_DECIMAL_PRECISION_LOSS` warning if the sum would overflow `decimal128(38)`.
 - **AGG_MIN / AGG_MAX** return `decimal128`.
-- **AGG_VARIANCE / AGG_STDDEV** return `f64` (decimal-defined variance defers to v2).
+- **AGG_VARIANCE** computes a two-pass population variance entirely in decimal at `2 * mean_scale`. Falls back to f64 with `PULSE_DECIMAL_PRECISION_LOSS` only when intermediate state would overflow `decimal128(38)`.
+- **AGG_STDDEV** applies a banker-rounded decimal `sqrt` to the variance and returns `decimal128` at `mean_scale`. Falls back to f64 on the same overflow path as variance.
 - **AGG_COUNT / AGG_DISTINCT_COUNT** return integers.
 - Other aggregations on decimal fields surface `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
 

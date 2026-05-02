@@ -167,22 +167,101 @@ func AggregateDecimalField(agg types.AggregationType, records []*Record, field s
 		}
 		return decimalAggResult{Value: out, Scale: resScale}, nil
 	case types.AGG_VARIANCE, types.AGG_STDDEV:
-		// Compute via f64 path on decimal values converted to f64 — exact
-		// decimal variance demands intermediate scale 2*input scale and
-		// frequently overflows decimal128. The plan permits f64 fallback
-		// for variance/stddev when intermediate state would overflow.
 		if len(values) == 0 {
-			return decimalAggResult{FellBack: true, Float: 0}, nil
+			return decimalAggResult{Value: encoding.ZeroDecimal128(), Scale: scale}, nil
 		}
-		fs := make([]float64, len(values))
-		for i, v := range values {
-			fs[i] = v.Float64(scale)
+		// Two-pass population variance in decimal:
+		//   μ = (1/N) Σ x_i  at meanScale = max(scale, MIN_SCALE)
+		//   σ² = (1/N) Σ (x_i - μ)²  at varScale = 2 * meanScale
+		// STDDEV applies decimal Sqrt to bring the result back to meanScale.
+		meanScale := scale
+		if meanScale < encoding.MinDecimalScale {
+			meanScale = encoding.MinDecimalScale
 		}
-		variance := populationVariance(fs)
-		if agg == types.AGG_STDDEV {
-			variance = populationStdDev(fs)
+		// Compute mean. Mirrors AGG_AVERAGE; falls back to f64 on overflow
+		// of the running sum.
+		sum := encoding.ZeroDecimal128()
+		fellBack := false
+		for _, v := range values {
+			next, err := sum.Add(v)
+			if err != nil {
+				if isOverflow(err) {
+					fellBack = true
+					break
+				}
+				return decimalAggResult{}, err
+			}
+			sum = next
 		}
-		return decimalAggResult{FellBack: true, Float: variance}, nil
+		if fellBack {
+			return decimalVarianceFloat64(values, scale, agg), nil
+		}
+		divisor := encoding.NewDecimal128FromInt(int64(len(values)))
+		mean, err := sum.Div(divisor, scale, 0, meanScale)
+		if err != nil {
+			if isOverflow(err) {
+				return decimalVarianceFloat64(values, scale, agg), nil
+			}
+			return decimalAggResult{}, err
+		}
+		// Σ (x_i - μ)² with both sides at meanScale; squared values at
+		// varScale = 2 * meanScale.
+		varScale := 2 * meanScale
+		if varScale > encoding.MaxDecimalPrecision {
+			// Result scale alone fills the 38-digit budget — fall back.
+			return decimalVarianceFloat64(values, scale, agg), nil
+		}
+		sumSq := encoding.ZeroDecimal128()
+		for _, v := range values {
+			vScaled, err := v.Rescale(scale, meanScale)
+			if err != nil {
+				if isOverflow(err) {
+					return decimalVarianceFloat64(values, scale, agg), nil
+				}
+				return decimalAggResult{}, err
+			}
+			diff, err := vScaled.Sub(mean)
+			if err != nil {
+				if isOverflow(err) {
+					return decimalVarianceFloat64(values, scale, agg), nil
+				}
+				return decimalAggResult{}, err
+			}
+			sq, err := diff.Mul(diff)
+			if err != nil {
+				if isOverflow(err) {
+					return decimalVarianceFloat64(values, scale, agg), nil
+				}
+				return decimalAggResult{}, err
+			}
+			next, err := sumSq.Add(sq)
+			if err != nil {
+				if isOverflow(err) {
+					return decimalVarianceFloat64(values, scale, agg), nil
+				}
+				return decimalAggResult{}, err
+			}
+			sumSq = next
+		}
+		variance, err := sumSq.Div(divisor, varScale, 0, varScale)
+		if err != nil {
+			if isOverflow(err) {
+				return decimalVarianceFloat64(values, scale, agg), nil
+			}
+			return decimalAggResult{}, err
+		}
+		if agg == types.AGG_VARIANCE {
+			return decimalAggResult{Value: variance, Scale: varScale}, nil
+		}
+		// STDDEV: decimal sqrt to meanScale.
+		stddev, err := variance.Sqrt(varScale, meanScale)
+		if err != nil {
+			if isOverflow(err) {
+				return decimalVarianceFloat64(values, scale, agg), nil
+			}
+			return decimalAggResult{}, err
+		}
+		return decimalAggResult{Value: stddev, Scale: meanScale}, nil
 	default:
 		return decimalAggResult{}, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
@@ -194,4 +273,19 @@ func AggregateDecimalField(agg types.AggregationType, records []*Record, field s
 // isOverflow reports whether err is a PULSE_DECIMAL_OVERFLOW.
 func isOverflow(err error) bool {
 	return errors.HasCode(err, errors.PULSE_DECIMAL_OVERFLOW)
+}
+
+// decimalVarianceFloat64 is the f64 fallback for variance / stddev when
+// any intermediate decimal computation would overflow. The result
+// reports FellBack=true so the orchestrator can emit a
+// PULSE_DECIMAL_PRECISION_LOSS warning.
+func decimalVarianceFloat64(values []encoding.Decimal128, scale uint8, agg types.AggregationType) decimalAggResult {
+	fs := make([]float64, len(values))
+	for i, v := range values {
+		fs[i] = v.Float64(scale)
+	}
+	if agg == types.AGG_STDDEV {
+		return decimalAggResult{FellBack: true, Float: populationStdDev(fs)}
+	}
+	return decimalAggResult{FellBack: true, Float: populationVariance(fs)}
 }

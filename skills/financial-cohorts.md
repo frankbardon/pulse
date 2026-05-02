@@ -87,8 +87,8 @@ Decimal divide by zero **errors with `PULSE_DECIMAL_DIVIDE_BY_ZERO`**. There is 
 | `AGG_AVERAGE` | yes | `decimal128` (overflow → f64 fallback + warning) |
 | `AGG_MIN` | yes | `decimal128` |
 | `AGG_MAX` | yes | `decimal128` |
-| `AGG_VARIANCE` | yes (f64 result) | `f64` |
-| `AGG_STDDEV` | yes (f64 result) | `f64` |
+| `AGG_VARIANCE` | yes | `decimal128` at `2 * mean_scale` (f64 fallback on overflow) |
+| `AGG_STDDEV` | yes | `decimal128` at `mean_scale`, banker-rounded sqrt (f64 fallback on overflow) |
 | `AGG_COUNT` | yes | int |
 | `AGG_DISTINCT_COUNT` | yes | int |
 | `AGG_MEDIAN` | **no** v1 | — |
@@ -130,8 +130,6 @@ The `nullable_decimal128` type carries an extra null sentinel value: bit pattern
 - Per-op rounding mode override.
 - `MIN_SCALE` configuration on division (locked at 4 in v1).
 - Decimal-aware median / percentile / mode.
-- Decimal results of `AGG_VARIANCE` / `AGG_STDDEV` (currently f64).
-- `FEAT_LOG`, `FEAT_SQRT`, etc. on decimal — currently reject; cast to f64 first.
 
 ## Common patterns
 
