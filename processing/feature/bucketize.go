@@ -32,6 +32,11 @@ type bucketize struct {
 	label      string
 	boundaries []float64
 	quantiles  int
+	// quantileVals accumulates non-null inputs during PrePass when the
+	// operator is in quantile mode. Finalize sorts and reduces it to N-1
+	// boundary cutpoints stored back on boundaries; EmitRow then uses
+	// boundaries the same way it does in explicit mode.
+	quantileVals []float64
 }
 
 func newBucketize(feat *types.Feature, _ *encoding.Schema) (Computer, error) {
@@ -85,6 +90,41 @@ func (c *bucketize) Compute(records []Record, field string) (map[string]Output, 
 	return map[string]Output{c.label: {Values: values, Nulls: nulls}}, nil
 }
 
+// PrePass collects non-null inputs in quantile mode so Finalize can derive
+// boundaries. Explicit mode is stateless: the boundaries are already
+// fixed at construction time.
+func (c *bucketize) PrePass(r Record, field string) error {
+	if c.quantiles <= 0 {
+		return nil
+	}
+	if v, ok := r.NumericValue(field); ok {
+		c.quantileVals = append(c.quantileVals, v)
+	}
+	return nil
+}
+
+// Finalize converts accumulated quantile inputs into N-1 boundary
+// cutpoints. In explicit mode it is a no-op.
+func (c *bucketize) Finalize() error {
+	if c.quantiles <= 0 {
+		return nil
+	}
+	c.boundaries = quantileBoundariesFromValues(c.quantileVals, c.quantiles)
+	c.quantileVals = nil
+	return nil
+}
+
+// EmitRow returns the bucket index for the current record using the
+// boundaries fixed at construction (explicit) or computed in Finalize
+// (quantile).
+func (c *bucketize) EmitRow(r Record, field string) (map[string]Output, error) {
+	v, ok := r.NumericValue(field)
+	if !ok {
+		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
+	}
+	return map[string]Output{c.label: {Values: []float64{float64(bucketIndex(v, c.boundaries))}}}, nil
+}
+
 // bucketIndex returns the index of the bucket v belongs to, given sorted
 // boundaries. A value v lands at index i when bounds[i-1] < v <= bounds[i]
 // (treating bounds[-1] as -inf and bounds[len] as +inf).
@@ -108,7 +148,15 @@ func quantileBoundaries(records []Record, field string, n int) []float64 {
 			vals = append(vals, v)
 		}
 	}
-	if len(vals) < 2 {
+	return quantileBoundariesFromValues(vals, n)
+}
+
+// quantileBoundariesFromValues returns N-1 quantile cutpoints from a
+// pre-collected slice of non-null inputs. Shared between Compute (which
+// scans records) and Finalize (which consumes the streaming PrePass
+// accumulator). Returns nil when there are fewer than 2 inputs.
+func quantileBoundariesFromValues(vals []float64, n int) []float64 {
+	if n < 2 || len(vals) < 2 {
 		return nil
 	}
 	sort.Float64s(vals)

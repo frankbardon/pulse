@@ -34,12 +34,24 @@ func (c *sqrt) Compute(records []Record, field string) (map[string]Output, error
 	values := make([]float64, len(records))
 	nulls := make([]bool, len(records))
 	for i, r := range records {
-		v, ok := r.NumericValue(field)
-		if !ok || v < 0 {
-			nulls[i] = true
-			continue
-		}
-		values[i] = math.Sqrt(v)
+		values[i], nulls[i] = sqrtValue(r, field)
 	}
 	return map[string]Output{c.label: {Values: values, Nulls: nulls}}, nil
+}
+
+func (c *sqrt) PrePass(_ Record, _ string) error { return nil }
+
+func (c *sqrt) Finalize() error { return nil }
+
+func (c *sqrt) EmitRow(r Record, field string) (map[string]Output, error) {
+	v, isNull := sqrtValue(r, field)
+	return map[string]Output{c.label: {Values: []float64{v}, Nulls: []bool{isNull}}}, nil
+}
+
+func sqrtValue(r Record, field string) (float64, bool) {
+	v, ok := r.NumericValue(field)
+	if !ok || v < 0 {
+		return 0, true
+	}
+	return math.Sqrt(v), false
 }
