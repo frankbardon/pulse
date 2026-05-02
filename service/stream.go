@@ -98,7 +98,8 @@ func (it *streamingIterator) Next() bool {
 	// reusable buffers and then range-copying out.
 	values := make(map[string]float64, len(it.schema.Fields))
 	nulls := make(map[string]bool)
-	err := it.reader.ReadRecord(values, nulls)
+	wide := make(map[string]any)
+	err := it.reader.ReadRecordWithWide(values, nulls, wide)
 	if err == io.EOF {
 		it.done = true
 		return false
@@ -109,7 +110,7 @@ func (it *streamingIterator) Next() bool {
 		return false
 	}
 
-	it.current = processing.NewRecordWithNulls(it.schema, values, nulls)
+	it.current = processing.NewRecordWithWide(it.schema, values, nulls, wide)
 	return true
 }
 

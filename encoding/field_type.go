@@ -5,23 +5,27 @@ import "fmt"
 // FieldType identifies the data type stored in a schema field.
 type FieldType byte
 
-// All 15 field types supported by the .pulse format.
+// All 19 field types supported by the .pulse format.
 const (
-	FieldTypeU8           FieldType = iota // 0
-	FieldTypeU16                           // 1
-	FieldTypeU32                           // 2
-	FieldTypeU64                           // 3
-	FieldTypeF32                           // 4
-	FieldTypeF64                           // 5
-	FieldTypeNullableBool                  // 6
-	FieldTypeNullableU4                    // 7
-	FieldTypeNullableU8                    // 8
-	FieldTypeNullableU16                   // 9
-	FieldTypeDate                          // 10
-	FieldTypePackedBool                    // 11
-	FieldTypeCategoricalU8                 // 12
-	FieldTypeCategoricalU16                // 13
-	FieldTypeCategoricalU32                // 14
+	FieldTypeU8                 FieldType = iota // 0
+	FieldTypeU16                                 // 1
+	FieldTypeU32                                 // 2
+	FieldTypeU64                                 // 3
+	FieldTypeF32                                 // 4
+	FieldTypeF64                                 // 5
+	FieldTypeNullableBool                        // 6
+	FieldTypeNullableU4                          // 7
+	FieldTypeNullableU8                          // 8
+	FieldTypeNullableU16                         // 9
+	FieldTypeDate                                // 10
+	FieldTypePackedBool                          // 11
+	FieldTypeCategoricalU8                       // 12
+	FieldTypeCategoricalU16                      // 13
+	FieldTypeCategoricalU32                      // 14
+	FieldTypeDecimal128                          // 15
+	FieldTypeNullableDecimal128                  // 16
+	FieldTypePointF64                            // 17
+	FieldTypeH3Cell                              // 18
 
 	fieldTypeCount // sentinel
 )
@@ -37,8 +41,10 @@ func (ft FieldType) ByteSize() int {
 		return 2
 	case FieldTypeU32, FieldTypeF32, FieldTypeDate, FieldTypeCategoricalU32:
 		return 4
-	case FieldTypeU64, FieldTypeF64:
+	case FieldTypeU64, FieldTypeF64, FieldTypeH3Cell:
 		return 8
+	case FieldTypeDecimal128, FieldTypeNullableDecimal128, FieldTypePointF64:
+		return 16
 	case FieldTypeNullableBool, FieldTypeNullableU4, FieldTypePackedBool:
 		return 0 // bit-packed, no whole-byte allocation
 	default:
@@ -79,6 +85,14 @@ func (ft FieldType) String() string {
 		return "categorical_u16"
 	case FieldTypeCategoricalU32:
 		return "categorical_u32"
+	case FieldTypeDecimal128:
+		return "decimal128"
+	case FieldTypeNullableDecimal128:
+		return "nullable_decimal128"
+	case FieldTypePointF64:
+		return "point_f64"
+	case FieldTypeH3Cell:
+		return "h3_cell"
 	default:
 		return fmt.Sprintf("unknown(%d)", ft)
 	}
@@ -87,6 +101,23 @@ func (ft FieldType) String() string {
 // IsCategorical reports whether the field type is one of the categorical types.
 func (ft FieldType) IsCategorical() bool {
 	return ft == FieldTypeCategoricalU8 || ft == FieldTypeCategoricalU16 || ft == FieldTypeCategoricalU32
+}
+
+// IsDecimal reports whether the field type is a decimal128 variant.
+func (ft FieldType) IsDecimal() bool {
+	return ft == FieldTypeDecimal128 || ft == FieldTypeNullableDecimal128
+}
+
+// IsGeo reports whether the field type is a geospatial type.
+func (ft FieldType) IsGeo() bool {
+	return ft == FieldTypePointF64 || ft == FieldTypeH3Cell
+}
+
+// IsKnown reports whether the byte value corresponds to a registered type.
+// Used by the schema reader to reject files written by a future binary
+// version that introduces unknown type bytes.
+func (ft FieldType) IsKnown() bool {
+	return ft < fieldTypeCount
 }
 
 // MaxCategoricalEntries returns the maximum dictionary size for a categorical type.
