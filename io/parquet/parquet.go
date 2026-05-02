@@ -252,6 +252,13 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 
 	for i := 0; i < numFields; i++ {
 		af := r.arrowSc.Field(i)
+		if pf, ok := parrow.PulseFieldFromArrow(af); ok {
+			pf.ByteOffset = byteOffset
+			pf.CsvColumnIdx = i
+			fields[i] = pf
+			byteOffset += pf.Type.ByteSize()
+			continue
+		}
 		ft := parrow.TypeToPulse(af.Type, af.Nullable)
 		fields[i] = encoding.Field{
 			Name:         af.Name,
@@ -280,6 +287,12 @@ type Writer struct {
 	buf     bytes.Buffer
 	columns []string
 
+	// pulseSchema is set by ExportJob through SetPulseSchema before
+	// WriteHeader so the writer can build native typed Arrow columns
+	// for decimal128 / point_f64 / h3_cell. nil falls back to the
+	// legacy all-string layout.
+	pulseSchema *encoding.Schema
+
 	// Lazily-initialized parquet writer state. Built on first WriteRow once
 	// the schema (column names) is known. Reused across all batches.
 	alloc   memory.Allocator
@@ -289,6 +302,13 @@ type Writer struct {
 	strBs   []*array.StringBuilder // cached per-column builders
 	pending int                    // rows currently buffered in bldr
 	closed  bool
+}
+
+// SetPulseSchema records the source .pulse schema so subsequent
+// initWriter can build native typed Parquet columns. Implements
+// pio.SchemaAwareWriter.
+func (w *Writer) SetPulseSchema(s *encoding.Schema) {
+	w.pulseSchema = s
 }
 
 // NewWriter creates a Parquet writer targeting a filesystem path.
@@ -309,7 +329,11 @@ func (w *Writer) WriteHeader(columns []string) error {
 }
 
 // initWriter builds the Arrow schema, RecordBuilder, and pqarrow FileWriter.
-// Called once, lazily, before the first batch is buffered.
+// Called once, lazily, before the first batch is buffered. When a Pulse
+// schema was supplied via SetPulseSchema, native Arrow types are used
+// per FieldFromPulse — Decimal128(p,s), FixedSizeBinary(16) with
+// pulse:type metadata, UInt64 with pulse:type metadata. Otherwise every
+// column is Arrow String.
 func (w *Writer) initWriter() error {
 	if w.pw != nil {
 		return nil
@@ -317,23 +341,34 @@ func (w *Writer) initWriter() error {
 
 	w.alloc = memory.NewGoAllocator()
 
-	// Arrow schema: all columns as string. Built once and reused for every
-	// row group to avoid repeated schema construction.
 	arrowFields := make([]arrow.Field, len(w.columns))
-	for i, name := range w.columns {
-		arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
+	if w.pulseSchema != nil && len(w.pulseSchema.Fields) == len(w.columns) {
+		for i, pf := range w.pulseSchema.Fields {
+			arrowFields[i] = parrow.FieldFromPulse(pf)
+			arrowFields[i].Name = w.columns[i]
+		}
+	} else {
+		for i, name := range w.columns {
+			arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
+		}
 	}
 	w.sc = arrow.NewSchema(arrowFields, nil)
 
 	w.bldr = array.NewRecordBuilder(w.alloc, w.sc)
 	w.strBs = make([]*array.StringBuilder, len(w.columns))
 	for i := range w.columns {
-		w.strBs[i] = w.bldr.Field(i).(*array.StringBuilder)
+		if sb, ok := w.bldr.Field(i).(*array.StringBuilder); ok {
+			w.strBs[i] = sb
+		}
 	}
 
 	w.buf.Reset()
 	props := pq.NewWriterProperties(pq.WithDictionaryDefault(true))
-	arrowProps := pqarrow.DefaultWriterProps()
+	// Persist the Arrow schema as a base64-encoded metadata blob so that
+	// Field-level metadata (pulse:type, pulse:h3_resolution) survives the
+	// Parquet round trip. Without this option, pqarrow lifts only the
+	// physical Parquet types on read and the extension hints disappear.
+	arrowProps := pqarrow.NewArrowWriterProperties(pqarrow.WithStoreSchema())
 	pw, err := pqarrow.NewFileWriter(w.sc, &w.buf, props, arrowProps)
 	if err != nil {
 		return fmt.Errorf("parquet.Writer: creating file writer: %w", err)
@@ -360,10 +395,12 @@ func (w *Writer) flushBatch() error {
 	return nil
 }
 
-// WriteRow writes a single row of values. Values are stringified. Rows are
-// accumulated in an Arrow RecordBuilder; once the batch reaches
-// defaultRowGroupSize, it is flushed as a row group and the builder is
-// reset. Row-group boundaries fall between rows — never inside a row.
+// WriteRow writes a single row of values. With a Pulse schema set the
+// row dispatches per-column to the native typed builder (Decimal128,
+// FixedSizeBinary, UInt64). Without a schema every value is stringified
+// and appended to a StringBuilder. Rows accumulate in an Arrow
+// RecordBuilder; once the batch reaches defaultRowGroupSize it is
+// flushed as a row group and the builder is reset.
 func (w *Writer) WriteRow(values []any) error {
 	if w.columns == nil {
 		return fmt.Errorf("parquet.Writer: WriteRow called before WriteHeader")
@@ -372,14 +409,14 @@ func (w *Writer) WriteRow(values []any) error {
 		return err
 	}
 
-	// Append the row to the current batch. Each column's StringBuilder gets
-	// exactly one value, so all columns stay aligned and the row is atomic.
 	for c := 0; c < len(w.columns); c++ {
-		var s string
+		var v any
 		if c < len(values) {
-			s = fmt.Sprintf("%v", values[c])
+			v = values[c]
 		}
-		w.strBs[c].Append(s)
+		if err := w.appendCell(c, v); err != nil {
+			return err
+		}
 	}
 	w.pending++
 
@@ -387,6 +424,35 @@ func (w *Writer) WriteRow(values []any) error {
 		return w.flushBatch()
 	}
 	return nil
+}
+
+// appendCell appends a single cell value to column c's builder, picking
+// the typed builder when the source schema declared a non-string type.
+func (w *Writer) appendCell(c int, v any) error {
+	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
+		f := w.pulseSchema.Fields[c]
+		switch f.Type {
+		case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+			return parrow.AppendDecimal128(w.bldr.Field(c), f, v)
+		case encoding.FieldTypePointF64:
+			return parrow.AppendPointF64(w.bldr.Field(c), v)
+		case encoding.FieldTypeH3Cell:
+			return parrow.AppendH3Cell(w.bldr.Field(c), v)
+		}
+	}
+	if w.strBs[c] != nil {
+		var s string
+		if v != nil {
+			s = fmt.Sprintf("%v", v)
+		}
+		w.strBs[c].Append(s)
+		return nil
+	}
+	if v == nil {
+		w.bldr.Field(c).AppendNull()
+		return nil
+	}
+	return w.bldr.Field(c).AppendValueFromString(fmt.Sprintf("%v", v))
 }
 
 // Close flushes any remaining buffered rows as a final row group, closes the

@@ -43,6 +43,12 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		return nil, err
 	}
 
+	// Hand the source schema to schema-aware writers so they can build
+	// native typed columns for decimal128 / point_f64 / h3_cell.
+	if saw, ok := j.Target.(SchemaAwareWriter); ok {
+		saw.SetPulseSchema(schema)
+	}
+
 	// Write header to target.
 	columns := make([]string, len(schema.Fields))
 	for i, f := range schema.Fields {
@@ -51,6 +57,8 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	if err := j.Target.WriteHeader(columns); err != nil {
 		return nil, err
 	}
+
+	_, schemaAware := j.Target.(SchemaAwareWriter)
 
 	// Read and export records until EOF. The values slice is hoisted out of
 	// the loop and reused per row; every Writer implementation either
@@ -86,9 +94,12 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 					hitEOF = true
 					break
 				}
-				if isNull {
+				switch {
+				case isNull:
 					values[i] = ""
-				} else {
+				case schemaAware:
+					values[i] = d
+				default:
 					values[i] = d.String(f.Scale)
 				}
 				continue
@@ -100,7 +111,11 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 					hitEOF = true
 					break
 				}
-				values[i] = encoding.FormatWKTPoint(p)
+				if schemaAware {
+					values[i] = p
+				} else {
+					values[i] = encoding.FormatWKTPoint(p)
+				}
 				continue
 			}
 
@@ -110,7 +125,11 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 				break
 			}
 			if f.Type == encoding.FieldTypeH3Cell {
-				values[i] = encoding.FormatH3CellHex(encoding.H3Cell(raw))
+				if schemaAware {
+					values[i] = encoding.H3Cell(raw)
+				} else {
+					values[i] = encoding.FormatH3CellHex(encoding.H3Cell(raw))
+				}
 				continue
 			}
 			values[i] = formatFieldValue(f.Type, raw, f.Dictionary)

@@ -199,6 +199,17 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 
 	for i := 0; i < numFields; i++ {
 		af := r.arrowSc.Field(i)
+		// Honor pulse:type / pulse:h3_resolution extension metadata first
+		// so point_f64 and h3_cell columns recover their original type.
+		// Decimal128 columns also resolve through this path so precision
+		// and scale ride along.
+		if pf, ok := PulseFieldFromArrow(af); ok {
+			pf.ByteOffset = byteOffset
+			pf.CsvColumnIdx = i
+			fields[i] = pf
+			byteOffset += pf.Type.ByteSize()
+			continue
+		}
 		ft := TypeToPulse(af.Type, af.Nullable)
 		fields[i] = encoding.Field{
 			Name:         af.Name,
@@ -227,6 +238,12 @@ type Writer struct {
 	buf     bytes.Buffer
 	columns []string
 
+	// pulseSchema is set by the export pipeline via SetPulseSchema before
+	// WriteHeader so the writer can build native typed columns for
+	// decimal128 / point_f64 / h3_cell. nil falls back to the legacy
+	// all-string column layout.
+	pulseSchema *encoding.Schema
+
 	// Lazily-initialized arrow writer state. Built on first WriteRow once
 	// the schema (column names) is known. Reused across all batches.
 	alloc   memory.Allocator
@@ -236,6 +253,13 @@ type Writer struct {
 	strBs   []*array.StringBuilder
 	pending int
 	closed  bool
+}
+
+// SetPulseSchema records the source .pulse schema so subsequent
+// initWriter can build native typed Arrow columns. Implements
+// pio.SchemaAwareWriter.
+func (w *Writer) SetPulseSchema(s *encoding.Schema) {
+	w.pulseSchema = s
 }
 
 // NewWriter creates an Arrow IPC writer targeting a filesystem path. The
@@ -260,8 +284,10 @@ func (w *Writer) WriteHeader(columns []string) error {
 }
 
 // initWriter builds the Arrow schema, RecordBuilder, and ipc.FileWriter on
-// demand. All columns are typed as Arrow String — see the package doc for
-// the rationale.
+// demand. When a Pulse schema was provided via SetPulseSchema, columns
+// use native Arrow types per FieldFromPulse (Decimal128(p,s),
+// FixedSizeBinary(16), UInt64). Otherwise every column falls back to
+// arrow.String, the legacy all-string layout.
 func (w *Writer) initWriter() error {
 	if w.fw != nil {
 		return nil
@@ -270,15 +296,24 @@ func (w *Writer) initWriter() error {
 	w.alloc = memory.NewGoAllocator()
 
 	arrowFields := make([]arrow.Field, len(w.columns))
-	for i, name := range w.columns {
-		arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
+	if w.pulseSchema != nil && len(w.pulseSchema.Fields) == len(w.columns) {
+		for i, pf := range w.pulseSchema.Fields {
+			arrowFields[i] = FieldFromPulse(pf)
+			arrowFields[i].Name = w.columns[i]
+		}
+	} else {
+		for i, name := range w.columns {
+			arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
+		}
 	}
 	w.sc = arrow.NewSchema(arrowFields, nil)
 
 	w.bldr = array.NewRecordBuilder(w.alloc, w.sc)
 	w.strBs = make([]*array.StringBuilder, len(w.columns))
 	for i := range w.columns {
-		w.strBs[i] = w.bldr.Field(i).(*array.StringBuilder)
+		if sb, ok := w.bldr.Field(i).(*array.StringBuilder); ok {
+			w.strBs[i] = sb
+		}
 	}
 
 	w.buf.Reset()
@@ -310,10 +345,11 @@ func (w *Writer) flushBatch() error {
 	return nil
 }
 
-// WriteRow writes a single row of values. Values are stringified through
-// fmt.Sprintf("%v", ...). When the buffered batch reaches
-// defaultRecordBatchSize it is flushed; batch boundaries always fall between
-// rows so a row is never split.
+// WriteRow writes a single row of values. With a Pulse schema set the
+// row dispatches per-column to the native typed builder for that
+// column's Pulse type. Without a schema every value is stringified via
+// fmt.Sprintf and appended to a StringBuilder. Buffered rows flush in
+// defaultRecordBatchSize chunks; batch boundaries fall between rows.
 func (w *Writer) WriteRow(values []any) error {
 	if w.columns == nil {
 		return fmt.Errorf("arrow.Writer: WriteRow called before WriteHeader")
@@ -323,11 +359,13 @@ func (w *Writer) WriteRow(values []any) error {
 	}
 
 	for c := 0; c < len(w.columns); c++ {
-		var s string
+		var v any
 		if c < len(values) {
-			s = fmt.Sprintf("%v", values[c])
+			v = values[c]
 		}
-		w.strBs[c].Append(s)
+		if err := w.appendCell(c, v); err != nil {
+			return err
+		}
 	}
 	w.pending++
 
@@ -335,6 +373,50 @@ func (w *Writer) WriteRow(values []any) error {
 		return w.flushBatch()
 	}
 	return nil
+}
+
+// appendCell appends a single cell value to column c's builder, picking
+// the typed builder when the source schema declared a non-string type.
+func (w *Writer) appendCell(c int, v any) error {
+	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
+		f := w.pulseSchema.Fields[c]
+		switch f.Type {
+		case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+			return w.appendDecimal(c, f, v)
+		case encoding.FieldTypePointF64:
+			return w.appendPoint(c, v)
+		case encoding.FieldTypeH3Cell:
+			return w.appendH3(c, v)
+		}
+	}
+	if w.strBs[c] != nil {
+		var s string
+		if v != nil {
+			s = fmt.Sprintf("%v", v)
+		}
+		w.strBs[c].Append(s)
+		return nil
+	}
+	// No string builder and no recognized typed column — append the
+	// generic value through the builder's reflective AppendValueFromString
+	// path.
+	if v == nil {
+		w.bldr.Field(c).AppendNull()
+		return nil
+	}
+	return w.bldr.Field(c).AppendValueFromString(fmt.Sprintf("%v", v))
+}
+
+func (w *Writer) appendDecimal(c int, f encoding.Field, v any) error {
+	return AppendDecimal128(w.bldr.Field(c), f, v)
+}
+
+func (w *Writer) appendPoint(c int, v any) error {
+	return AppendPointF64(w.bldr.Field(c), v)
+}
+
+func (w *Writer) appendH3(c int, v any) error {
+	return AppendH3Cell(w.bldr.Field(c), v)
 }
 
 // Close flushes any pending batch, closes the underlying Arrow IPC writer,

@@ -36,6 +36,24 @@ type Writer interface {
 	Close() error
 }
 
+// SchemaAwareWriter is an optional extension of Writer for targets that
+// emit native typed columns (Arrow, Parquet, Excel) and want the source
+// .pulse schema to drive column-type selection. ExportJob calls
+// SetPulseSchema before WriteHeader on writers that implement this
+// interface, then passes typed values through WriteRow:
+//
+//   - encoding.Decimal128 for decimal128 / nullable_decimal128 columns
+//   - encoding.PointF64 for point_f64 columns
+//   - encoding.H3Cell for h3_cell columns
+//   - canonical strings for narrow types (current behavior)
+//
+// Writers that do not implement SchemaAwareWriter receive only canonical
+// strings, which is the prior text-only export contract.
+type SchemaAwareWriter interface {
+	Writer
+	SetPulseSchema(s *encoding.Schema)
+}
+
 // ImportReport summarizes the result of an import operation.
 type ImportReport struct {
 	RowsImported int
