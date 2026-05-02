@@ -39,8 +39,10 @@ func validateFeatures(env *Envelope, req *types.Request, schema *encoding.Schema
 			continue
 		}
 
-		// Field-presence and per-operator type checks.
-		validateFeatureSpec(env, feat, schema, opts)
+		// Field-presence and per-operator type checks. cols carries the
+		// schema's fields plus any earlier feature's outputs so chained
+		// features (e.g. BUCKETIZE on LOG's output) validate cleanly.
+		validateFeatureSpec(env, feat, schema, cols, opts)
 
 		// Detect target encoding without a preceding train/test split. The
 		// canonical mitigation is to place FEAT_TRAIN_TEST_SPLIT before any
@@ -83,10 +85,14 @@ func isKnownFeatureType(t types.FeatureType) bool {
 }
 
 // validateFeatureSpec performs per-operator structural checks: required
-// field, type compatibility, params shape. Errors land in env via
-// SERVICE_VALIDATION; warnings via PULSE_FIELD_DESCRIPTION_LOW_QUALITY are
-// out of scope here.
-func validateFeatureSpec(env *Envelope, feat *types.Feature, schema *encoding.Schema, opts *PredictOptions) {
+// field, type compatibility, params shape. cols includes the schema's
+// fields plus any earlier feature's projected outputs so chained
+// features can reference upstream derived columns. Operators with type
+// constraints (categorical, date) are only enforced when the field
+// resolves to a schema entry; chained operators that consume an
+// earlier feature's output are trusted because runtime behavior is
+// determined by the producing operator.
+func validateFeatureSpec(env *Envelope, feat *types.Feature, schema *encoding.Schema, cols map[string]bool, opts *PredictOptions) {
 	_ = opts // strict-mode handling reserved for future leakage warnings
 
 	switch feat.Type {
@@ -106,6 +112,19 @@ func validateFeatureSpec(env *Envelope, feat *types.Feature, schema *encoding.Sc
 	}
 	f := schema.Field(feat.Field)
 	if f == nil {
+		if cols[feat.Field] {
+			// Reference to an earlier feature's output. Operator-specific
+			// type checks below depend on the schema-level type, which we
+			// don't have for derived columns; trust the producing
+			// operator to emit a compatible value.
+			if feat.Type == types.FEAT_TARGET_ENCODE {
+				validateTargetEncodeParams(env, feat, schema)
+			}
+			if feat.Type == types.FEAT_BUCKETIZE {
+				validateBucketizeParams(env, feat)
+			}
+			return
+		}
 		env.AddError(
 			string(errors.SERVICE_VALIDATION),
 			"feature references unknown field: "+feat.Field,

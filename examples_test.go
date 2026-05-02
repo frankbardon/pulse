@@ -86,7 +86,10 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 }
 
 // runExample loads an example, rewrites its cohort.data_dir to the
-// temp .pulse dir, and dispatches via pulse.Process.
+// temp .pulse dir, and dispatches the request through both Predict and
+// Process. Asserts predict reports Valid=true (warnings are allowed —
+// the leakage example is expected to warn) and that process returns a
+// non-nil response with non-nil data.
 func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
 	t.Helper()
 	body, err := os.ReadFile(examplePath)
@@ -101,6 +104,14 @@ func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
 		t.Fatalf("%s: missing cohort", examplePath)
 	}
 	req.Cohort.DataDir = dataDir
+
+	predictResult, err := p.Predict(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("Predict %s: %v", examplePath, err)
+	}
+	if predictResult == nil || !predictResult.Valid {
+		t.Fatalf("%s: predict did not report Valid=true (result=%+v)", examplePath, predictResult)
+	}
 
 	resp, err := p.Process(context.Background(), &req)
 	if err != nil {
