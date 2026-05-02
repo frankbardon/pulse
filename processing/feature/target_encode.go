@@ -35,10 +35,26 @@ type targetEncodeParams struct {
 // validation/test rows leaks into the training feature. The skill flags
 // this loudly; the warning gate (PULSE_FEAT_TARGET_LEAKAGE_RISK) lands in a
 // follow-up commit and runs at orchestration time.
+// targetStat tallies sum and count for one category during PrePass.
+// Promoted to a package-level type so per-record streaming state has a
+// stable place to live alongside Compute's local-only equivalent.
+type targetStat struct {
+	sum   float64
+	count int
+}
+
 type targetEncode struct {
 	label     string
 	target    string
 	smoothing float64
+	// Streaming state. per is populated during PrePass; Finalize
+	// captures globalMean (or marks empty=true when no non-null target
+	// rows were observed) so EmitRow is O(1) per row.
+	per         map[string]*targetStat
+	globalSum   float64
+	globalCount int
+	globalMean  float64
+	empty       bool
 }
 
 func newTargetEncode(feat *types.Feature, schema *encoding.Schema) (Computer, error) {
@@ -88,11 +104,7 @@ func (c *targetEncode) Compute(records []Record, field string) (map[string]Outpu
 		return map[string]Output{c.label: {Values: []float64{}}}, nil
 	}
 
-	type stat struct {
-		sum   float64
-		count int
-	}
-	per := make(map[string]*stat, 16)
+	per := make(map[string]*targetStat, 16)
 	var globalSum float64
 	var globalCount int
 
@@ -104,7 +116,7 @@ func (c *targetEncode) Compute(records []Record, field string) (map[string]Outpu
 		}
 		st := per[s]
 		if st == nil {
-			st = &stat{}
+			st = &targetStat{}
 			per[s] = st
 		}
 		st.sum += t
@@ -130,18 +142,70 @@ func (c *targetEncode) Compute(records []Record, field string) (map[string]Outpu
 			nulls[i] = true
 			continue
 		}
-		st, found := per[s]
-		if !found || st.count == 0 {
-			values[i] = globalMean
-			continue
-		}
-		mean := st.sum / float64(st.count)
-		if c.smoothing > 0 {
-			values[i] = (float64(st.count)*mean + c.smoothing*globalMean) /
-				(float64(st.count) + c.smoothing)
-		} else {
-			values[i] = mean
-		}
+		values[i] = encodedValue(per, s, globalMean, c.smoothing)
 	}
 	return map[string]Output{c.label: {Values: values, Nulls: nulls}}, nil
+}
+
+// PrePass folds the record's (category, target) pair into the running
+// per-category and global stats. Rows with a null category or null
+// target contribute nothing — same as Compute.
+func (c *targetEncode) PrePass(r Record, field string) error {
+	if c.per == nil {
+		c.per = make(map[string]*targetStat, 16)
+	}
+	s, sOk := r.StringValue(field)
+	t, tOk := r.NumericValue(c.target)
+	if !sOk || !tOk {
+		return nil
+	}
+	st := c.per[s]
+	if st == nil {
+		st = &targetStat{}
+		c.per[s] = st
+	}
+	st.sum += t
+	st.count++
+	c.globalSum += t
+	c.globalCount++
+	return nil
+}
+
+// Finalize freezes globalMean. When no non-null target rows were
+// observed every emitted row is null.
+func (c *targetEncode) Finalize() error {
+	if c.globalCount == 0 {
+		c.empty = true
+		return nil
+	}
+	c.globalMean = c.globalSum / float64(c.globalCount)
+	return nil
+}
+
+// EmitRow returns the encoded mean for the record's category, applying
+// smoothing when configured. Mirrors Compute's per-row branch.
+func (c *targetEncode) EmitRow(r Record, field string) (map[string]Output, error) {
+	if c.empty {
+		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
+	}
+	s, ok := r.StringValue(field)
+	if !ok {
+		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
+	}
+	return map[string]Output{c.label: {Values: []float64{encodedValue(c.per, s, c.globalMean, c.smoothing)}}}, nil
+}
+
+// encodedValue is the shared smoothing math: returns globalMean for an
+// unseen category, the per-cat mean otherwise, with optional additive
+// smoothing toward globalMean. Used by both Compute and EmitRow.
+func encodedValue(per map[string]*targetStat, s string, globalMean, smoothing float64) float64 {
+	st, found := per[s]
+	if !found || st.count == 0 {
+		return globalMean
+	}
+	mean := st.sum / float64(st.count)
+	if smoothing > 0 {
+		return (float64(st.count)*mean + smoothing*globalMean) / (float64(st.count) + smoothing)
+	}
+	return mean
 }
