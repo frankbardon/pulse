@@ -125,6 +125,29 @@ The standard comparison filterers (`FILTER_RANGE`, `FILTER_INCLUDE`, `FILTER_EXC
 
 The `nullable_decimal128` type carries an extra null sentinel value: bit pattern `INT128_MIN` (`0x80` in the high byte, all other bytes zero). The importer rejects this exact value as a legitimate input — if your source data legitimately contains it, scale or shift before import.
 
+## Feature operators on decimal fields
+
+Pre-filter feature operators (`FEAT_LOG`, `FEAT_SQRT`, `FEAT_BUCKETIZE`) consume decimal128 fields by reading the f64 approximation that the cohort reader populates alongside the typed mantissa. The derived column they emit is f64 — there is no native decimal128 `log` or `sqrt` because both are inherently irrational over decimal arguments.
+
+Implications:
+
+- Feature outputs are not auditor-defensible to the last digit. If you need decimal precision in a downstream aggregator, run the aggregator on the original decimal column, not on the feature output.
+- Categorical-only operators (`FEAT_ONE_HOT`, `FEAT_FREQUENCY_ENCODE`, `FEAT_TARGET_ENCODE`) and date-only operators (`FEAT_DATE_FEATURES`) still reject decimal fields per their existing type contracts — predict surfaces a `SERVICE_VALIDATION` error.
+
+Practical pattern:
+
+```json
+{
+  "features": [{"type": "FEAT_LOG", "field": "amount_usd", "label": "log_amount"}],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "amount_usd"},
+    {"type": "AGG_AVERAGE", "field": "log_amount"}
+  ]
+}
+```
+
+The first aggregation stays in decimal128; the second is f64.
+
 ## v1 deferred items
 
 - Per-op rounding mode override.
