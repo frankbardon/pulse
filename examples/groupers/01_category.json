@@ -1,0 +1,12 @@
+{
+  "_comment": "Plain partition on a categorical field. One group per region.",
+  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "groups": [
+    {"type": "GROUP_CATEGORY", "field": "region"}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    {"type": "AGG_AVERAGE", "field": "income", "label": "avg_income"}
+  ],
+  "sort": [{"field": "region"}]
+}

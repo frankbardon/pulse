@@ -1,0 +1,14 @@
+{
+  "_comment": "Cumulative revenue ordered by date. Frame 'rows: unbounded preceding -> current row' = classic running total. preceding=null means UNBOUNDED PRECEDING.",
+  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "windows": [
+    {
+      "type": "WIN_RUNNING_SUM",
+      "field": "revenue",
+      "label": "cumulative_revenue",
+      "order_by": [{"field": "order_date"}],
+      "frame": {"mode": "rows", "preceding": null, "following": 0}
+    }
+  ],
+  "sort": [{"field": "order_date"}]
+}

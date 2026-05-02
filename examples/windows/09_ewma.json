@@ -1,0 +1,15 @@
+{
+  "_comment": "Exponentially weighted moving average. Recurrence: s_i = alpha*x_i + (1-alpha)*s_{i-1}. Lower alpha = smoother, more lag.",
+  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "windows": [
+    {
+      "type": "WIN_EWMA",
+      "field": "revenue",
+      "label": "ewma_revenue",
+      "order_by": [{"field": "order_date"}],
+      "frame": {"mode": "rows", "preceding": null, "following": 0},
+      "params": {"alpha": 0.3}
+    }
+  ],
+  "sort": [{"field": "order_date"}]
+}

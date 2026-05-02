@@ -1,0 +1,17 @@
+{
+  "_comment": "Look ahead two rows. params.offset=2 means each row sees the value two positions later; the last two rows emit null.",
+  "cohort": {"filename": "transactions.pulse", "data_dir": ".data"},
+  "filterers": [
+    {"type": "FILTER_RANGE", "field": "id", "values": ["1", "20"]}
+  ],
+  "windows": [
+    {
+      "type": "WIN_LEAD",
+      "field": "amount",
+      "label": "next_next_amount",
+      "order_by": [{"field": "id"}],
+      "params": {"offset": 2}
+    }
+  ],
+  "sort": [{"field": "id"}]
+}

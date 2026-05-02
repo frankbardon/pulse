@@ -1,0 +1,14 @@
+{
+  "_comment": "Keep only customers in the north or south regions. FILTER_INCLUDE matches the field value against the values list (string equality after categorical resolution).",
+  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "filterers": [
+    {"type": "FILTER_INCLUDE", "field": "region", "values": ["north", "south"]}
+  ],
+  "groups": [
+    {"type": "GROUP_CATEGORY", "field": "region"}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "n"}
+  ],
+  "sort": [{"field": "region"}]
+}

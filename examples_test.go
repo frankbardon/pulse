@@ -14,13 +14,12 @@ import (
 	"github.com/spf13/afero"
 )
 
-// TestFeatureExamples_RunEndToEnd builds the shared fixture cohorts
-// into a temp directory, then loads each example JSON in
-// examples/features/, rewrites the cohort.data_dir to the temp path,
-// and runs the request through pulse.Process. Asserts no errors come
-// back. Catches both example bitrot (schema drift) and operator
-// regressions (something broke since the example was authored).
-func TestFeatureExamples_RunEndToEnd(t *testing.T) {
+// TestExamples_RunEndToEnd builds the shared fixture cohorts into a
+// temp directory, then runs every example JSON across all categories
+// (attributes, filterers, groupers, windows, features) through
+// pulse.Process. Asserts no errors come back. Catches both example
+// bitrot (schema drift) and operator regressions.
+func TestExamples_RunEndToEnd(t *testing.T) {
 	tmp := t.TempDir()
 	fs := afero.NewOsFs()
 
@@ -56,24 +55,39 @@ func TestFeatureExamples_RunEndToEnd(t *testing.T) {
 		}
 	}
 
-	matches, err := filepath.Glob(filepath.Join("examples", "features", "*.json"))
-	if err != nil {
-		t.Fatalf("glob examples: %v", err)
-	}
-	if len(matches) < 10 {
-		t.Fatalf("expected >= 10 example JSONs, found %d", len(matches))
+	categories := []struct {
+		name    string
+		dir     string
+		minJSON int
+	}{
+		{"features", "features", 10},
+		{"attributes", "attributes", 6},
+		{"filterers", "filterers", 4},
+		{"groupers", "groupers", 5},
+		{"windows", "windows", 10},
 	}
 
-	for _, ex := range matches {
-		t.Run(filepath.Base(ex), func(t *testing.T) {
-			runFeatureExample(t, p, ex, tmp)
+	for _, cat := range categories {
+		t.Run(cat.name, func(t *testing.T) {
+			matches, err := filepath.Glob(filepath.Join("examples", cat.dir, "*.json"))
+			if err != nil {
+				t.Fatalf("glob %s: %v", cat.dir, err)
+			}
+			if len(matches) < cat.minJSON {
+				t.Fatalf("category %s: expected >= %d examples, found %d", cat.name, cat.minJSON, len(matches))
+			}
+			for _, ex := range matches {
+				t.Run(filepath.Base(ex), func(t *testing.T) {
+					runExample(t, p, ex, tmp)
+				})
+			}
 		})
 	}
 }
 
-// runFeatureExample loads an example, rewrites its cohort.data_dir to
-// the temp .pulse dir, and dispatches via pulse.Process.
-func runFeatureExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
+// runExample loads an example, rewrites its cohort.data_dir to the
+// temp .pulse dir, and dispatches via pulse.Process.
+func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
 	t.Helper()
 	body, err := os.ReadFile(examplePath)
 	if err != nil {

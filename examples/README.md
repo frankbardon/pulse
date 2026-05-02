@@ -14,11 +14,12 @@ examples/
 │   ├── build.sh               # CSV -> .pulse importer (writes ./.data)
 │   ├── *.csv                  # checked-in source data
 │   └── schemas/*.json         # hand-tuned schemas with descriptions
-├── features/                  # FEAT_* feature engineering examples
-│   ├── README.md
-│   ├── run-all.sh             # smoke-runs every JSON in this folder
-│   └── *.json                 # request files
-└── <new-category>/            # follow the same pattern
+├── attributes/                # ATTR_* per-record derivations (6)
+├── features/                  # FEAT_* feature engineering (10)
+├── filterers/                 # FILTER_* row-level predicates (4)
+├── groupers/                  # GROUP_* partitioning (5)
+├── windows/                   # WIN_* per-row analytics (10)
+└── <new-category>/            # each: README.md + run-all.sh + *.json
 ```
 
 ## One-time setup
@@ -56,7 +57,11 @@ go run examples/fixtures/gen.go
 A category-specific runner exercises everything in its folder:
 
 ```
+./examples/attributes/run-all.sh
 ./examples/features/run-all.sh
+./examples/filterers/run-all.sh
+./examples/groupers/run-all.sh
+./examples/windows/run-all.sh
 ```
 
 Or invoke individual requests:
@@ -82,12 +87,13 @@ bin/pulse api process --request examples/features/01_log_transform.json --json
 
 ## CI coverage
 
-`TestFeatureExamples_RunEndToEnd` (in `examples_test.go`) builds the
-shared fixtures into a temp directory and runs every feature-pack
-example through `pulse.Process`, asserting no errors. Add similar tests
-for new categories as they land so example bitrot fails CI rather than
-the user's first run.
+`TestExamples_RunEndToEnd` (in `examples_test.go`) builds the shared
+fixtures into a temp directory and runs every example across every
+category through `pulse.Process`, asserting no errors. Adding a new
+category is one line in the test's `categories` slice.
 
 ```
-go test -run TestFeatureExamples -v .
+go test -run TestExamples -v .
 ```
+
+Currently 35 sub-tests across five categories.
