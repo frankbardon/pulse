@@ -133,40 +133,50 @@ func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, 
 
 	result := make([]float64, len(records))
 	for i, r := range records {
-		env := r.AllValues()
-		program, err := expr.Compile(a.expression, expr.Env(env))
+		v, err := a.Row(r, field)
 		if err != nil {
-			return nil, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("compiling formula expression: %s", a.expression))
+			return nil, err
 		}
-
-		output, err := expr.Run(program, env)
-		if err != nil {
-			return nil, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("evaluating formula expression: %s", a.expression))
-		}
-
-		switch v := output.(type) {
-		case float64:
-			result[i] = v
-		case float32:
-			result[i] = float64(v)
-		case int:
-			result[i] = float64(v)
-		case int64:
-			result[i] = float64(v)
-		case bool:
-			if v {
-				result[i] = 1.0
-			} else {
-				result[i] = 0.0
-			}
-		default:
-			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("formula expression returned unsupported type %T", output))
-		}
+		result[i] = v
 	}
 	return result, nil
+}
+
+// Row evaluates the formula expression against a single record. Each
+// invocation re-compiles the expression because the env shape may change
+// when records have different sparse-null populations; predict guarantees
+// the expression typechecks against the schema, so compile failures here
+// are user-visible PROCESSING_RUNTIME errors.
+func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
+	env := r.AllValues()
+	program, err := expr.Compile(a.expression, expr.Env(env))
+	if err != nil {
+		return 0, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
+			fmt.Sprintf("compiling formula expression: %s", a.expression))
+	}
+	output, err := expr.Run(program, env)
+	if err != nil {
+		return 0, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
+			fmt.Sprintf("evaluating formula expression: %s", a.expression))
+	}
+	switch v := output.(type) {
+	case float64:
+		return v, nil
+	case float32:
+		return float64(v), nil
+	case int:
+		return float64(v), nil
+	case int64:
+		return float64(v), nil
+	case bool:
+		if v {
+			return 1.0, nil
+		}
+		return 0.0, nil
+	default:
+		return 0, errors.NewCodedError(errors.PROCESSING_RUNTIME,
+			fmt.Sprintf("formula expression returned unsupported type %T", output))
+	}
 }
 
 // --- Percentile Attribute ---
@@ -269,29 +279,37 @@ func (a *datePartAttribute) Compute(records []*Record, field string) ([]float64,
 
 	result := make([]float64, len(records))
 	for i, r := range records {
-		v, ok := r.NumericValue(field)
-		if !ok {
-			result[i] = 0
-			continue
+		v, err := a.Row(r, field)
+		if err != nil {
+			return nil, err
 		}
-
-		t := time.Unix(int64(v)*86400, 0).UTC()
-		year, month, day := t.Date()
-
-		switch a.part {
-		case "year":
-			result[i] = float64(year)
-		case "month":
-			result[i] = float64(month)
-		case "day":
-			result[i] = float64(day)
-		case "year_month":
-			result[i] = float64(year*100 + int(month))
-		case "year_month_day":
-			result[i] = float64(year*10000 + int(month)*100 + day)
-		case "month_day":
-			result[i] = float64(int(month)*100 + day)
-		}
+		result[i] = v
 	}
 	return result, nil
+}
+
+// Row extracts the configured date part from a single record. Null date
+// values produce 0 (matches buffered Compute semantics).
+func (a *datePartAttribute) Row(r *Record, field string) (float64, error) {
+	v, ok := r.NumericValue(field)
+	if !ok {
+		return 0, nil
+	}
+	t := time.Unix(int64(v)*86400, 0).UTC()
+	year, month, day := t.Date()
+	switch a.part {
+	case "year":
+		return float64(year), nil
+	case "month":
+		return float64(month), nil
+	case "day":
+		return float64(day), nil
+	case "year_month":
+		return float64(year*100 + int(month)), nil
+	case "year_month_day":
+		return float64(year*10000 + int(month)*100 + day), nil
+	case "month_day":
+		return float64(int(month)*100 + day), nil
+	}
+	return 0, nil
 }

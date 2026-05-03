@@ -117,10 +117,12 @@ func CanStreamRequest(req *types.Request, schema *encoding.Schema) bool {
 
 // canStream reports whether the request can be safely executed via the
 // streaming path. Streaming requires:
-//   - no grouping (groups need the full record set partitioned by key)
-//   - no attributes (ZSCORE/PERCENTILE/RANK/NORMALIZED need a first
-//     pass to compute population stats; FORMULA is row-local but is
-//     bundled in for simplicity — every attribute today is buffered)
+//   - groups: empty, OR every grouper.Type.Streamable()=true (CATEGORY,
+//     RANGE, ROUNDED, H3_CELL — partitioned via grouped streaming path).
+//     QUANTILE/DATE require a finalize-time view of the full set.
+//   - attributes: empty, OR every attribute.Type.Streamable()=true
+//     (FORMULA, DATE_PART implement RowLocalAttribute and execute
+//     inline). ZSCORE/TSCORE/NORMALIZED/PERCENTILE need population stats.
 //   - no windows (window operators run over the post-aggregate row set)
 //   - features either empty or every operator implements
 //     feature.StreamingComputer (PrePass + Finalize + EmitRow)
@@ -130,8 +132,17 @@ func CanStreamRequest(req *types.Request, schema *encoding.Schema) bool {
 // Returns false on any unknown component type so the buffered path can
 // surface the canonical error message.
 func (p *Processor) canStream(req *types.Request) bool {
-	if len(req.Groups) > 0 || len(req.Attributes) > 0 || len(req.Windows) > 0 {
+	if len(req.Windows) > 0 {
 		return false
+	}
+	// Groups still force buffered until processStreamingGrouped lands.
+	if len(req.Groups) > 0 {
+		return false
+	}
+	for _, attr := range req.Attributes {
+		if !attr.Type.Streamable() {
+			return false
+		}
 	}
 	if len(req.Features) > 0 && !feature.IsStreamable(req.Features, p.schema) {
 		return false
@@ -235,6 +246,13 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		entries[i] = onlineEntry{agg: agg, online: online}
 	}
 
+	// Build row-local attribute computers. canStream verified every
+	// attribute is row-local; factory failures here are PROCESSING_CONFIG.
+	rowLocalAttrs, err := p.buildRowLocalAttributes(req.Attributes)
+	if err != nil {
+		return nil, err
+	}
+
 	var totalRows, filteredRows int64
 	for iter.Next() {
 		totalRows++
@@ -273,6 +291,18 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			continue
 		}
 		filteredRows++
+
+		// Apply row-local attributes inline; values land on the record
+		// under their label so aggregations referencing the label resolve
+		// like they do in the buffered path.
+		for _, ra := range rowLocalAttrs {
+			val, err := ra.computer.Row(r, ra.attr.Field)
+			if err != nil {
+				return nil, err
+			}
+			r.Set(ra.label, val)
+		}
+
 		for _, e := range entries {
 			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
 				return nil, err
@@ -301,6 +331,47 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			FilteredRows: filteredRows,
 		},
 	}, nil
+}
+
+// rowLocalAttrEntry pairs an attribute spec with its constructed
+// row-local computer and resolved output label. The streaming path
+// drives one entry per filter-passing record.
+type rowLocalAttrEntry struct {
+	attr     *types.Attribute
+	computer RowLocalAttribute
+	label    string
+}
+
+// buildRowLocalAttributes constructs RowLocalAttribute instances for the
+// streaming path. Returns PROCESSING_INTERNAL if any attribute fails the
+// type assertion (canStream should have rejected the request earlier).
+func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLocalAttrEntry, error) {
+	if len(attrs) == 0 {
+		return nil, nil
+	}
+	out := make([]rowLocalAttrEntry, 0, len(attrs))
+	for _, attr := range attrs {
+		factory, ok := attributeRegistry[attr.Type]
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("unknown attribute type: %s", attr.Type))
+		}
+		computer, err := factory(attr, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		rowLocal, ok := computer.(RowLocalAttribute)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("attribute %s does not implement RowLocalAttribute", attr.Type))
+		}
+		label := attr.Label
+		if label == "" {
+			label = fmt.Sprintf("%s_%s", attr.Type, attr.Field)
+		}
+		out = append(out, rowLocalAttrEntry{attr: attr, computer: rowLocal, label: label})
+	}
+	return out, nil
 }
 
 // buildFilterFuncs constructs FilterFuncs from filter specifications.

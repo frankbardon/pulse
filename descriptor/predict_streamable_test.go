@@ -106,8 +106,33 @@ func TestPredict_Streamable_AttributesBlock(t *testing.T) {
 	if result.Streamable {
 		t.Error("Streamable = true, want false")
 	}
-	if !containsReason(result.StreamableReasons, "attributes") {
-		t.Errorf("expected reason mentioning attributes, got %v", result.StreamableReasons)
+	if !containsReason(result.StreamableReasons, "ATTR_ZSCORE") {
+		t.Errorf("expected reason mentioning ATTR_ZSCORE, got %v", result.StreamableReasons)
+	}
+}
+
+// TestPredict_Streamable_RowLocalAttributesAllowed: FORMULA + DATE_PART
+// are row-local; predict should report Streamable=true even with them
+// present (provided no other gates fire).
+func TestPredict_Streamable_RowLocalAttributesAllowed(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+		Attributes: []*types.Attribute{
+			{Type: types.ATTR_FORMULA, Field: "score", Expression: "score * 2", Label: "doubled"},
+		},
+	}
+
+	env := PredictFromBytes(data, req, nil)
+	result := env.Data.(*PredictResult)
+	if !result.Streamable {
+		t.Errorf("Streamable = false, want true. Reasons: %v", result.StreamableReasons)
 	}
 }
 

@@ -26,13 +26,15 @@ func (t AggregationType) Streamable() bool {
 }
 
 // Streamable reports whether this attribute type can be computed in a
-// single pass. Every attribute today is buffered (population stats need a
-// first pass); the method exists so future row-local attributes can opt in
-// without changing the shape of the streamability check.
+// single pass. Row-local attributes (FORMULA, DATE_PART) implement
+// processing.RowLocalAttribute and execute inline against each record.
+// Population-stat attributes (ZSCORE, TSCORE, NORMALIZED, PERCENTILE)
+// need a first pass to derive global stats and remain buffered.
 func (t AttributeType) Streamable() bool {
 	switch t {
-	case ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
-		ATTR_FORMULA, ATTR_PERCENTILE, ATTR_DATE_PART:
+	case ATTR_FORMULA, ATTR_DATE_PART:
+		return true
+	case ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED, ATTR_PERCENTILE:
 		return false
 	}
 	return false

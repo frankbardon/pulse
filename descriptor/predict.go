@@ -164,8 +164,10 @@ func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []str
 	if len(req.Groups) > 0 {
 		reasons = append(reasons, "groups buffer the full record set")
 	}
-	if len(req.Attributes) > 0 {
-		reasons = append(reasons, "attributes require a full pass for population stats")
+	for _, attr := range req.Attributes {
+		if !attr.Type.Streamable() {
+			reasons = append(reasons, "attribute "+string(attr.Type)+" requires a full pass for population stats")
+		}
 	}
 	if len(req.Windows) > 0 {
 		reasons = append(reasons, "windows run over the post-aggregate row set")

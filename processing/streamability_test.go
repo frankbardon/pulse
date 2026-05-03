@@ -71,6 +71,42 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 	}
 }
 
+// TestRegistryAttributeStreamabilityMatchesTypes asserts that for every
+// registered attribute, runtime RowLocalAttribute support matches the
+// type's declared Streamable() value.
+func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
+	for _, attrType := range types.AllAttributeTypes() {
+		factory, ok := attributeRegistry[attrType]
+		if !ok {
+			t.Errorf("attribute %s not in registry", attrType)
+			continue
+		}
+		// FORMULA needs a non-empty expression; DATE_PART needs params.
+		// Provide minimum viable params so factory succeeds.
+		spec := &types.Attribute{Type: attrType, Field: "x"}
+		switch attrType {
+		case types.ATTR_FORMULA:
+			spec.Expression = "1"
+		case types.ATTR_DATE_PART:
+			spec.Params = []byte(`{"part":"year"}`)
+		}
+		schema := &encoding.Schema{
+			Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeDate}},
+		}
+		instance, err := factory(spec, schema)
+		if err != nil {
+			t.Errorf("attribute %s factory error: %v", attrType, err)
+			continue
+		}
+		_, runtimeRowLocal := instance.(RowLocalAttribute)
+		declared := attrType.Streamable()
+		if runtimeRowLocal != declared {
+			t.Errorf("attribute %s: types.Streamable()=%v but runtime RowLocalAttribute=%v — update types/streamability.go to match implementation",
+				attrType, declared, runtimeRowLocal)
+		}
+	}
+}
+
 // TestRegistryStreamabilityMatchesTypes asserts that for every registered
 // aggregator, the runtime capability (does the constructed instance
 // implement OnlineAggregator?) matches the type's declared Streamable()

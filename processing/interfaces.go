@@ -45,6 +45,22 @@ type AttributeComputer interface {
 	Compute(records []*Record, field string) ([]float64, error)
 }
 
+// RowLocalAttribute is the optional sibling of AttributeComputer for
+// attributes whose value depends only on the current row (no first-pass
+// population stats needed). Streaming paths drive RowLocalAttribute.Row
+// inline instead of buffering the full record set.
+//
+// FORMULA and DATE_PART implement this interface; ZSCORE / TSCORE /
+// NORMALIZED / PERCENTILE do NOT — they need population mean/stddev or
+// a sorted view of every value, which forces the buffered path.
+type RowLocalAttribute interface {
+	// Row computes this attribute's value for a single record and field.
+	// Implementations MUST NOT depend on any prior call (no streaming
+	// state). A nil error with a returned float64 is treated as a value;
+	// callers using the optional ok pattern should call RowOk instead.
+	Row(record *Record, field string) (float64, error)
+}
+
 // AttributeFactory creates an AttributeComputer from a type specification.
 type AttributeFactory func(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error)
 

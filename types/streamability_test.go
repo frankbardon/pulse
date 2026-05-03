@@ -45,9 +45,9 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 		ATTR_ZSCORE:     false,
 		ATTR_TSCORE:     false,
 		ATTR_NORMALIZED: false,
-		ATTR_FORMULA:    false,
+		ATTR_FORMULA:    true,
 		ATTR_PERCENTILE: false,
-		ATTR_DATE_PART:  false,
+		ATTR_DATE_PART:  true,
 	}
 	for _, a := range AllAttributeTypes() {
 		want, ok := expected[a]
