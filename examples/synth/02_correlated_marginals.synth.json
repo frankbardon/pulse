@@ -1,0 +1,27 @@
+{
+  "row_count": 5000,
+  "fields": [
+    {
+      "name": "income",
+      "type": "f64",
+      "distribution": "lognormal",
+      "params": { "mu": 10.5, "sigma": 0.6 }
+    },
+    {
+      "name": "age",
+      "type": "u8",
+      "distribution": "normal",
+      "params": { "mean": 38, "std": 12, "min": 18, "max": 90 }
+    },
+    {
+      "name": "credit_score",
+      "type": "u16",
+      "distribution": "normal",
+      "params": { "mean": 700, "std": 80, "min": 300, "max": 850 }
+    }
+  ],
+  "correlations": [
+    { "a": "age", "b": "credit_score", "correlation": 0.4 },
+    { "a": "income", "b": "credit_score", "correlation": 0.6 }
+  ]
+}

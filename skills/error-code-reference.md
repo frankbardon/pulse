@@ -522,4 +522,28 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Use `AGG_GEO_CENTROID` or `AGG_GEO_BBOX` for `point_f64` value-bearing aggregations.
 - For `h3_cell`, group by the cell and aggregate on a numeric field.
+
+### PULSE_SYNTH_DISTRIBUTION_UNKNOWN
+
+**Description**: A synth spec referenced a distribution kind that is not registered in the `synth` package. The generator refuses to invent semantics for an unknown kind.
+
+**Recovery**:
+- Use `synth.AllDistributions()` (or `skills/synthetic-data.md`) to confirm the supported distribution names.
+- Common cause: typo (`gaussian` vs `normal`, `power_law` vs `pareto`).
+
+### PULSE_SYNTH_CONSTRAINT_INFEASIBLE
+
+**Description**: Rejection sampling for declared synth constraints exceeded the allowed rejection rate (50% by default). The generator refuses to produce a biased or truncated cohort.
+
+**Recovery**:
+- Relax the constraint, change the underlying distribution so it concentrates inside the constraint region, or raise `max_rejection_rate` if you accept the cost.
+- Inspect the per-row constraint expressions and verify they are stated correctly (e.g. `>=` vs `>`).
+
+### PULSE_PROFILE_FIELD_UNSUPPORTED
+
+**Description**: The cohort profiler encountered a field type it cannot summarize (currently `point_f64` and `h3_cell`). The field is skipped and an entry is added to the profile's `warnings` block.
+
+**Recovery**:
+- Use schema-mode synthesis for the affected field instead of profile-driven mode.
+- Track follow-up work for native spatial profiling.
 </reference>

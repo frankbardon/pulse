@@ -1,0 +1,18 @@
+{
+  "row_count": 50,
+  "fields": [
+    {
+      "name": "sku",
+      "type": "categorical_u16",
+      "description": "Product SKU shaped like SKU-XXX-99999.",
+      "distribution": "regex",
+      "params": { "pattern": "SKU-[A-Z]{3}-[0-9]{5}", "max_repeat": 5 }
+    },
+    {
+      "name": "weight_kg",
+      "type": "f32",
+      "distribution": "exponential",
+      "params": { "lambda": 1.5 }
+    }
+  ]
+}

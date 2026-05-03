@@ -1,0 +1,17 @@
+{
+  "row_count": 100,
+  "fields": [
+    {
+      "name": "id",
+      "type": "u32",
+      "distribution": "monotonic_from",
+      "params": { "start": 1 }
+    },
+    {
+      "name": "value",
+      "type": "f64",
+      "distribution": "uniform",
+      "params": { "min": 0, "max": 1 }
+    }
+  ]
+}

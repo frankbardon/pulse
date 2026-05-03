@@ -34,6 +34,14 @@
       {
         "name": "mcp",
         "description": "Serve the Model Context Protocol over stdio"
+      },
+      {
+        "name": "synth",
+        "description": "Generate synthetic .pulse cohorts from a schema or profile"
+      },
+      {
+        "name": "profile",
+        "description": "Capture statistical summaries of cohorts for synthesis"
       }
     ],
     "components": {
@@ -187,4 +195,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a9b65bcc876dbd17854749353262967d4cf2452c394272c56f958c001acdb5b7
+// golden-hash: 4109425c32df5d2a90b9ae905eb11c17fdb864c9d18aa8132857f4dc62577e70

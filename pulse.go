@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/fs"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/service"
+	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -23,6 +24,17 @@ type (
 	Request         = types.Request
 	Response        = types.Response
 	ComposedRequest = types.ComposedRequest
+
+	// SynthSpec is the parsed synthesis request shape.
+	SynthSpec = synth.Spec
+	// SynthResult is the result of a successful Synth call.
+	SynthResult = synth.Result
+	// SynthOptions modulate the deterministic seed and other knobs.
+	SynthOptions = synth.Options
+	// Profile is the cohort statistical summary used by from-profile.
+	Profile = synth.Profile
+	// ProfileOptions modulate which statistics the profiler captures.
+	ProfileOptions = synth.ProfileOptions
 )
 
 // Record is a row of field→value data returned by Sample.
@@ -214,6 +226,20 @@ func (p *Pulse) Predict(_ context.Context, req *Request) (*descriptor.PredictRes
 // Sample returns up to n rows from the cohort as maps of field name to value.
 func (p *Pulse) Sample(ctx context.Context, path string, n int) ([]Record, error) {
 	return p.svc.Sample(ctx, path, n)
+}
+
+// Synth materializes a synthetic .pulse file at output from spec. The
+// generator is deterministic for a given (spec, opts.Seed) pair: same
+// seed produces a byte-identical file.
+func (p *Pulse) Synth(_ context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
+	return synth.Synth(p.fsys, spec, output, opts)
+}
+
+// Profile reads a .pulse file at path and returns a statistical summary
+// suitable for from-profile synthesis. The profile retains no individual
+// rows from the source data.
+func (p *Pulse) Profile(_ context.Context, path string, opts ProfileOptions) (*Profile, error) {
+	return synth.ProfileFile(p.fsys, path, opts)
 }
 
 // Facet returns distinct values for the named field in the cohort.
