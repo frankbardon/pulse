@@ -82,5 +82,21 @@ type Grouper interface {
 	Group(records []*Record, field string) (map[string][]*Record, error)
 }
 
+// StreamingGrouper is the optional sibling of Grouper for groupers that
+// can derive a partition key from a single record without seeing the
+// full record set. CATEGORY / RANGE / ROUNDED / H3_CELL implement this
+// interface; QUANTILE and DATE require finalize-time work over the
+// full input.
+//
+// Implementations MUST be safe to call repeatedly; the streaming path
+// invokes KeyForRow once per filter-passing record and uses the key to
+// index a per-group online aggregator bucket.
+type StreamingGrouper interface {
+	// KeyForRow returns the group key string for record's value of field.
+	// ok=false signals the row should be skipped (e.g. null value);
+	// ok=true means the key is valid for bucketing.
+	KeyForRow(record *Record, field string) (key string, ok bool, err error)
+}
+
 // GrouperFactory creates a Grouper from a type specification.
 type GrouperFactory func(grp *types.Group, schema *encoding.Schema) (Grouper, error)

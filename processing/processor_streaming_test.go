@@ -61,9 +61,9 @@ func TestProcessor_StreamingPathFallsBackForBufferedAgg(t *testing.T) {
 	}
 }
 
-// TestProcessor_StreamingFallsBackForGroups verifies grouping always
-// uses the buffered path.
-func TestProcessor_StreamingFallsBackForGroups(t *testing.T) {
+// TestProcessor_StreamingForStreamableGroups verifies grouped streaming
+// runs when every grouper.Type.Streamable() is true.
+func TestProcessor_StreamingForStreamableGroups(t *testing.T) {
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -79,11 +79,40 @@ func TestProcessor_StreamingFallsBackForGroups(t *testing.T) {
 		},
 	}
 
+	resp, err := proc.Process(context.Background(), req, iter)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if proc.LastPath() != PathStreaming {
+		t.Errorf("LastPath = %s, want streaming (CATEGORY group is streamable)", proc.LastPath())
+	}
+	if len(resp.Data) != 2 {
+		t.Errorf("expected 2 group rows, got %d", len(resp.Data))
+	}
+}
+
+// TestProcessor_NonStreamableGroupForcesBuffered verifies QUANTILE
+// (non-streamable) routes through the buffered path.
+func TestProcessor_NonStreamableGroupForcesBuffered(t *testing.T) {
+	schema := numericSchema()
+	proc := NewProcessor(schema)
+
+	records := makeRecords(schema, "age", []float64{1, 2, 3, 4, 5, 6, 7, 8})
+	iter := NewSliceIterator(records)
+
+	req := &types.Request{
+		Groups: []*types.Group{
+			{Type: types.GROUP_QUANTILE, Field: "age", Interval: 4},
+		},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "age", Label: "n"},
+		},
+	}
 	if _, err := proc.Process(context.Background(), req, iter); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if proc.LastPath() != PathBuffered {
-		t.Errorf("LastPath = %s, want buffered (groups force fallback)", proc.LastPath())
+		t.Errorf("LastPath = %s, want buffered (QUANTILE forces fallback)", proc.LastPath())
 	}
 }
 

@@ -161,8 +161,10 @@ func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []str
 	if len(req.Aggregations) == 0 {
 		reasons = append(reasons, "no aggregations: streaming path requires at least one OnlineAggregator")
 	}
-	if len(req.Groups) > 0 {
-		reasons = append(reasons, "groups buffer the full record set")
+	for _, grp := range req.Groups {
+		if !grp.Type.Streamable() {
+			reasons = append(reasons, "group "+string(grp.Type)+" requires the buffered path")
+		}
 	}
 	for _, attr := range req.Attributes {
 		if !attr.Type.Streamable() {

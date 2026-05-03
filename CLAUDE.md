@@ -257,6 +257,24 @@ CLI: `pulse api compose --parallel N [--no-fail-fast]`.
 
 CLI: `pulse api process --stream` and `pulse api compose --stream` emit NDJSON one row per line.
 
+### What streams today
+
+The streaming Process path covers:
+
+- **No-group requests** with online aggregators (COUNT, SUM, AVG, STDDEV, VARIANCE, RANGE, FREQUENCY, MODE, SKEWNESS, KURTOSIS, DISTINCT_COUNT) on numeric (non-decimal) fields.
+- **Grouped requests** when every grouper is one of CATEGORY, RANGE, ROUNDED, H3_CELL (each implements `processing.StreamingGrouper.KeyForRow`). Per-key online aggregator buckets emit one row per distinct key on stream exhaustion. Memory is O(distinct_groups × per-aggregator-state).
+- **Row-local attributes** ATTR_FORMULA and ATTR_DATE_PART (each implements `processing.RowLocalAttribute.Row`). Computed inline; aggregations referencing the attribute label resolve identically to the buffered path.
+- **Streaming features** (every registered FEAT_* implements `feature.StreamingComputer`).
+
+Forced buffered:
+
+- Median, percentile, ZScore aggregators (need sort/population stats).
+- ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED / ATTR_PERCENTILE (population stats).
+- GROUP_QUANTILE / GROUP_DATE (finalize-time work over full set).
+- Window operators (sorted post-aggregate row set).
+- Decimal-typed field aggregations (precision-preserving path).
+- Geo aggregations (typed buffered path).
+
 ### CI gates
 
 - `TestPredictNoExecutionImports` — grep gate enforcing the no-execute ban on `predict.go`

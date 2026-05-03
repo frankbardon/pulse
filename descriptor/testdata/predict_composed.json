@@ -29,10 +29,7 @@
         "grade"
       ]
     },
-    "streamable": false,
-    "streamable_reasons": [
-      "groups buffer the full record set"
-    ]
+    "streamable": true
   },
   "errors": [],
   "warnings": [
@@ -46,4 +43,4 @@
     }
   ]
 }
-// golden-hash: 52749ba05c6c8ac098157d2a160c4b91812e5cc88a9a5226032a24fdfa446ee0
+// golden-hash: 5fde7377e4288e6e8e00db749af5323eaff7d95fa5137e75aff0271c291eb0d3

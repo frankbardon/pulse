@@ -38,8 +38,9 @@ func TestPredict_Streamable_OnlineAggregations(t *testing.T) {
 	}
 }
 
-// TestPredict_Streamable_GroupBlocksStreaming asserts groups force buffered.
-func TestPredict_Streamable_GroupBlocksStreaming(t *testing.T) {
+// TestPredict_Streamable_StreamableGroupAllowed: GROUP_CATEGORY with
+// online aggregators reports streamable=true.
+func TestPredict_Streamable_StreamableGroupAllowed(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -49,17 +50,38 @@ func TestPredict_Streamable_GroupBlocksStreaming(t *testing.T) {
 	data := buildTestPulseFile(t, schema)
 
 	req := &types.Request{
-		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score"}},
 		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grade"}},
 	}
 
 	env := PredictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
-	if result.Streamable {
-		t.Error("Streamable = true, want false")
+	if !result.Streamable {
+		t.Errorf("Streamable = false, want true. Reasons: %v", result.StreamableReasons)
 	}
-	if !containsReason(result.StreamableReasons, "groups") {
-		t.Errorf("expected reason mentioning groups, got %v", result.StreamableReasons)
+}
+
+// TestPredict_Streamable_NonStreamableGroupBlocks: GROUP_QUANTILE forces
+// buffered.
+func TestPredict_Streamable_NonStreamableGroupBlocks(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score"}},
+		Groups:       []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score", Interval: 4}},
+	}
+	env := PredictFromBytes(data, req, nil)
+	result := env.Data.(*PredictResult)
+	if result.Streamable {
+		t.Error("Streamable = true, want false (QUANTILE not streamable)")
+	}
+	if !containsReason(result.StreamableReasons, "GROUP_QUANTILE") {
+		t.Errorf("expected reason mentioning GROUP_QUANTILE, got %v", result.StreamableReasons)
 	}
 }
 

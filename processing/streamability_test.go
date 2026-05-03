@@ -41,10 +41,19 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 			want:   false,
 		},
 		{
-			name: "groups force buffered",
+			name: "streamable group + online aggs streams",
 			req: &types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
 				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "score"}},
+			},
+			schema: numericSchema,
+			want:   true,
+		},
+		{
+			name: "non-streamable group forces buffered",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Groups:       []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score", Interval: 4}},
 			},
 			schema: numericSchema,
 			want:   false,

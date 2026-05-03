@@ -85,7 +85,13 @@ func (p *Processor) LastPath() ProcessPath {
 // Welford-Pébaÿ recurrences in the streaming path).
 func (p *Processor) Process(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
 	if p.canStream(req) {
-		resp, err := p.processStreaming(ctx, req, iter)
+		var resp *types.Response
+		var err error
+		if len(req.Groups) > 0 {
+			resp, err = p.processStreamingGrouped(ctx, req, iter)
+		} else {
+			resp, err = p.processStreaming(ctx, req, iter)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -135,9 +141,10 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if len(req.Windows) > 0 {
 		return false
 	}
-	// Groups still force buffered until processStreamingGrouped lands.
-	if len(req.Groups) > 0 {
-		return false
+	for _, grp := range req.Groups {
+		if !grp.Type.Streamable() {
+			return false
+		}
 	}
 	for _, attr := range req.Attributes {
 		if !attr.Type.Streamable() {
@@ -326,6 +333,198 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	_ = ctx
 	return &types.Response{
 		Data: []map[string]any{row},
+		Metadata: &types.ResponseMetadata{
+			TotalRows:    totalRows,
+			FilteredRows: filteredRows,
+		},
+	}, nil
+}
+
+// processStreamingGrouped runs the streaming execution path for
+// requests with one streamable grouper. Each filter-passing record's
+// group key indexes a per-key bucket of fresh OnlineAggregator
+// instances; finalize emits one output row per distinct key with the
+// group field set to the key string. Matches the buffered processGrouped
+// contract: only the first group is consulted (multi-grouper composite
+// keys are not supported in either path today).
+//
+// Memory bound: O(distinct_groups × per_aggregator_state). High-cardinality
+// groups still hold every key's aggregator in memory; the win is avoiding
+// the full record buffer that the buffered path requires.
+func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	grp := req.Groups[0]
+	grouperFactory, ok := grouperRegistry[grp.Type]
+	if !ok {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("unknown group type: %s", grp.Type))
+	}
+	grouperInstance, err := grouperFactory(grp, p.schema)
+	if err != nil {
+		return nil, err
+	}
+	streamGrp, ok := grouperInstance.(StreamingGrouper)
+	if !ok {
+		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("grouper %s does not implement StreamingGrouper", grp.Type))
+	}
+
+	// Pre-compute aggregator labels so per-key bucket construction is cheap.
+	type aggSpec struct {
+		agg     *types.Aggregation
+		label   string
+		factory AggregatorFactory
+	}
+	specs := make([]aggSpec, len(req.Aggregations))
+	for i, agg := range req.Aggregations {
+		factory := aggregatorRegistry[agg.Type] // canStream verified
+		label := agg.Label
+		if label == "" {
+			label = fmt.Sprintf("%s_%s", agg.Type, agg.Field)
+		}
+		specs[i] = aggSpec{agg: agg, label: label, factory: factory}
+	}
+
+	// Build feature handles + filter funcs + row-local attrs once.
+	var streamingFeatures []feature.StreamingHandle
+	if len(req.Features) > 0 {
+		handles, err := feature.BuildStreaming(req.Features, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		streamingFeatures = handles
+		for iter.Next() {
+			rec := iter.Record()
+			for _, h := range streamingFeatures {
+				if err := h.Computer.PrePass(rec, h.Feature.Field); err != nil {
+					return nil, err
+				}
+			}
+		}
+		for _, h := range streamingFeatures {
+			if err := h.Computer.Finalize(); err != nil {
+				return nil, err
+			}
+		}
+		iter.Reset()
+	}
+
+	filterFns, err := p.buildFilterFuncs(req.Filterers)
+	if err != nil {
+		return nil, err
+	}
+	rowLocalAttrs, err := p.buildRowLocalAttributes(req.Attributes)
+	if err != nil {
+		return nil, err
+	}
+
+	// Per-group bucket. Keys are insertion-ordered to match buffered
+	// path's map-iteration nondeterminism: callers that need stable
+	// ordering must apply Sort.
+	type bucket struct {
+		online []OnlineAggregator
+	}
+	buckets := make(map[string]*bucket)
+
+	var totalRows, filteredRows int64
+	for iter.Next() {
+		totalRows++
+		r := iter.Record()
+
+		for _, h := range streamingFeatures {
+			outputs, err := h.Computer.EmitRow(r, h.Feature.Field)
+			if err != nil {
+				return nil, err
+			}
+			for label, out := range outputs {
+				if len(out.Nulls) > 0 && out.Nulls[0] {
+					r.SetNull(label)
+				} else {
+					r.Set(label, out.Values[0])
+				}
+			}
+		}
+
+		pass := true
+		for _, fn := range filterFns {
+			ok, err := fn(r)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				pass = false
+				break
+			}
+		}
+		if !pass {
+			continue
+		}
+		filteredRows++
+
+		for _, ra := range rowLocalAttrs {
+			val, err := ra.computer.Row(r, ra.attr.Field)
+			if err != nil {
+				return nil, err
+			}
+			r.Set(ra.label, val)
+		}
+
+		key, ok, err := streamGrp.KeyForRow(r, grp.Field)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue // null group key — buffered path skips these too
+		}
+
+		b, exists := buckets[key]
+		if !exists {
+			online := make([]OnlineAggregator, len(specs))
+			for i, s := range specs {
+				inst, err := s.factory(s.agg, p.schema)
+				if err != nil {
+					return nil, err
+				}
+				oa, ok := inst.(OnlineAggregator)
+				if !ok {
+					return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+						fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
+				}
+				online[i] = oa
+			}
+			b = &bucket{online: online}
+			buckets[key] = b
+		}
+		for i, oa := range b.online {
+			if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	data := make([]map[string]any, 0, len(buckets))
+	for key, b := range buckets {
+		// +1 reserved for the group key written below.
+		row := make(map[string]any, len(specs)+1)
+		for i, oa := range b.online {
+			val, err := oa.Finalize()
+			if err != nil {
+				return nil, err
+			}
+			row[specs[i].label] = val
+		}
+		row[grp.Field] = key
+		data = append(data, row)
+	}
+
+	// Apply sort to grouped output, mirroring processRecords behavior so
+	// callers receive deterministic ordering on a small post-aggregate set.
+	if len(req.Sort) > 0 {
+		window.Sort(data, req.Sort)
+	}
+
+	_ = ctx
+	return &types.Response{
+		Data: data,
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,
