@@ -259,21 +259,22 @@ CLI: `pulse api process --stream` and `pulse api compose --stream` emit NDJSON o
 
 ### What streams today
 
-The streaming Process path covers:
+The streaming Process path covers four orchestrator modes:
 
-- **No-group requests** with online aggregators (COUNT, SUM, AVG, STDDEV, VARIANCE, RANGE, FREQUENCY, MODE, SKEWNESS, KURTOSIS, DISTINCT_COUNT) on numeric (non-decimal) fields.
-- **Grouped requests** when every grouper is one of CATEGORY, RANGE, ROUNDED, H3_CELL (each implements `processing.StreamingGrouper.KeyForRow`). Per-key online aggregator buckets emit one row per distinct key on stream exhaustion. Memory is O(distinct_groups × per-aggregator-state).
-- **Row-local attributes** ATTR_FORMULA and ATTR_DATE_PART (each implements `processing.RowLocalAttribute.Row`). Computed inline; aggregations referencing the attribute label resolve identically to the buffered path.
-- **Streaming features** (every registered FEAT_* implements `feature.StreamingComputer`).
+- **Single-pass streaming** (`processStreaming`): no-group requests with online aggregators (COUNT, SUM, AVG, STDDEV, VARIANCE, RANGE, FREQUENCY, MODE, SKEWNESS, KURTOSIS, DISTINCT_COUNT) on numeric (non-decimal) fields. Row-local attributes (FORMULA, DATE_PART, via `RowLocalAttribute.Row`) apply inline.
+- **Grouped streaming** (`processStreamingGrouped`): groupers implementing `StreamingGrouper.KeyForRow` (CATEGORY, RANGE, ROUNDED, H3_CELL) drive per-key online aggregator buckets. Memory is O(distinct_groups × per-aggregator-state). One row per distinct key on stream exhaustion.
+- **Two-pass streaming** (`processStreamingTwoPass`): attributes implementing `TwoPassAttribute` (ZSCORE, TSCORE, NORMALIZED) compute population stats via Welford-Pébaÿ pass 1, then emit per-row values in pass 2 after `iter.Reset()`. Mirrors the streaming feature pattern (`feature.StreamingComputer.PrePass + Finalize + EmitRow`). Memory is O(per-attribute-state); cost is 2× iter scan (typically OS-page-cached).
+- **Streaming features** (every registered FEAT_* implements `feature.StreamingComputer`) compose with single-pass and grouped streaming.
 
 Forced buffered:
 
-- Median, percentile, ZScore aggregators (need sort/population stats).
-- ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED / ATTR_PERCENTILE (population stats).
-- GROUP_QUANTILE / GROUP_DATE (finalize-time work over full set).
+- Median, percentile, ZScore *aggregators* (sort or summed deviations).
+- `ATTR_PERCENTILE` (sorted view of every value — no streaming algorithm preserves exact rank).
+- `GROUP_QUANTILE` / `GROUP_DATE` (finalize-time work over full set).
 - Window operators (sorted post-aggregate row set).
 - Decimal-typed field aggregations (precision-preserving path).
 - Geo aggregations (typed buffered path).
+- Two-pass attributes combined with features or groups (orchestration matrix not yet extended; tracked separately).
 
 ### CI gates
 

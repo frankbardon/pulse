@@ -26,15 +26,24 @@ func (t AggregationType) Streamable() bool {
 }
 
 // Streamable reports whether this attribute type can be computed in a
-// single pass. Row-local attributes (FORMULA, DATE_PART) implement
-// processing.RowLocalAttribute and execute inline against each record.
-// Population-stat attributes (ZSCORE, TSCORE, NORMALIZED, PERCENTILE)
-// need a first pass to derive global stats and remain buffered.
+// streaming path. Three tiers exist at runtime:
+//
+//   - Row-local: FORMULA, DATE_PART implement processing.RowLocalAttribute
+//     and execute inline with no PrePass.
+//   - Two-pass: ZSCORE, TSCORE, NORMALIZED implement
+//     processing.TwoPassAttribute and need a PrePass over filter-passing
+//     records, Finalize, then per-row Row() in pass 2 (iter.Reset()).
+//   - Buffered-only: PERCENTILE needs a sorted view of every value;
+//     no streaming algorithm preserves exact rank semantics.
+//
+// Streamable() returns true for the first two tiers since both routes
+// avoid materializing the full record set in memory.
 func (t AttributeType) Streamable() bool {
 	switch t {
-	case ATTR_FORMULA, ATTR_DATE_PART:
+	case ATTR_FORMULA, ATTR_DATE_PART,
+		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED:
 		return true
-	case ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED, ATTR_PERCENTILE:
+	case ATTR_PERCENTILE:
 		return false
 	}
 	return false

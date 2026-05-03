@@ -109,8 +109,9 @@ func TestPredict_Streamable_NonOnlineAggBlocksStreaming(t *testing.T) {
 	}
 }
 
-// TestPredict_Streamable_AttributesBlock asserts attributes force buffered.
-func TestPredict_Streamable_AttributesBlock(t *testing.T) {
+// TestPredict_Streamable_PercentileAttributeBlocks asserts ATTR_PERCENTILE
+// (the only remaining buffered-only attribute) forces buffered.
+func TestPredict_Streamable_PercentileAttributeBlocks(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -120,7 +121,7 @@ func TestPredict_Streamable_AttributesBlock(t *testing.T) {
 
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
-		Attributes:   []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "score"}},
+		Attributes:   []*types.Attribute{{Type: types.ATTR_PERCENTILE, Field: "score"}},
 	}
 
 	env := PredictFromBytes(data, req, nil)
@@ -128,8 +129,31 @@ func TestPredict_Streamable_AttributesBlock(t *testing.T) {
 	if result.Streamable {
 		t.Error("Streamable = true, want false")
 	}
-	if !containsReason(result.StreamableReasons, "ATTR_ZSCORE") {
-		t.Errorf("expected reason mentioning ATTR_ZSCORE, got %v", result.StreamableReasons)
+	if !containsReason(result.StreamableReasons, "ATTR_PERCENTILE") {
+		t.Errorf("expected reason mentioning ATTR_PERCENTILE, got %v", result.StreamableReasons)
+	}
+}
+
+// TestPredict_Streamable_TwoPassAttributeAllowed: ZSCORE/TSCORE/NORMALIZED
+// implement TwoPassAttribute and report streamable=true.
+func TestPredict_Streamable_TwoPassAttributeAllowed(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	for _, attrType := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED} {
+		req := &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+			Attributes:   []*types.Attribute{{Type: attrType, Field: "score"}},
+		}
+		env := PredictFromBytes(data, req, nil)
+		result := env.Data.(*PredictResult)
+		if !result.Streamable {
+			t.Errorf("%s: Streamable = false, want true. Reasons: %v", attrType, result.StreamableReasons)
+		}
 	}
 }
 

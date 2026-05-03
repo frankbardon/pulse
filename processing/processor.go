@@ -87,9 +87,12 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 	if p.canStream(req) {
 		var resp *types.Response
 		var err error
-		if len(req.Groups) > 0 {
+		switch {
+		case len(req.Groups) > 0:
 			resp, err = p.processStreamingGrouped(ctx, req, iter)
-		} else {
+		case hasTwoPassAttribute(req):
+			resp, err = p.processStreamingTwoPass(ctx, req, iter)
+		default:
 			resp, err = p.processStreaming(ctx, req, iter)
 		}
 		if err != nil {
@@ -121,6 +124,30 @@ func CanStreamRequest(req *types.Request, schema *encoding.Schema) bool {
 	return p.canStream(req)
 }
 
+// requiresTwoPass reports whether the attribute type implements
+// TwoPassAttribute (and therefore needs a PrePass over filter-passing
+// records before per-row emission). Mirrors the attribute factories in
+// processing/attribute.go: ZSCORE/TSCORE/NORMALIZED need population
+// stats; FORMULA/DATE_PART are pure row-local.
+func requiresTwoPass(t types.AttributeType) bool {
+	switch t {
+	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED:
+		return true
+	}
+	return false
+}
+
+// hasTwoPassAttribute reports whether req has any attribute whose type
+// requires the two-pass streaming path.
+func hasTwoPassAttribute(req *types.Request) bool {
+	for _, attr := range req.Attributes {
+		if requiresTwoPass(attr.Type) {
+			return true
+		}
+	}
+	return false
+}
+
 // canStream reports whether the request can be safely executed via the
 // streaming path. Streaming requires:
 //   - groups: empty, OR every grouper.Type.Streamable()=true (CATEGORY,
@@ -146,10 +173,21 @@ func (p *Processor) canStream(req *types.Request) bool {
 			return false
 		}
 	}
+	hasTwoPassAttr := false
 	for _, attr := range req.Attributes {
 		if !attr.Type.Streamable() {
 			return false
 		}
+		if requiresTwoPass(attr.Type) {
+			hasTwoPassAttr = true
+		}
+	}
+	// Two-pass attribute orchestration does not yet compose with the
+	// streaming feature pipeline (filter/EmitRow ordering) or grouped
+	// streaming (per-group attribute stats). Force buffered for those
+	// combinations until the next iteration extends coverage.
+	if hasTwoPassAttr && (len(req.Features) > 0 || len(req.Groups) > 0) {
+		return false
 	}
 	if len(req.Features) > 0 && !feature.IsStreamable(req.Features, p.schema) {
 		return false
@@ -525,6 +563,191 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	_ = ctx
 	return &types.Response{
 		Data: data,
+		Metadata: &types.ResponseMetadata{
+			TotalRows:    totalRows,
+			FilteredRows: filteredRows,
+		},
+	}, nil
+}
+
+// twoPassAttrEntry pairs an attribute spec with its constructed
+// two-pass computer and resolved output label. processStreamingTwoPass
+// drives one entry per filter-passing record (PrePass) then one per
+// record again in pass 2 (Row).
+type twoPassAttrEntry struct {
+	attr     *types.Attribute
+	computer TwoPassAttribute
+	label    string
+}
+
+// buildTwoPassAttributes splits the attribute list into two-pass and
+// row-local buckets. Both buckets share the same construction +
+// validation path; only the runtime drive differs.
+func (p *Processor) buildTwoPassAttributes(attrs []*types.Attribute) (twoPass []twoPassAttrEntry, rowLocal []rowLocalAttrEntry, err error) {
+	for _, attr := range attrs {
+		factory, ok := attributeRegistry[attr.Type]
+		if !ok {
+			return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("unknown attribute type: %s", attr.Type))
+		}
+		computer, factoryErr := factory(attr, p.schema)
+		if factoryErr != nil {
+			return nil, nil, factoryErr
+		}
+		label := attr.Label
+		if label == "" {
+			label = fmt.Sprintf("%s_%s", attr.Type, attr.Field)
+		}
+		if tp, ok := computer.(TwoPassAttribute); ok {
+			twoPass = append(twoPass, twoPassAttrEntry{attr: attr, computer: tp, label: label})
+			continue
+		}
+		if rl, ok := computer.(RowLocalAttribute); ok {
+			rowLocal = append(rowLocal, rowLocalAttrEntry{attr: attr, computer: rl, label: label})
+			continue
+		}
+		return nil, nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("attribute %s implements neither TwoPassAttribute nor RowLocalAttribute", attr.Type))
+	}
+	return twoPass, rowLocal, nil
+}
+
+// processStreamingTwoPass runs the two-pass streaming path: pass 1
+// folds every filter-passing record into TwoPassAttribute.PrePass,
+// Finalize locks population stats, iter.Reset() rewinds, and pass 2
+// emits attribute values + folds online aggregations row-by-row.
+//
+// canStream verified: no features, no groups, no windows, every
+// aggregation online, every attribute either two-pass or row-local.
+// These restrictions keep the orchestration matrix manageable for v1;
+// extending to feature/grouped combinations is tracked separately.
+//
+// Memory bound: O(per_attribute_state). Pass 1 + pass 2 = 2× iter
+// scan; the underlying file is typically OS-page-cached after pass 1.
+func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	filterFns, err := p.buildFilterFuncs(req.Filterers)
+	if err != nil {
+		return nil, err
+	}
+	twoPassAttrs, rowLocalAttrs, err := p.buildTwoPassAttributes(req.Attributes)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build aggregator instances once; they are reset implicitly by
+	// being constructed fresh per Process call. Each one will fold
+	// pass 2's filter-passing records into its running state.
+	type onlineEntry struct {
+		agg    *types.Aggregation
+		online OnlineAggregator
+	}
+	entries := make([]onlineEntry, len(req.Aggregations))
+	for i, agg := range req.Aggregations {
+		factory := aggregatorRegistry[agg.Type]
+		instance, err := factory(agg, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		online, ok := instance.(OnlineAggregator)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("aggregator %s does not implement OnlineAggregator", agg.Type))
+		}
+		entries[i] = onlineEntry{agg: agg, online: online}
+	}
+
+	// Pass 1: fold every filter-passing record into each two-pass
+	// attribute's PrePass. Filters apply here so attribute population
+	// stats match the buffered Compute path (which receives the already-
+	// filtered slice).
+	var totalRows, filteredRows int64
+	for iter.Next() {
+		totalRows++
+		r := iter.Record()
+		pass := true
+		for _, fn := range filterFns {
+			ok, err := fn(r)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				pass = false
+				break
+			}
+		}
+		if !pass {
+			continue
+		}
+		filteredRows++
+		for _, ta := range twoPassAttrs {
+			if err := ta.computer.PrePass(r, ta.attr.Field); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, ta := range twoPassAttrs {
+		if err := ta.computer.Finalize(); err != nil {
+			return nil, err
+		}
+	}
+	iter.Reset()
+
+	// Pass 2: re-scan, apply filters again, emit attribute values onto
+	// each filter-passing record (two-pass first so any row-local
+	// attribute referencing a two-pass label sees it), fold each agg.
+	for iter.Next() {
+		r := iter.Record()
+		pass := true
+		for _, fn := range filterFns {
+			ok, err := fn(r)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				pass = false
+				break
+			}
+		}
+		if !pass {
+			continue
+		}
+		for _, ta := range twoPassAttrs {
+			val, err := ta.computer.Row(r, ta.attr.Field)
+			if err != nil {
+				return nil, err
+			}
+			r.Set(ta.label, val)
+		}
+		for _, ra := range rowLocalAttrs {
+			val, err := ra.computer.Row(r, ra.attr.Field)
+			if err != nil {
+				return nil, err
+			}
+			r.Set(ra.label, val)
+		}
+		for _, e := range entries {
+			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	row := make(map[string]any, len(entries))
+	for _, e := range entries {
+		val, err := e.online.Finalize()
+		if err != nil {
+			return nil, err
+		}
+		label := e.agg.Label
+		if label == "" {
+			label = fmt.Sprintf("%s_%s", e.agg.Type, e.agg.Field)
+		}
+		row[label] = val
+	}
+
+	_ = ctx
+	return &types.Response{
+		Data: []map[string]any{row},
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,

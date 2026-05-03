@@ -81,8 +81,9 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 }
 
 // TestRegistryAttributeStreamabilityMatchesTypes asserts that for every
-// registered attribute, runtime RowLocalAttribute support matches the
-// type's declared Streamable() value.
+// registered attribute, runtime streamability support (RowLocalAttribute
+// for one-pass row-local OR TwoPassAttribute for population-stat
+// streaming) matches the type's declared Streamable() value.
 func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 	for _, attrType := range types.AllAttributeTypes() {
 		factory, ok := attributeRegistry[attrType]
@@ -108,10 +109,12 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 			continue
 		}
 		_, runtimeRowLocal := instance.(RowLocalAttribute)
+		_, runtimeTwoPass := instance.(TwoPassAttribute)
+		runtimeStreamable := runtimeRowLocal || runtimeTwoPass
 		declared := attrType.Streamable()
-		if runtimeRowLocal != declared {
-			t.Errorf("attribute %s: types.Streamable()=%v but runtime RowLocalAttribute=%v — update types/streamability.go to match implementation",
-				attrType, declared, runtimeRowLocal)
+		if runtimeStreamable != declared {
+			t.Errorf("attribute %s: types.Streamable()=%v but runtime RowLocalAttribute=%v TwoPassAttribute=%v — update types/streamability.go to match implementation",
+				attrType, declared, runtimeRowLocal, runtimeTwoPass)
 		}
 	}
 }

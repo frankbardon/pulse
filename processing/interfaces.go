@@ -51,14 +51,37 @@ type AttributeComputer interface {
 // inline instead of buffering the full record set.
 //
 // FORMULA and DATE_PART implement this interface; ZSCORE / TSCORE /
-// NORMALIZED / PERCENTILE do NOT — they need population mean/stddev or
-// a sorted view of every value, which forces the buffered path.
+// NORMALIZED implement TwoPassAttribute (a superset). PERCENTILE does
+// NOT implement either — it needs a sorted view of every value, which
+// forces the buffered path.
 type RowLocalAttribute interface {
 	// Row computes this attribute's value for a single record and field.
-	// Implementations MUST NOT depend on any prior call (no streaming
-	// state). A nil error with a returned float64 is treated as a value;
-	// callers using the optional ok pattern should call RowOk instead.
+	// For a pure RowLocalAttribute, no PrePass call is needed; for a
+	// TwoPassAttribute, Row must be called only after Finalize.
 	Row(record *Record, field string) (float64, error)
+}
+
+// TwoPassAttribute is the streaming-friendly path for attributes that
+// need population statistics (ZSCORE / TSCORE need mean+stddev,
+// NORMALIZED needs min+max). The orchestrator drives PrePass over every
+// filter-passing record, then Finalize locks the global stats, then Row
+// emits per-record values during a second iter pass.
+//
+// Mirrors feature.StreamingComputer.PrePass+Finalize+EmitRow so the
+// streaming infrastructure (iter.Reset(), staged passes) is uniform.
+//
+// Implementations MUST be safe to call PrePass repeatedly; Finalize
+// exactly once between PrePass and Row; and Row only after Finalize.
+// State is per-instance — callers construct a fresh instance per Process
+// call via the AttributeFactory.
+type TwoPassAttribute interface {
+	RowLocalAttribute
+	// PrePass folds a single record's contribution into the running
+	// state used to compute population statistics.
+	PrePass(record *Record, field string) error
+	// Finalize closes the PrePass phase. After Finalize, Row may be
+	// called for each record (typically during iter pass 2).
+	Finalize() error
 }
 
 // AttributeFactory creates an AttributeComputer from a type specification.

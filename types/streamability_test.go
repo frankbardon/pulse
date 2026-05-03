@@ -42,9 +42,9 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 
 func TestStreamability_AttributesKnown(t *testing.T) {
 	expected := map[AttributeType]bool{
-		ATTR_ZSCORE:     false,
-		ATTR_TSCORE:     false,
-		ATTR_NORMALIZED: false,
+		ATTR_ZSCORE:     true,
+		ATTR_TSCORE:     true,
+		ATTR_NORMALIZED: true,
 		ATTR_FORMULA:    true,
 		ATTR_PERCENTILE: false,
 		ATTR_DATE_PART:  true,

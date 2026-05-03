@@ -51,9 +51,9 @@ func TestAttribute_FormulaStreamingMatchesBuffered(t *testing.T) {
 	}
 }
 
-// TestAttribute_NonRowLocalForcesBuffered confirms ZSCORE attribute
-// still routes through the buffered path.
-func TestAttribute_NonRowLocalForcesBuffered(t *testing.T) {
+// TestAttribute_PercentileForcesBuffered: ATTR_PERCENTILE has no
+// streaming algorithm and remains buffered.
+func TestAttribute_PercentileForcesBuffered(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "input score"},
@@ -68,17 +68,17 @@ func TestAttribute_NonRowLocalForcesBuffered(t *testing.T) {
 	p := NewProcessor(schema)
 	req := &types.Request{
 		Attributes: []*types.Attribute{
-			{Type: types.ATTR_ZSCORE, Field: "score", Label: "z"},
+			{Type: types.ATTR_PERCENTILE, Field: "score", Label: "p"},
 		},
 		Aggregations: []*types.Aggregation{
-			{Type: types.AGG_SUM, Field: "z", Label: "sum_z"},
+			{Type: types.AGG_SUM, Field: "p", Label: "sum_p"},
 		},
 	}
 	if _, err := p.Process(context.Background(), req, NewSliceIterator(records)); err != nil {
 		t.Fatalf("Process: %v", err)
 	}
 	if p.lastPath != PathBuffered {
-		t.Errorf("expected buffered path for ATTR_ZSCORE, got %s", p.lastPath)
+		t.Errorf("expected buffered path for ATTR_PERCENTILE, got %s", p.lastPath)
 	}
 }
 

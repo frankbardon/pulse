@@ -129,7 +129,7 @@ Load -> Filter -> Group -> Aggregate -> Attributes -> Output.
 
 Streaming-eligible requests can be detected up front via `pulse api predict`: the `streamable` field reports whether ProcessStream avoids buffering inside the engine, and `streamable_reasons` lists every gate that forced buffering (non-streamable groupers like QUANTILE/DATE, population-stat attributes, windows, decimal fields, geo aggregations, non-online aggregators).
 
-Streams today: no-group online aggregations; grouped requests when every grouper is CATEGORY/RANGE/ROUNDED/H3_CELL with online aggregators; row-local attributes ATTR_FORMULA / ATTR_DATE_PART. Forced buffered: median/percentile, ZScore, GROUP_QUANTILE/GROUP_DATE, windows, decimal-typed aggregations, geo aggregations, ATTR_ZSCORE/TSCORE/NORMALIZED/PERCENTILE.
+Streams today: no-group online aggregations; grouped requests when every grouper is CATEGORY/RANGE/ROUNDED/H3_CELL with online aggregators; row-local attributes ATTR_FORMULA / ATTR_DATE_PART; two-pass attributes ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED (Welford pass 1 for population stats, per-row emit in pass 2). Forced buffered: median/percentile/ZScore aggregators, ATTR_PERCENTILE, GROUP_QUANTILE/GROUP_DATE, windows, decimal-typed aggregations, geo aggregations, two-pass attribute combined with features or groups.
 </reference>
 
 <reference>
