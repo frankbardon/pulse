@@ -60,53 +60,66 @@ func newH3Grouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
 	return &h3Grouper{resolution: params.Resolution, fieldType: ft}, nil
 }
 
+// KeyForRow derives the H3 cell key for a single record. Null-typed
+// rows or rows whose wide value is neither point_f64 nor h3_cell return
+// ok=false to be skipped by callers.
+func (g *h3Grouper) KeyForRow(r *Record, field string) (string, bool, error) {
+	v, ok := r.WideValue(field)
+	if !ok {
+		return "", false, nil
+	}
+	var cell h3.Cell
+	switch x := v.(type) {
+	case encoding.PointF64:
+		if g.resolution == nil {
+			return "", false, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				"GROUP_H3_CELL on point_f64 requires resolution param")
+		}
+		c, err := h3.LatLngToCell(h3.LatLng{Lat: x.Lat, Lng: x.Lon}, *g.resolution)
+		if err != nil {
+			return "", false, errors.WrapCodedError(err, errors.PULSE_GEO_INVALID_POINT,
+				"H3 cell conversion failed")
+		}
+		cell = c
+	case encoding.H3Cell:
+		cell = h3.Cell(x)
+		if !cell.IsValid() {
+			return "", false, nil
+		}
+		if g.resolution != nil {
+			native := cell.Resolution()
+			if *g.resolution > native {
+				return "", false, errors.NewCodedErrorWithDetails(errors.PULSE_GEO_INVALID_RESOLUTION,
+					"requested resolution finer than cell native resolution",
+					map[string]any{"requested": *g.resolution, "native": native})
+			}
+			if *g.resolution < native {
+				p, err := cell.Parent(*g.resolution)
+				if err != nil {
+					return "", false, errors.WrapCodedError(err, errors.PULSE_GEO_INVALID_RESOLUTION,
+						"H3 parent walk failed")
+				}
+				cell = p
+			}
+		}
+	default:
+		return "", false, nil
+	}
+	return cell.String(), true, nil
+}
+
 // Group partitions records into H3-cell buckets keyed by lowercase hex
 // cell strings.
 func (g *h3Grouper) Group(records []*Record, field string) (map[string][]*Record, error) {
 	out := make(map[string][]*Record)
 	for _, r := range records {
-		v, ok := r.WideValue(field)
+		key, ok, err := g.KeyForRow(r, field)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
 			continue
 		}
-		var cell h3.Cell
-		switch x := v.(type) {
-		case encoding.PointF64:
-			if g.resolution == nil {
-				return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-					"GROUP_H3_CELL on point_f64 requires resolution param")
-			}
-			c, err := h3.LatLngToCell(h3.LatLng{Lat: x.Lat, Lng: x.Lon}, *g.resolution)
-			if err != nil {
-				return nil, errors.WrapCodedError(err, errors.PULSE_GEO_INVALID_POINT,
-					"H3 cell conversion failed")
-			}
-			cell = c
-		case encoding.H3Cell:
-			cell = h3.Cell(x)
-			if !cell.IsValid() {
-				continue
-			}
-			if g.resolution != nil {
-				native := cell.Resolution()
-				if *g.resolution > native {
-					return nil, errors.NewCodedErrorWithDetails(errors.PULSE_GEO_INVALID_RESOLUTION,
-						"requested resolution finer than cell native resolution",
-						map[string]any{"requested": *g.resolution, "native": native})
-				}
-				if *g.resolution < native {
-					p, err := cell.Parent(*g.resolution)
-					if err != nil {
-						return nil, errors.WrapCodedError(err, errors.PULSE_GEO_INVALID_RESOLUTION,
-							"H3 parent walk failed")
-					}
-					cell = p
-				}
-			}
-		default:
-			continue
-		}
-		key := cell.String()
 		out[key] = append(out[key], r)
 	}
 	return out, nil

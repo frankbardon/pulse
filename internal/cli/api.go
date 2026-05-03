@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/types"
 	cli "github.com/urfave/cli/v3"
@@ -33,10 +34,12 @@ func apiProcessCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
 			jsonOut := cmd.Bool("json")
+			stream := cmd.Bool("stream")
 
 			req, err := loadRequest(reqPath)
 			if err != nil {
@@ -52,6 +55,30 @@ func apiProcessCmd() *cli.Command {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
 				}
 				return err
+			}
+
+			if stream {
+				iter, err := p.ProcessStream(ctx, req)
+				if err != nil {
+					if jsonOut {
+						return writeErrorEnvelope(cmd.Writer, "PROCESS_ERROR", err.Error())
+					}
+					return err
+				}
+				defer iter.Close()
+				enc := json.NewEncoder(cmd.Writer)
+				for {
+					row, ok, err := iter.Next(ctx)
+					if err != nil {
+						return err
+					}
+					if !ok {
+						return nil
+					}
+					if err := enc.Encode(row); err != nil {
+						return err
+					}
+				}
 			}
 
 			resp, err := p.Process(ctx, req)
@@ -78,10 +105,16 @@ func apiComposeCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Composed request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}"},
+			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
+			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
 			jsonOut := cmd.Bool("json")
+			stream := cmd.Bool("stream")
+			workers := int(cmd.Int("parallel"))
+			noFailFast := cmd.Bool("no-fail-fast")
 
 			composed, err := loadComposedRequest(reqPath)
 			if err != nil {
@@ -99,12 +132,35 @@ func apiComposeCmd() *cli.Command {
 				return err
 			}
 
-			responses, err := p.Compose(ctx, composed)
+			var responses []*types.Response
+			if workers != 1 {
+				responses, err = p.ComposeParallel(ctx, composed, pulse.ComposeOptions{
+					MaxWorkers: workers,
+					FailFast:   !noFailFast,
+				})
+			} else {
+				responses, err = p.Compose(ctx, composed)
+			}
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "COMPOSE_ERROR", err.Error())
 				}
 				return err
+			}
+
+			if stream {
+				enc := json.NewEncoder(cmd.Writer)
+				for i, resp := range responses {
+					if resp == nil {
+						continue
+					}
+					for _, row := range resp.Data {
+						if err := enc.Encode(map[string]any{"index": i, "row": row}); err != nil {
+							return err
+						}
+					}
+				}
+				return nil
 			}
 
 			if jsonOut {
@@ -115,6 +171,7 @@ func apiComposeCmd() *cli.Command {
 		},
 	}
 }
+
 
 func apiSampleCmd() *cli.Command {
 	return &cli.Command{

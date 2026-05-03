@@ -3,6 +3,7 @@ package processing
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"time"
 
@@ -14,97 +15,215 @@ import (
 
 // --- ZScore Attribute ---
 
-type zscoreAttribute struct{}
+// zscoreAttribute computes (x - mean) / stddev per row using
+// population mean/stddev derived in pass 1 via Welford-Pébaÿ. Implements
+// TwoPassAttribute so the streaming path can avoid buffering the
+// record set.
+type zscoreAttribute struct {
+	// Welford state (pass 1).
+	count uint64
+	mean  float64
+	m2    float64
+	// Locked at Finalize.
+	finalMean   float64
+	finalStdDev float64
+	finalized   bool
+}
 
 func newZScoreAttribute(_ *types.Attribute, _ *encoding.Schema) (AttributeComputer, error) {
 	return &zscoreAttribute{}, nil
+}
+
+func (a *zscoreAttribute) PrePass(r *Record, field string) error {
+	v, ok := r.NumericValue(field)
+	if !ok {
+		return nil
+	}
+	a.count++
+	delta := v - a.mean
+	a.mean += delta / float64(a.count)
+	a.m2 += delta * (v - a.mean)
+	return nil
+}
+
+func (a *zscoreAttribute) Finalize() error {
+	if a.count == 0 {
+		a.finalMean = 0
+		a.finalStdDev = 0
+	} else {
+		a.finalMean = a.mean
+		a.finalStdDev = math.Sqrt(a.m2 / float64(a.count))
+	}
+	a.finalized = true
+	return nil
+}
+
+func (a *zscoreAttribute) Row(r *Record, field string) (float64, error) {
+	v, ok := r.NumericValue(field)
+	if !ok || a.finalStdDev == 0 {
+		return 0, nil
+	}
+	return (v - a.finalMean) / a.finalStdDev, nil
 }
 
 func (a *zscoreAttribute) Compute(records []*Record, field string) ([]float64, error) {
 	if len(records) == 0 {
 		return []float64{}, nil
 	}
-	vals := collectValues(records, field)
-	m := mean(vals)
-	sd := populationStdDev(vals)
-
+	for _, r := range records {
+		if err := a.PrePass(r, field); err != nil {
+			return nil, err
+		}
+	}
+	if err := a.Finalize(); err != nil {
+		return nil, err
+	}
 	result := make([]float64, len(records))
 	for i, r := range records {
-		v, ok := r.NumericValue(field)
-		if !ok || sd == 0 {
-			result[i] = 0
-			continue
+		val, err := a.Row(r, field)
+		if err != nil {
+			return nil, err
 		}
-		result[i] = (v - m) / sd
+		result[i] = val
 	}
 	return result, nil
 }
 
 // --- TScore Attribute ---
 
-type tscoreAttribute struct{}
+// tscoreAttribute emits z*10+50 per row using population mean/stddev
+// from a Welford pass 1. Implements TwoPassAttribute.
+type tscoreAttribute struct {
+	count       uint64
+	mean        float64
+	m2          float64
+	finalMean   float64
+	finalStdDev float64
+}
 
 func newTScoreAttribute(_ *types.Attribute, _ *encoding.Schema) (AttributeComputer, error) {
 	return &tscoreAttribute{}, nil
+}
+
+func (a *tscoreAttribute) PrePass(r *Record, field string) error {
+	v, ok := r.NumericValue(field)
+	if !ok {
+		return nil
+	}
+	a.count++
+	delta := v - a.mean
+	a.mean += delta / float64(a.count)
+	a.m2 += delta * (v - a.mean)
+	return nil
+}
+
+func (a *tscoreAttribute) Finalize() error {
+	if a.count == 0 {
+		a.finalMean = 0
+		a.finalStdDev = 0
+	} else {
+		a.finalMean = a.mean
+		a.finalStdDev = math.Sqrt(a.m2 / float64(a.count))
+	}
+	return nil
+}
+
+func (a *tscoreAttribute) Row(r *Record, field string) (float64, error) {
+	v, ok := r.NumericValue(field)
+	if !ok || a.finalStdDev == 0 {
+		return 50, nil // T-score of mean when sd=0 or null input
+	}
+	return ((v-a.finalMean)/a.finalStdDev)*10 + 50, nil
 }
 
 func (a *tscoreAttribute) Compute(records []*Record, field string) ([]float64, error) {
 	if len(records) == 0 {
 		return []float64{}, nil
 	}
-	vals := collectValues(records, field)
-	m := mean(vals)
-	sd := populationStdDev(vals)
-
+	for _, r := range records {
+		if err := a.PrePass(r, field); err != nil {
+			return nil, err
+		}
+	}
+	if err := a.Finalize(); err != nil {
+		return nil, err
+	}
 	result := make([]float64, len(records))
 	for i, r := range records {
-		v, ok := r.NumericValue(field)
-		if !ok || sd == 0 {
-			result[i] = 50 // T-score of mean when sd=0
-			continue
+		val, err := a.Row(r, field)
+		if err != nil {
+			return nil, err
 		}
-		z := (v - m) / sd
-		result[i] = z*10 + 50
+		result[i] = val
 	}
 	return result, nil
 }
 
 // --- Normalized Attribute ---
 
-type normalizedAttribute struct{}
+// normalizedAttribute emits (x-min)/(max-min) per row using population
+// min/max from a Welford-shaped pass 1. Implements TwoPassAttribute.
+type normalizedAttribute struct {
+	seen     bool
+	min, max float64
+	rng      float64
+}
 
 func newNormalizedAttribute(_ *types.Attribute, _ *encoding.Schema) (AttributeComputer, error) {
 	return &normalizedAttribute{}, nil
+}
+
+func (a *normalizedAttribute) PrePass(r *Record, field string) error {
+	v, ok := r.NumericValue(field)
+	if !ok {
+		return nil
+	}
+	if !a.seen {
+		a.min, a.max = v, v
+		a.seen = true
+		return nil
+	}
+	if v < a.min {
+		a.min = v
+	}
+	if v > a.max {
+		a.max = v
+	}
+	return nil
+}
+
+func (a *normalizedAttribute) Finalize() error {
+	a.rng = a.max - a.min
+	return nil
+}
+
+func (a *normalizedAttribute) Row(r *Record, field string) (float64, error) {
+	v, ok := r.NumericValue(field)
+	if !ok || a.rng == 0 {
+		return 0, nil
+	}
+	return (v - a.min) / a.rng, nil
 }
 
 func (a *normalizedAttribute) Compute(records []*Record, field string) ([]float64, error) {
 	if len(records) == 0 {
 		return []float64{}, nil
 	}
-	vals := collectValues(records, field)
-	if len(vals) == 0 {
-		return make([]float64, len(records)), nil
-	}
-
-	minV, maxV := vals[0], vals[0]
-	for _, v := range vals[1:] {
-		if v < minV {
-			minV = v
-		}
-		if v > maxV {
-			maxV = v
+	for _, r := range records {
+		if err := a.PrePass(r, field); err != nil {
+			return nil, err
 		}
 	}
-
-	rng := maxV - minV
+	if err := a.Finalize(); err != nil {
+		return nil, err
+	}
 	result := make([]float64, len(records))
 	for i, r := range records {
-		v, ok := r.NumericValue(field)
-		if !ok || rng == 0 {
-			result[i] = 0
-			continue
+		val, err := a.Row(r, field)
+		if err != nil {
+			return nil, err
 		}
-		result[i] = (v - minV) / rng
+		result[i] = val
 	}
 	return result, nil
 }
@@ -133,40 +252,50 @@ func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, 
 
 	result := make([]float64, len(records))
 	for i, r := range records {
-		env := r.AllValues()
-		program, err := expr.Compile(a.expression, expr.Env(env))
+		v, err := a.Row(r, field)
 		if err != nil {
-			return nil, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("compiling formula expression: %s", a.expression))
+			return nil, err
 		}
-
-		output, err := expr.Run(program, env)
-		if err != nil {
-			return nil, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("evaluating formula expression: %s", a.expression))
-		}
-
-		switch v := output.(type) {
-		case float64:
-			result[i] = v
-		case float32:
-			result[i] = float64(v)
-		case int:
-			result[i] = float64(v)
-		case int64:
-			result[i] = float64(v)
-		case bool:
-			if v {
-				result[i] = 1.0
-			} else {
-				result[i] = 0.0
-			}
-		default:
-			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("formula expression returned unsupported type %T", output))
-		}
+		result[i] = v
 	}
 	return result, nil
+}
+
+// Row evaluates the formula expression against a single record. Each
+// invocation re-compiles the expression because the env shape may change
+// when records have different sparse-null populations; predict guarantees
+// the expression typechecks against the schema, so compile failures here
+// are user-visible PROCESSING_RUNTIME errors.
+func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
+	env := r.AllValues()
+	program, err := expr.Compile(a.expression, expr.Env(env))
+	if err != nil {
+		return 0, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
+			fmt.Sprintf("compiling formula expression: %s", a.expression))
+	}
+	output, err := expr.Run(program, env)
+	if err != nil {
+		return 0, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
+			fmt.Sprintf("evaluating formula expression: %s", a.expression))
+	}
+	switch v := output.(type) {
+	case float64:
+		return v, nil
+	case float32:
+		return float64(v), nil
+	case int:
+		return float64(v), nil
+	case int64:
+		return float64(v), nil
+	case bool:
+		if v {
+			return 1.0, nil
+		}
+		return 0.0, nil
+	default:
+		return 0, errors.NewCodedError(errors.PROCESSING_RUNTIME,
+			fmt.Sprintf("formula expression returned unsupported type %T", output))
+	}
 }
 
 // --- Percentile Attribute ---
@@ -269,29 +398,37 @@ func (a *datePartAttribute) Compute(records []*Record, field string) ([]float64,
 
 	result := make([]float64, len(records))
 	for i, r := range records {
-		v, ok := r.NumericValue(field)
-		if !ok {
-			result[i] = 0
-			continue
+		v, err := a.Row(r, field)
+		if err != nil {
+			return nil, err
 		}
-
-		t := time.Unix(int64(v)*86400, 0).UTC()
-		year, month, day := t.Date()
-
-		switch a.part {
-		case "year":
-			result[i] = float64(year)
-		case "month":
-			result[i] = float64(month)
-		case "day":
-			result[i] = float64(day)
-		case "year_month":
-			result[i] = float64(year*100 + int(month))
-		case "year_month_day":
-			result[i] = float64(year*10000 + int(month)*100 + day)
-		case "month_day":
-			result[i] = float64(int(month)*100 + day)
-		}
+		result[i] = v
 	}
 	return result, nil
+}
+
+// Row extracts the configured date part from a single record. Null date
+// values produce 0 (matches buffered Compute semantics).
+func (a *datePartAttribute) Row(r *Record, field string) (float64, error) {
+	v, ok := r.NumericValue(field)
+	if !ok {
+		return 0, nil
+	}
+	t := time.Unix(int64(v)*86400, 0).UTC()
+	year, month, day := t.Date()
+	switch a.part {
+	case "year":
+		return float64(year), nil
+	case "month":
+		return float64(month), nil
+	case "day":
+		return float64(day), nil
+	case "year_month":
+		return float64(year*100 + int(month)), nil
+	case "year_month_day":
+		return float64(year*10000 + int(month)*100 + day), nil
+	case "month_day":
+		return float64(int(month)*100 + day), nil
+	}
+	return 0, nil
 }

@@ -17,9 +17,10 @@
         "score",
         "age"
       ]
-    }
+    },
+    "streamable": true
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 86537aefd2221e0e50feab1440d3366b8800e4ceb79dabb52a415bbe3bfc4400
+// golden-hash: 507de07cef261af4f4b0936df8c00f7ce691ddbe6d7675599c28100a45eda0e1

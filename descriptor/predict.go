@@ -55,9 +55,19 @@ type PredictOptions struct {
 
 // PredictResult holds the validated request and any diagnostics.
 type PredictResult struct {
-	Valid       bool              `json:"valid"`
-	Request     *types.Request    `json:"request"`
-	SchemaInfo  *PredictSchemaInfo `json:"schema_info,omitempty"`
+	Valid      bool               `json:"valid"`
+	Request    *types.Request     `json:"request"`
+	SchemaInfo *PredictSchemaInfo `json:"schema_info,omitempty"`
+	// Streamable reports whether ProcessStream / process --stream can
+	// emit rows without buffering the entire result. False whenever the
+	// request uses groups, attributes, windows, geo aggregations, decimal
+	// fields, or any non-streamable operator. Computed via per-type
+	// Streamable() methods plus schema-aware checks.
+	Streamable bool `json:"streamable"`
+	// StreamableReasons lists the gates that forced Streamable=false. Empty
+	// when Streamable=true. Useful for users debugging why their request
+	// is buffering.
+	StreamableReasons []string `json:"streamable_reasons,omitempty"`
 }
 
 // PredictSchemaInfo summarizes the schema used for prediction.
@@ -125,12 +135,73 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Check description quality.
 	validateDescriptionQuality(env, schema, opts)
 
+	// Compute streamability — per-type Streamable() methods plus schema-aware
+	// gates (decimal fields force buffered, geo aggs force buffered).
+	result.Streamable, result.StreamableReasons = computeStreamable(req, schema)
+
 	// If any errors were added, mark invalid.
 	if len(env.Errors) > 0 {
 		result.Valid = false
 	}
 
 	return env
+}
+
+// computeStreamable reports whether the request can execute via the
+// streaming Process path. Mirrors processing.canStream's gates but reads
+// from the types.* Streamable() methods instead of constructing operators
+// (predict cannot import processing).
+//
+// Returns (true, nil) when streamable; (false, reasons) listing every
+// gate that blocks streaming. The reasons slice is intentionally
+// human-readable so it can land in the envelope unchanged.
+func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []string) {
+	var reasons []string
+
+	if len(req.Aggregations) == 0 {
+		reasons = append(reasons, "no aggregations: streaming path requires at least one OnlineAggregator")
+	}
+	for _, grp := range req.Groups {
+		if !grp.Type.Streamable() {
+			reasons = append(reasons, "group "+string(grp.Type)+" requires the buffered path")
+		}
+	}
+	for _, attr := range req.Attributes {
+		if !attr.Type.Streamable() {
+			reasons = append(reasons, "attribute "+string(attr.Type)+" requires a full pass for population stats")
+		}
+	}
+	if len(req.Windows) > 0 {
+		reasons = append(reasons, "windows run over the post-aggregate row set")
+	}
+
+	for _, agg := range req.Aggregations {
+		if !agg.Type.Streamable() {
+			reasons = append(reasons, "aggregation "+string(agg.Type)+" is not streamable")
+			continue
+		}
+		// Geo aggregations dispatch through buffered AggregateGeoField even
+		// when their type would otherwise be online.
+		if geoAggregations[agg.Type] && agg.Type != types.AGG_COUNT {
+			reasons = append(reasons, "aggregation "+string(agg.Type)+" uses the buffered geo path")
+			continue
+		}
+		// Decimal field aggregation routes through AggregateDecimalField to
+		// preserve precision; the streaming numeric fold loses it.
+		if schema != nil {
+			if f := schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
+				reasons = append(reasons, "aggregation on decimal field "+agg.Field+" forces buffered path")
+			}
+		}
+	}
+
+	for _, feat := range req.Features {
+		if !feat.Type.Streamable() {
+			reasons = append(reasons, "feature "+string(feat.Type)+" is not streamable")
+		}
+	}
+
+	return len(reasons) == 0, reasons
 }
 
 // PredictFromBytes is a convenience wrapper that creates a reader from bytes.
