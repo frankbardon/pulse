@@ -1,0 +1,55 @@
+{
+  "row_count": 10000,
+  "fields": [
+    {
+      "name": "user_id",
+      "type": "u64",
+      "description": "Synthetic primary key generated monotonically.",
+      "distribution": "monotonic_from",
+      "params": { "start": 1 }
+    },
+    {
+      "name": "signup_date",
+      "type": "date",
+      "description": "Date the user signed up; uniform over the demo window.",
+      "distribution": "uniform_date",
+      "params": { "start": "2024-01-01", "end": "2026-04-30" }
+    },
+    {
+      "name": "country",
+      "type": "categorical_u8",
+      "description": "Country of residence; weighted to reflect the demo persona mix.",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values":  ["US", "UK", "DE", "FR", "JP", "BR", "IN"],
+        "weights": [0.40, 0.18, 0.12, 0.08, 0.08, 0.08, 0.06]
+      }
+    },
+    {
+      "name": "age",
+      "type": "u8",
+      "description": "Age in years; clipped normal centered at 35.",
+      "distribution": "normal",
+      "params": { "mean": 35, "std": 11, "min": 18, "max": 95 }
+    },
+    {
+      "name": "lifetime_value",
+      "type": "f64",
+      "description": "Cumulative spend in USD; lognormal with mu=4 sigma=0.9.",
+      "distribution": "lognormal",
+      "params": { "mu": 4.0, "sigma": 0.9 }
+    },
+    {
+      "name": "is_active",
+      "type": "packed_bool",
+      "description": "True when the user has logged in within the last 30 days.",
+      "distribution": "bernoulli",
+      "params": { "p": 0.78 }
+    }
+  ],
+  "constraints": [
+    { "expr": "lifetime_value >= 0" },
+    { "expr": "age >= 18" }
+  ],
+  "max_rejection_rate": 0.5
+}

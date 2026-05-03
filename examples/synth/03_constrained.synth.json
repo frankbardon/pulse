@@ -1,0 +1,30 @@
+{
+  "row_count": 1000,
+  "fields": [
+    {
+      "name": "start_day",
+      "type": "u16",
+      "distribution": "uniform",
+      "params": { "min": 0, "max": 365 }
+    },
+    {
+      "name": "end_day",
+      "type": "u16",
+      "distribution": "uniform",
+      "params": { "min": 0, "max": 365 }
+    },
+    {
+      "name": "status",
+      "type": "categorical_u8",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": ["active", "paused", "closed"],
+        "weights": [0.7, 0.2, 0.1]
+      }
+    }
+  ],
+  "constraints": [
+    { "expr": "end_day >= start_day" }
+  ],
+  "max_rejection_rate": 0.6
+}

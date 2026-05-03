@@ -166,6 +166,21 @@ const (
 	// a numeric aggregator is requested on a geospatial field type
 	// (point_f64 or h3_cell).
 	PULSE_AGG_NOT_MEANINGFUL_FOR_GEO Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_GEO"
+
+	// PULSE_SYNTH_DISTRIBUTION_UNKNOWN indicates a synth spec referenced
+	// a distribution kind not registered in the synth package.
+	PULSE_SYNTH_DISTRIBUTION_UNKNOWN Code = "PULSE_SYNTH_DISTRIBUTION_UNKNOWN"
+
+	// PULSE_SYNTH_CONSTRAINT_INFEASIBLE indicates that rejection sampling
+	// for declared constraints exceeded the allowed rejection rate (50%
+	// by default), so the generator gives up rather than produce biased
+	// or truncated output.
+	PULSE_SYNTH_CONSTRAINT_INFEASIBLE Code = "PULSE_SYNTH_CONSTRAINT_INFEASIBLE"
+
+	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
+	// layer cannot summarize (e.g. point_f64 / h3_cell). The field is
+	// skipped with a warning rather than failing the whole profile.
+	PULSE_PROFILE_FIELD_UNSUPPORTED Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -218,6 +233,9 @@ var allCodes = []Code{
 	PULSE_GEO_INVALID_RESOLUTION,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_GEO,
+	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
+	PULSE_SYNTH_CONSTRAINT_INFEASIBLE,
+	PULSE_PROFILE_FIELD_UNSUPPORTED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

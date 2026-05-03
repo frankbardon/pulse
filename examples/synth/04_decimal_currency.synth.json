@@ -1,0 +1,28 @@
+{
+  "row_count": 200,
+  "fields": [
+    {
+      "name": "txn_id",
+      "type": "u64",
+      "distribution": "monotonic_from",
+      "params": { "start": 1000000 }
+    },
+    {
+      "name": "amount_usd",
+      "type": "decimal128",
+      "precision": 18,
+      "scale": 2,
+      "distribution": "lognormal",
+      "params": { "mu": 3.5, "sigma": 0.7 }
+    },
+    {
+      "name": "currency",
+      "type": "categorical_u8",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": ["USD", "EUR", "GBP", "JPY"],
+        "weights": [0.6, 0.2, 0.15, 0.05]
+      }
+    }
+  ]
+}

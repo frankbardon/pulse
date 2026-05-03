@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -140,6 +141,21 @@ func TestSkillsCoverAllFieldTypes(t *testing.T) {
 		name := ft.String()
 		if !strings.Contains(content, name) {
 			t.Errorf("cohort-schema-design.md does not mention field type %s", name)
+		}
+	}
+}
+
+// TestSkillsCoverAllSynthDistributions verifies that every distribution
+// kind registered in synth.AllDistributions() appears in
+// synthetic-data.md.
+func TestSkillsCoverAllSynthDistributions(t *testing.T) {
+	content, ok := Get("synthetic-data")
+	if !ok {
+		t.Fatal("synthetic-data.md not found")
+	}
+	for _, d := range synth.AllDistributions() {
+		if !strings.Contains(content, d) {
+			t.Errorf("synthetic-data.md does not mention distribution %q", d)
 		}
 	}
 }

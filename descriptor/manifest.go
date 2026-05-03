@@ -56,6 +56,8 @@ func commands() []Command {
 		{Name: "predict", Description: "Validate a request without executing"},
 		{Name: "manifest", Description: "Output the root manifest"},
 		{Name: "mcp", Description: "Serve the Model Context Protocol over stdio"},
+		{Name: "synth", Description: "Generate synthetic .pulse cohorts from a schema or profile"},
+		{Name: "profile", Description: "Capture statistical summaries of cohorts for synthesis"},
 	}
 }
 

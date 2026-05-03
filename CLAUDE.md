@@ -35,6 +35,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | An environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
 | A registered MCP tool (added/removed) | `skills/mcp-integration.md` (Tool surface table) | `TestSkillsCoverAllMCPTools` |
 | A registered feature operator | `skills/feature-engineering.md` (operator catalog) | `TestSkillsCoverAllComponents` |
+| A registered synth distribution kind | `skills/synthetic-data.md` (Supported distributions) | `TestSkillsCoverAllSynthDistributions` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 
@@ -68,8 +69,9 @@ pulse/
 ├── types/                  # Request/response structs (JSON-serializable)
 ├── descriptor/             # Self-description: manifest, predict, inspect, envelope
 ├── skills/                 # Embedded markdown skill pack (//go:embed)
-│   ├── index.json          # Manifest of all 13 bundled skills
+│   ├── index.json          # Manifest of all bundled skills
 │   └── *.md               # Individual skill files with YAML frontmatter
+├── synth/                  # Synthetic data generator (from-schema, from-profile)
 ├── internal/
 │   ├── cli/                # CLI internals (descriptor walker, json action)
 │   └── mcp/                # MCP server: tool + resource handlers wrapping pulse.Pulse
@@ -77,11 +79,11 @@ pulse/
 
 ### Library-first pattern
 
-`pulse.go` is the public API surface. It wraps `service.Service` and provides: `New`, `Open`, `Process`, `Compose`, `Import`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`. Embedders use `pulse.New(pulse.Options{...})` and call methods directly. The `types.Request`, `types.Response`, and `types.ComposedRequest` are re-exported as `pulse.Request`, `pulse.Response`, `pulse.ComposedRequest`.
+`pulse.go` is the public API surface. It wraps `service.Service` and provides: `New`, `Open`, `Process`, `Compose`, `Import`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`. Embedders use `pulse.New(pulse.Options{...})` and call methods directly. The `types.Request`, `types.Response`, and `types.ComposedRequest` are re-exported as `pulse.Request`, `pulse.Response`, `pulse.ComposedRequest`. Synth and Profile re-export `synth.Spec`, `synth.Result`, `synth.Options`, `synth.Profile`, and `synth.ProfileOptions`.
 
 ### CLI-as-thin-adapter
 
-`cmd/pulse/main.go` is the only binary. It parses flags, constructs a `pulse.Pulse` instance, calls library methods, and formats output. It never contains processing logic. The CLI commands map 1:1 to the manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`.
+`cmd/pulse/main.go` is the only binary. It parses flags, constructs a `pulse.Pulse` instance, calls library methods, and formats output. It never contains processing logic. The CLI commands map 1:1 to the manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`, plus the synthesis-side leaves `synth from-schema`, `synth from-profile`, and `profile create`.
 
 ### MCP surface
 
@@ -131,7 +133,7 @@ Errors use the `errors.Code` system. There are 6 domains with typed codes:
 - **SERVICE:** `SERVICE_VALIDATION`, `SERVICE_RESOURCE`, `SERVICE_REGISTRY`, `SERVICE_INTERNAL`
 - **DATA:** `DATA_FILE`, `DATA_PARSE`, `DATA_CONFIG`, `DATA_CALCULATION`, `DATA_INTERNAL`
 - **CLI:** `CLI_INPUT`, `CLI_OUTPUT`, `CLI_COMMAND`, `CLI_INTERNAL`
-- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`, `PULSE_DECIMAL_OVERFLOW`, `PULSE_DECIMAL_PRECISION_LOSS`, `PULSE_DECIMAL_DIVIDE_BY_ZERO`, `PULSE_GEO_INVALID_POINT`, `PULSE_GEO_INVALID_POLYGON`, `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`, `PULSE_GEO_INVALID_RESOLUTION`, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`
+- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`, `PULSE_DECIMAL_OVERFLOW`, `PULSE_DECIMAL_PRECISION_LOSS`, `PULSE_DECIMAL_DIVIDE_BY_ZERO`, `PULSE_GEO_INVALID_POINT`, `PULSE_GEO_INVALID_POLYGON`, `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`, `PULSE_GEO_INVALID_RESOLUTION`, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`, `PULSE_SYNTH_DISTRIBUTION_UNKNOWN`, `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`, `PULSE_PROFILE_FIELD_UNSUPPORTED`
 
 Every new error code MUST be added to the `allCodes` slice in `errors/codes.go` and to `skills/error-code-reference.md` (enforced by `TestSkillsCoverAllErrorCodes`).
 
@@ -244,6 +246,7 @@ Fields without stored descriptions get a synthesized fallback (`"Categorical fie
 - `TestNoOrbitPrefixes` — verifies no error code string contains predecessor project references
 - `TestNoOrbitPrefix` — verifies no type constant string contains predecessor project references
 - `TestSkillsCoverAllMCPTools` — asserts every MCP tool registered in `internal/mcp` appears in `skills/mcp-integration.md`
+- `TestSkillsCoverAllSynthDistributions` — asserts every distribution kind registered in `synth.AllDistributions()` appears in `skills/synthetic-data.md`
 
 ## Skill Pack Maintenance
 
@@ -293,6 +296,7 @@ Required fields:
 | Grouper (`GROUP_*`) | `skills/grouper-design.md` |
 | Window operator (`WIN_*`) | `skills/window-operations.md` |
 | Feature operator (`FEAT_*`) | `skills/feature-engineering.md` |
+| Synth distribution | `skills/synthetic-data.md` |
 | Error code | `skills/error-code-reference.md` |
 | CLI leaf command | `skills/getting-started.md` |
 | Field type | `skills/cohort-schema-design.md` |
@@ -310,6 +314,8 @@ Required fields:
 **10 window operators:** `WIN_DENSE_RANK`, `WIN_EWMA`, `WIN_LAG`, `WIN_LEAD`, `WIN_MOVING_AVG`, `WIN_PCT_CHANGE`, `WIN_RANK`, `WIN_ROW_NUMBER`, `WIN_RUNNING_AVG`, `WIN_RUNNING_SUM`
 
 **8 feature operators:** `FEAT_BUCKETIZE`, `FEAT_DATE_FEATURES`, `FEAT_FREQUENCY_ENCODE`, `FEAT_LOG`, `FEAT_ONE_HOT`, `FEAT_SQRT`, `FEAT_TARGET_ENCODE`, `FEAT_TRAIN_TEST_SPLIT`
+
+**12 synth distributions:** `bernoulli`, `constant`, `exponential`, `lognormal`, `monotonic_from`, `normal`, `pareto`, `poisson`, `regex`, `uniform`, `uniform_date`, `weighted_categorical`
 
 ## Build / Dev / Test Workflow
 
