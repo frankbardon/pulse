@@ -394,6 +394,102 @@ func TestCliApiCompose(t *testing.T) {
 	}
 }
 
+func TestCliApiProcessStream(t *testing.T) {
+	dir := t.TempDir()
+	pulsePath := createTestPulseFile(t, dir)
+
+	reqJSON := `{
+		"cohort": {"filename": "` + pulsePath + `"},
+		"aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "n"}]
+	}`
+	reqPath := filepath.Join(dir, "request.json")
+	if err := os.WriteFile(reqPath, []byte(reqJSON), 0644); err != nil {
+		t.Fatalf("writing request: %v", err)
+	}
+
+	out, err := runApp(t, "api", "process", "--request", reqPath, "--stream")
+	if err != nil {
+		t.Fatalf("api process --stream: %v\noutput: %s", err, out)
+	}
+
+	// Each line is a single JSON row. AGG_COUNT yields exactly one row.
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 NDJSON line, got %d (%q)", len(lines), out)
+	}
+	var row map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &row); err != nil {
+		t.Fatalf("invalid NDJSON line: %v\nline: %s", err, lines[0])
+	}
+	if _, ok := row["n"]; !ok {
+		t.Errorf("missing label n in streamed row: %v", row)
+	}
+}
+
+func TestCliApiComposeParallel(t *testing.T) {
+	dir := t.TempDir()
+	pulsePath := createTestPulseFile(t, dir)
+
+	reqJSON := `{
+		"requests": [
+			{"cohort": {"filename": "` + pulsePath + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "a"}]},
+			{"cohort": {"filename": "` + pulsePath + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "b"}]}
+		]
+	}`
+	reqPath := filepath.Join(dir, "composed.json")
+	if err := os.WriteFile(reqPath, []byte(reqJSON), 0644); err != nil {
+		t.Fatalf("writing request: %v", err)
+	}
+
+	out, err := runApp(t, "api", "compose", "--request", reqPath, "--parallel", "2")
+	if err != nil {
+		t.Fatalf("api compose --parallel: %v\noutput: %s", err, out)
+	}
+
+	var responses []map[string]any
+	if err := json.Unmarshal([]byte(out), &responses); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
+	}
+	if len(responses) != 2 {
+		t.Fatalf("expected 2 responses, got %d", len(responses))
+	}
+}
+
+func TestCliApiComposeStream(t *testing.T) {
+	dir := t.TempDir()
+	pulsePath := createTestPulseFile(t, dir)
+
+	reqJSON := `{
+		"requests": [
+			{"cohort": {"filename": "` + pulsePath + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "a"}]},
+			{"cohort": {"filename": "` + pulsePath + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "b"}]}
+		]
+	}`
+	reqPath := filepath.Join(dir, "composed.json")
+	if err := os.WriteFile(reqPath, []byte(reqJSON), 0644); err != nil {
+		t.Fatalf("writing request: %v", err)
+	}
+
+	out, err := runApp(t, "api", "compose", "--request", reqPath, "--stream")
+	if err != nil {
+		t.Fatalf("api compose --stream: %v\noutput: %s", err, out)
+	}
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 NDJSON lines, got %d (%q)", len(lines), out)
+	}
+	for i, line := range lines {
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("line %d invalid JSON: %v\n%s", i, err, line)
+		}
+		if entry["index"] == nil || entry["row"] == nil {
+			t.Errorf("line %d missing index/row: %v", i, entry)
+		}
+	}
+}
+
 func TestCliApiPredict(t *testing.T) {
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
