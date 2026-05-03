@@ -35,6 +35,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | An environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
 | A registered MCP tool (added/removed) | `skills/mcp-integration.md` (Tool surface table) | `TestSkillsCoverAllMCPTools` |
 | A registered feature operator | `skills/feature-engineering.md` (operator catalog) | `TestSkillsCoverAllComponents` |
+| A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 
@@ -231,6 +232,50 @@ Fields without stored descriptions get a synthesized fallback (`"Categorical fie
 
 `descriptor.BuildManifest()` returns a deterministic `Manifest` struct. All component lists (aggregators, attributes, filterers, groupers) are sorted alphabetically. The manifest includes: commands (7 CLI leaves), components, cohort field types (all 15), and skills metadata. `format_version` is `"1.0"`.
 
+### Predict: streamability flag
+
+`PredictResult.Streamable bool` reports whether the request can execute via the streaming Process path (no buffered intermediate row set). `PredictResult.StreamableReasons []string` lists every gate that forced buffering — empty when `Streamable=true`.
+
+Source of truth is per-type `Streamable() bool` methods on `types.AggregationType`, `types.AttributeType`, `types.FiltererType`, `types.GroupType`, `types.WindowType`, `types.FeatureType` (in `types/streamability.go`). Predict reads these methods plus schema-aware gates (decimal fields, geo aggregations) to compute the flag without importing `processing/`.
+
+`processing.CanStreamRequest(req, schema) bool` is the exported runtime parity hook that descriptor tests use to confirm predict's flag matches the actual streaming gate. Drift between the two surfaces breaks `TestPredict_Streamable_MatchesRuntime` and `TestRegistryStreamabilityMatchesTypes`.
+
+### Parallel compose
+
+`pulse.ComposeParallel(ctx, req, opts)` fans out a `ComposedRequest` over a bounded worker pool. Order-preserving (slot-by-index) regardless of completion order. Workers share the engine's read-only registries; each `Process` call constructs fresh stateful operators per request.
+
+`ComposeOptions`:
+- `MaxWorkers` — defaults to `runtime.GOMAXPROCS(0)`; negatives clamp to 1.
+- `PerRequestTimeout` — optional per-request deadline derived via `context.WithTimeout`.
+- `FailFast` — defaults to `true` (cancel siblings on first error). Set `false` to aggregate every error into a single `SERVICE_INTERNAL` with `failed_indices`.
+
+CLI: `pulse api compose --parallel N [--no-fail-fast]`.
+
+### Streaming iterator
+
+`pulse.ProcessStream(ctx, req) (RowIter, error)` returns a pull-based iterator over result rows. `RowIter.Next(ctx) (Row, bool, error)` / `Close() error` / `Metadata() *ResponseMetadata`. Today the iterator wraps `Process` and walks the materialized `Data` slice; consumers that adopt the API now will pick up true incremental emission without code changes when groupers/aggregators stream natively.
+
+CLI: `pulse api process --stream` and `pulse api compose --stream` emit NDJSON one row per line.
+
+### What streams today
+
+The streaming Process path covers four orchestrator modes:
+
+- **Single-pass streaming** (`processStreaming`): no-group requests with online aggregators (COUNT, SUM, AVG, STDDEV, VARIANCE, RANGE, FREQUENCY, MODE, SKEWNESS, KURTOSIS, DISTINCT_COUNT) on numeric (non-decimal) fields. Row-local attributes (FORMULA, DATE_PART, via `RowLocalAttribute.Row`) apply inline.
+- **Grouped streaming** (`processStreamingGrouped`): groupers implementing `StreamingGrouper.KeyForRow` (CATEGORY, RANGE, ROUNDED, H3_CELL) drive per-key online aggregator buckets. Memory is O(distinct_groups × per-aggregator-state). One row per distinct key on stream exhaustion.
+- **Two-pass streaming** (`processStreamingTwoPass`): attributes implementing `TwoPassAttribute` (ZSCORE, TSCORE, NORMALIZED) compute population stats via Welford-Pébaÿ pass 1, then emit per-row values in pass 2 after `iter.Reset()`. Mirrors the streaming feature pattern (`feature.StreamingComputer.PrePass + Finalize + EmitRow`). Memory is O(per-attribute-state); cost is 2× iter scan (typically OS-page-cached).
+- **Streaming features** (every registered FEAT_* implements `feature.StreamingComputer`) compose with single-pass and grouped streaming.
+
+Forced buffered:
+
+- Median, percentile, ZScore *aggregators* (sort or summed deviations).
+- `ATTR_PERCENTILE` (sorted view of every value — no streaming algorithm preserves exact rank).
+- `GROUP_QUANTILE` / `GROUP_DATE` (finalize-time work over full set).
+- Window operators (sorted post-aggregate row set).
+- Decimal-typed field aggregations (precision-preserving path).
+- Geo aggregations (typed buffered path).
+- Two-pass attributes combined with features or groups (orchestration matrix not yet extended; tracked separately).
+
 ### CI gates
 
 - `TestPredictNoExecutionImports` — grep gate enforcing the no-execute ban on `predict.go`
@@ -244,6 +289,10 @@ Fields without stored descriptions get a synthesized fallback (`"Categorical fie
 - `TestNoOrbitPrefixes` — verifies no error code string contains predecessor project references
 - `TestNoOrbitPrefix` — verifies no type constant string contains predecessor project references
 - `TestSkillsCoverAllMCPTools` — asserts every MCP tool registered in `internal/mcp` appears in `skills/mcp-integration.md`
+- `TestRegistryStreamabilityMatchesTypes` — for every registered aggregator, asserts `types.AggregationType.Streamable()` matches the runtime `OnlineAggregator` capability of the constructed instance
+- `TestPredict_Streamable_MatchesRuntime` — cross-package parity gate: `PredictResult.Streamable` must equal `processing.CanStreamRequest(req, schema)` for every (request, schema) in the matrix
+- `TestStreamability_AggregationsKnown`, `TestStreamability_AttributesKnown`, `TestStreamability_FilterersKnown`, `TestStreamability_GroupsKnown`, `TestStreamability_WindowsKnown`, `TestStreamability_FeaturesKnown` — exhaustiveness gates: every type listed in `All*Types()` must have an explicit entry in the per-type streamability table
+- `TestCanStreamRequest_RegressionMatrix` — regression matrix on the exported `processing.CanStreamRequest` helper used by predict's parity gate
 
 ## Skill Pack Maintenance
 

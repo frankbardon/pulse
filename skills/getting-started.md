@@ -91,8 +91,8 @@ JSON tags are verified against `types.Request`: `cohort`, `filterers`, `groups`,
 
 ```
 pulse [--json]                                               # manifest at root
-pulse api process    --request FILE [--json]
-pulse api compose    --request FILE [--json]
+pulse api process    --request FILE [--json] [--stream]
+pulse api compose    --request FILE [--json] [--stream] [--parallel N] [--no-fail-fast]
 pulse api sample     --input FILE [--count N] [--json]
 pulse api facet      --input FILE --field NAME [--json]
 pulse api predict    --request FILE [--json] [--strict]
@@ -116,6 +116,20 @@ pulse mcp          [--data-dir DIR]   # serve Model Context Protocol over stdio
 ## Pipeline order
 
 Load -> Filter -> Group -> Aggregate -> Attributes -> Output.
+</reference>
+
+<reference>
+## Streaming and parallel batches
+
+`pulse api process --stream` emits result rows as NDJSON, one row per line, instead of buffering the full response. Useful for grouped queries with many output rows piped into downstream tooling.
+
+`pulse api compose --parallel N` runs requests concurrently across a bounded worker pool. `N=0` resolves to GOMAXPROCS, `N=1` is sequential (default), `N>1` parallelizes. Responses always preserve input order. Add `--no-fail-fast` to aggregate every error instead of cancelling siblings on the first failure.
+
+`pulse api compose --stream` emits one NDJSON line per row, prefixed with `{"index":N,"row":{...}}` so downstream consumers can route rows to the right request.
+
+Streaming-eligible requests can be detected up front via `pulse api predict`: the `streamable` field reports whether ProcessStream avoids buffering inside the engine, and `streamable_reasons` lists every gate that forced buffering (non-streamable groupers like QUANTILE/DATE, population-stat attributes, windows, decimal fields, geo aggregations, non-online aggregators).
+
+Streams today: no-group online aggregations; grouped requests when every grouper is CATEGORY/RANGE/ROUNDED/H3_CELL with online aggregators; row-local attributes ATTR_FORMULA / ATTR_DATE_PART; two-pass attributes ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED (Welford pass 1 for population stats, per-row emit in pass 2). Forced buffered: median/percentile/ZScore aggregators, ATTR_PERCENTILE, GROUP_QUANTILE/GROUP_DATE, windows, decimal-typed aggregations, geo aggregations, two-pass attribute combined with features or groups.
 </reference>
 
 <reference>

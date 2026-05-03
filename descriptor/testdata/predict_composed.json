@@ -28,7 +28,8 @@
         "score",
         "grade"
       ]
-    }
+    },
+    "streamable": true
   },
   "errors": [],
   "warnings": [
@@ -42,4 +43,4 @@
     }
   ]
 }
-// golden-hash: facd33a9a88aedc85f196cd53ae70697599593f8aa725f473ddfd741535a160e
+// golden-hash: 5fde7377e4288e6e8e00db749af5323eaff7d95fa5137e75aff0271c291eb0d3

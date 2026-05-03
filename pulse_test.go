@@ -822,6 +822,84 @@ func TestNoOsExec(t *testing.T) {
 	}
 }
 
+func TestComposeParallel_FacadeOrderPreserved(t *testing.T) {
+	memFs := afero.NewMemMapFs()
+	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
+		{"10"}, {"20"}, {"30"}, {"40"}, {"50"},
+	})
+
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	composed := &ComposedRequest{
+		Requests: []*Request{
+			{Cohort: &types.Cohort{Filename: "test.pulse"}, Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "age", Label: "a"}}},
+			{Cohort: &types.Cohort{Filename: "test.pulse"}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "age", Label: "b"}}},
+			{Cohort: &types.Cohort{Filename: "test.pulse"}, Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "age", Label: "c"}}},
+		},
+	}
+
+	resps, err := p.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 3})
+	if err != nil {
+		t.Fatalf("ComposeParallel: %v", err)
+	}
+	if len(resps) != 3 {
+		t.Fatalf("got %d responses, want 3", len(resps))
+	}
+	if _, ok := resps[0].Data[0]["a"]; !ok {
+		t.Error("slot 0 missing label a")
+	}
+	if _, ok := resps[1].Data[0]["b"]; !ok {
+		t.Error("slot 1 missing label b")
+	}
+	if _, ok := resps[2].Data[0]["c"]; !ok {
+		t.Error("slot 2 missing label c")
+	}
+}
+
+func TestProcessStream_FacadeReturnsIterator(t *testing.T) {
+	memFs := afero.NewMemMapFs()
+	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
+		{"10"}, {"20"}, {"30"},
+	})
+
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	iter, err := p.ProcessStream(context.Background(), &Request{
+		Cohort: &types.Cohort{Filename: "test.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "age", Label: "n"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ProcessStream: %v", err)
+	}
+	defer iter.Close()
+
+	var rows []Row
+	for {
+		row, ok, err := iter.Next(context.Background())
+		if err != nil {
+			t.Fatalf("Next: %v", err)
+		}
+		if !ok {
+			break
+		}
+		rows = append(rows, row)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(rows))
+	}
+	if iter.Metadata() == nil {
+		t.Fatal("Metadata nil after drain")
+	}
+}
+
 func TestCohort_SchemaNotNil(t *testing.T) {
 	memFs := afero.NewMemMapFs()
 	schema := &encoding.Schema{

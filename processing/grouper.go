@@ -23,35 +23,38 @@ func newCategoryGrouper(_ *types.Group, schema *encoding.Schema) (Grouper, error
 	return &categoryGrouper{schema: schema}, nil
 }
 
-func (g *categoryGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
+func (g *categoryGrouper) KeyForRow(r *Record, field string) (string, bool, error) {
+	v, ok := r.NumericValue(field)
+	if !ok {
+		return "", false, nil
+	}
 	f := g.schema.Field(field)
-	isCategorical := f != nil && f.Type.IsCategorical() && f.Dictionary != nil
+	if f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
+		key := f.Dictionary.Resolve(uint32(v))
+		if key == "" {
+			key = fmt.Sprintf("%d", uint32(v))
+		}
+		return key, true, nil
+	}
+	if v == math.Trunc(v) {
+		return strconv.FormatInt(int64(v), 10), true, nil
+	}
+	return strconv.FormatFloat(v, 'f', -1, 64), true, nil
+}
 
+func (g *categoryGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
 	// Pass 1: compute keys (buffered to avoid recomputation) and per-key counts.
 	keys := make([]string, len(records))
 	used := make([]bool, len(records))
 	counts := make(map[string]int)
 	for i, r := range records {
-		v, ok := r.NumericValue(field)
+		key, ok, err := g.KeyForRow(r, field)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
-			continue // skip null values
+			continue
 		}
-
-		var key string
-		if isCategorical {
-			key = f.Dictionary.Resolve(uint32(v))
-			if key == "" {
-				key = fmt.Sprintf("%d", uint32(v))
-			}
-		} else {
-			// Format numeric value as key
-			if v == math.Trunc(v) {
-				key = strconv.FormatInt(int64(v), 10)
-			} else {
-				key = strconv.FormatFloat(v, 'f', -1, 64)
-			}
-		}
-
 		keys[i] = key
 		used[i] = true
 		counts[key]++
@@ -85,26 +88,31 @@ func newRoundedGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 	return &roundedGrouper{interval: grp.Interval}, nil
 }
 
+func (g *roundedGrouper) KeyForRow(r *Record, field string) (string, bool, error) {
+	v, ok := r.NumericValue(field)
+	if !ok {
+		return "", false, nil
+	}
+	rounded := math.Floor(v/g.interval) * g.interval
+	if rounded == math.Trunc(rounded) {
+		return strconv.FormatInt(int64(rounded), 10), true, nil
+	}
+	return strconv.FormatFloat(rounded, 'f', -1, 64), true, nil
+}
+
 func (g *roundedGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
 	// Pass 1: compute keys (buffered) and per-key counts.
 	keys := make([]string, len(records))
 	used := make([]bool, len(records))
 	counts := make(map[string]int)
 	for i, r := range records {
-		v, ok := r.NumericValue(field)
+		key, ok, err := g.KeyForRow(r, field)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
 			continue
 		}
-
-		// Round down to nearest interval
-		rounded := math.Floor(v/g.interval) * g.interval
-		var key string
-		if rounded == math.Trunc(rounded) {
-			key = strconv.FormatInt(int64(rounded), 10)
-		} else {
-			key = strconv.FormatFloat(rounded, 'f', -1, 64)
-		}
-
 		keys[i] = key
 		used[i] = true
 		counts[key]++
@@ -138,33 +146,40 @@ func newRangeGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 	return &rangeGrouper{interval: grp.Interval}, nil
 }
 
+func (g *rangeGrouper) KeyForRow(r *Record, field string) (string, bool, error) {
+	v, ok := r.NumericValue(field)
+	if !ok {
+		return "", false, nil
+	}
+	low := math.Floor(v/g.interval) * g.interval
+	high := low + g.interval
+	var lowStr, highStr string
+	if low == math.Trunc(low) {
+		lowStr = strconv.FormatInt(int64(low), 10)
+	} else {
+		lowStr = strconv.FormatFloat(low, 'f', -1, 64)
+	}
+	if high == math.Trunc(high) {
+		highStr = strconv.FormatInt(int64(high), 10)
+	} else {
+		highStr = strconv.FormatFloat(high, 'f', -1, 64)
+	}
+	return lowStr + "-" + highStr, true, nil
+}
+
 func (g *rangeGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
 	// Pass 1: compute keys (buffered) and per-key counts.
 	keys := make([]string, len(records))
 	used := make([]bool, len(records))
 	counts := make(map[string]int)
 	for i, r := range records {
-		v, ok := r.NumericValue(field)
+		key, ok, err := g.KeyForRow(r, field)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
 			continue
 		}
-
-		low := math.Floor(v/g.interval) * g.interval
-		high := low + g.interval
-
-		var lowStr, highStr string
-		if low == math.Trunc(low) {
-			lowStr = strconv.FormatInt(int64(low), 10)
-		} else {
-			lowStr = strconv.FormatFloat(low, 'f', -1, 64)
-		}
-		if high == math.Trunc(high) {
-			highStr = strconv.FormatInt(int64(high), 10)
-		} else {
-			highStr = strconv.FormatFloat(high, 'f', -1, 64)
-		}
-
-		key := lowStr + "-" + highStr
 		keys[i] = key
 		used[i] = true
 		counts[key]++
