@@ -193,6 +193,14 @@ Run `pulse predict --json` against any feature-using request. Predict will:
 The post-feature schema is virtual — `pulse inspect` still reports only on-disk fields.
 </reference>
 
+<reference>
+## Decimal128 inputs
+
+`FEAT_LOG`, `FEAT_SQRT`, and `FEAT_BUCKETIZE` accept `decimal128` and `nullable_decimal128` source fields. Pulse's record reader populates the typed mantissa in the wide map and a paired f64 approximation in the values map; feature operators read the f64. The derived output column is f64 — `log` and `sqrt` are inherently irrational, so there is no auditor-grade decimal version.
+
+Categorical-only operators (`FEAT_ONE_HOT`, `FEAT_FREQUENCY_ENCODE`, `FEAT_TARGET_ENCODE`) and `FEAT_DATE_FEATURES` continue to reject decimal128 inputs per their existing type contracts. See `skills/financial-cohorts.md` for the full decimal interaction matrix.
+</reference>
+
 <see_also>
 - getting-started — pipeline order, vocabulary, command tree
 - aggregation-guide — `AGG_*` operations that consume feature outputs

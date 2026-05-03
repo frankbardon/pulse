@@ -1,0 +1,10 @@
+{
+  "_comment": "Distance filter: keep rows within 50 km of San Francisco. Anchor is WKT POINT(lon lat); radius is in meters.",
+  "cohort": {"filename": "all_types.pulse", "data_dir": ".data"},
+  "filterers": [
+    {"type": "FILTER_GEO_WITHIN_RADIUS_M", "field": "location", "expression": "{\"anchor\": \"POINT(-122.418 37.775)\", \"radius_m\": 50000}"}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "near_sf"}
+  ]
+}

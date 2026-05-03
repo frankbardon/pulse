@@ -430,4 +430,96 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Reorder features so `FEAT_TRAIN_TEST_SPLIT` precedes every `FEAT_TARGET_ENCODE`.
 - See `skills/feature-engineering.md` for the leakage trap discussion.
+
+### PULSE_DECIMAL_OVERFLOW
+
+**Description**: A decimal arithmetic or aggregation result exceeds `decimal128(38)` — the maximum representable absolute value is `10^38 - 1`.
+
+**When it fires**:
+- `AGG_SUM` over a decimal field whose accumulated total would not fit in 38 digits.
+- Multiplication / division produces a result mantissa beyond 38 digits.
+- Importer parses a string with a fractional part wider than 38 digits.
+
+**Recovery**:
+- Pick a coarser scale or split the cohort.
+- Use `AGG_AVERAGE` instead of `AGG_SUM` for very large series — the implementation falls back to `f64` and emits `PULSE_DECIMAL_PRECISION_LOSS` rather than failing.
+
+### PULSE_DECIMAL_PRECISION_LOSS
+
+**Description**: Warning. An `AGG_AVERAGE` on a decimal128 field saw an intermediate sum that would have overflowed `decimal128(38)`. Pulse fell back to `f64` accumulation. The result is no longer auditor-defensible to the last digit.
+
+**Recovery**:
+- For audited workloads: split the cohort or pre-aggregate by a coarser grouping so each partial sum fits in 38 digits.
+- For non-audit workloads: ignore the warning.
+
+### PULSE_DECIMAL_DIVIDE_BY_ZERO
+
+**Description**: A decimal `/` operation with a zero divisor. Decimal arithmetic in Pulse never produces NaN or infinity.
+
+**Recovery**:
+- Guard the formula with a non-zero check (`FILTER_RANGE` on the divisor field).
+- Replace zero divisors with a sentinel before the operation runs.
+
+### PULSE_GEO_INVALID_POINT
+
+**Description**: A `point_f64` value parse failed, or the parsed lat/lon is out of range (`|lat| > 90` or `|lon| > 180`).
+
+**Recovery**:
+- Check that the importer maps the source columns in the right order. WKT order is `POINT(lon lat)` even though Pulse stores `(lat, lon)` internally.
+- Use `pulse inspect` to confirm the field type and any per-column importer mapping.
+
+### PULSE_GEO_INVALID_POLYGON
+
+**Description**: A WKT POLYGON string failed to parse, or the ring is not closed (first vertex must equal last vertex).
+
+**When it fires**:
+- `FILTER_GEO_WITHIN` expression contains malformed WKT.
+- POLYGON has fewer than 4 vertices (3 unique + closing).
+- `MULTIPOLYGON` (rejected in v1).
+- Polygon includes inner rings (holes) — also rejected in v1.
+
+**Recovery**:
+- Repair the WKT. POLYGON v1 accepts a single closed outer ring only.
+- For complex geometries, decompose into multiple `FILTER_GEO_WITHIN` filters or wait for variable-length geometry support.
+
+### PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS
+
+**Description**: `AGG_GEO_BBOX` saw an input set that crosses the 180/-180 meridian. A flat `(min_lat, min_lon, max_lat, max_lon)` bbox is ambiguous in that case.
+
+**Detection rule**: any pair of points in the input has `|lon_a - lon_b| > 180`.
+
+**Recovery**:
+- Split the cohort by hemisphere with a `FILTER_RANGE` on longitude before aggregating.
+- Use `AGG_GEO_CENTROID` instead — the 3D unit-sphere algorithm handles antimeridian crossings correctly.
+
+### PULSE_GEO_INVALID_RESOLUTION
+
+**Description**: An H3 resolution parameter is out of range or finer than a cell's native resolution.
+
+**When it fires**:
+- `GROUP_H3_CELL` with `resolution` < 0 or > 15.
+- `GROUP_H3_CELL` on an `h3_cell` input where the requested resolution is finer than the cell's native resolution (parent walk only goes coarser, never finer).
+
+**Recovery**:
+- Pick a resolution in `[0, 15]`.
+- For `h3_cell` input: pick a resolution at most equal to the cell's native resolution. Inspect the cohort with `pulse inspect` to see the field's native resolution.
+
+### PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL
+
+**Description**: Predict warning. The requested aggregation has no defined decimal128 implementation in v1.
+
+**v1 supported decimal aggregations**: `AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_VARIANCE`, `AGG_STDDEV`, `AGG_COUNT`, `AGG_DISTINCT_COUNT`.
+
+**Not supported (v1)**: `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_ZSCORE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_MODE`, `AGG_FREQUENCY`, `AGG_RANGE`.
+
+**Recovery**:
+- Pick a supported aggregation, or cast the field to `f64` via an attribute and aggregate that.
+
+### PULSE_AGG_NOT_MEANINGFUL_FOR_GEO
+
+**Description**: A numeric aggregation was requested on a geospatial field (`point_f64` or `h3_cell`).
+
+**Recovery**:
+- Use `AGG_GEO_CENTROID` or `AGG_GEO_BBOX` for `point_f64` value-bearing aggregations.
+- For `h3_cell`, group by the cell and aggregate on a numeric field.
 </reference>

@@ -1,0 +1,8 @@
+{
+  "_comment": "Population variance and stddev computed entirely in decimal128 arithmetic. Variance result scale is 2 * mean_scale; stddev applies a banker-rounded decimal sqrt and returns at mean_scale. Both fall back to f64 with PULSE_DECIMAL_PRECISION_LOSS only when intermediate state would overflow decimal128(38).",
+  "cohort": {"filename": "all_types.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_VARIANCE", "field": "amount", "label": "var"},
+    {"type": "AGG_STDDEV", "field": "amount", "label": "stddev"}
+  ]
+}

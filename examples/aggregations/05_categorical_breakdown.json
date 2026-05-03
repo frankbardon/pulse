@@ -1,0 +1,11 @@
+{
+  "_comment": "Categorical aggregators across all three categorical widths and the date column. DISTINCT_COUNT exercises dictionary lookup paths for u8/u16/u32 and the days-since-epoch storage of date.",
+  "cohort": {"filename": "all_types.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_DISTINCT_COUNT", "field": "region", "label": "distinct_regions"},
+    {"type": "AGG_DISTINCT_COUNT", "field": "city", "label": "distinct_cities"},
+    {"type": "AGG_DISTINCT_COUNT", "field": "sku", "label": "distinct_skus"},
+    {"type": "AGG_DISTINCT_COUNT", "field": "event_date", "label": "distinct_dates"},
+    {"type": "AGG_MODE", "field": "region", "label": "modal_region"}
+  ]
+}

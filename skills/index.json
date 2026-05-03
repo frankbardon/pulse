@@ -1,9 +1,9 @@
 [
     {"name": "getting-started", "description": "Pulse vocabulary, file format, mental model", "type": "guide", "applies_to": ["process", "compose", "sample", "facet", "inspect", "predict", "manifest"]},
     {"name": "cohort-schema-design", "description": "Choosing types, nullability, bit-packing tradeoffs", "type": "guide", "applies_to": ["inspect", "predict"]},
-    {"name": "aggregation-guide", "description": "When to use each of the 16 aggregators and 4 filterers", "type": "guide", "applies_to": ["process", "compose", "predict"]},
+    {"name": "aggregation-guide", "description": "When to use each of the 18 aggregators and 6 filterers", "type": "guide", "applies_to": ["process", "compose", "predict"]},
     {"name": "attribute-composition", "description": "z-score, t-score, normalized, formula — composition rules", "type": "guide", "applies_to": ["process", "compose", "predict"]},
-    {"name": "grouper-design", "description": "GROUP_CATEGORY, GROUP_DATE, GROUP_QUANTILE, GROUP_RANGE, and GROUP_ROUNDED, nesting semantics", "type": "guide", "applies_to": ["process", "compose", "predict"]},
+    {"name": "grouper-design", "description": "GROUP_CATEGORY, GROUP_DATE, GROUP_H3_CELL, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED, nesting semantics", "type": "guide", "applies_to": ["process", "compose", "predict"]},
     {"name": "compose-requests", "description": "When and how to use ComposedRequest", "type": "guide", "applies_to": ["compose"]},
     {"name": "debugging-with-predict", "description": "Iterating on a request using api predict", "type": "guide", "applies_to": ["predict"]},
     {"name": "error-code-reference", "description": "Recovery playbook per error code", "type": "reference", "applies_to": ["process", "compose", "predict"]},
@@ -11,5 +11,7 @@
     {"name": "export-format-selection", "description": "CSV vs Parquet vs Excel for downstream tools", "type": "guide", "applies_to": ["process", "compose"]},
     {"name": "window-operations", "description": "WIN_* operators — partitioning, ordering, frames, and per-operator semantics", "type": "guide", "applies_to": ["process", "compose", "predict"]},
     {"name": "mcp-integration", "description": "Wire Pulse into MCP-aware AI clients and call its tools and resources", "type": "guide", "applies_to": ["process", "compose", "sample", "facet", "inspect", "predict", "manifest"]},
-    {"name": "feature-engineering", "description": "FEAT_* operators - pre-filter feature engineering for ML pipelines, with the target leakage trap", "type": "guide", "applies_to": ["process", "compose", "predict"]}
+    {"name": "feature-engineering", "description": "FEAT_* operators - pre-filter feature engineering for ML pipelines, with the target leakage trap", "type": "guide", "applies_to": ["process", "compose", "predict"]},
+    {"name": "financial-cohorts", "description": "Decimal128 usage, precision propagation, banker's rounding, currency-column patterns, divide-by-zero policy", "type": "guide", "applies_to": ["process", "compose", "predict", "inspect"]},
+    {"name": "geospatial-cohorts", "description": "point_f64 / h3_cell usage, centroid algorithm, antimeridian behavior, radius filter (meters), polygon WKT format, H3 resolution table", "type": "guide", "applies_to": ["process", "compose", "predict", "inspect"]}
 ]

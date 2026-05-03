@@ -16,6 +16,17 @@ type Field struct {
 	CsvColumnIdx int
 	Description  string      // empty = synthesized at inspect time
 	Dictionary   *Dictionary // non-nil only for categorical types
+
+	// Precision is the decimal128 precision (1-38). Meaningful only when
+	// Type is FieldTypeDecimal128 or FieldTypeNullableDecimal128.
+	Precision uint8
+	// Scale is the decimal128 scale (0-Precision). Meaningful only when
+	// Type is FieldTypeDecimal128 or FieldTypeNullableDecimal128.
+	Scale uint8
+	// H3Resolution is the native cell resolution recorded at import time
+	// (0-15). Meaningful only when Type is FieldTypeH3Cell. The sentinel
+	// 0xFF means "unspecified" and is treated as missing metadata.
+	H3Resolution uint8
 }
 
 // Schema holds all field descriptors for a .pulse file.
@@ -96,6 +107,23 @@ func WriteSchema(w io.Writer, s *Schema) error {
 			return err
 		}
 
+		// Decimal precision/scale metadata for decimal128 variants.
+		if f.Type.IsDecimal() {
+			if err := binary.Write(w, binary.LittleEndian, f.Precision); err != nil {
+				return errors.WrapCodedError(err, errors.ENCODING_IO, "writing decimal precision")
+			}
+			if err := binary.Write(w, binary.LittleEndian, f.Scale); err != nil {
+				return errors.WrapCodedError(err, errors.ENCODING_IO, "writing decimal scale")
+			}
+		}
+
+		// H3 native resolution for h3_cell fields.
+		if f.Type == FieldTypeH3Cell {
+			if err := binary.Write(w, binary.LittleEndian, f.H3Resolution); err != nil {
+				return errors.WrapCodedError(err, errors.ENCODING_IO, "writing h3 resolution")
+			}
+		}
+
 		// Dictionary block for categorical types.
 		if f.Type.IsCategorical() && f.Dictionary != nil {
 			if _, err := f.Dictionary.WriteTo(w); err != nil {
@@ -131,6 +159,13 @@ func ReadSchema(r io.Reader) (*Schema, error) {
 			return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading field type")
 		}
 		f.Type = FieldType(typeByte)
+		// Reject unknown type bytes loud at parse time so files written by a
+		// future-version binary fail fast here, not silently mid-record.
+		if !f.Type.IsKnown() {
+			return nil, errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+				"unknown field type byte",
+				map[string]any{"byte": typeByte, "field_index": i})
+		}
 
 		// Name.
 		var nameLen uint16
@@ -170,6 +205,23 @@ func ReadSchema(r io.Reader) (*Schema, error) {
 			return nil, err
 		}
 		f.Description = desc
+
+		// Decimal precision/scale metadata.
+		if f.Type.IsDecimal() {
+			if err := binary.Read(r, binary.LittleEndian, &f.Precision); err != nil {
+				return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading decimal precision")
+			}
+			if err := binary.Read(r, binary.LittleEndian, &f.Scale); err != nil {
+				return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading decimal scale")
+			}
+		}
+
+		// H3 native resolution.
+		if f.Type == FieldTypeH3Cell {
+			if err := binary.Read(r, binary.LittleEndian, &f.H3Resolution); err != nil {
+				return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading h3 resolution")
+			}
+		}
 
 		// Dictionary for categorical types.
 		if f.Type.IsCategorical() {

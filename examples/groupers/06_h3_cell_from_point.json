@@ -1,0 +1,11 @@
+{
+  "_comment": "Bucket rows into H3 cells at resolution 5. Input is point_f64; the grouper converts each point to its H3 cell at run time.",
+  "cohort": {"filename": "all_types.pulse", "data_dir": ".data"},
+  "groups": [
+    {"type": "GROUP_H3_CELL", "field": "location", "params": {"resolution": 5}}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    {"type": "AGG_GEO_CENTROID", "field": "location", "label": "cell_center"}
+  ]
+}

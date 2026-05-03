@@ -125,6 +125,47 @@ const (
 	// training feature. Mitigation: place a FEAT_TRAIN_TEST_SPLIT operator
 	// before any FEAT_TARGET_ENCODE.
 	PULSE_FEAT_TARGET_LEAKAGE_RISK Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
+
+	// PULSE_DECIMAL_OVERFLOW indicates a decimal arithmetic or aggregation
+	// result exceeds the decimal128(38) representable range.
+	PULSE_DECIMAL_OVERFLOW Code = "PULSE_DECIMAL_OVERFLOW"
+
+	// PULSE_DECIMAL_PRECISION_LOSS warns that a decimal aggregation fell
+	// back to f64 because intermediate state would have overflowed
+	// decimal128(38).
+	PULSE_DECIMAL_PRECISION_LOSS Code = "PULSE_DECIMAL_PRECISION_LOSS"
+
+	// PULSE_DECIMAL_DIVIDE_BY_ZERO indicates a decimal divide operation
+	// with a zero divisor.
+	PULSE_DECIMAL_DIVIDE_BY_ZERO Code = "PULSE_DECIMAL_DIVIDE_BY_ZERO"
+
+	// PULSE_GEO_INVALID_POINT indicates a malformed point parse or a
+	// latitude/longitude out of range (|lat|>90 or |lon|>180).
+	PULSE_GEO_INVALID_POINT Code = "PULSE_GEO_INVALID_POINT"
+
+	// PULSE_GEO_INVALID_POLYGON indicates a WKT POLYGON parse failure or
+	// a non-closed ring.
+	PULSE_GEO_INVALID_POLYGON Code = "PULSE_GEO_INVALID_POLYGON"
+
+	// PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS indicates an AGG_GEO_BBOX input set
+	// that crosses the 180/-180 meridian, where a flat min/max bbox is
+	// ambiguous.
+	PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS Code = "PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS"
+
+	// PULSE_GEO_INVALID_RESOLUTION indicates an H3 resolution parameter
+	// that is out of range (not 0–15) or finer than a cell's native
+	// resolution when walking parents.
+	PULSE_GEO_INVALID_RESOLUTION Code = "PULSE_GEO_INVALID_RESOLUTION"
+
+	// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL is a predict warning emitted
+	// when an aggregation has no defined semantics on a decimal128 field
+	// (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1).
+	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
+
+	// PULSE_AGG_NOT_MEANINGFUL_FOR_GEO is a predict warning emitted when
+	// a numeric aggregator is requested on a geospatial field type
+	// (point_f64 or h3_cell).
+	PULSE_AGG_NOT_MEANINGFUL_FOR_GEO Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_GEO"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -168,6 +209,15 @@ var allCodes = []Code{
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
 	PULSE_FEAT_TARGET_LEAKAGE_RISK,
+	PULSE_DECIMAL_OVERFLOW,
+	PULSE_DECIMAL_PRECISION_LOSS,
+	PULSE_DECIMAL_DIVIDE_BY_ZERO,
+	PULSE_GEO_INVALID_POINT,
+	PULSE_GEO_INVALID_POLYGON,
+	PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS,
+	PULSE_GEO_INVALID_RESOLUTION,
+	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
+	PULSE_AGG_NOT_MEANINGFUL_FOR_GEO,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

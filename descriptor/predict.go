@@ -26,6 +26,27 @@ var numericAggregations = map[types.AggregationType]bool{
 	types.AGG_PERCENTILE: true,
 }
 
+// decimalSupportedAggregations are the v1 set of aggregations defined on
+// decimal128 fields. Any aggregation outside this set on a decimal field
+// emits PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
+var decimalSupportedAggregations = map[types.AggregationType]bool{
+	types.AGG_SUM:            true,
+	types.AGG_AVERAGE:        true,
+	types.AGG_MIN:            true,
+	types.AGG_MAX:            true,
+	types.AGG_VARIANCE:       true,
+	types.AGG_STDDEV:         true,
+	types.AGG_COUNT:          true,
+	types.AGG_DISTINCT_COUNT: true,
+}
+
+// geoAggregations are aggregations meaningful on point_f64 / h3_cell.
+var geoAggregations = map[types.AggregationType]bool{
+	types.AGG_GEO_CENTROID: true,
+	types.AGG_GEO_BBOX:     true,
+	types.AGG_COUNT:        true,
+}
+
 // PredictOptions controls predict behavior.
 type PredictOptions struct {
 	// Strict upgrades warnings to errors.
@@ -150,6 +171,43 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 				env.Warnings = append(env.Warnings, entry)
 			}
 		}
+
+		// Decimal field aggregation validity matrix.
+		if f.Type.IsDecimal() && !decimalSupportedAggregations[agg.Type] {
+			entry := &EnvelopeEntry{
+				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL),
+				Message: "aggregation " + string(agg.Type) + " has no decimal128 implementation; field " + agg.Field + " is decimal128",
+				Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type)},
+			}
+			if opts.Strict {
+				env.Errors = append(env.Errors, entry)
+			} else {
+				env.Warnings = append(env.Warnings, entry)
+			}
+		}
+
+		// Geo field aggregation validity matrix.
+		if f.Type.IsGeo() && !geoAggregations[agg.Type] {
+			entry := &EnvelopeEntry{
+				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_GEO),
+				Message: "aggregation " + string(agg.Type) + " is not defined on geospatial field " + agg.Field,
+				Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type), "type": f.Type.String()},
+			}
+			if opts.Strict {
+				env.Errors = append(env.Errors, entry)
+			} else {
+				env.Warnings = append(env.Warnings, entry)
+			}
+		}
+
+		// AGG_GEO_CENTROID / AGG_GEO_BBOX must target point_f64 only.
+		if (agg.Type == types.AGG_GEO_CENTROID || agg.Type == types.AGG_GEO_BBOX) && f.Type != encoding.FieldTypePointF64 {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				string(agg.Type)+" requires a point_f64 field; got "+f.Type.String(),
+				map[string]any{"field": agg.Field, "aggregation": string(agg.Type), "type": f.Type.String()},
+			)
+		}
 	}
 
 	// Check filter fields.
@@ -165,6 +223,15 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 					"filter references unknown field: "+fil.Field,
 					map[string]any{"field": fil.Field, "filter": string(fil.Type)},
 				)
+				continue
+			}
+			// Geo filterers require point_f64 fields.
+			if (fil.Type == types.FILTER_GEO_WITHIN || fil.Type == types.FILTER_GEO_WITHIN_RADIUS_M) && f != nil && f.Type != encoding.FieldTypePointF64 {
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					string(fil.Type)+" requires a point_f64 field; got "+f.Type.String(),
+					map[string]any{"field": fil.Field, "filter": string(fil.Type), "type": f.Type.String()},
+				)
 			}
 		}
 	}
@@ -178,6 +245,17 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 				"group references unknown field: "+grp.Field,
 				map[string]any{"field": grp.Field, "group": string(grp.Type)},
 			)
+			continue
+		}
+		// GROUP_H3_CELL accepts point_f64 (resolution required) or h3_cell (resolution optional).
+		if grp.Type == types.GROUP_H3_CELL && f != nil {
+			if f.Type != encoding.FieldTypePointF64 && f.Type != encoding.FieldTypeH3Cell {
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					"GROUP_H3_CELL requires point_f64 or h3_cell field; got "+f.Type.String(),
+					map[string]any{"field": grp.Field, "group": string(grp.Type), "type": f.Type.String()},
+				)
+			}
 		}
 	}
 

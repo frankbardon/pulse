@@ -113,7 +113,7 @@ func TestSkillsCoverAllFieldTypes(t *testing.T) {
 		t.Fatal("cohort-schema-design.md not found")
 	}
 
-	// All 15 field types from encoding/field_type.go
+	// All 19 field types from encoding/field_type.go
 	fieldTypes := []encoding.FieldType{
 		encoding.FieldTypeU8,
 		encoding.FieldTypeU16,
@@ -130,6 +130,10 @@ func TestSkillsCoverAllFieldTypes(t *testing.T) {
 		encoding.FieldTypeCategoricalU8,
 		encoding.FieldTypeCategoricalU16,
 		encoding.FieldTypeCategoricalU32,
+		encoding.FieldTypeDecimal128,
+		encoding.FieldTypeNullableDecimal128,
+		encoding.FieldTypePointF64,
+		encoding.FieldTypeH3Cell,
 	}
 
 	for _, ft := range fieldTypes {

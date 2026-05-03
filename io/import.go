@@ -72,9 +72,12 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	rowsImported := 0
 	rowNum := 0
 
-	// Reusable per-row scratch slice. Single goroutine via ReadRows callback,
-	// so reuse is safe.
+	// Reusable per-row scratch slices. Narrow types share the uint64 slice;
+	// wide types (decimal128, point_f64) write 16 raw bytes via a parallel
+	// slice. Single goroutine via ReadRows callback, so reuse is safe.
 	vals := make([]uint64, len(schema.Fields))
+	wideBytes := make([][16]byte, len(schema.Fields))
+	wideUsed := make([]bool, len(schema.Fields))
 
 	err := j.Source.ReadRows(ctx, func(row []string) error {
 		select {
@@ -84,12 +87,35 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		}
 		rowNum++
 
+		for i := range wideUsed {
+			wideUsed[i] = false
+		}
+
 		rowOK := true
 		for i, f := range schema.Fields {
 			colIdx := f.CsvColumnIdx
 			var raw string
 			if colIdx < len(row) {
 				raw = strings.TrimSpace(row[colIdx])
+			}
+
+			if isWideFieldType(f.Type) {
+				wb, err := convertValueWide(raw, f, dicts[i])
+				if err != nil {
+					rowErrors = append(rowErrors, RowError{
+						Row: rowNum,
+						Err: errors.NewCodedErrorWithDetails(
+							errors.PULSE_IMPORT_ROW_ERROR,
+							fmt.Sprintf("row %d, column %q: %v", rowNum, f.Name, err),
+							map[string]any{"row": rowNum, "column": f.Name},
+						),
+					})
+					rowOK = false
+					break
+				}
+				wideBytes[i] = wb
+				wideUsed[i] = true
+				continue
 			}
 
 			v, err := convertValue(raw, f.Type, dicts[i])
@@ -114,6 +140,12 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		// Encode this row immediately. Buffer is owned per call; values
 		// are not retained across iterations.
 		for i, f := range schema.Fields {
+			if wideUsed[i] {
+				if _, err := recordsBuf.Write(wideBytes[i][:]); err != nil {
+					return err
+				}
+				continue
+			}
 			if f.Type == encoding.FieldTypePackedBool || f.Type == encoding.FieldTypeNullableBool || f.Type == encoding.FieldTypeNullableU4 {
 				// Bit-packed types: write as single byte for simplicity.
 				recordsBuf.WriteByte(byte(vals[i]))
@@ -213,6 +245,66 @@ func isNullToken(raw string) bool {
 			(raw[3] == 'l' || raw[3] == 'L')
 	}
 	return false
+}
+
+// isWideFieldType reports whether the field type uses the 16-byte wide
+// import path (decimal128, nullable_decimal128, point_f64). h3_cell fits
+// in uint64 and goes through the narrow path.
+func isWideFieldType(ft encoding.FieldType) bool {
+	return ft == encoding.FieldTypeDecimal128 ||
+		ft == encoding.FieldTypeNullableDecimal128 ||
+		ft == encoding.FieldTypePointF64
+}
+
+// convertValueWide converts a string value to the 16-byte representation
+// for wide field types. Returns the canonical encoding for null on
+// nullable_decimal128.
+func convertValueWide(raw string, f encoding.Field, _ *encoding.Dictionary) ([16]byte, error) {
+	switch f.Type {
+	case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+		if isNullToken(raw) {
+			if f.Type == encoding.FieldTypeNullableDecimal128 {
+				return encoding.NullDecimalSentinel(), nil
+			}
+			// non-nullable decimal: zero value
+			return encoding.EncodeDecimal128(encoding.ZeroDecimal128()), nil
+		}
+		d, parsedScale, err := encoding.ParseDecimal128(raw)
+		if err != nil {
+			return [16]byte{}, err
+		}
+		// Rescale to the field's declared scale.
+		if parsedScale != f.Scale {
+			d, err = d.Rescale(parsedScale, f.Scale)
+			if err != nil {
+				return [16]byte{}, err
+			}
+		}
+		if !d.FitsPrecision(f.Precision) {
+			return [16]byte{}, errors.NewCodedErrorWithDetails(
+				errors.PULSE_DECIMAL_OVERFLOW,
+				"decimal value exceeds field precision",
+				map[string]any{"value": raw, "precision": f.Precision, "scale": f.Scale})
+		}
+		enc := encoding.EncodeDecimal128(d)
+		// Reject the canonical NULL sentinel as a legitimate value.
+		if f.Type == encoding.FieldTypeNullableDecimal128 && enc == encoding.NullDecimalSentinel() {
+			return [16]byte{}, errors.NewCodedError(errors.PULSE_IMPORT_ROW_ERROR,
+				"decimal value collides with reserved NULL sentinel")
+		}
+		return enc, nil
+	case encoding.FieldTypePointF64:
+		if isNullToken(raw) {
+			return [16]byte{}, nil
+		}
+		p, err := encoding.ParseWKTPoint(raw)
+		if err != nil {
+			return [16]byte{}, err
+		}
+		return encoding.EncodePointF64(p), nil
+	default:
+		return [16]byte{}, fmt.Errorf("not a wide field type: %s", f.Type)
+	}
 }
 
 // convertValue converts a string value to the uint64 representation for the given type.
@@ -328,6 +420,16 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary) 
 		}
 		v, err := strconv.ParseUint(raw, 10, 16)
 		return v, err
+
+	case encoding.FieldTypeH3Cell:
+		if isNullToken(raw) {
+			return 0, nil
+		}
+		c, err := encoding.ParseH3CellHex(raw)
+		if err != nil {
+			return 0, err
+		}
+		return uint64(c), nil
 
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		if isNull {

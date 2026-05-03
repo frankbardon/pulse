@@ -293,6 +293,11 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 	data := buildTestPulseFile(t, schema)
 
 	for _, aggType := range types.AllAggregationTypes() {
+		// Geo aggregators require a point_f64 field; skip them in this
+		// test which uses an f64 schema. They are exercised separately.
+		if aggType == types.AGG_GEO_CENTROID || aggType == types.AGG_GEO_BBOX {
+			continue
+		}
 		req := &types.Request{
 			Aggregations: []*types.Aggregation{
 				{Type: aggType, Field: "val", Label: "result"},

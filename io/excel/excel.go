@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
@@ -242,6 +243,22 @@ type Writer struct {
 	sheet   string
 	rowNum  int
 	numCols int
+
+	// pulseSchema is set by ExportJob via SetPulseSchema before
+	// WriteHeader so the writer can apply scale-driven number formats
+	// to decimal columns and use text encoding for point/h3 columns.
+	pulseSchema *encoding.Schema
+	// decimalStyleIDs caches per-column number-format style ids,
+	// computed lazily on first write of a decimal column. The slice is
+	// indexed by column position; -1 means no cached style yet.
+	decimalStyleIDs []int
+}
+
+// SetPulseSchema records the source .pulse schema. Implements
+// pio.SchemaAwareWriter so ExportJob can hand the writer typed values
+// for decimal128 / point_f64 / h3_cell columns.
+func (w *Writer) SetPulseSchema(s *encoding.Schema) {
+	w.pulseSchema = s
 }
 
 // NewWriter creates an Excel writer targeting a filesystem path.
@@ -307,7 +324,11 @@ func (w *Writer) WriteHeader(columns []string) error {
 	return w.sw.SetRow(cell, row)
 }
 
-// WriteRow writes a single data row.
+// WriteRow writes a single data row. With a Pulse schema set the
+// writer renders decimal128 cells as Excel numbers with a scale-driven
+// "0.000…" format, point_f64 cells as "lon, lat" text, and h3_cell
+// cells as 15-char hex text. Without a schema, values pass through
+// excelize's default cell-value handling.
 func (w *Writer) WriteRow(values []any) error {
 	if w.sw == nil {
 		if err := w.init(); err != nil {
@@ -318,11 +339,124 @@ func (w *Writer) WriteRow(values []any) error {
 
 	row := make([]interface{}, len(values))
 	for i, v := range values {
-		row[i] = excelize.Cell{Value: v}
+		row[i] = w.formatCell(i, v)
 	}
 
 	cell, _ := excelize.CoordinatesToCellName(1, w.rowNum)
 	return w.sw.SetRow(cell, row)
+}
+
+// formatCell applies type-aware Excel cell rendering when a Pulse
+// schema is present.
+func (w *Writer) formatCell(col int, v any) excelize.Cell {
+	if w.pulseSchema != nil && col < len(w.pulseSchema.Fields) {
+		f := w.pulseSchema.Fields[col]
+		switch f.Type {
+		case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+			return w.decimalCell(col, f, v)
+		case encoding.FieldTypePointF64:
+			return excelize.Cell{Value: pointToText(v)}
+		case encoding.FieldTypeH3Cell:
+			return excelize.Cell{Value: h3ToText(v)}
+		}
+	}
+	return excelize.Cell{Value: v}
+}
+
+// decimalCell renders a Decimal128 as a number cell with the field's
+// scale-driven format string. Falls back to text for values that exceed
+// float64 representable range or for nil / empty inputs.
+func (w *Writer) decimalCell(col int, f encoding.Field, v any) excelize.Cell {
+	var d encoding.Decimal128
+	switch x := v.(type) {
+	case nil:
+		return excelize.Cell{Value: ""}
+	case string:
+		if x == "" {
+			return excelize.Cell{Value: ""}
+		}
+		parsed, parsedScale, err := encoding.ParseDecimal128(x)
+		if err != nil {
+			return excelize.Cell{Value: x}
+		}
+		if parsedScale != f.Scale {
+			parsed, err = parsed.Rescale(parsedScale, f.Scale)
+			if err != nil {
+				return excelize.Cell{Value: x}
+			}
+		}
+		d = parsed
+	case encoding.Decimal128:
+		d = x
+	default:
+		return excelize.Cell{Value: fmt.Sprintf("%v", v)}
+	}
+	styleID := w.ensureDecimalStyle(col, f.Scale)
+	return excelize.Cell{StyleID: styleID, Value: d.Float64(f.Scale)}
+}
+
+// ensureDecimalStyle materializes (and caches) a workbook style for
+// decimal column `col` with a scale-driven number format.
+func (w *Writer) ensureDecimalStyle(col int, scale uint8) int {
+	if w.decimalStyleIDs == nil {
+		w.decimalStyleIDs = make([]int, w.numCols)
+		for i := range w.decimalStyleIDs {
+			w.decimalStyleIDs[i] = -1
+		}
+	}
+	if col < len(w.decimalStyleIDs) && w.decimalStyleIDs[col] != -1 {
+		return w.decimalStyleIDs[col]
+	}
+	format := decimalNumberFormat(scale)
+	id, err := w.file.NewStyle(&excelize.Style{NumFmt: 0, CustomNumFmt: &format})
+	if err != nil {
+		return 0
+	}
+	if col < len(w.decimalStyleIDs) {
+		w.decimalStyleIDs[col] = id
+	}
+	return id
+}
+
+// decimalNumberFormat builds Excel's "0.000…" custom format for the
+// given scale. Scale 0 returns "0".
+func decimalNumberFormat(scale uint8) string {
+	if scale == 0 {
+		return "0"
+	}
+	return "0." + strings.Repeat("0", int(scale))
+}
+
+// pointToText renders a PointF64 as "lon, lat" (the WKT-natural order)
+// or stringifies a passed-through string. nil yields empty.
+func pointToText(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case encoding.PointF64:
+		return strconv.FormatFloat(x.Lon, 'g', -1, 64) + ", " + strconv.FormatFloat(x.Lat, 'g', -1, 64)
+	case string:
+		return x
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// h3ToText renders an H3Cell as the 15-char canonical hex string or
+// passes through a hex string. nil yields empty.
+func h3ToText(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case encoding.H3Cell:
+		return encoding.FormatH3CellHex(x)
+	case uint64:
+		return encoding.FormatH3CellHex(encoding.H3Cell(x))
+	case string:
+		return x
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // Close flushes and writes the workbook to the target path.

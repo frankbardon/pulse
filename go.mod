@@ -7,6 +7,7 @@ require (
 	github.com/expr-lang/expr v1.17.8
 	github.com/mark3labs/mcp-go v0.50.0
 	github.com/spf13/afero v1.15.0
+	github.com/uber/h3-go/v4 v4.4.1
 	github.com/urfave/cli/v3 v3.8.0
 	github.com/xuri/excelize/v2 v2.10.1
 )

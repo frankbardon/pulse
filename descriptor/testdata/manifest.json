@@ -42,6 +42,8 @@
         "AGG_COUNT",
         "AGG_DISTINCT_COUNT",
         "AGG_FREQUENCY",
+        "AGG_GEO_BBOX",
+        "AGG_GEO_CENTROID",
         "AGG_KURTOSIS",
         "AGG_MAX",
         "AGG_MEDIAN",
@@ -66,12 +68,15 @@
       "filterers": [
         "FILTER_EXCLUDE",
         "FILTER_EXPRESSION",
+        "FILTER_GEO_WITHIN",
+        "FILTER_GEO_WITHIN_RADIUS_M",
         "FILTER_INCLUDE",
         "FILTER_RANGE"
       ],
       "groupers": [
         "GROUP_CATEGORY",
         "GROUP_DATE",
+        "GROUP_H3_CELL",
         "GROUP_QUANTILE",
         "GROUP_RANGE",
         "GROUP_ROUNDED"
@@ -159,6 +164,22 @@
       {
         "name": "categorical_u32",
         "categorical": true
+      },
+      {
+        "name": "decimal128",
+        "categorical": false
+      },
+      {
+        "name": "nullable_decimal128",
+        "categorical": false
+      },
+      {
+        "name": "point_f64",
+        "categorical": false
+      },
+      {
+        "name": "h3_cell",
+        "categorical": false
       }
     ],
     "skills": []
@@ -166,4 +187,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0372b146a4c3bbef06447c1c2100e88139655b69b10a4e1c557a1fa3a782d1ae
+// golden-hash: a9b65bcc876dbd17854749353262967d4cf2452c394272c56f958c001acdb5b7

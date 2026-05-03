@@ -36,6 +36,15 @@ type InspectField struct {
 	DescriptionSource string          `json:"description_source"`
 	Categorical       bool            `json:"categorical"`
 	Dictionary        *DictionaryInfo `json:"dictionary,omitempty"`
+	// Precision is the decimal128 precision (1-38). Present only for
+	// decimal128 / nullable_decimal128 fields.
+	Precision *uint8 `json:"precision,omitempty"`
+	// Scale is the decimal128 scale (0-precision). Present only for
+	// decimal128 / nullable_decimal128 fields.
+	Scale *uint8 `json:"scale,omitempty"`
+	// H3Resolution is the native cell resolution (0-15). Present only
+	// for h3_cell fields where the import recorded a resolution.
+	H3Resolution *uint8 `json:"h3_resolution,omitempty"`
 }
 
 // DictionaryInfo describes the categorical dictionary for a field.
@@ -96,6 +105,17 @@ func Inspect(fileData io.ReadSeeker, opts *InspectOptions) *Envelope {
 			Categorical:       f.Type.IsCategorical(),
 		}
 
+		if f.Type.IsDecimal() {
+			p := f.Precision
+			s := f.Scale
+			field.Precision = &p
+			field.Scale = &s
+		}
+		if f.Type == encoding.FieldTypeH3Cell && f.H3Resolution != 0xFF {
+			res := f.H3Resolution
+			field.H3Resolution = &res
+		}
+
 		if f.Type.IsCategorical() && f.Dictionary != nil {
 			values := f.Dictionary.Values()
 			dictInfo := &DictionaryInfo{
@@ -126,8 +146,15 @@ func InspectFromBytes(data []byte, opts *InspectOptions) *Envelope {
 // synthesizeDescription generates a fallback description for fields
 // that have no stored description.
 func synthesizeDescription(f encoding.Field) string {
-	if f.Type.IsCategorical() {
+	switch {
+	case f.Type.IsCategorical():
 		return "Categorical field: " + f.Name
+	case f.Type.IsDecimal():
+		return "Decimal field: " + f.Name
+	case f.Type == encoding.FieldTypePointF64:
+		return "Geo point field: " + f.Name
+	case f.Type == encoding.FieldTypeH3Cell:
+		return "H3 cell field: " + f.Name
 	}
 	return "Numeric field: " + f.Name
 }

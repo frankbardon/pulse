@@ -1,0 +1,10 @@
+{
+  "_comment": "Decimal-aware SUM and AVERAGE on a money column. Result preserves precision; SUM hard-errors on overflow, AVERAGE falls back to f64 with PULSE_DECIMAL_PRECISION_LOSS only when intermediate state would overflow decimal128(38).",
+  "cohort": {"filename": "all_types.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_SUM", "field": "amount", "label": "total"},
+    {"type": "AGG_AVERAGE", "field": "amount", "label": "avg"},
+    {"type": "AGG_MIN", "field": "amount", "label": "lo"},
+    {"type": "AGG_MAX", "field": "amount", "label": "hi"}
+  ]
+}

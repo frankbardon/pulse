@@ -62,7 +62,7 @@ func commands() []Command {
 // cohortFieldTypes returns all field types as CohortFieldType descriptors.
 func cohortFieldTypes() []CohortFieldType {
 	var out []CohortFieldType
-	for i := range 15 {
+	for i := range 19 {
 		ft := encoding.FieldType(i)
 		name := ft.String()
 		if len(name) > 7 && name[:7] == "unknown" {

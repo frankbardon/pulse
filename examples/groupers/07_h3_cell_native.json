@@ -1,0 +1,10 @@
+{
+  "_comment": "Group by an h3_cell field at its native resolution. With no resolution param the grouper uses the cell's native resolution; supplying a coarser resolution would walk parents.",
+  "cohort": {"filename": "all_types.pulse", "data_dir": ".data"},
+  "groups": [
+    {"type": "GROUP_H3_CELL", "field": "cell"}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "n"}
+  ]
+}

@@ -7,8 +7,21 @@ import (
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
+	"github.com/apache/arrow-go/v18/arrow/decimal128"
 
 	"github.com/frankbardon/pulse/encoding"
+)
+
+// Pulse field metadata keys carried as Arrow Field.Metadata pairs so a
+// reader can recover the original Pulse type for fields that map to a
+// generic Arrow type (FixedSizeBinary(16) for point_f64, UInt64 for
+// h3_cell). Decimal128 carries its precision/scale natively in
+// arrow.Decimal128Type and does not need an extension marker.
+const (
+	PulseTypeMetadataKey      = "pulse:type"
+	PulseTypePointF64Value    = "point_f64"
+	PulseTypeH3CellValue      = "h3_cell"
+	PulseH3ResolutionMetadata = "pulse:h3_resolution"
 )
 
 // TypeToPulse maps an Arrow data type (with its nullability flag) to a Pulse
@@ -77,6 +90,11 @@ func TypeToPulse(dt arrow.DataType, nullable bool) encoding.FieldType {
 	case arrow.DICTIONARY:
 		// Dictionary-encoded -> categorical.
 		return encoding.FieldTypeCategoricalU8
+	case arrow.DECIMAL128:
+		if nullable {
+			return encoding.FieldTypeNullableDecimal128
+		}
+		return encoding.FieldTypeDecimal128
 	default:
 		// Default to f64 for unknown types.
 		return encoding.FieldTypeF64
@@ -126,9 +144,218 @@ func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
 		return arrow.PrimitiveTypes.Uint16
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		return arrow.BinaryTypes.String
+	case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+		// Caller-resolved precision/scale; default 38/0 when not provided.
+		return &arrow.Decimal128Type{Precision: int32(encoding.MaxDecimalPrecision), Scale: 0}
+	case encoding.FieldTypePointF64:
+		return &arrow.FixedSizeBinaryType{ByteWidth: 16}
+	case encoding.FieldTypeH3Cell:
+		return arrow.PrimitiveTypes.Uint64
 	default:
 		return arrow.PrimitiveTypes.Float64
 	}
+}
+
+// FieldFromPulse builds an Arrow Field for a Pulse schema entry, including
+// per-type details (decimal128 precision/scale) and Pulse extension
+// metadata (pulse:type for point_f64 / h3_cell, pulse:h3_resolution for
+// h3_cell when the source schema recorded one).
+func FieldFromPulse(f encoding.Field) arrow.Field {
+	nullable := f.Type == encoding.FieldTypeNullableDecimal128 ||
+		f.Type == encoding.FieldTypeNullableBool ||
+		f.Type == encoding.FieldTypeNullableU4 ||
+		f.Type == encoding.FieldTypeNullableU8 ||
+		f.Type == encoding.FieldTypeNullableU16
+	switch f.Type {
+	case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+		precision := int32(f.Precision)
+		if precision == 0 {
+			precision = int32(encoding.MaxDecimalPrecision)
+		}
+		return arrow.Field{
+			Name:     f.Name,
+			Type:     &arrow.Decimal128Type{Precision: precision, Scale: int32(f.Scale)},
+			Nullable: nullable,
+		}
+	case encoding.FieldTypePointF64:
+		return arrow.Field{
+			Name: f.Name,
+			Type: &arrow.FixedSizeBinaryType{ByteWidth: 16},
+			Metadata: arrow.NewMetadata(
+				[]string{PulseTypeMetadataKey},
+				[]string{PulseTypePointF64Value},
+			),
+		}
+	case encoding.FieldTypeH3Cell:
+		keys := []string{PulseTypeMetadataKey}
+		vals := []string{PulseTypeH3CellValue}
+		if f.H3Resolution != 0xFF {
+			keys = append(keys, PulseH3ResolutionMetadata)
+			vals = append(vals, strconv.FormatUint(uint64(f.H3Resolution), 10))
+		}
+		return arrow.Field{
+			Name:     f.Name,
+			Type:     arrow.PrimitiveTypes.Uint64,
+			Metadata: arrow.NewMetadata(keys, vals),
+		}
+	default:
+		return arrow.Field{Name: f.Name, Type: TypeFromPulse(f.Type), Nullable: nullable}
+	}
+}
+
+// PulseFieldFromArrow inverts FieldFromPulse for the special types,
+// reading Arrow field metadata (pulse:type) to recover point_f64 or
+// h3_cell when the underlying Arrow type would otherwise look generic.
+// Returns (field, true) if a Pulse-extension type was identified;
+// (zero, false) otherwise — the caller should fall back to TypeToPulse.
+func PulseFieldFromArrow(af arrow.Field) (encoding.Field, bool) {
+	md := af.Metadata
+	pulseType, ok := md.GetValue(PulseTypeMetadataKey)
+	if ok {
+		switch pulseType {
+		case PulseTypePointF64Value:
+			return encoding.Field{Name: af.Name, Type: encoding.FieldTypePointF64}, true
+		case PulseTypeH3CellValue:
+			out := encoding.Field{Name: af.Name, Type: encoding.FieldTypeH3Cell, H3Resolution: 0xFF}
+			if v, ok := md.GetValue(PulseH3ResolutionMetadata); ok {
+				if r, err := strconv.ParseUint(v, 10, 8); err == nil {
+					out.H3Resolution = uint8(r)
+				}
+			}
+			return out, true
+		}
+	}
+	if dt, ok := af.Type.(*arrow.Decimal128Type); ok {
+		ft := encoding.FieldTypeDecimal128
+		if af.Nullable {
+			ft = encoding.FieldTypeNullableDecimal128
+		}
+		return encoding.Field{
+			Name:      af.Name,
+			Type:      ft,
+			Precision: uint8(dt.Precision),
+			Scale:     uint8(dt.Scale),
+		}, true
+	}
+	return encoding.Field{}, false
+}
+
+// AppendDecimal128 appends a decimal value to an Arrow Decimal128
+// builder, accepting either an encoding.Decimal128 typed value or a
+// canonical decimal string at the field's scale. nil and "" append a
+// null. Used by the Arrow IPC and Parquet writers.
+func AppendDecimal128(b array.Builder, f encoding.Field, v any) error {
+	bldr, ok := b.(*array.Decimal128Builder)
+	if !ok {
+		return fmt.Errorf("arrow: column expected Decimal128 builder, got %T", b)
+	}
+	switch x := v.(type) {
+	case nil:
+		bldr.AppendNull()
+	case string:
+		if x == "" {
+			bldr.AppendNull()
+			return nil
+		}
+		d, parsedScale, err := encoding.ParseDecimal128(x)
+		if err != nil {
+			return err
+		}
+		if parsedScale != f.Scale {
+			d, err = d.Rescale(parsedScale, f.Scale)
+			if err != nil {
+				return err
+			}
+		}
+		bldr.Append(decimal128FromPulse(d))
+	case encoding.Decimal128:
+		bldr.Append(decimal128FromPulse(x))
+	default:
+		return fmt.Errorf("arrow: decimal column expected encoding.Decimal128 or string, got %T", v)
+	}
+	return nil
+}
+
+// AppendPointF64 appends a point value to an Arrow FixedSizeBinary(16)
+// builder, accepting either an encoding.PointF64 typed value or a WKT
+// POINT(lon lat) string. nil and "" append a null.
+func AppendPointF64(b array.Builder, v any) error {
+	bldr, ok := b.(*array.FixedSizeBinaryBuilder)
+	if !ok {
+		return fmt.Errorf("arrow: column expected FixedSizeBinary builder, got %T", b)
+	}
+	switch x := v.(type) {
+	case nil:
+		bldr.AppendNull()
+	case encoding.PointF64:
+		buf := encoding.EncodePointF64(x)
+		bldr.Append(buf[:])
+	case string:
+		if x == "" {
+			bldr.AppendNull()
+			return nil
+		}
+		p, err := encoding.ParseWKTPoint(x)
+		if err != nil {
+			return err
+		}
+		buf := encoding.EncodePointF64(p)
+		bldr.Append(buf[:])
+	default:
+		return fmt.Errorf("arrow: point column expected encoding.PointF64 or WKT string, got %T", v)
+	}
+	return nil
+}
+
+// AppendH3Cell appends an H3 cell to an Arrow UInt64 builder, accepting
+// either an encoding.H3Cell typed value, a raw uint64, or a 15-char
+// hex string. nil and "" append a null.
+func AppendH3Cell(b array.Builder, v any) error {
+	bldr, ok := b.(*array.Uint64Builder)
+	if !ok {
+		return fmt.Errorf("arrow: column expected Uint64 builder, got %T", b)
+	}
+	switch x := v.(type) {
+	case nil:
+		bldr.AppendNull()
+	case encoding.H3Cell:
+		bldr.Append(uint64(x))
+	case uint64:
+		bldr.Append(x)
+	case string:
+		if x == "" {
+			bldr.AppendNull()
+			return nil
+		}
+		c, err := encoding.ParseH3CellHex(x)
+		if err != nil {
+			return err
+		}
+		bldr.Append(uint64(c))
+	default:
+		return fmt.Errorf("arrow: h3 column expected encoding.H3Cell, uint64, or hex string, got %T", v)
+	}
+	return nil
+}
+
+// decimal128FromPulse converts a Pulse Decimal128 mantissa into the
+// arrow/decimal128.Num expected by the Arrow Decimal128 builder. Both
+// representations are 128-bit two's complement; we transit through the
+// canonical 16-byte little-endian Pulse encoding.
+func decimal128FromPulse(d encoding.Decimal128) decimal128.Num {
+	le := encoding.EncodeDecimal128(d)
+	// little-endian -> big-endian, then split into hi/lo uint64.
+	var be [16]byte
+	for i := 0; i < 16; i++ {
+		be[i] = le[15-i]
+	}
+	var hi int64
+	var lo uint64
+	for i := 0; i < 8; i++ {
+		hi = (hi << 8) | int64(be[i])
+		lo = (lo << 8) | uint64(be[8+i])
+	}
+	return decimal128.New(hi, lo)
 }
 
 // FormatValue renders a single element of an Arrow array as a string suitable
@@ -192,8 +419,45 @@ func FormatValue(arr arrow.Array, idx int) string {
 			return strDict.Value(index)
 		}
 		return fmt.Sprintf("%v", index)
+	case *array.Decimal128:
+		// Render at the array's declared scale.
+		dt := a.DataType().(*arrow.Decimal128Type)
+		v := a.Value(idx)
+		// Reconstruct the canonical decimal string at the declared scale
+		// using Pulse's encoding to avoid round-tripping through float64.
+		return decimal128ArrayValueToString(v, uint8(dt.Scale))
+	case *array.FixedSizeBinary:
+		// PointF64 is the only fixed-size-binary(16) type emitted by Pulse;
+		// render as WKT POINT(lon lat).
+		raw := a.Value(idx)
+		if len(raw) == 16 {
+			var buf [16]byte
+			copy(buf[:], raw)
+			p := encoding.DecodePointF64(buf)
+			return encoding.FormatWKTPoint(p)
+		}
+		return fmt.Sprintf("%v", a.GetOneForMarshal(idx))
 	default:
 		// Fallback: use the String representation from the array.
 		return fmt.Sprintf("%v", a.GetOneForMarshal(idx))
 	}
+}
+
+// decimal128ArrayValueToString renders an arrow.decimal128 value at the
+// given scale using Pulse's encoding. Avoids float64 round-tripping that
+// would lose precision.
+func decimal128ArrayValueToString(v decimal128.Num, scale uint8) string {
+	hi := v.HighBits()
+	lo := v.LowBits()
+	var be [16]byte
+	for i := 0; i < 8; i++ {
+		be[i] = byte(uint64(hi) >> (56 - 8*i))
+		be[8+i] = byte(lo >> (56 - 8*i))
+	}
+	var le [16]byte
+	for i := 0; i < 16; i++ {
+		le[i] = be[15-i]
+	}
+	d, _ := encoding.DecodeDecimal128(le)
+	return d.String(scale)
 }
