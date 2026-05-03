@@ -118,6 +118,21 @@ func (p *Pulse) Compose(ctx context.Context, req *ComposedRequest) ([]*Response,
 	return p.svc.Compose(ctx, req)
 }
 
+// ComposeOptions controls parallel execution. See service.ComposeOptions.
+type ComposeOptions = service.ComposeOptions
+
+// ComposeParallel runs every request in req concurrently across a bounded
+// worker pool. Responses are returned in input order. Workers share the
+// engine's read-only registries; each Process call constructs fresh
+// stateful operators per request, so concurrent execution is safe.
+//
+// Defaults: MaxWorkers = runtime.GOMAXPROCS(0), no per-request timeout,
+// FailFast = true (set FailFast=false to collect every request's outcome
+// instead of cancelling siblings on first error).
+func (p *Pulse) ComposeParallel(ctx context.Context, req *ComposedRequest, opts ComposeOptions) ([]*Response, error) {
+	return p.svc.ComposeParallel(ctx, req, opts)
+}
+
 // Import converts tabular source data into a .pulse file.
 // The job's FS field is set to the Pulse instance's filesystem if not already set.
 func (p *Pulse) Import(ctx context.Context, job *pio.ImportJob) (*pio.ImportReport, error) {
