@@ -106,6 +106,15 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 	return resp, nil
 }
 
+// CanStreamRequest is the exported parity hook used by tests in
+// descriptor/ (which cannot import processing) to confirm that a
+// PredictResult.Streamable value matches the runtime gate. Application
+// code should rely on PredictResult.Streamable, not this helper.
+func CanStreamRequest(req *types.Request, schema *encoding.Schema) bool {
+	p := &Processor{schema: schema}
+	return p.canStream(req)
+}
+
 // canStream reports whether the request can be safely executed via the
 // streaming path. Streaming requires:
 //   - no grouping (groups need the full record set partitioned by key)
