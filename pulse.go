@@ -91,6 +91,28 @@ func (p *Pulse) Process(ctx context.Context, req *Request) (*Response, error) {
 	return p.svc.Process(ctx, req)
 }
 
+// Row is a single result row in a processing stream.
+type Row = service.Row
+
+// RowIter is a pull-based iterator over a processing result. Each call
+// to Next returns the next row or (nil, false, nil) on exhaustion. Close
+// releases underlying resources. Metadata returns the run metadata once
+// available (always present after the iterator is drained).
+type RowIter = service.RowIter
+
+// ProcessStream executes a request and returns a pull-based row iterator
+// over the result. Equivalent to Process for any request shape — same
+// gates, same errors — but streaming consumers (HTTP responders, NDJSON
+// writers, downstream pipelines) can drain rows one at a time without
+// buffering the full result in their own memory.
+//
+// Predict's Streamable flag reports whether the underlying execution
+// avoids buffering inside the engine; ProcessStream wraps the result
+// regardless, so the API is stable for non-streamable requests too.
+func (p *Pulse) ProcessStream(ctx context.Context, req *Request) (RowIter, error) {
+	return p.svc.ProcessStream(ctx, req)
+}
+
 // Compose executes multiple requests, returning a response for each.
 func (p *Pulse) Compose(ctx context.Context, req *ComposedRequest) ([]*Response, error) {
 	return p.svc.Compose(ctx, req)

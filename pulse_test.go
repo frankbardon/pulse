@@ -822,6 +822,47 @@ func TestNoOsExec(t *testing.T) {
 	}
 }
 
+func TestProcessStream_FacadeReturnsIterator(t *testing.T) {
+	memFs := afero.NewMemMapFs()
+	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
+		{"10"}, {"20"}, {"30"},
+	})
+
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	iter, err := p.ProcessStream(context.Background(), &Request{
+		Cohort: &types.Cohort{Filename: "test.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "age", Label: "n"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ProcessStream: %v", err)
+	}
+	defer iter.Close()
+
+	var rows []Row
+	for {
+		row, ok, err := iter.Next(context.Background())
+		if err != nil {
+			t.Fatalf("Next: %v", err)
+		}
+		if !ok {
+			break
+		}
+		rows = append(rows, row)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(rows))
+	}
+	if iter.Metadata() == nil {
+		t.Fatal("Metadata nil after drain")
+	}
+}
+
 func TestCohort_SchemaNotNil(t *testing.T) {
 	memFs := afero.NewMemMapFs()
 	schema := &encoding.Schema{
