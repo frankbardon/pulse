@@ -16,9 +16,10 @@ examples/
 │   └── schemas/*.json         # hand-tuned schemas with descriptions
 ├── attributes/                # ATTR_* per-record derivations (6)
 ├── features/                  # FEAT_* feature engineering (10)
-├── filterers/                 # FILTER_* row-level predicates (4)
-├── groupers/                  # GROUP_* partitioning (5)
+├── filterers/                 # FILTER_* row-level predicates (6)
+├── groupers/                  # GROUP_* partitioning (7)
 ├── windows/                   # WIN_* per-row analytics (10)
+├── aggregations/              # AGG_* requests over the all_types cohort (5)
 └── <new-category>/            # each: README.md + run-all.sh + *.json
 ```
 
@@ -32,8 +33,9 @@ make build
 ```
 
 That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
-and `training_data.pulse` into `.data/` at the repo root. Every example
-request has `cohort.data_dir = ".data"` so the requests run unmodified.
+`training_data.pulse`, and `all_types.pulse` into `.data/` at the
+repo root. Every example request has `cohort.data_dir = ".data"` so
+the requests run unmodified.
 
 ## Available cohorts
 
@@ -43,6 +45,7 @@ request has `cohort.data_dir = ".data"` so the requests run unmodified.
 | `customers.pulse` | `id` (u32), `age` (u8), `income` (f64), `region` (categorical), `city` (categorical) |
 | `orders.pulse` | `id` (u32), `order_date` (date), `revenue` (f64) |
 | `training_data.pulse` | `id` (u32), `region`/`occupation`/`category` (categorical), `label` (u8 binary), `price`/`income` (f64), `signup_date` (date) |
+| `all_types.pulse` | One column for every one of the 19 supported types (u8/u16/u32/u64, f32/f64, nullable_bool/u4/u8/u16, date, packed_bool, categorical_u8/u16/u32, decimal128, nullable_decimal128, point_f64, h3_cell). Hand-curated 5-row CSV — exists so a single fixture exercises every type-aware code path. |
 
 The generator (`fixtures/gen.go`) is deterministic — re-running with the
 same seed produces byte-identical CSVs. Re-generate from scratch:
@@ -96,4 +99,4 @@ category is one line in the test's `categories` slice.
 go test -run TestExamples -v .
 ```
 
-Currently 35 sub-tests across five categories.
+Currently 44 sub-tests across six categories.

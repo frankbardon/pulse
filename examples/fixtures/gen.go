@@ -7,6 +7,12 @@
 //
 // Output is written into examples/fixtures/. The same seed produces
 // byte-identical output so the CSVs are checked in.
+//
+// Not generated here: all_types.csv. That fixture is hand-curated
+// because it exists specifically to exercise every one of the 19
+// supported field types end to end (h3_cell, point_f64, decimal128 with
+// per-field precision/scale, etc.). Random generation does not buy us
+// anything when the goal is type coverage on a 5-row file.
 package main
 
 import (
