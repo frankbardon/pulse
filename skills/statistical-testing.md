@@ -200,6 +200,54 @@ Output Details:
 
 Streamable: no.
 
+### TEST_ANOVA_WELCH — heteroscedasticity-robust one-way ANOVA
+
+Streaming variant of `TEST_ANOVA_F` that does not assume equal variances. Per-group online Welford state matches the standard ANOVA; finalization uses the Welch (1951) weighting `w_i = n_i / s²_i` with the Welch-Satterthwaite df₂ correction.
+
+Required fields:
+- `field` — numeric value
+- `split_by` — categorical defining k ≥ 2 groups
+
+Output Details:
+- `groups`, `n` (per group), `group_means`, `group_variances`, `weights`
+- `weighted_mean`, `df_between`, `df_within`
+
+Streamable: yes. Use when group variances are visibly unequal (Brown-Forsythe rejects, or sample variances differ by > ~3×).
+
+### TEST_ANOVA_RM — one-way repeated-measures ANOVA
+
+Buffered. Balanced design only (one observation per subject per condition). Decomposes SS into between-subject, treatment, and error components; `F = MS_treatment / MS_error` with `df = (k−1, (n−1)(k−1))`.
+
+Required fields:
+- `field` — numeric value column
+- `split_by` — categorical condition column (within-subject factor)
+- `subject_field` — categorical subject identifier
+
+Output Details:
+- `conditions`, `condition_means`, `grand_mean`
+- `complete_subjects`, `dropped_subjects`
+- `ss_total`, `ss_between_subjects`, `ss_treatment`, `ss_error`, `df_treatment`, `df_error`
+
+Sphericity correction (Greenhouse-Geisser / Huynh-Feldt) is documented as future work — current variant reports the uncorrected F.
+
+Streamable: no.
+
+### TEST_BROWN_FORSYTHE — variance homogeneity (median-based)
+
+Buffered. Replaces each value with its absolute deviation from the per-group median, then runs one-way ANOVA on the deviations. Robust against non-normality; the conventional preferred variant over Levene's mean-based residuals.
+
+Required fields:
+- `field` — numeric value
+- `split_by` — categorical defining k ≥ 2 groups
+
+Output Details:
+- `groups`, `n`, `group_medians`, `abs_dev_means`
+- `ss_between`, `ss_within`, `df_between`, `df_within`
+
+Use case: pre-ANOVA gate. If Brown-Forsythe rejects, prefer `TEST_ANOVA_WELCH` over `TEST_ANOVA_F`.
+
+Streamable: no.
+
 ### TEST_KENDALL_TAU — concordance-based correlation
 
 τ-b variant with tie correction. Buffered O(n²) pair count.
@@ -233,6 +281,9 @@ Streamable: no.
 | `TEST_KRUSKAL_WALLIS` | no | combined-set ranks |
 | `TEST_SPEARMAN_R` | no | rank both columns |
 | `TEST_KENDALL_TAU` | no | O(n²) pair count |
+| `TEST_ANOVA_WELCH` | yes | online per-group moments + Welch weighting |
+| `TEST_ANOVA_RM` | no | wide pivot over subject × condition |
+| `TEST_BROWN_FORSYTHE` | no | per-group medians require a sort |
 
 Tier-2 (`post_tests`) always runs over the materialized result set after windows, regardless of test type.
 
@@ -253,6 +304,9 @@ Tier-2 (`post_tests`) always runs over the materialized result set after windows
 | `TEST_KRUSKAL_WALLIS` | ✓ (forces buffered path) | — |
 | `TEST_SPEARMAN_R` | ✓ (forces buffered path) | — |
 | `TEST_KENDALL_TAU` | ✓ (forces buffered path) | — |
+| `TEST_ANOVA_WELCH` | ✓ | — |
+| `TEST_ANOVA_RM` | ✓ (forces buffered path) | — |
+| `TEST_BROWN_FORSYTHE` | ✓ (forces buffered path) | — |
 | `TEST_TREND` | — | ✓ (Mann-Kendall) |
 | `TEST_TUKEY_HSD` | — | — (declared in enum; studentized-range distribution lands in a follow-up. Requests surface `PULSE_TEST_UNKNOWN_TYPE`.) |
 
@@ -278,6 +332,8 @@ Tier-2 (`post_tests`) always runs over the materialized result set after windows
 | `PULSE_TEST_EXPECTED_COUNT_TOO_LOW` | warning — chi-square expected cell < 5 |
 | `PULSE_TEST_PAIRED_LENGTH_MISMATCH` | warning — paired test dropped rows with one-sided nulls |
 | `PULSE_TEST_TIES_DOMINATE` | warning — ≥ 50 % of ranked values are tied |
+| `PULSE_TEST_SUBJECT_MISSING` | warning — RM-ANOVA dropped subjects with incomplete conditions |
+| `PULSE_TEST_BALANCED_DESIGN_REQUIRED` | RM-ANOVA observed unequal cell counts |
 
 See `error-code-reference.md` for recovery steps.
 

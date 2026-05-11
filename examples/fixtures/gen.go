@@ -55,7 +55,8 @@ func main() {
 	must(writeOrders(r, 200))
 	must(writeTrainingData(r, 300))
 	must(writeExperiment(r, 400))
-	fmt.Println("wrote 5 CSVs to", outputDir)
+	must(writeRepeatedMeasures(r, 40))
+	fmt.Println("wrote 6 CSVs to", outputDir)
 }
 
 // writeExperiment produces an A/B testing cohort designed so every
@@ -281,6 +282,52 @@ func writeTrainingData(r *rand.Rand, n int) error {
 			signup,
 		}); err != nil {
 			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
+// writeRepeatedMeasures produces a small repeated-measures cohort designed
+// for TEST_ANOVA_RM. Each subject contributes one observation in each of
+// three conditions (baseline, treatment_a, treatment_b). The wide
+// table reshapes to (n subjects) × 3, balanced. Per-subject random
+// effect dominates; treatment_a adds a moderate lift, treatment_b a
+// larger one — so RM-ANOVA rejects clearly.
+//
+// Fields:
+//   subject_id    — categorical, n distinct values
+//   condition     — categorical, {baseline, treatment_a, treatment_b}
+//   metric        — f64
+func writeRepeatedMeasures(r *rand.Rand, nSubjects int) error {
+	w, close := openCSV("repeated_measures.csv")
+	defer close()
+	if err := w.Write([]string{"subject_id", "condition", "metric"}); err != nil {
+		return err
+	}
+	conditions := []struct {
+		name string
+		lift float64
+	}{
+		{"baseline", 0.0},
+		{"treatment_a", 3.0},
+		{"treatment_b", 6.0},
+	}
+	for s := range nSubjects {
+		// Subject-level baseline ability ~ N(20, 4). Carries through every
+		// condition so within-subject correlation is large.
+		baseline := 20.0 + 4.0*r.NormFloat64()
+		subjID := fmt.Sprintf("subj_%03d", s+1)
+		for _, c := range conditions {
+			// Per-cell noise small relative to subject baseline.
+			metric := baseline + c.lift + 0.8*r.NormFloat64()
+			if err := w.Write([]string{
+				subjID,
+				c.name,
+				fmt.Sprintf("%.3f", metric),
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	w.Flush()

@@ -56,6 +56,9 @@ var rowTestRegistry = map[types.TestType]RowTestFactory{
 	types.TEST_KRUSKAL_WALLIS: newKruskalWallisRow,
 	types.TEST_SPEARMAN_R:     newSpearmanRRow,
 	types.TEST_KENDALL_TAU:    newKendallTauRow,
+	types.TEST_ANOVA_WELCH:    newAnovaWelchRow,
+	types.TEST_ANOVA_RM:       newAnovaRMRow,
+	types.TEST_BROWN_FORSYTHE: newBrownForsytheRow,
 }
 
 // postTestRegistry maps test types to their post-test factory functions.

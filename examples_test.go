@@ -28,7 +28,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		t.Fatalf("pulse.New: %v", err)
 	}
 
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment"}
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures"}
 	for _, name := range cohorts {
 		csvPath := filepath.Join("examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("examples", "fixtures", "schemas", name+".json")
@@ -66,7 +66,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		{"groupers", "groupers", 7},
 		{"windows", "windows", 10},
 		{"aggregations", "aggregations", 5},
-		{"tests", "tests", 20},
+		{"tests", "tests", 24},
 	}
 
 	for _, cat := range categories {

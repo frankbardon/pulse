@@ -26,6 +26,10 @@ its cohort from the shared `.data` directory and assumes
 | `18_spearman_correlation.json` | 1 | `TEST_SPEARMAN_R` | rank Pearson on the pre/post pair |
 | `19_kendall_tau.json` | 1 | `TEST_KENDALL_TAU` | concordance-based correlation on the same pair |
 | `20_nonparametric_battery.json` | 1 | five tests | Mann-Whitney + Kruskal-Wallis + Wilcoxon + Spearman + Kendall in one Process call |
+| `21_welch_anova_unequal_var.json` | 1 | `TEST_ANOVA_WELCH` | heteroscedasticity-robust one-way ANOVA on revenue × region |
+| `22_brown_forsythe_homogeneity.json` | 1 | `TEST_BROWN_FORSYTHE` | variance-homogeneity gate pre-flight for ANOVA |
+| `23_rm_anova_three_conditions.json` | 1 | `TEST_ANOVA_RM` | repeated-measures ANOVA on a 40-subject × 3-condition cohort |
+| `24_anova_robustness_battery.json` | 1 | three ANOVA variants | classical F + Welch F + Brown-Forsythe side by side on revenue × region |
 
 ## Cohort
 

@@ -137,6 +137,9 @@ func TestStreamability_TestsKnown(t *testing.T) {
 		TEST_KRUSKAL_WALLIS: false,
 		TEST_SPEARMAN_R:     false,
 		TEST_KENDALL_TAU:    false,
+		TEST_ANOVA_WELCH:    true,
+		TEST_ANOVA_RM:       false,
+		TEST_BROWN_FORSYTHE: false,
 	}
 	for _, tt := range AllTestTypes() {
 		want, ok := expected[tt]

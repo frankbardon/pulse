@@ -250,6 +250,19 @@ const (
 	// heavy ties; consider an exact-permutation variant when the count
 	// is small.
 	PULSE_TEST_TIES_DOMINATE Code = "PULSE_TEST_TIES_DOMINATE"
+
+	// PULSE_TEST_SUBJECT_MISSING indicates a repeated-measures test
+	// found at least one subject missing one or more conditions.
+	// Default behavior is to drop the incomplete subject(s) and surface
+	// the count as a warning; configurable to error under strict mode.
+	PULSE_TEST_SUBJECT_MISSING Code = "PULSE_TEST_SUBJECT_MISSING"
+
+	// PULSE_TEST_BALANCED_DESIGN_REQUIRED indicates a repeated-measures
+	// test observed unequal cell counts across the condition × subject
+	// grid. Type II / III sums-of-squares decompositions for the
+	// unbalanced case are not implemented yet; the test fails rather
+	// than reporting a biased balanced-design F.
+	PULSE_TEST_BALANCED_DESIGN_REQUIRED Code = "PULSE_TEST_BALANCED_DESIGN_REQUIRED"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -318,6 +331,8 @@ var allCodes = []Code{
 	PULSE_TEST_CORRELATION_UNDEFINED,
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH,
 	PULSE_TEST_TIES_DOMINATE,
+	PULSE_TEST_SUBJECT_MISSING,
+	PULSE_TEST_BALANCED_DESIGN_REQUIRED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

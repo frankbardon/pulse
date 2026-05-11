@@ -271,6 +271,24 @@ const (
 	// sided p-value via normal approximation with the standard variance
 	// adjustment for ties in either column.
 	TEST_KENDALL_TAU TestType = "TEST_KENDALL_TAU"
+
+	// TEST_ANOVA_WELCH is the heteroscedasticity-robust one-way ANOVA.
+	// Streams via the same per-group Welford buckets as TEST_ANOVA_F.
+	// Statistic uses per-group weights w_i = n_i / s²_i, with the
+	// Welch-Satterthwaite denominator correction for unequal variances.
+	TEST_ANOVA_WELCH TestType = "TEST_ANOVA_WELCH"
+
+	// TEST_ANOVA_RM is the repeated-measures one-way ANOVA. Buffered:
+	// requires SubjectField to pivot rows into the wide subject ×
+	// condition table. Decomposes SS into between-subjects, treatment,
+	// and error components; F = MS_treatment / MS_error.
+	TEST_ANOVA_RM TestType = "TEST_ANOVA_RM"
+
+	// TEST_BROWN_FORSYTHE is a homogeneity-of-variance test. Replaces
+	// each value with its absolute deviation from the group median, then
+	// runs one-way ANOVA on the deviations. Buffered: per-group medians
+	// require a sort.
+	TEST_BROWN_FORSYTHE TestType = "TEST_BROWN_FORSYTHE"
 )
 
 // AllTestTypes returns every defined statistical test type in alphabetical
@@ -278,6 +296,9 @@ const (
 func AllTestTypes() []TestType {
 	return []TestType{
 		TEST_ANOVA_F,
+		TEST_ANOVA_RM,
+		TEST_ANOVA_WELCH,
+		TEST_BROWN_FORSYTHE,
 		TEST_CHISQ,
 		TEST_KENDALL_TAU,
 		TEST_KRUSKAL_WALLIS,
@@ -327,6 +348,12 @@ type Test struct {
 
 	// Cols is the column-axis categorical field for TEST_CHISQ contingency.
 	Cols string `json:"cols,omitempty"`
+
+	// SubjectField identifies the within-subject grouping for
+	// repeated-measures designs (TEST_ANOVA_RM). Each distinct value
+	// represents one subject contributing one observation per condition
+	// (SplitBy). Empty for every other test.
+	SubjectField string `json:"subject_field,omitempty"`
 
 	// Alpha is the significance level. Defaults to 0.05 when zero.
 	// Must lie in the open interval (0, 1).

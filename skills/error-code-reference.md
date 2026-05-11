@@ -655,4 +655,22 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - For small n with heavy ties, prefer an exact-permutation variant if/when registered.
 - Bin the field upstream (e.g., `FEAT_BUCKETIZE`) only if discretization is acceptable — it does not improve accuracy of the original test.
 - Treat the p-value as advisory; the effect-direction statistic is still informative.
+
+### PULSE_TEST_SUBJECT_MISSING
+
+**Description**: `TEST_ANOVA_RM` encountered subjects missing one or more conditions. Default behavior drops the incomplete subject(s) and surfaces the count as a warning so the caller knows how many were excluded.
+
+**Recovery**:
+- If the dropped-subject count is small relative to N, ignore the warning.
+- Pre-filter the cohort to retain only fully observed subjects.
+- For genuinely missing-at-random data, consider mixed-effects regression (out of scope for v1).
+
+### PULSE_TEST_BALANCED_DESIGN_REQUIRED
+
+**Description**: `TEST_ANOVA_RM` saw unequal cell counts across the condition × subject grid. The current implementation supports only balanced designs (one observation per subject per condition); Type II / III SS decompositions for the unbalanced case are not yet implemented.
+
+**Recovery**:
+- Filter the cohort so each subject contributes exactly one observation per condition.
+- Aggregate per (subject, condition) pair (e.g., `AGG_AVERAGE`) before running the test.
+- Wait on the future repeated-measures variant that accepts unbalanced cells.
 </reference>

@@ -26,6 +26,9 @@ var numericTestFields = map[types.TestType]bool{
 	types.TEST_KRUSKAL_WALLIS: true,
 	types.TEST_SPEARMAN_R:     true,
 	types.TEST_KENDALL_TAU:    true,
+	types.TEST_ANOVA_WELCH:    true,
+	types.TEST_ANOVA_RM:       true,
+	types.TEST_BROWN_FORSYTHE: true,
 }
 
 // numericField2Tests lists the test types that require a numeric Field2
@@ -129,6 +132,21 @@ func validateOneTest(env *Envelope, t *types.Test, schema *encoding.Schema, proj
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					string(t.Type)+" split_by "+t.SplitBy+" must be categorical, got "+sf.Type.String(),
 					map[string]any{"type": string(t.Type), "split_by": t.SplitBy, "field_type": sf.Type.String()})
+			}
+		}
+		if t.Type == types.TEST_ANOVA_RM {
+			if t.SubjectField == "" {
+				env.AddError(string(errors.SERVICE_VALIDATION),
+					"TEST_ANOVA_RM requires subject_field",
+					map[string]any{"type": string(t.Type)})
+			} else if sf := schema.Field(t.SubjectField); sf == nil && !projected[t.SubjectField] {
+				env.AddError(string(errors.SERVICE_VALIDATION),
+					"TEST_ANOVA_RM subject_field references unknown field: "+t.SubjectField,
+					map[string]any{"type": string(t.Type), "subject_field": t.SubjectField})
+			} else if sf != nil && !sf.Type.IsCategorical() {
+				env.AddError(string(errors.SERVICE_VALIDATION),
+					"TEST_ANOVA_RM subject_field "+t.SubjectField+" must be categorical, got "+sf.Type.String(),
+					map[string]any{"type": string(t.Type), "subject_field": t.SubjectField, "field_type": sf.Type.String()})
 			}
 		}
 	}
