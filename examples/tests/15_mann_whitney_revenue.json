@@ -1,0 +1,16 @@
+{
+  "_comment": "Tier-1 Mann-Whitney U on revenue split by treatment. Nonparametric counterpart to TEST_T: ranks the combined value set under tie correction, then standardizes U via normal approximation. Buffered (sort-based ECDF) — predict reports streamable=false.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+  ],
+  "tests": [
+    {
+      "type": "TEST_MANN_WHITNEY_U",
+      "field": "revenue",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "revenue_mannwhitney"
+    }
+  ]
+}

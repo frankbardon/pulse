@@ -161,12 +161,35 @@ func hasTwoPassAttribute(req *types.Request) bool {
 //     feature.StreamingComputer (PrePass + Finalize + EmitRow)
 //   - every aggregation type supports OnlineAggregator
 //   - filters are row-level only (every registered filter today is)
+//   - tier-1 tests: empty, OR every test type streamable AND registered
+//     AND no groupers / features / two-pass attributes (those
+//     combinations are not yet wired through the streaming paths)
+//
+// Tier-2 tests (req.PostTests) never affect streamability — they run
+// after `data` is materialized regardless of which path produced it.
 //
 // Returns false on any unknown component type so the buffered path can
 // surface the canonical error message.
 func (p *Processor) canStream(req *types.Request) bool {
 	if len(req.Windows) > 0 {
 		return false
+	}
+	if len(req.Tests) > 0 {
+		if !canRunRowTests(req.Tests) {
+			return false
+		}
+		for _, t := range req.Tests {
+			if !t.Type.Streamable() {
+				return false
+			}
+		}
+		// Tier-1 tests do not yet compose with groups, features, or
+		// two-pass attributes inside the streaming paths. Route those
+		// combinations through the buffered path so the row tests
+		// still execute correctly over the filtered record set.
+		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req) {
+			return false
+		}
 	}
 	for _, grp := range req.Groups {
 		if !grp.Type.Streamable() {
@@ -303,6 +326,13 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		return nil, err
 	}
 
+	// Build tier-1 row tests; they fold each filter-passing record
+	// alongside the online aggregators.
+	rowTests, err := p.buildRowTests(req.Tests)
+	if err != nil {
+		return nil, err
+	}
+
 	var totalRows, filteredRows int64
 	for iter.Next() {
 		totalRows++
@@ -358,6 +388,11 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 				return nil, err
 			}
 		}
+		for _, rt := range rowTests {
+			if err := rt.test.UpdateRow(r); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	row := make(map[string]any, len(entries))
@@ -373,13 +408,29 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		row[label] = val
 	}
 
+	var data []map[string]any
+	if len(entries) > 0 {
+		data = []map[string]any{row}
+	}
+
+	testResults, err := finalizeRowTests(rowTests)
+	if err != nil {
+		return nil, err
+	}
+	postResults, err := p.runPostTests(req.PostTests, data)
+	if err != nil {
+		return nil, err
+	}
+
 	_ = ctx
 	return &types.Response{
-		Data: []map[string]any{row},
+		Data: data,
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,
 		},
+		Tests:     testResults,
+		PostTests: postResults,
 	}, nil
 }
 
@@ -566,6 +617,11 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		window.Sort(data, req.Sort)
 	}
 
+	postResults, err := p.runPostTests(req.PostTests, data)
+	if err != nil {
+		return nil, err
+	}
+
 	_ = ctx
 	return &types.Response{
 		Data: data,
@@ -573,6 +629,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,
 		},
+		PostTests: postResults,
 	}, nil
 }
 
@@ -752,13 +809,24 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		row[label] = val
 	}
 
+	var data []map[string]any
+	if len(entries) > 0 {
+		data = []map[string]any{row}
+	}
+
+	postResults, err := p.runPostTests(req.PostTests, data)
+	if err != nil {
+		return nil, err
+	}
+
 	_ = ctx
 	return &types.Response{
-		Data: []map[string]any{row},
+		Data: data,
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,
 		},
+		PostTests: postResults,
 	}, nil
 }
 
@@ -895,12 +963,36 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		window.Sort(data, req.Sort)
 	}
 
+	// Tier-1 row tests fold over the filtered record set. Buffered path
+	// hits the same per-record UpdateRow contract as streaming.
+	rowTests, err := p.buildRowTests(req.Tests)
+	if err != nil {
+		return nil, err
+	}
+	for _, rt := range rowTests {
+		for _, rec := range filtered {
+			if err := rt.test.UpdateRow(rec); err != nil {
+				return nil, err
+			}
+		}
+	}
+	testResults, err := finalizeRowTests(rowTests)
+	if err != nil {
+		return nil, err
+	}
+	postResults, err := p.runPostTests(req.PostTests, data)
+	if err != nil {
+		return nil, err
+	}
+
 	return &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: int64(len(filtered)),
 		},
+		Tests:     testResults,
+		PostTests: postResults,
 	}, nil
 }
 

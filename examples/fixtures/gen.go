@@ -43,6 +43,9 @@ var (
 		"artist", "manager", "writer",
 	}
 	categories  = []string{"A", "B", "C", "D", "E"}
+	treatments  = []string{"control", "variant"}
+	segments    = []string{"segment_a", "segment_b", "segment_c"}
+	conversions = []string{"yes", "no"}
 )
 
 func main() {
@@ -51,7 +54,108 @@ func main() {
 	must(writeCustomers(r, 200))
 	must(writeOrders(r, 200))
 	must(writeTrainingData(r, 300))
-	fmt.Println("wrote 4 CSVs to", outputDir)
+	must(writeExperiment(r, 400))
+	must(writeRepeatedMeasures(r, 40))
+	fmt.Println("wrote 6 CSVs to", outputDir)
+}
+
+// writeExperiment produces an A/B testing cohort designed so every
+// statistical test type in examples/tests/ has a clean, non-trivial
+// signal:
+//
+//   - treatment vs control: variant has ≈22% higher revenue mean and
+//     a right-tail-heavy lift on session_minutes (median moves little,
+//     upper deciles stretch). The first yields a clear two-sample
+//     t-test reject; the second yields a clear KS reject while the
+//     mean t-test stays ambiguous — a useful split that demonstrates
+//     why distribution-shape tests still matter alongside mean tests.
+//   - region: four regions with planted mean-revenue differences so
+//     ANOVA across regions rejects clearly.
+//   - segment × converted: segments_a / b / c have different conversion
+//     base rates (0.20 / 0.35 / 0.50) producing a dependent contingency.
+//   - period: 90 sequential dates; revenue carries a mild upward drift
+//     so Mann-Kendall on the time-ordered series rejects.
+//   - session_minutes vs revenue follow different shapes: revenue is
+//     log-normal, session_minutes is half-normal, so a KS two-sample
+//     comparing them across treatments shows distribution structure.
+func writeExperiment(r *rand.Rand, n int) error {
+	w, close := openCSV("experiment.csv")
+	defer close()
+	if err := w.Write([]string{
+		"id", "treatment", "region", "segment", "converted",
+		"revenue_before", "revenue", "session_minutes", "period",
+	}); err != nil {
+		return err
+	}
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	// Planted per-region revenue lifts (multiplicative on the base
+	// log-normal). Means stay ordered north < south < east < west.
+	regionLift := map[string]float64{
+		"north": 1.00,
+		"south": 1.10,
+		"east":  1.22,
+		"west":  1.35,
+	}
+	segmentConvRate := map[string]float64{
+		"segment_a": 0.20,
+		"segment_b": 0.35,
+		"segment_c": 0.50,
+	}
+	for i := range n {
+		treatment := treatments[r.Intn(len(treatments))]
+		region := regions[r.Intn(len(regions))]
+		segment := segments[r.Intn(len(segments))]
+		// Conversion depends on segment AND treatment so chi-square on
+		// (region, converted) is independent but (segment, converted)
+		// is dependent.
+		convRate := segmentConvRate[segment]
+		if treatment == "variant" {
+			convRate += 0.05
+		}
+		converted := "no"
+		if r.Float64() < convRate {
+			converted = "yes"
+		}
+		// revenue_before is the pre-treatment baseline drawn from the
+		// same log-normal as revenue but without the treatment lift
+		// and without the time drift. Paired t-test and Wilcoxon
+		// signed-rank examples test the per-unit delta.
+		base := math.Exp(4.5 + 0.5*r.NormFloat64())
+		treatmentLift := 1.0
+		if treatment == "variant" {
+			treatmentLift = 1.22
+		}
+		periodIdx := r.Intn(90)
+		drift := 1.0 + 0.003*float64(periodIdx)
+		revenueBefore := base * regionLift[region]
+		revenue := revenueBefore * treatmentLift * drift
+		// session_minutes: half-normal with treatment lift.
+		sessionBase := math.Abs(r.NormFloat64()) * 15.0
+		// Asymmetric treatment effect on session_minutes: variant shifts
+		// the right tail more than the median, so KS detects a clear
+		// distribution change even though mean differences stay modest.
+		sessionTreatLift := 1.0
+		if treatment == "variant" {
+			sessionTreatLift = 1.0 + 0.35*math.Abs(r.NormFloat64())
+		}
+		sessionMinutes := sessionBase * sessionTreatLift
+		period := start.AddDate(0, 0, periodIdx).Format(dateFormat)
+		if err := w.Write([]string{
+			itoa(i + 1),
+			treatment,
+			region,
+			segment,
+			converted,
+			fmt.Sprintf("%.2f", revenueBefore),
+			fmt.Sprintf("%.2f", revenue),
+			fmt.Sprintf("%.2f", sessionMinutes),
+			period,
+		}); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
 }
 
 // writeTransactions produces id (u32) and amount (f64). Amounts are
@@ -178,6 +282,52 @@ func writeTrainingData(r *rand.Rand, n int) error {
 			signup,
 		}); err != nil {
 			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
+// writeRepeatedMeasures produces a small repeated-measures cohort designed
+// for TEST_ANOVA_RM. Each subject contributes one observation in each of
+// three conditions (baseline, treatment_a, treatment_b). The wide
+// table reshapes to (n subjects) × 3, balanced. Per-subject random
+// effect dominates; treatment_a adds a moderate lift, treatment_b a
+// larger one — so RM-ANOVA rejects clearly.
+//
+// Fields:
+//   subject_id    — categorical, n distinct values
+//   condition     — categorical, {baseline, treatment_a, treatment_b}
+//   metric        — f64
+func writeRepeatedMeasures(r *rand.Rand, nSubjects int) error {
+	w, close := openCSV("repeated_measures.csv")
+	defer close()
+	if err := w.Write([]string{"subject_id", "condition", "metric"}); err != nil {
+		return err
+	}
+	conditions := []struct {
+		name string
+		lift float64
+	}{
+		{"baseline", 0.0},
+		{"treatment_a", 3.0},
+		{"treatment_b", 6.0},
+	}
+	for s := range nSubjects {
+		// Subject-level baseline ability ~ N(20, 4). Carries through every
+		// condition so within-subject correlation is large.
+		baseline := 20.0 + 4.0*r.NormFloat64()
+		subjID := fmt.Sprintf("subj_%03d", s+1)
+		for _, c := range conditions {
+			// Per-cell noise small relative to subject baseline.
+			metric := baseline + c.lift + 0.8*r.NormFloat64()
+			if err := w.Write([]string{
+				subjID,
+				c.name,
+				fmt.Sprintf("%.3f", metric),
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	w.Flush()

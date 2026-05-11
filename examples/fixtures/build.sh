@@ -24,7 +24,7 @@ mkdir -p "$DATA_DIR"
 
 FIXTURES=examples/fixtures
 
-for cohort in transactions customers orders training_data all_types; do
+for cohort in transactions customers orders training_data all_types experiment repeated_measures; do
   echo "==> building $cohort.pulse"
   "$PULSE_BIN" import csv \
     --input  "$FIXTURES/$cohort.csv" \

@@ -1,0 +1,12 @@
+{
+  "_comment": "ANOVA-family robustness battery on revenue across regions: equal-variance F (TEST_ANOVA_F), Welch's F (TEST_ANOVA_WELCH), and Brown-Forsythe homogeneity (TEST_BROWN_FORSYTHE). Lets an analyst compare the headline F under the equal-variance assumption against the heteroscedasticity-robust Welch F, with the Brown-Forsythe gate making the assumption check explicit.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"}
+  ],
+  "tests": [
+    {"type": "TEST_ANOVA_F", "field": "revenue", "split_by": "region", "alpha": 0.05, "label": "anova_f"},
+    {"type": "TEST_ANOVA_WELCH", "field": "revenue", "split_by": "region", "alpha": 0.05, "label": "anova_welch"},
+    {"type": "TEST_BROWN_FORSYTHE", "field": "revenue", "split_by": "region", "alpha": 0.05, "label": "brown_forsythe"}
+  ]
+}

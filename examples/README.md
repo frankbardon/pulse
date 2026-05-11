@@ -20,6 +20,7 @@ examples/
 ├── groupers/                  # GROUP_* partitioning (7)
 ├── windows/                   # WIN_* per-row analytics (10)
 ├── aggregations/              # AGG_* requests over the all_types cohort (5)
+├── tests/                     # TEST_* tier-1 and tier-2 statistical tests (10)
 └── <new-category>/            # each: README.md + run-all.sh + *.json
 ```
 
@@ -33,9 +34,9 @@ make build
 ```
 
 That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
-`training_data.pulse`, and `all_types.pulse` into `.data/` at the
-repo root. Every example request has `cohort.data_dir = ".data"` so
-the requests run unmodified.
+`training_data.pulse`, `all_types.pulse`, and `experiment.pulse` into
+`.data/` at the repo root. Every example request has
+`cohort.data_dir = ".data"` so the requests run unmodified.
 
 ## Available cohorts
 
@@ -46,6 +47,7 @@ the requests run unmodified.
 | `orders.pulse` | `id` (u32), `order_date` (date), `revenue` (f64) |
 | `training_data.pulse` | `id` (u32), `region`/`occupation`/`category` (categorical), `label` (u8 binary), `price`/`income` (f64), `signup_date` (date) |
 | `all_types.pulse` | One column for every one of the 19 supported types (u8/u16/u32/u64, f32/f64, nullable_bool/u4/u8/u16, date, packed_bool, categorical_u8/u16/u32, decimal128, nullable_decimal128, point_f64, h3_cell). Hand-curated 5-row CSV — exists so a single fixture exercises every type-aware code path. |
+| `experiment.pulse` | A/B test cohort: `id` (u32), `treatment`/`region`/`segment`/`converted` (categorical), `revenue`/`session_minutes` (f64), `period` (date). Planted effects across treatment, region, segment, and time so every `TEST_*` example produces a meaningful, non-trivial result. |
 
 The generator (`fixtures/gen.go`) is deterministic — re-running with the
 same seed produces byte-identical CSVs. Re-generate from scratch:
@@ -65,6 +67,7 @@ A category-specific runner exercises everything in its folder:
 ./examples/filterers/run-all.sh
 ./examples/groupers/run-all.sh
 ./examples/windows/run-all.sh
+./examples/tests/run-all.sh
 ```
 
 Or invoke individual requests:
@@ -99,4 +102,4 @@ category is one line in the test's `categories` slice.
 go test -run TestExamples -v .
 ```
 
-Currently 44 sub-tests across six categories.
+Currently 54 sub-tests across seven categories.

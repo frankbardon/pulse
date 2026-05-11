@@ -247,11 +247,17 @@ func validateWindows(env *Envelope, req *types.Request, schema *encoding.Schema,
 					map[string]any{"window_index": i, "type": string(w.Type)},
 				)
 			} else if f := schema.Field(w.Field); f == nil {
-				env.AddError(
-					string(errors.SERVICE_VALIDATION),
-					"window["+idx+"] ("+string(w.Type)+"): field "+w.Field+" does not exist in schema",
-					map[string]any{"window_index": i, "field": w.Field, "type": string(w.Type)},
-				)
+				// Aggregation / attribute / group labels project into the
+				// post-aggregate row set windows operate on; only reject
+				// when the name is unknown in both schema and pipeline
+				// outputs.
+				if _, projected := usedLabels[w.Field]; !projected {
+					env.AddError(
+						string(errors.SERVICE_VALIDATION),
+						"window["+idx+"] ("+string(w.Type)+"): field "+w.Field+" does not exist in schema or upstream pipeline output",
+						map[string]any{"window_index": i, "field": w.Field, "type": string(w.Type)},
+					)
+				}
 			} else if windowNumericFieldRequired[w.Type] && !isNumericType(f.Type) {
 				env.AddError(
 					string(errors.PULSE_WINDOW_INVALID),

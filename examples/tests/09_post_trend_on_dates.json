@@ -1,0 +1,21 @@
+{
+  "_comment": "Tier-2 Mann-Kendall trend test on daily revenue. Step 1: GROUP_DATE(period, day) + AGG_AVERAGE bucket revenue per day. Step 2: TEST_TREND on post_tests reads the daily means in date order and tests for monotonic drift; the planted upward drift in the generator should reject the null.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "groups": [
+    {"type": "GROUP_DATE", "field": "period", "params": {"component": "day"}}
+  ],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"}
+  ],
+  "sort": [{"field": "period"}],
+  "post_tests": [
+    {
+      "type": "TEST_TREND",
+      "field": "avg_revenue",
+      "alpha": 0.05,
+      "label": "daily_revenue_trend",
+      "order_by": [{"field": "period"}],
+      "params": {"variant": "mann_kendall"}
+    }
+  ]
+}

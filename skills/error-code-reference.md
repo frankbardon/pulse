@@ -546,4 +546,157 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Use schema-mode synthesis for the affected field instead of profile-driven mode.
 - Track follow-up work for native spatial profiling.
+
+### PULSE_TEST_UNKNOWN_TYPE
+
+**Description**: The request referenced a `TestType` not registered in either the row-test or post-test registry.
+
+**Recovery**:
+- Check spelling against `types.AllTestTypes()` or `skills/statistical-testing.md`.
+- Confirm the test is registered for the intended tier — some tests only run as `tests` (tier 1), others only as `post_tests` (tier 2).
+
+### PULSE_TEST_FIELD_NOT_NUMERIC
+
+**Description**: A statistical test needs a numeric field (`u*`, `f*`, `nullable_u*`, `decimal128`) but the named field resolves to a categorical, geo, or otherwise non-numeric schema type.
+
+**Recovery**:
+- Pick a numeric field, or cast the field through an attribute (`ATTR_FORMULA`) before running the test.
+- For chi-square (`TEST_CHISQ`), use `Rows` / `Cols` instead of `Field` — both must be categorical.
+
+### PULSE_TEST_INVALID_ALPHA
+
+**Description**: The `alpha` (significance threshold) is outside the open interval (0, 1).
+
+**Recovery**:
+- Pick a value in (0, 1). Common choices: 0.10, 0.05, 0.01.
+- Leave `alpha` unset to accept the default (0.05).
+
+### PULSE_TEST_INSUFFICIENT_N
+
+**Description**: The test received fewer non-null observations than the minimum required to compute its statistic (typically `n < 2` per group; `n < df + 1` for parametric variants).
+
+**Recovery**:
+- Loosen upstream filters that may be removing too many rows.
+- Choose a different test that tolerates small samples (e.g. exact Fisher's test instead of `TEST_CHISQ` — when available).
+- Aggregate or pool groups before running the test.
+
+### PULSE_TEST_VARIANCE_ZERO
+
+**Description**: One or more groups have zero sample variance, making the t- or F-statistic undefined.
+
+**Recovery**:
+- Check whether the field is constant in the affected group(s) — that is usually the underlying signal, not a test failure.
+- Use a non-parametric alternative (e.g. `TEST_KS` for distribution comparison).
+
+### PULSE_TEST_SPLIT_GROUPS_LT_2
+
+**Description**: A two-sample test (`TEST_T`, `TEST_WELCH`) or `TEST_ANOVA_F` observed fewer than the required number of distinct groups in `split_by` after filtering.
+
+**Recovery**:
+- Verify the categorical field actually contains multiple values in the filtered set.
+- Loosen filters or change the `split_by` field.
+
+### PULSE_TEST_CONTINGENCY_DEGENERATE
+
+**Description**: A chi-square contingency table is empty or has only a single non-empty row or column. The statistic is undefined in that shape.
+
+**Recovery**:
+- Verify both `rows` and `cols` resolve to fields with more than one observed level after filtering.
+- Aggregate rare levels into an "other" bucket before running the test.
+
+### PULSE_TEST_EXPECTED_COUNT_TOO_LOW
+
+**Description**: Warning. One or more expected cell counts in a chi-square contingency table fell below 5, making the asymptotic χ² approximation unreliable.
+
+**Recovery**:
+- Use Fisher's exact test when sample sizes are small (when added).
+- Combine rare levels to increase per-cell expected counts.
+- Treat the result as advisory rather than decisive when sample sizes are small.
+
+### PULSE_TEST_FIELD2_NOT_NUMERIC
+
+**Description**: A paired or bivariate test (`TEST_PAIRED_T`, `TEST_PEARSON_R`) was supplied a `field2` that resolves to a non-numeric schema type.
+
+**Recovery**:
+- Pick a numeric field (`u*`, `f*`, `nullable_u*`, `decimal128`).
+- Cast the column via `ATTR_FORMULA` before running the test.
+
+### PULSE_TEST_SUCCESS_VALUE_MISSING
+
+**Description**: `TEST_PROP_Z` requires `params.success` — the dictionary value treated as a positive outcome on the primary field. Without it the test cannot decide which category counts as a success.
+
+**Recovery**:
+- Add `"params": {"success": "yes"}` (or whichever dictionary value represents success in your cohort) to the test spec.
+- Use `pulse cohort inspect` to confirm the categorical's dictionary values.
+
+### PULSE_TEST_CORRELATION_UNDEFINED
+
+**Description**: `TEST_PEARSON_R` saw at least one column with zero sample variance. The correlation coefficient and its t-statistic are undefined when either variable is constant.
+
+**Recovery**:
+- Confirm the field actually carries variation in the filtered cohort.
+- Use Spearman ρ or Kendall τ (when available) for non-parametric monotonic association on near-constant data.
+- Remove the constant column from the request.
+
+### PULSE_TEST_PAIRED_LENGTH_MISMATCH
+
+**Description**: A paired test (`TEST_WILCOXON_SR`, future paired variants) encountered rows where one paired column was null while the other was present. Drop-pair semantics apply — the row is excluded from the test — and the mismatch count surfaces as a warning so the caller knows the effective pair count.
+
+**Recovery**:
+- If the mismatch count is small relative to N, ignore the warning.
+- Pre-filter null pairs with a `FILTER_EXCLUDE` on either column to make the drop explicit.
+- Verify the upstream import did not introduce spurious nulls (e.g., a CSV column with empty cells).
+
+### PULSE_TEST_TIES_DOMINATE
+
+**Description**: A rank-based nonparametric test (`TEST_MANN_WHITNEY_U`, `TEST_WILCOXON_SR`, `TEST_KRUSKAL_WALLIS`, `TEST_SPEARMAN_R`, `TEST_KENDALL_TAU`) observed ties on ≥ 50 % of the input values. The normal-approximation / chi-square p-value loses accuracy under heavy ties.
+
+**Recovery**:
+- For small n with heavy ties, prefer an exact-permutation variant if/when registered.
+- Bin the field upstream (e.g., `FEAT_BUCKETIZE`) only if discretization is acceptable — it does not improve accuracy of the original test.
+- Treat the p-value as advisory; the effect-direction statistic is still informative.
+
+### PULSE_TEST_SUBJECT_MISSING
+
+**Description**: `TEST_ANOVA_RM` encountered subjects missing one or more conditions. Default behavior drops the incomplete subject(s) and surfaces the count as a warning so the caller knows how many were excluded.
+
+**Recovery**:
+- If the dropped-subject count is small relative to N, ignore the warning.
+- Pre-filter the cohort to retain only fully observed subjects.
+- For genuinely missing-at-random data, consider mixed-effects regression (out of scope for v1).
+
+### PULSE_TEST_BALANCED_DESIGN_REQUIRED
+
+**Description**: `TEST_ANOVA_RM` saw unequal cell counts across the condition × subject grid. The current implementation supports only balanced designs (one observation per subject per condition); Type II / III SS decompositions for the unbalanced case are not yet implemented.
+
+**Recovery**:
+- Filter the cohort so each subject contributes exactly one observation per condition.
+- Aggregate per (subject, condition) pair (e.g., `AGG_AVERAGE`) before running the test.
+- Wait on the future repeated-measures variant that accepts unbalanced cells.
+
+### PULSE_TEST_TUKEY_REQUIRES_K_GE_3
+
+**Description**: `TEST_TUKEY_HSD` requires k ≥ 3 groups. For k = 2, a t-test (`TEST_T` or `TEST_WELCH`) or proportion z-test (`TEST_PROP_Z`) is the appropriate alternative — the studentized-range correction is unnecessary.
+
+**Recovery**:
+- Reduce to a two-sample test (`TEST_T` / `TEST_WELCH`).
+- Confirm the upstream aggregator returned the expected number of grouper buckets.
+
+### PULSE_TEST_SHAPIRO_N_BOUND
+
+**Description**: `TEST_SHAPIRO_WILK` observed n above the supported limit (5000 rows). The asymptotic approximation in the current implementation degrades for very large n.
+
+**Recovery**:
+- Sample a subset of the cohort if a normality decision is needed.
+- Use an asymptotic alternative (Anderson-Darling, D'Agostino's K²) when n is large — both are slated for future iterations.
+- Treat the p-value as advisory; with large n almost any sample rejects strict normality.
+
+### PULSE_TEST_FISHER_R_OR_C_GT_2
+
+**Description**: `TEST_FISHER_EXACT` saw a contingency table larger than 2×2. The v1 implementation supports the 2×2 case exactly; the network algorithm needed for r×c tables lands later.
+
+**Recovery**:
+- Filter the cohort to a 2×2 table via `FILTER_INCLUDE` on the rows / cols values of interest.
+- Use `TEST_CHISQ` for r×c if the expected counts are large enough.
+- Wait on the follow-up that ships the full network algorithm.
 </reference>

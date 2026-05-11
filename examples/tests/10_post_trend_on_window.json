@@ -1,0 +1,30 @@
+{
+  "_comment": "Tier-2 Mann-Kendall on a windowed series. Step 1: GROUP_DATE(period) + AGG_AVERAGE bucket revenue by day. Step 2: WIN_MOVING_AVG over a 7-day frame smooths the series. Step 3: TEST_TREND in post_tests detects monotonic drift in the smoothed signal — pairing a windowing step with a trend test is the common analyst pattern for noisy time series.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "groups": [
+    {"type": "GROUP_DATE", "field": "period", "params": {"component": "day"}}
+  ],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"}
+  ],
+  "sort": [{"field": "period"}],
+  "windows": [
+    {
+      "type": "WIN_MOVING_AVG",
+      "field": "avg_revenue",
+      "label": "ma7_revenue",
+      "order_by": [{"field": "period"}],
+      "frame": {"mode": "rows", "preceding": 6, "following": 0}
+    }
+  ],
+  "post_tests": [
+    {
+      "type": "TEST_TREND",
+      "field": "ma7_revenue",
+      "alpha": 0.05,
+      "label": "smoothed_revenue_trend",
+      "order_by": [{"field": "period"}],
+      "params": {"variant": "mann_kendall"}
+    }
+  ]
+}

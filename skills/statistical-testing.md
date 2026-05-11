@@ -1,0 +1,425 @@
+---
+name: statistical-testing
+description: TEST_* operators — tier 1 row tests and tier 2 post tests in one Process pipeline
+type: guide
+applies_to: process, compose, predict
+---
+
+# Statistical Testing
+
+<skill_overview>
+Pulse runs statistical tests inside the standard Process pipeline. Two tiers are addressed through a single request:
+
+- **Tier 1 — row tests (`Request.Tests`).** Evaluated against the raw row stream alongside aggregators. Online-moments tests (`TEST_T`, `TEST_WELCH`, `TEST_CHISQ`, `TEST_ANOVA_F`) reuse the running `(mean, variance, n)` and contingency counts that aggregators already compute, so they add near-zero cost when their input fields overlap with active aggregations.
+- **Tier 2 — post tests (`Request.PostTests`).** Evaluated after the window stage on the materialized result row set. Useful for ANOVA across grouper buckets, Tukey HSD post-hoc on per-group means, and trend tests over windowed series.
+
+Both tiers share the same `Test` request shape and the same `TestResult` response shape. The difference is *what they consume*: tier 1 reads raw records, tier 2 reads result rows.
+</skill_overview>
+
+## Mental model
+
+A single Process request can carry filters, features, attributes, aggregators, windows, **tests** (tier 1), and **post_tests** (tier 2). The pipeline runs in that order. Both tiers populate independent slots on the Response:
+
+```json
+{
+  "tests": [
+    {"type": "TEST_T", "field": "revenue", "split_by": "treatment", "alpha": 0.05}
+  ],
+  "post_tests": [
+    {"type": "TEST_ANOVA_F", "field": "avg_revenue", "split_by": "region"}
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "data": [ ... rows ... ],
+  "tests":      [ ... tier-1 TestResult entries ... ],
+  "post_tests": [ ... tier-2 TestResult entries ... ]
+}
+```
+
+## When to use each tier
+
+| Goal | Tier | Example |
+|---|---|---|
+| Treatment vs control on a continuous outcome | 1 | `TEST_T` on `revenue` split by `treatment` |
+| Independence of two categorical variables | 1 | `TEST_CHISQ` on `region × churned` |
+| Compare means across k categories on raw rows | 1 | `TEST_ANOVA_F` on `revenue` split by `region` |
+| Distribution comparison (CDF) | 1 | `TEST_KS` two-sample, raw rows |
+| Compare aggregated per-group means | 2 | `TEST_ANOVA_F` on `avg_revenue` per `region` row |
+| Pairwise comparison after a significant ANOVA | 2 | `TEST_TUKEY_HSD` on per-group means |
+| Trend over an ordered series | 2 | `TEST_TREND` (Mann-Kendall) on `moving_avg_revenue` ordered by `period` |
+
+If both tiers are populated, tier 1 runs during the row scan and tier 2 runs after windows. Either slot can be empty.
+
+## Operator catalog
+
+### TEST_T — one-sample or Welch two-sample t-test
+
+Required fields:
+- `field` — numeric field under test
+- `split_by` — categorical that produces two groups (two-sample). Omit for one-sample.
+- `params.mu` — hypothesized mean (one-sample only)
+
+Output `TestResult.Details`:
+- `groups` — group labels (two-sample)
+- `n`, `mean`, `variance` — per-group moments
+- `ci_low`, `ci_high` — two-sided confidence interval for the mean difference (two-sample) or for the mean (one-sample)
+- `effect_size.cohens_d` — standardized effect size
+
+Streamable: yes. Reuses online Welford moments.
+
+### TEST_WELCH — explicit two-sample Welch t-test alias
+
+Identical to `TEST_T` with `split_by` set. Provided so requests can document intent. Same Details payload.
+
+### TEST_CHISQ — chi-square independence
+
+Required fields:
+- `rows` — categorical row axis
+- `cols` — categorical col axis
+
+Output Details:
+- `contingency` — observed counts as a 2D array
+- `row_labels`, `col_labels`
+- `expected_min` — smallest expected cell count (advisory)
+
+Warning: `PULSE_TEST_EXPECTED_COUNT_TOO_LOW` when any expected count < 5.
+
+Streamable: yes. Maintains running contingency counts.
+
+### TEST_ANOVA_F — one-way ANOVA F-test
+
+Required fields:
+- `field` — numeric value
+- `split_by` — categorical defining k ≥ 2 groups
+
+Output Details:
+- `groups`, `n`, `group_means`
+- `ss_between`, `ss_within`, `df_between`, `df_within`
+- `effect_size.eta_squared`
+
+Streamable: yes. Online per-group moments.
+
+### TEST_KS — Kolmogorov-Smirnov two-sample
+
+Required fields:
+- `field` — numeric value
+- `split_by` — categorical producing exactly two groups
+
+Streamable: **no** — sort-based ECDF, forces buffered path.
+
+### TEST_TUKEY_HSD — Tukey's HSD post-hoc pairwise
+
+Tier-2 only. Consumes per-group means and counts from upstream aggregator rows.
+
+Required fields:
+- `field` — numeric column on the result row (typically an aggregation alias)
+- `split_by` — categorical column on the result row (typically a group alias)
+- `params.ms_within` — within-group mean square (from a preceding `TEST_ANOVA_F` or computed externally)
+- `params.df_within`
+
+Output Details:
+- `comparisons` — array of `{a, b, diff, q, p_adj, reject_null, ci_low, ci_high}`
+- `k_groups`, `family_alpha`
+
+Streamable: n/a (tier-2 always buffered).
+
+### TEST_TREND — Mann-Kendall trend test
+
+Required fields:
+- `field` — numeric value
+- `order_by` — ordering key(s) for the series
+
+Output Details:
+- `s` — Mann-Kendall sum statistic
+- `var_s`
+- `tau` — Kendall's tau
+
+Streamable: no.
+
+### TEST_MANN_WHITNEY_U — nonparametric two-sample
+
+Nonparametric counterpart to `TEST_T` / `TEST_WELCH`. Buffered: combined-set mid-ranks with tie correction.
+
+Required fields:
+- `field` — numeric value
+- `split_by` — categorical producing exactly two groups
+
+Output Details:
+- `groups`, `n` (per group)
+- `u_a`, `u_b`, `u_min` — Mann-Whitney U statistics
+- `r_a`, `r_b` — rank sums
+- `mu_u`, `var_u`, `z` — asymptotic moments and the standardized statistic
+
+Streamable: no (sort-based ECDF).
+
+### TEST_WILCOXON_SR — Wilcoxon signed-rank (paired)
+
+Nonparametric counterpart to `TEST_PAIRED_T`. Buffered: per-row diff, drop zero diffs, mid-rank `|diff|` with tie correction.
+
+Required fields:
+- `field` — numeric (after / post column)
+- `field2` — numeric (before / pre column)
+
+Output Details:
+- `n` — number of non-zero paired observations after drop
+- `w_plus`, `w_minus`, `mu_w`, `var_w`, `z`
+- `zero_diffs` — count of exact-zero pairs dropped
+
+Streamable: no.
+
+### TEST_KRUSKAL_WALLIS — nonparametric k-group
+
+Nonparametric counterpart to `TEST_ANOVA_F`. Buffered: combined-set mid-ranks, per-group rank sums.
+
+Required fields:
+- `field` — numeric value
+- `split_by` — categorical producing k ≥ 2 groups
+
+Output Details:
+- `groups`, `n` (per group), `rank_sums`
+- `n_total`, `tie_factor` — H is tie-corrected by `1 − Σ(t³−t)/(N³−N)`
+
+Streamable: no.
+
+### TEST_SPEARMAN_R — rank-based correlation
+
+Buffered: mid-rank each column independently, then Pearson on the ranks.
+
+Required fields:
+- `field` — numeric column 1
+- `field2` — numeric column 2
+
+Output Details:
+- `n`, `t` — t-statistic and df = n−2
+- `ties_x`, `ties_y` — per-column tie-group sizes
+
+Streamable: no.
+
+### TEST_ANOVA_WELCH — heteroscedasticity-robust one-way ANOVA
+
+Streaming variant of `TEST_ANOVA_F` that does not assume equal variances. Per-group online Welford state matches the standard ANOVA; finalization uses the Welch (1951) weighting `w_i = n_i / s²_i` with the Welch-Satterthwaite df₂ correction.
+
+Required fields:
+- `field` — numeric value
+- `split_by` — categorical defining k ≥ 2 groups
+
+Output Details:
+- `groups`, `n` (per group), `group_means`, `group_variances`, `weights`
+- `weighted_mean`, `df_between`, `df_within`
+
+Streamable: yes. Use when group variances are visibly unequal (Brown-Forsythe rejects, or sample variances differ by > ~3×).
+
+### TEST_ANOVA_RM — one-way repeated-measures ANOVA
+
+Buffered. Balanced design only (one observation per subject per condition). Decomposes SS into between-subject, treatment, and error components; `F = MS_treatment / MS_error` with `df = (k−1, (n−1)(k−1))`.
+
+Required fields:
+- `field` — numeric value column
+- `split_by` — categorical condition column (within-subject factor)
+- `subject_field` — categorical subject identifier
+
+Output Details:
+- `conditions`, `condition_means`, `grand_mean`
+- `complete_subjects`, `dropped_subjects`
+- `ss_total`, `ss_between_subjects`, `ss_treatment`, `ss_error`, `df_treatment`, `df_error`
+
+Sphericity correction (Greenhouse-Geisser / Huynh-Feldt) is documented as future work — current variant reports the uncorrected F.
+
+Streamable: no.
+
+### TEST_FISHER_EXACT — Fisher's exact test (2×2)
+
+Tier-1 buffered. Exact two-sided p-value for a 2×2 contingency table by enumerating every hypergeometric outcome at the observed marginals and summing probabilities ≤ the observed table.
+
+Required fields:
+- `rows` — categorical row axis (2 levels)
+- `cols` — categorical column axis (2 levels)
+
+Output Details:
+- `row_labels`, `col_labels`
+- `contingency` — observed 2×2 table
+- `odds_ratio`, `n`
+
+Use case: backstop for `TEST_CHISQ` when any expected cell < 5.
+
+Streamable: no.
+
+### TEST_SHAPIRO_WILK — normality test
+
+Tier-1 buffered. Shapiro-Francia variant (Royston 1993): mid-rank-style coefficients on the Blom-approximated expected normal order statistics. p-value via the standard Royston polynomial transform of `W'`.
+
+Required fields:
+- `field` — numeric value
+- `split_by` (optional) — categorical; when set, the test runs per group and reports per-group W and p in Details
+
+Output Details (single-bucket):
+- `per_group[].n`, `per_group[].w`, `per_group[].z`, `per_group[].p_value`
+
+Headline `Statistic` / `PValue` track the worst (smallest p) across groups.
+
+Caveat: n ≤ 5000 is the supported range; larger samples surface `PULSE_TEST_SHAPIRO_N_BOUND` warnings.
+
+Streamable: no.
+
+### TEST_BROWN_FORSYTHE — variance homogeneity (median-based)
+
+Buffered. Replaces each value with its absolute deviation from the per-group median, then runs one-way ANOVA on the deviations. Robust against non-normality; the conventional preferred variant over Levene's mean-based residuals.
+
+Required fields:
+- `field` — numeric value
+- `split_by` — categorical defining k ≥ 2 groups
+
+Output Details:
+- `groups`, `n`, `group_medians`, `abs_dev_means`
+- `ss_between`, `ss_within`, `df_between`, `df_within`
+
+Use case: pre-ANOVA gate. If Brown-Forsythe rejects, prefer `TEST_ANOVA_WELCH` over `TEST_ANOVA_F`.
+
+Streamable: no.
+
+### TEST_KENDALL_TAU — concordance-based correlation
+
+τ-b variant with tie correction. Buffered O(n²) pair count.
+
+Required fields:
+- `field` — numeric column 1
+- `field2` — numeric column 2
+
+Output Details:
+- `n`, `concordant`, `discordant`, `ties_x`, `ties_y`
+- `s`, `var_s`, `z` — Kendall S statistic and its asymptotic variance under the null
+
+Streamable: no.
+
+## Streamability summary
+
+| Test | Tier-1 streamable | Notes |
+|---|---|---|
+| `TEST_T` | yes | reuses online μ, σ², n per split bucket |
+| `TEST_WELCH` | yes | alias of `TEST_T` two-sample |
+| `TEST_CHISQ` | yes | online contingency counts |
+| `TEST_ANOVA_F` | yes | online per-group moments |
+| `TEST_PEARSON_R` | yes | online cross-product Welford |
+| `TEST_PAIRED_T` | yes | one-sample Welford on per-row diff |
+| `TEST_PROP_Z` | yes | per-group success/total counts |
+| `TEST_KS` | no | needs sorted ECDF |
+| `TEST_TUKEY_HSD` | tier-2 only | runs over result rows |
+| `TEST_TREND` | no | needs ordered full series |
+| `TEST_MANN_WHITNEY_U` | no | combined-set ranks |
+| `TEST_WILCOXON_SR` | no | sort of \|diff\| |
+| `TEST_KRUSKAL_WALLIS` | no | combined-set ranks |
+| `TEST_SPEARMAN_R` | no | rank both columns |
+| `TEST_KENDALL_TAU` | no | O(n²) pair count |
+| `TEST_ANOVA_WELCH` | yes | online per-group moments + Welch weighting |
+| `TEST_ANOVA_RM` | no | wide pivot over subject × condition |
+| `TEST_BROWN_FORSYTHE` | no | per-group medians require a sort |
+| `TEST_FISHER_EXACT` | no | hypergeometric enumeration on full table |
+| `TEST_SHAPIRO_WILK` | no | sort + Blom coefficients on full sample |
+
+Tier-2 (`post_tests`) always runs over the materialized result set after windows, regardless of test type.
+
+## Implementation status
+
+| Test | Tier-1 row test | Tier-2 post test |
+|---|---|---|
+| `TEST_T` | ✓ | — |
+| `TEST_WELCH` | ✓ (alias of two-sample `TEST_T`) | — |
+| `TEST_CHISQ` | ✓ | — |
+| `TEST_ANOVA_F` | ✓ | ✓ (from summary stats) |
+| `TEST_KS` | ✓ (forces buffered path) | — |
+| `TEST_PAIRED_T` | ✓ | — |
+| `TEST_PROP_Z` | ✓ | — |
+| `TEST_PEARSON_R` | ✓ | — |
+| `TEST_MANN_WHITNEY_U` | ✓ (forces buffered path) | — |
+| `TEST_WILCOXON_SR` | ✓ (forces buffered path) | — |
+| `TEST_KRUSKAL_WALLIS` | ✓ (forces buffered path) | — |
+| `TEST_SPEARMAN_R` | ✓ (forces buffered path) | — |
+| `TEST_KENDALL_TAU` | ✓ (forces buffered path) | — |
+| `TEST_ANOVA_WELCH` | ✓ | — |
+| `TEST_ANOVA_RM` | ✓ (forces buffered path) | — |
+| `TEST_BROWN_FORSYTHE` | ✓ (forces buffered path) | — |
+| `TEST_TREND` | — | ✓ (Mann-Kendall) |
+| `TEST_TUKEY_HSD` | — | ✓ (Tukey-Kramer with studentized-range p-values) |
+| `TEST_FISHER_EXACT` | ✓ (forces buffered path) | — |
+| `TEST_SHAPIRO_WILK` | ✓ (forces buffered path) | — |
+
+## Validation rules (predict)
+
+- `alpha` must lie in (0, 1). Default is 0.05 when zero.
+- `TEST_T` / `TEST_WELCH` / `TEST_ANOVA_F` / `TEST_KS` / `TEST_TREND` require `field` to be numeric.
+- `TEST_CHISQ` requires `rows` *and* `cols` — both categorical. `field` is ignored.
+- Two-sample variants need a `split_by` field. ANOVA accepts ≥ 2 groups; two-sample t-tests expect exactly 2.
+- Tier-2 tests reference column names produced by upstream stages (aggregator labels, attribute labels, window output columns, grouper keys). Predict resolves these against the predicted result schema.
+
+## Error codes
+
+| Code | When |
+|---|---|
+| `PULSE_TEST_UNKNOWN_TYPE` | unrecognized `TestType` |
+| `PULSE_TEST_FIELD_NOT_NUMERIC` | numeric test references a non-numeric field |
+| `PULSE_TEST_INVALID_ALPHA` | alpha outside (0, 1) |
+| `PULSE_TEST_INSUFFICIENT_N` | per-group N below minimum |
+| `PULSE_TEST_VARIANCE_ZERO` | constant field within a group |
+| `PULSE_TEST_SPLIT_GROUPS_LT_2` | fewer split groups than the test requires |
+| `PULSE_TEST_CONTINGENCY_DEGENERATE` | chi-square table empty or 1-row/1-col |
+| `PULSE_TEST_EXPECTED_COUNT_TOO_LOW` | warning — chi-square expected cell < 5 |
+| `PULSE_TEST_PAIRED_LENGTH_MISMATCH` | warning — paired test dropped rows with one-sided nulls |
+| `PULSE_TEST_TIES_DOMINATE` | warning — ≥ 50 % of ranked values are tied |
+| `PULSE_TEST_SUBJECT_MISSING` | warning — RM-ANOVA dropped subjects with incomplete conditions |
+| `PULSE_TEST_BALANCED_DESIGN_REQUIRED` | RM-ANOVA observed unequal cell counts |
+| `PULSE_TEST_TUKEY_REQUIRES_K_GE_3` | Tukey HSD on fewer than 3 groups |
+| `PULSE_TEST_SHAPIRO_N_BOUND` | warning — Shapiro-Wilk n above 5000 |
+| `PULSE_TEST_FISHER_R_OR_C_GT_2` | Fisher exact on tables larger than 2×2 |
+
+See `error-code-reference.md` for recovery steps.
+
+## Examples
+
+### A/B test on revenue
+
+```json
+{
+  "cohort": {"filename": "sales.pulse"},
+  "tests": [
+    {"type": "TEST_T", "field": "revenue", "split_by": "treatment", "alpha": 0.05, "label": "rev_ttest"}
+  ]
+}
+```
+
+### Aggregate + tier-1 + tier-2 in one request
+
+```json
+{
+  "cohort": {"filename": "sales.pulse"},
+  "groupers": [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "aggregators": [
+    {"type": "AGG_AVERAGE", "field": "revenue", "alias": "avg_revenue"},
+    {"type": "AGG_COUNT", "alias": "n"}
+  ],
+  "tests": [
+    {"type": "TEST_CHISQ", "rows": "region", "cols": "churned"}
+  ],
+  "post_tests": [
+    {"type": "TEST_ANOVA_F", "field": "avg_revenue", "split_by": "region"}
+  ]
+}
+```
+
+### Post-hoc after ANOVA
+
+```json
+{
+  "post_tests": [
+    {"type": "TEST_ANOVA_F", "field": "avg_revenue", "split_by": "region", "label": "anova"},
+    {"type": "TEST_TUKEY_HSD", "field": "avg_revenue", "split_by": "region",
+     "params": {"ms_within": 1816.78, "df_within": 19496}}
+  ]
+}
+```
+
+Run a `TEST_ANOVA_F` first, read `ms_within` / `df_within` from its Details, then issue a second request with `TEST_TUKEY_HSD`. Future iteration may chain these automatically.

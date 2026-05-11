@@ -28,7 +28,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		t.Fatalf("pulse.New: %v", err)
 	}
 
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types"}
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures"}
 	for _, name := range cohorts {
 		csvPath := filepath.Join("examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("examples", "fixtures", "schemas", name+".json")
@@ -66,6 +66,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		{"groupers", "groupers", 7},
 		{"windows", "windows", 10},
 		{"aggregations", "aggregations", 5},
+		{"tests", "tests", 27},
 	}
 
 	for _, cat := range categories {
@@ -121,8 +122,11 @@ func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
 	if resp == nil {
 		t.Fatalf("%s: nil response", examplePath)
 	}
-	if resp.Data == nil {
-		t.Fatalf("%s: nil data", examplePath)
+	// Test-only requests legitimately have nil Data — the rows slot is
+	// empty when the request carries no aggregations. Accept that as
+	// long as at least one of Tests or PostTests is populated.
+	if resp.Data == nil && len(resp.Tests) == 0 && len(resp.PostTests) == 0 {
+		t.Fatalf("%s: nil data and no test results", examplePath)
 	}
 }
 

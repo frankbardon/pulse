@@ -129,6 +129,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
 
+	// Validate tier-1 and tier-2 statistical tests against the schema +
+	// projected column set. Tier-1 catches missing fields and type
+	// mismatches; tier-2 catches alpha and unknown-type errors. Field
+	// existence for tier-2 columns is deferred to runtime since the
+	// projected post-pipeline column set is not yet a settled contract.
+	validateTests(env, req, schema, projected, opts)
+
 	// Validate response-level sort keys against the projected output columns.
 	validateSort(env, req, schema)
 
@@ -200,6 +207,8 @@ func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []str
 			reasons = append(reasons, "feature "+string(feat.Type)+" is not streamable")
 		}
 	}
+
+	reasons = append(reasons, streamableTestReasons(req)...)
 
 	return len(reasons) == 0, reasons
 }

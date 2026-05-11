@@ -1,0 +1,16 @@
+{
+  "_comment": "Tier-1 Shapiro-Wilk (Shapiro-Francia variant) normality check on revenue, split by treatment. The cohort's revenue is log-normal by construction, so the test should reject normality for both control and variant. Pair with the parametric A/B-test battery as a pre-flight gate: if Shapiro rejects, prefer the nonparametric Mann-Whitney over the parametric t-test.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+  ],
+  "tests": [
+    {
+      "type": "TEST_SHAPIRO_WILK",
+      "field": "revenue",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "revenue_shapiro"
+    }
+  ]
+}

@@ -181,6 +181,104 @@ const (
 	// layer cannot summarize (e.g. point_f64 / h3_cell). The field is
 	// skipped with a warning rather than failing the whole profile.
 	PULSE_PROFILE_FIELD_UNSUPPORTED Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
+
+	// PULSE_TEST_UNKNOWN_TYPE indicates the request referenced a TestType
+	// that is not registered in either the row-test or post-test registry.
+	PULSE_TEST_UNKNOWN_TYPE Code = "PULSE_TEST_UNKNOWN_TYPE"
+
+	// PULSE_TEST_FIELD_NOT_NUMERIC indicates a test requires a numeric
+	// field but the named field resolves to a categorical, geo, or
+	// otherwise non-numeric schema type.
+	PULSE_TEST_FIELD_NOT_NUMERIC Code = "PULSE_TEST_FIELD_NOT_NUMERIC"
+
+	// PULSE_TEST_INVALID_ALPHA indicates the request's Alpha value lies
+	// outside the open interval (0, 1).
+	PULSE_TEST_INVALID_ALPHA Code = "PULSE_TEST_INVALID_ALPHA"
+
+	// PULSE_TEST_INSUFFICIENT_N indicates a test received fewer
+	// non-null observations than the minimum needed to compute its
+	// statistic (typically n < 2 per group, n < df + 1 for parametric
+	// tests).
+	PULSE_TEST_INSUFFICIENT_N Code = "PULSE_TEST_INSUFFICIENT_N"
+
+	// PULSE_TEST_VARIANCE_ZERO indicates one or more groups have zero
+	// sample variance, making the t- or F-statistic undefined.
+	PULSE_TEST_VARIANCE_ZERO Code = "PULSE_TEST_VARIANCE_ZERO"
+
+	// PULSE_TEST_SPLIT_GROUPS_LT_2 indicates a two-sample or ANOVA test
+	// observed fewer than the required number of distinct groups in the
+	// SplitBy field after filtering.
+	PULSE_TEST_SPLIT_GROUPS_LT_2 Code = "PULSE_TEST_SPLIT_GROUPS_LT_2"
+
+	// PULSE_TEST_CONTINGENCY_DEGENERATE indicates a chi-square contingency
+	// table is empty or has a single row/column, making the test
+	// statistic undefined.
+	PULSE_TEST_CONTINGENCY_DEGENERATE Code = "PULSE_TEST_CONTINGENCY_DEGENERATE"
+
+	// PULSE_TEST_EXPECTED_COUNT_TOO_LOW warns that a chi-square cell's
+	// expected count is below the conventional threshold of 5, making
+	// the asymptotic χ² approximation unreliable.
+	PULSE_TEST_EXPECTED_COUNT_TOO_LOW Code = "PULSE_TEST_EXPECTED_COUNT_TOO_LOW"
+
+	// PULSE_TEST_FIELD2_NOT_NUMERIC indicates the secondary Field2
+	// reference required by a paired or bivariate test (TEST_PAIRED_T,
+	// TEST_PEARSON_R) resolves to a non-numeric schema type.
+	PULSE_TEST_FIELD2_NOT_NUMERIC Code = "PULSE_TEST_FIELD2_NOT_NUMERIC"
+
+	// PULSE_TEST_SUCCESS_VALUE_MISSING indicates a two-proportion z-test
+	// did not supply Params.success — the dictionary value treated as a
+	// success on the primary field. Without it, the test cannot decide
+	// which category counts as a positive outcome.
+	PULSE_TEST_SUCCESS_VALUE_MISSING Code = "PULSE_TEST_SUCCESS_VALUE_MISSING"
+
+	// PULSE_TEST_CORRELATION_UNDEFINED indicates Pearson r encountered
+	// a column with zero variance; r and its t-statistic are
+	// mathematically undefined in that case.
+	PULSE_TEST_CORRELATION_UNDEFINED Code = "PULSE_TEST_CORRELATION_UNDEFINED"
+
+	// PULSE_TEST_PAIRED_LENGTH_MISMATCH indicates a Wilcoxon signed-rank
+	// (or future paired test) encountered rows where one of the paired
+	// columns is null while the other is present. Drop-pair semantics
+	// apply by default (rows with either value missing are skipped);
+	// this code surfaces as a warning so the caller knows the effective
+	// pair count differs from the input row count.
+	PULSE_TEST_PAIRED_LENGTH_MISMATCH Code = "PULSE_TEST_PAIRED_LENGTH_MISMATCH"
+
+	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test observed
+	// ties on ≥ 50 % of the input values. The asymptotic normal / chi-
+	// square approximation used for the p-value loses accuracy under
+	// heavy ties; consider an exact-permutation variant when the count
+	// is small.
+	PULSE_TEST_TIES_DOMINATE Code = "PULSE_TEST_TIES_DOMINATE"
+
+	// PULSE_TEST_SUBJECT_MISSING indicates a repeated-measures test
+	// found at least one subject missing one or more conditions.
+	// Default behavior is to drop the incomplete subject(s) and surface
+	// the count as a warning; configurable to error under strict mode.
+	PULSE_TEST_SUBJECT_MISSING Code = "PULSE_TEST_SUBJECT_MISSING"
+
+	// PULSE_TEST_BALANCED_DESIGN_REQUIRED indicates a repeated-measures
+	// test observed unequal cell counts across the condition × subject
+	// grid. Type II / III sums-of-squares decompositions for the
+	// unbalanced case are not implemented yet; the test fails rather
+	// than reporting a biased balanced-design F.
+	PULSE_TEST_BALANCED_DESIGN_REQUIRED Code = "PULSE_TEST_BALANCED_DESIGN_REQUIRED"
+
+	// PULSE_TEST_TUKEY_REQUIRES_K_GE_3 indicates a Tukey HSD request on
+	// fewer than 3 groups. A standard t-test or two-proportion z is
+	// the appropriate alternative for k = 2.
+	PULSE_TEST_TUKEY_REQUIRES_K_GE_3 Code = "PULSE_TEST_TUKEY_REQUIRES_K_GE_3"
+
+	// PULSE_TEST_SHAPIRO_N_BOUND warns that a Shapiro-Wilk request
+	// observed n above the supported limit (5000). The asymptotic
+	// alternative (D'Agostino's K² or Anderson-Darling) is recommended.
+	PULSE_TEST_SHAPIRO_N_BOUND Code = "PULSE_TEST_SHAPIRO_N_BOUND"
+
+	// PULSE_TEST_FISHER_R_OR_C_GT_2 indicates a Fisher exact request on
+	// a contingency table larger than 2×2. The v1 implementation
+	// supports only 2×2; the network algorithm needed for r×c lands
+	// later.
+	PULSE_TEST_FISHER_R_OR_C_GT_2 Code = "PULSE_TEST_FISHER_R_OR_C_GT_2"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -236,6 +334,24 @@ var allCodes = []Code{
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
 	PULSE_SYNTH_CONSTRAINT_INFEASIBLE,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
+	PULSE_TEST_UNKNOWN_TYPE,
+	PULSE_TEST_FIELD_NOT_NUMERIC,
+	PULSE_TEST_INVALID_ALPHA,
+	PULSE_TEST_INSUFFICIENT_N,
+	PULSE_TEST_VARIANCE_ZERO,
+	PULSE_TEST_SPLIT_GROUPS_LT_2,
+	PULSE_TEST_CONTINGENCY_DEGENERATE,
+	PULSE_TEST_EXPECTED_COUNT_TOO_LOW,
+	PULSE_TEST_FIELD2_NOT_NUMERIC,
+	PULSE_TEST_SUCCESS_VALUE_MISSING,
+	PULSE_TEST_CORRELATION_UNDEFINED,
+	PULSE_TEST_PAIRED_LENGTH_MISMATCH,
+	PULSE_TEST_TIES_DOMINATE,
+	PULSE_TEST_SUBJECT_MISSING,
+	PULSE_TEST_BALANCED_DESIGN_REQUIRED,
+	PULSE_TEST_TUKEY_REQUIRES_K_GE_3,
+	PULSE_TEST_SHAPIRO_N_BOUND,
+	PULSE_TEST_FISHER_R_OR_C_GT_2,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

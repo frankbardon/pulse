@@ -1,0 +1,16 @@
+{
+  "_comment": "Tier-1 Spearman ρ between revenue and revenue_before. The pre/post pair is correlated by construction (post = pre × lift_factors), so ρ should land near 1 with a tiny p-value. Rank-based: robust to non-linearity. Buffered.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+  ],
+  "tests": [
+    {
+      "type": "TEST_SPEARMAN_R",
+      "field": "revenue",
+      "field2": "revenue_before",
+      "alpha": 0.05,
+      "label": "revenue_spearman"
+    }
+  ]
+}

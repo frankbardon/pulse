@@ -1,0 +1,22 @@
+{
+  "_comment": "Tier-2 Tukey HSD pairwise on region means after a one-way ANOVA. Step 1: GROUP_CATEGORY + AGG_AVERAGE + AGG_COUNT lay down per-region rows. Step 2: tier-1 TEST_ANOVA_F yields ms_within / df_within in its Details — those values are stamped into the TEST_TUKEY_HSD params so the post-test can compute studentized-range q statistics on the same Process call.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"},
+    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+  ],
+  "tests": [
+    {"type": "TEST_ANOVA_F", "field": "revenue", "split_by": "region", "alpha": 0.05, "label": "regional_anova"}
+  ],
+  "post_tests": [
+    {
+      "type": "TEST_TUKEY_HSD",
+      "field": "avg_revenue",
+      "split_by": "region",
+      "alpha": 0.05,
+      "label": "regional_tukey",
+      "params": {"ms_within": 6000.0, "df_within": 396.0}
+    }
+  ]
+}

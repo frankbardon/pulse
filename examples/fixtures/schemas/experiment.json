@@ -1,0 +1,11 @@
+[
+  {"name": "id", "type": "u32", "description": "Unique experiment unit identifier (1..N)"},
+  {"name": "treatment", "type": "categorical_u8", "description": "A/B test arm: control vs variant; uniformly assigned"},
+  {"name": "region", "type": "categorical_u8", "description": "Geographic region (north, south, east, west) with planted mean-revenue differences for ANOVA examples"},
+  {"name": "segment", "type": "categorical_u8", "description": "User segment (segment_a, segment_b, segment_c) with planted conversion-rate differences for chi-square examples"},
+  {"name": "converted", "type": "categorical_u8", "description": "Conversion outcome: yes / no; rates depend on segment (independent of region by construction)"},
+  {"name": "revenue_before", "type": "f64", "description": "Pre-treatment baseline revenue for each unit; log-normal base × region lift only (no treatment lift, no time drift) — pairs row-wise with revenue for paired tests"},
+  {"name": "revenue", "type": "f64", "description": "Order revenue in USD; log-normal base with region and treatment lifts plus a mild upward drift over period"},
+  {"name": "session_minutes", "type": "f64", "description": "Session duration; half-normal distribution shifted slightly under variant treatment"},
+  {"name": "period", "type": "date", "description": "Day the unit was recorded; 90 consecutive days starting 2026-01-01 — supports trend tests"}
+]

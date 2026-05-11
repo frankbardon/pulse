@@ -1,0 +1,5 @@
+[
+  {"name": "subject_id", "type": "categorical_u8", "description": "Subject identifier in a balanced repeated-measures design; each subject contributes one observation per condition"},
+  {"name": "condition", "type": "categorical_u8", "description": "Within-subject condition: baseline, treatment_a, treatment_b — planted to produce a clean RM-ANOVA reject"},
+  {"name": "metric", "type": "f64", "description": "Continuous outcome measurement under the named condition; subject baseline + condition lift + small per-cell noise"}
+]

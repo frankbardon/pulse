@@ -1,0 +1,16 @@
+{
+  "_comment": "Tier-1 Welch ANOVA on revenue across the four regions. Region-level lifts (1.0×, 1.10×, 1.22×, 1.35×) multiply onto a log-normal base, so the per-region variances are visibly unequal. Welch's F handles heteroscedasticity without inflating the type-I rate. Streams via per-group online Welford state.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"}
+  ],
+  "tests": [
+    {
+      "type": "TEST_ANOVA_WELCH",
+      "field": "revenue",
+      "split_by": "region",
+      "alpha": 0.05,
+      "label": "revenue_welch_anova"
+    }
+  ]
+}

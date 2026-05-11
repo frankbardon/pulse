@@ -1,0 +1,20 @@
+{
+  "_comment": "Tier-1 chi-square independence on segment x converted. Segments have planted conversion-rate differences so the test rejects independence. Compare to (region, converted) which is independent by construction.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "tests": [
+    {
+      "type": "TEST_CHISQ",
+      "rows": "segment",
+      "cols": "converted",
+      "alpha": 0.05,
+      "label": "segment_vs_converted"
+    },
+    {
+      "type": "TEST_CHISQ",
+      "rows": "region",
+      "cols": "converted",
+      "alpha": 0.05,
+      "label": "region_vs_converted"
+    }
+  ]
+}

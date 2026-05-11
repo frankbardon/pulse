@@ -101,3 +101,36 @@ func (t FeatureType) Streamable() bool {
 	}
 	return false
 }
+
+// Streamable reports whether this test type can be evaluated in the
+// streaming Process path as a tier-1 row test. Two tiers exist at runtime:
+//
+//   - Online-moments tests (TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F)
+//     reuse the running (mean, variance, n) and per-bucket counts already
+//     produced by the streaming aggregator path. They consume zero extra
+//     passes when their inputs overlap with an active aggregator.
+//   - Buffered-only tests (TEST_KS, TEST_TUKEY_HSD, TEST_TREND) require a
+//     sorted view, a finalized post-hoc matrix, or an ordered series and
+//     cannot stream. Predict flags requests containing these tests as
+//     non-streamable.
+//
+// Tier-2 PostTests are always buffered regardless of TestType: they
+// execute over the materialized result row set, after windows. Streamable
+// here reports tier-1 capability only.
+//
+// Default branch returns false so newly-added test types must opt in.
+func (t TestType) Streamable() bool {
+	switch t {
+	case TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F,
+		TEST_PEARSON_R, TEST_PAIRED_T, TEST_PROP_Z,
+		TEST_ANOVA_WELCH:
+		return true
+	case TEST_KS, TEST_TUKEY_HSD, TEST_TREND,
+		TEST_MANN_WHITNEY_U, TEST_WILCOXON_SR,
+		TEST_KRUSKAL_WALLIS, TEST_SPEARMAN_R, TEST_KENDALL_TAU,
+		TEST_ANOVA_RM, TEST_BROWN_FORSYTHE,
+		TEST_FISHER_EXACT, TEST_SHAPIRO_WILK:
+		return false
+	}
+	return false
+}
