@@ -106,25 +106,109 @@ func (p *pearsonRRow) UpdateRow(record *Record) error {
 
 func (p *pearsonRRow) Finalize() (*types.TestResult, error) {
 	defer p.reset()
-	if p.n < 3 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-			fmt.Sprintf("TEST_PEARSON_R requires n ≥ 3, got %d", p.n),
-			map[string]any{"n": p.n, "min_required": 3})
+	return finalizePearsonR(p.spec, "pearson", p.n, p.meanX, p.meanY, p.m2X, p.m2Y, p.c, p.alpha)
+}
+
+func (p *pearsonRRow) reset() {
+	p.n = 0
+	p.meanX, p.meanY = 0, 0
+	p.m2X, p.m2Y = 0, 0
+	p.c = 0
+}
+
+// pearsonRPost implements TEST_PEARSON_R as a tier-2 post-test on the
+// materialized result row set. Field / Field2 reference columns produced
+// by upstream stages (aggregator labels, attribute labels, window
+// outputs, grouper keys). The Welford cross-product recurrence is
+// identical to the tier-1 variant; only the row source differs.
+//
+// Use cases: correlate per-group aggregates (e.g. AGG_SUM_revenue vs
+// AGG_AVERAGE_basket_size across regions), windowed moving averages
+// against one another, or any pair of numeric result columns. Note:
+// correlation across per-group summaries is *ecological* — it answers a
+// different question than the raw-row correlation and can disagree
+// markedly. The Variant field is set to "pearson_post" so consumers can
+// tell the two apart.
+type pearsonRPost struct {
+	spec   *types.Test
+	field  string
+	field2 string
+	alpha  float64
+}
+
+func newPearsonRPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
+	if spec.Field == "" {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			"TEST_PEARSON_R (post): requires field")
 	}
-	denom := math.Sqrt(p.m2X * p.m2Y)
+	if spec.Field2 == "" {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			"TEST_PEARSON_R (post): requires field2 (second numeric column)")
+	}
+	alpha := spec.Alpha
+	if alpha == 0 {
+		alpha = 0.05
+	}
+	if alpha <= 0 || alpha >= 1 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INVALID_ALPHA,
+			fmt.Sprintf("alpha %g not in (0, 1)", spec.Alpha),
+			map[string]any{"alpha": spec.Alpha})
+	}
+	return &pearsonRPost{
+		spec:   spec,
+		field:  spec.Field,
+		field2: spec.Field2,
+		alpha:  alpha,
+	}, nil
+}
+
+func (p *pearsonRPost) Run(rows []map[string]any) (*types.TestResult, error) {
+	var (
+		n                          int64
+		meanX, meanY, m2X, m2Y, c  float64
+	)
+	for i, row := range rows {
+		x, err := floatFromRow(row, p.field, i)
+		if err != nil {
+			return nil, err
+		}
+		y, err := floatFromRow(row, p.field2, i)
+		if err != nil {
+			return nil, err
+		}
+		n++
+		deltaX := x - meanX
+		meanX += deltaX / float64(n)
+		m2X += deltaX * (x - meanX)
+		deltaY := y - meanY
+		meanY += deltaY / float64(n)
+		m2Y += deltaY * (y - meanY)
+		c += deltaX * (y - meanY)
+	}
+	return finalizePearsonR(p.spec, "pearson_post", n, meanX, meanY, m2X, m2Y, c, p.alpha)
+}
+
+// finalizePearsonR reduces Welford moments to a TestResult. Shared
+// between tier-1 (row stream) and tier-2 (post-pipeline rows).
+func finalizePearsonR(spec *types.Test, variant string, n int64, meanX, meanY, m2X, m2Y, c, alpha float64) (*types.TestResult, error) {
+	if n < 3 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
+			fmt.Sprintf("TEST_PEARSON_R requires n ≥ 3, got %d", n),
+			map[string]any{"n": n, "min_required": 3})
+	}
+	denom := math.Sqrt(m2X * m2Y)
 	if denom == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_CORRELATION_UNDEFINED,
 			"TEST_PEARSON_R: at least one column has zero variance; r is undefined",
-			map[string]any{"n": p.n, "m2_x": p.m2X, "m2_y": p.m2Y})
+			map[string]any{"n": n, "m2_x": m2X, "m2_y": m2Y})
 	}
-	r := p.c / denom
-	// Clamp tiny float drift outside [-1, 1].
+	r := c / denom
 	if r > 1 {
 		r = 1
 	} else if r < -1 {
 		r = -1
 	}
-	df := float64(p.n - 2)
+	df := float64(n - 2)
 	var t, pvalue float64
 	switch {
 	case r == 1 || r == -1:
@@ -134,43 +218,35 @@ func (p *pearsonRRow) Finalize() (*types.TestResult, error) {
 		t = r * math.Sqrt(df/(1-r*r))
 		pvalue = studentTTwoSidedP(t, df)
 	}
-	// Fisher z-transform confidence interval.
 	var ciLow, ciHigh float64
-	if p.n >= 4 && math.Abs(r) < 1 {
+	if n >= 4 && math.Abs(r) < 1 {
 		zr := math.Atanh(r)
-		seZ := 1.0 / math.Sqrt(float64(p.n-3))
-		zCrit := math.Sqrt2 * inverseErf(1-p.alpha)
+		seZ := 1.0 / math.Sqrt(float64(n-3))
+		zCrit := math.Sqrt2 * inverseErf(1-alpha)
 		ciLow = math.Tanh(zr - zCrit*seZ)
 		ciHigh = math.Tanh(zr + zCrit*seZ)
 	} else {
 		ciLow, ciHigh = r, r
 	}
 	return &types.TestResult{
-		Label:      testLabel(p.spec),
+		Label:      testLabel(spec),
 		Type:       types.TEST_PEARSON_R,
-		Variant:    "pearson",
+		Variant:    variant,
 		Statistic:  r,
 		DF:         df,
 		PValue:     pvalue,
-		Alpha:      p.alpha,
-		RejectNull: pvalue < p.alpha,
+		Alpha:      alpha,
+		RejectNull: pvalue < alpha,
 		Details: map[string]any{
-			"n":         p.n,
-			"t":         t,
-			"ci_low":    ciLow,
-			"ci_high":   ciHigh,
-			"mean_x":    p.meanX,
-			"mean_y":    p.meanY,
-			"variance_x": p.m2X / float64(p.n-1),
-			"variance_y": p.m2Y / float64(p.n-1),
-			"covariance": p.c / float64(p.n-1),
+			"n":          n,
+			"t":          t,
+			"ci_low":     ciLow,
+			"ci_high":    ciHigh,
+			"mean_x":     meanX,
+			"mean_y":     meanY,
+			"variance_x": m2X / float64(n-1),
+			"variance_y": m2Y / float64(n-1),
+			"covariance": c / float64(n-1),
 		},
 	}, nil
-}
-
-func (p *pearsonRRow) reset() {
-	p.n = 0
-	p.meanX, p.meanY = 0, 0
-	p.m2X, p.m2Y = 0, 0
-	p.c = 0
 }

@@ -371,3 +371,175 @@ func chiSquareTestRecord(t *testing.T, schema *encoding.Schema, kind, outcome st
 		"outcome": float64(outcomeID),
 	})
 }
+
+// ---------- Tier-2 TEST_PEARSON_R ----------
+
+// TestPearsonRPost_PerfectPositive: y = 2x + 3 over 5 result rows; r must
+// be exactly 1 (clamped from float drift). p ≈ 0, df = n − 2.
+func TestPearsonRPost_PerfectPositive(t *testing.T) {
+	post, err := newPearsonRPost(&types.Test{
+		Type:   types.TEST_PEARSON_R,
+		Field:  "x_col",
+		Field2: "y_col",
+		Alpha:  0.05,
+	}, nil)
+	if err != nil {
+		t.Fatalf("newPearsonRPost: %v", err)
+	}
+	rows := []map[string]any{
+		{"x_col": 1.0, "y_col": 5.0},
+		{"x_col": 2.0, "y_col": 7.0},
+		{"x_col": 3.0, "y_col": 9.0},
+		{"x_col": 4.0, "y_col": 11.0},
+		{"x_col": 5.0, "y_col": 13.0},
+	}
+	res, err := post.Run(rows)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if math.Abs(res.Statistic-1.0) > 1e-12 {
+		t.Errorf("r = %g, want 1.0", res.Statistic)
+	}
+	if res.PValue != 0 {
+		t.Errorf("p = %g, want 0 for r = 1", res.PValue)
+	}
+	if res.DF != 3 {
+		t.Errorf("df = %g, want 3", res.DF)
+	}
+	if res.Variant != "pearson_post" {
+		t.Errorf("variant = %q, want pearson_post", res.Variant)
+	}
+}
+
+// TestPearsonRPost_NegativeCorrelation: known r ≈ -0.949 on a 5-point
+// negatively associated series. Confirms the sign carries through and
+// the p-value rejects at α = 0.05.
+func TestPearsonRPost_NegativeCorrelation(t *testing.T) {
+	post, err := newPearsonRPost(&types.Test{
+		Type:   types.TEST_PEARSON_R,
+		Field:  "x",
+		Field2: "y",
+	}, nil)
+	if err != nil {
+		t.Fatalf("newPearsonRPost: %v", err)
+	}
+	rows := []map[string]any{
+		{"x": 1.0, "y": 10.0},
+		{"x": 2.0, "y": 8.0},
+		{"x": 3.0, "y": 7.0},
+		{"x": 4.0, "y": 4.0},
+		{"x": 5.0, "y": 3.0},
+	}
+	res, err := post.Run(rows)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.Statistic > -0.9 {
+		t.Errorf("r = %g, want strongly negative (< -0.9)", res.Statistic)
+	}
+	if !res.RejectNull {
+		t.Errorf("reject_null = false; want true (p = %g)", res.PValue)
+	}
+}
+
+// TestPearsonRPost_AgreesWithRowVariant: same data fed via Records to
+// the tier-1 variant and via rows to the tier-2 variant must produce
+// identical r, df, and p (the math path is shared).
+func TestPearsonRPost_AgreesWithRowVariant(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "x", Type: encoding.FieldTypeF64},
+			{Name: "y", Type: encoding.FieldTypeF64},
+		},
+	}
+	row, err := newPearsonRRow(&types.Test{
+		Type: types.TEST_PEARSON_R, Field: "x", Field2: "y",
+	}, schema)
+	if err != nil {
+		t.Fatalf("newPearsonRRow: %v", err)
+	}
+	post, err := newPearsonRPost(&types.Test{
+		Type: types.TEST_PEARSON_R, Field: "x", Field2: "y",
+	}, nil)
+	if err != nil {
+		t.Fatalf("newPearsonRPost: %v", err)
+	}
+	pairs := [][2]float64{
+		{1.2, 3.4}, {2.0, 5.1}, {3.5, 6.7}, {4.0, 8.2},
+		{5.5, 9.0}, {6.1, 11.0}, {7.0, 12.5}, {8.3, 14.1},
+	}
+	rows := make([]map[string]any, 0, len(pairs))
+	for _, p := range pairs {
+		if err := row.UpdateRow(NewRecord(schema, map[string]float64{
+			"x": p[0], "y": p[1],
+		})); err != nil {
+			t.Fatalf("UpdateRow: %v", err)
+		}
+		rows = append(rows, map[string]any{"x": p[0], "y": p[1]})
+	}
+	rRow, err := row.Finalize()
+	if err != nil {
+		t.Fatalf("row Finalize: %v", err)
+	}
+	rPost, err := post.Run(rows)
+	if err != nil {
+		t.Fatalf("post Run: %v", err)
+	}
+	if math.Abs(rRow.Statistic-rPost.Statistic) > 1e-12 {
+		t.Errorf("r mismatch: row=%g post=%g", rRow.Statistic, rPost.Statistic)
+	}
+	if math.Abs(rRow.PValue-rPost.PValue) > 1e-12 {
+		t.Errorf("p mismatch: row=%g post=%g", rRow.PValue, rPost.PValue)
+	}
+	if rRow.DF != rPost.DF {
+		t.Errorf("df mismatch: row=%g post=%g", rRow.DF, rPost.DF)
+	}
+}
+
+// TestPearsonRPost_InsufficientN: n < 3 surfaces PULSE_TEST_INSUFFICIENT_N.
+func TestPearsonRPost_InsufficientN(t *testing.T) {
+	post, err := newPearsonRPost(&types.Test{
+		Type: types.TEST_PEARSON_R, Field: "x", Field2: "y",
+	}, nil)
+	if err != nil {
+		t.Fatalf("newPearsonRPost: %v", err)
+	}
+	_, err = post.Run([]map[string]any{
+		{"x": 1.0, "y": 2.0},
+		{"x": 2.0, "y": 4.0},
+	})
+	if err == nil {
+		t.Fatal("expected error for n < 3")
+	}
+}
+
+// TestPearsonRPost_ZeroVariance: constant y must surface
+// PULSE_TEST_CORRELATION_UNDEFINED.
+func TestPearsonRPost_ZeroVariance(t *testing.T) {
+	post, err := newPearsonRPost(&types.Test{
+		Type: types.TEST_PEARSON_R, Field: "x", Field2: "y",
+	}, nil)
+	if err != nil {
+		t.Fatalf("newPearsonRPost: %v", err)
+	}
+	_, err = post.Run([]map[string]any{
+		{"x": 1.0, "y": 5.0},
+		{"x": 2.0, "y": 5.0},
+		{"x": 3.0, "y": 5.0},
+		{"x": 4.0, "y": 5.0},
+	})
+	if err == nil {
+		t.Fatal("expected error for constant y")
+	}
+}
+
+// TestPearsonRPost_RequiresField2: factory rejects missing field2.
+func TestPearsonRPost_RequiresField2(t *testing.T) {
+	_, err := newPearsonRPost(&types.Test{
+		Type:  types.TEST_PEARSON_R,
+		Field: "x",
+	}, nil)
+	if err == nil {
+		t.Fatal("expected error for missing field2")
+	}
+}
