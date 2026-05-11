@@ -1,0 +1,13 @@
+{
+  "_comment": "TEST_WELCH is an explicit alias for TEST_T two-sample. Same algorithm; the alias documents intent when the caller wants the reader to know they are NOT assuming equal variances.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "tests": [
+    {
+      "type": "TEST_WELCH",
+      "field": "session_minutes",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "session_welch"
+    }
+  ]
+}

@@ -371,7 +371,7 @@ Required fields:
 
 **12 synth distributions:** `bernoulli`, `constant`, `exponential`, `lognormal`, `monotonic_from`, `normal`, `pareto`, `poisson`, `regex`, `uniform`, `uniform_date`, `weighted_categorical`
 
-**7 statistical tests:** `TEST_ANOVA_F`, `TEST_CHISQ`, `TEST_KS`, `TEST_T`, `TEST_TREND`, `TEST_TUKEY_HSD`, `TEST_WELCH` *(tier-1 row-test impls live in `processing/test_t.go` and the registry in `processing/test.go`; tier-2 post-test registry is empty in this iteration)*
+**7 statistical tests:** `TEST_ANOVA_F`, `TEST_CHISQ`, `TEST_KS`, `TEST_T`, `TEST_TREND`, `TEST_TUKEY_HSD`, `TEST_WELCH`. Tier-1 row tests: `TEST_T`, `TEST_WELCH`, `TEST_CHISQ`, `TEST_ANOVA_F`, `TEST_KS` (registered in `processing/test.go`). Tier-2 post tests: `TEST_ANOVA_F` (from summary stats), `TEST_TREND` (Mann-Kendall). `TEST_TUKEY_HSD` is declared in the enum but has no factory yet — the studentized-range distribution required for its p-values lands in a follow-up.
 
 ## Build / Dev / Test Workflow
 

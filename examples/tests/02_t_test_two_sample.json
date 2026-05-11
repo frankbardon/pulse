@@ -1,0 +1,16 @@
+{
+  "_comment": "Tier-1 two-sample Welch t-test: revenue split by treatment (control vs variant). Variant has a planted ~12% lift so the test should reject at alpha=0.05.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"}
+  ],
+  "tests": [
+    {
+      "type": "TEST_T",
+      "field": "revenue",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "revenue_treatment_ttest"
+    }
+  ]
+}

@@ -99,8 +99,8 @@ func TestProcessor_Tier1Buffered_TTest(t *testing.T) {
 }
 
 // TestProcessor_UnknownRowTestType surfaces PULSE_TEST_UNKNOWN_TYPE when
-// a test references a type without a row-test factory (e.g. TEST_KS in
-// the current iteration).
+// a test references a type without a row-test factory. TEST_TREND is
+// tier-2 only — no row-test factory is registered for it.
 func TestProcessor_UnknownRowTestType(t *testing.T) {
 	schema := numericSchema()
 	proc := NewProcessor(schema)
@@ -111,7 +111,7 @@ func TestProcessor_UnknownRowTestType(t *testing.T) {
 			{Type: types.AGG_SUM, Field: "score"},
 		},
 		Tests: []*types.Test{
-			{Type: types.TEST_KS, Field: "score"},
+			{Type: types.TEST_TREND, Field: "score"},
 		},
 	}
 	_, err := proc.Process(context.Background(), req, iter)

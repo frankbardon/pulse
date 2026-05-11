@@ -43,15 +43,22 @@ type PostTestFactory func(spec *types.Test, schema *encoding.Schema) (PostTest, 
 // Only tier-1-capable tests appear here. A type missing from this registry
 // either has no tier-1 implementation yet or is exclusively tier 2.
 var rowTestRegistry = map[types.TestType]RowTestFactory{
-	types.TEST_T:     newTTestRow,
-	types.TEST_WELCH: newTTestRow,
+	types.TEST_T:       newTTestRow,
+	types.TEST_WELCH:   newTTestRow,
+	types.TEST_CHISQ:   newChiSqRow,
+	types.TEST_ANOVA_F: newAnovaRow,
+	types.TEST_KS:      newKSRow,
 }
 
 // postTestRegistry maps test types to their post-test factory functions.
 // Tier-2 implementations consume the materialized result row set after
-// windows. The map is empty until a tier-2 operator lands; predict and
-// processor handle this gracefully by surfacing PULSE_TEST_UNKNOWN_TYPE.
-var postTestRegistry = map[types.TestType]PostTestFactory{}
+// windows. TEST_TUKEY_HSD is intentionally absent in this iteration —
+// the studentized-range distribution required for its p-values is
+// non-trivial and lands separately.
+var postTestRegistry = map[types.TestType]PostTestFactory{
+	types.TEST_ANOVA_F: newAnovaPost,
+	types.TEST_TREND:   newTrendPost,
+}
 
 // rowTestEntry pairs a Test spec with its constructed RowTest instance
 // and resolved output label. The processor drives one entry per filter-

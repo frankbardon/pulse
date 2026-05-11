@@ -43,6 +43,9 @@ var (
 		"artist", "manager", "writer",
 	}
 	categories  = []string{"A", "B", "C", "D", "E"}
+	treatments  = []string{"control", "variant"}
+	segments    = []string{"segment_a", "segment_b", "segment_c"}
+	conversions = []string{"yes", "no"}
 )
 
 func main() {
@@ -51,7 +54,103 @@ func main() {
 	must(writeCustomers(r, 200))
 	must(writeOrders(r, 200))
 	must(writeTrainingData(r, 300))
-	fmt.Println("wrote 4 CSVs to", outputDir)
+	must(writeExperiment(r, 400))
+	fmt.Println("wrote 5 CSVs to", outputDir)
+}
+
+// writeExperiment produces an A/B testing cohort designed so every
+// statistical test type in examples/tests/ has a clean, non-trivial
+// signal:
+//
+//   - treatment vs control: variant has ≈22% higher revenue mean and
+//     a right-tail-heavy lift on session_minutes (median moves little,
+//     upper deciles stretch). The first yields a clear two-sample
+//     t-test reject; the second yields a clear KS reject while the
+//     mean t-test stays ambiguous — a useful split that demonstrates
+//     why distribution-shape tests still matter alongside mean tests.
+//   - region: four regions with planted mean-revenue differences so
+//     ANOVA across regions rejects clearly.
+//   - segment × converted: segments_a / b / c have different conversion
+//     base rates (0.20 / 0.35 / 0.50) producing a dependent contingency.
+//   - period: 90 sequential dates; revenue carries a mild upward drift
+//     so Mann-Kendall on the time-ordered series rejects.
+//   - session_minutes vs revenue follow different shapes: revenue is
+//     log-normal, session_minutes is half-normal, so a KS two-sample
+//     comparing them across treatments shows distribution structure.
+func writeExperiment(r *rand.Rand, n int) error {
+	w, close := openCSV("experiment.csv")
+	defer close()
+	if err := w.Write([]string{
+		"id", "treatment", "region", "segment", "converted",
+		"revenue", "session_minutes", "period",
+	}); err != nil {
+		return err
+	}
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	// Planted per-region revenue lifts (multiplicative on the base
+	// log-normal). Means stay ordered north < south < east < west.
+	regionLift := map[string]float64{
+		"north": 1.00,
+		"south": 1.10,
+		"east":  1.22,
+		"west":  1.35,
+	}
+	segmentConvRate := map[string]float64{
+		"segment_a": 0.20,
+		"segment_b": 0.35,
+		"segment_c": 0.50,
+	}
+	for i := range n {
+		treatment := treatments[r.Intn(len(treatments))]
+		region := regions[r.Intn(len(regions))]
+		segment := segments[r.Intn(len(segments))]
+		// Conversion depends on segment AND treatment so chi-square on
+		// (region, converted) is independent but (segment, converted)
+		// is dependent.
+		convRate := segmentConvRate[segment]
+		if treatment == "variant" {
+			convRate += 0.05
+		}
+		converted := "no"
+		if r.Float64() < convRate {
+			converted = "yes"
+		}
+		// Revenue: log-normal base * region lift * treatment lift +
+		// mild upward drift over time (period index).
+		base := math.Exp(4.5 + 0.5*r.NormFloat64())
+		treatmentLift := 1.0
+		if treatment == "variant" {
+			treatmentLift = 1.22
+		}
+		periodIdx := r.Intn(90)
+		drift := 1.0 + 0.003*float64(periodIdx)
+		revenue := base * regionLift[region] * treatmentLift * drift
+		// session_minutes: half-normal with treatment lift.
+		sessionBase := math.Abs(r.NormFloat64()) * 15.0
+		// Asymmetric treatment effect on session_minutes: variant shifts
+		// the right tail more than the median, so KS detects a clear
+		// distribution change even though mean differences stay modest.
+		sessionTreatLift := 1.0
+		if treatment == "variant" {
+			sessionTreatLift = 1.0 + 0.35*math.Abs(r.NormFloat64())
+		}
+		sessionMinutes := sessionBase * sessionTreatLift
+		period := start.AddDate(0, 0, periodIdx).Format(dateFormat)
+		if err := w.Write([]string{
+			itoa(i + 1),
+			treatment,
+			region,
+			segment,
+			converted,
+			fmt.Sprintf("%.2f", revenue),
+			fmt.Sprintf("%.2f", sessionMinutes),
+			period,
+		}); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
 }
 
 // writeTransactions produces id (u32) and amount (f64). Amounts are

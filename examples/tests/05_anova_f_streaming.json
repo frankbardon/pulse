@@ -1,0 +1,13 @@
+{
+  "_comment": "Tier-1 one-way ANOVA on revenue across regions. Region means are planted to be ordered north < south < east < west so F is large and the null is rejected at alpha=0.05.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "tests": [
+    {
+      "type": "TEST_ANOVA_F",
+      "field": "revenue",
+      "split_by": "region",
+      "alpha": 0.05,
+      "label": "regional_revenue_anova"
+    }
+  ]
+}

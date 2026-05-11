@@ -1,0 +1,22 @@
+{
+  "_comment": "Tier-2 ANOVA from summary stats. Step 1: GROUP_CATEGORY(region) + AGG_AVERAGE/VARIANCE/COUNT produces one row per region. Step 2: TEST_ANOVA_F in post_tests reads (mean, n, variance) per row and reconstructs SSB/SSW from the per-group summaries. Useful when the same Process call serves both the headline group rows and the inferential test.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "groups": [
+    {"type": "GROUP_CATEGORY", "field": "region"}
+  ],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"},
+    {"type": "AGG_VARIANCE", "field": "revenue", "label": "var_revenue"},
+    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+  ],
+  "post_tests": [
+    {
+      "type": "TEST_ANOVA_F",
+      "field": "avg_revenue",
+      "split_by": "region",
+      "alpha": 0.05,
+      "label": "region_anova_from_groups",
+      "params": {"n_col": "n", "variance_col": "var_revenue"}
+    }
+  ]
+}

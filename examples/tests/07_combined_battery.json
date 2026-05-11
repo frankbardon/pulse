@@ -1,0 +1,13 @@
+{
+  "_comment": "Multiple tier-1 tests in one Process call. Each test reads the rows independently; pipeline scans the cohort once. Standard A/B-test analysis battery on the experiment cohort.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"},
+    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+  ],
+  "tests": [
+    {"type": "TEST_T", "field": "revenue", "split_by": "treatment", "alpha": 0.05, "label": "revenue_ttest"},
+    {"type": "TEST_ANOVA_F", "field": "revenue", "split_by": "region", "alpha": 0.05, "label": "region_anova"},
+    {"type": "TEST_CHISQ", "rows": "segment", "cols": "converted", "alpha": 0.05, "label": "segment_chisq"}
+  ]
+}

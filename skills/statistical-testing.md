@@ -155,6 +155,18 @@ Streamable: no.
 
 Tier-2 (`post_tests`) always runs over the materialized result set after windows, regardless of test type.
 
+## Implementation status
+
+| Test | Tier-1 row test | Tier-2 post test |
+|---|---|---|
+| `TEST_T` | ✓ | — |
+| `TEST_WELCH` | ✓ (alias of two-sample `TEST_T`) | — |
+| `TEST_CHISQ` | ✓ | — |
+| `TEST_ANOVA_F` | ✓ | ✓ (from summary stats) |
+| `TEST_KS` | ✓ (forces buffered path) | — |
+| `TEST_TREND` | — | ✓ (Mann-Kendall) |
+| `TEST_TUKEY_HSD` | — | — (declared in enum; studentized-range distribution lands in a follow-up. Requests surface `PULSE_TEST_UNKNOWN_TYPE`.) |
+
 ## Validation rules (predict)
 
 - `alpha` must lie in (0, 1). Default is 0.05 when zero.
