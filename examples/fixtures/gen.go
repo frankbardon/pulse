@@ -82,7 +82,7 @@ func writeExperiment(r *rand.Rand, n int) error {
 	defer close()
 	if err := w.Write([]string{
 		"id", "treatment", "region", "segment", "converted",
-		"revenue", "session_minutes", "period",
+		"revenue_before", "revenue", "session_minutes", "period",
 	}); err != nil {
 		return err
 	}
@@ -115,8 +115,10 @@ func writeExperiment(r *rand.Rand, n int) error {
 		if r.Float64() < convRate {
 			converted = "yes"
 		}
-		// Revenue: log-normal base * region lift * treatment lift +
-		// mild upward drift over time (period index).
+		// revenue_before is the pre-treatment baseline drawn from the
+		// same log-normal as revenue but without the treatment lift
+		// and without the time drift. Paired t-test and Wilcoxon
+		// signed-rank examples test the per-unit delta.
 		base := math.Exp(4.5 + 0.5*r.NormFloat64())
 		treatmentLift := 1.0
 		if treatment == "variant" {
@@ -124,7 +126,8 @@ func writeExperiment(r *rand.Rand, n int) error {
 		}
 		periodIdx := r.Intn(90)
 		drift := 1.0 + 0.003*float64(periodIdx)
-		revenue := base * regionLift[region] * treatmentLift * drift
+		revenueBefore := base * regionLift[region]
+		revenue := revenueBefore * treatmentLift * drift
 		// session_minutes: half-normal with treatment lift.
 		sessionBase := math.Abs(r.NormFloat64()) * 15.0
 		// Asymmetric treatment effect on session_minutes: variant shifts
@@ -142,6 +145,7 @@ func writeExperiment(r *rand.Rand, n int) error {
 			region,
 			segment,
 			converted,
+			fmt.Sprintf("%.2f", revenueBefore),
 			fmt.Sprintf("%.2f", revenue),
 			fmt.Sprintf("%.2f", sessionMinutes),
 			period,

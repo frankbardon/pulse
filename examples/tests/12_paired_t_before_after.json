@@ -1,0 +1,13 @@
+{
+  "_comment": "Tier-1 paired t-test on the per-unit revenue lift (revenue vs revenue_before). The pre/post pair is generated row-wise so this is the canonical paired-sample case: variant rows have a planted multiplicative lift, control rows do not, and the paired t-test detects the average lift across all units.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "tests": [
+    {
+      "type": "TEST_PAIRED_T",
+      "field": "revenue",
+      "field2": "revenue_before",
+      "alpha": 0.05,
+      "label": "revenue_lift_paired"
+    }
+  ]
+}

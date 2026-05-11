@@ -1,0 +1,16 @@
+{
+  "_comment": "Tier-1 Pearson correlation between post-treatment revenue and the pre-treatment baseline (revenue_before). The two are tightly correlated by construction (revenue = revenue_before × treatment_lift × time_drift), so the test should report a strong positive r with a tiny p-value. Streams via an extended Welford recurrence with cross-product accumulator.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+  ],
+  "tests": [
+    {
+      "type": "TEST_PEARSON_R",
+      "field": "revenue",
+      "field2": "revenue_before",
+      "alpha": 0.05,
+      "label": "revenue_pre_post_pearson"
+    }
+  ]
+}

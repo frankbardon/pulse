@@ -43,11 +43,14 @@ type PostTestFactory func(spec *types.Test, schema *encoding.Schema) (PostTest, 
 // Only tier-1-capable tests appear here. A type missing from this registry
 // either has no tier-1 implementation yet or is exclusively tier 2.
 var rowTestRegistry = map[types.TestType]RowTestFactory{
-	types.TEST_T:       newTTestRow,
-	types.TEST_WELCH:   newTTestRow,
-	types.TEST_CHISQ:   newChiSqRow,
-	types.TEST_ANOVA_F: newAnovaRow,
-	types.TEST_KS:      newKSRow,
+	types.TEST_T:         newTTestRow,
+	types.TEST_WELCH:     newTTestRow,
+	types.TEST_CHISQ:     newChiSqRow,
+	types.TEST_ANOVA_F:   newAnovaRow,
+	types.TEST_KS:        newKSRow,
+	types.TEST_PAIRED_T:  newPairedTRow,
+	types.TEST_PROP_Z:    newPropZRow,
+	types.TEST_PEARSON_R: newPearsonRRow,
 }
 
 // postTestRegistry maps test types to their post-test factory functions.

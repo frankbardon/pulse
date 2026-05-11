@@ -219,6 +219,22 @@ const (
 	// expected count is below the conventional threshold of 5, making
 	// the asymptotic χ² approximation unreliable.
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW Code = "PULSE_TEST_EXPECTED_COUNT_TOO_LOW"
+
+	// PULSE_TEST_FIELD2_NOT_NUMERIC indicates the secondary Field2
+	// reference required by a paired or bivariate test (TEST_PAIRED_T,
+	// TEST_PEARSON_R) resolves to a non-numeric schema type.
+	PULSE_TEST_FIELD2_NOT_NUMERIC Code = "PULSE_TEST_FIELD2_NOT_NUMERIC"
+
+	// PULSE_TEST_SUCCESS_VALUE_MISSING indicates a two-proportion z-test
+	// did not supply Params.success — the dictionary value treated as a
+	// success on the primary field. Without it, the test cannot decide
+	// which category counts as a positive outcome.
+	PULSE_TEST_SUCCESS_VALUE_MISSING Code = "PULSE_TEST_SUCCESS_VALUE_MISSING"
+
+	// PULSE_TEST_CORRELATION_UNDEFINED indicates Pearson r encountered
+	// a column with zero variance; r and its t-statistic are
+	// mathematically undefined in that case.
+	PULSE_TEST_CORRELATION_UNDEFINED Code = "PULSE_TEST_CORRELATION_UNDEFINED"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -282,6 +298,9 @@ var allCodes = []Code{
 	PULSE_TEST_SPLIT_GROUPS_LT_2,
 	PULSE_TEST_CONTINGENCY_DEGENERATE,
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW,
+	PULSE_TEST_FIELD2_NOT_NUMERIC,
+	PULSE_TEST_SUCCESS_VALUE_MISSING,
+	PULSE_TEST_CORRELATION_UNDEFINED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

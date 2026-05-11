@@ -66,7 +66,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		{"groupers", "groupers", 7},
 		{"windows", "windows", 10},
 		{"aggregations", "aggregations", 5},
-		{"tests", "tests", 10},
+		{"tests", "tests", 14},
 	}
 
 	for _, cat := range categories {

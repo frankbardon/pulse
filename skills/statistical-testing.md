@@ -164,6 +164,9 @@ Tier-2 (`post_tests`) always runs over the materialized result set after windows
 | `TEST_CHISQ` | ✓ | — |
 | `TEST_ANOVA_F` | ✓ | ✓ (from summary stats) |
 | `TEST_KS` | ✓ (forces buffered path) | — |
+| `TEST_PAIRED_T` | ✓ | — |
+| `TEST_PROP_Z` | ✓ | — |
+| `TEST_PEARSON_R` | ✓ | — |
 | `TEST_TREND` | — | ✓ (Mann-Kendall) |
 | `TEST_TUKEY_HSD` | — | — (declared in enum; studentized-range distribution lands in a follow-up. Requests surface `PULSE_TEST_UNKNOWN_TYPE`.) |
 

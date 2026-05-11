@@ -1,6 +1,8 @@
 package descriptor
 
 import (
+	"encoding/json"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -9,12 +11,23 @@ import (
 // numericTestFields lists the test types that require their `Field`
 // reference to point at a numeric (non-categorical, non-geo) column.
 // TEST_CHISQ uses rows/cols instead and is not listed here.
+// TEST_PROP_Z's primary field is categorical (the outcome) and is
+// handled in validateProportionZ below.
 var numericTestFields = map[types.TestType]bool{
-	types.TEST_T:       true,
-	types.TEST_WELCH:   true,
-	types.TEST_ANOVA_F: true,
-	types.TEST_KS:      true,
-	types.TEST_TREND:   true,
+	types.TEST_T:         true,
+	types.TEST_WELCH:     true,
+	types.TEST_ANOVA_F:   true,
+	types.TEST_KS:        true,
+	types.TEST_TREND:     true,
+	types.TEST_PAIRED_T:  true,
+	types.TEST_PEARSON_R: true,
+}
+
+// numericField2Tests lists the test types that require a numeric Field2
+// (paired or bivariate tests).
+var numericField2Tests = map[types.TestType]bool{
+	types.TEST_PAIRED_T:  true,
+	types.TEST_PEARSON_R: true,
 }
 
 // validateTests checks tier-1 (Tests) and tier-2 (PostTests) test
@@ -54,6 +67,13 @@ func validateOneTest(env *Envelope, t *types.Test, schema *encoding.Schema, proj
 		validateChiSquareFields(env, t, schema, projected, tier1)
 		return
 	}
+	// TEST_PROP_Z has a unique signature: categorical outcome field +
+	// categorical split + required params.success. Route through its own
+	// validator and bail.
+	if t.Type == types.TEST_PROP_Z {
+		validateProportionZ(env, t, schema, projected, tier1)
+		return
+	}
 	// Field requirement.
 	if t.Field == "" {
 		env.AddError(string(errors.SERVICE_VALIDATION),
@@ -76,6 +96,21 @@ func validateOneTest(env *Envelope, t *types.Test, schema *encoding.Schema, proj
 					map[string]any{"type": string(t.Type), "field": t.Field, "field_type": f.Type.String()})
 			}
 		}
+		if numericField2Tests[t.Type] {
+			if t.Field2 == "" {
+				env.AddError(string(errors.SERVICE_VALIDATION),
+					string(t.Type)+" requires field2 (second numeric column)",
+					map[string]any{"type": string(t.Type)})
+			} else if f2 := schema.Field(t.Field2); f2 == nil && !projected[t.Field2] {
+				env.AddError(string(errors.SERVICE_VALIDATION),
+					string(t.Type)+" references unknown field2: "+t.Field2,
+					map[string]any{"type": string(t.Type), "field2": t.Field2})
+			} else if f2 != nil && (f2.Type.IsCategorical() || f2.Type.IsGeo()) {
+				env.AddError(string(errors.PULSE_TEST_FIELD2_NOT_NUMERIC),
+					string(t.Type)+" field2 "+t.Field2+" has non-numeric type "+f2.Type.String(),
+					map[string]any{"type": string(t.Type), "field2": t.Field2, "field_type": f2.Type.String()})
+			}
+		}
 		if t.SplitBy != "" {
 			sf := schema.Field(t.SplitBy)
 			if sf == nil && !projected[t.SplitBy] {
@@ -90,6 +125,68 @@ func validateOneTest(env *Envelope, t *types.Test, schema *encoding.Schema, proj
 		}
 	}
 	_ = opts
+}
+
+// validateProportionZ validates TEST_PROP_Z's unique signature: a
+// categorical outcome column (Field), a categorical split column
+// (SplitBy), and a required Params.success value. Tier-2 variants are
+// not implemented for TEST_PROP_Z so the tier1 flag controls only the
+// schema-aware checks.
+func validateProportionZ(env *Envelope, t *types.Test, schema *encoding.Schema, projected map[string]bool, tier1 bool) {
+	if t.Field == "" {
+		env.AddError(string(errors.SERVICE_VALIDATION),
+			"TEST_PROP_Z requires field (categorical outcome column)",
+			map[string]any{"type": string(t.Type)})
+		return
+	}
+	if t.SplitBy == "" {
+		env.AddError(string(errors.SERVICE_VALIDATION),
+			"TEST_PROP_Z requires split_by (categorical group column)",
+			map[string]any{"type": string(t.Type)})
+	}
+	if !hasSuccessParam(t.Params) {
+		env.AddError(string(errors.PULSE_TEST_SUCCESS_VALUE_MISSING),
+			"TEST_PROP_Z requires params.success (the dictionary value treated as a success)",
+			map[string]any{"type": string(t.Type)})
+	}
+	if !tier1 || schema == nil {
+		return
+	}
+	for axis, name := range map[string]string{"field": t.Field, "split_by": t.SplitBy} {
+		if name == "" {
+			continue
+		}
+		f := schema.Field(name)
+		if f == nil && !projected[name] {
+			env.AddError(string(errors.SERVICE_VALIDATION),
+				"TEST_PROP_Z "+axis+" references unknown field: "+name,
+				map[string]any{"axis": axis, "field": name})
+			continue
+		}
+		if f != nil && !f.Type.IsCategorical() {
+			env.AddError(string(errors.PULSE_TEST_FIELD_NOT_NUMERIC),
+				"TEST_PROP_Z "+axis+" field "+name+" must be categorical, got "+f.Type.String(),
+				map[string]any{"axis": axis, "field": name, "field_type": f.Type.String()})
+		}
+	}
+}
+
+// hasSuccessParam reports whether the raw Params blob carries a
+// non-empty "success" value. Predict tolerates missing or malformed
+// params (the registry factory surfaces a parse error at process
+// time), but a *missing* success value is the canonical failure mode
+// callers hit so it is worth catching up front.
+func hasSuccessParam(raw []byte) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var params struct {
+		Success string `json:"success"`
+	}
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return false
+	}
+	return params.Success != ""
 }
 
 func validateChiSquareFields(env *Envelope, t *types.Test, schema *encoding.Schema, projected map[string]bool, tier1 bool) {

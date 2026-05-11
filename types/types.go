@@ -222,6 +222,23 @@ const (
 	// series. Tier-2 typical: runs over windowed result rows; tier-1
 	// possible when the raw field is naturally ordered by an OrderBy key.
 	TEST_TREND TestType = "TEST_TREND"
+
+	// TEST_PEARSON_R is the parametric correlation test between two
+	// numeric fields. Streams via an extended Welford recurrence that
+	// also tracks the running cross-product. p-value via the t-statistic
+	// r·√((n−2)/(1−r²)) with df = n − 2.
+	TEST_PEARSON_R TestType = "TEST_PEARSON_R"
+
+	// TEST_PAIRED_T is the paired-sample t-test on the per-row difference
+	// d = Field − Field2. Streams via the same Welford machinery as the
+	// one-sample TEST_T, driven by two-field reads.
+	TEST_PAIRED_T TestType = "TEST_PAIRED_T"
+
+	// TEST_PROP_Z is the two-proportion z-test on a categorical SplitBy
+	// field where each row counts as a success or failure based on
+	// Params.success (the dictionary value treated as a "success" on
+	// Field). Streams via per-group success / total counts.
+	TEST_PROP_Z TestType = "TEST_PROP_Z"
 )
 
 // AllTestTypes returns every defined statistical test type in alphabetical
@@ -231,6 +248,9 @@ func AllTestTypes() []TestType {
 		TEST_ANOVA_F,
 		TEST_CHISQ,
 		TEST_KS,
+		TEST_PAIRED_T,
+		TEST_PEARSON_R,
+		TEST_PROP_Z,
 		TEST_T,
 		TEST_TREND,
 		TEST_TUKEY_HSD,
@@ -251,6 +271,13 @@ type Test struct {
 	// TEST_WELCH, TEST_ANOVA_F, TEST_KS, and TEST_TREND. Omitted for
 	// TEST_CHISQ (uses Rows × Cols instead).
 	Field string `json:"field,omitempty"`
+
+	// Field2 is the secondary numeric field reference used by paired or
+	// bivariate tests (TEST_PEARSON_R, TEST_PAIRED_T). For TEST_PAIRED_T
+	// the difference d = Field − Field2 is tested. For TEST_PEARSON_R
+	// the correlation between Field and Field2 is reported. Empty for
+	// every other test.
+	Field2 string `json:"field2,omitempty"`
 
 	// SplitBy is a categorical field whose distinct values partition Field
 	// into groups. Required for two-sample TEST_T / TEST_WELCH and for

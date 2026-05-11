@@ -121,7 +121,8 @@ func (t FeatureType) Streamable() bool {
 // Default branch returns false so newly-added test types must opt in.
 func (t TestType) Streamable() bool {
 	switch t {
-	case TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F:
+	case TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F,
+		TEST_PEARSON_R, TEST_PAIRED_T, TEST_PROP_Z:
 		return true
 	case TEST_KS, TEST_TUKEY_HSD, TEST_TREND:
 		return false

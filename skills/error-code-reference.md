@@ -612,4 +612,29 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Use Fisher's exact test when sample sizes are small (when added).
 - Combine rare levels to increase per-cell expected counts.
 - Treat the result as advisory rather than decisive when sample sizes are small.
+
+### PULSE_TEST_FIELD2_NOT_NUMERIC
+
+**Description**: A paired or bivariate test (`TEST_PAIRED_T`, `TEST_PEARSON_R`) was supplied a `field2` that resolves to a non-numeric schema type.
+
+**Recovery**:
+- Pick a numeric field (`u*`, `f*`, `nullable_u*`, `decimal128`).
+- Cast the column via `ATTR_FORMULA` before running the test.
+
+### PULSE_TEST_SUCCESS_VALUE_MISSING
+
+**Description**: `TEST_PROP_Z` requires `params.success` — the dictionary value treated as a positive outcome on the primary field. Without it the test cannot decide which category counts as a success.
+
+**Recovery**:
+- Add `"params": {"success": "yes"}` (or whichever dictionary value represents success in your cohort) to the test spec.
+- Use `pulse cohort inspect` to confirm the categorical's dictionary values.
+
+### PULSE_TEST_CORRELATION_UNDEFINED
+
+**Description**: `TEST_PEARSON_R` saw at least one column with zero sample variance. The correlation coefficient and its t-statistic are undefined when either variable is constant.
+
+**Recovery**:
+- Confirm the field actually carries variation in the filtered cohort.
+- Use Spearman ρ or Kendall τ (when available) for non-parametric monotonic association on near-constant data.
+- Remove the constant column from the request.
 </reference>

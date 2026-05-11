@@ -129,6 +129,9 @@ func TestStreamability_TestsKnown(t *testing.T) {
 		TEST_KS:        false,
 		TEST_TUKEY_HSD: false,
 		TEST_TREND:     false,
+		TEST_PEARSON_R: true,
+		TEST_PAIRED_T:  true,
+		TEST_PROP_Z:    true,
 	}
 	for _, tt := range AllTestTypes() {
 		want, ok := expected[tt]

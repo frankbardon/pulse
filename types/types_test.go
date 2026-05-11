@@ -247,6 +247,8 @@ func TestNoOrbitPrefix(t *testing.T) {
 		string(types.TEST_CHISQ), string(types.TEST_ANOVA_F),
 		string(types.TEST_KS), string(types.TEST_TUKEY_HSD),
 		string(types.TEST_TREND),
+		string(types.TEST_PEARSON_R), string(types.TEST_PAIRED_T),
+		string(types.TEST_PROP_Z),
 	}
 
 	for _, v := range enumValues {
@@ -689,7 +691,7 @@ func TestRequestWithWindowsRoundTrip(t *testing.T) {
 	}
 }
 
-// TestTestEnumValues verifies all 7 statistical test types round-trip via JSON.
+// TestTestEnumValues verifies all 10 statistical test types round-trip via JSON.
 func TestTestEnumValues(t *testing.T) {
 	expected := []types.TestType{
 		types.TEST_T,
@@ -699,10 +701,13 @@ func TestTestEnumValues(t *testing.T) {
 		types.TEST_KS,
 		types.TEST_TUKEY_HSD,
 		types.TEST_TREND,
+		types.TEST_PEARSON_R,
+		types.TEST_PAIRED_T,
+		types.TEST_PROP_Z,
 	}
 
-	if len(expected) != 7 {
-		t.Errorf("expected 7 test types, got %d", len(expected))
+	if len(expected) != 10 {
+		t.Errorf("expected 10 test types, got %d", len(expected))
 	}
 
 	for _, tt := range expected {
@@ -727,8 +732,8 @@ func TestTestEnumValues(t *testing.T) {
 // sorted entries.
 func TestAllTestTypesAlphabetical(t *testing.T) {
 	all := types.AllTestTypes()
-	if len(all) != 7 {
-		t.Fatalf("AllTestTypes returned %d entries, want 7", len(all))
+	if len(all) != 10 {
+		t.Fatalf("AllTestTypes returned %d entries, want 10", len(all))
 	}
 	for i := 1; i < len(all); i++ {
 		if string(all[i]) < string(all[i-1]) {
@@ -779,6 +784,35 @@ func TestTestMarshalJSON(t *testing.T) {
 	}
 	if string(got.Params) != `{"variant":"welch"}` {
 		t.Errorf("Params = %s, want {\"variant\":\"welch\"}", got.Params)
+	}
+}
+
+// TestTestField2RoundTrip verifies the Field2 slot used by paired and
+// bivariate tests survives JSON round-trip.
+func TestTestField2RoundTrip(t *testing.T) {
+	test := types.Test{
+		Type:   types.TEST_PEARSON_R,
+		Field:  "revenue",
+		Field2: "session_minutes",
+		Alpha:  0.05,
+		Label:  "rev_session_pearson",
+	}
+	data, err := json.Marshal(test)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got types.Test
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Type != types.TEST_PEARSON_R {
+		t.Errorf("Type = %s, want TEST_PEARSON_R", got.Type)
+	}
+	if got.Field != "revenue" {
+		t.Errorf("Field = %s, want revenue", got.Field)
+	}
+	if got.Field2 != "session_minutes" {
+		t.Errorf("Field2 = %s, want session_minutes", got.Field2)
 	}
 }
 
