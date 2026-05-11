@@ -117,6 +117,33 @@ func TestStreamability_WindowsKnown(t *testing.T) {
 	}
 }
 
+// TestStreamability_TestsKnown asserts every statistical test type returns
+// the documented tier-1 streamability value. Adding a new test type
+// requires extending the switch in streamability.go AND this table.
+func TestStreamability_TestsKnown(t *testing.T) {
+	expected := map[TestType]bool{
+		TEST_T:         true,
+		TEST_WELCH:     true,
+		TEST_CHISQ:     true,
+		TEST_ANOVA_F:   true,
+		TEST_KS:        false,
+		TEST_TUKEY_HSD: false,
+		TEST_TREND:     false,
+	}
+	for _, tt := range AllTestTypes() {
+		want, ok := expected[tt]
+		if !ok {
+			t.Fatalf("test type %s missing from streamability table — declare it in types/streamability.go and add an entry here", tt)
+		}
+		if got := tt.Streamable(); got != want {
+			t.Errorf("%s.Streamable() = %v, want %v", tt, got, want)
+		}
+	}
+	if len(expected) != len(AllTestTypes()) {
+		t.Fatalf("test streamability table size mismatch: %d entries, %d types", len(expected), len(AllTestTypes()))
+	}
+}
+
 func TestStreamability_FeaturesKnown(t *testing.T) {
 	expected := map[FeatureType]bool{
 		FEAT_LOG:              true,

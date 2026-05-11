@@ -170,6 +170,167 @@ func AllFeatureTypes() []FeatureType {
 	}
 }
 
+// TestType identifies a specific statistical test operation.
+//
+// Pulse splits statistical testing into two tiers, both expressed via this
+// enum and both executed inside a single Process pipeline:
+//
+//   - Tier 1 (row tests): listed in Request.Tests, evaluated against the
+//     raw row stream alongside aggregators. Online-moments tests reuse the
+//     running mean/variance/n that aggregators already compute, so they add
+//     near-zero cost when their inputs overlap with active aggregations.
+//   - Tier 2 (post tests): listed in Request.PostTests, evaluated after the
+//     window stage on the materialized result row set. Useful for ANOVA
+//     across grouper buckets, post-hoc pairwise comparisons, and trend
+//     tests over windowed series.
+//
+// Per-type semantics, required fields, and streamability are documented in
+// skills/statistical-testing.md.
+type TestType string
+
+const (
+	// TEST_T is a one-sample or two-sample Welch t-test on a numeric field.
+	// When SplitBy is set, the test partitions Field by SplitBy and compares
+	// the two resulting groups; otherwise it tests Field's mean against the
+	// hypothesized value supplied in Params.
+	TEST_T TestType = "TEST_T"
+
+	// TEST_WELCH is an explicit two-sample Welch t-test alias used when the
+	// caller wants to be unambiguous about the variant. Behaves identically
+	// to TEST_T with SplitBy set; provided so requests document intent.
+	TEST_WELCH TestType = "TEST_WELCH"
+
+	// TEST_CHISQ is a chi-square independence test on a 2D contingency
+	// table built from two categorical fields (Rows × Cols).
+	TEST_CHISQ TestType = "TEST_CHISQ"
+
+	// TEST_ANOVA_F is a one-way analysis of variance F-test comparing the
+	// means of a numeric Field across k groups defined by a categorical
+	// SplitBy field. k must be ≥ 2.
+	TEST_ANOVA_F TestType = "TEST_ANOVA_F"
+
+	// TEST_KS is a Kolmogorov-Smirnov two-sample distribution test. Not
+	// streamable — requires sorted ECDFs.
+	TEST_KS TestType = "TEST_KS"
+
+	// TEST_TUKEY_HSD is a post-hoc pairwise comparison of group means using
+	// Tukey's Honestly Significant Difference. Tier-2 only: consumes the
+	// per-group means and counts produced by upstream aggregators.
+	TEST_TUKEY_HSD TestType = "TEST_TUKEY_HSD"
+
+	// TEST_TREND is a Mann-Kendall trend test over an ordered numeric
+	// series. Tier-2 typical: runs over windowed result rows; tier-1
+	// possible when the raw field is naturally ordered by an OrderBy key.
+	TEST_TREND TestType = "TEST_TREND"
+)
+
+// AllTestTypes returns every defined statistical test type in alphabetical
+// order.
+func AllTestTypes() []TestType {
+	return []TestType{
+		TEST_ANOVA_F,
+		TEST_CHISQ,
+		TEST_KS,
+		TEST_T,
+		TEST_TREND,
+		TEST_TUKEY_HSD,
+		TEST_WELCH,
+	}
+}
+
+// Test defines a single statistical test to evaluate during a Process run.
+// Tests appear in two request slots: Request.Tests (tier 1, row-level) and
+// Request.PostTests (tier 2, result-level). The shape is shared because
+// most fields are common across tiers; per-test validation rules live in
+// the registry and predict layer.
+type Test struct {
+	// Type is the statistical test to perform.
+	Type TestType `json:"type"`
+
+	// Field is the primary numeric field under test. Required for TEST_T,
+	// TEST_WELCH, TEST_ANOVA_F, TEST_KS, and TEST_TREND. Omitted for
+	// TEST_CHISQ (uses Rows × Cols instead).
+	Field string `json:"field,omitempty"`
+
+	// SplitBy is a categorical field whose distinct values partition Field
+	// into groups. Required for two-sample TEST_T / TEST_WELCH and for
+	// TEST_ANOVA_F. Two-sample tests expect exactly 2 groups; ANOVA expects
+	// ≥ 2.
+	SplitBy string `json:"split_by,omitempty"`
+
+	// Rows is the row-axis categorical field for TEST_CHISQ contingency.
+	Rows string `json:"rows,omitempty"`
+
+	// Cols is the column-axis categorical field for TEST_CHISQ contingency.
+	Cols string `json:"cols,omitempty"`
+
+	// Alpha is the significance level. Defaults to 0.05 when zero.
+	// Must lie in the open interval (0, 1).
+	Alpha float64 `json:"alpha,omitempty"`
+
+	// Label is the output alias for the test result. When empty, defaults
+	// to "<TYPE>" or "<TYPE>_<field>" depending on the operator.
+	Label string `json:"label,omitempty"`
+
+	// OrderBy supplies ordering keys for tests that need a sorted series
+	// (TEST_TREND, TEST_KS when run as a series test). Tier-2 trend tests
+	// typically reference an output column produced by an upstream window
+	// or grouper.
+	OrderBy []OrderKey `json:"order_by,omitempty"`
+
+	// Params holds operator-specific configuration as raw JSON.
+	//   TEST_T (one-sample): {"mu": <hypothesized mean>}
+	//   TEST_T / TEST_WELCH (two-sample): {"variant": "welch"} (default)
+	//   TEST_KS: {"alternative": "two-sided"|"less"|"greater"}
+	//   TEST_TUKEY_HSD: {"ms_within": <f64>, "df_within": <f64>}
+	//   TEST_TREND: {"variant": "mann_kendall"} (default)
+	Params json.RawMessage `json:"params,omitempty"`
+}
+
+// TestResult is the per-test outcome embedded in Response.Tests and
+// Response.PostTests. Common statistics live as top-level fields; operator-
+// specific payload (contingency tables, pairwise comparisons, effect sizes,
+// per-group moments) lives in Details so the result shape stays predictable
+// across the catalog.
+type TestResult struct {
+	// Label echoes the request Label or the operator's synthesized default.
+	Label string `json:"label,omitempty"`
+
+	// Type is the test that produced this result.
+	Type TestType `json:"type"`
+
+	// Variant names the specific algorithm when a test supports more than
+	// one (e.g. "welch_two_sample", "mann_kendall", "independence").
+	Variant string `json:"variant,omitempty"`
+
+	// Statistic is the test statistic (t, F, χ², KS D, Mann-Kendall S, etc.).
+	Statistic float64 `json:"statistic"`
+
+	// DF is the degrees of freedom. Tests with multiple DF values (e.g.
+	// ANOVA's between/within) report the numerator DF here and surface the
+	// remainder in Details.
+	DF float64 `json:"df,omitempty"`
+
+	// PValue is the two-sided p-value under the null hypothesis.
+	PValue float64 `json:"p_value"`
+
+	// Alpha is the significance threshold applied to RejectNull.
+	Alpha float64 `json:"alpha"`
+
+	// RejectNull is true when PValue < Alpha.
+	RejectNull bool `json:"reject_null"`
+
+	// Details holds operator-specific payload (per-group n/mean/variance,
+	// contingency table, pairwise comparisons, confidence intervals,
+	// effect-size measures). Marshals naturally as a nested JSON object.
+	Details map[string]any `json:"details,omitempty"`
+
+	// Warnings carries per-test diagnostics (low N, near-zero variance,
+	// expected-count thresholds, etc.) so the envelope-level Warnings list
+	// is not the only signal.
+	Warnings []string `json:"warnings,omitempty"`
+}
+
 // Feature defines a feature engineering operation. Features run pre-filter
 // (before any FILTER_* predicate) and may produce one or more derived
 // columns. Global-pass features (TARGET_ENCODE, FREQUENCY_ENCODE) require a
@@ -368,6 +529,21 @@ type Request struct {
 	// column produced by upstream stages. Stable sort; nulls last
 	// regardless of direction.
 	Sort []OrderKey `json:"sort,omitempty"`
+
+	// Tests is the list of tier-1 statistical tests evaluated alongside
+	// aggregators against the raw row stream. Online-moments tests
+	// (TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F) execute in the
+	// streaming Process path; sort-required tests (TEST_KS) force the
+	// buffered path. Results land in Response.Tests in the same order.
+	Tests []*Test `json:"tests,omitempty"`
+
+	// PostTests is the list of tier-2 statistical tests evaluated after
+	// the window stage on the materialized result row set. Typical uses:
+	// ANOVA across grouper buckets, Tukey HSD post-hoc on per-group
+	// means, trend tests over windowed series. Always buffered (the
+	// result row set must be materialized before tier-2 runs). Results
+	// land in Response.PostTests in the same order.
+	PostTests []*Test `json:"post_tests,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
@@ -389,6 +565,14 @@ type Response struct {
 
 	// Metadata holds information about the processing run.
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
+
+	// Tests holds tier-1 statistical test results, one per entry in
+	// Request.Tests and in the same order.
+	Tests []*TestResult `json:"tests,omitempty"`
+
+	// PostTests holds tier-2 statistical test results, one per entry in
+	// Request.PostTests and in the same order.
+	PostTests []*TestResult `json:"post_tests,omitempty"`
 }
 
 // FileRequest identifies a file for operations like inspect.

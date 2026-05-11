@@ -211,6 +211,7 @@ func TestNoOrbitPrefix(t *testing.T) {
 		"GroupType", "AttributeType", "ResponseMetadata",
 		"Window", "WindowType", "OrderKey", "FrameSpec",
 		"Feature", "FeatureType",
+		"Test", "TestType", "TestResult",
 	}
 
 	for _, name := range typeNames {
@@ -242,6 +243,10 @@ func TestNoOrbitPrefix(t *testing.T) {
 		string(types.FEAT_BUCKETIZE), string(types.FEAT_ONE_HOT),
 		string(types.FEAT_DATE_FEATURES), string(types.FEAT_FREQUENCY_ENCODE),
 		string(types.FEAT_TARGET_ENCODE), string(types.FEAT_TRAIN_TEST_SPLIT),
+		string(types.TEST_T), string(types.TEST_WELCH),
+		string(types.TEST_CHISQ), string(types.TEST_ANOVA_F),
+		string(types.TEST_KS), string(types.TEST_TUKEY_HSD),
+		string(types.TEST_TREND),
 	}
 
 	for _, v := range enumValues {
@@ -681,6 +686,272 @@ func TestRequestWithWindowsRoundTrip(t *testing.T) {
 	}
 	if got.Windows[0].OrderBy[0].Field != "date" {
 		t.Errorf("OrderBy field = %s, want date", got.Windows[0].OrderBy[0].Field)
+	}
+}
+
+// TestTestEnumValues verifies all 7 statistical test types round-trip via JSON.
+func TestTestEnumValues(t *testing.T) {
+	expected := []types.TestType{
+		types.TEST_T,
+		types.TEST_WELCH,
+		types.TEST_CHISQ,
+		types.TEST_ANOVA_F,
+		types.TEST_KS,
+		types.TEST_TUKEY_HSD,
+		types.TEST_TREND,
+	}
+
+	if len(expected) != 7 {
+		t.Errorf("expected 7 test types, got %d", len(expected))
+	}
+
+	for _, tt := range expected {
+		test := types.Test{Type: tt, Field: "x", Alpha: 0.05}
+		data, err := json.Marshal(test)
+		if err != nil {
+			t.Errorf("marshal test with type %s: %v", tt, err)
+			continue
+		}
+		var got types.Test
+		if err := json.Unmarshal(data, &got); err != nil {
+			t.Errorf("unmarshal test with type %s: %v", tt, err)
+			continue
+		}
+		if got.Type != tt {
+			t.Errorf("TestType round-trip: got %s, want %s", got.Type, tt)
+		}
+	}
+}
+
+// TestAllTestTypesAlphabetical verifies AllTestTypes returns alphabetically
+// sorted entries.
+func TestAllTestTypesAlphabetical(t *testing.T) {
+	all := types.AllTestTypes()
+	if len(all) != 7 {
+		t.Fatalf("AllTestTypes returned %d entries, want 7", len(all))
+	}
+	for i := 1; i < len(all); i++ {
+		if string(all[i]) < string(all[i-1]) {
+			t.Errorf("AllTestTypes not sorted: %s before %s", all[i-1], all[i])
+		}
+	}
+}
+
+// TestTestMarshalJSON verifies a Test with all fields round-trips.
+func TestTestMarshalJSON(t *testing.T) {
+	test := types.Test{
+		Type:    types.TEST_T,
+		Field:   "revenue",
+		SplitBy: "treatment",
+		Alpha:   0.01,
+		Label:   "rev_ttest",
+		OrderBy: []types.OrderKey{{Field: "period"}},
+		Params:  json.RawMessage(`{"variant":"welch"}`),
+	}
+
+	data, err := json.Marshal(test)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got types.Test
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if got.Type != types.TEST_T {
+		t.Errorf("Type = %s, want TEST_T", got.Type)
+	}
+	if got.Field != "revenue" {
+		t.Errorf("Field = %s, want revenue", got.Field)
+	}
+	if got.SplitBy != "treatment" {
+		t.Errorf("SplitBy = %s, want treatment", got.SplitBy)
+	}
+	if got.Alpha != 0.01 {
+		t.Errorf("Alpha = %f, want 0.01", got.Alpha)
+	}
+	if got.Label != "rev_ttest" {
+		t.Errorf("Label = %s, want rev_ttest", got.Label)
+	}
+	if len(got.OrderBy) != 1 || got.OrderBy[0].Field != "period" {
+		t.Errorf("OrderBy round-trip failed: %+v", got.OrderBy)
+	}
+	if string(got.Params) != `{"variant":"welch"}` {
+		t.Errorf("Params = %s, want {\"variant\":\"welch\"}", got.Params)
+	}
+}
+
+// TestTestChiSquareMarshalJSON verifies a chi-square Test with Rows/Cols
+// round-trips.
+func TestTestChiSquareMarshalJSON(t *testing.T) {
+	test := types.Test{
+		Type:  types.TEST_CHISQ,
+		Rows:  "region",
+		Cols:  "churned",
+		Alpha: 0.05,
+		Label: "region_churn_chisq",
+	}
+
+	data, err := json.Marshal(test)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got types.Test
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if got.Type != types.TEST_CHISQ {
+		t.Errorf("Type = %s, want TEST_CHISQ", got.Type)
+	}
+	if got.Rows != "region" || got.Cols != "churned" {
+		t.Errorf("Rows/Cols round-trip failed: %s × %s", got.Rows, got.Cols)
+	}
+	if got.Field != "" {
+		t.Errorf("Field = %s, want empty (chi-square uses Rows/Cols)", got.Field)
+	}
+}
+
+// TestTestResultMarshalJSON verifies a TestResult with Details round-trips.
+func TestTestResultMarshalJSON(t *testing.T) {
+	result := types.TestResult{
+		Label:      "rev_ttest",
+		Type:       types.TEST_T,
+		Variant:    "welch_two_sample",
+		Statistic:  -18.342,
+		DF:         19488.6,
+		PValue:     1.27e-74,
+		Alpha:      0.05,
+		RejectNull: true,
+		Details: map[string]any{
+			"groups": []string{"control", "variant"},
+			"n":      []int{9742, 9758},
+			"ci_low": -12.89,
+			"ci_high": -10.39,
+		},
+		Warnings: []string{},
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got types.TestResult
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if got.Type != types.TEST_T {
+		t.Errorf("Type = %s, want TEST_T", got.Type)
+	}
+	if got.Variant != "welch_two_sample" {
+		t.Errorf("Variant = %s, want welch_two_sample", got.Variant)
+	}
+	if got.Statistic != -18.342 {
+		t.Errorf("Statistic = %f, want -18.342", got.Statistic)
+	}
+	if !got.RejectNull {
+		t.Error("RejectNull = false, want true")
+	}
+	if got.Details["ci_low"].(float64) != -12.89 {
+		t.Errorf("Details[ci_low] = %v, want -12.89", got.Details["ci_low"])
+	}
+}
+
+// TestRequestWithTestsRoundTrip verifies Request.Tests and Request.PostTests
+// both survive JSON round-trip.
+func TestRequestWithTestsRoundTrip(t *testing.T) {
+	req := types.Request{
+		Cohort: &types.Cohort{Filename: "sales.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_AVERAGE, Field: "revenue", Label: "avg_revenue"},
+		},
+		Tests: []*types.Test{
+			{Type: types.TEST_T, Field: "revenue", SplitBy: "treatment", Alpha: 0.05},
+			{Type: types.TEST_CHISQ, Rows: "region", Cols: "churned"},
+		},
+		PostTests: []*types.Test{
+			{Type: types.TEST_TREND, Field: "avg_revenue", OrderBy: []types.OrderKey{{Field: "period"}}},
+		},
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got types.Request
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(got.Tests) != 2 {
+		t.Fatalf("Tests length = %d, want 2", len(got.Tests))
+	}
+	if got.Tests[0].Type != types.TEST_T {
+		t.Errorf("Tests[0].Type = %s, want TEST_T", got.Tests[0].Type)
+	}
+	if got.Tests[1].Type != types.TEST_CHISQ {
+		t.Errorf("Tests[1].Type = %s, want TEST_CHISQ", got.Tests[1].Type)
+	}
+	if len(got.PostTests) != 1 || got.PostTests[0].Type != types.TEST_TREND {
+		t.Fatalf("PostTests round-trip failed: %+v", got.PostTests)
+	}
+	if len(got.PostTests[0].OrderBy) != 1 || got.PostTests[0].OrderBy[0].Field != "period" {
+		t.Errorf("PostTests OrderBy round-trip failed: %+v", got.PostTests[0].OrderBy)
+	}
+}
+
+// TestResponseWithTestsRoundTrip verifies Response.Tests and Response.PostTests
+// both survive JSON round-trip.
+func TestResponseWithTestsRoundTrip(t *testing.T) {
+	resp := types.Response{
+		Data: []map[string]any{{"region": "north", "avg_revenue": 142.30}},
+		Tests: []*types.TestResult{
+			{
+				Label:      "rev_ttest",
+				Type:       types.TEST_T,
+				Statistic:  -18.342,
+				DF:         19488.6,
+				PValue:     1.27e-74,
+				Alpha:      0.05,
+				RejectNull: true,
+			},
+		},
+		PostTests: []*types.TestResult{
+			{
+				Label:      "rev_anova",
+				Type:       types.TEST_ANOVA_F,
+				Statistic:  161.78,
+				DF:         3,
+				PValue:     4.1e-103,
+				Alpha:      0.05,
+				RejectNull: true,
+			},
+		},
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got types.Response
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(got.Tests) != 1 || got.Tests[0].Type != types.TEST_T {
+		t.Fatalf("Tests round-trip failed: %+v", got.Tests)
+	}
+	if !got.Tests[0].RejectNull {
+		t.Error("Tests[0].RejectNull = false, want true")
+	}
+	if len(got.PostTests) != 1 || got.PostTests[0].Type != types.TEST_ANOVA_F {
+		t.Fatalf("PostTests round-trip failed: %+v", got.PostTests)
 	}
 }
 
