@@ -191,6 +191,59 @@ func (r *Record) SetNull(name string) {
 	r.invalidateAllValuesCache()
 }
 
+// SetNumeric implements encoding.ReusableRecord. Assigns a numeric value
+// without touching the null marker or invalidating the AllValues cache.
+// Intended only for the streaming reuse path that calls ClearForRow before
+// each row.
+func (r *Record) SetNumeric(name string, value float64) {
+	r.values[name] = value
+}
+
+// SetNullField implements encoding.ReusableRecord. Marks a field as null
+// in the reuse path; does not invalidate the AllValues cache (reuse path
+// resets the cache once per row via ClearForRow).
+func (r *Record) SetNullField(name string) {
+	r.nulls[name] = true
+}
+
+// SetWideField implements encoding.ReusableRecord. Stores a typed wide
+// value (decimal/point/h3) without invalidating the AllValues cache.
+func (r *Record) SetWideField(name string, v any) {
+	if r.wide == nil {
+		r.wide = make(map[string]any)
+	}
+	r.wide[name] = v
+}
+
+// ClearForRow implements encoding.ReusableRecord. Resets per-row state
+// so the next ReadRecordReused call starts from a clean slate while
+// keeping the underlying maps allocated.
+//
+// values is left intact because every field is overwritten on every row.
+// nulls and wide are cleared because their entries are sparse.
+func (r *Record) ClearForRow() {
+	if len(r.nulls) > 0 {
+		clear(r.nulls)
+	}
+	if len(r.wide) > 0 {
+		clear(r.wide)
+	}
+	r.allValuesCache = nil
+}
+
+// NewReusableRecord constructs a Record whose internal maps are sized
+// for the given schema and intended to be reused across many
+// ReadRecordReused calls. Returns a Record that callers must NOT retain
+// past the next iteration step.
+func NewReusableRecord(schema *encoding.Schema) *Record {
+	return &Record{
+		schema: schema,
+		values: make(map[string]float64, len(schema.Fields)),
+		nulls:  make(map[string]bool),
+		wide:   make(map[string]any),
+	}
+}
+
 // RecordIterator provides sequential access to records.
 type RecordIterator interface {
 	// Next advances to the next record. Returns false when exhausted.
@@ -199,6 +252,28 @@ type RecordIterator interface {
 	Record() *Record
 	// Reset resets the iterator to the beginning.
 	Reset()
+}
+
+// ReusableIterator is an optional interface implemented by iterators
+// that can return the same Record pointer across Next() calls,
+// refreshing its values/nulls/wide maps in place. Streaming consumers
+// that consume each record inline (no slice retention) can opt in to
+// drop the per-row map allocations.
+//
+// Callers MUST consume each record before invoking Next() again — the
+// next call will overwrite the Record's contents.
+type ReusableIterator interface {
+	SetReuse(bool)
+}
+
+// EnableReuse opts the iterator into per-row Record reuse if it
+// implements ReusableIterator. Safe no-op for iterators that do not
+// support reuse (e.g. SliceIterator, whose records already exist as
+// independent values).
+func EnableReuse(iter RecordIterator) {
+	if r, ok := iter.(ReusableIterator); ok {
+		r.SetReuse(true)
+	}
 }
 
 // SliceIterator implements RecordIterator over a slice of records.

@@ -26,6 +26,28 @@ func serializedDict(n int) []byte {
 	return buf.Bytes()
 }
 
+// BenchmarkDictionary_Resolve_HotPath documents that Dictionary.Resolve
+// is already allocation-free per call: the dictionary caches its values
+// at parse time as Go strings, and Resolve returns the cached pointer.
+// This benchmark exists to refute the "zero-copy categorical" premise
+// in .planning/improvement-12-mmap-and-arena-allocators.md, which
+// assumed Pulse allocates a string per access.
+//
+// Any future change that adds per-call allocation in Resolve will show
+// up here as allocs/op > 0 and block via reviewer eyeball (not a CI
+// gate, but cheap to notice).
+func BenchmarkDictionary_Resolve_HotPath(b *testing.B) {
+	d := buildDict(16)
+	b.ReportAllocs()
+	var sink string
+	for i := 0; b.Loop(); i++ {
+		sink = d.Resolve(uint32(i & 15))
+	}
+	if sink == "" {
+		b.Fatal("sink should never be empty for valid ids")
+	}
+}
+
 // BenchmarkDictionary_ReadFrom guards the ReadFrom hot path. The shared-
 // buffer rewrite drops one allocation per entry (was 2/entry, now 1/entry +
 // one shared buffer). Don't regress.

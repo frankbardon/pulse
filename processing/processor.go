@@ -234,6 +234,11 @@ func (p *Processor) canStream(req *types.Request) bool {
 // emits derived columns into each record before filters and online
 // aggregators see it.
 func (p *Processor) processStreaming(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	// Streaming consumes each record inline; opt the iterator into
+	// per-row Record reuse so the map allocations in the source
+	// (typically service.streamingIterator) collapse to one set for the
+	// lifetime of the call.
+	EnableReuse(iter)
 	// Build streaming feature handles, if any. canStream verified that
 	// every operator supports streaming, so factory failures here are
 	// PROCESSING_CONFIG bubbling up the canonical error.
@@ -390,6 +395,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 // groups still hold every key's aggregator in memory; the win is avoiding
 // the full record buffer that the buffered path requires.
 func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	EnableReuse(iter)
 	grp := req.Groups[0]
 	grouperFactory, ok := grouperRegistry[grp.Type]
 	if !ok {
@@ -625,6 +631,7 @@ func (p *Processor) buildTwoPassAttributes(attrs []*types.Attribute) (twoPass []
 // Memory bound: O(per_attribute_state). Pass 1 + pass 2 = 2× iter
 // scan; the underlying file is typically OS-page-cached after pass 1.
 func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	EnableReuse(iter)
 	filterFns, err := p.buildFilterFuncs(req.Filterers)
 	if err != nil {
 		return nil, err
