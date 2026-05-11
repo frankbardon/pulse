@@ -59,6 +59,8 @@ var rowTestRegistry = map[types.TestType]RowTestFactory{
 	types.TEST_ANOVA_WELCH:    newAnovaWelchRow,
 	types.TEST_ANOVA_RM:       newAnovaRMRow,
 	types.TEST_BROWN_FORSYTHE: newBrownForsytheRow,
+	types.TEST_FISHER_EXACT:   newFisherExactRow,
+	types.TEST_SHAPIRO_WILK:   newShapiroWilkRow,
 }
 
 // postTestRegistry maps test types to their post-test factory functions.
@@ -67,8 +69,9 @@ var rowTestRegistry = map[types.TestType]RowTestFactory{
 // the studentized-range distribution required for its p-values is
 // non-trivial and lands separately.
 var postTestRegistry = map[types.TestType]PostTestFactory{
-	types.TEST_ANOVA_F: newAnovaPost,
-	types.TEST_TREND:   newTrendPost,
+	types.TEST_ANOVA_F:   newAnovaPost,
+	types.TEST_TREND:     newTrendPost,
+	types.TEST_TUKEY_HSD: newTukeyHSDPost,
 }
 
 // rowTestEntry pairs a Test spec with its constructed RowTest instance

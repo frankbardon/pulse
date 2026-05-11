@@ -29,6 +29,7 @@ var numericTestFields = map[types.TestType]bool{
 	types.TEST_ANOVA_WELCH:    true,
 	types.TEST_ANOVA_RM:       true,
 	types.TEST_BROWN_FORSYTHE: true,
+	types.TEST_SHAPIRO_WILK:   true,
 }
 
 // numericField2Tests lists the test types that require a numeric Field2
@@ -73,8 +74,8 @@ func validateOneTest(env *Envelope, t *types.Test, schema *encoding.Schema, proj
 			"alpha must lie in (0, 1)",
 			map[string]any{"alpha": t.Alpha, "type": string(t.Type)})
 	}
-	// Chi-square uses rows + cols; everything else uses field.
-	if t.Type == types.TEST_CHISQ {
+	// Chi-square and Fisher exact both use rows + cols.
+	if t.Type == types.TEST_CHISQ || t.Type == types.TEST_FISHER_EXACT {
 		validateChiSquareFields(env, t, schema, projected, tier1)
 		return
 	}

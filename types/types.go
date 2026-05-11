@@ -289,6 +289,19 @@ const (
 	// runs one-way ANOVA on the deviations. Buffered: per-group medians
 	// require a sort.
 	TEST_BROWN_FORSYTHE TestType = "TEST_BROWN_FORSYTHE"
+
+	// TEST_FISHER_EXACT is the exact two-sided p-value for a 2×2
+	// contingency table. The canonical small-sample alternative to
+	// TEST_CHISQ when any expected cell count is below 5. Buffered:
+	// requires the full contingency table.
+	TEST_FISHER_EXACT TestType = "TEST_FISHER_EXACT"
+
+	// TEST_SHAPIRO_WILK is the Shapiro-Wilk normality test on Field.
+	// When SplitBy is set the test runs per-group; otherwise it runs
+	// over the full filtered set. Buffered: requires the ordered values.
+	// Implementation supports n ≤ 5000; n above the bound surfaces a
+	// PULSE_TEST_SHAPIRO_N_BOUND warning.
+	TEST_SHAPIRO_WILK TestType = "TEST_SHAPIRO_WILK"
 )
 
 // AllTestTypes returns every defined statistical test type in alphabetical
@@ -300,6 +313,7 @@ func AllTestTypes() []TestType {
 		TEST_ANOVA_WELCH,
 		TEST_BROWN_FORSYTHE,
 		TEST_CHISQ,
+		TEST_FISHER_EXACT,
 		TEST_KENDALL_TAU,
 		TEST_KRUSKAL_WALLIS,
 		TEST_KS,
@@ -307,6 +321,7 @@ func AllTestTypes() []TestType {
 		TEST_PAIRED_T,
 		TEST_PEARSON_R,
 		TEST_PROP_Z,
+		TEST_SHAPIRO_WILK,
 		TEST_SPEARMAN_R,
 		TEST_T,
 		TEST_TREND,

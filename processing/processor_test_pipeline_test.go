@@ -124,7 +124,8 @@ func TestProcessor_UnknownRowTestType(t *testing.T) {
 }
 
 // TestProcessor_PostTestUnknownType verifies tier-2 surfaces
-// PULSE_TEST_UNKNOWN_TYPE — no post-test factory is registered yet.
+// PULSE_TEST_UNKNOWN_TYPE for a type with no post-test factory.
+// TEST_T is registered as a tier-1 row test only.
 func TestProcessor_PostTestUnknownType(t *testing.T) {
 	schema := numericSchema()
 	proc := NewProcessor(schema)
@@ -135,7 +136,7 @@ func TestProcessor_PostTestUnknownType(t *testing.T) {
 			{Type: types.AGG_SUM, Field: "score"},
 		},
 		PostTests: []*types.Test{
-			{Type: types.TEST_TUKEY_HSD, Field: "score"},
+			{Type: types.TEST_T, Field: "score"},
 		},
 	}
 	_, err := proc.Process(context.Background(), req, iter)

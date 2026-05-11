@@ -140,6 +140,8 @@ func TestStreamability_TestsKnown(t *testing.T) {
 		TEST_ANOVA_WELCH:    true,
 		TEST_ANOVA_RM:       false,
 		TEST_BROWN_FORSYTHE: false,
+		TEST_FISHER_EXACT:   false,
+		TEST_SHAPIRO_WILK:   false,
 	}
 	for _, tt := range AllTestTypes() {
 		want, ok := expected[tt]

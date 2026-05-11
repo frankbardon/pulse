@@ -232,6 +232,40 @@ Sphericity correction (Greenhouse-Geisser / Huynh-Feldt) is documented as future
 
 Streamable: no.
 
+### TEST_FISHER_EXACT — Fisher's exact test (2×2)
+
+Tier-1 buffered. Exact two-sided p-value for a 2×2 contingency table by enumerating every hypergeometric outcome at the observed marginals and summing probabilities ≤ the observed table.
+
+Required fields:
+- `rows` — categorical row axis (2 levels)
+- `cols` — categorical column axis (2 levels)
+
+Output Details:
+- `row_labels`, `col_labels`
+- `contingency` — observed 2×2 table
+- `odds_ratio`, `n`
+
+Use case: backstop for `TEST_CHISQ` when any expected cell < 5.
+
+Streamable: no.
+
+### TEST_SHAPIRO_WILK — normality test
+
+Tier-1 buffered. Shapiro-Francia variant (Royston 1993): mid-rank-style coefficients on the Blom-approximated expected normal order statistics. p-value via the standard Royston polynomial transform of `W'`.
+
+Required fields:
+- `field` — numeric value
+- `split_by` (optional) — categorical; when set, the test runs per group and reports per-group W and p in Details
+
+Output Details (single-bucket):
+- `per_group[].n`, `per_group[].w`, `per_group[].z`, `per_group[].p_value`
+
+Headline `Statistic` / `PValue` track the worst (smallest p) across groups.
+
+Caveat: n ≤ 5000 is the supported range; larger samples surface `PULSE_TEST_SHAPIRO_N_BOUND` warnings.
+
+Streamable: no.
+
 ### TEST_BROWN_FORSYTHE — variance homogeneity (median-based)
 
 Buffered. Replaces each value with its absolute deviation from the per-group median, then runs one-way ANOVA on the deviations. Robust against non-normality; the conventional preferred variant over Levene's mean-based residuals.
@@ -284,6 +318,8 @@ Streamable: no.
 | `TEST_ANOVA_WELCH` | yes | online per-group moments + Welch weighting |
 | `TEST_ANOVA_RM` | no | wide pivot over subject × condition |
 | `TEST_BROWN_FORSYTHE` | no | per-group medians require a sort |
+| `TEST_FISHER_EXACT` | no | hypergeometric enumeration on full table |
+| `TEST_SHAPIRO_WILK` | no | sort + Blom coefficients on full sample |
 
 Tier-2 (`post_tests`) always runs over the materialized result set after windows, regardless of test type.
 
@@ -308,7 +344,9 @@ Tier-2 (`post_tests`) always runs over the materialized result set after windows
 | `TEST_ANOVA_RM` | ✓ (forces buffered path) | — |
 | `TEST_BROWN_FORSYTHE` | ✓ (forces buffered path) | — |
 | `TEST_TREND` | — | ✓ (Mann-Kendall) |
-| `TEST_TUKEY_HSD` | — | — (declared in enum; studentized-range distribution lands in a follow-up. Requests surface `PULSE_TEST_UNKNOWN_TYPE`.) |
+| `TEST_TUKEY_HSD` | — | ✓ (Tukey-Kramer with studentized-range p-values) |
+| `TEST_FISHER_EXACT` | ✓ (forces buffered path) | — |
+| `TEST_SHAPIRO_WILK` | ✓ (forces buffered path) | — |
 
 ## Validation rules (predict)
 
@@ -334,6 +372,9 @@ Tier-2 (`post_tests`) always runs over the materialized result set after windows
 | `PULSE_TEST_TIES_DOMINATE` | warning — ≥ 50 % of ranked values are tied |
 | `PULSE_TEST_SUBJECT_MISSING` | warning — RM-ANOVA dropped subjects with incomplete conditions |
 | `PULSE_TEST_BALANCED_DESIGN_REQUIRED` | RM-ANOVA observed unequal cell counts |
+| `PULSE_TEST_TUKEY_REQUIRES_K_GE_3` | Tukey HSD on fewer than 3 groups |
+| `PULSE_TEST_SHAPIRO_N_BOUND` | warning — Shapiro-Wilk n above 5000 |
+| `PULSE_TEST_FISHER_R_OR_C_GT_2` | Fisher exact on tables larger than 2×2 |
 
 See `error-code-reference.md` for recovery steps.
 

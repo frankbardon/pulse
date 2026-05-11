@@ -263,6 +263,22 @@ const (
 	// unbalanced case are not implemented yet; the test fails rather
 	// than reporting a biased balanced-design F.
 	PULSE_TEST_BALANCED_DESIGN_REQUIRED Code = "PULSE_TEST_BALANCED_DESIGN_REQUIRED"
+
+	// PULSE_TEST_TUKEY_REQUIRES_K_GE_3 indicates a Tukey HSD request on
+	// fewer than 3 groups. A standard t-test or two-proportion z is
+	// the appropriate alternative for k = 2.
+	PULSE_TEST_TUKEY_REQUIRES_K_GE_3 Code = "PULSE_TEST_TUKEY_REQUIRES_K_GE_3"
+
+	// PULSE_TEST_SHAPIRO_N_BOUND warns that a Shapiro-Wilk request
+	// observed n above the supported limit (5000). The asymptotic
+	// alternative (D'Agostino's K² or Anderson-Darling) is recommended.
+	PULSE_TEST_SHAPIRO_N_BOUND Code = "PULSE_TEST_SHAPIRO_N_BOUND"
+
+	// PULSE_TEST_FISHER_R_OR_C_GT_2 indicates a Fisher exact request on
+	// a contingency table larger than 2×2. The v1 implementation
+	// supports only 2×2; the network algorithm needed for r×c lands
+	// later.
+	PULSE_TEST_FISHER_R_OR_C_GT_2 Code = "PULSE_TEST_FISHER_R_OR_C_GT_2"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -333,6 +349,9 @@ var allCodes = []Code{
 	PULSE_TEST_TIES_DOMINATE,
 	PULSE_TEST_SUBJECT_MISSING,
 	PULSE_TEST_BALANCED_DESIGN_REQUIRED,
+	PULSE_TEST_TUKEY_REQUIRES_K_GE_3,
+	PULSE_TEST_SHAPIRO_N_BOUND,
+	PULSE_TEST_FISHER_R_OR_C_GT_2,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

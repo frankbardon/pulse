@@ -732,8 +732,8 @@ func TestTestEnumValues(t *testing.T) {
 // sorted entries.
 func TestAllTestTypesAlphabetical(t *testing.T) {
 	all := types.AllTestTypes()
-	if len(all) != 18 {
-		t.Fatalf("AllTestTypes returned %d entries, want 18", len(all))
+	if len(all) != 20 {
+		t.Fatalf("AllTestTypes returned %d entries, want 20", len(all))
 	}
 	for i := 1; i < len(all); i++ {
 		if string(all[i]) < string(all[i-1]) {

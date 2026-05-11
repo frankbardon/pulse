@@ -673,4 +673,30 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Filter the cohort so each subject contributes exactly one observation per condition.
 - Aggregate per (subject, condition) pair (e.g., `AGG_AVERAGE`) before running the test.
 - Wait on the future repeated-measures variant that accepts unbalanced cells.
+
+### PULSE_TEST_TUKEY_REQUIRES_K_GE_3
+
+**Description**: `TEST_TUKEY_HSD` requires k ≥ 3 groups. For k = 2, a t-test (`TEST_T` or `TEST_WELCH`) or proportion z-test (`TEST_PROP_Z`) is the appropriate alternative — the studentized-range correction is unnecessary.
+
+**Recovery**:
+- Reduce to a two-sample test (`TEST_T` / `TEST_WELCH`).
+- Confirm the upstream aggregator returned the expected number of grouper buckets.
+
+### PULSE_TEST_SHAPIRO_N_BOUND
+
+**Description**: `TEST_SHAPIRO_WILK` observed n above the supported limit (5000 rows). The asymptotic approximation in the current implementation degrades for very large n.
+
+**Recovery**:
+- Sample a subset of the cohort if a normality decision is needed.
+- Use an asymptotic alternative (Anderson-Darling, D'Agostino's K²) when n is large — both are slated for future iterations.
+- Treat the p-value as advisory; with large n almost any sample rejects strict normality.
+
+### PULSE_TEST_FISHER_R_OR_C_GT_2
+
+**Description**: `TEST_FISHER_EXACT` saw a contingency table larger than 2×2. The v1 implementation supports the 2×2 case exactly; the network algorithm needed for r×c tables lands later.
+
+**Recovery**:
+- Filter the cohort to a 2×2 table via `FILTER_INCLUDE` on the rows / cols values of interest.
+- Use `TEST_CHISQ` for r×c if the expected counts are large enough.
+- Wait on the follow-up that ships the full network algorithm.
 </reference>
