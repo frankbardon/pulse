@@ -235,6 +235,21 @@ const (
 	// a column with zero variance; r and its t-statistic are
 	// mathematically undefined in that case.
 	PULSE_TEST_CORRELATION_UNDEFINED Code = "PULSE_TEST_CORRELATION_UNDEFINED"
+
+	// PULSE_TEST_PAIRED_LENGTH_MISMATCH indicates a Wilcoxon signed-rank
+	// (or future paired test) encountered rows where one of the paired
+	// columns is null while the other is present. Drop-pair semantics
+	// apply by default (rows with either value missing are skipped);
+	// this code surfaces as a warning so the caller knows the effective
+	// pair count differs from the input row count.
+	PULSE_TEST_PAIRED_LENGTH_MISMATCH Code = "PULSE_TEST_PAIRED_LENGTH_MISMATCH"
+
+	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test observed
+	// ties on ≥ 50 % of the input values. The asymptotic normal / chi-
+	// square approximation used for the p-value loses accuracy under
+	// heavy ties; consider an exact-permutation variant when the count
+	// is small.
+	PULSE_TEST_TIES_DOMINATE Code = "PULSE_TEST_TIES_DOMINATE"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -301,6 +316,8 @@ var allCodes = []Code{
 	PULSE_TEST_FIELD2_NOT_NUMERIC,
 	PULSE_TEST_SUCCESS_VALUE_MISSING,
 	PULSE_TEST_CORRELATION_UNDEFINED,
+	PULSE_TEST_PAIRED_LENGTH_MISMATCH,
+	PULSE_TEST_TIES_DOMINATE,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

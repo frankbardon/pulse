@@ -239,6 +239,38 @@ const (
 	// Params.success (the dictionary value treated as a "success" on
 	// Field). Streams via per-group success / total counts.
 	TEST_PROP_Z TestType = "TEST_PROP_Z"
+
+	// TEST_MANN_WHITNEY_U is the nonparametric two-sample alternative to
+	// TEST_T. Buffered: ranks the combined value set under tie correction,
+	// sums the ranks in group A → R_A, then computes
+	//   U_A = R_A − n_A(n_A+1)/2
+	// Two-sided p-value via the normal approximation with tie correction.
+	TEST_MANN_WHITNEY_U TestType = "TEST_MANN_WHITNEY_U"
+
+	// TEST_WILCOXON_SR is the Wilcoxon signed-rank test on the per-row
+	// difference d = Field − Field2. Buffered: drops zero-diff pairs,
+	// ranks |d| under tie correction, sums positive-sign ranks → W.
+	// Two-sided p-value via the normal approximation with tie correction.
+	TEST_WILCOXON_SR TestType = "TEST_WILCOXON_SR"
+
+	// TEST_KRUSKAL_WALLIS is the nonparametric k-group alternative to
+	// TEST_ANOVA_F. Buffered: ranks the combined value set under tie
+	// correction, sums ranks per group, then
+	//   H = (12/(N(N+1))) · Σ (R_i²/n_i) − 3(N+1)
+	// p-value via chi-square survival with k−1 df.
+	TEST_KRUSKAL_WALLIS TestType = "TEST_KRUSKAL_WALLIS"
+
+	// TEST_SPEARMAN_R is the rank-based correlation between Field and
+	// Field2 (monotonic association). Buffered: mid-ranks each column
+	// under tie correction, then runs Pearson on the ranks. p-value via
+	//   t = ρ · √((n−2)/(1−ρ²))   df = n − 2
+	TEST_SPEARMAN_R TestType = "TEST_SPEARMAN_R"
+
+	// TEST_KENDALL_TAU is concordance-based correlation between Field
+	// and Field2. Buffered O(n²) pair count under tie correction. Two-
+	// sided p-value via normal approximation with the standard variance
+	// adjustment for ties in either column.
+	TEST_KENDALL_TAU TestType = "TEST_KENDALL_TAU"
 )
 
 // AllTestTypes returns every defined statistical test type in alphabetical
@@ -247,14 +279,19 @@ func AllTestTypes() []TestType {
 	return []TestType{
 		TEST_ANOVA_F,
 		TEST_CHISQ,
+		TEST_KENDALL_TAU,
+		TEST_KRUSKAL_WALLIS,
 		TEST_KS,
+		TEST_MANN_WHITNEY_U,
 		TEST_PAIRED_T,
 		TEST_PEARSON_R,
 		TEST_PROP_Z,
+		TEST_SPEARMAN_R,
 		TEST_T,
 		TEST_TREND,
 		TEST_TUKEY_HSD,
 		TEST_WELCH,
+		TEST_WILCOXON_SR,
 	}
 }
 

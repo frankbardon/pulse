@@ -1,0 +1,16 @@
+{
+  "_comment": "Tier-1 Kruskal-Wallis H on revenue across 4 regions. Nonparametric counterpart to TEST_ANOVA_F: regional revenue ordering is planted by construction, so the test should reject. Buffered.",
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"}
+  ],
+  "tests": [
+    {
+      "type": "TEST_KRUSKAL_WALLIS",
+      "field": "revenue",
+      "split_by": "region",
+      "alpha": 0.05,
+      "label": "revenue_kruskal"
+    }
+  ]
+}

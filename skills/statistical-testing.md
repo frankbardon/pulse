@@ -141,6 +141,79 @@ Output Details:
 
 Streamable: no.
 
+### TEST_MANN_WHITNEY_U — nonparametric two-sample
+
+Nonparametric counterpart to `TEST_T` / `TEST_WELCH`. Buffered: combined-set mid-ranks with tie correction.
+
+Required fields:
+- `field` — numeric value
+- `split_by` — categorical producing exactly two groups
+
+Output Details:
+- `groups`, `n` (per group)
+- `u_a`, `u_b`, `u_min` — Mann-Whitney U statistics
+- `r_a`, `r_b` — rank sums
+- `mu_u`, `var_u`, `z` — asymptotic moments and the standardized statistic
+
+Streamable: no (sort-based ECDF).
+
+### TEST_WILCOXON_SR — Wilcoxon signed-rank (paired)
+
+Nonparametric counterpart to `TEST_PAIRED_T`. Buffered: per-row diff, drop zero diffs, mid-rank `|diff|` with tie correction.
+
+Required fields:
+- `field` — numeric (after / post column)
+- `field2` — numeric (before / pre column)
+
+Output Details:
+- `n` — number of non-zero paired observations after drop
+- `w_plus`, `w_minus`, `mu_w`, `var_w`, `z`
+- `zero_diffs` — count of exact-zero pairs dropped
+
+Streamable: no.
+
+### TEST_KRUSKAL_WALLIS — nonparametric k-group
+
+Nonparametric counterpart to `TEST_ANOVA_F`. Buffered: combined-set mid-ranks, per-group rank sums.
+
+Required fields:
+- `field` — numeric value
+- `split_by` — categorical producing k ≥ 2 groups
+
+Output Details:
+- `groups`, `n` (per group), `rank_sums`
+- `n_total`, `tie_factor` — H is tie-corrected by `1 − Σ(t³−t)/(N³−N)`
+
+Streamable: no.
+
+### TEST_SPEARMAN_R — rank-based correlation
+
+Buffered: mid-rank each column independently, then Pearson on the ranks.
+
+Required fields:
+- `field` — numeric column 1
+- `field2` — numeric column 2
+
+Output Details:
+- `n`, `t` — t-statistic and df = n−2
+- `ties_x`, `ties_y` — per-column tie-group sizes
+
+Streamable: no.
+
+### TEST_KENDALL_TAU — concordance-based correlation
+
+τ-b variant with tie correction. Buffered O(n²) pair count.
+
+Required fields:
+- `field` — numeric column 1
+- `field2` — numeric column 2
+
+Output Details:
+- `n`, `concordant`, `discordant`, `ties_x`, `ties_y`
+- `s`, `var_s`, `z` — Kendall S statistic and its asymptotic variance under the null
+
+Streamable: no.
+
 ## Streamability summary
 
 | Test | Tier-1 streamable | Notes |
@@ -149,9 +222,17 @@ Streamable: no.
 | `TEST_WELCH` | yes | alias of `TEST_T` two-sample |
 | `TEST_CHISQ` | yes | online contingency counts |
 | `TEST_ANOVA_F` | yes | online per-group moments |
+| `TEST_PEARSON_R` | yes | online cross-product Welford |
+| `TEST_PAIRED_T` | yes | one-sample Welford on per-row diff |
+| `TEST_PROP_Z` | yes | per-group success/total counts |
 | `TEST_KS` | no | needs sorted ECDF |
 | `TEST_TUKEY_HSD` | tier-2 only | runs over result rows |
 | `TEST_TREND` | no | needs ordered full series |
+| `TEST_MANN_WHITNEY_U` | no | combined-set ranks |
+| `TEST_WILCOXON_SR` | no | sort of \|diff\| |
+| `TEST_KRUSKAL_WALLIS` | no | combined-set ranks |
+| `TEST_SPEARMAN_R` | no | rank both columns |
+| `TEST_KENDALL_TAU` | no | O(n²) pair count |
 
 Tier-2 (`post_tests`) always runs over the materialized result set after windows, regardless of test type.
 
@@ -167,6 +248,11 @@ Tier-2 (`post_tests`) always runs over the materialized result set after windows
 | `TEST_PAIRED_T` | ✓ | — |
 | `TEST_PROP_Z` | ✓ | — |
 | `TEST_PEARSON_R` | ✓ | — |
+| `TEST_MANN_WHITNEY_U` | ✓ (forces buffered path) | — |
+| `TEST_WILCOXON_SR` | ✓ (forces buffered path) | — |
+| `TEST_KRUSKAL_WALLIS` | ✓ (forces buffered path) | — |
+| `TEST_SPEARMAN_R` | ✓ (forces buffered path) | — |
+| `TEST_KENDALL_TAU` | ✓ (forces buffered path) | — |
 | `TEST_TREND` | — | ✓ (Mann-Kendall) |
 | `TEST_TUKEY_HSD` | — | — (declared in enum; studentized-range distribution lands in a follow-up. Requests surface `PULSE_TEST_UNKNOWN_TYPE`.) |
 
@@ -190,6 +276,8 @@ Tier-2 (`post_tests`) always runs over the materialized result set after windows
 | `PULSE_TEST_SPLIT_GROUPS_LT_2` | fewer split groups than the test requires |
 | `PULSE_TEST_CONTINGENCY_DEGENERATE` | chi-square table empty or 1-row/1-col |
 | `PULSE_TEST_EXPECTED_COUNT_TOO_LOW` | warning — chi-square expected cell < 5 |
+| `PULSE_TEST_PAIRED_LENGTH_MISMATCH` | warning — paired test dropped rows with one-sided nulls |
+| `PULSE_TEST_TIES_DOMINATE` | warning — ≥ 50 % of ranked values are tied |
 
 See `error-code-reference.md` for recovery steps.
 

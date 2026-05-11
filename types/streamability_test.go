@@ -122,16 +122,21 @@ func TestStreamability_WindowsKnown(t *testing.T) {
 // requires extending the switch in streamability.go AND this table.
 func TestStreamability_TestsKnown(t *testing.T) {
 	expected := map[TestType]bool{
-		TEST_T:         true,
-		TEST_WELCH:     true,
-		TEST_CHISQ:     true,
-		TEST_ANOVA_F:   true,
-		TEST_KS:        false,
-		TEST_TUKEY_HSD: false,
-		TEST_TREND:     false,
-		TEST_PEARSON_R: true,
-		TEST_PAIRED_T:  true,
-		TEST_PROP_Z:    true,
+		TEST_T:              true,
+		TEST_WELCH:          true,
+		TEST_CHISQ:          true,
+		TEST_ANOVA_F:        true,
+		TEST_KS:             false,
+		TEST_TUKEY_HSD:      false,
+		TEST_TREND:          false,
+		TEST_PEARSON_R:      true,
+		TEST_PAIRED_T:       true,
+		TEST_PROP_Z:         true,
+		TEST_MANN_WHITNEY_U: false,
+		TEST_WILCOXON_SR:    false,
+		TEST_KRUSKAL_WALLIS: false,
+		TEST_SPEARMAN_R:     false,
+		TEST_KENDALL_TAU:    false,
 	}
 	for _, tt := range AllTestTypes() {
 		want, ok := expected[tt]

@@ -20,6 +20,12 @@ its cohort from the shared `.data` directory and assumes
 | `12_paired_t_before_after.json` | 1 | `TEST_PAIRED_T` | paired-sample t on per-unit revenue lift |
 | `13_two_proportion_z.json` | 1 | `TEST_PROP_Z` | conversion-rate lift between control and variant |
 | `14_parametric_battery.json` | 1 | four tests | Welch t + paired t + two-proportion z + Pearson r in one Process call |
+| `15_mann_whitney_revenue.json` | 1 | `TEST_MANN_WHITNEY_U` | nonparametric two-sample on revenue split by treatment |
+| `16_kruskal_wallis_regions.json` | 1 | `TEST_KRUSKAL_WALLIS` | nonparametric k-group on revenue across regions |
+| `17_wilcoxon_paired.json` | 1 | `TEST_WILCOXON_SR` | nonparametric paired test on revenue vs revenue_before |
+| `18_spearman_correlation.json` | 1 | `TEST_SPEARMAN_R` | rank Pearson on the pre/post pair |
+| `19_kendall_tau.json` | 1 | `TEST_KENDALL_TAU` | concordance-based correlation on the same pair |
+| `20_nonparametric_battery.json` | 1 | five tests | Mann-Whitney + Kruskal-Wallis + Wilcoxon + Spearman + Kendall in one Process call |
 
 ## Cohort
 

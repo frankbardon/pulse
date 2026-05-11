@@ -637,4 +637,22 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Confirm the field actually carries variation in the filtered cohort.
 - Use Spearman ρ or Kendall τ (when available) for non-parametric monotonic association on near-constant data.
 - Remove the constant column from the request.
+
+### PULSE_TEST_PAIRED_LENGTH_MISMATCH
+
+**Description**: A paired test (`TEST_WILCOXON_SR`, future paired variants) encountered rows where one paired column was null while the other was present. Drop-pair semantics apply — the row is excluded from the test — and the mismatch count surfaces as a warning so the caller knows the effective pair count.
+
+**Recovery**:
+- If the mismatch count is small relative to N, ignore the warning.
+- Pre-filter null pairs with a `FILTER_EXCLUDE` on either column to make the drop explicit.
+- Verify the upstream import did not introduce spurious nulls (e.g., a CSV column with empty cells).
+
+### PULSE_TEST_TIES_DOMINATE
+
+**Description**: A rank-based nonparametric test (`TEST_MANN_WHITNEY_U`, `TEST_WILCOXON_SR`, `TEST_KRUSKAL_WALLIS`, `TEST_SPEARMAN_R`, `TEST_KENDALL_TAU`) observed ties on ≥ 50 % of the input values. The normal-approximation / chi-square p-value loses accuracy under heavy ties.
+
+**Recovery**:
+- For small n with heavy ties, prefer an exact-permutation variant if/when registered.
+- Bin the field upstream (e.g., `FEAT_BUCKETIZE`) only if discretization is acceptable — it does not improve accuracy of the original test.
+- Treat the p-value as advisory; the effect-direction statistic is still informative.
 </reference>

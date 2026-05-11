@@ -14,20 +14,28 @@ import (
 // TEST_PROP_Z's primary field is categorical (the outcome) and is
 // handled in validateProportionZ below.
 var numericTestFields = map[types.TestType]bool{
-	types.TEST_T:         true,
-	types.TEST_WELCH:     true,
-	types.TEST_ANOVA_F:   true,
-	types.TEST_KS:        true,
-	types.TEST_TREND:     true,
-	types.TEST_PAIRED_T:  true,
-	types.TEST_PEARSON_R: true,
+	types.TEST_T:              true,
+	types.TEST_WELCH:          true,
+	types.TEST_ANOVA_F:        true,
+	types.TEST_KS:             true,
+	types.TEST_TREND:          true,
+	types.TEST_PAIRED_T:       true,
+	types.TEST_PEARSON_R:      true,
+	types.TEST_MANN_WHITNEY_U: true,
+	types.TEST_WILCOXON_SR:    true,
+	types.TEST_KRUSKAL_WALLIS: true,
+	types.TEST_SPEARMAN_R:     true,
+	types.TEST_KENDALL_TAU:    true,
 }
 
 // numericField2Tests lists the test types that require a numeric Field2
 // (paired or bivariate tests).
 var numericField2Tests = map[types.TestType]bool{
-	types.TEST_PAIRED_T:  true,
-	types.TEST_PEARSON_R: true,
+	types.TEST_PAIRED_T:    true,
+	types.TEST_PEARSON_R:   true,
+	types.TEST_WILCOXON_SR: true,
+	types.TEST_SPEARMAN_R:  true,
+	types.TEST_KENDALL_TAU: true,
 }
 
 // validateTests checks tier-1 (Tests) and tier-2 (PostTests) test
