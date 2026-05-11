@@ -33,6 +33,25 @@ type streamingIterator struct {
 	current *processing.Record
 	done    bool
 	err     error
+
+	// reuse=true makes Next return the SAME *processing.Record pointer
+	// across iterations, refreshing its values/nulls/wide maps in place.
+	// Callers MUST consume the record inline before the next Next() call.
+	// Set by SetReuse before iteration begins. Default false preserves
+	// the slice-collection contract used by the buffered Process path.
+	reuse     bool
+	reusedRec *processing.Record
+
+	// mmapBytes is the read-only mmap'd region when the iterator
+	// opened the file via memory-mapping. It is passed to
+	// bytes.NewReader; the surrounding Read loop sees it as plain
+	// memory (no extra indirection over a SectionReader).
+	//
+	// mmapCleanup is the unmap+close pair returned by mmapFileBytes.
+	// Both nil when the iterator fell back to afero.ReadFile (memFs,
+	// non-OsFs filesystems, or platforms where mmap is unavailable).
+	mmapBytes   []byte
+	mmapCleanup func() error
 }
 
 // newStreamingIterator creates a streaming iterator for the given cohort.
@@ -46,6 +65,35 @@ func newStreamingIterator(fs afero.Fs, path string, schema *encoding.Schema) *st
 }
 
 func (it *streamingIterator) initFromFile() error {
+	// If a mmap region is already live (e.g., we're rewinding after a
+	// Reset between two streaming passes), wrap it in a fresh
+	// bytes.Reader rather than re-mapping the file.
+	if it.mmapBytes != nil {
+		it.initFromReader(bytes.NewReader(it.mmapBytes))
+		return nil
+	}
+	// Fast path: when the underlying filesystem is the host OS, mmap
+	// the file read-only and serve reads directly from the mapped
+	// region. Avoids the whole-file allocation + memcpy that
+	// afero.ReadFile performs.
+	//
+	// Capability-detected (not flagged) — failures fall back to
+	// afero.ReadFile so callers using MemMapFs, BasePathFs over a
+	// non-OS root, custom Fs implementations, or platforms where the
+	// kernel rejects mmap continue to work unchanged. SIGBUS on
+	// truncation is a documented mmap hazard; Pulse's write-then-read
+	// pattern makes it improbable in practice, but a misbehaving
+	// external writer could still tear a file beneath us.
+	if _, ok := it.fs.(*afero.OsFs); ok {
+		if data, cleanup, err := mmapFileBytes(it.path); err == nil {
+			it.mmapBytes = data
+			it.mmapCleanup = cleanup
+			it.initFromReader(bytes.NewReader(data))
+			return nil
+		}
+		// Fall through to ReadFile on mmap failure (e.g. empty file or
+		// EACCES on a special file).
+	}
 	data, err := afero.ReadFile(it.fs, it.path)
 	if err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "opening cohort file")
@@ -91,6 +139,24 @@ func (it *streamingIterator) Next() bool {
 		}
 	}
 
+	if it.reuse {
+		if it.reusedRec == nil {
+			it.reusedRec = processing.NewReusableRecord(it.schema)
+		}
+		err := it.reader.ReadRecordReused(it.reusedRec)
+		if err == io.EOF {
+			it.done = true
+			return false
+		}
+		if err != nil {
+			it.err = err
+			it.done = true
+			return false
+		}
+		it.current = it.reusedRec
+		return true
+	}
+
 	// Allocate fresh maps directly into the next Record. Downstream consumers
 	// (processing.Processor.Process) retain Records past the next ReadRecord
 	// call, so each Record needs its own backing maps. Allocating once and
@@ -114,17 +180,39 @@ func (it *streamingIterator) Next() bool {
 	return true
 }
 
+// SetReuse toggles per-row Record reuse. When true, Next returns the
+// SAME *processing.Record pointer across iterations with refreshed
+// values/nulls/wide maps; callers MUST consume the record before the
+// next Next() call. When false (default), each Next allocates a fresh
+// Record, preserving the slice-collection contract used by the buffered
+// Process path.
+//
+// MUST be called before the first Next() call. Calling it after
+// iteration has begun has undefined effect on already-issued records.
+func (it *streamingIterator) SetReuse(reuse bool) {
+	it.reuse = reuse
+}
+
 // Record returns the current record.
 func (it *streamingIterator) Record() *processing.Record {
 	return it.current
 }
 
-// Reset resets the iterator to re-read from the beginning.
+// Reset resets the iterator to re-read from the beginning. Preserves
+// the reuse flag and the reusable Record across passes so two-pass
+// streaming paths benefit from the same allocation savings on pass 2.
+//
+// When the iterator backs onto an mmap'd file, Reset rewinds the
+// SectionReader in place rather than re-mapping; the mmap region stays
+// alive until Close.
 func (it *streamingIterator) Reset() {
 	if it.closer != nil {
 		it.closer.Close()
 		it.closer = nil
 	}
+	// NOTE: mmapHandle survives Reset; initFromFile reuses it to build
+	// a fresh SectionReader without re-mapping the file. Only Close
+	// releases the mapping.
 	it.reader = nil
 	it.rawReader = nil
 	it.current = nil
@@ -139,8 +227,17 @@ func (it *streamingIterator) Err() error {
 
 // Close releases resources.
 func (it *streamingIterator) Close() error {
+	var firstErr error
 	if it.closer != nil {
-		return it.closer.Close()
+		firstErr = it.closer.Close()
+		it.closer = nil
 	}
-	return nil
+	if it.mmapCleanup != nil {
+		if err := it.mmapCleanup(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+		it.mmapCleanup = nil
+		it.mmapBytes = nil
+	}
+	return firstErr
 }
