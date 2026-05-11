@@ -36,6 +36,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A registered MCP tool (added/removed) | `skills/mcp-integration.md` (Tool surface table) | `TestSkillsCoverAllMCPTools` |
 | A registered feature operator | `skills/feature-engineering.md` (operator catalog) | `TestSkillsCoverAllComponents` |
 | A registered synth distribution kind | `skills/synthetic-data.md` (Supported distributions) | `TestSkillsCoverAllSynthDistributions` |
+| A registered statistical test (`TEST_*`) | `skills/statistical-testing.md` (Operator catalog) + `types/streamability.go` + `types/streamability_test.go` | `TestStreamability_TestsKnown` |
 | A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
@@ -134,7 +135,7 @@ Errors use the `errors.Code` system. There are 6 domains with typed codes:
 - **SERVICE:** `SERVICE_VALIDATION`, `SERVICE_RESOURCE`, `SERVICE_REGISTRY`, `SERVICE_INTERNAL`
 - **DATA:** `DATA_FILE`, `DATA_PARSE`, `DATA_CONFIG`, `DATA_CALCULATION`, `DATA_INTERNAL`
 - **CLI:** `CLI_INPUT`, `CLI_OUTPUT`, `CLI_COMMAND`, `CLI_INTERNAL`
-- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`, `PULSE_DECIMAL_OVERFLOW`, `PULSE_DECIMAL_PRECISION_LOSS`, `PULSE_DECIMAL_DIVIDE_BY_ZERO`, `PULSE_GEO_INVALID_POINT`, `PULSE_GEO_INVALID_POLYGON`, `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`, `PULSE_GEO_INVALID_RESOLUTION`, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`, `PULSE_SYNTH_DISTRIBUTION_UNKNOWN`, `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`, `PULSE_PROFILE_FIELD_UNSUPPORTED`
+- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`, `PULSE_DECIMAL_OVERFLOW`, `PULSE_DECIMAL_PRECISION_LOSS`, `PULSE_DECIMAL_DIVIDE_BY_ZERO`, `PULSE_GEO_INVALID_POINT`, `PULSE_GEO_INVALID_POLYGON`, `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`, `PULSE_GEO_INVALID_RESOLUTION`, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`, `PULSE_SYNTH_DISTRIBUTION_UNKNOWN`, `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`, `PULSE_PROFILE_FIELD_UNSUPPORTED`, `PULSE_TEST_UNKNOWN_TYPE`, `PULSE_TEST_FIELD_NOT_NUMERIC`, `PULSE_TEST_INVALID_ALPHA`, `PULSE_TEST_INSUFFICIENT_N`, `PULSE_TEST_VARIANCE_ZERO`, `PULSE_TEST_SPLIT_GROUPS_LT_2`, `PULSE_TEST_CONTINGENCY_DEGENERATE`, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`
 
 Every new error code MUST be added to the `allCodes` slice in `errors/codes.go` and to `skills/error-code-reference.md` (enforced by `TestSkillsCoverAllErrorCodes`).
 
@@ -277,6 +278,8 @@ Forced buffered:
 - Decimal-typed field aggregations (precision-preserving path).
 - Geo aggregations (typed buffered path).
 - Two-pass attributes combined with features or groups (orchestration matrix not yet extended; tracked separately).
+- Tier-1 statistical tests combined with groupers, features, or two-pass attributes (same orchestration limit; predict reports the gate).
+- Tier-2 statistical tests (`req.PostTests`) regardless of TestType — they run after the result set is materialized.
 
 ### CI gates
 
@@ -296,6 +299,7 @@ Forced buffered:
 - `TestPredict_Streamable_MatchesRuntime` — cross-package parity gate: `PredictResult.Streamable` must equal `processing.CanStreamRequest(req, schema)` for every (request, schema) in the matrix
 - `TestStreamability_AggregationsKnown`, `TestStreamability_AttributesKnown`, `TestStreamability_FilterersKnown`, `TestStreamability_GroupsKnown`, `TestStreamability_WindowsKnown`, `TestStreamability_FeaturesKnown` — exhaustiveness gates: every type listed in `All*Types()` must have an explicit entry in the per-type streamability table
 - `TestCanStreamRequest_RegressionMatrix` — regression matrix on the exported `processing.CanStreamRequest` helper used by predict's parity gate
+- `TestStreamability_TestsKnown` — exhaustiveness gate for `TestType.Streamable()` covering every entry in `types.AllTestTypes()`
 
 ## Skill Pack Maintenance
 
@@ -346,6 +350,7 @@ Required fields:
 | Window operator (`WIN_*`) | `skills/window-operations.md` |
 | Feature operator (`FEAT_*`) | `skills/feature-engineering.md` |
 | Synth distribution | `skills/synthetic-data.md` |
+| Statistical test (`TEST_*`) | `skills/statistical-testing.md` |
 | Error code | `skills/error-code-reference.md` |
 | CLI leaf command | `skills/getting-started.md` |
 | Field type | `skills/cohort-schema-design.md` |
@@ -365,6 +370,8 @@ Required fields:
 **8 feature operators:** `FEAT_BUCKETIZE`, `FEAT_DATE_FEATURES`, `FEAT_FREQUENCY_ENCODE`, `FEAT_LOG`, `FEAT_ONE_HOT`, `FEAT_SQRT`, `FEAT_TARGET_ENCODE`, `FEAT_TRAIN_TEST_SPLIT`
 
 **12 synth distributions:** `bernoulli`, `constant`, `exponential`, `lognormal`, `monotonic_from`, `normal`, `pareto`, `poisson`, `regex`, `uniform`, `uniform_date`, `weighted_categorical`
+
+**7 statistical tests:** `TEST_ANOVA_F`, `TEST_CHISQ`, `TEST_KS`, `TEST_T`, `TEST_TREND`, `TEST_TUKEY_HSD`, `TEST_WELCH` *(tier-1 row-test impls live in `processing/test_t.go` and the registry in `processing/test.go`; tier-2 post-test registry is empty in this iteration)*
 
 ## Build / Dev / Test Workflow
 

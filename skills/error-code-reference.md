@@ -546,4 +546,70 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Use schema-mode synthesis for the affected field instead of profile-driven mode.
 - Track follow-up work for native spatial profiling.
+
+### PULSE_TEST_UNKNOWN_TYPE
+
+**Description**: The request referenced a `TestType` not registered in either the row-test or post-test registry.
+
+**Recovery**:
+- Check spelling against `types.AllTestTypes()` or `skills/statistical-testing.md`.
+- Confirm the test is registered for the intended tier — some tests only run as `tests` (tier 1), others only as `post_tests` (tier 2).
+
+### PULSE_TEST_FIELD_NOT_NUMERIC
+
+**Description**: A statistical test needs a numeric field (`u*`, `f*`, `nullable_u*`, `decimal128`) but the named field resolves to a categorical, geo, or otherwise non-numeric schema type.
+
+**Recovery**:
+- Pick a numeric field, or cast the field through an attribute (`ATTR_FORMULA`) before running the test.
+- For chi-square (`TEST_CHISQ`), use `Rows` / `Cols` instead of `Field` — both must be categorical.
+
+### PULSE_TEST_INVALID_ALPHA
+
+**Description**: The `alpha` (significance threshold) is outside the open interval (0, 1).
+
+**Recovery**:
+- Pick a value in (0, 1). Common choices: 0.10, 0.05, 0.01.
+- Leave `alpha` unset to accept the default (0.05).
+
+### PULSE_TEST_INSUFFICIENT_N
+
+**Description**: The test received fewer non-null observations than the minimum required to compute its statistic (typically `n < 2` per group; `n < df + 1` for parametric variants).
+
+**Recovery**:
+- Loosen upstream filters that may be removing too many rows.
+- Choose a different test that tolerates small samples (e.g. exact Fisher's test instead of `TEST_CHISQ` — when available).
+- Aggregate or pool groups before running the test.
+
+### PULSE_TEST_VARIANCE_ZERO
+
+**Description**: One or more groups have zero sample variance, making the t- or F-statistic undefined.
+
+**Recovery**:
+- Check whether the field is constant in the affected group(s) — that is usually the underlying signal, not a test failure.
+- Use a non-parametric alternative (e.g. `TEST_KS` for distribution comparison).
+
+### PULSE_TEST_SPLIT_GROUPS_LT_2
+
+**Description**: A two-sample test (`TEST_T`, `TEST_WELCH`) or `TEST_ANOVA_F` observed fewer than the required number of distinct groups in `split_by` after filtering.
+
+**Recovery**:
+- Verify the categorical field actually contains multiple values in the filtered set.
+- Loosen filters or change the `split_by` field.
+
+### PULSE_TEST_CONTINGENCY_DEGENERATE
+
+**Description**: A chi-square contingency table is empty or has only a single non-empty row or column. The statistic is undefined in that shape.
+
+**Recovery**:
+- Verify both `rows` and `cols` resolve to fields with more than one observed level after filtering.
+- Aggregate rare levels into an "other" bucket before running the test.
+
+### PULSE_TEST_EXPECTED_COUNT_TOO_LOW
+
+**Description**: Warning. One or more expected cell counts in a chi-square contingency table fell below 5, making the asymptotic χ² approximation unreliable.
+
+**Recovery**:
+- Use Fisher's exact test when sample sizes are small (when added).
+- Combine rare levels to increase per-cell expected counts.
+- Treat the result as advisory rather than decisive when sample sizes are small.
 </reference>

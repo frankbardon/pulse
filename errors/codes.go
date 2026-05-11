@@ -181,6 +181,44 @@ const (
 	// layer cannot summarize (e.g. point_f64 / h3_cell). The field is
 	// skipped with a warning rather than failing the whole profile.
 	PULSE_PROFILE_FIELD_UNSUPPORTED Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
+
+	// PULSE_TEST_UNKNOWN_TYPE indicates the request referenced a TestType
+	// that is not registered in either the row-test or post-test registry.
+	PULSE_TEST_UNKNOWN_TYPE Code = "PULSE_TEST_UNKNOWN_TYPE"
+
+	// PULSE_TEST_FIELD_NOT_NUMERIC indicates a test requires a numeric
+	// field but the named field resolves to a categorical, geo, or
+	// otherwise non-numeric schema type.
+	PULSE_TEST_FIELD_NOT_NUMERIC Code = "PULSE_TEST_FIELD_NOT_NUMERIC"
+
+	// PULSE_TEST_INVALID_ALPHA indicates the request's Alpha value lies
+	// outside the open interval (0, 1).
+	PULSE_TEST_INVALID_ALPHA Code = "PULSE_TEST_INVALID_ALPHA"
+
+	// PULSE_TEST_INSUFFICIENT_N indicates a test received fewer
+	// non-null observations than the minimum needed to compute its
+	// statistic (typically n < 2 per group, n < df + 1 for parametric
+	// tests).
+	PULSE_TEST_INSUFFICIENT_N Code = "PULSE_TEST_INSUFFICIENT_N"
+
+	// PULSE_TEST_VARIANCE_ZERO indicates one or more groups have zero
+	// sample variance, making the t- or F-statistic undefined.
+	PULSE_TEST_VARIANCE_ZERO Code = "PULSE_TEST_VARIANCE_ZERO"
+
+	// PULSE_TEST_SPLIT_GROUPS_LT_2 indicates a two-sample or ANOVA test
+	// observed fewer than the required number of distinct groups in the
+	// SplitBy field after filtering.
+	PULSE_TEST_SPLIT_GROUPS_LT_2 Code = "PULSE_TEST_SPLIT_GROUPS_LT_2"
+
+	// PULSE_TEST_CONTINGENCY_DEGENERATE indicates a chi-square contingency
+	// table is empty or has a single row/column, making the test
+	// statistic undefined.
+	PULSE_TEST_CONTINGENCY_DEGENERATE Code = "PULSE_TEST_CONTINGENCY_DEGENERATE"
+
+	// PULSE_TEST_EXPECTED_COUNT_TOO_LOW warns that a chi-square cell's
+	// expected count is below the conventional threshold of 5, making
+	// the asymptotic χ² approximation unreliable.
+	PULSE_TEST_EXPECTED_COUNT_TOO_LOW Code = "PULSE_TEST_EXPECTED_COUNT_TOO_LOW"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -236,6 +274,14 @@ var allCodes = []Code{
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
 	PULSE_SYNTH_CONSTRAINT_INFEASIBLE,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
+	PULSE_TEST_UNKNOWN_TYPE,
+	PULSE_TEST_FIELD_NOT_NUMERIC,
+	PULSE_TEST_INVALID_ALPHA,
+	PULSE_TEST_INSUFFICIENT_N,
+	PULSE_TEST_VARIANCE_ZERO,
+	PULSE_TEST_SPLIT_GROUPS_LT_2,
+	PULSE_TEST_CONTINGENCY_DEGENERATE,
+	PULSE_TEST_EXPECTED_COUNT_TOO_LOW,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.
