@@ -22,19 +22,23 @@ these skills rather than at this site:
 
 | LLM task | Skill name |
 |---|---|
-| Author a `Process` / `Compose` request | `request-recipes` |
-| Compose multiple sub-requests in one call | `request-recipes` |
+| Author a `Process` request | `request-recipes` |
+| Compose multiple sub-requests in one call | `compose-requests` |
+| Iterate on a request with `pulse_predict` | `debugging-with-predict` |
 | Look up an error code or warning | `error-code-reference` |
-| Pick an aggregator | `aggregation-guide` |
+| Pick an aggregator (or a filterer) | `aggregation-guide` |
 | Pick an attribute (z-score, percentile, formula, ...) | `attribute-composition` |
 | Design a grouper | `grouper-design` |
 | Use a window operator (`WIN_*`) | `window-operations` |
 | Use a feature engineer (`FEAT_*`) | `feature-engineering` |
-| Run a statistical test | `statistical-testing` |
+| Run a statistical test (tier-1 or tier-2) | `statistical-testing` |
 | Generate synthetic data | `synthetic-data` |
-| Inspect or predict a `.pulse` file | `schema-inspection` |
 | Understand a cohort's schema layout | `cohort-schema-design` |
+| Import a tabular source into `.pulse` | `import-best-practices` |
 | Pick an export format | `export-format-selection` |
+| Work with decimal128 (currency, precise arithmetic) | `financial-cohorts` |
+| Work with `point_f64` / `h3_cell` | `geospatial-cohorts` |
+| Route a natural-language query to a Pulse request | `query-router-prompt` |
 | Wire Pulse into an MCP client | `mcp-integration` |
 | Get started end-to-end (LLM walkthrough) | `getting-started` |
 
