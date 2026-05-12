@@ -457,6 +457,9 @@ Required fields:
 | `make lint` | Runs `go vet` then `staticcheck ./...` |
 | `make cover` | Runs tests with coverage, outputs `coverage.out` and prints function coverage |
 | `make clean` | Removes `bin/` and `coverage.out` |
+| `make docs` | Builds the mdBook site to `docs/book/` |
+| `make docs-serve` | Serves the mdBook site locally with auto-reload (opens browser) |
+| `make docs-clean` | Removes `docs/book/` |
 
 A `.env` file at the repo root is auto-loaded and exported by the Makefile, so `PULSE_DATA_DIR` (and any other `PULSE_*` env vars) can live there for local development.
 

@@ -6,16 +6,18 @@ GitHub Pages at <https://frankbardon.github.io/pulse/>.
 ## Local preview
 
 ```
-$ mdbook serve --open docs
+$ make docs-serve
 ```
+
+(Equivalent to `mdbook serve docs --open`.)
 
 ## One-shot build
 
 ```
-$ mdbook build docs
+$ make docs
 ```
 
-The build output lands in `docs/book/`, which is gitignored.
+(Equivalent to `mdbook build docs`. Build output lands in `docs/book/`, which is gitignored. `make docs-clean` removes it.)
 
 ## Audience
 
