@@ -34,6 +34,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A new architectural decision | `CLAUDE.md` (relevant section) + PRD if applicable | reviewer enforcement |
 | An environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
 | A registered MCP tool (added/removed) | `skills/mcp-integration.md` (Tool surface table) + `internal/mcp/mcptools/meta.go` (name + description) | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
+| A new MCP action tool with field-name parameters | `internal/mcp/schema_bind.go` (add a per-tool JSON Schema builder + entry in `Bind`) + `skills/mcp-integration.md` (Schema-bound enums section) | `TestMCPSchemaBinding_RemovesInvalidFields`, `TestMCPSchemaBinding_AllFieldsInFiltererEnum`, `TestMCPSchemaBinding_SampleAndFacetFieldEnum`, `TestMCPSchemaBinding_InspectSucceedsRegistersBindings`, `TestMCPSchemaBinding_BindOnOpenFalse` |
 | A registered feature operator | `skills/feature-engineering.md` (operator catalog) + capability declaration in `descriptor/capabilities_features.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
 | A registered synth distribution kind | `skills/synthetic-data.md` (Supported distributions) + capability declaration in `descriptor/capabilities_distributions.go` | `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
 | A registered statistical test (`TEST_*`) | `skills/statistical-testing.md` (Operator catalog) + `types/streamability.go` + `types/streamability_test.go` + capability declaration in `descriptor/capabilities_tests.go` | `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
@@ -361,6 +362,11 @@ Forced buffered:
 - `TestSkillsErrorCodeFixupsDocumented` — for every error code, asserts the `### CODE` section in `skills/error-code-reference.md` carries a `**Fixup**:` line
 - `TestManifestMCPToolsComplete` — for every entry in `mcptools.Names()`, asserts an `MCPTool` entry
 - `TestCohortTypeCrossRefsDeterministic` — verifies each `CohortFieldType`'s `Compatible*` slices are sorted lexically (required for golden stability)
+- `TestMCPSchemaBinding_RemovesInvalidFields` — asserts the bound `pulse_process` schema's `request.attributes[].field` enum contains only numeric fields (categorical and geo fields excluded) for the test cohort
+- `TestMCPSchemaBinding_AllFieldsInFiltererEnum` — asserts the bound filterer field enum equals the full set of cohort field names
+- `TestMCPSchemaBinding_SampleAndFacetFieldEnum` — asserts bound `pulse_facet` constrains its `field` arg via enum; bound `pulse_sample` schema is well-formed
+- `TestMCPSchemaBinding_InspectSucceedsRegistersBindings` — drives `handleInspect` against a `SessionWithTools` and asserts the five action tools (`pulse_process`, `pulse_predict`, `pulse_compose`, `pulse_sample`, `pulse_facet`) land in the session's tool map with bound input schemas
+- `TestMCPSchemaBinding_BindOnOpenFalse` — asserts `BindOnOpen=false` suppresses session-tool registration on inspect
 
 ## Skill Pack Maintenance
 
@@ -519,9 +525,9 @@ For tests that need filesystem access, use `fs.NewMemMap()` which returns a `Con
 ### Wiring Pulse into an MCP client
 
 1. Build the binary: `make build`. The resulting `bin/pulse` must be on the client's `PATH` (or referenced absolutely).
-2. Configure the client (Claude Desktop's `claude_desktop_config.json` or Claude Code's `~/.claude.json`) with an `mcpServers.pulse` entry running `pulse mcp` and exporting `PULSE_DATA_DIR`.
+2. Configure the client (Claude Desktop's `claude_desktop_config.json` or Claude Code's `~/.claude.json`) with an `mcpServers.pulse` entry running `pulse mcp` and exporting `PULSE_DATA_DIR`. The `--bind-on-open` flag (default true) controls whether successful `pulse_inspect` calls trigger registration of session-scoped tool variants whose JSON Schemas constrain field-name parameters to the cohort's actual fields. Pass `--bind-on-open=false` to disable for clients that bind themselves.
 3. Restart the client. Pulse tools (`pulse_inspect`, `pulse_predict`, `pulse_process`, etc.) and resources (`pulse://*.pulse`, `pulse-skill://*`) appear in the tool/resource list.
-4. See `skills/mcp-integration.md` for the full configuration recipe.
+4. See `skills/mcp-integration.md` for the full configuration recipe, including the "Schema-bound enums" section that describes the inspect trigger, the multi-file limitation (latest inspect wins), and the transport-support caveat (stdio sessions in mcp-go v0.52.0 do not implement `SessionWithTools`, so binding is a no-op there; SSE / Streamable HTTP transports honor it).
 
 ### Debugging a predict mismatch
 

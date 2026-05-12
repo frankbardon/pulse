@@ -20,15 +20,32 @@ const SpecVersion = "1.0.0"
 
 // New constructs an MCP server bound to the given Pulse instance. Tools and
 // resources are registered eagerly. The caller is responsible for serving the
-// returned server (typically via server.ServeStdio).
+// returned server (typically via server.ServeStdio). Bind-on-inspect (the
+// schema-bound tool enum variants) is enabled by default; use NewWithOptions
+// to opt out.
 func New(p *pulse.Pulse) *server.MCPServer {
+	return NewWithOptions(p, Options{BindOnOpen: true})
+}
+
+// Options configures the MCP server.
+type Options struct {
+	// BindOnOpen toggles the session-scoped schema-bound tool variants
+	// registered on successful pulse_inspect calls. Default (true via New)
+	// gives LLM clients typed enum constraints on field-name parameters;
+	// false leaves only the unbound global tools, which is useful for
+	// embedders that bind themselves.
+	BindOnOpen bool
+}
+
+// NewWithOptions is New with explicit configuration.
+func NewWithOptions(p *pulse.Pulse, opts Options) *server.MCPServer {
 	s := server.NewMCPServer(
 		ServerName,
 		SpecVersion,
 		server.WithToolCapabilities(true),
 		server.WithResourceCapabilities(true, true),
 	)
-	registerTools(s, p)
+	registerTools(s, p, opts.BindOnOpen)
 	registerResources(s, p)
 	return s
 }

@@ -57,13 +57,27 @@ func RegisteredTools() []string {
 	return mcptools.Names()
 }
 
-func registerTools(s *server.MCPServer, p *pulse.Pulse) {
+func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
+	predict := handlePredict(p)
+	process := handleProcess(p)
+	compose := handleCompose(p)
+	sample := handleSample(p)
+	facet := handleFacet(p)
+
+	handlers := boundHandlers{
+		process: process,
+		predict: predict,
+		compose: compose,
+		sample:  sample,
+		facet:   facet,
+	}
+
 	s.AddTool(
 		mcpgo.NewTool(ToolInspect,
 			mcpgo.WithDescription(DescInspect),
 			mcpgo.WithString("path", mcpgo.Description("Filesystem path to the .pulse file"), mcpgo.Required()),
 		),
-		handleInspect(p),
+		handleInspect(s, p, bindOnOpen, handlers),
 	)
 
 	s.AddTool(
@@ -71,7 +85,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 			mcpgo.WithDescription(DescPredict),
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded types.Request"), mcpgo.Required()),
 		),
-		handlePredict(p),
+		predict,
 	)
 
 	s.AddTool(
@@ -79,7 +93,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 			mcpgo.WithDescription(DescProcess),
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded types.Request"), mcpgo.Required()),
 		),
-		handleProcess(p),
+		process,
 	)
 
 	s.AddTool(
@@ -87,7 +101,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 			mcpgo.WithDescription(DescCompose),
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded types.ComposedRequest"), mcpgo.Required()),
 		),
-		handleCompose(p),
+		compose,
 	)
 
 	s.AddTool(
@@ -96,7 +110,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 			mcpgo.WithString("path", mcpgo.Description("Filesystem path to the .pulse file"), mcpgo.Required()),
 			mcpgo.WithNumber("count", mcpgo.Description("Maximum rows to return (default 10)")),
 		),
-		handleSample(p),
+		sample,
 	)
 
 	s.AddTool(
@@ -105,7 +119,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 			mcpgo.WithString("path", mcpgo.Description("Filesystem path to the .pulse file"), mcpgo.Required()),
 			mcpgo.WithString("field", mcpgo.Description("Field name to facet"), mcpgo.Required()),
 		),
-		handleFacet(p),
+		facet,
 	)
 
 	s.AddTool(
@@ -131,7 +145,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 	)
 }
 
-func handleInspect(p *pulse.Pulse) server.ToolHandlerFunc {
+func handleInspect(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool, handlers boundHandlers) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		path, ok := args["path"].(string)
@@ -142,6 +156,22 @@ func handleInspect(p *pulse.Pulse) server.ToolHandlerFunc {
 		if err != nil {
 			return mcpgo.NewToolResultError(err.Error()), nil
 		}
+
+		// On a successful inspect, register session-scoped bound tool
+		// variants whose JSON Schemas embed enum constraints on field-
+		// name parameters. Best-effort: failure to bind degrades gracefully
+		// to the global (unbound) tools. We re-open the cohort here so we
+		// have a typed *encoding.Schema rather than the projection in
+		// descriptor.InspectResult.
+		if bindOnOpen && s != nil {
+			session := server.ClientSessionFromContext(ctx)
+			if session != nil {
+				if cohort, openErr := p.Open(ctx, path); openErr == nil {
+					_ = BindSessionTools(s, session.SessionID(), cohort.Schema(), handlers)
+				}
+			}
+		}
+
 		return jsonResult(result)
 	}
 }

@@ -51,6 +51,61 @@ Out of scope (deferred): `pulse_validate` and `pulse_join` — gated on Improvem
 </reference>
 
 <reference>
+## Schema-bound enums
+
+After a successful `pulse_inspect` call, the server registers session-scoped
+variants of the five action tools (`pulse_process`, `pulse_predict`,
+`pulse_compose`, `pulse_sample`, `pulse_facet`) whose JSON Schemas embed
+enum constraints on field-name parameters. The LLM picks field names from
+a typed list instead of free-texting them and discovering on predict that
+the name was wrong.
+
+What gets constrained on the bound `pulse_process` / `pulse_predict` /
+`pulse_compose` schemas (within the `request` object):
+
+| Path | Enum |
+|---|---|
+| `aggregations[].field` | All cohort field names (operator–field-type compatibility is communicated via the `type` description, not a correlated enum — see Limitations) |
+| `aggregations[].type` | Full aggregator catalogue (`AGG_*`) |
+| `attributes[].field` | Numeric fields only (includes decimal) — attributes have a clean type-class scope |
+| `attributes[].type` | Full attribute catalogue (`ATTR_*`) |
+| `filterers[].field` | All cohort field names |
+| `filterers[].type` | Full filterer catalogue (`FILTER_*`) |
+| `groups[].field` | All cohort field names |
+| `groups[].type` | Full grouper catalogue (`GROUP_*`) |
+| `windows[].field`, `windows[].partition_by[]` | All cohort field names |
+| `windows[].order_by[].field` | Numeric and date fields |
+| `windows[].type` | Full window catalogue (`WIN_*`) |
+| `tests[].field`, `tests[].field2` | Numeric fields only |
+| `tests[].split_by` / `rows` / `cols` / `subject_field` | All cohort field names |
+| `tests[].type` | Full test catalogue (`TEST_*`) |
+| `pulse_facet` `field` arg | All cohort field names |
+
+### Trigger and lifecycle
+
+- Binding fires on a successful `pulse_inspect`, not on resource subscription. Inspect is the natural moment: the server has just read the schema.
+- `mcp-go` auto-fires `notifications/tools/list_changed` on `AddSessionTools`. Clients refresh their tool list and pick up the bound schemas on the next list-tools call.
+- Bound tools share names with the global tools (`pulse_process`, not `pulse_process_bound`). Session-scoped tools override globals for that session.
+
+### CLI flag
+
+`pulse mcp --bind-on-open=true` (default) enables the binding behaviour. Pass `--bind-on-open=false` for clients that bind tool schemas themselves.
+
+### Limitations (v1)
+
+- **Multi-file sessions:** the latest inspect wins. If you inspect `A.pulse` then `B.pulse`, the bound schemas reflect file B. A subsequent process call against A may succeed (if the schemas overlap) or fail predict (if not). Track multiple cohorts in the client; do not assume the server retains per-file binding state.
+- **No per-element type→field correlation:** JSON Schema can't easily express "if `aggregations[i].type == AGG_SUM` then `aggregations[i].field` must be numeric." Operator–type compatibility lives in the `type` property description. Strict validation remains predict's job.
+- **Transport support:** session-scoped tools require a session that implements `SessionWithTools` (`SetSessionTools` / `GetSessionTools`). In mcp-go v0.52.0, that is the SSE and Streamable HTTP transports. The stdio transport does not implement it; on stdio, binding is a no-op fallback and the global (unbound) schemas remain in effect. The LLM still gets the manifest's per-operator AcceptsTypes table via `pulse_manifest`, so authoring is not blocked — just less ergonomic.
+- **Empty enums omitted:** when the cohort has zero fields in a category (e.g. no geo fields), the matching enum is omitted entirely rather than emitted as `[]`. Some JSON Schema validators reject empty enums.
+
+### Source
+
+Binding logic: `internal/mcp/schema_bind.go`. Hook: `handleInspect` in
+`internal/mcp/tools.go`. Field classification by `encoding.FieldType` —
+mirrors the AcceptsTypes lists in `descriptor/capabilities_*.go`.
+</reference>
+
+<reference>
 ## Resource surface
 
 Resources are registered once at server start. To pick up newly created files, restart the server.
