@@ -45,6 +45,10 @@
 
 - [How LLMs Use Pulse](mcp/index.md)
 
+# Examples Library
+
+- [Searchable Request Examples](examples/library.md)
+
 # Internals
 
 - [Architecture Overview](internals/architecture.md)

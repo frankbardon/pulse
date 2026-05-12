@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/examples"
 	"github.com/frankbardon/pulse/fs"
 	"github.com/frankbardon/pulse/internal/query"
 	pio "github.com/frankbardon/pulse/io"
@@ -38,6 +39,13 @@ type (
 	Profile = synth.Profile
 	// ProfileOptions modulate which statistics the profiler captures.
 	ProfileOptions = synth.ProfileOptions
+
+	// Example is the full record returned by ExampleGet — runnable
+	// request JSON plus the indexed metadata.
+	Example = examples.Example
+	// ExampleSummary is the lightweight projection returned by
+	// ExamplesSearch.
+	ExampleSummary = examples.ExampleSummary
 )
 
 // Record is a row of field→value data returned by Sample.
@@ -466,6 +474,23 @@ func mergeParsedRequest(dst, src *types.Request) {
 	if len(dst.Tests) == 0 && len(src.Tests) > 0 {
 		dst.Tests = src.Tests
 	}
+}
+
+// ExamplesSearch returns summaries from the embedded request-example
+// library matching the given filters. An empty filter is treated as
+// "no constraint" for that dimension. Query is case-insensitive
+// substring search across name, description, and operators; tags is
+// ANDed; category is an exact match. Always returns a non-nil slice
+// (possibly empty) for safe JSON marshaling.
+func (p *Pulse) ExamplesSearch(query string, tags []string, category string) []ExampleSummary {
+	return examples.Search(query, tags, category)
+}
+
+// ExampleGet returns the example whose _meta.name matches name. The
+// returned Body is the request JSON with the _meta block stripped so
+// it can be handed directly to Process / Predict.
+func (p *Pulse) ExampleGet(name string) (*Example, bool) {
+	return examples.Get(name)
 }
 
 // Manifest returns the root Pulse self-description. The manifest is

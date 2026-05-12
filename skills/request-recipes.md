@@ -7,6 +7,8 @@ applies_to: process, compose, predict
 
 # Request Recipes
 
+> For a searchable library of concrete, executable example requests, call the `pulse_examples_search` MCP tool and fetch with `pulse_examples_get`. Recipes in this file are templated patterns for learning the request shape; the embedded library is reference material you can search by tag, category, or operator and run verbatim. The two skills are complementary — keep this one for pattern recognition, hit the library when you need a working starting point.
+
 <skill_overview>
 A copy-pasteable catalogue of canonical `Request` JSON skeletons keyed by analytical intent. Pick the recipe that matches the question, fill the named slots, and submit it as the `request` argument to `pulse_predict` (to validate) and then `pulse_process` (to execute). The shapes mirror the `types.Request` wire format.
 </skill_overview>

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/examples"
 	"github.com/frankbardon/pulse/skills"
 )
 
@@ -69,6 +70,9 @@ type Manifest struct {
 	MCPTools           []MCPTool          `json:"mcp_tools"`
 	CohortTypes        []CohortFieldType  `json:"cohort_types"`
 	Skills             []SkillMeta        `json:"skills"`
+	ExamplesCount      int                `json:"examples_count"`
+	ExampleCategories  []string           `json:"example_categories"`
+	ExampleTags        []string           `json:"example_tags"`
 }
 
 // commands returns the default set of CLI leaf commands.
@@ -215,6 +219,9 @@ func BuildManifest() *Manifest {
 		MCPTools:           mcpToolCapabilities(),
 		CohortTypes:        cohortFieldTypes(),
 		Skills:             sortedSkills(),
+		ExamplesCount:      examples.Count(),
+		ExampleCategories:  examples.AllCategories(),
+		ExampleTags:        examples.AllTags(),
 	}
 }
 

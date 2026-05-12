@@ -2833,6 +2833,14 @@
         "description": "Execute a batch of processing requests."
       },
       {
+        "name": "pulse_examples_get",
+        "description": "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped — hand it straight to pulse_process or pulse_predict."
+      },
+      {
+        "name": "pulse_examples_search",
+        "description": "Search the embedded request-example library. Filters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `tests`, `windows`). Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get."
+      },
+      {
         "name": "pulse_facet",
         "description": "Return distinct values for a field in a cohort."
       },
@@ -3821,9 +3829,61 @@
         "name": "window-operations",
         "description": "WIN_* operators — partitioning, ordering, frames, and per-operator semantics"
       }
+    ],
+    "examples_count": 71,
+    "example_categories": [
+      "aggregations",
+      "attributes",
+      "features",
+      "filterers",
+      "groupers",
+      "tests",
+      "windows"
+    ],
+    "example_tags": [
+      "before-after",
+      "buffered-pipeline",
+      "cardinality-analysis",
+      "cohort-analysis",
+      "comparison",
+      "correlation-analysis",
+      "cross-tabulation",
+      "data-quality",
+      "distribution-shape",
+      "exact-test",
+      "experiment-analysis",
+      "feature-engineering",
+      "feature-pipeline",
+      "financial",
+      "geo-analysis",
+      "homogeneity-test",
+      "hypothesis-test",
+      "k-sample",
+      "leakage-risk",
+      "leakage-safe",
+      "nonparametric",
+      "normality-test",
+      "one-sample",
+      "outlier-detection",
+      "paired",
+      "parametric",
+      "post-hoc",
+      "pre-filter",
+      "proportion-analysis",
+      "repeated-measures",
+      "small-sample",
+      "streaming-friendly",
+      "t-test",
+      "tier-1-test",
+      "tier-2-test",
+      "time-series",
+      "top-n",
+      "trend-detection",
+      "two-sample",
+      "window-operator"
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 571f7fb2c082ee3172c9d3329c8cee78e1c3ba9e8bbf780d917e6e24305aa4fa
+// golden-hash: 225d112dec4c441ac492f9b75f2bda0efe625820248a933867c45892985064e5

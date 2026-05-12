@@ -52,6 +52,7 @@ func buildApp() *cli.Command {
 			pcli.CohortCommand(),
 			pcli.APICommand(),
 			pcli.SkillsCommand(),
+			pcli.ExamplesCommand(),
 			pcli.MCPCommand(),
 			pcli.SynthCommand(),
 			pcli.ProfileCommand(),

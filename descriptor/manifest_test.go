@@ -158,6 +158,33 @@ func TestManifest_SkillsNotEmpty(t *testing.T) {
 	}
 }
 
+// TestManifestExamplesPopulated verifies the embedded example library
+// is surfaced in the manifest payload. Non-skippable: missing fields
+// silently break LLM-side example discovery.
+func TestManifestExamplesPopulated(t *testing.T) {
+	m := BuildManifest()
+	if m.ExamplesCount == 0 {
+		t.Error("ExamplesCount is 0; embedded example library not surfaced")
+	}
+	if len(m.ExampleCategories) == 0 {
+		t.Error("ExampleCategories is empty")
+	}
+	if len(m.ExampleTags) == 0 {
+		t.Error("ExampleTags is empty")
+	}
+	// Categories must be sorted alphabetically for golden stability.
+	for i := 1; i < len(m.ExampleCategories); i++ {
+		if m.ExampleCategories[i] < m.ExampleCategories[i-1] {
+			t.Errorf("ExampleCategories not sorted: %q before %q", m.ExampleCategories[i-1], m.ExampleCategories[i])
+		}
+	}
+	for i := 1; i < len(m.ExampleTags); i++ {
+		if m.ExampleTags[i] < m.ExampleTags[i-1] {
+			t.Errorf("ExampleTags not sorted: %q before %q", m.ExampleTags[i-1], m.ExampleTags[i])
+		}
+	}
+}
+
 func TestRootManifestGolden(t *testing.T) {
 	m := BuildManifest()
 	env := NewEnvelope(m)

@@ -45,6 +45,8 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known`, `TestManifestStreamableMatchesTypes` |
 | The default operator table | `CLAUDE.md` "Code Conventions → Smart defaults" + `skills/getting-started.md` ("Defaults" section) | `TestDefaults_Applied` + reviewer enforcement |
 | A natural-query parsing route (new grammar shape) | `internal/query/query.go` grammar + `internal/query/query_test.go` fixtures + `skills/query-router-prompt.md` (router prompt grammar) + `skills/request-recipes.md` (target shapes) | `TestNaturalQuery_HeuristicGrammar` |
+| A request example under `examples/` (added/edited) | `_meta` block at top of the file (kebab-name unique across the library, category matching directory, tags drawn from the canonical taxonomy in `examples/library.go`, operators alphabetized and matching the body) | `TestExamples_AllParseAsRequest`, `TestExamples_UniqueNames`, `TestExamples_TagsFromTaxonomy`, `TestExamples_OperatorsMatchBody`, `TestExamples_CategoryMatchesDirectory`, `TestManifestExamplesPopulated` |
+| A change to the example tag taxonomy | `CanonicalTags` slice in `examples/library.go` + `skills/request-recipes.md` (pointer block, if the search story shifts) + mdBook chapter `docs/src/examples/library.md` | `TestExamples_TagsFromTaxonomy` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 
@@ -80,6 +82,9 @@ pulse/
 ├── skills/                 # Embedded markdown skill pack (//go:embed)
 │   ├── index.json          # Manifest of all bundled skills
 │   └── *.md               # Individual skill files with YAML frontmatter
+├── examples/               # Embedded request-example library (//go:embed)
+│   ├── library.go          # Search + Get facade over the embedded JSONs
+│   └── <category>/*.json   # 71 runnable types.Request examples with _meta blocks
 ├── synth/                  # Synthetic data generator (from-schema, from-profile)
 ├── docs/                   # mdBook source for the human-facing site (published to GitHub Pages)
 ├── internal/
@@ -371,6 +376,15 @@ Forced buffered:
 - `TestMCPSchemaBinding_SampleAndFacetFieldEnum` — asserts bound `pulse_facet` constrains its `field` arg via enum; bound `pulse_sample` schema is well-formed
 - `TestMCPSchemaBinding_InspectSucceedsRegistersBindings` — drives `handleInspect` against a `SessionWithTools` and asserts the five action tools (`pulse_process`, `pulse_predict`, `pulse_compose`, `pulse_sample`, `pulse_facet`) land in the session's tool map with bound input schemas
 - `TestMCPSchemaBinding_BindOnOpenFalse` — asserts `BindOnOpen=false` suppresses session-tool registration on inspect
+- `TestExamples_AllParseAsRequest` — every embedded example JSON in `examples/` parses as a `types.Request` (the `_meta` block is unknown-field-ignored)
+- `TestExamples_UniqueNames` — every `_meta.name` is unique across the embedded library
+- `TestExamples_TagsFromTaxonomy` — every tag on every example belongs to `examples.CanonicalTags`
+- `TestExamples_OperatorsMatchBody` — declared `_meta.operators` equals the operator list auto-derived from the request body
+- `TestExamples_CategoryMatchesDirectory` — `_meta.category` matches the parent directory of the file
+- `TestExamplesSearch_QueryMatchesDescription` — substring search returns expected hits across description/name/operators
+- `TestExamplesSearch_TagsAreANDed` — combining multiple tags narrows (never widens) the result set
+- `TestExamplesGet_StripsMeta` — `examples.Get` returns the request JSON with the `_meta` block stripped, so callers can pass it straight to `pulse_process` / `pulse_predict`
+- `TestManifestExamplesPopulated` — `Manifest.ExamplesCount > 0` and the categories/tags slices are non-empty and alphabetized
 
 ## Skill Pack Maintenance
 

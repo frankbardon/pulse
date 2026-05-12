@@ -19,27 +19,31 @@ import (
 // a dependency on this package (which imports the root pulse package
 // and would create an import cycle).
 const (
-	ToolInspect    = mcptools.ToolInspect
-	ToolPredict    = mcptools.ToolPredict
-	ToolProcess    = mcptools.ToolProcess
-	ToolCompose    = mcptools.ToolCompose
-	ToolSample     = mcptools.ToolSample
-	ToolFacet      = mcptools.ToolFacet
-	ToolSkillsList = mcptools.ToolSkillsList
-	ToolSkillsGet  = mcptools.ToolSkillsGet
-	ToolManifest   = mcptools.ToolManifest
-	ToolAsk        = mcptools.ToolAsk
+	ToolInspect        = mcptools.ToolInspect
+	ToolPredict        = mcptools.ToolPredict
+	ToolProcess        = mcptools.ToolProcess
+	ToolCompose        = mcptools.ToolCompose
+	ToolSample         = mcptools.ToolSample
+	ToolFacet          = mcptools.ToolFacet
+	ToolSkillsList     = mcptools.ToolSkillsList
+	ToolSkillsGet      = mcptools.ToolSkillsGet
+	ToolManifest       = mcptools.ToolManifest
+	ToolAsk            = mcptools.ToolAsk
+	ToolExamplesSearch = mcptools.ToolExamplesSearch
+	ToolExamplesGet    = mcptools.ToolExamplesGet
 
-	DescInspect    = mcptools.DescInspect
-	DescPredict    = mcptools.DescPredict
-	DescProcess    = mcptools.DescProcess
-	DescCompose    = mcptools.DescCompose
-	DescSample     = mcptools.DescSample
-	DescFacet      = mcptools.DescFacet
-	DescSkillsList = mcptools.DescSkillsList
-	DescSkillsGet  = mcptools.DescSkillsGet
-	DescManifest   = mcptools.DescManifest
-	DescAsk        = mcptools.DescAsk
+	DescInspect        = mcptools.DescInspect
+	DescPredict        = mcptools.DescPredict
+	DescProcess        = mcptools.DescProcess
+	DescCompose        = mcptools.DescCompose
+	DescSample         = mcptools.DescSample
+	DescFacet          = mcptools.DescFacet
+	DescSkillsList     = mcptools.DescSkillsList
+	DescSkillsGet      = mcptools.DescSkillsGet
+	DescManifest       = mcptools.DescManifest
+	DescAsk            = mcptools.DescAsk
+	DescExamplesSearch = mcptools.DescExamplesSearch
+	DescExamplesGet    = mcptools.DescExamplesGet
 )
 
 // ToolMeta is the canonical (name, description) record for one registered
@@ -152,6 +156,24 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded pulse.AskRequest with either `request` (types.Request) or `query` (natural-language string parsed against the cohort's schema), optional `on_invalid` (\"abort\"|\"suggest\") and optional `predict` (bool)"), mcpgo.Required()),
 		),
 		handleAsk(s, p, bindOnOpen, handlers),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolExamplesSearch,
+			mcpgo.WithDescription(DescExamplesSearch),
+			mcpgo.WithString("query", mcpgo.Description("Optional case-insensitive substring (matched against name, description, operators)")),
+			mcpgo.WithArray("tags", mcpgo.Description("Optional list of canonical taxonomy tags; results must carry every tag (AND)")),
+			mcpgo.WithString("category", mcpgo.Description("Optional exact directory: aggregations, attributes, features, filterers, groupers, tests, windows")),
+		),
+		handleExamplesSearch(p),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolExamplesGet,
+			mcpgo.WithDescription(DescExamplesGet),
+			mcpgo.WithString("name", mcpgo.Description("Example name from the _meta.name field (e.g. 't_test_one_sample')"), mcpgo.Required()),
+		),
+		handleExamplesGet(p),
 	)
 }
 
@@ -362,6 +384,48 @@ func handleSkillsGet() server.ToolHandlerFunc {
 			return mcpgo.NewToolResultError(fmt.Sprintf("skill %q not found", name)), nil
 		}
 		return mcpgo.NewToolResultText(body), nil
+	}
+}
+
+// handleExamplesSearch wraps the embedded request-example library
+// search facade. All three filters are optional and additive.
+func handleExamplesSearch(p *pulse.Pulse) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		args := req.GetArguments()
+		query, _ := args["query"].(string)
+		category, _ := args["category"].(string)
+		var tags []string
+		if raw, ok := args["tags"]; ok && raw != nil {
+			switch v := raw.(type) {
+			case []any:
+				for _, item := range v {
+					if s, ok := item.(string); ok {
+						tags = append(tags, s)
+					}
+				}
+			case []string:
+				tags = v
+			}
+		}
+		return jsonResult(p.ExamplesSearch(query, tags, category))
+	}
+}
+
+// handleExamplesGet wraps the embedded request-example library single
+// fetch facade. Returns the runnable Body with the _meta block already
+// stripped.
+func handleExamplesGet(p *pulse.Pulse) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		args := req.GetArguments()
+		name, ok := args["name"].(string)
+		if !ok || name == "" {
+			return mcpgo.NewToolResultError("missing or invalid 'name'"), nil
+		}
+		ex, found := p.ExampleGet(name)
+		if !found {
+			return mcpgo.NewToolResultError(fmt.Sprintf("example %q not found", name)), nil
+		}
+		return jsonResult(ex)
 	}
 }
 
