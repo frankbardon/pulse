@@ -35,11 +35,13 @@ func apiProcessCmd() *cli.Command {
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering"},
+			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
 			jsonOut := cmd.Bool("json")
 			stream := cmd.Bool("stream")
+			noDefaults := cmd.Bool("no-defaults")
 
 			req, err := loadRequest(reqPath)
 			if err != nil {
@@ -49,7 +51,7 @@ func apiProcessCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulse()
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
@@ -108,6 +110,7 @@ func apiComposeCmd() *cli.Command {
 			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
+			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
@@ -115,6 +118,7 @@ func apiComposeCmd() *cli.Command {
 			stream := cmd.Bool("stream")
 			workers := int(cmd.Int("parallel"))
 			noFailFast := cmd.Bool("no-fail-fast")
+			noDefaults := cmd.Bool("no-defaults")
 
 			composed, err := loadComposedRequest(reqPath)
 			if err != nil {
@@ -124,7 +128,7 @@ func apiComposeCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulse()
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())

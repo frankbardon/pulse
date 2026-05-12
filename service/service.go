@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/fs"
@@ -16,12 +17,32 @@ import (
 
 // Service is the orchestration layer connecting filesystem, encoding, and processing.
 type Service struct {
-	fs *fs.Config
+	fs              *fs.Config
+	disableDefaults bool
 }
 
 // New creates a new Service with the given filesystem configuration.
+// Smart-defaults resolution runs by default; call DisableDefaults to opt
+// out per instance (or pass pulse.Options{DisableDefaults: true} via the
+// facade).
 func New(fsConfig *fs.Config) *Service {
 	return &Service{fs: fsConfig}
+}
+
+// SetDisableDefaults toggles the smart-defaults pass. Predict still
+// computes and reports DefaultsApplied independently; this flag governs
+// only what the runtime mutates before Process / Compose execution.
+func (s *Service) SetDisableDefaults(disabled bool) {
+	s.disableDefaults = disabled
+}
+
+// applyDefaults runs descriptor.ResolveDefaults against the cohort schema
+// unless defaults are disabled on this Service. Mutates req in place.
+func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
+	if s.disableDefaults || req == nil || schema == nil {
+		return
+	}
+	descriptor.ResolveDefaults(req, schema)
 }
 
 // Open reads a .pulse file and returns a Cohort with the parsed schema.
@@ -66,6 +87,11 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	if err != nil {
 		return nil, err
 	}
+
+	// Smart-defaults resolution: fill in operator types that the caller
+	// omitted, based on each named field's schema type. Caller can opt
+	// out via SetDisableDefaults / pulse.Options{DisableDefaults: true}.
+	s.applyDefaults(req, cohort.Schema())
 
 	iter := newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
 	defer iter.Close()

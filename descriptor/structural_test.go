@@ -16,6 +16,7 @@ func TestPredictNoExecutionImports(t *testing.T) {
 		"predict_window.go",
 		"predict_feature.go",
 		"predict_suggestions.go",
+		"defaults.go",
 	}
 	for _, file := range files {
 		data, err := os.ReadFile(file)
@@ -49,6 +50,7 @@ func TestDescriptorNoFmtSprintf(t *testing.T) {
 		"predict_feature.go",
 		"predict_suggestions.go",
 		"inspect.go",
+		"defaults.go",
 	}
 
 	for _, file := range files {

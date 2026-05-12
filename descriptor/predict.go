@@ -76,6 +76,13 @@ type PredictResult struct {
 	// requests (streamable-substitute hints). May be empty; never nil in
 	// JSON output.
 	Suggestions []Suggestion `json:"suggestions"`
+	// DefaultsApplied lists every operator slot whose Type was inferred
+	// from the named field's schema type. Predict computes this on a
+	// clone of the request, so the echoed Request reflects exactly what
+	// the engine would run; the DefaultsApplied list shows what would
+	// have been filled in. Empty when no defaults fire; never nil in
+	// JSON output.
+	DefaultsApplied []DefaultApplied `json:"defaults_applied"`
 }
 
 // Suggestion is a structured next-action attached to PredictResult.
@@ -119,8 +126,9 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	}
 
 	result := &PredictResult{
-		Valid:   true,
-		Request: req,
+		Valid:           true,
+		Request:         req,
+		DefaultsApplied: []DefaultApplied{},
 	}
 	env := NewEnvelope(result)
 
@@ -145,6 +153,16 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	for _, f := range schema.Fields {
 		result.SchemaInfo.Fields = append(result.SchemaInfo.Fields, f.Name)
 	}
+
+	// Compute defaults on a clone so the echoed Request is untouched. The
+	// rest of validation runs against the resolved clone so a slot that
+	// only got its Type from the default rules table isn't flagged as
+	// missing a Type by downstream validators.
+	resolved := cloneRequestForDefaults(req)
+	if applied := ResolveDefaults(resolved, schema); len(applied) > 0 {
+		result.DefaultsApplied = applied
+	}
+	req = resolved
 
 	// Validate pre-filter feature operators and compute the post-feature
 	// column set so downstream stages can reference derived columns.

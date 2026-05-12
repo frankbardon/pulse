@@ -569,6 +569,63 @@ func TestService_Compose_Nil(t *testing.T) {
 	}
 }
 
+// TestService_Process_AppliesDefaults verifies that Process resolves
+// missing operator Types from the named field's schema type before the
+// processor runs (defaulted Type otherwise causes registry lookup to
+// fail).
+func TestService_Process_AppliesDefaults(t *testing.T) {
+	schema := testSchema()
+	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
+	svc := New(cfg)
+
+	// Field set, Type omitted: defaults should fire and resolve to
+	// AGG_SUM for an f64 column.
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "test.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Field: "score", Label: "total"},
+		},
+	}
+
+	resp, err := svc.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if req.Aggregations[0].Type != types.AGG_SUM {
+		t.Errorf("Type after Process = %q; want AGG_SUM (defaults should mutate req)", req.Aggregations[0].Type)
+	}
+	if resp == nil || len(resp.Data) == 0 {
+		t.Fatal("response empty after defaulted SUM")
+	}
+	if got := resp.Data[0]["total"].(float64); got != 150.0 {
+		t.Errorf("sum = %v; want 150 (10+20+30+40+50)", got)
+	}
+}
+
+// TestService_Process_DisableDefaults verifies that SetDisableDefaults
+// stops the defaults pass, so a request with a missing operator Type
+// surfaces a processing error instead of silently being filled in.
+func TestService_Process_DisableDefaults(t *testing.T) {
+	schema := testSchema()
+	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
+	svc := New(cfg)
+	svc.SetDisableDefaults(true)
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "test.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Field: "score", Label: "total"},
+		},
+	}
+
+	if _, err := svc.Process(context.Background(), req); err == nil {
+		t.Fatal("expected error when defaults disabled and Type missing; got nil")
+	}
+	if req.Aggregations[0].Type != "" {
+		t.Errorf("Type mutated despite DisableDefaults: %q", req.Aggregations[0].Type)
+	}
+}
+
 // --- F32 type coverage ---
 
 func TestService_Process_F32Field(t *testing.T) {

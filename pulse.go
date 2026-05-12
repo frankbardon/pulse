@@ -49,6 +49,13 @@ type Options struct {
 	// FS is an optional custom filesystem.
 	// When set, DataDir is ignored for filesystem construction.
 	FS afero.Fs
+
+	// DisableDefaults turns off the smart-defaults pass that infers
+	// operator Type from the named field's schema type when the caller
+	// omits it. Defaults to false (defaults enabled). Predict still
+	// computes and reports DefaultsApplied independently — this flag
+	// governs only what the runtime mutates on the live request.
+	DisableDefaults bool
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -83,8 +90,10 @@ func New(opts Options) (*Pulse, error) {
 		}
 	}
 
+	svc := service.New(fsCfg)
+	svc.SetDisableDefaults(opts.DisableDefaults)
 	return &Pulse{
-		svc:  service.New(fsCfg),
+		svc:  svc,
 		fsys: fsCfg.Fs(),
 	}, nil
 }

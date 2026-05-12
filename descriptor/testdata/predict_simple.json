@@ -19,9 +19,10 @@
       ]
     },
     "streamable": true,
-    "suggestions": []
+    "suggestions": [],
+    "defaults_applied": []
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: ab21c8eaf283bc3858ddf6ed26766720abe8dc95ec0995308f18ae04026b35e1
+// golden-hash: fe7a07d2d3b1581e6dacc3f1bfa9ca35076a0c50c80cf10aa303cbdd98f1e282

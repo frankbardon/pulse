@@ -46,7 +46,8 @@
         ],
         "confidence": 0.6
       }
-    ]
+    ],
+    "defaults_applied": []
   },
   "errors": [],
   "warnings": [
@@ -60,4 +61,4 @@
     }
   ]
 }
-// golden-hash: 0d69d4f12c03063a7061f062ce6bd34f9563cecea4f40254265013a82ce23cbb
+// golden-hash: 3b617500724409e31983b506e314cfe90b14cd8eeea29605705cb19f5ddc6e38

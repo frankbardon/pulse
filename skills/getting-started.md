@@ -110,8 +110,8 @@ JSON tags are verified against `types.Request`: `cohort`, `filterers`, `groups`,
 
 ```
 pulse [--json] [--slim]                                      # manifest at root; --slim drops prose for size-sensitive clients
-pulse api process    --request FILE [--json] [--stream]
-pulse api compose    --request FILE [--json] [--stream] [--parallel N] [--no-fail-fast]
+pulse api process    --request FILE [--json] [--stream] [--no-defaults]
+pulse api compose    --request FILE [--json] [--stream] [--parallel N] [--no-fail-fast] [--no-defaults]
 pulse api sample     --input FILE [--count N] [--json]
 pulse api facet      --input FILE --field NAME [--json]
 pulse api predict    --request FILE [--json] [--strict]
@@ -135,6 +135,24 @@ pulse mcp          [--data-dir DIR]   # serve Model Context Protocol over stdio
 ## Pipeline order
 
 Load -> Filter -> Group -> Aggregate -> Attributes -> Output.
+</reference>
+
+<reference>
+## Defaults
+
+When an `aggregations[]` or `groups[]` slot names a `field` but omits `type`, Pulse infers the operator from the named field's schema type before running the request. The inferred slot is reported under `predict`'s `defaults_applied` so the LLM can echo what was filled in.
+
+| Field type | Default aggregation | Default grouper |
+|---|---|---|
+| `u8`..`u64`, `f32`, `f64`, `nullable_u*`, `decimal128`, `nullable_decimal128` | `AGG_SUM` | `GROUP_RANGE` (interval 10) |
+| `categorical_u8`/`u16`/`u32` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `date` | (none — must be explicit) | `GROUP_DATE` (component `"day"`) |
+| `nullable_bool`, `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `point_f64`, `h3_cell` | `AGG_GEO_CENTROID` | `GROUP_H3_CELL` (resolution 7) |
+
+Rules: defaults never override an explicit `type`; they never cross categories (a missing aggregator does not insert a grouper); statistical tests (`tests[]`, `post_tests[]`) are not defaulted; filter expressions, features, attributes, and windows are out of scope.
+
+Disable per invocation with `pulse api process --no-defaults` or `pulse api compose --no-defaults`. Library embedders pass `pulse.Options{DisableDefaults: true}`. Predict always reports `defaults_applied` regardless of the flag — the flag governs only what the runtime mutates on the live request.
 </reference>
 
 <reference>

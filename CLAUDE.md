@@ -42,6 +42,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A new error code | Description row in `descriptor/capabilities_errors.go` (`errorMetaTable`) | `TestManifestErrorCodesComplete` |
 | An error code's fixup template | Entry in `errors/fixup_metadata.go` (`codeMetadata`) + `**Fixup**:` line in `skills/error-code-reference.md` under that code | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` |
 | A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known`, `TestManifestStreamableMatchesTypes` |
+| The default operator table | `CLAUDE.md` "Code Conventions → Smart defaults" + `skills/getting-started.md` ("Defaults" section) | `TestDefaults_Applied` + reviewer enforcement |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 
@@ -186,6 +187,28 @@ The `.pulse` binary format has a fixed structure:
 Bit-packed types (`nullable_bool`, `nullable_u4`, `packed_bool`) return `ByteSize() == 0` because they share bytes with adjacent fields.
 
 Schema reader rejects unknown FieldType bytes at parse time with `ENCODING_INVALID`. Files written by future-version binaries that introduce new types fail loud at schema parse, not silent at row decode.
+
+### Smart defaults
+
+When a request slot names a field but omits the operator `Type`, the engine infers the operator from the named field's schema type. The rule table lives in `descriptor/defaults.go` (`defaultRules`) and is the single source of truth — predict echoes the inferred slots in `PredictResult.DefaultsApplied`, service applies them in place before Process / Compose execution.
+
+| Field type | Default aggregation | Default grouper |
+|---|---|---|
+| `u8`..`u64`, `f32`, `f64`, `nullable_u4`/`u8`/`u16`, `decimal128`, `nullable_decimal128` | `AGG_SUM` | `GROUP_RANGE` (Interval 10) |
+| `categorical_u8`/`u16`/`u32` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `date` | (none — must be explicit) | `GROUP_DATE` (component `"day"`) |
+| `nullable_bool`, `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `point_f64`, `h3_cell` | `AGG_GEO_CENTROID` | `GROUP_H3_CELL` (resolution 7) |
+
+Behavioural rules:
+
+1. Defaults apply only when `Field` is set and `Type` is empty. Explicit `Type` is never overridden.
+2. Defaults never cross categories — a missing aggregator does not insert a grouper, and vice versa.
+3. Tier-1 (`req.Tests`) and tier-2 (`req.PostTests`) statistical tests are not defaulted; hypothesis tests are too intent-bearing.
+4. Filter expressions, feature pipelines, attributes, and windows are out of scope for defaulting.
+5. Parameter defaults (`Interval`, `Params.resolution`, `Params.component`) fill in only when the caller leaves them unset.
+
+Disabling defaults: pass `pulse.Options{DisableDefaults: true}` (library) or `--no-defaults` (CLI `process` / `compose`). Predict always computes `DefaultsApplied` regardless — the flag governs only what the runtime mutates.
 
 ## Output Format Contract
 
