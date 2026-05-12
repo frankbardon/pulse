@@ -2648,7 +2648,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "Return the root Pulse manifest — the LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references. Call once at session start, cache the result, reference it for every subsequent request authoring decision. CLI offers a --slim variant (drops prose descriptions) for size-sensitive clients."
+        "description": "Return the root Pulse manifest — the LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references. Call once at session start, cache the result, reference it for every subsequent request authoring decision. MCP always returns the slim payload (no prose descriptions); fetch operator prose via pulse_skills_get when needed."
       },
       {
         "name": "pulse_predict",
@@ -3624,4 +3624,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 01f23c4d3f2be203a976a6e923f2476b136bebc77a6728c0722afff1bc111416
+// golden-hash: 2abc745e33ad2c0c3a6a1ec9a9aed3ae25de14ec0174c2b6541301981af2b359

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/mcp/mcptools"
 	"github.com/frankbardon/pulse/skills"
 	"github.com/frankbardon/pulse/types"
@@ -237,9 +238,13 @@ func handleFacet(p *pulse.Pulse) server.ToolHandlerFunc {
 	}
 }
 
+// handleManifest serves the slim payload over MCP. Prose descriptions
+// live in skills and are fetched separately via pulse_skills_get;
+// duplicating them in the per-session bootstrap blob is the bloat we
+// designed --slim to avoid. The CLI keeps both modes for human use.
 func handleManifest(p *pulse.Pulse) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-		return jsonResult(p.Manifest(ctx))
+		return jsonResult(descriptor.SlimManifest(p.Manifest(ctx)))
 	}
 }
 
