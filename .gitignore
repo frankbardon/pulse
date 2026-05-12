@@ -27,6 +27,9 @@ Godeps/
 # Pulse artifacts
 *.pulse
 
+# Docs (mdBook build output)
+docs/book/
+
 # Project
 .planning/
 tmp/

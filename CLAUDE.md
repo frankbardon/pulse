@@ -81,11 +81,14 @@ pulse/
 │   ├── index.json          # Manifest of all bundled skills
 │   └── *.md               # Individual skill files with YAML frontmatter
 ├── synth/                  # Synthetic data generator (from-schema, from-profile)
+├── docs/                   # mdBook source for the human-facing site (published to GitHub Pages)
 ├── internal/
 │   ├── cli/                # CLI internals (descriptor walker, json action)
 │   └── mcp/                # MCP server: tool + resource handlers wrapping pulse.Pulse
 │       └── mcptools/       # Leaf metadata package (tool names + descriptions) consumed by descriptor
 ```
+
+User-facing CLI, library-embedding, format, internals, and operations documentation lives in `docs/` and is published to GitHub Pages at <https://frankbardon.github.io/pulse/>. Skills under `skills/` remain the LLM-facing surface and are unchanged.
 
 ### Library-first pattern
 
