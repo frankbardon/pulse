@@ -26,7 +26,26 @@ Pulse is a self-describing tabular processing engine over `.pulse` cohort files;
 | Grouper | One of 5 `GROUP_*` partition strategies run before aggregation. |
 | Request | JSON: `{cohort, filterers, groups, aggregations, attributes, outputs}`. |
 | ComposedRequest | `{requests: [Request, ...]}` — batch over a shared cohort. |
-| Manifest | Self-description envelope: commands, components, cohort_types, skills. |
+| Manifest | Self-description envelope: commands, components, tests (tier-1 + tier-2 peers), synth distributions, error codes, MCP tools, cohort_types, skills. Returned by `pulse --json` and the `pulse_manifest` MCP tool. |
+</reference>
+
+<reference>
+## Session bootstrap
+
+Call the manifest exactly once at session start and cache it. The
+payload is deterministic and carries every fact needed to author a
+valid request without further discovery round-trips: per-operator
+params + accepted field types + emit type + streamability hint, the
+statistical test catalog (tier-1 row tests and tier-2 post tests as
+peer slices), the synth distribution catalog, the error code catalog,
+the MCP tool list, and the cohort field-type catalog with operator
+cross-references.
+
+- CLI: `pulse --json` (full payload) or `pulse --json --slim` (drops prose descriptions for size-sensitive clients).
+- MCP: `pulse_manifest` tool, no arguments.
+
+Subsequent requests reference the cached manifest. Re-fetch only if the
+running binary changes.
 </reference>
 
 ## Workflows
@@ -90,7 +109,7 @@ JSON tags are verified against `types.Request`: `cohort`, `filterers`, `groups`,
 ## CLI command tree
 
 ```
-pulse [--json]                                               # manifest at root
+pulse [--json] [--slim]                                      # manifest at root; --slim drops prose for size-sensitive clients
 pulse api process    --request FILE [--json] [--stream]
 pulse api compose    --request FILE [--json] [--stream] [--parallel N] [--no-fail-fast]
 pulse api sample     --input FILE [--count N] [--json]

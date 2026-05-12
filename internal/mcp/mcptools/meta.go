@@ -36,7 +36,7 @@ const (
 	DescFacet      = "Return distinct values for a field in a cohort."
 	DescSkillsList = "List available embedded skills with their descriptions."
 	DescSkillsGet  = "Fetch the markdown body of a named skill."
-	DescManifest   = "Return the root Pulse manifest. Call once at session start. Cache the result. Reference it for every subsequent request authoring decision."
+	DescManifest   = "Return the root Pulse manifest — the LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references. Call once at session start, cache the result, reference it for every subsequent request authoring decision. CLI offers a --slim variant (drops prose descriptions) for size-sensitive clients."
 )
 
 // ToolMeta is the canonical (name, description) record for one registered
