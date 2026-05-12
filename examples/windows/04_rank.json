@@ -1,13 +1,44 @@
 {
-  "_comment": "Rank customers by income within each region. partition_by ensures rank resets per region. RANK has gaps on ties (1,2,2,4,...).",
-  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "windows",
+    "description": "Rank customers by income within each region with gap-on-ties semantics (1, 2, 2, 4, ...).",
+    "name": "win_rank_in_region",
+    "operators": [
+      "WIN_RANK"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "top-n",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "sort": [
+    {
+      "field": "region"
+    },
+    {
+      "field": "income_rank_in_region"
+    }
+  ],
   "windows": [
     {
       "type": "WIN_RANK",
       "label": "income_rank_in_region",
-      "partition_by": ["region"],
-      "order_by": [{"field": "income", "desc": true}]
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "income",
+          "desc": true
+        }
+      ]
     }
-  ],
-  "sort": [{"field": "region"}, {"field": "income_rank_in_region"}]
+  ]
+
 }

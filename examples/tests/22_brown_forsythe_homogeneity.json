@@ -1,9 +1,32 @@
 {
-  "_comment": "Tier-1 Brown-Forsythe variance-homogeneity check on revenue across regions. Pair with example 21 (Welch ANOVA on the same field+split): if Brown-Forsythe rejects, treat it as evidence to prefer TEST_ANOVA_WELCH over the equal-variance TEST_ANOVA_F. Buffered (sort-per-group for medians).",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Brown-Forsythe variance-homogeneity check on revenue across regions; pair with Welch ANOVA when it rejects.",
+    "name": "brown_forsythe_homogeneity",
+    "operators": [
+      "AGG_COUNT",
+      "TEST_BROWN_FORSYTHE"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "homogeneity-test",
+      "k-sample",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
   ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_BROWN_FORSYTHE",
@@ -13,4 +36,5 @@
       "label": "revenue_brown_forsythe"
     }
   ]
+
 }

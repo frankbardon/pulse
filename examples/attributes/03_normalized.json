@@ -1,12 +1,46 @@
 {
-  "_comment": "Min-max normalize income to [0,1] for visualization or downstream model input.",
-  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
-  "attributes": [
-    {"type": "ATTR_NORMALIZED", "field": "income", "label": "income_norm"}
-  ],
+  "_meta": {
+    "category": "attributes",
+    "description": "Min-max normalize income to [0, 1] for visualization or downstream model input.",
+    "name": "normalized_min_max",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_MAX",
+      "AGG_MIN",
+      "ATTR_NORMALIZED"
+    ],
+    "tags": [
+      "feature-engineering",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_MIN", "field": "income_norm", "label": "min_norm"},
-    {"type": "AGG_MAX", "field": "income_norm", "label": "max_norm"},
-    {"type": "AGG_AVERAGE", "field": "income_norm", "label": "mean_norm"}
-  ]
+    {
+      "type": "AGG_MIN",
+      "field": "income_norm",
+      "label": "min_norm"
+    },
+    {
+      "type": "AGG_MAX",
+      "field": "income_norm",
+      "label": "max_norm"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income_norm",
+      "label": "mean_norm"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_NORMALIZED",
+      "field": "income",
+      "label": "income_norm"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  }
+
 }

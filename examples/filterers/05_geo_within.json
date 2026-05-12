@@ -1,10 +1,34 @@
 {
-  "_comment": "Spatial containment filter: keep rows whose location falls inside a North America bounding polygon. WKT order is lon-lat; the ring must close on its first vertex.",
-  "cohort": {"filename": "all_types.pulse", "data_dir": ".data"},
-  "filterers": [
-    {"type": "FILTER_GEO_WITHIN", "field": "location", "expression": "POLYGON((-130 25, -65 25, -65 50, -130 50, -130 25))"}
-  ],
+  "_meta": {
+    "category": "filterers",
+    "description": "Spatial containment filter retaining rows whose location falls inside a North American bounding polygon.",
+    "name": "filter_geo_within_polygon",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_GEO_WITHIN"
+    ],
+    "tags": [
+      "geo-analysis",
+      "streaming-friendly"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "north_american_rows"}
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "north_american_rows"
+    }
+  ],
+  "cohort": {
+    "filename": "all_types.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_GEO_WITHIN",
+      "field": "location",
+      "expression": "POLYGON((-130 25, -65 25, -65 50, -130 50, -130 25))"
+    }
   ]
+
 }

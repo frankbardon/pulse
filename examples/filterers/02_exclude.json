@@ -1,14 +1,49 @@
 {
-  "_comment": "Drop drivers and artists, then count rows per remaining occupation.",
-  "cohort": {"filename": "training_data.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "filterers",
+    "description": "Drop driver and artist rows, then count the remaining occupations.",
+    "name": "filter_exclude_occupations",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_EXCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "comparison",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    }
+  ],
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
   "filterers": [
-    {"type": "FILTER_EXCLUDE", "field": "occupation", "values": ["driver", "artist"]}
+    {
+      "type": "FILTER_EXCLUDE",
+      "field": "occupation",
+      "values": [
+        "driver",
+        "artist"
+      ]
+    }
   ],
   "groups": [
-    {"type": "GROUP_CATEGORY", "field": "occupation"}
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "occupation"
+    }
   ],
-  "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "n"}
-  ],
-  "sort": [{"field": "occupation"}]
+  "sort": [
+    {
+      "field": "occupation"
+    }
+  ]
+
 }

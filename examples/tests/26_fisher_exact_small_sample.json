@@ -1,14 +1,59 @@
 {
-  "_comment": "Tier-1 Fisher exact alongside TEST_CHISQ on the same 2×2 (segment_a only). When expected cell counts are small, the chi-square approximation can be unreliable — Fisher exact gives the canonical exact p-value as a backstop. Filter to segment_a so the conversion × treatment table is small.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
-  "filterers": [
-    {"type": "FILTER_INCLUDE", "field": "segment", "values": ["segment_a"]}
-  ],
+  "_meta": {
+    "category": "tests",
+    "description": "Fisher exact test alongside chi-square on a 2x2 contingency table that has been filtered down to a small subgroup.",
+    "name": "fisher_exact_small_sample",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_INCLUDE",
+      "TEST_CHISQ",
+      "TEST_FISHER_EXACT"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "exact-test",
+      "small-sample",
+      "cross-tabulation",
+      "proportion-analysis",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "segment",
+      "values": [
+        "segment_a"
+      ]
+    }
   ],
   "tests": [
-    {"type": "TEST_CHISQ", "rows": "treatment", "cols": "converted", "alpha": 0.05, "label": "chisq_small_n"},
-    {"type": "TEST_FISHER_EXACT", "rows": "treatment", "cols": "converted", "alpha": 0.05, "label": "fisher_exact_small_n"}
+    {
+      "type": "TEST_CHISQ",
+      "rows": "treatment",
+      "cols": "converted",
+      "alpha": 0.05,
+      "label": "chisq_small_n"
+    },
+    {
+      "type": "TEST_FISHER_EXACT",
+      "rows": "treatment",
+      "cols": "converted",
+      "alpha": 0.05,
+      "label": "fisher_exact_small_n"
+    }
   ]
+
 }

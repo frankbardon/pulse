@@ -1,14 +1,40 @@
 {
-  "_comment": "Percent change versus the row 1 period earlier in the order. Emits null for the first row (no prior). params.periods overrides the default lag.",
-  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "windows",
+    "description": "Percent change versus the row one period earlier in the date-ordered partition.",
+    "name": "win_pct_change",
+    "operators": [
+      "WIN_PCT_CHANGE"
+    ],
+    "tags": [
+      "time-series",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "sort": [
+    {
+      "field": "order_date"
+    }
+  ],
   "windows": [
     {
       "type": "WIN_PCT_CHANGE",
       "field": "revenue",
       "label": "revenue_pct_change",
-      "order_by": [{"field": "order_date"}],
-      "params": {"periods": 1}
+      "order_by": [
+        {
+          "field": "order_date"
+        }
+      ],
+      "params": {
+        "periods": 1
+      }
     }
-  ],
-  "sort": [{"field": "order_date"}]
+  ]
+
 }

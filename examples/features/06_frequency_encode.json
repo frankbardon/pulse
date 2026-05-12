@@ -1,16 +1,20 @@
 {
-  "_comment": "Replace city with its frequency in the cohort. Useful for high-cardinality categoricals where one-hot would explode the column count.",
-  "cohort": {
-    "filename": "customers.pulse",
-    "data_dir": ".data"
+  "_meta": {
+    "category": "features",
+    "description": "Replace a high-cardinality categorical with its empirical frequency so it can feed a numeric model without column blow-up.",
+    "name": "feat_frequency_encode_city",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_MAX",
+      "AGG_MIN",
+      "FEAT_FREQUENCY_ENCODE"
+    ],
+    "tags": [
+      "feature-engineering",
+      "cardinality-analysis",
+      "pre-filter"
+    ]
   },
-  "features": [
-    {
-      "type": "FEAT_FREQUENCY_ENCODE",
-      "field": "city",
-      "label": "city_freq"
-    }
-  ],
   "aggregations": [
     {
       "type": "AGG_AVERAGE",
@@ -27,5 +31,17 @@
       "field": "city_freq",
       "label": "rarest_city_share"
     }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_FREQUENCY_ENCODE",
+      "field": "city",
+      "label": "city_freq"
+    }
   ]
+
 }

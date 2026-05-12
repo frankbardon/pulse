@@ -1,9 +1,33 @@
 {
-  "_comment": "Tier-1 Wilcoxon signed-rank on revenue vs revenue_before. Nonparametric counterpart to TEST_PAIRED_T. The planted treatment lift dominates the pairs, so the test should reject. Buffered.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Wilcoxon signed-rank on the revenue pre/post pair as a nonparametric counterpart to the paired t-test.",
+    "name": "wilcoxon_paired",
+    "operators": [
+      "AGG_COUNT",
+      "TEST_WILCOXON_SR"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "nonparametric",
+      "paired",
+      "before-after",
+      "experiment-analysis",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
   ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_WILCOXON_SR",
@@ -13,4 +37,5 @@
       "label": "revenue_wilcoxon"
     }
   ]
+
 }

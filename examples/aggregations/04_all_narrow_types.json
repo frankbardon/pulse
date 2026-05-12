@@ -1,17 +1,78 @@
 {
-  "_comment": "Touch every narrow numeric type in one request: u8, u16, u32, u64, f32, f64, nullable_u4/u8/u16, nullable_bool, packed_bool. Each numeric column gets a SUM/AVG so type-specific reader paths exercise.",
-  "cohort": {"filename": "all_types.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "aggregations",
+    "description": "Exercise every narrow numeric type (u8 through f64 plus all three nullable variants) in one request via per-column SUM and AVERAGE.",
+    "name": "all_narrow_types",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "AGG_SUM"
+    ],
+    "tags": [
+      "data-quality",
+      "streaming-friendly"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_SUM", "field": "small_int", "label": "u8_sum"},
-    {"type": "AGG_SUM", "field": "medium_int", "label": "u16_sum"},
-    {"type": "AGG_SUM", "field": "big_int", "label": "u32_sum"},
-    {"type": "AGG_SUM", "field": "huge_int", "label": "u64_sum"},
-    {"type": "AGG_AVERAGE", "field": "measurement", "label": "f32_avg"},
-    {"type": "AGG_AVERAGE", "field": "precise_value", "label": "f64_avg"},
-    {"type": "AGG_COUNT", "field": "maybe_flag", "label": "non_null_flags"},
-    {"type": "AGG_AVERAGE", "field": "small_grade", "label": "grade_avg"},
-    {"type": "AGG_AVERAGE", "field": "maybe_age", "label": "age_avg"},
-    {"type": "AGG_SUM", "field": "maybe_count", "label": "count_sum"},
-    {"type": "AGG_SUM", "field": "active", "label": "active_n"}
-  ]
+    {
+      "type": "AGG_SUM",
+      "field": "small_int",
+      "label": "u8_sum"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "medium_int",
+      "label": "u16_sum"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "big_int",
+      "label": "u32_sum"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "huge_int",
+      "label": "u64_sum"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "measurement",
+      "label": "f32_avg"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "precise_value",
+      "label": "f64_avg"
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "maybe_flag",
+      "label": "non_null_flags"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "small_grade",
+      "label": "grade_avg"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "maybe_age",
+      "label": "age_avg"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "maybe_count",
+      "label": "count_sum"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "active",
+      "label": "active_n"
+    }
+  ],
+  "cohort": {
+    "filename": "all_types.pulse",
+    "data_dir": ".data"
+  }
+
 }

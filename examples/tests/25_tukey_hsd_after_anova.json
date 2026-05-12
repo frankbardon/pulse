@@ -1,13 +1,46 @@
 {
-  "_comment": "Tier-2 Tukey HSD pairwise on region means after a one-way ANOVA. Step 1: GROUP_CATEGORY + AGG_AVERAGE + AGG_COUNT lay down per-region rows. Step 2: tier-1 TEST_ANOVA_F yields ms_within / df_within in its Details — those values are stamped into the TEST_TUKEY_HSD params so the post-test can compute studentized-range q statistics on the same Process call.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
-  "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "_meta": {
+    "category": "tests",
+    "description": "Tier-2 Tukey HSD pairwise comparisons over per-region means after a tier-1 one-way ANOVA on the same Process call.",
+    "name": "tukey_hsd_after_anova",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "GROUP_CATEGORY",
+      "TEST_ANOVA_F",
+      "TEST_TUKEY_HSD"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-2-test",
+      "parametric",
+      "post-hoc",
+      "k-sample",
+      "experiment-analysis",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"},
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_AVERAGE",
+      "field": "revenue",
+      "label": "avg_revenue"
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
   ],
-  "tests": [
-    {"type": "TEST_ANOVA_F", "field": "revenue", "split_by": "region", "alpha": 0.05, "label": "regional_anova"}
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
   ],
   "post_tests": [
     {
@@ -16,7 +49,20 @@
       "split_by": "region",
       "alpha": 0.05,
       "label": "regional_tukey",
-      "params": {"ms_within": 6000.0, "df_within": 396.0}
+      "params": {
+        "ms_within": 6000.0,
+        "df_within": 396.0
+      }
+    }
+  ],
+  "tests": [
+    {
+      "type": "TEST_ANOVA_F",
+      "field": "revenue",
+      "split_by": "region",
+      "alpha": 0.05,
+      "label": "regional_anova"
     }
   ]
+
 }

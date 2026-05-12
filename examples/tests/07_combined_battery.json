@@ -1,13 +1,61 @@
 {
-  "_comment": "Multiple tier-1 tests in one Process call. Each test reads the rows independently; pipeline scans the cohort once. Standard A/B-test analysis battery on the experiment cohort.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Standard A/B-test battery: Welch t on revenue, ANOVA across regions, and chi-square on segment-by-conversion in one Process call.",
+    "name": "combined_test_battery",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "TEST_ANOVA_F",
+      "TEST_CHISQ",
+      "TEST_T"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "experiment-analysis",
+      "comparison",
+      "streaming-friendly"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"},
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_AVERAGE",
+      "field": "revenue",
+      "label": "avg_revenue"
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
   ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
-    {"type": "TEST_T", "field": "revenue", "split_by": "treatment", "alpha": 0.05, "label": "revenue_ttest"},
-    {"type": "TEST_ANOVA_F", "field": "revenue", "split_by": "region", "alpha": 0.05, "label": "region_anova"},
-    {"type": "TEST_CHISQ", "rows": "segment", "cols": "converted", "alpha": 0.05, "label": "segment_chisq"}
+    {
+      "type": "TEST_T",
+      "field": "revenue",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "revenue_ttest"
+    },
+    {
+      "type": "TEST_ANOVA_F",
+      "field": "revenue",
+      "split_by": "region",
+      "alpha": 0.05,
+      "label": "region_anova"
+    },
+    {
+      "type": "TEST_CHISQ",
+      "rows": "segment",
+      "cols": "converted",
+      "alpha": 0.05,
+      "label": "segment_chisq"
+    }
   ]
+
 }

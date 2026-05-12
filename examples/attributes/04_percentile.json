@@ -1,14 +1,47 @@
 {
-  "_comment": "Percentile rank on income. Each record's value is replaced by its percentile (0-100). Useful for cohort-relative scoring.",
-  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
-  "attributes": [
-    {"type": "ATTR_PERCENTILE", "field": "income", "label": "income_pct"}
-  ],
-  "groups": [
-    {"type": "GROUP_CATEGORY", "field": "region"}
-  ],
+  "_meta": {
+    "category": "attributes",
+    "description": "Replace each income with its percentile rank, then average those ranks within each region for cohort-relative scoring.",
+    "name": "attr_percentile_by_region",
+    "operators": [
+      "AGG_AVERAGE",
+      "ATTR_PERCENTILE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "distribution-shape",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_AVERAGE", "field": "income_pct", "label": "mean_pct_in_region"}
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income_pct",
+      "label": "mean_pct_in_region"
+    }
   ],
-  "sort": [{"field": "region"}]
+  "attributes": [
+    {
+      "type": "ATTR_PERCENTILE",
+      "field": "income",
+      "label": "income_pct"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "sort": [
+    {
+      "field": "region"
+    }
+  ]
+
 }

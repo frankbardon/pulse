@@ -1,12 +1,45 @@
 {
-  "_comment": "Bucket income into ranges of width 25000 USD. Keys are 'low-high' strings.",
-  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
-  "groups": [
-    {"type": "GROUP_RANGE", "field": "income", "interval": 25000}
-  ],
+  "_meta": {
+    "category": "groupers",
+    "description": "Bucket income into 25 000-wide ranges and aggregate per bucket.",
+    "name": "group_range_income",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "GROUP_RANGE"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "n"},
-    {"type": "AGG_AVERAGE", "field": "age", "label": "avg_age"}
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "age",
+      "label": "avg_age"
+    }
   ],
-  "sort": [{"field": "income"}]
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_RANGE",
+      "field": "income",
+      "interval": 25000
+    }
+  ],
+  "sort": [
+    {
+      "field": "income"
+    }
+  ]
+
 }

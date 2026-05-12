@@ -1,6 +1,25 @@
 {
-  "_comment": "Tier-1 two-proportion z-test on conversion rate by treatment. params.success names the dictionary entry that counts as a positive outcome on the field column. Variant gets a planted +5pp conversion lift across segments, so the z-test rejects with a clear effect size and CI.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Two-proportion z-test on conversion rate by treatment, using params.success to name the positive outcome.",
+    "name": "two_proportion_z",
+    "operators": [
+      "TEST_PROP_Z"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "proportion-analysis",
+      "two-sample",
+      "experiment-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_PROP_Z",
@@ -8,7 +27,10 @@
       "split_by": "treatment",
       "alpha": 0.05,
       "label": "conversion_lift_z",
-      "params": {"success": "yes"}
+      "params": {
+        "success": "yes"
+      }
     }
   ]
+
 }

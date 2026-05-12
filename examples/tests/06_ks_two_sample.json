@@ -1,6 +1,25 @@
 {
-  "_comment": "Tier-1 two-sample Kolmogorov-Smirnov on session_minutes between treatment arms. Variant slightly stretches the right tail so the KS D statistic detects a distribution shift even when mean differences are small. KS is sort-based so it routes through the buffered path.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Two-sample Kolmogorov-Smirnov on session minutes between treatment arms to detect distribution-shape shifts.",
+    "name": "ks_two_sample",
+    "operators": [
+      "TEST_KS"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "nonparametric",
+      "two-sample",
+      "distribution-shape",
+      "experiment-analysis",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_KS",
@@ -10,4 +29,5 @@
       "label": "session_ks_two_sample"
     }
   ]
+
 }

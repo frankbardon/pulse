@@ -1,14 +1,72 @@
 {
-  "_comment": "Standard parametric A/B-test analysis battery: Welch two-sample t on revenue, paired t on per-unit lift, two-proportion z on conversion, Pearson r on revenue vs session_minutes. All four tests stream — they share the row scan with the headline AGG_COUNT / AGG_AVERAGE.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Standard parametric A/B battery: Welch t on revenue, paired t on per-unit lift, two-proportion z on conversion, and Pearson r on revenue versus session minutes.",
+    "name": "parametric_battery",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "TEST_PAIRED_T",
+      "TEST_PEARSON_R",
+      "TEST_PROP_Z",
+      "TEST_T"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "experiment-analysis",
+      "streaming-friendly"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"},
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_AVERAGE",
+      "field": "revenue",
+      "label": "avg_revenue"
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
   ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
-    {"type": "TEST_T", "field": "revenue", "split_by": "treatment", "alpha": 0.05, "label": "revenue_t"},
-    {"type": "TEST_PAIRED_T", "field": "revenue", "field2": "revenue_before", "alpha": 0.05, "label": "revenue_paired"},
-    {"type": "TEST_PROP_Z", "field": "converted", "split_by": "treatment", "alpha": 0.05, "label": "conversion_z", "params": {"success": "yes"}},
-    {"type": "TEST_PEARSON_R", "field": "revenue", "field2": "session_minutes", "alpha": 0.05, "label": "rev_session_r"}
+    {
+      "type": "TEST_T",
+      "field": "revenue",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "revenue_t"
+    },
+    {
+      "type": "TEST_PAIRED_T",
+      "field": "revenue",
+      "field2": "revenue_before",
+      "alpha": 0.05,
+      "label": "revenue_paired"
+    },
+    {
+      "type": "TEST_PROP_Z",
+      "field": "converted",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "conversion_z",
+      "params": {
+        "success": "yes"
+      }
+    },
+    {
+      "type": "TEST_PEARSON_R",
+      "field": "revenue",
+      "field2": "session_minutes",
+      "alpha": 0.05,
+      "label": "rev_session_r"
+    }
   ]
+
 }

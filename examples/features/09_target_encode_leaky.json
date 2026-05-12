@@ -1,5 +1,25 @@
 {
-  "_comment": "INTENTIONAL LEAKAGE EXAMPLE. FEAT_TARGET_ENCODE runs without a preceding FEAT_TRAIN_TEST_SPLIT. Run with `pulse api predict --request 09_target_encode_leaky.json --json --strict` and confirm PULSE_FEAT_TARGET_LEAKAGE_RISK fires as an error. Drop --strict to see it as a warning.",
+  "_meta": {
+    "category": "features",
+    "description": "Intentional leakage example: target-encode without a preceding train/test split so PULSE_FEAT_TARGET_LEAKAGE_RISK fires.",
+    "name": "feat_target_encode_leaky",
+    "operators": [
+      "AGG_AVERAGE",
+      "FEAT_TARGET_ENCODE"
+    ],
+    "tags": [
+      "feature-engineering",
+      "leakage-risk",
+      "pre-filter"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "TARGET_category",
+      "label": "leaked_mean"
+    }
+  ],
   "cohort": {
     "filename": "training_data.pulse",
     "data_dir": ".data"
@@ -12,12 +32,6 @@
         "target": "price"
       }
     }
-  ],
-  "aggregations": [
-    {
-      "type": "AGG_AVERAGE",
-      "field": "TARGET_category",
-      "label": "leaked_mean"
-    }
   ]
+
 }

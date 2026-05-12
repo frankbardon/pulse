@@ -1,9 +1,33 @@
 {
-  "_comment": "Tier-1 Mann-Whitney U on revenue split by treatment. Nonparametric counterpart to TEST_T: ranks the combined value set under tie correction, then standardizes U via normal approximation. Buffered (sort-based ECDF) — predict reports streamable=false.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Mann-Whitney U on revenue by treatment as a nonparametric counterpart to the two-sample t-test.",
+    "name": "mann_whitney_revenue",
+    "operators": [
+      "AGG_COUNT",
+      "TEST_MANN_WHITNEY_U"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "nonparametric",
+      "two-sample",
+      "experiment-analysis",
+      "comparison",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
   ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_MANN_WHITNEY_U",
@@ -13,4 +37,5 @@
       "label": "revenue_mannwhitney"
     }
   ]
+
 }

@@ -1,14 +1,49 @@
 {
-  "_comment": "Keep only customers in the north or south regions. FILTER_INCLUDE matches the field value against the values list (string equality after categorical resolution).",
-  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "filterers",
+    "description": "Keep only customers in the north or south regions, then count survivors by region.",
+    "name": "filter_include_regions",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "comparison",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
   "filterers": [
-    {"type": "FILTER_INCLUDE", "field": "region", "values": ["north", "south"]}
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "region",
+      "values": [
+        "north",
+        "south"
+      ]
+    }
   ],
   "groups": [
-    {"type": "GROUP_CATEGORY", "field": "region"}
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
   ],
-  "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "n"}
-  ],
-  "sort": [{"field": "region"}]
+  "sort": [
+    {
+      "field": "region"
+    }
+  ]
+
 }

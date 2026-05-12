@@ -1,14 +1,71 @@
 {
-  "_comment": "Standard nonparametric A/B-test battery: Mann-Whitney on revenue by treatment, Kruskal-Wallis on revenue across regions, Wilcoxon signed-rank on revenue vs revenue_before, Spearman ρ on the pre/post pair, Kendall τ on the same pair. All five buffer through the same row scan.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Standard nonparametric battery: Mann-Whitney, Kruskal-Wallis, Wilcoxon signed-rank, Spearman, and Kendall over the experiment cohort.",
+    "name": "nonparametric_battery",
+    "operators": [
+      "AGG_COUNT",
+      "TEST_KENDALL_TAU",
+      "TEST_KRUSKAL_WALLIS",
+      "TEST_MANN_WHITNEY_U",
+      "TEST_SPEARMAN_R",
+      "TEST_WILCOXON_SR"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "nonparametric",
+      "experiment-analysis",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
   ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
-    {"type": "TEST_MANN_WHITNEY_U", "field": "revenue", "split_by": "treatment", "alpha": 0.05, "label": "mw_revenue"},
-    {"type": "TEST_KRUSKAL_WALLIS", "field": "revenue", "split_by": "region", "alpha": 0.05, "label": "kw_revenue"},
-    {"type": "TEST_WILCOXON_SR", "field": "revenue", "field2": "revenue_before", "alpha": 0.05, "label": "wilcoxon_revenue"},
-    {"type": "TEST_SPEARMAN_R", "field": "revenue", "field2": "revenue_before", "alpha": 0.05, "label": "spearman_revenue"},
-    {"type": "TEST_KENDALL_TAU", "field": "revenue", "field2": "revenue_before", "alpha": 0.05, "label": "kendall_revenue"}
+    {
+      "type": "TEST_MANN_WHITNEY_U",
+      "field": "revenue",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "mw_revenue"
+    },
+    {
+      "type": "TEST_KRUSKAL_WALLIS",
+      "field": "revenue",
+      "split_by": "region",
+      "alpha": 0.05,
+      "label": "kw_revenue"
+    },
+    {
+      "type": "TEST_WILCOXON_SR",
+      "field": "revenue",
+      "field2": "revenue_before",
+      "alpha": 0.05,
+      "label": "wilcoxon_revenue"
+    },
+    {
+      "type": "TEST_SPEARMAN_R",
+      "field": "revenue",
+      "field2": "revenue_before",
+      "alpha": 0.05,
+      "label": "spearman_revenue"
+    },
+    {
+      "type": "TEST_KENDALL_TAU",
+      "field": "revenue",
+      "field2": "revenue_before",
+      "alpha": 0.05,
+      "label": "kendall_revenue"
+    }
   ]
+
 }

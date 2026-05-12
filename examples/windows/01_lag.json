@@ -1,17 +1,51 @@
 {
-  "_comment": "Look back one row in the partition. params.offset defaults to 1; first row is null. order_by is mandatory.",
-  "cohort": {"filename": "transactions.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "windows",
+    "description": "Look back one row in the ordered partition to surface the previous transaction amount.",
+    "name": "win_lag",
+    "operators": [
+      "FILTER_RANGE",
+      "WIN_LAG"
+    ],
+    "tags": [
+      "time-series",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "transactions.pulse",
+    "data_dir": ".data"
+  },
   "filterers": [
-    {"type": "FILTER_RANGE", "field": "id", "values": ["1", "20"]}
+    {
+      "type": "FILTER_RANGE",
+      "field": "id",
+      "values": [
+        "1",
+        "20"
+      ]
+    }
+  ],
+  "sort": [
+    {
+      "field": "id"
+    }
   ],
   "windows": [
     {
       "type": "WIN_LAG",
       "field": "amount",
       "label": "prev_amount",
-      "order_by": [{"field": "id"}],
-      "params": {"offset": 1}
+      "order_by": [
+        {
+          "field": "id"
+        }
+      ],
+      "params": {
+        "offset": 1
+      }
     }
-  ],
-  "sort": [{"field": "id"}]
+  ]
+
 }

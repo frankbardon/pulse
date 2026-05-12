@@ -1,13 +1,55 @@
 {
-  "_comment": "Numeric range filter: age in [25, 55] inclusive. The values array is [min, max] as strings; predict accepts numeric coercion.",
-  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
-  "filterers": [
-    {"type": "FILTER_RANGE", "field": "age", "values": ["25", "55"]}
-  ],
+  "_meta": {
+    "category": "filterers",
+    "description": "Numeric range filter keeping rows whose age falls between 25 and 55 inclusive, then summarize the kept cohort.",
+    "name": "filter_range_age",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "AGG_MAX",
+      "AGG_MIN",
+      "FILTER_RANGE"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "n"},
-    {"type": "AGG_MIN", "field": "age", "label": "min_age"},
-    {"type": "AGG_MAX", "field": "age", "label": "max_age"},
-    {"type": "AGG_AVERAGE", "field": "income", "label": "avg_income"}
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_MIN",
+      "field": "age",
+      "label": "min_age"
+    },
+    {
+      "type": "AGG_MAX",
+      "field": "age",
+      "label": "max_age"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "avg_income"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_RANGE",
+      "field": "age",
+      "values": [
+        "25",
+        "55"
+      ]
+    }
   ]
+
 }

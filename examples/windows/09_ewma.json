@@ -1,15 +1,45 @@
 {
-  "_comment": "Exponentially weighted moving average. Recurrence: s_i = alpha*x_i + (1-alpha)*s_{i-1}. Lower alpha = smoother, more lag.",
-  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "windows",
+    "description": "Exponentially weighted moving average of revenue with alpha=0.3 trading smoothness against lag.",
+    "name": "win_ewma",
+    "operators": [
+      "WIN_EWMA"
+    ],
+    "tags": [
+      "time-series",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "sort": [
+    {
+      "field": "order_date"
+    }
+  ],
   "windows": [
     {
       "type": "WIN_EWMA",
       "field": "revenue",
       "label": "ewma_revenue",
-      "order_by": [{"field": "order_date"}],
-      "frame": {"mode": "rows", "preceding": null, "following": 0},
-      "params": {"alpha": 0.3}
+      "order_by": [
+        {
+          "field": "order_date"
+        }
+      ],
+      "frame": {
+        "mode": "rows",
+        "preceding": null,
+        "following": 0
+      },
+      "params": {
+        "alpha": 0.3
+      }
     }
-  ],
-  "sort": [{"field": "order_date"}]
+  ]
+
 }
