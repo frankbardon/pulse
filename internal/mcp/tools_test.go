@@ -1,8 +1,17 @@
 package mcp
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/encoding"
+	mcpgo "github.com/mark3labs/mcp-go/mcp"
+	"github.com/spf13/afero"
 )
 
 func TestRegisteredTools_Stable(t *testing.T) {
@@ -17,6 +26,7 @@ func TestRegisteredTools_Stable(t *testing.T) {
 		ToolSkillsList,
 		ToolSkillsGet,
 		ToolManifest,
+		ToolAsk,
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("RegisteredTools mismatch\n got: %v\nwant: %v", got, want)
@@ -36,6 +46,92 @@ func TestRegisteredTools_AllPrefixed(t *testing.T) {
 func TestManifest_HasMCPTool(t *testing.T) {
 	if !slices.Contains(RegisteredTools(), ToolManifest) {
 		t.Fatalf("pulse_manifest tool missing from RegisteredTools(): %v", RegisteredTools())
+	}
+}
+
+// TestAsk_MCPHandler exercises the pulse_ask MCP handler end-to-end:
+// marshal an AskRequest into the tool args, call the handler, and
+// assert the response carries the predict envelope. Uses predict-only
+// mode so the test cohort can stay header+schema-only (no row data).
+func TestAsk_MCPHandler(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	// Header+schema-only cohort: predict reads only headers, so this is
+	// sufficient for the round-trip without standing up a full row set.
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "score", Type: encoding.FieldTypeF64, Description: "Score for an observation"},
+		},
+	}
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		t.Fatalf("WriteSchema: %v", err)
+	}
+	if err := afero.WriteFile(fs, "demo.pulse", buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+
+	// Build the inner AskRequest, marshal it, and ship it through the
+	// handler the same way the MCP server would.
+	askBody, err := json.Marshal(map[string]any{
+		"predict": true,
+		"request": map[string]any{
+			"cohort": map[string]any{"filename": "demo.pulse"},
+			"aggregations": []map[string]any{
+				{"type": "AGG_AVERAGE", "field": "score", "label": "avg"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal AskRequest: %v", err)
+	}
+
+	handler := handleAsk(nil, p, false, boundHandlers{})
+	call := mcpgo.CallToolRequest{}
+	call.Params.Name = ToolAsk
+	call.Params.Arguments = map[string]any{"request": string(askBody)}
+
+	out, err := handler(context.Background(), call)
+	if err != nil {
+		t.Fatalf("handleAsk: %v", err)
+	}
+	if out.IsError {
+		t.Fatalf("handleAsk returned error result: %+v", out.Content)
+	}
+	if len(out.Content) == 0 {
+		t.Fatal("handleAsk returned no content")
+	}
+	text, ok := out.Content[0].(mcpgo.TextContent)
+	if !ok {
+		t.Fatalf("expected TextContent, got %T", out.Content[0])
+	}
+
+	var decoded pulse.AskResponse
+	if err := json.Unmarshal([]byte(text.Text), &decoded); err != nil {
+		t.Fatalf("unmarshal AskResponse: %v\n%s", err, text.Text)
+	}
+	if decoded.FormatVersion != "1.0" {
+		t.Errorf("FormatVersion = %q, want \"1.0\"", decoded.FormatVersion)
+	}
+	if decoded.Predict == nil {
+		t.Fatal("Predict missing from AskResponse")
+	}
+	if !decoded.Predict.Valid {
+		t.Errorf("expected valid predict, got: %+v", decoded.Predict)
+	}
+	if decoded.Process != nil {
+		t.Error("expected Process nil in predict-only mode")
+	}
+	if !strings.Contains(text.Text, "\"format_version\"") {
+		t.Errorf("response missing format_version envelope key: %s", text.Text)
 	}
 }
 

@@ -96,7 +96,7 @@ pulse/
 
 ### MCP surface
 
-`internal/mcp/` translates the Pulse facade into Model Context Protocol tools and resources. The library has no dependency on this package; only the `pulse mcp` CLI leaf imports it. Eight tools (one per facade method) and two resource schemes (`pulse://` for `.pulse` files, `pulse-skill://` for embedded skills) are registered at server start.
+`internal/mcp/` translates the Pulse facade into Model Context Protocol tools and resources. The library has no dependency on this package; only the `pulse mcp` CLI leaf imports it. Ten tools (one per facade method, plus the unified `pulse_ask` one-shot that collapses inspect→predict→process) and two resource schemes (`pulse://` for `.pulse` files, `pulse-skill://` for embedded skills) are registered at server start.
 
 The canonical tool list is `mcp.RegisteredTools()` in `internal/mcp/tools.go`. Adding or removing a tool requires updating `skills/mcp-integration.md` in the same PR (`TestSkillsCoverAllMCPTools`).
 

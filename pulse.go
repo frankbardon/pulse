@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/fs"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/service"
@@ -254,6 +255,92 @@ func (p *Pulse) Profile(_ context.Context, path string, opts ProfileOptions) (*P
 // Facet returns distinct values for the named field in the cohort.
 func (p *Pulse) Facet(ctx context.Context, path string, field string) ([]string, error) {
 	return p.svc.Facet(ctx, path, field)
+}
+
+// AskRequest is the input to pulse.Ask — the unified one-shot facade
+// that collapses inspect, predict, and process into a single call.
+//
+// File is reserved for future use (per-call cohort override); v1 reads
+// the cohort path from Request.Cohort, matching every other facade
+// method. When File is non-empty and Request.Cohort is nil, the cohort
+// is synthesised from the path.
+//
+// OnInvalid governs what Ask does when predict reports the request as
+// invalid:
+//   - "" or "abort" — return a SERVICE_VALIDATION error.
+//   - "suggest"     — return an AskResponse with Suggestions populated.
+//
+// Predict=true skips execution even on a valid request (the LLM's
+// "what would happen if I ran this?" probe).
+type AskRequest struct {
+	File      string         `json:"file,omitempty"`
+	Request   *types.Request `json:"request"`
+	OnInvalid string         `json:"on_invalid,omitempty"`
+	Predict   bool           `json:"predict,omitempty"`
+}
+
+// AskResponse is the JSON-friendly envelope returned by pulse.Ask. It
+// always carries the predict result; Process is populated only when
+// execution ran; Suggestions is populated only on predict-invalid +
+// OnInvalid="suggest".
+//
+// FormatVersion mirrors the descriptor envelope version so callers can
+// gate on a single value across endpoints.
+type AskResponse struct {
+	FormatVersion string                      `json:"format_version"`
+	Predict       *descriptor.PredictResult   `json:"predict"`
+	Process       *Response                   `json:"process,omitempty"`
+	Suggestions   []errors.Fixup              `json:"suggestions,omitempty"`
+	Errors        []*descriptor.EnvelopeEntry `json:"errors"`
+	Warnings      []*descriptor.EnvelopeEntry `json:"warnings"`
+}
+
+// Ask is the unified facade. It validates req against the cohort schema
+// and, on success, executes the request. On validation failure it either
+// errors (OnInvalid="abort") or returns structured fixup suggestions
+// (OnInvalid="suggest"). Setting Predict=true skips execution after a
+// successful predict pass.
+//
+// The cohort path is read from req.Request.Cohort. When req.File is set
+// and req.Request.Cohort is nil, Ask synthesises a Cohort from the path.
+func (p *Pulse) Ask(ctx context.Context, req *AskRequest) (*AskResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("pulse: ask requires a request")
+	}
+	if req.Request == nil {
+		return nil, fmt.Errorf("pulse: ask requires a request body")
+	}
+
+	// If the caller passed File but no Cohort, synthesise one so the
+	// service can resolve the path consistently.
+	if req.File != "" && req.Request.Cohort == nil {
+		req.Request.Cohort = &types.Cohort{Filename: req.File}
+	}
+
+	out, err := p.svc.Ask(ctx, service.AskInput{
+		Request:     req.Request,
+		OnInvalid:   req.OnInvalid,
+		PredictOnly: req.Predict,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &AskResponse{
+		FormatVersion: "1.0",
+		Predict:       out.Predict,
+		Process:       out.Process,
+		Suggestions:   out.Suggestions,
+		Errors:        out.Errors,
+		Warnings:      out.Warnings,
+	}
+	if resp.Errors == nil {
+		resp.Errors = []*descriptor.EnvelopeEntry{}
+	}
+	if resp.Warnings == nil {
+		resp.Warnings = []*descriptor.EnvelopeEntry{}
+	}
+	return resp, nil
 }
 
 // Manifest returns the root Pulse self-description. The manifest is

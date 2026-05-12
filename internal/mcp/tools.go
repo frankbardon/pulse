@@ -28,6 +28,7 @@ const (
 	ToolSkillsList = mcptools.ToolSkillsList
 	ToolSkillsGet  = mcptools.ToolSkillsGet
 	ToolManifest   = mcptools.ToolManifest
+	ToolAsk        = mcptools.ToolAsk
 
 	DescInspect    = mcptools.DescInspect
 	DescPredict    = mcptools.DescPredict
@@ -38,6 +39,7 @@ const (
 	DescSkillsList = mcptools.DescSkillsList
 	DescSkillsGet  = mcptools.DescSkillsGet
 	DescManifest   = mcptools.DescManifest
+	DescAsk        = mcptools.DescAsk
 )
 
 // ToolMeta is the canonical (name, description) record for one registered
@@ -143,6 +145,34 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 		),
 		handleManifest(p),
 	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolAsk,
+			mcpgo.WithDescription(DescAsk),
+			mcpgo.WithString("request", mcpgo.Description("JSON-encoded pulse.AskRequest with `request` (types.Request), optional `on_invalid` (\"abort\"|\"suggest\") and optional `predict` (bool)"), mcpgo.Required()),
+		),
+		handleAsk(s, p, bindOnOpen, handlers),
+	)
+}
+
+// bindSessionFromPath rebinds the session's tool schemas to the cohort
+// at path. Shared by handleInspect and handleAsk so both touchpoints
+// pick up enum constraints the same way. Best-effort: silently degrades
+// when bindOnOpen is off, the server is nil, the session is nil, or the
+// cohort cannot be re-opened.
+func bindSessionFromPath(ctx context.Context, s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool, path string, handlers boundHandlers) {
+	if !bindOnOpen || s == nil || path == "" {
+		return
+	}
+	session := server.ClientSessionFromContext(ctx)
+	if session == nil {
+		return
+	}
+	cohort, err := p.Open(ctx, path)
+	if err != nil {
+		return
+	}
+	_ = BindSessionTools(s, session.SessionID(), cohort.Schema(), handlers)
 }
 
 func handleInspect(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool, handlers boundHandlers) server.ToolHandlerFunc {
@@ -160,20 +190,56 @@ func handleInspect(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool, handler
 		// On a successful inspect, register session-scoped bound tool
 		// variants whose JSON Schemas embed enum constraints on field-
 		// name parameters. Best-effort: failure to bind degrades gracefully
-		// to the global (unbound) tools. We re-open the cohort here so we
-		// have a typed *encoding.Schema rather than the projection in
-		// descriptor.InspectResult.
-		if bindOnOpen && s != nil {
-			session := server.ClientSessionFromContext(ctx)
-			if session != nil {
-				if cohort, openErr := p.Open(ctx, path); openErr == nil {
-					_ = BindSessionTools(s, session.SessionID(), cohort.Schema(), handlers)
-				}
-			}
-		}
+		// to the global (unbound) tools. handleAsk reuses the same hook
+		// so an Ask call after a fresh session also picks up bound enums.
+		bindSessionFromPath(ctx, s, p, bindOnOpen, path, handlers)
 
 		return jsonResult(result)
 	}
+}
+
+// handleAsk wires the unified pulse_ask MCP tool. It accepts a JSON-encoded
+// pulse.AskRequest (the same shape the facade consumes), forwards to
+// p.Ask, and returns the AskResponse. On success it also fires the
+// schema-binding hook so subsequent action tools in the session pick up
+// typed enum constraints — the LLM just touched a file, so this is the
+// natural moment to bind.
+func handleAsk(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool, handlers boundHandlers) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		body, err := requestBytes(req, "request")
+		if err != nil {
+			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+		var typed pulse.AskRequest
+		if err := json.Unmarshal(body, &typed); err != nil {
+			return mcpgo.NewToolResultError(fmt.Sprintf("parse request: %v", err)), nil
+		}
+		resp, err := p.Ask(ctx, &typed)
+		if err != nil {
+			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+
+		// Best-effort session binding when we know which cohort was touched.
+		if typed.Request != nil && typed.Request.Cohort != nil {
+			path := cohortPath(typed.Request.Cohort)
+			bindSessionFromPath(ctx, s, p, bindOnOpen, path, handlers)
+		}
+
+		return jsonResult(resp)
+	}
+}
+
+// cohortPath mirrors the service-internal resolution rule (DataDir + "/" + Filename)
+// so the MCP handler can compute the same path the service used when
+// reading the cohort.
+func cohortPath(c *types.Cohort) string {
+	if c == nil {
+		return ""
+	}
+	if c.DataDir != "" {
+		return c.DataDir + "/" + c.Filename
+	}
+	return c.Filename
 }
 
 func handlePredict(p *pulse.Pulse) server.ToolHandlerFunc {

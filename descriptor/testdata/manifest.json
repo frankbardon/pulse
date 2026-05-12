@@ -2807,6 +2807,10 @@
     ],
     "mcp_tools": [
       {
+        "name": "pulse_ask",
+        "description": "Pulse one-shot. Inspect the given .pulse file, validate the request against its schema, and execute if valid. On validation failure with on_invalid=\"suggest\", return structured fixup suggestions instead of erroring. Replaces the inspect→predict→process round-trip for the common case. Set predict=true to validate without executing."
+      },
+      {
         "name": "pulse_compose",
         "description": "Execute a batch of processing requests."
       },
@@ -3800,4 +3804,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7daeea0f3a234406c950a612362d533fab509e26afe053dd1c71efce22593c68
+// golden-hash: fdb8f25081917773ff069d25e44bde66c6ff25cadb102c9f35b27933b41853fc

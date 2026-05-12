@@ -38,6 +38,7 @@ Every tool wraps a public library entrypoint. Inputs are JSON; outputs are JSON-
 | `pulse_skills_list` | `skills.List` — embedded skill metadata | (none) |
 | `pulse_skills_get` | `skills.Get` — fetch skill body | `name` (string) |
 | `pulse_manifest` | `pulse.Pulse.Manifest` — root self-description (commands, components, cohort types, skills) | (none) |
+| `pulse_ask` | `pulse.Pulse.Ask` — unified inspect→predict→process one-shot. On predict-invalid with `on_invalid="suggest"`, returns structured `Suggestions` instead of erroring. | `request` (JSON-encoded `pulse.AskRequest` with `request`, optional `on_invalid` ∈ {"abort","suggest"}, optional `predict`) |
 
 Call `pulse_manifest` once at session start and cache the result. The
 manifest is deterministic and free of cohort data; it contains every
@@ -166,6 +167,13 @@ In `~/.claude.json` (or `.claude.json` in the project root):
 4. Author a request matching a known schema.
 5. Call `pulse_predict` with the request JSON. If invalid, fix and retry.
 6. Call `pulse_process` (or `pulse_compose` for batches).
+
+For the common path, `pulse_ask` collapses steps 5–6 into a single
+round-trip: it inspects, validates, and (when valid) executes. On
+validation failure with `on_invalid="suggest"`, the response carries a
+de-duplicated list of structured `Fixup` entries derived from each
+error code's metadata, so the LLM can repair the request without
+re-querying the schema.
 </workflow>
 
 <example name="predict-via-mcp">
