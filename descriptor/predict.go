@@ -68,6 +68,38 @@ type PredictResult struct {
 	// when Streamable=true. Useful for users debugging why their request
 	// is buffering.
 	StreamableReasons []string `json:"streamable_reasons,omitempty"`
+	// Suggestions enumerates structured next-actions the caller can apply
+	// to repair (or improve) the request. Suggestions fire on validation
+	// issues — field-name typos, operator/type mismatches, date misuse,
+	// missing required params — and on non-streamable but otherwise valid
+	// requests (streamable-substitute hints). May be empty; never nil in
+	// JSON output.
+	Suggestions []Suggestion `json:"suggestions"`
+}
+
+// Suggestion is a structured next-action attached to PredictResult.
+// Predict computes suggestions inline so callers can repair a request
+// without an additional inspect round-trip.
+//
+// Path points at the offending request location using JSON-style
+// segments — e.g. ["Aggregations", "0", "Field"] addresses the Field
+// of the first aggregation.
+//
+// Proposed is a ranked list of candidate values. Empty when no
+// concrete proposal applies (e.g. ATTR_PERCENTILE has no streamable
+// peer); the caller should treat empty Proposed as advisory.
+//
+// Confidence is a static heuristic in [0, 1]: 0.9 for high-certainty
+// single-candidate swaps and Levenshtein distance 1; 0.7 for distance
+// 2; 0.6 for multi-candidate type-class swaps; 0.5 for missing-param
+// fallbacks that hand the user a list to pick from; 0.8 for
+// streamability substitutes.
+type Suggestion struct {
+	Path       []string `json:"path"`
+	Reason     string   `json:"reason"`
+	Current    any      `json:"current,omitempty"`
+	Proposed   []any    `json:"proposed,omitempty"`
+	Confidence float64  `json:"confidence"`
 }
 
 // PredictSchemaInfo summarizes the schema used for prediction.
@@ -145,6 +177,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Compute streamability — per-type Streamable() methods plus schema-aware
 	// gates (decimal fields force buffered, geo aggs force buffered).
 	result.Streamable, result.StreamableReasons = computeStreamable(req, schema)
+
+	// Compute autocomplete-style suggestions. Suggestions may surface even
+	// when the request is otherwise valid (streamability hints), so this
+	// runs unconditionally after every other validator.
+	result.Suggestions = computeSuggestions(req, schema, result.Streamable)
 
 	// If any errors were added, mark invalid.
 	if len(env.Errors) > 0 {

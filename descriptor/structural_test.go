@@ -6,11 +6,17 @@ import (
 	"testing"
 )
 
-// TestPredictNoExecutionImports verifies that predict.go and predict_window.go
-// do not import the service package (which contains execution methods).
-// This is a structural ban enforced by grep gate.
+// TestPredictNoExecutionImports verifies that the predict source files
+// do not import the service or processing packages (both contain
+// execution paths). The no-execute structural ban keeps predict header-
+// and schema-only.
 func TestPredictNoExecutionImports(t *testing.T) {
-	files := []string{"predict.go", "predict_window.go"}
+	files := []string{
+		"predict.go",
+		"predict_window.go",
+		"predict_feature.go",
+		"predict_suggestions.go",
+	}
 	for _, file := range files {
 		data, err := os.ReadFile(file)
 		if err != nil {
@@ -40,6 +46,8 @@ func TestDescriptorNoFmtSprintf(t *testing.T) {
 		"manifest.go",
 		"predict.go",
 		"predict_window.go",
+		"predict_feature.go",
+		"predict_suggestions.go",
 		"inspect.go",
 	}
 

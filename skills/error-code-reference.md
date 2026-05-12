@@ -11,6 +11,26 @@ applies_to: process, compose, predict
 Every error in Pulse carries a typed error code that identifies the category and domain of the failure. Invoke this skill when an envelope returns a non-empty `errors` or `warnings` array and you need the cause and recovery for a specific code.
 </skill_overview>
 
+<rule severity="note" topic="predict-suggestions">
+## Predict envelopes carry structured suggestions
+
+In addition to `errors` and `warnings`, every `pulse predict` envelope's `data` block contains a `suggestions` array (never null — empty `[]` when nothing fires). Each entry is shaped:
+
+```json
+{
+  "path": ["Aggregations", "0", "Field"],
+  "reason": "field revenu is not in the schema; closest names by edit distance",
+  "current": "revenu",
+  "proposed": ["revenue"],
+  "confidence": 0.9
+}
+```
+
+Five sources contribute suggestions: field-name typos (Levenshtein ≤ 2 against the schema), operator/type mismatches (e.g. AGG_SUM on a categorical field), date misuse (GROUP_CATEGORY on a date field), missing required parameters (WIN_LAG without OrderBy, AGG_PERCENTILE without `percentile`), and streamability hints (closest streamable substitute when `streamable=false`).
+
+Treat `suggestions` as machine-actionable next-actions. `confidence` is a static heuristic — high values (0.8–0.9) indicate single-candidate swaps; lower values (0.5–0.7) indicate the caller still has to pick from a list. Suggestions may be non-empty even when `errors` is empty (streamability suggestions fire on otherwise-valid requests).
+</rule>
+
 <rule severity="caveat" topic="internal-codes">
 ## Shared *_INTERNAL note
 
