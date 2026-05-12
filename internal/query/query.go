@@ -20,6 +20,7 @@ package query
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -446,7 +447,7 @@ func (p *parser) addDateGroup(bucketCandidate string) {
 		Field:  dateField,
 		Params: params,
 	})
-	if !contains(p.res.MatchedFields, dateField) {
+	if !slices.Contains(p.res.MatchedFields, dateField) {
 		p.res.MatchedFields = append(p.res.MatchedFields, dateField)
 	}
 }
@@ -652,7 +653,7 @@ func (p *parser) consumeField() (string, float64, bool) {
 	if p.schema != nil {
 		if f := p.schema.Field(tok); f != nil {
 			p.advance()
-			if !contains(p.res.MatchedFields, tok) {
+			if !slices.Contains(p.res.MatchedFields, tok) {
 				p.res.MatchedFields = append(p.res.MatchedFields, tok)
 			}
 			return tok, confFieldDirect, true
@@ -662,7 +663,7 @@ func (p *parser) consumeField() (string, float64, bool) {
 		if len(matches) > 0 {
 			p.advance()
 			pick := matches[0]
-			if !contains(p.res.MatchedFields, pick) {
+			if !slices.Contains(p.res.MatchedFields, pick) {
 				p.res.MatchedFields = append(p.res.MatchedFields, pick)
 			}
 			conf := confFieldDist2
@@ -795,8 +796,8 @@ func strictNextFloat(value string, sign int) string {
 	// is expected to convert > to ≥ explicitly when they review the
 	// resolved request. Keep it deterministic:
 	bump := 0.0
-	switch {
-	case f == 0:
+	switch f {
+	case 0:
 		bump = 1e-9
 	default:
 		bump = f * 1e-12
@@ -823,16 +824,6 @@ func schemaFieldNames(s *encoding.Schema) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// contains reports whether s contains needle.
-func contains(s []string, needle string) bool {
-	for _, v := range s {
-		if v == needle {
-			return true
-		}
-	}
-	return false
 }
 
 // nearestFields returns schema field names within maxDist of name,
@@ -909,20 +900,9 @@ func levenshtein(a, b string) int {
 			del := prev[j] + 1
 			ins := curr[j-1] + 1
 			sub := prev[j-1] + cost
-			curr[j] = min3(del, ins, sub)
+			curr[j] = min(del, ins, sub)
 		}
 		prev, curr = curr, prev
 	}
 	return prev[len(rb)]
-}
-
-func min3(a, b, c int) int {
-	m := a
-	if b < m {
-		m = b
-	}
-	if c < m {
-		m = c
-	}
-	return m
 }

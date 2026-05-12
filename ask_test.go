@@ -3,6 +3,7 @@ package pulse
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -277,7 +278,7 @@ func TestAsk_QueryFieldDrivesParse(t *testing.T) {
 	if resp.QueryResolution.Query != "average revenue" {
 		t.Errorf("QueryResolution.Query = %q, want %q", resp.QueryResolution.Query, "average revenue")
 	}
-	if !contains(resp.QueryResolution.MatchedFields, "revenue") {
+	if !slices.Contains(resp.QueryResolution.MatchedFields, "revenue") {
 		t.Errorf("MatchedFields should include 'revenue'; got %v", resp.QueryResolution.MatchedFields)
 	}
 	if resp.QueryResolution.Confidence <= 0 || resp.QueryResolution.Confidence > 1 {
@@ -344,16 +345,6 @@ func TestAsk_QueryAndRequestMerge(t *testing.T) {
 	if resp.Predict.Request.Groups[0].Field != "country" {
 		t.Errorf("Groups[0].Field = %q, want %q", resp.Predict.Request.Groups[0].Field, "country")
 	}
-}
-
-// contains is a tiny test helper.
-func contains(s []string, x string) bool {
-	for _, v := range s {
-		if v == x {
-			return true
-		}
-	}
-	return false
 }
 
 // TestAsk_MCPHandler is a round-trip-style sanity check on the
