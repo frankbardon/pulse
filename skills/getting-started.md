@@ -75,7 +75,7 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
 | `process` | Execute a Request from a JSON file | https://frankbardon.github.io/pulse/cli/api-process.html |
 | `compose` | Execute a ComposedRequest batch | https://frankbardon.github.io/pulse/cli/api-compose.html |
 | `predict` | Validate a request against the schema | https://frankbardon.github.io/pulse/cli/api-predict.html |
-| `inspect` | Print schema and descriptions of a `.pulse` file | https://frankbardon.github.io/pulse/cli/api-inspect.html |
+| `cohort inspect` | Print schema and descriptions of a `.pulse` file | https://frankbardon.github.io/pulse/cli/cohort-inspect.html |
 | `sample` | Print N rows from a cohort | https://frankbardon.github.io/pulse/cli/api-sample.html |
 | `facet` | Print value distribution for one field | https://frankbardon.github.io/pulse/cli/api-facet.html |
 | `manifest` | Print the self-description manifest | https://frankbardon.github.io/pulse/cli/manifest.html |

@@ -85,7 +85,7 @@ Exceeding the chosen width raises `PULSE_IMPORT_CATEGORICAL_OVERFLOW`; an unboun
 <reference>
 ## Schema-template workflow
 
-Import is a CLI / library operation; there is no `pulse_import` MCP tool today. Point a human at https://frankbardon.github.io/pulse/cli/api-inspect.html plus the import chapters in mdBook for the `schema-template` -> edit -> import flow.
+Import is a CLI / library operation; there is no `pulse_import` MCP tool today. Point a human at https://frankbardon.github.io/pulse/cli/cohort-inspect.html plus the import chapters in mdBook for the `schema-template` -> edit -> import flow.
 </reference>
 
 <reference>

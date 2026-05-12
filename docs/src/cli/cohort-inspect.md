@@ -2,20 +2,15 @@
 
 **Audience:** CLI users reading a `.pulse` file's schema without
 running a query — the human-side counterpart of the `inspect` library
-method and the `pulse_inspect` MCP tool.
-
-> **Note on naming.** This site indexes the inspect operation under
-> `cli/api-inspect.md` for symmetry with the library facade
-> (`Pulse.Inspect`) and the MCP tool (`pulse_inspect`). The actual
-> CLI command is `pulse cohort inspect`, defined in
-> [`internal/cli/cohort.go`](https://github.com/frankbardon/pulse/blob/main/internal/cli/cohort.go).
+method and the `pulse_inspect` MCP tool. Defined in
+[`internal/cli/cohort.go`](https://github.com/frankbardon/pulse/blob/main/internal/cli/cohort.go).
 
 `pulse cohort inspect` reads only the file's header and schema — it
 never reads record data. The operation is constant-time regardless of
 cohort size.
 
-> **LLM agents using MCP:** see the `schema-inspection` (alias
-> `cohort-schema-design`) skill and the `pulse_inspect` tool.
+> **LLM agents using MCP:** see the `cohort-schema-design` skill and
+> the `pulse_inspect` tool.
 
 ## Synopsis
 

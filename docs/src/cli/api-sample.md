@@ -84,7 +84,7 @@ pulse api sample --input sales.pulse --count 100 | jq '.[] | .revenue'
 - For distinct values of a single field, use [`pulse api
   facet`](api-facet.md).
 - For schema-only views (types, descriptions, dictionaries), use
-  [`pulse cohort inspect`](api-inspect.md).
+  [`pulse cohort inspect`](cohort-inspect.md).
 
 ## Related
 

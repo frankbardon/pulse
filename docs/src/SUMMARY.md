@@ -13,7 +13,7 @@
 - [api process](cli/api-process.md)
 - [api compose](cli/api-compose.md)
 - [api ask](cli/api-ask.md)
-- [api inspect](cli/api-inspect.md)
+- [cohort inspect](cli/cohort-inspect.md)
 - [api predict](cli/api-predict.md)
 - [api sample](cli/api-sample.md)
 - [api facet](cli/api-facet.md)

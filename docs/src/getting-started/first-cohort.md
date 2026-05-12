@@ -69,7 +69,7 @@ after 100.
 pulse cohort inspect sales.pulse --json
 ```
 
-The envelope is documented in [`pulse cohort inspect`](../cli/api-inspect.md).
+The envelope is documented in [`pulse cohort inspect`](../cli/cohort-inspect.md).
 
 ## 4. Validate a request before running it
 

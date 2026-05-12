@@ -14,7 +14,7 @@ Pulse imports are fail-closed and schema-driven: review an inferred schema, writ
 <rule severity="note" topic="no-mcp-tool">
 ## Import has no MCP tool today
 
-`.pulse` files are produced offline by `pulse import csv|tsv|ndjson|jsonarray|parquet|arrow|excel` (CLI) or `pulse.Pulse.Import` (library). The LLM cannot trigger an import directly; it can only inspect what was already imported and report quality issues the user should fix at import time. For CLI usage, point a human at https://frankbardon.github.io/pulse/cli/api-inspect.html and the import chapters in mdBook.
+`.pulse` files are produced offline by `pulse import csv|tsv|ndjson|jsonarray|parquet|arrow|excel` (CLI) or `pulse.Pulse.Import` (library). The LLM cannot trigger an import directly; it can only inspect what was already imported and report quality issues the user should fix at import time. For CLI usage, point a human at https://frankbardon.github.io/pulse/cli/cohort-inspect.html and the import chapters in mdBook.
 </rule>
 
 <reference>

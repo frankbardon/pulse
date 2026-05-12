@@ -49,12 +49,8 @@ The "processing facade" — these are the operations exposed via the
 
 | Command | Purpose | Chapter |
 |---|---|---|
-| `pulse cohort inspect PATH` | Read header + schema (no record data) | [api inspect](../cli/api-inspect.md) |
+| `pulse cohort inspect PATH` | Read header + schema (no record data) | [cohort inspect](../cli/cohort-inspect.md) |
 | `pulse cohort filter`       | Write a filtered subset to a new `.pulse` | See [Internals → Architecture](../internals/architecture.md) |
-
-`cohort inspect` is the human-side counterpart of the `inspect` facade
-method; we document it under `api inspect` in this site for symmetry
-with the library facade and MCP tool name.
 
 ## Import / export / convert
 
