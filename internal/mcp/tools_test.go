@@ -34,14 +34,7 @@ func TestRegisteredTools_AllPrefixed(t *testing.T) {
 // TestManifest_HasMCPTool verifies that pulse_manifest is registered as
 // an MCP tool. Bootstrap clients call this tool first.
 func TestManifest_HasMCPTool(t *testing.T) {
-	found := false
-	for _, name := range RegisteredTools() {
-		if name == ToolManifest {
-			found = true
-			break
-		}
-	}
-	if !found {
+	if !slices.Contains(RegisteredTools(), ToolManifest) {
 		t.Fatalf("pulse_manifest tool missing from RegisteredTools(): %v", RegisteredTools())
 	}
 }
