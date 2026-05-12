@@ -52,6 +52,12 @@ Response:
 | Compare aggregated per-group means | 2 | `TEST_ANOVA_F` on `avg_revenue` per `region` row |
 | Pairwise comparison after a significant ANOVA | 2 | `TEST_TUKEY_HSD` on per-group means |
 | Trend over an ordered series | 2 | `TEST_TREND` (Mann-Kendall) on `moving_avg_revenue` ordered by `period` |
+| Correlate two per-group aggregates | 2 | `TEST_PEARSON_R` / `TEST_SPEARMAN_R` / `TEST_KENDALL_TAU` on result columns |
+| Paired lift on pre/post result columns | 2 | `TEST_PAIRED_T` (parametric) or `TEST_WILCOXON_SR` (nonparametric) |
+| Heteroscedastic ANOVA on per-group summaries | 2 | `TEST_ANOVA_WELCH` with `params.n_col`/`variance_col` |
+| Two-sample CDF on result rows | 2 | `TEST_KS` over a `split_by` partition of result rows |
+| Normality of a result column | 2 | `TEST_SHAPIRO_WILK` (optional `split_by` for per-group W) |
+| Variance homogeneity on result rows | 2 | `TEST_BROWN_FORSYTHE` as pre-ANOVA gate |
 
 If both tiers are populated, tier 1 runs during the row scan and tier 2 runs after windows. Either slot can be empty.
 
@@ -106,6 +112,8 @@ Streamable: yes. Online per-group moments.
 
 ### TEST_KS — Kolmogorov-Smirnov two-sample
 
+Both tiers supported. Tier-2 variant `two_sample_post` runs the same Smirnov asymptotic p over result rows partitioned by `split_by` (exactly two groups).
+
 Required fields:
 - `field` — numeric value
 - `split_by` — categorical producing exactly two groups
@@ -159,7 +167,7 @@ Streamable: no (sort-based ECDF).
 
 ### TEST_WILCOXON_SR — Wilcoxon signed-rank (paired)
 
-Nonparametric counterpart to `TEST_PAIRED_T`. Buffered: per-row diff, drop zero diffs, mid-rank `|diff|` with tie correction.
+Both tiers supported. Nonparametric counterpart to `TEST_PAIRED_T`. Buffered: per-row diff, drop zero diffs, mid-rank `|diff|` with tie correction. Tier-2 variant `asymptotic_post` runs the same math over result-row pairs.
 
 Required fields:
 - `field` — numeric (after / post column)
@@ -186,9 +194,32 @@ Output Details:
 
 Streamable: no.
 
+### TEST_PEARSON_R — parametric correlation
+
+Both tiers supported.
+
+Tier-1 (`Request.Tests`): Welford cross-product accumulator over the raw row stream. Streamable; reuses online (mean, M2) moments and adds a `C = Σ Δx · (y − mean_y)` term. The correlation coefficient `r = C / √(M2_x · M2_y)` is exact to float64 precision; `t = r · √((n−2)/(1−r²))` drives a two-sided p-value via the Student-t survival function. Confidence interval uses the Fisher z-transform with SE = 1/√(n−3). Variant: `pearson`.
+
+Tier-2 (`Request.PostTests`): same math, but `field` and `field2` reference columns on the materialized result row set (aggregator labels, attribute labels, window outputs). Useful for correlating two per-group aggregates (e.g. `AGG_SUM_revenue` vs `AGG_AVERAGE_basket_size` across regions) or two windowed series. Variant: `pearson_post` — consumers can distinguish raw-row r from aggregate r by inspecting the result's `Variant` field. **Caveat — ecological correlation:** r on per-group aggregates answers a fundamentally different question than r on raw rows and can disagree markedly (Simpson's paradox, ecological fallacy). Prefer the tier-1 variant for "is x correlated with y at the individual level"; use the tier-2 variant when the question is genuinely about group-level relationships.
+
+Required fields:
+- `field` — numeric column 1
+- `field2` — numeric column 2
+
+Output Details (both tiers):
+- `n`, `t` — sample size and t-statistic (df = n − 2)
+- `ci_low`, `ci_high` — Fisher-z two-sided CI for r
+- `mean_x`, `mean_y`, `variance_x`, `variance_y`, `covariance`
+
+Errors:
+- `PULSE_TEST_INSUFFICIENT_N` — n < 3
+- `PULSE_TEST_CORRELATION_UNDEFINED` — at least one column has zero variance
+
+Streamable: yes (tier-1); tier-2 is always buffered by definition.
+
 ### TEST_SPEARMAN_R — rank-based correlation
 
-Buffered: mid-rank each column independently, then Pearson on the ranks.
+Both tiers supported. Buffered: mid-rank each column independently, then Pearson on the ranks. Tier-2 variant `rank_pearson_post` operates on result-row columns.
 
 Required fields:
 - `field` — numeric column 1
@@ -202,7 +233,9 @@ Streamable: no.
 
 ### TEST_ANOVA_WELCH — heteroscedasticity-robust one-way ANOVA
 
-Streaming variant of `TEST_ANOVA_F` that does not assume equal variances. Per-group online Welford state matches the standard ANOVA; finalization uses the Welch (1951) weighting `w_i = n_i / s²_i` with the Welch-Satterthwaite df₂ correction.
+Both tiers supported. Tier-1 is a streaming variant of `TEST_ANOVA_F` that does not assume equal variances; per-group online Welford state matches the standard ANOVA, finalization uses the Welch (1951) weighting `w_i = n_i / s²_i` with the Welch-Satterthwaite df₂ correction.
+
+Tier-2 variant `welch_one_way_post` consumes per-group summary stats from result-row columns and applies the same Welch finalization. Required `params.n_col` and `params.variance_col` columns mirror the `TEST_ANOVA_F` post contract.
 
 Required fields:
 - `field` — numeric value
@@ -251,7 +284,7 @@ Streamable: no.
 
 ### TEST_SHAPIRO_WILK — normality test
 
-Tier-1 buffered. Shapiro-Francia variant (Royston 1993): mid-rank-style coefficients on the Blom-approximated expected normal order statistics. p-value via the standard Royston polynomial transform of `W'`.
+Both tiers supported. Tier-1 buffered. Shapiro-Francia variant (Royston 1993): mid-rank-style coefficients on the Blom-approximated expected normal order statistics. p-value via the standard Royston polynomial transform of `W'`. Tier-2 variant `shapiro_francia_post` runs identical math on a result column, optionally per-group via `split_by`.
 
 Required fields:
 - `field` — numeric value
@@ -268,7 +301,7 @@ Streamable: no.
 
 ### TEST_BROWN_FORSYTHE — variance homogeneity (median-based)
 
-Buffered. Replaces each value with its absolute deviation from the per-group median, then runs one-way ANOVA on the deviations. Robust against non-normality; the conventional preferred variant over Levene's mean-based residuals.
+Both tiers supported. Buffered. Replaces each value with its absolute deviation from the per-group median, then runs one-way ANOVA on the deviations. Robust against non-normality; the conventional preferred variant over Levene's mean-based residuals. Tier-2 variant `median_post` consumes result rows (raw values, not pre-aggregated summary stats — input is a flat row stream).
 
 Required fields:
 - `field` — numeric value
@@ -284,7 +317,7 @@ Streamable: no.
 
 ### TEST_KENDALL_TAU — concordance-based correlation
 
-τ-b variant with tie correction. Buffered O(n²) pair count.
+Both tiers supported. τ-b variant with tie correction. Buffered O(n²) pair count. Tier-2 variant `tau_b_post` operates on result-row columns.
 
 Required fields:
 - `field` — numeric column 1
@@ -331,22 +364,22 @@ Tier-2 (`post_tests`) always runs over the materialized result set after windows
 | `TEST_WELCH` | ✓ (alias of two-sample `TEST_T`) | — |
 | `TEST_CHISQ` | ✓ | — |
 | `TEST_ANOVA_F` | ✓ | ✓ (from summary stats) |
-| `TEST_KS` | ✓ (forces buffered path) | — |
-| `TEST_PAIRED_T` | ✓ | — |
+| `TEST_KS` | ✓ (forces buffered path) | ✓ (variant `two_sample_post`) |
+| `TEST_PAIRED_T` | ✓ | ✓ (variant `paired_two_sided_post`, one-sample t on per-row diff) |
 | `TEST_PROP_Z` | ✓ | — |
-| `TEST_PEARSON_R` | ✓ | — |
+| `TEST_PEARSON_R` | ✓ | ✓ (variant `pearson_post`, Welford cross-product on result columns) |
 | `TEST_MANN_WHITNEY_U` | ✓ (forces buffered path) | — |
-| `TEST_WILCOXON_SR` | ✓ (forces buffered path) | — |
+| `TEST_WILCOXON_SR` | ✓ (forces buffered path) | ✓ (variant `asymptotic_post`, mid-rank \|diff\| with tie correction) |
 | `TEST_KRUSKAL_WALLIS` | ✓ (forces buffered path) | — |
-| `TEST_SPEARMAN_R` | ✓ (forces buffered path) | — |
-| `TEST_KENDALL_TAU` | ✓ (forces buffered path) | — |
-| `TEST_ANOVA_WELCH` | ✓ | — |
+| `TEST_SPEARMAN_R` | ✓ (forces buffered path) | ✓ (variant `rank_pearson_post`, mid-rank then Pearson on ranks) |
+| `TEST_KENDALL_TAU` | ✓ (forces buffered path) | ✓ (variant `tau_b_post`, O(n²) concordance count) |
+| `TEST_ANOVA_WELCH` | ✓ | ✓ (variant `welch_one_way_post`, from summary stats) |
 | `TEST_ANOVA_RM` | ✓ (forces buffered path) | — |
-| `TEST_BROWN_FORSYTHE` | ✓ (forces buffered path) | — |
+| `TEST_BROWN_FORSYTHE` | ✓ (forces buffered path) | ✓ (variant `median_post`, median-based ANOVA on |dev|) |
 | `TEST_TREND` | — | ✓ (Mann-Kendall) |
 | `TEST_TUKEY_HSD` | — | ✓ (Tukey-Kramer with studentized-range p-values) |
 | `TEST_FISHER_EXACT` | ✓ (forces buffered path) | — |
-| `TEST_SHAPIRO_WILK` | ✓ (forces buffered path) | — |
+| `TEST_SHAPIRO_WILK` | ✓ (forces buffered path) | ✓ (variant `shapiro_francia_post`, optional `split_by` for per-group W) |
 
 ## Validation rules (predict)
 
@@ -423,3 +456,69 @@ See `error-code-reference.md` for recovery steps.
 ```
 
 Run a `TEST_ANOVA_F` first, read `ms_within` / `df_within` from its Details, then issue a second request with `TEST_TUKEY_HSD`. Future iteration may chain these automatically.
+
+### Tier-2 Pearson correlation between per-group aggregates
+
+```json
+{
+  "cohort": {"filename": "orders.pulse"},
+  "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "aggregations": [
+    {"type": "AGG_SUM",     "field": "revenue", "alias": "total_revenue"},
+    {"type": "AGG_AVERAGE", "field": "basket",  "alias": "avg_basket"}
+  ],
+  "post_tests": [
+    {
+      "type": "TEST_PEARSON_R",
+      "field":  "AGG_SUM_revenue",
+      "field2": "AGG_AVERAGE_basket",
+      "alpha":  0.05,
+      "label":  "rev_basket_corr"
+    }
+  ]
+}
+```
+
+Field names match the aggregator's projected column (`AGG_<TYPE>_<field>`) since aliases are not yet honored in the output schema. Result's `Variant` is `pearson_post` (tier-1 is `pearson`).
+
+### Tier-2 paired t-test on pre/post columns
+
+```json
+{
+  "post_tests": [
+    {"type": "TEST_PAIRED_T", "field": "post_mean", "field2": "pre_mean", "label": "lift_t"}
+  ]
+}
+```
+
+Tests the per-row mean lift `(post − pre)` against zero. Useful when each result row carries a pre/post pair (e.g. before/after windows or two aggregations across the same group). `TEST_WILCOXON_SR` is the nonparametric equivalent with the same field shape.
+
+### Tier-2 Welch ANOVA from per-group summary stats
+
+```json
+{
+  "post_tests": [
+    {
+      "type":    "TEST_ANOVA_WELCH",
+      "field":   "AGG_AVERAGE_revenue",
+      "split_by": "region",
+      "params":  {"n_col": "AGG_COUNT_id", "variance_col": "AGG_VARIANCE_revenue"}
+    }
+  ]
+}
+```
+
+Use when per-group variances are visibly unequal (run `TEST_BROWN_FORSYTHE` first as the gate). Requires upstream aggregators emitting count and variance columns alongside the mean.
+
+### Tier-2 normality + variance-homogeneity diagnostics
+
+```json
+{
+  "post_tests": [
+    {"type": "TEST_SHAPIRO_WILK",   "field": "AGG_AVERAGE_revenue", "split_by": "region"},
+    {"type": "TEST_BROWN_FORSYTHE", "field": "revenue",             "split_by": "region"}
+  ]
+}
+```
+
+Useful as a pre-flight before tier-2 ANOVA. Shapiro-Wilk reports per-group normality (headline `Statistic` / `PValue` track the worst group); Brown-Forsythe gates the ANOVA choice (reject ⇒ use Welch).
