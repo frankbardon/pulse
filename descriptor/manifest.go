@@ -6,7 +6,6 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/skills"
-	"github.com/frankbardon/pulse/types"
 )
 
 // Command describes a CLI leaf command in the manifest.
@@ -15,20 +14,33 @@ type Command struct {
 	Description string `json:"description"`
 }
 
-// Components lists all registered processing components.
+// Components lists every registered processing component grouped by
+// category. Each slice carries one Operator entry per component so
+// LLM-side authoring has access to per-operator params, accepted field
+// types, emit type, and streamability without further discovery
+// round-trips.
 type Components struct {
-	Aggregators []string `json:"aggregators"`
-	Attributes  []string `json:"attributes"`
-	Filterers   []string `json:"filterers"`
-	Groupers    []string `json:"groupers"`
-	Windows     []string `json:"windows"`
-	Features    []string `json:"features"`
+	Aggregators []Operator `json:"aggregators"`
+	Attributes  []Operator `json:"attributes"`
+	Filterers   []Operator `json:"filterers"`
+	Groupers    []Operator `json:"groupers"`
+	Windows     []Operator `json:"windows"`
+	Features    []Operator `json:"features"`
 }
 
-// CohortFieldType describes a field type available in .pulse files.
+// CohortFieldType describes a field type available in .pulse files and
+// the operator catalog that accepts it. The Compatible* slices are
+// derived from the per-operator AcceptsTypes declarations and let an
+// LLM look up "what can I do with a date field" in one place.
 type CohortFieldType struct {
-	Name        string `json:"name"`
-	Categorical bool   `json:"categorical"`
+	Name                 string   `json:"name"`
+	Categorical          bool     `json:"categorical"`
+	CompatibleAggregators []string `json:"compatible_aggregators,omitempty"`
+	CompatibleAttributes  []string `json:"compatible_attributes,omitempty"`
+	CompatibleFilterers   []string `json:"compatible_filterers,omitempty"`
+	CompatibleGroupers    []string `json:"compatible_groupers,omitempty"`
+	CompatibleWindows     []string `json:"compatible_windows,omitempty"`
+	CompatibleFeatures    []string `json:"compatible_features,omitempty"`
 }
 
 // SkillMeta describes a bundled skill.
@@ -37,13 +49,26 @@ type SkillMeta struct {
 	Description string `json:"description"`
 }
 
-// Manifest is the root self-description of the Pulse system.
+// Manifest is the root self-description of the Pulse system. One bootstrap
+// call returns every fact an LLM needs to author a valid Pulse request:
+// CLI command list, per-operator capabilities, per-test metadata (tier-1
+// and tier-2 as peer slices), synth distribution catalog, error code
+// catalog, MCP tool list, cohort field-type catalog with operator
+// cross-references, and embedded skill index.
+//
+// The payload is deterministic and free of cohort data. Clients cache it
+// for a session.
 type Manifest struct {
-	FormatVersion string            `json:"format_version"`
-	Commands      []Command         `json:"commands"`
-	Components    Components        `json:"components"`
-	CohortTypes   []CohortFieldType `json:"cohort_types"`
-	Skills        []SkillMeta       `json:"skills"`
+	FormatVersion      string             `json:"format_version"`
+	Commands           []Command          `json:"commands"`
+	Components         Components         `json:"components"`
+	Tests              []TestMeta         `json:"tests"`
+	PostTests          []TestMeta         `json:"post_tests"`
+	SynthDistributions []DistributionMeta `json:"synth_distributions"`
+	ErrorCodes         []ErrorMeta        `json:"error_codes"`
+	MCPTools           []MCPTool          `json:"mcp_tools"`
+	CohortTypes        []CohortFieldType  `json:"cohort_types"`
+	Skills             []SkillMeta        `json:"skills"`
 }
 
 // commands returns the default set of CLI leaf commands.
@@ -62,8 +87,10 @@ func commands() []Command {
 	}
 }
 
-// cohortFieldTypes returns all field types as CohortFieldType descriptors.
-func cohortFieldTypes() []CohortFieldType {
+// rawCohortFieldTypes returns the bare (name, categorical) tuples for
+// every defined field type. Compatible* cross-refs are computed by
+// cohortFieldTypes() from the operator capability tables.
+func rawCohortFieldTypes() []CohortFieldType {
 	var out []CohortFieldType
 	for i := range 19 {
 		ft := encoding.FieldType(i)
@@ -79,127 +106,115 @@ func cohortFieldTypes() []CohortFieldType {
 	return out
 }
 
-// Component type lists are immutable after process init: the registries in
-// types/ never mutate at runtime. We compute the sorted slices exactly once
-// and return the cached value on subsequent calls. Callers do not mutate
-// these slices (they JSON-marshal the manifest), so sharing the underlying
-// array across calls is safe.
-var (
-	sortedAggregationTypesOnce sync.Once
-	sortedAggregationTypesVal  []string
+// cohortFieldTypes returns CohortFieldType descriptors enriched with
+// Compatible* cross-references derived deterministically from the
+// per-operator AcceptsTypes declarations.
+func cohortFieldTypes() []CohortFieldType {
+	base := rawCohortFieldTypes()
+	aggs := aggregatorCapabilities()
+	attrs := attributeCapabilities()
+	filts := filtererCapabilities()
+	grps := grouperCapabilities()
+	wins := windowCapabilities()
+	feats := featureCapabilities()
 
-	sortedAttributeTypesOnce sync.Once
-	sortedAttributeTypesVal  []string
-
-	sortedFiltererTypesOnce sync.Once
-	sortedFiltererTypesVal  []string
-
-	sortedGroupTypesOnce sync.Once
-	sortedGroupTypesVal  []string
-
-	sortedWindowTypesOnce sync.Once
-	sortedWindowTypesVal  []string
-
-	sortedFeatureTypesOnce sync.Once
-	sortedFeatureTypesVal  []string
-)
-
-// sortedAggregationTypes returns the cached sorted list of aggregation type
-// identifiers. The list is computed on first call and shared on every call
-// thereafter.
-func sortedAggregationTypes() []string {
-	sortedAggregationTypesOnce.Do(func() {
-		raw := types.AllAggregationTypes()
-		out := make([]string, len(raw))
-		for i, v := range raw {
-			out[i] = string(v)
+	indexByType := func(ops []Operator) map[string][]string {
+		m := make(map[string][]string)
+		for _, op := range ops {
+			for _, t := range op.AcceptsTypes {
+				m[t] = append(m[t], op.Name)
+			}
 		}
-		sort.Strings(out)
-		sortedAggregationTypesVal = out
-	})
-	return sortedAggregationTypesVal
+		for k := range m {
+			sort.Strings(m[k])
+		}
+		return m
+	}
+
+	aggIdx := indexByType(aggs)
+	attrIdx := indexByType(attrs)
+	filtIdx := indexByType(filts)
+	grpIdx := indexByType(grps)
+	winIdx := indexByType(wins)
+	featIdx := indexByType(feats)
+
+	for i := range base {
+		t := base[i].Name
+		base[i].CompatibleAggregators = aggIdx[t]
+		base[i].CompatibleAttributes = attrIdx[t]
+		base[i].CompatibleFilterers = filtIdx[t]
+		base[i].CompatibleGroupers = grpIdx[t]
+		base[i].CompatibleWindows = winIdx[t]
+		base[i].CompatibleFeatures = featIdx[t]
+	}
+	return base
 }
 
-func sortedAttributeTypes() []string {
-	sortedAttributeTypesOnce.Do(func() {
-		raw := types.AllAttributeTypes()
-		out := make([]string, len(raw))
-		for i, v := range raw {
-			out[i] = string(v)
-		}
-		sort.Strings(out)
-		sortedAttributeTypesVal = out
-	})
-	return sortedAttributeTypesVal
+// sortByName sorts an Operator slice lexically by Name. Used to keep the
+// manifest payload deterministic.
+func sortByName(ops []Operator) []Operator {
+	out := make([]Operator, len(ops))
+	copy(out, ops)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
-func sortedFiltererTypes() []string {
-	sortedFiltererTypesOnce.Do(func() {
-		raw := types.AllFiltererTypes()
-		out := make([]string, len(raw))
-		for i, v := range raw {
-			out[i] = string(v)
-		}
-		sort.Strings(out)
-		sortedFiltererTypesVal = out
-	})
-	return sortedFiltererTypesVal
+// sortTestsByName sorts a TestMeta slice lexically by Name.
+func sortTestsByName(ts []TestMeta) []TestMeta {
+	out := make([]TestMeta, len(ts))
+	copy(out, ts)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
-func sortedGroupTypes() []string {
-	sortedGroupTypesOnce.Do(func() {
-		raw := types.AllGroupTypes()
-		out := make([]string, len(raw))
-		for i, v := range raw {
-			out[i] = string(v)
+// partitionTier separates a TestMeta slice into tier-1 and tier-2 entries.
+// Tier-1 entries become Manifest.Tests; tier-2 become Manifest.PostTests.
+// Both slices are sorted by Name for determinism.
+func partitionTier(all []TestMeta) (tier1, tier2 []TestMeta) {
+	for _, m := range all {
+		if m.Tier == 2 {
+			tier2 = append(tier2, m)
+		} else {
+			tier1 = append(tier1, m)
 		}
-		sort.Strings(out)
-		sortedGroupTypesVal = out
-	})
-	return sortedGroupTypesVal
+	}
+	return sortTestsByName(tier1), sortTestsByName(tier2)
 }
 
-func sortedWindowTypes() []string {
-	sortedWindowTypesOnce.Do(func() {
-		raw := types.AllWindowTypes()
-		out := make([]string, len(raw))
-		for i, v := range raw {
-			out[i] = string(v)
-		}
-		sort.Strings(out)
-		sortedWindowTypesVal = out
-	})
-	return sortedWindowTypesVal
+// sortDistributions sorts a DistributionMeta slice lexically by Name.
+func sortDistributions(ds []DistributionMeta) []DistributionMeta {
+	out := make([]DistributionMeta, len(ds))
+	copy(out, ds)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
-func sortedFeatureTypes() []string {
-	sortedFeatureTypesOnce.Do(func() {
-		raw := types.AllFeatureTypes()
-		out := make([]string, len(raw))
-		for i, v := range raw {
-			out[i] = string(v)
-		}
-		sort.Strings(out)
-		sortedFeatureTypesVal = out
-	})
-	return sortedFeatureTypesVal
-}
-
-// BuildManifest constructs a deterministic Manifest from the current registries.
+// BuildManifest constructs a deterministic Manifest from the current
+// registries and capability tables. The result is safe to cache and
+// share across goroutines; callers do not mutate the returned slices.
 func BuildManifest() *Manifest {
+	allTests := append([]TestMeta{}, testCapabilities()...)
+	allTests = append(allTests, postTestCapabilities()...)
+	tier1, tier2 := partitionTier(allTests)
+
 	return &Manifest{
 		FormatVersion: "1.0",
 		Commands:      commands(),
 		Components: Components{
-			Aggregators: sortedAggregationTypes(),
-			Attributes:  sortedAttributeTypes(),
-			Filterers:   sortedFiltererTypes(),
-			Groupers:    sortedGroupTypes(),
-			Windows:     sortedWindowTypes(),
-			Features:    sortedFeatureTypes(),
+			Aggregators: sortByName(aggregatorCapabilities()),
+			Attributes:  sortByName(attributeCapabilities()),
+			Filterers:   sortByName(filtererCapabilities()),
+			Groupers:    sortByName(grouperCapabilities()),
+			Windows:     sortByName(windowCapabilities()),
+			Features:    sortByName(featureCapabilities()),
 		},
-		CohortTypes: cohortFieldTypes(),
-		Skills:      sortedSkills(),
+		Tests:              tier1,
+		PostTests:          tier2,
+		SynthDistributions: sortDistributions(distributionCapabilities()),
+		ErrorCodes:         errorCapabilities(),
+		MCPTools:           mcpToolCapabilities(),
+		CohortTypes:        cohortFieldTypes(),
+		Skills:             sortedSkills(),
 	}
 }
 

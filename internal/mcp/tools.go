@@ -6,75 +6,54 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/internal/mcp/mcptools"
 	"github.com/frankbardon/pulse/skills"
 	"github.com/frankbardon/pulse/types"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// Tool name constants. Source of truth for the documentation coverage gate
-// (TestSkillsCoverAllMCPTools).
+// Tool name and description constants are sourced from the mcptools
+// sub-package so the descriptor manifest can mirror them without taking
+// a dependency on this package (which imports the root pulse package
+// and would create an import cycle).
 const (
-	ToolInspect    = "pulse_inspect"
-	ToolPredict    = "pulse_predict"
-	ToolProcess    = "pulse_process"
-	ToolCompose    = "pulse_compose"
-	ToolSample     = "pulse_sample"
-	ToolFacet      = "pulse_facet"
-	ToolSkillsList = "pulse_skills_list"
-	ToolSkillsGet  = "pulse_skills_get"
-	ToolManifest   = "pulse_manifest"
-)
+	ToolInspect    = mcptools.ToolInspect
+	ToolPredict    = mcptools.ToolPredict
+	ToolProcess    = mcptools.ToolProcess
+	ToolCompose    = mcptools.ToolCompose
+	ToolSample     = mcptools.ToolSample
+	ToolFacet      = mcptools.ToolFacet
+	ToolSkillsList = mcptools.ToolSkillsList
+	ToolSkillsGet  = mcptools.ToolSkillsGet
+	ToolManifest   = mcptools.ToolManifest
 
-// Tool description copy. Kept as exported constants so the descriptor
-// manifest can mirror what an MCP client sees in its tool list without
-// re-importing this package's full server wiring.
-const (
-	DescInspect    = "Read header and schema of a .pulse file. Never reads record data."
-	DescPredict    = "Validate a processing request against a cohort schema without executing."
-	DescProcess    = "Execute a processing request against a cohort."
-	DescCompose    = "Execute a batch of processing requests."
-	DescSample     = "Return up to N rows from a cohort."
-	DescFacet      = "Return distinct values for a field in a cohort."
-	DescSkillsList = "List available embedded skills with their descriptions."
-	DescSkillsGet  = "Fetch the markdown body of a named skill."
-	DescManifest   = "Return the root Pulse manifest. Call once at session start. Cache the result. Reference it for every subsequent request authoring decision."
+	DescInspect    = mcptools.DescInspect
+	DescPredict    = mcptools.DescPredict
+	DescProcess    = mcptools.DescProcess
+	DescCompose    = mcptools.DescCompose
+	DescSample     = mcptools.DescSample
+	DescFacet      = mcptools.DescFacet
+	DescSkillsList = mcptools.DescSkillsList
+	DescSkillsGet  = mcptools.DescSkillsGet
+	DescManifest   = mcptools.DescManifest
 )
 
 // ToolMeta is the canonical (name, description) record for one registered
-// MCP tool. Order in RegisteredToolsMeta matches RegisteredTools so the
-// descriptor manifest stays deterministic.
-type ToolMeta struct {
-	Name        string
-	Description string
-}
+// MCP tool. Alias of mcptools.ToolMeta so callers do not need to import
+// the sub-package directly.
+type ToolMeta = mcptools.ToolMeta
 
 // RegisteredToolsMeta returns the canonical list of MCP tools with their
-// description strings. Order is stable for deterministic documentation
-// and manifest scans.
+// description strings.
 func RegisteredToolsMeta() []ToolMeta {
-	return []ToolMeta{
-		{Name: ToolInspect, Description: DescInspect},
-		{Name: ToolPredict, Description: DescPredict},
-		{Name: ToolProcess, Description: DescProcess},
-		{Name: ToolCompose, Description: DescCompose},
-		{Name: ToolSample, Description: DescSample},
-		{Name: ToolFacet, Description: DescFacet},
-		{Name: ToolSkillsList, Description: DescSkillsList},
-		{Name: ToolSkillsGet, Description: DescSkillsGet},
-		{Name: ToolManifest, Description: DescManifest},
-	}
+	return mcptools.Meta()
 }
 
 // RegisteredTools returns the canonical list of MCP tool names exposed by
 // this server. Order is stable for deterministic documentation scans.
 func RegisteredTools() []string {
-	meta := RegisteredToolsMeta()
-	out := make([]string, len(meta))
-	for i, m := range meta {
-		out[i] = m.Name
-	}
-	return out
+	return mcptools.Names()
 }
 
 func registerTools(s *server.MCPServer, p *pulse.Pulse) {

@@ -77,19 +77,19 @@ func TestManifestIncludesComponents(t *testing.T) {
 		t.Error("Windows is empty")
 	}
 
-	// Check aggregators are sorted.
+	// Check aggregators are sorted by Name.
 	for i := 1; i < len(m.Components.Aggregators); i++ {
-		if m.Components.Aggregators[i] < m.Components.Aggregators[i-1] {
+		if m.Components.Aggregators[i].Name < m.Components.Aggregators[i-1].Name {
 			t.Errorf("aggregators not sorted: %s before %s",
-				m.Components.Aggregators[i-1], m.Components.Aggregators[i])
+				m.Components.Aggregators[i-1].Name, m.Components.Aggregators[i].Name)
 		}
 	}
 
-	// Check windows are sorted.
+	// Check windows are sorted by Name.
 	for i := 1; i < len(m.Components.Windows); i++ {
-		if m.Components.Windows[i] < m.Components.Windows[i-1] {
+		if m.Components.Windows[i].Name < m.Components.Windows[i-1].Name {
 			t.Errorf("windows not sorted: %s before %s",
-				m.Components.Windows[i-1], m.Components.Windows[i])
+				m.Components.Windows[i-1].Name, m.Components.Windows[i].Name)
 		}
 	}
 }

@@ -46,148 +46,3508 @@
     ],
     "components": {
       "aggregators": [
-        "AGG_AVERAGE",
-        "AGG_COUNT",
-        "AGG_DISTINCT_COUNT",
-        "AGG_FREQUENCY",
-        "AGG_GEO_BBOX",
-        "AGG_GEO_CENTROID",
-        "AGG_KURTOSIS",
-        "AGG_MAX",
-        "AGG_MEDIAN",
-        "AGG_MIN",
-        "AGG_MODE",
-        "AGG_PERCENTILE",
-        "AGG_RANGE",
-        "AGG_SKEWNESS",
-        "AGG_STDDEV",
-        "AGG_SUM",
-        "AGG_VARIANCE",
-        "AGG_ZSCORE"
+        {
+          "name": "AGG_AVERAGE",
+          "category": "aggregator",
+          "description": "Arithmetic mean of the field across the input set.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_COUNT",
+          "category": "aggregator",
+          "description": "Count records that pass the active filter, optionally by group.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar int64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_DISTINCT_COUNT",
+          "category": "aggregator",
+          "description": "Count of distinct non-null values across the input set.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar int64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_FREQUENCY",
+          "category": "aggregator",
+          "description": "Per-distinct-value count of the field (returned as map in Details).",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "map[string]int64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_GEO_BBOX",
+          "category": "aggregator",
+          "description": "Bounding box (min/max lat/lon) of point_f64 values.",
+          "params": null,
+          "accepts_types": [
+            "point_f64"
+          ],
+          "emits_type_note": "object {min_lat, max_lat, min_lon, max_lon}",
+          "streamable": false
+        },
+        {
+          "name": "AGG_GEO_CENTROID",
+          "category": "aggregator",
+          "description": "Spherical centroid (lat, lon) of point_f64 values.",
+          "params": null,
+          "accepts_types": [
+            "point_f64"
+          ],
+          "emits_type_note": "point_f64 (lat, lon)",
+          "streamable": false
+        },
+        {
+          "name": "AGG_KURTOSIS",
+          "category": "aggregator",
+          "description": "Bias-corrected excess kurtosis via online moments.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_MAX",
+          "category": "aggregator",
+          "description": "Largest non-null value of the field.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_MEDIAN",
+          "category": "aggregator",
+          "description": "50th percentile of the field; requires sorting the full value set.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": false,
+          "streamable_hint": "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path."
+        },
+        {
+          "name": "AGG_MIN",
+          "category": "aggregator",
+          "description": "Smallest non-null value of the field.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_MODE",
+          "category": "aggregator",
+          "description": "Most-frequent value of the field (ties broken by first-seen order).",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "string (echoes the dictionary value or stringified scalar)",
+          "streamable": true
+        },
+        {
+          "name": "AGG_PERCENTILE",
+          "category": "aggregator",
+          "description": "Configurable percentile of the field; requires sorting the full value set.",
+          "params": [
+            {
+              "name": "percentile",
+              "type": "float",
+              "required": true,
+              "description": "Percentile to compute, in [0, 100]. e.g. 95 for p95."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": false,
+          "streamable_hint": "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input."
+        },
+        {
+          "name": "AGG_RANGE",
+          "category": "aggregator",
+          "description": "Spread (max minus min) of the field across the input set.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_SKEWNESS",
+          "category": "aggregator",
+          "description": "Bias-corrected skewness via online moments.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_STDDEV",
+          "category": "aggregator",
+          "description": "Population standard deviation via Welford's online algorithm.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_SUM",
+          "category": "aggregator",
+          "description": "Sum the numeric values of the field across the input set.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (decimal128 preserved when input is decimal)",
+          "streamable": true
+        },
+        {
+          "name": "AGG_VARIANCE",
+          "category": "aggregator",
+          "description": "Population variance via Welford's online algorithm.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_ZSCORE",
+          "category": "aggregator",
+          "description": "Standardized z-score aggregate (mean-centered, stddev-scaled summary).",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": false,
+          "streamable_hint": "Streaming uses online Welford moments; the ZSCORE aggregate finalize step needs the full deviation sum."
+        }
       ],
       "attributes": [
-        "ATTR_DATE_PART",
-        "ATTR_FORMULA",
-        "ATTR_NORMALIZED",
-        "ATTR_PERCENTILE",
-        "ATTR_TSCORE",
-        "ATTR_ZSCORE"
+        {
+          "name": "ATTR_DATE_PART",
+          "category": "attribute",
+          "description": "Extract a calendar component (year, month, day, year_month, year_month_day, month_day) from a date field.",
+          "params": [
+            {
+              "name": "part",
+              "type": "enum",
+              "required": true,
+              "description": "Which calendar component to extract.",
+              "enum_values": [
+                "day",
+                "month",
+                "month_day",
+                "year",
+                "year_month",
+                "year_month_day"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "encoded integer per record (e.g. year_month=YYYYMM)",
+          "streamable": true
+        },
+        {
+          "name": "ATTR_FORMULA",
+          "category": "attribute",
+          "description": "Per-row expression evaluation against the record's fields (e.g. \"price * qty\").",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per record (booleans coerce to 0/1)",
+          "streamable": true
+        },
+        {
+          "name": "ATTR_NORMALIZED",
+          "category": "attribute",
+          "description": "Per-row min-max normalization: (value − min) / (max − min) ∈ [0, 1].",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per record in [0, 1]",
+          "streamable": true
+        },
+        {
+          "name": "ATTR_PERCENTILE",
+          "category": "attribute",
+          "description": "Per-row percentile rank against the post-filter value set; requires sorting.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per record in (0, 100]",
+          "streamable": false,
+          "streamable_hint": "Use ATTR_NORMALIZED for a streaming-friendly rank proxy."
+        },
+        {
+          "name": "ATTR_TSCORE",
+          "category": "attribute",
+          "description": "Per-row T-score: z-score scaled and shifted to mean 50, stddev 10.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per record",
+          "streamable": true
+        },
+        {
+          "name": "ATTR_ZSCORE",
+          "category": "attribute",
+          "description": "Per-row standardized z-score: (value − mean) / stddev computed via Welford two-pass streaming.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per record (NaN when stddev=0)",
+          "streamable": true
+        }
       ],
       "filterers": [
-        "FILTER_EXCLUDE",
-        "FILTER_EXPRESSION",
-        "FILTER_GEO_WITHIN",
-        "FILTER_GEO_WITHIN_RADIUS_M",
-        "FILTER_INCLUDE",
-        "FILTER_RANGE"
+        {
+          "name": "FILTER_EXCLUDE",
+          "category": "filterer",
+          "description": "Drop records whose field value appears in the supplied Values list.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "record-level predicate (no emitted column)",
+          "streamable": true
+        },
+        {
+          "name": "FILTER_EXPRESSION",
+          "category": "filterer",
+          "description": "Keep records for which Expression evaluates truthy; reads any record field.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true
+        },
+        {
+          "name": "FILTER_GEO_WITHIN",
+          "category": "filterer",
+          "description": "Keep point_f64 records that lie inside the supplied polygon (Values lists vertices).",
+          "params": null,
+          "accepts_types": [
+            "point_f64"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true
+        },
+        {
+          "name": "FILTER_GEO_WITHIN_RADIUS_M",
+          "category": "filterer",
+          "description": "Keep point_f64 records within radius (m) of a reference point; Values=[lat, lon, radius_m].",
+          "params": null,
+          "accepts_types": [
+            "point_f64"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true
+        },
+        {
+          "name": "FILTER_INCLUDE",
+          "category": "filterer",
+          "description": "Keep records whose field value appears in the supplied Values list.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "record-level predicate (no emitted column)",
+          "streamable": true
+        },
+        {
+          "name": "FILTER_RANGE",
+          "category": "filterer",
+          "description": "Keep records whose numeric field value falls within [low, high]; Values=[low, high].",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true
+        }
       ],
       "groupers": [
-        "GROUP_CATEGORY",
-        "GROUP_DATE",
-        "GROUP_H3_CELL",
-        "GROUP_QUANTILE",
-        "GROUP_RANGE",
-        "GROUP_ROUNDED"
+        {
+          "name": "GROUP_CATEGORY",
+          "category": "grouper",
+          "description": "Partition records by exact field value; ideal for categorical fields.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "string group key per row",
+          "streamable": true
+        },
+        {
+          "name": "GROUP_DATE",
+          "category": "grouper",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week).",
+          "params": [
+            {
+              "name": "component",
+              "type": "enum",
+              "required": false,
+              "default": "month",
+              "description": "Calendar component to bucket by.",
+              "enum_values": [
+                "day",
+                "day_of_week",
+                "month",
+                "quarter",
+                "week",
+                "year"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date"
+          ],
+          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01)",
+          "streamable": false,
+          "streamable_hint": "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute."
+        },
+        {
+          "name": "GROUP_H3_CELL",
+          "category": "grouper",
+          "description": "Group spatial records by H3 cell at the configured resolution; accepts point_f64 (converts inline) or h3_cell (re-bins via parent walk).",
+          "params": [
+            {
+              "name": "resolution",
+              "type": "int",
+              "required": true,
+              "description": "Target H3 resolution in [0, 15]; finer resolutions bucket more aggressively."
+            }
+          ],
+          "accepts_types": [
+            "h3_cell",
+            "point_f64"
+          ],
+          "emits_type_note": "string H3 cell index per row",
+          "streamable": true
+        },
+        {
+          "name": "GROUP_QUANTILE",
+          "category": "grouper",
+          "description": "Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100).",
+          "params": [
+            {
+              "name": "interval",
+              "type": "int",
+              "required": false,
+              "default": 4,
+              "description": "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set on the request's Group.Interval field, not in Params."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "bucket label per row (Qk / Dk / Pk)",
+          "streamable": false,
+          "streamable_hint": "Quantile cutoffs need the sorted value set; use GROUP_RANGE or GROUP_ROUNDED with known bounds for streaming."
+        },
+        {
+          "name": "GROUP_RANGE",
+          "category": "grouper",
+          "description": "Partition numeric records into half-open ranges [a, b); Interval controls the bucket width.",
+          "params": [
+            {
+              "name": "interval",
+              "type": "float",
+              "required": true,
+              "description": "Bucket width on the value axis; set on the request's Group.Interval field."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "string bucket label per row (e.g. \"[10, 20)\")",
+          "streamable": true
+        },
+        {
+          "name": "GROUP_ROUNDED",
+          "category": "grouper",
+          "description": "Round each numeric value to the nearest multiple of Interval and group by the rounded scalar.",
+          "params": [
+            {
+              "name": "interval",
+              "type": "float",
+              "required": true,
+              "description": "Rounding increment; set on the request's Group.Interval field."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "rounded numeric key per row",
+          "streamable": true
+        }
       ],
       "windows": [
-        "WIN_DENSE_RANK",
-        "WIN_EWMA",
-        "WIN_LAG",
-        "WIN_LEAD",
-        "WIN_MOVING_AVG",
-        "WIN_PCT_CHANGE",
-        "WIN_RANK",
-        "WIN_ROW_NUMBER",
-        "WIN_RUNNING_AVG",
-        "WIN_RUNNING_SUM"
+        {
+          "name": "WIN_DENSE_RANK",
+          "category": "window",
+          "description": "Dense rank with no gaps after ties (1, 2, 2, 3, …) within the ordered partition.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "u32",
+          "emits_type_note": "one integer per row",
+          "streamable": false
+        },
+        {
+          "name": "WIN_EWMA",
+          "category": "window",
+          "description": "Exponentially weighted moving average; current = α·value + (1−α)·previous.",
+          "params": [
+            {
+              "name": "alpha",
+              "type": "float",
+              "required": true,
+              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row",
+          "streamable": false
+        },
+        {
+          "name": "WIN_LAG",
+          "category": "window",
+          "description": "Return the value of Field from the row N positions before the current row in the ordered partition.",
+          "params": [
+            {
+              "name": "offset",
+              "type": "int",
+              "required": false,
+              "default": 1,
+              "description": "Lookback offset (≥ 1)."
+            },
+            {
+              "name": "default",
+              "type": "any",
+              "required": false,
+              "description": "Substitute value when the lookback row does not exist."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row (Default when offset crosses partition start)",
+          "streamable": false
+        },
+        {
+          "name": "WIN_LEAD",
+          "category": "window",
+          "description": "Return the value of Field from the row N positions after the current row in the ordered partition.",
+          "params": [
+            {
+              "name": "offset",
+              "type": "int",
+              "required": false,
+              "default": 1,
+              "description": "Lookahead offset (≥ 1)."
+            },
+            {
+              "name": "default",
+              "type": "any",
+              "required": false,
+              "description": "Substitute value when the lookahead row does not exist."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row",
+          "streamable": false
+        },
+        {
+          "name": "WIN_MOVING_AVG",
+          "category": "window",
+          "description": "Moving average of Field over the configured Frame; Frame width must be bounded.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row (NaN when frame is empty)",
+          "streamable": false
+        },
+        {
+          "name": "WIN_PCT_CHANGE",
+          "category": "window",
+          "description": "Percent change relative to the row Periods positions earlier in the ordered partition.",
+          "params": [
+            {
+              "name": "periods",
+              "type": "int",
+              "required": false,
+              "default": 1,
+              "description": "Lookback offset (≥ 1) for the comparison row."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row (NaN when previous value is zero or missing)",
+          "streamable": false
+        },
+        {
+          "name": "WIN_RANK",
+          "category": "window",
+          "description": "Sparse rank with gaps after ties (1, 2, 2, 4, …) within the ordered partition.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "u32",
+          "emits_type_note": "one integer per row",
+          "streamable": false
+        },
+        {
+          "name": "WIN_ROW_NUMBER",
+          "category": "window",
+          "description": "1-based row index within the ordered partition.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "u32",
+          "emits_type_note": "one integer per row (resets per partition)",
+          "streamable": false
+        },
+        {
+          "name": "WIN_RUNNING_AVG",
+          "category": "window",
+          "description": "Running average of Field over the configured Frame within the ordered partition.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row",
+          "streamable": false
+        },
+        {
+          "name": "WIN_RUNNING_SUM",
+          "category": "window",
+          "description": "Running total of Field over the configured Frame within the ordered partition.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row",
+          "streamable": false
+        }
       ],
       "features": [
-        "FEAT_BUCKETIZE",
-        "FEAT_DATE_FEATURES",
-        "FEAT_FREQUENCY_ENCODE",
-        "FEAT_LOG",
-        "FEAT_ONE_HOT",
-        "FEAT_SQRT",
-        "FEAT_TARGET_ENCODE",
-        "FEAT_TRAIN_TEST_SPLIT"
+        {
+          "name": "FEAT_BUCKETIZE",
+          "category": "feature",
+          "description": "Bin a numeric column into ordered buckets using explicit boundaries or N equal-population quantiles.",
+          "params": [
+            {
+              "name": "boundaries",
+              "type": "list",
+              "required": false,
+              "description": "Sorted ascending list of bucket cutpoints (mutually exclusive with quantiles)."
+            },
+            {
+              "name": "quantiles",
+              "type": "int",
+              "required": false,
+              "description": "Number of equal-population buckets (mutually exclusive with boundaries)."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "u32",
+          "emits_type_note": "single column \"\u003clabel\u003e\" with bucket index per row",
+          "streamable": true
+        },
+        {
+          "name": "FEAT_DATE_FEATURES",
+          "category": "feature",
+          "description": "Expand a date field into year, month, day, day_of_week, and is_weekend columns.",
+          "params": null,
+          "accepts_types": [
+            "date"
+          ],
+          "emits_type_note": "multiple columns: \u003clabel\u003e_year, \u003clabel\u003e_month, \u003clabel\u003e_day, \u003clabel\u003e_day_of_week, \u003clabel\u003e_is_weekend",
+          "streamable": true
+        },
+        {
+          "name": "FEAT_FREQUENCY_ENCODE",
+          "category": "feature",
+          "description": "Replace each categorical value with its observed relative frequency in the cohort.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8"
+          ],
+          "emits_type": "f32",
+          "emits_type_note": "single column \"\u003clabel\u003e\" with frequency per row",
+          "streamable": true
+        },
+        {
+          "name": "FEAT_LOG",
+          "category": "feature",
+          "description": "Per-row natural log of Field; emits one f64 column.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "single column \"\u003clabel\u003e\" (default LOG_\u003cfield\u003e)",
+          "streamable": true
+        },
+        {
+          "name": "FEAT_ONE_HOT",
+          "category": "feature",
+          "description": "One-hot encode a categorical field as one f32 column per dictionary entry.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8"
+          ],
+          "emits_type_note": "one column per dictionary entry, prefixed by label",
+          "streamable": true
+        },
+        {
+          "name": "FEAT_SQRT",
+          "category": "feature",
+          "description": "Per-row square root of Field; emits one f64 column.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "single column \"\u003clabel\u003e\" (default SQRT_\u003cfield\u003e)",
+          "streamable": true
+        },
+        {
+          "name": "FEAT_TARGET_ENCODE",
+          "category": "feature",
+          "description": "Replace each categorical value with the smoothed mean of a numeric Target field for that category.",
+          "params": [
+            {
+              "name": "target",
+              "type": "field",
+              "required": true,
+              "description": "Numeric field whose grouped mean is encoded into the output column.",
+              "field_filter": "numeric"
+            },
+            {
+              "name": "smoothing",
+              "type": "float",
+              "required": false,
+              "default": 0,
+              "description": "Bayesian smoothing weight blending category mean with global mean."
+            }
+          ],
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8"
+          ],
+          "emits_type": "f32",
+          "emits_type_note": "single column \"\u003clabel\u003e\"; risk of target leakage on non-CV pipelines",
+          "streamable": true
+        },
+        {
+          "name": "FEAT_TRAIN_TEST_SPLIT",
+          "category": "feature",
+          "description": "Emit a deterministic split assignment column (0=train, 1=val, 2=test) for ML workflows.",
+          "params": [
+            {
+              "name": "ratios",
+              "type": "list",
+              "required": true,
+              "description": "Two- or three-element ratio list summing to ~1.0."
+            },
+            {
+              "name": "seed",
+              "type": "int",
+              "required": false,
+              "default": 0,
+              "description": "RNG seed; same seed produces byte-identical assignments."
+            },
+            {
+              "name": "stratify",
+              "type": "field",
+              "required": false,
+              "description": "Optional categorical field; ratios are applied per category for class balance.",
+              "field_filter": "categorical"
+            }
+          ],
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "u8",
+          "emits_type_note": "single column \"\u003clabel\u003e\" with split assignment per row",
+          "streamable": true
+        }
       ]
     },
+    "tests": [
+      {
+        "name": "TEST_ANOVA_F",
+        "family": "TEST_ANOVA_F",
+        "tier": 1,
+        "description": "One-way ANOVA F-test comparing Field means across the categorical SplitBy partition.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_ANOVA_RM",
+        "family": "TEST_ANOVA_RM",
+        "tier": 1,
+        "description": "Repeated-measures one-way ANOVA; rows pivoted on SubjectField × SplitBy condition.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy",
+          "SubjectField"
+        ]
+      },
+      {
+        "name": "TEST_ANOVA_WELCH",
+        "family": "TEST_ANOVA_WELCH",
+        "tier": 1,
+        "description": "Heteroscedasticity-robust one-way ANOVA with Welch-Satterthwaite df correction.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_BROWN_FORSYTHE",
+        "family": "TEST_BROWN_FORSYTHE",
+        "tier": 1,
+        "description": "Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_CHISQ",
+        "family": "TEST_CHISQ",
+        "tier": 1,
+        "description": "Chi-square independence test on a 2D Rows×Cols contingency table.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Rows",
+          "Cols"
+        ]
+      },
+      {
+        "name": "TEST_FISHER_EXACT",
+        "family": "TEST_FISHER_EXACT",
+        "tier": 1,
+        "description": "Exact two-sided p-value for a 2×2 Rows×Cols contingency table; small-sample CHISQ alternative.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Rows",
+          "Cols"
+        ]
+      },
+      {
+        "name": "TEST_KENDALL_TAU",
+        "family": "TEST_KENDALL_TAU",
+        "tier": 1,
+        "description": "Concordance-based correlation between Field and Field2; buffered O(n²) pair count.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      },
+      {
+        "name": "TEST_KRUSKAL_WALLIS",
+        "family": "TEST_KRUSKAL_WALLIS",
+        "tier": 1,
+        "description": "Nonparametric k-group location test; ANOVA-like rank sums under tie correction.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_KS",
+        "family": "TEST_KS",
+        "tier": 1,
+        "description": "Kolmogorov-Smirnov two-sample distribution test on Field partitioned by SplitBy.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "alternative",
+            "type": "enum",
+            "required": false,
+            "default": "two-sided",
+            "description": "One- or two-sided test.",
+            "enum_values": [
+              "greater",
+              "less",
+              "two-sided"
+            ]
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_MANN_WHITNEY_U",
+        "family": "TEST_MANN_WHITNEY_U",
+        "tier": 1,
+        "description": "Nonparametric two-sample location test; buffered tie-corrected rank sum.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_PAIRED_T",
+        "family": "TEST_PAIRED_T",
+        "tier": 1,
+        "description": "Paired-sample t-test on the per-row difference d = Field − Field2.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      },
+      {
+        "name": "TEST_PEARSON_R",
+        "family": "TEST_PEARSON_R",
+        "tier": 1,
+        "description": "Parametric Pearson correlation between Field and Field2; reports r and a t-test p-value.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      },
+      {
+        "name": "TEST_PROP_Z",
+        "family": "TEST_PROP_Z",
+        "tier": 1,
+        "description": "Two-proportion z-test on the success rate of Field across two SplitBy groups.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "success",
+            "type": "string",
+            "required": true,
+            "description": "Dictionary value of Field treated as a success."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_SHAPIRO_WILK",
+        "family": "TEST_SHAPIRO_WILK",
+        "tier": 1,
+        "description": "Shapiro-Wilk normality test on Field; runs per-group when SplitBy is set (n ≤ 5000).",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field"
+        ]
+      },
+      {
+        "name": "TEST_SPEARMAN_R",
+        "family": "TEST_SPEARMAN_R",
+        "tier": 1,
+        "description": "Rank-based correlation between Field and Field2 (monotonic association).",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      },
+      {
+        "name": "TEST_T",
+        "family": "TEST_T",
+        "tier": 1,
+        "description": "One-sample or two-sample Welch t-test on a numeric Field; SplitBy switches to the two-sample variant.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "mu",
+            "type": "float",
+            "required": false,
+            "default": 0,
+            "description": "Hypothesized mean for the one-sample variant (ignored when SplitBy is set)."
+          }
+        ],
+        "requires": [
+          "Field"
+        ]
+      },
+      {
+        "name": "TEST_WELCH",
+        "family": "TEST_WELCH",
+        "tier": 1,
+        "description": "Explicit two-sample Welch t-test alias; identical to TEST_T with SplitBy.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_WILCOXON_SR",
+        "family": "TEST_WILCOXON_SR",
+        "tier": 1,
+        "description": "Wilcoxon signed-rank test on per-row d = Field − Field2; buffered tie-corrected sign-rank sum.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      }
+    ],
+    "post_tests": [
+      {
+        "name": "TEST_ANOVA_F/one_way_from_summary",
+        "family": "TEST_ANOVA_F",
+        "tier": 2,
+        "variant": "one_way_from_summary",
+        "description": "One-way ANOVA on per-group summary statistics (mean, variance, n) materialized by upstream aggregators.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_ANOVA_WELCH/welch_one_way_post",
+        "family": "TEST_ANOVA_WELCH",
+        "tier": 2,
+        "variant": "welch_one_way_post",
+        "description": "Welch one-way ANOVA on per-group summary statistics materialized by upstream aggregators.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_BROWN_FORSYTHE/median_post",
+        "family": "TEST_BROWN_FORSYTHE",
+        "tier": 2,
+        "variant": "median_post",
+        "description": "Brown-Forsythe homogeneity-of-variance test on output columns; absolute deviations from medians.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_KENDALL_TAU/tau_b_post",
+        "family": "TEST_KENDALL_TAU",
+        "tier": 2,
+        "variant": "tau_b_post",
+        "description": "Kendall tau-b correlation between two output columns of the result row set.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      },
+      {
+        "name": "TEST_KS/two_sample_post",
+        "family": "TEST_KS",
+        "tier": 2,
+        "variant": "two_sample_post",
+        "description": "Kolmogorov-Smirnov two-sample test between two output columns of the result row set.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      },
+      {
+        "name": "TEST_PAIRED_T/paired_two_sided_post",
+        "family": "TEST_PAIRED_T",
+        "tier": 2,
+        "variant": "paired_two_sided_post",
+        "description": "Paired t-test on the per-row difference of two output columns.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      },
+      {
+        "name": "TEST_PEARSON_R/pearson_post",
+        "family": "TEST_PEARSON_R",
+        "tier": 2,
+        "variant": "pearson_post",
+        "description": "Pearson correlation between two output columns of the result row set.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      },
+      {
+        "name": "TEST_SHAPIRO_WILK/shapiro_francia_post",
+        "family": "TEST_SHAPIRO_WILK",
+        "tier": 2,
+        "variant": "shapiro_francia_post",
+        "description": "Shapiro-Francia normality test on an output column (Shapiro-Wilk variant for the post-row set).",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field"
+        ]
+      },
+      {
+        "name": "TEST_SPEARMAN_R/rank_pearson_post",
+        "family": "TEST_SPEARMAN_R",
+        "tier": 2,
+        "variant": "rank_pearson_post",
+        "description": "Spearman rank correlation between two output columns of the result row set.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      },
+      {
+        "name": "TEST_TREND",
+        "family": "TEST_TREND",
+        "tier": 2,
+        "variant": "mann_kendall",
+        "description": "Mann-Kendall trend test on an ordered numeric series; tier-2 over windowed result rows.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "OrderBy"
+        ]
+      },
+      {
+        "name": "TEST_TUKEY_HSD",
+        "family": "TEST_TUKEY_HSD",
+        "tier": 2,
+        "variant": "tukey_kramer",
+        "description": "Post-hoc pairwise comparison of group means using Tukey's Honestly Significant Difference.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "ms_within",
+            "type": "float",
+            "required": true,
+            "description": "Within-group mean square from a prior ANOVA aggregate."
+          },
+          {
+            "name": "df_within",
+            "type": "float",
+            "required": true,
+            "description": "Within-group degrees of freedom from a prior ANOVA aggregate."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      },
+      {
+        "name": "TEST_WILCOXON_SR/asymptotic_post",
+        "family": "TEST_WILCOXON_SR",
+        "tier": 2,
+        "variant": "asymptotic_post",
+        "description": "Wilcoxon signed-rank test on the per-row difference of two output columns (asymptotic p-value).",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "Field2"
+        ]
+      }
+    ],
+    "synth_distributions": [
+      {
+        "name": "bernoulli",
+        "description": "Bernoulli samples emitting 0 or 1 with probability p.",
+        "applies_to": [
+          "bool",
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "p",
+            "type": "float",
+            "required": false,
+            "default": 0.5,
+            "description": "Probability of 1 in [0, 1]."
+          }
+        ]
+      },
+      {
+        "name": "constant",
+        "description": "Emit a constant value on every row; useful for unit testing and placeholder fields.",
+        "applies_to": [
+          "any"
+        ],
+        "params": [
+          {
+            "name": "value",
+            "type": "any",
+            "required": true,
+            "description": "Value to emit on every row (interpreted by field type)."
+          }
+        ]
+      },
+      {
+        "name": "exponential",
+        "description": "Exponential samples with rate parameter lambda.",
+        "applies_to": [
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "lambda",
+            "type": "float",
+            "required": false,
+            "default": 1,
+            "description": "Rate parameter (\u003e 0); mean is 1/lambda."
+          }
+        ]
+      },
+      {
+        "name": "lognormal",
+        "description": "Log-normal samples with log-space mu and sigma.",
+        "applies_to": [
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "mu",
+            "type": "float",
+            "required": false,
+            "default": 0,
+            "description": "Log-space mean."
+          },
+          {
+            "name": "sigma",
+            "type": "float",
+            "required": false,
+            "default": 1,
+            "description": "Log-space standard deviation (\u003e 0)."
+          }
+        ]
+      },
+      {
+        "name": "monotonic_from",
+        "description": "Strictly increasing or decreasing integer counter; useful for synthetic primary keys.",
+        "applies_to": [
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "start",
+            "type": "int",
+            "required": false,
+            "default": 0,
+            "description": "First emitted value."
+          },
+          {
+            "name": "step",
+            "type": "int",
+            "required": false,
+            "default": 1,
+            "description": "Increment per row (non-zero)."
+          }
+        ]
+      },
+      {
+        "name": "normal",
+        "description": "Gaussian samples with optional [min, max] clamp.",
+        "applies_to": [
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "mean",
+            "type": "float",
+            "required": false,
+            "default": 0,
+            "description": "Distribution mean."
+          },
+          {
+            "name": "std",
+            "type": "float",
+            "required": false,
+            "default": 1,
+            "description": "Standard deviation (\u003e 0)."
+          },
+          {
+            "name": "min",
+            "type": "float",
+            "required": false,
+            "description": "Optional lower clamp."
+          },
+          {
+            "name": "max",
+            "type": "float",
+            "required": false,
+            "description": "Optional upper clamp."
+          }
+        ]
+      },
+      {
+        "name": "pareto",
+        "description": "Heavy-tailed Pareto samples; xm is the scale, alpha the shape.",
+        "applies_to": [
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "xm",
+            "type": "float",
+            "required": false,
+            "default": 1,
+            "description": "Scale (minimum value, \u003e 0)."
+          },
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 1.5,
+            "description": "Shape (\u003e 0); larger alpha = lighter tail."
+          }
+        ]
+      },
+      {
+        "name": "poisson",
+        "description": "Poisson-distributed non-negative integers with mean lambda.",
+        "applies_to": [
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "lambda",
+            "type": "float",
+            "required": false,
+            "default": 1,
+            "description": "Rate parameter (\u003e 0); equal to the mean."
+          }
+        ]
+      },
+      {
+        "name": "regex",
+        "description": "String samples generated from a Perl regex pattern; bounded repetition counts must be finite.",
+        "applies_to": [
+          "categorical"
+        ],
+        "params": [
+          {
+            "name": "pattern",
+            "type": "string",
+            "required": true,
+            "description": "Regex source string (Perl/RE2 syntax)."
+          }
+        ]
+      },
+      {
+        "name": "uniform",
+        "description": "Uniform real-valued samples in [min, max).",
+        "applies_to": [
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "min",
+            "type": "float",
+            "required": false,
+            "default": 0,
+            "description": "Lower bound (inclusive)."
+          },
+          {
+            "name": "max",
+            "type": "float",
+            "required": false,
+            "default": 1,
+            "description": "Upper bound (exclusive)."
+          }
+        ]
+      },
+      {
+        "name": "uniform_date",
+        "description": "Uniform date samples in [start, end] (days-since-epoch internally).",
+        "applies_to": [
+          "date"
+        ],
+        "params": [
+          {
+            "name": "start",
+            "type": "string",
+            "required": true,
+            "description": "ISO-8601 calendar date (YYYY-MM-DD)."
+          },
+          {
+            "name": "end",
+            "type": "string",
+            "required": true,
+            "description": "ISO-8601 calendar date (YYYY-MM-DD); must exceed start."
+          }
+        ]
+      },
+      {
+        "name": "weighted_categorical",
+        "description": "Discrete categorical samples drawn from values with optional weights.",
+        "applies_to": [
+          "categorical"
+        ],
+        "params": [
+          {
+            "name": "values",
+            "type": "list",
+            "required": true,
+            "description": "List of dictionary values to draw from."
+          },
+          {
+            "name": "weights",
+            "type": "list",
+            "required": false,
+            "description": "Optional weight list matching values length; uniform when absent."
+          }
+        ]
+      }
+    ],
+    "error_codes": [
+      {
+        "code": "CLI_COMMAND",
+        "domain": "CLI",
+        "severity": "error",
+        "description": "A CLI command failed to dispatch or returned a non-zero status."
+      },
+      {
+        "code": "CLI_INPUT",
+        "domain": "CLI",
+        "severity": "error",
+        "description": "A CLI argument or flag is malformed (missing value, unknown subcommand, bad JSON)."
+      },
+      {
+        "code": "CLI_INTERNAL",
+        "domain": "CLI",
+        "severity": "error",
+        "description": "Internal invariant violated inside the CLI binary; report with reproducer."
+      },
+      {
+        "code": "CLI_OUTPUT",
+        "domain": "CLI",
+        "severity": "error",
+        "description": "Output generation failed (file write error, terminal too narrow, format unsupported)."
+      },
+      {
+        "code": "DATA_CALCULATION",
+        "domain": "DATA",
+        "severity": "error",
+        "description": "A calculation over data values failed (e.g., reading a field that does not exist on the record)."
+      },
+      {
+        "code": "DATA_CONFIG",
+        "domain": "DATA",
+        "severity": "error",
+        "description": "An I/O job's configuration is invalid (conflicting flags, unknown format, bad target path)."
+      },
+      {
+        "code": "DATA_FILE",
+        "domain": "DATA",
+        "severity": "error",
+        "description": "A data file could not be opened or its layout is invalid."
+      },
+      {
+        "code": "DATA_INTERNAL",
+        "domain": "DATA",
+        "severity": "error",
+        "description": "Internal invariant violated inside the data layer; report with reproducer."
+      },
+      {
+        "code": "DATA_PARSE",
+        "domain": "DATA",
+        "severity": "error",
+        "description": "Tabular input (CSV / TSV / JSON / Parquet) failed to parse at a row boundary."
+      },
+      {
+        "code": "ENCODING_INTERNAL",
+        "domain": "ENCODING",
+        "severity": "error",
+        "description": "Internal invariant violated inside the encoding layer; report with reproducer."
+      },
+      {
+        "code": "ENCODING_INVALID",
+        "domain": "ENCODING",
+        "severity": "error",
+        "description": "The .pulse file header or schema block is malformed (bad magic, unsupported format version, or invalid field-type byte)."
+      },
+      {
+        "code": "ENCODING_IO",
+        "domain": "ENCODING",
+        "severity": "error",
+        "description": "An I/O failure occurred while reading or writing the binary .pulse file."
+      },
+      {
+        "code": "ENCODING_TYPE_MISMATCH",
+        "domain": "ENCODING",
+        "severity": "error",
+        "description": "A value cannot be encoded into its declared field type (out of range, wrong sign, or wrong unit)."
+      },
+      {
+        "code": "PROCESSING_CONFIG",
+        "domain": "PROCESSING",
+        "severity": "error",
+        "description": "An operator's configuration is invalid (missing params, wrong type, out-of-range value)."
+      },
+      {
+        "code": "PROCESSING_GROUP",
+        "domain": "PROCESSING",
+        "severity": "error",
+        "description": "Group construction failed (e.g., quantile with zero-variance input, malformed bucket key)."
+      },
+      {
+        "code": "PROCESSING_INTERNAL",
+        "domain": "PROCESSING",
+        "severity": "error",
+        "description": "Internal invariant violated inside the processing layer; report with reproducer."
+      },
+      {
+        "code": "PROCESSING_RUNTIME",
+        "domain": "PROCESSING",
+        "severity": "error",
+        "description": "An operator failed during row processing (formula compile failure, divide-by-zero, etc.)."
+      },
+      {
+        "code": "PROCESSING_STATE",
+        "domain": "PROCESSING",
+        "severity": "error",
+        "description": "Pipeline state-machine invariant violated mid-run (typically a streaming-pass ordering bug)."
+      },
+      {
+        "code": "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A numeric aggregation (SUM, AVERAGE, etc.) was requested on a categorical field."
+      },
+      {
+        "code": "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "An aggregation has no defined semantics for the decimal128 field type (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1)."
+      },
+      {
+        "code": "PULSE_AGG_NOT_MEANINGFUL_FOR_GEO",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A numeric aggregator was requested on a geospatial field (point_f64 / h3_cell)."
+      },
+      {
+        "code": "PULSE_DECIMAL_DIVIDE_BY_ZERO",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A decimal divide operation observed a zero divisor."
+      },
+      {
+        "code": "PULSE_DECIMAL_OVERFLOW",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A decimal arithmetic result exceeds the decimal128(38) representable range."
+      },
+      {
+        "code": "PULSE_DECIMAL_PRECISION_LOSS",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A decimal aggregation fell back to f64 because intermediate state would have overflowed decimal128(38)."
+      },
+      {
+        "code": "PULSE_EXPORT_ROW_ERROR",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A row could not be exported due to a per-cell value-to-string conversion failure."
+      },
+      {
+        "code": "PULSE_FEAT_TARGET_LEAKAGE_RISK",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "FEAT_TARGET_ENCODE was requested without a prior FEAT_TRAIN_TEST_SPLIT; encoded values include rows that should be held out."
+      },
+      {
+        "code": "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A field description is empty, too short, or matches a generic-word denylist (\"n/a\", \"tbd\", etc.)."
+      },
+      {
+        "code": "PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "An AGG_GEO_BBOX input crosses the 180/-180 meridian, where a flat min/max bbox is ambiguous."
+      },
+      {
+        "code": "PULSE_GEO_INVALID_POINT",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A point parse failed or |lat|\u003e90 / |lon|\u003e180."
+      },
+      {
+        "code": "PULSE_GEO_INVALID_POLYGON",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A WKT POLYGON parse failed or the outer ring is not closed."
+      },
+      {
+        "code": "PULSE_GEO_INVALID_RESOLUTION",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "An H3 resolution is out of [0, 15] or finer than a cell's native resolution when walking parents."
+      },
+      {
+        "code": "PULSE_IMPORT_CATEGORICAL_OVERFLOW",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A categorical column's observed dictionary exceeded the declared width capacity (u8 / u16 / u32)."
+      },
+      {
+        "code": "PULSE_IMPORT_CATEGORICAL_UNBOUNDED",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "The categorical inference heuristic believes the column has unbounded cardinality and should be modeled as a string."
+      },
+      {
+        "code": "PULSE_IMPORT_DESCRIPTION_TOO_LONG",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A field description exceeds the 1000-byte cap defined for the .pulse header."
+      },
+      {
+        "code": "PULSE_IMPORT_ROW_ERROR",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A row could not be imported due to a per-cell encoding or parse failure."
+      },
+      {
+        "code": "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "Schema inference observed conflicting types in the same column across the sample window."
+      },
+      {
+        "code": "PULSE_PROFILE_FIELD_UNSUPPORTED",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "The profile layer cannot summarize this field type (e.g., point_f64 / h3_cell); the field is skipped."
+      },
+      {
+        "code": "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "Rejection sampling for declared constraints exceeded the allowed rejection rate; the generator gives up rather than produce biased output."
+      },
+      {
+        "code": "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A synth spec referenced a distribution kind not registered in the synth package."
+      },
+      {
+        "code": "PULSE_TEST_BALANCED_DESIGN_REQUIRED",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A repeated-measures test observed unequal cell counts; only balanced designs are supported in v1."
+      },
+      {
+        "code": "PULSE_TEST_CONTINGENCY_DEGENERATE",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A chi-square contingency table is empty or has a single row/column."
+      },
+      {
+        "code": "PULSE_TEST_CORRELATION_UNDEFINED",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "Pearson r encountered a column with zero variance; r and its t-statistic are undefined."
+      },
+      {
+        "code": "PULSE_TEST_EXPECTED_COUNT_TOO_LOW",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A chi-square cell's expected count is below 5; the asymptotic χ² approximation is unreliable."
+      },
+      {
+        "code": "PULSE_TEST_FIELD2_NOT_NUMERIC",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "Field2 for a paired or bivariate test (PEARSON_R, PAIRED_T) resolves to a non-numeric schema type."
+      },
+      {
+        "code": "PULSE_TEST_FIELD_NOT_NUMERIC",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A test requires a numeric field but the named field resolves to a categorical, geo, or otherwise non-numeric schema type."
+      },
+      {
+        "code": "PULSE_TEST_FISHER_R_OR_C_GT_2",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "Fisher exact requires a 2×2 table; r×c support lands separately."
+      },
+      {
+        "code": "PULSE_TEST_INSUFFICIENT_N",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A test received fewer non-null observations than the minimum needed to compute its statistic."
+      },
+      {
+        "code": "PULSE_TEST_INVALID_ALPHA",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "The request's Alpha value lies outside (0, 1)."
+      },
+      {
+        "code": "PULSE_TEST_PAIRED_LENGTH_MISMATCH",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A paired test encountered rows with one of the paired columns null while the other is present; drop-pair semantics applied."
+      },
+      {
+        "code": "PULSE_TEST_SHAPIRO_N_BOUND",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A Shapiro-Wilk request observed n above the supported limit (5000); use an asymptotic normality test instead."
+      },
+      {
+        "code": "PULSE_TEST_SPLIT_GROUPS_LT_2",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A two-sample or ANOVA test observed fewer than the required number of distinct groups in the SplitBy field."
+      },
+      {
+        "code": "PULSE_TEST_SUBJECT_MISSING",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A repeated-measures test found at least one subject missing one or more conditions; incomplete subjects dropped by default."
+      },
+      {
+        "code": "PULSE_TEST_SUCCESS_VALUE_MISSING",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "TEST_PROP_Z did not supply Params.success; the test cannot decide which category counts as a positive outcome."
+      },
+      {
+        "code": "PULSE_TEST_TIES_DOMINATE",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A rank-based test observed ties on ≥ 50 % of input values; the asymptotic approximation loses accuracy."
+      },
+      {
+        "code": "PULSE_TEST_TUKEY_REQUIRES_K_GE_3",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "Tukey HSD requires k ≥ 3 groups; a t-test or two-proportion z is the appropriate alternative for k = 2."
+      },
+      {
+        "code": "PULSE_TEST_UNKNOWN_TYPE",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "The request referenced a TestType not registered in either the row-test or post-test registry."
+      },
+      {
+        "code": "PULSE_TEST_VARIANCE_ZERO",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "One or more groups have zero sample variance, making the t- or F-statistic undefined."
+      },
+      {
+        "code": "PULSE_WINDOW_INVALID",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "A window operator's configuration is invalid (bad frame, alpha out of bounds, no order key, label collision)."
+      },
+      {
+        "code": "SERVICE_INTERNAL",
+        "domain": "SERVICE",
+        "severity": "error",
+        "description": "Internal invariant violated inside the service orchestration layer; report with reproducer."
+      },
+      {
+        "code": "SERVICE_REGISTRY",
+        "domain": "SERVICE",
+        "severity": "error",
+        "description": "The request named an operator that is not registered (typo in type field, deprecated identifier)."
+      },
+      {
+        "code": "SERVICE_RESOURCE",
+        "domain": "SERVICE",
+        "severity": "error",
+        "description": "A required resource could not be opened (missing .pulse file, unreadable path)."
+      },
+      {
+        "code": "SERVICE_VALIDATION",
+        "domain": "SERVICE",
+        "severity": "error",
+        "description": "The request failed pre-execution validation (missing required fields, invalid combinations, schema mismatch)."
+      }
+    ],
+    "mcp_tools": [
+      {
+        "name": "pulse_compose",
+        "description": "Execute a batch of processing requests."
+      },
+      {
+        "name": "pulse_facet",
+        "description": "Return distinct values for a field in a cohort."
+      },
+      {
+        "name": "pulse_inspect",
+        "description": "Read header and schema of a .pulse file. Never reads record data."
+      },
+      {
+        "name": "pulse_manifest",
+        "description": "Return the root Pulse manifest. Call once at session start. Cache the result. Reference it for every subsequent request authoring decision."
+      },
+      {
+        "name": "pulse_predict",
+        "description": "Validate a processing request against a cohort schema without executing."
+      },
+      {
+        "name": "pulse_process",
+        "description": "Execute a processing request against a cohort."
+      },
+      {
+        "name": "pulse_sample",
+        "description": "Return up to N rows from a cohort."
+      },
+      {
+        "name": "pulse_skills_get",
+        "description": "Fetch the markdown body of a named skill."
+      },
+      {
+        "name": "pulse_skills_list",
+        "description": "List available embedded skills with their descriptions."
+      }
+    ],
     "cohort_types": [
       {
         "name": "u8",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "u16",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "u32",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "u64",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "f32",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "f64",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "nullable_bool",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "nullable_u4",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "nullable_u8",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "nullable_u16",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "date",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_DATE_PART",
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_DATE",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_DATE_FEATURES",
+          "FEAT_LOG",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "packed_bool",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "categorical_u8",
-        "categorical": true
+        "categorical": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_FREQUENCY_ENCODE",
+          "FEAT_ONE_HOT",
+          "FEAT_TARGET_ENCODE",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "categorical_u16",
-        "categorical": true
+        "categorical": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_FREQUENCY_ENCODE",
+          "FEAT_ONE_HOT",
+          "FEAT_TARGET_ENCODE",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "categorical_u32",
-        "categorical": true
+        "categorical": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_FREQUENCY_ENCODE",
+          "FEAT_ONE_HOT",
+          "FEAT_TARGET_ENCODE",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "decimal128",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "nullable_decimal128",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SUM"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "point_f64",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_GEO_BBOX",
+          "AGG_GEO_CENTROID",
+          "AGG_MODE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_GEO_WITHIN",
+          "FILTER_GEO_WITHIN_RADIUS_M",
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_H3_CELL"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "h3_cell",
-        "categorical": false
+        "categorical": false,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_H3_CELL"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       }
     ],
     "skills": [
@@ -264,4 +3624,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2da7c0e258acf28df07c14a792fcde216a8d2c08ca4fecdacfe6c593211d4dd2
+// golden-hash: 06cdd18d078fd5fc6096b8abd70648ed8666a8cd91636b6e56fc921aff24b6c0

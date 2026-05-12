@@ -33,11 +33,14 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A new non-skippable CI gate | `CLAUDE.md` (gate listed by name in the relevant section) | `TestClaudeMdMentionsAllNonSkippableGates` |
 | A new architectural decision | `CLAUDE.md` (relevant section) + PRD if applicable | reviewer enforcement |
 | An environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
-| A registered MCP tool (added/removed) | `skills/mcp-integration.md` (Tool surface table) | `TestSkillsCoverAllMCPTools` |
-| A registered feature operator | `skills/feature-engineering.md` (operator catalog) | `TestSkillsCoverAllComponents` |
-| A registered synth distribution kind | `skills/synthetic-data.md` (Supported distributions) | `TestSkillsCoverAllSynthDistributions` |
-| A registered statistical test (`TEST_*`) | `skills/statistical-testing.md` (Operator catalog) + `types/streamability.go` + `types/streamability_test.go` | `TestStreamability_TestsKnown` |
-| A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known` |
+| A registered MCP tool (added/removed) | `skills/mcp-integration.md` (Tool surface table) + `internal/mcp/mcptools/meta.go` (name + description) | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
+| A registered feature operator | `skills/feature-engineering.md` (operator catalog) + capability declaration in `descriptor/capabilities_features.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
+| A registered synth distribution kind | `skills/synthetic-data.md` (Supported distributions) + capability declaration in `descriptor/capabilities_distributions.go` | `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
+| A registered statistical test (`TEST_*`) | `skills/statistical-testing.md` (Operator catalog) + `types/streamability.go` + `types/streamability_test.go` + capability declaration in `descriptor/capabilities_tests.go` | `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
+| A registered tier-2 post-test variant | Capability declaration in `descriptor/capabilities_tests.go` (`postTestCapabilities`) | `TestManifestPostTestsComplete` |
+| A registered aggregator/attribute/filterer/grouper/window capability metadata | Capability declaration in `descriptor/capabilities_<category>.go` (params, accepts_types, emits_type, streamable_hint) | `TestManifestOperatorsComplete` |
+| A new error code | Description row in `descriptor/capabilities_errors.go` (`errorMetaTable`) | `TestManifestErrorCodesComplete` |
+| A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known`, `TestManifestStreamableMatchesTypes` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 
@@ -77,6 +80,7 @@ pulse/
 ├── internal/
 │   ├── cli/                # CLI internals (descriptor walker, json action)
 │   └── mcp/                # MCP server: tool + resource handlers wrapping pulse.Pulse
+│       └── mcptools/       # Leaf metadata package (tool names + descriptions) consumed by descriptor
 ```
 
 ### Library-first pattern
@@ -212,6 +216,27 @@ All `--json` CLI output and all descriptor operations use the `descriptor.Envelo
 - **No hand-built XML/CDATA.** If any XML output is ever added, it must use `encoding/xml`, not string concatenation.
 - Envelope construction uses `descriptor.NewEnvelope(data)` which sets `format_version`, empty `errors`, and empty `warnings` automatically.
 
+### Manifest payload
+
+`descriptor.BuildManifest()` returns the canonical Pulse self-description and is reachable via `pulse manifest --json` and the `pulse_manifest` MCP tool. The payload is designed as a single LLM-bootstrap blob: one fetch per session, cached client-side.
+
+Top-level fields on `Manifest`:
+
+- `format_version` — always `"1.0"`.
+- `commands []Command` — CLI leaf catalog.
+- `components Components` — six `[]Operator` slices (aggregators, attributes, filterers, groupers, windows, features). Each `Operator` carries `name`, `category`, `description`, `params`, `accepts_types`, `emits_type` / `emits_type_note`, `streamable`, `streamable_hint`.
+- `tests []TestMeta` — tier-1 statistical tests. Each entry has `tier:1`, `family==name`, `params`, `requires`, `streamable` mirroring `types.TestType.Streamable()`.
+- `post_tests []TestMeta` — tier-2 post-tests (natively-tier-2 entries `TEST_TREND` / `TEST_TUKEY_HSD` plus registered variants like `pearson_post`, `welch_one_way_post`). Each entry has `tier:2`, non-empty `variant`, `family` referencing the underlying `TestType`. `streamable` is always false. Tier-1 and tier-2 are peer slices, not nested.
+- `synth_distributions []DistributionMeta` — one entry per `synth.AllDistributions()` value with `applies_to` and `params`.
+- `error_codes []ErrorMeta` — one entry per `errors.AllCodes()` value with `domain`, `severity` (`error|warning`), `description`, and a `fixups` slot (currently empty; reserved for the error-fixup-hints work).
+- `mcp_tools []MCPTool` — one entry per `internal/mcp/mcptools.Names()` value with `description`.
+- `cohort_types []CohortFieldType` — one entry per field type with `compatible_aggregators`, `compatible_attributes`, `compatible_filterers`, `compatible_groupers`, `compatible_windows`, `compatible_features` cross-references derived deterministically from per-operator `accepts_types`.
+- `skills []SkillMeta` — embedded skill index from `skills.List()`.
+
+Operator-category slices are sorted by `Name`. Compatible-list cross-refs are sorted by operator name. The payload is golden-checked (`descriptor/testdata/manifest.json`).
+
+Capability declarations for components, tests, distributions, and error codes live in `descriptor/capabilities_*.go`. MCP tool name + description metadata lives in `internal/mcp/mcptools/meta.go` so the descriptor package can mirror it without an import cycle. Tests `TestManifestOperatorsComplete`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestErrorCodesComplete`, `TestManifestMCPToolsComplete`, `TestManifestStreamableMatchesTypes`, `TestCohortTypeCrossRefsDeterministic`, and `TestManifest_SkillsNotEmpty` enforce completeness and consistency.
+
 ## Predict / Inspect / Manifest Contracts
 
 ### Predict: no-execute structural ban
@@ -233,7 +258,7 @@ Fields without stored descriptions get a synthesized fallback (`"Categorical fie
 
 ### Manifest: determinism
 
-`descriptor.BuildManifest()` returns a deterministic `Manifest` struct. All component lists (aggregators, attributes, filterers, groupers) are sorted alphabetically. The manifest includes: commands (7 CLI leaves), components, cohort field types (all 15), and skills metadata. `format_version` is `"1.0"`.
+`descriptor.BuildManifest()` returns a deterministic `Manifest` struct. Every operator, test, distribution, error code, MCP tool, cohort type, and skill list is sorted lexically. The payload includes: commands, six `[]Operator` component slices (aggregators, attributes, filterers, groupers, windows, features), tier-1 tests, tier-2 post-tests (peer to tier-1), synth distributions, error codes, MCP tools, cohort field types with operator cross-references, and skill metadata. `format_version` is `"1.0"`. See "Manifest payload" under Output Format Contract above for the field-by-field shape.
 
 ### Predict: streamability flag
 
@@ -300,6 +325,16 @@ Forced buffered:
 - `TestStreamability_AggregationsKnown`, `TestStreamability_AttributesKnown`, `TestStreamability_FilterersKnown`, `TestStreamability_GroupsKnown`, `TestStreamability_WindowsKnown`, `TestStreamability_FeaturesKnown` — exhaustiveness gates: every type listed in `All*Types()` must have an explicit entry in the per-type streamability table
 - `TestCanStreamRequest_RegressionMatrix` — regression matrix on the exported `processing.CanStreamRequest` helper used by predict's parity gate
 - `TestStreamability_TestsKnown` — exhaustiveness gate for `TestType.Streamable()` covering every entry in `types.AllTestTypes()`
+- `TestManifest_HasMCPTool` — verifies `pulse_manifest` is registered in `internal/mcp.RegisteredTools()`
+- `TestManifest_SkillsNotEmpty` — verifies `Manifest.Skills` is populated from `skills.List()` (not the previously-hardcoded empty slice)
+- `TestManifestOperatorsComplete` — for every type in `types.All*Types()`, asserts a corresponding `Operator` exists in the manifest with non-empty `AcceptsTypes` and a curated `Description`
+- `TestManifestStreamableMatchesTypes` — for every `Operator` in the manifest, asserts its `Streamable` flag mirrors `types.X.Streamable()`
+- `TestManifestTestsComplete` — for every `TestType` in `types.AllTestTypes()`, asserts a tier-1 entry in `Manifest.Tests` (or a tier-2 entry for the natively-tier-2 families `TEST_TREND` / `TEST_TUKEY_HSD`)
+- `TestManifestPostTestsComplete` — verifies every `Manifest.PostTests` entry has `Tier:2`, non-empty `Variant`, and a `Family` value present in `types.AllTestTypes()`
+- `TestManifestDistributionsComplete` — for every entry in `synth.AllDistributions()`, asserts a `DistributionMeta` entry
+- `TestManifestErrorCodesComplete` — for every entry in `errors.AllCodes()`, asserts an `ErrorMeta` entry with a curated description (no fallback sentinel)
+- `TestManifestMCPToolsComplete` — for every entry in `mcptools.Names()`, asserts an `MCPTool` entry
+- `TestCohortTypeCrossRefsDeterministic` — verifies each `CohortFieldType`'s `Compatible*` slices are sorted lexically (required for golden stability)
 
 ## Skill Pack Maintenance
 
