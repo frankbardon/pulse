@@ -40,6 +40,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A registered tier-2 post-test variant | Capability declaration in `descriptor/capabilities_tests.go` (`postTestCapabilities`) | `TestManifestPostTestsComplete` |
 | A registered aggregator/attribute/filterer/grouper/window capability metadata | Capability declaration in `descriptor/capabilities_<category>.go` (params, accepts_types, emits_type, streamable_hint) | `TestManifestOperatorsComplete` |
 | A new error code | Description row in `descriptor/capabilities_errors.go` (`errorMetaTable`) | `TestManifestErrorCodesComplete` |
+| An error code's fixup template | Entry in `errors/fixup_metadata.go` (`codeMetadata`) + `**Fixup**:` line in `skills/error-code-reference.md` under that code | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` |
 | A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known`, `TestManifestStreamableMatchesTypes` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
@@ -333,6 +334,8 @@ Forced buffered:
 - `TestManifestPostTestsComplete` — verifies every `Manifest.PostTests` entry has `Tier:2`, non-empty `Variant`, and a `Family` value present in `types.AllTestTypes()`
 - `TestManifestDistributionsComplete` — for every entry in `synth.AllDistributions()`, asserts a `DistributionMeta` entry
 - `TestManifestErrorCodesComplete` — for every entry in `errors.AllCodes()`, asserts an `ErrorMeta` entry with a curated description (no fallback sentinel)
+- `TestCodesHaveFixups` — for every entry in `errors.AllCodes()`, asserts an entry in `errors/fixup_metadata.go` (`codeMetadata`) carrying either at least one `Fixup` template or `FixupNotApplicable: true`
+- `TestSkillsErrorCodeFixupsDocumented` — for every error code, asserts the `### CODE` section in `skills/error-code-reference.md` carries a `**Fixup**:` line
 - `TestManifestMCPToolsComplete` — for every entry in `mcptools.Names()`, asserts an `MCPTool` entry
 - `TestCohortTypeCrossRefsDeterministic` — verifies each `CohortFieldType`'s `Compatible*` slices are sorted lexically (required for golden stability)
 

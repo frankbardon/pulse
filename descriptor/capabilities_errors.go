@@ -101,6 +101,23 @@ func errorCapabilities() []ErrorMeta {
 			m = ErrorMeta{Code: s, Severity: "error", Description: "Undocumented error code; add an entry to errorMetaTable."}
 		}
 		m.Domain = errorDomain(s)
+		// Populate the manifest's prose Fixup hints from the per-code
+		// metadata table in errors/. The structured Fixup (action,
+		// path, examples) stays reachable in-process via
+		// errors.Code.Fixup(req); the manifest carries only the prose
+		// Hint slice so the wire payload stays slim.
+		if meta, ok := errors.MetadataFor(c); ok && !meta.FixupNotApplicable {
+			hints := make([]string, 0, len(meta.Fixups))
+			for _, fx := range meta.Fixups {
+				if strings.TrimSpace(fx.Hint) == "" {
+					continue
+				}
+				hints = append(hints, fx.Hint)
+			}
+			if len(hints) > 0 {
+				m.Fixups = hints
+			}
+		}
 		out = append(out, m)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })

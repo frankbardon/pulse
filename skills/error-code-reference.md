@@ -36,6 +36,8 @@ Errors from the binary format and data encoding layer.
 - Re-import the source data to regenerate the `.pulse` file.
 - Check for partial writes (e.g., interrupted import).
 
+**Fixup**: REQUIRES_RESCHEMA — re-import the source data to regenerate the `.pulse` file; the existing file is corrupt or was written by an incompatible binary.
+
 ### ENCODING_IO
 
 **Description**: I/O failure during read/write operations on encoded data.
@@ -49,6 +51,8 @@ Errors from the binary format and data encoding layer.
 - Check file path and permissions.
 - Ensure sufficient disk space for output files.
 - Retry the operation if the failure was transient.
+
+**Fixup**: REPLACE_FIELD (`Cohort.Filename`) — verify the path is reachable, the process has permission, and the filesystem has free space.
 
 ### ENCODING_TYPE_MISMATCH
 
@@ -64,9 +68,13 @@ Errors from the binary format and data encoding layer.
 - Use a wider type (e.g., u16 instead of u8) if values exceed the range.
 - Re-import with corrected schema.
 
+**Fixup**: REQUIRES_RESCHEMA — widen the field type (u8 → u16, f32 → f64) or pre-clean the source data to fit the declared type, then re-import.
+
 ### ENCODING_INTERNAL
 
 Unexpected failure in the encoder/decoder. Recovery: see shared *_INTERNAL note above.
+
+**Fixup**: not applicable — this is a Pulse bug, not a user-fixable request error.
 </reference>
 
 <reference>
@@ -87,6 +95,8 @@ Errors from the processing engine and pipeline.
 - Review the request JSON for correctness.
 - Use `api predict` to validate the request before executing.
 
+**Fixup**: SET_DEFAULT — run `pulse predict --json` first; predict names the offending operator and parameter so the fix is mechanical.
+
 ### PROCESSING_STATE
 
 **Description**: Context state management error during processing.
@@ -97,6 +107,8 @@ Errors from the processing engine and pipeline.
 
 **Recovery**:
 - Retry the request. If the error persists, simplify the request to isolate the issue.
+
+**Fixup**: not applicable — this is a Pulse bug, not a user-fixable request error.
 
 ### PROCESSING_RUNTIME
 
@@ -112,6 +124,8 @@ Errors from the processing engine and pipeline.
 - Add filters to exclude problematic records.
 - Use `api predict` to catch issues before execution.
 
+**Fixup**: REPLACE_FIELD (`Attributes[*].Formula`) — guard the formula with a null/zero check; or REPLACE_OPERATOR (`Filterers`) — add a `FILTER_RANGE` that excludes the rows that trip the runtime error.
+
 ### PROCESSING_GROUP
 
 **Description**: Group-related processing error.
@@ -125,9 +139,13 @@ Errors from the processing engine and pipeline.
 - Verify grouper configuration: field type compatibility and interval values.
 - Use GROUP_ROUNDED instead of GROUP_CATEGORY for high-cardinality numeric fields.
 
+**Fixup**: REPLACE_OPERATOR (`Groups[*].Type`) — swap `GROUP_QUANTILE` for `GROUP_RANGE` on near-constant fields, or `GROUP_CATEGORY` on a high-cardinality numeric for `GROUP_ROUNDED`.
+
 ### PROCESSING_INTERNAL
 
 Unexpected failure in the processing pipeline. Recovery: see shared *_INTERNAL note above.
+
+**Fixup**: not applicable — this is a Pulse bug, not a user-fixable request error.
 </reference>
 
 <reference>
@@ -151,6 +169,8 @@ Errors from the HTTP/API layer and service operations.
 - For removed attribute types, follow the migration hint in the error message; e.g., `ATTR_RANK` request emits a hint with `details.replacement = "WIN_RANK"`. See `skills/window-operations.md`.
 - Use `api predict` to check the request.
 
+**Fixup**: SET_DEFAULT — call `pulse predict --json` first; it reports the exact missing or malformed field path so the fix is mechanical.
+
 ### SERVICE_RESOURCE
 
 **Description**: Resource loading or access failure.
@@ -163,6 +183,8 @@ Errors from the HTTP/API layer and service operations.
 **Recovery**:
 - Verify file paths in the request.
 - Check that data directories are accessible.
+
+**Fixup**: REPLACE_FIELD (`Cohort.Filename`) — verify the cohort filename exists under `PULSE_DATA_DIR` and the process has read access.
 
 ### SERVICE_REGISTRY
 
@@ -178,9 +200,13 @@ Errors from the HTTP/API layer and service operations.
 - Check the component type string against the manifest (`pulse --json`).
 - Ensure correct spelling and casing.
 
+**Fixup**: REPLACE_OPERATOR — check the operator name against `pulse manifest --json` (Components section); spelling and casing must match exactly.
+
 ### SERVICE_INTERNAL
 
 Unexpected failure in the service/orchestration layer. Recovery: see shared *_INTERNAL note above.
+
+**Fixup**: not applicable — this is a Pulse bug, not a user-fixable request error.
 </reference>
 
 <reference>
@@ -202,6 +228,8 @@ Errors from data file and dataset management operations.
 - Ensure the file is complete and not truncated.
 - Check file encoding is UTF-8.
 
+**Fixup**: REPLACE_FIELD — verify the input file exists, is non-empty, and matches the declared format (CSV / TSV / NDJSON / Parquet / Excel).
+
 ### DATA_PARSE
 
 **Description**: Data parsing or deserialization error.
@@ -215,6 +243,8 @@ Errors from data file and dataset management operations.
 - Inspect the source data for inconsistencies.
 - Use `--sample-rows` to test with a subset first.
 - Fix data quality issues in the source file.
+
+**Fixup**: REPLACE_FIELD — inspect the offending row with `pulse sample --rows N`; common causes are inconsistent column counts, stray quotes, or wrong delimiter.
 
 ### DATA_CONFIG
 
@@ -230,6 +260,8 @@ Errors from data file and dataset management operations.
 - Ensure field names are unique.
 - Use `import schema-template` to generate a valid starting schema.
 
+**Fixup**: SET_DEFAULT — re-run with `--help`; check that the format flag matches the file extension and the schema template names existing columns.
+
 ### DATA_CALCULATION
 
 **Description**: Error during data field access or calculation.
@@ -243,9 +275,13 @@ Errors from data file and dataset management operations.
 - Verify field references in the request.
 - Check that categorical dictionaries are consistent.
 
+**Fixup**: REPLACE_FIELD — verify every field reference in the request appears in `pulse inspect --json` output for the cohort.
+
 ### DATA_INTERNAL
 
 Unexpected failure in the data file/dataset layer. Recovery: see shared *_INTERNAL note above.
+
+**Fixup**: not applicable — this is a Pulse bug, not a user-fixable request error.
 </reference>
 
 <reference>
@@ -266,6 +302,8 @@ Errors from command-line interface operations.
 - Run the command with `--help` to see required flags.
 - Check flag values for correct types.
 
+**Fixup**: SET_DEFAULT — re-run with `--help` on the subcommand to confirm flag names and required values.
+
 ### CLI_OUTPUT
 
 **Description**: Output generation or file write error.
@@ -277,6 +315,8 @@ Errors from command-line interface operations.
 **Recovery**:
 - Check output path permissions and disk space.
 - Verify the output format is supported.
+
+**Fixup**: REPLACE_FIELD — pick a writable output path with free disk space, or omit `--output` to stream to stdout.
 
 ### CLI_COMMAND
 
@@ -290,9 +330,13 @@ Errors from command-line interface operations.
 - Check the wrapped error message for details.
 - Use `api predict` for processing-related commands.
 
+**Fixup**: SET_DEFAULT — check the wrapped error in the envelope details; for processing leaves, run `pulse predict --json` on the request first.
+
 ### CLI_INTERNAL
 
 Unexpected failure in the CLI adapter layer. Recovery: see shared *_INTERNAL note above.
+
+**Fixup**: not applicable — this is a Pulse bug, not a user-fixable request error.
 </reference>
 
 <reference>
@@ -313,6 +357,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Provide an explicit schema using `--schema`.
 - Use `import schema-template` to generate and hand-edit a schema.
 
+**Fixup**: SET_DEFAULT — increase `--sample-rows` so the inference window sees a representative subset, or supply `--schema` with an explicit type for the offending column.
+
 ### PULSE_IMPORT_ROW_ERROR
 
 **Description**: A per-row error during import. The row could not be encoded into the target schema.
@@ -326,6 +372,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Inspect the reported row number and field.
 - Fix the source data or use a wider/nullable type.
 
+**Fixup**: REQUIRES_RESCHEMA — inspect the reported row index in details; pick a wider or nullable field type, or pre-clean the source value before re-importing.
+
 ### PULSE_EXPORT_ROW_ERROR
 
 **Description**: A per-row error during export. A record could not be decoded into the target format.
@@ -337,6 +385,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Re-import the source data to regenerate the `.pulse` file.
 - Report the issue if the file was written by Pulse.
+
+**Fixup**: REQUIRES_RESCHEMA — re-import the source data to regenerate the `.pulse` file; the dictionary or encoding state is inconsistent.
 
 ### PULSE_IMPORT_CATEGORICAL_OVERFLOW
 
@@ -350,6 +400,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Use a wider categorical type (categorical_u16 or categorical_u32).
 - Review whether the field is truly categorical or should be treated differently.
 
+**Fixup**: REQUIRES_RESCHEMA — widen the categorical type (`categorical_u8` → `categorical_u16`, `categorical_u16` → `categorical_u32`) and re-import.
+
 ### PULSE_IMPORT_CATEGORICAL_UNBOUNDED
 
 **Description**: The sample data suggests unbounded cardinality for a categorical field. The number of distinct values grows linearly with sample size, suggesting the field is not truly categorical.
@@ -362,6 +414,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Change the field type to a non-categorical type.
 - If the field is truly categorical, increase sample size to confirm cardinality is bounded.
 
+**Fixup**: REQUIRES_RESCHEMA — re-import with the column declared as a non-categorical type; if cardinality is truly bounded, raise `--sample-rows` to confirm.
+
 ### PULSE_IMPORT_DESCRIPTION_TOO_LONG
 
 **Description**: A field description exceeds the 1000-byte limit.
@@ -373,6 +427,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Shorten the field description to under 1000 bytes.
 - Focus on essential information: what the field represents, units, and domain semantics.
 
+**Fixup**: REPLACE_FIELD — trim the description to ≤ 1000 bytes; keep what the field represents, drop the prose narrative.
+
 ### PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL
 
 **Description**: A numeric aggregation (SUM, AVERAGE, MIN, MAX, RANGE, MEDIAN, PERCENTILE, STDDEV, VARIANCE, SKEWNESS, KURTOSIS, ZSCORE) was requested on a categorical field. The operation will execute on dictionary indices, but the result has no semantic meaning.
@@ -383,6 +439,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Use AGG_COUNT, AGG_DISTINCT_COUNT, AGG_FREQUENCY, or AGG_MODE for categorical fields.
 - If you need any of SUM, AVERAGE, MIN, MAX, RANGE, MEDIAN, PERCENTILE, STDDEV, VARIANCE, SKEWNESS, KURTOSIS, or ZSCORE, use a non-categorical numeric field.
+
+**Fixup**: REPLACE_OPERATOR (`Aggregations[*].Type`) — use `AGG_MODE`, `AGG_FREQUENCY`, `AGG_DISTINCT_COUNT`, or `AGG_COUNT` for categorical fields; or REPLACE_FIELD (`Aggregations[*].Field`) — pick a non-categorical numeric field.
 
 ### PULSE_FIELD_DESCRIPTION_LOW_QUALITY
 
@@ -396,6 +454,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Improve the description with units, range, and domain meaning.
 - Include what the field represents, not just its name.
+
+**Fixup**: REPLACE_FIELD — provide a sentence (≥ 10 characters) describing what the field represents, including units and domain meaning.
 
 ### PULSE_WINDOW_INVALID
 
@@ -419,6 +479,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Fix the request per the rule above. Most fixes are mechanical: add `order_by`, drop the `frame` for ROW_NUMBER/RANK/DENSE_RANK, or pick a numeric field for the value-bearing operators.
 - See `skills/window-operations.md` for the full contract and per-operator semantics.
 
+**Fixup**: SET_DEFAULT (`Windows[*].OrderBy`) — every `WIN_*` operator requires at least one `OrderBy` key; supply a date or numeric field. Or REMOVE_PARAM (`Windows[*].Frame`) — drop `Frame` for ROW_NUMBER/RANK/DENSE_RANK/LAG/LEAD/PCT_CHANGE; supply `Frame` with bounded preceding/following for MOVING_AVG/EWMA/RUNNING_*.
+
 ### PULSE_FEAT_TARGET_LEAKAGE_RISK
 
 **Description**: `FEAT_TARGET_ENCODE` was requested without a preceding `FEAT_TRAIN_TEST_SPLIT` in the same `features` list. The encoder's per-category mean is computed across every row in the cohort, which means rows destined for the validation/test partitions contribute target signal to the training feature.
@@ -430,6 +492,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Reorder features so `FEAT_TRAIN_TEST_SPLIT` precedes every `FEAT_TARGET_ENCODE`.
 - See `skills/feature-engineering.md` for the leakage trap discussion.
+
+**Fixup**: REPLACE_OPERATOR (`Features`) — insert a `FEAT_TRAIN_TEST_SPLIT` operator before every `FEAT_TARGET_ENCODE` in the features list.
 
 ### PULSE_DECIMAL_OVERFLOW
 
@@ -444,6 +508,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Pick a coarser scale or split the cohort.
 - Use `AGG_AVERAGE` instead of `AGG_SUM` for very large series — the implementation falls back to `f64` and emits `PULSE_DECIMAL_PRECISION_LOSS` rather than failing.
 
+**Fixup**: REPLACE_OPERATOR (`Aggregations[*].Type`) — use `AGG_AVERAGE` instead of `AGG_SUM` for large series; the implementation falls back to f64 and emits `PULSE_DECIMAL_PRECISION_LOSS` instead of failing. Or REQUIRES_RESCHEMA — pick a coarser decimal scale or split the cohort.
+
 ### PULSE_DECIMAL_PRECISION_LOSS
 
 **Description**: Warning. An `AGG_AVERAGE` on a decimal128 field saw an intermediate sum that would have overflowed `decimal128(38)`. Pulse fell back to `f64` accumulation. The result is no longer auditor-defensible to the last digit.
@@ -451,6 +517,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - For audited workloads: split the cohort or pre-aggregate by a coarser grouping so each partial sum fits in 38 digits.
 - For non-audit workloads: ignore the warning.
+
+**Fixup**: REQUIRES_RESCHEMA — split the cohort or pre-aggregate by a coarser grouping so each partial sum fits in 38 digits; ignore the warning if auditor-grade precision is not required.
 
 ### PULSE_DECIMAL_DIVIDE_BY_ZERO
 
@@ -460,6 +528,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Guard the formula with a non-zero check (`FILTER_RANGE` on the divisor field).
 - Replace zero divisors with a sentinel before the operation runs.
 
+**Fixup**: REPLACE_OPERATOR (`Filterers`) — pre-filter zero divisors with `FILTER_RANGE` (min > 0 or max < 0) or guard the formula with an explicit non-zero check.
+
 ### PULSE_GEO_INVALID_POINT
 
 **Description**: A `point_f64` value parse failed, or the parsed lat/lon is out of range (`|lat| > 90` or `|lon| > 180`).
@@ -467,6 +537,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Check that the importer maps the source columns in the right order. WKT order is `POINT(lon lat)` even though Pulse stores `(lat, lon)` internally.
 - Use `pulse inspect` to confirm the field type and any per-column importer mapping.
+
+**Fixup**: REQUIRES_RESCHEMA — re-import with the latitude and longitude columns mapped in the correct order; WKT writes `POINT(lon lat)` but Pulse stores `(lat, lon)`.
 
 ### PULSE_GEO_INVALID_POLYGON
 
@@ -482,6 +554,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Repair the WKT. POLYGON v1 accepts a single closed outer ring only.
 - For complex geometries, decompose into multiple `FILTER_GEO_WITHIN` filters or wait for variable-length geometry support.
 
+**Fixup**: REPLACE_FIELD (`Filterers[*].Polygon`) — supply a single closed outer ring with first vertex equal to last; v1 rejects MULTIPOLYGON and inner-ring holes.
+
 ### PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS
 
 **Description**: `AGG_GEO_BBOX` saw an input set that crosses the 180/-180 meridian. A flat `(min_lat, min_lon, max_lat, max_lon)` bbox is ambiguous in that case.
@@ -491,6 +565,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Split the cohort by hemisphere with a `FILTER_RANGE` on longitude before aggregating.
 - Use `AGG_GEO_CENTROID` instead — the 3D unit-sphere algorithm handles antimeridian crossings correctly.
+
+**Fixup**: REPLACE_OPERATOR (`Aggregations[*].Type`) — use `AGG_GEO_CENTROID` (the 3D unit-sphere algorithm handles antimeridian crossings) or split the cohort by hemisphere with `FILTER_RANGE` on longitude.
 
 ### PULSE_GEO_INVALID_RESOLUTION
 
@@ -504,6 +580,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Pick a resolution in `[0, 15]`.
 - For `h3_cell` input: pick a resolution at most equal to the cell's native resolution. Inspect the cohort with `pulse inspect` to see the field's native resolution.
 
+**Fixup**: SET_DEFAULT (`Groups[*].Params.resolution`) — pick a resolution in `[0, 15]`; for `h3_cell` input, pick at most the cell's native resolution (parent walks only go coarser).
+
 ### PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL
 
 **Description**: Predict warning. The requested aggregation has no defined decimal128 implementation in v1.
@@ -515,6 +593,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Pick a supported aggregation, or cast the field to `f64` via an attribute and aggregate that.
 
+**Fixup**: REPLACE_OPERATOR (`Aggregations[*].Type`) — decimal fields support exact `AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_VARIANCE`, `AGG_STDDEV`, `AGG_COUNT`, `AGG_DISTINCT_COUNT`; pick one of those.
+
 ### PULSE_AGG_NOT_MEANINGFUL_FOR_GEO
 
 **Description**: A numeric aggregation was requested on a geospatial field (`point_f64` or `h3_cell`).
@@ -522,6 +602,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Use `AGG_GEO_CENTROID` or `AGG_GEO_BBOX` for `point_f64` value-bearing aggregations.
 - For `h3_cell`, group by the cell and aggregate on a numeric field.
+
+**Fixup**: REPLACE_OPERATOR (`Aggregations[*].Type`) — geo fields support `AGG_GEO_CENTROID`, `AGG_GEO_BBOX`, `AGG_COUNT`, `AGG_DISTINCT_COUNT`; pick one of those, or group by the cell and aggregate a numeric field.
 
 ### PULSE_SYNTH_DISTRIBUTION_UNKNOWN
 
@@ -531,6 +613,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Use `synth.AllDistributions()` (or `skills/synthetic-data.md`) to confirm the supported distribution names.
 - Common cause: typo (`gaussian` vs `normal`, `power_law` vs `pareto`).
 
+**Fixup**: REPLACE_OPERATOR — check the distribution name against `synth.AllDistributions()`; common typos: `gaussian` → `normal`, `power_law` → `pareto`.
+
 ### PULSE_SYNTH_CONSTRAINT_INFEASIBLE
 
 **Description**: Rejection sampling for declared synth constraints exceeded the allowed rejection rate (50% by default). The generator refuses to produce a biased or truncated cohort.
@@ -538,6 +622,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Relax the constraint, change the underlying distribution so it concentrates inside the constraint region, or raise `max_rejection_rate` if you accept the cost.
 - Inspect the per-row constraint expressions and verify they are stated correctly (e.g. `>=` vs `>`).
+
+**Fixup**: REQUIRES_RESCHEMA — relax the constraint, switch to a distribution that concentrates inside the constraint region, or raise `max_rejection_rate` if you accept the cost.
 
 ### PULSE_PROFILE_FIELD_UNSUPPORTED
 
@@ -547,6 +633,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Use schema-mode synthesis for the affected field instead of profile-driven mode.
 - Track follow-up work for native spatial profiling.
 
+**Fixup**: REQUIRES_RESCHEMA — synthesize the affected field from an explicit schema spec instead of relying on profile-driven mode.
+
 ### PULSE_TEST_UNKNOWN_TYPE
 
 **Description**: The request referenced a `TestType` not registered in either the row-test or post-test registry.
@@ -554,6 +642,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Check spelling against `types.AllTestTypes()` or `skills/statistical-testing.md`.
 - Confirm the test is registered for the intended tier — some tests only run as `tests` (tier 1), others only as `post_tests` (tier 2).
+
+**Fixup**: REPLACE_OPERATOR (`Tests[*].Type`) — check the test name against `types.AllTestTypes()`; confirm the test is registered for the intended tier (`Tests` vs `PostTests`).
 
 ### PULSE_TEST_FIELD_NOT_NUMERIC
 
@@ -563,6 +653,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Pick a numeric field, or cast the field through an attribute (`ATTR_FORMULA`) before running the test.
 - For chi-square (`TEST_CHISQ`), use `Rows` / `Cols` instead of `Field` — both must be categorical.
 
+**Fixup**: REPLACE_FIELD (`Tests[*].Field`) — pick a numeric field (`u*`, `f*`, `nullable_u*`, `decimal128`), or use `TEST_CHISQ` with `Rows`/`Cols` for categorical association.
+
 ### PULSE_TEST_INVALID_ALPHA
 
 **Description**: The `alpha` (significance threshold) is outside the open interval (0, 1).
@@ -570,6 +662,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Pick a value in (0, 1). Common choices: 0.10, 0.05, 0.01.
 - Leave `alpha` unset to accept the default (0.05).
+
+**Fixup**: SET_DEFAULT (`Tests[*].Alpha`) — pick a value in (0, 1); common choices are 0.10, 0.05, 0.01. Omit `Alpha` to accept the 0.05 default.
 
 ### PULSE_TEST_INSUFFICIENT_N
 
@@ -580,6 +674,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Choose a different test that tolerates small samples (e.g. exact Fisher's test instead of `TEST_CHISQ` — when available).
 - Aggregate or pool groups before running the test.
 
+**Fixup**: REQUIRES_RESCHEMA — widen upstream filters so ≥ 30 non-null rows remain per group, or pick a test that tolerates small samples (Fisher exact for 2×2 instead of chi-square).
+
 ### PULSE_TEST_VARIANCE_ZERO
 
 **Description**: One or more groups have zero sample variance, making the t- or F-statistic undefined.
@@ -587,6 +683,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Check whether the field is constant in the affected group(s) — that is usually the underlying signal, not a test failure.
 - Use a non-parametric alternative (e.g. `TEST_KS` for distribution comparison).
+
+**Fixup**: REPLACE_FIELD (`Tests[*].Field`) — field is constant in the affected group; pick a different field or use `TEST_KS` for distribution comparison on near-constant data.
 
 ### PULSE_TEST_SPLIT_GROUPS_LT_2
 
@@ -596,6 +694,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Verify the categorical field actually contains multiple values in the filtered set.
 - Loosen filters or change the `split_by` field.
 
+**Fixup**: REPLACE_FIELD (`Tests[*].SplitBy`) — pick a `SplitBy` field that resolves to ≥ 2 distinct categories after filtering, or relax upstream filters.
+
 ### PULSE_TEST_CONTINGENCY_DEGENERATE
 
 **Description**: A chi-square contingency table is empty or has only a single non-empty row or column. The statistic is undefined in that shape.
@@ -603,6 +703,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Verify both `rows` and `cols` resolve to fields with more than one observed level after filtering.
 - Aggregate rare levels into an "other" bucket before running the test.
+
+**Fixup**: REPLACE_FIELD — verify both `Rows` and `Cols` resolve to fields with more than one observed level; aggregate rare levels into an "other" bucket if needed.
 
 ### PULSE_TEST_EXPECTED_COUNT_TOO_LOW
 
@@ -613,6 +715,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Combine rare levels to increase per-cell expected counts.
 - Treat the result as advisory rather than decisive when sample sizes are small.
 
+**Fixup**: REPLACE_OPERATOR (`Tests[*].Type`) — use `TEST_FISHER_EXACT` for small 2×2 tables; for larger tables, pool rare levels to raise per-cell expected counts.
+
 ### PULSE_TEST_FIELD2_NOT_NUMERIC
 
 **Description**: A paired or bivariate test (`TEST_PAIRED_T`, `TEST_PEARSON_R`) was supplied a `field2` that resolves to a non-numeric schema type.
@@ -621,6 +725,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Pick a numeric field (`u*`, `f*`, `nullable_u*`, `decimal128`).
 - Cast the column via `ATTR_FORMULA` before running the test.
 
+**Fixup**: REPLACE_FIELD (`Tests[*].Field2`) — pick a numeric field (`u*`, `f*`, `nullable_u*`, `decimal128`), or cast the column via `ATTR_FORMULA` before running the test.
+
 ### PULSE_TEST_SUCCESS_VALUE_MISSING
 
 **Description**: `TEST_PROP_Z` requires `params.success` — the dictionary value treated as a positive outcome on the primary field. Without it the test cannot decide which category counts as a success.
@@ -628,6 +734,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Add `"params": {"success": "yes"}` (or whichever dictionary value represents success in your cohort) to the test spec.
 - Use `pulse cohort inspect` to confirm the categorical's dictionary values.
+
+**Fixup**: SET_DEFAULT (`Tests[*].Params.success`) — supply the dictionary value that represents success (e.g. `{"success": "yes"}`); use `pulse inspect` to list the categorical's dictionary values.
 
 ### PULSE_TEST_CORRELATION_UNDEFINED
 
@@ -638,6 +746,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Use Spearman ρ or Kendall τ (when available) for non-parametric monotonic association on near-constant data.
 - Remove the constant column from the request.
 
+**Fixup**: REPLACE_OPERATOR (`Tests[*].Type`) — Pearson r is undefined when either variable is constant; use `TEST_SPEARMAN_R` or `TEST_KENDALL_TAU` for monotonic association on near-constant data, or remove the constant column.
+
 ### PULSE_TEST_PAIRED_LENGTH_MISMATCH
 
 **Description**: A paired test (`TEST_WILCOXON_SR`, future paired variants) encountered rows where one paired column was null while the other was present. Drop-pair semantics apply — the row is excluded from the test — and the mismatch count surfaces as a warning so the caller knows the effective pair count.
@@ -646,6 +756,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - If the mismatch count is small relative to N, ignore the warning.
 - Pre-filter null pairs with a `FILTER_EXCLUDE` on either column to make the drop explicit.
 - Verify the upstream import did not introduce spurious nulls (e.g., a CSV column with empty cells).
+
+**Fixup**: REPLACE_OPERATOR (`Filterers`) — pre-filter rows where either paired column is null with `FILTER_EXCLUDE` so the effective pair count is explicit; or ignore the warning if the mismatch count is small.
 
 ### PULSE_TEST_TIES_DOMINATE
 
@@ -656,6 +768,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Bin the field upstream (e.g., `FEAT_BUCKETIZE`) only if discretization is acceptable — it does not improve accuracy of the original test.
 - Treat the p-value as advisory; the effect-direction statistic is still informative.
 
+**Fixup**: REPLACE_OPERATOR — treat the p-value as advisory; for small n with heavy ties prefer an exact-permutation variant when registered, or accept the effect-direction statistic alone.
+
 ### PULSE_TEST_SUBJECT_MISSING
 
 **Description**: `TEST_ANOVA_RM` encountered subjects missing one or more conditions. Default behavior drops the incomplete subject(s) and surfaces the count as a warning so the caller knows how many were excluded.
@@ -664,6 +778,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - If the dropped-subject count is small relative to N, ignore the warning.
 - Pre-filter the cohort to retain only fully observed subjects.
 - For genuinely missing-at-random data, consider mixed-effects regression (out of scope for v1).
+
+**Fixup**: REPLACE_OPERATOR (`Filterers`) — pre-filter the cohort to retain only fully observed subjects, or ignore the warning if the dropped count is small relative to N.
 
 ### PULSE_TEST_BALANCED_DESIGN_REQUIRED
 
@@ -674,6 +790,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Aggregate per (subject, condition) pair (e.g., `AGG_AVERAGE`) before running the test.
 - Wait on the future repeated-measures variant that accepts unbalanced cells.
 
+**Fixup**: REPLACE_OPERATOR (`Filterers`) — filter or pre-aggregate so each subject contributes exactly one observation per condition before running `TEST_ANOVA_RM`.
+
 ### PULSE_TEST_TUKEY_REQUIRES_K_GE_3
 
 **Description**: `TEST_TUKEY_HSD` requires k ≥ 3 groups. For k = 2, a t-test (`TEST_T` or `TEST_WELCH`) or proportion z-test (`TEST_PROP_Z`) is the appropriate alternative — the studentized-range correction is unnecessary.
@@ -681,6 +799,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 **Recovery**:
 - Reduce to a two-sample test (`TEST_T` / `TEST_WELCH`).
 - Confirm the upstream aggregator returned the expected number of grouper buckets.
+
+**Fixup**: REPLACE_OPERATOR (`Tests[*].Type`) — swap `TEST_TUKEY_HSD` for `TEST_T`/`TEST_WELCH` (continuous) or `TEST_PROP_Z` (proportions) when only two groups are present.
 
 ### PULSE_TEST_SHAPIRO_N_BOUND
 
@@ -691,6 +811,8 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Use an asymptotic alternative (Anderson-Darling, D'Agostino's K²) when n is large — both are slated for future iterations.
 - Treat the p-value as advisory; with large n almost any sample rejects strict normality.
 
+**Fixup**: REQUIRES_RESCHEMA — sample ≤ 5000 rows before running `TEST_SHAPIRO_WILK`, or use an asymptotic normality test (Anderson-Darling, D'Agostino K²) when registered.
+
 ### PULSE_TEST_FISHER_R_OR_C_GT_2
 
 **Description**: `TEST_FISHER_EXACT` saw a contingency table larger than 2×2. The v1 implementation supports the 2×2 case exactly; the network algorithm needed for r×c tables lands later.
@@ -699,4 +821,6 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Filter the cohort to a 2×2 table via `FILTER_INCLUDE` on the rows / cols values of interest.
 - Use `TEST_CHISQ` for r×c if the expected counts are large enough.
 - Wait on the follow-up that ships the full network algorithm.
+
+**Fixup**: REPLACE_OPERATOR (`Tests[*].Type`) — use `TEST_CHISQ` for r×c tables when expected counts are large enough; or filter the cohort to a 2×2 subset with `FILTER_INCLUDE`.
 </reference>
