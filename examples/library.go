@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -323,11 +324,6 @@ var CanonicalTags = []string{
 
 // IsCanonicalTag reports whether tag belongs to the curated taxonomy.
 func IsCanonicalTag(tag string) bool {
-	for _, t := range CanonicalTags {
-		if t == tag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(CanonicalTags, tag)
 }
 

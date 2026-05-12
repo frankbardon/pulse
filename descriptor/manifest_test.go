@@ -28,7 +28,7 @@ func TestManifestDeterministicAcrossRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first marshal: %v", err)
 	}
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		next, err := json.Marshal(BuildManifest())
 		if err != nil {
 			t.Fatalf("marshal iteration %d: %v", i, err)
