@@ -2,6 +2,7 @@ package skills
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -112,15 +113,7 @@ func TestSkillsNames(t *testing.T) {
 	if len(names) != 18 {
 		t.Fatalf("Names() returned %d, want 18", len(names))
 	}
-	// Check a known name is present
-	found := false
-	for _, n := range names {
-		if n == "getting-started" {
-			found = true
-			break
-		}
-	}
-	if !found {
+	if !slices.Contains(names, "getting-started") {
 		t.Error("Names() does not contain 'getting-started'")
 	}
 }
