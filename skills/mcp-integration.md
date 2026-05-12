@@ -30,6 +30,7 @@ Every Pulse tool wraps a public library entry point. Inputs are JSON; outputs ar
 | `pulse_ask` | Unified inspect -> predict -> process one-shot. On predict-invalid with `on_invalid="suggest"`, returns structured `Suggestions` instead of erroring. Accepts either `request` or natural-language `query`. | `request` (JSON-encoded `pulse.AskRequest`) |
 | `pulse_examples_search` | Search the embedded request-example library by query, taxonomy tags (ANDed), and/or category | `query` (string, optional), `tags` (array of strings, optional), `category` (string, optional) |
 | `pulse_examples_get` | Fetch one example record with runnable request JSON (the `body` field has the `_meta` block stripped) | `name` (string) |
+| `pulse_errors_lookup` | Look up Pulse error code metadata. Pass `code` for one-code detail, `domain` to enumerate a domain, `query` for substring search across descriptions and fixup hints. Returns an array of `{code, domain, message, fixups}` records | `code` (string, optional), `domain` (string, optional), `query` (string, optional) |
 
 The canonical list is `internal/mcp.RegisteredTools()`. Adding or removing a tool requires updating this skill in the same PR (`TestSkillsCoverAllMCPTools`).
 

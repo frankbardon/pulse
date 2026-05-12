@@ -139,33 +139,6 @@ type DistributionMeta struct {
 	Params []Param `json:"params"`
 }
 
-// ErrorMeta describes a single error code entry. One entry per
-// errors.AllCodes() value.
-type ErrorMeta struct {
-	// Code is the error code identifier (e.g.
-	// "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL").
-	Code string `json:"code"`
-
-	// Domain is the prefix segment of the code (PULSE, SERVICE,
-	// PROCESSING, ENCODING, DATA, CLI).
-	Domain string `json:"domain"`
-
-	// Severity is "error" for failure codes and "warning" for
-	// diagnostic-only codes. Today every code is reported as both
-	// (depending on caller context), so severity is the soft default
-	// recorded here.
-	Severity string `json:"severity"`
-
-	// Description is a one-sentence prose summary of when this code
-	// surfaces and what triggered it.
-	Description string `json:"description"`
-
-	// Fixups holds remediation hint templates. Populated once the
-	// error-fixup-hints work lands; empty for now and omitempty in
-	// JSON. The slot is here so the contract stays stable.
-	Fixups []string `json:"fixups,omitempty"`
-}
-
 // MCPTool describes a single registered MCP tool. One entry per
 // internal/mcp.RegisteredTools() value.
 type MCPTool struct {

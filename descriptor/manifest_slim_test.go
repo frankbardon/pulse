@@ -43,11 +43,8 @@ func TestSlimManifest_RemovesDescriptions(t *testing.T) {
 			t.Errorf("distribution %s retained Description in slim mode", d.Name)
 		}
 	}
-	for _, e := range slim.ErrorCodes {
-		if e.Description != "" {
-			t.Errorf("error code %s retained Description in slim mode", e.Code)
-		}
-	}
+	// ErrorCodes is name-only in both full and slim manifests; nothing
+	// to strip.
 	for _, mt := range slim.MCPTools {
 		if mt.Description != "" {
 			t.Errorf("mcp tool %s retained Description in slim mode", mt.Name)

@@ -26,7 +26,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A registered filterer | `skills/aggregation-guide.md` (filtering section) | `TestSkillsCoverAllComponents` |
 | A registered grouper | `skills/grouper-design.md` | `TestSkillsCoverAllComponents` |
 | A registered window operator | `skills/window-operations.md` | `TestSkillsCoverAllWindowTypes` |
-| An error code (added/removed/renamed) | `skills/error-code-reference.md` | `TestSkillsCoverAllErrorCodes` |
+| An error code (added/removed/renamed) | Entry in `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups visible via `pulse_errors_lookup` / `pulse errors lookup CODE` | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
 | A CLI leaf (added/removed/flag added) | `CLAUDE.md` "Common Claude Code Workflows" + `skills/getting-started.md` if user-facing | `TestSkillsCoverAllCliLeaves` |
 | A `--json` envelope or `format_version` | `CLAUDE.md` "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
 | A `.pulse` file format change (header layout, new field type) | `CLAUDE.md` "Code Conventions" + `skills/cohort-schema-design.md` | `TestClaudeMdMentionsFormatVersion`, `TestSkillsCoverAllFieldTypes` |
@@ -40,8 +40,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A registered statistical test (`TEST_*`) | `skills/statistical-testing.md` (Operator catalog) + `types/streamability.go` + `types/streamability_test.go` + capability declaration in `descriptor/capabilities_tests.go` | `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
 | A registered tier-2 post-test variant | Capability declaration in `descriptor/capabilities_tests.go` (`postTestCapabilities`) | `TestManifestPostTestsComplete` |
 | A registered aggregator/attribute/filterer/grouper/window capability metadata | Capability declaration in `descriptor/capabilities_<category>.go` (params, accepts_types, emits_type, streamable_hint) | `TestManifestOperatorsComplete` |
-| A new error code | Description row in `descriptor/capabilities_errors.go` (`errorMetaTable`) | `TestManifestErrorCodesComplete` |
-| An error code's fixup template | Entry in `errors/fixup_metadata.go` (`codeMetadata`) + `**Fixup**:` line in `skills/error-code-reference.md` under that code | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` |
+| A new error code | Entry in `errors/fixup_metadata.go` (`codeMetadata`) — bootstrap manifest carries name only; per-code Message + Fixup detail is reactive lookup via `pulse_errors_lookup` | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim` |
 | A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known`, `TestManifestStreamableMatchesTypes` |
 | The default operator table | `CLAUDE.md` "Code Conventions → Smart defaults" + `skills/getting-started.md` ("Defaults" section) | `TestDefaults_Applied` + reviewer enforcement |
 | A natural-query parsing route (new grammar shape) | `internal/query/query.go` grammar + `internal/query/query_test.go` fixtures + `skills/query-router-prompt.md` (router prompt grammar) + `skills/request-recipes.md` (target shapes) | `TestNaturalQuery_HeuristicGrammar` |
@@ -153,7 +152,7 @@ Errors use the `errors.Code` system. There are 6 domains with typed codes:
 - **CLI:** `CLI_INPUT`, `CLI_OUTPUT`, `CLI_COMMAND`, `CLI_INTERNAL`
 - **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`, `PULSE_DECIMAL_OVERFLOW`, `PULSE_DECIMAL_PRECISION_LOSS`, `PULSE_DECIMAL_DIVIDE_BY_ZERO`, `PULSE_GEO_INVALID_POINT`, `PULSE_GEO_INVALID_POLYGON`, `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`, `PULSE_GEO_INVALID_RESOLUTION`, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`, `PULSE_SYNTH_DISTRIBUTION_UNKNOWN`, `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`, `PULSE_PROFILE_FIELD_UNSUPPORTED`, `PULSE_TEST_UNKNOWN_TYPE`, `PULSE_TEST_FIELD_NOT_NUMERIC`, `PULSE_TEST_INVALID_ALPHA`, `PULSE_TEST_INSUFFICIENT_N`, `PULSE_TEST_VARIANCE_ZERO`, `PULSE_TEST_SPLIT_GROUPS_LT_2`, `PULSE_TEST_CONTINGENCY_DEGENERATE`, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`, `PULSE_TEST_FIELD2_NOT_NUMERIC`, `PULSE_TEST_SUCCESS_VALUE_MISSING`, `PULSE_TEST_CORRELATION_UNDEFINED`, `PULSE_TEST_PAIRED_LENGTH_MISMATCH`, `PULSE_TEST_TIES_DOMINATE`, `PULSE_TEST_SUBJECT_MISSING`, `PULSE_TEST_BALANCED_DESIGN_REQUIRED`, `PULSE_TEST_TUKEY_REQUIRES_K_GE_3`, `PULSE_TEST_SHAPIRO_N_BOUND`, `PULSE_TEST_FISHER_R_OR_C_GT_2`, `PULSE_QUERY_UNRESOLVED`, `PULSE_QUERY_AMBIGUOUS`
 
-Every new error code MUST be added to the `allCodes` slice in `errors/codes.go` and to `skills/error-code-reference.md` (enforced by `TestSkillsCoverAllErrorCodes`).
+Every new error code MUST be added to the `allCodes` slice in `errors/codes.go` and the `codeMetadata` map in `errors/fixup_metadata.go` (enforced by `TestCodesHaveFixups`). Per-code prose is fetched on demand via `pulse_errors_lookup` (MCP) or `pulse errors lookup CODE` (CLI); the manifest carries only the alphabetized code-name list (`TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`).
 
 ### Accessor and component description style
 
@@ -262,14 +261,14 @@ Top-level fields on `Manifest`:
 - `tests []TestMeta` — tier-1 statistical tests. Each entry has `tier:1`, `family==name`, `params`, `requires`, `streamable` mirroring `types.TestType.Streamable()`.
 - `post_tests []TestMeta` — tier-2 post-tests (natively-tier-2 entries `TEST_TREND` / `TEST_TUKEY_HSD` plus registered variants like `pearson_post`, `welch_one_way_post`). Each entry has `tier:2`, non-empty `variant`, `family` referencing the underlying `TestType`. `streamable` is always false. Tier-1 and tier-2 are peer slices, not nested.
 - `synth_distributions []DistributionMeta` — one entry per `synth.AllDistributions()` value with `applies_to` and `params`.
-- `error_codes []ErrorMeta` — one entry per `errors.AllCodes()` value with `domain`, `severity` (`error|warning`), `description`, and a `fixups` slot (currently empty; reserved for the error-fixup-hints work).
+- `error_codes_count int` + `error_domains []string` + `error_codes []string` — slim error coverage. The bootstrap manifest carries only the alphabetized code-name list and the six domain prefixes (`CLI`, `DATA`, `ENCODING`, `PROCESSING`, `PULSE`, `SERVICE`). Per-code Message + Fixup detail is depth-on-demand via the `pulse_errors_lookup` MCP tool or `pulse errors lookup CODE` CLI leaf — errors are reactive lookup, not authoring reference.
 - `mcp_tools []MCPTool` — one entry per `internal/mcp/mcptools.Names()` value with `description`.
 - `cohort_types []CohortFieldType` — one entry per field type with `compatible_aggregators`, `compatible_attributes`, `compatible_filterers`, `compatible_groupers`, `compatible_windows`, `compatible_features` cross-references derived deterministically from per-operator `accepts_types`.
 - `skills []SkillMeta` — embedded skill index from `skills.List()`.
 
 Operator-category slices are sorted by `Name`. Compatible-list cross-refs are sorted by operator name. The payload is golden-checked (`descriptor/testdata/manifest.json`).
 
-Capability declarations for components, tests, distributions, and error codes live in `descriptor/capabilities_*.go`. MCP tool name + description metadata lives in `internal/mcp/mcptools/meta.go` so the descriptor package can mirror it without an import cycle. Tests `TestManifestOperatorsComplete`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestErrorCodesComplete`, `TestManifestMCPToolsComplete`, `TestManifestStreamableMatchesTypes`, `TestCohortTypeCrossRefsDeterministic`, and `TestManifest_SkillsNotEmpty` enforce completeness and consistency.
+Capability declarations for components, tests, and distributions live in `descriptor/capabilities_*.go`. Error coverage in the manifest is name-only (`descriptor/capabilities_errors.go` mirrors `errors.SortedCodeNames()`); per-code Message + Fixup detail lives in `errors/fixup_metadata.go` and is reachable via the `pulse_errors_lookup` MCP tool or `pulse errors lookup CODE` CLI leaf. MCP tool name + description metadata lives in `internal/mcp/mcptools/meta.go` so the descriptor package can mirror it without an import cycle. Tests `TestManifestOperatorsComplete`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestStreamableMatchesTypes`, `TestCohortTypeCrossRefsDeterministic`, and `TestManifest_SkillsNotEmpty` enforce completeness and consistency.
 
 ## Predict / Inspect / Manifest Contracts
 
@@ -366,9 +365,11 @@ Forced buffered:
 - `TestManifestTestsComplete` — for every `TestType` in `types.AllTestTypes()`, asserts a tier-1 entry in `Manifest.Tests` (or a tier-2 entry for the natively-tier-2 families `TEST_TREND` / `TEST_TUKEY_HSD`)
 - `TestManifestPostTestsComplete` — verifies every `Manifest.PostTests` entry has `Tier:2`, non-empty `Variant`, and a `Family` value present in `types.AllTestTypes()`
 - `TestManifestDistributionsComplete` — for every entry in `synth.AllDistributions()`, asserts a `DistributionMeta` entry
-- `TestManifestErrorCodesComplete` — for every entry in `errors.AllCodes()`, asserts an `ErrorMeta` entry with a curated description (no fallback sentinel)
+- `TestManifestErrorCodesComplete` — for every entry in `errors.AllCodes()`, asserts the slim `manifest.error_codes []string` field carries that code name (length parity enforced separately)
+- `TestManifest_ErrorCodesSlim` — asserts the manifest's error fields are name-only: alphabetized `error_codes []string` + `error_codes_count int` + `error_domains []string` (6 entries: CLI, DATA, ENCODING, PROCESSING, PULSE, SERVICE)
 - `TestCodesHaveFixups` — for every entry in `errors.AllCodes()`, asserts an entry in `errors/fixup_metadata.go` (`codeMetadata`) carrying either at least one `Fixup` template or `FixupNotApplicable: true`
-- `TestSkillsErrorCodeFixupsDocumented` — for every error code, asserts the `### CODE` section in `skills/error-code-reference.md` carries a `**Fixup**:` line
+- `TestErrorsLookup_ByCode`, `TestErrorsByDomain_ReturnsAll`, `TestErrorsSearch_DescriptionMatch`, `TestErrorsSearch_FixupMatch`, `TestErrorsLookup_UnknownCodeReturnsFalse` — exercise the `errors.Lookup` / `errors.ByDomain` / `errors.Search` lookup surface that backs `pulse_errors_lookup`
+- `TestMCPErrorsLookup_RoundTrip` — handler-level round-trip via the `pulse_errors_lookup` MCP tool (code / domain / query axes plus AND-intersection)
 - `TestManifestMCPToolsComplete` — for every entry in `mcptools.Names()`, asserts an `MCPTool` entry
 - `TestCohortTypeCrossRefsDeterministic` — verifies each `CohortFieldType`'s `Compatible*` slices are sorted lexically (required for golden stability)
 - `TestMCPSchemaBinding_RemovesInvalidFields` — asserts the bound `pulse_process` schema's `request.attributes[].field` enum contains only numeric fields (categorical and geo fields excluded) for the test cohort
@@ -419,7 +420,6 @@ Required fields:
 - `TestSkillsFrontmatter_RequiredFields` — every skill has `name`, `description`, `type`, `applies_to` in its frontmatter
 - `TestSkillsManifestConsistent` — every skill in `index.json` has a matching `.md` file, frontmatter name matches, and `applies_to` entries reference valid CLI leaves
 - `TestSkillsCoverAllComponents` — every aggregator, attribute, filterer, and grouper in the registries is mentioned in its target skill
-- `TestSkillsCoverAllErrorCodes` — every error code in `errors/codes.go` appears in `skills/error-code-reference.md`
 - `TestSkillsCoverAllCliLeaves` — every CLI leaf command appears in `skills/getting-started.md`
 - `TestSkillsCoverAllFieldTypes` — every field type appears in `skills/cohort-schema-design.md`
 - `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator in `types.AllWindowTypes` appears in `skills/window-operations.md`
@@ -436,7 +436,7 @@ Required fields:
 | Feature operator (`FEAT_*`) | `skills/feature-engineering.md` |
 | Synth distribution | `skills/synthetic-data.md` |
 | Statistical test (`TEST_*`) | `skills/statistical-testing.md` |
-| Error code | `skills/error-code-reference.md` |
+| Error code | `errors/fixup_metadata.go` (per-code Message + Fixups) — surfaced via `pulse_errors_lookup` MCP tool, not the skill |
 | CLI leaf command | `skills/getting-started.md` |
 | Field type | `skills/cohort-schema-design.md` |
 

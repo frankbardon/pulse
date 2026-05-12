@@ -53,9 +53,11 @@ type SkillMeta struct {
 // Manifest is the root self-description of the Pulse system. One bootstrap
 // call returns every fact an LLM needs to author a valid Pulse request:
 // CLI command list, per-operator capabilities, per-test metadata (tier-1
-// and tier-2 as peer slices), synth distribution catalog, error code
-// catalog, MCP tool list, cohort field-type catalog with operator
-// cross-references, and embedded skill index.
+// and tier-2 as peer slices), synth distribution catalog, MCP tool list,
+// cohort field-type catalog with operator cross-references, and embedded
+// skill index. Error coverage is name-only — fetch per-code prose via
+// the `pulse_errors_lookup` MCP tool or `pulse errors lookup CODE` CLI
+// leaf on demand to keep the bootstrap payload lean.
 //
 // The payload is deterministic and free of cohort data. Clients cache it
 // for a session.
@@ -66,13 +68,23 @@ type Manifest struct {
 	Tests              []TestMeta         `json:"tests"`
 	PostTests          []TestMeta         `json:"post_tests"`
 	SynthDistributions []DistributionMeta `json:"synth_distributions"`
-	ErrorCodes         []ErrorMeta        `json:"error_codes"`
-	MCPTools           []MCPTool          `json:"mcp_tools"`
-	CohortTypes        []CohortFieldType  `json:"cohort_types"`
-	Skills             []SkillMeta        `json:"skills"`
-	ExamplesCount      int                `json:"examples_count"`
-	ExampleCategories  []string           `json:"example_categories"`
-	ExampleTags        []string           `json:"example_tags"`
+	// ErrorCodesCount is the total number of registered error codes.
+	ErrorCodesCount int `json:"error_codes_count"`
+	// ErrorDomains is the alphabetized list of distinct domain prefixes
+	// (e.g. "CLI", "DATA", "ENCODING", "PROCESSING", "PULSE",
+	// "SERVICE"). One entry per domain, six entries in v1.
+	ErrorDomains []string `json:"error_domains"`
+	// ErrorCodes is the alphabetized list of code identifiers.
+	// Per-code Message + Fixup prose lives behind the
+	// `pulse_errors_lookup` MCP tool / `pulse errors lookup CODE` CLI
+	// leaf — depth-on-demand, not common-path.
+	ErrorCodes        []string          `json:"error_codes"`
+	MCPTools          []MCPTool         `json:"mcp_tools"`
+	CohortTypes       []CohortFieldType `json:"cohort_types"`
+	Skills            []SkillMeta       `json:"skills"`
+	ExamplesCount     int               `json:"examples_count"`
+	ExampleCategories []string          `json:"example_categories"`
+	ExampleTags       []string          `json:"example_tags"`
 }
 
 // commands returns the default set of CLI leaf commands.
@@ -215,7 +227,9 @@ func BuildManifest() *Manifest {
 		Tests:              tier1,
 		PostTests:          tier2,
 		SynthDistributions: sortDistributions(distributionCapabilities()),
-		ErrorCodes:         errorCapabilities(),
+		ErrorCodesCount:    errorCodesCount(),
+		ErrorDomains:       errorDomains(),
+		ErrorCodes:         errorCodeNames(),
 		MCPTools:           mcpToolCapabilities(),
 		CohortTypes:        cohortFieldTypes(),
 		Skills:             sortedSkills(),

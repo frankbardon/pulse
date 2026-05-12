@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
+	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/mcp/mcptools"
 	"github.com/frankbardon/pulse/skills"
 	"github.com/frankbardon/pulse/types"
@@ -31,6 +32,7 @@ const (
 	ToolAsk            = mcptools.ToolAsk
 	ToolExamplesSearch = mcptools.ToolExamplesSearch
 	ToolExamplesGet    = mcptools.ToolExamplesGet
+	ToolErrorsLookup   = mcptools.ToolErrorsLookup
 
 	DescInspect        = mcptools.DescInspect
 	DescPredict        = mcptools.DescPredict
@@ -44,6 +46,7 @@ const (
 	DescAsk            = mcptools.DescAsk
 	DescExamplesSearch = mcptools.DescExamplesSearch
 	DescExamplesGet    = mcptools.DescExamplesGet
+	DescErrorsLookup   = mcptools.DescErrorsLookup
 )
 
 // ToolMeta is the canonical (name, description) record for one registered
@@ -174,6 +177,16 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 			mcpgo.WithString("name", mcpgo.Description("Example name from the _meta.name field (e.g. 't_test_one_sample')"), mcpgo.Required()),
 		),
 		handleExamplesGet(p),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolErrorsLookup,
+			mcpgo.WithDescription(DescErrorsLookup),
+			mcpgo.WithString("code", mcpgo.Description("Exact error code identifier (e.g. 'PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL'); returns a 1-element array on hit, empty on miss")),
+			mcpgo.WithString("domain", mcpgo.Description("Domain prefix (PULSE, ENCODING, PROCESSING, SERVICE, DATA, CLI); case-insensitive; enumerates every code in that domain")),
+			mcpgo.WithString("query", mcpgo.Description("Case-insensitive substring search across descriptions and fixup hints; ranks message hits above fixup hits")),
+		),
+		handleErrorsLookup(p),
 	)
 }
 
@@ -427,6 +440,77 @@ func handleExamplesGet(p *pulse.Pulse) server.ToolHandlerFunc {
 		}
 		return jsonResult(ex)
 	}
+}
+
+// handleErrorsLookup wraps the errors-package lookup surface. All three
+// arguments are optional but at least one must be set; when more than
+// one is set, the filters are ANDed against the union of matching
+// codes.
+//
+// Return shape is always an array of perr.LookupResult so the LLM-side
+// parsing stays uniform across hit/miss/multi-result paths.
+func handleErrorsLookup(_ *pulse.Pulse) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		args := req.GetArguments()
+		code, _ := args["code"].(string)
+		domain, _ := args["domain"].(string)
+		query, _ := args["query"].(string)
+		if code == "" && domain == "" && query == "" {
+			return mcpgo.NewToolResultError("specify at least one of code, domain, query"), nil
+		}
+		results := intersectErrorLookup(code, domain, query)
+		return jsonResult(results)
+	}
+}
+
+// intersectErrorLookup composes the three lookup axes. Each non-empty
+// axis contributes a candidate set; the final result is the
+// intersection. When only one axis is set, the result is that axis's
+// natural output (preserving Search's ranking order; ByDomain's
+// alphabetical order; Lookup's 0/1 element).
+//
+// Returns a non-nil empty slice when nothing matches.
+func intersectErrorLookup(code, domain, query string) []perr.LookupResult {
+	axes := make([][]perr.LookupResult, 0, 3)
+	if code != "" {
+		hit, ok := perr.Lookup(code)
+		if ok {
+			axes = append(axes, []perr.LookupResult{hit})
+		} else {
+			axes = append(axes, []perr.LookupResult{})
+		}
+	}
+	if domain != "" {
+		axes = append(axes, perr.ByDomain(domain))
+	}
+	if query != "" {
+		axes = append(axes, perr.Search(query))
+	}
+	if len(axes) == 0 {
+		return []perr.LookupResult{}
+	}
+	// Intersect: start with the first axis, drop entries not present in
+	// each subsequent axis. Preserve the first axis's ordering so the
+	// caller sees Search-ranked or ByDomain-alphabetized results
+	// depending on which axis was supplied first.
+	base := axes[0]
+	for i := 1; i < len(axes); i++ {
+		present := make(map[string]struct{}, len(axes[i]))
+		for _, r := range axes[i] {
+			present[r.Code] = struct{}{}
+		}
+		next := base[:0:0]
+		for _, r := range base {
+			if _, ok := present[r.Code]; ok {
+				next = append(next, r)
+			}
+		}
+		base = next
+	}
+	if base == nil {
+		return []perr.LookupResult{}
+	}
+	return base
 }
 
 // requestBytes pulls a request blob from a tool argument. The argument may

@@ -2259,569 +2259,80 @@
         ]
       }
     ],
+    "error_codes_count": 64,
+    "error_domains": [
+      "CLI",
+      "DATA",
+      "ENCODING",
+      "PROCESSING",
+      "PULSE",
+      "SERVICE"
+    ],
     "error_codes": [
-      {
-        "code": "CLI_COMMAND",
-        "domain": "CLI",
-        "severity": "error",
-        "description": "A CLI command failed to dispatch or returned a non-zero status.",
-        "fixups": [
-          "Check the wrapped error in the envelope details; for processing leaves, run pulse predict --json on the request first."
-        ]
-      },
-      {
-        "code": "CLI_INPUT",
-        "domain": "CLI",
-        "severity": "error",
-        "description": "A CLI argument or flag is malformed (missing value, unknown subcommand, bad JSON).",
-        "fixups": [
-          "Re-run with --help on the subcommand to confirm flag names and required values."
-        ]
-      },
-      {
-        "code": "CLI_INTERNAL",
-        "domain": "CLI",
-        "severity": "error",
-        "description": "Internal invariant violated inside the CLI binary; report with reproducer."
-      },
-      {
-        "code": "CLI_OUTPUT",
-        "domain": "CLI",
-        "severity": "error",
-        "description": "Output generation failed (file write error, terminal too narrow, format unsupported).",
-        "fixups": [
-          "Pick a writable output path with free disk space, or omit --output to stream to stdout."
-        ]
-      },
-      {
-        "code": "DATA_CALCULATION",
-        "domain": "DATA",
-        "severity": "error",
-        "description": "A calculation over data values failed (e.g., reading a field that does not exist on the record).",
-        "fixups": [
-          "Verify every field reference in the request appears in pulse inspect --json output for the cohort."
-        ]
-      },
-      {
-        "code": "DATA_CONFIG",
-        "domain": "DATA",
-        "severity": "error",
-        "description": "An I/O job's configuration is invalid (conflicting flags, unknown format, bad target path).",
-        "fixups": [
-          "Re-run with --help; check that the format flag matches the file extension and the schema template names existing columns."
-        ]
-      },
-      {
-        "code": "DATA_FILE",
-        "domain": "DATA",
-        "severity": "error",
-        "description": "A data file could not be opened or its layout is invalid.",
-        "fixups": [
-          "Verify the input file exists, is non-empty, and matches the declared format (CSV / TSV / NDJSON / Parquet / Excel)."
-        ]
-      },
-      {
-        "code": "DATA_INTERNAL",
-        "domain": "DATA",
-        "severity": "error",
-        "description": "Internal invariant violated inside the data layer; report with reproducer."
-      },
-      {
-        "code": "DATA_PARSE",
-        "domain": "DATA",
-        "severity": "error",
-        "description": "Tabular input (CSV / TSV / JSON / Parquet) failed to parse at a row boundary.",
-        "fixups": [
-          "Inspect the offending row with pulse sample --rows N; common causes are inconsistent column counts, stray quotes, or wrong delimiter."
-        ]
-      },
-      {
-        "code": "ENCODING_INTERNAL",
-        "domain": "ENCODING",
-        "severity": "error",
-        "description": "Internal invariant violated inside the encoding layer; report with reproducer."
-      },
-      {
-        "code": "ENCODING_INVALID",
-        "domain": "ENCODING",
-        "severity": "error",
-        "description": "The .pulse file header or schema block is malformed (bad magic, unsupported format version, or invalid field-type byte).",
-        "fixups": [
-          "Re-import the source data to regenerate the .pulse file; the existing file is corrupt or was written by an incompatible binary."
-        ]
-      },
-      {
-        "code": "ENCODING_IO",
-        "domain": "ENCODING",
-        "severity": "error",
-        "description": "An I/O failure occurred while reading or writing the binary .pulse file.",
-        "fixups": [
-          "Verify the file path is reachable, the process has read/write permission, and the underlying filesystem has free space."
-        ]
-      },
-      {
-        "code": "ENCODING_TYPE_MISMATCH",
-        "domain": "ENCODING",
-        "severity": "error",
-        "description": "A value cannot be encoded into its declared field type (out of range, wrong sign, or wrong unit).",
-        "fixups": [
-          "Widen the field type (u8 -\u003e u16, f32 -\u003e f64) or pre-clean the source data to fit the declared type, then re-import."
-        ]
-      },
-      {
-        "code": "PROCESSING_CONFIG",
-        "domain": "PROCESSING",
-        "severity": "error",
-        "description": "An operator's configuration is invalid (missing params, wrong type, out-of-range value).",
-        "fixups": [
-          "Run pulse predict --json on the request first; the predict envelope names the offending operator and parameter so the fix is mechanical."
-        ]
-      },
-      {
-        "code": "PROCESSING_GROUP",
-        "domain": "PROCESSING",
-        "severity": "error",
-        "description": "Group construction failed (e.g., quantile with zero-variance input, malformed bucket key).",
-        "fixups": [
-          "Swap GROUP_QUANTILE for GROUP_RANGE on near-constant fields, or GROUP_CATEGORY for a high-cardinality numeric to GROUP_ROUNDED."
-        ]
-      },
-      {
-        "code": "PROCESSING_INTERNAL",
-        "domain": "PROCESSING",
-        "severity": "error",
-        "description": "Internal invariant violated inside the processing layer; report with reproducer."
-      },
-      {
-        "code": "PROCESSING_RUNTIME",
-        "domain": "PROCESSING",
-        "severity": "error",
-        "description": "An operator failed during row processing (formula compile failure, divide-by-zero, etc.).",
-        "fixups": [
-          "Guard the formula with a null/zero check (e.g. wrap denominators in an iff(x == 0, null, x) before dividing).",
-          "Add a FILTER_RANGE that excludes the rows that trip the runtime error before the operator runs."
-        ]
-      },
-      {
-        "code": "PROCESSING_STATE",
-        "domain": "PROCESSING",
-        "severity": "error",
-        "description": "Pipeline state-machine invariant violated mid-run (typically a streaming-pass ordering bug)."
-      },
-      {
-        "code": "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A numeric aggregation (SUM, AVERAGE, etc.) was requested on a categorical field.",
-        "fixups": [
-          "Use AGG_MODE, AGG_FREQUENCY, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
-          "If the numeric semantics matter, pick a non-categorical numeric field on the same cohort."
-        ]
-      },
-      {
-        "code": "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "An aggregation has no defined semantics for the decimal128 field type (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1).",
-        "fixups": [
-          "Decimal fields support exact AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_VARIANCE, AGG_STDDEV, AGG_COUNT, AGG_DISTINCT_COUNT; pick one of those."
-        ]
-      },
-      {
-        "code": "PULSE_AGG_NOT_MEANINGFUL_FOR_GEO",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A numeric aggregator was requested on a geospatial field (point_f64 / h3_cell).",
-        "fixups": [
-          "Geo fields support AGG_GEO_CENTROID, AGG_GEO_BBOX, AGG_COUNT, AGG_DISTINCT_COUNT; pick one of those, or group by the cell and aggregate a numeric field."
-        ]
-      },
-      {
-        "code": "PULSE_DECIMAL_DIVIDE_BY_ZERO",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A decimal divide operation observed a zero divisor.",
-        "fixups": [
-          "Pre-filter zero divisors with FILTER_RANGE (min \u003e 0 or max \u003c 0) or guard the formula with an explicit non-zero check."
-        ]
-      },
-      {
-        "code": "PULSE_DECIMAL_OVERFLOW",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A decimal arithmetic result exceeds the decimal128(38) representable range.",
-        "fixups": [
-          "Use AGG_AVERAGE instead of AGG_SUM for large series; the implementation falls back to f64 and emits PULSE_DECIMAL_PRECISION_LOSS instead of failing.",
-          "Pick a coarser decimal scale or split the cohort so each partial sum stays within 38 digits."
-        ]
-      },
-      {
-        "code": "PULSE_DECIMAL_PRECISION_LOSS",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A decimal aggregation fell back to f64 because intermediate state would have overflowed decimal128(38).",
-        "fixups": [
-          "Split the cohort or pre-aggregate by a coarser grouping so each partial sum fits in 38 digits; ignore the warning if auditor-grade precision is not required."
-        ]
-      },
-      {
-        "code": "PULSE_EXPORT_ROW_ERROR",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A row could not be exported due to a per-cell value-to-string conversion failure.",
-        "fixups": [
-          "Re-import the source data to regenerate the .pulse file; the dictionary or encoding state is inconsistent."
-        ]
-      },
-      {
-        "code": "PULSE_FEAT_TARGET_LEAKAGE_RISK",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "FEAT_TARGET_ENCODE was requested without a prior FEAT_TRAIN_TEST_SPLIT; encoded values include rows that should be held out.",
-        "fixups": [
-          "Insert a FEAT_TRAIN_TEST_SPLIT operator before every FEAT_TARGET_ENCODE in the features list."
-        ]
-      },
-      {
-        "code": "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A field description is empty, too short, or matches a generic-word denylist (\"n/a\", \"tbd\", etc.).",
-        "fixups": [
-          "Provide a sentence (\u003e= 10 characters) describing what the field represents, including units and domain meaning."
-        ]
-      },
-      {
-        "code": "PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "An AGG_GEO_BBOX input crosses the 180/-180 meridian, where a flat min/max bbox is ambiguous.",
-        "fixups": [
-          "Use AGG_GEO_CENTROID (the 3D unit-sphere algorithm handles antimeridian crossings) or split the cohort by hemisphere with FILTER_RANGE on longitude."
-        ]
-      },
-      {
-        "code": "PULSE_GEO_INVALID_POINT",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A point parse failed or |lat|\u003e90 / |lon|\u003e180.",
-        "fixups": [
-          "Re-import with the latitude and longitude columns mapped in the correct order; WKT writes POINT(lon lat) but Pulse stores (lat, lon)."
-        ]
-      },
-      {
-        "code": "PULSE_GEO_INVALID_POLYGON",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A WKT POLYGON parse failed or the outer ring is not closed.",
-        "fixups": [
-          "Supply a single closed outer ring with first vertex equal to last; v1 rejects MULTIPOLYGON and inner-ring holes."
-        ]
-      },
-      {
-        "code": "PULSE_GEO_INVALID_RESOLUTION",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "An H3 resolution is out of [0, 15] or finer than a cell's native resolution when walking parents.",
-        "fixups": [
-          "Pick a resolution in [0, 15]; for h3_cell input, pick at most the cell's native resolution (parent walks only go coarser)."
-        ]
-      },
-      {
-        "code": "PULSE_IMPORT_CATEGORICAL_OVERFLOW",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A categorical column's observed dictionary exceeded the declared width capacity (u8 / u16 / u32).",
-        "fixups": [
-          "Widen the categorical type (categorical_u8 -\u003e categorical_u16, categorical_u16 -\u003e categorical_u32) and re-import."
-        ]
-      },
-      {
-        "code": "PULSE_IMPORT_CATEGORICAL_UNBOUNDED",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "The categorical inference heuristic believes the column has unbounded cardinality and should be modeled as a string.",
-        "fixups": [
-          "Re-import with the column declared as a non-categorical type; if cardinality is truly bounded, raise --sample-rows to confirm."
-        ]
-      },
-      {
-        "code": "PULSE_IMPORT_DESCRIPTION_TOO_LONG",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A field description exceeds the 1000-byte cap defined for the .pulse header.",
-        "fixups": [
-          "Trim the description to \u003c= 1000 bytes; keep what the field represents, drop the prose narrative."
-        ]
-      },
-      {
-        "code": "PULSE_IMPORT_ROW_ERROR",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A row could not be imported due to a per-cell encoding or parse failure.",
-        "fixups": [
-          "Inspect the reported row index in details; pick a wider or nullable field type, or pre-clean the source value before re-importing."
-        ]
-      },
-      {
-        "code": "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "Schema inference observed conflicting types in the same column across the sample window.",
-        "fixups": [
-          "Increase --sample-rows so the inference window sees a representative subset, or supply --schema with an explicit type for the offending column."
-        ]
-      },
-      {
-        "code": "PULSE_PROFILE_FIELD_UNSUPPORTED",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "The profile layer cannot summarize this field type (e.g., point_f64 / h3_cell); the field is skipped.",
-        "fixups": [
-          "Synthesize the affected field from an explicit schema spec instead of relying on profile-driven mode."
-        ]
-      },
-      {
-        "code": "PULSE_QUERY_AMBIGUOUS",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A query token matched multiple schema fields at the same edit distance; the parser picked the lexically first match and proceeded.",
-        "fixups": [
-          "Re-phrase using the full schema field name to remove the ambiguity, or edit the resolved request to point at the intended field."
-        ]
-      },
-      {
-        "code": "PULSE_QUERY_UNRESOLVED",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "The natural-language query parser could not map a token to any operator, schema field, or bucket within the edit-distance budget.",
-        "fixups": [
-          "Re-phrase using one of the canonical shapes in skills/request-recipes.md (\"\u003cagg\u003e \u003cfield\u003e\", \"\u003cagg\u003e \u003cfield\u003e by \u003cfield\u003e\", \"top N \u003cfield\u003e by count\"); confirm every field reference appears in pulse inspect --json output."
-        ]
-      },
-      {
-        "code": "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "Rejection sampling for declared constraints exceeded the allowed rejection rate; the generator gives up rather than produce biased output.",
-        "fixups": [
-          "Relax the constraint, switch to a distribution that concentrates inside the constraint region, or raise max_rejection_rate if you accept the cost."
-        ]
-      },
-      {
-        "code": "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A synth spec referenced a distribution kind not registered in the synth package.",
-        "fixups": [
-          "Check the distribution name against synth.AllDistributions(); common typos: gaussian -\u003e normal, power_law -\u003e pareto."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_BALANCED_DESIGN_REQUIRED",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A repeated-measures test observed unequal cell counts; only balanced designs are supported in v1.",
-        "fixups": [
-          "Filter or pre-aggregate so each subject contributes exactly one observation per condition before running TEST_ANOVA_RM."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_CONTINGENCY_DEGENERATE",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A chi-square contingency table is empty or has a single row/column.",
-        "fixups": [
-          "Verify both Rows and Cols resolve to fields with more than one observed level; aggregate rare levels into an \"other\" bucket if needed."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_CORRELATION_UNDEFINED",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "Pearson r encountered a column with zero variance; r and its t-statistic are undefined.",
-        "fixups": [
-          "Pearson r is undefined when either variable is constant; use TEST_SPEARMAN_R or TEST_KENDALL_TAU for monotonic association on near-constant data, or remove the constant column."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_EXPECTED_COUNT_TOO_LOW",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A chi-square cell's expected count is below 5; the asymptotic χ² approximation is unreliable.",
-        "fixups": [
-          "Use TEST_FISHER_EXACT for small 2x2 tables; for larger tables, pool rare levels to raise per-cell expected counts."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_FIELD2_NOT_NUMERIC",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "Field2 for a paired or bivariate test (PEARSON_R, PAIRED_T) resolves to a non-numeric schema type.",
-        "fixups": [
-          "Pick a numeric field (u*, f*, nullable_u*, decimal128), or cast the column via ATTR_FORMULA before running the test."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_FIELD_NOT_NUMERIC",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A test requires a numeric field but the named field resolves to a categorical, geo, or otherwise non-numeric schema type.",
-        "fixups": [
-          "Pick a numeric field (u*, f*, nullable_u*, decimal128) or use TEST_CHISQ with Rows/Cols for categorical association."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_FISHER_R_OR_C_GT_2",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "Fisher exact requires a 2×2 table; r×c support lands separately.",
-        "fixups": [
-          "Use TEST_CHISQ for rxc tables when expected counts are large enough; or filter the cohort to a 2x2 subset with FILTER_INCLUDE."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_INSUFFICIENT_N",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A test received fewer non-null observations than the minimum needed to compute its statistic.",
-        "fixups": [
-          "Widen upstream filters so \u003e= 30 non-null rows remain per group, or pick a test that tolerates small samples (Fisher exact for 2x2 instead of chi-square)."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_INVALID_ALPHA",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "The request's Alpha value lies outside (0, 1).",
-        "fixups": [
-          "Pick a value in (0, 1); common choices are 0.10, 0.05, 0.01. Omit Alpha to accept the 0.05 default."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_PAIRED_LENGTH_MISMATCH",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A paired test encountered rows with one of the paired columns null while the other is present; drop-pair semantics applied.",
-        "fixups": [
-          "Pre-filter rows where either paired column is null with FILTER_EXCLUDE so the effective pair count is explicit; or ignore the warning if the mismatch count is small."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_SHAPIRO_N_BOUND",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A Shapiro-Wilk request observed n above the supported limit (5000); use an asymptotic normality test instead.",
-        "fixups": [
-          "Sample \u003c= 5000 rows before running TEST_SHAPIRO_WILK, or use an asymptotic normality test (Anderson-Darling, D'Agostino K2) when registered."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_SPLIT_GROUPS_LT_2",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A two-sample or ANOVA test observed fewer than the required number of distinct groups in the SplitBy field.",
-        "fixups": [
-          "Pick a SplitBy field that resolves to \u003e= 2 distinct categories after filtering, or relax upstream filters."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_SUBJECT_MISSING",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A repeated-measures test found at least one subject missing one or more conditions; incomplete subjects dropped by default.",
-        "fixups": [
-          "Pre-filter the cohort to retain only fully observed subjects, or ignore the warning if the dropped count is small relative to N."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_SUCCESS_VALUE_MISSING",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "TEST_PROP_Z did not supply Params.success; the test cannot decide which category counts as a positive outcome.",
-        "fixups": [
-          "Supply the dictionary value that represents success (e.g. {\"success\": \"yes\"}); use pulse inspect to list the categorical's dictionary values."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_TIES_DOMINATE",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "A rank-based test observed ties on ≥ 50 % of input values; the asymptotic approximation loses accuracy.",
-        "fixups": [
-          "Treat the p-value as advisory; for small n with heavy ties prefer an exact-permutation variant when registered, or accept the effect-direction statistic alone."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_TUKEY_REQUIRES_K_GE_3",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "Tukey HSD requires k ≥ 3 groups; a t-test or two-proportion z is the appropriate alternative for k = 2.",
-        "fixups": [
-          "Swap TEST_TUKEY_HSD for TEST_T or TEST_WELCH (continuous) or TEST_PROP_Z (proportions) when only two groups are present."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_UNKNOWN_TYPE",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "The request referenced a TestType not registered in either the row-test or post-test registry.",
-        "fixups": [
-          "Check the test name against types.AllTestTypes(); confirm the test is registered for the intended tier (Tests vs PostTests)."
-        ]
-      },
-      {
-        "code": "PULSE_TEST_VARIANCE_ZERO",
-        "domain": "PULSE",
-        "severity": "warning",
-        "description": "One or more groups have zero sample variance, making the t- or F-statistic undefined.",
-        "fixups": [
-          "Field is constant in the affected group; pick a different field or use TEST_KS for distribution comparison on near-constant data."
-        ]
-      },
-      {
-        "code": "PULSE_WINDOW_INVALID",
-        "domain": "PULSE",
-        "severity": "error",
-        "description": "A window operator's configuration is invalid (bad frame, alpha out of bounds, no order key, label collision).",
-        "fixups": [
-          "Every WIN_* operator requires at least one OrderBy key; supply a date or numeric field.",
-          "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE; supply Frame with bounded preceding/following for MOVING_AVG, EWMA, RUNNING_*."
-        ]
-      },
-      {
-        "code": "SERVICE_INTERNAL",
-        "domain": "SERVICE",
-        "severity": "error",
-        "description": "Internal invariant violated inside the service orchestration layer; report with reproducer."
-      },
-      {
-        "code": "SERVICE_REGISTRY",
-        "domain": "SERVICE",
-        "severity": "error",
-        "description": "The request named an operator that is not registered (typo in type field, deprecated identifier).",
-        "fixups": [
-          "Check the operator name against pulse manifest --json (Components section); spelling and casing must match exactly."
-        ]
-      },
-      {
-        "code": "SERVICE_RESOURCE",
-        "domain": "SERVICE",
-        "severity": "error",
-        "description": "A required resource could not be opened (missing .pulse file, unreadable path).",
-        "fixups": [
-          "Verify the cohort filename exists under PULSE_DATA_DIR (or the configured DataDir) and the process has read access."
-        ]
-      },
-      {
-        "code": "SERVICE_VALIDATION",
-        "domain": "SERVICE",
-        "severity": "error",
-        "description": "The request failed pre-execution validation (missing required fields, invalid combinations, schema mismatch).",
-        "fixups": [
-          "Call pulse predict --json on the request; predict reports the exact missing or malformed field path so the fix is mechanical."
-        ]
-      }
+      "CLI_COMMAND",
+      "CLI_INPUT",
+      "CLI_INTERNAL",
+      "CLI_OUTPUT",
+      "DATA_CALCULATION",
+      "DATA_CONFIG",
+      "DATA_FILE",
+      "DATA_INTERNAL",
+      "DATA_PARSE",
+      "ENCODING_INTERNAL",
+      "ENCODING_INVALID",
+      "ENCODING_IO",
+      "ENCODING_TYPE_MISMATCH",
+      "PROCESSING_CONFIG",
+      "PROCESSING_GROUP",
+      "PROCESSING_INTERNAL",
+      "PROCESSING_RUNTIME",
+      "PROCESSING_STATE",
+      "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
+      "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
+      "PULSE_AGG_NOT_MEANINGFUL_FOR_GEO",
+      "PULSE_DECIMAL_DIVIDE_BY_ZERO",
+      "PULSE_DECIMAL_OVERFLOW",
+      "PULSE_DECIMAL_PRECISION_LOSS",
+      "PULSE_EXPORT_ROW_ERROR",
+      "PULSE_FEAT_TARGET_LEAKAGE_RISK",
+      "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
+      "PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS",
+      "PULSE_GEO_INVALID_POINT",
+      "PULSE_GEO_INVALID_POLYGON",
+      "PULSE_GEO_INVALID_RESOLUTION",
+      "PULSE_IMPORT_CATEGORICAL_OVERFLOW",
+      "PULSE_IMPORT_CATEGORICAL_UNBOUNDED",
+      "PULSE_IMPORT_DESCRIPTION_TOO_LONG",
+      "PULSE_IMPORT_ROW_ERROR",
+      "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
+      "PULSE_PROFILE_FIELD_UNSUPPORTED",
+      "PULSE_QUERY_AMBIGUOUS",
+      "PULSE_QUERY_UNRESOLVED",
+      "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
+      "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
+      "PULSE_TEST_BALANCED_DESIGN_REQUIRED",
+      "PULSE_TEST_CONTINGENCY_DEGENERATE",
+      "PULSE_TEST_CORRELATION_UNDEFINED",
+      "PULSE_TEST_EXPECTED_COUNT_TOO_LOW",
+      "PULSE_TEST_FIELD2_NOT_NUMERIC",
+      "PULSE_TEST_FIELD_NOT_NUMERIC",
+      "PULSE_TEST_FISHER_R_OR_C_GT_2",
+      "PULSE_TEST_INSUFFICIENT_N",
+      "PULSE_TEST_INVALID_ALPHA",
+      "PULSE_TEST_PAIRED_LENGTH_MISMATCH",
+      "PULSE_TEST_SHAPIRO_N_BOUND",
+      "PULSE_TEST_SPLIT_GROUPS_LT_2",
+      "PULSE_TEST_SUBJECT_MISSING",
+      "PULSE_TEST_SUCCESS_VALUE_MISSING",
+      "PULSE_TEST_TIES_DOMINATE",
+      "PULSE_TEST_TUKEY_REQUIRES_K_GE_3",
+      "PULSE_TEST_UNKNOWN_TYPE",
+      "PULSE_TEST_VARIANCE_ZERO",
+      "PULSE_WINDOW_INVALID",
+      "SERVICE_INTERNAL",
+      "SERVICE_REGISTRY",
+      "SERVICE_RESOURCE",
+      "SERVICE_VALIDATION"
     ],
     "mcp_tools": [
       {
@@ -2831,6 +2342,10 @@
       {
         "name": "pulse_compose",
         "description": "Execute a batch of processing requests."
+      },
+      {
+        "name": "pulse_errors_lookup",
+        "description": "Look up Pulse error code metadata. Pass code=PULSE_XXX for full detail on one code. Pass domain=PULSE/ENCODING/PROCESSING/SERVICE/DATA/CLI to enumerate that domain. Pass query=\"text\" for keyword search across descriptions and fixups. The manifest carries only the code-name list — fetch detail here on demand to keep session context lean."
       },
       {
         "name": "pulse_examples_get",
@@ -3886,4 +3401,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 225d112dec4c441ac492f9b75f2bda0efe625820248a933867c45892985064e5
+// golden-hash: c2025d29eb8bd2bf6eb3f54b9eb7598d3a5270f5f461a9b465c1c21d6c8cb603

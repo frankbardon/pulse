@@ -232,33 +232,53 @@ func TestManifestDistributionsComplete(t *testing.T) {
 }
 
 // TestManifestErrorCodesComplete asserts that every code in
-// errors.AllCodes() has an ErrorMeta entry with a curated Description.
+// errors.AllCodes() appears in the manifest's slim error_codes []string
+// field. Per-code Message + Fixup prose lives behind the
+// `pulse_errors_lookup` MCP tool and is enforced by TestCodesHaveFixups
+// in errors/.
 func TestManifestErrorCodesComplete(t *testing.T) {
 	m := BuildManifest()
-	set := make(map[string]ErrorMeta, len(m.ErrorCodes))
-	for _, e := range m.ErrorCodes {
-		set[e.Code] = e
+	set := make(map[string]struct{}, len(m.ErrorCodes))
+	for _, c := range m.ErrorCodes {
+		set[c] = struct{}{}
 	}
 	for _, c := range errors.AllCodes() {
 		s := string(c)
-		e, ok := set[s]
-		if !ok {
-			t.Errorf("error code %q missing from manifest", s)
-			continue
+		if _, ok := set[s]; !ok {
+			t.Errorf("error code %q missing from manifest.error_codes", s)
 		}
-		if strings.TrimSpace(e.Description) == "" {
-			t.Errorf("error code %q has empty Description", s)
+	}
+	if len(m.ErrorCodes) != len(errors.AllCodes()) {
+		t.Errorf("manifest.error_codes length = %d, want %d", len(m.ErrorCodes), len(errors.AllCodes()))
+	}
+}
+
+// TestManifest_ErrorCodesSlim asserts the slim shape: alphabetical
+// order, length parity with errors.Codes(), three peer fields
+// (count + domains + names).
+func TestManifest_ErrorCodesSlim(t *testing.T) {
+	m := BuildManifest()
+	if m.ErrorCodesCount != len(errors.AllCodes()) {
+		t.Errorf("ErrorCodesCount = %d, want %d", m.ErrorCodesCount, len(errors.AllCodes()))
+	}
+	if len(m.ErrorCodes) != m.ErrorCodesCount {
+		t.Errorf("len(ErrorCodes) = %d, want ErrorCodesCount=%d", len(m.ErrorCodes), m.ErrorCodesCount)
+	}
+	for i := 1; i < len(m.ErrorCodes); i++ {
+		if m.ErrorCodes[i] < m.ErrorCodes[i-1] {
+			t.Errorf("ErrorCodes not alphabetized: %q before %q", m.ErrorCodes[i-1], m.ErrorCodes[i])
 		}
-		if e.Domain == "" {
-			t.Errorf("error code %q has empty Domain", s)
-		}
-		if e.Severity != "error" && e.Severity != "warning" {
-			t.Errorf("error code %q has Severity=%q, want error|warning", s, e.Severity)
-		}
-		// Catch the fallback sentinel; if a code lands without a curated
-		// entry, the fallback string surfaces here.
-		if strings.Contains(e.Description, "Undocumented error code") {
-			t.Errorf("error code %q has fallback description; add curated entry to errorMetaTable", s)
+	}
+	if len(m.ErrorDomains) == 0 {
+		t.Errorf("ErrorDomains is empty")
+	}
+	wantDomains := []string{"CLI", "DATA", "ENCODING", "PROCESSING", "PULSE", "SERVICE"}
+	if len(m.ErrorDomains) != len(wantDomains) {
+		t.Errorf("ErrorDomains length = %d, want %d (%v)", len(m.ErrorDomains), len(wantDomains), m.ErrorDomains)
+	}
+	for i, d := range wantDomains {
+		if i >= len(m.ErrorDomains) || m.ErrorDomains[i] != d {
+			t.Errorf("ErrorDomains[%d] = %q, want %q", i, m.ErrorDomains[i], d)
 		}
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
@@ -64,60 +63,12 @@ func TestSkillsCoverAllComponents(t *testing.T) {
 	}
 }
 
-// TestSkillsCoverAllErrorCodes verifies that every constant in errors/codes.go
-// appears in error-code-reference.md.
-func TestSkillsCoverAllErrorCodes(t *testing.T) {
-	content, ok := Get("error-code-reference")
-	if !ok {
-		t.Fatal("error-code-reference.md not found")
-	}
-	for _, code := range errors.AllCodes() {
-		if !strings.Contains(content, string(code)) {
-			t.Errorf("error-code-reference.md does not mention error code %s", code)
-		}
-	}
-}
-
-// TestSkillsErrorCodeFixupsDocumented is a non-skippable CI gate: every
-// error code's section in error-code-reference.md MUST end with a
-// **Fixup:** line. The line either describes a mechanical repair or
-// states "not applicable" for internal-bug codes. The skill is the
-// single reference an LLM consults; the fixup metadata in errors/ and
-// the prose hint here MUST stay in lockstep.
-func TestSkillsErrorCodeFixupsDocumented(t *testing.T) {
-	content, ok := Get("error-code-reference")
-	if !ok {
-		t.Fatal("error-code-reference.md not found")
-	}
-	for _, code := range errors.AllCodes() {
-		section := extractCodeSection(content, string(code))
-		if section == "" {
-			t.Errorf("error-code-reference.md has no `### %s` section", code)
-			continue
-		}
-		if !strings.Contains(section, "**Fixup**:") && !strings.Contains(section, "**Fixup:**") {
-			t.Errorf("error-code-reference.md `### %s` section is missing a `**Fixup**:` line", code)
-		}
-	}
-}
-
-// extractCodeSection returns the text between `### <code>` and the next
-// `### ` heading (or end of file). Returns "" if the section header is
-// not found.
-func extractCodeSection(content, code string) string {
-	header := "### " + code
-	start := strings.Index(content, header)
-	if start < 0 {
-		return ""
-	}
-	// Advance past the header line.
-	body := content[start+len(header):]
-	// The next section starts at "\n### " or end of file.
-	if i := strings.Index(body, "\n### "); i >= 0 {
-		body = body[:i]
-	}
-	return body
-}
+// Note: TestSkillsCoverAllErrorCodes and TestSkillsErrorCodeFixupsDocumented
+// were removed when the error catalog moved out of the skill and behind
+// the pulse_errors_lookup MCP tool / pulse errors lookup CLI leaf.
+// Authoritative coverage now lives in errors/fixup_test.go
+// (TestCodesHaveFixups) and descriptor/manifest_capabilities_test.go
+// (TestManifestErrorCodesComplete / TestManifest_ErrorCodesSlim).
 
 // TestSkillsCoverAllCliLeaves verifies that every user-facing CLI leaf
 // appears in getting-started.md.

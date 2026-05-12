@@ -81,12 +81,11 @@ func SlimManifest(m *Manifest) *Manifest {
 	}
 	out.SynthDistributions = slimDists
 
-	slimErrs := make([]ErrorMeta, len(m.ErrorCodes))
-	for i, e := range m.ErrorCodes {
-		e.Description = ""
-		slimErrs[i] = e
-	}
-	out.ErrorCodes = slimErrs
+	// ErrorCodes is already name-only in the full manifest (slim
+	// payload removes no further information). Shallow-copy to keep
+	// the slim variant independent of the input.
+	out.ErrorCodes = append([]string(nil), m.ErrorCodes...)
+	out.ErrorDomains = append([]string(nil), m.ErrorDomains...)
 
 	slimTools := make([]MCPTool, len(m.MCPTools))
 	for i, mt := range m.MCPTools {

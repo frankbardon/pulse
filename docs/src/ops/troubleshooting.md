@@ -4,15 +4,19 @@
 (file not found, permission errors, MCP transport issues, common error
 codes).
 
-This page is organised by symptom. For the exhaustive recovery
-playbook keyed by error code, agents should fetch the
-`error-code-reference` skill via `pulse_skills_get`; humans can also
-read it at `pulse skills show error-code-reference`.
+This page is organised by symptom. For per-code recovery detail
+(Message + Fixup templates), fetch metadata via the
+`pulse_errors_lookup` MCP tool (`{"code": "PULSE_XXX"}`) or
+`pulse errors lookup CODE` on the command line. The
+`error-code-reference` skill explains the envelope shape, the
+DOMAIN_CATEGORY naming convention, and the repair workflow that
+chains predict-side suggestions into structured fixups.
 
-> **LLM agents using MCP:** the `error-code-reference` skill is the
-> single source of truth for code-by-code recovery steps. This page
-> focuses on operational symptoms that don't reduce to a single error
-> code.
+> **LLM agents using MCP:** call `pulse_errors_lookup` for per-code
+> detail — `code=PULSE_XXX` for one code, `domain=PULSE` to
+> enumerate, `query="..."` for keyword search. The skill is the
+> orientation; the tool is the catalog. This page focuses on
+> operational symptoms that don't reduce to a single error code.
 
 ## "data directory required: set PULSE_DATA_DIR or pass --data-dir"
 

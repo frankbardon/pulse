@@ -46,6 +46,13 @@ type (
 	// ExampleSummary is the lightweight projection returned by
 	// ExamplesSearch.
 	ExampleSummary = examples.ExampleSummary
+
+	// ErrorMetadata is the depth-on-demand projection returned by
+	// ErrorLookup, ErrorsByDomain, and ErrorsSearch. Carries the code,
+	// domain, canonical Message, and materialised Fixup templates.
+	ErrorMetadata = errors.LookupResult
+	// ErrorFixup is one repair template attached to an error code.
+	ErrorFixup = errors.Fixup
 )
 
 // Record is a row of field→value data returned by Sample.
@@ -491,6 +498,35 @@ func (p *Pulse) ExamplesSearch(query string, tags []string, category string) []E
 // it can be handed directly to Process / Predict.
 func (p *Pulse) ExampleGet(name string) (*Example, bool) {
 	return examples.Get(name)
+}
+
+// ErrorLookup returns the metadata projection for a single error code.
+// Case-sensitive exact match. Returns (ErrorMetadata{}, false) when
+// the code is unknown.
+//
+// The manifest carries only the alphabetized code-name list; per-code
+// Message + Fixup detail lives behind this facade so per-session
+// bootstrap stays lean. Use ErrorsByDomain / ErrorsSearch to enumerate
+// in bulk.
+func (p *Pulse) ErrorLookup(code string) (ErrorMetadata, bool) {
+	return errors.Lookup(code)
+}
+
+// ErrorsByDomain returns every code's metadata in the named domain
+// (CLI, DATA, ENCODING, PROCESSING, PULSE, SERVICE). Match is
+// case-insensitive. Returns a non-nil empty slice when nothing
+// matches; results are sorted alphabetically by code.
+func (p *Pulse) ErrorsByDomain(domain string) []ErrorMetadata {
+	return errors.ByDomain(domain)
+}
+
+// ErrorsSearch returns codes whose Message or Fixup hints contain the
+// query (case-insensitive substring). Results are ranked by match
+// source: description hits before fixup hits before code-name hits;
+// ties resolve alphabetically. Returns a non-nil empty slice when
+// nothing matches.
+func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
+	return errors.Search(query)
 }
 
 // Manifest returns the root Pulse self-description. The manifest is

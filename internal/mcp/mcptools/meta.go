@@ -27,6 +27,7 @@ const (
 	ToolAsk            = "pulse_ask"
 	ToolExamplesSearch = "pulse_examples_search"
 	ToolExamplesGet    = "pulse_examples_get"
+	ToolErrorsLookup   = "pulse_errors_lookup"
 )
 
 // Description constants for the registered tools.
@@ -43,6 +44,7 @@ const (
 	DescAsk        = "Pulse one-shot. Inspect the given .pulse file, validate the request against its schema, and execute if valid. Accepts either a structured `request` or a `query` natural-language string (parsed server-side using the file's schema). On validation failure with on_invalid=\"suggest\", return structured fixup suggestions instead of erroring. Replaces the inspect→predict→process round-trip for the common case. Set predict=true to validate without executing."
 	DescExamplesSearch = "Search the embedded request-example library. Filters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `tests`, `windows`). Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get."
 	DescExamplesGet    = "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped — hand it straight to pulse_process or pulse_predict."
+	DescErrorsLookup   = "Look up Pulse error code metadata. Pass code=PULSE_XXX for full detail on one code. Pass domain=PULSE/ENCODING/PROCESSING/SERVICE/DATA/CLI to enumerate that domain. Pass query=\"text\" for keyword search across descriptions and fixups. The manifest carries only the code-name list — fetch detail here on demand to keep session context lean."
 )
 
 // ToolMeta is the canonical (name, description) record for one registered
@@ -68,6 +70,7 @@ func Meta() []ToolMeta {
 		{Name: ToolAsk, Description: DescAsk},
 		{Name: ToolExamplesSearch, Description: DescExamplesSearch},
 		{Name: ToolExamplesGet, Description: DescExamplesGet},
+		{Name: ToolErrorsLookup, Description: DescErrorsLookup},
 	}
 }
 
