@@ -1,6 +1,7 @@
 package errors_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -251,14 +252,7 @@ func TestSortedCodeNames_AlphabetizedAndComplete(t *testing.T) {
 	}
 	// Spot check: a known PULSE code is in the slice.
 	want := string(perr.PULSE_TEST_INSUFFICIENT_N)
-	found := false
-	for _, c := range got {
-		if c == want {
-			found = true
-			break
-		}
-	}
-	if !found {
+	if !slices.Contains(got, want) {
 		t.Errorf("SortedCodeNames missing known code %q", want)
 	}
 }
