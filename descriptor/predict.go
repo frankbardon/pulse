@@ -3,6 +3,7 @@ package descriptor
 import (
 	"bytes"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -444,10 +445,5 @@ func isLowQualityDescription(desc string) bool {
 	// Check for obviously unhelpful descriptions.
 	lower := strings.ToLower(trimmed)
 	unhelpful := []string{"n/a", "na", "none", "tbd", "todo", "unknown", "field", "data", "value", "column"}
-	for _, u := range unhelpful {
-		if lower == u {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(unhelpful, lower)
 }
