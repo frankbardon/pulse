@@ -8,7 +8,7 @@ applies_to: process, compose, predict
 # Request Recipes
 
 <skill_overview>
-A copy-pasteable catalogue of canonical `Request` JSON skeletons keyed by analytical intent. Pick the recipe that matches the question, fill the named slots, and submit it through `pulse api process` or `pulse api predict`. The shapes mirror the `types.Request` wire format, so the same JSON works for the CLI, the MCP `pulse_process` tool, and the library `pulse.Process` entry point.
+A copy-pasteable catalogue of canonical `Request` JSON skeletons keyed by analytical intent. Pick the recipe that matches the question, fill the named slots, and submit it as the `request` argument to `pulse_predict` (to validate) and then `pulse_process` (to execute). The shapes mirror the `types.Request` wire format.
 </skill_overview>
 
 <reference>
@@ -28,7 +28,7 @@ Every recipe is a JSON template with two kinds of placeholders. Replace each `$.
 
 When a recipe needs two distinct fields of the same kind, the marker is suffixed: `$field:numeric_X`, `$field:numeric_Y`, `$field:categorical_A`, `$field:categorical_B`. Match the suffix to the comment beside each slot.
 
-`pulse cohort inspect $file --json` lists every field name and type in the cohort so you can resolve markers against the actual schema before running the request.
+Call `pulse_inspect` with `{"path": "$file"}` to list every field name and type in the cohort so you can resolve markers against the actual schema before running the request. After the first inspect in a session, the action tools' JSON Schemas embed enums of the cohort's field names — picking a wrong name becomes an authoring-time error instead of a runtime one.
 </reference>
 
 <reference>
@@ -291,5 +291,5 @@ Operator `type` is always written explicitly, even where the smart-defaults tabl
 - window-operations — `WIN_*` operators, partitioning, and frame rules used in the moving-average and percent-change recipes
 - feature-engineering — `FEAT_*` operator catalog and the target-leakage trap referenced by the pipeline recipe
 - statistical-testing — tier-1 vs tier-2 testing and per-operator output schemas
-- debugging-with-predict — validate a filled-in recipe with `pulse api predict --strict` before running it
+- debugging-with-predict — validate a filled-in recipe with `pulse_predict` (or `pulse_ask` with `predict=true`) before running it
 </see_also>

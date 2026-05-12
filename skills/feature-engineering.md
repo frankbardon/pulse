@@ -182,7 +182,7 @@ Order matters:
 <reference>
 ## Predict surface
 
-Run `pulse predict --json` against any feature-using request. Predict will:
+Call `pulse_predict` against any feature-using request. Predict will:
 - Reject unknown `FEAT_*` types (`SERVICE_VALIDATION`).
 - Verify required input fields exist in the cohort schema.
 - Verify type compatibility (categorical for ONE_HOT/FREQUENCY/TARGET, date for DATE_FEATURES, numeric target for TARGET_ENCODE).

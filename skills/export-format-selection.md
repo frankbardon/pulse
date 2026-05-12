@@ -123,47 +123,15 @@ Limitations:
 If you need to round-trip data back into Pulse, use Parquet to preserve categorical encoding.
 </rule>
 
-<example name="export-csv">
-Export processed results to CSV for spreadsheet consumers.
+<rule severity="note" topic="no-mcp-tool">
+## Export has no MCP tool today
 
-```
-pulse export csv --input data.pulse --output results.csv
-```
-</example>
+The export and convert operations are CLI / library facilities — there is no `pulse_export` MCP tool. When advising on format selection, decide based on the table above and point a human at the relevant mdBook chapter for invocation:
 
-<example name="export-parquet">
-Export to Parquet for machine-to-machine transfer with full type fidelity.
+- CSV / TSV / NDJSON / JSON Array — see the export chapters under https://frankbardon.github.io/pulse/cli/
+- Parquet — same.
+- Arrow IPC / Feather V2 — produced via the convert command. See https://frankbardon.github.io/pulse/cli/
+- Excel — same.
 
-```
-pulse export parquet --input data.pulse --output results.parquet
-```
-</example>
-
-<example name="export-jsonarray">
-Export to a top-level JSON array for browsers, REST consumers, or scripts.
-
-```
-pulse export jsonarray --input data.pulse --output results.json
-```
-</example>
-
-<example name="export-arrow">
-Export to Arrow IPC (Feather V2) for Arrow-native consumers via the convert command.
-
-```
-pulse convert data.pulse results.arrow
-pulse convert data.pulse results.feather
-```
-</example>
-
-<example name="export-excel">
-Export to Excel for non-technical end users.
-
-```
-pulse export excel --input data.pulse --output results.xlsx
-```
-</example>
-
-<rule severity="should" topic="validate-before-write">
-Use `pulse export predict` to validate the export configuration before writing.
+Validation before writing is available from the CLI side (`pulse export predict`). It is not surfaced through MCP today.
 </rule>

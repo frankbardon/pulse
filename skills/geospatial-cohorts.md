@@ -29,7 +29,7 @@ Validation: `|lat| ≤ 90`, `|lon| ≤ 180`, no NaN/Inf. Out-of-range → `PULSE
 
 ## `h3_cell` — Uber H3 index
 
-Stored as 8 bytes: a `uint64` H3 cell index in canonical bit layout. `pulse inspect` surfaces the native resolution (the H3 resolution at which the cell was generated) when the import recorded it; otherwise the resolution is omitted.
+Stored as 8 bytes: a `uint64` H3 cell index in canonical bit layout. `pulse_inspect` surfaces the native resolution (the H3 resolution at which the cell was generated) when the import recorded it; otherwise the resolution is omitted.
 
 H3 string form is 15 lowercase hex characters: `"89283082803ffff"`.
 

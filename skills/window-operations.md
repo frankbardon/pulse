@@ -129,7 +129,7 @@ Exponentially weighted moving average. Recurrence: `s_i = α·x_i + (1-α)·s_{i
 <rule severity="critical" topic="errors">
 ## Validation errors
 
-Predict raises `PULSE_WINDOW_INVALID` for every structural violation listed in `error-code-reference.md`. Run `pulse predict --json` against your file to surface the exact rule and offending window index before execution.
+Predict raises `PULSE_WINDOW_INVALID` for every structural violation listed in `error-code-reference.md`. Call `pulse_predict` against the request to surface the exact rule and offending window index before execution.
 
 `SERVICE_VALIDATION` is reused for the consistency case of a missing or unknown `field` (mirrors aggregation/filter validators).
 </rule>

@@ -68,20 +68,24 @@ Results are returned as an array in the same order as the input requests. Each r
 ```
 </rule>
 
-<example name="cli-compose">
-## CLI Usage
+<example name="invoke-compose">
+## Calling pulse_compose
 
-```
-pulse api compose --request composed.json [--json]
+```json
+{
+  "request": "{\"requests\":[{\"cohort\":{\"filename\":\"students.pulse\"},\"aggregations\":[{\"type\":\"AGG_COUNT\",\"field\":\"score\"}]}]}"
+}
 ```
 
-The `--json` flag wraps the output in an envelope with timing metadata.
+The response is the standard envelope. Each request's result is one entry in `data` in the same order as the input. Per-request `metadata` reflects that request's filter state.
 </example>
 
 <reference>
-## Predict Mode
+## Validate before executing
 
-Use `pulse api predict` to validate a ComposedRequest before execution. Predict mode checks field references, type compatibility, and aggregator-categorical interactions for all requests in the batch.
+Call `pulse_predict` on each `Request` inside the batch (or run them as a sequence through `pulse_predict` calls) to check field references, type compatibility, and aggregator-categorical interactions before paying for `pulse_compose`. Predict has no batch mode in v1; loop per element.
+
+For parallel execution and fail-fast control (CLI-side flags), see https://frankbardon.github.io/pulse/cli/api-compose.html.
 </reference>
 
 <rule severity="caveat" topic="batch-size">

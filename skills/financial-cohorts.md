@@ -35,7 +35,7 @@ Examples:
 | `decimal128(38, 18)` | ±99,999,999,999,999,999,999.999999999999999999 | Crypto, ETH/BTC at native unit |
 | `decimal128(38, 0)` | ±10^38 - 1 | Integer-only counts that need 128-bit range |
 
-Precision and scale are **per field**, declared in the schema and persisted in the .pulse header. `pulse inspect` surfaces both.
+Precision and scale are **per field**, declared in the schema and persisted in the .pulse header. `pulse_inspect` surfaces both.
 
 ## Rounding mode
 

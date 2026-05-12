@@ -115,7 +115,7 @@ Errors from the processing engine and pipeline.
 - Review the request JSON for correctness.
 - Use `api predict` to validate the request before executing.
 
-**Fixup**: SET_DEFAULT — run `pulse predict --json` first; predict names the offending operator and parameter so the fix is mechanical.
+**Fixup**: SET_DEFAULT — call `pulse_predict` (or `pulse_ask` with `predict=true`) first; predict names the offending operator and parameter so the fix is mechanical.
 
 ### PROCESSING_STATE
 
@@ -189,7 +189,7 @@ Errors from the HTTP/API layer and service operations.
 - For removed attribute types, follow the migration hint in the error message; e.g., `ATTR_RANK` request emits a hint with `details.replacement = "WIN_RANK"`. See `skills/window-operations.md`.
 - Use `api predict` to check the request.
 
-**Fixup**: SET_DEFAULT — call `pulse predict --json` first; it reports the exact missing or malformed field path so the fix is mechanical.
+**Fixup**: SET_DEFAULT — call `pulse_predict` first; it reports the exact missing or malformed field path so the fix is mechanical.
 
 ### SERVICE_RESOURCE
 
@@ -217,10 +217,10 @@ Errors from the HTTP/API layer and service operations.
 - Unknown attribute type string
 
 **Recovery**:
-- Check the component type string against the manifest (`pulse --json`).
+- Check the component type string against the cached `pulse_manifest` payload.
 - Ensure correct spelling and casing.
 
-**Fixup**: REPLACE_OPERATOR — check the operator name against `pulse manifest --json` (Components section); spelling and casing must match exactly.
+**Fixup**: REPLACE_OPERATOR — check the operator name against the cached `pulse_manifest` payload (Components section); spelling and casing must match exactly.
 
 ### SERVICE_INTERNAL
 
@@ -264,7 +264,7 @@ Errors from data file and dataset management operations.
 - Use `--sample-rows` to test with a subset first.
 - Fix data quality issues in the source file.
 
-**Fixup**: REPLACE_FIELD — inspect the offending row with `pulse sample --rows N`; common causes are inconsistent column counts, stray quotes, or wrong delimiter.
+**Fixup**: REPLACE_FIELD — eyeball the offending row by calling `pulse_sample` with `count` ≥ the row index; common causes are inconsistent column counts, stray quotes, or wrong delimiter.
 
 ### DATA_CONFIG
 
@@ -295,7 +295,7 @@ Errors from data file and dataset management operations.
 - Verify field references in the request.
 - Check that categorical dictionaries are consistent.
 
-**Fixup**: REPLACE_FIELD — verify every field reference in the request appears in `pulse inspect --json` output for the cohort.
+**Fixup**: REPLACE_FIELD — verify every field reference in the request appears in the `pulse_inspect` response for the cohort.
 
 ### DATA_INTERNAL
 
@@ -350,7 +350,7 @@ Errors from command-line interface operations.
 - Check the wrapped error message for details.
 - Use `api predict` for processing-related commands.
 
-**Fixup**: SET_DEFAULT — check the wrapped error in the envelope details; for processing leaves, run `pulse predict --json` on the request first.
+**Fixup**: SET_DEFAULT — check the wrapped error in the envelope details; for processing operations, call `pulse_predict` on the request first.
 
 ### CLI_INTERNAL
 
@@ -495,7 +495,7 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Output `label` collides with an aggregation, group, or attribute label
 
 **Recovery**:
-- Run `pulse predict --json` and read the `details` payload — it identifies the offending window index and rule.
+- Call `pulse_predict` and read the `details` payload — it identifies the offending window index and rule.
 - Fix the request per the rule above. Most fixes are mechanical: add `order_by`, drop the `frame` for ROW_NUMBER/RANK/DENSE_RANK, or pick a numeric field for the value-bearing operators.
 - See `skills/window-operations.md` for the full contract and per-operator semantics.
 
@@ -753,9 +753,9 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 
 **Recovery**:
 - Add `"params": {"success": "yes"}` (or whichever dictionary value represents success in your cohort) to the test spec.
-- Use `pulse cohort inspect` to confirm the categorical's dictionary values.
+- Call `pulse_inspect` to confirm the categorical's dictionary values.
 
-**Fixup**: SET_DEFAULT (`Tests[*].Params.success`) — supply the dictionary value that represents success (e.g. `{"success": "yes"}`); use `pulse inspect` to list the categorical's dictionary values.
+**Fixup**: SET_DEFAULT (`Tests[*].Params.success`) — supply the dictionary value that represents success (e.g. `{"success": "yes"}`); call `pulse_inspect` to list the categorical's dictionary values.
 
 ### PULSE_TEST_CORRELATION_UNDEFINED
 
@@ -846,7 +846,7 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 
 ### PULSE_QUERY_UNRESOLVED
 
-**Description**: The natural-language query parser (`internal/query`, surfaced through `pulse_ask`'s `query` field and the `pulse api ask` CLI leaf) could not map one or more tokens to an operator, schema field, or bucket within the configured edit-distance budget (≤ 2). The parser either produced no parseable structure (severity: error) or produced a partial request with at least one unresolved slot (severity: warning).
+**Description**: The natural-language query parser (`internal/query`, surfaced through `pulse_ask`'s `query` field) could not map one or more tokens to an operator, schema field, or bucket within the configured edit-distance budget (≤ 2). The parser either produced no parseable structure (severity: error) or produced a partial request with at least one unresolved slot (severity: warning).
 
 **Causes**:
 - Verb is not in the catalog (`average`, `avg`, `mean`, `sum`, `total`, `count`, `median`, `stddev`, `std`, `min`, `minimum`, `max`, `maximum`, `percentile`, `top`, `correlate`)
@@ -856,10 +856,10 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 
 **Recovery**:
 - Re-phrase using one of the canonical shapes documented in `skills/request-recipes.md` (e.g. `<agg> <field>`, `<agg> <field> by <field>`, `top N <field> by count`).
-- Verify every field reference appears in `pulse inspect --json` output for the cohort.
+- Verify every field reference appears in the `pulse_inspect` response for the cohort.
 - For richer queries, hand the structured `request` body to `pulse_ask` directly instead of relying on the heuristic parser.
 
-**Fixup**: REPLACE_FIELD — re-phrase using one of the canonical shapes in `skills/request-recipes.md`; confirm every field reference appears in `pulse inspect --json` output.
+**Fixup**: REPLACE_FIELD — re-phrase using one of the canonical shapes in `skills/request-recipes.md`; confirm every field reference appears in the `pulse_inspect` response.
 
 ### PULSE_QUERY_AMBIGUOUS
 
