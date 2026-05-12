@@ -37,6 +37,13 @@ Every tool wraps a public library entrypoint. Inputs are JSON; outputs are JSON-
 | `pulse_facet` | `pulse.Pulse.Facet` — distribution of a field | `path` (string), `field` (string) |
 | `pulse_skills_list` | `skills.List` — embedded skill metadata | (none) |
 | `pulse_skills_get` | `skills.Get` — fetch skill body | `name` (string) |
+| `pulse_manifest` | `pulse.Pulse.Manifest` — root self-description (commands, components, cohort types, skills) | (none) |
+
+Call `pulse_manifest` once at session start and cache the result. The
+manifest is deterministic and free of cohort data; it contains every
+fact an LLM needs to author a valid Pulse request (operator names,
+field types, command list, skill index). One bootstrap call replaces
+several discovery round-trips.
 
 The canonical list is `internal/mcp.RegisteredTools()`. Adding or removing a tool requires updating this skill in the same PR (`TestSkillsCoverAllMCPTools`).
 

@@ -247,6 +247,13 @@ func (p *Pulse) Facet(ctx context.Context, path string, field string) ([]string,
 	return p.svc.Facet(ctx, path, field)
 }
 
+// Manifest returns the root Pulse self-description. The manifest is
+// deterministic and process-wide: it does not depend on cohort data or
+// the filesystem. Callers cache the result for a session.
+func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
+	return descriptor.BuildManifest()
+}
+
 // Fs returns the underlying afero.Fs. Embedders (e.g. the MCP server) need
 // this to enumerate .pulse files; processing methods route through service
 // and never expose the filesystem directly.

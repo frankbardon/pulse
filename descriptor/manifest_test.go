@@ -134,6 +134,30 @@ func TestManifestIncludesSkills(t *testing.T) {
 	}
 }
 
+// TestManifest_SkillsNotEmpty verifies the manifest populates Skills from
+// the embedded skill pack. The earlier hardcoded empty slice was a bug.
+func TestManifest_SkillsNotEmpty(t *testing.T) {
+	m := BuildManifest()
+	if len(m.Skills) == 0 {
+		t.Fatal("Skills slice is empty; manifest must mirror skills.List() output")
+	}
+	// Every entry must have a name and a description.
+	for i, s := range m.Skills {
+		if s.Name == "" {
+			t.Errorf("Skills[%d] missing Name", i)
+		}
+		if s.Description == "" {
+			t.Errorf("Skills[%d] (%q) missing Description", i, s.Name)
+		}
+	}
+	// Ensure sorted by name (deterministic).
+	for i := 1; i < len(m.Skills); i++ {
+		if m.Skills[i].Name < m.Skills[i-1].Name {
+			t.Errorf("Skills not sorted: %q before %q", m.Skills[i-1].Name, m.Skills[i].Name)
+		}
+	}
+}
+
 func TestRootManifestGolden(t *testing.T) {
 	m := BuildManifest()
 	env := NewEnvelope(m)

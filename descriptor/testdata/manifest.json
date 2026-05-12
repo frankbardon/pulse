@@ -190,9 +190,78 @@
         "categorical": false
       }
     ],
-    "skills": []
+    "skills": [
+      {
+        "name": "aggregation-guide",
+        "description": "When to use each of the 18 aggregators and 6 filterers"
+      },
+      {
+        "name": "attribute-composition",
+        "description": "z-score, t-score, normalized, formula — composition rules"
+      },
+      {
+        "name": "cohort-schema-design",
+        "description": "Choosing types, nullability, bit-packing tradeoffs"
+      },
+      {
+        "name": "compose-requests",
+        "description": "When and how to use ComposedRequest"
+      },
+      {
+        "name": "debugging-with-predict",
+        "description": "Iterating on a request using api predict"
+      },
+      {
+        "name": "error-code-reference",
+        "description": "Recovery playbook per error code"
+      },
+      {
+        "name": "export-format-selection",
+        "description": "CSV vs Parquet vs Excel for downstream tools"
+      },
+      {
+        "name": "feature-engineering",
+        "description": "FEAT_* operators - pre-filter feature engineering for ML pipelines, with the target leakage trap"
+      },
+      {
+        "name": "financial-cohorts",
+        "description": "Decimal128 usage, precision propagation, banker's rounding, currency-column patterns, divide-by-zero policy"
+      },
+      {
+        "name": "geospatial-cohorts",
+        "description": "point_f64 / h3_cell usage, centroid algorithm, antimeridian behavior, radius filter (meters), polygon WKT format, H3 resolution table"
+      },
+      {
+        "name": "getting-started",
+        "description": "Pulse vocabulary, file format, mental model"
+      },
+      {
+        "name": "grouper-design",
+        "description": "GROUP_CATEGORY, GROUP_DATE, GROUP_H3_CELL, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED, nesting semantics"
+      },
+      {
+        "name": "import-best-practices",
+        "description": "Schema inference, fail-closed semantics, null markers"
+      },
+      {
+        "name": "mcp-integration",
+        "description": "Wire Pulse into MCP-aware AI clients and call its tools and resources"
+      },
+      {
+        "name": "statistical-testing",
+        "description": "TEST_* operators - tier 1 row tests and tier 2 post tests in one Process pipeline"
+      },
+      {
+        "name": "synthetic-data",
+        "description": "Generate deterministic synthetic .pulse cohorts from a schema or a captured statistical profile, with constraints and pairwise correlations."
+      },
+      {
+        "name": "window-operations",
+        "description": "WIN_* operators — partitioning, ordering, frames, and per-operator semantics"
+      }
+    ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4109425c32df5d2a90b9ae905eb11c17fdb864c9d18aa8132857f4dc62577e70
+// golden-hash: 2da7c0e258acf28df07c14a792fcde216a8d2c08ca4fecdacfe6c593211d4dd2

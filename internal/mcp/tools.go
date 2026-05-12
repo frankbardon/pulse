@@ -23,27 +23,64 @@ const (
 	ToolFacet      = "pulse_facet"
 	ToolSkillsList = "pulse_skills_list"
 	ToolSkillsGet  = "pulse_skills_get"
+	ToolManifest   = "pulse_manifest"
 )
+
+// Tool description copy. Kept as exported constants so the descriptor
+// manifest can mirror what an MCP client sees in its tool list without
+// re-importing this package's full server wiring.
+const (
+	DescInspect    = "Read header and schema of a .pulse file. Never reads record data."
+	DescPredict    = "Validate a processing request against a cohort schema without executing."
+	DescProcess    = "Execute a processing request against a cohort."
+	DescCompose    = "Execute a batch of processing requests."
+	DescSample     = "Return up to N rows from a cohort."
+	DescFacet      = "Return distinct values for a field in a cohort."
+	DescSkillsList = "List available embedded skills with their descriptions."
+	DescSkillsGet  = "Fetch the markdown body of a named skill."
+	DescManifest   = "Return the root Pulse manifest. Call once at session start. Cache the result. Reference it for every subsequent request authoring decision."
+)
+
+// ToolMeta is the canonical (name, description) record for one registered
+// MCP tool. Order in RegisteredToolsMeta matches RegisteredTools so the
+// descriptor manifest stays deterministic.
+type ToolMeta struct {
+	Name        string
+	Description string
+}
+
+// RegisteredToolsMeta returns the canonical list of MCP tools with their
+// description strings. Order is stable for deterministic documentation
+// and manifest scans.
+func RegisteredToolsMeta() []ToolMeta {
+	return []ToolMeta{
+		{Name: ToolInspect, Description: DescInspect},
+		{Name: ToolPredict, Description: DescPredict},
+		{Name: ToolProcess, Description: DescProcess},
+		{Name: ToolCompose, Description: DescCompose},
+		{Name: ToolSample, Description: DescSample},
+		{Name: ToolFacet, Description: DescFacet},
+		{Name: ToolSkillsList, Description: DescSkillsList},
+		{Name: ToolSkillsGet, Description: DescSkillsGet},
+		{Name: ToolManifest, Description: DescManifest},
+	}
+}
 
 // RegisteredTools returns the canonical list of MCP tool names exposed by
 // this server. Order is stable for deterministic documentation scans.
 func RegisteredTools() []string {
-	return []string{
-		ToolInspect,
-		ToolPredict,
-		ToolProcess,
-		ToolCompose,
-		ToolSample,
-		ToolFacet,
-		ToolSkillsList,
-		ToolSkillsGet,
+	meta := RegisteredToolsMeta()
+	out := make([]string, len(meta))
+	for i, m := range meta {
+		out[i] = m.Name
 	}
+	return out
 }
 
 func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 	s.AddTool(
 		mcpgo.NewTool(ToolInspect,
-			mcpgo.WithDescription("Read header and schema of a .pulse file. Never reads record data."),
+			mcpgo.WithDescription(DescInspect),
 			mcpgo.WithString("path", mcpgo.Description("Filesystem path to the .pulse file"), mcpgo.Required()),
 		),
 		handleInspect(p),
@@ -51,7 +88,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 
 	s.AddTool(
 		mcpgo.NewTool(ToolPredict,
-			mcpgo.WithDescription("Validate a processing request against a cohort schema without executing."),
+			mcpgo.WithDescription(DescPredict),
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded types.Request"), mcpgo.Required()),
 		),
 		handlePredict(p),
@@ -59,7 +96,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 
 	s.AddTool(
 		mcpgo.NewTool(ToolProcess,
-			mcpgo.WithDescription("Execute a processing request against a cohort."),
+			mcpgo.WithDescription(DescProcess),
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded types.Request"), mcpgo.Required()),
 		),
 		handleProcess(p),
@@ -67,7 +104,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 
 	s.AddTool(
 		mcpgo.NewTool(ToolCompose,
-			mcpgo.WithDescription("Execute a batch of processing requests."),
+			mcpgo.WithDescription(DescCompose),
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded types.ComposedRequest"), mcpgo.Required()),
 		),
 		handleCompose(p),
@@ -75,7 +112,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 
 	s.AddTool(
 		mcpgo.NewTool(ToolSample,
-			mcpgo.WithDescription("Return up to N rows from a cohort."),
+			mcpgo.WithDescription(DescSample),
 			mcpgo.WithString("path", mcpgo.Description("Filesystem path to the .pulse file"), mcpgo.Required()),
 			mcpgo.WithNumber("count", mcpgo.Description("Maximum rows to return (default 10)")),
 		),
@@ -84,7 +121,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 
 	s.AddTool(
 		mcpgo.NewTool(ToolFacet,
-			mcpgo.WithDescription("Return distinct values for a field in a cohort."),
+			mcpgo.WithDescription(DescFacet),
 			mcpgo.WithString("path", mcpgo.Description("Filesystem path to the .pulse file"), mcpgo.Required()),
 			mcpgo.WithString("field", mcpgo.Description("Field name to facet"), mcpgo.Required()),
 		),
@@ -93,17 +130,24 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse) {
 
 	s.AddTool(
 		mcpgo.NewTool(ToolSkillsList,
-			mcpgo.WithDescription("List available embedded skills with their descriptions."),
+			mcpgo.WithDescription(DescSkillsList),
 		),
 		handleSkillsList(),
 	)
 
 	s.AddTool(
 		mcpgo.NewTool(ToolSkillsGet,
-			mcpgo.WithDescription("Fetch the markdown body of a named skill."),
+			mcpgo.WithDescription(DescSkillsGet),
 			mcpgo.WithString("name", mcpgo.Description("Skill name (e.g. 'aggregation-guide')"), mcpgo.Required()),
 		),
 		handleSkillsGet(),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolManifest,
+			mcpgo.WithDescription(DescManifest),
+		),
+		handleManifest(p),
 	)
 }
 
@@ -211,6 +255,12 @@ func handleFacet(p *pulse.Pulse) server.ToolHandlerFunc {
 			return mcpgo.NewToolResultError(err.Error()), nil
 		}
 		return jsonResult(values)
+	}
+}
+
+func handleManifest(p *pulse.Pulse) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		return jsonResult(p.Manifest(ctx))
 	}
 }
 

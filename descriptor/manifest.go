@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/skills"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -198,6 +199,27 @@ func BuildManifest() *Manifest {
 			Features:    sortedFeatureTypes(),
 		},
 		CohortTypes: cohortFieldTypes(),
-		Skills:      []SkillMeta{},
+		Skills:      sortedSkills(),
 	}
+}
+
+// sortedSkills returns the embedded skill metadata as descriptor SkillMeta
+// records, sorted by Name for deterministic output. The skill index is
+// immutable for the process lifetime, so we cache the result.
+var (
+	sortedSkillsOnce sync.Once
+	sortedSkillsVal  []SkillMeta
+)
+
+func sortedSkills() []SkillMeta {
+	sortedSkillsOnce.Do(func() {
+		raw := skills.List()
+		out := make([]SkillMeta, len(raw))
+		for i, s := range raw {
+			out[i] = SkillMeta{Name: s.Name, Description: s.Description}
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+		sortedSkillsVal = out
+	})
+	return sortedSkillsVal
 }
