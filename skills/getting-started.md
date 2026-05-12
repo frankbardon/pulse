@@ -176,6 +176,7 @@ Every `--json` response: `{"format_version":"1.0","data":{...},"errors":[],"warn
 </reference>
 
 <see_also>
+- request-recipes — copy-pasteable request JSON skeletons keyed by analytical intent; start here when authoring requests quickly
 - cohort-schema-design — field types and schema authoring
 - aggregation-guide — `AGG_*` operations and filtering
 - attribute-composition — `ATTR_*` per-record derivations

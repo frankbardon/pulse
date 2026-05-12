@@ -3780,6 +3780,10 @@
         "description": "Wire Pulse into MCP-aware AI clients and call its tools and resources"
       },
       {
+        "name": "request-recipes",
+        "description": "Canonical request JSON skeletons keyed by analytical intent"
+      },
+      {
         "name": "statistical-testing",
         "description": "TEST_* operators - tier 1 row tests and tier 2 post tests in one Process pipeline"
       },
@@ -3796,4 +3800,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6e88e7612a0cef54f8e8dd6d341ec27aee2f56b280d7ba761279e64dceee1069
+// golden-hash: 7daeea0f3a234406c950a612362d533fab509e26afe053dd1c71efce22593c68

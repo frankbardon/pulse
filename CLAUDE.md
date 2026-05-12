@@ -8,7 +8,7 @@ Pulse is a high-performance, self-describing tabular data processing engine. It 
 
 - **Library-first.** The `pulse.go` facade (`pulse.New`, `pulse.Options`, `pulse.Process`, `pulse.Compose`, `pulse.Import`, `pulse.Export`, `pulse.Convert`, `pulse.Inspect`, `pulse.Predict`, `pulse.Sample`, `pulse.Facet`) is the public API. The CLI calls the library; it never contains business logic.
 - **Self-describing.** Every `.pulse` file carries its schema in the header. The `descriptor/` package provides `manifest`, `predict`, and `inspect` operations that expose the system's capabilities and validate requests without executing them.
-- **Skill-augmented.** The `skills/` package embeds 17 markdown skill files into the binary via `//go:embed`. LLM agents (and Nexus, the orchestration layer that consumes Pulse) can call `skills.List()` and `skills.Get(name)` at boot time to inject domain-specific guidance into their context.
+- **Skill-augmented.** The `skills/` package embeds 18 markdown skill files into the binary via `//go:embed`. LLM agents (and Nexus, the orchestration layer that consumes Pulse) can call `skills.List()` and `skills.Get(name)` at boot time to inject domain-specific guidance into their context.
 - **Nexus relationship.** Pulse is a standalone processing engine. Nexus is the upstream orchestration agent that calls Pulse's library API or CLI. Pulse has no dependency on Nexus. Nexus discovers Pulse's capabilities via `pulse manifest --json` and loads skills from the embedded skill pack.
 
 **Module path:** `github.com/frankbardon/pulse`
@@ -120,7 +120,7 @@ The `descriptor/` package provides three no-execution operations:
 
 All three return an `Envelope` (see Output Format Contract below).
 
-The `skills/` package embeds 17 skill files via `//go:embed *.md` and an `index.json` manifest. Each skill has YAML frontmatter with `name`, `description`, `type`, and `applies_to` fields. Skills are loaded with `skills.Get(name)` and listed with `skills.List()`.
+The `skills/` package embeds 18 skill files via `//go:embed *.md` and an `index.json` manifest. Each skill has YAML frontmatter with `name`, `description`, `type`, and `applies_to` fields. Skills are loaded with `skills.Get(name)` and listed with `skills.List()`.
 
 ## Code Conventions
 
