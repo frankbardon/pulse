@@ -149,7 +149,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 	s.AddTool(
 		mcpgo.NewTool(ToolAsk,
 			mcpgo.WithDescription(DescAsk),
-			mcpgo.WithString("request", mcpgo.Description("JSON-encoded pulse.AskRequest with `request` (types.Request), optional `on_invalid` (\"abort\"|\"suggest\") and optional `predict` (bool)"), mcpgo.Required()),
+			mcpgo.WithString("request", mcpgo.Description("JSON-encoded pulse.AskRequest with either `request` (types.Request) or `query` (natural-language string parsed against the cohort's schema), optional `on_invalid` (\"abort\"|\"suggest\") and optional `predict` (bool)"), mcpgo.Required()),
 		),
 		handleAsk(s, p, bindOnOpen, handlers),
 	)

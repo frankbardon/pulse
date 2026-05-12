@@ -16,5 +16,6 @@
     {"name": "geospatial-cohorts", "description": "point_f64 / h3_cell usage, centroid algorithm, antimeridian behavior, radius filter (meters), polygon WKT format, H3 resolution table", "type": "guide", "applies_to": ["process", "compose", "predict", "inspect"]},
     {"name": "synthetic-data", "description": "Generate deterministic synthetic .pulse cohorts from a schema or a captured statistical profile, with constraints and pairwise correlations.", "type": "guide", "applies_to": ["inspect", "predict", "manifest"]},
     {"name": "statistical-testing", "description": "TEST_* operators - tier 1 row tests and tier 2 post tests in one Process pipeline", "type": "guide", "applies_to": ["process", "compose", "predict"]},
-    {"name": "request-recipes", "description": "Canonical request JSON skeletons keyed by analytical intent", "type": "reference", "applies_to": ["process", "compose", "predict"]}
+    {"name": "request-recipes", "description": "Canonical request JSON skeletons keyed by analytical intent", "type": "reference", "applies_to": ["process", "compose", "predict"]},
+    {"name": "query-router-prompt", "description": "System-prompt template a calling LLM can use to translate natural-language intent into a Pulse AskRequest JSON payload", "type": "reference", "applies_to": ["process", "compose", "predict"]}
 ]

@@ -81,6 +81,8 @@ var errorMetaTable = []ErrorMeta{
 	{Code: "PULSE_TEST_TUKEY_REQUIRES_K_GE_3", Severity: "error", Description: "Tukey HSD requires k ≥ 3 groups; a t-test or two-proportion z is the appropriate alternative for k = 2."},
 	{Code: "PULSE_TEST_SHAPIRO_N_BOUND", Severity: "warning", Description: "A Shapiro-Wilk request observed n above the supported limit (5000); use an asymptotic normality test instead."},
 	{Code: "PULSE_TEST_FISHER_R_OR_C_GT_2", Severity: "error", Description: "Fisher exact requires a 2×2 table; r×c support lands separately."},
+	{Code: "PULSE_QUERY_UNRESOLVED", Severity: "error", Description: "The natural-language query parser could not map a token to any operator, schema field, or bucket within the edit-distance budget."},
+	{Code: "PULSE_QUERY_AMBIGUOUS", Severity: "warning", Description: "A query token matched multiple schema fields at the same edit distance; the parser picked the lexically first match and proceeded."},
 }
 
 // errorCapabilities returns metadata for every entry in errors.AllCodes(),

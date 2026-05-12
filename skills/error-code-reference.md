@@ -843,4 +843,35 @@ Pulse-specific error codes for I/O pipelines, categorical handling, description 
 - Wait on the follow-up that ships the full network algorithm.
 
 **Fixup**: REPLACE_OPERATOR (`Tests[*].Type`) — use `TEST_CHISQ` for r×c tables when expected counts are large enough; or filter the cohort to a 2×2 subset with `FILTER_INCLUDE`.
+
+### PULSE_QUERY_UNRESOLVED
+
+**Description**: The natural-language query parser (`internal/query`, surfaced through `pulse_ask`'s `query` field and the `pulse api ask` CLI leaf) could not map one or more tokens to an operator, schema field, or bucket within the configured edit-distance budget (≤ 2). The parser either produced no parseable structure (severity: error) or produced a partial request with at least one unresolved slot (severity: warning).
+
+**Causes**:
+- Verb is not in the catalog (`average`, `avg`, `mean`, `sum`, `total`, `count`, `median`, `stddev`, `std`, `min`, `minimum`, `max`, `maximum`, `percentile`, `top`, `correlate`)
+- Field token differs from every schema field by more than 2 edits
+- "over time" used on a cohort with no `date`-typed field
+- "with lag N" where N is missing or non-positive
+
+**Recovery**:
+- Re-phrase using one of the canonical shapes documented in `skills/request-recipes.md` (e.g. `<agg> <field>`, `<agg> <field> by <field>`, `top N <field> by count`).
+- Verify every field reference appears in `pulse inspect --json` output for the cohort.
+- For richer queries, hand the structured `request` body to `pulse_ask` directly instead of relying on the heuristic parser.
+
+**Fixup**: REPLACE_FIELD — re-phrase using one of the canonical shapes in `skills/request-recipes.md`; confirm every field reference appears in `pulse inspect --json` output.
+
+### PULSE_QUERY_AMBIGUOUS
+
+**Description**: A query token matched multiple schema fields at the same Levenshtein distance. The parser picks the lexically first candidate and proceeds, surfacing every candidate in the warning's `details.candidates` array so the caller can disambiguate.
+
+**Causes**:
+- Two or more schema fields are within the same edit distance (≤ 2) of the supplied token
+- The user used a generic word that overlaps with several field names
+
+**Recovery**:
+- Re-phrase using the full schema field name to remove the ambiguity.
+- Edit the resolved `request` (returned in `AskResponse.predict.request`) to point at the intended field, then submit it through `pulse_ask` with `query` omitted.
+
+**Fixup**: REPLACE_FIELD — re-phrase using the full schema field name to remove the ambiguity, or edit the resolved request to point at the intended field.
 </reference>

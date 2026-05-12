@@ -249,6 +249,113 @@ func TestAsk_SuggestionsDedupedAndSorted(t *testing.T) {
 	}
 }
 
+// TestAsk_QueryFieldDrivesParse asserts that a natural-language Query
+// field drives the request synthesis: AskResponse.QueryResolution is
+// non-nil and the predict result's request carries the parsed
+// aggregation.
+func TestAsk_QueryFieldDrivesParse(t *testing.T) {
+	memFs := afero.NewMemMapFs()
+	createTestPulseFile(t, memFs, "test.pulse", []string{"revenue"}, [][]string{
+		{"10"}, {"20"}, {"30"},
+	})
+
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	resp, err := p.Ask(context.Background(), &AskRequest{
+		File:  "test.pulse",
+		Query: "average revenue",
+	})
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	if resp.QueryResolution == nil {
+		t.Fatal("expected QueryResolution non-nil when Query was set")
+	}
+	if resp.QueryResolution.Query != "average revenue" {
+		t.Errorf("QueryResolution.Query = %q, want %q", resp.QueryResolution.Query, "average revenue")
+	}
+	if !contains(resp.QueryResolution.MatchedFields, "revenue") {
+		t.Errorf("MatchedFields should include 'revenue'; got %v", resp.QueryResolution.MatchedFields)
+	}
+	if resp.QueryResolution.Confidence <= 0 || resp.QueryResolution.Confidence > 1 {
+		t.Errorf("Confidence = %v, want in (0, 1]", resp.QueryResolution.Confidence)
+	}
+	if resp.Predict == nil || resp.Predict.Request == nil {
+		t.Fatal("expected Predict.Request populated")
+	}
+	if len(resp.Predict.Request.Aggregations) == 0 {
+		t.Fatal("expected an aggregation in resolved request")
+	}
+	if resp.Predict.Request.Aggregations[0].Type != types.AGG_AVERAGE {
+		t.Errorf("Aggregations[0].Type = %q, want AGG_AVERAGE", resp.Predict.Request.Aggregations[0].Type)
+	}
+}
+
+// TestAsk_QueryAndRequestMerge asserts that when both Query and a
+// partial Request are supplied, the parsed query fills in slots the
+// Request left empty while explicit fields in Request win on collision.
+func TestAsk_QueryAndRequestMerge(t *testing.T) {
+	memFs := afero.NewMemMapFs()
+	createTestPulseFile(t, memFs, "test.pulse", []string{"revenue", "country"}, [][]string{
+		{"10", "us"},
+	})
+
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	// Caller supplies a Request that already carries an aggregation;
+	// the query also produces one (different field). The Request wins;
+	// the query's aggregation is dropped (merge only fills empty
+	// slots). But the query's group-by clause fills the empty Groups
+	// slot.
+	resp, err := p.Ask(context.Background(), &AskRequest{
+		File: "test.pulse",
+		Request: &Request{
+			Cohort: &types.Cohort{Filename: "test.pulse"},
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_SUM, Field: "revenue", Label: "explicit_sum"},
+			},
+		},
+		Query: "average revenue by country",
+	})
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	if resp.QueryResolution == nil {
+		t.Fatal("expected QueryResolution non-nil")
+	}
+	if resp.Predict == nil || resp.Predict.Request == nil {
+		t.Fatal("expected Predict.Request populated")
+	}
+	// Explicit aggregation must survive.
+	if len(resp.Predict.Request.Aggregations) != 1 ||
+		resp.Predict.Request.Aggregations[0].Label != "explicit_sum" {
+		t.Errorf("explicit Aggregations were not preserved; got %+v", resp.Predict.Request.Aggregations)
+	}
+	// Query-derived group must show up (Request.Groups was empty).
+	if len(resp.Predict.Request.Groups) == 0 {
+		t.Fatal("expected Groups populated from query parse")
+	}
+	if resp.Predict.Request.Groups[0].Field != "country" {
+		t.Errorf("Groups[0].Field = %q, want %q", resp.Predict.Request.Groups[0].Field, "country")
+	}
+}
+
+// contains is a tiny test helper.
+func contains(s []string, x string) bool {
+	for _, v := range s {
+		if v == x {
+			return true
+		}
+	}
+	return false
+}
+
 // TestAsk_MCPHandler is a round-trip-style sanity check on the
 // AskRequest / AskResponse shapes when serialized to JSON and back,
 // which is what the MCP handler does under the hood. We exercise the

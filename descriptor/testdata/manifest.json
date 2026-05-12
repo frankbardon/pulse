@@ -2582,6 +2582,24 @@
         ]
       },
       {
+        "code": "PULSE_QUERY_AMBIGUOUS",
+        "domain": "PULSE",
+        "severity": "warning",
+        "description": "A query token matched multiple schema fields at the same edit distance; the parser picked the lexically first match and proceeded.",
+        "fixups": [
+          "Re-phrase using the full schema field name to remove the ambiguity, or edit the resolved request to point at the intended field."
+        ]
+      },
+      {
+        "code": "PULSE_QUERY_UNRESOLVED",
+        "domain": "PULSE",
+        "severity": "error",
+        "description": "The natural-language query parser could not map a token to any operator, schema field, or bucket within the edit-distance budget.",
+        "fixups": [
+          "Re-phrase using one of the canonical shapes in skills/request-recipes.md (\"\u003cagg\u003e \u003cfield\u003e\", \"\u003cagg\u003e \u003cfield\u003e by \u003cfield\u003e\", \"top N \u003cfield\u003e by count\"); confirm every field reference appears in pulse inspect --json output."
+        ]
+      },
+      {
         "code": "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
         "domain": "PULSE",
         "severity": "error",
@@ -2808,7 +2826,7 @@
     "mcp_tools": [
       {
         "name": "pulse_ask",
-        "description": "Pulse one-shot. Inspect the given .pulse file, validate the request against its schema, and execute if valid. On validation failure with on_invalid=\"suggest\", return structured fixup suggestions instead of erroring. Replaces the inspect→predict→process round-trip for the common case. Set predict=true to validate without executing."
+        "description": "Pulse one-shot. Inspect the given .pulse file, validate the request against its schema, and execute if valid. Accepts either a structured `request` or a `query` natural-language string (parsed server-side using the file's schema). On validation failure with on_invalid=\"suggest\", return structured fixup suggestions instead of erroring. Replaces the inspect→predict→process round-trip for the common case. Set predict=true to validate without executing."
       },
       {
         "name": "pulse_compose",
@@ -3784,6 +3802,10 @@
         "description": "Wire Pulse into MCP-aware AI clients and call its tools and resources"
       },
       {
+        "name": "query-router-prompt",
+        "description": "System-prompt template a calling LLM can use to translate natural-language intent into a Pulse AskRequest JSON payload"
+      },
+      {
         "name": "request-recipes",
         "description": "Canonical request JSON skeletons keyed by analytical intent"
       },
@@ -3804,4 +3826,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fdb8f25081917773ff069d25e44bde66c6ff25cadb102c9f35b27933b41853fc
+// golden-hash: 571f7fb2c082ee3172c9d3329c8cee78e1c3ba9e8bbf780d917e6e24305aa4fa

@@ -8,7 +8,7 @@ Pulse is a high-performance, self-describing tabular data processing engine. It 
 
 - **Library-first.** The `pulse.go` facade (`pulse.New`, `pulse.Options`, `pulse.Process`, `pulse.Compose`, `pulse.Import`, `pulse.Export`, `pulse.Convert`, `pulse.Inspect`, `pulse.Predict`, `pulse.Sample`, `pulse.Facet`) is the public API. The CLI calls the library; it never contains business logic.
 - **Self-describing.** Every `.pulse` file carries its schema in the header. The `descriptor/` package provides `manifest`, `predict`, and `inspect` operations that expose the system's capabilities and validate requests without executing them.
-- **Skill-augmented.** The `skills/` package embeds 18 markdown skill files into the binary via `//go:embed`. LLM agents (and Nexus, the orchestration layer that consumes Pulse) can call `skills.List()` and `skills.Get(name)` at boot time to inject domain-specific guidance into their context.
+- **Skill-augmented.** The `skills/` package embeds 19 markdown skill files into the binary via `//go:embed`. LLM agents (and Nexus, the orchestration layer that consumes Pulse) can call `skills.List()` and `skills.Get(name)` at boot time to inject domain-specific guidance into their context.
 - **Nexus relationship.** Pulse is a standalone processing engine. Nexus is the upstream orchestration agent that calls Pulse's library API or CLI. Pulse has no dependency on Nexus. Nexus discovers Pulse's capabilities via `pulse manifest --json` and loads skills from the embedded skill pack.
 
 **Module path:** `github.com/frankbardon/pulse`
@@ -44,6 +44,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | An error code's fixup template | Entry in `errors/fixup_metadata.go` (`codeMetadata`) + `**Fixup**:` line in `skills/error-code-reference.md` under that code | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` |
 | A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known`, `TestManifestStreamableMatchesTypes` |
 | The default operator table | `CLAUDE.md` "Code Conventions → Smart defaults" + `skills/getting-started.md` ("Defaults" section) | `TestDefaults_Applied` + reviewer enforcement |
+| A natural-query parsing route (new grammar shape) | `internal/query/query.go` grammar + `internal/query/query_test.go` fixtures + `skills/query-router-prompt.md` (router prompt grammar) + `skills/request-recipes.md` (target shapes) | `TestNaturalQuery_HeuristicGrammar` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 
@@ -121,7 +122,7 @@ The `descriptor/` package provides three no-execution operations:
 
 All three return an `Envelope` (see Output Format Contract below).
 
-The `skills/` package embeds 18 skill files via `//go:embed *.md` and an `index.json` manifest. Each skill has YAML frontmatter with `name`, `description`, `type`, and `applies_to` fields. Skills are loaded with `skills.Get(name)` and listed with `skills.List()`.
+The `skills/` package embeds 19 skill files via `//go:embed *.md` and an `index.json` manifest. Each skill has YAML frontmatter with `name`, `description`, `type`, and `applies_to` fields. Skills are loaded with `skills.Get(name)` and listed with `skills.List()`.
 
 ## Code Conventions
 
@@ -142,7 +143,7 @@ Errors use the `errors.Code` system. There are 6 domains with typed codes:
 - **SERVICE:** `SERVICE_VALIDATION`, `SERVICE_RESOURCE`, `SERVICE_REGISTRY`, `SERVICE_INTERNAL`
 - **DATA:** `DATA_FILE`, `DATA_PARSE`, `DATA_CONFIG`, `DATA_CALCULATION`, `DATA_INTERNAL`
 - **CLI:** `CLI_INPUT`, `CLI_OUTPUT`, `CLI_COMMAND`, `CLI_INTERNAL`
-- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`, `PULSE_DECIMAL_OVERFLOW`, `PULSE_DECIMAL_PRECISION_LOSS`, `PULSE_DECIMAL_DIVIDE_BY_ZERO`, `PULSE_GEO_INVALID_POINT`, `PULSE_GEO_INVALID_POLYGON`, `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`, `PULSE_GEO_INVALID_RESOLUTION`, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`, `PULSE_SYNTH_DISTRIBUTION_UNKNOWN`, `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`, `PULSE_PROFILE_FIELD_UNSUPPORTED`, `PULSE_TEST_UNKNOWN_TYPE`, `PULSE_TEST_FIELD_NOT_NUMERIC`, `PULSE_TEST_INVALID_ALPHA`, `PULSE_TEST_INSUFFICIENT_N`, `PULSE_TEST_VARIANCE_ZERO`, `PULSE_TEST_SPLIT_GROUPS_LT_2`, `PULSE_TEST_CONTINGENCY_DEGENERATE`, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`, `PULSE_TEST_FIELD2_NOT_NUMERIC`, `PULSE_TEST_SUCCESS_VALUE_MISSING`, `PULSE_TEST_CORRELATION_UNDEFINED`, `PULSE_TEST_PAIRED_LENGTH_MISMATCH`, `PULSE_TEST_TIES_DOMINATE`, `PULSE_TEST_SUBJECT_MISSING`, `PULSE_TEST_BALANCED_DESIGN_REQUIRED`, `PULSE_TEST_TUKEY_REQUIRES_K_GE_3`, `PULSE_TEST_SHAPIRO_N_BOUND`, `PULSE_TEST_FISHER_R_OR_C_GT_2`
+- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`, `PULSE_DECIMAL_OVERFLOW`, `PULSE_DECIMAL_PRECISION_LOSS`, `PULSE_DECIMAL_DIVIDE_BY_ZERO`, `PULSE_GEO_INVALID_POINT`, `PULSE_GEO_INVALID_POLYGON`, `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`, `PULSE_GEO_INVALID_RESOLUTION`, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`, `PULSE_SYNTH_DISTRIBUTION_UNKNOWN`, `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`, `PULSE_PROFILE_FIELD_UNSUPPORTED`, `PULSE_TEST_UNKNOWN_TYPE`, `PULSE_TEST_FIELD_NOT_NUMERIC`, `PULSE_TEST_INVALID_ALPHA`, `PULSE_TEST_INSUFFICIENT_N`, `PULSE_TEST_VARIANCE_ZERO`, `PULSE_TEST_SPLIT_GROUPS_LT_2`, `PULSE_TEST_CONTINGENCY_DEGENERATE`, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`, `PULSE_TEST_FIELD2_NOT_NUMERIC`, `PULSE_TEST_SUCCESS_VALUE_MISSING`, `PULSE_TEST_CORRELATION_UNDEFINED`, `PULSE_TEST_PAIRED_LENGTH_MISMATCH`, `PULSE_TEST_TIES_DOMINATE`, `PULSE_TEST_SUBJECT_MISSING`, `PULSE_TEST_BALANCED_DESIGN_REQUIRED`, `PULSE_TEST_TUKEY_REQUIRES_K_GE_3`, `PULSE_TEST_SHAPIRO_N_BOUND`, `PULSE_TEST_FISHER_R_OR_C_GT_2`, `PULSE_QUERY_UNRESOLVED`, `PULSE_QUERY_AMBIGUOUS`
 
 Every new error code MUST be added to the `allCodes` slice in `errors/codes.go` and to `skills/error-code-reference.md` (enforced by `TestSkillsCoverAllErrorCodes`).
 
