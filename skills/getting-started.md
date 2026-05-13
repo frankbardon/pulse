@@ -80,6 +80,9 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
 | `facet` | Print value distribution for one field | https://frankbardon.github.io/pulse/cli/api-facet.html |
 | `manifest` | Print the self-description manifest | https://frankbardon.github.io/pulse/cli/manifest.html |
 | `mcp` | Serve the MCP transport over stdio | https://frankbardon.github.io/pulse/cli/mcp.html |
+| `import auto SOURCE` | Auto-detect a source format, convert into the managed `.pulse` pool, and track lifetime via TTL sidecar. Flags: `--format`, `--handle`, `--ttl` (default `7d`; accepts Go duration, day form `7d`, or `pin`), `--sheet`, `--overwrite`. Pulse-format sources pass through unchanged with no sidecar. | https://frankbardon.github.io/pulse/cli/import-auto.html |
+| `import list` | List managed-import handles with TTL status. Expired and pinned entries are flagged. | https://frankbardon.github.io/pulse/cli/import-list.html |
+| `import drop HANDLE` | Remove one managed handle (file + sidecar) from the pool. | https://frankbardon.github.io/pulse/cli/import-drop.html |
 </reference>
 
 <workflow id="typical-session" name="typical-mcp-session">

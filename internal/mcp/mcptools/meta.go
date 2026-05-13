@@ -28,6 +28,9 @@ const (
 	ToolExamplesSearch = "pulse_examples_search"
 	ToolExamplesGet    = "pulse_examples_get"
 	ToolErrorsLookup   = "pulse_errors_lookup"
+	ToolImport         = "pulse_import"
+	ToolDrop           = "pulse_drop"
+	ToolImportsList    = "pulse_imports_list"
 )
 
 // Description constants for the registered tools.
@@ -45,6 +48,9 @@ const (
 	DescExamplesSearch = "Search the embedded request-example library. Filters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `tests`, `windows`). Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get."
 	DescExamplesGet    = "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped — hand it straight to pulse_process or pulse_predict."
 	DescErrorsLookup   = "Look up Pulse error code metadata. Pass code=PULSE_XXX for full detail on one code. Pass domain=PULSE/ENCODING/PROCESSING/SERVICE/DATA/CLI to enumerate that domain. Pass query=\"text\" for keyword search across descriptions and fixups. The manifest carries only the code-name list — fetch detail here on demand to keep session context lean."
+	DescImport         = "Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet/ask against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false."
+	DescDrop           = "Drop a managed-import handle from the pool, deleting the .pulse file and its sidecar. Errors with PULSE_IMPORT_SOURCE_MISSING when the handle is unknown. Pulse-format passthroughs are unaffected (they were never managed)."
+	DescImportsList    = "List every managed-import handle currently in the pool with its sidecar metadata: source path, source format, imported_at, expires_at, ttl, expired flag, pinned flag. Sweep is not invoked — expired entries are flagged via Expired so callers can render them and decide whether to drop or extend."
 )
 
 // ToolMeta is the canonical (name, description) record for one registered
@@ -71,6 +77,9 @@ func Meta() []ToolMeta {
 		{Name: ToolExamplesSearch, Description: DescExamplesSearch},
 		{Name: ToolExamplesGet, Description: DescExamplesGet},
 		{Name: ToolErrorsLookup, Description: DescErrorsLookup},
+		{Name: ToolImport, Description: DescImport},
+		{Name: ToolDrop, Description: DescDrop},
+		{Name: ToolImportsList, Description: DescImportsList},
 	}
 }
 

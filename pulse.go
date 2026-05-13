@@ -8,12 +8,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/examples"
 	"github.com/frankbardon/pulse/fs"
+	"github.com/frankbardon/pulse/imports"
 	"github.com/frankbardon/pulse/internal/query"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/service"
@@ -74,13 +76,25 @@ type Options struct {
 	// computes and reports DefaultsApplied independently — this flag
 	// governs only what the runtime mutates on the live request.
 	DisableDefaults bool
+
+	// ImportsDir overrides the managed-imports directory. Defaults to
+	// imports.DefaultImportsDir (resolved relative to the Pulse fs
+	// root). Honoured before the PULSE_IMPORTS_DIR env var.
+	ImportsDir string
+
+	// ImportTTL overrides the default TTL applied to managed imports
+	// when the caller does not pass one. Zero falls back to the
+	// PULSE_IMPORT_TTL env var, then to imports.DefaultTTL. Negative
+	// values pin imports (never expire) by default.
+	ImportTTL time.Duration
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
 // provides a clean API for embedding Pulse into Go programs.
 type Pulse struct {
-	svc  *service.Service
-	fsys afero.Fs
+	svc     *service.Service
+	fsys    afero.Fs
+	imports *imports.Manager
 }
 
 // New creates a new Pulse instance with the given options.
@@ -110,9 +124,19 @@ func New(opts Options) (*Pulse, error) {
 
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
+
+	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
+		ImportsDir: opts.ImportsDir,
+		DefaultTTL: opts.ImportTTL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("pulse: configuring imports manager: %w", err)
+	}
+
 	return &Pulse{
-		svc:  svc,
-		fsys: fsCfg.Fs(),
+		svc:     svc,
+		fsys:    fsCfg.Fs(),
+		imports: importsMgr,
 	}, nil
 }
 
@@ -127,7 +151,11 @@ func (p *Pulse) Open(ctx context.Context, path string) (*Cohort, error) {
 
 // Process executes a single processing request against a cohort.
 func (p *Pulse) Process(ctx context.Context, req *Request) (*Response, error) {
-	return p.svc.Process(ctx, req)
+	resp, err := p.svc.Process(ctx, req)
+	if err == nil && req != nil && req.Cohort != nil {
+		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	}
+	return resp, err
 }
 
 // Row is a single result row in a processing stream.
@@ -199,9 +227,66 @@ func (p *Pulse) Convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertR
 	return job.Run(ctx)
 }
 
+// Type aliases re-exported from the imports package so embedders can
+// use pulse.ImportSpec instead of imports.Spec.
+type (
+	ImportSpec   = imports.Spec
+	ImportResult = imports.Result
+	ImportEntry  = imports.Entry
+)
+
+// ImportFile auto-detects the source format, converts the source into a
+// managed .pulse file under the imports pool, and returns the resulting
+// handle. Pulse-native sources pass through unchanged (no copy, no
+// sidecar). Sliding-window TTL applies to managed handles — every
+// subsequent Inspect / Predict / Process / Sample / Facet / Ask against
+// the handle bumps the expiry forward.
+func (p *Pulse) ImportFile(ctx context.Context, spec ImportSpec) (*ImportResult, error) {
+	return p.imports.Open(ctx, spec)
+}
+
+// Drop removes a managed import handle (and its sidecar) from the pool.
+// Returns PULSE_IMPORT_SOURCE_MISSING when the handle is unknown.
+func (p *Pulse) Drop(ctx context.Context, handle string) error {
+	return p.imports.Drop(ctx, handle)
+}
+
+// Imports returns a snapshot of the managed-imports pool. Sweep is not
+// invoked; expired entries are flagged via Entry.Expired so callers can
+// render them. Results are sorted by handle name.
+func (p *Pulse) Imports(ctx context.Context) ([]ImportEntry, error) {
+	return p.imports.List(ctx)
+}
+
+// SweepImports removes every expired managed handle and returns the
+// list of swept handle names. Invoked opportunistically by ImportFile
+// and exposed here for callers that want explicit control (CLI
+// maintenance, periodic ticker, etc.).
+func (p *Pulse) SweepImports(ctx context.Context) ([]string, error) {
+	return p.imports.Sweep(ctx)
+}
+
+// ResolveImport returns the managed-pool path for a handle, or
+// PULSE_IMPORT_SOURCE_MISSING when no such handle exists. Embedders
+// who want to address a managed handle by name (instead of by path)
+// run path through this resolver before passing it to Inspect/Process.
+func (p *Pulse) ResolveImport(ctx context.Context, handle string) (string, error) {
+	return p.imports.Resolve(ctx, handle)
+}
+
+// touchManaged is the hook each read-path facade method fires on the
+// resolved cohort path. Best-effort: errors are intentionally swallowed
+// — TTL slides are an optimisation, not a correctness path.
+func (p *Pulse) touchManaged(ctx context.Context, path string) {
+	if p.imports == nil || path == "" {
+		return
+	}
+	_ = p.imports.Touch(ctx, path)
+}
+
 // Inspect reads a .pulse file header and schema, returning structured field information.
 // It never reads record data.
-func (p *Pulse) Inspect(_ context.Context, path string) (*descriptor.InspectResult, error) {
+func (p *Pulse) Inspect(ctx context.Context, path string) (*descriptor.InspectResult, error) {
 	data, err := afero.ReadFile(p.fsys, path)
 	if err != nil {
 		return nil, fmt.Errorf("pulse: reading file for inspect: %w", err)
@@ -216,12 +301,13 @@ func (p *Pulse) Inspect(_ context.Context, path string) (*descriptor.InspectResu
 	if !ok {
 		return nil, fmt.Errorf("pulse: inspect returned unexpected type")
 	}
+	p.touchManaged(ctx, path)
 	return result, nil
 }
 
 // Predict validates a request against a .pulse file without executing it.
 // It reads only the header and schema, never record data.
-func (p *Pulse) Predict(_ context.Context, req *Request) (*descriptor.PredictResult, error) {
+func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictResult, error) {
 	if req.Cohort == nil {
 		return nil, fmt.Errorf("pulse: predict requires a cohort")
 	}
@@ -238,6 +324,7 @@ func (p *Pulse) Predict(_ context.Context, req *Request) (*descriptor.PredictRes
 		// Return the result (which has Valid=false) rather than erroring.
 		result, ok := env.Data.(*descriptor.PredictResult)
 		if ok {
+			p.touchManaged(ctx, path)
 			return result, nil
 		}
 		return nil, fmt.Errorf("pulse: predict: %s", env.Errors[0].Message)
@@ -247,12 +334,17 @@ func (p *Pulse) Predict(_ context.Context, req *Request) (*descriptor.PredictRes
 	if !ok {
 		return nil, fmt.Errorf("pulse: predict returned unexpected type")
 	}
+	p.touchManaged(ctx, path)
 	return result, nil
 }
 
 // Sample returns up to n rows from the cohort as maps of field name to value.
 func (p *Pulse) Sample(ctx context.Context, path string, n int) ([]Record, error) {
-	return p.svc.Sample(ctx, path, n)
+	rows, err := p.svc.Sample(ctx, path, n)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return rows, err
 }
 
 // Synth materializes a synthetic .pulse file at output from spec. The
@@ -271,7 +363,11 @@ func (p *Pulse) Profile(_ context.Context, path string, opts ProfileOptions) (*P
 
 // Facet returns distinct values for the named field in the cohort.
 func (p *Pulse) Facet(ctx context.Context, path string, field string) ([]string, error) {
-	return p.svc.Facet(ctx, path, field)
+	values, err := p.svc.Facet(ctx, path, field)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return values, err
 }
 
 // AskRequest is the input to pulse.Ask — the unified one-shot facade
@@ -407,6 +503,9 @@ func (p *Pulse) Ask(ctx context.Context, req *AskRequest) (*AskResponse, error) 
 		// returns the raw error; callers can re-parse details if they
 		// need the resolution. (Keep behavior identical to pre-query.)
 		return nil, err
+	}
+	if req.Request.Cohort != nil {
+		p.touchManaged(ctx, resolveCohortPath(req.Request.Cohort))
 	}
 
 	resp.Predict = out.Predict

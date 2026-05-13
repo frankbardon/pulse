@@ -42,6 +42,9 @@ func ImportCommand() *cli.Command {
 			importExcelCmd(),
 			importPredictCmd(),
 			importSchemaTemplateCmd(),
+			importAutoCmd(),
+			importsListCmd(),
+			importDropCmd(),
 		},
 	}
 }

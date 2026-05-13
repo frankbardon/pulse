@@ -252,6 +252,33 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_FORMAT_UNKNOWN: {
+		Message: "The source extension is not one of the supported import formats and no explicit format hint was supplied.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Hint:   "Pass an explicit format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) on the import call, or rename the source file with a supported extension.",
+			},
+		},
+	},
+	PULSE_IMPORT_SOURCE_MISSING: {
+		Message: "The source file referenced by an import call (or by a managed-import sidecar) could not be opened.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Verify the source path exists and is readable; for managed-import sidecars, the original file may have moved or been deleted — re-import from the new location.",
+			},
+		},
+	},
+	PULSE_IMPORT_HANDLE_EXISTS: {
+		Message: "A managed-import handle of the requested name already exists in the imports pool.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Hint:   "Pass overwrite=true to replace the existing handle, choose a different name, or drop the existing handle first.",
+			},
+		},
+	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: {
 		Message: "A numeric aggregation (SUM, AVERAGE, etc.) was requested on a categorical field.",
 		Fixups: []Fixup{

@@ -2259,7 +2259,7 @@
         ]
       }
     ],
-    "error_codes_count": 64,
+    "error_codes_count": 67,
     "error_domains": [
       "CLI",
       "DATA",
@@ -2303,8 +2303,11 @@
       "PULSE_IMPORT_CATEGORICAL_OVERFLOW",
       "PULSE_IMPORT_CATEGORICAL_UNBOUNDED",
       "PULSE_IMPORT_DESCRIPTION_TOO_LONG",
+      "PULSE_IMPORT_FORMAT_UNKNOWN",
+      "PULSE_IMPORT_HANDLE_EXISTS",
       "PULSE_IMPORT_ROW_ERROR",
       "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
+      "PULSE_IMPORT_SOURCE_MISSING",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_QUERY_AMBIGUOUS",
       "PULSE_QUERY_UNRESOLVED",
@@ -2344,6 +2347,10 @@
         "description": "Execute a batch of processing requests."
       },
       {
+        "name": "pulse_drop",
+        "description": "Drop a managed-import handle from the pool, deleting the .pulse file and its sidecar. Errors with PULSE_IMPORT_SOURCE_MISSING when the handle is unknown. Pulse-format passthroughs are unaffected (they were never managed)."
+      },
+      {
         "name": "pulse_errors_lookup",
         "description": "Look up Pulse error code metadata. Pass code=PULSE_XXX for full detail on one code. Pass domain=PULSE/ENCODING/PROCESSING/SERVICE/DATA/CLI to enumerate that domain. Pass query=\"text\" for keyword search across descriptions and fixups. The manifest carries only the code-name list — fetch detail here on demand to keep session context lean."
       },
@@ -2358,6 +2365,14 @@
       {
         "name": "pulse_facet",
         "description": "Return distinct values for a field in a cohort."
+      },
+      {
+        "name": "pulse_import",
+        "description": "Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet/ask against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false."
+      },
+      {
+        "name": "pulse_imports_list",
+        "description": "List every managed-import handle currently in the pool with its sidecar metadata: source path, source format, imported_at, expires_at, ttl, expired flag, pinned flag. Sweep is not invoked — expired entries are flagged via Expired so callers can render them and decide whether to drop or extend."
       },
       {
         "name": "pulse_inspect",
@@ -3285,6 +3300,10 @@
         "description": "Run several Process requests against one cohort in a single pulse_compose call — order-preserving slot-by-index, optional parallel execution. Use when comparing operator outputs, fan-out reporting, or batching multiple analyses for one MCP round-trip."
       },
       {
+        "name": "contributor-workflow",
+        "description": "Step-by-step recipes for extending Pulse — adding aggregators, attributes, filterers, groupers, windows, features, statistical tests, synth distributions, I/O formats, MCP tools, error codes, field types. Also covers porting, debugging predict mismatches, regenerating goldens, wiring an MCP client, and running CI gates locally. Use when modifying Pulse internals."
+      },
+      {
         "name": "debugging-with-predict",
         "description": "Validate a request against a .pulse schema with pulse_predict before executing — surfaces field-name typos, type mismatches, leakage warnings, streamability gates, and applied defaults. Use when a Process call errored or before running an expensive request."
       },
@@ -3401,4 +3420,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8f55c2c527a8ee6d7382e697df2c8a658e7412774b5cac7f71ac03bc747b9359
+// golden-hash: a5da7053e242a4b300ab4e83146cc02eabd8a9fed987acf4f2967c66ee39459e

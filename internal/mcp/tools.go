@@ -27,12 +27,15 @@ const (
 	ToolSample         = mcptools.ToolSample
 	ToolFacet          = mcptools.ToolFacet
 	ToolSkillsList     = mcptools.ToolSkillsList
-	ToolSkillsGet      = mcptools.ToolSkillsGet
+	ToolSkillsGet     = mcptools.ToolSkillsGet
 	ToolManifest       = mcptools.ToolManifest
 	ToolAsk            = mcptools.ToolAsk
 	ToolExamplesSearch = mcptools.ToolExamplesSearch
 	ToolExamplesGet    = mcptools.ToolExamplesGet
 	ToolErrorsLookup   = mcptools.ToolErrorsLookup
+	ToolImport         = mcptools.ToolImport
+	ToolDrop           = mcptools.ToolDrop
+	ToolImportsList    = mcptools.ToolImportsList
 
 	DescInspect        = mcptools.DescInspect
 	DescPredict        = mcptools.DescPredict
@@ -47,6 +50,9 @@ const (
 	DescExamplesSearch = mcptools.DescExamplesSearch
 	DescExamplesGet    = mcptools.DescExamplesGet
 	DescErrorsLookup   = mcptools.DescErrorsLookup
+	DescImport         = mcptools.DescImport
+	DescDrop           = mcptools.DescDrop
+	DescImportsList    = mcptools.DescImportsList
 )
 
 // ToolMeta is the canonical (name, description) record for one registered
@@ -187,6 +193,34 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 			mcpgo.WithString("query", mcpgo.Description("Case-insensitive substring search across descriptions and fixup hints; ranks message hits above fixup hits")),
 		),
 		handleErrorsLookup(p),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolImport,
+			mcpgo.WithDescription(DescImport),
+			mcpgo.WithString("source", mcpgo.Description("Filesystem path to the source file (relative to PULSE_DATA_DIR)"), mcpgo.Required()),
+			mcpgo.WithString("format", mcpgo.Description("Optional format override: csv, tsv, ndjson, jsonarray, parquet, arrow, excel, pulse")),
+			mcpgo.WithString("handle", mcpgo.Description("Optional managed handle name; defaults to source basename without extension")),
+			mcpgo.WithString("ttl", mcpgo.Description("Optional TTL: Go duration (\"24h\", \"30m\", \"3600s\") or day form (\"7d\", \"30d\"); \"pin\" disables expiry. Default 7d.")),
+			mcpgo.WithString("sheet", mcpgo.Description("Optional Excel sheet name; ignored for non-Excel sources")),
+			mcpgo.WithBoolean("overwrite", mcpgo.Description("Replace an existing handle of the same name. Default false → PULSE_IMPORT_HANDLE_EXISTS on collision")),
+		),
+		handleImport(s, p, bindOnOpen, handlers),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolDrop,
+			mcpgo.WithDescription(DescDrop),
+			mcpgo.WithString("handle", mcpgo.Description("Managed handle name to remove"), mcpgo.Required()),
+		),
+		handleDrop(p),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolImportsList,
+			mcpgo.WithDescription(DescImportsList),
+		),
+		handleImportsList(p),
 	)
 }
 

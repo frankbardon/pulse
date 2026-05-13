@@ -1,0 +1,352 @@
+package imports
+
+import (
+	"context"
+	"path"
+	"strings"
+	"testing"
+	"time"
+
+	stderrors "errors"
+
+	perr "github.com/frankbardon/pulse/errors"
+	"github.com/spf13/afero"
+)
+
+// fixedClock returns a clock returning successive values from a slice,
+// repeating the last value once exhausted. Used to drive sliding-window
+// touch and sweep tests deterministically.
+type fixedClock struct {
+	t time.Time
+}
+
+func (c *fixedClock) now() time.Time { return c.t }
+func (c *fixedClock) advance(d time.Duration) {
+	c.t = c.t.Add(d)
+}
+
+func newTestManager(t *testing.T) (*Manager, afero.Fs, *fixedClock) {
+	t.Helper()
+	afs := afero.NewMemMapFs()
+	clk := &fixedClock{t: time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)}
+	m, err := New(afs, Options{Now: clk.now})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return m, afs, clk
+}
+
+func writeCSV(t *testing.T, afs afero.Fs, p string) {
+	t.Helper()
+	body := "id,name,amount\n1,Alice,10.5\n2,Bob,20.0\n3,Carol,30.75\n"
+	if err := afero.WriteFile(afs, p, []byte(body), 0o644); err != nil {
+		t.Fatalf("write %s: %v", p, err)
+	}
+}
+
+func TestManager_Open_CSV_CreatesManagedHandle(t *testing.T) {
+	m, afs, clk := newTestManager(t)
+	writeCSV(t, afs, "data.csv")
+
+	res, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if !res.Managed {
+		t.Fatalf("expected Managed=true, got false")
+	}
+	if res.Handle != "data" {
+		t.Errorf("handle = %q, want %q", res.Handle, "data")
+	}
+	if res.Path != "imports/data.pulse" {
+		t.Errorf("path = %q, want %q", res.Path, "imports/data.pulse")
+	}
+	if res.RowsImported != 3 {
+		t.Errorf("rows = %d, want 3", res.RowsImported)
+	}
+	if res.ExpiresAt == nil {
+		t.Fatalf("ExpiresAt nil; expected slot to be set")
+	}
+	want := clk.now().Add(DefaultTTL)
+	if !res.ExpiresAt.Equal(want) {
+		t.Errorf("ExpiresAt = %v, want %v", *res.ExpiresAt, want)
+	}
+
+	// File + sidecar present on disk.
+	if ok, _ := afero.Exists(afs, "imports/data.pulse"); !ok {
+		t.Errorf("imports/data.pulse missing after Open")
+	}
+	if ok, _ := afero.Exists(afs, "imports/data.pulse"+SidecarSuffix); !ok {
+		t.Errorf("sidecar missing after Open")
+	}
+}
+
+func TestManager_Open_PulsePassthrough_NoSidecar(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	// Stub native pulse file with no schema; we only check sidecar
+	// absence, never read it back.
+	if err := afero.WriteFile(afs, "curated.pulse", []byte("PULSE\x00\x00\x00\x01"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	res, err := m.Open(context.Background(), Spec{SourcePath: "curated.pulse"})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if res.Managed {
+		t.Fatalf("expected Managed=false for pulse passthrough, got true")
+	}
+	if res.Path != "curated.pulse" {
+		t.Errorf("path = %q, want %q", res.Path, "curated.pulse")
+	}
+	if res.ExpiresAt != nil {
+		t.Errorf("ExpiresAt populated on passthrough; should be nil")
+	}
+	if ok, _ := afero.Exists(afs, "imports/curated.pulse"+SidecarSuffix); ok {
+		t.Errorf("sidecar created for passthrough; should not exist")
+	}
+}
+
+func TestManager_Open_HandleCollision_Errors(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	writeCSV(t, afs, "data.csv")
+	if _, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"}); err != nil {
+		t.Fatalf("first Open: %v", err)
+	}
+	_, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"})
+	if err == nil {
+		t.Fatalf("expected collision error, got nil")
+	}
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_IMPORT_HANDLE_EXISTS {
+		t.Errorf("error code = %v, want %v", err, perr.PULSE_IMPORT_HANDLE_EXISTS)
+	}
+}
+
+func TestManager_Open_Overwrite_Succeeds(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	writeCSV(t, afs, "data.csv")
+	if _, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"}); err != nil {
+		t.Fatalf("first Open: %v", err)
+	}
+	res, err := m.Open(context.Background(), Spec{SourcePath: "data.csv", Overwrite: true})
+	if err != nil {
+		t.Fatalf("overwrite Open: %v", err)
+	}
+	if res.Handle != "data" {
+		t.Errorf("handle = %q, want data", res.Handle)
+	}
+}
+
+func TestManager_Open_UnknownFormat_Errors(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	if err := afero.WriteFile(afs, "data.bogus", []byte("foo"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	_, err := m.Open(context.Background(), Spec{SourcePath: "data.bogus"})
+	if err == nil {
+		t.Fatalf("expected format-unknown error, got nil")
+	}
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_IMPORT_FORMAT_UNKNOWN {
+		t.Errorf("error code = %v, want %v", err, perr.PULSE_IMPORT_FORMAT_UNKNOWN)
+	}
+}
+
+func TestManager_Open_SourceMissing_Errors(t *testing.T) {
+	m, _, _ := newTestManager(t)
+	_, err := m.Open(context.Background(), Spec{SourcePath: "ghost.csv"})
+	if err == nil {
+		t.Fatalf("expected source-missing error, got nil")
+	}
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_IMPORT_SOURCE_MISSING {
+		t.Errorf("error code = %v, want %v", err, perr.PULSE_IMPORT_SOURCE_MISSING)
+	}
+}
+
+func TestManager_Touch_SlidesExpiry(t *testing.T) {
+	m, _, clk := newTestManager(t)
+	afs := m.afs
+	writeCSV(t, afs, "data.csv")
+	res, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	originalExpiry := *res.ExpiresAt
+
+	clk.advance(2 * time.Hour)
+	if err := m.Touch(context.Background(), res.Path); err != nil {
+		t.Fatalf("Touch: %v", err)
+	}
+
+	entries, err := m.List(context.Background())
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(entries))
+	}
+	if !entries[0].Sidecar.ExpiresAt.After(originalExpiry) {
+		t.Errorf("expiry %v did not slide past %v", entries[0].Sidecar.ExpiresAt, originalExpiry)
+	}
+}
+
+func TestManager_Touch_NoOpForUnmanagedPath(t *testing.T) {
+	m, _, _ := newTestManager(t)
+	// Touch with an arbitrary path outside the imports dir should not
+	// error — it is a no-op hook the facade can fire unconditionally.
+	if err := m.Touch(context.Background(), "some/other/cohort.pulse"); err != nil {
+		t.Errorf("Touch on unmanaged path errored: %v", err)
+	}
+}
+
+func TestManager_Sweep_RemovesExpired(t *testing.T) {
+	m, afs, clk := newTestManager(t)
+	writeCSV(t, afs, "data.csv")
+	res, err := m.Open(context.Background(), Spec{SourcePath: "data.csv", TTL: 1 * time.Hour})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	clk.advance(2 * time.Hour) // past expiry
+
+	swept, err := m.Sweep(context.Background())
+	if err != nil {
+		t.Fatalf("Sweep: %v", err)
+	}
+	if len(swept) != 1 || swept[0] != "data" {
+		t.Errorf("swept = %v, want [data]", swept)
+	}
+	if ok, _ := afero.Exists(afs, res.Path); ok {
+		t.Errorf("expired .pulse still present after sweep")
+	}
+	if ok, _ := afero.Exists(afs, res.Path+SidecarSuffix); ok {
+		t.Errorf("expired sidecar still present after sweep")
+	}
+}
+
+func TestManager_Sweep_PinnedHandlesSurvive(t *testing.T) {
+	m, afs, clk := newTestManager(t)
+	writeCSV(t, afs, "pinned.csv")
+	if _, err := m.Open(context.Background(), Spec{SourcePath: "pinned.csv", TTL: -1}); err != nil {
+		t.Fatalf("Open pinned: %v", err)
+	}
+
+	clk.advance(365 * 24 * time.Hour) // way past any normal TTL
+
+	swept, err := m.Sweep(context.Background())
+	if err != nil {
+		t.Fatalf("Sweep: %v", err)
+	}
+	if len(swept) != 0 {
+		t.Errorf("swept pinned handles: %v", swept)
+	}
+	if ok, _ := afero.Exists(afs, "imports/pinned.pulse"); !ok {
+		t.Errorf("pinned file removed by sweep")
+	}
+}
+
+func TestManager_Drop_RemovesHandle(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	writeCSV(t, afs, "data.csv")
+	if _, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"}); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Drop(context.Background(), "data"); err != nil {
+		t.Fatalf("Drop: %v", err)
+	}
+	if ok, _ := afero.Exists(afs, "imports/data.pulse"); ok {
+		t.Errorf("file present after Drop")
+	}
+	if ok, _ := afero.Exists(afs, "imports/data.pulse"+SidecarSuffix); ok {
+		t.Errorf("sidecar present after Drop")
+	}
+}
+
+func TestManager_Drop_UnknownHandle_Errors(t *testing.T) {
+	m, _, _ := newTestManager(t)
+	err := m.Drop(context.Background(), "ghost")
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_IMPORT_SOURCE_MISSING {
+		t.Errorf("error code = %v, want %v", err, perr.PULSE_IMPORT_SOURCE_MISSING)
+	}
+}
+
+func TestManager_List_SortedByHandle(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	for _, name := range []string{"charlie", "alpha", "bravo"} {
+		p := name + ".csv"
+		writeCSV(t, afs, p)
+		if _, err := m.Open(context.Background(), Spec{SourcePath: p}); err != nil {
+			t.Fatalf("Open %s: %v", p, err)
+		}
+	}
+	entries, err := m.List(context.Background())
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	got := make([]string, len(entries))
+	for i, e := range entries {
+		got[i] = e.Handle
+	}
+	want := []string{"alpha", "bravo", "charlie"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("List order = %v, want %v", got, want)
+	}
+}
+
+func TestManager_Open_CustomHandle(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	writeCSV(t, afs, "src.csv")
+	res, err := m.Open(context.Background(), Spec{SourcePath: "src.csv", Handle: "mydata"})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if res.Handle != "mydata" {
+		t.Errorf("handle = %q, want mydata", res.Handle)
+	}
+	if res.Path != "imports/mydata.pulse" {
+		t.Errorf("path = %q, want imports/mydata.pulse", res.Path)
+	}
+}
+
+func TestManager_Open_InvalidHandle_Rejected(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	writeCSV(t, afs, "src.csv")
+	cases := []string{"../escape", "sub/path", ".hidden"}
+	for _, h := range cases {
+		_, err := m.Open(context.Background(), Spec{SourcePath: "src.csv", Handle: h})
+		if err == nil {
+			t.Errorf("handle %q accepted; expected rejection", h)
+		}
+	}
+}
+
+func TestManager_Resolve_ReturnsManagedPath(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	writeCSV(t, afs, "data.csv")
+	if _, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"}); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	p, err := m.Resolve(context.Background(), "data")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if p != path.Join(m.ImportsDir(), "data.pulse") {
+		t.Errorf("resolved = %q, want %q", p, path.Join(m.ImportsDir(), "data.pulse"))
+	}
+}
+
+func TestManager_IsManagedPath(t *testing.T) {
+	m, _, _ := newTestManager(t)
+	if !m.IsManagedPath("imports/foo.pulse") {
+		t.Errorf("imports/foo.pulse not flagged as managed")
+	}
+	if m.IsManagedPath("other/foo.pulse") {
+		t.Errorf("other/foo.pulse flagged as managed")
+	}
+}
