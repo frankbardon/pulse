@@ -98,14 +98,46 @@ const (
 	ATTR_FORMULA    AttributeType = "ATTR_FORMULA"
 	ATTR_PERCENTILE AttributeType = "ATTR_PERCENTILE"
 	ATTR_DATE_PART  AttributeType = "ATTR_DATE_PART"
+
+	// ATTR_REG_FITTED emits the per-row fitted value ŷᵢ = Xᵢ · β + β₀ for
+	// each filter-passing record, using a regression fit computed in a
+	// streaming prepass over the same record set. Two-pass: prepass folds
+	// the OLS sufficient statistics, finalize freezes the coefficient
+	// vector, pass 2 emits ŷᵢ. Carries its own RegressionSpec-shaped
+	// fields (Target, Predictors, Penalty, Alpha, L1Ratio); refits
+	// internally per attribute (Option A). Accepts any OLS penalty
+	// (unpenalized, ridge, lasso, elasticnet); GLM and Bayesian fits are
+	// deferred.
+	ATTR_REG_FITTED AttributeType = "ATTR_REG_FITTED"
+
+	// ATTR_REG_RESIDUAL emits the per-row residual yᵢ − ŷᵢ for each
+	// filter-passing record, using the same OLS prepass machinery as
+	// ATTR_REG_FITTED. Sums to ≈ 0 when the fit includes an intercept
+	// (always true for unpenalized OLS) and the response is observed for
+	// every contributing row.
+	ATTR_REG_RESIDUAL AttributeType = "ATTR_REG_RESIDUAL"
+
+	// ATTR_REG_LEVERAGE emits the per-row hat-matrix diagonal
+	// hᵢᵢ = xᵢ · (XᵀX)⁻¹ · xᵢᵀ for each filter-passing record. Restricted
+	// to unpenalized OLS — penalized leverage uses a different formula
+	// (involving the regularized resolvent) and GLM leverage requires the
+	// IRLS weight matrix; both deferred to Phase 9. Specs with any
+	// Penalty set are rejected at factory time with PROCESSING_CONFIG.
+	ATTR_REG_LEVERAGE AttributeType = "ATTR_REG_LEVERAGE"
 )
 
 // AllAttributeTypes returns all defined attribute types.
 func AllAttributeTypes() []AttributeType {
 	return []AttributeType{
-		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
-		ATTR_FORMULA, ATTR_PERCENTILE,
 		ATTR_DATE_PART,
+		ATTR_FORMULA,
+		ATTR_NORMALIZED,
+		ATTR_PERCENTILE,
+		ATTR_REG_FITTED,
+		ATTR_REG_LEVERAGE,
+		ATTR_REG_RESIDUAL,
+		ATTR_TSCORE,
+		ATTR_ZSCORE,
 	}
 }
 
@@ -564,7 +596,10 @@ type Attribute struct {
 	// Type is the attribute computation to perform.
 	Type AttributeType `json:"type"`
 
-	// Field is the name of the source data field.
+	// Field is the name of the source data field. Optional for the
+	// regression attribute family (ATTR_REG_FITTED / RESIDUAL / LEVERAGE)
+	// which read Target + Predictors instead; when empty the output Label
+	// defaults to "<TYPE>_<Target>".
 	Field string `json:"field"`
 
 	// Label is the output name for the derived attribute.
@@ -576,6 +611,33 @@ type Attribute struct {
 	// Params holds type-specific configuration as raw JSON.
 	// Each attribute type defines its own params schema.
 	Params json.RawMessage `json:"params,omitempty"`
+
+	// --- Regression-attribute fields (Option A: each ATTR_REG_* carries
+	// its own RegressionSpec-shaped slice and refits internally during
+	// the prepass). Ignored by every non-regression attribute type.
+
+	// Target is the dependent variable for ATTR_REG_FITTED / RESIDUAL /
+	// LEVERAGE. Required for those types.
+	Target string `json:"target,omitempty"`
+
+	// Predictors lists the independent variables for the regression-
+	// attribute family. At least one predictor is required.
+	Predictors []string `json:"predictors,omitempty"`
+
+	// Penalty selects the OLS regularization scheme for ATTR_REG_FITTED /
+	// ATTR_REG_RESIDUAL. One of "" (unpenalized), "l1" (lasso), "l2"
+	// (ridge), or "elasticnet". ATTR_REG_LEVERAGE rejects any non-empty
+	// Penalty (penalized leverage and GLM leverage are deferred to a
+	// later phase).
+	Penalty string `json:"penalty,omitempty"`
+
+	// Alpha is the regularization strength for the regression-attribute
+	// family when Penalty is non-empty. Must be > 0 in that case.
+	Alpha float64 `json:"alpha,omitempty"`
+
+	// L1Ratio is the elastic-net mixing parameter for the regression-
+	// attribute family when Penalty == "elasticnet" (0 < L1Ratio < 1).
+	L1Ratio float64 `json:"l1_ratio,omitempty"`
 }
 
 // Output configures how processing results are formatted.

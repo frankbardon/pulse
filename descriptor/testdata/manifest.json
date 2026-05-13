@@ -544,6 +544,70 @@
           "streamable_hint": "Use ATTR_NORMALIZED for a streaming-friendly rank proxy."
         },
         {
+          "name": "ATTR_REG_FITTED",
+          "category": "attribute",
+          "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet).",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one fitted value per record (NaN-free)",
+          "streamable": true
+        },
+        {
+          "name": "ATTR_REG_LEVERAGE",
+          "category": "attribute",
+          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Range ∈ [0, 1]; Σᵢ hᵢᵢ = p + 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one leverage per record in [0, 1]",
+          "streamable": true,
+          "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG."
+        },
+        {
+          "name": "ATTR_REG_RESIDUAL",
+          "category": "attribute",
+          "description": "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one residual per record",
+          "streamable": true
+        },
+        {
           "name": "ATTR_TSCORE",
           "category": "attribute",
           "description": "Per-row T-score: z-score scaled and shifted to mean 50, stddev 10.",
@@ -2871,6 +2935,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2931,6 +2998,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2991,6 +3061,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -3051,6 +3124,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -3111,6 +3187,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -3171,6 +3250,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -3260,6 +3342,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -3320,6 +3405,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -3380,6 +3468,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -3441,6 +3532,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -3880,4 +3974,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c1dbde3056d8b2abbc7653b876cbb63341c97d021efc288dea21a152e8d8eb2c
+// golden-hash: 4027ebe6c03d099555e57938e68a30fdeff4d50ab141f7818a6089f3f611b166

@@ -448,6 +448,42 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 			)
 			continue
 		}
+		// Regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE) carry
+		// their own Target + Predictors instead of a single Field. Validate
+		// those references here; the factory rechecks numeric-type
+		// compatibility at construction time.
+		if attr.Type == types.ATTR_REG_FITTED || attr.Type == types.ATTR_REG_RESIDUAL || attr.Type == types.ATTR_REG_LEVERAGE {
+			if attr.Target == "" {
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					string(attr.Type)+" requires Target",
+					map[string]any{"attribute": string(attr.Type)},
+				)
+			} else if schema.Field(attr.Target) == nil && !projected[attr.Target] {
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					string(attr.Type)+" Target references unknown field: "+attr.Target,
+					map[string]any{"field": attr.Target, "attribute": string(attr.Type)},
+				)
+			}
+			if len(attr.Predictors) == 0 {
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					string(attr.Type)+" requires at least one predictor",
+					map[string]any{"attribute": string(attr.Type)},
+				)
+			}
+			for _, name := range attr.Predictors {
+				if schema.Field(name) == nil && !projected[name] {
+					env.AddError(
+						string(errors.SERVICE_VALIDATION),
+						string(attr.Type)+" predictor references unknown field: "+name,
+						map[string]any{"field": name, "attribute": string(attr.Type)},
+					)
+				}
+			}
+			continue
+		}
 		f := schema.Field(attr.Field)
 		if f == nil && !projected[attr.Field] {
 			env.AddError(
@@ -461,17 +497,34 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 
 // projectAttributeOutputs adds each attribute's output label to the
 // projected column set. The label rule mirrors processor.go's
-// applyAttributes: an explicit label wins; otherwise the default is
-// "<TYPE>_<field>" so aggregations referencing the implicit label
-// resolve under predict the same way they do under process.
+// applyAttributes / defaultAttributeLabel: an explicit label wins;
+// otherwise the default is "<TYPE>_<field>", with the regression
+// attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE) substituting
+// Target for Field since they do not carry a single source field.
+//
+// Duplicated locally rather than imported from processing/ because
+// descriptor must not import the processing package (predict is a
+// no-execute path).
 func projectAttributeOutputs(req *types.Request, projected map[string]bool) {
 	for _, attr := range req.Attributes {
 		label := attr.Label
 		if label == "" {
-			label = string(attr.Type) + "_" + attr.Field
+			label = attributeDefaultLabel(attr)
 		}
 		projected[label] = true
 	}
+}
+
+// attributeDefaultLabel mirrors processing.defaultAttributeLabel so
+// predict produces the same projected column names process would emit.
+// The duplication is intentional — descriptor/predict.go must not
+// import processing/.
+func attributeDefaultLabel(attr *types.Attribute) string {
+	switch attr.Type {
+	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		return string(attr.Type) + "_" + attr.Target
+	}
+	return string(attr.Type) + "_" + attr.Field
 }
 
 // validateDescriptionQuality emits warnings for fields with low-quality descriptions.

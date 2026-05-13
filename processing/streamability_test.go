@@ -367,17 +367,25 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 			t.Errorf("attribute %s not in registry", attrType)
 			continue
 		}
-		// FORMULA needs a non-empty expression; DATE_PART needs params.
-		// Provide minimum viable params so factory succeeds.
+		// FORMULA needs a non-empty expression; DATE_PART needs params;
+		// ATTR_REG_* need Target + Predictors. Provide minimum viable
+		// params so factory succeeds.
 		spec := &types.Attribute{Type: attrType, Field: "x"}
+		schema := &encoding.Schema{
+			Fields: []encoding.Field{
+				{Name: "x", Type: encoding.FieldTypeDate},
+				{Name: "y", Type: encoding.FieldTypeF64},
+				{Name: "p1", Type: encoding.FieldTypeF64},
+			},
+		}
 		switch attrType {
 		case types.ATTR_FORMULA:
 			spec.Expression = "1"
 		case types.ATTR_DATE_PART:
 			spec.Params = []byte(`{"part":"year"}`)
-		}
-		schema := &encoding.Schema{
-			Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeDate}},
+		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+			spec.Target = "y"
+			spec.Predictors = []string{"p1"}
 		}
 		instance, err := factory(spec, schema)
 		if err != nil {

@@ -28,12 +28,15 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 
 // attributeRegistry maps attribute types to their factory functions.
 var attributeRegistry = map[types.AttributeType]AttributeFactory{
-	types.ATTR_ZSCORE:     newZScoreAttribute,
-	types.ATTR_TSCORE:     newTScoreAttribute,
-	types.ATTR_NORMALIZED: newNormalizedAttribute,
-	types.ATTR_FORMULA:    newFormulaAttribute,
-	types.ATTR_PERCENTILE: newPercentileAttribute,
-	types.ATTR_DATE_PART:  newDatePartAttribute,
+	types.ATTR_ZSCORE:       newZScoreAttribute,
+	types.ATTR_TSCORE:       newTScoreAttribute,
+	types.ATTR_NORMALIZED:   newNormalizedAttribute,
+	types.ATTR_FORMULA:      newFormulaAttribute,
+	types.ATTR_PERCENTILE:   newPercentileAttribute,
+	types.ATTR_DATE_PART:    newDatePartAttribute,
+	types.ATTR_REG_FITTED:   newRegFittedAttribute,
+	types.ATTR_REG_RESIDUAL: newRegResidualAttribute,
+	types.ATTR_REG_LEVERAGE: newRegLeverageAttribute,
 }
 
 // filtererRegistry maps filterer types to their factory functions.

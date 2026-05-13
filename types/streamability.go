@@ -41,7 +41,8 @@ func (t AggregationType) Streamable() bool {
 func (t AttributeType) Streamable() bool {
 	switch t {
 	case ATTR_FORMULA, ATTR_DATE_PART,
-		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED:
+		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
+		ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE:
 		return true
 	case ATTR_PERCENTILE:
 		return false

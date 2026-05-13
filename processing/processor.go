@@ -128,11 +128,13 @@ func CanStreamRequest(req *types.Request, schema *encoding.Schema) bool {
 // requiresTwoPass reports whether the attribute type implements
 // TwoPassAttribute (and therefore needs a PrePass over filter-passing
 // records before per-row emission). Mirrors the attribute factories in
-// processing/attribute.go: ZSCORE/TSCORE/NORMALIZED need population
-// stats; FORMULA/DATE_PART are pure row-local.
+// processing/attribute.go and attribute_reg.go: ZSCORE/TSCORE/NORMALIZED
+// need population stats; ATTR_REG_FITTED/RESIDUAL/LEVERAGE need a
+// finalize-time regression fit; FORMULA/DATE_PART are pure row-local.
 func requiresTwoPass(t types.AttributeType) bool {
 	switch t {
-	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED:
+	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
+		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 		return true
 	}
 	return false
@@ -711,7 +713,7 @@ func (p *Processor) buildTwoPassAttributes(attrs []*types.Attribute) (twoPass []
 		}
 		label := attr.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", attr.Type, attr.Field)
+			label = defaultAttributeLabel(attr)
 		}
 		if tp, ok := computer.(TwoPassAttribute); ok {
 			twoPass = append(twoPass, twoPassAttrEntry{attr: attr, computer: tp, label: label})
@@ -916,7 +918,7 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 		}
 		label := attr.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", attr.Type, attr.Field)
+			label = defaultAttributeLabel(attr)
 		}
 		out = append(out, rowLocalAttrEntry{attr: attr, computer: rowLocal, label: label})
 	}
@@ -1160,7 +1162,7 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 		// Inject computed values back into records under the label name
 		label := attr.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", attr.Type, attr.Field)
+			label = defaultAttributeLabel(attr)
 		}
 		for i, r := range records {
 			if i < len(values) {
