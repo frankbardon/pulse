@@ -31,6 +31,9 @@ func TestRegisteredTools_Stable(t *testing.T) {
 		ToolExamplesSearch,
 		ToolExamplesGet,
 		ToolErrorsLookup,
+		ToolImport,
+		ToolDrop,
+		ToolImportsList,
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("RegisteredTools mismatch\n got: %v\nwant: %v", got, want)

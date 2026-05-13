@@ -106,6 +106,25 @@ const (
 	// PULSE_IMPORT_DESCRIPTION_TOO_LONG indicates description exceeds 1000 bytes.
 	PULSE_IMPORT_DESCRIPTION_TOO_LONG Code = "PULSE_IMPORT_DESCRIPTION_TOO_LONG"
 
+	// PULSE_IMPORT_FORMAT_UNKNOWN indicates the source extension was not
+	// recognised and no explicit format hint was supplied. Surfaced by
+	// the imports.Manager on Open.
+	PULSE_IMPORT_FORMAT_UNKNOWN Code = "PULSE_IMPORT_FORMAT_UNKNOWN"
+
+	// PULSE_IMPORT_SOURCE_MISSING indicates the source file referenced
+	// by an import or by a managed-import sidecar could not be read.
+	PULSE_IMPORT_SOURCE_MISSING Code = "PULSE_IMPORT_SOURCE_MISSING"
+
+	// PULSE_IMPORT_HANDLE_EXISTS indicates a managed-import handle of
+	// the requested name already exists and Overwrite was not set.
+	PULSE_IMPORT_HANDLE_EXISTS Code = "PULSE_IMPORT_HANDLE_EXISTS"
+
+	// PULSE_IMPORT_SOURCE_FORBIDDEN indicates an absolute source path
+	// resolved outside the import jail. The Manager confines absolute
+	// reads to a configured root (default: process cwd) so an MCP /
+	// CLI invocation cannot reach arbitrary files on the host.
+	PULSE_IMPORT_SOURCE_FORBIDDEN Code = "PULSE_IMPORT_SOURCE_FORBIDDEN"
+
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL indicates a numeric aggregation
 	// was requested on a categorical field.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
@@ -335,6 +354,10 @@ var allCodes = []Code{
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW,
 	PULSE_IMPORT_CATEGORICAL_UNBOUNDED,
 	PULSE_IMPORT_DESCRIPTION_TOO_LONG,
+	PULSE_IMPORT_FORMAT_UNKNOWN,
+	PULSE_IMPORT_SOURCE_MISSING,
+	PULSE_IMPORT_HANDLE_EXISTS,
+	PULSE_IMPORT_SOURCE_FORBIDDEN,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,

@@ -27,12 +27,32 @@ Every Pulse tool wraps a public library entry point. Inputs are JSON; outputs ar
 | `pulse_skills_list` | Embedded skill metadata | (none) |
 | `pulse_skills_get` | Fetch one skill body | `name` (string) |
 | `pulse_manifest` | Root self-description: commands, components, cohort types, skills, tests, distributions, error codes | (none) |
-| `pulse_ask` | Unified inspect -> predict -> process one-shot. On predict-invalid with `on_invalid="suggest"`, returns structured `Suggestions` instead of erroring. Accepts either `request` or natural-language `query`. | `request` (JSON-encoded `pulse.AskRequest`) |
+| `pulse_ask` | **PREFERRED entry point.** Unified import -> inspect -> predict -> process one-shot. Pass `source` (raw file path) to auto-import before inspect; pass `cohort` to address an existing `.pulse` or managed handle. Accepts either a structured `request` or a natural-language `query` parsed against the schema. On predict-invalid with `on_invalid="suggest"`, returns structured `Suggestions` instead of erroring. Optional `source`-side fields: `source_format`, `source_handle`, `source_ttl` (default `"7d"`, accepts same forms as `pulse_import.ttl` including `"pin"`), `source_sheet`, `source_overwrite`. | `request` (JSON-encoded `pulse.AskRequest`) |
 | `pulse_examples_search` | Search the embedded request-example library by query, taxonomy tags (ANDed), and/or category | `query` (string, optional), `tags` (array of strings, optional), `category` (string, optional) |
 | `pulse_examples_get` | Fetch one example record with runnable request JSON (the `body` field has the `_meta` block stripped) | `name` (string) |
 | `pulse_errors_lookup` | Look up Pulse error code metadata. Pass `code` for one-code detail, `domain` to enumerate a domain, `query` for substring search across descriptions and fixup hints. Returns an array of `{code, domain, message, fixups}` records | `code` (string, optional), `domain` (string, optional), `query` (string, optional) |
+| `pulse_import` | Import a tabular source (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. Managed handles live in `$PULSE_DATA_DIR/imports/` with a TTL-tracked sidecar — every subsequent inspect / predict / process / sample / facet / ask against the handle slides expiry forward. Pulse-format sources skip the copy + sidecar; they pass through with `managed=false`. | `source` (string, required), `format` (string, optional), `handle` (string, optional), `ttl` (string, optional — default `"7d"`; Go duration like `"24h"`, day form `"7d"`, or `"pin"` for never-expire), `sheet` (string, optional Excel only), `overwrite` (bool, optional) |
+| `pulse_drop` | Drop a managed-import handle from the pool — deletes the `.pulse` file and its sidecar. Errors with `PULSE_IMPORT_SOURCE_MISSING` when the handle is unknown. Pulse-format passthroughs are unaffected (they were never managed). | `handle` (string, required) |
+| `pulse_imports_list` | List every managed-import handle in the pool with its sidecar metadata: source path, source format, imported_at, expires_at, ttl, expired flag, pinned flag. Sweep is not invoked — expired entries are flagged via `expired` so callers can render them and decide whether to drop or extend. | (none) |
 
 The canonical list is `internal/mcp.RegisteredTools()`. Adding or removing a tool requires updating this skill in the same PR (`TestSkillsCoverAllMCPTools`).
+
+### Managed imports + TTL
+
+`pulse_import` is the entry point for "give Pulse a file in whatever format I have and let me address it from then on as if it were a `.pulse`." Two paths:
+
+- **Convertible format** (csv, tsv, ndjson, jsonarray, parquet, arrow, excel): the server runs the import job, writes `$PULSE_DATA_DIR/imports/<handle>.pulse`, and writes a sidecar `<handle>.pulse.meta.json` carrying `imported_at`, `expires_at`, `ttl_seconds`, source path, source format, and row count. `Result.managed=true`.
+- **Pulse passthrough** (`format=pulse` or `.pulse` extension): a `.pulse` source already under `PULSE_DATA_DIR` is not copied — the server just confirms it is readable and returns its relative path verbatim with `managed=false`. A `.pulse` source at an absolute path outside `PULSE_DATA_DIR` is copied into the managed pool (the rooted Pulse fs cannot address external absolute paths via inspect / process otherwise), with a normal TTL sidecar and `managed=true`.
+
+**Source path resolution.** Relative `source` paths resolve against `PULSE_DATA_DIR`. Absolute paths (`/Users/...`, `/home/...`, `/var/...`) read from the host filesystem through a separate source fs — clients can hand the server any file under the import jail without first copying it under `PULSE_DATA_DIR`. The managed `.pulse` always lands inside `PULSE_DATA_DIR/imports/` regardless of where the source came from.
+
+**Import jail.** Absolute source paths are confined to a single directory tree (the *jail root*). By default the jail root is the working directory the MCP server / CLI was launched from — so a `pulse mcp` invocation can only reach files under that tree. Paths that escape the jail (including `..` traversal) return `PULSE_IMPORT_SOURCE_FORBIDDEN`. Override via `pulse.Options.ImportSourceJailRoot` when embedding, or pass an explicit `ImportSourceFS` to manage access yourself (the explicit fs IS the boundary in that case).
+
+After a successful `pulse_import` the server fires the same schema-binding hook as `pulse_inspect` (see below), so subsequent `pulse_process` / `pulse_predict` / `pulse_compose` / `pulse_sample` / `pulse_facet` calls against the new handle pick up typed field enums.
+
+TTL is a sliding window. The default lifetime is `7d` (overridable via `PULSE_IMPORT_TTL`). Every subsequent operation against the handle bumps `expires_at` forward by the same TTL. The pool self-sweeps on every `pulse_import` call — no daemon required — and the operator can introspect with `pulse_imports_list` or evict manually with `pulse_drop`.
+
+Pinned imports (`ttl="pin"`) never expire and are skipped by the sweeper. Use them for handles you want to keep around for the duration of a session regardless of activity (e.g., a reference cohort).
 
 Out of scope (deferred): `pulse_validate` and `pulse_join` — gated on Improvements 05 and 07.
 </reference>
@@ -40,13 +60,46 @@ Out of scope (deferred): `pulse_validate` and `pulse_join` — gated on Improvem
 <workflow id="bootstrap" name="session-bootstrap">
 ## Session bootstrap
 
-1. Call `pulse_manifest` once at session start. No arguments. Cache the payload.
+**The two-call default.** For nearly every user request the ideal session shape is:
+
+1. **Call `pulse_manifest` once at session start.** No arguments. Cache the payload.
 
    The manifest is deterministic for a given binary version and carries every fact needed to author a valid request without further discovery round-trips: per-operator params + accepted field types + emit type + streamability hint, the statistical test catalog (tier-1 row tests and tier-2 post tests as peer slices), the synth distribution catalog, the error code catalog, the MCP tool list, and the cohort field-type catalog with operator cross-references.
 
-2. Subsequent requests reference the cached manifest. Re-fetch only if the underlying binary changes (a notification you would typically receive out of band).
+2. **Call `pulse_ask` for everything else.** `pulse_ask` is the PREFERRED entry point. It collapses import + inspect + predict + execute into one round trip. USE `pulse_ask` FIRST. Reach for the multi-step path only when you specifically need to diagnose a failed predict, sample raw rows, or facet a single field.
 
-A single bootstrap call replaces a long discovery dance against `pulse_skills_list`, per-operator round-trips, and per-error-code lookups.
+   The collapsed flow when the user hands you a raw file:
+
+   ```json
+   {
+     "request": "{\"source\":\"data.csv\",\"query\":\"average revenue by month\"}"
+   }
+   ```
+
+   The server runs `pulse_import` on `source`, slides the import's TTL forward, inspects the resulting handle (binding schema-aware enums into the session), validates the request (or parses `query` against the schema), and executes — returning import metadata, the predict envelope, and the result rows in one response.
+
+   When the cohort already exists as a managed handle or `.pulse` file, pass `cohort` instead of `source`:
+
+   ```json
+   {
+     "request": "{\"cohort\":{\"filename\":\"sales.pulse\"},\"query\":\"top 5 regions by revenue\"}"
+   }
+   ```
+
+3. Subsequent requests reference the cached manifest. Re-fetch only if the underlying binary changes (a notification you would typically receive out of band).
+
+**`AskRequest` source fields** (all optional; mirror the `pulse_import` semantics):
+
+| Field | Purpose | Default |
+|---|---|---|
+| `source` | Path to a raw tabular file. Auto-imported into the managed pool before inspect. Relative paths resolve against `PULSE_DATA_DIR`; absolute paths read through the import jail. | (none — provide `cohort` instead if the file is already a `.pulse`) |
+| `source_format` | Override the auto-detected format (`csv`, `tsv`, `ndjson`, `jsonarray`, `parquet`, `arrow`, `excel`, `pulse`). | (auto from extension) |
+| `source_ttl` | Sliding TTL for the managed handle. Accepts the same forms as `pulse_import.ttl`: Go duration like `"24h"`, day form `"7d"`, or `"pin"` for never-expire. | `"7d"` |
+| `source_handle` | Explicit handle name under `imports/`. | (auto-generated) |
+| `source_sheet` | Excel sheet name. | (first sheet) |
+| `source_overwrite` | Replace an existing handle with the same name. | `false` |
+
+A single bootstrap call (`pulse_manifest`) followed by one or more `pulse_ask` calls replaces a long discovery dance against `pulse_skills_list`, per-operator round-trips, per-file inspect calls, and per-error-code lookups.
 </workflow>
 
 <reference>
@@ -110,16 +163,37 @@ If your client supports resource subscription, listing `pulse://*` resources is 
 <workflow id="agent-flow" name="agent-call-pattern">
 ## Typical agent flow
 
-1. Call `pulse_skills_list` (optional — the manifest also carries skill metadata) to learn what skills exist.
-2. Call `pulse_skills_get` with `name=getting-started` to load the mental model.
-3. List `pulse://*` resources (or call `pulse_inspect` on a known path) to learn schemas.
-4. Author a request matching a known schema. See `request-recipes`.
-5. Call `pulse_predict` with the request JSON. Inspect `errors`, `warnings`, `suggestions`, and `streamable_reasons`.
-6. Call `pulse_process` (or `pulse_compose` for batches).
+**First-line answer: call `pulse_ask`.** It is the PREFERRED entry point for every user question that resolves to "run an analysis against a cohort."
 
-For the common path, `pulse_ask` collapses steps 5–6 into a single round trip: it inspects, validates, and (when valid) executes. On validation failure with `on_invalid="suggest"`, the response carries a de-duplicated list of structured `Fixup` entries derived from each error code's metadata, so you can repair the request without re-querying the schema.
+1. (Once per session) Call `pulse_manifest`. Cache the result.
+2. Call `pulse_ask` with either:
+   - **`source` + `query`** — raw file plus natural language. The server imports, inspects, parses the query against the schema, validates, and executes.
+   - **`source` + `request`** — raw file plus a structured `types.Request` you already authored against the cached manifest.
+   - **`cohort` + `query`** / **`cohort` + `request`** — same, but against a `.pulse` or managed handle that already exists.
 
-For natural-language input, hand the user's text to `pulse_ask` under the `query` field instead of `request`. See `query-router-prompt` for the recommended system-prompt template.
+   On predict failure with `on_invalid="suggest"`, the response carries a de-duplicated list of structured `Fixup` entries derived from each error code's metadata, so you can repair the request without re-querying the schema. On success, the response carries import metadata (when `source` was supplied), the predict envelope, and the result rows.
+
+3. Iterate on the same handle in subsequent `pulse_ask` calls. Every call slides the import's TTL forward — the handle stays warm for the session.
+
+### Advanced / when you need finer control
+
+Reach for the multi-step path only in these situations:
+
+- **Diagnosing a failed predict.** Call `pulse_predict` directly to see the full structured envelope (errors, warnings, suggestions, defaults_applied, streamable_reasons) without the executor running.
+- **Eyeballing data.** Call `pulse_sample` or `pulse_facet` to peek at rows or value distributions before authoring a request.
+- **Schema discovery before authoring.** Call `pulse_inspect` to read the cohort header explicitly (also binds schema-aware enums into session tools — `pulse_ask` does this automatically).
+- **Batch execution.** Call `pulse_compose` with a `types.ComposedRequest` when you need to run several requests against the same cohort in one shot.
+- **Pre-staging a managed handle.** Call `pulse_import` directly when you want to lock in a handle name, TTL, or pinning policy without immediately running a query.
+
+The legacy multi-step shape is still supported end-to-end:
+
+1. (Optional) `pulse_import` — convert a raw source into a managed handle.
+2. `pulse_inspect` — read the cohort schema; binds enums.
+3. Author a `types.Request` against the schema. See `request-recipes`.
+4. `pulse_predict` — validate against the schema. Read `errors`, `warnings`, `suggestions`, `streamable_reasons`.
+5. `pulse_process` (or `pulse_compose` for batches) — execute.
+
+For natural-language input from a user, the default is still `pulse_ask` under the `query` field — do not author a request by hand from prose. See `query-router-prompt` for the recommended system-prompt template.
 </workflow>
 
 <example name="predict-via-mcp">
