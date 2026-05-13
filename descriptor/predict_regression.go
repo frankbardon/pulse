@@ -124,6 +124,19 @@ func validateRegressions(env *Envelope, req *types.Request, schema *encoding.Sch
 				map[string]any{"selection": reg.Selection},
 			)
 		}
+
+		// L1-penalized OLS fits (Penalty=="l1" or "elasticnet") produce
+		// analytical standard errors only as a coarse plug-in over the
+		// data-dependent active set. Warn callers so they treat the
+		// reported SE / p-value entries as approximate; Phase 5 will
+		// add bootstrap / jackknife as the rigorous answer.
+		if reg.Type == types.REG_OLS && (reg.Penalty == "l1" || reg.Penalty == "elasticnet") {
+			env.AddWarning(
+				"PROCESSING_REGRESSION_APPROXIMATE_SE",
+				"REG_OLS with Penalty="+reg.Penalty+" emits std errors / p-values for the active set only, as a naive plug-in estimate; rigorous uncertainty quantification ships with the Resample modifier in Phase 5",
+				map[string]any{"penalty": reg.Penalty, "type": string(reg.Type)},
+			)
+		}
 	}
 }
 

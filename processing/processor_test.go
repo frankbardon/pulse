@@ -11,12 +11,13 @@ import (
 
 // TestProcessor_RegressionNotImplemented exercises the still-stubbed
 // engine surface end-to-end. Phase 0 covered every operator; Phase 1
-// retires the stub for unpenalized REG_OLS (its own end-to-end coverage
-// lives in ols_test.go), so this test now exercises REG_GLM,
-// REG_BAYES_LINEAR, and regularized / modifier-wrapped REG_OLS variants.
-// Each one routes through the buffered orchestrator path and bubbles
-// PROCESSING_REGRESSION_NOT_IMPLEMENTED back to the caller without
-// panicking.
+// retired the stub for unpenalized REG_OLS; Phase 2 retired the stub
+// for regularized REG_OLS (its own end-to-end coverage lives in
+// ols_test.go / ols_ridge_test.go / ols_lasso_test.go /
+// ols_elasticnet_test.go). The remaining stubs are REG_GLM, REG_BAYES_LINEAR,
+// and modifier-wrapped REG_OLS variants. Each one routes through the
+// buffered orchestrator path and bubbles PROCESSING_REGRESSION_NOT_IMPLEMENTED
+// back to the caller without panicking.
 func TestProcessor_RegressionNotImplemented(t *testing.T) {
 	schema := numericSchema()
 
@@ -28,7 +29,6 @@ func TestProcessor_RegressionNotImplemented(t *testing.T) {
 	}{
 		{"REG_GLM", &types.RegressionSpec{Type: types.REG_GLM, Target: "score", Predictors: []string{"score"}, Family: "binomial"}},
 		{"REG_BAYES_LINEAR", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}}},
-		{"REG_OLS l1 penalty", &types.RegressionSpec{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Penalty: "l1", Alpha: 0.1}},
 		{"REG_OLS bootstrap", &types.RegressionSpec{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Resample: "bootstrap"}},
 		{"REG_OLS stepwise", &types.RegressionSpec{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Selection: "stepwise", Criterion: "aic"}},
 	}

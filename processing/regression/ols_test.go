@@ -308,31 +308,11 @@ func TestRegOLS_AllConstantPredictor(t *testing.T) {
 	}
 }
 
-// TestRegOLS_PenaltyFallsThroughToStub: setting Penalty != "" routes
-// the spec back to the not-implemented engine. This preserves the
-// Phase 0 contract for regularized variants until Phase 2 lands.
-func TestRegOLS_PenaltyFallsThroughToStub(t *testing.T) {
-	for _, pen := range []string{"l1", "l2", "elasticnet"} {
-		t.Run(pen, func(t *testing.T) {
-			spec := &types.RegressionSpec{
-				Type: types.REG_OLS, Target: "y", Predictors: []string{"x"},
-				Penalty: pen, Alpha: 0.1, L1Ratio: 0.5,
-			}
-			schema := schemaWithFields("y", "x")
-			eng, err := newOLSEngine(spec, schema)
-			if err != nil {
-				t.Fatalf("newOLSEngine: %v", err)
-			}
-			_, err = eng.Fit()
-			if err == nil {
-				t.Fatal("Fit: nil error; want PROCESSING_REGRESSION_NOT_IMPLEMENTED")
-			}
-			if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED) {
-				t.Errorf("err = %v, want PROCESSING_REGRESSION_NOT_IMPLEMENTED", err)
-			}
-		})
-	}
-}
+// (Phase-1 TestRegOLS_PenaltyFallsThroughToStub retired in Phase 2:
+// regularized OLS now routes to a real solver, not the stub. See
+// ols_ridge_test.go / ols_lasso_test.go / ols_elasticnet_test.go for
+// the new positive-path coverage and spec_test.go for the validation
+// table that catches invalid penalty/alpha/l1_ratio combinations.)
 
 // TestRegOLS_ModifierFallsThroughToStub: setting Resample or Selection
 // routes the spec back to the not-implemented engine. Phase 5 will

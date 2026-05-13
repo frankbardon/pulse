@@ -13,18 +13,18 @@ The 13 names in the Indeed taxonomy double-count (Simple = Linear univariate, Mu
 
 ## Phase status
 
-Phase 0 (this release) lands the API surface only. `REG_OLS`, `REG_GLM`, and `REG_BAYES_LINEAR` are registered but every fit returns `PROCESSING_REGRESSION_NOT_IMPLEMENTED`. Phases 1–8 progressively fill in:
+Phase 2 has landed: `REG_OLS` now fits both unpenalized and regularized variants (l1 / l2 / elasticnet) over a single streaming pass. `REG_GLM` and `REG_BAYES_LINEAR` still return `PROCESSING_REGRESSION_NOT_IMPLEMENTED` until Phases 3 and 4.
 
-| Phase | Engine                                          |
-|-------|-------------------------------------------------|
-| 1     | OLS streaming (no penalty)                      |
-| 2     | OLS regularization (ridge / lasso / elastic-net)|
-| 3     | GLM (logistic, poisson)                         |
-| 4     | Bayesian linear (conjugate NIG)                 |
-| 5     | Modifiers (`Resample`, `Selection`)             |
-| 6     | Compositional coverage (FEAT_POLY, ecological)  |
-| 7     | Per-row regression attributes (ATTR_REG_*)      |
-| 8     | Docs, examples, manifest polish                 |
+| Phase | Engine                                          | Status   |
+|-------|-------------------------------------------------|----------|
+| 1     | OLS streaming (no penalty)                      | shipped  |
+| 2     | OLS regularization (ridge / lasso / elastic-net)| shipped  |
+| 3     | GLM (logistic, poisson)                         | pending  |
+| 4     | Bayesian linear (conjugate NIG)                 | pending  |
+| 5     | Modifiers (`Resample`, `Selection`)             | pending  |
+| 6     | Compositional coverage (FEAT_POLY, ecological)  | pending  |
+| 7     | Per-row regression attributes (ATTR_REG_*)      | pending  |
+| 8     | Docs, examples, manifest polish                 | pending  |
 
 Until the engine for a given operator lands, every request slot of that type returns `PROCESSING_REGRESSION_NOT_IMPLEMENTED`.
 
@@ -32,7 +32,11 @@ Until the engine for a given operator lands, every request slot of that type ret
 
 ### `REG_OLS` — ordinary least squares
 
-Streaming when `Penalty == ""`; streaming-Gram + finalize-solve when `Penalty != ""`.
+Streaming over sufficient statistics. The Welford accumulator collects `(n, μ_x, μ_y, M2_xx, M2_xy, M2_yy)` in a single pass; the finalize-time solver branches on `Penalty`:
+
+- `Penalty == ""` — Cholesky on the centered Gram (Phase 1).
+- `Penalty == "l2"` — Cholesky on the augmented Gram `M2_xx + n·λ·I` (Phase 2).
+- `Penalty == "l1" | "elasticnet"` — coordinate descent on the standardized Gram with soft-thresholding (Phase 2). All inner products derive from the Gram; coordinate descent never re-reads the data.
 
 ```json
 {
@@ -44,12 +48,37 @@ Streaming when `Penalty == ""`; streaming-Gram + finalize-solve when `Penalty !=
 
 Optional regularization:
 
-| `Penalty`     | Meaning              | Extra params           |
-|---------------|----------------------|------------------------|
-| `""`          | No regularization    | —                      |
-| `"l2"`        | Ridge                | `alpha > 0`            |
-| `"l1"`        | Lasso                | `alpha > 0`            |
-| `"elasticnet"`| Elastic Net          | `alpha > 0`, `l1_ratio ∈ [0,1]` |
+| `Penalty`     | Meaning              | Extra params           | Solver                |
+|---------------|----------------------|------------------------|-----------------------|
+| `""`          | No regularization    | —                      | closed-form Cholesky  |
+| `"l2"`        | Ridge                | `alpha > 0`            | closed-form Cholesky on `M2_xx + n·λ·I` |
+| `"l1"`        | Lasso                | `alpha > 0`            | coordinate descent + soft-threshold |
+| `"elasticnet"`| Elastic Net          | `alpha > 0`, `0 < l1_ratio < 1` | coordinate descent (combined penalty) |
+
+`alpha` follows the scikit-learn convention: the penalty is added to the unscaled residual sum of squares. `Ridge(alpha=λ)` and `Lasso(alpha=λ)` on the same data produce the same coefficients as Pulse's `REG_OLS{Penalty:"l2", Alpha:λ}` / `REG_OLS{Penalty:"l1", Alpha:λ}` (to ≥ 1e-3 once predictors are standardized internally).
+
+Convergence knobs for the coordinate-descent solvers:
+
+| Field       | Default | Meaning                                              |
+|-------------|---------|------------------------------------------------------|
+| `max_iters` | 1000    | Cycle cap. Non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE`. |
+| `tol`       | 1e-6    | Stop when `max\|Δβ\|` per cycle falls below this.    |
+
+**Standard error caveat (L1-penalized fits).** The analytical SE / p-value entries for `l1` and `elasticnet` reflect a coarse plug-in over the data-dependent active set; coefficients shrunk to zero have no SE entry. Predict attaches a `PROCESSING_REGRESSION_APPROXIMATE_SE` warning to the envelope for these specs. For rigorous uncertainty quantification, use `Resample: "bootstrap"` or `Resample: "jackknife"` (Phase 5). Ridge and unpenalized OLS retain the standard asymptotic SE formula.
+
+**Recipes.**
+
+```json
+// Ridge regression (Indeed #6)
+{"type": "REG_OLS", "target": "y", "predictors": ["x1", "x2"], "penalty": "l2", "alpha": 0.1}
+
+// Lasso regression (Indeed #7)
+{"type": "REG_OLS", "target": "y", "predictors": ["x1", "x2", "x3"], "penalty": "l1", "alpha": 0.05}
+
+// Elastic Net (Indeed #11)
+{"type": "REG_OLS", "target": "y", "predictors": ["x1", "x2", "x3"],
+ "penalty": "elasticnet", "alpha": 0.05, "l1_ratio": 0.5}
+```
 
 ### `REG_GLM` — generalized linear model
 
@@ -143,7 +172,7 @@ Two orthogonal modifiers apply to any of the three operators. Both downgrade str
 | Any regression with `Resample != ""`               | no         | O(n·p)  | LOO / bootstrap refit                         |
 | Any regression with `Selection != ""`              | no         | O(n·p)  | refit per candidate subset                    |
 
-Phase 0 forces every regression slot through the buffered path regardless of these rules; the streaming sufficient-statistics path lands with the OLS engine in Phase 1.
+Phases 1–2 light up streaming for both unpenalized and regularized REG_OLS. Bayes (Phase 4) and the modifier wrappers (Phase 5) remain buffered until their phases ship.
 
 ## Compositional patterns
 
@@ -197,13 +226,16 @@ The ecological fallacy applies: relationships at the group level need not hold a
 
 | Code                                       | When it fires                                                       |
 |--------------------------------------------|---------------------------------------------------------------------|
-| `PROCESSING_REGRESSION_NOT_IMPLEMENTED`    | Phase 0 only. Every `REG_*` slot returns this until its engine ships. |
+| `PROCESSING_REGRESSION_NOT_IMPLEMENTED`    | Engine not yet shipped (today: `REG_GLM`, `REG_BAYES_LINEAR`, modifier-wrapped specs). |
 | `PROCESSING_REGRESSION_RANK_DEFICIENT`     | XᵀX is singular; add regularization or drop a predictor.            |
-| `PROCESSING_REGRESSION_NO_CONVERGE`        | IRLS or coordinate descent failed within `MaxIters`.                |
+| `PROCESSING_REGRESSION_NO_CONVERGE`        | IRLS or coordinate descent failed within `MaxIters`. Raise `MaxIters` or `Tol`, or reduce `Alpha`. |
 | `PROCESSING_REGRESSION_SINGULAR_GRAM`      | XᵀX non-invertible even after regularization; increase Alpha.       |
 | `PROCESSING_REGRESSION_INVALID_FAMILY`     | `REG_GLM` Family outside `{binomial, poisson, gamma}`.              |
 | `PROCESSING_REGRESSION_INVALID_LINK`       | `Link` incompatible with the chosen Family.                         |
 | `PROCESSING_REGRESSION_INSUFFICIENT_DATA`  | Filtered set has fewer rows than predictors + 1.                    |
+| `PROCESSING_CONFIG`                        | Invalid spec combination, e.g. `Penalty="elasticnet"` with `L1Ratio=0` (use `Penalty="l2"` instead). |
+
+Additionally, `PROCESSING_REGRESSION_APPROXIMATE_SE` is emitted as an envelope **warning** (not an error) for `Penalty="l1"` and `Penalty="elasticnet"` fits to flag that the reported SE / p-value entries are plug-in approximations over the active set.
 
 ## Response shape
 

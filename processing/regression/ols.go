@@ -20,8 +20,10 @@ import (
 //     supplied; kept here so the universal-stub registry path doesn't
 //     mis-fire when a request arrives with the streaming gate off.
 //
-// olsEngine handles unpenalized OLS only (Penalty == ""). Penalized
-// variants (Phase 2) and the Bayes/GLM operators (Phases 3-4) stay on
+// olsEngine handles ordinary least squares with optional ridge / lasso /
+// elasticnet regularization. The streaming Welford accumulator is the
+// same across all four solver flavors — only the finalize-time solve
+// branches on Penalty. The Bayes/GLM operators (Phases 3-4) stay on
 // the notImplementedEngine path until their dedicated engines land.
 type olsEngine struct {
 	spec   *types.RegressionSpec
@@ -30,6 +32,15 @@ type olsEngine struct {
 	// finalized flips when Finalize / FitBuffered has run; further
 	// UpdateRow calls would corrupt the fit and are rejected.
 	finalized bool
+	// convergedIters records the number of coordinate-descent cycles for
+	// the regularized solvers. Zero for the closed-form paths (unpenalized
+	// and ridge).
+	convergedIters int
+	// approximateSE flags the L1-penalized fits whose standard errors
+	// are emitted only for the active set under a naive plug-in. The
+	// engine attaches a warning to the response in that case; Phase 5
+	// will replace this with bootstrap / jackknife uncertainty.
+	approximateSE bool
 }
 
 // newOLSEngine validates the spec and constructs an empty accumulator
@@ -43,12 +54,11 @@ func newOLSEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 			map[string]any{"type": string(spec.Type)},
 		)
 	}
-	if spec.Penalty != "" {
-		// Phase 2 will route penalized OLS to a regularized engine.
-		// Phase 1 hands these back to the not-implemented stub so the
-		// rest of the contract (error code, manifest, predict) stays
-		// stable.
-		return newNotImplemented(spec, schema)
+	// Phase 2: regularized variants land. Spec validation rejects
+	// invalid penalty/alpha/l1_ratio combos before the accumulator is
+	// even constructed.
+	if err := ValidateRegression(spec); err != nil {
+		return nil, err
 	}
 	if spec.Resample != "" || spec.Selection != "" {
 		// Modifier wrappers land in Phase 5; until then, route to the
@@ -159,12 +169,23 @@ func (e *olsEngine) Fit() (*types.RegressionResult, error) {
 
 // finalizeFromAccumulator solves the system and packages the result.
 // Shared by every entry point so the post-solve formatting lives in
-// exactly one place.
+// exactly one place. Dispatches to one of four solvers based on
+// spec.Penalty:
+//
+//	""           → solveOLS    (Phase 1, closed-form, full SE)
+//	"l2"         → solveRidge  (closed-form on augmented Gram, full SE)
+//	"l1"         → solveLasso  (coordinate descent, approximate SE)
+//	"elasticnet" → solveElasticNet (coordinate descent, approximate SE)
+//
+// All four solvers consume the same streaming Welford accumulator;
+// regularized variants iterate at finalize, not over rows.
 func (e *olsEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
-	solve, err := solveOLS(e.acc)
+	solve, iters, approxSE, err := e.dispatchSolve()
 	if err != nil {
 		return nil, err
 	}
+	e.convergedIters = iters
+	e.approximateSE = approxSE
 
 	predictors := e.spec.Predictors
 	coefMap := make(map[string]float64, len(predictors)+1)
@@ -177,14 +198,31 @@ func (e *olsEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
 
 	for i, name := range predictors {
 		coefMap[name] = solve.Coefficients[i]
+		// For L1-penalized fits, only the active set (non-zero coefs)
+		// gets a (naive) SE entry; the zeroed coordinates have no
+		// well-defined SE so their map entries are omitted.
+		if e.approximateSE && solve.Coefficients[i] == 0 {
+			pMap[name] = 0
+			continue
+		}
 		seMap[name] = solve.StdErrors[i+1]
 		pMap[name] = pValueForCoefficient(solve.Coefficients[i], solve.StdErrors[i+1], solve.DF)
 	}
+	if e.approximateSE {
+		// Drop intercept SE/p-value too: under L1 penalization the
+		// active set is data-dependent, so even the intercept's
+		// classical SE doesn't apply rigorously. Phase 5 will replace
+		// this with bootstrap / jackknife uncertainty.
+		delete(seMap, InterceptKey)
+		delete(pMap, InterceptKey)
+	}
 
-	return &types.RegressionResult{
+	res := &types.RegressionResult{
 		Name:           e.spec.Name,
 		Type:           types.REG_OLS,
-		Penalty:        "", // unpenalized fit
+		Penalty:        e.spec.Penalty,
+		Alpha:          e.spec.Alpha,
+		L1Ratio:        e.spec.L1Ratio,
 		Coefficients:   coefMap,
 		StdErrors:      seMap,
 		PValues:        pMap,
@@ -192,7 +230,49 @@ func (e *olsEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
 		AdjR2:          solve.AdjR2,
 		NObs:           e.acc.n,
 		ResidualStdErr: solve.ResidualStdErr,
-	}, nil
+		ConvergedIters: e.convergedIters,
+	}
+	return res, nil
+}
+
+// dispatchSolve routes to the per-Penalty solver. Returns
+// (solve, iterations, approximateSE, err). iterations is non-zero only
+// for the coordinate-descent solvers (lasso / elasticnet).
+// approximateSE is true when the SE map should be treated as a plug-in
+// estimate (L1-penalized fits today).
+func (e *olsEngine) dispatchSolve() (*olsSolveResult, int, bool, error) {
+	switch e.spec.Penalty {
+	case "":
+		res, err := solveOLS(e.acc)
+		return res, 0, false, err
+	case "l2":
+		res, err := solveRidge(e.acc, e.spec.Alpha)
+		return res, 0, false, err
+	case "l1":
+		res, iters, err := solveLasso(e.acc, e.spec.Alpha, e.spec.MaxIters, e.spec.Tol)
+		return res, iters, true, err
+	case "elasticnet":
+		res, iters, err := solveElasticNet(e.acc, e.spec.Alpha, e.spec.L1Ratio, e.spec.MaxIters, e.spec.Tol)
+		return res, iters, true, err
+	default:
+		// Spec validation rejects unknown values upstream; the default
+		// branch exists so a future Penalty enum extension surfaces a
+		// clear error if the validator is bypassed.
+		return nil, 0, false, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_CONFIG,
+			"REG_OLS Penalty must be one of \"\", \"l1\", \"l2\", \"elasticnet\"; got "+e.spec.Penalty,
+			map[string]any{"penalty": e.spec.Penalty},
+		)
+	}
+}
+
+// HasApproximateStdErrors reports whether the engine produced a fit
+// whose StdErrors / PValues are plug-in approximations rather than
+// asymptotic estimates. Today this is exactly the L1-penalized fits
+// (Penalty=="l1" or "elasticnet"). The orchestrator consults this hook
+// to attach a descriptor.Envelope warning to the response.
+func (e *olsEngine) HasApproximateStdErrors() bool {
+	return e.approximateSE
 }
 
 // InterceptKey is the map key used for the synthesized intercept entry

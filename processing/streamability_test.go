@@ -80,13 +80,31 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 			want:   true,
 		},
 		{
-			name: "penalized REG_OLS forces buffered (Phase 2)",
+			name: "penalized REG_OLS streams (Phase 2)",
 			req: &types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
 				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Penalty: "l2", Alpha: 0.1}},
 			},
 			schema: numericSchema,
-			want:   false,
+			want:   true,
+		},
+		{
+			name: "l1 penalized REG_OLS streams (Phase 2)",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Penalty: "l1", Alpha: 0.1}},
+			},
+			schema: numericSchema,
+			want:   true,
+		},
+		{
+			name: "elasticnet REG_OLS streams (Phase 2)",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 0.5}},
+			},
+			schema: numericSchema,
+			want:   true,
 		},
 		{
 			name: "regression with bootstrap modifier forces buffered",
@@ -159,19 +177,19 @@ func TestCanStreamRequest_OLSNoPenalty(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "l1 penalized OLS buffers",
+			name: "l1 penalized OLS streams",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1},
-			want: false,
+			want: true,
 		},
 		{
-			name: "l2 penalized OLS buffers",
+			name: "l2 penalized OLS streams",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l2", Alpha: 0.1},
-			want: false,
+			want: true,
 		},
 		{
-			name: "elasticnet OLS buffers",
+			name: "elasticnet OLS streams",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 0.5},
-			want: false,
+			want: true,
 		},
 	}
 	for _, c := range cases {
