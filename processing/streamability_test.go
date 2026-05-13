@@ -125,6 +125,18 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 			want:   false,
 		},
 		{
+			// Phase 3: REG_GLM with poisson+log still routes buffered —
+			// IRLS needs multiple passes regardless of family. This
+			// exercises the second family wired this phase.
+			name: "REG_GLM poisson forces buffered",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_GLM, Target: "score", Predictors: []string{"score"}, Family: "poisson", Link: "log"}},
+			},
+			schema: numericSchema,
+			want:   false,
+		},
+		{
 			name: "REG_BAYES_LINEAR forces buffered (Phase 4)",
 			req: &types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
@@ -200,6 +212,45 @@ func TestCanStreamRequest_OLSNoPenalty(t *testing.T) {
 			}
 			if got := CanStreamRequest(req, schema); got != c.want {
 				t.Errorf("CanStreamRequest = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// TestCanStreamRequest_GLMNeverStreams asserts every (family, link)
+// combination wired this phase still routes through the buffered path.
+// IRLS needs multiple passes to refit the working weights regardless
+// of the link function, so streamability must stay false even after
+// poisson / gamma land.
+func TestCanStreamRequest_GLMNeverStreams(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "y", Type: encoding.FieldTypeF64},
+			{Name: "x", Type: encoding.FieldTypeF64},
+		},
+	}
+	cases := []struct {
+		name string
+		spec *types.RegressionSpec
+	}{
+		{"binomial+logit", &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "binomial", Link: "logit"}},
+		{"binomial+empty link", &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "binomial"}},
+		{"poisson+log", &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "poisson", Link: "log"}},
+		{"poisson+empty link", &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "poisson"}},
+		{"gamma+inverse", &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "gamma", Link: "inverse"}},
+		{"gamma+empty link", &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "gamma"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "y"}},
+				Regressions:  []*types.RegressionSpec{c.spec},
+			}
+			if got := CanStreamRequest(req, schema); got {
+				t.Errorf("CanStreamRequest = true, want false for REG_GLM")
+			}
+			if got := c.spec.Streamable(); got {
+				t.Errorf("RegressionSpec.Streamable() = true, want false for REG_GLM")
 			}
 		})
 	}

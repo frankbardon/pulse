@@ -2192,11 +2192,15 @@
             "name": "link",
             "type": "enum",
             "required": false,
-            "description": "Link function; family-specific default when empty.",
+            "description": "Link function; family-specific default when empty. Implemented this phase: binomial→logit, poisson→log, gamma→inverse. Other enum values are reserved for future phases and surface PROCESSING_REGRESSION_INVALID_LINK if requested.",
             "enum_values": [
+              "cloglog",
               "identity",
+              "inverse",
               "log",
-              "logit"
+              "logit",
+              "probit",
+              "sqrt"
             ]
           },
           {
@@ -3834,4 +3838,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: febf0f2cb053e3c860e8c086d089d3cf4199103025be72ba894a129738526f33
+// golden-hash: 274164e0975907670dde8bec0dcd643bbdf9631dd57f73e49d1b6ccba3de77fc

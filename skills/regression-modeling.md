@@ -13,13 +13,13 @@ The 13 names in the Indeed taxonomy double-count (Simple = Linear univariate, Mu
 
 ## Phase status
 
-Phase 2 has landed: `REG_OLS` now fits both unpenalized and regularized variants (l1 / l2 / elasticnet) over a single streaming pass. `REG_GLM` and `REG_BAYES_LINEAR` still return `PROCESSING_REGRESSION_NOT_IMPLEMENTED` until Phases 3 and 4.
+Phase 3 has landed: `REG_GLM` ships with binomial+logit (logistic) and poisson+log via iteratively-reweighted least squares (IRLS). Gamma+inverse is wired but not numerically validated this phase. `REG_BAYES_LINEAR` still returns `PROCESSING_REGRESSION_NOT_IMPLEMENTED` until Phase 4.
 
 | Phase | Engine                                          | Status   |
 |-------|-------------------------------------------------|----------|
 | 1     | OLS streaming (no penalty)                      | shipped  |
 | 2     | OLS regularization (ridge / lasso / elastic-net)| shipped  |
-| 3     | GLM (logistic, poisson)                         | pending  |
+| 3     | GLM (logistic, poisson)                         | shipped  |
 | 4     | Bayesian linear (conjugate NIG)                 | pending  |
 | 5     | Modifiers (`Resample`, `Selection`)             | pending  |
 | 6     | Compositional coverage (FEAT_POLY, ecological)  | pending  |
@@ -82,7 +82,7 @@ Convergence knobs for the coordinate-descent solvers:
 
 ### `REG_GLM` — generalized linear model
 
-Always buffered (IRLS / Newton-Raphson).
+Always buffered: iteratively-reweighted least squares (IRLS) reweights each row per iteration, so streaming sufficient stats don't work. The engine buffers the design matrix `X` (n × (p+1) with intercept column) and target `y` once at finalize, then iterates in memory.
 
 ```json
 {
@@ -94,15 +94,63 @@ Always buffered (IRLS / Newton-Raphson).
 }
 ```
 
-Family / link compatibility:
+#### IRLS algorithm
 
-| `Family`    | Default `Link` | Allowed `Link`            |
-|-------------|----------------|---------------------------|
-| `binomial`  | `logit`        | `logit`                   |
-| `poisson`   | `log`          | `log`, `identity`         |
-| `gamma`     | `log`          | `log`, `identity`         |
+For a GLM with link `g` and variance function `V`, the engine starts from an intercept-only seed `η₀ = g(ȳ_safe)`, then on each iteration computes the working response and diagonal weights row-by-row:
 
-Misuse surfaces `PROCESSING_REGRESSION_INVALID_FAMILY` (unknown family) or `PROCESSING_REGRESSION_INVALID_LINK` (incompatible link).
+```
+μ_i  = g⁻¹(η_i)
+dμdη = ∂μ/∂η at η_i
+W_i  = dμdη² / V(μ_i)
+z_i  = η_i + (y_i − μ_i) / dμdη
+β_new = (XᵀWX)⁻¹ XᵀWz       # weighted normal equations via Cholesky
+```
+
+The loop stops when `||Δβ|| / (||β|| + ε) < Tol`. Defaults: `MaxIters = 50`, `Tol = 1e-8`; both honor `RegressionSpec.MaxIters` / `RegressionSpec.Tol` overrides. Non-convergence (separable logistic data, ill-conditioned poisson rates, etc.) surfaces `PROCESSING_REGRESSION_NO_CONVERGE`.
+
+#### Family / link compatibility
+
+| `Family`    | Default `Link` | Implemented (Phase 3) | Reserved enum values                |
+|-------------|----------------|------------------------|--------------------------------------|
+| `binomial`  | `logit`        | `logit`                | `probit`, `cloglog` (deferred)       |
+| `poisson`   | `log`          | `log`                  | `identity`, `sqrt` (deferred)        |
+| `gamma`     | `inverse`      | `inverse` (wired, not numerically validated) | `log`, `identity` (deferred) |
+
+| Family    | g(μ)         | g⁻¹(η)        | dμ/dη       | V(μ)        |
+|-----------|--------------|---------------|-------------|-------------|
+| binomial  | log(μ/(1−μ)) | 1/(1+e⁻ⁿ)     | μ(1−μ)      | μ(1−μ)      |
+| poisson   | log(μ)       | eⁿ            | eⁿ = μ      | μ           |
+| gamma     | 1/μ          | 1/η           | −μ²         | μ²          |
+
+Misuse surfaces `PROCESSING_REGRESSION_INVALID_FAMILY` (unknown / empty family) or `PROCESSING_REGRESSION_INVALID_LINK` (requested link incompatible with the family, or a reserved-but-not-implemented combination such as `binomial+probit`).
+
+#### Standard errors and inference
+
+`Cov(β) = (XᵀWX)⁻¹` at the converged weights. For `binomial` and `poisson` the dispersion parameter is fixed at 1 by the family assumption, so the engine emits a **Wald-z** p-value: `p = erfc(|β/SE| / √2)` — the two-sided tail of the standard normal, not a Student's t. Gamma's dispersion is not estimated this phase; its Wald-z values are emitted on the same dispersion=1 assumption and should be treated skeptically until the gamma family ships with its own validation.
+
+`Deviance` and `NullDeviance` are populated; `PseudoR2` is the McFadden-style `1 − Deviance / NullDeviance`. `ResidualStdErr` is not meaningful for GLM (no residual variance estimate); leave it at zero in consumer prose.
+
+#### Recipes
+
+Logistic regression (Indeed #5) — binary classification with covariates:
+
+```json
+{"type": "REG_GLM", "target": "converted", "predictors": ["age", "spend"],
+ "family": "binomial", "link": "logit"}
+```
+
+Poisson regression — event count modeling:
+
+```json
+{"type": "REG_GLM", "target": "click_count", "predictors": ["impressions", "ctr_lag"],
+ "family": "poisson", "link": "log"}
+```
+
+#### Deferred this phase
+
+- **GLM + penalty** (regularized logistic, lasso-penalized Poisson, etc.) — setting `Penalty`, `Alpha`, or `L1Ratio` on a `REG_GLM` spec is rejected with `PROCESSING_CONFIG` rather than silently ignored. Regularized GLM lands in a later phase.
+- **Gamma numerical fixtures** — the link function is wired correctly but its coefficient recovery is not exercised against an external oracle. Use it experimentally; report regressions.
+- **Modifier composition** (`Resample`, `Selection`) — same deferred status as REG_OLS; setting either falls through to the not-implemented stub until Phase 5.
 
 ### `REG_BAYES_LINEAR` — Bayesian linear regression
 
@@ -226,7 +274,7 @@ The ecological fallacy applies: relationships at the group level need not hold a
 
 | Code                                       | When it fires                                                       |
 |--------------------------------------------|---------------------------------------------------------------------|
-| `PROCESSING_REGRESSION_NOT_IMPLEMENTED`    | Engine not yet shipped (today: `REG_GLM`, `REG_BAYES_LINEAR`, modifier-wrapped specs). |
+| `PROCESSING_REGRESSION_NOT_IMPLEMENTED`    | Engine not yet shipped (today: `REG_BAYES_LINEAR`, modifier-wrapped specs). |
 | `PROCESSING_REGRESSION_RANK_DEFICIENT`     | XᵀX is singular; add regularization or drop a predictor.            |
 | `PROCESSING_REGRESSION_NO_CONVERGE`        | IRLS or coordinate descent failed within `MaxIters`. Raise `MaxIters` or `Tol`, or reduce `Alpha`. |
 | `PROCESSING_REGRESSION_SINGULAR_GRAM`      | XᵀX non-invertible even after regularization; increase Alpha.       |

@@ -113,7 +113,7 @@ func regressionCapabilities() []RegressionMeta {
 				{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name."},
 				{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names (numeric only in v1)."},
 				{Name: "family", Type: "enum", Required: true, EnumValues: []string{"binomial", "gamma", "poisson"}, Description: "GLM error family."},
-				{Name: "link", Type: "enum", Required: false, EnumValues: []string{"identity", "log", "logit"}, Description: "Link function; family-specific default when empty."},
+				{Name: "link", Type: "enum", Required: false, EnumValues: []string{"cloglog", "identity", "inverse", "log", "logit", "probit", "sqrt"}, Description: "Link function; family-specific default when empty. Implemented this phase: binomial→logit, poisson→log, gamma→inverse. Other enum values are reserved for future phases and surface PROCESSING_REGRESSION_INVALID_LINK if requested."},
 				{Name: "max_iters", Type: "int", Required: false, Description: "IRLS iteration cap."},
 				{Name: "tol", Type: "float", Required: false, Description: "Relative convergence tolerance."},
 				{Name: "resample", Type: "enum", Required: false, EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Orthogonal resampling layer."},

@@ -200,4 +200,8 @@ func init() {
 	// Phase 1: unpenalized OLS lights up. The factory closure routes
 	// penalized / modifier specs back to the not-implemented stub.
 	regressionRegistry[types.REG_OLS] = newOLSEngine
+	// Phase 3: REG_GLM lights up via buffered IRLS. Implementations for
+	// binomial+logit and poisson+log are numerically validated;
+	// gamma+inverse is wired but tests are deferred.
+	regressionRegistry[types.REG_GLM] = newGLMEngine
 }

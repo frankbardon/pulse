@@ -28,15 +28,19 @@ func TestRegistry_AllTypesRegistered(t *testing.T) {
 // TestFit_NotImplemented asserts every still-stubbed registered factory
 // returns PROCESSING_REGRESSION_NOT_IMPLEMENTED from Engine.Fit. Phase 0
 // covered every operator; Phase 1 retired the stub for unpenalized
-// REG_OLS; Phase 2 retired the stub for regularized REG_OLS. The remaining
-// stubs are REG_GLM (Phase 3), REG_BAYES_LINEAR (Phase 4), and
-// modifier-wrapped REG_OLS variants (Phase 5).
+// REG_OLS; Phase 2 retired the stub for regularized REG_OLS; Phase 3
+// retired the stub for REG_GLM. The remaining stubs are REG_BAYES_LINEAR
+// (Phase 4) and modifier-wrapped REG_OLS variants (Phase 5).
+//
+// REG_GLM is no longer in the table: its engine ships this phase, and
+// Fit() on a GLM with no records returns
+// PROCESSING_REGRESSION_INSUFFICIENT_DATA rather than NOT_IMPLEMENTED.
+// See TestRegGLM_InsufficientData for that path.
 func TestFit_NotImplemented(t *testing.T) {
 	cases := []struct {
 		name string
 		spec *types.RegressionSpec
 	}{
-		{name: "REG_GLM (Phase 3)", spec: &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "binomial"}},
 		{name: "REG_BAYES_LINEAR (Phase 4)", spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}}},
 		{name: "REG_OLS bootstrap modifier (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}},
 		{name: "REG_OLS stepwise selection (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}},
