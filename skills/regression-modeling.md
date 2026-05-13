@@ -13,7 +13,7 @@ The 13 names in the Indeed taxonomy double-count (Simple = Linear univariate, Mu
 
 ## Phase status
 
-Phase 4 has landed: `REG_BAYES_LINEAR` ships with a conjugate Normal-Inverse-Gamma prior, closed-form posterior, and Student-t credible intervals over the same streaming sufficient statistics the OLS engine consumes.
+Phase 5 has landed: `Resample` and `Selection` modifiers apply to any regression operator. Jackknife and bootstrap replace analytical SE with resample-based estimates; forward / backward / stepwise selection drives AIC- or BIC-based greedy subset search. Both modifiers force the buffered orchestrator path.
 
 | Phase | Engine                                          | Status   |
 |-------|-------------------------------------------------|----------|
@@ -21,7 +21,7 @@ Phase 4 has landed: `REG_BAYES_LINEAR` ships with a conjugate Normal-Inverse-Gam
 | 2     | OLS regularization (ridge / lasso / elastic-net)| shipped  |
 | 3     | GLM (logistic, poisson)                         | shipped  |
 | 4     | Bayesian linear (conjugate NIG)                 | shipped  |
-| 5     | Modifiers (`Resample`, `Selection`)             | pending  |
+| 5     | Modifiers (`Resample`, `Selection`)             | shipped  |
 | 6     | Compositional coverage (FEAT_POLY, ecological)  | pending  |
 | 7     | Per-row regression attributes (ATTR_REG_*)      | pending  |
 | 8     | Docs, examples, manifest polish                 | pending  |
@@ -262,26 +262,75 @@ Setting `Penalty`, `Alpha`, `L1Ratio`, `Family`, or `Link` on a `REG_BAYES_LINEA
 
 ## Modifiers
 
-Two orthogonal modifiers apply to any of the three operators. Both downgrade streaming when set.
+Two orthogonal modifiers apply to `REG_OLS` (penalized or unpenalized) and `REG_GLM`. `REG_BAYES_LINEAR` rejects both at spec validation — the posterior already conveys uncertainty (credible intervals via the Student-t marginal) and stepwise feature selection on a Bayesian model is a posterior-based question that the conjugate-NIG engine doesn't support.
 
-### `Resample`
+Both modifiers force the buffered orchestrator path: they refit the model many times and the streaming Welford accumulator can't carry that bookkeeping.
+
+### `Resample` — Indeed #10 (Jackknife)
 
 | Value          | Behavior                                        |
 |----------------|-------------------------------------------------|
 | `""`           | No resampling. Closed-form / asymptotic std errors. |
-| `"jackknife"`  | Leave-one-out resampling.                       |
-| `"bootstrap"`  | Non-parametric bootstrap (`bootstrap_iters`, `rng_seed`). |
+| `"jackknife"`  | Leave-one-out resampling. SE = sqrt((n−1)/n · Σᵢ (β⁽⁻ⁱ⁾ − β̄)²). |
+| `"bootstrap"`  | Non-parametric bootstrap (`bootstrap_iters`, `rng_seed`). SE = sample std of replicate β's; p-values from percentile method. |
 
-### `Selection`
+`BootstrapIters` defaults to 1000 (the minimum textbook count for percentile CIs); set higher for deeper tail probabilities. `RNGSeed = 0` time-seeds the RNG; non-zero seeds produce reproducible runs (used by tests).
+
+Resample replaces `StdErrors` / `PValues` in the result and echoes `Resample` for provenance. The point estimate (`Coefficients`) stays at the full-data fit.
+
+For L1 / elasticnet OLS, setting `Resample` is the rigorous answer for standard errors: the Phase 2 `PROCESSING_REGRESSION_APPROXIMATE_SE` warning is suppressed when a resample modifier is present (the warning is no longer applicable — the SEs are now resample-based, not plug-in).
+
+**Recipe (Jackknife on logistic regression):**
+
+```json
+{
+  "regressions": [
+    {
+      "type": "REG_GLM",
+      "target": "purchased",
+      "predictors": ["age", "income", "visits"],
+      "family": "binomial",
+      "link": "logit",
+      "resample": "jackknife"
+    }
+  ]
+}
+```
+
+### `Selection` — Indeed #13 (Stepwise)
 
 | Value         | Behavior                                            |
 |---------------|-----------------------------------------------------|
 | `""`          | No subset selection. Fit on all predictors.         |
-| `"forward"`   | Forward selection driven by `criterion ∈ {aic, bic}`. |
-| `"backward"`  | Backward elimination driven by `criterion`.         |
-| `"stepwise"`  | Bidirectional stepwise; combines forward + backward steps. |
+| `"forward"`   | Start from intercept-only; add the predictor that lowers the criterion most. |
+| `"backward"`  | Start from full model; remove the predictor whose absence lowers the criterion most. |
+| `"stepwise"`  | Bidirectional sweep; at each cycle try every add and every remove and apply the best move. |
 
-`Selection` requires `Criterion` to be set; predict flags the missing pair with `SERVICE_VALIDATION`.
+`Selection` requires `Criterion ∈ {aic, bic}`. AIC = -2·logL + 2·k; BIC = -2·logL + log(n)·k. BIC's heavier per-parameter penalty rejects noise predictors more reliably at moderate sample sizes; AIC may retain predictors whose chance correlation with the response dips RSS by enough to pass a 2-point threshold.
+
+For OLS the log-likelihood is the Gaussian MLE; k counts (slopes + intercept + σ² estimate). For GLM the score is deviance + 2·k (AIC) or deviance + log(n)·k (BIC); the saturated log-likelihood constant cancels between candidates.
+
+Selection populates `SelectedFeatures` with the chosen subset and drops non-selected predictors from `Coefficients` entirely (absent ≠ zero — selection's contract is stronger).
+
+**Recipe (Stepwise OLS):**
+
+```json
+{
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "target": "y",
+      "predictors": ["x1", "x2", "x3", "x4", "x5"],
+      "selection": "stepwise",
+      "criterion": "bic"
+    }
+  ]
+}
+```
+
+**Composing modifiers.** Selection and Resample can be set together: Selection picks the active subset, then Resample replaces the SE / p-values on the selected model. Use this when you want subset selection plus rigorous uncertainty quantification at the final step.
+
+**Warning: regularized + Selection.** `REG_OLS` with `Penalty != ""` plus `Selection != ""` is accepted but emits `PROCESSING_REGRESSION_REGULARIZED_SELECTION` as a warning. Regularization already does feature shrinkage (l2) or selection (l1); layering greedy subset search on top is unusual and may produce a model harder to interpret than either alone. Regularized + Resample is fine — resample is the rigorous answer for L1 SE and pairs well with the penalty.
 
 ## The 13 textbook names → Pulse specs
 
@@ -312,7 +361,7 @@ Two orthogonal modifiers apply to any of the three operators. Both downgrade str
 | Any regression with `Resample != ""`               | no         | O(n·p)  | LOO / bootstrap refit                         |
 | Any regression with `Selection != ""`              | no         | O(n·p)  | refit per candidate subset                    |
 
-Phases 1–2 light up streaming for both unpenalized and regularized REG_OLS. Phase 4 lights up streaming for `REG_BAYES_LINEAR` via the same Welford sufficient statistics plus a conjugate posterior update at finalize. The modifier wrappers (Phase 5) remain buffered until their phase ships.
+Phases 1–2 light up streaming for both unpenalized and regularized REG_OLS. Phase 4 lights up streaming for `REG_BAYES_LINEAR` via the same Welford sufficient statistics plus a conjugate posterior update at finalize. Phase 5 ships modifier wrappers that always force buffered — both Resample and Selection refit many times, defeating the streaming pattern.
 
 ## Compositional patterns
 
@@ -366,16 +415,19 @@ The ecological fallacy applies: relationships at the group level need not hold a
 
 | Code                                       | When it fires                                                       |
 |--------------------------------------------|---------------------------------------------------------------------|
-| `PROCESSING_REGRESSION_NOT_IMPLEMENTED`    | Engine not yet shipped (today: modifier-wrapped specs with `Resample` or `Selection` set, on any base operator). |
+| `PROCESSING_REGRESSION_NOT_IMPLEMENTED`    | Reserved; no engine returns this today (every operator + modifier combo ships through Phase 5). |
 | `PROCESSING_REGRESSION_RANK_DEFICIENT`     | XᵀX is singular; add regularization or drop a predictor.            |
 | `PROCESSING_REGRESSION_NO_CONVERGE`        | IRLS or coordinate descent failed within `MaxIters`. Raise `MaxIters` or `Tol`, or reduce `Alpha`. |
 | `PROCESSING_REGRESSION_SINGULAR_GRAM`      | XᵀX non-invertible even after regularization; increase Alpha.       |
 | `PROCESSING_REGRESSION_INVALID_FAMILY`     | `REG_GLM` Family outside `{binomial, poisson, gamma}`.              |
 | `PROCESSING_REGRESSION_INVALID_LINK`       | `Link` incompatible with the chosen Family.                         |
-| `PROCESSING_REGRESSION_INSUFFICIENT_DATA`  | Filtered set has fewer rows than predictors + 1.                    |
-| `PROCESSING_CONFIG`                        | Invalid spec combination, e.g. `Penalty="elasticnet"` with `L1Ratio=0` (use `Penalty="l2"` instead). |
+| `PROCESSING_REGRESSION_INSUFFICIENT_DATA`  | Filtered set has fewer rows than predictors + 1; or jackknife / bootstrap fixture has fewer than 3 rows. |
+| `PROCESSING_CONFIG`                        | Invalid spec combination, e.g. `Penalty="elasticnet"` with `L1Ratio=0` (use `Penalty="l2"` instead), or `REG_BAYES_LINEAR` with any `Resample` / `Selection` modifier. |
 
-Additionally, `PROCESSING_REGRESSION_APPROXIMATE_SE` is emitted as an envelope **warning** (not an error) for `Penalty="l1"` and `Penalty="elasticnet"` fits to flag that the reported SE / p-value entries are plug-in approximations over the active set.
+Additionally:
+
+- `PROCESSING_REGRESSION_APPROXIMATE_SE` is emitted as an envelope **warning** for `Penalty="l1"` and `Penalty="elasticnet"` fits *when no Resample is set*, to flag that the reported SE / p-value entries are plug-in approximations over the active set. Suppressed when `Resample` is set (bootstrap / jackknife is the rigorous answer and replaces the analytical SE entirely).
+- `PROCESSING_REGRESSION_REGULARIZED_SELECTION` is emitted as a warning when `REG_OLS` combines a non-empty `Penalty` with a non-empty `Selection`. Regularization already does feature shrinkage / selection; layering greedy subset search on top is unusual.
 
 ## Response shape
 

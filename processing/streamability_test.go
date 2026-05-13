@@ -164,6 +164,42 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 			schema: numericSchema,
 			want:   false,
 		},
+		{
+			name: "REG_OLS jackknife forces buffered (Phase 5)",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Resample: "jackknife"}},
+			},
+			schema: numericSchema,
+			want:   false,
+		},
+		{
+			name: "REG_OLS stepwise selection forces buffered (Phase 5)",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Selection: "stepwise", Criterion: "aic"}},
+			},
+			schema: numericSchema,
+			want:   false,
+		},
+		{
+			name: "REG_OLS forward selection forces buffered (Phase 5)",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Selection: "forward", Criterion: "bic"}},
+			},
+			schema: numericSchema,
+			want:   false,
+		},
+		{
+			name: "REG_OLS regularized + jackknife forces buffered (Phase 5)",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Penalty: "l1", Alpha: 0.1, Resample: "jackknife"}},
+			},
+			schema: numericSchema,
+			want:   false,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -171,6 +207,61 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 				t.Errorf("CanStreamRequest = %v, want %v", got, c.want)
 			}
 		})
+	}
+}
+
+// TestCanStreamRequest_ModifiersBuffered asserts every Resample and
+// Selection value downgrades streamability to the buffered path,
+// regardless of the base regression type's own Streamable() value.
+// Bayes + modifier combos are excluded because they reject at spec
+// validation (PROCESSING_CONFIG) before reaching the streamability
+// gate.
+func TestCanStreamRequest_ModifiersBuffered(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "y", Type: encoding.FieldTypeF64},
+			{Name: "x", Type: encoding.FieldTypeF64},
+		},
+	}
+	bases := []struct {
+		name string
+		spec types.RegressionSpec
+	}{
+		{name: "OLS no penalty", spec: types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}}},
+		{name: "OLS l1", spec: types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1}},
+		{name: "OLS l2", spec: types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l2", Alpha: 0.1}},
+		{name: "OLS elasticnet", spec: types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 0.5}},
+		{name: "GLM binomial", spec: types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "binomial"}},
+		{name: "GLM poisson", spec: types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "poisson"}},
+		{name: "BAYES_LINEAR", spec: types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}}},
+	}
+	modifiers := []struct {
+		name string
+		mod  func(s *types.RegressionSpec)
+	}{
+		{name: "jackknife", mod: func(s *types.RegressionSpec) { s.Resample = "jackknife" }},
+		{name: "bootstrap", mod: func(s *types.RegressionSpec) { s.Resample = "bootstrap" }},
+		{name: "forward+aic", mod: func(s *types.RegressionSpec) { s.Selection = "forward"; s.Criterion = "aic" }},
+		{name: "backward+bic", mod: func(s *types.RegressionSpec) { s.Selection = "backward"; s.Criterion = "bic" }},
+		{name: "stepwise+aic", mod: func(s *types.RegressionSpec) { s.Selection = "stepwise"; s.Criterion = "aic" }},
+	}
+	for _, base := range bases {
+		for _, m := range modifiers {
+			t.Run(base.name+"/"+m.name, func(t *testing.T) {
+				spec := base.spec
+				m.mod(&spec)
+				req := &types.Request{
+					Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "y"}},
+					Regressions:  []*types.RegressionSpec{&spec},
+				}
+				if got := CanStreamRequest(req, schema); got {
+					t.Errorf("CanStreamRequest = true; want false for modifier-bearing spec")
+				}
+				if got := spec.Streamable(); got {
+					t.Errorf("RegressionSpec.Streamable() = true; want false for modifier-bearing spec")
+				}
+			})
+		}
 	}
 }
 

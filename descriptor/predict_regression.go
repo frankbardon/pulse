@@ -128,13 +128,28 @@ func validateRegressions(env *Envelope, req *types.Request, schema *encoding.Sch
 		// L1-penalized OLS fits (Penalty=="l1" or "elasticnet") produce
 		// analytical standard errors only as a coarse plug-in over the
 		// data-dependent active set. Warn callers so they treat the
-		// reported SE / p-value entries as approximate; Phase 5 will
-		// add bootstrap / jackknife as the rigorous answer.
-		if reg.Type == types.REG_OLS && (reg.Penalty == "l1" || reg.Penalty == "elasticnet") {
+		// reported SE / p-value entries as approximate. Suppressed when
+		// a Resample modifier is set — bootstrap / jackknife is the
+		// rigorous answer and replaces the analytical SE entirely
+		// (Phase 5).
+		if reg.Type == types.REG_OLS && (reg.Penalty == "l1" || reg.Penalty == "elasticnet") && reg.Resample == "" {
 			env.AddWarning(
 				"PROCESSING_REGRESSION_APPROXIMATE_SE",
-				"REG_OLS with Penalty="+reg.Penalty+" emits std errors / p-values for the active set only, as a naive plug-in estimate; rigorous uncertainty quantification ships with the Resample modifier in Phase 5",
+				"REG_OLS with Penalty="+reg.Penalty+" emits std errors / p-values for the active set only, as a naive plug-in estimate; for rigorous uncertainty quantification set Resample to \"bootstrap\" or \"jackknife\"",
 				map[string]any{"penalty": reg.Penalty, "type": string(reg.Type)},
+			)
+		}
+
+		// Regularized OLS + Selection: regularization already does
+		// feature selection (lasso zeroes coefficients) or shrinks
+		// (ridge); pairing it with greedy stepwise / forward / backward
+		// is rarely meaningful but not strictly invalid. Warn the user
+		// so they know the combination is unusual.
+		if reg.Type == types.REG_OLS && reg.Penalty != "" && reg.Selection != "" {
+			env.AddWarning(
+				"PROCESSING_REGRESSION_REGULARIZED_SELECTION",
+				"REG_OLS combines Penalty="+reg.Penalty+" with Selection="+reg.Selection+"; regularization already performs feature shrinkage / selection, so layering greedy subset search on top is unusual and may produce a model harder to interpret than either alone",
+				map[string]any{"penalty": reg.Penalty, "selection": reg.Selection, "type": string(reg.Type)},
 			)
 		}
 	}

@@ -25,35 +25,31 @@ func TestRegistry_AllTypesRegistered(t *testing.T) {
 	}
 }
 
-// TestFit_NotImplemented asserts every still-stubbed registered factory
-// returns PROCESSING_REGRESSION_NOT_IMPLEMENTED from Engine.Fit. Phase 0
-// covered every operator; Phase 1 retired the stub for unpenalized
-// REG_OLS; Phase 2 retired the stub for regularized REG_OLS; Phase 3
-// retired the stub for REG_GLM; Phase 4 retired the stub for
-// REG_BAYES_LINEAR. The remaining stubs are modifier-wrapped variants
-// of any base operator (Phase 5).
-//
-// Engines that ship in earlier phases are no longer in the table: their
-// Fit() with no records returns PROCESSING_REGRESSION_INSUFFICIENT_DATA
-// rather than NOT_IMPLEMENTED. See per-engine tests for that path.
-func TestFit_NotImplemented(t *testing.T) {
+// TestFit_ModifierContracts asserts the modifier dispatch contracts.
+// Phase 5 retired the not-implemented stub for OLS / GLM modifier
+// variants; Bayes + any modifier is now rejected at validation. The
+// table covers every remaining surface: modifier OLS / GLM specs that
+// reach the registry but receive no records, and Bayes specs that
+// the validator rejects before construction.
+func TestFit_ModifierContracts(t *testing.T) {
 	cases := []struct {
-		name string
-		spec *types.RegressionSpec
+		name     string
+		spec     *types.RegressionSpec
+		wantCode errors.Code
 	}{
-		{name: "REG_OLS bootstrap modifier (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}},
-		{name: "REG_OLS stepwise selection (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}},
-		{name: "REG_BAYES_LINEAR bootstrap modifier (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}},
-		{name: "REG_BAYES_LINEAR stepwise selection (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}},
+		{name: "REG_OLS bootstrap modifier", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}, wantCode: errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA},
+		{name: "REG_OLS stepwise selection", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}, wantCode: errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA},
+		{name: "REG_BAYES_LINEAR + bootstrap rejected at validation", spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}, wantCode: errors.PROCESSING_CONFIG},
+		{name: "REG_BAYES_LINEAR + stepwise rejected at validation", spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}, wantCode: errors.PROCESSING_CONFIG},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := Fit([]*types.RegressionSpec{c.spec}, nil)
 			if err == nil {
-				t.Fatalf("Fit returned nil error; want PROCESSING_REGRESSION_NOT_IMPLEMENTED")
+				t.Fatalf("Fit returned nil error; want %v", c.wantCode)
 			}
-			if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED) {
-				t.Errorf("Fit error code = %v, want PROCESSING_REGRESSION_NOT_IMPLEMENTED", err)
+			if !errors.HasCode(err, c.wantCode) {
+				t.Errorf("Fit error code = %v, want %v", err, c.wantCode)
 			}
 		})
 	}

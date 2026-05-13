@@ -314,10 +314,11 @@ func TestRegOLS_AllConstantPredictor(t *testing.T) {
 // the new positive-path coverage and spec_test.go for the validation
 // table that catches invalid penalty/alpha/l1_ratio combinations.)
 
-// TestRegOLS_ModifierFallsThroughToStub: setting Resample or Selection
-// routes the spec back to the not-implemented engine. Phase 5 will
-// retire this fall-through.
-func TestRegOLS_ModifierFallsThroughToStub(t *testing.T) {
+// TestRegOLS_ModifierConstructsBufferedEngine: setting Resample or
+// Selection routes the spec through modifierEngine. The engine
+// constructs without error; Fit() returns INSUFFICIENT_DATA (modifier
+// engines always require buffered FitBuffered).
+func TestRegOLS_ModifierConstructsBufferedEngine(t *testing.T) {
 	cases := []struct {
 		name string
 		mod  func(*types.RegressionSpec)
@@ -335,12 +336,15 @@ func TestRegOLS_ModifierFallsThroughToStub(t *testing.T) {
 			if err != nil {
 				t.Fatalf("newOLSEngine: %v", err)
 			}
+			if _, ok := eng.(BufferedEngine); !ok {
+				t.Errorf("modifier engine does not implement BufferedEngine: %T", eng)
+			}
 			_, err = eng.Fit()
 			if err == nil {
-				t.Fatal("Fit: nil error; want PROCESSING_REGRESSION_NOT_IMPLEMENTED")
+				t.Fatal("Fit: nil error; want INSUFFICIENT_DATA")
 			}
-			if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED) {
-				t.Errorf("err = %v, want PROCESSING_REGRESSION_NOT_IMPLEMENTED", err)
+			if !errors.HasCode(err, errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA) {
+				t.Errorf("err = %v, want PROCESSING_REGRESSION_INSUFFICIENT_DATA", err)
 			}
 		})
 	}

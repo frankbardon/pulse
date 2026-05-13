@@ -9,30 +9,24 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestProcessor_RegressionNotImplemented exercises the still-stubbed
-// engine surface end-to-end. Phase 0 covered every operator; Phase 1
-// retired the stub for unpenalized REG_OLS; Phase 2 retired the stub
-// for regularized REG_OLS (its own end-to-end coverage lives in
-// ols_test.go / ols_ridge_test.go / ols_lasso_test.go /
-// ols_elasticnet_test.go); Phase 3 retired the stub for REG_GLM
-// (numerical coverage in glm_test.go); Phase 4 retired the stub for
-// REG_BAYES_LINEAR (numerical coverage in bayes_test.go). The remaining
-// stubs are modifier-wrapped variants of any base operator (Phase 5).
-// Each one routes through the buffered orchestrator path and bubbles
-// PROCESSING_REGRESSION_NOT_IMPLEMENTED back to the caller without
-// panicking.
-func TestProcessor_RegressionNotImplemented(t *testing.T) {
+// TestProcessor_RegressionBayesModifierRejected exercises the end-to-end
+// rejection of REG_BAYES_LINEAR + any modifier. Phase 5 retired the
+// not-implemented stub for OLS / GLM + modifiers; Bayes now rejects
+// at spec validation because the posterior already conveys uncertainty
+// (credible intervals via the Student-t marginal) and stepwise feature
+// selection in a Bayesian setting is a posterior-based question that
+// the conjugate-NIG engine doesn't support.
+func TestProcessor_RegressionBayesModifierRejected(t *testing.T) {
 	schema := numericSchema()
-
 	records := makeRecords(schema, "score", []float64{10, 20, 30})
 
 	cases := []struct {
 		name string
 		spec *types.RegressionSpec
 	}{
-		{"REG_OLS bootstrap", &types.RegressionSpec{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Resample: "bootstrap"}},
-		{"REG_OLS stepwise", &types.RegressionSpec{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Selection: "stepwise", Criterion: "aic"}},
 		{"REG_BAYES_LINEAR bootstrap", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}, Resample: "bootstrap"}},
+		{"REG_BAYES_LINEAR jackknife", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}, Resample: "jackknife"}},
+		{"REG_BAYES_LINEAR stepwise", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}, Selection: "stepwise", Criterion: "aic"}},
 	}
 
 	for _, c := range cases {
@@ -47,10 +41,10 @@ func TestProcessor_RegressionNotImplemented(t *testing.T) {
 			}
 			_, err := proc.Process(context.Background(), req, iter)
 			if err == nil {
-				t.Fatalf("Process returned nil error; want PROCESSING_REGRESSION_NOT_IMPLEMENTED")
+				t.Fatalf("Process returned nil error; want PROCESSING_CONFIG")
 			}
-			if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED) {
-				t.Errorf("Process error = %v; want PROCESSING_REGRESSION_NOT_IMPLEMENTED", err)
+			if !errors.HasCode(err, errors.PROCESSING_CONFIG) {
+				t.Errorf("Process error = %v; want PROCESSING_CONFIG", err)
 			}
 		})
 	}

@@ -280,6 +280,20 @@ func validateGLMSpec(spec *types.RegressionSpec) error {
 //     empty / zero on a REG_BAYES_LINEAR spec — silent acceptance would
 //     hide caller confusion about the per-operator config surface.
 func validateBayesLinearSpec(spec *types.RegressionSpec) error {
+	if spec.Resample != "" {
+		return errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_CONFIG,
+			"REG_BAYES_LINEAR does not accept Resample: the posterior already conveys uncertainty (credible intervals via the Student-t marginal); use REG_OLS if you want resample-based uncertainty",
+			map[string]any{"resample": spec.Resample, "type": string(spec.Type)},
+		)
+	}
+	if spec.Selection != "" {
+		return errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_CONFIG,
+			"REG_BAYES_LINEAR does not accept Selection: Bayesian feature selection is a posterior-based question (e.g., spike-and-slab); the conjugate-NIG engine doesn't support it. Use REG_OLS for greedy AIC/BIC selection",
+			map[string]any{"selection": spec.Selection, "type": string(spec.Type)},
+		)
+	}
 	switch spec.Prior {
 	case "", "nig":
 		// ok — empty defaults to "nig"

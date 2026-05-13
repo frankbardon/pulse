@@ -479,3 +479,99 @@ func containsReason(reasons []string, needle string) bool {
 	}
 	return false
 }
+
+// TestPredict_RegressionApproximateSEWarning asserts the L1 / elasticnet
+// approximate-SE warning fires on a regularized OLS spec when no
+// Resample modifier is set, and is suppressed when Resample is set
+// (bootstrap / jackknife replaces the analytical SE entirely).
+func TestPredict_RegressionApproximateSEWarning(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "y", Type: encoding.FieldTypeF64, Description: "Response variable values"},
+			{Name: "x", Type: encoding.FieldTypeF64, Description: "Predictor variable values"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	hasWarning := func(env *Envelope, code string) bool {
+		for _, w := range env.Warnings {
+			if w.Code == code {
+				return true
+			}
+		}
+		return false
+	}
+
+	cases := []struct {
+		name        string
+		spec        *types.RegressionSpec
+		wantWarning bool
+	}{
+		{"l1 no resample emits warning", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1}, true},
+		{"elasticnet no resample emits warning", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 0.5}, true},
+		{"l1 with bootstrap suppresses warning", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1, Resample: "bootstrap"}, false},
+		{"l1 with jackknife suppresses warning", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1, Resample: "jackknife"}, false},
+		{"l2 never emits warning", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l2", Alpha: 0.1}, false},
+		{"unpenalized never emits warning", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "y"}},
+				Regressions:  []*types.RegressionSpec{c.spec},
+			}
+			env := PredictFromBytes(data, req, nil)
+			got := hasWarning(env, "PROCESSING_REGRESSION_APPROXIMATE_SE")
+			if got != c.wantWarning {
+				t.Errorf("warning fired = %v, want %v; warnings=%v", got, c.wantWarning, env.Warnings)
+			}
+		})
+	}
+}
+
+// TestPredict_RegressionRegularizedSelectionWarning asserts the
+// regularized+selection warning fires when REG_OLS combines a
+// non-empty Penalty with a non-empty Selection.
+func TestPredict_RegressionRegularizedSelectionWarning(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "y", Type: encoding.FieldTypeF64, Description: "Response variable values"},
+			{Name: "x", Type: encoding.FieldTypeF64, Description: "Predictor variable values"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	hasWarning := func(env *Envelope, code string) bool {
+		for _, w := range env.Warnings {
+			if w.Code == code {
+				return true
+			}
+		}
+		return false
+	}
+
+	cases := []struct {
+		name        string
+		spec        *types.RegressionSpec
+		wantWarning bool
+	}{
+		{"l2 + forward warns", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l2", Alpha: 0.1, Selection: "forward", Criterion: "aic"}, true},
+		{"l1 + stepwise warns", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1, Selection: "stepwise", Criterion: "bic"}, true},
+		{"elasticnet + backward warns", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 0.5, Selection: "backward", Criterion: "aic"}, true},
+		{"unpenalized + forward no warning", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Selection: "forward", Criterion: "aic"}, false},
+		{"penalized no selection no warning", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l2", Alpha: 0.1}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "y"}},
+				Regressions:  []*types.RegressionSpec{c.spec},
+			}
+			env := PredictFromBytes(data, req, nil)
+			got := hasWarning(env, "PROCESSING_REGRESSION_REGULARIZED_SELECTION")
+			if got != c.wantWarning {
+				t.Errorf("warning fired = %v, want %v; warnings=%v", got, c.wantWarning, env.Warnings)
+			}
+		})
+	}
+}

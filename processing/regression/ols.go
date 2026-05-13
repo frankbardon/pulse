@@ -61,10 +61,25 @@ func newOLSEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 		return nil, err
 	}
 	if spec.Resample != "" || spec.Selection != "" {
-		// Modifier wrappers land in Phase 5; until then, route to the
-		// stub so the response carries PROCESSING_REGRESSION_NOT_IMPLEMENTED
-		// with the operator name in details (same as Phase 0).
-		return newNotImplemented(spec, schema)
+		// Phase 5: resample / selection modifiers dispatch through the
+		// modifierEngine wrapper which orchestrates LOO / bootstrap
+		// refits and AIC/BIC-driven subset search around the inner OLS
+		// solver. Both modifiers force the buffered path.
+		if len(spec.Predictors) == 0 {
+			return nil, errors.NewCodedErrorWithDetails(
+				errors.SERVICE_VALIDATION,
+				"REG_OLS requires at least one predictor",
+				map[string]any{"name": spec.Name},
+			)
+		}
+		if spec.Target == "" {
+			return nil, errors.NewCodedErrorWithDetails(
+				errors.SERVICE_VALIDATION,
+				"REG_OLS requires a Target field",
+				map[string]any{"name": spec.Name},
+			)
+		}
+		return newModifierEngine(spec, schema)
 	}
 	if len(spec.Predictors) == 0 {
 		return nil, errors.NewCodedErrorWithDetails(
