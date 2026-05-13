@@ -167,3 +167,61 @@ func TestProcessor_OLSStreamingMatchesBuffered(t *testing.T) {
 		t.Errorf("R²: streaming=%v buffered=%v", s.R2, b.R2)
 	}
 }
+
+// TestProcessor_BayesStreams confirms the orchestrator routes a
+// REG_BAYES_LINEAR request paired with an online aggregation through
+// the streaming path. Phase 4 lights up this code path; same shape as
+// TestProcessor_OLSStreams but for the Bayes engine.
+func TestProcessor_BayesStreams(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "y", Type: encoding.FieldTypeF64},
+			{Name: "x", Type: encoding.FieldTypeF64},
+		},
+	}
+	records := make([]*Record, 100)
+	for i := range records {
+		records[i] = NewRecord(schema, map[string]float64{
+			"x": float64(i),
+			"y": 1.0 + 2.0*float64(i),
+		})
+	}
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "y"}},
+		Regressions: []*types.RegressionSpec{
+			{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Name: "bayes_fit"},
+		},
+	}
+	proc := NewProcessor(schema)
+	resp, err := proc.Process(context.Background(), req, NewSliceIterator(records))
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if proc.LastPath() != PathStreaming {
+		t.Errorf("LastPath = %v, want PathStreaming (Phase 4 must take streaming route for REG_BAYES_LINEAR)", proc.LastPath())
+	}
+	if len(resp.Regressions) != 1 {
+		t.Fatalf("Regressions len = %d, want 1", len(resp.Regressions))
+	}
+	got := resp.Regressions[0]
+	if got.Type != types.REG_BAYES_LINEAR {
+		t.Errorf("Regressions[0].Type = %v, want REG_BAYES_LINEAR", got.Type)
+	}
+	if got.Prior != "nig" {
+		t.Errorf("Regressions[0].Prior = %q, want \"nig\"", got.Prior)
+	}
+	// Default diffuse prior + clean line data: posterior mean matches OLS
+	// to within ~1e-3 even on n=100 (the data Gram dominates ε=1e-3).
+	if math.Abs(got.Coefficients[regression.InterceptKey]-1.0) > 1e-3 {
+		t.Errorf("intercept = %v, want ~1.0", got.Coefficients[regression.InterceptKey])
+	}
+	if math.Abs(got.Coefficients["x"]-2.0) > 1e-3 {
+		t.Errorf("β_x = %v, want ~2.0", got.Coefficients["x"])
+	}
+	if len(got.CredibleIntervals) != 2 {
+		t.Errorf("CredibleIntervals len = %d, want 2 (intercept + x)", len(got.CredibleIntervals))
+	}
+	if len(got.PValues) != 0 {
+		t.Errorf("Bayes emitted PValues = %v, want empty/nil", got.PValues)
+	}
+}

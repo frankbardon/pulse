@@ -137,10 +137,19 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 			want:   false,
 		},
 		{
-			name: "REG_BAYES_LINEAR forces buffered (Phase 4)",
+			name: "REG_BAYES_LINEAR streams (Phase 4)",
 			req: &types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
 				Regressions:  []*types.RegressionSpec{{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}}},
+			},
+			schema: numericSchema,
+			want:   true,
+		},
+		{
+			name: "REG_BAYES_LINEAR with bootstrap modifier forces buffered",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}, Resample: "bootstrap"}},
 			},
 			schema: numericSchema,
 			want:   false,

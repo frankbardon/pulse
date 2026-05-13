@@ -43,16 +43,24 @@ func TestRegOLS_RegularizedSpecValidation(t *testing.T) {
 			// Phase 3: ValidateRegression now branches on Type. REG_GLM
 			// has its own validator (validateGLMSpec) — the bare type
 			// must still pass when Family is set; OLS-only knobs are
-			// ignored on non-GLM types (REG_BAYES_LINEAR keeps the
-			// Phase 0 ignore behaviour until Phase 4).
+			// ignored on non-GLM types until each engine ships.
 			name: "well-formed REG_GLM spec passes",
 			spec: &types.RegressionSpec{Type: types.REG_GLM, Family: "binomial"},
 			ok:   true,
 		},
 		{
-			name: "non-OLS non-GLM spec is ignored by ValidateRegression",
-			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Penalty: "anything"},
+			// Phase 4: bare REG_BAYES_LINEAR (no prior overrides) defaults
+			// every prior parameter and passes validation.
+			name: "well-formed REG_BAYES_LINEAR spec passes",
+			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR},
 			ok:   true,
+		},
+		{
+			// Phase 4: REG_BAYES_LINEAR with Penalty set is rejected —
+			// Penalty is a REG_OLS knob and would silently mislead callers.
+			name: "REG_BAYES_LINEAR with stray Penalty rejected",
+			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Penalty: "anything"},
+			ok:   false,
 		},
 
 		// Unpenalized regressions must not carry Alpha / L1Ratio.

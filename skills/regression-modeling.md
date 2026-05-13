@@ -13,20 +13,20 @@ The 13 names in the Indeed taxonomy double-count (Simple = Linear univariate, Mu
 
 ## Phase status
 
-Phase 3 has landed: `REG_GLM` ships with binomial+logit (logistic) and poisson+log via iteratively-reweighted least squares (IRLS). Gamma+inverse is wired but not numerically validated this phase. `REG_BAYES_LINEAR` still returns `PROCESSING_REGRESSION_NOT_IMPLEMENTED` until Phase 4.
+Phase 4 has landed: `REG_BAYES_LINEAR` ships with a conjugate Normal-Inverse-Gamma prior, closed-form posterior, and Student-t credible intervals over the same streaming sufficient statistics the OLS engine consumes.
 
 | Phase | Engine                                          | Status   |
 |-------|-------------------------------------------------|----------|
 | 1     | OLS streaming (no penalty)                      | shipped  |
 | 2     | OLS regularization (ridge / lasso / elastic-net)| shipped  |
 | 3     | GLM (logistic, poisson)                         | shipped  |
-| 4     | Bayesian linear (conjugate NIG)                 | pending  |
+| 4     | Bayesian linear (conjugate NIG)                 | shipped  |
 | 5     | Modifiers (`Resample`, `Selection`)             | pending  |
 | 6     | Compositional coverage (FEAT_POLY, ecological)  | pending  |
 | 7     | Per-row regression attributes (ATTR_REG_*)      | pending  |
 | 8     | Docs, examples, manifest polish                 | pending  |
 
-Until the engine for a given operator lands, every request slot of that type returns `PROCESSING_REGRESSION_NOT_IMPLEMENTED`.
+Until the engine for a given operator lands, every request slot of that type returns `PROCESSING_REGRESSION_NOT_IMPLEMENTED`. After Phase 4, only modifier-wrapped specs (`Resample`, `Selection`) on any base operator surface that code.
 
 ## Operators
 
@@ -168,6 +168,98 @@ Streaming over sufficient statistics (the same as `REG_OLS`) followed by a close
 
 Only `prior: "nig"` (Normal-Inverse-Gamma) is supported in v1. MCMC / variational alternatives are reviewed in Phase 9 (planning only).
 
+#### Conjugate NIG posterior
+
+Prior on `(β, σ²)`:
+
+```
+σ²    ~ InverseGamma(a₀, b₀)
+β | σ² ~ Normal(μ₀, σ² · Λ₀⁻¹)
+```
+
+After observing `n` rows on intercepted design `X` (size `n × (p+1)`; column 0 is the intercept) and target `y`, the posterior is also NIG:
+
+```
+Λ_n = Λ₀ + XᵀX
+μ_n = Λ_n⁻¹ · (Λ₀ μ₀ + Xᵀy)
+a_n = a₀ + n/2
+b_n = b₀ + ½ (yᵀy + μ₀ᵀΛ₀μ₀ − μ_nᵀΛ_nμ_n)
+```
+
+`XᵀX`, `Xᵀy`, `yᵀy`, and `n` are sufficient statistics — the engine recovers each from the Welford-centered moments produced by the same accumulator that powers `REG_OLS`, then performs a single finalize-time Cholesky solve on `Λ_n`.
+
+#### Prior parameterization
+
+| Field            | Default | Meaning                                                                                  |
+|------------------|---------|------------------------------------------------------------------------------------------|
+| `prior`          | `"nig"` | Prior family. Empty defaults to `"nig"`; no other values are accepted in v1.             |
+| `prior_mu`       | `0`     | Length `p+1` vector. First entry is the intercept prior; remaining entries map to predictors in `predictors` order. Empty defaults to the zero vector. |
+| `prior_precision`| `1e-3`  | Scalar `ε`. Prior precision matrix is `Λ₀ = ε · I`. Must be `> 0` when provided.         |
+| `prior_shape`    | `1e-3`  | Inverse-Gamma shape `a₀` on `σ²`. Must be `> 0` when provided.                           |
+| `prior_rate`     | `1e-3`  | Inverse-Gamma rate `b₀` on `σ²`. Must be `> 0` when provided.                            |
+| `credible_level` | `0.95`  | Mass of the symmetric credible interval reported per coefficient. `0 < level < 1`.       |
+
+**Design choice — scalar prior precision.** `Λ₀` is restricted to a scalar multiple of the identity (`ε · I`). The spec exposes one number (`prior_precision`) rather than a full `(p+1) × (p+1)` matrix. Per-coefficient precisions (different shrinkage strengths per predictor) would require a richer wire shape; if you need it, request the extension via Phase 9. The scalar prior covers every textbook "ridge-as-Bayesian-regression" recipe — set `prior_precision = λ / σ²_prior_mean` to recover a ridge fit with strength `λ`.
+
+The defaults `(μ₀ = 0, ε = 1e-3, a₀ = b₀ = 1e-3)` are weakly informative: the prior contributes roughly `ε` of the per-coefficient precision and `b₀` of the residual variance scale. For any data set with `n ≥ ~50` rows and non-pathological predictor scales, the posterior mean tracks the OLS estimate to within several digits.
+
+#### Output
+
+| Field                | Meaning                                                                                       |
+|----------------------|-----------------------------------------------------------------------------------------------|
+| `coefficients`       | Posterior means `μ_n`. Keys: `"(intercept)"` plus each predictor name.                        |
+| `std_errors`         | Posterior std under the Student-t marginal: `√((b_n/a_n) · (Λ_n⁻¹)[j,j])`.                    |
+| `credible_intervals` | `[lower, upper] = μ_n[j] ± t_q · SE[j]` with `t_q = qt(1 − (1−level)/2, df = 2·a_n)`.         |
+| `r2` / `adj_r2`      | Computed from the posterior-mean point estimate using the usual RSS / TSS identities.         |
+| `residual_std_err`   | Posterior-mean estimate of `σ`: `√(b_n / a_n)`.                                              |
+| `n_obs`              | Observations after listwise null deletion.                                                    |
+| `prior`              | Echoes the chosen prior family (always `"nig"` in v1).                                        |
+| `converged_iters`    | `0` — closed-form, no iteration.                                                              |
+
+`p_values` is intentionally **not emitted**. Credible intervals replace frequentist p-values in the Bayesian setting. Mixing the two would invite hybrid interpretations that the math does not support; treat the `credible_intervals` map as the authoritative uncertainty summary.
+
+#### Reading credible intervals
+
+A 95% credible interval for `β_j` is the interval that contains 95% of the posterior probability mass for that coefficient — in plain English, "given the data and the prior, there is a 95% probability that β_j lies in [lower, upper]". This is a different statement from a 95% confidence interval (which is a statement about the long-run frequency of a procedure, not about the parameter). When the prior is diffuse and the model well-specified the two intervals are numerically close, but the interpretation diverges.
+
+#### Recipes
+
+Diffuse Bayesian fit (matches OLS for any reasonable `n`):
+
+```json
+{"type": "REG_BAYES_LINEAR", "target": "y", "predictors": ["x1", "x2"]}
+```
+
+Shrinkage prior centered at zero (ridge-equivalent):
+
+```json
+{"type": "REG_BAYES_LINEAR", "target": "y", "predictors": ["x1", "x2"],
+ "prior_precision": 1.0}
+```
+
+Informed prior with nonzero means (treatment-effect carryover, e.g. each coefficient is expected to be ~0.5):
+
+```json
+{"type": "REG_BAYES_LINEAR", "target": "y", "predictors": ["x1", "x2"],
+ "prior_mu": [0.0, 0.5, 0.5], "prior_precision": 0.1}
+```
+
+90% credible intervals instead of the 95% default:
+
+```json
+{"type": "REG_BAYES_LINEAR", "target": "y", "predictors": ["x1", "x2"],
+ "credible_level": 0.90}
+```
+
+#### Deferred this phase
+
+- Non-conjugate priors (`horseshoe-vb`, `spike-slab`, etc.) — would need VB or MCMC; Phase 9 review.
+- Full prior precision matrix (`Λ₀` as a `(p+1) × (p+1)` matrix instead of a scalar) — Phase 9 review.
+- Hierarchical / multilevel structure — out of scope; tracked in `README.md`'s "Out of scope" section.
+- Modifier composition (`Resample`, `Selection`) — same deferred status as REG_OLS / REG_GLM; setting either falls through to the not-implemented stub until Phase 5.
+
+Setting `Penalty`, `Alpha`, `L1Ratio`, `Family`, or `Link` on a `REG_BAYES_LINEAR` spec is rejected with `PROCESSING_CONFIG` rather than silently ignored — those knobs belong to other engines.
+
 ## Modifiers
 
 Two orthogonal modifiers apply to any of the three operators. Both downgrade streaming when set.
@@ -220,7 +312,7 @@ Two orthogonal modifiers apply to any of the three operators. Both downgrade str
 | Any regression with `Resample != ""`               | no         | O(n·p)  | LOO / bootstrap refit                         |
 | Any regression with `Selection != ""`              | no         | O(n·p)  | refit per candidate subset                    |
 
-Phases 1–2 light up streaming for both unpenalized and regularized REG_OLS. Bayes (Phase 4) and the modifier wrappers (Phase 5) remain buffered until their phases ship.
+Phases 1–2 light up streaming for both unpenalized and regularized REG_OLS. Phase 4 lights up streaming for `REG_BAYES_LINEAR` via the same Welford sufficient statistics plus a conjugate posterior update at finalize. The modifier wrappers (Phase 5) remain buffered until their phase ships.
 
 ## Compositional patterns
 
@@ -274,7 +366,7 @@ The ecological fallacy applies: relationships at the group level need not hold a
 
 | Code                                       | When it fires                                                       |
 |--------------------------------------------|---------------------------------------------------------------------|
-| `PROCESSING_REGRESSION_NOT_IMPLEMENTED`    | Engine not yet shipped (today: `REG_BAYES_LINEAR`, modifier-wrapped specs). |
+| `PROCESSING_REGRESSION_NOT_IMPLEMENTED`    | Engine not yet shipped (today: modifier-wrapped specs with `Resample` or `Selection` set, on any base operator). |
 | `PROCESSING_REGRESSION_RANK_DEFICIENT`     | XᵀX is singular; add regularization or drop a predictor.            |
 | `PROCESSING_REGRESSION_NO_CONVERGE`        | IRLS or coordinate descent failed within `MaxIters`. Raise `MaxIters` or `Tol`, or reduce `Alpha`. |
 | `PROCESSING_REGRESSION_SINGULAR_GRAM`      | XᵀX non-invertible even after regularization; increase Alpha.       |

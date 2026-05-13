@@ -29,21 +29,22 @@ func TestRegistry_AllTypesRegistered(t *testing.T) {
 // returns PROCESSING_REGRESSION_NOT_IMPLEMENTED from Engine.Fit. Phase 0
 // covered every operator; Phase 1 retired the stub for unpenalized
 // REG_OLS; Phase 2 retired the stub for regularized REG_OLS; Phase 3
-// retired the stub for REG_GLM. The remaining stubs are REG_BAYES_LINEAR
-// (Phase 4) and modifier-wrapped REG_OLS variants (Phase 5).
+// retired the stub for REG_GLM; Phase 4 retired the stub for
+// REG_BAYES_LINEAR. The remaining stubs are modifier-wrapped variants
+// of any base operator (Phase 5).
 //
-// REG_GLM is no longer in the table: its engine ships this phase, and
-// Fit() on a GLM with no records returns
-// PROCESSING_REGRESSION_INSUFFICIENT_DATA rather than NOT_IMPLEMENTED.
-// See TestRegGLM_InsufficientData for that path.
+// Engines that ship in earlier phases are no longer in the table: their
+// Fit() with no records returns PROCESSING_REGRESSION_INSUFFICIENT_DATA
+// rather than NOT_IMPLEMENTED. See per-engine tests for that path.
 func TestFit_NotImplemented(t *testing.T) {
 	cases := []struct {
 		name string
 		spec *types.RegressionSpec
 	}{
-		{name: "REG_BAYES_LINEAR (Phase 4)", spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}}},
 		{name: "REG_OLS bootstrap modifier (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}},
 		{name: "REG_OLS stepwise selection (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}},
+		{name: "REG_BAYES_LINEAR bootstrap modifier (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}},
+		{name: "REG_BAYES_LINEAR stepwise selection (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

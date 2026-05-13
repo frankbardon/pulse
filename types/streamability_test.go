@@ -230,13 +230,18 @@ func TestRegressionSpec_StreamableModifierDowngrade(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "bayes linear buffered until Phase 4",
+			name: "bayes linear streams (Phase 4)",
 			spec: RegressionSpec{Type: REG_BAYES_LINEAR},
-			want: false,
+			want: true,
 		},
 		{
 			name: "bayes with bootstrap is buffered",
 			spec: RegressionSpec{Type: REG_BAYES_LINEAR, Resample: "bootstrap"},
+			want: false,
+		},
+		{
+			name: "bayes with stepwise selection is buffered",
+			spec: RegressionSpec{Type: REG_BAYES_LINEAR, Selection: "stepwise", Criterion: "aic"},
 			want: false,
 		},
 		{

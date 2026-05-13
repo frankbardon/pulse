@@ -232,10 +232,9 @@ func TestPredict_Streamable_UnpenalizedOLSStreams(t *testing.T) {
 }
 
 // TestPredict_Streamable_RegressionBlocks asserts the regression
-// variants that do not yet stream (penalized OLS, GLM, Bayes,
-// modifier-wrapped specs) still force Streamable=false. Phase 1
-// implements only unpenalized REG_OLS; everything else continues to
-// route through the buffered path until later phases.
+// variants that do not stream today (GLM, modifier-wrapped specs) still
+// force Streamable=false. After Phase 4, REG_BAYES_LINEAR without
+// modifiers streams; modifier-wrapped Bayes specs remain buffered.
 func TestPredict_Streamable_RegressionBlocks(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -250,10 +249,11 @@ func TestPredict_Streamable_RegressionBlocks(t *testing.T) {
 		spec *types.RegressionSpec
 	}{
 		{"GLM (Phase 3)", &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "binomial"}},
-		{"Bayes linear (Phase 4)", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}}},
 		{"OLS with bootstrap (Phase 5)", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}},
 		{"OLS with jackknife (Phase 5)", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "jackknife"}},
 		{"OLS with selection (Phase 5)", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}},
+		{"Bayes linear with bootstrap (Phase 5)", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}},
+		{"Bayes linear with stepwise selection (Phase 5)", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -441,10 +441,18 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			numericSchema,
 		},
 		{
-			"REG_BAYES_LINEAR buffers",
+			"REG_BAYES_LINEAR streams (Phase 4)",
 			&types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
 				Regressions:  []*types.RegressionSpec{{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			"REG_BAYES_LINEAR with bootstrap modifier buffers",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}, Resample: "bootstrap"}},
 			},
 			numericSchema,
 		},

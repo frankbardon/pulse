@@ -204,4 +204,9 @@ func init() {
 	// binomial+logit and poisson+log are numerically validated;
 	// gamma+inverse is wired but tests are deferred.
 	regressionRegistry[types.REG_GLM] = newGLMEngine
+	// Phase 4: REG_BAYES_LINEAR lights up via streaming sufficient stats
+	// and a conjugate Normal-Inverse-Gamma posterior at finalize. The
+	// factory closure routes modifier specs (Resample / Selection) back
+	// to the not-implemented stub for Phase 5.
+	regressionRegistry[types.REG_BAYES_LINEAR] = newBayesLinearEngine
 }
