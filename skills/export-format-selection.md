@@ -1,6 +1,6 @@
 ---
 name: export-format-selection
-description: CSV vs Parquet vs Arrow IPC vs Excel for downstream tools
+description: Pick the right export format — CSV (universal), TSV, NDJSON, JSON array, Parquet (columnar analytics), Arrow IPC (zero-copy handoff), Excel (humans). Use when wiring Process output into a downstream tool or warehouse.
 type: guide
 applies_to: process, compose
 ---

@@ -1,6 +1,6 @@
 ---
 name: cohort-schema-design
-description: Choosing types, nullability, bit-packing tradeoffs
+description: Pick the right .pulse field type — u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, nullable_*, packed_bool, date, point_f64, h3_cell. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs.
 type: guide
 applies_to: inspect, predict
 ---

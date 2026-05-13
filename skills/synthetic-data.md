@@ -1,6 +1,6 @@
 ---
 name: synthetic-data
-description: Generate deterministic synthetic .pulse cohorts from a schema or a captured statistical profile, with constraints and pairwise correlations.
+description: Generate deterministic synthetic .pulse cohorts via pulse_synth_from_schema or pulse_synth_from_profile — 12 distributions (normal, lognormal, poisson, exponential, pareto, bernoulli, weighted_categorical, regex, uniform, uniform_date, monotonic_from, constant), pairwise correlations, constraints. Use when seeding tests or sharing reproducible data without leaking real values.
 type: guide
 applies_to: inspect, predict, manifest
 ---

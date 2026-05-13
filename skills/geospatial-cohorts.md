@@ -1,6 +1,6 @@
 ---
 name: geospatial-cohorts
-description: point_f64 / h3_cell usage, centroid algorithm, antimeridian behavior, radius filter (meters), polygon WKT format, H3 resolution table
+description: Use point_f64 and h3_cell for spatial data — AGG_GEO_CENTROID, AGG_GEO_BBOX, FILTER_GEO_WITHIN, FILTER_GEO_WITHIN_RADIUS_M (meters), GROUP_H3_CELL resolutions, antimeridian behavior, polygon WKT format. Use when a cohort has lat/lon or H3 fields or hits PULSE_GEO_* errors.
 type: guide
 applies_to: process, compose, predict, inspect
 ---

@@ -1,6 +1,6 @@
 ---
 name: getting-started
-description: Pulse vocabulary, MCP tool surface, mental model for an LLM session
+description: Pulse mental model, MCP tool surface, .pulse file format, operator vocabulary. Use first on a new session to establish baseline before calling pulse_inspect, pulse_predict, or pulse_process.
 type: guide
 applies_to: process, compose, sample, facet, inspect, predict, manifest
 ---

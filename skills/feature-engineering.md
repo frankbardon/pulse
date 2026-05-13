@@ -1,6 +1,6 @@
 ---
 name: feature-engineering
-description: FEAT_* operators — pre-filter feature engineering for ML pipelines, with the target leakage trap
+description: Apply pre-filter FEAT_* operators — FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE, FEAT_ONE_HOT, FEAT_FREQUENCY_ENCODE, FEAT_TARGET_ENCODE, FEAT_DATE_FEATURES, FEAT_TRAIN_TEST_SPLIT — for ML pipelines. Use when preparing training data; covers the target-leakage trap and PULSE_FEAT_TARGET_LEAKAGE_RISK.
 type: guide
 applies_to: process, compose, predict
 ---

@@ -1,6 +1,6 @@
 ---
 name: compose-requests
-description: When and how to use ComposedRequest
+description: Run several Process requests against one cohort in a single pulse_compose call — order-preserving slot-by-index, optional parallel execution. Use when comparing operator outputs, fan-out reporting, or batching multiple analyses for one MCP round-trip.
 type: guide
 applies_to: compose
 ---

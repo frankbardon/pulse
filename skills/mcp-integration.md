@@ -1,6 +1,6 @@
 ---
 name: mcp-integration
-description: What the LLM should know about Pulse's MCP surface — tool catalog, session bootstrap, schema-binding behavior
+description: Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_ask, pulse_compose, pulse_sample, pulse_facet, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order.
 type: guide
 applies_to: process, compose, sample, facet, inspect, predict, manifest
 ---

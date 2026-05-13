@@ -1,6 +1,6 @@
 ---
 name: error-code-reference
-description: How to read Pulse error envelopes and where to fetch per-code detail
+description: Read Pulse error envelopes (DOMAIN_CATEGORY codes across CLI/DATA/ENCODING/PROCESSING/PULSE/SERVICE) and call pulse_errors_lookup for per-code Message + Fixup detail. Use when a tool call returns errors[] or warnings[] you don't recognize.
 type: guide
 applies_to: process, compose, predict
 ---

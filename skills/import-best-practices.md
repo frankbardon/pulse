@@ -1,6 +1,6 @@
 ---
 name: import-best-practices
-description: Schema inference, fail-closed semantics, null markers
+description: Import CSV, TSV, NDJSON, JSON array, Parquet, Arrow IPC, or Excel into .pulse with safe schema inference, null markers, fail-closed semantics. Use when building a new cohort or troubleshooting PULSE_IMPORT_* errors like CATEGORICAL_OVERFLOW or SCHEMA_AMBIGUOUS.
 type: guide
 applies_to: inspect, predict
 ---

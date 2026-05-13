@@ -1,6 +1,6 @@
 ---
 name: window-operations
-description: WIN_* operators — partitioning, ordering, frames, and per-operator semantics
+description: Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition.
 type: guide
 applies_to: process, compose, predict
 ---

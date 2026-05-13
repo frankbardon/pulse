@@ -1,6 +1,6 @@
 ---
 name: query-router-prompt
-description: System-prompt template a calling LLM can use to translate natural-language intent into a Pulse AskRequest JSON payload.
+description: System-prompt template a calling LLM uses to translate natural-language analytical questions into a Pulse AskRequest JSON payload. Use when wiring Pulse behind an upstream LLM (Nexus, agent shells) that takes free-text user input and must route to pulse_ask.
 type: reference
 applies_to: process, compose, predict
 ---

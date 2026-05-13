@@ -1,6 +1,6 @@
 ---
 name: request-recipes
-description: Canonical request JSON skeletons keyed by analytical intent
+description: Canonical Pulse request JSON skeletons keyed by analytical intent — compare two groups, rank top N, trend over time, ANOVA with Tukey post-hoc, paired before/after, frequency cross-tab, geo aggregation. Use when starting from a natural-language ask and needing a runnable JSON template.
 type: reference
 applies_to: process, compose, predict
 ---

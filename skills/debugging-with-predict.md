@@ -1,6 +1,6 @@
 ---
 name: debugging-with-predict
-description: Iterating on a request using pulse_predict (or pulse_ask predict-only mode)
+description: Validate a request against a .pulse schema with pulse_predict before executing — surfaces field-name typos, type mismatches, leakage warnings, streamability gates, and applied defaults. Use when a Process call errored or before running an expensive request.
 type: guide
 applies_to: predict
 ---
