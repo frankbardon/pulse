@@ -42,7 +42,9 @@ The canonical list is `internal/mcp.RegisteredTools()`. Adding or removing a too
 `pulse_import` is the entry point for "give Pulse a file in whatever format I have and let me address it from then on as if it were a `.pulse`." Two paths:
 
 - **Convertible format** (csv, tsv, ndjson, jsonarray, parquet, arrow, excel): the server runs the import job, writes `$PULSE_DATA_DIR/imports/<handle>.pulse`, and writes a sidecar `<handle>.pulse.meta.json` carrying `imported_at`, `expires_at`, `ttl_seconds`, source path, source format, and row count. `Result.managed=true`.
-- **Pulse passthrough** (`format=pulse` or `.pulse` extension): the file is not copied; the server just confirms the path is readable and returns it verbatim with `managed=false`. No sidecar, no TTL accounting — user-curated cohorts stay outside the managed pool.
+- **Pulse passthrough** (`format=pulse` or `.pulse` extension): a `.pulse` source already under `PULSE_DATA_DIR` is not copied — the server just confirms it is readable and returns its relative path verbatim with `managed=false`. A `.pulse` source at an absolute path outside `PULSE_DATA_DIR` is copied into the managed pool (the rooted Pulse fs cannot address external absolute paths via inspect / process otherwise), with a normal TTL sidecar and `managed=true`.
+
+**Source path resolution.** Relative `source` paths resolve against `PULSE_DATA_DIR`. Absolute paths (`/Users/...`, `/home/...`, `/var/...`) read from the host filesystem directly through a separate source fs (`afero.NewOsFs()` by default) — clients can hand the server any file on disk without first copying it under `PULSE_DATA_DIR`. The managed `.pulse` always lands inside `PULSE_DATA_DIR/imports/` regardless of where the source came from.
 
 After a successful `pulse_import` the server fires the same schema-binding hook as `pulse_inspect` (see below), so subsequent `pulse_process` / `pulse_predict` / `pulse_compose` / `pulse_sample` / `pulse_facet` calls against the new handle pick up typed field enums.
 

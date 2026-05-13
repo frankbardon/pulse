@@ -30,8 +30,19 @@ const (
 // Manager owns the managed-import pool: lazy mkdir of the imports
 // directory, sidecar I/O, sliding-window touches, and sweeps. One
 // Manager per Pulse instance; the root facade constructs and holds it.
+//
+// Two filesystems:
+//   - afs: the rooted Pulse fs (typically BasePathFs(OsFs, PULSE_DATA_DIR)).
+//     Used for the managed pool (target .pulse files + sidecars) and for
+//     reading relative-path sources.
+//   - srcFs: the source-reading fs. Used when SourcePath is absolute so
+//     callers can import files from anywhere on disk without first
+//     copying them under PULSE_DATA_DIR. Defaults to afero.NewOsFs().
+//     In tests where afs is a MemMapFs, srcFs is the same MemMapFs so
+//     hermetic tests still work.
 type Manager struct {
 	afs        afero.Fs
+	srcFs      afero.Fs
 	importsDir string
 	defaultTTL time.Duration
 	now        func() time.Time
@@ -48,6 +59,14 @@ type Options struct {
 	// PULSE_IMPORT_TTL env var. Zero falls back to env, then to
 	// the package DefaultTTL.
 	DefaultTTL time.Duration
+
+	// SourceFS is the filesystem used when SourcePath is absolute.
+	// Defaults to afero.NewOsFs() so MCP / CLI users can import files
+	// from anywhere on the host. Tests typically pass the same
+	// MemMapFs as afs so hermetic test runs still work; passing nil
+	// here keeps that behaviour automatic — the Manager falls back to
+	// afs when SourceFS is nil and afs is not an OsFs root.
+	SourceFS afero.Fs
 
 	// Now is the clock; injected for testing. Defaults to time.Now.
 	Now func() time.Time
@@ -85,8 +104,23 @@ func New(afs afero.Fs, opts Options) (*Manager, error) {
 		now = time.Now
 	}
 
+	srcFs := opts.SourceFS
+	if srcFs == nil {
+		// Default policy: if the destination fs is a real OS-backed
+		// rooted fs (the production case), give absolute paths an
+		// unrooted OsFs to read from. If the destination fs is
+		// in-memory (the test case), reuse it so seeded files are
+		// visible by absolute path too.
+		if _, isMem := afs.(*afero.MemMapFs); isMem {
+			srcFs = afs
+		} else {
+			srcFs = afero.NewOsFs()
+		}
+	}
+
 	return &Manager{
 		afs:        afs,
+		srcFs:      srcFs,
 		importsDir: dir,
 		defaultTTL: ttl,
 		now:        now,
@@ -123,12 +157,21 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 			map[string]any{"source_path": spec.SourcePath})
 	}
 
-	// Pulse-native passthrough: validate readability, return original
-	// path unchanged. No copy, no sidecar, no TTL accounting.
+	// Pulse-native sources have two paths:
+	//   - Relative path (lives inside PULSE_DATA_DIR): pass through with
+	//     no copy, no sidecar. Downstream tools address it by its
+	//     original relative path.
+	//   - Absolute path (lives outside the rooted fs): copy into the
+	//     managed pool so downstream tools can address it through the
+	//     rooted fs. Sidecar written so the copy participates in the
+	//     normal TTL lifecycle.
 	if format == pformat.Pulse {
 		if spec.InlineBytes != nil {
 			return nil, perr.NewCodedError(perr.PULSE_IMPORT_FORMAT_UNKNOWN,
 				"inline pulse-format imports are not supported; write the bytes to disk and import by path")
+		}
+		if filepath.IsAbs(spec.SourcePath) {
+			return m.openPulseAbsoluteCopy(ctx, spec)
 		}
 		exists, err := afero.Exists(m.afs, spec.SourcePath)
 		if err != nil {
@@ -366,15 +409,20 @@ func (m *Manager) IsManagedPath(p string) bool {
 	return m.isInsideImportsDir(p)
 }
 
-// openReader builds the tabular Reader for an Open call. Inline byte
-// imports never come through here today (the helper would need a
-// bytes-aware reader factory in io/format); when InlineBytes is set,
-// callers reach for the explicit io.Reader constructors directly.
+// openReader builds the tabular Reader for an Open call. Absolute
+// SourcePaths go through srcFs (unrooted OsFs by default) so callers
+// can import files from anywhere on the host without first copying
+// them under PULSE_DATA_DIR; relative paths continue to resolve
+// against the rooted Pulse fs. Inline byte imports are not yet wired.
 func (m *Manager) openReader(spec Spec, format string) (pio.Reader, error) {
 	if spec.InlineBytes != nil {
 		return nil, fmt.Errorf("imports: InlineBytes path not yet wired (open issue: add format.NewReaderFromBytes)")
 	}
-	exists, err := afero.Exists(m.afs, spec.SourcePath)
+	readFs := m.afs
+	if filepath.IsAbs(spec.SourcePath) {
+		readFs = m.srcFs
+	}
+	exists, err := afero.Exists(readFs, spec.SourcePath)
 	if err != nil {
 		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_MISSING,
 			err.Error(), map[string]any{"source_path": spec.SourcePath})
@@ -384,7 +432,91 @@ func (m *Manager) openReader(spec Spec, format string) (pio.Reader, error) {
 			fmt.Sprintf("source file %q not found", spec.SourcePath),
 			map[string]any{"source_path": spec.SourcePath})
 	}
-	return pformat.NewReader(format, m.afs, spec.SourcePath, pformat.ReaderOptions{Sheet: spec.Sheet})
+	return pformat.NewReader(format, readFs, spec.SourcePath, pformat.ReaderOptions{Sheet: spec.Sheet})
+}
+
+// openPulseAbsoluteCopy handles the pulse-passthrough case when the
+// source lives outside the rooted Pulse fs. We must copy: the rooted
+// destination fs can't address absolute external paths via the normal
+// MCP / CLI tools, so leaving the file in place would produce a handle
+// nothing downstream could open. The copy lands in the managed pool
+// with a full sidecar so it participates in the normal TTL lifecycle
+// — pinned imports here behave the same as anywhere else.
+func (m *Manager) openPulseAbsoluteCopy(ctx context.Context, spec Spec) (*Result, error) {
+	exists, err := afero.Exists(m.srcFs, spec.SourcePath)
+	if err != nil {
+		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_MISSING,
+			err.Error(), map[string]any{"source_path": spec.SourcePath})
+	}
+	if !exists {
+		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_MISSING,
+			fmt.Sprintf("source file %q not found", spec.SourcePath),
+			map[string]any{"source_path": spec.SourcePath})
+	}
+	handle := deriveHandle(spec.Handle, spec.SourcePath)
+	if err := validateHandle(handle); err != nil {
+		return nil, err
+	}
+	target := m.handlePath(handle)
+	sidecarPath := target + SidecarSuffix
+
+	already, err := afero.Exists(m.afs, target)
+	if err != nil {
+		return nil, fmt.Errorf("imports.Open: checking target: %w", err)
+	}
+	if already && !spec.Overwrite {
+		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_HANDLE_EXISTS,
+			fmt.Sprintf("managed-import handle %q already exists", handle),
+			map[string]any{"handle": handle, "path": target})
+	}
+	if err := m.ensureImportsDir(); err != nil {
+		return nil, err
+	}
+
+	body, err := afero.ReadFile(m.srcFs, spec.SourcePath)
+	if err != nil {
+		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_MISSING,
+			err.Error(), map[string]any{"source_path": spec.SourcePath})
+	}
+	if err := afero.WriteFile(m.afs, target, body, 0o644); err != nil {
+		return nil, fmt.Errorf("imports: writing managed copy %s: %w", target, err)
+	}
+
+	ttl := spec.TTL
+	if ttl == 0 {
+		ttl = m.defaultTTL
+	}
+	now := m.now()
+	sidecar := Sidecar{
+		Handle:       handle,
+		Format:       pformat.Pulse,
+		SourcePath:   spec.SourcePath,
+		SourceFormat: pformat.Pulse,
+		ImportedAt:   now,
+		TTLSeconds:   ttlSeconds(ttl),
+	}
+	if ttl > 0 {
+		sidecar.ExpiresAt = now.Add(ttl)
+	}
+	if err := m.writeSidecar(sidecarPath, sidecar); err != nil {
+		return nil, err
+	}
+
+	_, _ = m.Sweep(ctx)
+
+	res := &Result{
+		Handle:     handle,
+		Path:       target,
+		Format:     pformat.Pulse,
+		Managed:    true,
+		ImportedAt: now,
+		TTLSeconds: sidecar.TTLSeconds,
+	}
+	if !sidecar.ExpiresAt.IsZero() {
+		exp := sidecar.ExpiresAt
+		res.ExpiresAt = &exp
+	}
+	return res, nil
 }
 
 func (m *Manager) handlePath(handle string) string {

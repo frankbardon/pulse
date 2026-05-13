@@ -350,3 +350,98 @@ func TestManager_IsManagedPath(t *testing.T) {
 		t.Errorf("other/foo.pulse flagged as managed")
 	}
 }
+
+// TestManager_Open_AbsoluteCSV_FromExternalSource is the regression
+// gate for the MCP-side bug: pulse_import handed an absolute source
+// path that lives outside the rooted Pulse fs must still succeed. The
+// Manager routes absolute reads through srcFs while writing the
+// managed copy into the dst (rooted) fs.
+func TestManager_Open_AbsoluteCSV_FromExternalSource(t *testing.T) {
+	dst := afero.NewMemMapFs()
+	src := afero.NewMemMapFs()
+	body := "id,name,amount\n1,Alice,10.5\n2,Bob,20.0\n"
+	if err := afero.WriteFile(src, "/Users/alice/datasets/orders.csv", []byte(body), 0o644); err != nil {
+		t.Fatalf("seed src: %v", err)
+	}
+	clk := &fixedClock{t: time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)}
+	m, err := New(dst, Options{SourceFS: src, Now: clk.now})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	res, err := m.Open(context.Background(), Spec{SourcePath: "/Users/alice/datasets/orders.csv"})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if !res.Managed || res.Handle != "orders" || res.Path != "imports/orders.pulse" {
+		t.Errorf("result = %+v, want managed handle 'orders' at imports/orders.pulse", res)
+	}
+	if res.RowsImported != 2 {
+		t.Errorf("rows = %d, want 2", res.RowsImported)
+	}
+	if ok, _ := afero.Exists(dst, "imports/orders.pulse"); !ok {
+		t.Errorf("managed file missing from dst fs")
+	}
+	// Sidecar records the absolute source path verbatim.
+	entries, _ := m.List(context.Background())
+	if len(entries) != 1 || entries[0].Sidecar.SourcePath != "/Users/alice/datasets/orders.csv" {
+		t.Errorf("sidecar source_path = %+v, want absolute path", entries)
+	}
+}
+
+// TestManager_Open_AbsolutePulse_CopiesIntoPool exercises the
+// pulse-passthrough-absolute path: when the source is a .pulse file
+// outside the rooted fs, the Manager copies it into the managed pool
+// (the rooted fs cannot address external absolute paths via the normal
+// inspect / process tools).
+func TestManager_Open_AbsolutePulse_CopiesIntoPool(t *testing.T) {
+	dst := afero.NewMemMapFs()
+	src := afero.NewMemMapFs()
+	header := []byte("PULSE\x00\x00\x00\x01")
+	if err := afero.WriteFile(src, "/var/data/curated.pulse", header, 0o644); err != nil {
+		t.Fatalf("seed src: %v", err)
+	}
+	clk := &fixedClock{t: time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)}
+	m, err := New(dst, Options{SourceFS: src, Now: clk.now})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	res, err := m.Open(context.Background(), Spec{SourcePath: "/var/data/curated.pulse"})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if !res.Managed {
+		t.Errorf("absolute pulse passthrough must be managed=true (copied into pool); got %+v", res)
+	}
+	if res.Path != "imports/curated.pulse" {
+		t.Errorf("path = %q, want imports/curated.pulse", res.Path)
+	}
+	if ok, _ := afero.Exists(dst, "imports/curated.pulse"); !ok {
+		t.Errorf("copied file missing from dst fs")
+	}
+	// Original source untouched.
+	if ok, _ := afero.Exists(src, "/var/data/curated.pulse"); !ok {
+		t.Errorf("source file removed (should be left in place)")
+	}
+}
+
+// TestManager_Open_AbsoluteMissingSource_Errors covers the case where
+// the absolute path's source fs cannot find the file. Surfaces
+// PULSE_IMPORT_SOURCE_MISSING just like the relative-path branch.
+func TestManager_Open_AbsoluteMissingSource_Errors(t *testing.T) {
+	dst := afero.NewMemMapFs()
+	src := afero.NewMemMapFs() // empty
+	m, err := New(dst, Options{SourceFS: src})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	_, err = m.Open(context.Background(), Spec{SourcePath: "/Users/ghost/missing.csv"})
+	if err == nil {
+		t.Fatalf("expected source-missing error, got nil")
+	}
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_IMPORT_SOURCE_MISSING {
+		t.Errorf("error code = %v, want %v", err, perr.PULSE_IMPORT_SOURCE_MISSING)
+	}
+}

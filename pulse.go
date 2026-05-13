@@ -87,6 +87,14 @@ type Options struct {
 	// PULSE_IMPORT_TTL env var, then to imports.DefaultTTL. Negative
 	// values pin imports (never expire) by default.
 	ImportTTL time.Duration
+
+	// ImportSourceFS is the afero.Fs used to read source files when
+	// ImportFile / pulse_import receives an absolute path. Defaults to
+	// afero.NewOsFs() on real OS installs, or to FS when FS is an
+	// in-memory MemMapFs (so tests stay hermetic). Override when
+	// callers want to constrain absolute-path access to a different
+	// filesystem (e.g., a chrooted view).
+	ImportSourceFS afero.Fs
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -128,6 +136,7 @@ func New(opts Options) (*Pulse, error) {
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir: opts.ImportsDir,
 		DefaultTTL: opts.ImportTTL,
+		SourceFS:   opts.ImportSourceFS,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("pulse: configuring imports manager: %w", err)
