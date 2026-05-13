@@ -154,6 +154,7 @@ const (
 	FEAT_FREQUENCY_ENCODE FeatureType = "FEAT_FREQUENCY_ENCODE"
 	FEAT_TARGET_ENCODE    FeatureType = "FEAT_TARGET_ENCODE"
 	FEAT_TRAIN_TEST_SPLIT FeatureType = "FEAT_TRAIN_TEST_SPLIT"
+	FEAT_POLY             FeatureType = "FEAT_POLY"
 )
 
 // AllFeatureTypes returns every defined feature type in alphabetical order.
@@ -164,6 +165,7 @@ func AllFeatureTypes() []FeatureType {
 		FEAT_FREQUENCY_ENCODE,
 		FEAT_LOG,
 		FEAT_ONE_HOT,
+		FEAT_POLY,
 		FEAT_SQRT,
 		FEAT_TARGET_ENCODE,
 		FEAT_TRAIN_TEST_SPLIT,

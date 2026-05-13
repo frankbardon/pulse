@@ -269,6 +269,7 @@ func TestStreamability_FeaturesKnown(t *testing.T) {
 		FEAT_FREQUENCY_ENCODE: true,
 		FEAT_TARGET_ENCODE:    true,
 		FEAT_TRAIN_TEST_SPLIT: true,
+		FEAT_POLY:             true,
 	}
 	for _, f := range AllFeatureTypes() {
 		want, ok := expected[f]

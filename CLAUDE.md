@@ -254,7 +254,7 @@ Per-component target skill:
 | MCP tool | `skills/mcp-integration.md` |
 | Error code | `errors/fixup_metadata.go` (surfaced via `pulse_errors_lookup`) |
 
-**Current registered counts** (full lists in each skill, enforced by coverage gates): 18 aggregators, 6 attributes, 6 filterers, 6 groupers, 10 window operators, 8 feature operators, 20 statistical tests (18 tier-1 row tests + tier-2 variants), 12 synth distributions, 3 regressions.
+**Current registered counts** (full lists in each skill, enforced by coverage gates): 18 aggregators, 6 attributes, 6 filterers, 6 groupers, 10 window operators, 9 feature operators, 20 statistical tests (18 tier-1 row tests + tier-2 variants), 12 synth distributions, 3 regressions.
 
 Adding a new skill: create `skills/<name>.md` with frontmatter, add entry to `skills/index.json`, bump the count in `TestSkillsList_ReturnsAll` and `TestSkillsNames`. Run `go test ./skills/...`.
 

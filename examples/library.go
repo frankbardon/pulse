@@ -22,7 +22,7 @@ import (
 	"sync"
 )
 
-//go:embed aggregations/*.json attributes/*.json features/*.json filterers/*.json groupers/*.json tests/*.json windows/*.json
+//go:embed aggregations/*.json attributes/*.json features/*.json filterers/*.json groupers/*.json regression/*.json tests/*.json windows/*.json
 var content embed.FS
 
 // AllCategories returns every directory the library indexes, sorted
@@ -313,6 +313,9 @@ var CanonicalTags = []string{
 	"hypothesis-test", "t-test", "parametric", "nonparametric", "paired", "one-sample",
 	"two-sample", "k-sample", "repeated-measures", "post-hoc",
 	"normality-test", "homogeneity-test", "exact-test",
+
+	// Regression / modeling (2)
+	"regression", "ecological",
 
 	// Pipeline machinery (8)
 	"tier-1-test", "tier-2-test", "composed", "pre-filter", "feature-pipeline",

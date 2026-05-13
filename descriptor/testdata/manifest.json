@@ -1256,6 +1256,34 @@
           "streamable": true
         },
         {
+          "name": "FEAT_POLY",
+          "category": "feature",
+          "description": "Per-row polynomial expansion of a numeric field; emits Degree-1 derived columns x_2 .. x_Degree. Pair with REG_OLS to fit polynomial regression.",
+          "params": [
+            {
+              "name": "degree",
+              "type": "int",
+              "required": true,
+              "description": "Polynomial degree; must be \u003e= 2 and \u003c= 10. Degree 1 (linear) is the original column."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "columns \"\u003clabel\u003e_2\" .. \"\u003clabel\u003e_\u003cDegree\u003e\" (default prefix \u003cfield\u003e_poly)",
+          "streamable": true
+        },
+        {
           "name": "FEAT_SQRT",
           "category": "feature",
           "description": "Per-row square root of Field; emits one f64 column.",
@@ -2873,6 +2901,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2932,6 +2961,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2991,6 +3021,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -3050,6 +3081,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -3109,6 +3141,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -3168,6 +3201,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -3256,6 +3290,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -3315,6 +3350,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -3374,6 +3410,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -3436,6 +3473,7 @@
           "FEAT_BUCKETIZE",
           "FEAT_DATE_FEATURES",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -3782,13 +3820,14 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 71,
+    "examples_count": 72,
     "example_categories": [
       "aggregations",
       "attributes",
       "features",
       "filterers",
       "groupers",
+      "regression",
       "tests",
       "windows"
     ],
@@ -3798,10 +3837,12 @@
       "cardinality-analysis",
       "cohort-analysis",
       "comparison",
+      "composed",
       "correlation-analysis",
       "cross-tabulation",
       "data-quality",
       "distribution-shape",
+      "ecological",
       "exact-test",
       "experiment-analysis",
       "feature-engineering",
@@ -3822,6 +3863,7 @@
       "post-hoc",
       "pre-filter",
       "proportion-analysis",
+      "regression",
       "repeated-measures",
       "small-sample",
       "streaming-friendly",
@@ -3838,4 +3880,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 274164e0975907670dde8bec0dcd643bbdf9631dd57f73e49d1b6ccba3de77fc
+// golden-hash: c1dbde3056d8b2abbc7653b876cbb63341c97d021efc288dea21a152e8d8eb2c

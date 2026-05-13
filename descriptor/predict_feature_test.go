@@ -122,6 +122,93 @@ func TestPredict_FeatureOneHotProjectsCategoryColumns(t *testing.T) {
 	}
 }
 
+func TestPredict_FeaturePolyValid(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "x", Type: encoding.FieldTypeF64, Description: "Numeric predictor"},
+			{Name: "y", Type: encoding.FieldTypeF64, Description: "Numeric target"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	// Reference the synthesized x_2 / x_3 columns in an aggregator so
+	// predict's downstream column-resolution catches them via the
+	// virtual post-feature schema.
+	req := &types.Request{
+		Features: []*types.Feature{
+			{
+				Type:   types.FEAT_POLY,
+				Field:  "x",
+				Label:  "x",
+				Params: json.RawMessage(`{"degree":3}`),
+			},
+		},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_AVERAGE, Field: "x_2", Label: "avg_x2"},
+			{Type: types.AGG_AVERAGE, Field: "x_3", Label: "avg_x3"},
+		},
+	}
+	env := PredictFromBytes(data, req, nil)
+	if len(env.Errors) > 0 {
+		t.Errorf("unexpected errors: %v", env.Errors)
+	}
+}
+
+func TestPredict_FeaturePolyDegreeOutOfRange(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "x", Type: encoding.FieldTypeF64, Description: "Numeric predictor"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	cases := []struct {
+		name   string
+		params string
+	}{
+		{"degree-one", `{"degree":1}`},
+		{"degree-zero", `{"degree":0}`},
+		{"degree-too-high", `{"degree":99}`},
+		{"missing-degree", `{}`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{
+				Features: []*types.Feature{
+					{Type: types.FEAT_POLY, Field: "x", Params: json.RawMessage(c.params)},
+				},
+			}
+			env := PredictFromBytes(data, req, nil)
+			if len(env.Errors) == 0 {
+				t.Errorf("expected error for %s; got none", c.name)
+			}
+		})
+	}
+}
+
+func TestPredict_FeaturePolyRejectsCategoricalField(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{
+				Name:        "region",
+				Type:        encoding.FieldTypeCategoricalU8,
+				Dictionary:  makeDictionary(t, "n", "s"),
+				Description: "Geographic region",
+			},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+	req := &types.Request{
+		Features: []*types.Feature{
+			{Type: types.FEAT_POLY, Field: "region", Params: json.RawMessage(`{"degree":2}`)},
+		},
+	}
+	env := PredictFromBytes(data, req, nil)
+	if len(env.Errors) == 0 {
+		t.Error("expected error: FEAT_POLY rejects non-numeric field")
+	}
+}
+
 func TestPredict_FeatureBucketizeMissingParams(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{

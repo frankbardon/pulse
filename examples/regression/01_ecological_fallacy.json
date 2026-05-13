@@ -1,0 +1,54 @@
+{
+  "_meta": {
+    "name": "ecological_fallacy",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ecological",
+      "cohort-analysis",
+      "composed"
+    ],
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "GROUP_CATEGORY",
+      "REG_OLS"
+    ],
+    "description": "Ecological regression pattern: per-region means of income and age (the aggregation half) plus an individual-level REG_OLS income~age for comparison. A true ecological fit would regress mean_income ~ mean_age over a per-region cohort; per skills/regression-modeling.md, ship that as a second pulse_compose slot over a pre-aggregated .pulse file. Carries the ecological-fallacy caveat: a per-region slope does not imply an individual-level association."
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "mean_income"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "age",
+      "label": "mean_age"
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n_customers"
+    }
+  ],
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "individual_ols",
+      "target": "income",
+      "predictors": ["age"]
+    }
+  ]
+}

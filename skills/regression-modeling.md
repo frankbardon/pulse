@@ -22,7 +22,7 @@ Phase 5 has landed: `Resample` and `Selection` modifiers apply to any regression
 | 3     | GLM (logistic, poisson)                         | shipped  |
 | 4     | Bayesian linear (conjugate NIG)                 | shipped  |
 | 5     | Modifiers (`Resample`, `Selection`)             | shipped  |
-| 6     | Compositional coverage (FEAT_POLY, ecological)  | pending  |
+| 6     | Compositional coverage (FEAT_POLY, ecological)  | shipped  |
 | 7     | Per-row regression attributes (ATTR_REG_*)      | pending  |
 | 8     | Docs, examples, manifest polish                 | pending  |
 
@@ -367,24 +367,33 @@ Phases 1–2 light up streaming for both unpenalized and regularized REG_OLS. Ph
 
 ### Polynomial regression (`FEAT_POLY` upstream)
 
-Polynomial regression is linear in the coefficients; the non-linearity lives in the feature space. Ship the polynomial expansion as a `FEAT_POLY` operator (Phase 6) running before `REG_OLS`:
+Polynomial regression is linear in the coefficients; the non-linearity lives in the feature space. Ship the polynomial expansion as `FEAT_POLY` (Phase 6) running before `REG_OLS`:
 
 ```json
 {
   "features": [
-    {"type": "FEAT_POLY", "field": "x", "params": {"degree": 3}}
+    {"type": "FEAT_POLY", "field": "x", "label": "x", "params": {"degree": 3}}
   ],
   "regressions": [
-    {"type": "REG_OLS", "target": "y", "predictors": ["x", "x^2", "x^3"]}
+    {"type": "REG_OLS", "name": "polynomial_fit", "target": "y",
+     "predictors": ["x", "x_2", "x_3"]}
   ]
 }
 ```
 
-`FEAT_POLY` is reserved here; it lands in Phase 6 with the rest of the engineering wiring.
+`FEAT_POLY` emits `Degree - 1` derived columns: `<prefix>_2`, `<prefix>_3`, ..., `<prefix>_<Degree>`. The original column (degree 1) is left in place, so the linear term `x` is reachable to OLS unchanged. With `Label: "x"` the predictors become `["x", "x_2", "x_3"]` (clean and symmetric); omit `Label` and the prefix defaults to `<field>_poly` yielding `["x", "x_poly_2", "x_poly_3"]`. Either works — pick whichever reads better in your downstream tooling. Degree is gated at `[2, 10]`; out-of-range values surface `PROCESSING_CONFIG` from both predict and the engine.
+
+Numerical stability is the caller's responsibility: `x^10` overflows `f64` once `|x|` clears a few hundred, and the Gram matrix conditions poorly even before that. Standardize or center predictors before requesting `FEAT_POLY`. Orthogonal polynomial bases (Chebyshev, Legendre) are not synthesized in Phase 6 — they warrant a dedicated operator and are reserved for a later phase.
+
+See `skills/feature-engineering.md` for the full `FEAT_POLY` parameter table and column-naming rules.
 
 ### Ecological regression (group → regress)
 
-"Ecological regression" is a methodological caveat, not an engine variant. Run a normal request that aggregates per group, then a second request that regresses on the per-group means. Use `pulse_compose` to chain them:
+"Ecological regression" is a regression fit on **aggregated** group-level statistics — per-precinct means, per-county sums, per-region rates — rather than individual-level rows. The classical setup is: aggregate by some grouping key, then regress one aggregate against another.
+
+#### Pulse expression
+
+Use `pulse_compose` with two slots over the same cohort: slot 1 produces per-group means via `GROUP_*` + `AGG_AVERAGE`, slot 2 fits `REG_OLS` over the aggregate output (or, more commonly in practice, over a pre-aggregated cohort file).
 
 ```json
 {
@@ -393,21 +402,40 @@ Polynomial regression is linear in the coefficients; the non-linearity lives in 
       "cohort": {"filename": "voters.pulse"},
       "groups": [{"type": "GROUP_CATEGORY", "field": "county"}],
       "aggregations": [
-        {"type": "AGG_AVERAGE", "field": "income", "label": "mean_income"},
+        {"type": "AGG_AVERAGE", "field": "income",  "label": "mean_income"},
         {"type": "AGG_AVERAGE", "field": "turnout", "label": "mean_turnout"}
       ]
     },
     {
-      "cohort": {"filename": "voters.pulse"},
+      "cohort": {"filename": "county_means.pulse"},
       "regressions": [
-        {"type": "REG_OLS", "target": "mean_turnout", "predictors": ["mean_income"]}
+        {"type": "REG_OLS", "name": "county_ols",
+         "target": "mean_turnout", "predictors": ["mean_income"]}
       ]
     }
   ]
 }
 ```
 
-The ecological fallacy applies: relationships at the group level need not hold at the individual level. Document this caveat in any consumer-facing prose; the engine cannot enforce it.
+The two slots are intentionally independent: Pulse does not pipe slot-1 result rows into slot-2 as cohort input. You either (a) materialize slot 1's aggregate as its own `.pulse` cohort upstream and pass that filename to slot 2, or (b) accept that slot 1 is the "audit trail" (per-group means visible in the composed response) and run slot 2 over a pre-aggregated fixture. Both are common.
+
+#### Caution — the ecological fallacy
+
+**A significant group-level slope does not imply an individual-level association.** Robinson (1950) showed that ecological correlations and individual correlations can take opposite signs in the same data: a per-state regression of literacy on race might suggest a strong relationship that vanishes (or reverses) at the per-person level. The reason is that aggregation collapses within-group variation, leaving only between-group variation — and the between-group structure can encode confounders that wouldn't survive an individual-level fit.
+
+When ecological regression is the right tool:
+
+- **Aggregate-only data.** The individual-level records are not available (census output, public-health summary tables, election precincts).
+- **Group-level question.** The research question is genuinely about groups — "do counties with higher median income have higher turnout?" — not individuals.
+
+When it is the wrong tool:
+
+- **Individual-level claim.** "Higher-income voters turn out more" cannot be inferred from a per-county fit. Use individual-level data.
+- **Causal claim.** Group-level confounding (e.g. urbanization correlating with both predictors) routinely produces spurious aggregate slopes.
+
+Annotate any consumer-facing prose with this caveat; Pulse cannot enforce it.
+
+Reference: Robinson, W.S. (1950). "Ecological Correlations and the Behavior of Individuals." *American Sociological Review* 15(3): 351–357.
 
 ## Error codes
 

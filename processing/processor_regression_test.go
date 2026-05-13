@@ -168,6 +168,99 @@ func TestProcessor_OLSStreamingMatchesBuffered(t *testing.T) {
 	}
 }
 
+// TestPolynomialRegressionEndToEnd composes FEAT_POLY upstream of
+// REG_OLS to fit a cubic curve. Generates y = 0.4 + 1.1 x − 0.6 x² +
+// 0.25 x³ + small noise over a deterministic x grid, runs the request
+// through Process, and asserts the recovered coefficients track the
+// generator within tolerance and R² > 0.9.
+//
+// Realises Indeed #8 (Polynomial regression) as a compositional
+// pattern with no new regression operator — FEAT_POLY emits the basis
+// columns; REG_OLS does the linear fit.
+func TestPolynomialRegressionEndToEnd(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "y", Type: encoding.FieldTypeF64},
+			{Name: "x", Type: encoding.FieldTypeF64},
+		},
+	}
+	const n = 200
+	records := make([]*Record, n)
+	// Standardize the grid to [-1, 1] before expanding — keeps x^3
+	// well-conditioned for the Cholesky solve and matches the skill's
+	// numerical-stability guidance.
+	for i := range records {
+		x := -1.0 + 2.0*float64(i)/float64(n-1)
+		// Small deterministic perturbation: a high-frequency sine that
+		// averages to zero across the grid so the cubic fit recovers
+		// the generator coefficients without seeding an RNG.
+		noise := 0.01 * math.Sin(7.3*float64(i))
+		y := 0.4 + 1.1*x - 0.6*x*x + 0.25*x*x*x + noise
+		records[i] = NewRecord(schema, map[string]float64{"x": x, "y": y})
+	}
+
+	req := &types.Request{
+		// Pair with a no-op aggregation so the request is non-empty in the
+		// "result rows" sense; regression-only requests force the buffered
+		// path (which is also fine — both paths produce the same fit).
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "y"}},
+		Features: []*types.Feature{
+			{
+				Type:   types.FEAT_POLY,
+				Field:  "x",
+				Label:  "x",
+				Params: []byte(`{"degree":3}`),
+			},
+		},
+		Regressions: []*types.RegressionSpec{
+			{
+				Type:       types.REG_OLS,
+				Target:     "y",
+				Predictors: []string{"x", "x_2", "x_3"},
+				Name:       "polynomial_fit",
+			},
+		},
+	}
+
+	proc := NewProcessor(schema)
+	resp, err := proc.Process(context.Background(), req, NewSliceIterator(records))
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(resp.Regressions) != 1 {
+		t.Fatalf("Regressions len = %d, want 1", len(resp.Regressions))
+	}
+	got := resp.Regressions[0]
+	if got.Name != "polynomial_fit" {
+		t.Errorf("Name = %q, want polynomial_fit", got.Name)
+	}
+	if got.R2 < 0.9 {
+		t.Errorf("R² = %v, want > 0.9 on the cubic generator", got.R2)
+	}
+	// Coefficients on the four-term model { (intercept), x, x_2, x_3 }
+	// recover the generator { 0.4, 1.1, -0.6, 0.25 } to ~1e-3. The high-
+	// frequency sine averages to ~0 over the grid; the fit absorbs only
+	// the cubic signal.
+	const tol = 1e-2
+	checks := []struct {
+		key  string
+		want float64
+	}{
+		{regression.InterceptKey, 0.4},
+		{"x", 1.1},
+		{"x_2", -0.6},
+		{"x_3", 0.25},
+	}
+	for _, c := range checks {
+		if math.Abs(got.Coefficients[c.key]-c.want) > tol {
+			t.Errorf("Coefficients[%q] = %v, want %v ± %v", c.key, got.Coefficients[c.key], c.want, tol)
+		}
+	}
+	if got.NObs != n {
+		t.Errorf("NObs = %d, want %d", got.NObs, n)
+	}
+}
+
 // TestProcessor_BayesStreams confirms the orchestrator routes a
 // REG_BAYES_LINEAR request paired with an online aggregation through
 // the streaming path. Phase 4 lights up this code path; same shape as

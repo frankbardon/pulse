@@ -60,6 +60,18 @@ func featureCapabilities() []Operator {
 			Streamable:    true,
 		},
 		{
+			Name:        string(types.FEAT_POLY),
+			Category:    "feature",
+			Description: "Per-row polynomial expansion of a numeric field; emits Degree-1 derived columns x_2 .. x_Degree. Pair with REG_OLS to fit polynomial regression.",
+			Params: []Param{
+				{Name: "degree", Type: "int", Required: true, Description: "Polynomial degree; must be >= 2 and <= 10. Degree 1 (linear) is the original column."},
+			},
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsType:     "f64",
+			EmitsTypeNote: "columns \"<label>_2\" .. \"<label>_<Degree>\" (default prefix <field>_poly)",
+			Streamable:    true,
+		},
+		{
 			Name:          string(types.FEAT_FREQUENCY_ENCODE),
 			Category:      "feature",
 			Description:   "Replace each categorical value with its observed relative frequency in the cohort.",

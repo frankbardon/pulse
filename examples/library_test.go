@@ -80,7 +80,7 @@ func TestExamples_TagsFromTaxonomy(t *testing.T) {
 // operatorRe captures `"type": "PREFIX_..."` in a JSON request body.
 // Kept in sync with the regex used by cmd/annotate-examples so the test
 // would also fail if either side drifts.
-var operatorRe = regexp.MustCompile(`"type"\s*:\s*"((?:AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST)_[A-Z0-9_]+)"`)
+var operatorRe = regexp.MustCompile(`"type"\s*:\s*"((?:AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|REG)_[A-Z0-9_]+)"`)
 
 // TestExamples_OperatorsMatchBody verifies the declared operators
 // equal the operators that can be auto-derived by scanning the request
@@ -292,6 +292,62 @@ func TestAllTags_Sorted(t *testing.T) {
 func TestCount(t *testing.T) {
 	if Count() == 0 {
 		t.Fatal("Count returned 0")
+	}
+}
+
+// TestEcologicalRegressionExample verifies the Phase 6 ecological-
+// regression example is present, carries the expected operator set,
+// and parses as a runnable types.Request. The body itself can't be
+// executed in a unit test without a .pulse fixture; the integration
+// surface relies on examples/fixtures/build.sh producing customers.pulse
+// at runtime.
+func TestEcologicalRegressionExample(t *testing.T) {
+	ex, ok := Get("ecological_fallacy")
+	if !ok {
+		t.Fatal("ecological_fallacy example not registered in the embedded library")
+	}
+	if ex.Category != "regression" {
+		t.Errorf("Category = %q, want \"regression\"", ex.Category)
+	}
+	wantTags := map[string]bool{
+		"regression":      true,
+		"ecological":      true,
+		"cohort-analysis": true,
+		"composed":        true,
+	}
+	for _, tag := range ex.Tags {
+		if !wantTags[tag] {
+			t.Errorf("unexpected tag %q on ecological example", tag)
+		}
+		delete(wantTags, tag)
+	}
+	for missing := range wantTags {
+		t.Errorf("ecological_fallacy missing tag %q", missing)
+	}
+
+	// Body must parse as a Request and carry both the aggregation half
+	// (groups + AGG_AVERAGE on income / age) and a REG_OLS regression
+	// slot. Exact shape matches the documented ecological pattern in
+	// skills/regression-modeling.md.
+	var req struct {
+		Groups       []map[string]any `json:"groups"`
+		Aggregations []map[string]any `json:"aggregations"`
+		Regressions  []map[string]any `json:"regressions"`
+	}
+	if err := json.Unmarshal(ex.Body, &req); err != nil {
+		t.Fatalf("Body does not parse: %v", err)
+	}
+	if len(req.Groups) == 0 {
+		t.Error("ecological_fallacy must carry a groups slot (per-region aggregation)")
+	}
+	if len(req.Aggregations) == 0 {
+		t.Error("ecological_fallacy must carry an aggregations slot (the per-region means)")
+	}
+	if len(req.Regressions) == 0 {
+		t.Error("ecological_fallacy must carry a regressions slot")
+	}
+	if len(req.Regressions) > 0 && req.Regressions[0]["type"] != "REG_OLS" {
+		t.Errorf("Regressions[0].type = %v, want REG_OLS", req.Regressions[0]["type"])
 	}
 }
 

@@ -1,6 +1,6 @@
 ---
 name: feature-engineering
-description: Apply pre-filter FEAT_* operators — FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE, FEAT_ONE_HOT, FEAT_FREQUENCY_ENCODE, FEAT_TARGET_ENCODE, FEAT_DATE_FEATURES, FEAT_TRAIN_TEST_SPLIT — for ML pipelines. Use when preparing training data; covers the target-leakage trap and PULSE_FEAT_TARGET_LEAKAGE_RISK.
+description: Apply pre-filter FEAT_* operators — FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE, FEAT_ONE_HOT, FEAT_FREQUENCY_ENCODE, FEAT_TARGET_ENCODE, FEAT_DATE_FEATURES, FEAT_TRAIN_TEST_SPLIT, FEAT_POLY — for ML pipelines. Use when preparing training data; covers the target-leakage trap and PULSE_FEAT_TARGET_LEAKAGE_RISK.
 type: guide
 applies_to: process, compose, predict
 ---
@@ -26,7 +26,7 @@ A feature's output column is addressable by every stage that follows. This is wh
 <reference>
 ## Streaming eligibility
 
-Feature requests run on the streaming path when every requested operator implements `feature.StreamingComputer` and the rest of the request is stream-eligible (online-capable aggregators, no groups, no attributes, no windows). Per-row operators (`FEAT_LOG`, `FEAT_SQRT`, `FEAT_BUCKETIZE` with explicit boundaries, `FEAT_ONE_HOT`, `FEAT_DATE_FEATURES`) emit derived columns one record at a time. Global-pass operators (`FEAT_FREQUENCY_ENCODE`, `FEAT_TARGET_ENCODE`, `FEAT_BUCKETIZE` with quantiles, `FEAT_TRAIN_TEST_SPLIT`) run a precompute sweep, then the iterator is rewound and per-row emit drives filters and online aggregators.
+Feature requests run on the streaming path when every requested operator implements `feature.StreamingComputer` and the rest of the request is stream-eligible (online-capable aggregators, no groups, no attributes, no windows). Per-row operators (`FEAT_LOG`, `FEAT_SQRT`, `FEAT_BUCKETIZE` with explicit boundaries, `FEAT_ONE_HOT`, `FEAT_DATE_FEATURES`, `FEAT_POLY`) emit derived columns one record at a time. Global-pass operators (`FEAT_FREQUENCY_ENCODE`, `FEAT_TARGET_ENCODE`, `FEAT_BUCKETIZE` with quantiles, `FEAT_TRAIN_TEST_SPLIT`) run a precompute sweep, then the iterator is rewound and per-row emit drives filters and online aggregators.
 
 The streaming path requires the iterator to support `Reset()`. The slice iterator resets in O(1); the file-backed streaming iterator re-reads the file from disk, which doubles I/O cost for global-pass operators. The buffered path remains the fallback whenever streaming is unsafe — and is selected automatically.
 
@@ -110,6 +110,39 @@ Replace a categorical with the mean of a numeric target field over rows sharing 
 Smoothing formula: `(n * mean_cat + s * mean_global) / (n + s)`. Larger `s` → more shrinkage.
 
 **LEAKAGE TRAP (read this):** target encoding mixes target signal from validation/test rows into the training feature unless you split first. The canonical fix is to place a `FEAT_TRAIN_TEST_SPLIT` operator BEFORE every `FEAT_TARGET_ENCODE` in the same `features` list. Predict emits `PULSE_FEAT_TARGET_LEAKAGE_RISK` (warning by default; error in `--strict`) when a TARGET_ENCODE has no preceding TRAIN_TEST_SPLIT.
+
+### FEAT_POLY
+
+Per-row polynomial expansion of a numeric field. Emits `Degree - 1` derived columns named `<prefix>_2`, `<prefix>_3`, ..., `<prefix>_<Degree>`, one per integer power level `k ∈ [2, Degree]`. The original column (degree 1, the linear term) is left in place — downstream `REG_OLS` can reference both `<field>` and the synthesized higher-order names by including them in `predictors`.
+
+This is the operator backing polynomial regression (Indeed #8): combined with `REG_OLS`, it lifts a univariate predictor into a linear model over the polynomial basis `{x, x², ..., x^d}`.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `field` | string | yes | Source numeric field (`u*`, `f32`, `f64`) |
+| `label` | string | no | Output column prefix (default `<field>_poly`) |
+| `params.degree` | int | yes | Polynomial degree; `2 ≤ Degree ≤ 10` |
+
+**Output column naming.** With `Field: "x"` and `Label` unset, FEAT_POLY emits `x_poly_2`, `x_poly_3`, ..., `x_poly_<Degree>`. Set `Label: "x"` to drop the `_poly` infix and get `x_2`, `x_3`, ..., `x_<Degree>` — convenient when chaining the linear term `x` and the higher-order terms in the same `predictors` list. Null inputs propagate to null on every output column.
+
+**Numerical stability.** Naive `x^d` overflows quickly when `x` is large or untransformed: for `Degree=10` and `|x|=100` the leading term is already `1e20`. Standardize or center predictors before requesting `FEAT_POLY`; Pulse does not synthesize an orthogonal basis (Chebyshev, Legendre) — that would warrant a dedicated operator and is reserved for a later phase. The factory rejects `Degree < 2` (use the original column for the linear term) and `Degree > 10` (cap; standardize first) with `PROCESSING_CONFIG`.
+
+**Worked example — polynomial regression.** A cubic fit `y = β₀ + β₁ x + β₂ x² + β₃ x³ + ε` reachable as `FEAT_POLY` upstream of `REG_OLS`:
+
+```json
+{
+  "features": [{"type": "FEAT_POLY", "field": "x", "label": "x",
+                "params": {"degree": 3}}],
+  "regressions": [{
+    "type": "REG_OLS",
+    "name": "polynomial_fit",
+    "target": "y",
+    "predictors": ["x", "x_2", "x_3"]
+  }]
+}
+```
+
+Setting `Label: "x"` makes the synthesized names `x_2` and `x_3`; if you omit `Label`, the predictors list becomes `["x", "x_poly_2", "x_poly_3"]` instead. Either form is supported.
 
 ### FEAT_TRAIN_TEST_SPLIT
 
