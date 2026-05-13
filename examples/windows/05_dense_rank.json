@@ -1,13 +1,43 @@
 {
-  "_comment": "Dense rank by age within each region. No gaps on ties (1,2,2,3,...). Compare with WIN_RANK to see the difference on ties.",
-  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "windows",
+    "description": "Dense-rank customers by age within each region with no gap on ties (1, 2, 2, 3, ...).",
+    "name": "win_dense_rank_in_region",
+    "operators": [
+      "WIN_DENSE_RANK"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "top-n",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "sort": [
+    {
+      "field": "region"
+    },
+    {
+      "field": "age_dense_rank"
+    }
+  ],
   "windows": [
     {
       "type": "WIN_DENSE_RANK",
       "label": "age_dense_rank",
-      "partition_by": ["region"],
-      "order_by": [{"field": "age"}]
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "age"
+        }
+      ]
     }
-  ],
-  "sort": [{"field": "region"}, {"field": "age_dense_rank"}]
+  ]
+
 }

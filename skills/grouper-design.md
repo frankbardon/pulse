@@ -1,6 +1,6 @@
 ---
 name: grouper-design
-description: GROUP_CATEGORY, GROUP_DATE, GROUP_H3_CELL, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED — nesting semantics
+description: Pick a grouper — GROUP_CATEGORY, GROUP_DATE (day/week/month/year/quarter), GROUP_RANGE (intervals), GROUP_ROUNDED, GROUP_QUANTILE, GROUP_H3_CELL. Use when bucketing rows, nesting groupers for cross-tabs, or choosing between range and quantile bins.
 type: guide
 applies_to: process, compose, predict
 ---

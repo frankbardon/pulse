@@ -1,9 +1,31 @@
 {
-  "_comment": "Tier-1 Kendall τ-b between revenue and revenue_before. Concordance-based correlation; complements Spearman's ρ (rank Pearson) with a pair-counting alternative. Buffered O(n²).",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Kendall tau-b between revenue and its pre-treatment baseline as a concordance-based alternative to Spearman rho.",
+    "name": "kendall_tau",
+    "operators": [
+      "AGG_COUNT",
+      "TEST_KENDALL_TAU"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "nonparametric",
+      "correlation-analysis",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
   ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_KENDALL_TAU",
@@ -13,4 +35,5 @@
       "label": "revenue_kendall"
     }
   ]
+
 }

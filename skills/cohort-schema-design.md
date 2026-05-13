@@ -1,6 +1,6 @@
 ---
 name: cohort-schema-design
-description: Choosing types, nullability, bit-packing tradeoffs
+description: Pick the right .pulse field type — u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, nullable_*, packed_bool, date, point_f64, h3_cell. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs.
 type: guide
 applies_to: inspect, predict
 ---
@@ -82,18 +82,14 @@ Exceeding the chosen width raises `PULSE_IMPORT_CATEGORICAL_OVERFLOW`; an unboun
 - Style: concise, third-person, present-tense; state what the field represents, its units, and any domain semantics.
 </rule>
 
-<workflow id="A" name="schema-template">
+<reference>
 ## Schema-template workflow
 
-```bash
-pulse import schema-template data.csv > schema.json
-$EDITOR schema.json
-pulse import data.csv --schema schema.json --output data.pulse
-```
-</workflow>
+Import is a CLI / library operation; there is no `pulse_import` MCP tool today. Point a human at https://frankbardon.github.io/pulse/cli/cohort-inspect.html plus the import chapters in mdBook for the `schema-template` -> edit -> import flow.
+</reference>
 
 <reference>
 ## Inspect post-import
 
-Run `pulse cohort inspect --full-dict --json FILE.pulse` to verify field types, byte offsets, descriptions, and full categorical dictionaries.
+Call `pulse_inspect` with `{"path": "FILE.pulse"}` to verify field types, byte offsets, descriptions, and (truncated) categorical dictionaries. The MCP handler reads only the header — it is cheap regardless of cohort size.
 </reference>

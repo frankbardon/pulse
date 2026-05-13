@@ -1,14 +1,42 @@
 {
-  "_comment": "Running mean of revenue across the partition. Frame is unbounded preceding to current row.",
-  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "windows",
+    "description": "Running mean of revenue across the partition under an unbounded-preceding to current-row frame.",
+    "name": "win_running_avg",
+    "operators": [
+      "WIN_RUNNING_AVG"
+    ],
+    "tags": [
+      "time-series",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "sort": [
+    {
+      "field": "order_date"
+    }
+  ],
   "windows": [
     {
       "type": "WIN_RUNNING_AVG",
       "field": "revenue",
       "label": "running_mean_revenue",
-      "order_by": [{"field": "order_date"}],
-      "frame": {"mode": "rows", "preceding": null, "following": 0}
+      "order_by": [
+        {
+          "field": "order_date"
+        }
+      ],
+      "frame": {
+        "mode": "rows",
+        "preceding": null,
+        "following": 0
+      }
     }
-  ],
-  "sort": [{"field": "order_date"}]
+  ]
+
 }

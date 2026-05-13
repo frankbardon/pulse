@@ -1,6 +1,25 @@
 {
-  "_comment": "Tier-1 one-way ANOVA on revenue across regions. Region means are planted to be ordered north < south < east < west so F is large and the null is rejected at alpha=0.05.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "One-way streaming ANOVA on revenue across regions to detect planted between-region differences.",
+    "name": "anova_f_streaming",
+    "operators": [
+      "TEST_ANOVA_F"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "k-sample",
+      "experiment-analysis",
+      "comparison",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_ANOVA_F",
@@ -10,4 +29,5 @@
       "label": "regional_revenue_anova"
     }
   ]
+
 }

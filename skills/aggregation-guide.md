@@ -1,6 +1,6 @@
 ---
 name: aggregation-guide
-description: When to use each of the 18 aggregators and 6 filterers
+description: Choose between the 18 AGG_* operators (SUM, AVG, MEDIAN, PERCENTILE, ZSCORE, FREQUENCY, MODE, KURTOSIS, GEO_CENTROID, GEO_BBOX, ...) and 6 FILTER_* operators. Use when assembling a Process request, interpreting percentile/frequency output, or picking a row-filter.
 type: guide
 applies_to: process, compose, predict
 ---

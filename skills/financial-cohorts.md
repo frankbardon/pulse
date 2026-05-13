@@ -1,6 +1,6 @@
 ---
 name: financial-cohorts
-description: Decimal128 usage, precision propagation, banker's rounding, currency-column patterns, divide-by-zero policy
+description: Use decimal128 / nullable_decimal128 for money — precision and scale propagation, banker's rounding, divide-by-zero policy, currency-column patterns. Use when a cohort has monetary fields or hits PULSE_DECIMAL_OVERFLOW / PRECISION_LOSS / DIVIDE_BY_ZERO errors.
 type: guide
 applies_to: process, compose, predict, inspect
 ---
@@ -35,7 +35,7 @@ Examples:
 | `decimal128(38, 18)` | ±99,999,999,999,999,999,999.999999999999999999 | Crypto, ETH/BTC at native unit |
 | `decimal128(38, 0)` | ±10^38 - 1 | Integer-only counts that need 128-bit range |
 
-Precision and scale are **per field**, declared in the schema and persisted in the .pulse header. `pulse inspect` surfaces both.
+Precision and scale are **per field**, declared in the schema and persisted in the .pulse header. `pulse_inspect` surfaces both.
 
 ## Rounding mode
 

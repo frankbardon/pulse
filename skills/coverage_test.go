@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
@@ -64,19 +63,12 @@ func TestSkillsCoverAllComponents(t *testing.T) {
 	}
 }
 
-// TestSkillsCoverAllErrorCodes verifies that every constant in errors/codes.go
-// appears in error-code-reference.md.
-func TestSkillsCoverAllErrorCodes(t *testing.T) {
-	content, ok := Get("error-code-reference")
-	if !ok {
-		t.Fatal("error-code-reference.md not found")
-	}
-	for _, code := range errors.AllCodes() {
-		if !strings.Contains(content, string(code)) {
-			t.Errorf("error-code-reference.md does not mention error code %s", code)
-		}
-	}
-}
+// Note: TestSkillsCoverAllErrorCodes and TestSkillsErrorCodeFixupsDocumented
+// were removed when the error catalog moved out of the skill and behind
+// the pulse_errors_lookup MCP tool / pulse errors lookup CLI leaf.
+// Authoritative coverage now lives in errors/fixup_test.go
+// (TestCodesHaveFixups) and descriptor/manifest_capabilities_test.go
+// (TestManifestErrorCodesComplete / TestManifest_ErrorCodesSlim).
 
 // TestSkillsCoverAllCliLeaves verifies that every user-facing CLI leaf
 // appears in getting-started.md.

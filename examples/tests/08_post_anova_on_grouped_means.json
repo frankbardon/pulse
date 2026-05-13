@@ -1,13 +1,51 @@
 {
-  "_comment": "Tier-2 ANOVA from summary stats. Step 1: GROUP_CATEGORY(region) + AGG_AVERAGE/VARIANCE/COUNT produces one row per region. Step 2: TEST_ANOVA_F in post_tests reads (mean, n, variance) per row and reconstructs SSB/SSW from the per-group summaries. Useful when the same Process call serves both the headline group rows and the inferential test.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
-  "groups": [
-    {"type": "GROUP_CATEGORY", "field": "region"}
-  ],
+  "_meta": {
+    "category": "tests",
+    "description": "Tier-2 ANOVA reconstructed from per-region summary stats (mean, n, variance) produced by an upstream GROUP_CATEGORY aggregation.",
+    "name": "post_anova_on_grouped_means",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "AGG_VARIANCE",
+      "GROUP_CATEGORY",
+      "TEST_ANOVA_F"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-2-test",
+      "parametric",
+      "k-sample",
+      "post-hoc",
+      "comparison",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"},
-    {"type": "AGG_VARIANCE", "field": "revenue", "label": "var_revenue"},
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_AVERAGE",
+      "field": "revenue",
+      "label": "avg_revenue"
+    },
+    {
+      "type": "AGG_VARIANCE",
+      "field": "revenue",
+      "label": "var_revenue"
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
   ],
   "post_tests": [
     {
@@ -16,7 +54,11 @@
       "split_by": "region",
       "alpha": 0.05,
       "label": "region_anova_from_groups",
-      "params": {"n_col": "n", "variance_col": "var_revenue"}
+      "params": {
+        "n_col": "n",
+        "variance_col": "var_revenue"
+      }
     }
   ]
+
 }

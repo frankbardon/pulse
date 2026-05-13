@@ -1,9 +1,33 @@
 {
-  "_comment": "Tier-1 one-way repeated-measures ANOVA on the repeated_measures cohort. 40 subjects × 3 conditions (baseline, treatment_a, treatment_b). Per-subject random effect dominates, treatment lifts are large relative to per-cell noise, so the test rejects clearly. Buffered: requires the subject × condition pivot.",
-  "cohort": {"filename": "repeated_measures.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "One-way repeated-measures ANOVA on a 40-subject by 3-condition design where the subject effect dominates the residual.",
+    "name": "rm_anova_three_conditions",
+    "operators": [
+      "AGG_AVERAGE",
+      "TEST_ANOVA_RM"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "repeated-measures",
+      "k-sample",
+      "before-after",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_AVERAGE", "field": "metric", "label": "avg_metric"}
+    {
+      "type": "AGG_AVERAGE",
+      "field": "metric",
+      "label": "avg_metric"
+    }
   ],
+  "cohort": {
+    "filename": "repeated_measures.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_ANOVA_RM",
@@ -14,4 +38,5 @@
       "label": "metric_rm_anova"
     }
   ]
+
 }

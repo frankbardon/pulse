@@ -1,6 +1,6 @@
 ---
 name: window-operations
-description: WIN_* operators — partitioning, ordering, frames, and per-operator semantics
+description: Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition.
 type: guide
 applies_to: process, compose, predict
 ---
@@ -129,7 +129,7 @@ Exponentially weighted moving average. Recurrence: `s_i = α·x_i + (1-α)·s_{i
 <rule severity="critical" topic="errors">
 ## Validation errors
 
-Predict raises `PULSE_WINDOW_INVALID` for every structural violation listed in `error-code-reference.md`. Run `pulse predict --json` against your file to surface the exact rule and offending window index before execution.
+Predict raises `PULSE_WINDOW_INVALID` for every structural violation listed in `error-code-reference.md`. Call `pulse_predict` against the request to surface the exact rule and offending window index before execution.
 
 `SERVICE_VALIDATION` is reused for the consistency case of a missing or unknown `field` (mirrors aggregation/filter validators).
 </rule>

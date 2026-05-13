@@ -1,21 +1,21 @@
 {
-  "_comment": "Decompose order_date into calendar features, then group by quarter and day-of-week to see seasonality.",
-  "cohort": {
-    "filename": "orders.pulse",
-    "data_dir": ".data"
+  "_meta": {
+    "category": "features",
+    "description": "Decompose order_date into calendar features and group by quarter to surface seasonality.",
+    "name": "feat_date_features_seasonality",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "AGG_SUM",
+      "FEAT_DATE_FEATURES",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "feature-engineering",
+      "time-series",
+      "pre-filter"
+    ]
   },
-  "features": [
-    {
-      "type": "FEAT_DATE_FEATURES",
-      "field": "order_date"
-    }
-  ],
-  "groups": [
-    {
-      "type": "GROUP_CATEGORY",
-      "field": "order_date_quarter"
-    }
-  ],
   "aggregations": [
     {
       "type": "AGG_COUNT",
@@ -33,9 +33,26 @@
       "label": "avg_dow"
     }
   ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_DATE_FEATURES",
+      "field": "order_date"
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "order_date_quarter"
+    }
+  ],
   "sort": [
     {
       "field": "order_date_quarter"
     }
   ]
+
 }

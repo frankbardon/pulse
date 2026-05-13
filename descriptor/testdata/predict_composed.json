@@ -29,7 +29,25 @@
         "grade"
       ]
     },
-    "streamable": true
+    "streamable": true,
+    "suggestions": [
+      {
+        "path": [
+          "Aggregations",
+          "1",
+          "Type"
+        ],
+        "reason": "Use AGG_MODE, AGG_FREQUENCY, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
+        "current": "AGG_SUM",
+        "proposed": [
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE"
+        ],
+        "confidence": 0.6
+      }
+    ],
+    "defaults_applied": []
   },
   "errors": [],
   "warnings": [
@@ -43,4 +61,4 @@
     }
   ]
 }
-// golden-hash: 5fde7377e4288e6e8e00db749af5323eaff7d95fa5137e75aff0271c291eb0d3
+// golden-hash: 3b617500724409e31983b506e314cfe90b14cd8eeea29605705cb19f5ddc6e38

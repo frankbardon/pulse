@@ -1,17 +1,48 @@
 {
-  "_comment": "Tier-1 one-sample t-test: revenue mean vs hypothesized mu=100. Streams alongside AGG_AVERAGE so the (mean, variance) pair is computed once.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "One-sample t-test comparing revenue mean against the hypothesized mu=100.",
+    "name": "t_test_one_sample",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "TEST_T"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "t-test",
+      "tier-1-test",
+      "parametric",
+      "one-sample",
+      "streaming-friendly"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_AVERAGE", "field": "revenue", "label": "avg_revenue"},
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_AVERAGE",
+      "field": "revenue",
+      "label": "avg_revenue"
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
   ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_T",
       "field": "revenue",
       "alpha": 0.05,
       "label": "revenue_vs_100",
-      "params": {"mu": 100.0}
+      "params": {
+        "mu": 100.0
+      }
     }
   ]
+
 }

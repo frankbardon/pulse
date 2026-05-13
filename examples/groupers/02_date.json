@@ -1,16 +1,47 @@
 {
-  "_comment": "Bucket orders by ISO month from a date field. params.component drives the key format (year/quarter/month/week/day/day_of_week).",
-  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "groupers",
+    "description": "Bucket orders by ISO month using GROUP_DATE and aggregate count and revenue per bucket.",
+    "name": "group_date_month",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "time-series",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "total"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
   "groups": [
     {
       "type": "GROUP_DATE",
       "field": "order_date",
-      "params": {"component": "month"}
+      "params": {
+        "component": "month"
+      }
     }
   ],
-  "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "n"},
-    {"type": "AGG_SUM", "field": "revenue", "label": "total"}
-  ],
-  "sort": [{"field": "order_date"}]
+  "sort": [
+    {
+      "field": "order_date"
+    }
+  ]
+
 }

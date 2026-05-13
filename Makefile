@@ -1,4 +1,4 @@
-.PHONY: build clean test cover fmt vet lint
+.PHONY: build clean test cover fmt vet lint docs docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -30,5 +30,14 @@ vet:
 
 lint: vet
 	$(GO) run honnef.co/go/tools/cmd/staticcheck@latest ./...
+
+docs:
+	mdbook build docs
+
+docs-serve:
+	mdbook serve docs --open
+
+docs-clean:
+	rm -rf docs/book
 
 .DEFAULT_GOAL := build

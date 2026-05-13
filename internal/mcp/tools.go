@@ -6,108 +6,211 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
+	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/mcp/mcptools"
 	"github.com/frankbardon/pulse/skills"
 	"github.com/frankbardon/pulse/types"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// Tool name constants. Source of truth for the documentation coverage gate
-// (TestSkillsCoverAllMCPTools).
+// Tool name and description constants are sourced from the mcptools
+// sub-package so the descriptor manifest can mirror them without taking
+// a dependency on this package (which imports the root pulse package
+// and would create an import cycle).
 const (
-	ToolInspect    = "pulse_inspect"
-	ToolPredict    = "pulse_predict"
-	ToolProcess    = "pulse_process"
-	ToolCompose    = "pulse_compose"
-	ToolSample     = "pulse_sample"
-	ToolFacet      = "pulse_facet"
-	ToolSkillsList = "pulse_skills_list"
-	ToolSkillsGet  = "pulse_skills_get"
+	ToolInspect        = mcptools.ToolInspect
+	ToolPredict        = mcptools.ToolPredict
+	ToolProcess        = mcptools.ToolProcess
+	ToolCompose        = mcptools.ToolCompose
+	ToolSample         = mcptools.ToolSample
+	ToolFacet          = mcptools.ToolFacet
+	ToolSkillsList     = mcptools.ToolSkillsList
+	ToolSkillsGet      = mcptools.ToolSkillsGet
+	ToolManifest       = mcptools.ToolManifest
+	ToolAsk            = mcptools.ToolAsk
+	ToolExamplesSearch = mcptools.ToolExamplesSearch
+	ToolExamplesGet    = mcptools.ToolExamplesGet
+	ToolErrorsLookup   = mcptools.ToolErrorsLookup
+
+	DescInspect        = mcptools.DescInspect
+	DescPredict        = mcptools.DescPredict
+	DescProcess        = mcptools.DescProcess
+	DescCompose        = mcptools.DescCompose
+	DescSample         = mcptools.DescSample
+	DescFacet          = mcptools.DescFacet
+	DescSkillsList     = mcptools.DescSkillsList
+	DescSkillsGet      = mcptools.DescSkillsGet
+	DescManifest       = mcptools.DescManifest
+	DescAsk            = mcptools.DescAsk
+	DescExamplesSearch = mcptools.DescExamplesSearch
+	DescExamplesGet    = mcptools.DescExamplesGet
+	DescErrorsLookup   = mcptools.DescErrorsLookup
 )
+
+// ToolMeta is the canonical (name, description) record for one registered
+// MCP tool. Alias of mcptools.ToolMeta so callers do not need to import
+// the sub-package directly.
+type ToolMeta = mcptools.ToolMeta
+
+// RegisteredToolsMeta returns the canonical list of MCP tools with their
+// description strings.
+func RegisteredToolsMeta() []ToolMeta {
+	return mcptools.Meta()
+}
 
 // RegisteredTools returns the canonical list of MCP tool names exposed by
 // this server. Order is stable for deterministic documentation scans.
 func RegisteredTools() []string {
-	return []string{
-		ToolInspect,
-		ToolPredict,
-		ToolProcess,
-		ToolCompose,
-		ToolSample,
-		ToolFacet,
-		ToolSkillsList,
-		ToolSkillsGet,
-	}
+	return mcptools.Names()
 }
 
-func registerTools(s *server.MCPServer, p *pulse.Pulse) {
+func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
+	predict := handlePredict(p)
+	process := handleProcess(p)
+	compose := handleCompose(p)
+	sample := handleSample(p)
+	facet := handleFacet(p)
+
+	handlers := boundHandlers{
+		process: process,
+		predict: predict,
+		compose: compose,
+		sample:  sample,
+		facet:   facet,
+	}
+
 	s.AddTool(
 		mcpgo.NewTool(ToolInspect,
-			mcpgo.WithDescription("Read header and schema of a .pulse file. Never reads record data."),
+			mcpgo.WithDescription(DescInspect),
 			mcpgo.WithString("path", mcpgo.Description("Filesystem path to the .pulse file"), mcpgo.Required()),
 		),
-		handleInspect(p),
+		handleInspect(s, p, bindOnOpen, handlers),
 	)
 
 	s.AddTool(
 		mcpgo.NewTool(ToolPredict,
-			mcpgo.WithDescription("Validate a processing request against a cohort schema without executing."),
+			mcpgo.WithDescription(DescPredict),
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded types.Request"), mcpgo.Required()),
 		),
-		handlePredict(p),
+		predict,
 	)
 
 	s.AddTool(
 		mcpgo.NewTool(ToolProcess,
-			mcpgo.WithDescription("Execute a processing request against a cohort."),
+			mcpgo.WithDescription(DescProcess),
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded types.Request"), mcpgo.Required()),
 		),
-		handleProcess(p),
+		process,
 	)
 
 	s.AddTool(
 		mcpgo.NewTool(ToolCompose,
-			mcpgo.WithDescription("Execute a batch of processing requests."),
+			mcpgo.WithDescription(DescCompose),
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded types.ComposedRequest"), mcpgo.Required()),
 		),
-		handleCompose(p),
+		compose,
 	)
 
 	s.AddTool(
 		mcpgo.NewTool(ToolSample,
-			mcpgo.WithDescription("Return up to N rows from a cohort."),
+			mcpgo.WithDescription(DescSample),
 			mcpgo.WithString("path", mcpgo.Description("Filesystem path to the .pulse file"), mcpgo.Required()),
 			mcpgo.WithNumber("count", mcpgo.Description("Maximum rows to return (default 10)")),
 		),
-		handleSample(p),
+		sample,
 	)
 
 	s.AddTool(
 		mcpgo.NewTool(ToolFacet,
-			mcpgo.WithDescription("Return distinct values for a field in a cohort."),
+			mcpgo.WithDescription(DescFacet),
 			mcpgo.WithString("path", mcpgo.Description("Filesystem path to the .pulse file"), mcpgo.Required()),
 			mcpgo.WithString("field", mcpgo.Description("Field name to facet"), mcpgo.Required()),
 		),
-		handleFacet(p),
+		facet,
 	)
 
 	s.AddTool(
 		mcpgo.NewTool(ToolSkillsList,
-			mcpgo.WithDescription("List available embedded skills with their descriptions."),
+			mcpgo.WithDescription(DescSkillsList),
 		),
 		handleSkillsList(),
 	)
 
 	s.AddTool(
 		mcpgo.NewTool(ToolSkillsGet,
-			mcpgo.WithDescription("Fetch the markdown body of a named skill."),
+			mcpgo.WithDescription(DescSkillsGet),
 			mcpgo.WithString("name", mcpgo.Description("Skill name (e.g. 'aggregation-guide')"), mcpgo.Required()),
 		),
 		handleSkillsGet(),
 	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolManifest,
+			mcpgo.WithDescription(DescManifest),
+		),
+		handleManifest(p),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolAsk,
+			mcpgo.WithDescription(DescAsk),
+			mcpgo.WithString("request", mcpgo.Description("JSON-encoded pulse.AskRequest with either `request` (types.Request) or `query` (natural-language string parsed against the cohort's schema), optional `on_invalid` (\"abort\"|\"suggest\") and optional `predict` (bool)"), mcpgo.Required()),
+		),
+		handleAsk(s, p, bindOnOpen, handlers),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolExamplesSearch,
+			mcpgo.WithDescription(DescExamplesSearch),
+			mcpgo.WithString("query", mcpgo.Description("Optional case-insensitive substring (matched against name, description, operators)")),
+			mcpgo.WithArray("tags", mcpgo.Description("Optional list of canonical taxonomy tags; results must carry every tag (AND)")),
+			mcpgo.WithString("category", mcpgo.Description("Optional exact directory: aggregations, attributes, features, filterers, groupers, tests, windows")),
+		),
+		handleExamplesSearch(p),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolExamplesGet,
+			mcpgo.WithDescription(DescExamplesGet),
+			mcpgo.WithString("name", mcpgo.Description("Example name from the _meta.name field (e.g. 't_test_one_sample')"), mcpgo.Required()),
+		),
+		handleExamplesGet(p),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolErrorsLookup,
+			mcpgo.WithDescription(DescErrorsLookup),
+			mcpgo.WithString("code", mcpgo.Description("Exact error code identifier (e.g. 'PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL'); returns a 1-element array on hit, empty on miss")),
+			mcpgo.WithString("domain", mcpgo.Description("Domain prefix (PULSE, ENCODING, PROCESSING, SERVICE, DATA, CLI); case-insensitive; enumerates every code in that domain")),
+			mcpgo.WithString("query", mcpgo.Description("Case-insensitive substring search across descriptions and fixup hints; ranks message hits above fixup hits")),
+		),
+		handleErrorsLookup(p),
+	)
 }
 
-func handleInspect(p *pulse.Pulse) server.ToolHandlerFunc {
+// bindSessionFromPath rebinds the session's tool schemas to the cohort
+// at path. Shared by handleInspect and handleAsk so both touchpoints
+// pick up enum constraints the same way. Best-effort: silently degrades
+// when bindOnOpen is off, the server is nil, the session is nil, or the
+// cohort cannot be re-opened.
+func bindSessionFromPath(ctx context.Context, s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool, path string, handlers boundHandlers) {
+	if !bindOnOpen || s == nil || path == "" {
+		return
+	}
+	session := server.ClientSessionFromContext(ctx)
+	if session == nil {
+		return
+	}
+	cohort, err := p.Open(ctx, path)
+	if err != nil {
+		return
+	}
+	_ = BindSessionTools(s, session.SessionID(), cohort.Schema(), handlers)
+}
+
+func handleInspect(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool, handlers boundHandlers) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		path, ok := args["path"].(string)
@@ -118,8 +221,60 @@ func handleInspect(p *pulse.Pulse) server.ToolHandlerFunc {
 		if err != nil {
 			return mcpgo.NewToolResultError(err.Error()), nil
 		}
+
+		// On a successful inspect, register session-scoped bound tool
+		// variants whose JSON Schemas embed enum constraints on field-
+		// name parameters. Best-effort: failure to bind degrades gracefully
+		// to the global (unbound) tools. handleAsk reuses the same hook
+		// so an Ask call after a fresh session also picks up bound enums.
+		bindSessionFromPath(ctx, s, p, bindOnOpen, path, handlers)
+
 		return jsonResult(result)
 	}
+}
+
+// handleAsk wires the unified pulse_ask MCP tool. It accepts a JSON-encoded
+// pulse.AskRequest (the same shape the facade consumes), forwards to
+// p.Ask, and returns the AskResponse. On success it also fires the
+// schema-binding hook so subsequent action tools in the session pick up
+// typed enum constraints — the LLM just touched a file, so this is the
+// natural moment to bind.
+func handleAsk(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool, handlers boundHandlers) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		body, err := requestBytes(req, "request")
+		if err != nil {
+			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+		var typed pulse.AskRequest
+		if err := json.Unmarshal(body, &typed); err != nil {
+			return mcpgo.NewToolResultError(fmt.Sprintf("parse request: %v", err)), nil
+		}
+		resp, err := p.Ask(ctx, &typed)
+		if err != nil {
+			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+
+		// Best-effort session binding when we know which cohort was touched.
+		if typed.Request != nil && typed.Request.Cohort != nil {
+			path := cohortPath(typed.Request.Cohort)
+			bindSessionFromPath(ctx, s, p, bindOnOpen, path, handlers)
+		}
+
+		return jsonResult(resp)
+	}
+}
+
+// cohortPath mirrors the service-internal resolution rule (DataDir + "/" + Filename)
+// so the MCP handler can compute the same path the service used when
+// reading the cohort.
+func cohortPath(c *types.Cohort) string {
+	if c == nil {
+		return ""
+	}
+	if c.DataDir != "" {
+		return c.DataDir + "/" + c.Filename
+	}
+	return c.Filename
 }
 
 func handlePredict(p *pulse.Pulse) server.ToolHandlerFunc {
@@ -214,6 +369,16 @@ func handleFacet(p *pulse.Pulse) server.ToolHandlerFunc {
 	}
 }
 
+// handleManifest serves the slim payload over MCP. Prose descriptions
+// live in skills and are fetched separately via pulse_skills_get;
+// duplicating them in the per-session bootstrap blob is the bloat we
+// designed --slim to avoid. The CLI keeps both modes for human use.
+func handleManifest(p *pulse.Pulse) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		return jsonResult(descriptor.SlimManifest(p.Manifest(ctx)))
+	}
+}
+
 func handleSkillsList() server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		return jsonResult(skills.List())
@@ -233,6 +398,119 @@ func handleSkillsGet() server.ToolHandlerFunc {
 		}
 		return mcpgo.NewToolResultText(body), nil
 	}
+}
+
+// handleExamplesSearch wraps the embedded request-example library
+// search facade. All three filters are optional and additive.
+func handleExamplesSearch(p *pulse.Pulse) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		args := req.GetArguments()
+		query, _ := args["query"].(string)
+		category, _ := args["category"].(string)
+		var tags []string
+		if raw, ok := args["tags"]; ok && raw != nil {
+			switch v := raw.(type) {
+			case []any:
+				for _, item := range v {
+					if s, ok := item.(string); ok {
+						tags = append(tags, s)
+					}
+				}
+			case []string:
+				tags = v
+			}
+		}
+		return jsonResult(p.ExamplesSearch(query, tags, category))
+	}
+}
+
+// handleExamplesGet wraps the embedded request-example library single
+// fetch facade. Returns the runnable Body with the _meta block already
+// stripped.
+func handleExamplesGet(p *pulse.Pulse) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		args := req.GetArguments()
+		name, ok := args["name"].(string)
+		if !ok || name == "" {
+			return mcpgo.NewToolResultError("missing or invalid 'name'"), nil
+		}
+		ex, found := p.ExampleGet(name)
+		if !found {
+			return mcpgo.NewToolResultError(fmt.Sprintf("example %q not found", name)), nil
+		}
+		return jsonResult(ex)
+	}
+}
+
+// handleErrorsLookup wraps the errors-package lookup surface. All three
+// arguments are optional but at least one must be set; when more than
+// one is set, the filters are ANDed against the union of matching
+// codes.
+//
+// Return shape is always an array of perr.LookupResult so the LLM-side
+// parsing stays uniform across hit/miss/multi-result paths.
+func handleErrorsLookup(_ *pulse.Pulse) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		args := req.GetArguments()
+		code, _ := args["code"].(string)
+		domain, _ := args["domain"].(string)
+		query, _ := args["query"].(string)
+		if code == "" && domain == "" && query == "" {
+			return mcpgo.NewToolResultError("specify at least one of code, domain, query"), nil
+		}
+		results := intersectErrorLookup(code, domain, query)
+		return jsonResult(results)
+	}
+}
+
+// intersectErrorLookup composes the three lookup axes. Each non-empty
+// axis contributes a candidate set; the final result is the
+// intersection. When only one axis is set, the result is that axis's
+// natural output (preserving Search's ranking order; ByDomain's
+// alphabetical order; Lookup's 0/1 element).
+//
+// Returns a non-nil empty slice when nothing matches.
+func intersectErrorLookup(code, domain, query string) []perr.LookupResult {
+	axes := make([][]perr.LookupResult, 0, 3)
+	if code != "" {
+		hit, ok := perr.Lookup(code)
+		if ok {
+			axes = append(axes, []perr.LookupResult{hit})
+		} else {
+			axes = append(axes, []perr.LookupResult{})
+		}
+	}
+	if domain != "" {
+		axes = append(axes, perr.ByDomain(domain))
+	}
+	if query != "" {
+		axes = append(axes, perr.Search(query))
+	}
+	if len(axes) == 0 {
+		return []perr.LookupResult{}
+	}
+	// Intersect: start with the first axis, drop entries not present in
+	// each subsequent axis. Preserve the first axis's ordering so the
+	// caller sees Search-ranked or ByDomain-alphabetized results
+	// depending on which axis was supplied first.
+	base := axes[0]
+	for i := 1; i < len(axes); i++ {
+		present := make(map[string]struct{}, len(axes[i]))
+		for _, r := range axes[i] {
+			present[r.Code] = struct{}{}
+		}
+		next := base[:0:0]
+		for _, r := range base {
+			if _, ok := present[r.Code]; ok {
+				next = append(next, r)
+			}
+		}
+		base = next
+	}
+	if base == nil {
+		return []perr.LookupResult{}
+	}
+	return base
 }
 
 // requestBytes pulls a request blob from a tool argument. The argument may

@@ -1,14 +1,58 @@
 {
-  "_comment": "Income quartiles. interval=4 yields keys Q1..Q4; interval=10 yields D1..D10; interval=100 yields P1..P100.",
-  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
-  "groups": [
-    {"type": "GROUP_QUANTILE", "field": "income", "interval": 4}
-  ],
+  "_meta": {
+    "category": "groupers",
+    "description": "Group income into quartiles and report count, mean, min, and max per quartile.",
+    "name": "group_quantile_income",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "AGG_MAX",
+      "AGG_MIN",
+      "GROUP_QUANTILE"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "distribution-shape",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "n"},
-    {"type": "AGG_AVERAGE", "field": "income", "label": "avg_income"},
-    {"type": "AGG_MIN", "field": "income", "label": "min_income"},
-    {"type": "AGG_MAX", "field": "income", "label": "max_income"}
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "avg_income"
+    },
+    {
+      "type": "AGG_MIN",
+      "field": "income",
+      "label": "min_income"
+    },
+    {
+      "type": "AGG_MAX",
+      "field": "income",
+      "label": "max_income"
+    }
   ],
-  "sort": [{"field": "income"}]
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_QUANTILE",
+      "field": "income",
+      "interval": 4
+    }
+  ],
+  "sort": [
+    {
+      "field": "income"
+    }
+  ]
+
 }

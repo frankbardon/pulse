@@ -1,12 +1,44 @@
 {
-  "_comment": "Plain partition on a categorical field. One group per region.",
-  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
-  "groups": [
-    {"type": "GROUP_CATEGORY", "field": "region"}
-  ],
+  "_meta": {
+    "category": "groupers",
+    "description": "Partition customers by region and aggregate count and average income per partition.",
+    "name": "group_category_region",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "n"},
-    {"type": "AGG_AVERAGE", "field": "income", "label": "avg_income"}
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "avg_income"
+    }
   ],
-  "sort": [{"field": "region"}]
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "sort": [
+    {
+      "field": "region"
+    }
+  ]
+
 }

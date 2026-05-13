@@ -1,20 +1,56 @@
 {
-  "_comment": "Extract year_month from order_date as YYYYMM integer, then group on it for monthly trends.",
-  "cohort": {"filename": "orders.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "attributes",
+    "description": "Extract a YYYYMM key from order_date and group on it to drive a monthly revenue trend.",
+    "name": "attr_date_part_year_month",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "ATTR_DATE_PART",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "time-series",
+      "feature-engineering",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "total"
+    }
+  ],
   "attributes": [
     {
       "type": "ATTR_DATE_PART",
       "field": "order_date",
       "label": "yyyymm",
-      "params": {"part": "year_month"}
+      "params": {
+        "part": "year_month"
+      }
     }
   ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
   "groups": [
-    {"type": "GROUP_CATEGORY", "field": "yyyymm"}
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "yyyymm"
+    }
   ],
-  "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "n"},
-    {"type": "AGG_SUM", "field": "revenue", "label": "total"}
-  ],
-  "sort": [{"field": "yyyymm"}]
+  "sort": [
+    {
+      "field": "yyyymm"
+    }
+  ]
+
 }

@@ -1,12 +1,37 @@
 {
-  "_comment": "1-based row number after sorting by amount descending. Useful for top-N selection. ROW_NUMBER takes no field.",
-  "cohort": {"filename": "transactions.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "windows",
+    "description": "Emit a 1-based row number after sorting by amount descending so callers can pluck the top N.",
+    "name": "win_row_number",
+    "operators": [
+      "WIN_ROW_NUMBER"
+    ],
+    "tags": [
+      "top-n",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "transactions.pulse",
+    "data_dir": ".data"
+  },
+  "sort": [
+    {
+      "field": "rank_pos"
+    }
+  ],
   "windows": [
     {
       "type": "WIN_ROW_NUMBER",
       "label": "rank_pos",
-      "order_by": [{"field": "amount", "desc": true}]
+      "order_by": [
+        {
+          "field": "amount",
+          "desc": true
+        }
+      ]
     }
-  ],
-  "sort": [{"field": "rank_pos"}]
+  ]
+
 }

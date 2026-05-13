@@ -5,12 +5,16 @@
 package pulse
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/examples"
 	"github.com/frankbardon/pulse/fs"
+	"github.com/frankbardon/pulse/internal/query"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/service"
 	"github.com/frankbardon/pulse/synth"
@@ -35,6 +39,20 @@ type (
 	Profile = synth.Profile
 	// ProfileOptions modulate which statistics the profiler captures.
 	ProfileOptions = synth.ProfileOptions
+
+	// Example is the full record returned by ExampleGet — runnable
+	// request JSON plus the indexed metadata.
+	Example = examples.Example
+	// ExampleSummary is the lightweight projection returned by
+	// ExamplesSearch.
+	ExampleSummary = examples.ExampleSummary
+
+	// ErrorMetadata is the depth-on-demand projection returned by
+	// ErrorLookup, ErrorsByDomain, and ErrorsSearch. Carries the code,
+	// domain, canonical Message, and materialised Fixup templates.
+	ErrorMetadata = errors.LookupResult
+	// ErrorFixup is one repair template attached to an error code.
+	ErrorFixup = errors.Fixup
 )
 
 // Record is a row of field→value data returned by Sample.
@@ -49,6 +67,13 @@ type Options struct {
 	// FS is an optional custom filesystem.
 	// When set, DataDir is ignored for filesystem construction.
 	FS afero.Fs
+
+	// DisableDefaults turns off the smart-defaults pass that infers
+	// operator Type from the named field's schema type when the caller
+	// omits it. Defaults to false (defaults enabled). Predict still
+	// computes and reports DefaultsApplied independently — this flag
+	// governs only what the runtime mutates on the live request.
+	DisableDefaults bool
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -83,8 +108,10 @@ func New(opts Options) (*Pulse, error) {
 		}
 	}
 
+	svc := service.New(fsCfg)
+	svc.SetDisableDefaults(opts.DisableDefaults)
 	return &Pulse{
-		svc:  service.New(fsCfg),
+		svc:  svc,
 		fsys: fsCfg.Fs(),
 	}, nil
 }
@@ -245,6 +272,268 @@ func (p *Pulse) Profile(_ context.Context, path string, opts ProfileOptions) (*P
 // Facet returns distinct values for the named field in the cohort.
 func (p *Pulse) Facet(ctx context.Context, path string, field string) ([]string, error) {
 	return p.svc.Facet(ctx, path, field)
+}
+
+// AskRequest is the input to pulse.Ask — the unified one-shot facade
+// that collapses inspect, predict, and process into a single call.
+//
+// File is reserved for future use (per-call cohort override); v1 reads
+// the cohort path from Request.Cohort, matching every other facade
+// method. When File is non-empty and Request.Cohort is nil, the cohort
+// is synthesised from the path.
+//
+// OnInvalid governs what Ask does when predict reports the request as
+// invalid:
+//   - "" or "abort" — return a SERVICE_VALIDATION error.
+//   - "suggest"     — return an AskResponse with Suggestions populated.
+//
+// Predict=true skips execution even on a valid request (the LLM's
+// "what would happen if I ran this?" probe).
+type AskRequest struct {
+	File      string         `json:"file,omitempty"`
+	Request   *types.Request `json:"request,omitempty"`
+	// Query is an optional natural-language query string. When set, the
+	// server parses it against the cohort's schema and synthesises a
+	// types.Request. The parsed request fills only the slots the
+	// supplied Request left empty; explicit fields in Request always
+	// win on collision. When Query is empty, Ask behaves exactly as
+	// before (structured Request only).
+	Query     string         `json:"query,omitempty"`
+	OnInvalid string         `json:"on_invalid,omitempty"`
+	Predict   bool           `json:"predict,omitempty"`
+}
+
+// QueryResolution echoes the parser's decision when AskRequest.Query
+// was set. Nil when no query parse fired.
+type QueryResolution struct {
+	// Query is the verbatim input the parser processed.
+	Query string `json:"query"`
+
+	// MatchedFields is every schema field name the parser resolved
+	// against, in first-appearance order.
+	MatchedFields []string `json:"matched_fields"`
+
+	// Confidence is the aggregate parser confidence in [0, 1].
+	// Product of per-step weights (verb match × per-field match),
+	// floored at 0 on PULSE_QUERY_UNRESOLVED.
+	Confidence float64 `json:"confidence"`
+}
+
+// AskResponse is the JSON-friendly envelope returned by pulse.Ask. It
+// always carries the predict result; Process is populated only when
+// execution ran; Suggestions is populated only on predict-invalid +
+// OnInvalid="suggest".
+//
+// FormatVersion mirrors the descriptor envelope version so callers can
+// gate on a single value across endpoints.
+type AskResponse struct {
+	FormatVersion   string                      `json:"format_version"`
+	Predict         *descriptor.PredictResult   `json:"predict"`
+	Process         *Response                   `json:"process,omitempty"`
+	Suggestions     []errors.Fixup              `json:"suggestions,omitempty"`
+	QueryResolution *QueryResolution            `json:"query_resolution,omitempty"`
+	Errors          []*descriptor.EnvelopeEntry `json:"errors"`
+	Warnings        []*descriptor.EnvelopeEntry `json:"warnings"`
+}
+
+// Ask is the unified facade. It validates req against the cohort schema
+// and, on success, executes the request. On validation failure it either
+// errors (OnInvalid="abort") or returns structured fixup suggestions
+// (OnInvalid="suggest"). Setting Predict=true skips execution after a
+// successful predict pass.
+//
+// The cohort path is read from req.Request.Cohort. When req.File is set
+// and req.Request.Cohort is nil, Ask synthesises a Cohort from the path.
+func (p *Pulse) Ask(ctx context.Context, req *AskRequest) (*AskResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("pulse: ask requires a request")
+	}
+	// Either Request or Query must be present.
+	if req.Request == nil && req.Query == "" {
+		return nil, fmt.Errorf("pulse: ask requires either a request body or a query")
+	}
+
+	// Ensure we have a Request struct to populate.
+	if req.Request == nil {
+		req.Request = &types.Request{}
+	}
+
+	// If the caller passed File but no Cohort, synthesise one so the
+	// service can resolve the path consistently.
+	if req.File != "" && req.Request.Cohort == nil {
+		req.Request.Cohort = &types.Cohort{Filename: req.File}
+	}
+
+	resp := &AskResponse{FormatVersion: "1.0"}
+
+	// Natural-language query parse: read schema once, hand it to the
+	// internal/query parser, and merge the parsed slots into the
+	// supplied Request. Explicit fields in Request always win on
+	// collision; query parsing only fills slots Request left empty.
+	var queryIssues []query.Issue
+	if req.Query != "" {
+		if req.Request.Cohort == nil {
+			return nil, fmt.Errorf("pulse: ask with query requires a cohort or file")
+		}
+		path := resolveCohortPath(req.Request.Cohort)
+		data, err := afero.ReadFile(p.fsys, path)
+		if err != nil {
+			return nil, fmt.Errorf("pulse: ask: reading cohort for query parse: %w", err)
+		}
+		schema, schemaErr := readSchemaFromBytes(data)
+		if schemaErr != nil {
+			return nil, fmt.Errorf("pulse: ask: parsing schema for query parse: %w", schemaErr)
+		}
+		parsed := query.Parse(req.Query, schema, query.ParseOptions{File: req.Request.Cohort.Filename})
+		// Preserve the caller's cohort exactly (file may include DataDir).
+		parsed.Request.Cohort = req.Request.Cohort
+		mergeParsedRequest(req.Request, parsed.Request)
+		resp.QueryResolution = &QueryResolution{
+			Query:         req.Query,
+			MatchedFields: parsed.MatchedFields,
+			Confidence:    parsed.Confidence,
+		}
+		queryIssues = parsed.Issues
+	}
+
+	out, err := p.svc.Ask(ctx, service.AskInput{
+		Request:     req.Request,
+		OnInvalid:   req.OnInvalid,
+		PredictOnly: req.Predict,
+	})
+	if err != nil {
+		// Service-level errors still benefit from the query resolution
+		// being surfaced via the wrapped error path. Today the facade
+		// returns the raw error; callers can re-parse details if they
+		// need the resolution. (Keep behavior identical to pre-query.)
+		return nil, err
+	}
+
+	resp.Predict = out.Predict
+	resp.Process = out.Process
+	resp.Suggestions = out.Suggestions
+	resp.Errors = out.Errors
+	resp.Warnings = out.Warnings
+	if resp.Errors == nil {
+		resp.Errors = []*descriptor.EnvelopeEntry{}
+	}
+	if resp.Warnings == nil {
+		resp.Warnings = []*descriptor.EnvelopeEntry{}
+	}
+
+	// Append parser-derived issues. PULSE_QUERY_UNRESOLVED becomes an
+	// error when the parser produced no usable request structure
+	// (Confidence == 0); otherwise it lands in warnings alongside
+	// PULSE_QUERY_AMBIGUOUS.
+	for _, iss := range queryIssues {
+		entry := &descriptor.EnvelopeEntry{
+			Code:    string(iss.Code),
+			Message: iss.Message,
+			Details: iss.Details,
+		}
+		if iss.Code == errors.PULSE_QUERY_UNRESOLVED && resp.QueryResolution != nil && resp.QueryResolution.Confidence == 0 {
+			resp.Errors = append(resp.Errors, entry)
+		} else {
+			resp.Warnings = append(resp.Warnings, entry)
+		}
+	}
+
+	return resp, nil
+}
+
+// readSchemaFromBytes opens a .pulse binary blob, skips the magic
+// header, and parses the schema. Returns (schema, err). Used by Ask to
+// resolve natural-language queries against the cohort's columns
+// without round-tripping through descriptor.PredictFromBytes.
+func readSchemaFromBytes(data []byte) (*encoding.Schema, error) {
+	r := bytes.NewReader(data)
+	if err := encoding.ReadHeader(r); err != nil {
+		return nil, err
+	}
+	return encoding.ReadSchema(r)
+}
+
+// mergeParsedRequest fills empty slots of dst from src. Explicit fields
+// in dst win on collision so the caller's structured Request always
+// dominates the parser's heuristic best guess. Only the slot
+// categories the parser populates today are touched (Aggregations,
+// Groups, Filterers, Windows, Sort, Tests); other slots in src are
+// ignored even when dst has nothing in them.
+func mergeParsedRequest(dst, src *types.Request) {
+	if dst == nil || src == nil {
+		return
+	}
+	if len(dst.Aggregations) == 0 && len(src.Aggregations) > 0 {
+		dst.Aggregations = src.Aggregations
+	}
+	if len(dst.Groups) == 0 && len(src.Groups) > 0 {
+		dst.Groups = src.Groups
+	}
+	if len(dst.Filterers) == 0 && len(src.Filterers) > 0 {
+		dst.Filterers = src.Filterers
+	}
+	if len(dst.Windows) == 0 && len(src.Windows) > 0 {
+		dst.Windows = src.Windows
+	}
+	if len(dst.Sort) == 0 && len(src.Sort) > 0 {
+		dst.Sort = src.Sort
+	}
+	if len(dst.Tests) == 0 && len(src.Tests) > 0 {
+		dst.Tests = src.Tests
+	}
+}
+
+// ExamplesSearch returns summaries from the embedded request-example
+// library matching the given filters. An empty filter is treated as
+// "no constraint" for that dimension. Query is case-insensitive
+// substring search across name, description, and operators; tags is
+// ANDed; category is an exact match. Always returns a non-nil slice
+// (possibly empty) for safe JSON marshaling.
+func (p *Pulse) ExamplesSearch(query string, tags []string, category string) []ExampleSummary {
+	return examples.Search(query, tags, category)
+}
+
+// ExampleGet returns the example whose _meta.name matches name. The
+// returned Body is the request JSON with the _meta block stripped so
+// it can be handed directly to Process / Predict.
+func (p *Pulse) ExampleGet(name string) (*Example, bool) {
+	return examples.Get(name)
+}
+
+// ErrorLookup returns the metadata projection for a single error code.
+// Case-sensitive exact match. Returns (ErrorMetadata{}, false) when
+// the code is unknown.
+//
+// The manifest carries only the alphabetized code-name list; per-code
+// Message + Fixup detail lives behind this facade so per-session
+// bootstrap stays lean. Use ErrorsByDomain / ErrorsSearch to enumerate
+// in bulk.
+func (p *Pulse) ErrorLookup(code string) (ErrorMetadata, bool) {
+	return errors.Lookup(code)
+}
+
+// ErrorsByDomain returns every code's metadata in the named domain
+// (CLI, DATA, ENCODING, PROCESSING, PULSE, SERVICE). Match is
+// case-insensitive. Returns a non-nil empty slice when nothing
+// matches; results are sorted alphabetically by code.
+func (p *Pulse) ErrorsByDomain(domain string) []ErrorMetadata {
+	return errors.ByDomain(domain)
+}
+
+// ErrorsSearch returns codes whose Message or Fixup hints contain the
+// query (case-insensitive substring). Results are ranked by match
+// source: description hits before fixup hits before code-name hits;
+// ties resolve alphabetically. Returns a non-nil empty slice when
+// nothing matches.
+func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
+	return errors.Search(query)
+}
+
+// Manifest returns the root Pulse self-description. The manifest is
+// deterministic and process-wide: it does not depend on cohort data or
+// the filesystem. Callers cache the result for a session.
+func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
+	return descriptor.BuildManifest()
 }
 
 // Fs returns the underlying afero.Fs. Embedders (e.g. the MCP server) need

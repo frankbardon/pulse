@@ -1,6 +1,6 @@
 ---
 name: feature-engineering
-description: FEAT_* operators — pre-filter feature engineering for ML pipelines, with the target leakage trap
+description: Apply pre-filter FEAT_* operators — FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE, FEAT_ONE_HOT, FEAT_FREQUENCY_ENCODE, FEAT_TARGET_ENCODE, FEAT_DATE_FEATURES, FEAT_TRAIN_TEST_SPLIT — for ML pipelines. Use when preparing training data; covers the target-leakage trap and PULSE_FEAT_TARGET_LEAKAGE_RISK.
 type: guide
 applies_to: process, compose, predict
 ---
@@ -182,7 +182,7 @@ Order matters:
 <reference>
 ## Predict surface
 
-Run `pulse predict --json` against any feature-using request. Predict will:
+Call `pulse_predict` against any feature-using request. Predict will:
 - Reject unknown `FEAT_*` types (`SERVICE_VALIDATION`).
 - Verify required input fields exist in the cohort schema.
 - Verify type compatibility (categorical for ONE_HOT/FREQUENCY/TARGET, date for DATE_FEATURES, numeric target for TARGET_ENCODE).

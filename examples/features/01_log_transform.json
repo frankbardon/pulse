@@ -1,16 +1,20 @@
 {
-  "_comment": "Log-transform a skewed numeric field, then average. Replace 'transactions.pulse' with your cohort and 'amount' with a numeric field.",
-  "cohort": {
-    "filename": "transactions.pulse",
-    "data_dir": ".data"
+  "_meta": {
+    "category": "features",
+    "description": "Log-transform a skewed numeric column and summarize the resulting distribution.",
+    "name": "feat_log_transform",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_STDDEV",
+      "FEAT_LOG"
+    ],
+    "tags": [
+      "feature-engineering",
+      "distribution-shape",
+      "pre-filter",
+      "streaming-friendly"
+    ]
   },
-  "features": [
-    {
-      "type": "FEAT_LOG",
-      "field": "amount",
-      "label": "log_amount"
-    }
-  ],
   "aggregations": [
     {
       "type": "AGG_AVERAGE",
@@ -22,5 +26,17 @@
       "field": "log_amount",
       "label": "stddev_log_amount"
     }
+  ],
+  "cohort": {
+    "filename": "transactions.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_LOG",
+      "field": "amount",
+      "label": "log_amount"
+    }
   ]
+
 }

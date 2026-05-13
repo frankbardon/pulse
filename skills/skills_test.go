@@ -2,14 +2,15 @@ package skills
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 )
 
 func TestSkillsList_ReturnsAll(t *testing.T) {
 	items := List()
-	if len(items) != 17 {
-		t.Fatalf("List() returned %d skills, want 17", len(items))
+	if len(items) != 19 {
+		t.Fatalf("List() returned %d skills, want 19", len(items))
 	}
 }
 
@@ -109,18 +110,10 @@ func TestSkillsManifestConsistent(t *testing.T) {
 
 func TestSkillsNames(t *testing.T) {
 	names := Names()
-	if len(names) != 17 {
-		t.Fatalf("Names() returned %d, want 17", len(names))
+	if len(names) != 19 {
+		t.Fatalf("Names() returned %d, want 19", len(names))
 	}
-	// Check a known name is present
-	found := false
-	for _, n := range names {
-		if n == "getting-started" {
-			found = true
-			break
-		}
-	}
-	if !found {
+	if !slices.Contains(names, "getting-started") {
 		t.Error("Names() does not contain 'getting-started'")
 	}
 }

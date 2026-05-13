@@ -1,5 +1,27 @@
 {
-  "_comment": "Stratified 70/15/15 split on the category field (categorical). Emits 'split' column with 0=train, 1=val, 2=test. Group-count to verify partition sizes. Stratify must reference a categorical field, not a numeric label.",
+  "_meta": {
+    "category": "features",
+    "description": "Apply a stratified 70/15/15 train/val/test split and verify partition sizes via group counts.",
+    "name": "feat_train_test_split_stratified",
+    "operators": [
+      "AGG_COUNT",
+      "FEAT_TRAIN_TEST_SPLIT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "feature-engineering",
+      "feature-pipeline",
+      "leakage-safe",
+      "pre-filter"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    }
+  ],
   "cohort": {
     "filename": "training_data.pulse",
     "data_dir": ".data"
@@ -24,16 +46,10 @@
       "field": "split"
     }
   ],
-  "aggregations": [
-    {
-      "type": "AGG_COUNT",
-      "field": "id",
-      "label": "n"
-    }
-  ],
   "sort": [
     {
       "field": "split"
     }
   ]
+
 }

@@ -1,0 +1,226 @@
+package descriptor
+
+import "github.com/frankbardon/pulse/types"
+
+// numericFieldTypes is the canonical list of cohort field types that
+// participate in numeric aggregations. Sorted alphabetically for golden
+// stability.
+var numericFieldTypes = []string{
+	"date",
+	"f32",
+	"f64",
+	"nullable_decimal128",
+	"nullable_u16",
+	"nullable_u4",
+	"nullable_u8",
+	"u16",
+	"u32",
+	"u64",
+	"u8",
+}
+
+// numericFieldTypesNoDecimal lists numeric types excluding the
+// fixed-point decimal types. Used by aggregators that operate in float64
+// space (variance, stddev, skewness, kurtosis, geo).
+var numericFieldTypesNoDecimal = []string{
+	"date",
+	"f32",
+	"f64",
+	"nullable_u16",
+	"nullable_u4",
+	"nullable_u8",
+	"u16",
+	"u32",
+	"u64",
+	"u8",
+}
+
+// allCohortFieldTypes lists every field type without restriction (used by
+// COUNT, MODE, FREQUENCY, DISTINCT_COUNT which operate on any field).
+var allCohortFieldTypes = []string{
+	"categorical_u16",
+	"categorical_u32",
+	"categorical_u8",
+	"date",
+	"decimal128",
+	"f32",
+	"f64",
+	"h3_cell",
+	"nullable_bool",
+	"nullable_decimal128",
+	"nullable_u16",
+	"nullable_u4",
+	"nullable_u8",
+	"packed_bool",
+	"point_f64",
+	"u16",
+	"u32",
+	"u64",
+	"u8",
+}
+
+var geoPointFieldTypes = []string{"point_f64"}
+
+// aggregatorCapabilities is the static metadata table for every
+// registered aggregator. Order is irrelevant; manifest assembly sorts by
+// Name. The TestManifestOperatorsComplete gate enforces that every entry
+// in types.AllAggregationTypes() has a row here.
+func aggregatorCapabilities() []Operator {
+	return []Operator{
+		{
+			Name:          string(types.AGG_COUNT),
+			Category:      "aggregator",
+			Description:   "Count records that pass the active filter, optionally by group.",
+			AcceptsTypes:  allCohortFieldTypes,
+			EmitsTypeNote: "scalar int64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_SUM),
+			Category:      "aggregator",
+			Description:   "Sum the numeric values of the field across the input set.",
+			AcceptsTypes:  numericFieldTypes,
+			EmitsTypeNote: "scalar float64 (decimal128 preserved when input is decimal)",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_AVERAGE),
+			Category:      "aggregator",
+			Description:   "Arithmetic mean of the field across the input set.",
+			AcceptsTypes:  numericFieldTypes,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_MIN),
+			Category:      "aggregator",
+			Description:   "Smallest non-null value of the field.",
+			AcceptsTypes:  numericFieldTypes,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_MAX),
+			Category:      "aggregator",
+			Description:   "Largest non-null value of the field.",
+			AcceptsTypes:  numericFieldTypes,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_STDDEV),
+			Category:      "aggregator",
+			Description:   "Population standard deviation via Welford's online algorithm.",
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_RANGE),
+			Category:      "aggregator",
+			Description:   "Spread (max minus min) of the field across the input set.",
+			AcceptsTypes:  numericFieldTypes,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_FREQUENCY),
+			Category:      "aggregator",
+			Description:   "Per-distinct-value count of the field (returned as map in Details).",
+			AcceptsTypes:  allCohortFieldTypes,
+			EmitsTypeNote: "map[string]int64",
+			Streamable:    true,
+		},
+		{
+			Name:           string(types.AGG_ZSCORE),
+			Category:       "aggregator",
+			Description:    "Standardized z-score aggregate (mean-centered, stddev-scaled summary).",
+			AcceptsTypes:   numericFieldTypesNoDecimal,
+			EmitsTypeNote:  "scalar float64",
+			Streamable:     false,
+			StreamableHint: "Streaming uses online Welford moments; the ZSCORE aggregate finalize step needs the full deviation sum.",
+		},
+		{
+			Name:           string(types.AGG_MEDIAN),
+			Category:       "aggregator",
+			Description:    "50th percentile of the field; requires sorting the full value set.",
+			AcceptsTypes:   numericFieldTypes,
+			EmitsTypeNote:  "scalar float64",
+			Streamable:     false,
+			StreamableHint: "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path.",
+		},
+		{
+			Name:          string(types.AGG_VARIANCE),
+			Category:      "aggregator",
+			Description:   "Population variance via Welford's online algorithm.",
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_MODE),
+			Category:      "aggregator",
+			Description:   "Most-frequent value of the field (ties broken by first-seen order).",
+			AcceptsTypes:  allCohortFieldTypes,
+			EmitsTypeNote: "string (echoes the dictionary value or stringified scalar)",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_SKEWNESS),
+			Category:      "aggregator",
+			Description:   "Bias-corrected skewness via online moments.",
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_KURTOSIS),
+			Category:      "aggregator",
+			Description:   "Bias-corrected excess kurtosis via online moments.",
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_DISTINCT_COUNT),
+			Category:      "aggregator",
+			Description:   "Count of distinct non-null values across the input set.",
+			AcceptsTypes:  allCohortFieldTypes,
+			EmitsTypeNote: "scalar int64",
+			Streamable:    true,
+		},
+		{
+			Name:        string(types.AGG_PERCENTILE),
+			Category:    "aggregator",
+			Description: "Configurable percentile of the field; requires sorting the full value set.",
+			Params: []Param{
+				{
+					Name:        "percentile",
+					Type:        "float",
+					Required:    true,
+					Description: "Percentile to compute, in [0, 100]. e.g. 95 for p95.",
+				},
+			},
+			AcceptsTypes:   numericFieldTypes,
+			EmitsTypeNote:  "scalar float64",
+			Streamable:     false,
+			StreamableHint: "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.",
+		},
+		{
+			Name:          string(types.AGG_GEO_CENTROID),
+			Category:      "aggregator",
+			Description:   "Spherical centroid (lat, lon) of point_f64 values.",
+			AcceptsTypes:  geoPointFieldTypes,
+			EmitsTypeNote: "point_f64 (lat, lon)",
+			Streamable:    false,
+		},
+		{
+			Name:          string(types.AGG_GEO_BBOX),
+			Category:      "aggregator",
+			Description:   "Bounding box (min/max lat/lon) of point_f64 values.",
+			AcceptsTypes:  geoPointFieldTypes,
+			EmitsTypeNote: "object {min_lat, max_lat, min_lon, max_lon}",
+			Streamable:    false,
+		},
+	}
+}

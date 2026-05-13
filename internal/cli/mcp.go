@@ -27,6 +27,11 @@ func MCPCommand() *cli.Command {
 				Usage:   "Directory of .pulse cohort files (overrides PULSE_DATA_DIR)",
 				Sources: cli.EnvVars("PULSE_DATA_DIR"),
 			},
+			&cli.BoolFlag{
+				Name:  "bind-on-open",
+				Usage: "Register session-scoped schema-bound tool variants on successful pulse_inspect (default true). Disable for clients that bind tool schemas themselves.",
+				Value: true,
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			dataDir := cmd.String("data-dir")
@@ -39,8 +44,10 @@ func MCPCommand() *cli.Command {
 				return fmt.Errorf("constructing pulse: %w", err)
 			}
 
-			fmt.Fprintf(os.Stderr, "pulse mcp: serving over stdio (data dir: %s)\n", dataDir)
-			if err := mcp.ServeStdio(mcp.New(p)); err != nil {
+			bindOnOpen := cmd.Bool("bind-on-open")
+			fmt.Fprintf(os.Stderr, "pulse mcp: serving over stdio (data dir: %s, bind-on-open: %v)\n", dataDir, bindOnOpen)
+			srv := mcp.NewWithOptions(p, mcp.Options{BindOnOpen: bindOnOpen})
+			if err := mcp.ServeStdio(srv); err != nil {
 				return fmt.Errorf("mcp server: %w", err)
 			}
 			return nil

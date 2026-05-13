@@ -1,9 +1,31 @@
 {
-  "_comment": "Tier-1 Spearman ρ between revenue and revenue_before. The pre/post pair is correlated by construction (post = pre × lift_factors), so ρ should land near 1 with a tiny p-value. Rank-based: robust to non-linearity. Buffered.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Spearman rho between revenue and its pre-treatment baseline, robust to non-linear monotone relationships.",
+    "name": "spearman_correlation",
+    "operators": [
+      "AGG_COUNT",
+      "TEST_SPEARMAN_R"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "nonparametric",
+      "correlation-analysis",
+      "buffered-pipeline"
+    ]
+  },
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "revenue", "label": "n"}
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
   ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_SPEARMAN_R",
@@ -13,4 +35,5 @@
       "label": "revenue_spearman"
     }
   ]
+
 }

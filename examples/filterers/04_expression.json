@@ -1,14 +1,39 @@
 {
-  "_comment": "Compound predicate via expr-lang: high-income northerners. Categorical fields auto-resolve to their dictionary string for equality comparisons.",
-  "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "filterers",
+    "description": "Compound expr-lang predicate keeping high-income northerners only, with categorical fields auto-resolving to their dictionary strings.",
+    "name": "filter_expression_compound",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "FILTER_EXPRESSION"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "avg_income"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
   "filterers": [
     {
       "type": "FILTER_EXPRESSION",
-      "expression": "income > 50000 && region == \"north\""
+      "expression": "income \u003e 50000 \u0026\u0026 region == \"north\""
     }
-  ],
-  "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "n"},
-    {"type": "AGG_AVERAGE", "field": "income", "label": "avg_income"}
   ]
+
 }

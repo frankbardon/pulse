@@ -1,6 +1,6 @@
 ---
 name: attribute-composition
-description: z-score, t-score, normalized, formula, date-part — composition rules
+description: Compose ATTR_FORMULA, ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED, ATTR_PERCENTILE, ATTR_DATE_PART rows for derived columns. Use when adding computed fields, normalizing values, or chaining attributes inside a request.
 type: guide
 applies_to: process, compose, predict
 ---

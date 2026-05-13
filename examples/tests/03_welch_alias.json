@@ -1,6 +1,25 @@
 {
-  "_comment": "TEST_WELCH is an explicit alias for TEST_T two-sample. Same algorithm; the alias documents intent when the caller wants the reader to know they are NOT assuming equal variances.",
-  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "_meta": {
+    "category": "tests",
+    "description": "Two-sample Welch t-test invoked through the TEST_WELCH alias to make the unequal-variance assumption explicit.",
+    "name": "welch_alias_two_sample",
+    "operators": [
+      "TEST_WELCH"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "t-test",
+      "tier-1-test",
+      "parametric",
+      "two-sample",
+      "experiment-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
   "tests": [
     {
       "type": "TEST_WELCH",
@@ -10,4 +29,5 @@
       "label": "session_welch"
     }
   ]
+
 }

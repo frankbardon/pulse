@@ -1,5 +1,31 @@
 {
-  "_comment": "Discretize age into 4 explicit life stages, then aggregate per stage.",
+  "_meta": {
+    "category": "features",
+    "description": "Discretize age into four explicit life-stage buckets and aggregate income per stage.",
+    "name": "feat_bucketize_explicit",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_MEDIAN",
+      "FEAT_BUCKETIZE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "feature-engineering",
+      "pre-filter"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_MEDIAN",
+      "field": "income",
+      "label": "median_income"
+    }
+  ],
   "cohort": {
     "filename": "customers.pulse",
     "data_dir": ".data"
@@ -24,21 +50,10 @@
       "field": "life_stage"
     }
   ],
-  "aggregations": [
-    {
-      "type": "AGG_COUNT",
-      "field": "id",
-      "label": "n"
-    },
-    {
-      "type": "AGG_MEDIAN",
-      "field": "income",
-      "label": "median_income"
-    }
-  ],
   "sort": [
     {
       "field": "life_stage"
     }
   ]
+
 }

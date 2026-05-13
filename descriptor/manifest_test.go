@@ -28,7 +28,7 @@ func TestManifestDeterministicAcrossRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first marshal: %v", err)
 	}
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		next, err := json.Marshal(BuildManifest())
 		if err != nil {
 			t.Fatalf("marshal iteration %d: %v", i, err)
@@ -77,19 +77,19 @@ func TestManifestIncludesComponents(t *testing.T) {
 		t.Error("Windows is empty")
 	}
 
-	// Check aggregators are sorted.
+	// Check aggregators are sorted by Name.
 	for i := 1; i < len(m.Components.Aggregators); i++ {
-		if m.Components.Aggregators[i] < m.Components.Aggregators[i-1] {
+		if m.Components.Aggregators[i].Name < m.Components.Aggregators[i-1].Name {
 			t.Errorf("aggregators not sorted: %s before %s",
-				m.Components.Aggregators[i-1], m.Components.Aggregators[i])
+				m.Components.Aggregators[i-1].Name, m.Components.Aggregators[i].Name)
 		}
 	}
 
-	// Check windows are sorted.
+	// Check windows are sorted by Name.
 	for i := 1; i < len(m.Components.Windows); i++ {
-		if m.Components.Windows[i] < m.Components.Windows[i-1] {
+		if m.Components.Windows[i].Name < m.Components.Windows[i-1].Name {
 			t.Errorf("windows not sorted: %s before %s",
-				m.Components.Windows[i-1], m.Components.Windows[i])
+				m.Components.Windows[i-1].Name, m.Components.Windows[i].Name)
 		}
 	}
 }
@@ -131,6 +131,57 @@ func TestManifestIncludesSkills(t *testing.T) {
 	// Skills array must be present (even if empty placeholder).
 	if m.Skills == nil {
 		t.Fatal("Skills is nil, expected non-nil array")
+	}
+}
+
+// TestManifest_SkillsNotEmpty verifies the manifest populates Skills from
+// the embedded skill pack. The earlier hardcoded empty slice was a bug.
+func TestManifest_SkillsNotEmpty(t *testing.T) {
+	m := BuildManifest()
+	if len(m.Skills) == 0 {
+		t.Fatal("Skills slice is empty; manifest must mirror skills.List() output")
+	}
+	// Every entry must have a name and a description.
+	for i, s := range m.Skills {
+		if s.Name == "" {
+			t.Errorf("Skills[%d] missing Name", i)
+		}
+		if s.Description == "" {
+			t.Errorf("Skills[%d] (%q) missing Description", i, s.Name)
+		}
+	}
+	// Ensure sorted by name (deterministic).
+	for i := 1; i < len(m.Skills); i++ {
+		if m.Skills[i].Name < m.Skills[i-1].Name {
+			t.Errorf("Skills not sorted: %q before %q", m.Skills[i-1].Name, m.Skills[i].Name)
+		}
+	}
+}
+
+// TestManifestExamplesPopulated verifies the embedded example library
+// is surfaced in the manifest payload. Non-skippable: missing fields
+// silently break LLM-side example discovery.
+func TestManifestExamplesPopulated(t *testing.T) {
+	m := BuildManifest()
+	if m.ExamplesCount == 0 {
+		t.Error("ExamplesCount is 0; embedded example library not surfaced")
+	}
+	if len(m.ExampleCategories) == 0 {
+		t.Error("ExampleCategories is empty")
+	}
+	if len(m.ExampleTags) == 0 {
+		t.Error("ExampleTags is empty")
+	}
+	// Categories must be sorted alphabetically for golden stability.
+	for i := 1; i < len(m.ExampleCategories); i++ {
+		if m.ExampleCategories[i] < m.ExampleCategories[i-1] {
+			t.Errorf("ExampleCategories not sorted: %q before %q", m.ExampleCategories[i-1], m.ExampleCategories[i])
+		}
+	}
+	for i := 1; i < len(m.ExampleTags); i++ {
+		if m.ExampleTags[i] < m.ExampleTags[i-1] {
+			t.Errorf("ExampleTags not sorted: %q before %q", m.ExampleTags[i-1], m.ExampleTags[i])
+		}
 	}
 }
 

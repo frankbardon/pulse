@@ -30,10 +30,14 @@ func buildApp() *cli.Command {
 		Version: version,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "json", Usage: "Output self-describing manifest as JSON"},
+			&cli.BoolFlag{Name: "slim", Usage: "Drop prose descriptions from the manifest payload (smaller for size-sensitive clients)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Bool("json") {
 				manifest := descriptor.BuildManifest()
+				if cmd.Bool("slim") {
+					manifest = descriptor.SlimManifest(manifest)
+				}
 				env := descriptor.NewEnvelope(manifest)
 				return pcli.WriteJSONPublic(cmd.Writer, env)
 			}
@@ -48,6 +52,8 @@ func buildApp() *cli.Command {
 			pcli.CohortCommand(),
 			pcli.APICommand(),
 			pcli.SkillsCommand(),
+			pcli.ExamplesCommand(),
+			pcli.ErrorsCommand(),
 			pcli.MCPCommand(),
 			pcli.SynthCommand(),
 			pcli.ProfileCommand(),

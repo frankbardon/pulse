@@ -8,7 +8,7 @@ Pulse is a high-performance, self-describing tabular data processing engine. It 
 
 - **Library-first.** The `pulse.go` facade (`pulse.New`, `pulse.Options`, `pulse.Process`, `pulse.Compose`, `pulse.Import`, `pulse.Export`, `pulse.Convert`, `pulse.Inspect`, `pulse.Predict`, `pulse.Sample`, `pulse.Facet`) is the public API. The CLI calls the library; it never contains business logic.
 - **Self-describing.** Every `.pulse` file carries its schema in the header. The `descriptor/` package provides `manifest`, `predict`, and `inspect` operations that expose the system's capabilities and validate requests without executing them.
-- **Skill-augmented.** The `skills/` package embeds 12 markdown skill files into the binary via `//go:embed`. LLM agents (and Nexus, the orchestration layer that consumes Pulse) can call `skills.List()` and `skills.Get(name)` at boot time to inject domain-specific guidance into their context.
+- **Skill-augmented.** The `skills/` package embeds 19 markdown skill files into the binary via `//go:embed`. LLM agents (and Nexus, the orchestration layer that consumes Pulse) can call `skills.List()` and `skills.Get(name)` at boot time to inject domain-specific guidance into their context.
 - **Nexus relationship.** Pulse is a standalone processing engine. Nexus is the upstream orchestration agent that calls Pulse's library API or CLI. Pulse has no dependency on Nexus. Nexus discovers Pulse's capabilities via `pulse manifest --json` and loads skills from the embedded skill pack.
 
 **Module path:** `github.com/frankbardon/pulse`
@@ -26,18 +26,26 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A registered filterer | `skills/aggregation-guide.md` (filtering section) | `TestSkillsCoverAllComponents` |
 | A registered grouper | `skills/grouper-design.md` | `TestSkillsCoverAllComponents` |
 | A registered window operator | `skills/window-operations.md` | `TestSkillsCoverAllWindowTypes` |
-| An error code (added/removed/renamed) | `skills/error-code-reference.md` | `TestSkillsCoverAllErrorCodes` |
+| An error code (added/removed/renamed) | Entry in `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups visible via `pulse_errors_lookup` / `pulse errors lookup CODE` | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
 | A CLI leaf (added/removed/flag added) | `CLAUDE.md` "Common Claude Code Workflows" + `skills/getting-started.md` if user-facing | `TestSkillsCoverAllCliLeaves` |
 | A `--json` envelope or `format_version` | `CLAUDE.md` "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
 | A `.pulse` file format change (header layout, new field type) | `CLAUDE.md` "Code Conventions" + `skills/cohort-schema-design.md` | `TestClaudeMdMentionsFormatVersion`, `TestSkillsCoverAllFieldTypes` |
 | A new non-skippable CI gate | `CLAUDE.md` (gate listed by name in the relevant section) | `TestClaudeMdMentionsAllNonSkippableGates` |
 | A new architectural decision | `CLAUDE.md` (relevant section) + PRD if applicable | reviewer enforcement |
 | An environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
-| A registered MCP tool (added/removed) | `skills/mcp-integration.md` (Tool surface table) | `TestSkillsCoverAllMCPTools` |
-| A registered feature operator | `skills/feature-engineering.md` (operator catalog) | `TestSkillsCoverAllComponents` |
-| A registered synth distribution kind | `skills/synthetic-data.md` (Supported distributions) | `TestSkillsCoverAllSynthDistributions` |
-| A registered statistical test (`TEST_*`) | `skills/statistical-testing.md` (Operator catalog) + `types/streamability.go` + `types/streamability_test.go` | `TestStreamability_TestsKnown` |
-| A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known` |
+| A registered MCP tool (added/removed) | `skills/mcp-integration.md` (Tool surface table) + `internal/mcp/mcptools/meta.go` (name + description) | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
+| A new MCP action tool with field-name parameters | `internal/mcp/schema_bind.go` (add a per-tool JSON Schema builder + entry in `Bind`) + `skills/mcp-integration.md` (Schema-bound enums section) | `TestMCPSchemaBinding_RemovesInvalidFields`, `TestMCPSchemaBinding_AllFieldsInFiltererEnum`, `TestMCPSchemaBinding_SampleAndFacetFieldEnum`, `TestMCPSchemaBinding_InspectSucceedsRegistersBindings`, `TestMCPSchemaBinding_BindOnOpenFalse` |
+| A registered feature operator | `skills/feature-engineering.md` (operator catalog) + capability declaration in `descriptor/capabilities_features.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
+| A registered synth distribution kind | `skills/synthetic-data.md` (Supported distributions) + capability declaration in `descriptor/capabilities_distributions.go` | `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
+| A registered statistical test (`TEST_*`) | `skills/statistical-testing.md` (Operator catalog) + `types/streamability.go` + `types/streamability_test.go` + capability declaration in `descriptor/capabilities_tests.go` | `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
+| A registered tier-2 post-test variant | Capability declaration in `descriptor/capabilities_tests.go` (`postTestCapabilities`) | `TestManifestPostTestsComplete` |
+| A registered aggregator/attribute/filterer/grouper/window capability metadata | Capability declaration in `descriptor/capabilities_<category>.go` (params, accepts_types, emits_type, streamable_hint) | `TestManifestOperatorsComplete` |
+| A new error code | Entry in `errors/fixup_metadata.go` (`codeMetadata`) — bootstrap manifest carries name only; per-code Message + Fixup detail is reactive lookup via `pulse_errors_lookup` | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim` |
+| A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known`, `TestManifestStreamableMatchesTypes` |
+| The default operator table | `CLAUDE.md` "Code Conventions → Smart defaults" + `skills/getting-started.md` ("Defaults" section) | `TestDefaults_Applied` + reviewer enforcement |
+| A natural-query parsing route (new grammar shape) | `internal/query/query.go` grammar + `internal/query/query_test.go` fixtures + `skills/query-router-prompt.md` (router prompt grammar) + `skills/request-recipes.md` (target shapes) | `TestNaturalQuery_HeuristicGrammar` |
+| A request example under `examples/` (added/edited) | `_meta` block at top of the file (kebab-name unique across the library, category matching directory, tags drawn from the canonical taxonomy in `examples/library.go`, operators alphabetized and matching the body) | `TestExamples_AllParseAsRequest`, `TestExamples_UniqueNames`, `TestExamples_TagsFromTaxonomy`, `TestExamples_OperatorsMatchBody`, `TestExamples_CategoryMatchesDirectory`, `TestManifestExamplesPopulated` |
+| A change to the example tag taxonomy | `CanonicalTags` slice in `examples/library.go` + `skills/request-recipes.md` (pointer block, if the search story shifts) + mdBook chapter `docs/src/examples/library.md` | `TestExamples_TagsFromTaxonomy` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 
@@ -73,11 +81,18 @@ pulse/
 ├── skills/                 # Embedded markdown skill pack (//go:embed)
 │   ├── index.json          # Manifest of all bundled skills
 │   └── *.md               # Individual skill files with YAML frontmatter
+├── examples/               # Embedded request-example library (//go:embed)
+│   ├── library.go          # Search + Get facade over the embedded JSONs
+│   └── <category>/*.json   # 71 runnable types.Request examples with _meta blocks
 ├── synth/                  # Synthetic data generator (from-schema, from-profile)
+├── docs/                   # mdBook source for the human-facing site (published to GitHub Pages)
 ├── internal/
 │   ├── cli/                # CLI internals (descriptor walker, json action)
 │   └── mcp/                # MCP server: tool + resource handlers wrapping pulse.Pulse
+│       └── mcptools/       # Leaf metadata package (tool names + descriptions) consumed by descriptor
 ```
+
+User-facing CLI, library-embedding, format, internals, and operations documentation lives in `docs/` and is published to GitHub Pages at <https://frankbardon.github.io/pulse/>. Skills under `skills/` remain the LLM-facing surface and are unchanged.
 
 ### Library-first pattern
 
@@ -89,7 +104,7 @@ pulse/
 
 ### MCP surface
 
-`internal/mcp/` translates the Pulse facade into Model Context Protocol tools and resources. The library has no dependency on this package; only the `pulse mcp` CLI leaf imports it. Eight tools (one per facade method) and two resource schemes (`pulse://` for `.pulse` files, `pulse-skill://` for embedded skills) are registered at server start.
+`internal/mcp/` translates the Pulse facade into Model Context Protocol tools and resources. The library has no dependency on this package; only the `pulse mcp` CLI leaf imports it. Ten tools (one per facade method, plus the unified `pulse_ask` one-shot that collapses inspect→predict→process) and two resource schemes (`pulse://` for `.pulse` files, `pulse-skill://` for embedded skills) are registered at server start.
 
 The canonical tool list is `mcp.RegisteredTools()` in `internal/mcp/tools.go`. Adding or removing a tool requires updating `skills/mcp-integration.md` in the same PR (`TestSkillsCoverAllMCPTools`).
 
@@ -114,7 +129,7 @@ The `descriptor/` package provides three no-execution operations:
 
 All three return an `Envelope` (see Output Format Contract below).
 
-The `skills/` package embeds 12 skill files via `//go:embed *.md` and an `index.json` manifest. Each skill has YAML frontmatter with `name`, `description`, `type`, and `applies_to` fields. Skills are loaded with `skills.Get(name)` and listed with `skills.List()`.
+The `skills/` package embeds 19 skill files via `//go:embed *.md` and an `index.json` manifest. Each skill has YAML frontmatter with `name`, `description`, `type`, and `applies_to` fields. Skills are loaded with `skills.Get(name)` and listed with `skills.List()`.
 
 ## Code Conventions
 
@@ -135,9 +150,9 @@ Errors use the `errors.Code` system. There are 6 domains with typed codes:
 - **SERVICE:** `SERVICE_VALIDATION`, `SERVICE_RESOURCE`, `SERVICE_REGISTRY`, `SERVICE_INTERNAL`
 - **DATA:** `DATA_FILE`, `DATA_PARSE`, `DATA_CONFIG`, `DATA_CALCULATION`, `DATA_INTERNAL`
 - **CLI:** `CLI_INPUT`, `CLI_OUTPUT`, `CLI_COMMAND`, `CLI_INTERNAL`
-- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`, `PULSE_DECIMAL_OVERFLOW`, `PULSE_DECIMAL_PRECISION_LOSS`, `PULSE_DECIMAL_DIVIDE_BY_ZERO`, `PULSE_GEO_INVALID_POINT`, `PULSE_GEO_INVALID_POLYGON`, `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`, `PULSE_GEO_INVALID_RESOLUTION`, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`, `PULSE_SYNTH_DISTRIBUTION_UNKNOWN`, `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`, `PULSE_PROFILE_FIELD_UNSUPPORTED`, `PULSE_TEST_UNKNOWN_TYPE`, `PULSE_TEST_FIELD_NOT_NUMERIC`, `PULSE_TEST_INVALID_ALPHA`, `PULSE_TEST_INSUFFICIENT_N`, `PULSE_TEST_VARIANCE_ZERO`, `PULSE_TEST_SPLIT_GROUPS_LT_2`, `PULSE_TEST_CONTINGENCY_DEGENERATE`, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`, `PULSE_TEST_FIELD2_NOT_NUMERIC`, `PULSE_TEST_SUCCESS_VALUE_MISSING`, `PULSE_TEST_CORRELATION_UNDEFINED`, `PULSE_TEST_PAIRED_LENGTH_MISMATCH`, `PULSE_TEST_TIES_DOMINATE`, `PULSE_TEST_SUBJECT_MISSING`, `PULSE_TEST_BALANCED_DESIGN_REQUIRED`, `PULSE_TEST_TUKEY_REQUIRES_K_GE_3`, `PULSE_TEST_SHAPIRO_N_BOUND`, `PULSE_TEST_FISHER_R_OR_C_GT_2`
+- **PULSE:** `PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_ROW_ERROR`, `PULSE_EXPORT_ROW_ERROR`, `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_IMPORT_DESCRIPTION_TOO_LONG`, `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`, `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, `PULSE_WINDOW_INVALID`, `PULSE_FEAT_TARGET_LEAKAGE_RISK`, `PULSE_DECIMAL_OVERFLOW`, `PULSE_DECIMAL_PRECISION_LOSS`, `PULSE_DECIMAL_DIVIDE_BY_ZERO`, `PULSE_GEO_INVALID_POINT`, `PULSE_GEO_INVALID_POLYGON`, `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`, `PULSE_GEO_INVALID_RESOLUTION`, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`, `PULSE_SYNTH_DISTRIBUTION_UNKNOWN`, `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`, `PULSE_PROFILE_FIELD_UNSUPPORTED`, `PULSE_TEST_UNKNOWN_TYPE`, `PULSE_TEST_FIELD_NOT_NUMERIC`, `PULSE_TEST_INVALID_ALPHA`, `PULSE_TEST_INSUFFICIENT_N`, `PULSE_TEST_VARIANCE_ZERO`, `PULSE_TEST_SPLIT_GROUPS_LT_2`, `PULSE_TEST_CONTINGENCY_DEGENERATE`, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`, `PULSE_TEST_FIELD2_NOT_NUMERIC`, `PULSE_TEST_SUCCESS_VALUE_MISSING`, `PULSE_TEST_CORRELATION_UNDEFINED`, `PULSE_TEST_PAIRED_LENGTH_MISMATCH`, `PULSE_TEST_TIES_DOMINATE`, `PULSE_TEST_SUBJECT_MISSING`, `PULSE_TEST_BALANCED_DESIGN_REQUIRED`, `PULSE_TEST_TUKEY_REQUIRES_K_GE_3`, `PULSE_TEST_SHAPIRO_N_BOUND`, `PULSE_TEST_FISHER_R_OR_C_GT_2`, `PULSE_QUERY_UNRESOLVED`, `PULSE_QUERY_AMBIGUOUS`
 
-Every new error code MUST be added to the `allCodes` slice in `errors/codes.go` and to `skills/error-code-reference.md` (enforced by `TestSkillsCoverAllErrorCodes`).
+Every new error code MUST be added to the `allCodes` slice in `errors/codes.go` and the `codeMetadata` map in `errors/fixup_metadata.go` (enforced by `TestCodesHaveFixups`). Per-code prose is fetched on demand via `pulse_errors_lookup` (MCP) or `pulse errors lookup CODE` (CLI); the manifest carries only the alphabetized code-name list (`TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`).
 
 ### Accessor and component description style
 
@@ -182,6 +197,28 @@ Bit-packed types (`nullable_bool`, `nullable_u4`, `packed_bool`) return `ByteSiz
 
 Schema reader rejects unknown FieldType bytes at parse time with `ENCODING_INVALID`. Files written by future-version binaries that introduce new types fail loud at schema parse, not silent at row decode.
 
+### Smart defaults
+
+When a request slot names a field but omits the operator `Type`, the engine infers the operator from the named field's schema type. The rule table lives in `descriptor/defaults.go` (`defaultRules`) and is the single source of truth — predict echoes the inferred slots in `PredictResult.DefaultsApplied`, service applies them in place before Process / Compose execution.
+
+| Field type | Default aggregation | Default grouper |
+|---|---|---|
+| `u8`..`u64`, `f32`, `f64`, `nullable_u4`/`u8`/`u16`, `decimal128`, `nullable_decimal128` | `AGG_SUM` | `GROUP_RANGE` (Interval 10) |
+| `categorical_u8`/`u16`/`u32` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `date` | (none — must be explicit) | `GROUP_DATE` (component `"day"`) |
+| `nullable_bool`, `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `point_f64`, `h3_cell` | `AGG_GEO_CENTROID` | `GROUP_H3_CELL` (resolution 7) |
+
+Behavioural rules:
+
+1. Defaults apply only when `Field` is set and `Type` is empty. Explicit `Type` is never overridden.
+2. Defaults never cross categories — a missing aggregator does not insert a grouper, and vice versa.
+3. Tier-1 (`req.Tests`) and tier-2 (`req.PostTests`) statistical tests are not defaulted; hypothesis tests are too intent-bearing.
+4. Filter expressions, feature pipelines, attributes, and windows are out of scope for defaulting.
+5. Parameter defaults (`Interval`, `Params.resolution`, `Params.component`) fill in only when the caller leaves them unset.
+
+Disabling defaults: pass `pulse.Options{DisableDefaults: true}` (library) or `--no-defaults` (CLI `process` / `compose`). Predict always computes `DefaultsApplied` regardless — the flag governs only what the runtime mutates.
+
 ## Output Format Contract
 
 ### --json envelope
@@ -212,6 +249,27 @@ All `--json` CLI output and all descriptor operations use the `descriptor.Envelo
 - **No hand-built XML/CDATA.** If any XML output is ever added, it must use `encoding/xml`, not string concatenation.
 - Envelope construction uses `descriptor.NewEnvelope(data)` which sets `format_version`, empty `errors`, and empty `warnings` automatically.
 
+### Manifest payload
+
+`descriptor.BuildManifest()` returns the canonical Pulse self-description and is reachable via `pulse manifest --json` and the `pulse_manifest` MCP tool. The payload is designed as a single LLM-bootstrap blob: one fetch per session, cached client-side.
+
+Top-level fields on `Manifest`:
+
+- `format_version` — always `"1.0"`.
+- `commands []Command` — CLI leaf catalog.
+- `components Components` — six `[]Operator` slices (aggregators, attributes, filterers, groupers, windows, features). Each `Operator` carries `name`, `category`, `description`, `params`, `accepts_types`, `emits_type` / `emits_type_note`, `streamable`, `streamable_hint`.
+- `tests []TestMeta` — tier-1 statistical tests. Each entry has `tier:1`, `family==name`, `params`, `requires`, `streamable` mirroring `types.TestType.Streamable()`.
+- `post_tests []TestMeta` — tier-2 post-tests (natively-tier-2 entries `TEST_TREND` / `TEST_TUKEY_HSD` plus registered variants like `pearson_post`, `welch_one_way_post`). Each entry has `tier:2`, non-empty `variant`, `family` referencing the underlying `TestType`. `streamable` is always false. Tier-1 and tier-2 are peer slices, not nested.
+- `synth_distributions []DistributionMeta` — one entry per `synth.AllDistributions()` value with `applies_to` and `params`.
+- `error_codes_count int` + `error_domains []string` + `error_codes []string` — slim error coverage. The bootstrap manifest carries only the alphabetized code-name list and the six domain prefixes (`CLI`, `DATA`, `ENCODING`, `PROCESSING`, `PULSE`, `SERVICE`). Per-code Message + Fixup detail is depth-on-demand via the `pulse_errors_lookup` MCP tool or `pulse errors lookup CODE` CLI leaf — errors are reactive lookup, not authoring reference.
+- `mcp_tools []MCPTool` — one entry per `internal/mcp/mcptools.Names()` value with `description`.
+- `cohort_types []CohortFieldType` — one entry per field type with `compatible_aggregators`, `compatible_attributes`, `compatible_filterers`, `compatible_groupers`, `compatible_windows`, `compatible_features` cross-references derived deterministically from per-operator `accepts_types`.
+- `skills []SkillMeta` — embedded skill index from `skills.List()`.
+
+Operator-category slices are sorted by `Name`. Compatible-list cross-refs are sorted by operator name. The payload is golden-checked (`descriptor/testdata/manifest.json`).
+
+Capability declarations for components, tests, and distributions live in `descriptor/capabilities_*.go`. Error coverage in the manifest is name-only (`descriptor/capabilities_errors.go` mirrors `errors.SortedCodeNames()`); per-code Message + Fixup detail lives in `errors/fixup_metadata.go` and is reachable via the `pulse_errors_lookup` MCP tool or `pulse errors lookup CODE` CLI leaf. MCP tool name + description metadata lives in `internal/mcp/mcptools/meta.go` so the descriptor package can mirror it without an import cycle. Tests `TestManifestOperatorsComplete`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestStreamableMatchesTypes`, `TestCohortTypeCrossRefsDeterministic`, and `TestManifest_SkillsNotEmpty` enforce completeness and consistency.
+
 ## Predict / Inspect / Manifest Contracts
 
 ### Predict: no-execute structural ban
@@ -233,7 +291,7 @@ Fields without stored descriptions get a synthesized fallback (`"Categorical fie
 
 ### Manifest: determinism
 
-`descriptor.BuildManifest()` returns a deterministic `Manifest` struct. All component lists (aggregators, attributes, filterers, groupers) are sorted alphabetically. The manifest includes: commands (7 CLI leaves), components, cohort field types (all 15), and skills metadata. `format_version` is `"1.0"`.
+`descriptor.BuildManifest()` returns a deterministic `Manifest` struct. Every operator, test, distribution, error code, MCP tool, cohort type, and skill list is sorted lexically. The payload includes: commands, six `[]Operator` component slices (aggregators, attributes, filterers, groupers, windows, features), tier-1 tests, tier-2 post-tests (peer to tier-1), synth distributions, error codes, MCP tools, cohort field types with operator cross-references, and skill metadata. `format_version` is `"1.0"`. See "Manifest payload" under Output Format Contract above for the field-by-field shape.
 
 ### Predict: streamability flag
 
@@ -300,6 +358,34 @@ Forced buffered:
 - `TestStreamability_AggregationsKnown`, `TestStreamability_AttributesKnown`, `TestStreamability_FilterersKnown`, `TestStreamability_GroupsKnown`, `TestStreamability_WindowsKnown`, `TestStreamability_FeaturesKnown` — exhaustiveness gates: every type listed in `All*Types()` must have an explicit entry in the per-type streamability table
 - `TestCanStreamRequest_RegressionMatrix` — regression matrix on the exported `processing.CanStreamRequest` helper used by predict's parity gate
 - `TestStreamability_TestsKnown` — exhaustiveness gate for `TestType.Streamable()` covering every entry in `types.AllTestTypes()`
+- `TestManifest_HasMCPTool` — verifies `pulse_manifest` is registered in `internal/mcp.RegisteredTools()`
+- `TestManifest_SkillsNotEmpty` — verifies `Manifest.Skills` is populated from `skills.List()` (not the previously-hardcoded empty slice)
+- `TestManifestOperatorsComplete` — for every type in `types.All*Types()`, asserts a corresponding `Operator` exists in the manifest with non-empty `AcceptsTypes` and a curated `Description`
+- `TestManifestStreamableMatchesTypes` — for every `Operator` in the manifest, asserts its `Streamable` flag mirrors `types.X.Streamable()`
+- `TestManifestTestsComplete` — for every `TestType` in `types.AllTestTypes()`, asserts a tier-1 entry in `Manifest.Tests` (or a tier-2 entry for the natively-tier-2 families `TEST_TREND` / `TEST_TUKEY_HSD`)
+- `TestManifestPostTestsComplete` — verifies every `Manifest.PostTests` entry has `Tier:2`, non-empty `Variant`, and a `Family` value present in `types.AllTestTypes()`
+- `TestManifestDistributionsComplete` — for every entry in `synth.AllDistributions()`, asserts a `DistributionMeta` entry
+- `TestManifestErrorCodesComplete` — for every entry in `errors.AllCodes()`, asserts the slim `manifest.error_codes []string` field carries that code name (length parity enforced separately)
+- `TestManifest_ErrorCodesSlim` — asserts the manifest's error fields are name-only: alphabetized `error_codes []string` + `error_codes_count int` + `error_domains []string` (6 entries: CLI, DATA, ENCODING, PROCESSING, PULSE, SERVICE)
+- `TestCodesHaveFixups` — for every entry in `errors.AllCodes()`, asserts an entry in `errors/fixup_metadata.go` (`codeMetadata`) carrying either at least one `Fixup` template or `FixupNotApplicable: true`
+- `TestErrorsLookup_ByCode`, `TestErrorsByDomain_ReturnsAll`, `TestErrorsSearch_DescriptionMatch`, `TestErrorsSearch_FixupMatch`, `TestErrorsLookup_UnknownCodeReturnsFalse` — exercise the `errors.Lookup` / `errors.ByDomain` / `errors.Search` lookup surface that backs `pulse_errors_lookup`
+- `TestMCPErrorsLookup_RoundTrip` — handler-level round-trip via the `pulse_errors_lookup` MCP tool (code / domain / query axes plus AND-intersection)
+- `TestManifestMCPToolsComplete` — for every entry in `mcptools.Names()`, asserts an `MCPTool` entry
+- `TestCohortTypeCrossRefsDeterministic` — verifies each `CohortFieldType`'s `Compatible*` slices are sorted lexically (required for golden stability)
+- `TestMCPSchemaBinding_RemovesInvalidFields` — asserts the bound `pulse_process` schema's `request.attributes[].field` enum contains only numeric fields (categorical and geo fields excluded) for the test cohort
+- `TestMCPSchemaBinding_AllFieldsInFiltererEnum` — asserts the bound filterer field enum equals the full set of cohort field names
+- `TestMCPSchemaBinding_SampleAndFacetFieldEnum` — asserts bound `pulse_facet` constrains its `field` arg via enum; bound `pulse_sample` schema is well-formed
+- `TestMCPSchemaBinding_InspectSucceedsRegistersBindings` — drives `handleInspect` against a `SessionWithTools` and asserts the five action tools (`pulse_process`, `pulse_predict`, `pulse_compose`, `pulse_sample`, `pulse_facet`) land in the session's tool map with bound input schemas
+- `TestMCPSchemaBinding_BindOnOpenFalse` — asserts `BindOnOpen=false` suppresses session-tool registration on inspect
+- `TestExamples_AllParseAsRequest` — every embedded example JSON in `examples/` parses as a `types.Request` (the `_meta` block is unknown-field-ignored)
+- `TestExamples_UniqueNames` — every `_meta.name` is unique across the embedded library
+- `TestExamples_TagsFromTaxonomy` — every tag on every example belongs to `examples.CanonicalTags`
+- `TestExamples_OperatorsMatchBody` — declared `_meta.operators` equals the operator list auto-derived from the request body
+- `TestExamples_CategoryMatchesDirectory` — `_meta.category` matches the parent directory of the file
+- `TestExamplesSearch_QueryMatchesDescription` — substring search returns expected hits across description/name/operators
+- `TestExamplesSearch_TagsAreANDed` — combining multiple tags narrows (never widens) the result set
+- `TestExamplesGet_StripsMeta` — `examples.Get` returns the request JSON with the `_meta` block stripped, so callers can pass it straight to `pulse_process` / `pulse_predict`
+- `TestManifestExamplesPopulated` — `Manifest.ExamplesCount > 0` and the categories/tags slices are non-empty and alphabetized
 
 ## Skill Pack Maintenance
 
@@ -334,7 +420,6 @@ Required fields:
 - `TestSkillsFrontmatter_RequiredFields` — every skill has `name`, `description`, `type`, `applies_to` in its frontmatter
 - `TestSkillsManifestConsistent` — every skill in `index.json` has a matching `.md` file, frontmatter name matches, and `applies_to` entries reference valid CLI leaves
 - `TestSkillsCoverAllComponents` — every aggregator, attribute, filterer, and grouper in the registries is mentioned in its target skill
-- `TestSkillsCoverAllErrorCodes` — every error code in `errors/codes.go` appears in `skills/error-code-reference.md`
 - `TestSkillsCoverAllCliLeaves` — every CLI leaf command appears in `skills/getting-started.md`
 - `TestSkillsCoverAllFieldTypes` — every field type appears in `skills/cohort-schema-design.md`
 - `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator in `types.AllWindowTypes` appears in `skills/window-operations.md`
@@ -351,7 +436,7 @@ Required fields:
 | Feature operator (`FEAT_*`) | `skills/feature-engineering.md` |
 | Synth distribution | `skills/synthetic-data.md` |
 | Statistical test (`TEST_*`) | `skills/statistical-testing.md` |
-| Error code | `skills/error-code-reference.md` |
+| Error code | `errors/fixup_metadata.go` (per-code Message + Fixups) — surfaced via `pulse_errors_lookup` MCP tool, not the skill |
 | CLI leaf command | `skills/getting-started.md` |
 | Field type | `skills/cohort-schema-design.md` |
 
@@ -386,6 +471,9 @@ Required fields:
 | `make lint` | Runs `go vet` then `staticcheck ./...` |
 | `make cover` | Runs tests with coverage, outputs `coverage.out` and prints function coverage |
 | `make clean` | Removes `bin/` and `coverage.out` |
+| `make docs` | Builds the mdBook site to `docs/book/` |
+| `make docs-serve` | Serves the mdBook site locally with auto-reload (opens browser) |
+| `make docs-clean` | Removes `docs/book/` |
 
 A `.env` file at the repo root is auto-loaded and exported by the Makefile, so `PULSE_DATA_DIR` (and any other `PULSE_*` env vars) can live there for local development.
 
@@ -458,9 +546,9 @@ For tests that need filesystem access, use `fs.NewMemMap()` which returns a `Con
 ### Wiring Pulse into an MCP client
 
 1. Build the binary: `make build`. The resulting `bin/pulse` must be on the client's `PATH` (or referenced absolutely).
-2. Configure the client (Claude Desktop's `claude_desktop_config.json` or Claude Code's `~/.claude.json`) with an `mcpServers.pulse` entry running `pulse mcp` and exporting `PULSE_DATA_DIR`.
+2. Configure the client (Claude Desktop's `claude_desktop_config.json` or Claude Code's `~/.claude.json`) with an `mcpServers.pulse` entry running `pulse mcp` and exporting `PULSE_DATA_DIR`. The `--bind-on-open` flag (default true) controls whether successful `pulse_inspect` calls trigger registration of session-scoped tool variants whose JSON Schemas constrain field-name parameters to the cohort's actual fields. Pass `--bind-on-open=false` to disable for clients that bind themselves.
 3. Restart the client. Pulse tools (`pulse_inspect`, `pulse_predict`, `pulse_process`, etc.) and resources (`pulse://*.pulse`, `pulse-skill://*`) appear in the tool/resource list.
-4. See `skills/mcp-integration.md` for the full configuration recipe.
+4. See `skills/mcp-integration.md` for the full configuration recipe, including the "Schema-bound enums" section that describes the inspect trigger, the multi-file limitation (latest inspect wins), and the transport-support caveat (stdio sessions in mcp-go v0.52.0 do not implement `SessionWithTools`, so binding is a no-op there; SSE / Streamable HTTP transports honor it).
 
 ### Debugging a predict mismatch
 

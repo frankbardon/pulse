@@ -279,6 +279,23 @@ const (
 	// supports only 2×2; the network algorithm needed for r×c lands
 	// later.
 	PULSE_TEST_FISHER_R_OR_C_GT_2 Code = "PULSE_TEST_FISHER_R_OR_C_GT_2"
+
+	// PULSE_QUERY_UNRESOLVED indicates the natural-language query
+	// parser (internal/query) could not map one or more tokens to an
+	// operator, schema field, or bucket within the configured edit-
+	// distance budget. Severity depends on context: a query that
+	// produced no parseable structure surfaces this as an error; a
+	// query that produced a partial request surfaces it as a warning
+	// so the caller can still inspect and repair the partial parse.
+	PULSE_QUERY_UNRESOLVED Code = "PULSE_QUERY_UNRESOLVED"
+
+	// PULSE_QUERY_AMBIGUOUS indicates a query token matched multiple
+	// schema fields at the same Levenshtein distance, or otherwise
+	// produced two candidate requests with similar confidence. The
+	// parser picks the lexically first match and proceeds; the
+	// warning names every candidate so the caller can disambiguate
+	// by editing the resolved request.
+	PULSE_QUERY_AMBIGUOUS Code = "PULSE_QUERY_AMBIGUOUS"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -352,6 +369,8 @@ var allCodes = []Code{
 	PULSE_TEST_TUKEY_REQUIRES_K_GE_3,
 	PULSE_TEST_SHAPIRO_N_BOUND,
 	PULSE_TEST_FISHER_R_OR_C_GT_2,
+	PULSE_QUERY_UNRESOLVED,
+	PULSE_QUERY_AMBIGUOUS,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.
