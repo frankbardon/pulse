@@ -47,6 +47,8 @@ Self-description is structural: the engine publishes a `Manifest` that names eve
 
 Every Pulse capability you have access to is a tool registered against the MCP server.
 
+**`pulse_ask` is the default — use it unless you specifically need to diagnose a failed predict, peek at raw rows (`pulse_sample`), facet a single field (`pulse_facet`), or batch-execute multiple requests (`pulse_compose`).** It collapses import + inspect + predict + process into one round trip, accepts either a structured `request` or a natural-language `query`, and slides the managed-import TTL forward on every call. The four-call chain (`pulse_import` -> `pulse_inspect` -> `pulse_predict` -> `pulse_process`) is the advanced / diagnostic path.
+
 | Tool | Purpose | Required arguments |
 |---|---|---|
 | `pulse_manifest` | Self-description: operator catalog, types, error codes, skills index. Call once per session, cache result. | (none) |
@@ -58,7 +60,7 @@ Every Pulse capability you have access to is a tool registered against the MCP s
 | `pulse_predict` | Validate a `Request` against the cohort's schema. No execution. Reports `streamable`, `streamable_reasons`, `defaults_applied`, structured `suggestions`, plus the standard envelope. | `request` (JSON-encoded `types.Request`) |
 | `pulse_process` | Execute one `Request`. Returns rows + metadata + diagnostics envelope. | `request` |
 | `pulse_compose` | Execute a `ComposedRequest` (batch of requests against one cohort). Order-preserving. | `request` (JSON-encoded `types.ComposedRequest`) |
-| `pulse_ask` | One-shot inspect -> predict -> process. Accepts either a structured `request` or a natural-language `query` parsed against the cohort's schema. With `on_invalid="suggest"` returns structured `Fixup` entries instead of erroring on predict failure. | `request` (JSON-encoded `pulse.AskRequest`) |
+| `pulse_ask` | **PREFERRED entry point.** One-shot import -> inspect -> predict -> process. Pass `source` (raw file path) to auto-import; pass `cohort` for an existing `.pulse` or managed handle. Accepts either a structured `request` or a natural-language `query` parsed against the cohort's schema. Optional `source`-side fields: `source_format`, `source_handle`, `source_ttl` (default `"7d"`, accepts `"pin"`), `source_sheet`, `source_overwrite`. With `on_invalid="suggest"` returns structured `Fixup` entries instead of erroring on predict failure. | `request` (JSON-encoded `pulse.AskRequest`) |
 
 Subsequent calls to `pulse_process` / `pulse_predict` / `pulse_compose` / `pulse_sample` / `pulse_facet` inside a session pick up enum constraints automatically after the first `pulse_inspect` — the field name and operator-type arguments are restricted to values that exist in the cohort's schema. The mcp-integration skill describes the binding behavior.
 
@@ -88,36 +90,57 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
 <workflow id="typical-session" name="typical-mcp-session">
 ## A typical session
 
+**Two calls do the job.** USE `pulse_ask` FIRST.
+
 1. Call `pulse_manifest` once. Cache the payload — it is deterministic for a given binary and covers operator catalogs, field types, error codes, MCP tool list, and the skills index.
 
-2. Call `pulse_inspect` with the cohort path the user (or the conversation) is asking about:
+2. Call `pulse_ask` with the user's question. Two shapes cover almost everything:
+
+   **Raw file + natural language** (auto-imports first, then runs):
 
    ```json
-   {"path": "sales.pulse"}
+   {
+     "request": "{\"source\":\"data.csv\",\"query\":\"average revenue by month\"}"
+   }
    ```
 
-   The response is an `InspectResult` envelope: fields, types, byte offsets, descriptions, and (truncated) categorical dictionaries. After this call the session's action tools are bound — their JSON Schemas now enumerate the actual field names for this cohort.
-
-3. (Optional) Call `pulse_sample` or `pulse_facet` to eyeball data:
+   **Existing cohort + structured request** (you already have a `.pulse` or managed handle):
 
    ```json
-   {"path": "sales.pulse", "count": 10}
-   ```
-   ```json
-   {"path": "sales.pulse", "field": "region"}
-   ```
-
-4. Author a `Request` matching the schema. See `request-recipes` for canonical shapes.
-
-5. Call `pulse_predict` to validate the request. Read `errors`, `warnings`, and especially `suggestions` (machine-actionable fixups). If `streamable` is false, `streamable_reasons` lists every gate that forced buffering.
-
-   ```json
-   {"request": "{\"cohort\":{\"filename\":\"sales.pulse\"},\"aggregations\":[{\"type\":\"AGG_COUNT\",\"field\":\"id\",\"label\":\"n\"}]}"}
+   {
+     "request": "{\"cohort\":{\"filename\":\"sales.pulse\"},\"aggregations\":[{\"type\":\"AGG_COUNT\",\"field\":\"id\",\"label\":\"n\"}]}"
+   }
    ```
 
-6. Once predict is clean, call `pulse_process` (single) or `pulse_compose` (batch). Read `data` for rows, `metadata` for `total_rows`/`filtered_rows`/timing, and the envelope's `errors`/`warnings` for diagnostics.
+   The server inspects (binding schema-aware enums into the session's action tools), validates, executes, and returns import metadata, the predict envelope, and the result rows in one response. On predict failure with `on_invalid="suggest"`, the response carries structured `Fixup` entries so you can repair the request without re-querying the schema. For natural-language input, the `query` parser maps prose to a structured request against the cohort's schema — see `query-router-prompt` for the prompt template.
 
-For the common path, `pulse_ask` collapses steps 5–6 into a single round trip. With `on_invalid="suggest"` and a predict failure, the response carries structured `Fixup` entries so you can repair the request without re-querying the schema. With `query` instead of `request`, the parser maps a natural-language sentence to a structured request — see `query-router-prompt` for the recommended prompt template.
+3. Iterate against the same handle in subsequent `pulse_ask` calls. Every call slides the managed-import TTL forward (default `7d`); pass `source_ttl: "pin"` if you want the handle to outlive activity-based expiry.
+
+### When to use lower-level tools
+
+The four-call chain is still supported and is the right reach in these situations:
+
+- **Diagnosing a failed predict** — call `pulse_predict` directly to read the full envelope (`errors`, `warnings`, `suggestions`, `defaults_applied`, `streamable_reasons`) without execution.
+- **Eyeballing data** — `pulse_sample` for N rows, `pulse_facet` for a one-field distribution.
+- **Schema discovery before authoring** — `pulse_inspect` reads the cohort header explicitly. `pulse_ask` does this for you under the hood.
+- **Batch execution** — `pulse_compose` runs many requests against a single cohort in one shot.
+- **Pre-staging a handle** — `pulse_import` when you want to lock in a handle name / TTL / pinning policy without immediately running a query.
+
+Legacy multi-step shape:
+
+```json
+// 1. (Optional) pulse_import — converts raw source into a managed handle
+{"source": "data.csv", "ttl": "7d"}
+
+// 2. pulse_inspect — read cohort schema, bind enums
+{"path": "sales.pulse"}
+
+// 3. pulse_predict — validate a hand-authored request
+{"request": "{\"cohort\":{\"filename\":\"sales.pulse\"},\"aggregations\":[{\"type\":\"AGG_COUNT\",\"field\":\"id\",\"label\":\"n\"}]}"}
+
+// 4. pulse_process — execute
+{"request": "..."}
+```
 </workflow>
 
 <example name="canonical-process-request">

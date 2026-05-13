@@ -2341,11 +2341,11 @@
     "mcp_tools": [
       {
         "name": "pulse_ask",
-        "description": "Pulse one-shot. Inspect the given .pulse file, validate the request against its schema, and execute if valid. Accepts either a structured `request` or a `query` natural-language string (parsed server-side using the file's schema). On validation failure with on_invalid=\"suggest\", return structured fixup suggestions instead of erroring. Replaces the inspect→predict→process round-trip for the common case. Set predict=true to validate without executing."
+        "description": "PREFERRED ENTRY POINT. The unified one-shot for analytical queries against a Pulse cohort. One call does all of: (optional) import the source file, inspect schema, validate the request, and execute. Replaces the manual pulse_import → pulse_inspect → pulse_predict → pulse_process chain for the common case.\n\nThree input modes (combine freely):\n  - source=\"data.csv\" + query=\"average revenue by month\" — point at a raw file and ask in English. Pulse imports it (managed handle, 7d TTL by default), parses the question against the schema, and runs it.\n  - source=\"data.csv\" + request={...} — auto-import + structured request.\n  - request={cohort:{filename:\"x.pulse\"}, ...} — operate on an already-imported handle.\n\nExamples:\n  {\"source\":\"orders.csv\",\"query\":\"total revenue by region, top 5\"}\n  {\"source\":\"experiment.parquet\",\"query\":\"t-test of score between treatment and control\"}\n  {\"source\":\"/Users/me/data/sales.csv\",\"query\":\"trend over time\",\"source_ttl\":\"30d\"}\n  {\"request\":{\"cohort\":{\"filename\":\"imports/orders.pulse\"},\"aggregations\":[{\"type\":\"AGG_AVERAGE\",\"field\":\"revenue\"}]}}\n\nOptional knobs: predict=true to validate without executing; on_invalid=\"suggest\" to return structured fixup hints instead of an error; source_format / source_handle / source_ttl / source_sheet / source_overwrite to customise the auto-import. Use pulse_ask first; fall back to the lower-level tools only when you need finer control."
       },
       {
         "name": "pulse_compose",
-        "description": "Execute a batch of processing requests."
+        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts. For single-question analytical asks, prefer pulse_ask."
       },
       {
         "name": "pulse_drop",
@@ -2365,7 +2365,7 @@
       },
       {
         "name": "pulse_facet",
-        "description": "Return distinct values for a field in a cohort."
+        "description": "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use after pulse_ask when you need the unique-value set of one column (e.g., before authoring a FILTER_INCLUDE)."
       },
       {
         "name": "pulse_import",
@@ -2377,7 +2377,7 @@
       },
       {
         "name": "pulse_inspect",
-        "description": "Read header and schema of a .pulse file. Never reads record data."
+        "description": "ADVANCED. Read header and schema of a .pulse file. Never reads record data. Typically callers should use pulse_ask instead — pulse_ask runs inspect + predict + execute in one call and is the preferred entry point for analytical questions. Use pulse_inspect directly only when you need schema-only output without running a request (e.g., listing fields for a UI, debugging dictionary contents)."
       },
       {
         "name": "pulse_manifest",
@@ -2385,15 +2385,15 @@
       },
       {
         "name": "pulse_predict",
-        "description": "Validate a processing request against a cohort schema without executing."
+        "description": "ADVANCED. Validate a processing request against a cohort schema without executing. Typically callers should use pulse_ask with predict=true instead — same validation, plus auto-import and natural-language query support, in one call. Use pulse_predict directly only when you need standalone validation diagnostics on a pre-built request (e.g., a request constructor verifying its output before storage)."
       },
       {
         "name": "pulse_process",
-        "description": "Execute a processing request against a cohort."
+        "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Typically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
       },
       {
         "name": "pulse_sample",
-        "description": "Return up to N rows from a cohort."
+        "description": "Return up to N rows from a cohort. Diagnostic / preview tool — use after pulse_ask if you want to eyeball the underlying data."
       },
       {
         "name": "pulse_skills_get",
@@ -3421,4 +3421,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 591a19955f630077a85ff0572e11c0a9b692c57097bc742dfd95a43c4d993a14
+// golden-hash: 03ba4d9fa7b8a2ec833641267ad11df855767c9ed0dd8966fbf49d1ee209c4a4

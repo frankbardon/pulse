@@ -162,7 +162,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 	s.AddTool(
 		mcpgo.NewTool(ToolAsk,
 			mcpgo.WithDescription(DescAsk),
-			mcpgo.WithString("request", mcpgo.Description("JSON-encoded pulse.AskRequest with either `request` (types.Request) or `query` (natural-language string parsed against the cohort's schema), optional `on_invalid` (\"abort\"|\"suggest\") and optional `predict` (bool)"), mcpgo.Required()),
+			mcpgo.WithString("request", mcpgo.Description("JSON-encoded pulse.AskRequest. Fields: `source` (path to csv/tsv/ndjson/jsonarray/parquet/arrow/excel/.pulse — auto-imported into the managed pool), `query` (natural-language question parsed against the cohort schema), `request` (structured types.Request for explicit control), `predict` (bool — validate without executing), `on_invalid` (\"abort\"|\"suggest\"), `source_format` / `source_handle` / `source_ttl` / `source_sheet` / `source_overwrite` (optional auto-import knobs; defaults: detect format from extension, 7d TTL). Most common shape: `{\"source\":\"data.csv\",\"query\":\"average X by Y\"}`."), mcpgo.Required()),
 		),
 		handleAsk(s, p, bindOnOpen, handlers),
 	)
