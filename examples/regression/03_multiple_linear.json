@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "name": "multiple_linear",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ols",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "REG_OLS"
+    ],
+    "description": "Multiple linear regression (Indeed #2 / #4 — Multiple = Multiple Linear): REG_OLS of income on two predictors against the training_data fixture."
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "income_on_price_label",
+      "target": "income",
+      "predictors": ["price", "label"]
+    }
+  ]
+}

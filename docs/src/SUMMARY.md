@@ -49,6 +49,10 @@
 
 - [Searchable Request Examples](examples/library.md)
 
+# Operator Families
+
+- [Regression Modeling](regression.md)
+
 # Internals
 
 - [Architecture Overview](internals/architecture.md)

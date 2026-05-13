@@ -13,7 +13,7 @@ The 13 names in the Indeed taxonomy double-count (Simple = Linear univariate, Mu
 
 ## Phase status
 
-Phase 5 has landed: `Resample` and `Selection` modifiers apply to any regression operator. Jackknife and bootstrap replace analytical SE with resample-based estimates; forward / backward / stepwise selection drives AIC- or BIC-based greedy subset search. Both modifiers force the buffered orchestrator path.
+Phase 8 has shipped: all 13 Indeed regressions are reachable, the example library carries one runnable file per name, and the manifest exposes the three operators plus their two modifiers and FEAT_POLY composition.
 
 | Phase | Engine                                          | Status   |
 |-------|-------------------------------------------------|----------|
@@ -23,10 +23,10 @@ Phase 5 has landed: `Resample` and `Selection` modifiers apply to any regression
 | 4     | Bayesian linear (conjugate NIG)                 | shipped  |
 | 5     | Modifiers (`Resample`, `Selection`)             | shipped  |
 | 6     | Compositional coverage (FEAT_POLY, ecological)  | shipped  |
-| 7     | Per-row regression attributes (ATTR_REG_*)      | pending  |
-| 8     | Docs, examples, manifest polish                 | pending  |
+| 7     | Per-row regression attributes (ATTR_REG_*)      | shipped  |
+| 8     | Docs, examples, manifest polish                 | shipped  |
 
-Until the engine for a given operator lands, every request slot of that type returns `PROCESSING_REGRESSION_NOT_IMPLEMENTED`. After Phase 4, only modifier-wrapped specs (`Resample`, `Selection`) on any base operator surface that code.
+`PROCESSING_REGRESSION_NOT_IMPLEMENTED` is now reserved — no operator + modifier combination still routes through it. Misuse surfaces as `PROCESSING_CONFIG` or the per-engine error codes documented below.
 
 ## Operators
 
@@ -334,21 +334,23 @@ Selection populates `SelectedFeatures` with the chosen subset and drops non-sele
 
 ## The 13 textbook names → Pulse specs
 
-| #  | Indeed name        | Pulse expression                                                       |
-|----|--------------------|------------------------------------------------------------------------|
-| 1  | Simple             | `REG_OLS` with one predictor                                           |
-| 2  | Multiple           | `REG_OLS` with multiple predictors                                     |
-| 3  | Linear             | = #1                                                                   |
-| 4  | Multiple Linear    | = #2                                                                   |
-| 5  | Logistic           | `REG_GLM{Family:"binomial", Link:"logit"}`                             |
-| 6  | Ridge              | `REG_OLS{Penalty:"l2", Alpha:λ}`                                       |
-| 7  | Lasso              | `REG_OLS{Penalty:"l1", Alpha:λ}`                                       |
-| 8  | Polynomial         | `FEAT_POLY{Field:x, Degree:n}` upstream → `REG_OLS` (Phase 6)          |
-| 9  | Bayesian Linear    | `REG_BAYES_LINEAR{Prior:"nig"}`                                        |
-| 10 | Jackknife          | any regression with `Resample:"jackknife"`                             |
-| 11 | Elastic Net        | `REG_OLS{Penalty:"elasticnet", Alpha, L1Ratio}`                        |
-| 12 | Ecological         | `GROUP_*` upstream → `REG_OLS` over group means (composed request)     |
-| 13 | Stepwise           | any regression with `Selection:"stepwise", Criterion:"aic"\|"bic"`     |
+Each name links to a runnable example under `examples/regression/`. Fetch via `pulse_examples_get` or read directly from the embedded library.
+
+| #  | Indeed name        | Pulse expression                                                       | Example file                                  |
+|----|--------------------|------------------------------------------------------------------------|-----------------------------------------------|
+| 1  | Simple             | `REG_OLS` with one predictor                                           | `examples/regression/02_simple_linear.json`   |
+| 2  | Multiple           | `REG_OLS` with multiple predictors                                     | `examples/regression/03_multiple_linear.json` |
+| 3  | Linear             | = #1                                                                   | `examples/regression/02_simple_linear.json`   |
+| 4  | Multiple Linear    | = #2                                                                   | `examples/regression/03_multiple_linear.json` |
+| 5  | Logistic           | `REG_GLM{Family:"binomial", Link:"logit"}`                             | `examples/regression/04_logistic.json`        |
+| 6  | Ridge              | `REG_OLS{Penalty:"l2", Alpha:λ}`                                       | `examples/regression/05_ridge.json`           |
+| 7  | Lasso              | `REG_OLS{Penalty:"l1", Alpha:λ}`                                       | `examples/regression/06_lasso.json`           |
+| 8  | Polynomial         | `FEAT_POLY{Field:x, Degree:n}` upstream → `REG_OLS` (Phase 6)          | `examples/regression/07_polynomial.json`      |
+| 9  | Bayesian Linear    | `REG_BAYES_LINEAR{Prior:"nig"}`                                        | `examples/regression/08_bayesian_linear.json` |
+| 10 | Jackknife          | any regression with `Resample:"jackknife"`                             | `examples/regression/09_jackknife.json`       |
+| 11 | Elastic Net        | `REG_OLS{Penalty:"elasticnet", Alpha, L1Ratio}`                        | `examples/regression/10_elasticnet.json`      |
+| 12 | Ecological         | `GROUP_*` upstream → `REG_OLS` over group means (composed request)     | `examples/regression/01_ecological_fallacy.json` |
+| 13 | Stepwise           | any regression with `Selection:"stepwise", Criterion:"aic"\|"bic"`     | `examples/regression/11_stepwise.json`        |
 
 ## Streamability matrix
 
@@ -361,7 +363,7 @@ Selection populates `SelectedFeatures` with the chosen subset and drops non-sele
 | Any regression with `Resample != ""`               | no         | O(n·p)  | LOO / bootstrap refit                         |
 | Any regression with `Selection != ""`              | no         | O(n·p)  | refit per candidate subset                    |
 
-Phases 1–2 light up streaming for both unpenalized and regularized REG_OLS. Phase 4 lights up streaming for `REG_BAYES_LINEAR` via the same Welford sufficient statistics plus a conjugate posterior update at finalize. Phase 5 ships modifier wrappers that always force buffered — both Resample and Selection refit many times, defeating the streaming pattern.
+Phases 1–2 light up streaming for both unpenalized and regularized REG_OLS. Phase 4 lights up streaming for `REG_BAYES_LINEAR` via the same Welford sufficient statistics plus a conjugate posterior update at finalize. Phase 5 ships modifier wrappers that always force buffered — both Resample and Selection refit many times, defeating the streaming pattern. As of Phase 8 the matrix above is the as-shipped streamability state; clients can also check it via `pulse_predict` on any concrete request.
 
 ## Compositional patterns
 

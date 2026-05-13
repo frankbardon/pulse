@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "name": "bayesian_linear",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "bayesian",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "REG_BAYES_LINEAR"
+    ],
+    "description": "Bayesian linear regression (Indeed #9): REG_BAYES_LINEAR with the conjugate Normal-Inverse-Gamma prior; 95% credible intervals replace frequentist p-values."
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_BAYES_LINEAR",
+      "name": "income_bayes",
+      "target": "income",
+      "predictors": ["age"],
+      "prior": "nig",
+      "credible_level": 0.95
+    }
+  ]
+}

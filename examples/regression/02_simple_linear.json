@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "name": "simple_linear",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ols",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "REG_OLS"
+    ],
+    "description": "Simple linear regression (Indeed #1 / #3 — Simple = Linear): univariate REG_OLS of income on age."
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "income_on_age",
+      "target": "income",
+      "predictors": ["age"]
+    }
+  ]
+}

@@ -2850,7 +2850,7 @@
       },
       {
         "name": "pulse_compose",
-        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts. For single-question analytical asks, prefer pulse_ask."
+        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop. For single-question analytical asks, prefer pulse_ask."
       },
       {
         "name": "pulse_drop",
@@ -2894,7 +2894,7 @@
       },
       {
         "name": "pulse_process",
-        "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Typically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
+        "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests. Typically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
       },
       {
         "name": "pulse_sample",
@@ -3914,7 +3914,7 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 72,
+    "examples_count": 82,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -3926,6 +3926,7 @@
       "windows"
     ],
     "example_tags": [
+      "bayesian",
       "before-after",
       "buffered-pipeline",
       "cardinality-analysis",
@@ -3937,29 +3938,41 @@
       "data-quality",
       "distribution-shape",
       "ecological",
+      "elasticnet",
       "exact-test",
       "experiment-analysis",
       "feature-engineering",
       "feature-pipeline",
       "financial",
       "geo-analysis",
+      "glm",
       "homogeneity-test",
       "hypothesis-test",
+      "jackknife",
       "k-sample",
+      "lasso",
       "leakage-risk",
       "leakage-safe",
+      "logistic",
       "nonparametric",
       "normality-test",
+      "ols",
       "one-sample",
       "outlier-detection",
       "paired",
       "parametric",
+      "polynomial",
       "post-hoc",
       "pre-filter",
       "proportion-analysis",
       "regression",
+      "regularization",
       "repeated-measures",
+      "resampling",
+      "ridge",
+      "selection",
       "small-sample",
+      "stepwise",
       "streaming-friendly",
       "t-test",
       "tier-1-test",
@@ -3974,4 +3987,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4027ebe6c03d099555e57938e68a30fdeff4d50ab141f7818a6089f3f611b166
+// golden-hash: fd4364639b5c49bd818eb3b55aef6dfa99c5e89b9a4db8c5cf5e932afd3ddd02
