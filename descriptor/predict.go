@@ -221,19 +221,39 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []string) {
 	var reasons []string
 
-	// Phase 0: any regression slot forces the buffered path. The
-	// streaming sufficient-statistics path lands in Phase 1; the
-	// spec-level RegressionSpec.Streamable check (modifier downgrade)
-	// is still surfaced per-spec for forward compatibility.
+	// Regression streamability defers to RegressionSpec.Streamable():
+	// it folds the type-level family check, the modifier downgrade
+	// (Resample / Selection force buffered), and the Phase-by-Phase
+	// implementation status gate (today only unpenalized REG_OLS streams).
+	// Phases 2-5 widen the gate as their engines land — predict and the
+	// processor share the same source of truth via this method.
 	for _, reg := range req.Regressions {
 		if reg == nil {
 			continue
 		}
 		if !reg.Streamable() {
-			reasons = append(reasons, "regression "+string(reg.Type)+" requires the buffered path under the current spec (modifier or family forces non-streaming)")
-			continue
+			reasons = append(reasons, "regression "+string(reg.Type)+" requires the buffered path under the current spec")
 		}
-		reasons = append(reasons, "regression "+string(reg.Type)+" runs via the buffered path in Phase 0")
+	}
+	// Regression slots do not yet compose with groupers, features,
+	// two-pass attributes, or tier-1 row tests in the streaming path.
+	// Mirror the runtime gate so predict stays parity-true.
+	if len(req.Regressions) > 0 {
+		if len(req.Groups) > 0 {
+			reasons = append(reasons, "regression with groupers runs via the buffered path")
+		}
+		if len(req.Features) > 0 {
+			reasons = append(reasons, "regression with features runs via the buffered path")
+		}
+		if len(req.Tests) > 0 {
+			reasons = append(reasons, "regression with tier-1 tests runs via the buffered path")
+		}
+		for _, attr := range req.Attributes {
+			if attr.Type == types.ATTR_ZSCORE || attr.Type == types.ATTR_TSCORE || attr.Type == types.ATTR_NORMALIZED {
+				reasons = append(reasons, "regression with two-pass attribute "+string(attr.Type)+" runs via the buffered path")
+				break
+			}
+		}
 	}
 
 	if len(req.Aggregations) == 0 {

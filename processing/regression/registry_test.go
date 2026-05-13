@@ -25,20 +25,33 @@ func TestRegistry_AllTypesRegistered(t *testing.T) {
 	}
 }
 
-// TestFit_NotImplemented asserts every registered factory returns
-// PROCESSING_REGRESSION_NOT_IMPLEMENTED from Engine.Fit. Phase 0
-// contract; Phases 1–4 retire the stub per operator.
+// TestFit_NotImplemented asserts every still-stubbed registered factory
+// returns PROCESSING_REGRESSION_NOT_IMPLEMENTED from Engine.Fit. Phase 0
+// covered every operator; Phase 1 retires the stub for unpenalized
+// REG_OLS, so this test now covers REG_GLM, REG_BAYES_LINEAR, and
+// regularized / modifier-wrapped REG_OLS variants.
 func TestFit_NotImplemented(t *testing.T) {
-	for _, rt := range types.AllRegressionTypes() {
-		spec := &types.RegressionSpec{Type: rt, Target: "y"}
-		_, err := Fit([]*types.RegressionSpec{spec}, nil)
-		if err == nil {
-			t.Errorf("Fit(%s) returned nil error; want PROCESSING_REGRESSION_NOT_IMPLEMENTED", rt)
-			continue
-		}
-		if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED) {
-			t.Errorf("Fit(%s) error code = %v, want PROCESSING_REGRESSION_NOT_IMPLEMENTED", rt, err)
-		}
+	cases := []struct {
+		name string
+		spec *types.RegressionSpec
+	}{
+		{name: "REG_GLM (Phase 3)", spec: &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "binomial"}},
+		{name: "REG_BAYES_LINEAR (Phase 4)", spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}}},
+		{name: "REG_OLS l1 penalty (Phase 2)", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1}},
+		{name: "REG_OLS l2 penalty (Phase 2)", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l2", Alpha: 0.1}},
+		{name: "REG_OLS bootstrap modifier (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}},
+		{name: "REG_OLS stepwise selection (Phase 5)", spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := Fit([]*types.RegressionSpec{c.spec}, nil)
+			if err == nil {
+				t.Fatalf("Fit returned nil error; want PROCESSING_REGRESSION_NOT_IMPLEMENTED")
+			}
+			if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED) {
+				t.Errorf("Fit error code = %v, want PROCESSING_REGRESSION_NOT_IMPLEMENTED", err)
+			}
+		})
 	}
 }
 

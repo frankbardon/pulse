@@ -262,9 +262,21 @@ func (t RegressionType) Streamable() bool {
 }
 
 // Streamable reports whether this concrete RegressionSpec can run via
-// the streaming execution path. The check folds the type-level
-// Streamable() value with the spec-level modifier downgrade rules:
-// any non-empty Resample or Selection forces the buffered path.
+// the streaming execution path today. The check folds the type-level
+// Streamable() value with three layers:
+//
+//   - modifier downgrade: any non-empty Resample or Selection forces
+//     the buffered path.
+//   - penalty downgrade: REG_OLS with a non-empty Penalty currently
+//     forces buffered (Phase 1 ships unpenalized OLS; regularized OLS
+//     lands in Phase 2 with a streaming-Gram + regularized finalize
+//     solve).
+//   - implementation gate: REG_BAYES_LINEAR is type-level streamable
+//     but its conjugate-NIG engine lands in Phase 4; until then it
+//     also falls through to the buffered path.
+//
+// Phase 2 widens this gate when regularized OLS lands; Phase 4 widens
+// it again for Bayes.
 func (s RegressionSpec) Streamable() bool {
 	if !s.Type.Streamable() {
 		return false
@@ -275,5 +287,19 @@ func (s RegressionSpec) Streamable() bool {
 	if s.Selection != "" {
 		return false
 	}
-	return true
+	switch s.Type {
+	case REG_OLS:
+		// Penalized fits land in Phase 2 via a streaming Gram + regularized
+		// finalize solve; until then they take the buffered path.
+		if s.Penalty != "" {
+			return false
+		}
+		return true
+	case REG_BAYES_LINEAR:
+		// Streaming Bayes (conjugate NIG posterior update) ships in
+		// Phase 4. Phase 1 keeps it buffered alongside the not-implemented
+		// engine stub.
+		return false
+	}
+	return false
 }

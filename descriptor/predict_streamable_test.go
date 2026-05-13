@@ -206,31 +206,71 @@ func TestPredict_Streamable_DecimalFieldBlocks(t *testing.T) {
 	}
 }
 
-// TestPredict_Streamable_RegressionBlocks asserts every regression
-// slot forces Streamable=false in Phase 0. Even closed-form OLS routes
-// through the buffered path until the streaming sufficient-statistics
-// engine lands in Phase 1.
-func TestPredict_Streamable_RegressionBlocks(t *testing.T) {
+// TestPredict_Streamable_UnpenalizedOLSStreams asserts the Phase 1
+// gate flip: REG_OLS with Penalty == "" and no Resample / Selection
+// modifiers reports Streamable=true with no blocking reasons.
+func TestPredict_Streamable_UnpenalizedOLSStreams(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
-			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
+			{Name: "y", Type: encoding.FieldTypeF64, Description: "Response variable values"},
+			{Name: "x", Type: encoding.FieldTypeF64, Description: "Predictor variable values"},
 		},
 	}
 	data := buildTestPulseFile(t, schema)
 
 	req := &types.Request{
-		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "y"}},
 		Regressions: []*types.RegressionSpec{
-			{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}},
+			{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}},
 		},
 	}
 	env := PredictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
-	if result.Streamable {
-		t.Error("Streamable = true, want false (Phase 0 buffers every regression slot)")
+	if !result.Streamable {
+		t.Errorf("Streamable = false, want true. Reasons: %v", result.StreamableReasons)
 	}
-	if !containsReason(result.StreamableReasons, "regression") {
-		t.Errorf("expected a reason mentioning regression, got %v", result.StreamableReasons)
+}
+
+// TestPredict_Streamable_RegressionBlocks asserts the regression
+// variants that do not yet stream (penalized OLS, GLM, Bayes,
+// modifier-wrapped specs) still force Streamable=false. Phase 1
+// implements only unpenalized REG_OLS; everything else continues to
+// route through the buffered path until later phases.
+func TestPredict_Streamable_RegressionBlocks(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "y", Type: encoding.FieldTypeF64, Description: "Response variable values"},
+			{Name: "x", Type: encoding.FieldTypeF64, Description: "Predictor variable values"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	cases := []struct {
+		name string
+		spec *types.RegressionSpec
+	}{
+		{"penalized OLS (Phase 2)", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l2", Alpha: 0.1}},
+		{"GLM (Phase 3)", &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: []string{"x"}, Family: "binomial"}},
+		{"Bayes linear (Phase 4)", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}}},
+		{"OLS with bootstrap (Phase 5)", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "bootstrap"}},
+		{"OLS with jackknife (Phase 5)", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "jackknife"}},
+		{"OLS with selection (Phase 5)", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Selection: "stepwise", Criterion: "aic"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "y"}},
+				Regressions:  []*types.RegressionSpec{c.spec},
+			}
+			env := PredictFromBytes(data, req, nil)
+			result := env.Data.(*PredictResult)
+			if result.Streamable {
+				t.Errorf("Streamable = true, want false. Reasons: %v", result.StreamableReasons)
+			}
+			if !containsReason(result.StreamableReasons, "regression") {
+				t.Errorf("expected a reason mentioning regression, got %v", result.StreamableReasons)
+			}
+		})
 	}
 }
 
@@ -361,6 +401,38 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"sum on decimal", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "amount"}}}, decimalSchema},
 		{"empty request", &types.Request{}, numericSchema},
 		{"geo centroid", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_GEO_CENTROID, Field: "loc"}}}, geoSchema},
+		{
+			"unpenalized REG_OLS streams",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			"penalized REG_OLS buffers",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Penalty: "l2", Alpha: 0.1}},
+			},
+			numericSchema,
+		},
+		{
+			"REG_GLM buffers",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_GLM, Target: "score", Predictors: []string{"score"}, Family: "binomial"}},
+			},
+			numericSchema,
+		},
+		{
+			"REG_BAYES_LINEAR buffers",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}}},
+			},
+			numericSchema,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

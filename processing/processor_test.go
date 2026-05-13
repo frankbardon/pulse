@@ -9,39 +9,48 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestProcessor_RegressionNotImplemented exercises the Phase 0 end-to-end
-// contract: a Request that carries a RegressionSpec routes through the
-// buffered path (Phase 0 always buffers) and bubbles up
-// PROCESSING_REGRESSION_NOT_IMPLEMENTED from the regression.Fit stub
-// without panicking. Response is unpopulated (Process returns the
-// CodedError instead) — service/CLI layers wrap it into the envelope.
+// TestProcessor_RegressionNotImplemented exercises the still-stubbed
+// engine surface end-to-end. Phase 0 covered every operator; Phase 1
+// retires the stub for unpenalized REG_OLS (its own end-to-end coverage
+// lives in ols_test.go), so this test now exercises REG_GLM,
+// REG_BAYES_LINEAR, and regularized / modifier-wrapped REG_OLS variants.
+// Each one routes through the buffered orchestrator path and bubbles
+// PROCESSING_REGRESSION_NOT_IMPLEMENTED back to the caller without
+// panicking.
 func TestProcessor_RegressionNotImplemented(t *testing.T) {
 	schema := numericSchema()
-	proc := NewProcessor(schema)
 
 	records := makeRecords(schema, "score", []float64{10, 20, 30})
-	iter := NewSliceIterator(records)
 
-	for _, rt := range types.AllRegressionTypes() {
-		req := &types.Request{
-			Aggregations: []*types.Aggregation{
-				{Type: types.AGG_AVERAGE, Field: "score"},
-			},
-			Regressions: []*types.RegressionSpec{
-				{Type: rt, Target: "score", Predictors: []string{"score"}, Family: "binomial"},
-			},
-		}
+	cases := []struct {
+		name string
+		spec *types.RegressionSpec
+	}{
+		{"REG_GLM", &types.RegressionSpec{Type: types.REG_GLM, Target: "score", Predictors: []string{"score"}, Family: "binomial"}},
+		{"REG_BAYES_LINEAR", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}}},
+		{"REG_OLS l1 penalty", &types.RegressionSpec{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Penalty: "l1", Alpha: 0.1}},
+		{"REG_OLS bootstrap", &types.RegressionSpec{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Resample: "bootstrap"}},
+		{"REG_OLS stepwise", &types.RegressionSpec{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Selection: "stepwise", Criterion: "aic"}},
+	}
 
-		_, err := proc.Process(context.Background(), req, iter)
-		if err == nil {
-			t.Errorf("Process(%s) returned nil error; want PROCESSING_REGRESSION_NOT_IMPLEMENTED", rt)
-			continue
-		}
-		if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED) {
-			t.Errorf("Process(%s) error = %v; want PROCESSING_REGRESSION_NOT_IMPLEMENTED", rt, err)
-		}
-		// Reset iter for the next type — SliceIterator is one-shot.
-		iter = NewSliceIterator(records)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			proc := NewProcessor(schema)
+			iter := NewSliceIterator(records)
+			req := &types.Request{
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_AVERAGE, Field: "score"},
+				},
+				Regressions: []*types.RegressionSpec{c.spec},
+			}
+			_, err := proc.Process(context.Background(), req, iter)
+			if err == nil {
+				t.Fatalf("Process returned nil error; want PROCESSING_REGRESSION_NOT_IMPLEMENTED")
+			}
+			if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED) {
+				t.Errorf("Process error = %v; want PROCESSING_REGRESSION_NOT_IMPLEMENTED", err)
+			}
+		})
 	}
 }
 

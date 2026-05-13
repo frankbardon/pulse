@@ -11,6 +11,7 @@ require (
 	github.com/urfave/cli/v3 v3.8.0
 	github.com/xuri/excelize/v2 v2.10.1
 	golang.org/x/sys v0.43.0
+	gonum.org/v1/gonum v0.17.0
 )
 
 require (

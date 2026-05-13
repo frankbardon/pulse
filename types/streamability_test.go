@@ -184,7 +184,10 @@ func TestRegressionTypesKnown(t *testing.T) {
 // TestRegressionSpec_StreamableModifierDowngrade asserts the spec-level
 // Streamable helper downgrades to false whenever a Resample or
 // Selection modifier is set, regardless of the underlying type's
-// Streamable() value.
+// Streamable() value. Also asserts the Phase 1 implementation-status
+// gate: only unpenalized OLS streams today; penalized OLS (Phase 2)
+// and Bayes (Phase 4) currently take the buffered path even though
+// their type-level Streamable() returns true.
 func TestRegressionSpec_StreamableModifierDowngrade(t *testing.T) {
 	cases := []struct {
 		name string
@@ -192,9 +195,24 @@ func TestRegressionSpec_StreamableModifierDowngrade(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "ols no modifiers streams",
+			name: "unpenalized ols streams",
 			spec: RegressionSpec{Type: REG_OLS},
 			want: true,
+		},
+		{
+			name: "ols with l1 penalty is buffered (Phase 2)",
+			spec: RegressionSpec{Type: REG_OLS, Penalty: "l1", Alpha: 0.1},
+			want: false,
+		},
+		{
+			name: "ols with l2 penalty is buffered (Phase 2)",
+			spec: RegressionSpec{Type: REG_OLS, Penalty: "l2", Alpha: 0.1},
+			want: false,
+		},
+		{
+			name: "ols with elasticnet penalty is buffered (Phase 2)",
+			spec: RegressionSpec{Type: REG_OLS, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 0.5},
+			want: false,
 		},
 		{
 			name: "ols with bootstrap is buffered",
@@ -212,9 +230,9 @@ func TestRegressionSpec_StreamableModifierDowngrade(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "bayes linear streams",
+			name: "bayes linear buffered until Phase 4",
 			spec: RegressionSpec{Type: REG_BAYES_LINEAR},
-			want: true,
+			want: false,
 		},
 		{
 			name: "bayes with bootstrap is buffered",

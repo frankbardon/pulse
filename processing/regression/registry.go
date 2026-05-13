@@ -8,7 +8,11 @@ import (
 
 // regressionRegistry maps RegressionType to its Factory. Per-operator
 // init() functions register here; Phase 0 wires every type to the
-// notImplemented stub.
+// notImplemented stub. Phase 1 replaces REG_OLS with the unpenalized
+// olsEngine factory; that factory itself routes penalized / modifier
+// requests back to the not-implemented stub so the legacy code paths
+// continue to surface PROCESSING_REGRESSION_NOT_IMPLEMENTED until
+// Phases 2-5 land their dedicated engines.
 var regressionRegistry = map[types.RegressionType]Factory{}
 
 // register installs a factory. Duplicate registration panics at boot so
@@ -36,11 +40,34 @@ func RegisteredTypes() []types.RegressionType {
 	return out
 }
 
+// BufferedEngine is the Phase 1 entry point for buffered-orchestrator
+// regression fits. Implementations consume an in-memory record slice
+// and emit the populated result. Phase 0 stub engines ignore the slice
+// and return PROCESSING_REGRESSION_NOT_IMPLEMENTED; the unpenalized
+// olsEngine folds every record through its Welford accumulator.
+type BufferedEngine interface {
+	Engine
+	FitBuffered(records []Record) (*types.RegressionResult, error)
+}
+
+// StreamingEngine is the Phase 1 entry point for single-pass orchestrator
+// regression fits. Implementations consume records one at a time via
+// UpdateRow, then close the fit via Finalize. The orchestrator wraps
+// the same record stream that drives streamable aggregators.
+//
+// Only the unpenalized OLS engine implements this interface today.
+// Phase 2 (regularized OLS), Phase 4 (Bayes), and Phases 5+ (modifiers)
+// will expand the set.
+type StreamingEngine interface {
+	UpdateRow(rec Record) error
+	Finalize() (*types.RegressionResult, error)
+}
+
 // Build returns an Engine for each spec. Unknown types surface
 // PROCESSING_CONFIG; per-spec factory errors propagate untouched. This
-// is the parent processing package's entry point — it consumes Build
-// during Phase 1+ orchestration without depending on per-operator
-// internals.
+// is the orchestrator's entry point — both streaming and buffered
+// paths invoke Build first, then route the returned engines through
+// the appropriate execution interface.
 func Build(specs []*types.RegressionSpec, schema *encoding.Schema) ([]Engine, error) {
 	if len(specs) == 0 {
 		return nil, nil
@@ -68,10 +95,12 @@ func Build(specs []*types.RegressionSpec, schema *encoding.Schema) ([]Engine, er
 // the loop and propagates to the caller.
 //
 // Phase 0 contract: every spec returns
-// PROCESSING_REGRESSION_NOT_IMPLEMENTED from Fit, so this function
-// returns that error for any non-empty specs slice. Callers handle the
-// error by surfacing it on the response envelope without populating
-// Response.Regressions.
+// PROCESSING_REGRESSION_NOT_IMPLEMENTED from Fit. Phase 1 retires this
+// path for the buffered orchestrator: callers now use FitBuffered to
+// pass in the filtered record slice. Fit() is retained for callers
+// that have no records (legacy / unit tests); engines that need rows
+// return PROCESSING_REGRESSION_INSUFFICIENT_DATA from Fit() since their
+// accumulator is empty.
 func Fit(specs []*types.RegressionSpec, schema *encoding.Schema) ([]*types.RegressionResult, error) {
 	engines, err := Build(specs, schema)
 	if err != nil {
@@ -91,11 +120,84 @@ func Fit(specs []*types.RegressionSpec, schema *encoding.Schema) ([]*types.Regre
 	return out, nil
 }
 
-// init wires every registered RegressionType to the Phase 0
-// not-implemented stub. Phases 1–4 replace these calls with real
-// factories per operator file.
+// FitBuffered is the Phase 1 buffered-orchestrator entry point. It
+// builds engines, then for each engine routes through FitBuffered with
+// the filtered record slice. Engines that implement BufferedEngine
+// consume the records; legacy not-implemented engines ignore the slice
+// and surface PROCESSING_REGRESSION_NOT_IMPLEMENTED via Fit().
+//
+// The records slice is shared across every spec — every engine sees
+// the same filtered set, so per-spec listwise null filtering happens
+// inside the engine (callers don't pre-filter per spec).
+func FitBuffered(specs []*types.RegressionSpec, schema *encoding.Schema, records []Record) ([]*types.RegressionResult, error) {
+	engines, err := Build(specs, schema)
+	if err != nil {
+		return nil, err
+	}
+	if len(engines) == 0 {
+		return nil, nil
+	}
+	out := make([]*types.RegressionResult, 0, len(engines))
+	for _, eng := range engines {
+		if be, ok := eng.(BufferedEngine); ok {
+			res, err := be.FitBuffered(records)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, res)
+			continue
+		}
+		// Not-implemented stubs ignore the records and surface the
+		// canonical PROCESSING_REGRESSION_NOT_IMPLEMENTED via Fit.
+		res, err := eng.Fit()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, res)
+	}
+	return out, nil
+}
+
+// BuildStreaming constructs StreamingEngine handles for the single-pass
+// orchestrator. Specs whose engines do not yet implement StreamingEngine
+// are rejected — callers are expected to gate on CanStreamRequest /
+// RegressionSpec.Streamable() before reaching this entry point.
+//
+// Returns nil, nil for an empty spec slice so the orchestrator can call
+// it unconditionally on streaming requests.
+func BuildStreaming(specs []*types.RegressionSpec, schema *encoding.Schema) ([]StreamingEngine, error) {
+	if len(specs) == 0 {
+		return nil, nil
+	}
+	engines, err := Build(specs, schema)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]StreamingEngine, 0, len(engines))
+	for i, eng := range engines {
+		se, ok := eng.(StreamingEngine)
+		if !ok {
+			return nil, errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_INTERNAL,
+				"regression engine does not implement StreamingEngine; orchestrator should have routed buffered",
+				map[string]any{"type": string(specs[i].Type), "name": specs[i].Name},
+			)
+		}
+		out = append(out, se)
+	}
+	return out, nil
+}
+
+// init wires every registered RegressionType to its Phase 0 stub, then
+// upgrades the operators whose engines have landed. Phase 1 replaces
+// REG_OLS with newOLSEngine; that constructor falls back to the
+// not-implemented stub for penalized / modifier specs so the
+// not-implemented error surface stays intact.
 func init() {
 	for _, rt := range types.AllRegressionTypes() {
 		register(rt, newNotImplemented)
 	}
+	// Phase 1: unpenalized OLS lights up. The factory closure routes
+	// penalized / modifier specs back to the not-implemented stub.
+	regressionRegistry[types.REG_OLS] = newOLSEngine
 }

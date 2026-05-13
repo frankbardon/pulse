@@ -175,10 +175,24 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if len(req.Windows) > 0 {
 		return false
 	}
-	// Regression slots route through the buffered path in Phase 0; the
-	// streaming sufficient-statistics path lands in Phase 1.
+	// Regression slots stream only when every spec opts in via
+	// RegressionSpec.Streamable() (today: unpenalized REG_OLS without
+	// Resample/Selection modifiers). The streaming path does not yet
+	// compose regressions with groupers, features, two-pass attributes,
+	// or row tests — those combinations route through the buffered
+	// path so the orchestrator's invariants stay tight.
 	if len(req.Regressions) > 0 {
-		return false
+		for _, reg := range req.Regressions {
+			if reg == nil {
+				return false
+			}
+			if !reg.Streamable() {
+				return false
+			}
+		}
+		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req) || len(req.Tests) > 0 {
+			return false
+		}
 	}
 	if len(req.Tests) > 0 {
 		if !canRunRowTests(req.Tests) {
@@ -339,6 +353,15 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		return nil, err
 	}
 
+	// Build streaming regression engines. canStream verified every
+	// regression spec is streamable (today: unpenalized REG_OLS with no
+	// modifiers); BuildStreaming surfaces PROCESSING_INTERNAL if any
+	// engine slipped through without a streaming implementation.
+	regressionEngines, err := regression.BuildStreaming(req.Regressions, p.schema)
+	if err != nil {
+		return nil, err
+	}
+
 	var totalRows, filteredRows int64
 	for iter.Next() {
 		totalRows++
@@ -399,6 +422,13 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 				return nil, err
 			}
 		}
+		// Regression engines see the same filter-passing record once.
+		// listwise null deletion happens inside the engine.
+		for _, re := range regressionEngines {
+			if err := re.UpdateRow(r); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	row := make(map[string]any, len(entries))
@@ -428,6 +458,21 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		return nil, err
 	}
 
+	// Finalize streaming regression fits. Each engine's Finalize() may
+	// return PROCESSING_REGRESSION_INSUFFICIENT_DATA / _RANK_DEFICIENT;
+	// either short-circuits the Process call, matching the buffered path.
+	var regressionResults []*types.RegressionResult
+	if len(regressionEngines) > 0 {
+		regressionResults = make([]*types.RegressionResult, 0, len(regressionEngines))
+		for _, re := range regressionEngines {
+			res, err := re.Finalize()
+			if err != nil {
+				return nil, err
+			}
+			regressionResults = append(regressionResults, res)
+		}
+	}
+
 	_ = ctx
 	return &types.Response{
 		Data: data,
@@ -435,8 +480,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,
 		},
-		Tests:     testResults,
-		PostTests: postResults,
+		Tests:       testResults,
+		PostTests:   postResults,
+		Regressions: regressionResults,
 	}, nil
 }
 
@@ -992,10 +1038,13 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	// Regression fits run after aggregation / windows so engines can
-	// observe the filtered record set. Phase 0 registers stubs that
-	// return PROCESSING_REGRESSION_NOT_IMPLEMENTED; later phases populate
-	// regressionResults from sufficient statistics or IRLS.
-	regressionResults, err := regression.Fit(req.Regressions, p.schema)
+	// observe the filtered record set. Phase 1 routes the filtered
+	// slice through FitBuffered: the unpenalized OLS engine consumes
+	// every record via its Welford-style accumulator, while engines
+	// for unimplemented operators (penalized OLS, GLM, Bayes, and the
+	// Resample/Selection modifier wrappers) still surface
+	// PROCESSING_REGRESSION_NOT_IMPLEMENTED via Fit().
+	regressionResults, err := regression.FitBuffered(req.Regressions, p.schema, recordsAsRegressionRecords(filtered))
 	if err != nil {
 		return nil, err
 	}
@@ -1010,6 +1059,20 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		PostTests:   postResults,
 		Regressions: regressionResults,
 	}, nil
+}
+
+// recordsAsRegressionRecords adapts a []*Record into the
+// []regression.Record slice the regression engines consume. The
+// regression subpackage defines its own Record interface so it stays
+// free of the processing import (mirroring processing/feature); the
+// adapter is a zero-copy widening since *Record already implements the
+// required NumericValue method.
+func recordsAsRegressionRecords(records []*Record) []regression.Record {
+	out := make([]regression.Record, len(records))
+	for i, r := range records {
+		out[i] = r
+	}
+	return out
 }
 
 // recordsToRows materializes Records into the post-aggregate row shape

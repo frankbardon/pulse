@@ -71,10 +71,19 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 			want:   false,
 		},
 		{
-			name: "regression slot forces buffered (Phase 0)",
+			name: "unpenalized REG_OLS streams",
 			req: &types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
 				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}}},
+			},
+			schema: numericSchema,
+			want:   true,
+		},
+		{
+			name: "penalized REG_OLS forces buffered (Phase 2)",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Penalty: "l2", Alpha: 0.1}},
 			},
 			schema: numericSchema,
 			want:   false,
@@ -97,10 +106,81 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 			schema: numericSchema,
 			want:   false,
 		},
+		{
+			name: "REG_BAYES_LINEAR forces buffered (Phase 4)",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}}},
+			},
+			schema: numericSchema,
+			want:   false,
+		},
+		{
+			name: "REG_OLS with groupers forces buffered",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}}},
+			},
+			schema: numericSchema,
+			want:   false,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			if got := CanStreamRequest(c.req, c.schema); got != c.want {
+				t.Errorf("CanStreamRequest = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// TestCanStreamRequest_OLSNoPenalty is the dedicated parity check for
+// the Phase 1 gate flip: an unpenalized REG_OLS request alongside an
+// online aggregation must report true (streaming) at runtime, while
+// the same request with a regularization penalty reports false.
+// Predict mirrors this via TestPredict_Streamable_MatchesRuntime.
+func TestCanStreamRequest_OLSNoPenalty(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "y", Type: encoding.FieldTypeF64},
+			{Name: "x", Type: encoding.FieldTypeF64},
+		},
+	}
+
+	cases := []struct {
+		name string
+		spec *types.RegressionSpec
+		want bool
+	}{
+		{
+			name: "unpenalized OLS streams",
+			spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}},
+			want: true,
+		},
+		{
+			name: "l1 penalized OLS buffers",
+			spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1},
+			want: false,
+		},
+		{
+			name: "l2 penalized OLS buffers",
+			spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l2", Alpha: 0.1},
+			want: false,
+		},
+		{
+			name: "elasticnet OLS buffers",
+			spec: &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 0.5},
+			want: false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "y"}},
+				Regressions:  []*types.RegressionSpec{c.spec},
+			}
+			if got := CanStreamRequest(req, schema); got != c.want {
 				t.Errorf("CanStreamRequest = %v, want %v", got, c.want)
 			}
 		})
