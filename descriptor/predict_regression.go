@@ -1,0 +1,144 @@
+package descriptor
+
+import (
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/types"
+)
+
+// knownRegressionTypes is the lookup set used by Predict to flag
+// unknown REG_* types without taking a dependency on processing/.
+var knownRegressionTypes = func() map[types.RegressionType]struct{} {
+	out := make(map[types.RegressionType]struct{}, len(types.AllRegressionTypes()))
+	for _, rt := range types.AllRegressionTypes() {
+		out[rt] = struct{}{}
+	}
+	return out
+}()
+
+// validateRegressions performs structural validation on every
+// RegressionSpec in req. Phase 0 catches:
+//   - unknown Type
+//   - missing Target
+//   - empty Predictors slice
+//   - Target / Predictors that name unknown fields
+//   - Target / Predictors that name non-numeric fields
+//   - GLM-required Family present and in the supported set
+//   - Modifier coupling (Selection requires Criterion)
+//
+// Deeper runtime checks (n ≥ p + 1, link compatibility, regularization
+// parameter bounds) live with the engines in Phases 1–4. predict
+// cannot import processing/regression, so registry membership is
+// checked against types.AllRegressionTypes() instead.
+func validateRegressions(env *Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool) {
+	for _, reg := range req.Regressions {
+		if reg == nil {
+			continue
+		}
+		if _, ok := knownRegressionTypes[reg.Type]; !ok {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"regression references unknown type: "+string(reg.Type),
+				map[string]any{"type": string(reg.Type)},
+			)
+			continue
+		}
+
+		if reg.Target == "" {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"regression "+string(reg.Type)+" missing required Target field",
+				map[string]any{"type": string(reg.Type)},
+			)
+		} else {
+			if f := schema.Field(reg.Target); f == nil {
+				if !projected[reg.Target] {
+					env.AddError(
+						string(errors.SERVICE_VALIDATION),
+						"regression references unknown target field: "+reg.Target,
+						map[string]any{"field": reg.Target, "type": string(reg.Type)},
+					)
+				}
+			} else if !isNumericFieldType(f.Type) {
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					"regression target field "+reg.Target+" is not numeric (got "+f.Type.String()+")",
+					map[string]any{"field": reg.Target, "type": f.Type.String()},
+				)
+			}
+		}
+
+		if len(reg.Predictors) == 0 {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"regression "+string(reg.Type)+" missing Predictors (≥1 required)",
+				map[string]any{"type": string(reg.Type)},
+			)
+		}
+		for _, p := range reg.Predictors {
+			f := schema.Field(p)
+			if f == nil {
+				if !projected[p] {
+					env.AddError(
+						string(errors.SERVICE_VALIDATION),
+						"regression references unknown predictor field: "+p,
+						map[string]any{"field": p, "type": string(reg.Type)},
+					)
+				}
+				continue
+			}
+			if !isNumericFieldType(f.Type) {
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					"regression predictor field "+p+" is not numeric (got "+f.Type.String()+")",
+					map[string]any{"field": p, "type": f.Type.String()},
+				)
+			}
+		}
+
+		// REG_GLM requires Family ∈ {binomial, poisson, gamma}.
+		if reg.Type == types.REG_GLM {
+			switch reg.Family {
+			case "binomial", "poisson", "gamma":
+				// ok
+			case "":
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					"REG_GLM requires a Family (binomial | poisson | gamma)",
+					map[string]any{"type": string(reg.Type)},
+				)
+			default:
+				env.AddError(
+					string(errors.PROCESSING_REGRESSION_INVALID_FAMILY),
+					"REG_GLM family must be one of binomial, poisson, gamma; got "+reg.Family,
+					map[string]any{"family": reg.Family},
+				)
+			}
+		}
+
+		// Selection requires Criterion when set.
+		if reg.Selection != "" && reg.Criterion == "" {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"regression Selection requires a Criterion (aic | bic)",
+				map[string]any{"selection": reg.Selection},
+			)
+		}
+	}
+}
+
+// isNumericFieldType reports whether the given encoding.FieldType is
+// numeric (integer, float, or decimal). Mirrors the family check used
+// by aggregator validation; regression Target/Predictors must be
+// numeric in v1.
+func isNumericFieldType(t encoding.FieldType) bool {
+	if t.IsDecimal() {
+		return true
+	}
+	switch t {
+	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
+		encoding.FieldTypeF32, encoding.FieldTypeF64:
+		return true
+	}
+	return false
+}

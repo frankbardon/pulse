@@ -27,11 +27,12 @@ import (
 //   - n_column:  optional override for the per-group count column name
 //
 // Pairwise statistics:
-//   diff_ij = mean_i − mean_j
-//   SE      = √(ms_within · (1/n_i + 1/n_j) / 2)    (Tukey-Kramer SE)
-//   q       = |diff_ij| / SE
-//   p_adj   = studentizedRangeSurvival(q, k, df_within)
-//   CI      = diff_ij ± q_crit(alpha) · SE
+//
+//	diff_ij = mean_i − mean_j
+//	SE      = √(ms_within · (1/n_i + 1/n_j) / 2)    (Tukey-Kramer SE)
+//	q       = |diff_ij| / SE
+//	p_adj   = studentizedRangeSurvival(q, k, df_within)
+//	CI      = diff_ij ± q_crit(alpha) · SE
 type tukeyHSDPost struct {
 	spec    *types.Test
 	field   string
@@ -137,15 +138,15 @@ func (t *tukeyHSDPost) Run(rows []map[string]any) (*types.TestResult, error) {
 				anyReject = true
 			}
 			comparisons = append(comparisons, map[string]any{
-				"a":            a.label,
-				"b":            b.label,
-				"diff":         diff,
-				"se":           se,
-				"q":            q,
-				"p_adj":        pAdj,
-				"reject_null":  rejected,
-				"ci_low":       diff - ciHalf,
-				"ci_high":      diff + ciHalf,
+				"a":           a.label,
+				"b":           b.label,
+				"diff":        diff,
+				"se":          se,
+				"q":           q,
+				"p_adj":       pAdj,
+				"reject_null": rejected,
+				"ci_low":      diff - ciHalf,
+				"ci_high":     diff + ciHalf,
 			})
 		}
 	}
@@ -157,12 +158,12 @@ func (t *tukeyHSDPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		Alpha:      t.alpha,
 		RejectNull: anyReject,
 		Details: map[string]any{
-			"k_groups":    k,
+			"k_groups":     k,
 			"family_alpha": t.alpha,
-			"ms_within":   t.msW,
-			"df_within":   t.dfW,
-			"q_critical":  qCrit,
-			"comparisons": comparisons,
+			"ms_within":    t.msW,
+			"df_within":    t.dfW,
+			"q_critical":   qCrit,
+			"comparisons":  comparisons,
 		},
 	}, nil
 }

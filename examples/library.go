@@ -326,4 +326,3 @@ var CanonicalTags = []string{
 func IsCanonicalTag(tag string) bool {
 	return slices.Contains(CanonicalTags, tag)
 }
-

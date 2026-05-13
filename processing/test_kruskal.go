@@ -13,12 +13,12 @@ import (
 // nonparametric k-group alternative to TEST_ANOVA_F.
 //
 // Algorithm:
-//   1. Buffer values per group.
-//   2. Mid-rank the combined value set (ties → average rank).
-//   3. R_i = Σ ranks in group i, n_i = |group i|.
-//   4. H = (12/(N(N+1))) · Σ (R_i² / n_i) − 3(N+1).
-//   5. Tie-correct: H_c = H / (1 − Σ(t³−t) / (N³−N)).
-//   6. p = chiSquareSurvival(H_c, k−1).
+//  1. Buffer values per group.
+//  2. Mid-rank the combined value set (ties → average rank).
+//  3. R_i = Σ ranks in group i, n_i = |group i|.
+//  4. H = (12/(N(N+1))) · Σ (R_i² / n_i) − 3(N+1).
+//  5. Tie-correct: H_c = H / (1 − Σ(t³−t) / (N³−N)).
+//  6. p = chiSquareSurvival(H_c, k−1).
 type kruskalWallisRow struct {
 	spec    *types.Test
 	schema  *encoding.Schema

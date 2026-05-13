@@ -5,8 +5,45 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
+
+// TestProcessor_RegressionNotImplemented exercises the Phase 0 end-to-end
+// contract: a Request that carries a RegressionSpec routes through the
+// buffered path (Phase 0 always buffers) and bubbles up
+// PROCESSING_REGRESSION_NOT_IMPLEMENTED from the regression.Fit stub
+// without panicking. Response is unpopulated (Process returns the
+// CodedError instead) — service/CLI layers wrap it into the envelope.
+func TestProcessor_RegressionNotImplemented(t *testing.T) {
+	schema := numericSchema()
+	proc := NewProcessor(schema)
+
+	records := makeRecords(schema, "score", []float64{10, 20, 30})
+	iter := NewSliceIterator(records)
+
+	for _, rt := range types.AllRegressionTypes() {
+		req := &types.Request{
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_AVERAGE, Field: "score"},
+			},
+			Regressions: []*types.RegressionSpec{
+				{Type: rt, Target: "score", Predictors: []string{"score"}, Family: "binomial"},
+			},
+		}
+
+		_, err := proc.Process(context.Background(), req, iter)
+		if err == nil {
+			t.Errorf("Process(%s) returned nil error; want PROCESSING_REGRESSION_NOT_IMPLEMENTED", rt)
+			continue
+		}
+		if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED) {
+			t.Errorf("Process(%s) error = %v; want PROCESSING_REGRESSION_NOT_IMPLEMENTED", rt, err)
+		}
+		// Reset iter for the next type — SliceIterator is one-shot.
+		iter = NewSliceIterator(records)
+	}
+}
 
 func TestProcessor_SimpleRequest(t *testing.T) {
 	schema := numericSchema()

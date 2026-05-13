@@ -28,18 +28,18 @@ func fixtureSchema() *encoding.Schema {
 
 func TestNaturalQuery_HeuristicGrammar(t *testing.T) {
 	type want struct {
-		aggTypes   []types.AggregationType
-		aggFields  []string
-		groupTypes []types.GroupType
-		groupField []string
-		filterAt   int    // index into Filterers when checking; -1 = no filter expected
-		filterType types.FiltererType
+		aggTypes    []types.AggregationType
+		aggFields   []string
+		groupTypes  []types.GroupType
+		groupField  []string
+		filterAt    int // index into Filterers when checking; -1 = no filter expected
+		filterType  types.FiltererType
 		filterField string
-		testType   types.TestType
-		testField  string
-		testField2 string
-		winType    types.WindowType
-		sortField  string
+		testType    types.TestType
+		testField   string
+		testField2  string
+		winType     types.WindowType
+		sortField   string
 	}
 
 	cases := []struct {
@@ -208,7 +208,7 @@ func TestNaturalQuery_HeuristicGrammar(t *testing.T) {
 			name:  "bare count",
 			query: "count",
 			want: want{
-				aggTypes:  []types.AggregationType{types.AGG_COUNT},
+				aggTypes: []types.AggregationType{types.AGG_COUNT},
 				// schema first field after sort is "country" alphabetically — verify below
 				filterAt: -1,
 			},

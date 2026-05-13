@@ -87,6 +87,80 @@ var codeMetadata = map[Code]Metadata{
 		Message:            "Internal invariant violated inside the processing layer; report with reproducer.",
 		FixupNotApplicable: true,
 	},
+	PROCESSING_REGRESSION_NOT_IMPLEMENTED: {
+		Message: "The requested regression operator is registered but its engine has not landed yet (Phase 0 stub).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Regressions", "*", "Type"},
+				Hint:     "Phase 0 lands the API surface only; remove the regression slot until the matching engine ships, or pin to a Pulse release that includes the operator.",
+				Examples: []any{"REG_OLS", "REG_GLM", "REG_BAYES_LINEAR"},
+			},
+		},
+	},
+	PROCESSING_REGRESSION_RANK_DEFICIENT: {
+		Message: "The predictor design matrix has collinear columns; XᵀX is singular and the closed-form solve cannot proceed.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Regressions", "*", "Penalty"},
+				Hint:     "Add a regularization penalty (l2 / ridge is the conventional fix for collinearity) or drop the redundant predictor from Predictors[].",
+				Examples: []any{"l2", "elasticnet"},
+			},
+		},
+	},
+	PROCESSING_REGRESSION_NO_CONVERGE: {
+		Message: "An iterative regression fit (IRLS for REG_GLM, coordinate descent for regularized REG_OLS) failed to converge within MaxIters.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Regressions", "*", "MaxIters"},
+				Hint:   "Raise MaxIters, loosen Tol, rescale the predictors, or drop a near-collinear column; persistent non-convergence usually points to a separable / degenerate design.",
+			},
+		},
+	},
+	PROCESSING_REGRESSION_SINGULAR_GRAM: {
+		Message: "The Gram matrix XᵀX remained non-invertible even after regularization.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Regressions", "*", "Alpha"},
+				Hint:   "Increase Alpha to lift the conditioning, or drop the degenerate (all-zero / duplicated) predictor from Predictors[].",
+			},
+		},
+	},
+	PROCESSING_REGRESSION_INVALID_FAMILY: {
+		Message: "REG_GLM was requested with a Family outside the supported set.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Regressions", "*", "Family"},
+				Hint:     "Set Family to one of binomial (logistic), poisson, or gamma; check the regression-modeling skill for the family / link compatibility matrix.",
+				Examples: []any{"binomial", "poisson", "gamma"},
+			},
+		},
+	},
+	PROCESSING_REGRESSION_INVALID_LINK: {
+		Message: "The requested Link function is incompatible with the chosen Family.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Regressions", "*", "Link"},
+				Hint:     "Use the family-default Link (binomial → logit, poisson → log, gamma → log) or pick a Link from the family's supported set in the regression-modeling skill.",
+				Examples: []any{"logit", "log", "identity"},
+			},
+		},
+	},
+	PROCESSING_REGRESSION_INSUFFICIENT_DATA: {
+		Message: "The filtered record set has fewer observations than predictors + 1; the model is unidentifiable.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Filterers"},
+				Hint:   "Loosen the filters so n ≥ p + 1 (one observation per predictor plus the intercept), or trim Predictors[] to a smaller set.",
+			},
+		},
+	},
 
 	// ---------- SERVICE ----------
 	SERVICE_VALIDATION: {

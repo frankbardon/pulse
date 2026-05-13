@@ -373,8 +373,8 @@ func (p *parser) parseGroups() {
 			p.parseByList()
 		case "over":
 			if p.peekAt(1) == "time" {
-				p.advance() // over
-				p.advance() // time
+				p.advance()              // over
+				p.advance()              // time
 				p.addDateGroup(p.peek()) // optional bucket
 				if isBucket(p.peek()) {
 					p.advance()

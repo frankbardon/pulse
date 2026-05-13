@@ -177,7 +177,6 @@ func apiComposeCmd() *cli.Command {
 	}
 }
 
-
 func apiSampleCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "sample",

@@ -171,12 +171,17 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema) []DefaultAppli
 // unset — explicit configuration always wins.
 //
 // GROUP_RANGE: defaults Interval = defaultRangeInterval when Interval is
-//   zero (the processing layer further falls back to 1 if still zero, so
-//   this is purely about producing a sane default trace).
+//
+//	zero (the processing layer further falls back to 1 if still zero, so
+//	this is purely about producing a sane default trace).
+//
 // GROUP_H3_CELL: defaults Params.resolution = defaultH3Resolution when
-//   Params is empty.
+//
+//	Params is empty.
+//
 // GROUP_DATE: defaults Params.component = defaultDateComponent when
-//   Params is empty.
+//
+//	Params is empty.
 func applyDefaultGroupParams(grp *types.Group) {
 	switch grp.Type {
 	case types.GROUP_RANGE:

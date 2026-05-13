@@ -245,4 +245,3 @@ func TestComposeParallel_FreshOperatorsPerRequest(t *testing.T) {
 		}
 	}
 }
-

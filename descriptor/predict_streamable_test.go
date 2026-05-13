@@ -206,6 +206,114 @@ func TestPredict_Streamable_DecimalFieldBlocks(t *testing.T) {
 	}
 }
 
+// TestPredict_Streamable_RegressionBlocks asserts every regression
+// slot forces Streamable=false in Phase 0. Even closed-form OLS routes
+// through the buffered path until the streaming sufficient-statistics
+// engine lands in Phase 1.
+func TestPredict_Streamable_RegressionBlocks(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+		Regressions: []*types.RegressionSpec{
+			{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}},
+		},
+	}
+	env := PredictFromBytes(data, req, nil)
+	result := env.Data.(*PredictResult)
+	if result.Streamable {
+		t.Error("Streamable = true, want false (Phase 0 buffers every regression slot)")
+	}
+	if !containsReason(result.StreamableReasons, "regression") {
+		t.Errorf("expected a reason mentioning regression, got %v", result.StreamableReasons)
+	}
+}
+
+// TestPredict_RegressionValidation asserts validateRegressions catches
+// the structural mistakes that don't need the engine: unknown types,
+// missing target / predictors, non-numeric fields, missing GLM Family,
+// and Selection-without-Criterion.
+func TestPredict_RegressionValidation(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "score", Type: encoding.FieldTypeF64, Description: "Numeric score"},
+			{Name: "region", Type: encoding.FieldTypeCategoricalU8, Description: "Region category"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	cases := []struct {
+		name        string
+		regressions []*types.RegressionSpec
+		wantCode    string
+	}{
+		{
+			name:        "unknown type",
+			regressions: []*types.RegressionSpec{{Type: types.RegressionType("REG_NOT_A_TYPE"), Target: "score", Predictors: []string{"score"}}},
+			wantCode:    "SERVICE_VALIDATION",
+		},
+		{
+			name:        "missing target",
+			regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Predictors: []string{"score"}}},
+			wantCode:    "SERVICE_VALIDATION",
+		},
+		{
+			name:        "missing predictors",
+			regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score"}},
+			wantCode:    "SERVICE_VALIDATION",
+		},
+		{
+			name:        "categorical predictor",
+			regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"region"}}},
+			wantCode:    "SERVICE_VALIDATION",
+		},
+		{
+			name:        "glm missing family",
+			regressions: []*types.RegressionSpec{{Type: types.REG_GLM, Target: "score", Predictors: []string{"score"}}},
+			wantCode:    "SERVICE_VALIDATION",
+		},
+		{
+			name:        "glm invalid family",
+			regressions: []*types.RegressionSpec{{Type: types.REG_GLM, Target: "score", Predictors: []string{"score"}, Family: "bogus"}},
+			wantCode:    "PROCESSING_REGRESSION_INVALID_FAMILY",
+		},
+		{
+			name:        "selection without criterion",
+			regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Selection: "stepwise"}},
+			wantCode:    "SERVICE_VALIDATION",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  c.regressions,
+			}
+			env := PredictFromBytes(data, req, nil)
+			found := false
+			for _, e := range env.Errors {
+				if e.Code == c.wantCode {
+					found = true
+					break
+				}
+			}
+			if !found {
+				codes := make([]string, 0, len(env.Errors))
+				for _, e := range env.Errors {
+					codes = append(codes, e.Code)
+				}
+				t.Errorf("expected error code %q, got envelope codes %v", c.wantCode, codes)
+			}
+		})
+	}
+}
+
 // TestPredict_Streamable_EmptyAggregationsBlocks asserts that requests
 // with no aggregations are non-streamable (no work to drive UpdateRow).
 func TestPredict_Streamable_EmptyAggregationsBlocks(t *testing.T) {

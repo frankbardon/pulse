@@ -14,18 +14,18 @@ import "encoding/json"
 type AggregationType string
 
 const (
-	AGG_COUNT     AggregationType = "AGG_COUNT"
-	AGG_SUM       AggregationType = "AGG_SUM"
-	AGG_AVERAGE   AggregationType = "AGG_AVERAGE"
-	AGG_MIN       AggregationType = "AGG_MIN"
-	AGG_MAX       AggregationType = "AGG_MAX"
-	AGG_STDDEV    AggregationType = "AGG_STDDEV"
-	AGG_RANGE     AggregationType = "AGG_RANGE"
-	AGG_FREQUENCY AggregationType = "AGG_FREQUENCY"
-	AGG_ZSCORE    AggregationType = "AGG_ZSCORE"
-	AGG_MEDIAN    AggregationType = "AGG_MEDIAN"
-	AGG_VARIANCE  AggregationType = "AGG_VARIANCE"
-	AGG_MODE      AggregationType = "AGG_MODE"
+	AGG_COUNT          AggregationType = "AGG_COUNT"
+	AGG_SUM            AggregationType = "AGG_SUM"
+	AGG_AVERAGE        AggregationType = "AGG_AVERAGE"
+	AGG_MIN            AggregationType = "AGG_MIN"
+	AGG_MAX            AggregationType = "AGG_MAX"
+	AGG_STDDEV         AggregationType = "AGG_STDDEV"
+	AGG_RANGE          AggregationType = "AGG_RANGE"
+	AGG_FREQUENCY      AggregationType = "AGG_FREQUENCY"
+	AGG_ZSCORE         AggregationType = "AGG_ZSCORE"
+	AGG_MEDIAN         AggregationType = "AGG_MEDIAN"
+	AGG_VARIANCE       AggregationType = "AGG_VARIANCE"
+	AGG_MODE           AggregationType = "AGG_MODE"
 	AGG_SKEWNESS       AggregationType = "AGG_SKEWNESS"
 	AGG_KURTOSIS       AggregationType = "AGG_KURTOSIS"
 	AGG_DISTINCT_COUNT AggregationType = "AGG_DISTINCT_COUNT"
@@ -146,14 +146,14 @@ func AllWindowTypes() []WindowType {
 type FeatureType string
 
 const (
-	FEAT_LOG               FeatureType = "FEAT_LOG"
-	FEAT_SQRT              FeatureType = "FEAT_SQRT"
-	FEAT_BUCKETIZE         FeatureType = "FEAT_BUCKETIZE"
-	FEAT_ONE_HOT           FeatureType = "FEAT_ONE_HOT"
-	FEAT_DATE_FEATURES     FeatureType = "FEAT_DATE_FEATURES"
-	FEAT_FREQUENCY_ENCODE  FeatureType = "FEAT_FREQUENCY_ENCODE"
-	FEAT_TARGET_ENCODE     FeatureType = "FEAT_TARGET_ENCODE"
-	FEAT_TRAIN_TEST_SPLIT  FeatureType = "FEAT_TRAIN_TEST_SPLIT"
+	FEAT_LOG              FeatureType = "FEAT_LOG"
+	FEAT_SQRT             FeatureType = "FEAT_SQRT"
+	FEAT_BUCKETIZE        FeatureType = "FEAT_BUCKETIZE"
+	FEAT_ONE_HOT          FeatureType = "FEAT_ONE_HOT"
+	FEAT_DATE_FEATURES    FeatureType = "FEAT_DATE_FEATURES"
+	FEAT_FREQUENCY_ENCODE FeatureType = "FEAT_FREQUENCY_ENCODE"
+	FEAT_TARGET_ENCODE    FeatureType = "FEAT_TARGET_ENCODE"
+	FEAT_TRAIN_TEST_SPLIT FeatureType = "FEAT_TRAIN_TEST_SPLIT"
 )
 
 // AllFeatureTypes returns every defined feature type in alphabetical order.
@@ -650,6 +650,14 @@ type Request struct {
 	// result row set must be materialized before tier-2 runs). Results
 	// land in Response.PostTests in the same order.
 	PostTests []*Test `json:"post_tests,omitempty"`
+
+	// Regressions is the list of regression-modeling operators (REG_OLS,
+	// REG_GLM, REG_BAYES_LINEAR) evaluated against the filtered record
+	// set. Each spec produces one RegressionResult in Response.Regressions
+	// in matching order. Streamability follows RegressionSpec.Streamable
+	// — closed-form OLS/Bayes stream over sufficient statistics; GLM,
+	// Resample, and Selection variants force the buffered path.
+	Regressions []*RegressionSpec `json:"regressions,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
@@ -679,6 +687,12 @@ type Response struct {
 	// PostTests holds tier-2 statistical test results, one per entry in
 	// Request.PostTests and in the same order.
 	PostTests []*TestResult `json:"post_tests,omitempty"`
+
+	// Regressions holds the per-spec regression fits, one entry per
+	// Request.Regressions in the same order. Engines never partially
+	// populate a result on failure; a failed fit surfaces as a
+	// PROCESSING_REGRESSION_* error on the envelope instead.
+	Regressions []*RegressionResult `json:"regressions,omitempty"`
 }
 
 // FileRequest identifies a file for operations like inspect.

@@ -327,9 +327,9 @@ func TestFileRequestMarshalJSON(t *testing.T) {
 // TestFileResponseMarshalJSON verifies FileResponse JSON round-trip.
 func TestFileResponseMarshalJSON(t *testing.T) {
 	resp := types.FileResponse{
-		Filename:   "data.pulse",
+		Filename:    "data.pulse",
 		RecordCount: 42000,
-		Fields:     []string{"age", "score", "region"},
+		Fields:      []string{"age", "score", "region"},
 	}
 
 	data, err := json.Marshal(resp)
@@ -860,9 +860,9 @@ func TestTestResultMarshalJSON(t *testing.T) {
 		Alpha:      0.05,
 		RejectNull: true,
 		Details: map[string]any{
-			"groups": []string{"control", "variant"},
-			"n":      []int{9742, 9758},
-			"ci_low": -12.89,
+			"groups":  []string{"control", "variant"},
+			"n":       []int{9742, 9758},
+			"ci_low":  -12.89,
 			"ci_high": -10.39,
 		},
 		Warnings: []string{},

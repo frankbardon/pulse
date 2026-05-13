@@ -13,16 +13,16 @@ import (
 
 // numericAggregations are aggregation types that only make sense on numeric fields.
 var numericAggregations = map[types.AggregationType]bool{
-	types.AGG_SUM:     true,
-	types.AGG_AVERAGE: true,
-	types.AGG_MIN:     true,
-	types.AGG_MAX:     true,
-	types.AGG_STDDEV:  true,
-	types.AGG_RANGE:   true,
-	types.AGG_ZSCORE:  true,
-	types.AGG_MEDIAN:    true,
-	types.AGG_VARIANCE:  true,
-	types.AGG_SKEWNESS:  true,
+	types.AGG_SUM:        true,
+	types.AGG_AVERAGE:    true,
+	types.AGG_MIN:        true,
+	types.AGG_MAX:        true,
+	types.AGG_STDDEV:     true,
+	types.AGG_RANGE:      true,
+	types.AGG_ZSCORE:     true,
+	types.AGG_MEDIAN:     true,
+	types.AGG_VARIANCE:   true,
+	types.AGG_SKEWNESS:   true,
 	types.AGG_KURTOSIS:   true,
 	types.AGG_PERCENTILE: true,
 }
@@ -221,6 +221,21 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []string) {
 	var reasons []string
 
+	// Phase 0: any regression slot forces the buffered path. The
+	// streaming sufficient-statistics path lands in Phase 1; the
+	// spec-level RegressionSpec.Streamable check (modifier downgrade)
+	// is still surfaced per-spec for forward compatibility.
+	for _, reg := range req.Regressions {
+		if reg == nil {
+			continue
+		}
+		if !reg.Streamable() {
+			reasons = append(reasons, "regression "+string(reg.Type)+" requires the buffered path under the current spec (modifier or family forces non-streaming)")
+			continue
+		}
+		reasons = append(reasons, "regression "+string(reg.Type)+" runs via the buffered path in Phase 0")
+	}
+
 	if len(req.Aggregations) == 0 {
 		reasons = append(reasons, "no aggregations: streaming path requires at least one OnlineAggregator")
 	}
@@ -394,6 +409,12 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 			}
 		}
 	}
+
+	// Check regression slots. Phase 0 validates structural shape only
+	// (known type, target + predictors named, fields exist); deeper
+	// runtime checks (n ≥ p + 1, family/link compatibility) land with
+	// the engines in Phases 1–4.
+	validateRegressions(env, req, schema, projected)
 
 	// Check attribute fields.
 	for _, attr := range req.Attributes {

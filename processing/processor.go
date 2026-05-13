@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/processing/feature"
+	"github.com/frankbardon/pulse/processing/regression"
 	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
@@ -172,6 +173,11 @@ func hasTwoPassAttribute(req *types.Request) bool {
 // surface the canonical error message.
 func (p *Processor) canStream(req *types.Request) bool {
 	if len(req.Windows) > 0 {
+		return false
+	}
+	// Regression slots route through the buffered path in Phase 0; the
+	// streaming sufficient-statistics path lands in Phase 1.
+	if len(req.Regressions) > 0 {
 		return false
 	}
 	if len(req.Tests) > 0 {
@@ -985,14 +991,24 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		return nil, err
 	}
 
+	// Regression fits run after aggregation / windows so engines can
+	// observe the filtered record set. Phase 0 registers stubs that
+	// return PROCESSING_REGRESSION_NOT_IMPLEMENTED; later phases populate
+	// regressionResults from sufficient statistics or IRLS.
+	regressionResults, err := regression.Fit(req.Regressions, p.schema)
+	if err != nil {
+		return nil, err
+	}
+
 	return &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: int64(len(filtered)),
 		},
-		Tests:     testResults,
-		PostTests: postResults,
+		Tests:       testResults,
+		PostTests:   postResults,
+		Regressions: regressionResults,
 	}, nil
 }
 

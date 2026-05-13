@@ -157,6 +157,85 @@ func TestStreamability_TestsKnown(t *testing.T) {
 	}
 }
 
+// TestRegressionTypesKnown asserts every regression type returns the
+// documented streamability value and is listed in AllRegressionTypes().
+// Adding a new RegressionType requires extending the switch in
+// regression.go AND this table.
+func TestRegressionTypesKnown(t *testing.T) {
+	expected := map[RegressionType]bool{
+		REG_OLS:          true,
+		REG_GLM:          false,
+		REG_BAYES_LINEAR: true,
+	}
+	for _, rt := range AllRegressionTypes() {
+		want, ok := expected[rt]
+		if !ok {
+			t.Fatalf("regression type %s missing from streamability table — declare it in types/regression.go and add an entry here", rt)
+		}
+		if got := rt.Streamable(); got != want {
+			t.Errorf("%s.Streamable() = %v, want %v", rt, got, want)
+		}
+	}
+	if len(expected) != len(AllRegressionTypes()) {
+		t.Fatalf("regression streamability table size mismatch: %d entries, %d types", len(expected), len(AllRegressionTypes()))
+	}
+}
+
+// TestRegressionSpec_StreamableModifierDowngrade asserts the spec-level
+// Streamable helper downgrades to false whenever a Resample or
+// Selection modifier is set, regardless of the underlying type's
+// Streamable() value.
+func TestRegressionSpec_StreamableModifierDowngrade(t *testing.T) {
+	cases := []struct {
+		name string
+		spec RegressionSpec
+		want bool
+	}{
+		{
+			name: "ols no modifiers streams",
+			spec: RegressionSpec{Type: REG_OLS},
+			want: true,
+		},
+		{
+			name: "ols with bootstrap is buffered",
+			spec: RegressionSpec{Type: REG_OLS, Resample: "bootstrap"},
+			want: false,
+		},
+		{
+			name: "ols with jackknife is buffered",
+			spec: RegressionSpec{Type: REG_OLS, Resample: "jackknife"},
+			want: false,
+		},
+		{
+			name: "ols with stepwise selection is buffered",
+			spec: RegressionSpec{Type: REG_OLS, Selection: "stepwise", Criterion: "aic"},
+			want: false,
+		},
+		{
+			name: "bayes linear streams",
+			spec: RegressionSpec{Type: REG_BAYES_LINEAR},
+			want: true,
+		},
+		{
+			name: "bayes with bootstrap is buffered",
+			spec: RegressionSpec{Type: REG_BAYES_LINEAR, Resample: "bootstrap"},
+			want: false,
+		},
+		{
+			name: "glm always buffered",
+			spec: RegressionSpec{Type: REG_GLM, Family: "binomial"},
+			want: false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.spec.Streamable(); got != c.want {
+				t.Errorf("RegressionSpec.Streamable() = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
 func TestStreamability_FeaturesKnown(t *testing.T) {
 	expected := map[FeatureType]bool{
 		FEAT_LOG:              true,

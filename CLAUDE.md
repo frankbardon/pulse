@@ -27,6 +27,8 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A registered feature operator | `skills/feature-engineering.md` + `descriptor/capabilities_features.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
 | A registered statistical test (`TEST_*`) | `skills/statistical-testing.md` + `types/streamability.go` + `descriptor/capabilities_tests.go` | `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
 | A registered tier-2 post-test variant | `descriptor/capabilities_tests.go` (`postTestCapabilities`) | `TestManifestPostTestsComplete` |
+| A registered regression operator (`REG_*`) | `skills/regression-modeling.md` + `descriptor/capabilities_regressions.go` | `TestSkillsCoverAllRegressions`, `TestManifestRegressionsComplete` |
+| A regression modifier (`Resample` / `Selection` enum value) | `skills/regression-modeling.md` + capability metadata | `TestManifestRegressionsComplete` |
 | A registered synth distribution kind | `skills/synthetic-data.md` + `descriptor/capabilities_distributions.go` | `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
 | An operator's streaming capability | `types/streamability.go` + `types/streamability_test.go` table | `TestRegistryStreamabilityMatchesTypes`, `TestManifestStreamableMatchesTypes` |
 | An error code (added/removed/renamed) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups via `pulse_errors_lookup` | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
@@ -203,8 +205,9 @@ Skill-coverage:
 - `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator appears in `skills/window-operations.md`.
 - `TestSkillsCoverAllMCPTools` — every registered MCP tool appears in `skills/mcp-integration.md`.
 - `TestSkillsCoverAllSynthDistributions` — every distribution kind in `synth.AllDistributions()` appears in `skills/synthetic-data.md`.
+- `TestSkillsCoverAllRegressions` — every `REG_*` operator appears in `skills/regression-modeling.md`.
 
-Other contract gates (not in the prefix set but load-bearing): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known` (Aggregations/Attributes/Filterers/Groups/Windows/Features/Tests), `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestMCPErrorsLookup_RoundTrip`.
+Other contract gates (not in the prefix set but load-bearing): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestRegressionStreamabilityMatchesTypes`, `TestRegressionTypesKnown`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known` (Aggregations/Attributes/Filterers/Groups/Windows/Features/Tests), `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestMCPErrorsLookup_RoundTrip`.
 
 ## Build / Env
 
@@ -220,7 +223,7 @@ Hermetic testing: `fs.NewMemMap()` returns a `Config` backed by `afero.NewMemMap
 
 ## Skill Pack
 
-20 skills under `skills/`, embedded via `//go:embed`. Each skill has YAML frontmatter:
+21 skills under `skills/`, embedded via `//go:embed`. Each skill has YAML frontmatter:
 
 ```yaml
 ---
@@ -244,13 +247,14 @@ Per-component target skill:
 | Window (`WIN_*`) | `skills/window-operations.md` |
 | Feature (`FEAT_*`) | `skills/feature-engineering.md` |
 | Statistical test (`TEST_*`) | `skills/statistical-testing.md` |
+| Regression (`REG_*`) | `skills/regression-modeling.md` |
 | Synth distribution | `skills/synthetic-data.md` |
 | CLI leaf | `skills/getting-started.md` |
 | Field type | `skills/cohort-schema-design.md` |
 | MCP tool | `skills/mcp-integration.md` |
 | Error code | `errors/fixup_metadata.go` (surfaced via `pulse_errors_lookup`) |
 
-**Current registered counts** (full lists in each skill, enforced by coverage gates): 18 aggregators, 6 attributes, 6 filterers, 6 groupers, 10 window operators, 8 feature operators, 20 statistical tests (18 tier-1 row tests + tier-2 variants), 12 synth distributions.
+**Current registered counts** (full lists in each skill, enforced by coverage gates): 18 aggregators, 6 attributes, 6 filterers, 6 groupers, 10 window operators, 8 feature operators, 20 statistical tests (18 tier-1 row tests + tier-2 variants), 12 synth distributions, 3 regressions.
 
 Adding a new skill: create `skills/<name>.md` with frontmatter, add entry to `skills/index.json`, bump the count in `TestSkillsList_ReturnsAll` and `TestSkillsNames`. Run `go test ./skills/...`.
 

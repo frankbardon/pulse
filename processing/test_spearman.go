@@ -15,7 +15,9 @@ import (
 // then compute Pearson r on the ranks.
 //
 // p-value via the t-statistic
-//   t = ρ · √((n−2) / (1−ρ²))   with df = n − 2
+//
+//	t = ρ · √((n−2) / (1−ρ²))   with df = n − 2
+//
 // driven by studentTTwoSidedP. Tie handling is the standard mid-rank
 // correction; degenerate edge cases (zero variance in ranks, |ρ|=1)
 // match the parametric TEST_PEARSON_R behavior.

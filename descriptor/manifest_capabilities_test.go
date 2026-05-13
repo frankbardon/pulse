@@ -37,10 +37,10 @@ func TestManifestOperatorsComplete(t *testing.T) {
 	m := BuildManifest()
 
 	tcs := []struct {
-		name   string
-		want   []string
-		got    []Operator
-		kind   string
+		name string
+		want []string
+		got  []Operator
+		kind string
 	}{
 		{"aggregators", typesToStrings(types.AllAggregationTypes()), m.Components.Aggregators, "aggregator"},
 		{"attributes", typesToStrings(types.AllAttributeTypes()), m.Components.Attributes, "attribute"},
@@ -134,8 +134,8 @@ func TestManifestTestsComplete(t *testing.T) {
 	// Tier-2-only TestTypes: TREND and TUKEY_HSD. The rest are tier-1
 	// row tests with optional tier-2 post variants.
 	tier2OnlyFamilies := map[types.TestType]bool{
-		types.TEST_TREND:      true,
-		types.TEST_TUKEY_HSD:  true,
+		types.TEST_TREND:     true,
+		types.TEST_TUKEY_HSD: true,
 	}
 
 	for _, tt := range types.AllTestTypes() {
@@ -202,6 +202,65 @@ func TestManifestPostTestsComplete(t *testing.T) {
 	// TUKEY_HSD).
 	if len(m.PostTests) < 11 {
 		t.Errorf("PostTests count = %d, want at least 11 (TREND + TUKEY_HSD + 9 variants)", len(m.PostTests))
+	}
+}
+
+// TestManifestRegressionsComplete asserts the manifest's Regressions
+// section enumerates every type returned by
+// types.AllRegressionTypes() with the required metadata fields
+// populated.
+func TestManifestRegressionsComplete(t *testing.T) {
+	m := BuildManifest()
+	set := make(map[string]RegressionMeta, len(m.Regressions))
+	for _, r := range m.Regressions {
+		set[r.Name] = r
+	}
+	for _, rt := range types.AllRegressionTypes() {
+		name := string(rt)
+		meta, ok := set[name]
+		if !ok {
+			t.Errorf("regression %q missing from manifest", name)
+			continue
+		}
+		if strings.TrimSpace(meta.Description) == "" {
+			t.Errorf("regression %q has empty Description", name)
+		}
+		if len(meta.AcceptsTypes) == 0 {
+			t.Errorf("regression %q has empty AcceptsTypes", name)
+		}
+		if strings.TrimSpace(meta.EmitsTypeNote) == "" {
+			t.Errorf("regression %q has empty EmitsTypeNote", name)
+		}
+		if len(meta.Params) == 0 {
+			t.Errorf("regression %q has empty Params", name)
+		}
+		if meta.Streamable != rt.Streamable() {
+			t.Errorf("regression %q Streamable=%v, want %v", name, meta.Streamable, rt.Streamable())
+		}
+	}
+	if len(set) != len(types.AllRegressionTypes()) {
+		t.Errorf("manifest regression count = %d, want %d", len(set), len(types.AllRegressionTypes()))
+	}
+	// Determinism: alphabetical order.
+	for i := 1; i < len(m.Regressions); i++ {
+		if m.Regressions[i].Name < m.Regressions[i-1].Name {
+			t.Errorf("Regressions not alphabetized: %q before %q", m.Regressions[i-1].Name, m.Regressions[i].Name)
+		}
+	}
+}
+
+// TestRegressionStreamabilityMatchesTypes asserts every Regressions
+// manifest entry's Streamable flag mirrors the corresponding
+// types.RegressionType.Streamable() value (type-level; modifier
+// downgrade is checked separately via RegressionSpec.Streamable in
+// types/streamability_test.go).
+func TestRegressionStreamabilityMatchesTypes(t *testing.T) {
+	m := BuildManifest()
+	for _, r := range m.Regressions {
+		want := types.RegressionType(r.Name).Streamable()
+		if r.Streamable != want {
+			t.Errorf("regression %s Streamable=%v, want %v", r.Name, r.Streamable, want)
+		}
 	}
 }
 

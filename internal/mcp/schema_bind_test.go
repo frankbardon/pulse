@@ -212,12 +212,14 @@ func newFakeSession(id string) *fakeSessionWithTools {
 	}
 }
 
-func (s *fakeSessionWithTools) Initialize()                                                        {}
-func (s *fakeSessionWithTools) Initialized() bool                                                  { return s.initialized }
-func (s *fakeSessionWithTools) NotificationChannel() chan<- mcpgo.JSONRPCNotification              { return s.notifications }
-func (s *fakeSessionWithTools) SessionID() string                                                  { return s.id }
-func (s *fakeSessionWithTools) GetSessionTools() map[string]server.ServerTool                      { return s.tools }
-func (s *fakeSessionWithTools) SetSessionTools(tools map[string]server.ServerTool)                 { s.tools = tools }
+func (s *fakeSessionWithTools) Initialize()       {}
+func (s *fakeSessionWithTools) Initialized() bool { return s.initialized }
+func (s *fakeSessionWithTools) NotificationChannel() chan<- mcpgo.JSONRPCNotification {
+	return s.notifications
+}
+func (s *fakeSessionWithTools) SessionID() string                                  { return s.id }
+func (s *fakeSessionWithTools) GetSessionTools() map[string]server.ServerTool      { return s.tools }
+func (s *fakeSessionWithTools) SetSessionTools(tools map[string]server.ServerTool) { s.tools = tools }
 
 // TestMCPSchemaBinding_InspectSucceedsRegistersBindings drives the
 // handleInspect path against a registered SessionWithTools and asserts
@@ -330,4 +332,3 @@ func marshalToolCall(t *testing.T, req mcpgo.CallToolRequest) json.RawMessage {
 	}
 	return raw
 }
-

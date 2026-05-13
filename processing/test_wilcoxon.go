@@ -13,13 +13,13 @@ import (
 // nonparametric paired alternative to TEST_PAIRED_T.
 //
 // Algorithm:
-//   1. d_i = Field − Field2 over rows where both values are present.
-//   2. Drop zero diffs.
-//   3. Mid-rank |d_i| with tie correction.
-//   4. W⁺ = Σ rank_i over positive diffs.
-//   5. μ_W = n(n+1)/4
-//      σ²_W = n(n+1)(2n+1)/24 − (Σ(t³−t))/48
-//   6. z = (W⁺ − μ_W) / σ_W with continuity correction; p = 2(1−Φ(|z|)).
+//  1. d_i = Field − Field2 over rows where both values are present.
+//  2. Drop zero diffs.
+//  3. Mid-rank |d_i| with tie correction.
+//  4. W⁺ = Σ rank_i over positive diffs.
+//  5. μ_W = n(n+1)/4
+//     σ²_W = n(n+1)(2n+1)/24 − (Σ(t³−t))/48
+//  6. z = (W⁺ − μ_W) / σ_W with continuity correction; p = 2(1−Φ(|z|)).
 //
 // Drop-pair semantics on null mismatch; the mismatch count surfaces as
 // a PULSE_TEST_PAIRED_LENGTH_MISMATCH warning so the caller knows.

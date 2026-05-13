@@ -70,6 +70,33 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 			schema: numericSchema,
 			want:   false,
 		},
+		{
+			name: "regression slot forces buffered (Phase 0)",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}}},
+			},
+			schema: numericSchema,
+			want:   false,
+		},
+		{
+			name: "regression with bootstrap modifier forces buffered",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Resample: "bootstrap"}},
+			},
+			schema: numericSchema,
+			want:   false,
+		},
+		{
+			name: "regression GLM forces buffered",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_GLM, Target: "score", Predictors: []string{"score"}, Family: "binomial"}},
+			},
+			schema: numericSchema,
+			want:   false,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

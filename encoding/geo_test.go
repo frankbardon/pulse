@@ -18,8 +18,8 @@ func TestPointF64_RoundTrip(t *testing.T) {
 
 func TestPointF64_Validate(t *testing.T) {
 	cases := []struct {
-		p    PointF64
-		ok   bool
+		p  PointF64
+		ok bool
 	}{
 		{PointF64{0, 0}, true},
 		{PointF64{90, 180}, true},

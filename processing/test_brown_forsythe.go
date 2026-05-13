@@ -15,9 +15,9 @@ import (
 // deviation from each group's median.
 //
 // Algorithm:
-//   1. Buffer values per group.
-//   2. For each group, compute median, then z_ij = |x_ij − median|.
-//   3. Run standard one-way ANOVA on z values across groups.
+//  1. Buffer values per group.
+//  2. For each group, compute median, then z_ij = |x_ij − median|.
+//  3. Run standard one-way ANOVA on z values across groups.
 //
 // p-value via the existing fSurvival on (k−1, N−k) degrees of freedom.
 // Median-based residuals make the test robust against non-normality —
@@ -147,14 +147,14 @@ func (b *brownForsytheRow) Finalize() (*types.TestResult, error) {
 		Alpha:      b.alpha,
 		RejectNull: p < b.alpha,
 		Details: map[string]any{
-			"groups":         keys,
-			"n":              stats.Ns,
-			"group_medians":  medians,
-			"abs_dev_means":  stats.Means,
-			"ss_between":     stats.SSB,
-			"ss_within":      stats.SSW,
-			"df_between":     dfB,
-			"df_within":      dfW,
+			"groups":        keys,
+			"n":             stats.Ns,
+			"group_medians": medians,
+			"abs_dev_means": stats.Means,
+			"ss_between":    stats.SSB,
+			"ss_within":     stats.SSW,
+			"df_between":    dfB,
+			"df_within":     dfW,
 		},
 	}, nil
 }

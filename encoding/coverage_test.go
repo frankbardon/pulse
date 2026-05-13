@@ -173,8 +173,8 @@ func TestDictionary_ReadFrom_Truncated(t *testing.T) {
 func TestDictionary_ReadFrom_TruncatedString(t *testing.T) {
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint32(1))   // 1 entry
-	binary.Write(&buf, binary.LittleEndian, uint16(100))  // string of 100 bytes
-	buf.Write([]byte{0x41}) // only 1 byte
+	binary.Write(&buf, binary.LittleEndian, uint16(100)) // string of 100 bytes
+	buf.Write([]byte{0x41})                              // only 1 byte
 
 	d := NewDictionary()
 	_, err := d.ReadFrom(bytes.NewReader(buf.Bytes()))
@@ -186,7 +186,7 @@ func TestDictionary_ReadFrom_TruncatedString(t *testing.T) {
 func TestDictionary_ReadFrom_TruncatedStringLen(t *testing.T) {
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint32(1)) // 1 entry
-	buf.Write([]byte{0x01})                             // only 1 byte for u16 strlen
+	buf.Write([]byte{0x01})                            // only 1 byte for u16 strlen
 
 	d := NewDictionary()
 	_, err := d.ReadFrom(bytes.NewReader(buf.Bytes()))
@@ -225,10 +225,10 @@ func TestReadSchema_TruncatedFieldType(t *testing.T) {
 
 func TestReadSchema_TruncatedFieldName(t *testing.T) {
 	var buf bytes.Buffer
-	binary.Write(&buf, binary.LittleEndian, uint16(1))  // 1 field
+	binary.Write(&buf, binary.LittleEndian, uint16(1))   // 1 field
 	binary.Write(&buf, binary.LittleEndian, uint8(0))    // type U8
 	binary.Write(&buf, binary.LittleEndian, uint16(100)) // name len 100
-	buf.Write([]byte{0x41})                               // only 1 byte
+	buf.Write([]byte{0x41})                              // only 1 byte
 
 	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
 	if err == nil {
@@ -240,7 +240,7 @@ func TestReadSchema_TruncatedNameLen(t *testing.T) {
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(1)) // 1 field
 	binary.Write(&buf, binary.LittleEndian, uint8(0))  // type U8
-	buf.Write([]byte{0x01})                             // truncated name len
+	buf.Write([]byte{0x01})                            // truncated name len
 
 	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
 	if err == nil {
@@ -253,8 +253,8 @@ func TestReadSchema_TruncatedByteOffset(t *testing.T) {
 	binary.Write(&buf, binary.LittleEndian, uint16(1)) // 1 field
 	binary.Write(&buf, binary.LittleEndian, uint8(0))  // type U8
 	binary.Write(&buf, binary.LittleEndian, uint16(1)) // name len 1
-	buf.Write([]byte{'x'})                              // name
-	buf.Write([]byte{0x01})                             // truncated byte offset
+	buf.Write([]byte{'x'})                             // name
+	buf.Write([]byte{0x01})                            // truncated byte offset
 
 	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
 	if err == nil {
@@ -264,11 +264,11 @@ func TestReadSchema_TruncatedByteOffset(t *testing.T) {
 
 func TestReadSchema_TruncatedBitPos(t *testing.T) {
 	var buf bytes.Buffer
-	binary.Write(&buf, binary.LittleEndian, uint16(1))  // 1 field
-	binary.Write(&buf, binary.LittleEndian, uint8(0))   // type U8
-	binary.Write(&buf, binary.LittleEndian, uint16(1))  // name len 1
-	buf.Write([]byte{'x'})                               // name
-	binary.Write(&buf, binary.LittleEndian, uint32(0))  // byte offset
+	binary.Write(&buf, binary.LittleEndian, uint16(1)) // 1 field
+	binary.Write(&buf, binary.LittleEndian, uint8(0))  // type U8
+	binary.Write(&buf, binary.LittleEndian, uint16(1)) // name len 1
+	buf.Write([]byte{'x'})                             // name
+	binary.Write(&buf, binary.LittleEndian, uint32(0)) // byte offset
 	// no bit position
 
 	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
@@ -279,12 +279,12 @@ func TestReadSchema_TruncatedBitPos(t *testing.T) {
 
 func TestReadSchema_TruncatedCsvIdx(t *testing.T) {
 	var buf bytes.Buffer
-	binary.Write(&buf, binary.LittleEndian, uint16(1))  // 1 field
-	binary.Write(&buf, binary.LittleEndian, uint8(0))   // type U8
-	binary.Write(&buf, binary.LittleEndian, uint16(1))  // name len 1
-	buf.Write([]byte{'x'})                               // name
-	binary.Write(&buf, binary.LittleEndian, uint32(0))  // byte offset
-	binary.Write(&buf, binary.LittleEndian, uint8(0))   // bit pos
+	binary.Write(&buf, binary.LittleEndian, uint16(1)) // 1 field
+	binary.Write(&buf, binary.LittleEndian, uint8(0))  // type U8
+	binary.Write(&buf, binary.LittleEndian, uint16(1)) // name len 1
+	buf.Write([]byte{'x'})                             // name
+	binary.Write(&buf, binary.LittleEndian, uint32(0)) // byte offset
+	binary.Write(&buf, binary.LittleEndian, uint8(0))  // bit pos
 	// no csv idx
 
 	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
