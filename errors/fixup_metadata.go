@@ -279,6 +279,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_SOURCE_FORBIDDEN: {
+		Message: "The absolute source path resolves outside the import jail; the Manager only reads files under the configured root (default: process working directory).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Move the source file under the jail root (typically the directory the CLI / MCP server was invoked from), or pass a different root via pulse.Options.ImportSourceJailRoot.",
+			},
+		},
+	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: {
 		Message: "A numeric aggregation (SUM, AVERAGE, etc.) was requested on a categorical field.",
 		Fixups: []Fixup{

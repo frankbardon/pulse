@@ -2,7 +2,9 @@ package imports
 
 import (
 	"context"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -443,5 +445,124 @@ func TestManager_Open_AbsoluteMissingSource_Errors(t *testing.T) {
 	var ce *perr.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_IMPORT_SOURCE_MISSING {
 		t.Errorf("error code = %v, want %v", err, perr.PULSE_IMPORT_SOURCE_MISSING)
+	}
+}
+
+// TestManager_Jail_DefaultsToCWD verifies that when SourceFS is left
+// unset the Manager establishes a jail at the process working
+// directory. The jail accessor reports the cleaned absolute root.
+func TestManager_Jail_DefaultsToCWD(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+
+	// Real OsFs to trigger the jail-establishment branch.
+	m, err := New(afero.NewOsFs(), Options{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	got := m.JailRoot()
+	want, _ := filepath.Abs(tmp)
+	// macOS /tmp is a symlink to /private/tmp; resolve both ends.
+	gotResolved, _ := filepath.EvalSymlinks(got)
+	wantResolved, _ := filepath.EvalSymlinks(want)
+	if gotResolved != wantResolved {
+		t.Errorf("JailRoot() = %q, want %q (cwd)", got, want)
+	}
+}
+
+// TestManager_Jail_AcceptsPathInside verifies that an absolute path
+// under the configured jail succeeds normally.
+func TestManager_Jail_AcceptsPathInside(t *testing.T) {
+	tmp := t.TempDir()
+	src := filepath.Join(tmp, "data.csv")
+	if err := os.WriteFile(src, []byte("id,name\n1,Alice\n"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	dst := afero.NewMemMapFs()
+	m, err := New(dst, Options{SourceJailRoot: tmp})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	res, err := m.Open(context.Background(), Spec{SourcePath: src})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if !res.Managed || res.RowsImported != 1 {
+		t.Errorf("result = %+v, want managed handle with 1 row", res)
+	}
+}
+
+// TestManager_Jail_RejectsPathOutside verifies that an absolute path
+// outside the jail returns PULSE_IMPORT_SOURCE_FORBIDDEN — no read,
+// no copy, no managed handle created.
+func TestManager_Jail_RejectsPathOutside(t *testing.T) {
+	jail := t.TempDir()
+	outside := t.TempDir() // distinct tree
+	src := filepath.Join(outside, "secret.csv")
+	if err := os.WriteFile(src, []byte("id,name\n1,Eve\n"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	dst := afero.NewMemMapFs()
+	m, err := New(dst, Options{SourceJailRoot: jail})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	_, err = m.Open(context.Background(), Spec{SourcePath: src})
+	if err == nil {
+		t.Fatalf("expected jail violation, got nil")
+	}
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_IMPORT_SOURCE_FORBIDDEN {
+		t.Errorf("error code = %v, want %v", err, perr.PULSE_IMPORT_SOURCE_FORBIDDEN)
+	}
+	// Verify no managed file was created as a side effect.
+	if ok, _ := afero.Exists(dst, "imports/secret.pulse"); ok {
+		t.Errorf("managed file created despite jail rejection")
+	}
+}
+
+// TestManager_Jail_RejectsTraversal verifies a ".." escape attempt is
+// rejected. filepath.Clean normalises the path before the containment
+// check, so "/jail/../etc/passwd" resolves to "/etc/passwd" and is
+// blocked.
+func TestManager_Jail_RejectsTraversal(t *testing.T) {
+	jail := t.TempDir()
+	dst := afero.NewMemMapFs()
+	m, err := New(dst, Options{SourceJailRoot: jail})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	escape := jail + "/../" + "etc/passwd-fake.csv"
+	_, err = m.Open(context.Background(), Spec{SourcePath: escape})
+	if err == nil {
+		t.Fatalf("traversal accepted; expected jail violation")
+	}
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_IMPORT_SOURCE_FORBIDDEN {
+		t.Errorf("error code = %v, want %v", err, perr.PULSE_IMPORT_SOURCE_FORBIDDEN)
+	}
+}
+
+// TestManager_Jail_DisabledWhenSourceFSExplicit verifies that callers
+// passing an explicit SourceFS opt out of the jail entirely (they are
+// asserting they manage access boundaries themselves).
+func TestManager_Jail_DisabledWhenSourceFSExplicit(t *testing.T) {
+	dst := afero.NewMemMapFs()
+	src := afero.NewMemMapFs()
+	if err := afero.WriteFile(src, "/anywhere/data.csv", []byte("id,name\n1,A\n"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	m, err := New(dst, Options{SourceFS: src, SourceJailRoot: "/blocked"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if m.JailRoot() != "" {
+		t.Errorf("JailRoot = %q, want empty (no jail when SourceFS set)", m.JailRoot())
+	}
+	_, err = m.Open(context.Background(), Spec{SourcePath: "/anywhere/data.csv"})
+	if err != nil {
+		t.Errorf("Open: %v — jail should be inactive when SourceFS is explicit", err)
 	}
 }

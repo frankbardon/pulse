@@ -36,13 +36,20 @@ const (
 //     Used for the managed pool (target .pulse files + sidecars) and for
 //     reading relative-path sources.
 //   - srcFs: the source-reading fs. Used when SourcePath is absolute so
-//     callers can import files from anywhere on disk without first
-//     copying them under PULSE_DATA_DIR. Defaults to afero.NewOsFs().
-//     In tests where afs is a MemMapFs, srcFs is the same MemMapFs so
-//     hermetic tests still work.
+//     callers can import files from anywhere within the jail without
+//     first copying them under PULSE_DATA_DIR. Defaults to
+//     afero.NewOsFs() in production; MemMapFs in hermetic tests.
+//
+// jailRoot is the cleaned absolute root under which absolute source
+// paths must resolve. Empty string means "no jail" (callers who
+// explicitly pass their own SourceFS opt in to managing access
+// themselves). Default in production is os.Getwd() at New time so an
+// MCP server invocation can only reach files under the directory it
+// was launched from.
 type Manager struct {
 	afs        afero.Fs
 	srcFs      afero.Fs
+	jailRoot   string
 	importsDir string
 	defaultTTL time.Duration
 	now        func() time.Time
@@ -60,13 +67,18 @@ type Options struct {
 	// the package DefaultTTL.
 	DefaultTTL time.Duration
 
-	// SourceFS is the filesystem used when SourcePath is absolute.
-	// Defaults to afero.NewOsFs() so MCP / CLI users can import files
-	// from anywhere on the host. Tests typically pass the same
-	// MemMapFs as afs so hermetic test runs still work; passing nil
-	// here keeps that behaviour automatic — the Manager falls back to
-	// afs when SourceFS is nil and afs is not an OsFs root.
+	// SourceFS is the filesystem used when SourcePath is absolute. When
+	// nil, the Manager defaults to afero.NewOsFs() jailed to
+	// SourceJailRoot. Set explicitly when callers want to manage
+	// access themselves (e.g., a pre-chrooted MemMapFs); doing so
+	// disables the jail check — the explicit fs IS the boundary.
 	SourceFS afero.Fs
+
+	// SourceJailRoot constrains the default SourceFS to a directory.
+	// Empty string defaults to os.Getwd() at construction so an MCP
+	// server invocation reaches only files under the directory it was
+	// launched from. Ignored when SourceFS is set explicitly.
+	SourceJailRoot string
 
 	// Now is the clock; injected for testing. Defaults to time.Now.
 	Now func() time.Time
@@ -105,26 +117,80 @@ func New(afs afero.Fs, opts Options) (*Manager, error) {
 	}
 
 	srcFs := opts.SourceFS
-	if srcFs == nil {
-		// Default policy: if the destination fs is a real OS-backed
-		// rooted fs (the production case), give absolute paths an
-		// unrooted OsFs to read from. If the destination fs is
-		// in-memory (the test case), reuse it so seeded files are
-		// visible by absolute path too.
+	var jail string
+	switch {
+	case srcFs != nil:
+		// Explicit SourceFS: caller manages access boundaries; jail
+		// disabled.
+	case opts.SourceJailRoot != "":
+		// Explicit jail root: always use OsFs with the jail, even when
+		// afs is in-memory. This is the production path and the
+		// "real-fs jail tests" path.
+		srcFs = afero.NewOsFs()
+		cleaned, err := filepath.Abs(filepath.Clean(opts.SourceJailRoot))
+		if err != nil {
+			return nil, fmt.Errorf("imports.New: normalising jail root %q: %w", opts.SourceJailRoot, err)
+		}
+		jail = cleaned
+	default:
 		if _, isMem := afs.(*afero.MemMapFs); isMem {
+			// In-memory destination + no jail configured: reuse the
+			// MemMapFs as srcFs so hermetic tests using absolute
+			// paths (e.g. "/var/data/x.csv") still work without
+			// touching the host. No jail in this branch.
 			srcFs = afs
 		} else {
+			// Production default: OsFs jailed to the process working
+			// directory. An MCP server or CLI invocation can only
+			// reach files under the directory it was launched from.
 			srcFs = afero.NewOsFs()
+			cwd, err := os.Getwd()
+			if err != nil {
+				return nil, fmt.Errorf("imports.New: resolving default jail root: %w", err)
+			}
+			cleaned, err := filepath.Abs(filepath.Clean(cwd))
+			if err != nil {
+				return nil, fmt.Errorf("imports.New: normalising default jail root: %w", err)
+			}
+			jail = cleaned
 		}
 	}
 
 	return &Manager{
 		afs:        afs,
 		srcFs:      srcFs,
+		jailRoot:   jail,
 		importsDir: dir,
 		defaultTTL: ttl,
 		now:        now,
 	}, nil
+}
+
+// JailRoot returns the cleaned absolute root the Manager confines
+// absolute source paths to, or the empty string when no jail is
+// enforced (i.e., the caller passed an explicit Options.SourceFS).
+func (m *Manager) JailRoot() string { return m.jailRoot }
+
+// checkJail verifies p resolves under the Manager's jail root. Returns
+// PULSE_IMPORT_SOURCE_FORBIDDEN when the path escapes. No-op when the
+// Manager has no jail (caller-supplied SourceFS).
+func (m *Manager) checkJail(p string) error {
+	if m.jailRoot == "" {
+		return nil
+	}
+	cleaned, err := filepath.Abs(filepath.Clean(p))
+	if err != nil {
+		return perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_FORBIDDEN,
+			fmt.Sprintf("cannot normalise source path %q: %v", p, err),
+			map[string]any{"source_path": p, "jail_root": m.jailRoot})
+	}
+	rel, err := filepath.Rel(m.jailRoot, cleaned)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_FORBIDDEN,
+			fmt.Sprintf("source path %q resolves outside the import jail %q", cleaned, m.jailRoot),
+			map[string]any{"source_path": cleaned, "jail_root": m.jailRoot})
+	}
+	return nil
 }
 
 // ImportsDir returns the resolved imports directory (relative to the
@@ -420,6 +486,9 @@ func (m *Manager) openReader(spec Spec, format string) (pio.Reader, error) {
 	}
 	readFs := m.afs
 	if filepath.IsAbs(spec.SourcePath) {
+		if err := m.checkJail(spec.SourcePath); err != nil {
+			return nil, err
+		}
 		readFs = m.srcFs
 	}
 	exists, err := afero.Exists(readFs, spec.SourcePath)
@@ -443,6 +512,9 @@ func (m *Manager) openReader(spec Spec, format string) (pio.Reader, error) {
 // with a full sidecar so it participates in the normal TTL lifecycle
 // — pinned imports here behave the same as anywhere else.
 func (m *Manager) openPulseAbsoluteCopy(ctx context.Context, spec Spec) (*Result, error) {
+	if err := m.checkJail(spec.SourcePath); err != nil {
+		return nil, err
+	}
 	exists, err := afero.Exists(m.srcFs, spec.SourcePath)
 	if err != nil {
 		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_MISSING,

@@ -119,6 +119,12 @@ const (
 	// the requested name already exists and Overwrite was not set.
 	PULSE_IMPORT_HANDLE_EXISTS Code = "PULSE_IMPORT_HANDLE_EXISTS"
 
+	// PULSE_IMPORT_SOURCE_FORBIDDEN indicates an absolute source path
+	// resolved outside the import jail. The Manager confines absolute
+	// reads to a configured root (default: process cwd) so an MCP /
+	// CLI invocation cannot reach arbitrary files on the host.
+	PULSE_IMPORT_SOURCE_FORBIDDEN Code = "PULSE_IMPORT_SOURCE_FORBIDDEN"
+
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL indicates a numeric aggregation
 	// was requested on a categorical field.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
@@ -351,6 +357,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_FORMAT_UNKNOWN,
 	PULSE_IMPORT_SOURCE_MISSING,
 	PULSE_IMPORT_HANDLE_EXISTS,
+	PULSE_IMPORT_SOURCE_FORBIDDEN,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,

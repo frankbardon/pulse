@@ -2259,7 +2259,7 @@
         ]
       }
     ],
-    "error_codes_count": 67,
+    "error_codes_count": 68,
     "error_domains": [
       "CLI",
       "DATA",
@@ -2307,6 +2307,7 @@
       "PULSE_IMPORT_HANDLE_EXISTS",
       "PULSE_IMPORT_ROW_ERROR",
       "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
+      "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_QUERY_AMBIGUOUS",
@@ -3420,4 +3421,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a5da7053e242a4b300ab4e83146cc02eabd8a9fed987acf4f2967c66ee39459e
+// golden-hash: 591a19955f630077a85ff0572e11c0a9b692c57097bc742dfd95a43c4d993a14

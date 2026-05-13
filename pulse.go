@@ -91,10 +91,15 @@ type Options struct {
 	// ImportSourceFS is the afero.Fs used to read source files when
 	// ImportFile / pulse_import receives an absolute path. Defaults to
 	// afero.NewOsFs() on real OS installs, or to FS when FS is an
-	// in-memory MemMapFs (so tests stay hermetic). Override when
-	// callers want to constrain absolute-path access to a different
-	// filesystem (e.g., a chrooted view).
+	// in-memory MemMapFs (so tests stay hermetic). Setting this
+	// disables the default jail: the explicit fs IS the boundary.
 	ImportSourceFS afero.Fs
+
+	// ImportSourceJailRoot confines absolute source paths to a
+	// directory tree. Empty string defaults to os.Getwd() at New
+	// time — the natural sandbox for an MCP server or CLI invocation.
+	// Ignored when ImportSourceFS is set explicitly.
+	ImportSourceJailRoot string
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -134,9 +139,10 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetDisableDefaults(opts.DisableDefaults)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
-		ImportsDir: opts.ImportsDir,
-		DefaultTTL: opts.ImportTTL,
-		SourceFS:   opts.ImportSourceFS,
+		ImportsDir:     opts.ImportsDir,
+		DefaultTTL:     opts.ImportTTL,
+		SourceFS:       opts.ImportSourceFS,
+		SourceJailRoot: opts.ImportSourceJailRoot,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("pulse: configuring imports manager: %w", err)
