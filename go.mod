@@ -8,7 +8,7 @@ require (
 	github.com/mark3labs/mcp-go v0.54.0
 	github.com/spf13/afero v1.15.0
 	github.com/uber/h3-go/v4 v4.4.1
-	github.com/urfave/cli/v3 v3.8.0
+	github.com/urfave/cli/v3 v3.9.0
 	github.com/xuri/excelize/v2 v2.10.1
 	golang.org/x/sys v0.44.0
 )

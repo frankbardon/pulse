@@ -64,8 +64,8 @@ github.com/tiendc/go-deepcopy v1.7.2 h1:Ut2yYR7W9tWjTQitganoIue4UGxZwCcJy3orjrrI
 github.com/tiendc/go-deepcopy v1.7.2/go.mod h1:4bKjNC2r7boYOkD2IOuZpYjmlDdzjbpTRyCx+goBCJQ=
 github.com/uber/h3-go/v4 v4.4.1 h1:O6Vnv1I+tq8f89AnYtb5FcYtK6dBC1X0RePFZ5YW5/U=
 github.com/uber/h3-go/v4 v4.4.1/go.mod h1:19vfSV5HQsnRZev7V0SPmTkVSZErL7/io8M/nx+++30=
-github.com/urfave/cli/v3 v3.8.0 h1:XqKPrm0q4P0q5JpoclYoCAv0/MIvH/jZ2umzuf8pNTI=
-github.com/urfave/cli/v3 v3.8.0/go.mod h1:ysVLtOEmg2tOy6PknnYVhDoouyC/6N42TMeoMzskhso=
+github.com/urfave/cli/v3 v3.9.0 h1:AV9lIiPv3ukYnxunaCUsHnEozptYmDN2F0+yWqLMn/c=
+github.com/urfave/cli/v3 v3.9.0/go.mod h1:ysVLtOEmg2tOy6PknnYVhDoouyC/6N42TMeoMzskhso=
 github.com/xuri/efp v0.0.1 h1:fws5Rv3myXyYni8uwj2qKjVaRP30PdjeYe2Y6FDsCL8=
 github.com/xuri/efp v0.0.1/go.mod h1:ybY/Jr0T0GTCnYjKqmdwxyxn2BQf2RcQIIvex5QldPI=
 github.com/xuri/excelize/v2 v2.10.1 h1:V62UlqopMqha3kOpnlHy2CcRVw1V8E63jFoWUmMzxN0=
