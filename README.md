@@ -1,10 +1,10 @@
 # Pulse
 
-High-performance, self-describing tabular data processing engine written in Go. Ships as a CLI binary and an embeddable Go library.
+High-performance, self-describing tabular data processing engine written in Go. Ships as a Go library (`github.com/frankbardon/pulse`) and a CLI binary (`cmd/pulse/`). Library is primary; CLI is a thin adapter.
 
-Pulse reads and writes `.pulse` files — a compact binary format with an inline schema, categorical dictionaries, and per-field descriptions. Import from CSV, TSV, NDJSON, Parquet, or Excel; run aggregations, filters, and groupings; export results back to any supported format.
+Pulse reads and writes `.pulse` files — a compact binary format with an inline schema, categorical dictionaries, and per-field descriptions. Import from CSV, TSV, NDJSON, JSON array, Parquet, Apache Arrow IPC, or Excel; run aggregations, filters, groupers, windows, features, statistical tests, and regressions; export back to any supported format.
 
-Designed for LLM-native workflows: every command supports `--json`, a bundled skill pack teaches agents how to operate Pulse, and `api predict` validates requests before execution.
+LLM-native by design: every command supports `--json`, every operator declares its accepted types and streamability in the manifest, an embedded skill pack teaches agents how to operate Pulse, an embedded request-example library gives them runnable templates, and `pulse mcp` serves the full surface over Model Context Protocol.
 
 ## Installation
 
@@ -33,14 +33,13 @@ Requires Go 1.22+.
 pulse import csv --input data.csv --output data.pulse
 ```
 
-Schema is inferred automatically (up to 500 rows sampled). To supply an explicit schema:
+Schema is inferred from a sample of rows (default 500). To supply an explicit schema:
 
 ```bash
 # Generate a schema template from your data
 pulse import schema-template data.csv > schema.json
 
-# Edit schema.json — add descriptions, adjust types
-# Then import with the schema
+# Edit schema.json — adjust types, add descriptions
 pulse import csv --input data.csv --schema schema.json --output data.pulse
 ```
 
@@ -50,7 +49,7 @@ pulse import csv --input data.csv --schema schema.json --output data.pulse
 pulse cohort inspect data.pulse --json
 ```
 
-Returns field names, types, byte offsets, descriptions, and categorical dictionaries.
+Returns field names, types, byte offsets, descriptions, and categorical dictionaries (truncated by default; pass `--full-dict` for the full mapping).
 
 ### Run an aggregation
 
@@ -89,71 +88,204 @@ pulse api process --request request.json --json
 }
 ```
 
+### Smart defaults
+
+If you name a field but omit `type`, Pulse fills in a sensible operator from the schema type — `AGG_SUM` for numerics, `AGG_FREQUENCY` for categoricals, `GROUP_RANGE` (interval 10) for numerics, `GROUP_CATEGORY` for categoricals, `GROUP_DATE` ("day") for dates, `GROUP_H3_CELL` (resolution 7) for geo. Disable with `--no-defaults` or `pulse.Options{DisableDefaults: true}`. The full rule table lives in `descriptor/defaults.go`.
+
 ### Validate before executing
 
 ```bash
 pulse api predict --request request.json --json
 ```
 
-Returns the proposed schema, warnings (e.g., numeric aggregation on a categorical field), and estimated row count without touching the data.
+Returns the proposed schema, applied defaults, streamability, warnings (e.g., numeric aggregation on a categorical field), and structural errors without touching record data. Pass `--strict` to treat warnings as errors.
 
-### Export back to tabular
+### Streaming
+
+For requests Pulse can stream (single-pass aggregations on non-decimal/non-geo fields, no buffered ops), use `--stream` to get NDJSON one row per line:
+
+```bash
+pulse api process --request request.json --stream
+pulse api compose --request batch.json --stream
+```
+
+Library equivalent: `pulse.ProcessStream(ctx, req)` returns a `RowIter`.
+
+### Parallel compose
+
+```bash
+pulse api compose --request batch.json --parallel 4 --json
+```
+
+Library equivalent: `pulse.ComposeParallel(ctx, req, pulse.ComposeOptions{MaxWorkers: 4})`. Order-preserving by slot; `--no-fail-fast` aggregates errors instead of cancelling on first failure.
+
+### Natural-language ask
+
+> **Beta — do not trust yet.** The natural-language query path (`pulse api ask --query`, `pulse_ask` with `query`) is experimental. Parsing is heuristic, coverage is partial, and silent misinterpretation is possible. Inspect the resolved request before relying on the result, and prefer a structured `request` for production workloads.
+
+```bash
+pulse api ask --file data.pulse --query "average revenue by region, top 5"
+```
+
+Parses the query against the schema, validates, and executes — one round trip. Pass `--predict` to validate without executing, `--on-invalid suggest` to get structured fixup hints instead of an error.
+
+### Export and convert
 
 ```bash
 pulse export csv --input data.pulse --output results.csv
 pulse export parquet --input data.pulse --output results.parquet
-```
 
-### Convert between formats directly
-
-```bash
 pulse convert data.csv data.parquet
 pulse convert data.xlsx output.tsv --schema schema.json
 ```
 
-Format is auto-detected from file extensions. No intermediate `.pulse` file is written unless `--keep-pulse=path` is specified.
+Format auto-detected from extensions. `convert` does not write an intermediate `.pulse` unless `--keep-pulse=path`.
 
-### Sample rows
+### Sample rows / facet a field
 
 ```bash
 pulse api sample --input data.pulse --count 10
-```
-
-### Get distinct values for a field
-
-```bash
 pulse api facet --input data.pulse --field brand
 ```
+
+### Synthetic data
+
+Generate a deterministic synthetic cohort from a schema spec or from a previously-captured profile:
+
+```bash
+pulse synth from-schema --spec spec.json --output synth.pulse --seed 42
+pulse profile create --input real.pulse --output profile.json --include-correlations
+pulse synth from-profile --profile profile.json --output synth.pulse --rows 100000 --seed 42
+```
+
+12 distributions (`normal`, `lognormal`, `poisson`, `exponential`, `pareto`, `bernoulli`, `weighted_categorical`, `regex`, `uniform`, `uniform_date`, `monotonic_from`, `constant`), pairwise correlations, value constraints. See the `synthetic-data` skill.
 
 ## CLI Reference
 
 ```
 pulse
-├── --json                          Root manifest (self-description)
+├── --json [--slim]                       Root manifest (self-description)
 ├── import
-│   ├── csv|tsv|ndjson|parquet|excel  --input FILE --output FILE [--schema FILE]
-│   ├── predict                       --input FILE [--schema FILE] --json
-│   └── schema-template INPUT         Generate editable schema from source
+│   ├── csv|tsv|ndjson|jsonarray|         --input FILE --output FILE [--schema FILE]
+│   │   parquet|arrow|excel
+│   ├── auto SOURCE                       Managed import (auto-detect format)
+│   ├── list                              List managed import handles
+│   ├── drop HANDLE                       Drop a managed handle
+│   ├── predict                           --input FILE [--schema FILE] --json
+│   └── schema-template INPUT             Generate editable schema from source
 ├── export
-│   ├── csv|tsv|ndjson|parquet|excel  --input FILE --output FILE
-│   └── predict                       --input FILE --format FORMAT --json
-├── convert INPUT OUTPUT [--schema FILE] [--keep-pulse PATH]
+│   ├── csv|tsv|ndjson|jsonarray|         --input FILE --output FILE
+│   │   parquet|arrow|excel
+│   └── predict                           --input FILE --format FORMAT --json
+├── convert INPUT OUTPUT [--from F] [--to F] [--schema FILE] [--keep-pulse PATH]
 │   └── predict INPUT OUTPUT --json
 ├── cohort
 │   ├── inspect PATH [--json] [--full-dict]
 │   └── filter --input FILE --output FILE --filter EXPR
 ├── api
-│   ├── process --request FILE [--json]
-│   ├── compose --request FILE [--json]
+│   ├── process --request FILE [--json] [--stream] [--no-defaults]
+│   ├── compose --request FILE [--json] [--stream] [--parallel N] [--no-fail-fast]
 │   ├── sample --input FILE --count N
 │   ├── facet --input FILE --field NAME
-│   └── predict --request FILE --json [--strict]
-└── skills
-    ├── list [--json]
-    └── show NAME
+│   ├── predict --request FILE --json [--strict]
+│   └── ask [--file F] [--query Q] [--request FILE] [--predict] [--on-invalid suggest]
+├── synth
+│   ├── from-schema --spec FILE --output FILE [--rows N] [--seed N]
+│   └── from-profile --profile FILE --output FILE --rows N [--seed N]
+├── profile
+│   └── create --input FILE --output FILE [--top-k N] [--include-correlations]
+├── skills
+│   ├── list [--json]
+│   └── show NAME
+├── examples
+│   ├── search [--query Q] [--tag T ...] [--category C] [--json]
+│   └── show NAME [--json]
+├── errors
+│   ├── lookup CODE [--json]
+│   └── list [--domain D] [--query Q] [--json]
+└── mcp [--data-dir DIR] [--bind-on-open]   Serve MCP over stdio
 ```
 
-Every leaf command supports `--json` for structured output wrapped in an envelope with `format_version`, `data`, `errors`, and `warnings`.
+Every leaf supports `--json` for output wrapped in a `descriptor.Envelope` with `format_version: "1.0"`, `data`, `errors`, and `warnings`.
+
+## MCP Usage
+
+Pulse ships an MCP (Model Context Protocol) server that exposes the full library surface to AI clients (Claude Desktop, Claude Code, Cursor, any MCP-aware host). One binary, one command:
+
+```bash
+pulse mcp --data-dir /path/to/data
+```
+
+`PULSE_DATA_DIR` is honored if `--data-dir` is omitted. The server speaks JSON-RPC over stdio (logs to stderr).
+
+### Wiring into a host
+
+For Claude Desktop, add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "pulse": {
+      "command": "pulse",
+      "args": ["mcp"],
+      "env": {
+        "PULSE_DATA_DIR": "/Users/me/data"
+      }
+    }
+  }
+}
+```
+
+For Claude Code:
+
+```bash
+claude mcp add pulse --env PULSE_DATA_DIR=/Users/me/data -- pulse mcp
+```
+
+Restart the host. Pulse tools appear in the tool list.
+
+### Tool surface
+
+| Tool | Purpose |
+|---|---|
+| `pulse_manifest` | **Call first.** Self-description: commands, operators, accepted types, tests, regressions, distributions, error codes, MCP tools, cohort field types. Cache once per session. |
+| `pulse_ask` | **Preferred entry point.** One-shot import → inspect → predict → execute. Accepts `source` (raw file) + `query` (natural language, **beta — see below**) or a structured `request`. |
+| `pulse_inspect` | Read header + schema (no record bytes). Also binds session-scoped field-name enums on action tools. |
+| `pulse_predict` | Validate a request against the schema without executing. |
+| `pulse_process` | Execute one pre-built request. |
+| `pulse_compose` | Execute a batch of requests in one round trip. |
+| `pulse_sample` | Return up to N rows for preview. |
+| `pulse_facet` | Distinct values for a single field. |
+| `pulse_import` | Import a tabular source into a managed `.pulse` handle (TTL-tracked, default 7d). |
+| `pulse_drop` | Drop a managed handle. |
+| `pulse_imports_list` | Enumerate managed handles with sidecar metadata. |
+| `pulse_examples_search` | Search the embedded request-example library by query, tags, category. |
+| `pulse_examples_get` | Fetch one runnable example by name. |
+| `pulse_errors_lookup` | Per-code Message + Fixup detail (kept out of the manifest for context economy). |
+| `pulse_skills_list` / `pulse_skills_get` | Embedded skill pack. |
+
+### Resources and prompts
+
+| URI | What |
+|---|---|
+| `pulse://<path>` | One per `.pulse` file under the data directory. Read returns `descriptor.InspectResult` JSON. |
+| `pulse-skill://<name>` | One per embedded skill. Read returns the markdown body. |
+
+Two prompts (`pulse-bootstrap`, `pulse-author-request`) are registered for hosts that surface them as slash commands.
+
+### Recommended session flow
+
+1. `pulse_manifest` once. Cache the result.
+2. `pulse_ask` with `source` + `query` (or `cohort` + `query`) for everything else.
+3. Reach for `pulse_predict` / `pulse_sample` / `pulse_facet` / `pulse_compose` only when you need finer control than the one-shot affords.
+
+> **Natural-language `query` is beta.** Heuristic parsing only — silent misinterpretation is possible. Always check `query_resolution` and the resolved `request` in the response before trusting results. For production, author a structured `request` against the cached manifest and skip the `query` field.
+
+### Schema-bound enums
+
+After a successful `pulse_inspect` (or after `pulse_ask` opens a cohort), the server registers session-scoped variants of the action tools whose JSON Schemas embed enums on field-name parameters — picked from a typed list rather than free-texted. Works on SSE / Streamable HTTP transports; on stdio the session does not support tool overrides, so enums are advisory and `pulse_predict` remains the validation gate. Disable with `--bind-on-open=false`.
+
+The `mcp-integration` skill (`pulse skills show mcp-integration`) is the authoritative reference.
 
 ## Embedding Pulse in a Go Application
 
@@ -176,7 +308,6 @@ import (
 func main() {
     ctx := context.Background()
 
-    // Create a Pulse instance.
     p, err := pulse.New(pulse.Options{DataDir: "/var/data"})
     if err != nil {
         log.Fatal(err)
@@ -212,7 +343,7 @@ func main() {
     }
     fmt.Printf("Fields: %d\n", result.FieldCount)
 
-    // Validate a request before execution.
+    // Validate before execution.
     prediction, err := p.Predict(ctx, &pulse.Request{
         Cohort: &types.Cohort{Filename: "dataset.pulse"},
         Aggregations: []*types.Aggregation{
@@ -226,6 +357,10 @@ func main() {
 }
 ```
 
+### Public facade
+
+`pulse.Pulse` exposes: `New`, `Open`, `Process`, `ProcessStream`, `Compose`, `ComposeParallel`, `Ask`, `Import`, `ImportFile`, `Drop`, `Imports`, `SweepImports`, `ResolveImport`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `Manifest`, plus example/error lookup helpers.
+
 ### Custom filesystem
 
 Pulse accepts any `afero.Fs` for testing or non-local backends:
@@ -237,47 +372,33 @@ import "github.com/spf13/afero"
 p, _ := pulse.New(pulse.Options{
     FS: afero.NewMemMapFs(),
 })
-
-// Or a custom S3-backed filesystem
-p, _ := pulse.New(pulse.Options{
-    FS: myS3Fs,
-})
 ```
 
-### Available types
+`fs.NewMemMap()` returns a complete in-memory `Config` for hermetic tests — no disk I/O.
 
-```go
-import "github.com/frankbardon/pulse/types"
+### Operator catalogue
 
-// Aggregations: AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX,
-//               AGG_STDDEV, AGG_RANGE, AGG_FREQUENCY, AGG_ZSCORE
+Counts as currently registered (the manifest is the source of truth — `pulse --json --slim`):
 
-// Filters: FILTER_INCLUDE, FILTER_EXCLUDE, FILTER_RANGE, FILTER_EXPRESSION
-
-// Groups: GROUP_CATEGORY, GROUP_ROUNDED
-
-// Attributes: ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
-//             ATTR_FORMULA, ATTR_PERCENTILE, ATTR_DATE_PART
-
-// Windows: WIN_LAG, WIN_LEAD, WIN_ROW_NUMBER, WIN_RANK, WIN_DENSE_RANK,
-//          WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_MOVING_AVG,
-//          WIN_EWMA, WIN_PCT_CHANGE
-```
+- **18 aggregators** (`AGG_*`): COUNT, SUM, AVERAGE, MIN, MAX, MEDIAN, STDDEV, RANGE, FREQUENCY, MODE, PERCENTILE, ZSCORE, KURTOSIS, GEO_CENTROID, GEO_BBOX, …
+- **9 attributes** (`ATTR_*`): ZSCORE, TSCORE, NORMALIZED, FORMULA, PERCENTILE, DATE_PART, …
+- **6 filterers** (`FILTER_*`): INCLUDE, EXCLUDE, RANGE, EXPRESSION, GEO_WITHIN, GEO_WITHIN_RADIUS_M
+- **6 groupers** (`GROUP_*`): CATEGORY, RANGE, ROUNDED, DATE, QUANTILE, H3_CELL
+- **10 windows** (`WIN_*`): LAG, LEAD, ROW_NUMBER, RANK, DENSE_RANK, RUNNING_SUM, RUNNING_AVG, MOVING_AVG, EWMA, PCT_CHANGE
+- **9 features** (`FEAT_*`): LOG, SQRT, BUCKETIZE, ONE_HOT, FREQUENCY_ENCODE, TARGET_ENCODE, DATE_FEATURES, TRAIN_TEST_SPLIT, POLY
+- **20 statistical tests** (`TEST_*`): tier-1 row tests (T, WELCH, CHISQ, ANOVA_F, ANOVA_WELCH, ANOVA_RM, KS, PAIRED_T, PROP_Z, PEARSON_R, SPEARMAN_R, KENDALL_TAU, MANN_WHITNEY_U, WILCOXON_SR, KRUSKAL_WALLIS, BROWN_FORSYTHE, FISHER_EXACT, SHAPIRO_WILK) and tier-2 post-tests (TUKEY_HSD, TREND, variants)
+- **3 regressions** (`REG_*`): OLS, GLM, BAYES_LINEAR — with `Resample` / `Selection` modifiers and `FEAT_POLY` composition cover 13 textbook regression names
+- **12 synth distributions**
 
 ## LLM Skill Pack
 
-Pulse bundles 12 skill documents that teach LLM agents how to operate it. Skills are embedded in the binary via `//go:embed` — no external files needed.
+Pulse bundles 21 skill documents that teach LLM agents how to operate it. Skills are embedded via `//go:embed` — no external files.
 
 ### Discovering skills
 
 ```bash
-# List all bundled skills
 pulse skills list
-
-# List with metadata (for programmatic consumption)
 pulse skills list --json
-
-# Read a specific skill
 pulse skills show aggregation-guide
 ```
 
@@ -285,80 +406,99 @@ pulse skills show aggregation-guide
 
 | Skill | Purpose |
 |---|---|
-| `getting-started` | Pulse vocabulary, file format, CLI overview |
-| `cohort-schema-design` | Field types, nullability, descriptions |
-| `aggregation-guide` | When and how to use each aggregator |
-| `attribute-composition` | Derived attributes: z-score, formula, etc. |
-| `grouper-design` | GROUP_CATEGORY vs GROUP_ROUNDED |
-| `compose-requests` | Multi-request composition |
-| `debugging-with-predict` | Iterating with `api predict` |
-| `error-code-reference` | Error codes and recovery steps |
-| `import-best-practices` | Schema inference, fail-closed semantics |
-| `export-format-selection` | Choosing the right output format |
+| `getting-started` | Pulse vocabulary, MCP tool surface, file format, operator catalog |
+| `cohort-schema-design` | Field types, nullability, bit-packing, descriptions |
+| `aggregation-guide` | Aggregator selection (AGG_*) and filterer selection (FILTER_*) |
+| `attribute-composition` | ATTR_* derived columns: z-score, formula, percentile, date_part |
+| `grouper-design` | CATEGORY, RANGE, ROUNDED, DATE, QUANTILE, H3_CELL |
+| `window-operations` | LAG/LEAD/RANK/MOVING_AVG/EWMA partitioning and frame semantics |
+| `feature-engineering` | Pre-filter FEAT_* operators for ML pipelines + leakage trap |
+| `statistical-testing` | Tier-1 row tests and tier-2 post-tests |
+| `regression-modeling` | OLS, GLM, Bayesian linear; modifiers; 13 textbook names mapped |
+| `synthetic-data` | Distributions, correlations, constraints |
+| `compose-requests` | Multi-request batching against one cohort |
+| `debugging-with-predict` | Iterating with `pulse_predict` / `pulse api predict` |
+| `error-code-reference` | Reading envelopes; calling `pulse_errors_lookup` |
+| `import-best-practices` | Schema inference, fail-closed semantics, PULSE_IMPORT_* |
+| `export-format-selection` | CSV / TSV / NDJSON / JSON array / Parquet / Arrow / Excel |
+| `financial-cohorts` | decimal128 semantics for money |
+| `geospatial-cohorts` | point_f64, h3_cell, geo filters and aggregations |
+| `mcp-integration` | MCP tool surface, schema-bound enums, session bootstrap |
+| `request-recipes` | Canonical request JSON skeletons keyed by intent |
+| `query-router-prompt` | System-prompt template for natural-language → AskRequest |
+| `contributor-workflow` | Recipes for extending Pulse |
 
-### Integrating with an LLM agent
-
-The recommended workflow for an LLM agent using Pulse:
-
-1. **Discover the surface**: `pulse --json` returns the full manifest — commands, components, field types, and skills.
-2. **Load relevant skills**: based on the task, call `pulse skills show <name>` to inject domain guidance into the agent's context.
-3. **Validate before execution**: use `pulse api predict` to check a request for structural errors and warnings before running it.
-4. **Execute**: `pulse api process --request req.json --json` returns structured results.
-
-From Go:
+### From Go
 
 ```go
 import "github.com/frankbardon/pulse/skills"
 
-// At agent boot, load all skill metadata.
 for _, s := range skills.List() {
     fmt.Printf("%s: %s\n", s.Name, s.Description)
 }
 
-// Inject a specific skill into the agent's context.
 content, ok := skills.Get("aggregation-guide")
 if ok {
     agent.AddContext(content)
 }
 ```
 
-The root manifest (`pulse --json`) includes a `skills[]` array so agents can discover available skills in a single call.
+The root manifest (`pulse --json`) includes a `skills[]` array so agents can discover available skills in one call.
 
 ## .pulse File Format
 
 Binary, self-describing, fully transportable:
 
 - **9-byte header**: magic bytes (`PULSE\x00\x00\x00`) + format version (`0x01`)
-- **Schema block**: field count, per-field descriptors (type, name, byte offset, bit position, CSV column index, optional description)
+- **Schema block**: field count, per-field descriptors (type, name, byte offset, bit position, source column index, optional description capped at 1000 bytes)
 - **Dictionary blocks**: one per categorical field (string-to-integer mapping stored inline)
 - **Record data**: fixed-width binary records, one per row
 
-15 field types:
+19 field types:
 
 | Type | Bytes | Notes |
 |---|---|---|
 | `u8`, `u16`, `u32`, `u64` | 1, 2, 4, 8 | Unsigned integers |
 | `f32`, `f64` | 4, 8 | IEEE 754 floats |
 | `date` | 4 | Days since Unix epoch |
-| `packed_bool` | 1 | Single boolean |
-| `nullable_bool` | 1 | Tri-state: true/false/null |
-| `nullable_u4` | 1 | 4-bit unsigned, nullable |
+| `packed_bool` | 0 | Bit-packed; shares bytes with adjacent packed fields |
+| `nullable_bool` | 0 | Tri-state; bit-packed |
+| `nullable_u4` | 0 | 4-bit unsigned, nullable; bit-packed |
 | `nullable_u8`, `nullable_u16` | 1, 2 | Nullable unsigned integers |
 | `categorical_u8`, `categorical_u16`, `categorical_u32` | 1, 2, 4 | Dictionary-encoded strings |
+| `decimal128` | 16 | Fixed precision/scale; banker's rounding |
+| `nullable_decimal128` | 16 | Nullable decimal128 |
+| `point_f64` | 16 | Lat/lon pair |
+| `h3_cell` | 8 | Uber H3 cell index |
 
-Categorical width is auto-selected from sample cardinality during import.
+Categorical width auto-selected from sample cardinality during import. Bit-packed types report `ByteSize() == 0` — they share bytes with adjacent packed fields. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`.
 
 ## Configuration
 
-Pulse uses a single environment variable:
+Three environment variables, all optional:
 
 ```bash
-export PULSE_DATA_DIR=/path/to/data
+export PULSE_DATA_DIR=/path/to/data        # Base directory for .pulse cohort files
+export PULSE_IMPORTS_DIR=imports           # Subdir for managed-import handles (default "imports")
+export PULSE_IMPORT_TTL=7d                 # Default TTL for managed handles ("24h", "30m", "7d", "pin")
 ```
 
-When set, the CLI resolves relative cohort paths against this directory. Not required — absolute paths always work.
+Embedders override per-instance via `pulse.Options{DataDir, ImportsDir, ImportTTL, FS}`. No config files.
 
-No config files. No install command.
+## Output Format Contract
+
+All `--json` output is wrapped in a `descriptor.Envelope`:
+
+```json
+{
+  "format_version": "1.0",
+  "data": { ... },
+  "errors": [],
+  "warnings": []
+}
+```
+
+`format_version` is `"1.0"`. Errors/warnings use `{"code", "message", "details"}` entries (empty array when absent, never null). Additive-only: new `data` fields don't bump the version; renames or removals do.
 
 ## Development
 
@@ -367,24 +507,22 @@ No config files. No install command.
 ```bash
 make build    # Binary at ./bin/pulse
 make test     # go test ./...
+make fmt      # gofmt
+make vet      # go vet
 make lint     # staticcheck (auto-installed via go run)
 make cover    # Coverage report
+make docs     # Build mdBook
 make clean    # Remove artifacts
 ```
+
+A `.env` at repo root is auto-loaded by the Makefile.
 
 ### Run tests
 
 ```bash
-# Full suite (17 packages, ~5 seconds)
 go test ./...
-
-# Single package
 go test ./processing/...
-
-# Verbose with specific test
 go test ./service/... -v -run TestProcess
-
-# Fuzz tests
 go test ./encoding/... -fuzz FuzzPulseFileHeader -fuzztime 30s
 ```
 
@@ -392,24 +530,29 @@ go test ./encoding/... -fuzz FuzzPulseFileHeader -fuzztime 30s
 
 ```
 pulse/
-├── pulse.go              Public facade: New, Open, Process, Import, Export, ...
-├── cmd/pulse/            CLI binary (thin adapter)
-├── encoding/             .pulse binary format: header, schema, records
-├── processing/           Aggregators, attributes, filterers, groupers
-├── service/              Orchestration layer
-├── io/                   Bidirectional I/O pipeline
-│   ├── csv/              CSV reader + writer
-│   ├── tsv/              TSV reader + writer
-│   ├── ndjson/           NDJSON reader + writer
-│   ├── parquet/          Parquet reader + writer (Apache Arrow)
-│   └── excel/            Excel reader + writer (Excelize)
-├── fs/                   Filesystem abstraction (afero)
-├── errors/               Typed error codes
-├── types/                Request/response types
-├── descriptor/           Self-description: manifest, predict, inspect
-├── skills/               Embedded LLM skill pack
-└── internal/cli/         CLI internals
+├── pulse.go                Public facade
+├── cmd/pulse/              CLI binary (thin adapter)
+├── service/                Orchestration: wires processing to encoding
+├── processing/             Aggregators, attributes, filterers, groupers
+│   ├── window/             WIN_* operators
+│   └── feature/            FEAT_* pre-filter feature engineers
+├── encoding/               .pulse binary codec
+├── io/                     Tabular ↔ .pulse adapters
+│   └── csv|tsv|ndjson|jsonarray|arrow|parquet|excel/
+├── fs/                     afero-based filesystem abstraction
+├── errors/                 Typed error codes (CodedError system)
+├── types/                  Request/response structs + streamability table
+├── descriptor/             manifest, predict, inspect, envelope (no-execute)
+├── skills/                 //go:embed markdown skill pack
+├── examples/               //go:embed runnable request examples
+├── synth/                  Synthetic data generator
+├── docs/                   mdBook source (GitHub Pages)
+└── internal/
+    ├── cli/                CLI internals
+    └── mcp/                MCP server (wraps pulse.Pulse)
 ```
+
+Documentation: <https://frankbardon.github.io/pulse/>.
 
 ## License
 
