@@ -10,7 +10,7 @@ require (
 	github.com/uber/h3-go/v4 v4.4.1
 	github.com/urfave/cli/v3 v3.8.0
 	github.com/xuri/excelize/v2 v2.10.1
-	golang.org/x/sys v0.43.0
+	golang.org/x/sys v0.44.0
 )
 
 require (
