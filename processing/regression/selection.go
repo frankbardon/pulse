@@ -129,13 +129,12 @@ func backwardSelect(
 	fitter func([]Record, []string) (*refitResult, error),
 ) []string {
 	active := append([]string(nil), predictors...)
-	currentCrit := math.Inf(1)
-	if fit, err := fitter(records, active); err == nil {
-		currentCrit = finiteOrInf(critFn(fit, len(active)))
-	} else {
+	fit, err := fitter(records, active)
+	if err != nil {
 		// Full model can't fit; degrade to forward selection.
 		return forwardSelect(records, predictors, critFn, fitter)
 	}
+	currentCrit := finiteOrInf(critFn(fit, len(active)))
 
 	for len(active) > 0 {
 		bestCrit := currentCrit

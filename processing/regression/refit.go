@@ -228,25 +228,6 @@ func glmFitter(records []Record, target string, activePredictors []string, fam g
 	}, nil
 }
 
-// nullRSS computes Σ(yᵢ − ȳ)² over the records' target column with
-// listwise null deletion. Used by selection's intercept-only baseline
-// when activePredictors is empty.
-func nullRSS(records []Record, target string) (rss float64, n int, meanY float64) {
-	// Welford pass for numerical stability.
-	for _, rec := range records {
-		y, ok := rec.NumericValue(target)
-		if !ok {
-			continue
-		}
-		n++
-		dy := y - meanY
-		meanY += dy / float64(n)
-		dyPost := y - meanY
-		rss += dy * dyPost
-	}
-	return rss, n, meanY
-}
-
 // finiteOrInf returns the value unchanged unless it is NaN, in which
 // case it returns +Inf. Used by the criterion-driven selection drivers
 // so a numerically-degenerate candidate never accidentally wins the
