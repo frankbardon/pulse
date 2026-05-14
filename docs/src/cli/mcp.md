@@ -67,12 +67,13 @@ see `skills/mcp-integration.md` for the LLM-facing implications.
 }
 ```
 
-Restart the client. The Pulse tools (`pulse_inspect`, `pulse_predict`,
-`pulse_process`, `pulse_compose`, `pulse_ask`, `pulse_sample`,
-`pulse_facet`, `pulse_manifest`, `pulse_skills_list`,
-`pulse_skills_get`, `pulse_synth_*`, `pulse_profile`) and resources
-(`pulse://*.pulse`, `pulse-skill://*`) appear in the tool/resource
-list.
+Restart the client. The Pulse tools (`pulse_manifest`, `pulse_ask`,
+`pulse_inspect`, `pulse_predict`, `pulse_process`, `pulse_compose`,
+`pulse_sample`, `pulse_facet`, `pulse_import`, `pulse_drop`,
+`pulse_imports_list`, `pulse_examples_search`, `pulse_examples_get`,
+`pulse_errors_lookup`, `pulse_skills_list`, `pulse_skills_get`) and
+resources (`pulse://*.pulse`, `pulse-skill://*`) appear in the
+tool/resource list.
 
 ## Wiring it into Claude Code
 

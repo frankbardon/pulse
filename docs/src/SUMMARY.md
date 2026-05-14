@@ -41,9 +41,9 @@
 - [Dictionary Blocks](format/dictionaries.md)
 - [Record Layout](format/records.md)
 
-# MCP Integration (Pointer)
+# MCP Integration
 
-- [How LLMs Use Pulse](mcp/index.md)
+- [Server, Tools, Resources](mcp/index.md)
 
 # Examples Library
 
