@@ -3,6 +3,8 @@
 BINARY_NAME=pulse
 BUILD_DIR=bin
 GO=go
+LDFLAGS=-s -w
+BUILD_FLAGS=-trimpath -ldflags="$(LDFLAGS)"
 
 ifneq (,$(wildcard ./.env))
     include .env
@@ -10,7 +12,7 @@ ifneq (,$(wildcard ./.env))
 endif
 
 build:
-	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/pulse
+	$(GO) build $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/pulse
 
 clean:
 	rm -rf $(BUILD_DIR) coverage.out
