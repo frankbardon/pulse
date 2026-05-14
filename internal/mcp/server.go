@@ -44,9 +44,11 @@ func NewWithOptions(p *pulse.Pulse, opts Options) *server.MCPServer {
 		SpecVersion,
 		server.WithToolCapabilities(true),
 		server.WithResourceCapabilities(true, true),
+		server.WithPromptCapabilities(false),
 	)
 	registerTools(s, p, opts.BindOnOpen)
 	registerResources(s, p)
+	registerPrompts(s)
 	return s
 }
 

@@ -5,8 +5,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"flag"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -74,9 +78,102 @@ func TestRegOLS_GoldenRequest(t *testing.T) {
 		t.Fatalf("read golden %s: %v (run with -update to create)", goldenPath, err)
 	}
 	expectedData, _ := splitHash(expected)
-	if string(data) != string(expectedData) {
-		t.Errorf("golden mismatch for %s\nGot:\n%s\nWant:\n%s", goldenPath, string(data), string(expectedData))
+
+	// Tolerance compare: floating-point output drifts by 1-2 ULP across
+	// platforms (different LAPACK / SIMD orderings). Byte-exact match
+	// would be brittle on CI. We still hash the golden file via
+	// TestGoldensNotHandEdited to gate hand-edits.
+	var got, want map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal got: %v", err)
 	}
+	if err := json.Unmarshal(expectedData, &want); err != nil {
+		t.Fatalf("unmarshal want: %v", err)
+	}
+	const floatRelTol = 1e-9
+	if diff := diffWithFloatTolerance(got, want, floatRelTol); diff != "" {
+		t.Errorf("golden mismatch for %s (tol=%g):\n%s\n\nGot:\n%s\n\nWant:\n%s",
+			goldenPath, floatRelTol, diff, string(data), string(expectedData))
+	}
+}
+
+// diffWithFloatTolerance walks two unmarshaled JSON values and returns
+// the first difference path that exceeds the relative tolerance, or "" if
+// they agree. Float leaves use relative tolerance against the larger of
+// the two magnitudes (with a 1.0 floor); all other types must be deeply
+// equal.
+func diffWithFloatTolerance(got, want any, relTol float64) string {
+	return diffPath(got, want, relTol, "")
+}
+
+func diffPath(got, want any, relTol float64, path string) string {
+	if path == "" {
+		path = "$"
+	}
+	switch wantVal := want.(type) {
+	case map[string]any:
+		gotMap, ok := got.(map[string]any)
+		if !ok {
+			return fmt.Sprintf("%s: type mismatch (got %T, want map)", path, got)
+		}
+		keys := make([]string, 0, len(wantMapKeysUnion(gotMap, wantVal)))
+		for k := range wantMapKeysUnion(gotMap, wantVal) {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			gv, gok := gotMap[k]
+			wv, wok := wantVal[k]
+			if !gok {
+				return fmt.Sprintf("%s.%s: missing in got (want %v)", path, k, wv)
+			}
+			if !wok {
+				return fmt.Sprintf("%s.%s: missing in want (got %v)", path, k, gv)
+			}
+			if d := diffPath(gv, wv, relTol, path+"."+k); d != "" {
+				return d
+			}
+		}
+	case []any:
+		gotSlice, ok := got.([]any)
+		if !ok {
+			return fmt.Sprintf("%s: type mismatch (got %T, want []any)", path, got)
+		}
+		if len(gotSlice) != len(wantVal) {
+			return fmt.Sprintf("%s: length mismatch (got %d, want %d)", path, len(gotSlice), len(wantVal))
+		}
+		for i := range wantVal {
+			if d := diffPath(gotSlice[i], wantVal[i], relTol, fmt.Sprintf("%s[%d]", path, i)); d != "" {
+				return d
+			}
+		}
+	case float64:
+		gotFloat, ok := got.(float64)
+		if !ok {
+			return fmt.Sprintf("%s: type mismatch (got %T, want float64)", path, got)
+		}
+		denom := math.Max(math.Max(math.Abs(gotFloat), math.Abs(wantVal)), 1.0)
+		if math.Abs(gotFloat-wantVal)/denom > relTol {
+			return fmt.Sprintf("%s: %g vs %g (rel diff %g > %g)",
+				path, gotFloat, wantVal, math.Abs(gotFloat-wantVal)/denom, relTol)
+		}
+	default:
+		if !reflect.DeepEqual(got, want) {
+			return fmt.Sprintf("%s: %v vs %v", path, got, want)
+		}
+	}
+	return ""
+}
+
+func wantMapKeysUnion(a, b map[string]any) map[string]struct{} {
+	out := make(map[string]struct{}, len(a)+len(b))
+	for k := range a {
+		out[k] = struct{}{}
+	}
+	for k := range b {
+		out[k] = struct{}{}
+	}
+	return out
 }
 
 // TestGoldensNotHandEdited verifies every regression golden in

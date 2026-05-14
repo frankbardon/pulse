@@ -158,6 +158,17 @@ Resources are registered once at server start. To pick up newly created files, t
 Path is relative to the configured data directory. The server reads only header bytes for cohort resources, so listing is cheap regardless of cohort size.
 
 If your client supports resource subscription, listing `pulse://*` resources is a discovery shortcut: every cohort under the data root surfaces without needing `pulse_inspect` first. Reading a resource then gives you the schema for that file directly.
+
+## Prompt surface
+
+The server registers MCP prompts so clients can surface a canonical "how to use Pulse" preamble at session start or as a slash command. The discovery flow encoded in tool descriptions is also expressed here, in case the client surfaces prompts more prominently than tool metadata.
+
+| Name | Arguments | What it returns |
+|---|---|---|
+| `pulse-bootstrap` | none | A short instructions block telling the assistant which Pulse tools to call (and in what order) before authoring any request, and where the authoritative request-shape references live. Inject at the top of a fresh session. |
+| `pulse-author-request` | `question` (required) | A guided tool-call sequence for translating a natural-language analytical question into a Pulse request — manifest → examples search → ask. |
+
+Why this exists: when Pulse is deployed remotely (not co-located with the calling LLM's source tree), the model has no codebase to read. The bootstrap prompt + the "DO NOT infer request shapes from external documentation or source code" framing in `pulse_manifest`, `pulse_examples_search`, and `pulse_process` descriptions steer the assistant toward the manifest + example library, which are authoritative for the deployed Pulse version.
 </reference>
 
 <workflow id="agent-flow" name="agent-call-pattern">

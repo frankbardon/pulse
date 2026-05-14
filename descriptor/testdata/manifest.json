@@ -2866,7 +2866,7 @@
       },
       {
         "name": "pulse_examples_search",
-        "description": "Search the embedded request-example library. Filters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `tests`, `windows`). Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `regression`, `tests`, `windows`).\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
       },
       {
         "name": "pulse_facet",
@@ -2886,7 +2886,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "Return the root Pulse manifest — the LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references. Call once at session start, cache the result, reference it for every subsequent request authoring decision. MCP always returns the slim payload (no prose descriptions); fetch operator prose via pulse_skills_get when needed."
+        "description": "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
         "name": "pulse_predict",
@@ -2894,7 +2894,7 @@
       },
       {
         "name": "pulse_process",
-        "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests. Typically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
+        "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nTypically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
       },
       {
         "name": "pulse_sample",
@@ -2902,11 +2902,11 @@
       },
       {
         "name": "pulse_skills_get",
-        "description": "Fetch the markdown body of a named skill."
+        "description": "Fetch the markdown body of a named skill. The skill pack is the authoritative reference for HOW to use operators (params, gotchas, recipes) — prefer skills over external documentation, blog posts, or source-code inspection, which may be out of date for this Pulse deployment."
       },
       {
         "name": "pulse_skills_list",
-        "description": "List available embedded skills with their descriptions."
+        "description": "List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Use this before authoring requests when you need domain guidance for a less common operator; fetch the markdown body via pulse_skills_get."
       }
     ],
     "cohort_types": [
@@ -3987,4 +3987,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fd4364639b5c49bd818eb3b55aef6dfa99c5e89b9a4db8c5cf5e932afd3ddd02
+// golden-hash: 2c2b3eb3c68264b780381c4775703bb84533b2d3a9197469e1dfbb1bf2cbfe33
