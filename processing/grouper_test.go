@@ -601,11 +601,11 @@ func TestGrouper_Date_Quarter(t *testing.T) {
 	g := makeDateGrouper(t, "quarter", schema)
 
 	records := makeRecords(schema, "enrolled", []float64{
-		epochDays(2024, 1, 15),  // Q1
-		epochDays(2024, 4, 10),  // Q2
-		epochDays(2024, 7, 20),  // Q3
-		epochDays(2024, 10, 5),  // Q4
-		epochDays(2024, 2, 28),  // Q1
+		epochDays(2024, 1, 15), // Q1
+		epochDays(2024, 4, 10), // Q2
+		epochDays(2024, 7, 20), // Q3
+		epochDays(2024, 10, 5), // Q4
+		epochDays(2024, 2, 28), // Q1
 	})
 	groups, err := g.Group(records, "enrolled")
 	if err != nil {

@@ -475,7 +475,7 @@ func (u *uniformDateSampler) next(rng *rand.Rand) (any, bool) {
 // shapes we need for synthetic IDs: literals, character classes, fixed
 // repetitions, alternation, and bounded `+`, `*`, `{m,n}` repetitions.
 type regexSampler struct {
-	tree     *syntax.Regexp
+	tree      *syntax.Regexp
 	maxRepeat int
 }
 

@@ -13,16 +13,16 @@ import (
 
 // numericAggregations are aggregation types that only make sense on numeric fields.
 var numericAggregations = map[types.AggregationType]bool{
-	types.AGG_SUM:     true,
-	types.AGG_AVERAGE: true,
-	types.AGG_MIN:     true,
-	types.AGG_MAX:     true,
-	types.AGG_STDDEV:  true,
-	types.AGG_RANGE:   true,
-	types.AGG_ZSCORE:  true,
-	types.AGG_MEDIAN:    true,
-	types.AGG_VARIANCE:  true,
-	types.AGG_SKEWNESS:  true,
+	types.AGG_SUM:        true,
+	types.AGG_AVERAGE:    true,
+	types.AGG_MIN:        true,
+	types.AGG_MAX:        true,
+	types.AGG_STDDEV:     true,
+	types.AGG_RANGE:      true,
+	types.AGG_ZSCORE:     true,
+	types.AGG_MEDIAN:     true,
+	types.AGG_VARIANCE:   true,
+	types.AGG_SKEWNESS:   true,
 	types.AGG_KURTOSIS:   true,
 	types.AGG_PERCENTILE: true,
 }
@@ -221,6 +221,41 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []string) {
 	var reasons []string
 
+	// Regression streamability defers to RegressionSpec.Streamable():
+	// it folds the type-level family check, the modifier downgrade
+	// (Resample / Selection force buffered), and the Phase-by-Phase
+	// implementation status gate (today only unpenalized REG_OLS streams).
+	// Phases 2-5 widen the gate as their engines land — predict and the
+	// processor share the same source of truth via this method.
+	for _, reg := range req.Regressions {
+		if reg == nil {
+			continue
+		}
+		if !reg.Streamable() {
+			reasons = append(reasons, "regression "+string(reg.Type)+" requires the buffered path under the current spec")
+		}
+	}
+	// Regression slots do not yet compose with groupers, features,
+	// two-pass attributes, or tier-1 row tests in the streaming path.
+	// Mirror the runtime gate so predict stays parity-true.
+	if len(req.Regressions) > 0 {
+		if len(req.Groups) > 0 {
+			reasons = append(reasons, "regression with groupers runs via the buffered path")
+		}
+		if len(req.Features) > 0 {
+			reasons = append(reasons, "regression with features runs via the buffered path")
+		}
+		if len(req.Tests) > 0 {
+			reasons = append(reasons, "regression with tier-1 tests runs via the buffered path")
+		}
+		for _, attr := range req.Attributes {
+			if attr.Type == types.ATTR_ZSCORE || attr.Type == types.ATTR_TSCORE || attr.Type == types.ATTR_NORMALIZED {
+				reasons = append(reasons, "regression with two-pass attribute "+string(attr.Type)+" runs via the buffered path")
+				break
+			}
+		}
+	}
+
 	if len(req.Aggregations) == 0 {
 		reasons = append(reasons, "no aggregations: streaming path requires at least one OnlineAggregator")
 	}
@@ -395,6 +430,12 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 		}
 	}
 
+	// Check regression slots. Phase 0 validates structural shape only
+	// (known type, target + predictors named, fields exist); deeper
+	// runtime checks (n ≥ p + 1, family/link compatibility) land with
+	// the engines in Phases 1–4.
+	validateRegressions(env, req, schema, projected)
+
 	// Check attribute fields.
 	for _, attr := range req.Attributes {
 		// Removed-type sentinel: ATTR_RANK was retired in favor of WIN_RANK.
@@ -405,6 +446,42 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 				"ATTR_RANK was removed in this release; use WIN_RANK with empty partition_by and a single ASC order_by on the same field",
 				map[string]any{"attribute": "ATTR_RANK", "replacement": "WIN_RANK"},
 			)
+			continue
+		}
+		// Regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE) carry
+		// their own Target + Predictors instead of a single Field. Validate
+		// those references here; the factory rechecks numeric-type
+		// compatibility at construction time.
+		if attr.Type == types.ATTR_REG_FITTED || attr.Type == types.ATTR_REG_RESIDUAL || attr.Type == types.ATTR_REG_LEVERAGE {
+			if attr.Target == "" {
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					string(attr.Type)+" requires Target",
+					map[string]any{"attribute": string(attr.Type)},
+				)
+			} else if schema.Field(attr.Target) == nil && !projected[attr.Target] {
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					string(attr.Type)+" Target references unknown field: "+attr.Target,
+					map[string]any{"field": attr.Target, "attribute": string(attr.Type)},
+				)
+			}
+			if len(attr.Predictors) == 0 {
+				env.AddError(
+					string(errors.SERVICE_VALIDATION),
+					string(attr.Type)+" requires at least one predictor",
+					map[string]any{"attribute": string(attr.Type)},
+				)
+			}
+			for _, name := range attr.Predictors {
+				if schema.Field(name) == nil && !projected[name] {
+					env.AddError(
+						string(errors.SERVICE_VALIDATION),
+						string(attr.Type)+" predictor references unknown field: "+name,
+						map[string]any{"field": name, "attribute": string(attr.Type)},
+					)
+				}
+			}
 			continue
 		}
 		f := schema.Field(attr.Field)
@@ -420,17 +497,34 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 
 // projectAttributeOutputs adds each attribute's output label to the
 // projected column set. The label rule mirrors processor.go's
-// applyAttributes: an explicit label wins; otherwise the default is
-// "<TYPE>_<field>" so aggregations referencing the implicit label
-// resolve under predict the same way they do under process.
+// applyAttributes / defaultAttributeLabel: an explicit label wins;
+// otherwise the default is "<TYPE>_<field>", with the regression
+// attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE) substituting
+// Target for Field since they do not carry a single source field.
+//
+// Duplicated locally rather than imported from processing/ because
+// descriptor must not import the processing package (predict is a
+// no-execute path).
 func projectAttributeOutputs(req *types.Request, projected map[string]bool) {
 	for _, attr := range req.Attributes {
 		label := attr.Label
 		if label == "" {
-			label = string(attr.Type) + "_" + attr.Field
+			label = attributeDefaultLabel(attr)
 		}
 		projected[label] = true
 	}
+}
+
+// attributeDefaultLabel mirrors processing.defaultAttributeLabel so
+// predict produces the same projected column names process would emit.
+// The duplication is intentional — descriptor/predict.go must not
+// import processing/.
+func attributeDefaultLabel(attr *types.Attribute) string {
+	switch attr.Type {
+	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		return string(attr.Type) + "_" + attr.Target
+	}
+	return string(attr.Type) + "_" + attr.Field
 }
 
 // validateDescriptionQuality emits warnings for fields with low-quality descriptions.

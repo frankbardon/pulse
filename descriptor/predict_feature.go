@@ -3,6 +3,7 @@ package descriptor
 import (
 	"encoding/json"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -123,6 +124,9 @@ func validateFeatureSpec(env *Envelope, feat *types.Feature, schema *encoding.Sc
 			if feat.Type == types.FEAT_BUCKETIZE {
 				validateBucketizeParams(env, feat)
 			}
+			if feat.Type == types.FEAT_POLY {
+				validatePolyParams(env, feat)
+			}
 			return
 		}
 		env.AddError(
@@ -155,6 +159,15 @@ func validateFeatureSpec(env *Envelope, feat *types.Feature, schema *encoding.Sc
 		}
 	case types.FEAT_BUCKETIZE:
 		validateBucketizeParams(env, feat)
+	case types.FEAT_POLY:
+		if !isNumericFieldType(f.Type) {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"feature FEAT_POLY requires a numeric field",
+				map[string]any{"field": feat.Field, "feature": string(feat.Type)},
+			)
+		}
+		validatePolyParams(env, feat)
 	}
 }
 
@@ -261,6 +274,45 @@ func validateBucketizeParams(env *Envelope, feat *types.Feature) {
 	}
 }
 
+// validatePolyParams checks FEAT_POLY's Degree param: required, ≥2, ≤10.
+// Mirrors processing/feature/poly.go's factory checks so predict can
+// surface the same diagnostic without executing.
+func validatePolyParams(env *Envelope, feat *types.Feature) {
+	if len(feat.Params) == 0 {
+		env.AddError(
+			string(errors.SERVICE_VALIDATION),
+			"feature FEAT_POLY requires 'degree' in params",
+			map[string]any{"feature": string(feat.Type)},
+		)
+		return
+	}
+	var p struct {
+		Degree int `json:"degree"`
+	}
+	if err := json.Unmarshal(feat.Params, &p); err != nil {
+		env.AddError(
+			string(errors.SERVICE_VALIDATION),
+			"feature FEAT_POLY has malformed params: "+err.Error(),
+			map[string]any{"feature": string(feat.Type)},
+		)
+		return
+	}
+	if p.Degree < 2 {
+		env.AddError(
+			string(errors.SERVICE_VALIDATION),
+			"feature FEAT_POLY requires Degree >= 2; use the original column for the linear term",
+			map[string]any{"feature": string(feat.Type), "degree": p.Degree},
+		)
+	}
+	if p.Degree > 10 {
+		env.AddError(
+			string(errors.SERVICE_VALIDATION),
+			"feature FEAT_POLY Degree capped at 10; consider standardizing inputs first or using an orthogonal basis",
+			map[string]any{"feature": string(feat.Type), "degree": p.Degree},
+		)
+	}
+}
+
 func validateTargetEncodeParams(env *Envelope, feat *types.Feature, schema *encoding.Schema) {
 	if len(feat.Params) == 0 {
 		env.AddError(
@@ -347,6 +399,30 @@ func featureOutputLabels(feat *types.Feature, schema *encoding.Schema) []string 
 			prefix + "_dow",
 			prefix + "_quarter",
 		}
+	case types.FEAT_POLY:
+		prefix := feat.Label
+		if prefix == "" {
+			prefix = feat.Field + "_poly"
+		}
+		var p struct {
+			Degree int `json:"degree"`
+		}
+		if len(feat.Params) > 0 {
+			_ = json.Unmarshal(feat.Params, &p)
+		}
+		if p.Degree < 2 {
+			// Predict surfaces a validation error elsewhere; emit no
+			// columns rather than guess.
+			return nil
+		}
+		if p.Degree > 10 {
+			p.Degree = 10
+		}
+		out := make([]string, 0, p.Degree-1)
+		for k := 2; k <= p.Degree; k++ {
+			out = append(out, prefix+"_"+strconv.Itoa(k))
+		}
+		return out
 	case types.FEAT_ONE_HOT:
 		prefix := feat.Label
 		if prefix == "" {

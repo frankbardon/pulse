@@ -172,12 +172,13 @@ func (s *shapiroWilkRow) reset() {
 //
 // p-value: under H₀ (normal), W' ≈ 1 with small variance. Royston's
 // transformation for Shapiro-Francia (n ≥ 5):
-//   u = log(n)
-//   μ_z   = −1.2725 + 1.0521(log(u) − u)
-//   σ_z   = 1.0308 − 0.26758(log(u) + 2/u)
-//   y     = log(1 − W')
-//   z     = (y − μ_z) / σ_z
-//   p     = 1 − Φ(z)
+//
+//	u = log(n)
+//	μ_z   = −1.2725 + 1.0521(log(u) − u)
+//	σ_z   = 1.0308 − 0.26758(log(u) + 2/u)
+//	y     = log(1 − W')
+//	z     = (y − μ_z) / σ_z
+//	p     = 1 − Φ(z)
 func shapiroFranciaStat(sorted []float64) (W, z, p float64, warn string) {
 	n := len(sorted)
 	if n > 5000 {
@@ -239,8 +240,8 @@ func inverseNormalCDF(p float64) float64 {
 	if p > 0.08 && p < 0.92 {
 		y := p - 0.5
 		r := y * y
-		num := (((-25.44106049637 *r + 41.39119773534) *r - 18.61500062529) *r + 2.50662823884) * y
-		den := (((3.13082909833 *r - 21.06224101826) *r + 23.08336743743) *r - 8.47351093090) *r + 1
+		num := (((-25.44106049637*r+41.39119773534)*r-18.61500062529)*r + 2.50662823884) * y
+		den := (((3.13082909833*r-21.06224101826)*r+23.08336743743)*r-8.47351093090)*r + 1
 		return num / den
 	}
 	// Moro tails.

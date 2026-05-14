@@ -35,12 +35,12 @@ type pearsonRRow struct {
 	field2 string
 	alpha  float64
 
-	n      int64
-	meanX  float64
-	meanY  float64
-	m2X    float64
-	m2Y    float64
-	c      float64
+	n     int64
+	meanX float64
+	meanY float64
+	m2X   float64
+	m2Y   float64
+	c     float64
 }
 
 func newPearsonRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -164,8 +164,8 @@ func newPearsonRPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
 
 func (p *pearsonRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	var (
-		n                          int64
-		meanX, meanY, m2X, m2Y, c  float64
+		n                         int64
+		meanX, meanY, m2X, m2Y, c float64
 	)
 	for i, row := range rows {
 		x, err := floatFromRow(row, p.field, i)

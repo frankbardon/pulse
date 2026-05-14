@@ -34,8 +34,8 @@ type Components struct {
 // derived from the per-operator AcceptsTypes declarations and let an
 // LLM look up "what can I do with a date field" in one place.
 type CohortFieldType struct {
-	Name                 string   `json:"name"`
-	Categorical          bool     `json:"categorical"`
+	Name                  string   `json:"name"`
+	Categorical           bool     `json:"categorical"`
 	CompatibleAggregators []string `json:"compatible_aggregators,omitempty"`
 	CompatibleAttributes  []string `json:"compatible_attributes,omitempty"`
 	CompatibleFilterers   []string `json:"compatible_filterers,omitempty"`
@@ -67,6 +67,7 @@ type Manifest struct {
 	Components         Components         `json:"components"`
 	Tests              []TestMeta         `json:"tests"`
 	PostTests          []TestMeta         `json:"post_tests"`
+	Regressions        []RegressionMeta   `json:"regressions"`
 	SynthDistributions []DistributionMeta `json:"synth_distributions"`
 	// ErrorCodesCount is the total number of registered error codes.
 	ErrorCodesCount int `json:"error_codes_count"`
@@ -205,6 +206,14 @@ func sortDistributions(ds []DistributionMeta) []DistributionMeta {
 	return out
 }
 
+// sortRegressions sorts a RegressionMeta slice lexically by Name.
+func sortRegressions(rs []RegressionMeta) []RegressionMeta {
+	out := make([]RegressionMeta, len(rs))
+	copy(out, rs)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
 // BuildManifest constructs a deterministic Manifest from the current
 // registries and capability tables. The result is safe to cache and
 // share across goroutines; callers do not mutate the returned slices.
@@ -226,6 +235,7 @@ func BuildManifest() *Manifest {
 		},
 		Tests:              tier1,
 		PostTests:          tier2,
+		Regressions:        sortRegressions(regressionCapabilities()),
 		SynthDistributions: sortDistributions(distributionCapabilities()),
 		ErrorCodesCount:    errorCodesCount(),
 		ErrorDomains:       errorDomains(),

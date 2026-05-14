@@ -103,4 +103,3 @@ func makeCohortReader(p *pulse.Pulse, path string) server.ResourceHandlerFunc {
 		}, nil
 	}
 }
-

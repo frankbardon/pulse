@@ -58,9 +58,9 @@ func TestInferSchema_AllNumericTypes(t *testing.T) {
 	rows := make([][]string, 100)
 	for i := 0; i < 100; i++ {
 		rows[i] = []string{
-			fmt.Sprintf("%d", i),       // u8: 0-99
-			fmt.Sprintf("%d", 300+i),   // u16: 300-399
-			fmt.Sprintf("%d", 70000+i), // u32: 70000+
+			fmt.Sprintf("%d", i),                            // u8: 0-99
+			fmt.Sprintf("%d", 300+i),                        // u16: 300-399
+			fmt.Sprintf("%d", 70000+i),                      // u32: 70000+
 			fmt.Sprintf("%d", uint64(5000000000)+uint64(i)), // u64
 			fmt.Sprintf("%.2f", float64(i)*0.5),             // f32
 			fmt.Sprintf("%.10f", float64(i)*1e200),          // f64 (too big for f32)
@@ -168,9 +168,9 @@ func TestInferSchema_CategoricalWidthSelection(t *testing.T) {
 	// <=60000 unique -> U16
 	// >60000 unique -> U32
 	tests := []struct {
-		name    string
-		unique  int
-		want    encoding.FieldType
+		name   string
+		unique int
+		want   encoding.FieldType
 	}{
 		{"small", 5, encoding.FieldTypeCategoricalU8},
 		{"medium_boundary", 200, encoding.FieldTypeCategoricalU8},

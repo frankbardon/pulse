@@ -5,8 +5,50 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
+
+// TestProcessor_RegressionBayesModifierRejected exercises the end-to-end
+// rejection of REG_BAYES_LINEAR + any modifier. Phase 5 retired the
+// not-implemented stub for OLS / GLM + modifiers; Bayes now rejects
+// at spec validation because the posterior already conveys uncertainty
+// (credible intervals via the Student-t marginal) and stepwise feature
+// selection in a Bayesian setting is a posterior-based question that
+// the conjugate-NIG engine doesn't support.
+func TestProcessor_RegressionBayesModifierRejected(t *testing.T) {
+	schema := numericSchema()
+	records := makeRecords(schema, "score", []float64{10, 20, 30})
+
+	cases := []struct {
+		name string
+		spec *types.RegressionSpec
+	}{
+		{"REG_BAYES_LINEAR bootstrap", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}, Resample: "bootstrap"}},
+		{"REG_BAYES_LINEAR jackknife", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}, Resample: "jackknife"}},
+		{"REG_BAYES_LINEAR stepwise", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}, Selection: "stepwise", Criterion: "aic"}},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			proc := NewProcessor(schema)
+			iter := NewSliceIterator(records)
+			req := &types.Request{
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_AVERAGE, Field: "score"},
+				},
+				Regressions: []*types.RegressionSpec{c.spec},
+			}
+			_, err := proc.Process(context.Background(), req, iter)
+			if err == nil {
+				t.Fatalf("Process returned nil error; want PROCESSING_CONFIG")
+			}
+			if !errors.HasCode(err, errors.PROCESSING_CONFIG) {
+				t.Errorf("Process error = %v; want PROCESSING_CONFIG", err)
+			}
+		})
+	}
+}
 
 func TestProcessor_SimpleRequest(t *testing.T) {
 	schema := numericSchema()

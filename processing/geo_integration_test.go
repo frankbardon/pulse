@@ -21,10 +21,10 @@ func TestGeoFilterer_Within(t *testing.T) {
 		{Name: "loc", Type: encoding.FieldTypePointF64},
 	}}
 	records := []*Record{
-		makePointRecord(t, schema, "loc", 5, 5),    // inside
-		makePointRecord(t, schema, "loc", 11, 5),   // outside (lat>10)
-		makePointRecord(t, schema, "loc", 5, 11),   // outside (lon>10)
-		makePointRecord(t, schema, "loc", -1, -1),  // outside (negative)
+		makePointRecord(t, schema, "loc", 5, 5),   // inside
+		makePointRecord(t, schema, "loc", 11, 5),  // outside (lat>10)
+		makePointRecord(t, schema, "loc", 5, 11),  // outside (lon>10)
+		makePointRecord(t, schema, "loc", -1, -1), // outside (negative)
 	}
 	p := NewProcessor(schema)
 	resp, err := p.Process(context.Background(), &types.Request{

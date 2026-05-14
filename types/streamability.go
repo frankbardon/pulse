@@ -41,7 +41,8 @@ func (t AggregationType) Streamable() bool {
 func (t AttributeType) Streamable() bool {
 	switch t {
 	case ATTR_FORMULA, ATTR_DATE_PART,
-		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED:
+		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
+		ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE:
 		return true
 	case ATTR_PERCENTILE:
 		return false
@@ -96,7 +97,7 @@ func (t FeatureType) Streamable() bool {
 	case FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE,
 		FEAT_ONE_HOT, FEAT_DATE_FEATURES,
 		FEAT_FREQUENCY_ENCODE, FEAT_TARGET_ENCODE,
-		FEAT_TRAIN_TEST_SPLIT:
+		FEAT_TRAIN_TEST_SPLIT, FEAT_POLY:
 		return true
 	}
 	return false

@@ -544,6 +544,70 @@
           "streamable_hint": "Use ATTR_NORMALIZED for a streaming-friendly rank proxy."
         },
         {
+          "name": "ATTR_REG_FITTED",
+          "category": "attribute",
+          "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet).",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one fitted value per record (NaN-free)",
+          "streamable": true
+        },
+        {
+          "name": "ATTR_REG_LEVERAGE",
+          "category": "attribute",
+          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Range ∈ [0, 1]; Σᵢ hᵢᵢ = p + 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one leverage per record in [0, 1]",
+          "streamable": true,
+          "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG."
+        },
+        {
+          "name": "ATTR_REG_RESIDUAL",
+          "category": "attribute",
+          "description": "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one residual per record",
+          "streamable": true
+        },
+        {
           "name": "ATTR_TSCORE",
           "category": "attribute",
           "description": "Per-row T-score: z-score scaled and shifted to mean 50, stddev 10.",
@@ -1253,6 +1317,34 @@
             "categorical_u8"
           ],
           "emits_type_note": "one column per dictionary entry, prefixed by label",
+          "streamable": true
+        },
+        {
+          "name": "FEAT_POLY",
+          "category": "feature",
+          "description": "Per-row polynomial expansion of a numeric field; emits Degree-1 derived columns x_2 .. x_Degree. Pair with REG_OLS to fit polynomial regression.",
+          "params": [
+            {
+              "name": "degree",
+              "type": "int",
+              "required": true,
+              "description": "Polynomial degree; must be \u003e= 2 and \u003c= 10. Degree 1 (linear) is the original column."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "columns \"\u003clabel\u003e_2\" .. \"\u003clabel\u003e_\u003cDegree\u003e\" (default prefix \u003cfield\u003e_poly)",
           "streamable": true
         },
         {
@@ -2009,6 +2101,412 @@
         ]
       }
     ],
+    "regressions": [
+      {
+        "name": "REG_BAYES_LINEAR",
+        "description": "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; reports posterior means, std errors, and credible intervals.",
+        "accepts_types": [
+          "u8",
+          "u16",
+          "u32",
+          "u64",
+          "f32",
+          "f64",
+          "decimal128",
+          "nullable_decimal128"
+        ],
+        "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals.",
+        "streamable": true,
+        "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path.",
+        "params": [
+          {
+            "name": "target",
+            "type": "field",
+            "required": true,
+            "description": "Response variable field name.",
+            "field_filter": "numeric"
+          },
+          {
+            "name": "predictors",
+            "type": "list",
+            "required": true,
+            "description": "Predictor field names (numeric only in v1)."
+          },
+          {
+            "name": "prior",
+            "type": "enum",
+            "required": false,
+            "default": "nig",
+            "description": "Prior family; only the conjugate Normal-Inverse-Gamma is shipped in v1.",
+            "enum_values": [
+              "nig"
+            ]
+          },
+          {
+            "name": "prior_mu",
+            "type": "list",
+            "required": false,
+            "description": "Prior mean vector for coefficients."
+          },
+          {
+            "name": "prior_precision",
+            "type": "float",
+            "required": false,
+            "description": "Prior precision scalar."
+          },
+          {
+            "name": "prior_shape",
+            "type": "float",
+            "required": false,
+            "description": "Inverse-gamma shape parameter for residual variance."
+          },
+          {
+            "name": "prior_rate",
+            "type": "float",
+            "required": false,
+            "description": "Inverse-gamma rate parameter for residual variance."
+          },
+          {
+            "name": "credible_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Posterior credible-interval mass."
+          },
+          {
+            "name": "resample",
+            "type": "enum",
+            "required": false,
+            "description": "Orthogonal resampling layer.",
+            "enum_values": [
+              "",
+              "bootstrap",
+              "jackknife"
+            ]
+          },
+          {
+            "name": "bootstrap_iters",
+            "type": "int",
+            "required": false,
+            "description": "Replicate count when resample == bootstrap."
+          },
+          {
+            "name": "rng_seed",
+            "type": "int",
+            "required": false,
+            "description": "Seed for the bootstrap RNG."
+          },
+          {
+            "name": "selection",
+            "type": "enum",
+            "required": false,
+            "description": "Subset-selection wrapper.",
+            "enum_values": [
+              "",
+              "backward",
+              "forward",
+              "stepwise"
+            ]
+          },
+          {
+            "name": "criterion",
+            "type": "enum",
+            "required": false,
+            "description": "Information criterion driving selection.",
+            "enum_values": [
+              "aic",
+              "bic"
+            ]
+          }
+        ],
+        "modifiers": [
+          {
+            "name": "resample",
+            "description": "Orthogonal resampling layer; non-empty forces the buffered path.",
+            "enum_values": [
+              "bootstrap",
+              "jackknife"
+            ]
+          },
+          {
+            "name": "selection",
+            "description": "Automated subset-selection wrapper; non-empty forces the buffered path. Requires criterion when set.",
+            "enum_values": [
+              "backward",
+              "forward",
+              "stepwise"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "REG_GLM",
+        "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links.",
+        "accepts_types": [
+          "u8",
+          "u16",
+          "u32",
+          "u64",
+          "f32",
+          "f64",
+          "decimal128",
+          "nullable_decimal128"
+        ],
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, deviance, null deviance, McFadden pseudo-R².",
+        "streamable": false,
+        "streamable_hint": "Always buffered; IRLS requires multiple passes over the data.",
+        "params": [
+          {
+            "name": "target",
+            "type": "field",
+            "required": true,
+            "description": "Response variable field name.",
+            "field_filter": "numeric"
+          },
+          {
+            "name": "predictors",
+            "type": "list",
+            "required": true,
+            "description": "Predictor field names (numeric only in v1)."
+          },
+          {
+            "name": "family",
+            "type": "enum",
+            "required": true,
+            "description": "GLM error family.",
+            "enum_values": [
+              "binomial",
+              "gamma",
+              "poisson"
+            ]
+          },
+          {
+            "name": "link",
+            "type": "enum",
+            "required": false,
+            "description": "Link function; family-specific default when empty. Implemented this phase: binomial→logit, poisson→log, gamma→inverse. Other enum values are reserved for future phases and surface PROCESSING_REGRESSION_INVALID_LINK if requested.",
+            "enum_values": [
+              "cloglog",
+              "identity",
+              "inverse",
+              "log",
+              "logit",
+              "probit",
+              "sqrt"
+            ]
+          },
+          {
+            "name": "max_iters",
+            "type": "int",
+            "required": false,
+            "description": "IRLS iteration cap."
+          },
+          {
+            "name": "tol",
+            "type": "float",
+            "required": false,
+            "description": "Relative convergence tolerance."
+          },
+          {
+            "name": "resample",
+            "type": "enum",
+            "required": false,
+            "description": "Orthogonal resampling layer.",
+            "enum_values": [
+              "",
+              "bootstrap",
+              "jackknife"
+            ]
+          },
+          {
+            "name": "bootstrap_iters",
+            "type": "int",
+            "required": false,
+            "description": "Replicate count when resample == bootstrap."
+          },
+          {
+            "name": "rng_seed",
+            "type": "int",
+            "required": false,
+            "description": "Seed for the bootstrap RNG."
+          },
+          {
+            "name": "selection",
+            "type": "enum",
+            "required": false,
+            "description": "Subset-selection wrapper.",
+            "enum_values": [
+              "",
+              "backward",
+              "forward",
+              "stepwise"
+            ]
+          },
+          {
+            "name": "criterion",
+            "type": "enum",
+            "required": false,
+            "description": "Information criterion driving selection.",
+            "enum_values": [
+              "aic",
+              "bic"
+            ]
+          }
+        ],
+        "modifiers": [
+          {
+            "name": "resample",
+            "description": "Orthogonal resampling layer; non-empty forces the buffered path.",
+            "enum_values": [
+              "bootstrap",
+              "jackknife"
+            ]
+          },
+          {
+            "name": "selection",
+            "description": "Automated subset-selection wrapper; non-empty forces the buffered path. Requires criterion when set.",
+            "enum_values": [
+              "backward",
+              "forward",
+              "stepwise"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "REG_OLS",
+        "description": "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
+        "accepts_types": [
+          "u8",
+          "u16",
+          "u32",
+          "u64",
+          "f32",
+          "f64",
+          "decimal128",
+          "nullable_decimal128"
+        ],
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, R², adjusted R², residual std error.",
+        "streamable": true,
+        "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path.",
+        "params": [
+          {
+            "name": "target",
+            "type": "field",
+            "required": true,
+            "description": "Response variable field name.",
+            "field_filter": "numeric"
+          },
+          {
+            "name": "predictors",
+            "type": "list",
+            "required": true,
+            "description": "Predictor field names (numeric only in v1)."
+          },
+          {
+            "name": "penalty",
+            "type": "enum",
+            "required": false,
+            "default": "",
+            "description": "Regularization scheme; empty for OLS.",
+            "enum_values": [
+              "",
+              "elasticnet",
+              "l1",
+              "l2"
+            ]
+          },
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "description": "Regularization strength (\u003e0 when penalty is set)."
+          },
+          {
+            "name": "l1_ratio",
+            "type": "float",
+            "required": false,
+            "description": "Elastic-net mixing parameter in [0,1]; only read when penalty == elasticnet."
+          },
+          {
+            "name": "max_iters",
+            "type": "int",
+            "required": false,
+            "description": "Coordinate-descent iteration cap for regularized fits."
+          },
+          {
+            "name": "tol",
+            "type": "float",
+            "required": false,
+            "description": "Relative convergence tolerance for regularized fits."
+          },
+          {
+            "name": "resample",
+            "type": "enum",
+            "required": false,
+            "description": "Orthogonal resampling layer; downgrades streaming.",
+            "enum_values": [
+              "",
+              "bootstrap",
+              "jackknife"
+            ]
+          },
+          {
+            "name": "bootstrap_iters",
+            "type": "int",
+            "required": false,
+            "description": "Replicate count when resample == bootstrap."
+          },
+          {
+            "name": "rng_seed",
+            "type": "int",
+            "required": false,
+            "description": "Seed for the bootstrap RNG."
+          },
+          {
+            "name": "selection",
+            "type": "enum",
+            "required": false,
+            "description": "Subset-selection wrapper; downgrades streaming.",
+            "enum_values": [
+              "",
+              "backward",
+              "forward",
+              "stepwise"
+            ]
+          },
+          {
+            "name": "criterion",
+            "type": "enum",
+            "required": false,
+            "description": "Information criterion driving selection.",
+            "enum_values": [
+              "aic",
+              "bic"
+            ]
+          }
+        ],
+        "modifiers": [
+          {
+            "name": "resample",
+            "description": "Orthogonal resampling layer; non-empty forces the buffered path.",
+            "enum_values": [
+              "bootstrap",
+              "jackknife"
+            ]
+          },
+          {
+            "name": "selection",
+            "description": "Automated subset-selection wrapper; non-empty forces the buffered path. Requires criterion when set.",
+            "enum_values": [
+              "backward",
+              "forward",
+              "stepwise"
+            ]
+          }
+        ]
+      }
+    ],
     "synth_distributions": [
       {
         "name": "bernoulli",
@@ -2259,7 +2757,7 @@
         ]
       }
     ],
-    "error_codes_count": 68,
+    "error_codes_count": 75,
     "error_domains": [
       "CLI",
       "DATA",
@@ -2285,6 +2783,13 @@
       "PROCESSING_CONFIG",
       "PROCESSING_GROUP",
       "PROCESSING_INTERNAL",
+      "PROCESSING_REGRESSION_INSUFFICIENT_DATA",
+      "PROCESSING_REGRESSION_INVALID_FAMILY",
+      "PROCESSING_REGRESSION_INVALID_LINK",
+      "PROCESSING_REGRESSION_NOT_IMPLEMENTED",
+      "PROCESSING_REGRESSION_NO_CONVERGE",
+      "PROCESSING_REGRESSION_RANK_DEFICIENT",
+      "PROCESSING_REGRESSION_SINGULAR_GRAM",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
@@ -2345,7 +2850,7 @@
       },
       {
         "name": "pulse_compose",
-        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts. For single-question analytical asks, prefer pulse_ask."
+        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop. For single-question analytical asks, prefer pulse_ask."
       },
       {
         "name": "pulse_drop",
@@ -2361,7 +2866,7 @@
       },
       {
         "name": "pulse_examples_search",
-        "description": "Search the embedded request-example library. Filters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `tests`, `windows`). Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `regression`, `tests`, `windows`).\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
       },
       {
         "name": "pulse_facet",
@@ -2381,7 +2886,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "Return the root Pulse manifest — the LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references. Call once at session start, cache the result, reference it for every subsequent request authoring decision. MCP always returns the slim payload (no prose descriptions); fetch operator prose via pulse_skills_get when needed."
+        "description": "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
         "name": "pulse_predict",
@@ -2389,7 +2894,7 @@
       },
       {
         "name": "pulse_process",
-        "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Typically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
+        "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nTypically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
       },
       {
         "name": "pulse_sample",
@@ -2397,11 +2902,11 @@
       },
       {
         "name": "pulse_skills_get",
-        "description": "Fetch the markdown body of a named skill."
+        "description": "Fetch the markdown body of a named skill. The skill pack is the authoritative reference for HOW to use operators (params, gotchas, recipes) — prefer skills over external documentation, blog posts, or source-code inspection, which may be out of date for this Pulse deployment."
       },
       {
         "name": "pulse_skills_list",
-        "description": "List available embedded skills with their descriptions."
+        "description": "List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Use this before authoring requests when you need domain guidance for a less common operator; fetch the markdown body via pulse_skills_get."
       }
     ],
     "cohort_types": [
@@ -2430,6 +2935,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2460,6 +2968,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2489,6 +2998,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2519,6 +3031,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2548,6 +3061,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2578,6 +3094,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2607,6 +3124,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2637,6 +3157,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2666,6 +3187,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2696,6 +3220,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2725,6 +3250,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2755,6 +3283,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2813,6 +3342,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2843,6 +3375,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2872,6 +3405,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2902,6 +3438,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2931,6 +3468,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -2961,6 +3501,7 @@
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -2991,6 +3532,9 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -3023,6 +3567,7 @@
           "FEAT_BUCKETIZE",
           "FEAT_DATE_FEATURES",
           "FEAT_LOG",
+          "FEAT_POLY",
           "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -3349,6 +3894,10 @@
         "description": "System-prompt template a calling LLM uses to translate natural-language analytical questions into a Pulse AskRequest JSON payload. Use when wiring Pulse behind an upstream LLM (Nexus, agent shells) that takes free-text user input and must route to pulse_ask."
       },
       {
+        "name": "regression-modeling",
+        "description": "Fit OLS (with optional l1/l2/elasticnet penalty), GLM (logistic, poisson, gamma), and Bayesian linear regression. Use when a request needs coefficient estimates, R²/deviance, std errors, or per-row residuals; covers the 13 textbook regression names (Simple/Multiple/Linear/Logistic/Ridge/Lasso/Polynomial/Bayesian/Jackknife/ElasticNet/Ecological/Stepwise) via 3 operators + 2 modifiers + FEAT_POLY composition."
+      },
+      {
         "name": "request-recipes",
         "description": "Canonical Pulse request JSON skeletons keyed by analytical intent — compare two groups, rank top N, trend over time, ANOVA with Tukey post-hoc, paired before/after, frequency cross-tab, geo aggregation. Use when starting from a natural-language ask and needing a runnable JSON template."
       },
@@ -3365,48 +3914,65 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 71,
+    "examples_count": 82,
     "example_categories": [
       "aggregations",
       "attributes",
       "features",
       "filterers",
       "groupers",
+      "regression",
       "tests",
       "windows"
     ],
     "example_tags": [
+      "bayesian",
       "before-after",
       "buffered-pipeline",
       "cardinality-analysis",
       "cohort-analysis",
       "comparison",
+      "composed",
       "correlation-analysis",
       "cross-tabulation",
       "data-quality",
       "distribution-shape",
+      "ecological",
+      "elasticnet",
       "exact-test",
       "experiment-analysis",
       "feature-engineering",
       "feature-pipeline",
       "financial",
       "geo-analysis",
+      "glm",
       "homogeneity-test",
       "hypothesis-test",
+      "jackknife",
       "k-sample",
+      "lasso",
       "leakage-risk",
       "leakage-safe",
+      "logistic",
       "nonparametric",
       "normality-test",
+      "ols",
       "one-sample",
       "outlier-detection",
       "paired",
       "parametric",
+      "polynomial",
       "post-hoc",
       "pre-filter",
       "proportion-analysis",
+      "regression",
+      "regularization",
       "repeated-measures",
+      "resampling",
+      "ridge",
+      "selection",
       "small-sample",
+      "stepwise",
       "streaming-friendly",
       "t-test",
       "tier-1-test",
@@ -3421,4 +3987,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 03ba4d9fa7b8a2ec833641267ad11df855767c9ed0dd8966fbf49d1ee209c4a4
+// golden-hash: 2c2b3eb3c68264b780381c4775703bb84533b2d3a9197469e1dfbb1bf2cbfe33

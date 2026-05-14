@@ -279,10 +279,10 @@ func TestCsvImport_FieldDescriptions(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{
-				Name:        "val",
-				Type:        encoding.FieldTypeU8,
+				Name:         "val",
+				Type:         encoding.FieldTypeU8,
 				CsvColumnIdx: 0,
-				Description: "A test value",
+				Description:  "A test value",
 			},
 		},
 	}

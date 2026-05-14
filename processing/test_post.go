@@ -36,12 +36,12 @@ func jsonUnmarshalStrict(raw []byte, target any) error {
 //	SSB = Σ n_i (μ_i - grand_mean)²
 //	SSW = Σ (n_i - 1) s²_i
 type anovaPost struct {
-	spec      *types.Test
-	field     string
-	splitBy   string
-	nCol      string
-	varCol    string
-	alpha     float64
+	spec    *types.Test
+	field   string
+	splitBy string
+	nCol    string
+	varCol  string
+	alpha   float64
 }
 
 type anovaPostParams struct {

@@ -42,12 +42,15 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 
 func TestStreamability_AttributesKnown(t *testing.T) {
 	expected := map[AttributeType]bool{
-		ATTR_ZSCORE:     true,
-		ATTR_TSCORE:     true,
-		ATTR_NORMALIZED: true,
-		ATTR_FORMULA:    true,
-		ATTR_PERCENTILE: false,
-		ATTR_DATE_PART:  true,
+		ATTR_ZSCORE:       true,
+		ATTR_TSCORE:       true,
+		ATTR_NORMALIZED:   true,
+		ATTR_FORMULA:      true,
+		ATTR_PERCENTILE:   false,
+		ATTR_DATE_PART:    true,
+		ATTR_REG_FITTED:   true,
+		ATTR_REG_RESIDUAL: true,
+		ATTR_REG_LEVERAGE: true,
 	}
 	for _, a := range AllAttributeTypes() {
 		want, ok := expected[a]
@@ -157,6 +160,108 @@ func TestStreamability_TestsKnown(t *testing.T) {
 	}
 }
 
+// TestRegressionTypesKnown asserts every regression type returns the
+// documented streamability value and is listed in AllRegressionTypes().
+// Adding a new RegressionType requires extending the switch in
+// regression.go AND this table.
+func TestRegressionTypesKnown(t *testing.T) {
+	expected := map[RegressionType]bool{
+		REG_OLS:          true,
+		REG_GLM:          false,
+		REG_BAYES_LINEAR: true,
+	}
+	for _, rt := range AllRegressionTypes() {
+		want, ok := expected[rt]
+		if !ok {
+			t.Fatalf("regression type %s missing from streamability table — declare it in types/regression.go and add an entry here", rt)
+		}
+		if got := rt.Streamable(); got != want {
+			t.Errorf("%s.Streamable() = %v, want %v", rt, got, want)
+		}
+	}
+	if len(expected) != len(AllRegressionTypes()) {
+		t.Fatalf("regression streamability table size mismatch: %d entries, %d types", len(expected), len(AllRegressionTypes()))
+	}
+}
+
+// TestRegressionSpec_StreamableModifierDowngrade asserts the spec-level
+// Streamable helper downgrades to false whenever a Resample or
+// Selection modifier is set, regardless of the underlying type's
+// Streamable() value. After Phase 2, both unpenalized and penalized
+// REG_OLS stream (the regularized finalize solver consumes the
+// streaming Gram without re-reading rows); Bayes (Phase 4) remains
+// buffered even though its type-level Streamable() returns true.
+func TestRegressionSpec_StreamableModifierDowngrade(t *testing.T) {
+	cases := []struct {
+		name string
+		spec RegressionSpec
+		want bool
+	}{
+		{
+			name: "unpenalized ols streams",
+			spec: RegressionSpec{Type: REG_OLS},
+			want: true,
+		},
+		{
+			name: "ols with l1 penalty streams (Phase 2)",
+			spec: RegressionSpec{Type: REG_OLS, Penalty: "l1", Alpha: 0.1},
+			want: true,
+		},
+		{
+			name: "ols with l2 penalty streams (Phase 2)",
+			spec: RegressionSpec{Type: REG_OLS, Penalty: "l2", Alpha: 0.1},
+			want: true,
+		},
+		{
+			name: "ols with elasticnet penalty streams (Phase 2)",
+			spec: RegressionSpec{Type: REG_OLS, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 0.5},
+			want: true,
+		},
+		{
+			name: "ols with bootstrap is buffered",
+			spec: RegressionSpec{Type: REG_OLS, Resample: "bootstrap"},
+			want: false,
+		},
+		{
+			name: "ols with jackknife is buffered",
+			spec: RegressionSpec{Type: REG_OLS, Resample: "jackknife"},
+			want: false,
+		},
+		{
+			name: "ols with stepwise selection is buffered",
+			spec: RegressionSpec{Type: REG_OLS, Selection: "stepwise", Criterion: "aic"},
+			want: false,
+		},
+		{
+			name: "bayes linear streams (Phase 4)",
+			spec: RegressionSpec{Type: REG_BAYES_LINEAR},
+			want: true,
+		},
+		{
+			name: "bayes with bootstrap is buffered",
+			spec: RegressionSpec{Type: REG_BAYES_LINEAR, Resample: "bootstrap"},
+			want: false,
+		},
+		{
+			name: "bayes with stepwise selection is buffered",
+			spec: RegressionSpec{Type: REG_BAYES_LINEAR, Selection: "stepwise", Criterion: "aic"},
+			want: false,
+		},
+		{
+			name: "glm always buffered",
+			spec: RegressionSpec{Type: REG_GLM, Family: "binomial"},
+			want: false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.spec.Streamable(); got != c.want {
+				t.Errorf("RegressionSpec.Streamable() = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
 func TestStreamability_FeaturesKnown(t *testing.T) {
 	expected := map[FeatureType]bool{
 		FEAT_LOG:              true,
@@ -167,6 +272,7 @@ func TestStreamability_FeaturesKnown(t *testing.T) {
 		FEAT_FREQUENCY_ENCODE: true,
 		FEAT_TARGET_ENCODE:    true,
 		FEAT_TRAIN_TEST_SPLIT: true,
+		FEAT_POLY:             true,
 	}
 	for _, f := range AllFeatureTypes() {
 		want, ok := expected[f]

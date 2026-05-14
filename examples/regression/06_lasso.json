@@ -1,0 +1,31 @@
+{
+  "_meta": {
+    "name": "lasso",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ols",
+      "regularization",
+      "lasso",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "REG_OLS"
+    ],
+    "description": "Lasso regression (Indeed #7): REG_OLS with l1 penalty (alpha=0.05); coordinate descent on the streaming Gram with soft-thresholding."
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "income_lasso",
+      "target": "income",
+      "predictors": ["price", "label"],
+      "penalty": "l1",
+      "alpha": 0.05
+    }
+  ]
+}

@@ -22,10 +22,10 @@ type pairedTRow struct {
 	spec   *types.Test
 	schema *encoding.Schema
 
-	field   string
-	field2  string
-	alpha   float64
-	diffs   *welfordBucket
+	field  string
+	field2 string
+	alpha  float64
+	diffs  *welfordBucket
 }
 
 func newPairedTRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -113,11 +113,11 @@ func (p *pairedTRow) Finalize() (*types.TestResult, error) {
 		Alpha:      p.alpha,
 		RejectNull: pvalue < p.alpha,
 		Details: map[string]any{
-			"n":          b.n,
-			"mean_diff":  b.mean,
-			"variance":   variance,
-			"ci_low":     ciLow,
-			"ci_high":    ciHigh,
+			"n":         b.n,
+			"mean_diff": b.mean,
+			"variance":  variance,
+			"ci_low":    ciLow,
+			"ci_high":   ciHigh,
 			"effect_size": map[string]any{
 				// Cohen's d for paired samples: mean_diff / sd_diff.
 				"cohens_d": b.mean / sd,

@@ -253,7 +253,7 @@ func TestSynth_NullableU8RespectsNullRate(t *testing.T) {
 		RowCount: 5000,
 		Fields: []synth.FieldSpec{
 			{Name: "n", Type: "nullable_u8", Distribution: synth.DistUniform,
-				Params: map[string]any{"min": 1.0, "max": 100.0},
+				Params:   map[string]any{"min": 1.0, "max": 100.0},
 				NullRate: 0.25},
 		},
 	}

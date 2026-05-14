@@ -1,0 +1,31 @@
+{
+  "_meta": {
+    "name": "ridge",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ols",
+      "regularization",
+      "ridge",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "REG_OLS"
+    ],
+    "description": "Ridge regression (Indeed #6): REG_OLS with l2 penalty (alpha=0.1) shrinking coefficients via a Cholesky solve on the augmented Gram."
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "income_ridge",
+      "target": "income",
+      "predictors": ["price", "label"],
+      "penalty": "l2",
+      "alpha": 0.1
+    }
+  ]
+}

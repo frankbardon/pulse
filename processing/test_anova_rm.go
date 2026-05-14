@@ -15,17 +15,17 @@ import (
 //
 // Algorithm — balanced design only (one observation per subject per
 // condition):
-//   1. Buffer the wide subject × condition table, one value per cell.
-//   2. Drop subjects with any missing condition (warn).
-//   3. Compute grand mean μ, per-condition mean μ_j, per-subject mean μ_i.
-//   4. Sum of squares decomposition:
-//        SS_total   = Σ (x_ij − μ)²
-//        SS_between = k · Σ (μ_i − μ)²            (between-subjects)
-//        SS_cond    = n · Σ (μ_j − μ)²            (treatment)
-//        SS_error   = SS_total − SS_between − SS_cond
-//   5. df_cond = k − 1, df_error = (n−1)(k−1)
-//      F = (SS_cond / df_cond) / (SS_error / df_error)
-//      p = fSurvival(F, df_cond, df_error)
+//  1. Buffer the wide subject × condition table, one value per cell.
+//  2. Drop subjects with any missing condition (warn).
+//  3. Compute grand mean μ, per-condition mean μ_j, per-subject mean μ_i.
+//  4. Sum of squares decomposition:
+//     SS_total   = Σ (x_ij − μ)²
+//     SS_between = k · Σ (μ_i − μ)²            (between-subjects)
+//     SS_cond    = n · Σ (μ_j − μ)²            (treatment)
+//     SS_error   = SS_total − SS_between − SS_cond
+//  5. df_cond = k − 1, df_error = (n−1)(k−1)
+//     F = (SS_cond / df_cond) / (SS_error / df_error)
+//     p = fSurvival(F, df_cond, df_error)
 //
 // Sphericity correction (Greenhouse-Geisser / Huynh-Feldt) is out of
 // scope for v1 — documented in the depth ANOVA plan.
@@ -207,17 +207,17 @@ func (a *anovaRMRow) Finalize() (*types.TestResult, error) {
 		Alpha:      a.alpha,
 		RejectNull: p < a.alpha,
 		Details: map[string]any{
-			"conditions":           conditions,
-			"complete_subjects":    n,
-			"dropped_subjects":     dropped,
-			"condition_means":      conditionMeans,
-			"grand_mean":           grand,
-			"ss_total":             ssTotal,
-			"ss_between_subjects":  ssBetween,
-			"ss_treatment":         ssCond,
-			"ss_error":             ssError,
-			"df_treatment":         dfCond,
-			"df_error":             dfError,
+			"conditions":          conditions,
+			"complete_subjects":   n,
+			"dropped_subjects":    dropped,
+			"condition_means":     conditionMeans,
+			"grand_mean":          grand,
+			"ss_total":            ssTotal,
+			"ss_between_subjects": ssBetween,
+			"ss_treatment":        ssCond,
+			"ss_error":            ssError,
+			"df_treatment":        dfCond,
+			"df_error":            dfError,
 		},
 	}
 	if dropped > 0 {

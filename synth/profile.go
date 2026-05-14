@@ -38,23 +38,23 @@ type ProfileOptions struct {
 // It contains everything needed to drive synth from-profile without
 // retaining any individual rows from the source data.
 type Profile struct {
-	RowCount int                    `json:"row_count"`
-	Fields   []FieldProfile         `json:"fields"`
-	Pairwise []CorrelationStat      `json:"pairwise,omitempty"`
-	Warnings []string               `json:"warnings,omitempty"`
-	Meta     map[string]any         `json:"meta,omitempty"`
+	RowCount int               `json:"row_count"`
+	Fields   []FieldProfile    `json:"fields"`
+	Pairwise []CorrelationStat `json:"pairwise,omitempty"`
+	Warnings []string          `json:"warnings,omitempty"`
+	Meta     map[string]any    `json:"meta,omitempty"`
 }
 
 // FieldProfile holds per-field summary statistics. Exactly one of
 // Numeric, Categorical, or Date is populated based on the field's type.
 type FieldProfile struct {
-	Name        string             `json:"name"`
-	Type        string             `json:"type"`
-	Description string             `json:"description,omitempty"`
-	NullRate    float64            `json:"null_rate"`
-	Numeric     *NumericProfile    `json:"numeric,omitempty"`
+	Name        string              `json:"name"`
+	Type        string              `json:"type"`
+	Description string              `json:"description,omitempty"`
+	NullRate    float64             `json:"null_rate"`
+	Numeric     *NumericProfile     `json:"numeric,omitempty"`
 	Categorical *CategoricalProfile `json:"categorical,omitempty"`
-	Date        *DateProfile       `json:"date,omitempty"`
+	Date        *DateProfile        `json:"date,omitempty"`
 	// Precision/Scale carry decimal128 metadata so synth-from-profile can
 	// reconstruct the original field shape.
 	Precision uint8 `json:"precision,omitempty"`
@@ -88,9 +88,9 @@ type CategoryHit struct {
 // DateProfile holds the (start, end) range of date values plus a weekday
 // histogram for Mode-A reconstruction.
 type DateProfile struct {
-	Start    string  `json:"start"`
-	End      string  `json:"end"`
-	Weekdays [7]int  `json:"weekdays"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+	Weekdays [7]int `json:"weekdays"`
 }
 
 // CorrelationStat is a captured pairwise correlation entry.

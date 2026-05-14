@@ -277,26 +277,30 @@ func TestSpearman_KnownTies(t *testing.T) {
 // ---------- TEST_KENDALL_TAU ----------
 
 // TestKendallTau_NoTies verifies a hand-computed τ:
+//
 //	x = [1, 2, 3, 4, 5]
 //	y = [2, 1, 4, 3, 5]
 //
 // pairs: (1,2)(2,1)D (1,2)(3,4)C (1,2)(4,3)C (1,2)(5,5)C
-//        (2,1)(3,4)C (2,1)(4,3)C (2,1)(5,5)C (3,4)(4,3)D (3,4)(5,5)C (4,3)(5,5)C
+//
+//	(2,1)(3,4)C (2,1)(4,3)C (2,1)(5,5)C (3,4)(4,3)D (3,4)(5,5)C (4,3)(5,5)C
+//
 // C = 7, D = 2 (note (1,2)(5,5) has y=2 vs y=5 — concordant; recount).
 // Let's recount methodically:
-//   indices in y: 2,1,4,3,5
-//   pairs (i,j) for i<j: count C if (x_i-x_j)*(y_i-y_j) > 0:
-//   (0,1): -1*1 = -1 D
-//   (0,2): -1*-2= 2 C
-//   (0,3): -1*-1= 1 C
-//   (0,4): -1*-3= 3 C
-//   (1,2): -1*-3= 3 C
-//   (1,3): -1*-2= 2 C
-//   (1,4): -1*-4= 4 C
-//   (2,3): -1*1 = -1 D
-//   (2,4): -1*-1= 1 C
-//   (3,4): -1*-2= 2 C
-//   → C=8, D=2, no ties; τ = (8-2)/10 = 0.6.
+//
+//	indices in y: 2,1,4,3,5
+//	pairs (i,j) for i<j: count C if (x_i-x_j)*(y_i-y_j) > 0:
+//	(0,1): -1*1 = -1 D
+//	(0,2): -1*-2= 2 C
+//	(0,3): -1*-1= 1 C
+//	(0,4): -1*-3= 3 C
+//	(1,2): -1*-3= 3 C
+//	(1,3): -1*-2= 2 C
+//	(1,4): -1*-4= 4 C
+//	(2,3): -1*1 = -1 D
+//	(2,4): -1*-1= 1 C
+//	(3,4): -1*-2= 2 C
+//	→ C=8, D=2, no ties; τ = (8-2)/10 = 0.6.
 func TestKendallTau_NoTies(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{

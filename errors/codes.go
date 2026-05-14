@@ -35,6 +35,43 @@ const (
 
 	// PROCESSING_INTERNAL indicates unexpected errors in processing layer.
 	PROCESSING_INTERNAL Code = "PROCESSING_INTERNAL"
+
+	// PROCESSING_REGRESSION_NOT_IMPLEMENTED indicates the request named a
+	// regression operator whose engine has not yet shipped. Phase 0
+	// stubs return this for every REG_* spec; later phases retire the
+	// code as each engine lands.
+	PROCESSING_REGRESSION_NOT_IMPLEMENTED Code = "PROCESSING_REGRESSION_NOT_IMPLEMENTED"
+
+	// PROCESSING_REGRESSION_RANK_DEFICIENT indicates the predictor
+	// design matrix has collinear columns; XᵀX is singular and the
+	// closed-form OLS solve cannot proceed. Add a regularization
+	// penalty or drop the redundant predictor.
+	PROCESSING_REGRESSION_RANK_DEFICIENT Code = "PROCESSING_REGRESSION_RANK_DEFICIENT"
+
+	// PROCESSING_REGRESSION_NO_CONVERGE indicates an iterative fit
+	// (IRLS for REG_GLM, coordinate descent for regularized REG_OLS)
+	// failed to converge within MaxIters.
+	PROCESSING_REGRESSION_NO_CONVERGE Code = "PROCESSING_REGRESSION_NO_CONVERGE"
+
+	// PROCESSING_REGRESSION_SINGULAR_GRAM indicates XᵀX remained
+	// non-invertible even after regularization. Typically caused by a
+	// degenerate predictor (all-zero column) or a vanishingly small
+	// Alpha.
+	PROCESSING_REGRESSION_SINGULAR_GRAM Code = "PROCESSING_REGRESSION_SINGULAR_GRAM"
+
+	// PROCESSING_REGRESSION_INVALID_FAMILY indicates REG_GLM was
+	// requested with a Family outside the supported set
+	// ({"binomial", "poisson", "gamma"}).
+	PROCESSING_REGRESSION_INVALID_FAMILY Code = "PROCESSING_REGRESSION_INVALID_FAMILY"
+
+	// PROCESSING_REGRESSION_INVALID_LINK indicates the requested Link
+	// function is incompatible with the chosen Family.
+	PROCESSING_REGRESSION_INVALID_LINK Code = "PROCESSING_REGRESSION_INVALID_LINK"
+
+	// PROCESSING_REGRESSION_INSUFFICIENT_DATA indicates the filtered
+	// record set has fewer observations than predictors + 1 (the
+	// minimum for an identifiable fit).
+	PROCESSING_REGRESSION_INSUFFICIENT_DATA Code = "PROCESSING_REGRESSION_INSUFFICIENT_DATA"
 )
 
 // SERVICE domain - HTTP/API layer and service operations
@@ -331,6 +368,13 @@ var allCodes = []Code{
 	PROCESSING_RUNTIME,
 	PROCESSING_GROUP,
 	PROCESSING_INTERNAL,
+	PROCESSING_REGRESSION_NOT_IMPLEMENTED,
+	PROCESSING_REGRESSION_RANK_DEFICIENT,
+	PROCESSING_REGRESSION_NO_CONVERGE,
+	PROCESSING_REGRESSION_SINGULAR_GRAM,
+	PROCESSING_REGRESSION_INVALID_FAMILY,
+	PROCESSING_REGRESSION_INVALID_LINK,
+	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 	// SERVICE
 	SERVICE_VALIDATION,
 	SERVICE_RESOURCE,

@@ -67,6 +67,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		{"windows", "windows", 10},
 		{"aggregations", "aggregations", 5},
 		{"tests", "tests", 27},
+		{"regression", "regression", 11},
 	}
 
 	for _, cat := range categories {
@@ -124,9 +125,101 @@ func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
 	}
 	// Test-only requests legitimately have nil Data — the rows slot is
 	// empty when the request carries no aggregations. Accept that as
-	// long as at least one of Tests or PostTests is populated.
-	if resp.Data == nil && len(resp.Tests) == 0 && len(resp.PostTests) == 0 {
-		t.Fatalf("%s: nil data and no test results", examplePath)
+	// long as at least one of Tests, PostTests, or Regressions is
+	// populated. Regression-only requests (e.g., simple OLS) emit no
+	// rows; their result lives in resp.Regressions instead.
+	if resp.Data == nil && len(resp.Tests) == 0 && len(resp.PostTests) == 0 && len(resp.Regressions) == 0 {
+		t.Fatalf("%s: nil data and no test/regression results", examplePath)
+	}
+}
+
+// TestRegressionExamplesEndToEnd is a tighter contract over the
+// regression-only example category: it asserts every regression example
+// emits a non-empty Regressions slice with no envelope errors, catching
+// drift between the example wire shape and the regression engine
+// surface.
+func TestRegressionExamplesEndToEnd(t *testing.T) {
+	tmp := t.TempDir()
+	fs := afero.NewOsFs()
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	for _, name := range []string{"customers", "training_data"} {
+		csvPath := filepath.Join("examples", "fixtures", name+".csv")
+		schemaPath := filepath.Join("examples", "fixtures", "schemas", name+".json")
+		outPath := filepath.Join(tmp, name+".pulse")
+		schema, err := loadFixtureSchema(schemaPath)
+		if err != nil {
+			t.Fatalf("loadFixtureSchema(%s): %v", schemaPath, err)
+		}
+		job := &pio.ImportJob{
+			Source:     csv.NewReader(fs, csvPath),
+			Target:     outPath,
+			Schema:     schema,
+			SampleRows: 50,
+			FS:         fs,
+		}
+		if _, err := p.Import(context.Background(), job); err != nil {
+			t.Fatalf("import %s: %v", name, err)
+		}
+	}
+
+	matches, err := filepath.Glob(filepath.Join("examples", "regression", "*.json"))
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+	if len(matches) != 11 {
+		t.Fatalf("expected exactly 11 regression examples, found %d", len(matches))
+	}
+	for _, ex := range matches {
+		t.Run(filepath.Base(ex), func(t *testing.T) {
+			body, err := os.ReadFile(ex)
+			if err != nil {
+				t.Fatalf("read %s: %v", ex, err)
+			}
+			var req pulse.Request
+			if err := json.Unmarshal(body, &req); err != nil {
+				t.Fatalf("parse %s: %v", ex, err)
+			}
+			if req.Cohort == nil {
+				t.Fatalf("%s: missing cohort", ex)
+			}
+			req.Cohort.DataDir = tmp
+			resp, err := p.Process(context.Background(), &req)
+			if err != nil {
+				t.Fatalf("Process %s: %v", ex, err)
+			}
+			if resp == nil {
+				t.Fatalf("%s: nil response", ex)
+			}
+			if len(resp.Regressions) == 0 {
+				t.Fatalf("%s: expected Regressions to be populated", ex)
+			}
+			for i, r := range resp.Regressions {
+				if r == nil || r.Type == "" {
+					t.Errorf("%s: regression result %d is empty (%+v)", ex, i, r)
+				}
+				if r != nil && r.NObs == 0 {
+					t.Errorf("%s: regression result %d has zero n_obs", ex, i)
+				}
+			}
+		})
+	}
+}
+
+// TestRegressionExamplesCount asserts there are exactly 11 regression
+// examples (the Phase 6 ecological one plus the 10 added in Phase 8).
+// New regression examples should bump this count and document the
+// addition in the regression mdBook chapter.
+func TestRegressionExamplesCount(t *testing.T) {
+	matches, err := filepath.Glob(filepath.Join("examples", "regression", "*.json"))
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+	const want = 11
+	if len(matches) != want {
+		t.Errorf("want %d regression examples under examples/regression/, found %d: %v", want, len(matches), matches)
 	}
 }
 

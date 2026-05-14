@@ -71,5 +71,33 @@ func attributeCapabilities() []Operator {
 			EmitsTypeNote: "encoded integer per record (e.g. year_month=YYYYMM)",
 			Streamable:    true,
 		},
+		{
+			Name:          string(types.ATTR_REG_FITTED),
+			Category:      "attribute",
+			Description:   "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet).",
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsType:     "f64",
+			EmitsTypeNote: "one fitted value per record (NaN-free)",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.ATTR_REG_RESIDUAL),
+			Category:      "attribute",
+			Description:   "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED.",
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsType:     "f64",
+			EmitsTypeNote: "one residual per record",
+			Streamable:    true,
+		},
+		{
+			Name:           string(types.ATTR_REG_LEVERAGE),
+			Category:       "attribute",
+			Description:    "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Range ∈ [0, 1]; Σᵢ hᵢᵢ = p + 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
+			AcceptsTypes:   numericFieldTypesNoDecimal,
+			EmitsType:      "f64",
+			EmitsTypeNote:  "one leverage per record in [0, 1]",
+			Streamable:     true,
+			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
+		},
 	}
 }

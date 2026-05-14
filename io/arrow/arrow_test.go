@@ -822,4 +822,3 @@ func TestPulseTypeToArrow_DefaultCase(t *testing.T) {
 		t.Errorf("default: %v", got)
 	}
 }
-

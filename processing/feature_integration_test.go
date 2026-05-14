@@ -25,7 +25,7 @@ func TestFeaturePipeline_LogThenAggregate(t *testing.T) {
 		},
 	}
 	records := []*Record{
-		makeNumericRecord(t, schema, "x", 0),       // log1p(0) = 0
+		makeNumericRecord(t, schema, "x", 0),        // log1p(0) = 0
 		makeNumericRecord(t, schema, "x", math.E-1), // log1p(e-1) = 1
 	}
 

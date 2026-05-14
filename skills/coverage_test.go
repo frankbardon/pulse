@@ -152,6 +152,20 @@ func TestSkillsCoverAllSynthDistributions(t *testing.T) {
 	}
 }
 
+// TestSkillsCoverAllRegressions verifies that every constant in
+// types.AllRegressionTypes() appears in regression-modeling.md.
+func TestSkillsCoverAllRegressions(t *testing.T) {
+	content, ok := Get("regression-modeling")
+	if !ok {
+		t.Fatal("regression-modeling.md not found")
+	}
+	for _, r := range types.AllRegressionTypes() {
+		if !strings.Contains(content, string(r)) {
+			t.Errorf("regression-modeling.md does not mention regression type %s", r)
+		}
+	}
+}
+
 // TestSkillsCoverAllWindowTypes verifies that every constant in
 // types.AllWindowTypes appears in window-operations.md.
 func TestSkillsCoverAllWindowTypes(t *testing.T) {

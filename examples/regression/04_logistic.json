@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "name": "logistic",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "glm",
+      "logistic",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_GLM"
+    ],
+    "description": "Logistic regression (Indeed #5): REG_GLM with binomial family and logit link for binary classification (label ~ price + income)."
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_GLM",
+      "name": "label_logit",
+      "target": "label",
+      "predictors": ["price", "income"],
+      "family": "binomial",
+      "link": "logit"
+    }
+  ]
+}

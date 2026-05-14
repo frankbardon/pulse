@@ -13,20 +13,21 @@ import (
 // row test: concordance-based correlation between Field and Field2.
 //
 // Algorithm: buffer paired values, then for every i<j classify the pair:
-//   concordant: (x_i−x_j)·(y_i−y_j) > 0
-//   discordant: (x_i−x_j)·(y_i−y_j) < 0
-//   tied-x: x_i = x_j, y_i ≠ y_j
-//   tied-y: y_i = y_j, x_i ≠ x_j
-//   tied-both: dropped from both ties counts
 //
-//   τ_b = (C − D) / √((C+D+T_x) · (C+D+T_y))
+//	concordant: (x_i−x_j)·(y_i−y_j) > 0
+//	discordant: (x_i−x_j)·(y_i−y_j) < 0
+//	tied-x: x_i = x_j, y_i ≠ y_j
+//	tied-y: y_i = y_j, x_i ≠ x_j
+//	tied-both: dropped from both ties counts
+//
+//	τ_b = (C − D) / √((C+D+T_x) · (C+D+T_y))
 //
 // Variance under the null (no association) using the standard tie-
 // adjusted formula:
 //
-//   Var(S) = ( n(n−1)(2n+5)
-//            − Σ t_x(t_x−1)(2t_x+5) − Σ t_y(t_y−1)(2t_y+5) ) / 18
-//            + extra ties cross-term (Kendall 1948 formula).
+//	Var(S) = ( n(n−1)(2n+5)
+//	         − Σ t_x(t_x−1)(2t_x+5) − Σ t_y(t_y−1)(2t_y+5) ) / 18
+//	         + extra ties cross-term (Kendall 1948 formula).
 //
 // p-value via the standard normal: z = (S − sign(S)) / √Var(S);
 // p = 2(1−Φ(|z|)).

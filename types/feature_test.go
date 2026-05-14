@@ -16,6 +16,7 @@ func TestAllFeatureTypes_AlphabeticalAndComplete(t *testing.T) {
 		types.FEAT_FREQUENCY_ENCODE,
 		types.FEAT_LOG,
 		types.FEAT_ONE_HOT,
+		types.FEAT_POLY,
 		types.FEAT_SQRT,
 		types.FEAT_TARGET_ENCODE,
 		types.FEAT_TRAIN_TEST_SPLIT,

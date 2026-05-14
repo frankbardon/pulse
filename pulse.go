@@ -473,11 +473,11 @@ type QueryResolution struct {
 // FormatVersion mirrors the descriptor envelope version so callers can
 // gate on a single value across endpoints.
 type AskResponse struct {
-	FormatVersion   string                      `json:"format_version"`
-	Predict         *descriptor.PredictResult   `json:"predict"`
-	Process         *Response                   `json:"process,omitempty"`
-	Suggestions     []errors.Fixup              `json:"suggestions,omitempty"`
-	QueryResolution *QueryResolution            `json:"query_resolution,omitempty"`
+	FormatVersion   string                    `json:"format_version"`
+	Predict         *descriptor.PredictResult `json:"predict"`
+	Process         *Response                 `json:"process,omitempty"`
+	Suggestions     []errors.Fixup            `json:"suggestions,omitempty"`
+	QueryResolution *QueryResolution          `json:"query_resolution,omitempty"`
 	// Import is populated when AskRequest.Source triggered an
 	// auto-import. Carries the same fields as ImportResult: managed
 	// handle name, resulting path, format, row count, expiry. Nil

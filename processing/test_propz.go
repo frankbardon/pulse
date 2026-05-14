@@ -38,7 +38,7 @@ type propZRow struct {
 }
 
 type propGroup struct {
-	n        int64
+	n         int64
 	successes int64
 }
 
@@ -165,15 +165,15 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 		Alpha:      p.alpha,
 		RejectNull: pvalue < p.alpha,
 		Details: map[string]any{
-			"success":     p.success,
-			"groups":      keys,
-			"n":           []int64{a.n, b.n},
-			"successes":   []int64{a.successes, b.successes},
-			"proportion":  []float64{pa, pb},
-			"diff":        pa - pb,
-			"pooled":      pooled,
-			"ci_low":      ciLow,
-			"ci_high":     ciHigh,
+			"success":    p.success,
+			"groups":     keys,
+			"n":          []int64{a.n, b.n},
+			"successes":  []int64{a.successes, b.successes},
+			"proportion": []float64{pa, pb},
+			"diff":       pa - pb,
+			"pooled":     pooled,
+			"ci_low":     ciLow,
+			"ci_high":    ciHigh,
 		},
 	}, nil
 }

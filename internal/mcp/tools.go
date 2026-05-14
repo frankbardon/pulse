@@ -27,7 +27,7 @@ const (
 	ToolSample         = mcptools.ToolSample
 	ToolFacet          = mcptools.ToolFacet
 	ToolSkillsList     = mcptools.ToolSkillsList
-	ToolSkillsGet     = mcptools.ToolSkillsGet
+	ToolSkillsGet      = mcptools.ToolSkillsGet
 	ToolManifest       = mcptools.ToolManifest
 	ToolAsk            = mcptools.ToolAsk
 	ToolExamplesSearch = mcptools.ToolExamplesSearch

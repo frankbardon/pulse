@@ -17,6 +17,7 @@ import (
 // non-zero variance series so the math is exercised.
 //
 // Pairs (a, b): (10,8), (12,11), (15,12), (18,16), (21,17)
+//
 //	diffs = [2, 1, 3, 2, 4], mean=2.4, sample_var=1.3, sd≈1.140
 //	SE   = 1.140 / √5 = 0.5099
 //	t    = 2.4 / 0.5099 ≈ 4.707
@@ -98,6 +99,7 @@ func TestPairedT_NullPairDropped(t *testing.T) {
 
 // TestPropZ_KnownStatistic verifies a hand-computed reference. Standard
 // textbook two-proportion z example:
+//
 //	control:  150/200 = 0.75
 //	variant:  170/200 = 0.85
 //	pooled:   320/400 = 0.80

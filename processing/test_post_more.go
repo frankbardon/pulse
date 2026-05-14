@@ -90,11 +90,11 @@ func (p *pairedTPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		Alpha:      p.alpha,
 		RejectNull: pvalue < p.alpha,
 		Details: map[string]any{
-			"n":          b.n,
-			"mean_diff":  b.mean,
-			"variance":   variance,
-			"ci_low":     b.mean - tcrit*se,
-			"ci_high":    b.mean + tcrit*se,
+			"n":         b.n,
+			"mean_diff": b.mean,
+			"variance":  variance,
+			"ci_low":    b.mean - tcrit*se,
+			"ci_high":   b.mean + tcrit*se,
 			"effect_size": map[string]any{
 				"cohens_d": b.mean / sd,
 			},

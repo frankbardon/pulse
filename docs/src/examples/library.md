@@ -1,7 +1,7 @@
 # Request Example Library
 
-Pulse ships a searchable, embedded catalogue of runnable request JSON files —
-71 examples spanning every operator category. They are checked into the repo
+Pulse ships a searchable, embedded catalogue of runnable request JSON files
+spanning every operator category. They are checked into the repo
 under `examples/`, mounted into the binary at compile time via `//go:embed`,
 and surfaced through three peer access paths:
 
@@ -45,7 +45,7 @@ Three filter dimensions, all optional and combined with AND:
 |---|---|
 | `query` | Case-insensitive substring across the example's name, description, and operator list |
 | `tags` | An example must carry **every** requested tag |
-| `category` | Exact match against the example's directory (`aggregations`, `attributes`, `features`, `filterers`, `groupers`, `tests`, `windows`) |
+| `category` | Exact match against the example's directory (`aggregations`, `attributes`, `features`, `filterers`, `groupers`, `regression`, `tests`, `windows`) |
 
 ### CLI
 
@@ -96,6 +96,7 @@ The taxonomy spans four dimensions:
 |---|---|
 | Domain / use case | `time-series`, `cohort-analysis`, `experiment-analysis`, `correlation-analysis`, `comparison`, `before-after`, `top-n`, `distribution-shape`, `cross-tabulation`, `proportion-analysis`, `trend-detection`, `outlier-detection`, `cardinality-analysis`, `data-quality`, `geo-analysis`, `financial`, `feature-engineering` |
 | Statistical method | `hypothesis-test`, `t-test`, `parametric`, `nonparametric`, `paired`, `one-sample`, `two-sample`, `k-sample`, `repeated-measures`, `post-hoc`, `normality-test`, `homogeneity-test`, `exact-test` |
+| Regression / modeling | `regression`, `ecological`, `ols`, `glm`, `logistic`, `bayesian`, `regularization`, `ridge`, `lasso`, `elasticnet`, `polynomial`, `resampling`, `jackknife`, `selection`, `stepwise` |
 | Pipeline machinery | `tier-1-test`, `tier-2-test`, `composed`, `pre-filter`, `feature-pipeline`, `window-operator`, `streaming-friendly`, `buffered-pipeline` |
 | Risk / edge | `leakage-safe`, `leakage-risk`, `small-sample` |
 

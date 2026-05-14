@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "name": "jackknife",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ols",
+      "resampling",
+      "jackknife",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_OLS"
+    ],
+    "description": "Jackknife resampling (Indeed #10): REG_OLS with resample=jackknife replaces analytical std errors with leave-one-out estimates; forces the buffered orchestrator path."
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "income_jackknife",
+      "target": "income",
+      "predictors": ["age"],
+      "resample": "jackknife"
+    }
+  ]
+}

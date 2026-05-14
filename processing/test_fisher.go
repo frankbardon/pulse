@@ -13,11 +13,11 @@ import (
 // row test: exact two-sided p-value for a 2×2 contingency table.
 //
 // Algorithm:
-//   1. Build the 2×2 table from Rows × Cols categorical pair.
-//   2. Hold the marginals (R₁, R₂, C₁, C₂) fixed.
-//   3. Iterate every feasible value of cell[0][0] within
-//      [max(0, R₁−C₂), min(R₁, C₁)] and sum hypergeometric
-//      probabilities for tables at least as extreme as the observed.
+//  1. Build the 2×2 table from Rows × Cols categorical pair.
+//  2. Hold the marginals (R₁, R₂, C₁, C₂) fixed.
+//  3. Iterate every feasible value of cell[0][0] within
+//     [max(0, R₁−C₂), min(R₁, C₁)] and sum hypergeometric
+//     probabilities for tables at least as extreme as the observed.
 //
 // "At least as extreme" uses the two-sided rule: sum probabilities of
 // every table whose hypergeometric probability is ≤ the observed.
@@ -164,11 +164,11 @@ func (f *fisherExactRow) Finalize() (*types.TestResult, error) {
 		Alpha:      f.alpha,
 		RejectNull: sum < f.alpha,
 		Details: map[string]any{
-			"row_labels":    f.rowOrd,
-			"col_labels":    f.colOrd,
-			"contingency":   [][]int{{a, b}, {c, d}},
-			"odds_ratio":    oddsRatio,
-			"n":             n,
+			"row_labels":  f.rowOrd,
+			"col_labels":  f.colOrd,
+			"contingency": [][]int{{a, b}, {c, d}},
+			"odds_ratio":  oddsRatio,
+			"n":           n,
 		},
 	}, nil
 }

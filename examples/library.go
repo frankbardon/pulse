@@ -22,7 +22,7 @@ import (
 	"sync"
 )
 
-//go:embed aggregations/*.json attributes/*.json features/*.json filterers/*.json groupers/*.json tests/*.json windows/*.json
+//go:embed aggregations/*.json attributes/*.json features/*.json filterers/*.json groupers/*.json regression/*.json tests/*.json windows/*.json
 var content embed.FS
 
 // AllCategories returns every directory the library indexes, sorted
@@ -314,6 +314,12 @@ var CanonicalTags = []string{
 	"two-sample", "k-sample", "repeated-measures", "post-hoc",
 	"normality-test", "homogeneity-test", "exact-test",
 
+	// Regression / modeling (15)
+	"regression", "ecological",
+	"ols", "glm", "logistic", "bayesian",
+	"regularization", "ridge", "lasso", "elasticnet",
+	"polynomial", "resampling", "jackknife", "selection", "stepwise",
+
 	// Pipeline machinery (8)
 	"tier-1-test", "tier-2-test", "composed", "pre-filter", "feature-pipeline",
 	"window-operator", "streaming-friendly", "buffered-pipeline",
@@ -326,4 +332,3 @@ var CanonicalTags = []string{
 func IsCanonicalTag(tag string) bool {
 	return slices.Contains(CanonicalTags, tag)
 }
-

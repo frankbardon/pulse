@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "name": "polynomial",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ols",
+      "polynomial",
+      "feature-engineering",
+      "feature-pipeline"
+    ],
+    "operators": [
+      "FEAT_POLY",
+      "REG_OLS"
+    ],
+    "description": "Polynomial regression (Indeed #8): FEAT_POLY expands age into age, age_2, age_3 upstream of a REG_OLS fit on income."
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_POLY",
+      "field": "age",
+      "label": "age",
+      "params": {"degree": 3}
+    }
+  ],
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "income_poly",
+      "target": "income",
+      "predictors": ["age", "age_2", "age_3"]
+    }
+  ]
+}

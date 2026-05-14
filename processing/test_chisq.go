@@ -23,14 +23,14 @@ type chiSqRow struct {
 	colsField string
 	alpha     float64
 
-	rowLabels   []string
-	rowIndex    map[string]int
-	colLabels   []string
-	colIndex    map[string]int
-	cellCounts  map[int]int64 // key = rowIdx*1<<32 | colIdx
-	rowTotals   []int64
-	colTotals   []int64
-	grandTotal  int64
+	rowLabels  []string
+	rowIndex   map[string]int
+	colLabels  []string
+	colIndex   map[string]int
+	cellCounts map[int]int64 // key = rowIdx*1<<32 | colIdx
+	rowTotals  []int64
+	colTotals  []int64
+	grandTotal int64
 }
 
 func newChiSqRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
