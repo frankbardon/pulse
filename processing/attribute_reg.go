@@ -214,18 +214,12 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 }
 
 // regressionAcceptsType reports whether the given encoding.FieldType is
-// a numeric type acceptable as a regression Target or Predictor. Mirrors
-// the AcceptsTypes list on the descriptor entries (no decimal, no geo,
-// no categorical).
+// a numeric type acceptable as a regression Target or Predictor for the
+// ATTR_REG_* attributes. Mirrors the analytics-numeric set used by
+// REG_OLS / REG_GLM / REG_BAYES_LINEAR (descriptor.regressionAcceptsType)
+// since the ATTR_REG_* attributes refit OLS under the hood.
 func regressionAcceptsType(ft encoding.FieldType) bool {
-	switch ft {
-	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
-		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeNullableU4, encoding.FieldTypeNullableU8, encoding.FieldTypeNullableU16,
-		encoding.FieldTypeDate:
-		return true
-	}
-	return false
+	return ft.IsNumericForAnalytics()
 }
 
 // newRegFittedAttribute / newRegResidualAttribute / newRegLeverageAttribute

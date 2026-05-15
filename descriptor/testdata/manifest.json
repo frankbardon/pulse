@@ -2130,14 +2130,20 @@
         "name": "REG_BAYES_LINEAR",
         "description": "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; reports posterior means, std errors, and credible intervals.",
         "accepts_types": [
-          "u8",
+          "date",
+          "decimal128",
+          "f32",
+          "f64",
+          "nullable_bool",
+          "nullable_decimal128",
+          "nullable_u16",
+          "nullable_u4",
+          "nullable_u8",
+          "packed_bool",
           "u16",
           "u32",
           "u64",
-          "f32",
-          "f64",
-          "decimal128",
-          "nullable_decimal128"
+          "u8"
         ],
         "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals.",
         "streamable": true,
@@ -2267,14 +2273,20 @@
         "name": "REG_GLM",
         "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links.",
         "accepts_types": [
-          "u8",
+          "date",
+          "decimal128",
+          "f32",
+          "f64",
+          "nullable_bool",
+          "nullable_decimal128",
+          "nullable_u16",
+          "nullable_u4",
+          "nullable_u8",
+          "packed_bool",
           "u16",
           "u32",
           "u64",
-          "f32",
-          "f64",
-          "decimal128",
-          "nullable_decimal128"
+          "u8"
         ],
         "emits_type_note": "RegressionResult with coefficients, std errors, p-values, deviance, null deviance, McFadden pseudo-R².",
         "streamable": false,
@@ -4089,4 +4101,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3131860812c1e829bd3e195fad37fd473dd0578baf403311b69caacbeb061f0b
+// golden-hash: 2b43f4876aec9b21044d6732a2f53652e494dfab2db707360df5852172a40762

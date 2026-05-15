@@ -155,31 +155,24 @@ func validateRegressions(env *Envelope, req *types.Request, schema *encoding.Sch
 	}
 }
 
-// isNumericFieldType reports whether the given encoding.FieldType is
-// numeric (integer, float, or decimal). Mirrors the family check used
-// by aggregator validation; regression Target/Predictors must be
-// numeric in v1.
+// isNumericFieldType is the narrow numeric predicate (integer + float +
+// decimal). Delegates to the canonical encoding.FieldType.IsNumeric().
+// Retained as a package-local helper so call sites read like other
+// descriptor predicates; widening the predicate happens on FieldType.
 func isNumericFieldType(t encoding.FieldType) bool {
-	if t.IsDecimal() {
-		return true
-	}
-	switch t {
-	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
-		encoding.FieldTypeF32, encoding.FieldTypeF64:
-		return true
-	}
-	return false
+	return t.IsNumeric()
 }
 
 // regressionAcceptsType reports whether a given encoding.FieldType is a
-// valid Target / Predictor for the named regression operator. REG_OLS
-// accepts the broader analytics-numeric set (includes bit-packed integer
-// types nullable_u4, nullable_bool, packed_bool, plus date); REG_GLM and
-// REG_BAYES_LINEAR keep the narrower legacy integer/float/decimal set
-// pending a deliberate widening pass on their fit paths.
+// valid Target / Predictor for the named regression operator. All three
+// engines (REG_OLS, REG_GLM, REG_BAYES_LINEAR) consume the analytics-
+// numeric set: integer / float / decimal families plus the bit-packed
+// integer encodings (nullable_u4, nullable_bool, packed_bool) and date.
+// The runtime path collects values via Record.NumericValue, which
+// returns float64 + null for every member of the set, so the fit
+// algorithms (Welford accumulator for OLS, IRLS for GLM, conjugate NIG
+// for Bayes) consume them without per-type branching.
 func regressionAcceptsType(rt types.RegressionType, t encoding.FieldType) bool {
-	if rt == types.REG_OLS {
-		return t.IsNumericForAnalytics()
-	}
-	return isNumericFieldType(t)
+	_ = rt
+	return t.IsNumericForAnalytics()
 }

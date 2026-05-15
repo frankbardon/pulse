@@ -67,10 +67,10 @@ func TestPredict_REG_OLS_AcceptsBitPackedPredictors(t *testing.T) {
 	}
 }
 
-// TestPredict_REG_GLM_StillRejectsBitPacked confirms the widening was
-// surgical: REG_GLM / REG_BAYES_LINEAR keep the narrower legacy numeric
-// set until their fit paths are deliberately widened.
-func TestPredict_REG_GLM_StillRejectsBitPacked(t *testing.T) {
+// TestPredict_REG_GLM_AcceptsBitPackedTarget asserts REG_GLM treats the
+// bit-packed integer encodings as valid target / predictor types — the
+// textbook pairing for binomial GLM is a packed_bool target.
+func TestPredict_REG_GLM_AcceptsBitPackedTarget(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Continuous predictor"},
@@ -89,15 +89,37 @@ func TestPredict_REG_GLM_StillRejectsBitPacked(t *testing.T) {
 		}},
 	}
 	env := PredictFromBytes(data, req, nil)
-	found := false
 	for _, e := range env.Errors {
 		if e.Code == "SERVICE_VALIDATION" {
-			found = true
-			break
+			t.Fatalf("unexpected SERVICE_VALIDATION on REG_GLM binomial + packed_bool target: %s", e.Message)
 		}
 	}
-	if !found {
-		t.Fatalf("expected REG_GLM to keep rejecting packed_bool target; got %d errors", len(env.Errors))
+}
+
+// TestPredict_REG_BAYES_LINEAR_AcceptsBitPackedTarget mirrors the GLM
+// test for the Bayesian engine.
+func TestPredict_REG_BAYES_LINEAR_AcceptsBitPackedTarget(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "x", Type: encoding.FieldTypeF64, Description: "Continuous predictor"},
+			{Name: "score", Type: encoding.FieldTypeNullableU4, Description: "Likert score"},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x"}},
+		Regressions: []*types.RegressionSpec{{
+			Type:       types.REG_BAYES_LINEAR,
+			Target:     "score",
+			Predictors: []string{"x"},
+		}},
+	}
+	env := PredictFromBytes(data, req, nil)
+	for _, e := range env.Errors {
+		if e.Code == "SERVICE_VALIDATION" {
+			t.Fatalf("unexpected SERVICE_VALIDATION on REG_BAYES_LINEAR + nullable_u4 target: %s", e.Message)
+		}
 	}
 }
 
@@ -125,6 +147,34 @@ func TestIsNumericForAnalytics(t *testing.T) {
 	for _, ft := range excludes {
 		if ft.IsNumericForAnalytics() {
 			t.Errorf("expected %s to be IsNumericForAnalytics()=false", ft.String())
+		}
+	}
+}
+
+// TestIsNumeric asserts the narrow numeric predicate covers only the
+// strict scalar family (int / float / decimal). Bit-packed integer
+// encodings and date are deliberately excluded.
+func TestIsNumeric(t *testing.T) {
+	includes := []encoding.FieldType{
+		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
+		encoding.FieldTypeF32, encoding.FieldTypeF64,
+		encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128,
+	}
+	for _, ft := range includes {
+		if !ft.IsNumeric() {
+			t.Errorf("expected %s to be IsNumeric()=true", ft.String())
+		}
+	}
+	excludes := []encoding.FieldType{
+		encoding.FieldTypeDate,
+		encoding.FieldTypeNullableU4, encoding.FieldTypeNullableU8, encoding.FieldTypeNullableU16,
+		encoding.FieldTypeNullableBool, encoding.FieldTypePackedBool,
+		encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32,
+		encoding.FieldTypePointF64, encoding.FieldTypeH3Cell,
+	}
+	for _, ft := range excludes {
+		if ft.IsNumeric() {
+			t.Errorf("expected %s to be IsNumeric()=false", ft.String())
 		}
 	}
 }

@@ -63,13 +63,12 @@ type RegressionModifier struct {
 // types.AllRegressionTypes(). Order is irrelevant; manifest assembly
 // sorts by Name.
 func regressionCapabilities() []RegressionMeta {
-	numericTypes := []string{"u8", "u16", "u32", "u64", "f32", "f64", "decimal128", "nullable_decimal128"}
-
-	// REG_OLS additionally accepts bit-packed integer types (nullable_u4,
-	// nullable_bool, packed_bool) and date as first-class numeric inputs.
-	// REG_GLM / REG_BAYES_LINEAR keep the narrower set pending a deliberate
-	// widening pass on their fit paths.
-	olsNumericTypes := []string{
+	// All three engines consume the analytics-numeric set: integer /
+	// float / decimal families plus the bit-packed integer encodings
+	// (nullable_u4, nullable_bool, packed_bool) and date. Runtime
+	// collection routes every entry through Record.NumericValue, which
+	// hands the fit algorithms float64 + null status uniformly.
+	numericTypes := []string{
 		"date",
 		"decimal128",
 		"f32",
@@ -103,7 +102,7 @@ func regressionCapabilities() []RegressionMeta {
 		{
 			Name:           string(types.REG_OLS),
 			Description:    "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
-			AcceptsTypes:   olsNumericTypes,
+			AcceptsTypes:   numericTypes,
 			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, R², adjusted R², residual std error.",
 			Streamable:     types.REG_OLS.Streamable(),
 			StreamableHint: commonModifierHint,
