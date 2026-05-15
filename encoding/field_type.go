@@ -5,6 +5,13 @@ import "fmt"
 // FieldType identifies the data type stored in a schema field.
 type FieldType byte
 
+// nullableU4NullSentinel is the 4-bit value (0x0F = 15) reserved to mark
+// a nullable_u4 cell as null. The reader maps this raw value to the
+// Record's null map so downstream Record.NumericValue returns ok=false,
+// keeping aggregation denominators and regression observation counts
+// correct without any orchestrator-level branching.
+const nullableU4NullSentinel uint8 = 0x0F
+
 // All 19 field types supported by the .pulse format.
 const (
 	FieldTypeU8                 FieldType = iota // 0
@@ -101,6 +108,66 @@ func (ft FieldType) String() string {
 // IsCategorical reports whether the field type is one of the categorical types.
 func (ft FieldType) IsCategorical() bool {
 	return ft == FieldTypeCategoricalU8 || ft == FieldTypeCategoricalU16 || ft == FieldTypeCategoricalU32
+}
+
+// Numeric predicate hierarchy
+//
+// The engine has two tiers of "is this a number" depending on whether the
+// caller wants on-wire scalar arithmetic semantics or analytics-layer
+// semantics. Specialized predicates (`predict_window.isNumericType`,
+// `facet.facetIsNumeric`, etc.) intentionally diverge — they encode
+// per-operator restrictions (e.g. window operators exclude decimal128
+// because the buffered decimal path is unimplemented). Those package-local
+// helpers point back at the canonical predicates below in their doc
+// comments and should keep their narrower view.
+//
+// IsNumeric — the strict scalar family. Use when the caller does real-
+// number math on a single column and wants to refuse anything bit-packed.
+//
+// IsNumericForAnalytics — the analytics layer's broader view. Includes
+// the bit-packed integer encodings and date. Aggregators, regressions,
+// and any other operator that consumes values via Record.NumericValue
+// should use this predicate.
+
+// IsNumeric reports whether the field type is a strict scalar number:
+// the unsigned-integer family (u8/u16/u32/u64), the float family
+// (f32/f64), and the decimal family (decimal128/nullable_decimal128).
+// Date and bit-packed integer encodings are excluded — see
+// IsNumericForAnalytics for the analytics-layer predicate.
+func (ft FieldType) IsNumeric() bool {
+	if ft.IsDecimal() {
+		return true
+	}
+	switch ft {
+	case FieldTypeU8, FieldTypeU16, FieldTypeU32, FieldTypeU64,
+		FieldTypeF32, FieldTypeF64:
+		return true
+	}
+	return false
+}
+
+// IsNumericForAnalytics reports whether the field type carries a meaningful
+// scalar value for numeric analytics (regression, sum/avg/stddev/min/max/
+// variance aggregators). The set is broader than IsNumeric: bit-packed
+// integer encodings (nullable_u4, nullable_bool, packed_bool) and date
+// are included because their stored representation is an ordinal /
+// cardinal number the analytics layer can average, sum, or regress
+// without an explicit ATTR_FORMULA cast.
+//
+// Null exclusion is the reader's responsibility: nullable_u4 marks 0x0F
+// as null at decode time so the downstream Record.NumericValue contract
+// (returns ok=false on null) keeps the aggregation denominator honest.
+func (ft FieldType) IsNumericForAnalytics() bool {
+	if ft.IsNumeric() {
+		return true
+	}
+	switch ft {
+	case FieldTypeDate,
+		FieldTypeNullableU4, FieldTypeNullableU8, FieldTypeNullableU16,
+		FieldTypeNullableBool, FieldTypePackedBool:
+		return true
+	}
+	return false
 }
 
 // IsDecimal reports whether the field type is a decimal128 variant.

@@ -25,6 +25,7 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_ZSCORE:         false,
 		AGG_GEO_CENTROID:   false,
 		AGG_GEO_BBOX:       false,
+		AGG_NULL_COUNT:     true,
 	}
 	for _, agg := range AllAggregationTypes() {
 		want, ok := expected[agg]
@@ -74,6 +75,7 @@ func TestStreamability_FilterersKnown(t *testing.T) {
 		FILTER_EXPRESSION:          true,
 		FILTER_GEO_WITHIN:          true,
 		FILTER_GEO_WITHIN_RADIUS_M: true,
+		FILTER_NULL:                true,
 	}
 	for _, f := range AllFiltererTypes() {
 		want, ok := expected[f]

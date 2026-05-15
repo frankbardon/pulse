@@ -55,10 +55,12 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -185,9 +187,11 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -205,10 +209,12 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -226,10 +232,12 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -248,10 +256,12 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -290,6 +300,35 @@
           "streamable": true
         },
         {
+          "name": "AGG_NULL_COUNT",
+          "category": "aggregator",
+          "description": "Count records where the field is null. Inverse of AGG_COUNT, which counts non-null records.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar int64",
+          "streamable": true
+        },
+        {
           "name": "AGG_PERCENTILE",
           "category": "aggregator",
           "description": "Configurable percentile of the field; requires sorting the full value set.",
@@ -305,10 +344,12 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -327,10 +368,12 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -348,9 +391,11 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -368,9 +413,11 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -388,10 +435,12 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -409,9 +458,11 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -429,9 +480,11 @@
             "date",
             "f32",
             "f64",
+            "nullable_bool",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -758,6 +811,35 @@
             "u8"
           ],
           "emits_type_note": "record-level predicate (no emitted column)",
+          "streamable": true
+        },
+        {
+          "name": "FILTER_NULL",
+          "category": "filterer",
+          "description": "Keep records based on null state of Field. Values=[\"is_null\"] keeps null-valued records; Values=[\"is_not_null\"] keeps non-null records.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "h3_cell",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "point_f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "record-level predicate",
           "streamable": true
         },
         {
@@ -2106,14 +2188,20 @@
         "name": "REG_BAYES_LINEAR",
         "description": "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; reports posterior means, std errors, and credible intervals.",
         "accepts_types": [
-          "u8",
+          "date",
+          "decimal128",
+          "f32",
+          "f64",
+          "nullable_bool",
+          "nullable_decimal128",
+          "nullable_u16",
+          "nullable_u4",
+          "nullable_u8",
+          "packed_bool",
           "u16",
           "u32",
           "u64",
-          "f32",
-          "f64",
-          "decimal128",
-          "nullable_decimal128"
+          "u8"
         ],
         "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals.",
         "streamable": true,
@@ -2243,14 +2331,20 @@
         "name": "REG_GLM",
         "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links.",
         "accepts_types": [
-          "u8",
+          "date",
+          "decimal128",
+          "f32",
+          "f64",
+          "nullable_bool",
+          "nullable_decimal128",
+          "nullable_u16",
+          "nullable_u4",
+          "nullable_u8",
+          "packed_bool",
           "u16",
           "u32",
           "u64",
-          "f32",
-          "f64",
-          "decimal128",
-          "nullable_decimal128"
+          "u8"
         ],
         "emits_type_note": "RegressionResult with coefficients, std errors, p-values, deviance, null deviance, McFadden pseudo-R².",
         "streamable": false,
@@ -2377,14 +2471,20 @@
         "name": "REG_OLS",
         "description": "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
         "accepts_types": [
-          "u8",
+          "date",
+          "decimal128",
+          "f32",
+          "f64",
+          "nullable_bool",
+          "nullable_decimal128",
+          "nullable_u16",
+          "nullable_u4",
+          "nullable_u8",
+          "packed_bool",
           "u16",
           "u32",
           "u64",
-          "f32",
-          "f64",
-          "decimal128",
-          "nullable_decimal128"
+          "u8"
         ],
         "emits_type_note": "RegressionResult with coefficients, std errors, p-values, R², adjusted R², residual std error.",
         "streamable": true,
@@ -2936,6 +3036,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SKEWNESS",
@@ -2958,6 +3059,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -2999,6 +3101,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SKEWNESS",
@@ -3021,6 +3124,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -3062,6 +3166,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SKEWNESS",
@@ -3084,6 +3189,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -3125,6 +3231,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SKEWNESS",
@@ -3147,6 +3254,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -3188,6 +3296,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SKEWNESS",
@@ -3210,6 +3319,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -3251,6 +3361,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SKEWNESS",
@@ -3273,6 +3384,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -3305,10 +3417,23 @@
         "name": "nullable_bool",
         "categorical": false,
         "compatible_aggregators": [
+          "AGG_AVERAGE",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
-          "AGG_MODE"
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_NULL_COUNT",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3316,7 +3441,8 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
-          "FILTER_INCLUDE"
+          "FILTER_INCLUDE",
+          "FILTER_NULL"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -3343,6 +3469,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SKEWNESS",
@@ -3365,6 +3492,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -3406,6 +3534,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SKEWNESS",
@@ -3428,6 +3557,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -3469,6 +3599,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SKEWNESS",
@@ -3491,6 +3622,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -3532,6 +3664,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SKEWNESS",
@@ -3555,6 +3688,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -3589,10 +3723,23 @@
         "name": "packed_bool",
         "categorical": false,
         "compatible_aggregators": [
+          "AGG_AVERAGE",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
-          "AGG_MODE"
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_NULL_COUNT",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_ZSCORE"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3600,7 +3747,8 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
-          "FILTER_INCLUDE"
+          "FILTER_INCLUDE",
+          "FILTER_NULL"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -3621,7 +3769,8 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
-          "AGG_MODE"
+          "AGG_MODE",
+          "AGG_NULL_COUNT"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3629,7 +3778,8 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
-          "FILTER_INCLUDE"
+          "FILTER_INCLUDE",
+          "FILTER_NULL"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -3653,7 +3803,8 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
-          "AGG_MODE"
+          "AGG_MODE",
+          "AGG_NULL_COUNT"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3661,7 +3812,8 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
-          "FILTER_INCLUDE"
+          "FILTER_INCLUDE",
+          "FILTER_NULL"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -3685,7 +3837,8 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
-          "AGG_MODE"
+          "AGG_MODE",
+          "AGG_NULL_COUNT"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3693,7 +3846,8 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
-          "FILTER_INCLUDE"
+          "FILTER_INCLUDE",
+          "FILTER_NULL"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -3717,7 +3871,8 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
-          "AGG_MODE"
+          "AGG_MODE",
+          "AGG_NULL_COUNT"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3725,7 +3880,8 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
-          "FILTER_INCLUDE"
+          "FILTER_INCLUDE",
+          "FILTER_NULL"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -3751,6 +3907,7 @@
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_SUM"
@@ -3762,6 +3919,7 @@
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_INCLUDE",
+          "FILTER_NULL",
           "FILTER_RANGE"
         ],
         "compatible_groupers": [
@@ -3785,7 +3943,8 @@
           "AGG_FREQUENCY",
           "AGG_GEO_BBOX",
           "AGG_GEO_CENTROID",
-          "AGG_MODE"
+          "AGG_MODE",
+          "AGG_NULL_COUNT"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3795,7 +3954,8 @@
           "FILTER_EXPRESSION",
           "FILTER_GEO_WITHIN",
           "FILTER_GEO_WITHIN_RADIUS_M",
-          "FILTER_INCLUDE"
+          "FILTER_INCLUDE",
+          "FILTER_NULL"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
@@ -3817,7 +3977,8 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
-          "AGG_MODE"
+          "AGG_MODE",
+          "AGG_NULL_COUNT"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3825,7 +3986,8 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
-          "FILTER_INCLUDE"
+          "FILTER_INCLUDE",
+          "FILTER_NULL"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
@@ -4035,4 +4197,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6a3dcc2cb43a10f8c7b31e314bca5bddb029e4fb3cbf1f069a0767d73c1743f7
+// golden-hash: 6c0934f43062f1ee2345fdb7e6492123d57f7c637d271f11de3d83f900ba1a72

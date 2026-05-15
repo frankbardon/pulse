@@ -12,11 +12,12 @@ Pulse exposes 18 aggregators and 6 filterers that run during `process` and `comp
 </skill_overview>
 
 <reference>
-## Aggregators (18)
+## Aggregators (19)
 
 | Type | Meaning | Input |
 |------|---------|-------|
 | AGG_COUNT | Number of non-null values. | any |
+| AGG_NULL_COUNT | Number of null values (inverse of AGG_COUNT). | any |
 | AGG_DISTINCT_COUNT | Number of distinct non-null values. | any |
 | AGG_FREQUENCY | Highest frequency count among observed values. | any |
 | AGG_MODE | Most common value (smallest on tie). | any |
@@ -76,8 +77,10 @@ See `skills/financial-cohorts.md` for the SQL:2016 precision propagation rules a
 Numeric-only (12) — applying to a categorical field emits `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`:
 `AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_RANGE`, `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_STDDEV`, `AGG_VARIANCE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_ZSCORE`.
 
-Categorical-safe (4):
-`AGG_COUNT`, `AGG_DISTINCT_COUNT`, `AGG_FREQUENCY`, `AGG_MODE`.
+The numeric set is the broader analytics-numeric family (`encoding.FieldType.IsNumericForAnalytics`): the integer / float / decimal types plus the bit-packed integer encodings `nullable_u4`, `nullable_bool`, `packed_bool`, and `date`. `AGG_AVERAGE` on `packed_bool` returns the proportion of `true`; `AGG_AVERAGE` on `nullable_u4` returns the mean of the stored ordinals with the `0x0F` null sentinel excluded from both numerator and denominator. No `ATTR_FORMULA float(field)` cast is needed — and skipping the cast keeps the request on the streaming path that the formula would have forced into the buffered orchestrator.
+
+Categorical-safe (5):
+`AGG_COUNT`, `AGG_NULL_COUNT`, `AGG_DISTINCT_COUNT`, `AGG_FREQUENCY`, `AGG_MODE`.
 </rule>
 
 <reference>
@@ -117,6 +120,7 @@ Filterers run before grouping and aggregation. The `types.Filterer` JSON shape i
 | FILTER_INCLUDE | `field`, `values` (string list) | Keep records whose field value is in `values`. Categorical values resolved through the field's dictionary; nulls are dropped. |
 | FILTER_EXCLUDE | `field`, `values` (string list) | Drop records whose field value is in `values`. Nulls pass through. |
 | FILTER_RANGE | `field`, `values` (exactly `[min, max]`) | Keep records where `min <= value <= max` (both bounds inclusive). Nulls are dropped. |
+| FILTER_NULL | `field`, `values` (exactly `["is_null"]` or `["is_not_null"]`) | Keep records based on null state of the field. Use `is_null` to keep records where the field is null; `is_not_null` to drop them. |
 | FILTER_EXPRESSION | `expression` (expr-lang string returning bool) | Evaluate `expression` against the record's field map; keep records where it returns `true`. No `field` key. |
 | FILTER_GEO_WITHIN | `field` (point_f64), `expression` (WKT POLYGON) | Keep records whose point is inside the polygon. v1: outer ring only, must be closed. |
 | FILTER_GEO_WITHIN_RADIUS_M | `field` (point_f64), `expression` (JSON `{anchor, radius_m}`) | Keep records within the radius (meters) of the anchor point. Haversine distance. |
@@ -143,6 +147,29 @@ Keep records where `age` is between 18 and 65 inclusive.
 
 ```json
 {"type": "FILTER_RANGE", "field": "age", "values": ["18", "65"]}
+```
+</example>
+
+<example name="filter-null">
+Keep only records where `email` is null.
+
+```json
+{"type": "FILTER_NULL", "field": "email", "values": ["is_null"]}
+```
+
+Drop records where `email` is null (keep populated emails only).
+
+```json
+{"type": "FILTER_NULL", "field": "email", "values": ["is_not_null"]}
+```
+
+To count nulls and non-nulls in a single request, combine `AGG_COUNT` (non-null) with `AGG_NULL_COUNT` (null) on the same field.
+
+```json
+{"aggregations": [
+  {"type": "AGG_COUNT",      "field": "email", "label": "n_present"},
+  {"type": "AGG_NULL_COUNT", "field": "email", "label": "n_missing"}
+]}
 ```
 </example>
 

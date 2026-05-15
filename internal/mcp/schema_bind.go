@@ -79,18 +79,14 @@ func classifyFields(schema *encoding.Schema) fieldClassification {
 }
 
 // isNumericType reports whether the type participates in numeric operators
-// (the broad sense: integers, floats, nullable variants, and decimals).
-// Date is intentionally excluded — date enters numeric contexts only via
-// window OrderBy.
+// as seen by the MCP schema binder. Delegates to the canonical
+// encoding.FieldType.IsNumericForAnalytics() so the LLM-facing "numeric
+// field" enum matches what aggregator + regression validators now accept
+// (bit-packed integer encodings included). Date stays in this bucket too
+// because the binder treats it as a numeric-orderable target via
+// classifyFields' NumericOrDate slice.
 func isNumericType(t encoding.FieldType) bool {
-	switch t {
-	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
-		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeNullableU4, encoding.FieldTypeNullableU8, encoding.FieldTypeNullableU16,
-		encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
-		return true
-	}
-	return false
+	return t.IsNumericForAnalytics()
 }
 
 // stringSlice is a small helper so the builders can stay dense.

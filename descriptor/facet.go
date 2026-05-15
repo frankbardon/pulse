@@ -162,6 +162,12 @@ func ValidateFacetFromBytes(data []byte, req *types.FacetRequest) *Envelope {
 	return ValidateFacet(bytes.NewReader(data), req)
 }
 
+// facetIsNumeric is the facet-side numeric predicate. Intentionally
+// excludes the bit-packed bool encodings (nullable_bool / packed_bool) —
+// a histogram or percentile profile over a binary indicator is degenerate
+// (one or two buckets), so refusing it is more useful than producing the
+// trivial answer. Widen only when a facet operator actually wants 0/1
+// numeric stats. Canonical broader predicate: encoding.FieldType.IsNumericForAnalytics.
 func facetIsNumeric(t encoding.FieldType) bool {
 	switch t {
 	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,

@@ -54,5 +54,13 @@ func filtererCapabilities() []Operator {
 			EmitsTypeNote: "record-level predicate",
 			Streamable:    true,
 		},
+		{
+			Name:          string(types.FILTER_NULL),
+			Category:      "filterer",
+			Description:   "Keep records based on null state of Field. Values=[\"is_null\"] keeps null-valued records; Values=[\"is_not_null\"] keeps non-null records.",
+			AcceptsTypes:  allCohortFieldTypes,
+			EmitsTypeNote: "record-level predicate",
+			Streamable:    true,
+		},
 	}
 }

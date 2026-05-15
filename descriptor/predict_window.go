@@ -64,8 +64,14 @@ func isOrderableType(ft encoding.FieldType) bool {
 	return false
 }
 
-// isNumericType reports whether the field type carries a meaningful scalar value
-// for arithmetic operations (sum, avg, lag, ewma, etc.).
+// isNumericType reports whether the field type carries a meaningful scalar
+// value for window arithmetic (sum, avg, lag, ewma, etc.). Intentionally
+// narrower than the canonical encoding.FieldType.IsNumericForAnalytics:
+// decimal128 is excluded because the buffered decimal path is unimplemented
+// for window operators, and the bit-packed bool encodings are excluded
+// because windowing a 0/1 series rarely matches caller intent. Keep this
+// helper local; widen it only after the corresponding window engines
+// support the broader set.
 func isNumericType(ft encoding.FieldType) bool {
 	switch ft {
 	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,

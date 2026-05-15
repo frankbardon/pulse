@@ -64,6 +64,11 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 			if err != nil {
 				return mapEOF(err)
 			}
+			if v == nullableU4NullSentinel {
+				rec.SetNullField(field.Name)
+				rec.SetNumeric(field.Name, 0)
+				continue
+			}
 			rec.SetNumeric(field.Name, float64(v))
 
 		case FieldTypeDecimal128, FieldTypeNullableDecimal128:

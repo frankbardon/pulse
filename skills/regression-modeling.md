@@ -66,6 +66,8 @@ Convergence knobs for the coordinate-descent solvers:
 
 **Standard error caveat (L1-penalized fits).** The analytical SE / p-value entries for `l1` and `elasticnet` reflect a coarse plug-in over the data-dependent active set; coefficients shrunk to zero have no SE entry. Predict attaches a `PROCESSING_REGRESSION_APPROXIMATE_SE` warning to the envelope for these specs. For rigorous uncertainty quantification, use `Resample: "bootstrap"` or `Resample: "jackknife"` (Phase 5). Ridge and unpenalized OLS retain the standard asymptotic SE formula.
 
+**Accepted target / predictor types.** All three engines (`REG_OLS`, `REG_GLM`, `REG_BAYES_LINEAR`) consume the analytics-numeric set (`encoding.FieldType.IsNumericForAnalytics`): the integer / float / decimal families plus the bit-packed integer encodings `nullable_u4`, `nullable_bool`, `packed_bool`, and `date`. Bit-packed cells decode to their stored ordinal value (`0..14` for `nullable_u4` with `0x0F` reserved as null; `0`/`1` for the booleans), and null sentinels drop the row from the regression observation count rather than poisoning the sum. The earlier requirement to wrap such columns in `ATTR_FORMULA float(field)` is gone — and removing the formula keeps `REG_OLS` and `REG_BAYES_LINEAR` on the streaming path that the cast had forced into the buffered orchestrator (`REG_GLM` is buffered regardless because IRLS reweights every row per iteration). `REG_GLM` with `Family: "binomial"` plus a `packed_bool` target is the textbook logistic-regression pairing — no cast needed.
+
 **Recipes.**
 
 ```json

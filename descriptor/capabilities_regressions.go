@@ -63,7 +63,27 @@ type RegressionModifier struct {
 // types.AllRegressionTypes(). Order is irrelevant; manifest assembly
 // sorts by Name.
 func regressionCapabilities() []RegressionMeta {
-	numericTypes := []string{"u8", "u16", "u32", "u64", "f32", "f64", "decimal128", "nullable_decimal128"}
+	// All three engines consume the analytics-numeric set: integer /
+	// float / decimal families plus the bit-packed integer encodings
+	// (nullable_u4, nullable_bool, packed_bool) and date. Runtime
+	// collection routes every entry through Record.NumericValue, which
+	// hands the fit algorithms float64 + null status uniformly.
+	numericTypes := []string{
+		"date",
+		"decimal128",
+		"f32",
+		"f64",
+		"nullable_bool",
+		"nullable_decimal128",
+		"nullable_u16",
+		"nullable_u4",
+		"nullable_u8",
+		"packed_bool",
+		"u16",
+		"u32",
+		"u64",
+		"u8",
+	}
 
 	resampleModifier := RegressionModifier{
 		Name:        "resample",
