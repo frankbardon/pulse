@@ -21,7 +21,9 @@ package mcp
 
 import (
 	"encoding/json"
+	"sort"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/mcp/mcptools"
 	"github.com/frankbardon/pulse/types"
@@ -100,9 +102,19 @@ func stringSlice[T ~string](in []T) []string {
 	return out
 }
 
-// Bind returns per-tool JSON Schemas keyed by tool name. Empty schemas are
-// omitted so the caller can decide which tools to override.
+// Bind returns per-tool JSON Schemas keyed by tool name with no
+// embedder extensions applied. Equivalent to BindWithExtensions with
+// a nil snapshot.
 func Bind(schema *encoding.Schema) (map[string]json.RawMessage, error) {
+	return BindWithExtensions(schema, nil)
+}
+
+// BindWithExtensions returns per-tool JSON Schemas keyed by tool
+// name, merging any embedder-registered operator names into the
+// per-category enums so LLM agents can author requests that
+// reference custom operators. Empty schemas are omitted so the
+// caller can decide which tools to override.
+func BindWithExtensions(schema *encoding.Schema, snap *descriptor.ExtensionsSnapshot) (map[string]json.RawMessage, error) {
 	if schema == nil {
 		return nil, nil
 	}
@@ -112,14 +124,14 @@ func Bind(schema *encoding.Schema) (map[string]json.RawMessage, error) {
 
 	// pulse_process and pulse_predict share the same Request shape; the
 	// builder produces one schema body and we register it under both names.
-	reqBody, err := buildRequestSchema(c)
+	reqBody, err := buildRequestSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
 	}
 	out[mcptools.ToolProcess] = reqBody
 	out[mcptools.ToolPredict] = reqBody
 
-	composeBody, err := buildComposeSchema(c)
+	composeBody, err := buildComposeSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
 	}
@@ -138,6 +150,67 @@ func Bind(schema *encoding.Schema) (map[string]json.RawMessage, error) {
 	out[mcptools.ToolFacet] = facetBody
 
 	return out, nil
+}
+
+// extensionNames returns the operator-name slice for a category from
+// the snapshot, or nil when no snapshot is registered. Used by the
+// enum-merging helper below.
+func extensionNames(snap *descriptor.ExtensionsSnapshot, category string) []string {
+	if snap == nil {
+		return nil
+	}
+	var metas []descriptor.OperatorMeta
+	switch category {
+	case "aggregator":
+		metas = snap.Aggregators
+	case "attribute":
+		metas = snap.Attributes
+	case "filterer":
+		metas = snap.Filterers
+	case "grouper":
+		metas = snap.Groupers
+	case "window":
+		metas = snap.Windows
+	case "feature":
+		metas = snap.Features
+	case "test":
+		metas = snap.Tests
+	default:
+		return nil
+	}
+	if len(metas) == 0 {
+		return nil
+	}
+	out := make([]string, len(metas))
+	for i, m := range metas {
+		out[i] = m.Name
+	}
+	return out
+}
+
+// mergeEnumNames merges built-in names with extension names from the
+// snapshot, sorting the combined list and removing duplicates. The
+// result is the enum used for a category's `type` field in the
+// schema-bound tool schema.
+func mergeEnumNames(builtin []string, snap *descriptor.ExtensionsSnapshot, category string) []string {
+	customs := extensionNames(snap, category)
+	if len(customs) == 0 {
+		return builtin
+	}
+	combined := make([]string, 0, len(builtin)+len(customs))
+	combined = append(combined, builtin...)
+	combined = append(combined, customs...)
+	seen := make(map[string]struct{}, len(combined))
+	out := make([]string, 0, len(combined))
+	for _, n := range combined {
+		if _, dup := seen[n]; dup {
+			continue
+		}
+		seen[n] = struct{}{}
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // orderKeySchema is the shared schema for OrderKey entries used by
@@ -164,18 +237,18 @@ func orderKeySchema(enumFields []string) map[string]any {
 	}
 }
 
-// buildRequestSchema produces a JSON Schema describing types.Request with
-// per-field enums for the bound cohort. Returned schema describes the
-// "request" property of the tool itself; the outer wrapper is added by
-// the caller.
-func buildRequestSchema(c fieldClassification) (json.RawMessage, error) {
-	aggTypes := stringSlice(types.AllAggregationTypes())
-	attrTypes := stringSlice(types.AllAttributeTypes())
-	filterTypes := stringSlice(types.AllFiltererTypes())
-	groupTypes := stringSlice(types.AllGroupTypes())
-	windowTypes := stringSlice(types.AllWindowTypes())
-	featureTypes := stringSlice(types.AllFeatureTypes())
-	testTypes := stringSlice(types.AllTestTypes())
+// buildRequestSchemaWithExtensions produces a JSON Schema describing
+// types.Request with per-field enums for the bound cohort and
+// optionally with embedder-registered operator names merged into
+// each category enum.
+func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
+	aggTypes := mergeEnumNames(stringSlice(types.AllAggregationTypes()), snap, "aggregator")
+	attrTypes := mergeEnumNames(stringSlice(types.AllAttributeTypes()), snap, "attribute")
+	filterTypes := mergeEnumNames(stringSlice(types.AllFiltererTypes()), snap, "filterer")
+	groupTypes := mergeEnumNames(stringSlice(types.AllGroupTypes()), snap, "grouper")
+	windowTypes := mergeEnumNames(stringSlice(types.AllWindowTypes()), snap, "window")
+	featureTypes := mergeEnumNames(stringSlice(types.AllFeatureTypes()), snap, "feature")
+	testTypes := mergeEnumNames(stringSlice(types.AllTestTypes()), snap, "test")
 
 	requestObject := map[string]any{
 		"type":        "object",
@@ -347,8 +420,11 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 // per-cohort enum constraints — multi-file batches that target a
 // different cohort will still pass the schema check (the enum is a
 // "best-known" guide) but predict will catch field-name mismatches.
-func buildComposeSchema(c fieldClassification) (json.RawMessage, error) {
-	inner, err := buildRequestSchema(c)
+// buildComposeSchemaWithExtensions mirrors buildRequestSchema with
+// the extension snapshot routed through so the nested request shape
+// includes custom operator names in its enums.
+func buildComposeSchemaWithExtensions(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
+	inner, err := buildRequestSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
 	}
@@ -445,10 +521,17 @@ func enumStringField(values []string, description string) map[string]any {
 // current session. mcp-go fires notifications/tools/list_changed on
 // success.
 func BindSessionTools(s *server.MCPServer, sessionID string, schema *encoding.Schema, handlers boundHandlers) error {
+	return BindSessionToolsWithExtensions(s, sessionID, schema, nil, handlers)
+}
+
+// BindSessionToolsWithExtensions mirrors BindSessionTools but routes
+// an extensions snapshot into the per-tool JSON Schemas so
+// embedder-registered operator names appear in the enum lists.
+func BindSessionToolsWithExtensions(s *server.MCPServer, sessionID string, schema *encoding.Schema, snap *descriptor.ExtensionsSnapshot, handlers boundHandlers) error {
 	if s == nil || sessionID == "" || schema == nil {
 		return nil
 	}
-	schemas, err := Bind(schema)
+	schemas, err := BindWithExtensions(schema, snap)
 	if err != nil {
 		return err
 	}

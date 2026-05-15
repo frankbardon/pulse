@@ -31,7 +31,7 @@ func validateFeatures(env *Envelope, req *types.Request, schema *encoding.Schema
 
 	splitSeenAt := -1
 	for idx, feat := range req.Features {
-		if !isKnownFeatureType(feat.Type) {
+		if !isKnownFeatureType(feat.Type) && !isExtensionFeatureType(opts, feat.Type) {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"unknown feature type: "+string(feat.Type),

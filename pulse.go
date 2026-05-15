@@ -100,6 +100,12 @@ type Options struct {
 	// time — the natural sandbox for an MCP server or CLI invocation.
 	// Ignored when ImportSourceFS is set explicitly.
 	ImportSourceJailRoot string
+
+	// Extensions registers domain-specific operators + expression
+	// extensions that the runtime treats identically to built-ins.
+	// Zero value disables the extension path entirely. See
+	// extensions.go for the full surface.
+	Extensions Extensions
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -110,8 +116,20 @@ type Pulse struct {
 	imports *imports.Manager
 }
 
+// Service returns the underlying service handle. Exposed so tests
+// (and advanced embedders) can inspect the installed extension
+// registry, FS configuration, and orchestration state.
+func (p *Pulse) Service() *service.Service { return p.svc }
+
 // New creates a new Pulse instance with the given options.
 func New(opts Options) (*Pulse, error) {
+	if err := validateExtensions(opts.Extensions); err != nil {
+		return nil, err
+	}
+	if err := probeExtensions(opts.Extensions); err != nil {
+		return nil, err
+	}
+
 	var fsCfg *fs.Config
 	var err error
 
@@ -137,6 +155,8 @@ func New(opts Options) (*Pulse, error) {
 
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
+	svc.SetExtensions(buildRuntimeExtensions(opts.Extensions))
+	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:     opts.ImportsDir,
@@ -334,7 +354,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
 	}
 
-	env := descriptor.PredictFromBytes(data, req, nil)
+	env := descriptor.PredictFromBytes(data, req, &descriptor.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
 		result, ok := env.Data.(*descriptor.PredictResult)
@@ -717,7 +737,7 @@ func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
 // deterministic and process-wide: it does not depend on cohort data or
 // the filesystem. Callers cache the result for a session.
 func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
-	return descriptor.BuildManifest()
+	return descriptor.BuildManifestWithExtensions(p.svc.ExtensionsSnapshot())
 }
 
 // Fs returns the underlying afero.Fs. Embedders (e.g. the MCP server) need

@@ -233,6 +233,7 @@ func (a *normalizedAttribute) Compute(records []*Record, field string) ([]float6
 type formulaAttribute struct {
 	expression string
 	schema     *encoding.Schema
+	exts       *ExtensionRegistry
 }
 
 func newFormulaAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
@@ -243,6 +244,14 @@ func newFormulaAttribute(attr *types.Attribute, schema *encoding.Schema) (Attrib
 		expression: attr.Expression,
 		schema:     schema,
 	}, nil
+}
+
+// SetExtensions implements ExtensionAware so the Processor can inject
+// the live registry after construction. Custom expr functions and
+// lookup tables registered by the embedder are then visible to the
+// formula expression at compile / evaluation time.
+func (a *formulaAttribute) SetExtensions(r *ExtensionRegistry) {
+	a.exts = r
 }
 
 func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, error) {
@@ -268,7 +277,9 @@ func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, 
 // are user-visible PROCESSING_RUNTIME errors.
 func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 	env := r.AllValues()
-	program, err := expr.Compile(a.expression, expr.Env(env))
+	opts := []expr.Option{expr.Env(env)}
+	opts = append(opts, a.exts.ExprOptions()...)
+	program, err := expr.Compile(a.expression, opts...)
 	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
 			fmt.Sprintf("compiling formula expression: %s", a.expression))

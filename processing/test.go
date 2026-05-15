@@ -108,7 +108,7 @@ func (p *Processor) buildRowTests(tests []*types.Test) ([]rowTestEntry, error) {
 	}
 	out := make([]rowTestEntry, 0, len(tests))
 	for _, t := range tests {
-		factory, ok := rowTestRegistry[t.Type]
+		factory, ok := p.exts.LookupRowTest(t.Type)
 		if !ok {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_UNKNOWN_TYPE,
 				fmt.Sprintf("test type %s is not registered as a row test", t.Type),
@@ -131,7 +131,7 @@ func (p *Processor) buildPostTests(tests []*types.Test) ([]postTestEntry, error)
 	}
 	out := make([]postTestEntry, 0, len(tests))
 	for _, t := range tests {
-		factory, ok := postTestRegistry[t.Type]
+		factory, ok := p.exts.LookupPostTest(t.Type)
 		if !ok {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_UNKNOWN_TYPE,
 				fmt.Sprintf("test type %s is not registered as a post test", t.Type),
@@ -159,11 +159,12 @@ func testLabel(t *types.Test) string {
 }
 
 // canRunRowTests reports whether every test in `tests` has a registered
-// row-test factory. Returns false on the first miss so the caller can
-// fall through to the buffered path or surface PULSE_TEST_UNKNOWN_TYPE.
-func canRunRowTests(tests []*types.Test) bool {
+// row-test factory (built-in or extension). Returns false on the first
+// miss so the caller can fall through to the buffered path or surface
+// PULSE_TEST_UNKNOWN_TYPE.
+func canRunRowTests(tests []*types.Test, exts *ExtensionRegistry) bool {
 	for _, t := range tests {
-		if _, ok := rowTestRegistry[t.Type]; !ok {
+		if _, ok := exts.LookupRowTest(t.Type); !ok {
 			return false
 		}
 	}

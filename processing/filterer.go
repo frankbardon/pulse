@@ -119,10 +119,19 @@ func (f *rangeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (
 
 // --- Expression Filter ---
 
-type expressionFilterer struct{}
+type expressionFilterer struct {
+	exts *ExtensionRegistry
+}
 
 func newExpressionFilterer() FiltererBuilder {
 	return &expressionFilterer{}
+}
+
+// SetExtensions implements ExtensionAware so the Processor can inject
+// the live registry after construction. Custom expr functions and
+// lookup tables become visible to the filter expression.
+func (f *expressionFilterer) SetExtensions(r *ExtensionRegistry) {
+	f.exts = r
 }
 
 func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
@@ -131,9 +140,12 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 			"expression filter requires a non-empty expression")
 	}
 
+	exts := f.exts
 	return func(record *Record) (bool, error) {
 		env := record.AllValues()
-		program, err := expr.Compile(filter.Expression, expr.Env(env))
+		opts := []expr.Option{expr.Env(env)}
+		opts = append(opts, exts.ExprOptions()...)
+		program, err := expr.Compile(filter.Expression, opts...)
 		if err != nil {
 			return false, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
 				fmt.Sprintf("compiling filter expression: %s", filter.Expression))

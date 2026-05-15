@@ -52,6 +52,14 @@ var geoAggregations = map[types.AggregationType]bool{
 type PredictOptions struct {
 	// Strict upgrades warnings to errors.
 	Strict bool
+
+	// Extensions is the read-only snapshot of embedder-registered
+	// operators + expression-side state. Nil takes the built-in-only
+	// path. The snapshot adds every custom operator name to the
+	// validator's known-types set so predict does not flag
+	// embedder-registered ops as unknown, and feeds streamability
+	// overrides into computeStreamable.
+	Extensions *ExtensionsSnapshot
 }
 
 // PredictResult holds the validated request and any diagnostics.
@@ -194,8 +202,9 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	validateDescriptionQuality(env, schema, opts)
 
 	// Compute streamability — per-type Streamable() methods plus schema-aware
-	// gates (decimal fields force buffered, geo aggs force buffered).
-	result.Streamable, result.StreamableReasons = computeStreamable(req, schema)
+	// gates (decimal fields force buffered, geo aggs force buffered). Honours
+	// the extensions snapshot when present so custom operator overrides land.
+	result.Streamable, result.StreamableReasons = computeStreamable(req, schema, opts)
 
 	// Compute autocomplete-style suggestions. Suggestions may surface even
 	// when the request is otherwise valid (streamability hints), so this
@@ -218,7 +227,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 // Returns (true, nil) when streamable; (false, reasons) listing every
 // gate that blocks streaming. The reasons slice is intentionally
 // human-readable so it can land in the envelope unchanged.
-func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []string) {
+func computeStreamable(req *types.Request, schema *encoding.Schema, opts *PredictOptions) (bool, []string) {
 	var reasons []string
 
 	// Regression streamability defers to RegressionSpec.Streamable():
@@ -260,12 +269,12 @@ func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []str
 		reasons = append(reasons, "no aggregations: streaming path requires at least one OnlineAggregator")
 	}
 	for _, grp := range req.Groups {
-		if !grp.Type.Streamable() {
+		if !streamableWithOverlay(opts, "grouper", string(grp.Type), grp.Type.Streamable()) {
 			reasons = append(reasons, "group "+string(grp.Type)+" requires the buffered path")
 		}
 	}
 	for _, attr := range req.Attributes {
-		if !attr.Type.Streamable() {
+		if !streamableWithOverlay(opts, "attribute", string(attr.Type), attr.Type.Streamable()) {
 			reasons = append(reasons, "attribute "+string(attr.Type)+" requires a full pass for population stats")
 		}
 	}
@@ -274,7 +283,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []str
 	}
 
 	for _, agg := range req.Aggregations {
-		if !agg.Type.Streamable() {
+		if !streamableWithOverlay(opts, "aggregator", string(agg.Type), agg.Type.Streamable()) {
 			reasons = append(reasons, "aggregation "+string(agg.Type)+" is not streamable")
 			continue
 		}
@@ -294,7 +303,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema) (bool, []str
 	}
 
 	for _, feat := range req.Features {
-		if !feat.Type.Streamable() {
+		if !streamableWithOverlay(opts, "feature", string(feat.Type), feat.Type.Streamable()) {
 			reasons = append(reasons, "feature "+string(feat.Type)+" is not streamable")
 		}
 	}

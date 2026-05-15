@@ -86,6 +86,12 @@ type Manifest struct {
 	ExamplesCount     int               `json:"examples_count"`
 	ExampleCategories []string          `json:"example_categories"`
 	ExampleTags       []string          `json:"example_tags"`
+	// Extensions enumerates embedder-registered operators + expression
+	// state. Built-in operators continue to live in Components; this
+	// block is the additive layer registered via
+	// pulse.Options.Extensions. Empty slices on every field for a
+	// host with no extensions.
+	Extensions ExtensionsManifest `json:"extensions"`
 }
 
 // commands returns the default set of CLI leaf commands.
@@ -218,6 +224,17 @@ func sortRegressions(rs []RegressionMeta) []RegressionMeta {
 // registries and capability tables. The result is safe to cache and
 // share across goroutines; callers do not mutate the returned slices.
 func BuildManifest() *Manifest {
+	return BuildManifestWithExtensions(nil)
+}
+
+// BuildManifestWithExtensions constructs a Manifest that includes the
+// embedder-registered extension surface. A nil snapshot is equivalent
+// to BuildManifest — the Extensions block becomes the empty manifest
+// (every category is `[]`, not `null`).
+//
+// descriptor stays free of service / processing imports; the snapshot
+// is the only way the live ExtensionRegistry reaches this layer.
+func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *Manifest {
 	allTests := append([]TestMeta{}, testCapabilities()...)
 	allTests = append(allTests, postTestCapabilities()...)
 	tier1, tier2 := partitionTier(allTests)
@@ -246,6 +263,7 @@ func BuildManifest() *Manifest {
 		ExamplesCount:      examples.Count(),
 		ExampleCategories:  examples.AllCategories(),
 		ExampleTags:        examples.AllTags(),
+		Extensions:         extensionsManifestFromSnapshot(snap),
 	}
 }
 

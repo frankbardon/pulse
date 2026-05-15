@@ -37,16 +37,36 @@ func RegisteredTypes() []types.WindowType {
 	return out
 }
 
-// Apply runs every window in windows over rows. Each window:
+// lookupWithExt consults the extension overlay first, then the built-in
+// registry. Used by ApplyWithExt to honour embedder-registered window
+// operators without changing the call site for every window type.
+func lookupWithExt(t types.WindowType, ext map[types.WindowType]WindowFactory) (WindowFactory, bool) {
+	if ext != nil {
+		if f, ok := ext[t]; ok {
+			return f, true
+		}
+	}
+	return Lookup(t)
+}
+
+// Apply runs every window in windows over rows. Equivalent to
+// ApplyWithExt with a nil overlay; preserved so existing callers and
+// per-operator unit tests stay shape-compatible.
+func Apply(ctx context.Context, rows []map[string]any, windows []*types.Window) error {
+	return ApplyWithExt(ctx, rows, windows, nil)
+}
+
+// ApplyWithExt runs every window in windows over rows. Each window:
 //  1. Resolves a (partitionBy, orderBy) sort over the row slice. Sorts are
 //     cached by tuple key so multiple windows sharing a partition+order pay
 //     one sort cost.
 //  2. Builds partitions from the sorted index slice.
 //  3. Invokes the operator's Compute to mutate rows with the output column.
 //
-// Apply trusts that windows has been validated by predict; it returns coded
-// errors for runtime failures (unknown type, factory error, compute error).
-func Apply(ctx context.Context, rows []map[string]any, windows []*types.Window) error {
+// extFactories is an optional embedder-registered overlay. Nil takes the
+// built-in-only path; non-nil consults the overlay before falling through
+// to the package-level registry.
+func ApplyWithExt(ctx context.Context, rows []map[string]any, windows []*types.Window, extFactories map[types.WindowType]WindowFactory) error {
 	_ = ctx
 	if len(windows) == 0 || len(rows) == 0 {
 		return nil
@@ -55,7 +75,7 @@ func Apply(ctx context.Context, rows []map[string]any, windows []*types.Window) 
 	cache := newSortCache(rows)
 
 	for _, w := range windows {
-		factory, ok := Lookup(w.Type)
+		factory, ok := lookupWithExt(w.Type, extFactories)
 		if !ok {
 			return errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown window type: %s", w.Type))
