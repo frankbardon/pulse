@@ -96,6 +96,11 @@ func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[
 				}
 				return err
 			}
+			if v == nullableU4NullSentinel {
+				nulls[field.Name] = true
+				values[field.Name] = 0
+				continue
+			}
 			values[field.Name] = float64(v)
 
 		case FieldTypeDecimal128, FieldTypeNullableDecimal128:

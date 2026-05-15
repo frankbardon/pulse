@@ -59,7 +59,7 @@ func validateRegressions(env *Envelope, req *types.Request, schema *encoding.Sch
 						map[string]any{"field": reg.Target, "type": string(reg.Type)},
 					)
 				}
-			} else if !isNumericFieldType(f.Type) {
+			} else if !regressionAcceptsType(reg.Type, f.Type) {
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
 					"regression target field "+reg.Target+" is not numeric (got "+f.Type.String()+")",
@@ -87,7 +87,7 @@ func validateRegressions(env *Envelope, req *types.Request, schema *encoding.Sch
 				}
 				continue
 			}
-			if !isNumericFieldType(f.Type) {
+			if !regressionAcceptsType(reg.Type, f.Type) {
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
 					"regression predictor field "+p+" is not numeric (got "+f.Type.String()+")",
@@ -169,4 +169,17 @@ func isNumericFieldType(t encoding.FieldType) bool {
 		return true
 	}
 	return false
+}
+
+// regressionAcceptsType reports whether a given encoding.FieldType is a
+// valid Target / Predictor for the named regression operator. REG_OLS
+// accepts the broader analytics-numeric set (includes bit-packed integer
+// types nullable_u4, nullable_bool, packed_bool, plus date); REG_GLM and
+// REG_BAYES_LINEAR keep the narrower legacy integer/float/decimal set
+// pending a deliberate widening pass on their fit paths.
+func regressionAcceptsType(rt types.RegressionType, t encoding.FieldType) bool {
+	if rt == types.REG_OLS {
+		return t.IsNumericForAnalytics()
+	}
+	return isNumericFieldType(t)
 }

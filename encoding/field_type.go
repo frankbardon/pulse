@@ -5,6 +5,13 @@ import "fmt"
 // FieldType identifies the data type stored in a schema field.
 type FieldType byte
 
+// nullableU4NullSentinel is the 4-bit value (0x0F = 15) reserved to mark
+// a nullable_u4 cell as null. The reader maps this raw value to the
+// Record's null map so downstream Record.NumericValue returns ok=false,
+// keeping aggregation denominators and regression observation counts
+// correct without any orchestrator-level branching.
+const nullableU4NullSentinel uint8 = 0x0F
+
 // All 19 field types supported by the .pulse format.
 const (
 	FieldTypeU8                 FieldType = iota // 0
@@ -101,6 +108,30 @@ func (ft FieldType) String() string {
 // IsCategorical reports whether the field type is one of the categorical types.
 func (ft FieldType) IsCategorical() bool {
 	return ft == FieldTypeCategoricalU8 || ft == FieldTypeCategoricalU16 || ft == FieldTypeCategoricalU32
+}
+
+// IsNumericForAnalytics reports whether the field type carries a meaningful
+// scalar value for numeric analytics (regression, sum/avg/stddev/min/max/
+// variance aggregators). The set is broader than the on-wire integer/float
+// family: bit-packed integer encodings (nullable_u4, nullable_bool,
+// packed_bool) and date are included because their stored representation is
+// an ordinal/cardinal number the analytics layer can average, sum, or
+// regress without an explicit ATTR_FORMULA cast.
+//
+// Null exclusion is the reader's responsibility: nullable_u4 marks 0x0F as
+// null at decode time so the downstream Record.NumericValue contract
+// (returns ok=false on null) keeps the aggregation denominator honest.
+func (ft FieldType) IsNumericForAnalytics() bool {
+	switch ft {
+	case FieldTypeU8, FieldTypeU16, FieldTypeU32, FieldTypeU64,
+		FieldTypeF32, FieldTypeF64,
+		FieldTypeDate,
+		FieldTypeDecimal128, FieldTypeNullableDecimal128,
+		FieldTypeNullableU4, FieldTypeNullableU8, FieldTypeNullableU16,
+		FieldTypeNullableBool, FieldTypePackedBool:
+		return true
+	}
+	return false
 }
 
 // IsDecimal reports whether the field type is a decimal128 variant.

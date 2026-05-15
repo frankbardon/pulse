@@ -35,6 +35,46 @@ var numericFieldTypesNoDecimal = []string{
 	"u8",
 }
 
+// numericFieldTypesAnalytics widens numericFieldTypes with the bit-packed
+// integer encodings (nullable_bool, packed_bool). These types store small
+// non-negative integers (0/1 for the booleans, 0..14 for nullable_u4 with
+// 0x0F as null sentinel) which the analytics aggregators consume as
+// proportions or ordinal means without an ATTR_FORMULA cast. Sorted
+// alphabetically for golden stability.
+var numericFieldTypesAnalytics = []string{
+	"date",
+	"f32",
+	"f64",
+	"nullable_bool",
+	"nullable_decimal128",
+	"nullable_u16",
+	"nullable_u4",
+	"nullable_u8",
+	"packed_bool",
+	"u16",
+	"u32",
+	"u64",
+	"u8",
+}
+
+// numericFieldTypesAnalyticsNoDecimal mirrors numericFieldTypesAnalytics
+// without the decimal128 types — for aggregators that operate purely in
+// float64 (stddev, variance, skewness, kurtosis, zscore).
+var numericFieldTypesAnalyticsNoDecimal = []string{
+	"date",
+	"f32",
+	"f64",
+	"nullable_bool",
+	"nullable_u16",
+	"nullable_u4",
+	"nullable_u8",
+	"packed_bool",
+	"u16",
+	"u32",
+	"u64",
+	"u8",
+}
+
 // allCohortFieldTypes lists every field type without restriction (used by
 // COUNT, MODE, FREQUENCY, DISTINCT_COUNT which operate on any field).
 var allCohortFieldTypes = []string{
@@ -79,7 +119,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_SUM),
 			Category:      "aggregator",
 			Description:   "Sum the numeric values of the field across the input set.",
-			AcceptsTypes:  numericFieldTypes,
+			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64 (decimal128 preserved when input is decimal)",
 			Streamable:    true,
 		},
@@ -87,7 +127,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_AVERAGE),
 			Category:      "aggregator",
 			Description:   "Arithmetic mean of the field across the input set.",
-			AcceptsTypes:  numericFieldTypes,
+			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 		},
@@ -95,7 +135,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_MIN),
 			Category:      "aggregator",
 			Description:   "Smallest non-null value of the field.",
-			AcceptsTypes:  numericFieldTypes,
+			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 		},
@@ -103,7 +143,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_MAX),
 			Category:      "aggregator",
 			Description:   "Largest non-null value of the field.",
-			AcceptsTypes:  numericFieldTypes,
+			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 		},
@@ -111,7 +151,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_STDDEV),
 			Category:      "aggregator",
 			Description:   "Population standard deviation via Welford's online algorithm.",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 		},
@@ -119,7 +159,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_RANGE),
 			Category:      "aggregator",
 			Description:   "Spread (max minus min) of the field across the input set.",
-			AcceptsTypes:  numericFieldTypes,
+			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 		},
@@ -135,7 +175,7 @@ func aggregatorCapabilities() []Operator {
 			Name:           string(types.AGG_ZSCORE),
 			Category:       "aggregator",
 			Description:    "Standardized z-score aggregate (mean-centered, stddev-scaled summary).",
-			AcceptsTypes:   numericFieldTypesNoDecimal,
+			AcceptsTypes:   numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Streaming uses online Welford moments; the ZSCORE aggregate finalize step needs the full deviation sum.",
@@ -144,7 +184,7 @@ func aggregatorCapabilities() []Operator {
 			Name:           string(types.AGG_MEDIAN),
 			Category:       "aggregator",
 			Description:    "50th percentile of the field; requires sorting the full value set.",
-			AcceptsTypes:   numericFieldTypes,
+			AcceptsTypes:   numericFieldTypesAnalytics,
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path.",
@@ -153,7 +193,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_VARIANCE),
 			Category:      "aggregator",
 			Description:   "Population variance via Welford's online algorithm.",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 		},
@@ -169,7 +209,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_SKEWNESS),
 			Category:      "aggregator",
 			Description:   "Bias-corrected skewness via online moments.",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 		},
@@ -177,7 +217,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_KURTOSIS),
 			Category:      "aggregator",
 			Description:   "Bias-corrected excess kurtosis via online moments.",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 		},
@@ -201,7 +241,7 @@ func aggregatorCapabilities() []Operator {
 					Description: "Percentile to compute, in [0, 100]. e.g. 95 for p95.",
 				},
 			},
-			AcceptsTypes:   numericFieldTypes,
+			AcceptsTypes:   numericFieldTypesAnalytics,
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.",
