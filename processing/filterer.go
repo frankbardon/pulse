@@ -19,19 +19,22 @@ func newIncludeFilterer() FiltererBuilder {
 }
 
 func (f *includeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
+	field := schema.Field(filter.Field)
+	isCategorical := field != nil && field.Type.IsCategorical() && field.Dictionary != nil
+
 	valueSet := make(map[float64]bool, len(filter.Values))
 	for _, v := range filter.Values {
+		if isCategorical {
+			id, ok := field.Dictionary.IDFor(v)
+			if !ok {
+				return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+					fmt.Sprintf("include value %q not found in dictionary for field %q", v, filter.Field))
+			}
+			valueSet[float64(id)] = true
+			continue
+		}
 		fv, err := strconv.ParseFloat(v, 64)
 		if err != nil {
-			// For categorical fields, try dictionary lookup
-			field := schema.Field(filter.Field)
-			if field != nil && field.Type.IsCategorical() && field.Dictionary != nil {
-				id, ok := field.Dictionary.IDFor(v)
-				if ok {
-					valueSet[float64(id)] = true
-					continue
-				}
-			}
 			return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
 				fmt.Sprintf("parsing include value %q", v))
 		}
@@ -56,18 +59,22 @@ func newExcludeFilterer() FiltererBuilder {
 }
 
 func (f *excludeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
+	field := schema.Field(filter.Field)
+	isCategorical := field != nil && field.Type.IsCategorical() && field.Dictionary != nil
+
 	valueSet := make(map[float64]bool, len(filter.Values))
 	for _, v := range filter.Values {
+		if isCategorical {
+			id, ok := field.Dictionary.IDFor(v)
+			if !ok {
+				return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+					fmt.Sprintf("exclude value %q not found in dictionary for field %q", v, filter.Field))
+			}
+			valueSet[float64(id)] = true
+			continue
+		}
 		fv, err := strconv.ParseFloat(v, 64)
 		if err != nil {
-			field := schema.Field(filter.Field)
-			if field != nil && field.Type.IsCategorical() && field.Dictionary != nil {
-				id, ok := field.Dictionary.IDFor(v)
-				if ok {
-					valueSet[float64(id)] = true
-					continue
-				}
-			}
 			return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
 				fmt.Sprintf("parsing exclude value %q", v))
 		}
