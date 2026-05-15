@@ -18,10 +18,10 @@ import (
 
 // Service is the orchestration layer connecting filesystem, encoding, and processing.
 type Service struct {
-	fs               *fs.Config
-	disableDefaults  bool
-	extensions       *processing.ExtensionRegistry
-	extensionsSnap   *descriptor.ExtensionsSnapshot
+	fs              *fs.Config
+	disableDefaults bool
+	extensions      *processing.ExtensionRegistry
+	extensionsSnap  *descriptor.ExtensionsSnapshot
 }
 
 // New creates a new Service with the given filesystem configuration.

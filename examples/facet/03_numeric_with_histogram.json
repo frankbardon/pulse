@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "category": "facet",
+    "description": "Numeric FacetSchema with percentiles (buffered path) and a fixed-width histogram over caller-supplied bounds (single-pass).",
+    "name": "facet_numeric_with_histogram",
+    "operators": [],
+    "tags": [
+      "facet",
+      "distribution-shape"
+    ]
+  },
+  "cohort": {
+    "filename": "all_types.pulse",
+    "data_dir": ".data"
+  },
+  "fields": [
+    "amount"
+  ],
+  "numeric_percentiles": [
+    0.5,
+    0.95,
+    0.99
+  ],
+  "include_histogram": true,
+  "histogram_bins": 20,
+  "histogram_range": [
+    0.0,
+    1000.0
+  ]
+}

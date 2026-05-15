@@ -31,6 +31,23 @@ type (
 	Response        = types.Response
 	ComposedRequest = types.ComposedRequest
 
+	// FacetRequest is the input to FacetSchema — multi-field, with
+	// optional filters, percentiles, histograms, and additive
+	// contribution counts.
+	FacetRequest = types.FacetRequest
+	// FacetResult is the response from FacetSchema.
+	FacetResult = types.FacetResult
+	// FacetField wraps either a discrete or numeric per-field summary.
+	FacetField = types.FacetField
+	// FacetDiscrete is the per-value count list for discrete fields.
+	FacetDiscrete = types.FacetDiscrete
+	// FacetNumeric is the streaming-stats summary for numeric fields.
+	FacetNumeric = types.FacetNumeric
+	// FacetValueCount is one (value, count) tuple inside FacetDiscrete.
+	FacetValueCount = types.FacetValueCount
+	// FacetHistogram is the fixed-width binning of a numeric field.
+	FacetHistogram = types.FacetHistogram
+
 	// SynthSpec is the parsed synthesis request shape.
 	SynthSpec = synth.Spec
 	// SynthResult is the result of a successful Synth call.
@@ -397,12 +414,37 @@ func (p *Pulse) Profile(_ context.Context, path string, opts ProfileOptions) (*P
 }
 
 // Facet returns distinct values for the named field in the cohort.
+// Categorical fields short-circuit through the dictionary; numeric
+// fields stream the file collecting distinct float values. For richer
+// summaries (counts, null tallies, statistics, histograms, additive
+// contributions) call FacetSchema instead.
 func (p *Pulse) Facet(ctx context.Context, path string, field string) ([]string, error) {
 	values, err := p.svc.Facet(ctx, path, field)
 	if err == nil {
 		p.touchManaged(ctx, path)
 	}
 	return values, err
+}
+
+// FacetSchema runs a multi-field rich facet against the cohort named in
+// req.Cohort. Returns per-field summaries (discrete value counts or
+// numeric statistics), with optional percentiles, fixed-width
+// histograms, and "additive" contribution counts that report what each
+// distinct value of an additive field would yield if it were added to
+// the base filter.
+//
+// Streamability: requests with no NumericPercentiles run in a single
+// pass; requests with percentiles buffer the requested numeric fields'
+// non-null values and sort once before percentile interpolation.
+func (p *Pulse) FacetSchema(ctx context.Context, req *FacetRequest) (*FacetResult, error) {
+	if req == nil {
+		return nil, fmt.Errorf("pulse: facet schema requires a request")
+	}
+	resp, err := p.svc.FacetSchema(ctx, req)
+	if err == nil && req.Cohort != nil {
+		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	}
+	return resp, err
 }
 
 // AskRequest is the input to pulse.Ask — the unified one-shot facade

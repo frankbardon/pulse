@@ -1,6 +1,6 @@
 ---
 name: mcp-integration
-description: Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_ask, pulse_compose, pulse_sample, pulse_facet, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order.
+description: Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_ask, pulse_compose, pulse_sample, pulse_facet, pulse_facet_schema, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order.
 type: guide
 applies_to: process, compose, sample, facet, inspect, predict, manifest
 ---
@@ -23,7 +23,8 @@ Every Pulse tool wraps a public library entry point. Inputs are JSON; outputs ar
 | `pulse_process` | Execute one request | `request` (JSON-encoded `types.Request`) |
 | `pulse_compose` | Execute a batch | `request` (JSON-encoded `types.ComposedRequest`) |
 | `pulse_sample` | First N rows | `path` (string), `count` (number, default 10) |
-| `pulse_facet` | Value distribution for one field | `path` (string), `field` (string) |
+| `pulse_facet` | Distinct values for one field (categorical fast path / numeric scan) | `path` (string), `field` (string) |
+| `pulse_facet_schema` | Multi-field rich facet — counts, null tallies, numeric stats, optional percentiles, histograms, additive contribution counts. Prefer over repeated `pulse_facet` calls. | `request` (JSON-encoded `pulse.FacetRequest`) |
 | `pulse_skills_list` | Embedded skill metadata | (none) |
 | `pulse_skills_get` | Fetch one skill body | `name` (string) |
 | `pulse_manifest` | Root self-description: commands, components, cohort types, skills, tests, distributions, error codes | (none) |
@@ -126,6 +127,7 @@ What gets constrained on the bound `pulse_process` / `pulse_predict` / `pulse_co
 | `tests[].split_by` / `rows` / `cols` / `subject_field` | All cohort field names |
 | `tests[].type` | Full test catalogue (`TEST_*`) |
 | `pulse_facet` `field` arg | All cohort field names |
+| `pulse_facet_schema` `request.fields[]` / `request.additive_fields[]` / `request.filterers[].field` | All cohort field names |
 
 ### Trigger and lifecycle
 

@@ -1,6 +1,8 @@
 package processing
 
 import (
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/processing/feature"
 	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
@@ -67,6 +69,35 @@ type LookupTable struct {
 // environment.
 type ExtensionAware interface {
 	SetExtensions(r *ExtensionRegistry)
+}
+
+// BuildFilters compiles a slice of types.Filterer into runtime
+// FilterFuncs against the given schema. Mirrors the per-Processor
+// helper so non-Processor consumers (FacetSchema, Sample variants) can
+// reuse the same factory + extension semantics. Returns nil when
+// filterers is empty.
+func BuildFilters(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry) ([]FilterFunc, error) {
+	if len(filterers) == 0 {
+		return nil, nil
+	}
+	out := make([]FilterFunc, 0, len(filterers))
+	for _, f := range filterers {
+		factory, ok := exts.LookupFilterer(f.Type)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				"unknown filter type: "+string(f.Type))
+		}
+		builder := factory()
+		if aware, ok := builder.(ExtensionAware); ok {
+			aware.SetExtensions(exts)
+		}
+		fn, err := builder.Build(f, schema)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, fn)
+	}
+	return out, nil
 }
 
 // StreamabilityKey is the canonical map key for ExtensionRegistry.Streamable.

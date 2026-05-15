@@ -22,7 +22,7 @@ import (
 	"sync"
 )
 
-//go:embed aggregations/*.json attributes/*.json features/*.json filterers/*.json groupers/*.json regression/*.json tests/*.json windows/*.json
+//go:embed aggregations/*.json attributes/*.json facet/*.json features/*.json filterers/*.json groupers/*.json regression/*.json tests/*.json windows/*.json
 var content embed.FS
 
 // AllCategories returns every directory the library indexes, sorted
@@ -326,6 +326,9 @@ var CanonicalTags = []string{
 
 	// Risk / edge (3)
 	"leakage-safe", "leakage-risk", "small-sample",
+
+	// Discovery / facet (1)
+	"facet",
 }
 
 // IsCanonicalTag reports whether tag belongs to the curated taxonomy.

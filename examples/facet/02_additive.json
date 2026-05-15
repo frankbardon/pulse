@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "category": "facet",
+    "description": "Multi-field FacetSchema with additive_fields. The base filter narrows category=A; the additive accumulator on category strips that clause so the response shows what each category value would yield if added to the filter.",
+    "name": "facet_additive_contribution",
+    "operators": [
+      "FILTER_INCLUDE"
+    ],
+    "tags": [
+      "facet",
+      "cardinality-analysis"
+    ]
+  },
+  "cohort": {
+    "filename": "all_types.pulse",
+    "data_dir": ".data"
+  },
+  "fields": [
+    "category",
+    "country"
+  ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "category",
+      "values": ["A"]
+    }
+  ],
+  "additive_fields": [
+    "category"
+  ],
+  "discrete_top_k": 25
+}

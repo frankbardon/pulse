@@ -101,6 +101,10 @@ Categorical-safe (4):
 | AGG_SKEWNESS | Excludes nulls. |
 | AGG_KURTOSIS | Excludes nulls. |
 | AGG_ZSCORE | Skips nulls; returns 0 for empty groups or zero-stddev groups. |
+
+### When to prefer FacetSchema over GROUP_CATEGORY + AGG_COUNT
+
+For "give me the per-value count of one or more fields" without aggregating across groups, `pulse.FacetSchema` (`pulse_facet_schema` MCP tool) is cheaper than wiring `groups: [{type: GROUP_CATEGORY, field: F}], aggregations: [{type: AGG_COUNT, field: F}]`. FacetSchema also covers null tallies, top-K truncation with deterministic descending-by-count sort, and additive contribution counts. See the `facet-design` skill for the full surface.
 </reference>
 
 <reference>

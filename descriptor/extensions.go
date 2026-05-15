@@ -29,15 +29,15 @@ type ExtensionsManifest struct {
 // (parsed from the registered name) and Mode (attribute-only) so
 // reviewers can group operators by source without re-parsing.
 type OperatorMeta struct {
-	Name        string                 `json:"name"`
-	Namespace   string                 `json:"namespace"`
-	Description string                 `json:"description,omitempty"`
-	Streamable  bool                   `json:"streamable"`
-	Accepts     []string               `json:"accepts,omitempty"`
-	Emits       string                 `json:"emits,omitempty"`
-	Mode        string                 `json:"mode,omitempty"`
-	Tier        string                 `json:"tier,omitempty"`
-	Params      []OperatorParamMeta    `json:"params,omitempty"`
+	Name        string              `json:"name"`
+	Namespace   string              `json:"namespace"`
+	Description string              `json:"description,omitempty"`
+	Streamable  bool                `json:"streamable"`
+	Accepts     []string            `json:"accepts,omitempty"`
+	Emits       string              `json:"emits,omitempty"`
+	Mode        string              `json:"mode,omitempty"`
+	Tier        string              `json:"tier,omitempty"`
+	Params      []OperatorParamMeta `json:"params,omitempty"`
 }
 
 // OperatorParamMeta is the manifest-friendly mirror of pulse.ParamMeta.
