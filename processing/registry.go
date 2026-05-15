@@ -24,6 +24,7 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_PERCENTILE:     newPercentileAggregator,
 	types.AGG_GEO_CENTROID:   newCentroidAggregator,
 	types.AGG_GEO_BBOX:       newBBoxAggregator,
+	types.AGG_NULL_COUNT:     newNullCountAggregator,
 }
 
 // attributeRegistry maps attribute types to their factory functions.
@@ -47,6 +48,7 @@ var filtererRegistry = map[types.FiltererType]FiltererFactory{
 	types.FILTER_EXPRESSION:          newExpressionFilterer,
 	types.FILTER_GEO_WITHIN:          newGeoWithinFilterer,
 	types.FILTER_GEO_WITHIN_RADIUS_M: newGeoWithinRadiusFilterer,
+	types.FILTER_NULL:                newNullFilterer,
 }
 
 // grouperRegistry maps group types to their factory functions.

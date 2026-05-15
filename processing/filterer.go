@@ -170,3 +170,45 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 		return b, nil
 	}, nil
 }
+
+// --- Null Filter ---
+
+// nullFilterer keeps or drops records based on the null state of one
+// field. Mode is carried in Filterer.Values[0] as "is_null" /
+// "is_not_null" — no struct change required on Filterer for this small
+// per-mode parameter.
+type nullFilterer struct{}
+
+func newNullFilterer() FiltererBuilder {
+	return &nullFilterer{}
+}
+
+func (f *nullFilterer) Build(filter *types.Filterer, _ *encoding.Schema) (FilterFunc, error) {
+	if filter.Field == "" {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			"FILTER_NULL requires a Field")
+	}
+	if len(filter.Values) != 1 {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			"FILTER_NULL requires exactly one Values entry: \"is_null\" or \"is_not_null\"")
+	}
+	var keepNull bool
+	switch filter.Values[0] {
+	case "is_null":
+		keepNull = true
+	case "is_not_null":
+		keepNull = false
+	default:
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("FILTER_NULL Values[0]=%q; must be \"is_null\" or \"is_not_null\"", filter.Values[0]))
+	}
+
+	field := filter.Field
+	return func(record *Record) (bool, error) {
+		_, present := record.NumericValue(field)
+		if keepNull {
+			return !present, nil
+		}
+		return present, nil
+	}, nil
+}

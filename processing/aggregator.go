@@ -631,3 +631,32 @@ func (a *percentileAggregator) aggregateValues(vals []float64) (float64, error) 
 	}
 	return work[lower] + (rank-float64(lower))*(work[upper]-work[lower]), nil
 }
+
+// --- Null Count ---
+
+// nullCountAggregator counts records whose value for the named field is
+// null (inverse of countAggregator, which counts non-null entries). The
+// buffered path subtracts the non-null count from the total record
+// count; the streaming path increments nNull on every UpdateRow where
+// Record.NumericValue returns ok=false.
+type nullCountAggregator struct {
+	nNull int64
+}
+
+func newNullCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	return &nullCountAggregator{}, nil
+}
+
+// Aggregate walks the record set directly; the orchestrator's
+// valueAggregator shortcut (collectCache) drops nulls before handing the
+// slice over, so AGG_NULL_COUNT deliberately does NOT implement
+// valueAggregator — it would always report zero.
+func (a *nullCountAggregator) Aggregate(records []*Record, field string) (float64, error) {
+	var nNull int64
+	for _, r := range records {
+		if _, ok := r.NumericValue(field); !ok {
+			nNull++
+		}
+	}
+	return float64(nNull), nil
+}

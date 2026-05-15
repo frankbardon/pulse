@@ -33,6 +33,11 @@ const (
 
 	AGG_GEO_CENTROID AggregationType = "AGG_GEO_CENTROID"
 	AGG_GEO_BBOX     AggregationType = "AGG_GEO_BBOX"
+
+	// AGG_NULL_COUNT counts records where the field is null. Inverse of
+	// AGG_COUNT, which counts records where the field is non-null. Stays
+	// streamable (O(1) state per row, no buffering).
+	AGG_NULL_COUNT AggregationType = "AGG_NULL_COUNT"
 )
 
 // AllAggregationTypes returns all defined aggregation types.
@@ -43,6 +48,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_MEDIAN, AGG_VARIANCE, AGG_MODE, AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_DISTINCT_COUNT, AGG_PERCENTILE,
 		AGG_GEO_CENTROID, AGG_GEO_BBOX,
+		AGG_NULL_COUNT,
 	}
 }
 
@@ -57,6 +63,11 @@ const (
 
 	FILTER_GEO_WITHIN          FiltererType = "FILTER_GEO_WITHIN"
 	FILTER_GEO_WITHIN_RADIUS_M FiltererType = "FILTER_GEO_WITHIN_RADIUS_M"
+
+	// FILTER_NULL keeps or drops records based on null state of a field.
+	// Mode is "is_null" (keep null-valued records) or "is_not_null" (keep
+	// non-null records). Row-local; streamable.
+	FILTER_NULL FiltererType = "FILTER_NULL"
 )
 
 // AllFiltererTypes returns all defined filterer types.
@@ -67,6 +78,7 @@ func AllFiltererTypes() []FiltererType {
 		FILTER_GEO_WITHIN,
 		FILTER_GEO_WITHIN_RADIUS_M,
 		FILTER_INCLUDE,
+		FILTER_NULL,
 		FILTER_RANGE,
 	}
 }

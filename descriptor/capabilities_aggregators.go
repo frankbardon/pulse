@@ -255,6 +255,14 @@ func aggregatorCapabilities() []Operator {
 			Streamable:    false,
 		},
 		{
+			Name:          string(types.AGG_NULL_COUNT),
+			Category:      "aggregator",
+			Description:   "Count records where the field is null. Inverse of AGG_COUNT, which counts non-null records.",
+			AcceptsTypes:  allCohortFieldTypes,
+			EmitsTypeNote: "scalar int64",
+			Streamable:    true,
+		},
+		{
 			Name:          string(types.AGG_GEO_BBOX),
 			Category:      "aggregator",
 			Description:   "Bounding box (min/max lat/lon) of point_f64 values.",

@@ -383,3 +383,18 @@ func (a *modeAggregator) Finalize() (float64, error) {
 	a.counts = nil
 	return result, nil
 }
+
+// --- NullCount (online) ---
+
+func (a *nullCountAggregator) UpdateRow(r *Record, field string) error {
+	if _, ok := r.NumericValue(field); !ok {
+		a.nNull++
+	}
+	return nil
+}
+
+func (a *nullCountAggregator) Finalize() (float64, error) {
+	out := float64(a.nNull)
+	a.nNull = 0
+	return out, nil
+}
