@@ -149,7 +149,86 @@ func BindWithExtensions(schema *encoding.Schema, snap *descriptor.ExtensionsSnap
 	}
 	out[mcptools.ToolFacet] = facetBody
 
+	facetSchemaBody, err := buildFacetSchemaRequestSchema(c, snap)
+	if err != nil {
+		return nil, err
+	}
+	out[mcptools.ToolFacetSchema] = facetSchemaBody
+
 	return out, nil
+}
+
+// buildFacetSchemaRequestSchema describes the pulse_facet_schema tool
+// with field enums constrained to the bound cohort. The fields,
+// additive_fields, and per-filterer field references all draw from the
+// schema's field list; filterer types reuse the global filterer enum.
+func buildFacetSchemaRequestSchema(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
+	filterTypes := mergeEnumNames(stringSlice(types.AllFiltererTypes()), snap, "filterer")
+	requestObject := map[string]any{
+		"type":        "object",
+		"description": "pulse.FacetRequest — schema-bound for this cohort. fields and additive_fields enums are constrained to the cohort's actual fields.",
+		"properties": map[string]any{
+			"cohort": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"filename": map[string]any{"type": "string"},
+					"data_dir": map[string]any{"type": "string"},
+				},
+				"required":             []string{"filename"},
+				"additionalProperties": true,
+			},
+			"fields": map[string]any{
+				"type":  "array",
+				"items": enumStringField(c.AllFields, "Field name to summarise."),
+			},
+			"additive_fields": map[string]any{
+				"type":  "array",
+				"items": enumStringField(c.AllFields, "Field name to compute additive contribution counts for."),
+			},
+			"filterers": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"type":       map[string]any{"type": "string", "enum": filterTypes},
+						"field":      enumStringField(c.AllFields, "Field to filter on. FILTER_EXPRESSION may omit this."),
+						"values":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"expression": map[string]any{"type": "string"},
+					},
+					"required":             []string{"type"},
+					"additionalProperties": true,
+				},
+			},
+			"discrete_top_k": map[string]any{
+				"type":        "integer",
+				"description": "Cap discrete values per field; 0 means no cap.",
+			},
+			"numeric_percentiles": map[string]any{
+				"type":  "array",
+				"items": map[string]any{"type": "number", "description": "Strictly in (0, 1)."},
+			},
+			"include_histogram": map[string]any{"type": "boolean"},
+			"histogram_bins":    map[string]any{"type": "integer"},
+			"histogram_range": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "number"},
+				"minItems":    2,
+				"maxItems":    2,
+				"description": "[min, max] bounds for fixed-width histogram binning. Required when include_histogram=true.",
+			},
+		},
+		"required":             []string{"fields"},
+		"additionalProperties": true,
+	}
+	outer := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"request": requestObject,
+		},
+		"required":             []string{"request"},
+		"additionalProperties": true,
+	}
+	return json.Marshal(outer)
 }
 
 // extensionNames returns the operator-name slice for a category from
@@ -546,6 +625,7 @@ func BindSessionToolsWithExtensions(s *server.MCPServer, sessionID string, schem
 		{mcptools.ToolCompose, mcptools.DescCompose + " (schema-bound)", handlers.compose},
 		{mcptools.ToolSample, mcptools.DescSample + " (schema-bound)", handlers.sample},
 		{mcptools.ToolFacet, mcptools.DescFacet + " (schema-bound)", handlers.facet},
+		{mcptools.ToolFacetSchema, mcptools.DescFacetSchema + " (schema-bound)", handlers.facetSchema},
 	} {
 		raw, ok := schemas[entry.name]
 		if !ok {
@@ -565,9 +645,10 @@ func BindSessionToolsWithExtensions(s *server.MCPServer, sessionID string, schem
 // handlers verbatim — the wire-shape stays identical; only the input
 // schema changes.
 type boundHandlers struct {
-	process server.ToolHandlerFunc
-	predict server.ToolHandlerFunc
-	compose server.ToolHandlerFunc
-	sample  server.ToolHandlerFunc
-	facet   server.ToolHandlerFunc
+	process     server.ToolHandlerFunc
+	predict     server.ToolHandlerFunc
+	compose     server.ToolHandlerFunc
+	sample      server.ToolHandlerFunc
+	facet       server.ToolHandlerFunc
+	facetSchema server.ToolHandlerFunc
 }

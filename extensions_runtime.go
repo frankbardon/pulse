@@ -143,4 +143,3 @@ func hasAnyRegistrations(ext Extensions) bool {
 		len(ext.ExprFunctions) > 0 ||
 		len(ext.LookupTables) > 0
 }
-

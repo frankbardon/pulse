@@ -219,16 +219,34 @@ func apiSampleCmd() *cli.Command {
 func apiFacetCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "facet",
-		Usage: "Return distinct values for a field in a cohort",
+		Usage: "Return distinct values for a field in a cohort, or a rich multi-field summary",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
-			&cli.StringFlag{Name: "field", Aliases: []string{"f"}, Usage: "Field name to facet", Required: true},
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path"},
+			&cli.StringSliceFlag{Name: "field", Aliases: []string{"f"}, Usage: "Field name to facet (repeat for multiple)"},
+			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full FacetRequest JSON file (overrides flags)"},
+			&cli.IntFlag{Name: "top-k", Usage: "Cap discrete values per field"},
+			&cli.Float64SliceFlag{Name: "percentile", Usage: "Numeric percentile (repeatable, in (0,1))"},
+			&cli.BoolFlag{Name: "histogram", Usage: "Include numeric histograms"},
+			&cli.IntFlag{Name: "histogram-bins", Usage: "Histogram bin count (default 20)"},
+			&cli.Float64Flag{Name: "histogram-min", Usage: "Histogram lower bound (required with --histogram)"},
+			&cli.Float64Flag{Name: "histogram-max", Usage: "Histogram upper bound (required with --histogram)"},
+			&cli.StringSliceFlag{Name: "additive", Usage: "Compute additive contribution counts for this field (repeatable)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
-			field := cmd.String("field")
+			fields := cmd.StringSlice("field")
+			reqPath := cmd.String("request")
+			topK := int(cmd.Int("top-k"))
+			pcts := cmd.Float64Slice("percentile")
+			includeHist := cmd.Bool("histogram")
+			histBins := int(cmd.Int("histogram-bins"))
+			histMin := cmd.Float64("histogram-min")
+			histMax := cmd.Float64("histogram-max")
+			additive := cmd.StringSlice("additive")
 			jsonOut := cmd.Bool("json")
+
+			rich := reqPath != "" || len(fields) > 1 || topK > 0 || len(pcts) > 0 || includeHist || len(additive) > 0
 
 			p, err := newPulse()
 			if err != nil {
@@ -238,24 +256,101 @@ func apiFacetCmd() *cli.Command {
 				return err
 			}
 
-			values, err := p.Facet(ctx, input, field)
+			if !rich {
+				if input == "" || len(fields) == 0 {
+					msg := "facet requires --input and --field (or --request for rich mode)"
+					if jsonOut {
+						return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", msg)
+					}
+					return fmt.Errorf("%s", msg)
+				}
+				values, err := p.Facet(ctx, input, fields[0])
+				if err != nil {
+					if jsonOut {
+						return writeErrorEnvelope(cmd.Writer, "FACET_ERROR", err.Error())
+					}
+					return err
+				}
+				if jsonOut {
+					return writeEnvelope(cmd.Writer, values)
+				}
+				for _, v := range values {
+					writeText(cmd.Writer, "%s\n", v)
+				}
+				return nil
+			}
+
+			req, err := loadFacetRequest(reqPath, input, fields, topK, pcts, includeHist, histBins, histMin, histMax, additive)
+			if err != nil {
+				if jsonOut {
+					return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", err.Error())
+				}
+				return err
+			}
+			result, err := p.FacetSchema(ctx, req)
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "FACET_ERROR", err.Error())
 				}
 				return err
 			}
-
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, values)
+				return writeEnvelope(cmd.Writer, result)
 			}
-
-			for _, v := range values {
-				writeText(cmd.Writer, "%s\n", v)
-			}
-			return nil
+			return writeJSON(cmd.Writer, result)
 		},
 	}
+}
+
+// loadFacetRequest constructs a FacetRequest either by parsing the
+// supplied --request JSON file or by composing one from the per-flag
+// shortcuts. Flag overrides land on top of the file shape so
+// "--request foo.json --top-k 50" works as expected.
+func loadFacetRequest(path, input string, fields []string, topK int, pcts []float64,
+	includeHist bool, histBins int, histMin, histMax float64,
+	additive []string) (*pulse.FacetRequest, error) {
+	req := &pulse.FacetRequest{}
+	if path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("reading facet request file: %w", err)
+		}
+		if err := json.Unmarshal(data, req); err != nil {
+			return nil, fmt.Errorf("parsing facet request JSON: %w", err)
+		}
+	}
+	if input != "" {
+		if req.Cohort == nil {
+			req.Cohort = &types.Cohort{Filename: input}
+		} else if req.Cohort.Filename == "" {
+			req.Cohort.Filename = input
+		}
+	}
+	if len(fields) > 0 {
+		req.Fields = fields
+	}
+	if topK > 0 {
+		req.DiscreteTopK = topK
+	}
+	if len(pcts) > 0 {
+		req.NumericPercentiles = pcts
+	}
+	if includeHist {
+		req.IncludeHistogram = true
+		if histBins > 0 {
+			req.HistogramBins = histBins
+		}
+		if histMin != 0 || histMax != 0 {
+			req.HistogramRange = [2]float64{histMin, histMax}
+		}
+	}
+	if len(additive) > 0 {
+		req.AdditiveFields = additive
+	}
+	if req.Cohort == nil {
+		return nil, fmt.Errorf("facet request requires a cohort (--input or request.cohort)")
+	}
+	return req, nil
 }
 
 func apiPredictCmd() *cli.Command {

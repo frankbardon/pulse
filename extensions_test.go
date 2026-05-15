@@ -412,8 +412,8 @@ func (stubTwoPassAttribute) Compute(records []*processing.Record, field string) 
 	return make([]float64, len(records)), nil
 }
 func (stubTwoPassAttribute) Row(*processing.Record, string) (float64, error) { return 0, nil }
-func (stubTwoPassAttribute) PrePass(*processing.Record, string) error         { return nil }
-func (stubTwoPassAttribute) Finalize() error                                  { return nil }
+func (stubTwoPassAttribute) PrePass(*processing.Record, string) error        { return nil }
+func (stubTwoPassAttribute) Finalize() error                                 { return nil }
 
 func stubAttributeFactory(*types.Attribute, *encoding.Schema) (processing.AttributeComputer, error) {
 	return stubTwoPassAttribute{}, nil
@@ -429,8 +429,8 @@ func stubFiltererFactory() processing.FiltererBuilder { return stubFilter{} }
 
 type stubRowTest struct{}
 
-func (stubRowTest) UpdateRow(*processing.Record) error              { return nil }
-func (stubRowTest) Finalize() (*types.TestResult, error)            { return &types.TestResult{}, nil }
+func (stubRowTest) UpdateRow(*processing.Record) error   { return nil }
+func (stubRowTest) Finalize() (*types.TestResult, error) { return &types.TestResult{}, nil }
 
 func stubRowTestFactory(*types.Test, *encoding.Schema) (processing.RowTest, error) {
 	return stubRowTest{}, nil

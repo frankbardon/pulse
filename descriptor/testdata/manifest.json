@@ -2879,7 +2879,11 @@
       },
       {
         "name": "pulse_facet",
-        "description": "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use after pulse_ask when you need the unique-value set of one column (e.g., before authoring a FILTER_INCLUDE)."
+        "description": "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use after pulse_ask when you need the unique-value set of one column (e.g., before authoring a FILTER_INCLUDE). For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive contribution counts, prefer pulse_facet_schema."
+      },
+      {
+        "name": "pulse_facet_schema",
+        "description": "Multi-field rich facet endpoint. Returns per-field summaries (discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming statistics — count, sum, min, max, mean, stddev — for numeric fields), with optional NumericPercentiles (forces buffered per-field sort), IncludeHistogram + HistogramRange + HistogramBins for fixed-width binning, DiscreteTopK truncation, and AdditiveFields contribution counts that strip the field's own filter clauses so the LLM/UI can report 'if I added value V to my filter on F, this is the population that survives'. Filterers reuse the standard FILTER_* surface. Use this instead of repeated pulse_facet calls when summarising more than one field, when you need counts (not just distinct values), or when building a faceted UI."
       },
       {
         "name": "pulse_import",
@@ -3875,6 +3879,10 @@
         "description": "Register domain-specific operators (custom AGG_*, ATTR_*, FILTER_*, GROUP_*, WIN_*, FEAT_*, TEST_*, SYNTH_*) plus expression functions and lookup tables via pulse.Options.Extensions. Use when embedding Pulse in another Go binary and you need to inject domain logic without forking the engine."
       },
       {
+        "name": "facet-design",
+        "description": "Design rich multi-field cohort summaries with the FacetSchema endpoint — per-value counts, null tallies, numeric statistics, percentiles, fixed-width histograms, and additive contribution counts for builder-UI flows."
+      },
+      {
         "name": "feature-engineering",
         "description": "Apply pre-filter FEAT_* operators — FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE, FEAT_ONE_HOT, FEAT_FREQUENCY_ENCODE, FEAT_TARGET_ENCODE, FEAT_DATE_FEATURES, FEAT_TRAIN_TEST_SPLIT — for ML pipelines. Use when preparing training data; covers the target-leakage trap and PULSE_FEAT_TARGET_LEAKAGE_RISK."
       },
@@ -3927,10 +3935,11 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 82,
+    "examples_count": 85,
     "example_categories": [
       "aggregations",
       "attributes",
+      "facet",
       "features",
       "filterers",
       "groupers",
@@ -3954,6 +3963,7 @@
       "elasticnet",
       "exact-test",
       "experiment-analysis",
+      "facet",
       "feature-engineering",
       "feature-pipeline",
       "financial",
@@ -4007,9 +4017,22 @@
       "synth_distributions": [],
       "expr_functions": [],
       "lookup_tables": []
+    },
+    "facet": {
+      "name": "facet_schema",
+      "supports_discrete": true,
+      "supports_numeric": true,
+      "supports_percentiles": true,
+      "supports_histogram": true,
+      "supports_additive": true,
+      "streamable_conditions": [
+        "NumericPercentiles is empty (percentiles force a buffered per-field value slice + sort)",
+        "IncludeHistogram=false OR HistogramRange supplies caller-known [min, max] bounds",
+        "every base filterer is row-local streamable (FILTER_INCLUDE / FILTER_EXCLUDE / FILTER_RANGE / FILTER_GEO_*)"
+      ]
     }
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3a89ad3e45783e65019130f2f0bf88254a1f4c4a97d24c775d4fac487d786be5
+// golden-hash: 6a3dcc2cb43a10f8c7b31e314bca5bddb029e4fb3cbf1f069a0767d73c1743f7

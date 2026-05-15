@@ -56,7 +56,8 @@ Every Pulse capability you have access to is a tool registered against the MCP s
 | `pulse_skills_get` | Fetch a skill body by name. | `name` |
 | `pulse_inspect` | Read a cohort header: fields, types, descriptions, dictionaries. Also binds schema-aware enums into the session's action tools. | `path` |
 | `pulse_sample` | Return N rows from the cohort for eyeballing data. | `path`, `count` |
-| `pulse_facet` | Distribution of one field (value -> count). | `path`, `field` |
+| `pulse_facet` | Distinct values for one field (categorical fast path / numeric scan). | `path`, `field` |
+| `pulse_facet_schema` | Multi-field rich facet — counts, null tallies, numeric stats, optional percentiles, histograms, and additive contribution counts. Prefer over repeated `pulse_facet` calls when summarising more than one field. | `request` (JSON-encoded `pulse.FacetRequest`) |
 | `pulse_predict` | Validate a `Request` against the cohort's schema. No execution. Reports `streamable`, `streamable_reasons`, `defaults_applied`, structured `suggestions`, plus the standard envelope. | `request` (JSON-encoded `types.Request`) |
 | `pulse_process` | Execute one `Request`. Returns rows + metadata + diagnostics envelope. | `request` |
 | `pulse_compose` | Execute a `ComposedRequest` (batch of requests against one cohort). Order-preserving. | `request` (JSON-encoded `types.ComposedRequest`) |
@@ -79,7 +80,7 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
 | `predict` | Validate a request against the schema | https://frankbardon.github.io/pulse/cli/api-predict.html |
 | `cohort inspect` | Print schema and descriptions of a `.pulse` file | https://frankbardon.github.io/pulse/cli/cohort-inspect.html |
 | `sample` | Print N rows from a cohort | https://frankbardon.github.io/pulse/cli/api-sample.html |
-| `facet` | Print value distribution for one field | https://frankbardon.github.io/pulse/cli/api-facet.html |
+| `facet` | Print distinct values for one field (or a rich multi-field summary via `--request` / repeat `--field` / `--top-k` / `--percentile` / `--histogram` / `--additive`). | https://frankbardon.github.io/pulse/cli/api-facet.html |
 | `manifest` | Print the self-description manifest | https://frankbardon.github.io/pulse/cli/manifest.html |
 | `mcp` | Serve the MCP transport over stdio | https://frankbardon.github.io/pulse/cli/mcp.html |
 | `import auto SOURCE` | Auto-detect a source format, convert into the managed `.pulse` pool, and track lifetime via TTL sidecar. Flags: `--format`, `--handle`, `--ttl` (default `7d`; accepts Go duration, day form `7d`, or `pin`), `--sheet`, `--overwrite`. Pulse-format sources pass through unchanged with no sidecar. | https://frankbardon.github.io/pulse/cli/import-auto.html |

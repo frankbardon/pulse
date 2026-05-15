@@ -1,0 +1,19 @@
+{
+  "_meta": {
+    "category": "facet",
+    "description": "Simplest FacetSchema call: per-value counts on one categorical field with no extras.",
+    "name": "facet_simple_one_field",
+    "operators": [],
+    "tags": [
+      "facet",
+      "cardinality-analysis"
+    ]
+  },
+  "cohort": {
+    "filename": "all_types.pulse",
+    "data_dir": ".data"
+  },
+  "fields": [
+    "category"
+  ]
+}

@@ -26,6 +26,7 @@ const (
 	ToolCompose        = mcptools.ToolCompose
 	ToolSample         = mcptools.ToolSample
 	ToolFacet          = mcptools.ToolFacet
+	ToolFacetSchema    = mcptools.ToolFacetSchema
 	ToolSkillsList     = mcptools.ToolSkillsList
 	ToolSkillsGet      = mcptools.ToolSkillsGet
 	ToolManifest       = mcptools.ToolManifest
@@ -43,6 +44,7 @@ const (
 	DescCompose        = mcptools.DescCompose
 	DescSample         = mcptools.DescSample
 	DescFacet          = mcptools.DescFacet
+	DescFacetSchema    = mcptools.DescFacetSchema
 	DescSkillsList     = mcptools.DescSkillsList
 	DescSkillsGet      = mcptools.DescSkillsGet
 	DescManifest       = mcptools.DescManifest
@@ -78,13 +80,15 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 	compose := handleCompose(p)
 	sample := handleSample(p)
 	facet := handleFacet(p)
+	facetSchema := handleFacetSchema(p)
 
 	handlers := boundHandlers{
-		process: process,
-		predict: predict,
-		compose: compose,
-		sample:  sample,
-		facet:   facet,
+		process:     process,
+		predict:     predict,
+		compose:     compose,
+		sample:      sample,
+		facet:       facet,
+		facetSchema: facetSchema,
 	}
 
 	s.AddTool(
@@ -135,6 +139,14 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 			mcpgo.WithString("field", mcpgo.Description("Field name to facet"), mcpgo.Required()),
 		),
 		facet,
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolFacetSchema,
+			mcpgo.WithDescription(DescFacetSchema),
+			mcpgo.WithString("request", mcpgo.Description("JSON-encoded pulse.FacetRequest. Fields: cohort.filename (path), fields (string[]), filterers (Filterer[]), additive_fields (string[]), discrete_top_k (int), numeric_percentiles (float[]), include_histogram (bool), histogram_bins (int), histogram_range ([min,max])."), mcpgo.Required()),
+		),
+		facetSchema,
 	)
 
 	s.AddTool(
@@ -381,6 +393,24 @@ func handleSample(p *pulse.Pulse) server.ToolHandlerFunc {
 			return mcpgo.NewToolResultError(err.Error()), nil
 		}
 		return jsonResult(rows)
+	}
+}
+
+func handleFacetSchema(p *pulse.Pulse) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		body, err := requestBytes(req, "request")
+		if err != nil {
+			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+		var typed pulse.FacetRequest
+		if err := json.Unmarshal(body, &typed); err != nil {
+			return mcpgo.NewToolResultError(fmt.Sprintf("parse request: %v", err)), nil
+		}
+		result, err := p.FacetSchema(ctx, &typed)
+		if err != nil {
+			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+		return jsonResult(result)
 	}
 }
 

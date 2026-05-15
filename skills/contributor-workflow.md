@@ -83,6 +83,26 @@ Same pattern as aggregator. Target skill differs:
 5. Add categorical-vs-numeric routing in `descriptor/predict.go` if applicable.
 6. Run: `go test ./skills/ -run TestSkillsCoverAllFieldTypes`.
 
+## Adding a facet capability variant
+
+The `pulse.FacetSchema` endpoint sits behind `descriptor.FacetCapability`. To
+add a new top-level facet behaviour (e.g. a streaming auto-range histogram, a
+new aggregation kind on numeric fields, a new contribution-style accumulator):
+
+1. Extend `types.FacetRequest` / `types.FacetResult` (`types/facet.go`) with
+   the new fields. Keep JSON tags backward-compatible — additive only.
+2. Implement the per-row accumulation in `service/facet_rich.go`, dispatching
+   off the schema field type via `newKindAccumulator`.
+3. Add the capability flag in `descriptor/capabilities_facet.go` so the
+   manifest exposes the new behaviour to LLM agents.
+4. Mirror the validator: `descriptor/facet.go::ValidateFacet` runs without
+   importing `service` / `processing`, so any new structural rule lands here
+   as a `SERVICE_VALIDATION` error or advisory warning.
+5. Update the JSON Schema builder in `internal/mcp/schema_bind.go`
+   (`buildFacetSchemaRequestSchema`) so the LLM sees the new fields.
+6. Update `skills/facet-design.md` and (when relevant) the example fixtures
+   under `examples/facet/`. Run `go test ./skills/ ./examples/ ./descriptor/`.
+
 ## Adding a new MCP tool
 
 1. Implement handler in `internal/mcp/`. Register in `RegisteredTools()` (`internal/mcp/tools.go`).

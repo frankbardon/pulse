@@ -92,6 +92,11 @@ type Manifest struct {
 	// pulse.Options.Extensions. Empty slices on every field for a
 	// host with no extensions.
 	Extensions ExtensionsManifest `json:"extensions"`
+
+	// Facet is the rich-facet endpoint capability descriptor. One
+	// entry today (facet_schema); future variants land under a slice
+	// when added.
+	Facet FacetCapability `json:"facet"`
 }
 
 // commands returns the default set of CLI leaf commands.
@@ -264,6 +269,7 @@ func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *Manifest {
 		ExampleCategories:  examples.AllCategories(),
 		ExampleTags:        examples.AllTags(),
 		Extensions:         extensionsManifestFromSnapshot(snap),
+		Facet:              facetCapability(),
 	}
 }
 

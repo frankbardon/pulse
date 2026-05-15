@@ -48,6 +48,8 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | Example tag taxonomy | `CanonicalTags` in `examples/library.go` + mdBook chapter `docs/src/examples/library.md` | `TestExamples_TagsFromTaxonomy` |
 | `pulse.Options.Extensions` API (Registration struct shape, ExprFunction, LookupTable, naming rules) | `skills/extension-points.md` + CLAUDE.md "Extension Points" section | `TestExtensions_NameInvalidRegex`, `TestExtensions_ProbeAggregator_StreamableMismatch`, `TestExtensions_Manifest_EmissionPopulatesAllCategories`, `TestExtensions_Predict_AcceptsCustomFeatureType`, `TestMCPSchemaBinding_IncludesCustomAggregator` |
 | Extension registration validation rule (regex, reserved namespace, ParamMeta shape) | `extensions_validate.go` + `skills/extension-points.md` + CLAUDE.md "Extension Points" section | `TestExtensions_NameInvalidRegex`, `TestExtensions_NameReservedNamespace`, `TestExtensions_ParamMetaInvalidJSONType` |
+| `FacetRequest` / `FacetResult` shape | `types/facet.go` + `skills/facet-design.md` + `descriptor/capabilities_facet.go` + `descriptor/facet.go` (`ValidateFacet`) | `TestFacetSchema_*`, `TestManifestFacetCapability` |
+| Facet streamability conditions | `descriptor/capabilities_facet.go` (`StreamableConditions`) + `skills/facet-design.md` | reviewer enforcement |
 
 The Update Demand applies recursively to itself: new trigger rows require this table to be updated in the same PR. `TestUpdateDemandTableCovers` parses this section and asserts every component category and contract type has a row.
 
@@ -85,7 +87,7 @@ pulse/
 
 CLI commands map 1:1 to manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`.
 
-`internal/mcp/` registers ten tools (one per facade method plus `pulse_ask` one-shot that collapses inspect→predict→process) and two resource schemes (`pulse://`, `pulse-skill://`).
+`internal/mcp/` registers eleven tools (one per facade method plus `pulse_ask` one-shot that collapses inspect→predict→process and `pulse_facet_schema` for multi-field rich facets) and two resource schemes (`pulse://`, `pulse-skill://`).
 
 Documentation lives in `docs/` (mdBook, published to <https://frankbardon.github.io/pulse/>). Skills under `skills/` are the LLM-facing surface.
 
@@ -183,6 +185,10 @@ Four orchestrator modes — single-pass, grouped, two-pass attributes (Welford-P
 
 `pulse.ComposeParallel(ctx, req, opts)` fans out a `ComposedRequest` over a bounded worker pool. Order-preserving by slot index. `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` (FailFast defaults true). CLI: `pulse api compose --parallel N [--no-fail-fast]`.
 
+### Facet endpoints
+
+Two facet entry points. `pulse.Facet(ctx, path, field)` is the simple distinct-values returner — categorical fast path through the dictionary, numeric fields stream the file. `pulse.FacetSchema(ctx, *FacetRequest)` is the multi-field rich endpoint: per-value counts (sorted descending by count, ties ascending by value), null tallies, Welford online numeric stats (count/sum/min/max/mean/stddev), optional `NumericPercentiles` (forces a buffered per-field sort), optional `IncludeHistogram` with caller-supplied `HistogramRange` (single-pass), optional `DiscreteTopK` truncation with `TruncatedAt` warning, and optional `AdditiveFields` contribution counts that strip the field's own clauses from a copy of the base filter. Capability descriptor lives on `Manifest.Facet`. `descriptor.ValidateFacet(data, req)` is the no-execute predict equivalent. CLI: `pulse api facet` falls back to the simple shape unless any rich flag (`--request`, repeat `--field`, `--top-k`, `--percentile`, `--histogram`, `--additive`) is set; MCP exposes both `pulse_facet` and `pulse_facet_schema`.
+
 ## Non-Skippable CI Gates
 
 CLAUDE.md hygiene:
@@ -237,7 +243,7 @@ Extension API contract:
 - `TestExtensions_Predict_AcceptsCustomFeatureType` / `TestExtensions_Predict_FlagsUnknownCustomFeature` / `TestExtensions_Predict_StreamableFlagFromSnapshot` / `TestExtensions_Predict_BufferedCustomAggregatorBlocksStreaming` / `TestExtensions_Predict_DescriptorImportContractHolds` — predict integration.
 - `TestMCPSchemaBinding_IncludesCustomAggregator` / `TestMCPSchemaBinding_BackwardCompatBindNoCustomNames` / `TestMCPSchemaBinding_DedupAndSort` — MCP schema binding.
 
-Other contract gates (not in the prefix set but load-bearing): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestRegressionStreamabilityMatchesTypes`, `TestRegressionTypesKnown`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known` (Aggregations/Attributes/Filterers/Groups/Windows/Features/Tests), `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestMCPErrorsLookup_RoundTrip`.
+Other contract gates (not in the prefix set but load-bearing): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestRegressionStreamabilityMatchesTypes`, `TestRegressionTypesKnown`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known` (Aggregations/Attributes/Filterers/Groups/Windows/Features/Tests), `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestMCPErrorsLookup_RoundTrip`, `TestFacetSchema_*`, `TestManifestFacetCapability`, `TestValidateFacet_*`.
 
 ## Build / Env
 
@@ -271,7 +277,7 @@ Full embedder-facing recipe in `skills/extension-points.md`.
 
 ## Skill Pack
 
-22 skills under `skills/`, embedded via `//go:embed`. Each skill has YAML frontmatter:
+23 skills under `skills/`, embedded via `//go:embed`. Each skill has YAML frontmatter:
 
 ```yaml
 ---
@@ -300,6 +306,7 @@ Per-component target skill:
 | CLI leaf | `skills/getting-started.md` |
 | Field type | `skills/cohort-schema-design.md` |
 | MCP tool | `skills/mcp-integration.md` |
+| Facet endpoint (FacetSchema, FacetRequest/FacetResult) | `skills/facet-design.md` |
 | Error code | `errors/fixup_metadata.go` (surfaced via `pulse_errors_lookup`) |
 | Extension API surface (registration shape, expr funcs, lookup tables) | `skills/extension-points.md` |
 
