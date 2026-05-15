@@ -45,12 +45,30 @@ type StreamingHandle struct {
 	Computer StreamingComputer
 }
 
+// lookupWithExt consults the extension overlay first, then the built-in
+// registry.
+func lookupWithExt(t types.FeatureType, ext map[types.FeatureType]Factory) (Factory, bool) {
+	if ext != nil {
+		if f, ok := ext[t]; ok {
+			return f, true
+		}
+	}
+	return Lookup(t)
+}
+
 // IsStreamable reports whether every feature's Computer implements
-// StreamingComputer. Returns false on any unknown type or factory error
-// so the buffered path can surface the canonical error.
+// StreamingComputer. Equivalent to IsStreamableWithExt(features, schema, nil).
 func IsStreamable(features []*types.Feature, schema *encoding.Schema) bool {
+	return IsStreamableWithExt(features, schema, nil)
+}
+
+// IsStreamableWithExt reports whether every feature's Computer implements
+// StreamingComputer, honouring an optional embedder overlay. Returns
+// false on any unknown type or factory error so the buffered path can
+// surface the canonical error.
+func IsStreamableWithExt(features []*types.Feature, schema *encoding.Schema, extFactories map[types.FeatureType]Factory) bool {
 	for _, feat := range features {
-		factory, ok := Lookup(feat.Type)
+		factory, ok := lookupWithExt(feat.Type, extFactories)
 		if !ok {
 			return false
 		}
@@ -65,17 +83,23 @@ func IsStreamable(features []*types.Feature, schema *encoding.Schema) bool {
 	return true
 }
 
-// BuildStreaming constructs StreamingComputer instances for each feature
-// in order. Caller should verify streamability via IsStreamable first;
+// BuildStreaming is the no-overlay variant of BuildStreamingWithExt.
+func BuildStreaming(features []*types.Feature, schema *encoding.Schema) ([]StreamingHandle, error) {
+	return BuildStreamingWithExt(features, schema, nil)
+}
+
+// BuildStreamingWithExt constructs StreamingComputer instances for each
+// feature in order, honouring an optional embedder overlay. Caller
+// should verify streamability via IsStreamable[WithExt] first;
 // PROCESSING_INTERNAL is returned when an operator lacks streaming
 // support, PROCESSING_CONFIG for unknown types or factory failures.
-func BuildStreaming(features []*types.Feature, schema *encoding.Schema) ([]StreamingHandle, error) {
+func BuildStreamingWithExt(features []*types.Feature, schema *encoding.Schema, extFactories map[types.FeatureType]Factory) ([]StreamingHandle, error) {
 	if len(features) == 0 {
 		return nil, nil
 	}
 	out := make([]StreamingHandle, 0, len(features))
 	for _, feat := range features {
-		factory, ok := Lookup(feat.Type)
+		factory, ok := lookupWithExt(feat.Type, extFactories)
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown feature type: %s", feat.Type))
@@ -95,19 +119,26 @@ func BuildStreaming(features []*types.Feature, schema *encoding.Schema) ([]Strea
 }
 
 // Apply runs every feature in features against the record set, mutating
-// records in place to add derived columns. Failures return coded errors:
+// records in place to add derived columns. Equivalent to
+// ApplyWithExt(records, features, schema, nil).
+func Apply(records []Record, features []*types.Feature, schema *encoding.Schema) error {
+	return ApplyWithExt(records, features, schema, nil)
+}
+
+// ApplyWithExt runs every feature in features against the record set,
+// honouring an optional embedder overlay. Failures return coded errors:
 // PROCESSING_CONFIG for unknown types or factory errors, PROCESSING_RUNTIME
 // for compute failures.
 //
-// Apply trusts that descriptor.Predict has validated the request shape
-// upstream; it does not re-check field existence, only operator dispatch
-// and per-operator runtime errors.
-func Apply(records []Record, features []*types.Feature, schema *encoding.Schema) error {
+// ApplyWithExt trusts that descriptor.Predict has validated the request
+// shape upstream; it does not re-check field existence, only operator
+// dispatch and per-operator runtime errors.
+func ApplyWithExt(records []Record, features []*types.Feature, schema *encoding.Schema, extFactories map[types.FeatureType]Factory) error {
 	if len(features) == 0 || len(records) == 0 {
 		return nil
 	}
 	for _, feat := range features {
-		factory, ok := Lookup(feat.Type)
+		factory, ok := lookupWithExt(feat.Type, extFactories)
 		if !ok {
 			return errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown feature type: %s", feat.Type))

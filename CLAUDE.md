@@ -8,7 +8,8 @@ Pulse is a self-describing tabular data processing engine. Ships as a Go library
 
 - **Library-first.** `pulse.go` facade (`New`, `Open`, `Process`, `Compose`, `Import`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`) is the public API. CLI never contains business logic.
 - **Self-describing.** Every `.pulse` file carries its schema in the header. `descriptor/` provides `manifest`, `predict`, `inspect` — no-execute operations.
-- **Skill-augmented.** `skills/` embeds 20 markdown skills via `//go:embed`. LLM agents call `skills.List()` / `skills.Get(name)` to inject domain guidance.
+- **Skill-augmented.** `skills/` embeds 22 markdown skills via `//go:embed`. LLM agents call `skills.List()` / `skills.Get(name)` to inject domain guidance.
+- **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators (AGG/ATTR/FILTER/GROUP/WIN/FEAT/TEST/SYNTH) + expr functions + lookup tables at `pulse.New()` time. Registered extensions are first-class — predict, manifest, MCP schema-binding, and the runtime treat them identically to built-ins. See `skills/extension-points.md`.
 - **Nexus relationship.** Pulse is standalone. Nexus (upstream orchestrator) discovers capabilities via `pulse manifest --json` and loads skills from the embedded pack. Pulse has no dependency on Nexus.
 
 For contributor recipes — adding an aggregator, attribute, filterer, grouper, window operator, feature operator, statistical test, synth distribution, I/O format, MCP tool, error code, or field type; porting; debugging predict; regenerating goldens; wiring an MCP client — read `skills/contributor-workflow.md`.
@@ -45,6 +46,8 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A natural-query parsing route | `internal/query/query.go` grammar + tests + `skills/query-router-prompt.md` + `skills/request-recipes.md` | `TestNaturalQuery_HeuristicGrammar` |
 | A request example under `examples/` | `_meta` block (unique kebab name, category matching directory, tags from canonical taxonomy, operators alphabetized + matching body) | `TestExamples_AllParseAsRequest`, `TestExamples_UniqueNames`, `TestExamples_TagsFromTaxonomy`, `TestExamples_OperatorsMatchBody`, `TestExamples_CategoryMatchesDirectory`, `TestManifestExamplesPopulated` |
 | Example tag taxonomy | `CanonicalTags` in `examples/library.go` + mdBook chapter `docs/src/examples/library.md` | `TestExamples_TagsFromTaxonomy` |
+| `pulse.Options.Extensions` API (Registration struct shape, ExprFunction, LookupTable, naming rules) | `skills/extension-points.md` + CLAUDE.md "Extension Points" section | `TestExtensions_NameInvalidRegex`, `TestExtensions_ProbeAggregator_StreamableMismatch`, `TestExtensions_Manifest_EmissionPopulatesAllCategories`, `TestExtensions_Predict_AcceptsCustomFeatureType`, `TestMCPSchemaBinding_IncludesCustomAggregator` |
+| Extension registration validation rule (regex, reserved namespace, ParamMeta shape) | `extensions_validate.go` + `skills/extension-points.md` + CLAUDE.md "Extension Points" section | `TestExtensions_NameInvalidRegex`, `TestExtensions_NameReservedNamespace`, `TestExtensions_ParamMetaInvalidJSONType` |
 
 The Update Demand applies recursively to itself: new trigger rows require this table to be updated in the same PR. `TestUpdateDemandTableCovers` parses this section and asserts every component category and contract type has a row.
 
@@ -207,6 +210,33 @@ Skill-coverage:
 - `TestSkillsCoverAllSynthDistributions` — every distribution kind in `synth.AllDistributions()` appears in `skills/synthetic-data.md`.
 - `TestSkillsCoverAllRegressions` — every `REG_*` operator appears in `skills/regression-modeling.md`.
 
+Extension API contract:
+- `TestExtensions_ValidRegistrationPasses` — round-trip a valid registration through `pulse.New`.
+- `TestExtensions_NameInvalidRegex` — name validation rejects malformed registrations.
+- `TestExtensions_NameWrongCategoryPrefix` — an `AggregatorRegistration` cannot smuggle an `ATTR_*`-prefixed name (and so on).
+- `TestExtensions_NameReservedNamespace` — `BUILTIN/STANDARD/CORE/PULSE` namespaces rejected.
+- `TestExtensions_CollisionWithBuiltin` — registering a built-in name returns `PULSE_EXTENSION_NAME_COLLISION`.
+- `TestExtensions_DuplicateWithinCategory` — duplicate registration in same category rejected.
+- `TestExtensions_DuplicateAcrossCategoriesAllowed` — same suffix is fine across category prefixes.
+- `TestExtensions_ParamMetaInvalidJSONType` / `TestExtensions_ParamMetaEmptyName` / `TestExtensions_ParamMetaRequiredWithDefault` — ParamMeta validation.
+- `TestExtensions_AttributeModeRequired` / `TestExtensions_AttributeModeUnknown` — attribute Mode enforcement.
+- `TestExtensions_TestTierMissingFactory` / `TestExtensions_TestTierBothFactoriesSet` — test tier ↔ factory pairing.
+- `TestExtensions_ExprFunctionEmptyName` / `TestExtensions_ExprFunctionNilFn` / `TestExtensions_ExprFunctionDuplicate` — expr-function validation.
+- `TestExtensions_LookupTableRowsOK` / `TestExtensions_LookupTableFuncOK` / `TestExtensions_LookupTableNeitherOrBoth` — exactly-one-of Rows/Lookup.
+- `TestExtensions_ProbeAggregator_StreamableMismatch` — Streamable=true with buffered-only factory.
+- `TestExtensions_ProbeAggregator_NonStreamableAccepted` — non-streamable registration accepts buffered-only factory.
+- `TestExtensions_ProbeAggregator_FactoryPanicCaught` / `TestExtensions_ProbeAggregator_FactoryReturnsError` / `TestExtensions_ProbeAggregator_FactoryReturnsNil` — probe error surface.
+- `TestExtensions_ProbeAttribute_RowLocalMismatch` / `TestExtensions_ProbeAttribute_TwoPassMismatch` / `TestExtensions_ProbeAttribute_BufferedAcceptsAnyComputer` — attribute Mode ↔ interface contract.
+- `TestExtensions_RegistryInstalledOnService` / `TestExtensions_ZeroValueProducesNilRegistry` / `TestExtensions_RegistryIsolationAcrossInstances` / `TestExtensions_RegistryFallsThroughToBuiltins` / `TestExtensions_OnlyExprEntriesYieldsRegistry` / `TestExtensions_AttributeStreamabilityFromMode` — Service-side wiring.
+- `TestExtensionRegistry_NilFallsThroughToBuiltin` / `TestExtensionRegistry_OverlayWinsOverBuiltin` / `TestExtensionRegistry_CustomAggregatorResolves` / `TestExtensionRegistry_IsStreamableOverridesBuiltin` / `TestExtensionRegistry_IsStreamableFallsBackToTypeSwitch` / `TestExtensionRegistry_IsolationBetweenRegistries` / `TestExtensionRegistry_CustomNamesEnumerateOverlayOnly` — overlay-registry semantics.
+- `TestExtensions_AggregatorRoundTrip_Streaming` / `_Buffered` / `_OverlayOverridesBuiltin` — aggregator end-to-end.
+- `TestExtensions_AttributeRoundTrip_RowLocal` / `_Buffered` — attribute end-to-end.
+- `TestExtensions_FiltererRoundTrip` / `TestExtensions_GrouperRoundTrip` / `TestExtensions_WindowRoundTrip` / `TestExtensions_FeatureRoundTrip` / `TestExtensions_TestRoundTrip_Tier1` / `TestExtensions_TestRoundTrip_Tier2` — remaining categories.
+- `TestExtensions_ExprFunction_AvailableInFormula` / `TestExtensions_LookupTable_AvailableInFormula` / `TestExtensions_LookupTable_AvailableInFilterExpression` / `TestExtensions_LookupTable_UnknownReturnsCodedError` / `TestExtensions_LookupTable_MissReturnsCodedError` / `TestExtensions_LookupTable_FuncBackedResolves` — expr env round-trip.
+- `TestExtensions_Manifest_EmissionPopulatesAllCategories` / `TestExtensions_Manifest_EmptyWhenNoExtensions` / `TestExtensions_Manifest_DeterministicSort` — manifest emission.
+- `TestExtensions_Predict_AcceptsCustomFeatureType` / `TestExtensions_Predict_FlagsUnknownCustomFeature` / `TestExtensions_Predict_StreamableFlagFromSnapshot` / `TestExtensions_Predict_BufferedCustomAggregatorBlocksStreaming` / `TestExtensions_Predict_DescriptorImportContractHolds` — predict integration.
+- `TestMCPSchemaBinding_IncludesCustomAggregator` / `TestMCPSchemaBinding_BackwardCompatBindNoCustomNames` / `TestMCPSchemaBinding_DedupAndSort` — MCP schema binding.
+
 Other contract gates (not in the prefix set but load-bearing): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestRegressionStreamabilityMatchesTypes`, `TestRegressionTypesKnown`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known` (Aggregations/Attributes/Filterers/Groups/Windows/Features/Tests), `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestMCPErrorsLookup_RoundTrip`.
 
 ## Build / Env
@@ -221,9 +251,27 @@ Other contract gates (not in the prefix set but load-bearing): `TestManifestOper
 
 Hermetic testing: `fs.NewMemMap()` returns a `Config` backed by `afero.NewMemMapFs()`. No disk I/O.
 
+## Extension Points
+
+`pulse.Options.Extensions` is the public surface for embedders that need to inject domain-specific operators or expression-runtime extensions without forking the engine. Eight operator categories plus expression functions and lookup tables. Registration happens at `pulse.New()` time; restart to change the registered set.
+
+**Naming policy:** custom operator names match `^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$` — three uppercase ASCII segments separated by underscores. Namespaces `BUILTIN`, `STANDARD`, `CORE`, `PULSE` are reserved. Collision with a built-in name is rejected. Validation runs in this order at `pulse.New`: regex/reserved/collision/duplicate → probe-validation (factory invocation + interface check) → runtime registration.
+
+**Probe-validation:** the engine constructs each registered factory once against a minimal synthetic schema. Streamable-flagged registrations must return the corresponding streaming interface (`OnlineAggregator` / `RowLocalAttribute` / `TwoPassAttribute`). Mismatch → `PULSE_EXTENSION_STREAMABLE_MISMATCH`. Factory panics are caught and surface as `PULSE_EXTENSION_FACTORY_PANIC`.
+
+**Expression environment:** `ExprFunctions` are merged into the expr-lang environment used by `ATTR_FORMULA` and `FILTER_EXPRESSION`. `LookupTables` are reachable via the built-in `lookup(table, keys...)` function, which is auto-injected when at least one table is registered. Rows-backed tables join keys with `|`; function-backed tables receive the raw `[]string` slice. Unknown table → `PULSE_LOOKUP_TABLE_UNKNOWN`. Missing key → `PULSE_LOOKUP_MISS`.
+
+**Manifest visibility:** the root manifest carries a top-level `extensions` block listing every registered operator + expr function + lookup table (with `has_rows_data` to distinguish static maps from function-driven tables). The schema-bound MCP tools (post-`pulse_inspect`) include custom names in their per-category enums.
+
+**Snapshot pattern:** `descriptor.ExtensionsSnapshot` is the read-only projection passed into `descriptor.PredictOptions.Extensions` and `mcp.BindSessionToolsWithExtensions`. Built by `pulse.New` via `buildExtensionsSnapshot`, cached on the Service. Predict and the schema binder consume the snapshot only — descriptor stays free of `service/` and `processing/` imports (gated by `TestPredictNoExecutionImports`).
+
+The embedder-facing surface lives in `extensions.go` (types), `extensions_validate.go` (validation), `extensions_probe.go` (probe-validation), `extensions_runtime.go` (runtime registry conversion), and `extensions_snapshot.go` (manifest/predict snapshot). The runtime-side overlay lives in `processing/extensions.go`.
+
+Full embedder-facing recipe in `skills/extension-points.md`.
+
 ## Skill Pack
 
-21 skills under `skills/`, embedded via `//go:embed`. Each skill has YAML frontmatter:
+22 skills under `skills/`, embedded via `//go:embed`. Each skill has YAML frontmatter:
 
 ```yaml
 ---
@@ -253,6 +301,7 @@ Per-component target skill:
 | Field type | `skills/cohort-schema-design.md` |
 | MCP tool | `skills/mcp-integration.md` |
 | Error code | `errors/fixup_metadata.go` (surfaced via `pulse_errors_lookup`) |
+| Extension API surface (registration shape, expr funcs, lookup tables) | `skills/extension-points.md` |
 
 **Current registered counts** (full lists in each skill, enforced by coverage gates): 18 aggregators, 9 attributes, 6 filterers, 6 groupers, 10 window operators, 9 feature operators, 20 statistical tests (18 tier-1 row tests + tier-2 variants), 12 synth distributions, 3 regressions.
 

@@ -52,11 +52,21 @@ func (p ProcessPath) String() string {
 type Processor struct {
 	schema   *encoding.Schema
 	lastPath ProcessPath
+	exts     *ExtensionRegistry
 }
 
-// NewProcessor creates a new Processor for the given schema.
+// NewProcessor creates a new Processor for the given schema. The
+// resulting Processor uses only Pulse-shipped operator factories;
+// embedder extensions land via NewProcessorWithExtensions.
 func NewProcessor(schema *encoding.Schema) *Processor {
 	return &Processor{schema: schema}
+}
+
+// NewProcessorWithExtensions creates a Processor whose operator
+// lookups consult exts before falling through to the built-in
+// registries. Passing nil is equivalent to NewProcessor.
+func NewProcessorWithExtensions(schema *encoding.Schema, exts *ExtensionRegistry) *Processor {
+	return &Processor{schema: schema, exts: exts}
 }
 
 // LastPath returns the ProcessPath taken by the most recent Process call
@@ -197,7 +207,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 		}
 	}
 	if len(req.Tests) > 0 {
-		if !canRunRowTests(req.Tests) {
+		if !canRunRowTests(req.Tests, p.exts) {
 			return false
 		}
 		for _, t := range req.Tests {
@@ -234,7 +244,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if hasTwoPassAttr && (len(req.Features) > 0 || len(req.Groups) > 0) {
 		return false
 	}
-	if len(req.Features) > 0 && !feature.IsStreamable(req.Features, p.schema) {
+	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.exts.FeatureFactories()) {
 		return false
 	}
 	if len(req.Aggregations) == 0 {
@@ -256,7 +266,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 				return false
 			}
 		}
-		factory, ok := aggregatorRegistry[agg.Type]
+		factory, ok := p.exts.LookupAggregator(agg.Type)
 		if !ok {
 			return false
 		}
@@ -289,7 +299,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// PROCESSING_CONFIG bubbling up the canonical error.
 	var streamingFeatures []feature.StreamingHandle
 	if len(req.Features) > 0 {
-		handles, err := feature.BuildStreaming(req.Features, p.schema)
+		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.FeatureFactories())
 		if err != nil {
 			return nil, err
 		}
@@ -327,7 +337,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	}
 	entries := make([]onlineEntry, len(req.Aggregations))
 	for i, agg := range req.Aggregations {
-		factory := aggregatorRegistry[agg.Type] // canStream verified existence
+		factory, _ := p.exts.LookupAggregator(agg.Type) // canStream verified existence
 		instance, err := factory(agg, p.schema)
 		if err != nil {
 			return nil, err
@@ -502,7 +512,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
 	EnableReuse(iter)
 	grp := req.Groups[0]
-	grouperFactory, ok := grouperRegistry[grp.Type]
+	grouperFactory, ok := p.exts.LookupGrouper(grp.Type)
 	if !ok {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
@@ -525,7 +535,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 	specs := make([]aggSpec, len(req.Aggregations))
 	for i, agg := range req.Aggregations {
-		factory := aggregatorRegistry[agg.Type] // canStream verified
+		factory, _ := p.exts.LookupAggregator(agg.Type) // canStream verified
 		label := agg.Label
 		if label == "" {
 			label = fmt.Sprintf("%s_%s", agg.Type, agg.Field)
@@ -536,7 +546,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	// Build feature handles + filter funcs + row-local attrs once.
 	var streamingFeatures []feature.StreamingHandle
 	if len(req.Features) > 0 {
-		handles, err := feature.BuildStreaming(req.Features, p.schema)
+		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.FeatureFactories())
 		if err != nil {
 			return nil, err
 		}
@@ -702,7 +712,7 @@ type twoPassAttrEntry struct {
 // validation path; only the runtime drive differs.
 func (p *Processor) buildTwoPassAttributes(attrs []*types.Attribute) (twoPass []twoPassAttrEntry, rowLocal []rowLocalAttrEntry, err error) {
 	for _, attr := range attrs {
-		factory, ok := attributeRegistry[attr.Type]
+		factory, ok := p.exts.LookupAttribute(attr.Type)
 		if !ok {
 			return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown attribute type: %s", attr.Type))
@@ -710,6 +720,9 @@ func (p *Processor) buildTwoPassAttributes(attrs []*types.Attribute) (twoPass []
 		computer, factoryErr := factory(attr, p.schema)
 		if factoryErr != nil {
 			return nil, nil, factoryErr
+		}
+		if aware, ok := computer.(ExtensionAware); ok {
+			aware.SetExtensions(p.exts)
 		}
 		label := attr.Label
 		if label == "" {
@@ -761,7 +774,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	}
 	entries := make([]onlineEntry, len(req.Aggregations))
 	for i, agg := range req.Aggregations {
-		factory := aggregatorRegistry[agg.Type]
+		factory, _ := p.exts.LookupAggregator(agg.Type)
 		instance, err := factory(agg, p.schema)
 		if err != nil {
 			return nil, err
@@ -902,7 +915,7 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 	}
 	out := make([]rowLocalAttrEntry, 0, len(attrs))
 	for _, attr := range attrs {
-		factory, ok := attributeRegistry[attr.Type]
+		factory, ok := p.exts.LookupAttribute(attr.Type)
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown attribute type: %s", attr.Type))
@@ -910,6 +923,9 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 		computer, err := factory(attr, p.schema)
 		if err != nil {
 			return nil, err
+		}
+		if aware, ok := computer.(ExtensionAware); ok {
+			aware.SetExtensions(p.exts)
 		}
 		rowLocal, ok := computer.(RowLocalAttribute)
 		if !ok {
@@ -934,12 +950,16 @@ func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc,
 	}
 	out := make([]FilterFunc, 0, len(filterers))
 	for _, f := range filterers {
-		factory, ok := filtererRegistry[f.Type]
+		factory, ok := p.exts.LookupFilterer(f.Type)
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown filter type: %s", f.Type))
 		}
-		fn, err := factory().Build(f, p.schema)
+		builder := factory()
+		if aware, ok := builder.(ExtensionAware); ok {
+			aware.SetExtensions(p.exts)
+		}
+		fn, err := builder.Build(f, p.schema)
 		if err != nil {
 			return nil, err
 		}
@@ -1008,7 +1028,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	if len(req.Windows) > 0 {
-		if err := window.Apply(ctx, data, req.Windows); err != nil {
+		if err := window.ApplyWithExt(ctx, data, req.Windows, p.exts.WindowFactories()); err != nil {
 			return nil, err
 		}
 	}
@@ -1140,12 +1160,12 @@ func (p *Processor) applyFeatures(features []*types.Feature, records []*Record) 
 	for i, r := range records {
 		view[i] = r
 	}
-	return feature.Apply(view, features, p.schema)
+	return feature.ApplyWithExt(view, features, p.schema, p.exts.FeatureFactories())
 }
 
 func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record) error {
 	for _, attr := range attrs {
-		factory, ok := attributeRegistry[attr.Type]
+		factory, ok := p.exts.LookupAttribute(attr.Type)
 		if !ok {
 			return errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown attribute type: %s", attr.Type))
@@ -1153,6 +1173,9 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 		computer, err := factory(attr, p.schema)
 		if err != nil {
 			return err
+		}
+		if aware, ok := computer.(ExtensionAware); ok {
+			aware.SetExtensions(p.exts)
 		}
 		values, err := computer.Compute(records, attr.Field)
 		if err != nil {
@@ -1179,7 +1202,7 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map[string]any, error) {
 	// Use the first group for now (single-level grouping)
 	grp := req.Groups[0]
-	factory, ok := grouperRegistry[grp.Type]
+	factory, ok := p.exts.LookupGrouper(grp.Type)
 	if !ok {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
@@ -1254,7 +1277,7 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 				continue
 			}
 		}
-		factory, ok := aggregatorRegistry[agg.Type]
+		factory, ok := p.exts.LookupAggregator(agg.Type)
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown aggregation type: %s", agg.Type))

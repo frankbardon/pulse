@@ -732,4 +732,89 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+
+	// ---------- PULSE — EXTENSIONS / LOOKUP ----------
+	PULSE_EXTENSION_NAME_INVALID: {
+		Message: "An embedder registration name does not match the required pattern <CATEGORY>_<NAMESPACE>_<NAME> with uppercase ASCII segments.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_[A-Z][A-Z0-9]+_[A-Z][A-Z0-9_]+$, e.g. AGG_ACME_BRAND_SCORE.",
+				Examples: []any{"AGG_ACME_BRAND_SCORE", "ATTR_ACME_ADJUSTMENT"},
+			},
+		},
+	},
+	PULSE_EXTENSION_NAME_RESERVED: {
+		Message: "An embedder registration uses a namespace segment reserved for Pulse internals (BUILTIN / STANDARD / CORE / PULSE).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Pick a namespace that matches the embedder module (e.g. ACME for a fictional embedder); reserved namespaces are off-limits.",
+			},
+		},
+	},
+	PULSE_EXTENSION_NAME_COLLISION: {
+		Message: "An embedder registration name matches a built-in operator name within the same category.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Choose a non-colliding namespaced name; built-in names are reserved for the Pulse-shipped registry.",
+			},
+		},
+	},
+	PULSE_EXTENSION_DUPLICATE: {
+		Message: "The same operator name was registered more than once in a single pulse.New call.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Drop the redundant registration; only one Factory may bind a given name per Service.",
+			},
+		},
+	},
+	PULSE_EXTENSION_STREAMABLE_MISMATCH: {
+		Message: "A registration declared streaming capability but its factory did not return the required streaming interface.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Either implement the streaming interface (OnlineAggregator / RowLocalAttribute / TwoPassAttribute) on the returned type, or flip Streamable=false / Mode=buffered to use the buffered path.",
+			},
+		},
+	},
+	PULSE_EXTENSION_FACTORY_PANIC: {
+		Message: "An embedder factory panicked during probe-validation at registration time.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Factories must tolerate a minimal synthetic spec + schema during probe; guard against nil inputs and avoid panics. Use coded errors instead.",
+			},
+		},
+	},
+	PULSE_EXTENSION_PARAM_INVALID: {
+		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true.",
+				Examples: []any{"string", "number", "boolean", "array", "object"},
+			},
+		},
+	},
+	PULSE_LOOKUP_TABLE_UNKNOWN: {
+		Message: "A runtime expression referenced a lookup table that is not registered on the Service.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Register the table in pulse.Options.Extensions.LookupTables before calling pulse.New, or correct the table name in the expression.",
+			},
+		},
+	},
+	PULSE_LOOKUP_MISS: {
+		Message: "A lookup() call provided a key tuple that is not present in the table.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Verify the keys passed to lookup() exist in the registered table, or back the table with a Lookup func that returns a sentinel for unknown keys.",
+			},
+		},
+	},
 }

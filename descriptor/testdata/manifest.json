@@ -2757,7 +2757,7 @@
         ]
       }
     ],
-    "error_codes_count": 75,
+    "error_codes_count": 84,
     "error_domains": [
       "CLI",
       "DATA",
@@ -2799,6 +2799,13 @@
       "PULSE_DECIMAL_OVERFLOW",
       "PULSE_DECIMAL_PRECISION_LOSS",
       "PULSE_EXPORT_ROW_ERROR",
+      "PULSE_EXTENSION_DUPLICATE",
+      "PULSE_EXTENSION_FACTORY_PANIC",
+      "PULSE_EXTENSION_NAME_COLLISION",
+      "PULSE_EXTENSION_NAME_INVALID",
+      "PULSE_EXTENSION_NAME_RESERVED",
+      "PULSE_EXTENSION_PARAM_INVALID",
+      "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEAT_TARGET_LEAKAGE_RISK",
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
       "PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS",
@@ -2814,6 +2821,8 @@
       "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
+      "PULSE_LOOKUP_MISS",
+      "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_QUERY_AMBIGUOUS",
       "PULSE_QUERY_UNRESOLVED",
@@ -3862,6 +3871,10 @@
         "description": "Pick the right export format — CSV (universal), TSV, NDJSON, JSON array, Parquet (columnar analytics), Arrow IPC (zero-copy handoff), Excel (humans). Use when wiring Process output into a downstream tool or warehouse."
       },
       {
+        "name": "extension-points",
+        "description": "Register domain-specific operators (custom AGG_*, ATTR_*, FILTER_*, GROUP_*, WIN_*, FEAT_*, TEST_*, SYNTH_*) plus expression functions and lookup tables via pulse.Options.Extensions. Use when embedding Pulse in another Go binary and you need to inject domain logic without forking the engine."
+      },
+      {
         "name": "feature-engineering",
         "description": "Apply pre-filter FEAT_* operators — FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE, FEAT_ONE_HOT, FEAT_FREQUENCY_ENCODE, FEAT_TARGET_ENCODE, FEAT_DATE_FEATURES, FEAT_TRAIN_TEST_SPLIT — for ML pipelines. Use when preparing training data; covers the target-leakage trap and PULSE_FEAT_TARGET_LEAKAGE_RISK."
       },
@@ -3982,9 +3995,21 @@
       "trend-detection",
       "two-sample",
       "window-operator"
-    ]
+    ],
+    "extensions": {
+      "aggregators": [],
+      "attributes": [],
+      "filterers": [],
+      "groupers": [],
+      "windows": [],
+      "features": [],
+      "tests": [],
+      "synth_distributions": [],
+      "expr_functions": [],
+      "lookup_tables": []
+    }
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2c2b3eb3c68264b780381c4775703bb84533b2d3a9197469e1dfbb1bf2cbfe33
+// golden-hash: 3a89ad3e45783e65019130f2f0bf88254a1f4c4a97d24c775d4fac487d786be5

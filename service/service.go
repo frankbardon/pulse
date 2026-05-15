@@ -18,8 +18,10 @@ import (
 
 // Service is the orchestration layer connecting filesystem, encoding, and processing.
 type Service struct {
-	fs              *fs.Config
-	disableDefaults bool
+	fs               *fs.Config
+	disableDefaults  bool
+	extensions       *processing.ExtensionRegistry
+	extensionsSnap   *descriptor.ExtensionsSnapshot
 }
 
 // New creates a new Service with the given filesystem configuration.
@@ -35,6 +37,34 @@ func New(fsConfig *fs.Config) *Service {
 // only what the runtime mutates before Process / Compose execution.
 func (s *Service) SetDisableDefaults(disabled bool) {
 	s.disableDefaults = disabled
+}
+
+// SetExtensions installs an ExtensionRegistry containing embedder-
+// registered operator overlays. The registry is read-only after this
+// call; pass nil to clear. The processor consults this registry
+// before falling through to built-in factories.
+func (s *Service) SetExtensions(r *processing.ExtensionRegistry) {
+	s.extensions = r
+}
+
+// Extensions returns the installed ExtensionRegistry, or nil when no
+// extensions are registered. Exposed for descriptor/manifest emission
+// and MCP schema-binding paths.
+func (s *Service) Extensions() *processing.ExtensionRegistry {
+	return s.extensions
+}
+
+// SetExtensionsSnapshot installs the descriptor-side projection of
+// the registered extensions for manifest + predict consumption. Pass
+// nil to clear; pulse.New populates this alongside SetExtensions.
+func (s *Service) SetExtensionsSnapshot(snap *descriptor.ExtensionsSnapshot) {
+	s.extensionsSnap = snap
+}
+
+// ExtensionsSnapshot returns the descriptor-side projection of the
+// registered extensions, or nil when no extensions are installed.
+func (s *Service) ExtensionsSnapshot() *descriptor.ExtensionsSnapshot {
+	return s.extensionsSnap
 }
 
 // applyDefaults runs descriptor.ResolveDefaults against the cohort schema
@@ -97,7 +127,7 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	iter := newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
 	defer iter.Close()
 
-	proc := processing.NewProcessor(cohort.Schema())
+	proc := processing.NewProcessorWithExtensions(cohort.Schema(), s.extensions)
 	resp, err := proc.Process(ctx, req, iter)
 	if err != nil {
 		return nil, err
@@ -194,7 +224,7 @@ func (s *Service) Ask(ctx context.Context, in AskInput) (*AskOutput, error) {
 			fmt.Sprintf("ask: reading cohort file: %s", path))
 	}
 
-	env := descriptor.PredictFromBytes(data, in.Request, nil)
+	env := descriptor.PredictFromBytes(data, in.Request, &descriptor.PredictOptions{Extensions: s.extensionsSnap})
 	result, _ := env.Data.(*descriptor.PredictResult)
 	if result == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_INTERNAL,

@@ -62,7 +62,7 @@ func validateTests(env *Envelope, req *types.Request, schema *encoding.Schema, p
 
 func validateOneTest(env *Envelope, t *types.Test, schema *encoding.Schema, projected map[string]bool, tier1 bool, opts *PredictOptions) {
 	// Unknown type — emitted as an error regardless of strict mode.
-	if !isKnownTestType(t.Type) {
+	if !isKnownTestType(t.Type) && !isExtensionTestType(opts, t.Type) {
 		env.AddError(string(errors.PULSE_TEST_UNKNOWN_TYPE),
 			"unknown test type: "+string(t.Type),
 			map[string]any{"type": string(t.Type)})

@@ -241,7 +241,7 @@ func bindSessionFromPath(ctx context.Context, s *server.MCPServer, p *pulse.Puls
 	if err != nil {
 		return
 	}
-	_ = BindSessionTools(s, session.SessionID(), cohort.Schema(), handlers)
+	_ = BindSessionToolsWithExtensions(s, session.SessionID(), cohort.Schema(), p.Service().ExtensionsSnapshot(), handlers)
 }
 
 func handleInspect(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool, handlers boundHandlers) server.ToolHandlerFunc {

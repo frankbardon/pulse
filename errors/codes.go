@@ -352,6 +352,50 @@ const (
 	// warning names every candidate so the caller can disambiguate
 	// by editing the resolved request.
 	PULSE_QUERY_AMBIGUOUS Code = "PULSE_QUERY_AMBIGUOUS"
+
+	// PULSE_EXTENSION_NAME_INVALID indicates an embedder registration
+	// name does not match the required pattern
+	// <CATEGORY>_<NAMESPACE>_<NAME> with uppercase ASCII segments.
+	PULSE_EXTENSION_NAME_INVALID Code = "PULSE_EXTENSION_NAME_INVALID"
+
+	// PULSE_EXTENSION_NAME_RESERVED indicates an embedder registration
+	// uses a namespace segment reserved for Pulse internals
+	// (BUILTIN / STANDARD / CORE / PULSE).
+	PULSE_EXTENSION_NAME_RESERVED Code = "PULSE_EXTENSION_NAME_RESERVED"
+
+	// PULSE_EXTENSION_NAME_COLLISION indicates an embedder registration
+	// name matches a built-in operator name within the same category.
+	PULSE_EXTENSION_NAME_COLLISION Code = "PULSE_EXTENSION_NAME_COLLISION"
+
+	// PULSE_EXTENSION_DUPLICATE indicates the same operator name was
+	// registered more than once within a single pulse.New call (same
+	// category).
+	PULSE_EXTENSION_DUPLICATE Code = "PULSE_EXTENSION_DUPLICATE"
+
+	// PULSE_EXTENSION_STREAMABLE_MISMATCH indicates a registration
+	// declared Streamable=true but its factory returned an instance
+	// that does not implement the required streaming interface, or
+	// declared Mode=row_local / Mode=two_pass without the corresponding
+	// attribute interface.
+	PULSE_EXTENSION_STREAMABLE_MISMATCH Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
+
+	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
+	// panicked during probe-validation at registration time.
+	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
+
+	// PULSE_EXTENSION_PARAM_INVALID indicates a ParamMeta entry on a
+	// registration has missing or contradictory fields (empty name,
+	// unknown JSONType, Required=true with a non-nil Default).
+	PULSE_EXTENSION_PARAM_INVALID Code = "PULSE_EXTENSION_PARAM_INVALID"
+
+	// PULSE_LOOKUP_TABLE_UNKNOWN indicates a runtime expression
+	// referenced a lookup table that is not registered on the
+	// Service.
+	PULSE_LOOKUP_TABLE_UNKNOWN Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
+
+	// PULSE_LOOKUP_MISS indicates a lookup table call provided a key
+	// tuple that is not present in the table.
+	PULSE_LOOKUP_MISS Code = "PULSE_LOOKUP_MISS"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -438,6 +482,15 @@ var allCodes = []Code{
 	PULSE_TEST_FISHER_R_OR_C_GT_2,
 	PULSE_QUERY_UNRESOLVED,
 	PULSE_QUERY_AMBIGUOUS,
+	PULSE_EXTENSION_NAME_INVALID,
+	PULSE_EXTENSION_NAME_RESERVED,
+	PULSE_EXTENSION_NAME_COLLISION,
+	PULSE_EXTENSION_DUPLICATE,
+	PULSE_EXTENSION_STREAMABLE_MISMATCH,
+	PULSE_EXTENSION_FACTORY_PANIC,
+	PULSE_EXTENSION_PARAM_INVALID,
+	PULSE_LOOKUP_TABLE_UNKNOWN,
+	PULSE_LOOKUP_MISS,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

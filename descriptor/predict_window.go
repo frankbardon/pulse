@@ -177,7 +177,7 @@ func validateWindows(env *Envelope, req *types.Request, schema *encoding.Schema,
 		idx := strconv.Itoa(i)
 
 		// Unknown type.
-		if !validTypes[w.Type] {
+		if !validTypes[w.Type] && !isExtensionWindowType(opts, w.Type) {
 			env.AddError(
 				string(errors.PULSE_WINDOW_INVALID),
 				"window["+idx+"]: unknown window type "+string(w.Type),
