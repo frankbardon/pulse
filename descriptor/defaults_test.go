@@ -42,15 +42,13 @@ func TestDefaults_Applied(t *testing.T) {
 		{encoding.FieldTypeDate, "", types.GROUP_DATE},
 		{encoding.FieldTypeNullableBool, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
 		{encoding.FieldTypePackedBool, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
-		{encoding.FieldTypePointF64, types.AGG_GEO_CENTROID, types.GROUP_H3_CELL},
-		{encoding.FieldTypeH3Cell, types.AGG_GEO_CENTROID, types.GROUP_H3_CELL},
 	}
 
 	// Verify coverage matches the FieldType enum exactly: every known
 	// field type must appear in the table (catches new types added to
 	// encoding without a corresponding default rule decision).
-	if got := len(cases); got != 19 {
-		t.Fatalf("defaults table covers %d field types; expected 19", got)
+	if got := len(cases); got != 17 {
+		t.Fatalf("defaults table covers %d field types; expected 17", got)
 	}
 
 	for _, tc := range cases {
@@ -204,22 +202,6 @@ func TestDefaults_GroupParamsFilled(t *testing.T) {
 		t.Errorf("GROUP_RANGE default Interval = %v; want 10", got)
 	}
 
-	// GROUP_H3_CELL picks up resolution = 7.
-	h3 := &types.Request{Groups: []*types.Group{{Field: "loc"}}}
-	ResolveDefaults(h3, schemaForType("loc", encoding.FieldTypePointF64))
-	if got := h3.Groups[0].Type; got != types.GROUP_H3_CELL {
-		t.Fatalf("point_f64 grouper default = %q; want GROUP_H3_CELL", got)
-	}
-	var h3Params struct {
-		Resolution int `json:"resolution"`
-	}
-	if err := json.Unmarshal(h3.Groups[0].Params, &h3Params); err != nil {
-		t.Fatalf("H3 default params not JSON: %v", err)
-	}
-	if h3Params.Resolution != 7 {
-		t.Errorf("H3 default resolution = %d; want 7", h3Params.Resolution)
-	}
-
 	// GROUP_DATE picks up component = "day".
 	dt := &types.Request{Groups: []*types.Group{{Field: "dt"}}}
 	ResolveDefaults(dt, schemaForType("dt", encoding.FieldTypeDate))
@@ -249,16 +231,6 @@ func TestDefaults_ExplicitParamsPreserved(t *testing.T) {
 		t.Errorf("explicit Interval overwritten: got %v; want 42", got)
 	}
 
-	// GROUP_H3_CELL with explicit Params.
-	h3 := &types.Request{
-		Groups: []*types.Group{
-			{Field: "loc", Params: []byte(`{"resolution":9}`)},
-		},
-	}
-	ResolveDefaults(h3, schemaForType("loc", encoding.FieldTypePointF64))
-	if !bytes.Contains(h3.Groups[0].Params, []byte(`"resolution":9`)) {
-		t.Errorf("explicit H3 params overwritten: %s", h3.Groups[0].Params)
-	}
 }
 
 // TestPredict_DefaultsAppliedReported verifies that predict's envelope

@@ -29,7 +29,7 @@ copy that file's rules when in doubt.
   domains listed in CLAUDE.md (`ENCODING`, `PROCESSING`, `SERVICE`,
   `DATA`, `CLI`, `PULSE`).
 - **Field types** use lowercase snake (`u8`, `nullable_bool`,
-  `categorical_u16`, `decimal128`, `point_f64`, `h3_cell`).
+  `categorical_u16`, `decimal128`).
 
 ## Structural bans
 

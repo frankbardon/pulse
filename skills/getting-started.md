@@ -14,7 +14,7 @@ Pulse is a self-describing tabular processing engine over `.pulse` cohort files.
 <reference>
 ## What Pulse is, in three paragraphs
 
-A `.pulse` file is a binary cohort: a fixed-width header carrying a typed schema, optional categorical dictionaries, and a record region. Every column has a declared type from a closed set of 19 (`u8`..`categorical_u32`, `decimal128`, `point_f64`, `h3_cell`, ...). Pulse never infers types at query time; the schema in the header is the contract.
+A `.pulse` file is a binary cohort: a fixed-width header carrying a typed schema, optional categorical dictionaries, and a record region. Every column has a declared type from a closed set of 17 (`u8`..`categorical_u32`, `decimal128`, ...). Pulse never infers types at query time; the schema in the header is the contract.
 
 A Pulse `Request` is a JSON document that names a cohort plus the operators to apply: filterers, features, attributes, groupers, aggregators, windows, sort, and statistical tests. The engine validates the request against the cohort schema before running anything, then executes the pipeline in a fixed order and returns a typed envelope of rows, metadata, and any diagnostics.
 
@@ -28,12 +28,12 @@ Self-description is structural: the engine publishes a `Manifest` that names eve
 |---|---|
 | Cohort | A `.pulse` binary file: schema header + fixed-width records. |
 | Schema | Field list (name, type, description) embedded in the cohort header. |
-| Field | One column. Typed with one of 19 field types (`u8` ... `h3_cell`). |
+| Field | One column. Typed with one of 17 field types (`u8` ... `nullable_decimal128`). |
 | Record | One row. Fixed-width binary block. |
-| Aggregation | One of 18 `AGG_*` ops (COUNT, SUM, AVERAGE, ...) producing a per-group scalar. |
+| Aggregation | One of 16 `AGG_*` ops (COUNT, SUM, AVERAGE, ...) producing a per-group scalar. |
 | Attribute | One of 6 `ATTR_*` ops producing a per-record derived value. |
-| Filterer | One of 6 `FILTER_*` predicates run before grouping. |
-| Grouper | One of 6 `GROUP_*` partition strategies run before aggregation. |
+| Filterer | One of 5 `FILTER_*` predicates run before grouping. |
+| Grouper | One of 5 `GROUP_*` partition strategies run before aggregation. |
 | Window | One of 10 `WIN_*` operators run after aggregation. |
 | Feature | One of 8 `FEAT_*` ML pre-filter operators. |
 | Test | One of 20 `TEST_*` operators (tier-1 row tests in `tests[]`, tier-2 post tests in `post_tests[]`). |
@@ -187,7 +187,6 @@ When an `aggregations[]` or `groups[]` slot names a `field` but omits `type`, Pu
 | `categorical_u8`/`u16`/`u32` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
 | `date` | (none — must be explicit) | `GROUP_DATE` (component `"day"`) |
 | `nullable_bool`, `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
-| `point_f64`, `h3_cell` | `AGG_GEO_CENTROID` | `GROUP_H3_CELL` (resolution 7) |
 
 Rules: defaults never override an explicit `type`; they never cross categories (a missing aggregator does not insert a grouper); statistical tests (`tests[]`, `post_tests[]`) are not defaulted; filter expressions, features, attributes, and windows are out of scope.
 </reference>
@@ -197,9 +196,9 @@ Rules: defaults never override an explicit `type`; they never cross categories (
 
 `pulse_predict` reports `streamable: bool` and `streamable_reasons: []string` so you know whether a request can run through the single-pass streaming aggregator path or whether the engine will buffer the intermediate row set.
 
-What streams today: no-group online aggregations; grouped requests when every grouper is CATEGORY/RANGE/ROUNDED/H3_CELL and every aggregator is online; row-local attributes (FORMULA, DATE_PART); two-pass attributes (ZSCORE, TSCORE, NORMALIZED) via Welford pass 1.
+What streams today: no-group online aggregations; grouped requests when every grouper is CATEGORY/RANGE/ROUNDED and every aggregator is online; row-local attributes (FORMULA, DATE_PART); two-pass attributes (ZSCORE, TSCORE, NORMALIZED) via Welford pass 1.
 
-What forces buffering: median/percentile/ZScore aggregators, ATTR_PERCENTILE, GROUP_QUANTILE/GROUP_DATE, any windows, decimal-typed aggregations, geo aggregations, two-pass attributes combined with features or groups, tier-2 post tests.
+What forces buffering: median/percentile/ZScore aggregators, ATTR_PERCENTILE, GROUP_QUANTILE/GROUP_DATE, any windows, decimal-typed aggregations, two-pass attributes combined with features or groups, tier-2 post tests.
 
 For very large cohorts, prefer the streaming-eligible shape when possible. The bound enums in the session's tool schemas do not enforce this — predict's `streamable_reasons` is the source of truth.
 </reference>

@@ -296,12 +296,11 @@ func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {
 	}
 
 	type fieldDef struct {
-		Name         string `json:"name"`
-		Type         string `json:"type"`
-		Description  string `json:"description"`
-		Precision    uint8  `json:"precision,omitempty"`
-		Scale        uint8  `json:"scale,omitempty"`
-		H3Resolution *uint8 `json:"h3_resolution,omitempty"`
+		Name        string `json:"name"`
+		Type        string `json:"type"`
+		Description string `json:"description"`
+		Precision   uint8  `json:"precision,omitempty"`
+		Scale       uint8  `json:"scale,omitempty"`
 	}
 	var fields []fieldDef
 	if err := json.Unmarshal(data, &fields); err != nil {
@@ -325,13 +324,6 @@ func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {
 		if ft.IsDecimal() {
 			field.Precision = f.Precision
 			field.Scale = f.Scale
-		}
-		if ft == encoding.FieldTypeH3Cell {
-			if f.H3Resolution != nil {
-				field.H3Resolution = *f.H3Resolution
-			} else {
-				field.H3Resolution = 0xFF
-			}
 		}
 		schema.Fields[i] = field
 		byteOffset += ft.ByteSize()

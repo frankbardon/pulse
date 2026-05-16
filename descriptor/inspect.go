@@ -42,9 +42,6 @@ type InspectField struct {
 	// Scale is the decimal128 scale (0-precision). Present only for
 	// decimal128 / nullable_decimal128 fields.
 	Scale *uint8 `json:"scale,omitempty"`
-	// H3Resolution is the native cell resolution (0-15). Present only
-	// for h3_cell fields where the import recorded a resolution.
-	H3Resolution *uint8 `json:"h3_resolution,omitempty"`
 }
 
 // DictionaryInfo describes the categorical dictionary for a field.
@@ -111,10 +108,6 @@ func Inspect(fileData io.ReadSeeker, opts *InspectOptions) *Envelope {
 			field.Precision = &p
 			field.Scale = &s
 		}
-		if f.Type == encoding.FieldTypeH3Cell && f.H3Resolution != 0xFF {
-			res := f.H3Resolution
-			field.H3Resolution = &res
-		}
 
 		if f.Type.IsCategorical() && f.Dictionary != nil {
 			values := f.Dictionary.Values()
@@ -151,10 +144,6 @@ func synthesizeDescription(f encoding.Field) string {
 		return "Categorical field: " + f.Name
 	case f.Type.IsDecimal():
 		return "Decimal field: " + f.Name
-	case f.Type == encoding.FieldTypePointF64:
-		return "Geo point field: " + f.Name
-	case f.Type == encoding.FieldTypeH3Cell:
-		return "H3 cell field: " + f.Name
 	}
 	return "Numeric field: " + f.Name
 }

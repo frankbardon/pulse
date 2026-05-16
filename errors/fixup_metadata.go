@@ -445,45 +445,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	PULSE_GEO_INVALID_POINT: {
-		Message: "A point parse failed or |lat|>90 / |lon|>180.",
-		Fixups: []Fixup{
-			{
-				Action: FixupRequiresReschema,
-				Hint:   "Re-import with the latitude and longitude columns mapped in the correct order; WKT writes POINT(lon lat) but Pulse stores (lat, lon).",
-			},
-		},
-	},
-	PULSE_GEO_INVALID_POLYGON: {
-		Message: "A WKT POLYGON parse failed or the outer ring is not closed.",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceField,
-				Path:   []string{"Filterers", "*", "Polygon"},
-				Hint:   "Supply a single closed outer ring with first vertex equal to last; v1 rejects MULTIPOLYGON and inner-ring holes.",
-			},
-		},
-	},
-	PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS: {
-		Message: "An AGG_GEO_BBOX input crosses the 180/-180 meridian, where a flat min/max bbox is ambiguous.",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceOperator,
-				Path:   []string{"Aggregations", "*", "Type"},
-				Hint:   "Use AGG_GEO_CENTROID (the 3D unit-sphere algorithm handles antimeridian crossings) or split the cohort by hemisphere with FILTER_RANGE on longitude.",
-			},
-		},
-	},
-	PULSE_GEO_INVALID_RESOLUTION: {
-		Message: "An H3 resolution is out of [0, 15] or finer than a cell's native resolution when walking parents.",
-		Fixups: []Fixup{
-			{
-				Action: FixupSetDefault,
-				Path:   []string{"Groups", "*", "Params", "resolution"},
-				Hint:   "Pick a resolution in [0, 15]; for h3_cell input, pick at most the cell's native resolution (parent walks only go coarser).",
-			},
-		},
-	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: {
 		Message: "An aggregation has no defined semantics for the decimal128 field type (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1).",
 		Fixups: []Fixup{
@@ -492,17 +453,6 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Aggregations", "*", "Type"},
 				Hint:     "Decimal fields support exact AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_VARIANCE, AGG_STDDEV, AGG_COUNT, AGG_DISTINCT_COUNT; pick one of those.",
 				Examples: []any{"AGG_SUM", "AGG_AVERAGE", "AGG_MIN", "AGG_MAX"},
-			},
-		},
-	},
-	PULSE_AGG_NOT_MEANINGFUL_FOR_GEO: {
-		Message: "A numeric aggregator was requested on a geospatial field (point_f64 / h3_cell).",
-		Fixups: []Fixup{
-			{
-				Action:   FixupReplaceOperator,
-				Path:     []string{"Aggregations", "*", "Type"},
-				Hint:     "Geo fields support AGG_GEO_CENTROID, AGG_GEO_BBOX, AGG_COUNT, AGG_DISTINCT_COUNT; pick one of those, or group by the cell and aggregate a numeric field.",
-				Examples: []any{"AGG_GEO_CENTROID", "AGG_GEO_BBOX", "AGG_COUNT"},
 			},
 		},
 	},
@@ -525,7 +475,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
-		Message: "The profile layer cannot summarize this field type (e.g., point_f64 / h3_cell); the field is skipped.",
+		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -544,7 +494,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_FIELD_NOT_NUMERIC: {
-		Message: "A test requires a numeric field but the named field resolves to a categorical, geo, or otherwise non-numeric schema type.",
+		Message: "A test requires a numeric field but the named field resolves to a categorical or otherwise non-numeric schema type.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

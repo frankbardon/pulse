@@ -303,11 +303,11 @@ func scoreExample(ex *Example, q string) int {
 // validation gate can compare directly without round-tripping through a
 // disk asset.
 var CanonicalTags = []string{
-	// Domain / use case (17)
+	// Domain / use case (16)
 	"time-series", "cohort-analysis", "experiment-analysis", "correlation-analysis",
 	"comparison", "before-after", "top-n", "distribution-shape", "cross-tabulation",
 	"proportion-analysis", "trend-detection", "outlier-detection", "cardinality-analysis",
-	"data-quality", "geo-analysis", "financial", "feature-engineering",
+	"data-quality", "financial", "feature-engineering",
 
 	// Statistical method (11)
 	"hypothesis-test", "t-test", "parametric", "nonparametric", "paired", "one-sample",

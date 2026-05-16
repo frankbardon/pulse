@@ -50,10 +50,6 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 		return encoding.FieldTypeDecimal128, true
 	case "nullable_decimal128":
 		return encoding.FieldTypeNullableDecimal128, true
-	case "point_f64":
-		return encoding.FieldTypePointF64, true
-	case "h3_cell":
-		return encoding.FieldTypeH3Cell, true
 	}
 	return 0, false
 }
@@ -108,16 +104,6 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			field.Precision = prec
 			field.Scale = scale
 		}
-		if ft == encoding.FieldTypeH3Cell {
-			res := fs.H3Resolution
-			if res == 0 {
-				// Caller treated zero as missing; encode as the unspecified
-				// sentinel 0xFF so importers don't reject a "valid" 0.
-				res = 0xFF
-			}
-			field.H3Resolution = res
-		}
-
 		field.ByteOffset = byteOffset
 		// Bit-packed types use the bit position field; consume a fresh
 		// byte for simplicity (matches io/import.go).
@@ -328,16 +314,6 @@ func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) e
 				fmt.Sprintf("field %q: encoding decimal", wf.spec.Name))
 		}
 		return encoding.WriteDecimal128(buf, dec)
-	case encoding.FieldTypePointF64:
-		p, err := pointFromValue(val)
-		if err != nil {
-			return err
-		}
-		return encoding.WritePointF64(buf, p)
-	case encoding.FieldTypeH3Cell:
-		f := toFloat64(val)
-		c := encoding.H3Cell(uint64(f))
-		return encoding.WriteH3Cell(buf, c)
 	}
 	return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
 		fmt.Sprintf("field %q: cannot encode type %s", wf.spec.Name, ft), nil)
@@ -443,23 +419,3 @@ func decimalFromFloat(f float64, scale uint8) (encoding.Decimal128, error) {
 	return encoding.NewDecimal128FromBigInt(m)
 }
 
-func pointFromValue(v any) (encoding.PointF64, error) {
-	switch x := v.(type) {
-	case encoding.PointF64:
-		return x, nil
-	case map[string]any:
-		lat := toFloat64(x["lat"])
-		lon := toFloat64(x["lon"])
-		return encoding.PointF64{Lat: lat, Lon: lon}, nil
-	case [2]float64:
-		return encoding.PointF64{Lat: x[0], Lon: x[1]}, nil
-	case []float64:
-		if len(x) >= 2 {
-			return encoding.PointF64{Lat: x[0], Lon: x[1]}, nil
-		}
-	case string:
-		return encoding.ParseWKTPoint(x)
-	}
-	return encoding.PointF64{}, errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
-		"unsupported value type for point_f64")
-}

@@ -23,10 +23,6 @@ type Field struct {
 	// Scale is the decimal128 scale (0-Precision). Meaningful only when
 	// Type is FieldTypeDecimal128 or FieldTypeNullableDecimal128.
 	Scale uint8
-	// H3Resolution is the native cell resolution recorded at import time
-	// (0-15). Meaningful only when Type is FieldTypeH3Cell. The sentinel
-	// 0xFF means "unspecified" and is treated as missing metadata.
-	H3Resolution uint8
 }
 
 // Schema holds all field descriptors for a .pulse file.
@@ -114,13 +110,6 @@ func WriteSchema(w io.Writer, s *Schema) error {
 			}
 			if err := binary.Write(w, binary.LittleEndian, f.Scale); err != nil {
 				return errors.WrapCodedError(err, errors.ENCODING_IO, "writing decimal scale")
-			}
-		}
-
-		// H3 native resolution for h3_cell fields.
-		if f.Type == FieldTypeH3Cell {
-			if err := binary.Write(w, binary.LittleEndian, f.H3Resolution); err != nil {
-				return errors.WrapCodedError(err, errors.ENCODING_IO, "writing h3 resolution")
 			}
 		}
 
@@ -213,13 +202,6 @@ func ReadSchema(r io.Reader) (*Schema, error) {
 			}
 			if err := binary.Read(r, binary.LittleEndian, &f.Scale); err != nil {
 				return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading decimal scale")
-			}
-		}
-
-		// H3 native resolution.
-		if f.Type == FieldTypeH3Cell {
-			if err := binary.Read(r, binary.LittleEndian, &f.H3Resolution); err != nil {
-				return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading h3 resolution")
 			}
 		}
 

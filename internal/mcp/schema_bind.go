@@ -33,15 +33,14 @@ import (
 
 // fieldClassification slots schema fields into the coarse categories the
 // JSON Schema builders care about. Membership is mutually exclusive within
-// the four primary slots (numeric vs categorical vs date vs geo vs bool);
-// AllFields is the union for filterer/group references.
+// the primary slots (numeric vs categorical vs date vs bool); AllFields is
+// the union for filterer/group references.
 type fieldClassification struct {
 	AllFields     []string
 	Numeric       []string // u*, f*, decimal*, nullable_u*
 	NumericNoDec  []string // numeric minus decimal (kept for symmetry with capabilities tables)
 	Categorical   []string // categorical_u8/u16/u32
 	Date          []string // date
-	Geo           []string // point_f64, h3_cell
 	Bool          []string // nullable_bool, packed_bool
 	NumericOrDate []string // window OrderBy targets
 }
@@ -69,8 +68,6 @@ func classifyFields(schema *encoding.Schema) fieldClassification {
 		case f.Type == encoding.FieldTypeDate:
 			c.Date = append(c.Date, f.Name)
 			c.NumericOrDate = append(c.NumericOrDate, f.Name)
-		case f.Type.IsGeo():
-			c.Geo = append(c.Geo, f.Name)
 		case f.Type == encoding.FieldTypeNullableBool || f.Type == encoding.FieldTypePackedBool:
 			c.Bool = append(c.Bool, f.Name)
 		}
@@ -346,9 +343,9 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 						"type": map[string]any{
 							"type":        "string",
 							"enum":        aggTypes,
-							"description": "Aggregator. Operators differ in accepted field-type classes — AGG_SUM/AVG/STDDEV/MIN/MAX need numeric fields; AGG_COUNT/FREQUENCY/MODE/DISTINCT_COUNT accept any; AGG_GEO_* require point_f64. See pulse_manifest for the full Accepts table.",
+							"description": "Aggregator. Operators differ in accepted field-type classes — AGG_SUM/AVG/STDDEV/MIN/MAX need numeric fields; AGG_COUNT/FREQUENCY/MODE/DISTINCT_COUNT accept any. See pulse_manifest for the full Accepts table.",
 						},
-						"field":  enumStringField(c.AllFields, "Field to aggregate. Categorical, decimal, and geo fields are valid for some operators only — see Type description and the manifest's Operator.AcceptsTypes."),
+						"field":  enumStringField(c.AllFields, "Field to aggregate. Categorical and decimal fields are valid for some operators only — see Type description and the manifest's Operator.AcceptsTypes."),
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},
 					},
@@ -391,7 +388,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 					"type": "object",
 					"properties": map[string]any{
 						"type":     map[string]any{"type": "string", "enum": groupTypes},
-						"field":    enumStringField(c.AllFields, "Field to group by. GROUP_CATEGORY expects a categorical field; GROUP_ROUNDED/RANGE expect numeric; GROUP_DATE expects date; GROUP_H3_CELL expects h3_cell or point_f64."),
+						"field":    enumStringField(c.AllFields, "Field to group by. GROUP_CATEGORY expects a categorical field; GROUP_ROUNDED/RANGE expect numeric; GROUP_DATE expects date."),
 						"interval": map[string]any{"type": "number"},
 						"params":   map[string]any{},
 					},

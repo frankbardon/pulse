@@ -70,7 +70,6 @@ Field type drives the dispatch:
 |---|---|---|
 | `categorical_u8/u16/u32` | discrete | Dictionary fast path: count by dict id, resolve to string at finalize. |
 | `nullable_bool`, `packed_bool` | discrete | Emits `"true"` and `"false"` counts; `null_count` carries the missing tally. |
-| `point_f64`, `h3_cell` | discrete | Stringified via WKT (`POINT(lon lat)`) / hex-cell respectively. |
 | `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `nullable_u4`/`u8`/`u16`, `date`, `decimal128`, `nullable_decimal128` | numeric | Welford online for mean/stddev; min/max/sum tracked alongside. Decimal fields convert via `Decimal128.Float64(scale)`. |
 
 Asking for `numeric_percentiles` on a non-numeric field is a no-op
@@ -141,7 +140,7 @@ Single-pass when:
 - `include_histogram=false` or `histogram_range` is supplied, AND
 - every base filterer is row-local streamable
   (`FILTER_INCLUDE`, `FILTER_EXCLUDE`, `FILTER_RANGE`,
-  `FILTER_EXPRESSION`, `FILTER_GEO_*`).
+  `FILTER_NULL`, `FILTER_EXPRESSION`).
 
 Buffered when:
 - any numeric field has percentiles requested, OR
@@ -154,8 +153,7 @@ so LLM clients can reason about cost.
 
 `Filterers` reuses the existing `types.Filterer` shape. Same evaluation
 pipeline as `Process` — `FILTER_INCLUDE`, `FILTER_EXCLUDE`,
-`FILTER_RANGE`, `FILTER_EXPRESSION`, `FILTER_GEO_WITHIN`,
-`FILTER_GEO_WITHIN_RADIUS_M`. Filters apply to the base accumulators
+`FILTER_RANGE`, `FILTER_NULL`, `FILTER_EXPRESSION`. Filters apply to the base accumulators
 only; additive accumulators see the per-field scope filter described
 above.
 

@@ -23,8 +23,6 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_MEDIAN:         false,
 		AGG_PERCENTILE:     false,
 		AGG_ZSCORE:         false,
-		AGG_GEO_CENTROID:   false,
-		AGG_GEO_BBOX:       false,
 		AGG_NULL_COUNT:     true,
 	}
 	for _, agg := range AllAggregationTypes() {
@@ -69,13 +67,11 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 
 func TestStreamability_FilterersKnown(t *testing.T) {
 	expected := map[FiltererType]bool{
-		FILTER_INCLUDE:             true,
-		FILTER_EXCLUDE:             true,
-		FILTER_RANGE:               true,
-		FILTER_EXPRESSION:          true,
-		FILTER_GEO_WITHIN:          true,
-		FILTER_GEO_WITHIN_RADIUS_M: true,
-		FILTER_NULL:                true,
+		FILTER_INCLUDE:    true,
+		FILTER_EXCLUDE:    true,
+		FILTER_RANGE:      true,
+		FILTER_EXPRESSION: true,
+		FILTER_NULL:       true,
 	}
 	for _, f := range AllFiltererTypes() {
 		want, ok := expected[f]
@@ -96,7 +92,6 @@ func TestStreamability_GroupsKnown(t *testing.T) {
 		GROUP_CATEGORY: true,
 		GROUP_ROUNDED:  true,
 		GROUP_RANGE:    true,
-		GROUP_H3_CELL:  true,
 		GROUP_QUANTILE: false,
 		GROUP_DATE:     false,
 	}

@@ -385,11 +385,6 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 10, Scale: 2, Description: "Transaction amount in USD cents"},
 		},
 	}
-	geoSchema := &encoding.Schema{
-		Fields: []encoding.Field{
-			{Name: "loc", Type: encoding.FieldTypePointF64, Description: "Latitude/longitude pair (degrees)"},
-		},
-	}
 	cases := []struct {
 		name   string
 		req    *types.Request
@@ -399,7 +394,6 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"median on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "score"}}}, numericSchema},
 		{"sum on decimal", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "amount"}}}, decimalSchema},
 		{"empty request", &types.Request{}, numericSchema},
-		{"geo centroid", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_GEO_CENTROID, Field: "loc"}}}, geoSchema},
 		{
 			"unpenalized REG_OLS streams",
 			&types.Request{

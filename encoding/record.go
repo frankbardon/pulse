@@ -10,9 +10,9 @@ import (
 
 // WriteFieldValue writes a single field value (as raw bits in uint64) to w.
 // For packed types (PackedBool, NullableBool, NullableU4), use WriteBit/WriteNibble instead.
-// For decimal128 / nullable_decimal128 / point_f64 (16-byte types), use the
-// dedicated WriteDecimal128 / WritePointF64 helpers; this function will
-// reject those types with ENCODING_TYPE_MISMATCH.
+// For decimal128 / nullable_decimal128 (16-byte types), use the dedicated
+// WriteDecimal128 helper; this function will reject those types with
+// ENCODING_TYPE_MISMATCH.
 func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 	switch ft {
 	case FieldTypeU8, FieldTypeNullableU8, FieldTypeCategoricalU8:
@@ -21,7 +21,7 @@ func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 		return binary.Write(w, binary.LittleEndian, uint16(val))
 	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32:
 		return binary.Write(w, binary.LittleEndian, uint32(val))
-	case FieldTypeU64, FieldTypeH3Cell:
+	case FieldTypeU64:
 		return binary.Write(w, binary.LittleEndian, val)
 	case FieldTypeF32:
 		return binary.Write(w, binary.LittleEndian, uint32(val))
@@ -31,7 +31,7 @@ func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 		// These are bit-packed; callers should use WriteBit/WriteNibble.
 		return errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("use bit-level API for %s", ft))
-	case FieldTypeDecimal128, FieldTypeNullableDecimal128, FieldTypePointF64:
+	case FieldTypeDecimal128, FieldTypeNullableDecimal128:
 		return errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("use 16-byte API for %s", ft))
 	default:
@@ -56,7 +56,7 @@ func ReadFieldValue(r io.Reader, ft FieldType) (uint64, error) {
 		var v uint32
 		err := binary.Read(r, binary.LittleEndian, &v)
 		return uint64(v), err
-	case FieldTypeU64, FieldTypeH3Cell:
+	case FieldTypeU64:
 		var v uint64
 		err := binary.Read(r, binary.LittleEndian, &v)
 		return v, err
@@ -71,7 +71,7 @@ func ReadFieldValue(r io.Reader, ft FieldType) (uint64, error) {
 	case FieldTypePackedBool, FieldTypeNullableBool, FieldTypeNullableU4:
 		return 0, errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("use bit-level API for %s", ft))
-	case FieldTypeDecimal128, FieldTypeNullableDecimal128, FieldTypePointF64:
+	case FieldTypeDecimal128, FieldTypeNullableDecimal128:
 		return 0, errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("use 16-byte API for %s", ft))
 	default:

@@ -25,8 +25,8 @@ The streaming `Process` path covers four orchestrator modes (from
   (non-decimal) fields. Row-local attributes (`FORMULA`, `DATE_PART`)
   apply inline.
 - **Grouped streaming.** Groupers implementing the streaming key path
-  (`GROUP_CATEGORY`, `GROUP_RANGE`, `GROUP_ROUNDED`, `GROUP_H3_CELL`)
-  drive per-key online aggregator buckets. Memory is
+  (`GROUP_CATEGORY`, `GROUP_RANGE`, `GROUP_ROUNDED`) drive per-key
+  online aggregator buckets. Memory is
   `O(distinct_groups × per-aggregator-state)`.
 - **Two-pass streaming.** Two-pass attributes (`ATTR_ZSCORE`,
   `ATTR_TSCORE`, `ATTR_NORMALIZED`) compute population stats via
@@ -55,8 +55,6 @@ buffering reason. The current set, from CLAUDE.md:
 - Window operators (`WIN_*`) — operate on a sorted post-aggregate row
   set.
 - Decimal-typed field aggregations — precision-preserving path.
-- Geo aggregations (`AGG_GEO_BBOX`, `AGG_GEO_CENTROID`) — typed
-  buffered path.
 - Two-pass attributes combined with features or groups — orchestration
   matrix not yet extended.
 - Tier-1 statistical tests combined with groupers, features, or

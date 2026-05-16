@@ -1,6 +1,6 @@
 ---
 name: request-recipes
-description: Canonical Pulse request JSON skeletons keyed by analytical intent — compare two groups, rank top N, trend over time, ANOVA with Tukey post-hoc, paired before/after, frequency cross-tab, geo aggregation. Use when starting from a natural-language ask and needing a runnable JSON template.
+description: Canonical Pulse request JSON skeletons keyed by analytical intent — compare two groups, rank top N, trend over time, ANOVA with Tukey post-hoc, paired before/after, frequency cross-tab. Use when starting from a natural-language ask and needing a runnable JSON template.
 type: reference
 applies_to: process, compose, predict
 ---
@@ -24,7 +24,6 @@ Every recipe is a JSON template with two kinds of placeholders. Replace each `$.
 | `$field:numeric` | Any numeric field: `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `nullable_u4`/`u8`/`u16`, `decimal128`, `nullable_decimal128`. |
 | `$field:categorical` | Any categorical field: `categorical_u8`, `categorical_u16`, `categorical_u32`. |
 | `$field:date` | A `date` field. |
-| `$field:geo` | A `point_f64` or `h3_cell` field. |
 | `$field:any` | Any field type. Useful for `AGG_COUNT` / `AGG_DISTINCT_COUNT`. |
 | `$param:int`, `$param:float`, `$param:string` | A scalar parameter value. |
 

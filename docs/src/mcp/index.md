@@ -258,7 +258,6 @@ If you are writing a system prompt for an LLM agent that uses Pulse, point it at
 | Import a tabular source into `.pulse` | `import-best-practices` |
 | Pick an export format | `export-format-selection` |
 | Work with `decimal128` (currency, precise arithmetic) | `financial-cohorts` |
-| Work with `point_f64` / `h3_cell` | `geospatial-cohorts` |
 | Route a natural-language query to a Pulse request | `query-router-prompt` |
 | Get started end-to-end (LLM walkthrough) | `getting-started` |
 

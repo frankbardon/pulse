@@ -68,10 +68,6 @@ var defaultRules = map[encoding.FieldType]defaultRule{
 	// Booleans (single-bit or tri-state): treated as categorical for defaulting.
 	encoding.FieldTypeNullableBool: {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "boolean default"},
 	encoding.FieldTypePackedBool:   {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "boolean default"},
-
-	// Geo fields: centroid summarises a point set; H3 cell buckets at res 7.
-	encoding.FieldTypePointF64: {Agg: types.AGG_GEO_CENTROID, Group: types.GROUP_H3_CELL, FamilyTag: "geo default"},
-	encoding.FieldTypeH3Cell:   {Agg: types.AGG_GEO_CENTROID, Group: types.GROUP_H3_CELL, FamilyTag: "geo default"},
 }
 
 // defaultRangeInterval is the bucket width applied to a newly-defaulted
@@ -80,12 +76,6 @@ var defaultRules = map[encoding.FieldType]defaultRule{
 // so a width of 10.0 is the analogue. Callers that want column-aware
 // bucketing can override by setting Interval explicitly.
 const defaultRangeInterval = 10.0
-
-// defaultH3Resolution is the H3 resolution applied to a newly-defaulted
-// GROUP_H3_CELL slot when the caller did not set one. Resolution 7 is
-// roughly 5 km^2 per cell — coarse enough to populate, fine enough to
-// reveal structure. Encoded as JSON params.
-const defaultH3Resolution = 7
 
 // defaultDateComponent is the calendar bucket applied to a newly-
 // defaulted GROUP_DATE slot when the caller did not set Params.component.
@@ -175,10 +165,6 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema) []DefaultAppli
 //	zero (the processing layer further falls back to 1 if still zero, so
 //	this is purely about producing a sane default trace).
 //
-// GROUP_H3_CELL: defaults Params.resolution = defaultH3Resolution when
-//
-//	Params is empty.
-//
 // GROUP_DATE: defaults Params.component = defaultDateComponent when
 //
 //	Params is empty.
@@ -187,10 +173,6 @@ func applyDefaultGroupParams(grp *types.Group) {
 	case types.GROUP_RANGE:
 		if grp.Interval == 0 {
 			grp.Interval = defaultRangeInterval
-		}
-	case types.GROUP_H3_CELL:
-		if len(grp.Params) == 0 {
-			grp.Params = []byte(`{"resolution":` + strconv.Itoa(defaultH3Resolution) + `}`)
 		}
 	case types.GROUP_DATE:
 		if len(grp.Params) == 0 {

@@ -43,8 +43,6 @@ type Writer interface {
 // interface, then passes typed values through WriteRow:
 //
 //   - encoding.Decimal128 for decimal128 / nullable_decimal128 columns
-//   - encoding.PointF64 for point_f64 columns
-//   - encoding.H3Cell for h3_cell columns
 //   - canonical strings for narrow types (current behavior)
 //
 // Writers that do not implement SchemaAwareWriter receive only canonical

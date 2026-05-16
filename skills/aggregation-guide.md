@@ -1,6 +1,6 @@
 ---
 name: aggregation-guide
-description: Choose between the 18 AGG_* operators (SUM, AVG, MEDIAN, PERCENTILE, ZSCORE, FREQUENCY, MODE, KURTOSIS, GEO_CENTROID, GEO_BBOX, ...) and 6 FILTER_* operators. Use when assembling a Process request, interpreting percentile/frequency output, or picking a row-filter.
+description: Choose between the 16 AGG_* operators (SUM, AVG, MEDIAN, PERCENTILE, ZSCORE, FREQUENCY, MODE, KURTOSIS, ...) and 5 FILTER_* operators. Use when assembling a Process request, interpreting percentile/frequency output, or picking a row-filter.
 type: guide
 applies_to: process, compose, predict
 ---
@@ -33,18 +33,7 @@ Pulse exposes 18 aggregators and 6 filterers that run during `process` and `comp
 | AGG_SKEWNESS | Population skewness (asymmetry). | numeric |
 | AGG_KURTOSIS | Excess kurtosis (tail heaviness vs normal). | numeric |
 | AGG_ZSCORE | Mean of per-value z-scores over the group (always ~0 by construction; useful as a sentinel). | numeric |
-| AGG_GEO_CENTROID | 3D unit-sphere centroid of point_f64 values (correct at poles and across antimeridian). | point_f64 |
-| AGG_GEO_BBOX | Bounding box `(min_lat, min_lon, max_lat, max_lon)` of point_f64 values; rejects antimeridian crossings. | point_f64 |
 </reference>
-
-<rule severity="caveat" topic="geo-aggregators">
-## Geo aggregators
-
-- **AGG_GEO_CENTROID** computes the unit-sphere mean (not a naive lat/lon average). Result is `{lat, lon}`. Antipodal clusters that sum to the origin return no result.
-- **AGG_GEO_BBOX** rejects input sets that cross the antimeridian (any pair with `|lon_a - lon_b| > 180`) with `PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS`. Split by hemisphere or use centroid.
-
-See `skills/geospatial-cohorts.md` for the centroid algorithm and antimeridian rules.
-</rule>
 
 <rule severity="caveat" topic="decimal-aggregators">
 ## Decimal aggregators
@@ -122,8 +111,6 @@ Filterers run before grouping and aggregation. The `types.Filterer` JSON shape i
 | FILTER_RANGE | `field`, `values` (exactly `[min, max]`) | Keep records where `min <= value <= max` (both bounds inclusive). Nulls are dropped. |
 | FILTER_NULL | `field`, `values` (exactly `["is_null"]` or `["is_not_null"]`) | Keep records based on null state of the field. Use `is_null` to keep records where the field is null; `is_not_null` to drop them. |
 | FILTER_EXPRESSION | `expression` (expr-lang string returning bool) | Evaluate `expression` against the record's field map; keep records where it returns `true`. No `field` key. |
-| FILTER_GEO_WITHIN | `field` (point_f64), `expression` (WKT POLYGON) | Keep records whose point is inside the polygon. v1: outer ring only, must be closed. |
-| FILTER_GEO_WITHIN_RADIUS_M | `field` (point_f64), `expression` (JSON `{anchor, radius_m}`) | Keep records within the radius (meters) of the anchor point. Haversine distance. |
 </reference>
 
 <example name="filter-include">

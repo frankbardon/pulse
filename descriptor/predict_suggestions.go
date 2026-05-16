@@ -39,10 +39,8 @@ var streamableAlternatives = map[string]streamableAlt{
 	// full row set.
 	string(types.AGG_ZSCORE):       {Replacement: string(types.ATTR_ZSCORE), Category: "attribute"},
 	string(types.ATTR_PERCENTILE):  {Replacement: "", Category: "attribute"},
-	string(types.GROUP_QUANTILE):   {Replacement: string(types.GROUP_RANGE), Category: "grouper"},
-	string(types.GROUP_DATE):       {Replacement: "", Category: "grouper"},
-	string(types.AGG_GEO_CENTROID): {Replacement: "", Category: "aggregator"},
-	string(types.AGG_GEO_BBOX):     {Replacement: "", Category: "aggregator"},
+	string(types.GROUP_QUANTILE): {Replacement: string(types.GROUP_RANGE), Category: "grouper"},
+	string(types.GROUP_DATE):     {Replacement: "", Category: "grouper"},
 }
 
 // commonPercentiles lists the canonical percentile values predict
@@ -174,9 +172,6 @@ func appendTypoSuggestions(out []Suggestion, req *types.Request, schema *encodin
 //   - Aggregation on a decimal field that is not on the decimal-supported
 //     list → the supported aggregations for that field type
 //     (confidence 0.6).
-//   - Numeric aggregation on a geo field → AGG_GEO_CENTROID, AGG_GEO_BBOX,
-//     AGG_COUNT (confidence 0.6).
-//
 // Reuses the fixup hint from errors.MetadataFor when one is registered
 // for the underlying code so prose stays in lockstep with the fixup
 // table.
@@ -222,19 +217,6 @@ func appendOperatorTypeSuggestions(out []Suggestion, req *types.Request, schema 
 				Confidence: 0.6,
 			})
 
-		case f.Type.IsGeo() && !geoAggregations[agg.Type]:
-			proposed := []any{
-				string(types.AGG_COUNT),
-				string(types.AGG_GEO_BBOX),
-				string(types.AGG_GEO_CENTROID),
-			}
-			out = append(out, Suggestion{
-				Path:       path,
-				Reason:     reasonFromCode(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_GEO, "aggregation is not defined on a geospatial field; pick a geo-aware aggregator"),
-				Current:    string(agg.Type),
-				Proposed:   proposed,
-				Confidence: 0.6,
-			})
 		}
 	}
 

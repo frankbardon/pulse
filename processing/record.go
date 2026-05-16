@@ -12,9 +12,8 @@ type Record struct {
 	nulls  map[string]bool
 
 	// wide carries typed values for fields whose representation does not
-	// fit in float64: decimal128, point_f64, h3_cell. Keyed by field name;
-	// absent for narrow fields. Values are one of:
-	//   encoding.Decimal128, encoding.PointF64, encoding.H3Cell.
+	// fit in float64: decimal128. Keyed by field name; absent for narrow
+	// fields. Values are encoding.Decimal128.
 	wide map[string]any
 
 	// allValuesCache memoizes the result of AllValues(). It is populated on
@@ -49,7 +48,7 @@ func NewRecordWithNulls(schema *encoding.Schema, values map[string]float64, null
 }
 
 // NewRecordWithWide creates a record with typed wide values for fields
-// that do not fit in float64 (decimal128, point_f64, h3_cell).
+// that do not fit in float64 (decimal128).
 func NewRecordWithWide(schema *encoding.Schema, values map[string]float64, nulls map[string]bool, wide map[string]any) *Record {
 	if nulls == nil {
 		nulls = make(map[string]bool)
@@ -66,7 +65,7 @@ func NewRecordWithWide(schema *encoding.Schema, values map[string]float64, nulls
 }
 
 // WideValue returns the typed wide value for the named field, if present.
-// Wide values are populated for decimal128, point_f64, and h3_cell fields.
+// Wide values are populated for decimal128 fields.
 func (r *Record) WideValue(name string) (any, bool) {
 	if r.nulls[name] {
 		return nil, false
@@ -76,7 +75,7 @@ func (r *Record) WideValue(name string) (any, bool) {
 }
 
 // SetWide assigns a typed wide value to a field. Used by readers and
-// feature operators that produce non-float values (decimal, point, h3).
+// feature operators that produce non-float values (decimal128).
 func (r *Record) SetWide(name string, v any) {
 	if r.wide == nil {
 		r.wide = make(map[string]any)
@@ -207,7 +206,7 @@ func (r *Record) SetNullField(name string) {
 }
 
 // SetWideField implements encoding.ReusableRecord. Stores a typed wide
-// value (decimal/point/h3) without invalidating the AllValues cache.
+// value (decimal128) without invalidating the AllValues cache.
 func (r *Record) SetWideField(name string, v any) {
 	if r.wide == nil {
 		r.wide = make(map[string]any)

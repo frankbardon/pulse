@@ -83,21 +83,5 @@ func grouperCapabilities() []Operator {
 			EmitsTypeNote: "rounded numeric key per row",
 			Streamable:    true,
 		},
-		{
-			Name:        string(types.GROUP_H3_CELL),
-			Category:    "grouper",
-			Description: "Group spatial records by H3 cell at the configured resolution; accepts point_f64 (converts inline) or h3_cell (re-bins via parent walk).",
-			Params: []Param{
-				{
-					Name:        "resolution",
-					Type:        "int",
-					Required:    true,
-					Description: "Target H3 resolution in [0, 15]; finer resolutions bucket more aggressively.",
-				},
-			},
-			AcceptsTypes:  []string{"h3_cell", "point_f64"},
-			EmitsTypeNote: "string H3 cell index per row",
-			Streamable:    true,
-		},
 	}
 }

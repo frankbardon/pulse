@@ -41,7 +41,6 @@ pulse profile create --input PATH --output PATH
 | Categorical | Top-K most-frequent values + their frequencies; "other" tail weight |
 | `date` | Min, max, count |
 | `nullable_*` | Null count alongside the above |
-| Geo (`point_f64`, `h3_cell`) | Bounding stats; H3 resolution metadata |
 
 ## What the profile does NOT capture
 

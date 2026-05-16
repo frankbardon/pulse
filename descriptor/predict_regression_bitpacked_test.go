@@ -142,7 +142,6 @@ func TestIsNumericForAnalytics(t *testing.T) {
 	}
 	excludes := []encoding.FieldType{
 		encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32,
-		encoding.FieldTypePointF64, encoding.FieldTypeH3Cell,
 	}
 	for _, ft := range excludes {
 		if ft.IsNumericForAnalytics() {
@@ -170,7 +169,6 @@ func TestIsNumeric(t *testing.T) {
 		encoding.FieldTypeNullableU4, encoding.FieldTypeNullableU8, encoding.FieldTypeNullableU16,
 		encoding.FieldTypeNullableBool, encoding.FieldTypePackedBool,
 		encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32,
-		encoding.FieldTypePointF64, encoding.FieldTypeH3Cell,
 	}
 	for _, ft := range excludes {
 		if ft.IsNumeric() {

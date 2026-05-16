@@ -9,7 +9,7 @@ import (
 )
 
 // numericTestFields lists the test types that require their `Field`
-// reference to point at a numeric (non-categorical, non-geo) column.
+// reference to point at a numeric (non-categorical) column.
 // TEST_CHISQ uses rows/cols instead and is not listed here.
 // TEST_PROP_Z's primary field is categorical (the outcome) and is
 // handled in validateProportionZ below.
@@ -102,7 +102,7 @@ func validateOneTest(env *Envelope, t *types.Test, schema *encoding.Schema, proj
 			return
 		}
 		if f != nil && numericTestFields[t.Type] {
-			if f.Type.IsCategorical() || f.Type.IsGeo() {
+			if f.Type.IsCategorical() {
 				env.AddError(string(errors.PULSE_TEST_FIELD_NOT_NUMERIC),
 					string(t.Type)+" field "+t.Field+" has non-numeric type "+f.Type.String(),
 					map[string]any{"type": string(t.Type), "field": t.Field, "field_type": f.Type.String()})
@@ -117,7 +117,7 @@ func validateOneTest(env *Envelope, t *types.Test, schema *encoding.Schema, proj
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					string(t.Type)+" references unknown field2: "+t.Field2,
 					map[string]any{"type": string(t.Type), "field2": t.Field2})
-			} else if f2 != nil && (f2.Type.IsCategorical() || f2.Type.IsGeo()) {
+			} else if f2 != nil && f2.Type.IsCategorical() {
 				env.AddError(string(errors.PULSE_TEST_FIELD2_NOT_NUMERIC),
 					string(t.Type)+" field2 "+t.Field2+" has non-numeric type "+f2.Type.String(),
 					map[string]any{"type": string(t.Type), "field2": t.Field2, "field_type": f2.Type.String()})

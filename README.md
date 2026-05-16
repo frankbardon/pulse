@@ -90,7 +90,7 @@ pulse api process --request request.json --json
 
 ### Smart defaults
 
-If you name a field but omit `type`, Pulse fills in a sensible operator from the schema type — `AGG_SUM` for numerics, `AGG_FREQUENCY` for categoricals, `GROUP_RANGE` (interval 10) for numerics, `GROUP_CATEGORY` for categoricals, `GROUP_DATE` ("day") for dates, `GROUP_H3_CELL` (resolution 7) for geo. Disable with `--no-defaults` or `pulse.Options{DisableDefaults: true}`. The full rule table lives in `descriptor/defaults.go`.
+If you name a field but omit `type`, Pulse fills in a sensible operator from the schema type — `AGG_SUM` for numerics, `AGG_FREQUENCY` for categoricals, `GROUP_RANGE` (interval 10) for numerics, `GROUP_CATEGORY` for categoricals, `GROUP_DATE` ("day") for dates. Disable with `--no-defaults` or `pulse.Options{DisableDefaults: true}`. The full rule table lives in `descriptor/defaults.go`.
 
 ### Validate before executing
 
@@ -102,7 +102,7 @@ Returns the proposed schema, applied defaults, streamability, warnings (e.g., nu
 
 ### Streaming
 
-For requests Pulse can stream (single-pass aggregations on non-decimal/non-geo fields, no buffered ops), use `--stream` to get NDJSON one row per line:
+For requests Pulse can stream (single-pass aggregations on non-decimal fields, no buffered ops), use `--stream` to get NDJSON one row per line:
 
 ```bash
 pulse api process --request request.json --stream
@@ -380,10 +380,10 @@ p, _ := pulse.New(pulse.Options{
 
 Counts as currently registered (the manifest is the source of truth — `pulse --json --slim`):
 
-- **18 aggregators** (`AGG_*`): COUNT, SUM, AVERAGE, MIN, MAX, MEDIAN, STDDEV, RANGE, FREQUENCY, MODE, PERCENTILE, ZSCORE, KURTOSIS, GEO_CENTROID, GEO_BBOX, …
+- **16 aggregators** (`AGG_*`): COUNT, SUM, AVERAGE, MIN, MAX, MEDIAN, STDDEV, RANGE, FREQUENCY, MODE, PERCENTILE, ZSCORE, KURTOSIS, …
 - **9 attributes** (`ATTR_*`): ZSCORE, TSCORE, NORMALIZED, FORMULA, PERCENTILE, DATE_PART, …
-- **6 filterers** (`FILTER_*`): INCLUDE, EXCLUDE, RANGE, EXPRESSION, GEO_WITHIN, GEO_WITHIN_RADIUS_M
-- **6 groupers** (`GROUP_*`): CATEGORY, RANGE, ROUNDED, DATE, QUANTILE, H3_CELL
+- **5 filterers** (`FILTER_*`): INCLUDE, EXCLUDE, RANGE, EXPRESSION, NULL
+- **5 groupers** (`GROUP_*`): CATEGORY, RANGE, ROUNDED, DATE, QUANTILE
 - **10 windows** (`WIN_*`): LAG, LEAD, ROW_NUMBER, RANK, DENSE_RANK, RUNNING_SUM, RUNNING_AVG, MOVING_AVG, EWMA, PCT_CHANGE
 - **9 features** (`FEAT_*`): LOG, SQRT, BUCKETIZE, ONE_HOT, FREQUENCY_ENCODE, TARGET_ENCODE, DATE_FEATURES, TRAIN_TEST_SPLIT, POLY
 - **20 statistical tests** (`TEST_*`): tier-1 row tests (T, WELCH, CHISQ, ANOVA_F, ANOVA_WELCH, ANOVA_RM, KS, PAIRED_T, PROP_Z, PEARSON_R, SPEARMAN_R, KENDALL_TAU, MANN_WHITNEY_U, WILCOXON_SR, KRUSKAL_WALLIS, BROWN_FORSYTHE, FISHER_EXACT, SHAPIRO_WILK) and tier-2 post-tests (TUKEY_HSD, TREND, variants)
@@ -392,7 +392,7 @@ Counts as currently registered (the manifest is the source of truth — `pulse -
 
 ## LLM Skill Pack
 
-Pulse bundles 21 skill documents that teach LLM agents how to operate it. Skills are embedded via `//go:embed` — no external files.
+Pulse bundles 22 skill documents that teach LLM agents how to operate it. Skills are embedded via `//go:embed` — no external files.
 
 ### Discovering skills
 
@@ -410,7 +410,7 @@ pulse skills show aggregation-guide
 | `cohort-schema-design` | Field types, nullability, bit-packing, descriptions |
 | `aggregation-guide` | Aggregator selection (AGG_*) and filterer selection (FILTER_*) |
 | `attribute-composition` | ATTR_* derived columns: z-score, formula, percentile, date_part |
-| `grouper-design` | CATEGORY, RANGE, ROUNDED, DATE, QUANTILE, H3_CELL |
+| `grouper-design` | CATEGORY, RANGE, ROUNDED, DATE, QUANTILE |
 | `window-operations` | LAG/LEAD/RANK/MOVING_AVG/EWMA partitioning and frame semantics |
 | `feature-engineering` | Pre-filter FEAT_* operators for ML pipelines + leakage trap |
 | `statistical-testing` | Tier-1 row tests and tier-2 post-tests |
@@ -422,7 +422,6 @@ pulse skills show aggregation-guide
 | `import-best-practices` | Schema inference, fail-closed semantics, PULSE_IMPORT_* |
 | `export-format-selection` | CSV / TSV / NDJSON / JSON array / Parquet / Arrow / Excel |
 | `financial-cohorts` | decimal128 semantics for money |
-| `geospatial-cohorts` | point_f64, h3_cell, geo filters and aggregations |
 | `mcp-integration` | MCP tool surface, schema-bound enums, session bootstrap |
 | `request-recipes` | Canonical request JSON skeletons keyed by intent |
 | `query-router-prompt` | System-prompt template for natural-language → AskRequest |
@@ -454,7 +453,7 @@ Binary, self-describing, fully transportable:
 - **Dictionary blocks**: one per categorical field (string-to-integer mapping stored inline)
 - **Record data**: fixed-width binary records, one per row
 
-19 field types:
+17 field types:
 
 | Type | Bytes | Notes |
 |---|---|---|
@@ -468,8 +467,6 @@ Binary, self-describing, fully transportable:
 | `categorical_u8`, `categorical_u16`, `categorical_u32` | 1, 2, 4 | Dictionary-encoded strings |
 | `decimal128` | 16 | Fixed precision/scale; banker's rounding |
 | `nullable_decimal128` | 16 | Nullable decimal128 |
-| `point_f64` | 16 | Lat/lon pair |
-| `h3_cell` | 8 | Uber H3 cell index |
 
 Categorical width auto-selected from sample cardinality during import. Bit-packed types report `ByteSize() == 0` — they share bytes with adjacent packed fields. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`.
 

@@ -21,7 +21,7 @@ var numericFieldTypes = []string{
 
 // numericFieldTypesNoDecimal lists numeric types excluding the
 // fixed-point decimal types. Used by aggregators that operate in float64
-// space (variance, stddev, skewness, kurtosis, geo).
+// space (variance, stddev, skewness, kurtosis).
 var numericFieldTypesNoDecimal = []string{
 	"date",
 	"f32",
@@ -85,21 +85,17 @@ var allCohortFieldTypes = []string{
 	"decimal128",
 	"f32",
 	"f64",
-	"h3_cell",
 	"nullable_bool",
 	"nullable_decimal128",
 	"nullable_u16",
 	"nullable_u4",
 	"nullable_u8",
 	"packed_bool",
-	"point_f64",
 	"u16",
 	"u32",
 	"u64",
 	"u8",
 }
-
-var geoPointFieldTypes = []string{"point_f64"}
 
 // aggregatorCapabilities is the static metadata table for every
 // registered aggregator. Order is irrelevant; manifest assembly sorts by
@@ -247,28 +243,12 @@ func aggregatorCapabilities() []Operator {
 			StreamableHint: "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.",
 		},
 		{
-			Name:          string(types.AGG_GEO_CENTROID),
-			Category:      "aggregator",
-			Description:   "Spherical centroid (lat, lon) of point_f64 values.",
-			AcceptsTypes:  geoPointFieldTypes,
-			EmitsTypeNote: "point_f64 (lat, lon)",
-			Streamable:    false,
-		},
-		{
 			Name:          string(types.AGG_NULL_COUNT),
 			Category:      "aggregator",
 			Description:   "Count records where the field is null. Inverse of AGG_COUNT, which counts non-null records.",
 			AcceptsTypes:  allCohortFieldTypes,
 			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
-		},
-		{
-			Name:          string(types.AGG_GEO_BBOX),
-			Category:      "aggregator",
-			Description:   "Bounding box (min/max lat/lon) of point_f64 values.",
-			AcceptsTypes:  geoPointFieldTypes,
-			EmitsTypeNote: "object {min_lat, max_lat, min_lon, max_lon}",
-			Streamable:    false,
 		},
 	}
 }

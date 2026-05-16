@@ -16,8 +16,8 @@ import (
 )
 
 // makeSchema constructs a schema with one numeric and one categorical
-// field plus a date and a point_f64 to cover the four primary
-// classification slots. Description left empty — Inspect synthesizes.
+// field plus a date to cover the primary classification slots.
+// Description left empty — Inspect synthesizes.
 func makeSchema() *encoding.Schema {
 	dict := encoding.NewDictionary()
 	dict.Add("alpha")
@@ -27,7 +27,6 @@ func makeSchema() *encoding.Schema {
 			{Name: "score", Type: encoding.FieldTypeF64},
 			{Name: "category", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict},
 			{Name: "observed_on", Type: encoding.FieldTypeDate},
-			{Name: "loc", Type: encoding.FieldTypePointF64},
 		},
 	}
 }
@@ -119,9 +118,6 @@ func TestMCPSchemaBinding_RemovesInvalidFields(t *testing.T) {
 	if slices.Contains(attrFields, "category") {
 		t.Errorf("attributes.field enum must not contain categorical 'category': %v", attrFields)
 	}
-	if slices.Contains(attrFields, "loc") {
-		t.Errorf("attributes.field enum must not contain geo 'loc': %v", attrFields)
-	}
 
 	aggFields := enumOf(req, "aggregations", "field")
 	if !slices.Contains(aggFields, "score") {
@@ -140,7 +136,7 @@ func TestMCPSchemaBinding_AllFieldsInFiltererEnum(t *testing.T) {
 	req := decodeRequestSchema(t, raw)
 
 	filterFields := enumOf(req, "filterers", "field")
-	want := []string{"score", "category", "observed_on", "loc"}
+	want := []string{"score", "category", "observed_on"}
 	for _, w := range want {
 		if !slices.Contains(filterFields, w) {
 			t.Errorf("filterer field enum missing %q: %v", w, filterFields)
@@ -172,8 +168,8 @@ func TestMCPSchemaBinding_SampleAndFacetFieldEnum(t *testing.T) {
 	props, _ := facetSchema["properties"].(map[string]any)
 	field, _ := props["field"].(map[string]any)
 	enum, _ := field["enum"].([]any)
-	if len(enum) != 4 {
-		t.Errorf("facet field enum size = %d, want 4", len(enum))
+	if len(enum) != 3 {
+		t.Errorf("facet field enum size = %d, want 3", len(enum))
 	}
 
 	// pulse_sample: no enum on field; path is present.

@@ -256,7 +256,7 @@ type Writer struct {
 
 // SetPulseSchema records the source .pulse schema. Implements
 // pio.SchemaAwareWriter so ExportJob can hand the writer typed values
-// for decimal128 / point_f64 / h3_cell columns.
+// for decimal128 columns.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
 }
@@ -326,9 +326,8 @@ func (w *Writer) WriteHeader(columns []string) error {
 
 // WriteRow writes a single data row. With a Pulse schema set the
 // writer renders decimal128 cells as Excel numbers with a scale-driven
-// "0.000…" format, point_f64 cells as "lon, lat" text, and h3_cell
-// cells as 15-char hex text. Without a schema, values pass through
-// excelize's default cell-value handling.
+// "0.000…" format. Without a schema, values pass through excelize's
+// default cell-value handling.
 func (w *Writer) WriteRow(values []any) error {
 	if w.sw == nil {
 		if err := w.init(); err != nil {
@@ -354,10 +353,6 @@ func (w *Writer) formatCell(col int, v any) excelize.Cell {
 		switch f.Type {
 		case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
 			return w.decimalCell(col, f, v)
-		case encoding.FieldTypePointF64:
-			return excelize.Cell{Value: pointToText(v)}
-		case encoding.FieldTypeH3Cell:
-			return excelize.Cell{Value: h3ToText(v)}
 		}
 	}
 	return excelize.Cell{Value: v}
@@ -425,38 +420,6 @@ func decimalNumberFormat(scale uint8) string {
 		return "0"
 	}
 	return "0." + strings.Repeat("0", int(scale))
-}
-
-// pointToText renders a PointF64 as "lon, lat" (the WKT-natural order)
-// or stringifies a passed-through string. nil yields empty.
-func pointToText(v any) string {
-	switch x := v.(type) {
-	case nil:
-		return ""
-	case encoding.PointF64:
-		return strconv.FormatFloat(x.Lon, 'g', -1, 64) + ", " + strconv.FormatFloat(x.Lat, 'g', -1, 64)
-	case string:
-		return x
-	default:
-		return fmt.Sprintf("%v", v)
-	}
-}
-
-// h3ToText renders an H3Cell as the 15-char canonical hex string or
-// passes through a hex string. nil yields empty.
-func h3ToText(v any) string {
-	switch x := v.(type) {
-	case nil:
-		return ""
-	case encoding.H3Cell:
-		return encoding.FormatH3CellHex(x)
-	case uint64:
-		return encoding.FormatH3CellHex(encoding.H3Cell(x))
-	case string:
-		return x
-	default:
-		return fmt.Sprintf("%v", v)
-	}
 }
 
 // Close flushes and writes the workbook to the target path.
