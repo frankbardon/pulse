@@ -107,9 +107,8 @@ type Grouper interface {
 
 // StreamingGrouper is the optional sibling of Grouper for groupers that
 // can derive a partition key from a single record without seeing the
-// full record set. CATEGORY / RANGE / ROUNDED / H3_CELL implement this
-// interface; QUANTILE and DATE require finalize-time work over the
-// full input.
+// full record set. CATEGORY / RANGE / ROUNDED implement this interface;
+// QUANTILE and DATE require finalize-time work over the full input.
 //
 // Implementations MUST be safe to call repeatedly; the streaming path
 // invokes KeyForRow once per filter-passing record and uses the key to

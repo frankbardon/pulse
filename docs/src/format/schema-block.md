@@ -35,8 +35,7 @@ In write order — see `WriteSchema` /  `ReadSchema` in
 | 7 | description     | 2 bytes length + UTF-8 | Capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_TOO_LONG`) |
 | 8 | (decimal only) precision | 1 byte | `decimal128` and `nullable_decimal128` only |
 | 9 | (decimal only) scale | 1 byte | same |
-| 10 | (h3 only) resolution | 1 byte | `h3_cell` only; sentinel `0xFF` = unspecified |
-| 11 | (categorical only) dictionary | variable | See [Dictionary Blocks](dictionaries.md) |
+| 10 | (categorical only) dictionary | variable | See [Dictionary Blocks](dictionaries.md) |
 
 Order matters: every reader walks these in the listed order, so a
 malformed record stops the parse with `ENCODING_INVALID`.
@@ -56,13 +55,10 @@ in [Record Layout](records.md).
 
 ## Conditional trailers
 
-Three trailers attach only to specific field types:
+Two trailers attach only to specific field types:
 
 - **`decimal128` / `nullable_decimal128`** get a `(precision, scale)`
   pair (`u8`, `u8`). Both ≤ 38.
-- **`h3_cell`** gets a single `u8` resolution byte. `0xFF` means
-  "unspecified" (recorded at import time when the source didn't carry
-  resolution metadata).
 - **Categorical types** (`categorical_u8`, `categorical_u16`,
   `categorical_u32`) get a full dictionary block in line — see
   [Dictionary Blocks](dictionaries.md).

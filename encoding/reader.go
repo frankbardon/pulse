@@ -34,8 +34,8 @@ func NewRecordReader(r io.Reader, schema *Schema) *RecordReader {
 // contents out before the next ReadRecord call.
 //
 // To populate typed wide values for fields whose representation does not
-// fit in float64 (decimal128, point_f64, h3_cell), call ReadRecordWithWide
-// instead and pass a third map.
+// fit in float64 (decimal128), call ReadRecordWithWide instead and pass a
+// third map.
 func (rr *RecordReader) ReadRecord(values map[string]float64, nulls map[string]bool) error {
 	return rr.ReadRecordWithWide(values, nulls, nil)
 }
@@ -47,8 +47,8 @@ func (rr *RecordReader) ReadRecord(values map[string]float64, nulls map[string]b
 type FieldFilter func(name string) bool
 
 // ReadRecordWithWide reads a record and populates a wide map with typed
-// values for decimal128, point_f64, and h3_cell fields. The wide map may
-// be nil to skip wide population.
+// values for decimal128 fields. The wide map may be nil to skip wide
+// population.
 func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[string]bool, wide map[string]any) error {
 	return rr.readRecord(values, nulls, wide, nil)
 }
@@ -153,40 +153,6 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 			values[field.Name] = d.Float64(field.Scale)
 			if wide != nil {
 				wide[field.Name] = d
-			}
-
-		case FieldTypePointF64:
-			p, err := ReadPointF64(rr.r)
-			if err != nil {
-				if err == io.EOF || isEOF(err) {
-					return io.EOF
-				}
-				return err
-			}
-			if !keepField {
-				continue
-			}
-			// No useful float64 representation; record stores 0 to keep
-			// the values map populated for callers that index by name.
-			values[field.Name] = 0
-			if wide != nil {
-				wide[field.Name] = p
-			}
-
-		case FieldTypeH3Cell:
-			c, err := ReadH3Cell(rr.r)
-			if err != nil {
-				if err == io.EOF || isEOF(err) {
-					return io.EOF
-				}
-				return err
-			}
-			if !keepField {
-				continue
-			}
-			values[field.Name] = float64(c)
-			if wide != nil {
-				wide[field.Name] = c
 			}
 
 		default:

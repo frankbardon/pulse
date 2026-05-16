@@ -117,7 +117,7 @@ Field descriptions in `.pulse` files are capped at 1000 bytes (`PULSE_IMPORT_DES
 3. **Dictionary blocks:** inline after schema for `categorical_u8/u16/u32`.
 4. **Record data:** fixed-width rows; size derived from schema.
 
-19 field types (full table + sizes in `skills/cohort-schema-design.md`, enforced by `TestSkillsCoverAllFieldTypes`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `nullable_bool`, `nullable_u4`/`u8`/`u16`, `date`, `packed_bool`, `categorical_u8`/`u16`/`u32`, `decimal128`, `nullable_decimal128`, `point_f64`, `h3_cell`. Bit-packed types (`nullable_bool`, `nullable_u4`, `packed_bool`) return `ByteSize() == 0` — they share bytes with adjacent fields. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`.
+17 field types (full table + sizes in `skills/cohort-schema-design.md`, enforced by `TestSkillsCoverAllFieldTypes`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `nullable_bool`, `nullable_u4`/`u8`/`u16`, `date`, `packed_bool`, `categorical_u8`/`u16`/`u32`, `decimal128`, `nullable_decimal128`. Bit-packed types (`nullable_bool`, `nullable_u4`, `packed_bool`) return `ByteSize() == 0` — they share bytes with adjacent fields. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`.
 
 ### Smart defaults
 
@@ -129,7 +129,6 @@ When a request slot names a field but omits the operator `Type`, the engine infe
 | categorical_* | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
 | `date` | (explicit only) | `GROUP_DATE` (component `"day"`) |
 | `nullable_bool` / `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
-| `point_f64` / `h3_cell` | `AGG_GEO_CENTROID` | `GROUP_H3_CELL` (resolution 7) |
 
 Defaults apply only when `Field` is set and `Type` is empty; never override explicit `Type`; never cross categories; never default tier-1/tier-2 tests, filter expressions, attributes, windows, or features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
 
@@ -177,11 +176,11 @@ Capability declarations live in `descriptor/capabilities_*.go`. MCP tool metadat
 
 - **Predict structural ban:** `descriptor/predict.go` MUST NOT import `service/` or `processing/`. Enforced by `TestPredictNoExecutionImports`. Predict reads only header + schema, never records. For capability lookups, use `types/` constants (e.g., `types.AllAggregationTypes()`).
 - **Inspect header-only:** reads only `encoding.ReadHeader` + `encoding.ReadSchema`. Dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`. Missing descriptions get a synthesized fallback with `description_source` flagged.
-- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods on `types.AggregationType`/`AttributeType`/`FiltererType`/`GroupType`/`WindowType`/`FeatureType` plus schema gates (decimal, geo). Runtime parity via `processing.CanStreamRequest(req, schema)` (`TestPredict_Streamable_MatchesRuntime`).
+- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods on `types.AggregationType`/`AttributeType`/`FiltererType`/`GroupType`/`WindowType`/`FeatureType` plus schema gates (decimal). Runtime parity via `processing.CanStreamRequest(req, schema)` (`TestPredict_Streamable_MatchesRuntime`).
 
 ### Streaming Process
 
-Four orchestrator modes — single-pass, grouped, two-pass attributes (Welford-Pébaÿ), streaming features. Forced buffered: median/percentile/zscore aggregators, `ATTR_PERCENTILE`, `GROUP_QUANTILE`/`GROUP_DATE`, window operators, decimal/geo paths, tier-1 tests combined with groupers/features/two-pass attrs, all tier-2 tests. CLI streams via `pulse api process --stream` / `pulse api compose --stream` (NDJSON one row per line). Library: `pulse.ProcessStream(ctx, req) (RowIter, error)`.
+Four orchestrator modes — single-pass, grouped, two-pass attributes (Welford-Pébaÿ), streaming features. Forced buffered: median/percentile/zscore aggregators, `ATTR_PERCENTILE`, `GROUP_QUANTILE`/`GROUP_DATE`, window operators, decimal paths, tier-1 tests combined with groupers/features/two-pass attrs, all tier-2 tests. CLI streams via `pulse api process --stream` / `pulse api compose --stream` (NDJSON one row per line). Library: `pulse.ProcessStream(ctx, req) (RowIter, error)`.
 
 ### Projected buffered decode
 
@@ -320,7 +319,7 @@ Per-component target skill:
 | Error code | `errors/fixup_metadata.go` (surfaced via `pulse_errors_lookup`) |
 | Extension API surface (registration shape, expr funcs, lookup tables) | `skills/extension-points.md` |
 
-**Current registered counts** (full lists in each skill, enforced by coverage gates): 18 aggregators, 9 attributes, 6 filterers, 6 groupers, 10 window operators, 9 feature operators, 20 statistical tests (18 tier-1 row tests + tier-2 variants), 12 synth distributions, 3 regressions.
+**Current registered counts** (full lists in each skill, enforced by coverage gates): 16 aggregators, 9 attributes, 5 filterers, 5 groupers, 10 window operators, 9 feature operators, 20 statistical tests (18 tier-1 row tests + tier-2 variants), 12 synth distributions, 3 regressions.
 
 Adding a new skill: create `skills/<name>.md` with frontmatter, add entry to `skills/index.json`, bump the count in `TestSkillsList_ReturnsAll` and `TestSkillsNames`. Run `go test ./skills/...`.
 

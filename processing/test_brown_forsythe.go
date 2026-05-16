@@ -52,7 +52,7 @@ func newBrownForsytheRow(spec *types.Test, schema *encoding.Schema) (RowTest, er
 			map[string]any{"alpha": spec.Alpha})
 	}
 	if schema != nil {
-		if f := schema.Field(spec.Field); f != nil && (f.Type.IsCategorical() || f.Type.IsGeo()) {
+		if f := schema.Field(spec.Field); f != nil && (f.Type.IsCategorical()) {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_FIELD_NOT_NUMERIC,
 				fmt.Sprintf("TEST_BROWN_FORSYTHE field %q has non-numeric type %s", spec.Field, f.Type.String()),
 				map[string]any{"field": spec.Field, "field_type": f.Type.String()})

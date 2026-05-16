@@ -434,10 +434,6 @@ func (w *Writer) appendCell(c int, v any) error {
 		switch f.Type {
 		case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
 			return parrow.AppendDecimal128(w.bldr.Field(c), f, v)
-		case encoding.FieldTypePointF64:
-			return parrow.AppendPointF64(w.bldr.Field(c), v)
-		case encoding.FieldTypeH3Cell:
-			return parrow.AppendH3Cell(w.bldr.Field(c), v)
 		}
 	}
 	if w.strBs[c] != nil {

@@ -15,7 +15,7 @@ func TestReadSchema_RejectsUnknownFieldType(t *testing.T) {
 	var buf bytes.Buffer
 	// fieldCount=1
 	binary.Write(&buf, binary.LittleEndian, uint16(1))
-	// type byte = 250 (well past fieldTypeCount=19)
+	// type byte = 250 (well past fieldTypeCount=17)
 	buf.WriteByte(250)
 	// name "x"
 	binary.Write(&buf, binary.LittleEndian, uint16(1))
@@ -38,12 +38,10 @@ func TestReadSchema_RejectsUnknownFieldType(t *testing.T) {
 	}
 }
 
-func TestSchema_DecimalAndH3Metadata_RoundTrip(t *testing.T) {
+func TestSchema_DecimalMetadata_RoundTrip(t *testing.T) {
 	original := &Schema{
 		Fields: []Field{
 			{Name: "amount", Type: FieldTypeDecimal128, Precision: 20, Scale: 6, Description: "Amount with 6 decimal places of precision."},
-			{Name: "loc", Type: FieldTypePointF64, Description: "Location stored as packed lat/lon doubles."},
-			{Name: "cell", Type: FieldTypeH3Cell, H3Resolution: 9, Description: "H3 cell index at native resolution 9."},
 		},
 	}
 	var buf bytes.Buffer
@@ -56,8 +54,5 @@ func TestSchema_DecimalAndH3Metadata_RoundTrip(t *testing.T) {
 	}
 	if got.Fields[0].Precision != 20 || got.Fields[0].Scale != 6 {
 		t.Errorf("decimal metadata lost: %+v", got.Fields[0])
-	}
-	if got.Fields[2].H3Resolution != 9 {
-		t.Errorf("h3 resolution lost: %d", got.Fields[2].H3Resolution)
 	}
 }

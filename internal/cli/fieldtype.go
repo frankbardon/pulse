@@ -22,8 +22,6 @@ func parseFieldType(name string) encoding.FieldType {
 		"categorical_u32":     encoding.FieldTypeCategoricalU32,
 		"decimal128":          encoding.FieldTypeDecimal128,
 		"nullable_decimal128": encoding.FieldTypeNullableDecimal128,
-		"point_f64":           encoding.FieldTypePointF64,
-		"h3_cell":             encoding.FieldTypeH3Cell,
 	}
 	if ft, ok := m[name]; ok {
 		return ft

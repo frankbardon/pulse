@@ -2,10 +2,10 @@ package encoding
 
 import "testing"
 
-func TestFieldTypes_All19Present(t *testing.T) {
-	// Verify we have exactly 19 field types (0..18).
-	if fieldTypeCount != 19 {
-		t.Fatalf("expected 19 field types, got %d", fieldTypeCount)
+func TestFieldTypes_All17Present(t *testing.T) {
+	// Verify we have exactly 17 field types (0..16).
+	if fieldTypeCount != 17 {
+		t.Fatalf("expected 17 field types, got %d", fieldTypeCount)
 	}
 
 	types := []FieldType{
@@ -14,7 +14,7 @@ func TestFieldTypes_All19Present(t *testing.T) {
 		FieldTypeNullableBool, FieldTypeNullableU4, FieldTypeNullableU8, FieldTypeNullableU16,
 		FieldTypeDate, FieldTypePackedBool,
 		FieldTypeCategoricalU8, FieldTypeCategoricalU16, FieldTypeCategoricalU32,
-		FieldTypeDecimal128, FieldTypeNullableDecimal128, FieldTypePointF64, FieldTypeH3Cell,
+		FieldTypeDecimal128, FieldTypeNullableDecimal128,
 	}
 	if len(types) != int(fieldTypeCount) {
 		t.Fatalf("type list has %d entries, sentinel says %d", len(types), fieldTypeCount)
@@ -48,8 +48,6 @@ func TestFieldType_ByteSize(t *testing.T) {
 		{FieldTypeCategoricalU32, 4},
 		{FieldTypeDecimal128, 16},
 		{FieldTypeNullableDecimal128, 16},
-		{FieldTypePointF64, 16},
-		{FieldTypeH3Cell, 8},
 	}
 	for _, tc := range cases {
 		if got := tc.ft.ByteSize(); got != tc.want {
@@ -80,8 +78,6 @@ func TestFieldType_String(t *testing.T) {
 		{FieldTypeCategoricalU32, "categorical_u32"},
 		{FieldTypeDecimal128, "decimal128"},
 		{FieldTypeNullableDecimal128, "nullable_decimal128"},
-		{FieldTypePointF64, "point_f64"},
-		{FieldTypeH3Cell, "h3_cell"},
 		{FieldType(255), "unknown(255)"},
 	}
 	for _, tc := range cases {

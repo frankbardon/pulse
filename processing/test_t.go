@@ -93,7 +93,7 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	}
 	if schema != nil {
 		if f := schema.Field(spec.Field); f != nil {
-			if f.Type.IsCategorical() || f.Type.IsGeo() {
+			if f.Type.IsCategorical() {
 				return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_FIELD_NOT_NUMERIC,
 					fmt.Sprintf("TEST_T field %q has non-numeric type %s", spec.Field, f.Type.String()),
 					map[string]any{"field": spec.Field, "type": f.Type.String()})

@@ -199,10 +199,8 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 
 	for i := 0; i < numFields; i++ {
 		af := r.arrowSc.Field(i)
-		// Honor pulse:type / pulse:h3_resolution extension metadata first
-		// so point_f64 and h3_cell columns recover their original type.
-		// Decimal128 columns also resolve through this path so precision
-		// and scale ride along.
+		// Decimal128 columns resolve through this path so precision and
+		// scale ride along.
 		if pf, ok := PulseFieldFromArrow(af); ok {
 			pf.ByteOffset = byteOffset
 			pf.CsvColumnIdx = i
@@ -240,8 +238,7 @@ type Writer struct {
 
 	// pulseSchema is set by the export pipeline via SetPulseSchema before
 	// WriteHeader so the writer can build native typed columns for
-	// decimal128 / point_f64 / h3_cell. nil falls back to the legacy
-	// all-string column layout.
+	// decimal128. nil falls back to the legacy all-string column layout.
 	pulseSchema *encoding.Schema
 
 	// Lazily-initialized arrow writer state. Built on first WriteRow once
@@ -285,9 +282,8 @@ func (w *Writer) WriteHeader(columns []string) error {
 
 // initWriter builds the Arrow schema, RecordBuilder, and ipc.FileWriter on
 // demand. When a Pulse schema was provided via SetPulseSchema, columns
-// use native Arrow types per FieldFromPulse (Decimal128(p,s),
-// FixedSizeBinary(16), UInt64). Otherwise every column falls back to
-// arrow.String, the legacy all-string layout.
+// use native Arrow types per FieldFromPulse (Decimal128(p,s)). Otherwise
+// every column falls back to arrow.String, the legacy all-string layout.
 func (w *Writer) initWriter() error {
 	if w.fw != nil {
 		return nil
@@ -383,10 +379,6 @@ func (w *Writer) appendCell(c int, v any) error {
 		switch f.Type {
 		case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
 			return w.appendDecimal(c, f, v)
-		case encoding.FieldTypePointF64:
-			return w.appendPoint(c, v)
-		case encoding.FieldTypeH3Cell:
-			return w.appendH3(c, v)
 		}
 	}
 	if w.strBs[c] != nil {
@@ -409,14 +401,6 @@ func (w *Writer) appendCell(c int, v any) error {
 
 func (w *Writer) appendDecimal(c int, f encoding.Field, v any) error {
 	return AppendDecimal128(w.bldr.Field(c), f, v)
-}
-
-func (w *Writer) appendPoint(c int, v any) error {
-	return AppendPointF64(w.bldr.Field(c), v)
-}
-
-func (w *Writer) appendH3(c int, v any) error {
-	return AppendH3Cell(w.bldr.Field(c), v)
 }
 
 // Close flushes any pending batch, closes the underlying Arrow IPC writer,

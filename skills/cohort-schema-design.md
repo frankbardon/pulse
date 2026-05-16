@@ -1,6 +1,6 @@
 ---
 name: cohort-schema-design
-description: Pick the right .pulse field type — u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, nullable_*, packed_bool, date, point_f64, h3_cell. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs.
+description: Pick the right .pulse field type — u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, nullable_*, packed_bool, date. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs.
 type: guide
 applies_to: inspect, predict
 ---
@@ -12,7 +12,7 @@ Schema design determines storage layout, encoding width, and downstream aggregat
 </skill_overview>
 
 <reference>
-## Field types (all 19)
+## Field types (all 17)
 
 | Type | Byte | Notes |
 |---|---|---|
@@ -33,14 +33,12 @@ Schema design determines storage layout, encoding width, and downstream aggregat
 | `categorical_u32` | 4 | Dictionary-encoded, ≤~4.29B entries |
 | `decimal128` | 16 | Fixed-point exact decimal, per-field (precision, scale) |
 | `nullable_decimal128` | 16 | `decimal128` plus an INT128_MIN null sentinel |
-| `point_f64` | 16 | Packed (lat, lon) f64 pair for geo points |
-| `h3_cell` | 8 | Uber H3 cell index as `uint64` |
 </reference>
 
 <reference>
 ## Backwards compatibility
 
-Files containing `decimal128`, `nullable_decimal128`, `point_f64`, or `h3_cell` fields are unreadable by pre-imp19 binaries by design. The reader rejects unknown FieldType bytes at schema parse time with `ENCODING_INVALID` — failure is loud and immediate, not silent at row decode. The format version byte stays at `0x01`; there is no flag-day version bump.
+Files containing `decimal128` or `nullable_decimal128` fields are unreadable by older binaries that pre-date those types. The reader rejects unknown FieldType bytes at schema parse time with `ENCODING_INVALID` — failure is loud and immediate, not silent at row decode. The format version byte stays at `0x01`; there is no flag-day version bump.
 </reference>
 
 <reference>

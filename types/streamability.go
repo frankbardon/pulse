@@ -19,8 +19,7 @@ func (t AggregationType) Streamable() bool {
 		AGG_DISTINCT_COUNT,
 		AGG_NULL_COUNT:
 		return true
-	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
-		AGG_GEO_CENTROID, AGG_GEO_BBOX:
+	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE:
 		return false
 	}
 	return false
@@ -57,7 +56,6 @@ func (t FiltererType) Streamable() bool {
 	switch t {
 	case FILTER_INCLUDE, FILTER_EXCLUDE, FILTER_RANGE,
 		FILTER_EXPRESSION,
-		FILTER_GEO_WITHIN, FILTER_GEO_WITHIN_RADIUS_M,
 		FILTER_NULL:
 		return true
 	}
@@ -65,7 +63,7 @@ func (t FiltererType) Streamable() bool {
 }
 
 // Streamable reports whether this group type can emit groups before the
-// input is exhausted. CATEGORY/ROUNDED/RANGE/H3_CELL bucket per row;
+// input is exhausted. CATEGORY/ROUNDED/RANGE bucket per row;
 // QUANTILE/DATE require finalize-time work over the full set.
 //
 // The streaming Process path does not currently emit grouped output even
@@ -74,7 +72,7 @@ func (t FiltererType) Streamable() bool {
 // streaming iterator can flip the gate without re-deriving the rule.
 func (t GroupType) Streamable() bool {
 	switch t {
-	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE, GROUP_H3_CELL:
+	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE:
 		return true
 	case GROUP_QUANTILE, GROUP_DATE:
 		return false

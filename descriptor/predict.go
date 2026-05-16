@@ -41,13 +41,6 @@ var decimalSupportedAggregations = map[types.AggregationType]bool{
 	types.AGG_DISTINCT_COUNT: true,
 }
 
-// geoAggregations are aggregations meaningful on point_f64 / h3_cell.
-var geoAggregations = map[types.AggregationType]bool{
-	types.AGG_GEO_CENTROID: true,
-	types.AGG_GEO_BBOX:     true,
-	types.AGG_COUNT:        true,
-}
-
 // PredictOptions controls predict behavior.
 type PredictOptions struct {
 	// Strict upgrades warnings to errors.
@@ -69,9 +62,9 @@ type PredictResult struct {
 	SchemaInfo *PredictSchemaInfo `json:"schema_info,omitempty"`
 	// Streamable reports whether ProcessStream / process --stream can
 	// emit rows without buffering the entire result. False whenever the
-	// request uses groups, attributes, windows, geo aggregations, decimal
-	// fields, or any non-streamable operator. Computed via per-type
-	// Streamable() methods plus schema-aware checks.
+	// request uses groups, attributes, windows, decimal fields, or any
+	// non-streamable operator. Computed via per-type Streamable() methods
+	// plus schema-aware checks.
 	Streamable bool `json:"streamable"`
 	// StreamableReasons lists the gates that forced Streamable=false. Empty
 	// when Streamable=true. Useful for users debugging why their request
@@ -202,7 +195,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	validateDescriptionQuality(env, schema, opts)
 
 	// Compute streamability — per-type Streamable() methods plus schema-aware
-	// gates (decimal fields force buffered, geo aggs force buffered). Honours
+	// gates (decimal fields force buffered). Honours
 	// the extensions snapshot when present so custom operator overrides land.
 	result.Streamable, result.StreamableReasons = computeStreamable(req, schema, opts)
 
@@ -287,12 +280,6 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 			reasons = append(reasons, "aggregation "+string(agg.Type)+" is not streamable")
 			continue
 		}
-		// Geo aggregations dispatch through buffered AggregateGeoField even
-		// when their type would otherwise be online.
-		if geoAggregations[agg.Type] && agg.Type != types.AGG_COUNT {
-			reasons = append(reasons, "aggregation "+string(agg.Type)+" uses the buffered geo path")
-			continue
-		}
 		// Decimal field aggregation routes through AggregateDecimalField to
 		// preserve precision; the streaming numeric fold loses it.
 		if schema != nil {
@@ -366,28 +353,6 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 			}
 		}
 
-		// Geo field aggregation validity matrix.
-		if f.Type.IsGeo() && !geoAggregations[agg.Type] {
-			entry := &EnvelopeEntry{
-				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_GEO),
-				Message: "aggregation " + string(agg.Type) + " is not defined on geospatial field " + agg.Field,
-				Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type), "type": f.Type.String()},
-			}
-			if opts.Strict {
-				env.Errors = append(env.Errors, entry)
-			} else {
-				env.Warnings = append(env.Warnings, entry)
-			}
-		}
-
-		// AGG_GEO_CENTROID / AGG_GEO_BBOX must target point_f64 only.
-		if (agg.Type == types.AGG_GEO_CENTROID || agg.Type == types.AGG_GEO_BBOX) && f.Type != encoding.FieldTypePointF64 {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				string(agg.Type)+" requires a point_f64 field; got "+f.Type.String(),
-				map[string]any{"field": agg.Field, "aggregation": string(agg.Type), "type": f.Type.String()},
-			)
-		}
 	}
 
 	// Check filter fields.
@@ -405,14 +370,7 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 				)
 				continue
 			}
-			// Geo filterers require point_f64 fields.
-			if (fil.Type == types.FILTER_GEO_WITHIN || fil.Type == types.FILTER_GEO_WITHIN_RADIUS_M) && f != nil && f.Type != encoding.FieldTypePointF64 {
-				env.AddError(
-					string(errors.SERVICE_VALIDATION),
-					string(fil.Type)+" requires a point_f64 field; got "+f.Type.String(),
-					map[string]any{"field": fil.Field, "filter": string(fil.Type), "type": f.Type.String()},
-				)
-			}
+			_ = f
 		}
 	}
 
@@ -427,16 +385,7 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 			)
 			continue
 		}
-		// GROUP_H3_CELL accepts point_f64 (resolution required) or h3_cell (resolution optional).
-		if grp.Type == types.GROUP_H3_CELL && f != nil {
-			if f.Type != encoding.FieldTypePointF64 && f.Type != encoding.FieldTypeH3Cell {
-				env.AddError(
-					string(errors.SERVICE_VALIDATION),
-					"GROUP_H3_CELL requires point_f64 or h3_cell field; got "+f.Type.String(),
-					map[string]any{"field": grp.Field, "group": string(grp.Type), "type": f.Type.String()},
-				)
-			}
-		}
+		_ = f
 	}
 
 	// Check regression slots. Phase 0 validates structural shape only

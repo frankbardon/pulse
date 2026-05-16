@@ -74,7 +74,7 @@ After the user generates the file, you can verify the result over MCP:
 
 ### Field-type matrix
 
-Every type supported by the .pulse format works with synth. Use `decimal128` with a `params.scale` matching the field's declared scale; the writer rescales as needed via banker's rounding. `point_f64` accepts a `{lat, lon}` map or a WKT POINT string. `h3_cell` consumes a uint64 from a numeric distribution. `packed_bool`, `nullable_bool`, `nullable_u4` consume one byte per row in the writer to keep the layout aligned with the importer.
+Every type supported by the .pulse format works with synth. Use `decimal128` with a `params.scale` matching the field's declared scale; the writer rescales as needed via banker's rounding. `packed_bool`, `nullable_bool`, `nullable_u4` consume one byte per row in the writer to keep the layout aligned with the importer.
 
 ### Constraints
 
@@ -95,8 +95,6 @@ The profile captures, per field:
 
 The CLI writes the profile to a JSON file; the synth-from-profile step reads it and reconstructs an internal Spec via `synth.SpecFromProfile`. Numeric fields become `normal` (clamped to observed min/max), categoricals become `weighted_categorical`, and dates become `uniform_date`. The captured pairwise correlations become Gaussian-copula post-processing on the row stream.
 
-`point_f64` and `h3_cell` are not summarized in v1; the profile records them with a warning and synth emits a constant zero placeholder. Use schema-mode for geospatial cohorts.
-
 ## Embedded library use
 
 Library embedding is a Go-side concern — see https://frankbardon.github.io/pulse/library/overview.html for the API. Both `pulse.Pulse.Synth(ctx, spec, output, opts)` and `pulse.Pulse.Profile(ctx, path, opts)` route through the embedded filesystem, so `pulse.New(pulse.Options{FS: afero.NewMemMapFs()})` works in tests without touching disk.
@@ -109,5 +107,5 @@ If a profile derived from sensitive data is published, treat it as if the data i
 
 - `PULSE_SYNTH_DISTRIBUTION_UNKNOWN` — the spec referenced a kind not in the registry. Check `synth.AllDistributions()`.
 - `PULSE_SYNTH_CONSTRAINT_INFEASIBLE` — rejection rate exceeded the threshold. Relax the constraint, change the underlying distribution, or raise `max_rejection_rate`.
-- `PULSE_PROFILE_FIELD_UNSUPPORTED` — the profiler skipped a field type it cannot summarize (currently `point_f64` and `h3_cell`). Use schema-mode for those fields.
+- `PULSE_PROFILE_FIELD_UNSUPPORTED` — the profiler skipped a field type it cannot summarize. Use schema-mode for those fields.
 - `SERVICE_VALIDATION` — spec shape errors (missing field name, duplicate field, malformed params).

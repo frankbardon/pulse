@@ -115,7 +115,6 @@ pulse api predict --request req.json --json | \
 |---|---|
 | `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | Use `AGG_COUNT` / `AGG_FREQUENCY` instead of `AGG_SUM` / `AGG_AVG` on categoricals |
 | `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`     | Decimal-typed field; switch to a decimal-aware aggregator |
-| `PULSE_AGG_NOT_MEANINGFUL_FOR_GEO`         | Use `AGG_GEO_*` for geospatial fields |
 | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`      | Edit the schema description; re-import |
 | `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | The feature operator references the target column; reorganise the pipeline |
 

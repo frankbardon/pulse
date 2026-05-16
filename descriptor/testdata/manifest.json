@@ -82,14 +82,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -111,14 +109,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -140,14 +136,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -155,28 +149,6 @@
           ],
           "emits_type_note": "map[string]int64",
           "streamable": true
-        },
-        {
-          "name": "AGG_GEO_BBOX",
-          "category": "aggregator",
-          "description": "Bounding box (min/max lat/lon) of point_f64 values.",
-          "params": null,
-          "accepts_types": [
-            "point_f64"
-          ],
-          "emits_type_note": "object {min_lat, max_lat, min_lon, max_lon}",
-          "streamable": false
-        },
-        {
-          "name": "AGG_GEO_CENTROID",
-          "category": "aggregator",
-          "description": "Spherical centroid (lat, lon) of point_f64 values.",
-          "params": null,
-          "accepts_types": [
-            "point_f64"
-          ],
-          "emits_type_note": "point_f64 (lat, lon)",
-          "streamable": false
         },
         {
           "name": "AGG_KURTOSIS",
@@ -283,14 +255,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -312,14 +282,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -536,14 +504,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -717,14 +683,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -746,40 +710,16 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
             "u8"
-          ],
-          "emits_type_note": "record-level predicate",
-          "streamable": true
-        },
-        {
-          "name": "FILTER_GEO_WITHIN",
-          "category": "filterer",
-          "description": "Keep point_f64 records that lie inside the supplied polygon (Values lists vertices).",
-          "params": null,
-          "accepts_types": [
-            "point_f64"
-          ],
-          "emits_type_note": "record-level predicate",
-          "streamable": true
-        },
-        {
-          "name": "FILTER_GEO_WITHIN_RADIUS_M",
-          "category": "filterer",
-          "description": "Keep point_f64 records within radius (m) of a reference point; Values=[lat, lon, radius_m].",
-          "params": null,
-          "accepts_types": [
-            "point_f64"
           ],
           "emits_type_note": "record-level predicate",
           "streamable": true
@@ -797,14 +737,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -826,14 +764,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -878,14 +814,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -921,25 +855,6 @@
           "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01)",
           "streamable": false,
           "streamable_hint": "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute."
-        },
-        {
-          "name": "GROUP_H3_CELL",
-          "category": "grouper",
-          "description": "Group spatial records by H3 cell at the configured resolution; accepts point_f64 (converts inline) or h3_cell (re-bins via parent walk).",
-          "params": [
-            {
-              "name": "resolution",
-              "type": "int",
-              "required": true,
-              "description": "Target H3 resolution in [0, 15]; finer resolutions bucket more aggressively."
-            }
-          ],
-          "accepts_types": [
-            "h3_cell",
-            "point_f64"
-          ],
-          "emits_type_note": "string H3 cell index per row",
-          "streamable": true
         },
         {
           "name": "GROUP_QUANTILE",
@@ -1039,14 +954,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -1217,14 +1130,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -1247,14 +1158,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -1513,14 +1422,12 @@
             "decimal128",
             "f32",
             "f64",
-            "h3_cell",
             "nullable_bool",
             "nullable_decimal128",
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "point_f64",
             "u16",
             "u32",
             "u64",
@@ -2857,7 +2764,7 @@
         ]
       }
     ],
-    "error_codes_count": 84,
+    "error_codes_count": 79,
     "error_domains": [
       "CLI",
       "DATA",
@@ -2894,7 +2801,6 @@
       "PROCESSING_STATE",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
-      "PULSE_AGG_NOT_MEANINGFUL_FOR_GEO",
       "PULSE_DECIMAL_DIVIDE_BY_ZERO",
       "PULSE_DECIMAL_OVERFLOW",
       "PULSE_DECIMAL_PRECISION_LOSS",
@@ -2908,10 +2814,6 @@
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEAT_TARGET_LEAKAGE_RISK",
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
-      "PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS",
-      "PULSE_GEO_INVALID_POINT",
-      "PULSE_GEO_INVALID_POLYGON",
-      "PULSE_GEO_INVALID_RESOLUTION",
       "PULSE_IMPORT_CATEGORICAL_OVERFLOW",
       "PULSE_IMPORT_CATEGORICAL_UNBOUNDED",
       "PULSE_IMPORT_DESCRIPTION_TOO_LONG",
@@ -3933,80 +3835,12 @@
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
-      },
-      {
-        "name": "point_f64",
-        "categorical": false,
-        "compatible_aggregators": [
-          "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_GEO_BBOX",
-          "AGG_GEO_CENTROID",
-          "AGG_MODE",
-          "AGG_NULL_COUNT"
-        ],
-        "compatible_attributes": [
-          "ATTR_FORMULA"
-        ],
-        "compatible_filterers": [
-          "FILTER_EXCLUDE",
-          "FILTER_EXPRESSION",
-          "FILTER_GEO_WITHIN",
-          "FILTER_GEO_WITHIN_RADIUS_M",
-          "FILTER_INCLUDE",
-          "FILTER_NULL"
-        ],
-        "compatible_groupers": [
-          "GROUP_CATEGORY",
-          "GROUP_H3_CELL"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
-        "compatible_features": [
-          "FEAT_TRAIN_TEST_SPLIT"
-        ]
-      },
-      {
-        "name": "h3_cell",
-        "categorical": false,
-        "compatible_aggregators": [
-          "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_MODE",
-          "AGG_NULL_COUNT"
-        ],
-        "compatible_attributes": [
-          "ATTR_FORMULA"
-        ],
-        "compatible_filterers": [
-          "FILTER_EXCLUDE",
-          "FILTER_EXPRESSION",
-          "FILTER_INCLUDE",
-          "FILTER_NULL"
-        ],
-        "compatible_groupers": [
-          "GROUP_CATEGORY",
-          "GROUP_H3_CELL"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
-        "compatible_features": [
-          "FEAT_TRAIN_TEST_SPLIT"
-        ]
       }
     ],
     "skills": [
       {
         "name": "aggregation-guide",
-        "description": "Choose between the 18 AGG_* operators (SUM, AVG, MEDIAN, PERCENTILE, ZSCORE, FREQUENCY, MODE, KURTOSIS, GEO_CENTROID, GEO_BBOX, ...) and 6 FILTER_* operators. Use when assembling a Process request, interpreting percentile/frequency output, or picking a row-filter."
+        "description": "Choose between the 16 AGG_* operators (SUM, AVG, MEDIAN, PERCENTILE, ZSCORE, FREQUENCY, MODE, KURTOSIS, ...) and 5 FILTER_* operators. Use when assembling a Process request, interpreting percentile/frequency output, or picking a row-filter."
       },
       {
         "name": "attribute-composition",
@@ -4014,7 +3848,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Pick the right .pulse field type — u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, nullable_*, packed_bool, date, point_f64, h3_cell. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs."
+        "description": "Pick the right .pulse field type — u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, nullable_*, packed_bool, date. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs."
       },
       {
         "name": "compose-requests",
@@ -4053,16 +3887,12 @@
         "description": "Use decimal128 / nullable_decimal128 for money — precision and scale propagation, banker's rounding, divide-by-zero policy, currency-column patterns. Use when a cohort has monetary fields or hits PULSE_DECIMAL_OVERFLOW / PRECISION_LOSS / DIVIDE_BY_ZERO errors."
       },
       {
-        "name": "geospatial-cohorts",
-        "description": "Use point_f64 and h3_cell for spatial data — AGG_GEO_CENTROID, AGG_GEO_BBOX, FILTER_GEO_WITHIN, FILTER_GEO_WITHIN_RADIUS_M (meters), GROUP_H3_CELL resolutions, antimeridian behavior, polygon WKT format. Use when a cohort has lat/lon or H3 fields or hits PULSE_GEO_* errors."
-      },
-      {
         "name": "getting-started",
         "description": "Pulse mental model, MCP tool surface, .pulse file format, operator vocabulary. Use first on a new session to establish baseline before calling pulse_inspect, pulse_predict, or pulse_process."
       },
       {
         "name": "grouper-design",
-        "description": "Pick a grouper: GROUP_CATEGORY, GROUP_DATE (day/week/month/year/quarter), GROUP_RANGE (intervals), GROUP_ROUNDED, GROUP_QUANTILE, GROUP_H3_CELL. Use when bucketing rows, nesting groupers for cross-tabs, or choosing between range and quantile bins."
+        "description": "Pick a grouper: GROUP_CATEGORY, GROUP_DATE (day/week/month/year/quarter), GROUP_RANGE (intervals), GROUP_ROUNDED, GROUP_QUANTILE. Use when bucketing rows, nesting groupers for cross-tabs, or choosing between range and quantile bins."
       },
       {
         "name": "import-best-practices",
@@ -4082,7 +3912,7 @@
       },
       {
         "name": "request-recipes",
-        "description": "Canonical Pulse request JSON skeletons keyed by analytical intent — compare two groups, rank top N, trend over time, ANOVA with Tukey post-hoc, paired before/after, frequency cross-tab, geo aggregation. Use when starting from a natural-language ask and needing a runnable JSON template."
+        "description": "Canonical Pulse request JSON skeletons keyed by analytical intent — compare two groups, rank top N, trend over time, ANOVA with Tukey post-hoc, paired before/after, frequency cross-tab. Use when starting from a natural-language ask and needing a runnable JSON template."
       },
       {
         "name": "statistical-testing",
@@ -4097,7 +3927,7 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 85,
+    "examples_count": 80,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -4129,7 +3959,6 @@
       "feature-engineering",
       "feature-pipeline",
       "financial",
-      "geo-analysis",
       "glm",
       "homogeneity-test",
       "hypothesis-test",
@@ -4197,4 +4026,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6c0934f43062f1ee2345fdb7e6492123d57f7c637d271f11de3d83f900ba1a72
+// golden-hash: 12ed1d3b18f52630e31ec80ea1cddab2a29ca1c18ade8dc9f63215125503eb97

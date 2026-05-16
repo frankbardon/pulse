@@ -72,8 +72,7 @@ func (c *compiledConstraints) evaluate(row map[string]any) (bool, error) {
 func sentinelFor(typeName string) any {
 	switch typeName {
 	case "u8", "u16", "u32", "u64", "f32", "f64",
-		"date", "nullable_u4", "nullable_u8", "nullable_u16",
-		"h3_cell":
+		"date", "nullable_u4", "nullable_u8", "nullable_u16":
 		return float64(0)
 	case "packed_bool", "nullable_bool":
 		return false
@@ -81,8 +80,6 @@ func sentinelFor(typeName string) any {
 		return ""
 	case "decimal128", "nullable_decimal128":
 		return float64(0)
-	case "point_f64":
-		return map[string]any{"lat": float64(0), "lon": float64(0)}
 	}
 	return float64(0)
 }

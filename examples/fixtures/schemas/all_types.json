@@ -16,7 +16,5 @@
   {"name": "city", "type": "categorical_u16", "description": "City of origin; mid-cardinality categorical"},
   {"name": "sku", "type": "categorical_u32", "description": "SKU identifier; high-cardinality categorical"},
   {"name": "amount", "type": "decimal128", "precision": 20, "scale": 2, "description": "Monetary amount in USD with two decimal places of precision"},
-  {"name": "precise_amount", "type": "nullable_decimal128", "precision": 20, "scale": 6, "description": "High-precision amount with six decimals; null sentinel reserved"},
-  {"name": "location", "type": "point_f64", "description": "Packed (lat, lon) f64 pair for spatial filters and centroids"},
-  {"name": "cell", "type": "h3_cell", "h3_resolution": 9, "description": "Uber H3 cell index at native resolution 9"}
+  {"name": "precise_amount", "type": "nullable_decimal128", "precision": 20, "scale": 6, "description": "High-precision amount with six decimals; null sentinel reserved"}
 ]

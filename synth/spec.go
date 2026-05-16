@@ -44,9 +44,6 @@ type FieldSpec struct {
 	Precision uint8 `json:"precision,omitempty"`
 	Scale     uint8 `json:"scale,omitempty"`
 
-	// H3Resolution applies to h3_cell. 0xFF (255) means unspecified.
-	H3Resolution uint8 `json:"h3_resolution,omitempty"`
-
 	// NullRate is the per-row probability that the field will be null.
 	// Only meaningful for nullable types and decimal128's nullable form.
 	NullRate float64 `json:"null_rate,omitempty"`

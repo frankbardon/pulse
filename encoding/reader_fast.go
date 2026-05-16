@@ -84,22 +84,6 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 			rec.SetNumeric(field.Name, d.Float64(field.Scale))
 			rec.SetWideField(field.Name, d)
 
-		case FieldTypePointF64:
-			p, err := ReadPointF64(rr.r)
-			if err != nil {
-				return mapEOF(err)
-			}
-			rec.SetNumeric(field.Name, 0)
-			rec.SetWideField(field.Name, p)
-
-		case FieldTypeH3Cell:
-			c, err := ReadH3Cell(rr.r)
-			if err != nil {
-				return mapEOF(err)
-			}
-			rec.SetNumeric(field.Name, float64(c))
-			rec.SetWideField(field.Name, c)
-
 		default:
 			n := fixedWidthBytes(field.Type)
 			if n == 0 {
@@ -126,7 +110,7 @@ func fixedWidthBytes(ft FieldType) int {
 		return 2
 	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeF32:
 		return 4
-	case FieldTypeU64, FieldTypeH3Cell, FieldTypeF64:
+	case FieldTypeU64, FieldTypeF64:
 		return 8
 	default:
 		return 0
@@ -146,8 +130,6 @@ func decodeFixed(ft FieldType, buf []byte) float64 {
 	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32:
 		return float64(binary.LittleEndian.Uint32(buf))
 	case FieldTypeU64:
-		return float64(binary.LittleEndian.Uint64(buf))
-	case FieldTypeH3Cell:
 		return float64(binary.LittleEndian.Uint64(buf))
 	case FieldTypeF32:
 		return float64(math.Float32frombits(binary.LittleEndian.Uint32(buf)))

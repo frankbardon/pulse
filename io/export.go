@@ -44,7 +44,7 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	}
 
 	// Hand the source schema to schema-aware writers so they can build
-	// native typed columns for decimal128 / point_f64 / h3_cell.
+	// native typed columns for decimal128.
 	if saw, ok := j.Target.(SchemaAwareWriter); ok {
 		saw.SetPulseSchema(schema)
 	}
@@ -105,32 +105,10 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 				continue
 			}
 
-			if f.Type == encoding.FieldTypePointF64 {
-				p, err := encoding.ReadPointF64(r)
-				if err != nil {
-					hitEOF = true
-					break
-				}
-				if schemaAware {
-					values[i] = p
-				} else {
-					values[i] = encoding.FormatWKTPoint(p)
-				}
-				continue
-			}
-
 			raw, err := encoding.ReadFieldValue(r, f.Type)
 			if err != nil {
 				hitEOF = true
 				break
-			}
-			if f.Type == encoding.FieldTypeH3Cell {
-				if schemaAware {
-					values[i] = encoding.H3Cell(raw)
-				} else {
-					values[i] = encoding.FormatH3CellHex(encoding.H3Cell(raw))
-				}
-				continue
 			}
 			values[i] = formatFieldValue(f.Type, raw, f.Dictionary)
 		}

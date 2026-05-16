@@ -37,11 +37,10 @@ From `WriteFieldValue` / `ReadFieldValue` in
 | `u8` / `nullable_u8` / `categorical_u8`     | 1 byte, unsigned |
 | `u16` / `nullable_u16` / `categorical_u16`  | 2 bytes, little-endian unsigned |
 | `u32` / `date` / `categorical_u32`          | 4 bytes, little-endian unsigned |
-| `u64` / `h3_cell`                            | 8 bytes, little-endian unsigned |
+| `u64`                                        | 8 bytes, little-endian unsigned |
 | `f32`                                        | 4 bytes, little-endian IEEE 754 |
 | `f64`                                        | 8 bytes, little-endian IEEE 754 |
 | `decimal128` / `nullable_decimal128`         | 16 bytes, little-endian two's-complement integer (scaled by `10^scale`); null sentinel is `INT128_MIN` for the nullable variant |
-| `point_f64`                                  | 16 bytes: two LE `f64`s — `lat` then `lon` |
 | `packed_bool` / `nullable_bool` / `nullable_u4` | Bit-packed — see below |
 
 ## Bit-packing
@@ -72,11 +71,11 @@ fields never share.
 | `nullable_bool`       | Dedicated bit within the packed byte |
 | `nullable_decimal128` | `INT128_MIN` (`0x8000…0000`) |
 
-`u32`, `u64`, `f32`, `f64`, `date`, `decimal128` (non-nullable),
-`point_f64`, `h3_cell`, and all categoricals are **non-nullable** —
-the import path either coerces or rejects rows with missing values
-(`PULSE_IMPORT_ROW_ERROR`). Pick the `nullable_*` variant when you
-need to preserve the difference between "zero" and "missing".
+`u32`, `u64`, `f32`, `f64`, `date`, `decimal128` (non-nullable), and
+all categoricals are **non-nullable** — the import path either coerces
+or rejects rows with missing values (`PULSE_IMPORT_ROW_ERROR`). Pick
+the `nullable_*` variant when you need to preserve the difference
+between "zero" and "missing".
 
 ## Reading a record
 

@@ -162,30 +162,6 @@ func TestPredict_Suggestions_DecimalAggMismatch(t *testing.T) {
 	}
 }
 
-func TestPredict_Suggestions_GeoAggMismatch(t *testing.T) {
-	schema := &encoding.Schema{
-		Fields: []encoding.Field{
-			{Name: "loc", Type: encoding.FieldTypePointF64, Description: "Geographic point of interest (lat, lon)"},
-		},
-	}
-	req := &types.Request{
-		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "loc"}},
-	}
-	ss := runPredictForSuggestions(t, schema, req)
-	s := findSuggestionByPath(t, ss, "Aggregations.0.Type")
-	if s == nil {
-		t.Fatalf("expected geo-mismatch suggestion; got %+v", ss)
-	}
-	want := []any{"AGG_COUNT", "AGG_GEO_BBOX", "AGG_GEO_CENTROID"}
-	if len(s.Proposed) != len(want) {
-		t.Fatalf("Proposed count = %d, want %d (%v)", len(s.Proposed), len(want), s.Proposed)
-	}
-	for i, w := range want {
-		if s.Proposed[i] != w {
-			t.Errorf("Proposed[%d] = %v, want %v", i, s.Proposed[i], w)
-		}
-	}
-}
 
 // ----- Source 3: date misuse ---------------------------------------------
 

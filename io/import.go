@@ -73,8 +73,8 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	rowNum := 0
 
 	// Reusable per-row scratch slices. Narrow types share the uint64 slice;
-	// wide types (decimal128, point_f64) write 16 raw bytes via a parallel
-	// slice. Single goroutine via ReadRows callback, so reuse is safe.
+	// wide types (decimal128) write 16 raw bytes via a parallel slice.
+	// Single goroutine via ReadRows callback, so reuse is safe.
 	vals := make([]uint64, len(schema.Fields))
 	wideBytes := make([][16]byte, len(schema.Fields))
 	wideUsed := make([]bool, len(schema.Fields))
@@ -248,12 +248,10 @@ func isNullToken(raw string) bool {
 }
 
 // isWideFieldType reports whether the field type uses the 16-byte wide
-// import path (decimal128, nullable_decimal128, point_f64). h3_cell fits
-// in uint64 and goes through the narrow path.
+// import path (decimal128, nullable_decimal128).
 func isWideFieldType(ft encoding.FieldType) bool {
 	return ft == encoding.FieldTypeDecimal128 ||
-		ft == encoding.FieldTypeNullableDecimal128 ||
-		ft == encoding.FieldTypePointF64
+		ft == encoding.FieldTypeNullableDecimal128
 }
 
 // convertValueWide converts a string value to the 16-byte representation
@@ -293,15 +291,6 @@ func convertValueWide(raw string, f encoding.Field, _ *encoding.Dictionary) ([16
 				"decimal value collides with reserved NULL sentinel")
 		}
 		return enc, nil
-	case encoding.FieldTypePointF64:
-		if isNullToken(raw) {
-			return [16]byte{}, nil
-		}
-		p, err := encoding.ParseWKTPoint(raw)
-		if err != nil {
-			return [16]byte{}, err
-		}
-		return encoding.EncodePointF64(p), nil
 	default:
 		return [16]byte{}, fmt.Errorf("not a wide field type: %s", f.Type)
 	}
@@ -420,16 +409,6 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary) 
 		}
 		v, err := strconv.ParseUint(raw, 10, 16)
 		return v, err
-
-	case encoding.FieldTypeH3Cell:
-		if isNullToken(raw) {
-			return 0, nil
-		}
-		c, err := encoding.ParseH3CellHex(raw)
-		if err != nil {
-			return 0, err
-		}
-		return uint64(c), nil
 
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		if isNull {

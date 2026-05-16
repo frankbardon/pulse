@@ -31,9 +31,6 @@ const (
 	AGG_DISTINCT_COUNT AggregationType = "AGG_DISTINCT_COUNT"
 	AGG_PERCENTILE     AggregationType = "AGG_PERCENTILE"
 
-	AGG_GEO_CENTROID AggregationType = "AGG_GEO_CENTROID"
-	AGG_GEO_BBOX     AggregationType = "AGG_GEO_BBOX"
-
 	// AGG_NULL_COUNT counts records where the field is null. Inverse of
 	// AGG_COUNT, which counts records where the field is non-null. Stays
 	// streamable (O(1) state per row, no buffering).
@@ -47,7 +44,6 @@ func AllAggregationTypes() []AggregationType {
 		AGG_STDDEV, AGG_RANGE, AGG_FREQUENCY, AGG_ZSCORE,
 		AGG_MEDIAN, AGG_VARIANCE, AGG_MODE, AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_DISTINCT_COUNT, AGG_PERCENTILE,
-		AGG_GEO_CENTROID, AGG_GEO_BBOX,
 		AGG_NULL_COUNT,
 	}
 }
@@ -61,9 +57,6 @@ const (
 	FILTER_RANGE      FiltererType = "FILTER_RANGE"
 	FILTER_EXPRESSION FiltererType = "FILTER_EXPRESSION"
 
-	FILTER_GEO_WITHIN          FiltererType = "FILTER_GEO_WITHIN"
-	FILTER_GEO_WITHIN_RADIUS_M FiltererType = "FILTER_GEO_WITHIN_RADIUS_M"
-
 	// FILTER_NULL keeps or drops records based on null state of a field.
 	// Mode is "is_null" (keep null-valued records) or "is_not_null" (keep
 	// non-null records). Row-local; streamable.
@@ -75,8 +68,6 @@ func AllFiltererTypes() []FiltererType {
 	return []FiltererType{
 		FILTER_EXCLUDE,
 		FILTER_EXPRESSION,
-		FILTER_GEO_WITHIN,
-		FILTER_GEO_WITHIN_RADIUS_M,
 		FILTER_INCLUDE,
 		FILTER_NULL,
 		FILTER_RANGE,
@@ -92,12 +83,11 @@ const (
 	GROUP_RANGE    GroupType = "GROUP_RANGE"
 	GROUP_QUANTILE GroupType = "GROUP_QUANTILE"
 	GROUP_DATE     GroupType = "GROUP_DATE"
-	GROUP_H3_CELL  GroupType = "GROUP_H3_CELL"
 )
 
 // AllGroupTypes returns all defined group types.
 func AllGroupTypes() []GroupType {
-	return []GroupType{GROUP_CATEGORY, GROUP_DATE, GROUP_H3_CELL, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED}
+	return []GroupType{GROUP_CATEGORY, GROUP_DATE, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED}
 }
 
 // AttributeType identifies a specific derived-attribute computation.

@@ -282,16 +282,13 @@ func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema)
 
 // newKindAccumulator constructs the right accumulator for the field's
 // schema type. Numeric types (u*, f*, decimal*, date) are summarised
-// numerically; categorical / boolean types are summarised discretely;
-// geo types are summarised discretely via WKT-ish string formatting.
+// numerically; categorical / boolean types are summarised discretely.
 func newKindAccumulator(f *encoding.Field, req *types.FacetRequest, bins int) (kindAccumulator, error) {
 	switch {
 	case f.Type.IsCategorical():
 		return newCategoricalAccumulator(f), nil
 	case f.Type == encoding.FieldTypeNullableBool || f.Type == encoding.FieldTypePackedBool:
 		return newBoolAccumulator(f), nil
-	case f.Type.IsGeo():
-		return newGeoAccumulator(f), nil
 	case isFacetNumericType(f.Type):
 		wantPercentiles := len(req.NumericPercentiles) > 0
 		return newNumericAccumulator(f, wantPercentiles, req.IncludeHistogram, bins, req.HistogramRange), nil
@@ -417,70 +414,6 @@ func (a *boolAccumulator) finalize(req *types.FacetRequest) (*types.FacetField, 
 	}
 	if a.fcnt > 0 {
 		values = append(values, types.FacetValueCount{Value: "false", Count: a.fcnt})
-	}
-	values, truncatedAt, warning := sortAndTruncateDiscrete(values, a.field.Name, a.distinct, req.DiscreteTopK)
-	return &types.FacetField{
-		Kind:        "discrete",
-		TypeName:    a.field.Type.String(),
-		Description: a.field.Description,
-		NullCount:   a.nulls,
-		Discrete: &types.FacetDiscrete{
-			Values:        values,
-			DistinctCount: a.distinct,
-			TruncatedAt:   truncatedAt,
-		},
-	}, warning, nil
-}
-
-// --- Geo accumulator (point_f64 / h3_cell as discrete) ---
-
-type geoAccumulator struct {
-	field    *encoding.Field
-	counts   map[string]int64
-	nulls    int64
-	distinct int64
-}
-
-func newGeoAccumulator(f *encoding.Field) *geoAccumulator {
-	return &geoAccumulator{field: f, counts: make(map[string]int64)}
-}
-
-func (a *geoAccumulator) update(r *processing.Record, field string) error {
-	wide, ok := r.WideValue(field)
-	if !ok {
-		// h3_cell may live in the narrow numeric slot when the reader
-		// took the u64 fast path; check NumericValue too.
-		if v, n := r.NumericValue(field); n {
-			key := strconv.FormatUint(uint64(v), 10)
-			if _, seen := a.counts[key]; !seen {
-				a.distinct++
-			}
-			a.counts[key]++
-			return nil
-		}
-		a.nulls++
-		return nil
-	}
-	var key string
-	switch v := wide.(type) {
-	case encoding.PointF64:
-		key = encoding.FormatWKTPoint(v)
-	case encoding.H3Cell:
-		key = encoding.FormatH3CellHex(v)
-	default:
-		key = fmt.Sprintf("%v", v)
-	}
-	if _, seen := a.counts[key]; !seen {
-		a.distinct++
-	}
-	a.counts[key]++
-	return nil
-}
-
-func (a *geoAccumulator) finalize(req *types.FacetRequest) (*types.FacetField, string, error) {
-	values := make([]types.FacetValueCount, 0, len(a.counts))
-	for k, c := range a.counts {
-		values = append(values, types.FacetValueCount{Value: k, Count: c})
 	}
 	values, truncatedAt, warning := sortAndTruncateDiscrete(values, a.field.Name, a.distinct, req.DiscreteTopK)
 	return &types.FacetField{

@@ -74,7 +74,7 @@ type Param struct {
 	EnumValues []string `json:"enum_values,omitempty"`
 
 	// FieldFilter constrains acceptable field types when Type=="field".
-	// One of: "numeric", "categorical", "date", "geo", "any".
+	// One of: "numeric", "categorical", "date", "any".
 	FieldFilter string `json:"field_filter,omitempty"`
 }
 

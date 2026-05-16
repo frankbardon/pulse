@@ -6,6 +6,13 @@ GO=go
 LDFLAGS=-s -w
 BUILD_FLAGS=-trimpath -ldflags="$(LDFLAGS)"
 
+# Pulse is pure Go — no CGO dependency in the build graph. Disabling CGO
+# globally makes that a contract: any future import that pulls in a C
+# toolchain fails the build instead of silently re-introducing the
+# dependency. Override on the command line if a downstream consumer
+# really needs CGO (e.g. `make build CGO_ENABLED=1`).
+export CGO_ENABLED=0
+
 ifneq (,$(wildcard ./.env))
     include .env
     export

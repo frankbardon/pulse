@@ -164,7 +164,7 @@ func hasTwoPassAttribute(req *types.Request) bool {
 // canStream reports whether the request can be safely executed via the
 // streaming path. Streaming requires:
 //   - groups: empty, OR every grouper.Type.Streamable()=true (CATEGORY,
-//     RANGE, ROUNDED, H3_CELL — partitioned via grouped streaming path).
+//     RANGE, ROUNDED — partitioned via grouped streaming path).
 //     QUANTILE/DATE require a finalize-time view of the full set.
 //   - attributes: empty, OR every attribute.Type.Streamable()=true
 //     (FORMULA, DATE_PART implement RowLocalAttribute and execute
@@ -254,11 +254,6 @@ func (p *Processor) canStream(req *types.Request) bool {
 		return false
 	}
 	for _, agg := range req.Aggregations {
-		// Geo aggregations dispatch through the buffered AggregateGeoField
-		// path; the streaming numeric fold does not apply.
-		if IsGeoAggregation(agg.Type) {
-			return false
-		}
 		// Decimal-typed fields are aggregated via AggregateDecimalField;
 		// the streaming numeric fold loses precision.
 		if p.schema != nil {
@@ -1251,15 +1246,6 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 		label := agg.Label
 		if label == "" {
 			label = fmt.Sprintf("%s_%s", agg.Type, agg.Field)
-		}
-		// Geo aggregations dispatch to typed AggregateGeoField.
-		if IsGeoAggregation(agg.Type) {
-			out, err := AggregateGeoField(agg.Type, records, agg.Field)
-			if err != nil {
-				return nil, err
-			}
-			row[label] = out
-			continue
 		}
 		// Decimal-typed fields dispatch to AggregateDecimalField.
 		if p.schema != nil {

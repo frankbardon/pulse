@@ -3,7 +3,6 @@ package synth
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"math"
 	"sort"
@@ -166,7 +165,6 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	numAccs := make(map[string]*numAcc)
 	catAccs := make(map[string]*catAcc)
 	dateAccs := make(map[string]*dateAcc)
-	skipped := make(map[string]bool)
 	warnings := []string{}
 
 	for _, f := range schema.Fields {
@@ -175,10 +173,6 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			dateAccs[f.Name] = &dateAcc{minDays: math.MaxInt64, maxDays: math.MinInt64}
 		case f.Type.IsCategorical():
 			catAccs[f.Name] = &catAcc{hist: make(map[string]int)}
-		case f.Type == encoding.FieldTypePointF64 || f.Type == encoding.FieldTypeH3Cell:
-			skipped[f.Name] = true
-			warnings = append(warnings, fmt.Sprintf("field %q: %s not supported in profile (skipped)",
-				f.Name, f.Type))
 		default:
 			numAccs[f.Name] = &numAcc{
 				min: math.Inf(1), max: math.Inf(-1),
@@ -205,9 +199,6 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			break
 		}
 		for _, f := range schema.Fields {
-			if skipped[f.Name] {
-				continue
-			}
 			isNull := nulls[f.Name]
 			switch {
 			case f.Type == encoding.FieldTypeDate:
@@ -270,13 +261,6 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	// Build the field profiles in declaration order.
 	pf := &Profile{RowCount: rowCount}
 	for _, f := range schema.Fields {
-		if skipped[f.Name] {
-			pf.Fields = append(pf.Fields, FieldProfile{
-				Name: f.Name, Type: f.Type.String(),
-				Description: f.Description,
-			})
-			continue
-		}
 		fp := FieldProfile{
 			Name:        f.Name,
 			Type:        f.Type.String(),

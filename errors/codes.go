@@ -195,33 +195,10 @@ const (
 	// with a zero divisor.
 	PULSE_DECIMAL_DIVIDE_BY_ZERO Code = "PULSE_DECIMAL_DIVIDE_BY_ZERO"
 
-	// PULSE_GEO_INVALID_POINT indicates a malformed point parse or a
-	// latitude/longitude out of range (|lat|>90 or |lon|>180).
-	PULSE_GEO_INVALID_POINT Code = "PULSE_GEO_INVALID_POINT"
-
-	// PULSE_GEO_INVALID_POLYGON indicates a WKT POLYGON parse failure or
-	// a non-closed ring.
-	PULSE_GEO_INVALID_POLYGON Code = "PULSE_GEO_INVALID_POLYGON"
-
-	// PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS indicates an AGG_GEO_BBOX input set
-	// that crosses the 180/-180 meridian, where a flat min/max bbox is
-	// ambiguous.
-	PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS Code = "PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS"
-
-	// PULSE_GEO_INVALID_RESOLUTION indicates an H3 resolution parameter
-	// that is out of range (not 0–15) or finer than a cell's native
-	// resolution when walking parents.
-	PULSE_GEO_INVALID_RESOLUTION Code = "PULSE_GEO_INVALID_RESOLUTION"
-
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL is a predict warning emitted
 	// when an aggregation has no defined semantics on a decimal128 field
 	// (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1).
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
-
-	// PULSE_AGG_NOT_MEANINGFUL_FOR_GEO is a predict warning emitted when
-	// a numeric aggregator is requested on a geospatial field type
-	// (point_f64 or h3_cell).
-	PULSE_AGG_NOT_MEANINGFUL_FOR_GEO Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_GEO"
 
 	// PULSE_SYNTH_DISTRIBUTION_UNKNOWN indicates a synth spec referenced
 	// a distribution kind not registered in the synth package.
@@ -234,8 +211,8 @@ const (
 	PULSE_SYNTH_CONSTRAINT_INFEASIBLE Code = "PULSE_SYNTH_CONSTRAINT_INFEASIBLE"
 
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
-	// layer cannot summarize (e.g. point_f64 / h3_cell). The field is
-	// skipped with a warning rather than failing the whole profile.
+	// layer cannot summarize. The field is skipped with a warning rather
+	// than failing the whole profile.
 	PULSE_PROFILE_FIELD_UNSUPPORTED Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
 
 	// PULSE_TEST_UNKNOWN_TYPE indicates the request referenced a TestType
@@ -243,8 +220,8 @@ const (
 	PULSE_TEST_UNKNOWN_TYPE Code = "PULSE_TEST_UNKNOWN_TYPE"
 
 	// PULSE_TEST_FIELD_NOT_NUMERIC indicates a test requires a numeric
-	// field but the named field resolves to a categorical, geo, or
-	// otherwise non-numeric schema type.
+	// field but the named field resolves to a categorical or otherwise
+	// non-numeric schema type.
 	PULSE_TEST_FIELD_NOT_NUMERIC Code = "PULSE_TEST_FIELD_NOT_NUMERIC"
 
 	// PULSE_TEST_INVALID_ALPHA indicates the request's Alpha value lies
@@ -453,12 +430,7 @@ var allCodes = []Code{
 	PULSE_DECIMAL_OVERFLOW,
 	PULSE_DECIMAL_PRECISION_LOSS,
 	PULSE_DECIMAL_DIVIDE_BY_ZERO,
-	PULSE_GEO_INVALID_POINT,
-	PULSE_GEO_INVALID_POLYGON,
-	PULSE_GEO_ANTIMERIDIAN_AMBIGUOUS,
-	PULSE_GEO_INVALID_RESOLUTION,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
-	PULSE_AGG_NOT_MEANINGFUL_FOR_GEO,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
 	PULSE_SYNTH_CONSTRAINT_INFEASIBLE,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,

@@ -39,22 +39,6 @@ func filtererCapabilities() []Operator {
 			Streamable:    true,
 		},
 		{
-			Name:          string(types.FILTER_GEO_WITHIN),
-			Category:      "filterer",
-			Description:   "Keep point_f64 records that lie inside the supplied polygon (Values lists vertices).",
-			AcceptsTypes:  geoPointFieldTypes,
-			EmitsTypeNote: "record-level predicate",
-			Streamable:    true,
-		},
-		{
-			Name:          string(types.FILTER_GEO_WITHIN_RADIUS_M),
-			Category:      "filterer",
-			Description:   "Keep point_f64 records within radius (m) of a reference point; Values=[lat, lon, radius_m].",
-			AcceptsTypes:  geoPointFieldTypes,
-			EmitsTypeNote: "record-level predicate",
-			Streamable:    true,
-		},
-		{
 			Name:          string(types.FILTER_NULL),
 			Category:      "filterer",
 			Description:   "Keep records based on null state of Field. Values=[\"is_null\"] keeps null-valued records; Values=[\"is_not_null\"] keeps non-null records.",

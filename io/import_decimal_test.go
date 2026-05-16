@@ -30,19 +30,17 @@ func (r *stringRowsReader) ReadRows(ctx context.Context, fn func(row []string) e
 func (r *stringRowsReader) Close() error { return nil }
 func (r *stringRowsReader) Reset() error { r.pos = 0; return nil }
 
-func TestImport_DecimalGeoRoundTrip(t *testing.T) {
+func TestImport_DecimalRoundTrip(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 6, CsvColumnIdx: 0, Description: "Amount in USD with 6 decimal places of precision."},
-			{Name: "loc", Type: encoding.FieldTypePointF64, CsvColumnIdx: 1, Description: "Pickup location WKT POINT(lon lat) format."},
-			{Name: "cell", Type: encoding.FieldTypeH3Cell, CsvColumnIdx: 2, H3Resolution: 9, Description: "H3 cell index in 15-char hex form."},
 		},
 	}
 	src := &stringRowsReader{
-		header: []string{"amount", "loc", "cell"},
+		header: []string{"amount"},
 		rows: [][]string{
-			{"123.456789", "POINT(-122.418 37.775)", "89283082803ffff"},
-			{"-0.000001", "POINT(0 0)", "89283082807ffff"},
+			{"123.456789"},
+			{"-0.000001"},
 		},
 	}
 	fs := afero.NewMemMapFs()
@@ -68,7 +66,6 @@ func TestImport_DecimalGeoRoundTrip(t *testing.T) {
 		t.Fatalf("read pulse: %v", err)
 	}
 
-	// Read back the schema and records.
 	rdr := bytes.NewReader(data)
 	if err := encoding.ReadHeader(rdr); err != nil {
 		t.Fatalf("ReadHeader: %v", err)
@@ -82,9 +79,6 @@ func TestImport_DecimalGeoRoundTrip(t *testing.T) {
 	}
 	if got, want := gotSchema.Fields[0].Scale, uint8(6); got != want {
 		t.Errorf("scale = %d, want %d", got, want)
-	}
-	if got, want := gotSchema.Fields[2].H3Resolution, uint8(9); got != want {
-		t.Errorf("h3 res = %d, want %d", got, want)
 	}
 
 	rr := encoding.NewRecordReader(rdr, gotSchema)
@@ -100,20 +94,6 @@ func TestImport_DecimalGeoRoundTrip(t *testing.T) {
 	}
 	if got := d.String(6); got != "123.456789" {
 		t.Errorf("amount = %s, want 123.456789", got)
-	}
-	p, ok := wide["loc"].(encoding.PointF64)
-	if !ok {
-		t.Fatalf("loc missing")
-	}
-	if p.Lat != 37.775 || p.Lon != -122.418 {
-		t.Errorf("point = %+v", p)
-	}
-	c, ok := wide["cell"].(encoding.H3Cell)
-	if !ok {
-		t.Fatalf("cell missing")
-	}
-	if encoding.FormatH3CellHex(c) != "89283082803ffff" {
-		t.Errorf("cell = %s", encoding.FormatH3CellHex(c))
 	}
 }
 

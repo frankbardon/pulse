@@ -3,10 +3,10 @@
 **Audience:** anyone designing a cohort schema, decoding a `.pulse`
 file by hand, or trying to understand which type to pick for a column.
 
-Pulse supports **19 field types**, each with a fixed type byte, a
+Pulse supports **17 field types**, each with a fixed type byte, a
 fixed (or bit-packed) byte size, and well-defined semantics. The full
 list, mirrored from
-[CLAUDE.md → All 19 field types](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md#all-19-field-types):
+[CLAUDE.md → All 17 field types](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md#all-17-field-types):
 
 > **LLM agents using MCP:** see the `cohort-schema-design` skill via
 > `pulse_skills_get` — it covers nullability, bit-packing trade-offs,
@@ -33,8 +33,6 @@ list, mirrored from
 | `categorical_u32`     | 14 | 4  | Categorical with up to 4,294,967,295 entries |
 | `decimal128`          | 15 | 16 | Fixed-point exact decimal; per-field `(precision, scale)` ≤ (38, 38) |
 | `nullable_decimal128` | 16 | 16 | `decimal128` plus an `INT128_MIN` null sentinel |
-| `point_f64`           | 17 | 16 | Packed `(lat, lon)` f64 pair (LE) |
-| `h3_cell`             | 18 | 8  | Uber H3 cell index as `uint64` |
 
 The Go source-of-truth for this table is
 [`encoding/field_type.go`](https://github.com/frankbardon/pulse/blob/main/encoding/field_type.go);
@@ -88,17 +86,6 @@ Use these for currency and any other column where IEEE-754 rounding
 is not acceptable. See the `financial-cohorts` skill for full
 semantics including banker's rounding and divide-by-zero policy.
 
-### Geo
-
-`point_f64` packs `(lat, lon)` as two little-endian `f64`s in 16
-bytes. `h3_cell` stores an Uber H3 cell index as a `uint64` plus a
-single byte of metadata in the schema (`H3Resolution`, sentinel
-`0xFF` meaning "unspecified").
-
-Geo aggregations (`AGG_GEO_BBOX`, `AGG_GEO_CENTROID`) follow the
-buffered execution path; see [Performance Notes](../ops/performance.md)
-and the `geospatial-cohorts` skill.
-
 ## Unknown type bytes
 
 The schema reader rejects unknown `FieldType` bytes at parse time
@@ -113,5 +100,4 @@ during row decode where the corruption could go unnoticed.
 |---|---|
 | Which aggregators are meaningful on which types | `skills/aggregation-guide.md` (LLM) / [api process](../cli/api-process.md) (CLI) |
 | Decimal arithmetic semantics | `skills/financial-cohorts.md` (LLM) |
-| Geo aggregations and H3 resolution table | `skills/geospatial-cohorts.md` (LLM) |
 | Categorical dictionary limits | [Dictionary Blocks](dictionaries.md) |

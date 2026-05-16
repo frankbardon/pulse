@@ -46,7 +46,7 @@ That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
 | `customers.pulse` | `id` (u32), `age` (u8), `income` (f64), `region` (categorical), `city` (categorical) |
 | `orders.pulse` | `id` (u32), `order_date` (date), `revenue` (f64) |
 | `training_data.pulse` | `id` (u32), `region`/`occupation`/`category` (categorical), `label` (u8 binary), `price`/`income` (f64), `signup_date` (date) |
-| `all_types.pulse` | One column for every one of the 19 supported types (u8/u16/u32/u64, f32/f64, nullable_bool/u4/u8/u16, date, packed_bool, categorical_u8/u16/u32, decimal128, nullable_decimal128, point_f64, h3_cell). Hand-curated 5-row CSV — exists so a single fixture exercises every type-aware code path. |
+| `all_types.pulse` | One column for every one of the 17 supported types (u8/u16/u32/u64, f32/f64, nullable_bool/u4/u8/u16, date, packed_bool, categorical_u8/u16/u32, decimal128, nullable_decimal128). Hand-curated 5-row CSV — exists so a single fixture exercises every type-aware code path. |
 | `experiment.pulse` | A/B test cohort: `id` (u32), `treatment`/`region`/`segment`/`converted` (categorical), `revenue`/`session_minutes` (f64), `period` (date). Planted effects across treatment, region, segment, and time so every `TEST_*` example produces a meaningful, non-trivial result. |
 
 The generator (`fixtures/gen.go`) is deterministic — re-running with the
