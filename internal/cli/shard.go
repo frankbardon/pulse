@@ -5,24 +5,26 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	cli "github.com/urfave/cli/v3"
 )
 
 // ShardCommand returns the `pulse shard` command group covering
-// archive create / add / remove / list / extract. The S7 phase
-// implements the read+admin surface; S8 will add `compact` and
-// `verify` leaves alongside these. Shard mutations use the atomic
-// temp+rename pattern so partial writes never appear at the canonical
-// archive path.
+// archive create / add / remove / list / compact / verify / extract.
+// Shard mutations use the atomic temp+rename pattern so partial writes
+// never appear at the canonical archive path.
 func ShardCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "shard",
-		Usage: "Manage Pulse shard archives (create, add, remove, list, extract)",
+		Usage: "Manage Pulse shard archives (create, add, remove, list, compact, verify, extract)",
 		Commands: []*cli.Command{
 			shardCreateCmd(),
 			shardAddCmd(),
 			shardRemoveCmd(),
 			shardListCmd(),
+			shardCompactCmd(),
+			shardVerifyCmd(),
 			shardExtractCmd(),
 		},
 	}
@@ -200,6 +202,95 @@ func shardListCmd() *cli.Command {
 	}
 }
 
+func shardCompactCmd() *cli.Command {
+	return &cli.Command{
+		Name:      "compact",
+		Usage:     "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata",
+		ArgsUsage: "ARCHIVE",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			args := cmd.Args()
+			jsonOut := cmd.Bool("json")
+			if args.Len() < 1 {
+				return cliError(cmd, jsonOut, "CLI_INPUT", "usage: pulse shard compact ARCHIVE")
+			}
+			archive := args.First()
+
+			p, err := newPulse()
+			if err != nil {
+				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+			}
+			if err := p.CompactShardArchive(ctx, archive); err != nil {
+				return cliError(cmd, jsonOut, "SHARD_COMPACT_ERROR", err.Error())
+			}
+			shards, err := p.ListShards(ctx, archive)
+			if err != nil {
+				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+			}
+			if jsonOut {
+				return writeEnvelope(cmd.Writer, map[string]any{
+					"archive": archive,
+					"shards":  shards,
+				})
+			}
+			writeText(cmd.Writer, "Compacted %s (now %d shard(s))\n", archive, len(shards))
+			return nil
+		},
+	}
+}
+
+func shardVerifyCmd() *cli.Command {
+	return &cli.Command{
+		Name:      "verify",
+		Usage:     "Re-validate every shard's header + cohesion against the canonical schema",
+		ArgsUsage: "ARCHIVE",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			args := cmd.Args()
+			jsonOut := cmd.Bool("json")
+			if args.Len() < 1 {
+				return cliError(cmd, jsonOut, "CLI_INPUT", "usage: pulse shard verify ARCHIVE")
+			}
+			archive := args.First()
+
+			p, err := newPulse()
+			if err != nil {
+				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+			}
+			result, err := p.VerifyShardArchive(ctx, archive)
+			if err != nil {
+				return cliError(cmd, jsonOut, "SHARD_VERIFY_ERROR", err.Error())
+			}
+
+			if jsonOut {
+				// Re-shape into the envelope's structured {errors, warnings}
+				// list so it merges cleanly with the standard envelope.
+				env := newEnvelopeShardVerify(archive, result)
+				return writeJSON(cmd.Writer, env)
+			}
+
+			writeText(cmd.Writer, "Verified %s: %d error(s), %d warning(s)\n",
+				archive, len(result.Errors), len(result.Warnings))
+			for _, e := range result.Errors {
+				writeText(cmd.Writer, "  ERROR  [%s] %s\n", e.Code, e.Message)
+			}
+			for _, w := range result.Warnings {
+				writeText(cmd.Writer, "  WARN   [%s] %s\n", w.Code, w.Message)
+			}
+			if len(result.Errors) > 0 {
+				// Non-zero exit on error. The cli/v3 runtime treats any
+				// non-nil error return as a non-zero exit code.
+				return fmt.Errorf("verify found %d error(s) in %s", len(result.Errors), archive)
+			}
+			return nil
+		},
+	}
+}
+
 func shardExtractCmd() *cli.Command {
 	return &cli.Command{
 		Name:      "extract",
@@ -228,4 +319,25 @@ func shardExtractCmd() *cli.Command {
 			return nil
 		},
 	}
+}
+
+// newEnvelopeShardVerify projects a VerifyResult into the standard
+// descriptor.Envelope shape: archive path under data, structured
+// errors/warnings flattened into the envelope's slots. The CLI never
+// builds JSON via fmt.Sprintf — descriptor.NewEnvelope wraps the
+// payload deterministically.
+func newEnvelopeShardVerify(archive string, result *pulse.VerifyResult) *descriptor.Envelope {
+	env := descriptor.NewEnvelope(map[string]any{
+		"archive":   archive,
+		"verified":  len(result.Errors) == 0,
+		"error_n":   len(result.Errors),
+		"warning_n": len(result.Warnings),
+	})
+	for _, e := range result.Errors {
+		env.AddError(string(e.Code), e.Message, e.Details)
+	}
+	for _, w := range result.Warnings {
+		env.AddWarning(w.Code, w.Message, w.Details)
+	}
+	return env
 }

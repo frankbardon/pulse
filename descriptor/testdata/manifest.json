@@ -60,6 +60,14 @@
         "description": "List shards inside an archive"
       },
       {
+        "name": "shard compact",
+        "description": "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata"
+      },
+      {
+        "name": "shard verify",
+        "description": "Re-validate every shard's header + cohesion against the canonical schema"
+      },
+      {
         "name": "shard extract",
         "description": "Extract a shard's standalone .pulse bytes to stdout"
       }
@@ -4056,4 +4064,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 112daa016a21c4f53378749ad5645d6f7334fc66496a58f1c12960cba66b0d12
+// golden-hash: 6dba59817bcfd7dcd9c167ee7420f1109416453e34b4dd809765e0e9187ad581

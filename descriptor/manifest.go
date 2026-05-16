@@ -116,6 +116,8 @@ func commands() []Command {
 		{Name: "shard add", Description: "Append a shard to an existing archive"},
 		{Name: "shard remove", Description: "Remove a shard from an archive by basename"},
 		{Name: "shard list", Description: "List shards inside an archive"},
+		{Name: "shard compact", Description: "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata"},
+		{Name: "shard verify", Description: "Re-validate every shard's header + cohesion against the canonical schema"},
 		{Name: "shard extract", Description: "Extract a shard's standalone .pulse bytes to stdout"},
 	}
 }

@@ -892,6 +892,39 @@ func (p *Pulse) ExtractShard(ctx context.Context, archivePath, shardBasename str
 	return p.svc.ExtractShard(ctx, archivePath, shardBasename)
 }
 
+// CompactShardArchive rewrites the archive to eliminate orphaned bytes
+// from prior in-place mutations and refreshes the canonical metadata
+// (aggregate_record_count + shard_count). v1 AddShard / RemoveShard
+// already use temp+rename (no orphan bytes in v1 archives), so Compact
+// primarily serves to refresh canonical metadata that may have drifted
+// if the archive was edited outside Pulse. The whole-archive rewrite
+// pattern is the explicit reclaim path per the design contract §7.1.
+func (p *Pulse) CompactShardArchive(ctx context.Context, archivePath string) error {
+	return p.svc.CompactShardArchive(ctx, archivePath)
+}
+
+// VerifyShardArchive opens the archive and re-validates every shard's
+// header (magic + format_version), structural cohesion against the
+// canonical schema, dictionary prefix rule, and cross-checks each
+// shard's record count against the canonical aggregate. Returns a
+// VerifyResult carrying any errors (PULSE_SHARD_HEADER_INVALID,
+// PULSE_SHARD_SCHEMA_MISMATCH, PULSE_SHARD_DICT_DIVERGENCE) and any
+// non-fatal warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE, aggregate
+// drift). Returns a non-nil error only when the archive itself cannot
+// be opened (archive corrupt, file missing, etc.); per-shard issues
+// are reported through the result struct so the caller can render the
+// full diagnosis.
+func (p *Pulse) VerifyShardArchive(ctx context.Context, archivePath string) (*VerifyResult, error) {
+	return p.svc.VerifyShardArchive(ctx, archivePath)
+}
+
+// VerifyResult carries the structured outcome of VerifyShardArchive.
+// Errors aggregate every fatal cohesion failure discovered while
+// walking the archive's shards; Warnings carry non-fatal divergences
+// (per-field description drift, aggregate-record-count mismatch). An
+// empty Errors slice means the archive is structurally sound.
+type VerifyResult = service.VerifyResult
+
 // resolveCohortPath builds the file path from a Cohort specification.
 func resolveCohortPath(c *types.Cohort) string {
 	if c.DataDir != "" {
