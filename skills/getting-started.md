@@ -149,6 +149,38 @@ Legacy multi-step shape:
 ```
 </workflow>
 
+<example name="shard-archive-workflow">
+## Shard archives
+
+A `.pulse` path can be either a single-file cohort or a **shard archive** (uncompressed Zip64, magic `PK\x03\x04`) containing one canonical `_schema.pulse` entry plus N standalone shard payloads. Every facade method (`Process`, `Compose`, `Sample`, `Facet`, `Inspect`, `Predict`, `ProcessStream`) operates transparently on the union of shards — there is no separate facade for archives.
+
+Build the archive from existing shards (atomic temp+rename), then run requests against it like any other cohort:
+
+```bash
+$ pulse shard create q1_2019.pulse \
+    --include 20190101.pulse \
+    --include 20190108.pulse
+$ pulse api process --request q1.json --cohort q1_2019.pulse
+$ pulse inspect q1_2019.pulse#20190101.pulse
+```
+
+The `archive.pulse#shard.pulse` anchor opens one shard as a one-shard cohort — useful for inspecting a single wave inside a quarterly archive, or for mixing whole-archive and per-shard slots inside a `Compose`:
+
+```json
+{
+  "requests": [
+    {"cohort": {"filename": "Q1_2019.pulse"},                "aggregations": [...]},
+    {"cohort": {"filename": "Q1_2019.pulse#20190101.pulse"}, "aggregations": [...]},
+    {"cohort": {"filename": "wave_2018.pulse"},              "aggregations": [...]}
+  ]
+}
+```
+
+The first slot fans out across every shard in the archive; the second targets just one shard via anchor syntax; the third is a legacy single-file cohort. Compose is order-preserving by slot.
+
+See `skills/cohort-schema-design.md` (Sharded cohorts) for archive layout, dict cohesion rules, memory multiplier on forced-buffered ops, and the concurrency contract.
+</example>
+
 <example name="canonical-process-request">
 ## Canonical process request
 

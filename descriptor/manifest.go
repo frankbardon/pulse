@@ -33,9 +33,17 @@ type Components struct {
 // the operator catalog that accepts it. The Compatible* slices are
 // derived from the per-operator AcceptsTypes declarations and let an
 // LLM look up "what can I do with a date field" in one place.
+//
+// ShardedCapable reports whether the type participates in a shard
+// archive without restriction. Every built-in field type is sharded-
+// capable today; the flag exists for forward compatibility with future
+// types that might not work across the union of shards (e.g. types
+// whose semantics depend on per-shard locality). Embedders should treat
+// the flag as advisory.
 type CohortFieldType struct {
 	Name                  string   `json:"name"`
 	Categorical           bool     `json:"categorical"`
+	ShardedCapable        bool     `json:"sharded_capable"`
 	CompatibleAggregators []string `json:"compatible_aggregators,omitempty"`
 	CompatibleAttributes  []string `json:"compatible_attributes,omitempty"`
 	CompatibleFilterers   []string `json:"compatible_filterers,omitempty"`
@@ -134,8 +142,9 @@ func rawCohortFieldTypes() []CohortFieldType {
 			continue
 		}
 		out = append(out, CohortFieldType{
-			Name:        name,
-			Categorical: ft.IsCategorical(),
+			Name:           name,
+			Categorical:    ft.IsCategorical(),
+			ShardedCapable: true,
 		})
 	}
 	return out
