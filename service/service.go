@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -477,72 +476,6 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 	}
 
 	return responses, nil
-}
-
-// Sample returns up to n rows from the cohort as maps of field name to value.
-// Streams from disk — stops reading as soon as n rows are collected.
-func (s *Service) Sample(ctx context.Context, path string, n int) ([]map[string]any, error) {
-	cohort, err := s.Open(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
-	iter := newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
-	defer iter.Close()
-
-	var rows []map[string]any
-	for iter.Next() && len(rows) < n {
-		rows = append(rows, iter.Record().AllValues())
-	}
-	if iter.Err() != nil {
-		return nil, iter.Err()
-	}
-
-	return rows, nil
-}
-
-// Facet returns distinct values for the named field in the cohort.
-// For categorical fields, it returns the dictionary values.
-// For numeric fields, it returns string representations of all distinct values seen.
-func (s *Service) Facet(ctx context.Context, path string, field string) ([]string, error) {
-	cohort, err := s.Open(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
-	f := cohort.Schema().Field(field)
-	if f == nil {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("field %q not found in schema", field))
-	}
-
-	// For categorical fields, return dictionary values directly
-	if f.Type.IsCategorical() && f.Dictionary != nil {
-		return f.Dictionary.Values(), nil
-	}
-
-	// For numeric fields, stream records and collect distinct values.
-	iter := newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
-	defer iter.Close()
-
-	seen := make(map[float64]struct{})
-	var values []string
-	for iter.Next() {
-		v, ok := iter.Record().NumericValue(field)
-		if !ok {
-			continue
-		}
-		if _, dup := seen[v]; dup {
-			continue
-		}
-		seen[v] = struct{}{}
-		values = append(values, strconv.FormatFloat(v, 'f', -1, 64))
-	}
-	if iter.Err() != nil {
-		return nil, iter.Err()
-	}
-
-	return values, nil
 }
 
 // resolveCohortPath builds the file path from a Cohort specification.
