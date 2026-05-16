@@ -1,0 +1,56 @@
+{
+  "format_version": "1.0",
+  "data": {
+    "field_count": 3,
+    "fields": [
+      {
+        "name": "id",
+        "type": "u32",
+        "byte_offset": 0,
+        "bit_position": 0,
+        "description": "Record id",
+        "description_source": "schema",
+        "categorical": false
+      },
+      {
+        "name": "score",
+        "type": "f64",
+        "byte_offset": 4,
+        "bit_position": 0,
+        "description": "Numeric score",
+        "description_source": "schema",
+        "categorical": false
+      },
+      {
+        "name": "region",
+        "type": "categorical_u8",
+        "byte_offset": 12,
+        "bit_position": 0,
+        "description": "Region code",
+        "description_source": "schema",
+        "categorical": true,
+        "dictionary": {
+          "total_entries": 2,
+          "truncated": false,
+          "values": [
+            "US",
+            "CA"
+          ]
+        }
+      }
+    ],
+    "shards": [
+      {
+        "filename": "20190101.pulse",
+        "record_count": 3
+      },
+      {
+        "filename": "20190201.pulse",
+        "record_count": 3
+      }
+    ],
+    "record_count": 6
+  },
+  "errors": [],
+  "warnings": []
+}

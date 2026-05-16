@@ -511,3 +511,151 @@ func TestShardArchiveMagicDispatch(t *testing.T) {
 		}
 	}
 }
+
+// --- TestShardArchiveMissingEntry: non-skippable CI gate ---
+
+// TestShardArchiveMissingEntry verifies that an Archive whose central
+// directory references an entry name not actually present in the byte
+// stream surfaces PULSE_SHARD_MISSING when callers ask for it via
+// Archive.Open / Archive.OpenAt. Pulse never writes such an archive,
+// but a hand-truncated or otherwise corrupted archive can present this
+// shape; the gate freezes the error code so embedders can rely on it.
+func TestShardArchiveMissingEntry(t *testing.T) {
+	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
+		"present.pulse": buildSinglePulse(t),
+	}, []string{"present.pulse"})
+
+	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("OpenArchive: %v", err)
+	}
+
+	// Archive.Open with an unknown entry name surfaces PULSE_SHARD_MISSING.
+	if _, err := arch.Open("ghost.pulse"); err == nil {
+		t.Fatal("expected error for missing entry from Archive.Open")
+	} else if !errors.HasCode(err, errors.PULSE_SHARD_MISSING) {
+		t.Errorf("Archive.Open(ghost): expected PULSE_SHARD_MISSING, got: %v", err)
+	}
+
+	// Same contract via Archive.OpenAt (SectionReader path).
+	if _, err := arch.OpenAt("ghost.pulse"); err == nil {
+		t.Fatal("expected error for missing entry from Archive.OpenAt")
+	} else if !errors.HasCode(err, errors.PULSE_SHARD_MISSING) {
+		t.Errorf("Archive.OpenAt(ghost): expected PULSE_SHARD_MISSING, got: %v", err)
+	}
+
+	// And via service.Open with anchor syntax (production read path).
+	cfg := fs.NewMemMap()
+	if err := afero.WriteFile(cfg.Fs(), "arch.pulse", data, 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	svc := service.New(cfg)
+	_, err = svc.Open(context.Background(), "arch.pulse#ghost.pulse")
+	if err == nil {
+		t.Fatal("expected error for missing anchor")
+	}
+	if !errors.HasCode(err, errors.PULSE_SHARD_MISSING) {
+		t.Errorf("Open anchor ghost: expected PULSE_SHARD_MISSING, got: %v", err)
+	}
+}
+
+// --- TestShardArchiveCorruptEOCD: non-skippable CI gate ---
+
+// TestShardArchiveCorruptEOCD verifies that a Pulse shard archive whose
+// end-of-central-directory record cannot be parsed surfaces
+// PULSE_ARCHIVE_CORRUPT — distinct from PULSE_ARCHIVE_MAGIC_INVALID
+// (file does not start with the zip magic) and from
+// PULSE_SHARD_MISSING (central directory parses but an entry is
+// absent). The byte preamble retains the zip magic; tail bytes are
+// destroyed.
+func TestShardArchiveCorruptEOCD(t *testing.T) {
+	// Build a valid archive first so we have a known-good byte layout.
+	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
+		"a.pulse": buildSinglePulse(t),
+	}, []string{"a.pulse"})
+
+	// Destroy the EOCD by overwriting the tail with garbage while
+	// retaining the leading zip magic. The Archive opener still
+	// recognises the magic but fails when it tries to parse the central
+	// directory at the tail.
+	corrupted := append([]byte(nil), data[:4]...)
+	corrupted = append(corrupted, bytes.Repeat([]byte{0xFF}, 96)...)
+
+	_, err := encoding.OpenArchive(bytes.NewReader(corrupted), int64(len(corrupted)))
+	if err == nil {
+		t.Fatal("expected error for corrupt EOCD")
+	}
+	if !errors.HasCode(err, errors.PULSE_ARCHIVE_CORRUPT) {
+		t.Errorf("expected PULSE_ARCHIVE_CORRUPT, got: %v", err)
+	}
+
+	// Same contract from the service.Open path so the production read
+	// path freezes the error code embedders will observe.
+	cfg := fs.NewMemMap()
+	if err := afero.WriteFile(cfg.Fs(), "broken.pulse", corrupted, 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	svc := service.New(cfg)
+	_, err = svc.Open(context.Background(), "broken.pulse")
+	if err == nil {
+		t.Fatal("service.Open on corrupt EOCD: expected error")
+	}
+	if !errors.HasCode(err, errors.PULSE_ARCHIVE_CORRUPT) {
+		t.Errorf("service.Open corrupt: expected PULSE_ARCHIVE_CORRUPT, got: %v", err)
+	}
+}
+
+// --- TestShardArchiveBackwardsCompat: non-skippable CI gate ---
+
+// TestShardArchiveBackwardsCompat verifies that existing single-file
+// .pulse cohorts open unchanged through the post-sharding Open
+// dispatch path: the file's bytes are not rewritten, its magic and
+// format_version remain "PULSE\x00\x00\x00" + 0x01, the returned
+// Cohort.Shards slice is empty, and the schema reads cleanly.
+//
+// This is the backwards-compatibility safety net for the wire-format
+// change in S1 — sharding adds a second magic (PK\x03\x04) without
+// touching the single-file path.
+func TestShardArchiveBackwardsCompat(t *testing.T) {
+	cfg := fs.NewMemMap()
+
+	// A minimal single-file cohort (header + schema, zero records).
+	single := buildSinglePulse(t)
+	if err := afero.WriteFile(cfg.Fs(), "legacy.pulse", single, 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	// The file's first 8 bytes must remain the Pulse magic; the 9th
+	// byte must remain the format version 0x01. Sharding must not
+	// re-write existing single-file artifacts.
+	if !bytes.Equal(single[:len(encoding.MagicBytes)], encoding.MagicBytes[:]) {
+		t.Fatalf("legacy file magic = %x, want %x",
+			single[:len(encoding.MagicBytes)], encoding.MagicBytes[:])
+	}
+	if single[len(encoding.MagicBytes)] != encoding.FormatVersion {
+		t.Fatalf("legacy file format_version = %d, want %d",
+			single[len(encoding.MagicBytes)], encoding.FormatVersion)
+	}
+
+	// Open the legacy file: Shards is empty and the schema is populated.
+	svc := service.New(cfg)
+	c, err := svc.Open(context.Background(), "legacy.pulse")
+	if err != nil {
+		t.Fatalf("Open(legacy.pulse): %v", err)
+	}
+	if shards := c.Shards(); len(shards) != 0 {
+		t.Errorf("legacy single-file cohort Shards = %d, want 0", len(shards))
+	}
+	if c.Schema() == nil || len(c.Schema().Fields) == 0 {
+		t.Errorf("legacy single-file cohort schema is missing or empty")
+	}
+
+	// Re-read the file from afero post-Open: byte-for-byte unchanged.
+	after, err := afero.ReadFile(cfg.Fs(), "legacy.pulse")
+	if err != nil {
+		t.Fatalf("ReadFile after Open: %v", err)
+	}
+	if !bytes.Equal(after, single) {
+		t.Errorf("legacy single-file bytes mutated by Open dispatch")
+	}
+}
