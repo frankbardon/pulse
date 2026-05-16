@@ -123,6 +123,22 @@ type Options struct {
 	// Zero value disables the extension path entirely. See
 	// extensions.go for the full surface.
 	Extensions Extensions
+
+	// ProjectBufferedFields enables buffered-decode field projection.
+	// When true the runtime walks each request to compute the set of
+	// schema fields the operators actually read (processing.NeededFields)
+	// and skips map writes for fields outside that set. Per-record
+	// memory drops proportional to the projection ratio. Decode CPU
+	// is unchanged.
+	//
+	// Defaults to false to preserve byte-identical behavior with the
+	// pre-projection codepath. Embedders with wide cohorts (many
+	// fields) and narrow requests (few referenced) see the largest
+	// win. Extension operators without a registered FieldInputs hook
+	// widen the projection automatically, so enabling this flag is
+	// always safe — the worst case degenerates to the full-decode
+	// behaviour.
+	ProjectBufferedFields bool
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -172,6 +188,7 @@ func New(opts Options) (*Pulse, error) {
 
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
+	svc.SetProjectBufferedFields(opts.ProjectBufferedFields)
 	svc.SetExtensions(buildRuntimeExtensions(opts.Extensions))
 	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))
 

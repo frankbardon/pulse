@@ -1,12 +1,26 @@
 package pulse
 
 import (
+	"encoding/json"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/processing/feature"
 	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
+
+// FieldInputsFunc is the optional introspection callback an extension
+// registration may supply so the buffered-projection extractor can
+// determine which extra schema fields the operator reads beyond the
+// spec's explicit Field/Field2/PartitionBy/etc. references. raw is the
+// operator's Params block. Return value lists schema field names to
+// include; nil/empty means "no extra fields."
+//
+// Embedders that omit this hook leave their operator opaque to the
+// projection extractor — the runtime then widens the buffered-decode
+// field set to "every field" so the operator stays correct.
+type FieldInputsFunc func(raw json.RawMessage) []string
 
 // Extensions bundles every per-category registration slot plus the
 // expression-environment additions an embedder wants exposed to
@@ -68,6 +82,11 @@ type AggregatorRegistration struct {
 	Streamable  bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
+	// FieldInputs is the optional buffered-projection introspection
+	// hook. See FieldInputsFunc. Omit to keep the operator opaque to
+	// projection (runtime widens the field set when this operator
+	// appears in a request).
+	FieldInputs FieldInputsFunc
 }
 
 // AttributeMode declares which streaming tier an attribute factory
@@ -106,6 +125,9 @@ type AttributeRegistration struct {
 	Accepts     []encoding.FieldType
 	Emits       AttributeEmitType
 	Params      []ParamMeta
+	// FieldInputs is the optional buffered-projection introspection
+	// hook. See FieldInputsFunc.
+	FieldInputs FieldInputsFunc
 }
 
 // FiltererRegistration installs a custom FILTER_* operator. Filterers
@@ -119,6 +141,12 @@ type FiltererRegistration struct {
 	Factory     processing.FiltererFactory
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
+	// FieldInputs is the optional buffered-projection introspection
+	// hook. See FieldInputsFunc. Filterers don't carry a Params
+	// block today; the callback receives nil raw bytes and should
+	// return the static set of extra fields the filterer reads
+	// beyond Filterer.Field.
+	FieldInputs FieldInputsFunc
 }
 
 // GrouperRegistration installs a custom GROUP_* operator. Set
@@ -131,6 +159,9 @@ type GrouperRegistration struct {
 	Streamable  bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
+	// FieldInputs is the optional buffered-projection introspection
+	// hook. See FieldInputsFunc.
+	FieldInputs FieldInputsFunc
 }
 
 // WindowRegistration installs a custom WIN_* operator. Window
@@ -143,6 +174,9 @@ type WindowRegistration struct {
 	Factory     window.WindowFactory
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
+	// FieldInputs is the optional buffered-projection introspection
+	// hook. See FieldInputsFunc.
+	FieldInputs FieldInputsFunc
 }
 
 // FeatureRegistration installs a custom FEAT_* operator. Set
@@ -155,6 +189,9 @@ type FeatureRegistration struct {
 	Streamable  bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
+	// FieldInputs is the optional buffered-projection introspection
+	// hook. See FieldInputsFunc.
+	FieldInputs FieldInputsFunc
 }
 
 // TestTier selects which factory shape a TestRegistration provides.
@@ -182,6 +219,11 @@ type TestRegistration struct {
 	Streamable  bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
+	// FieldInputs is the optional buffered-projection introspection
+	// hook for tier-1 row tests. Tier-2 post-tests run on materialized
+	// result rows rather than source records, so projection doesn't
+	// apply — leave nil for tier-2 registrations.
+	FieldInputs FieldInputsFunc
 }
 
 // DistributionRegistration installs a custom synthetic-data

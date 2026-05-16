@@ -52,6 +52,15 @@ type streamingIterator struct {
 	// non-OsFs filesystems, or platforms where mmap is unavailable).
 	mmapBytes   []byte
 	mmapCleanup func() error
+
+	// project, when non-nil, scopes the per-record value/null/wide
+	// maps to the names accepted by the filter. Bytes for excluded
+	// fields are still consumed from the reader so the cursor stays
+	// aligned; only the map writes are skipped. nil means full
+	// decode (the default). projectSize is a hint for the per-record
+	// map allocation when projection is active.
+	project     encoding.FieldFilter
+	projectSize int
 }
 
 // newStreamingIterator creates a streaming iterator for the given cohort.
@@ -162,10 +171,19 @@ func (it *streamingIterator) Next() bool {
 	// call, so each Record needs its own backing maps. Allocating once and
 	// having ReadRecord populate them in-place is cheaper than allocating
 	// reusable buffers and then range-copying out.
-	values := make(map[string]float64, len(it.schema.Fields))
+	mapHint := len(it.schema.Fields)
+	if it.project != nil && it.projectSize > 0 {
+		mapHint = it.projectSize
+	}
+	values := make(map[string]float64, mapHint)
 	nulls := make(map[string]bool)
 	wide := make(map[string]any)
-	err := it.reader.ReadRecordWithWide(values, nulls, wide)
+	var err error
+	if it.project != nil {
+		err = it.reader.ReadRecordWithWideProjected(values, nulls, wide, it.project)
+	} else {
+		err = it.reader.ReadRecordWithWide(values, nulls, wide)
+	}
 	if err == io.EOF {
 		it.done = true
 		return false
@@ -178,6 +196,19 @@ func (it *streamingIterator) Next() bool {
 
 	it.current = processing.NewRecordWithWide(it.schema, values, nulls, wide)
 	return true
+}
+
+// SetProjection installs a field-keep filter on the iterator. When
+// set, each Record's values/nulls/wide maps are populated only with
+// the fields keep accepts; excluded field bytes are still consumed
+// from the reader so byte offsets stay aligned. size is the expected
+// number of accepted fields, used to size the per-record map
+// allocation. Pass nil to clear (full decode).
+//
+// MUST be called before the first Next() call.
+func (it *streamingIterator) SetProjection(keep encoding.FieldFilter, size int) {
+	it.project = keep
+	it.projectSize = size
 }
 
 // SetReuse toggles per-row Record reuse. When true, Next returns the

@@ -205,6 +205,50 @@ Embedders declare streamability at registration time; the runtime trusts that de
 
 Filterers are always row-local streamable today. Windows always run buffered.
 
+## FieldInputs hook (buffered-projection introspection)
+
+Every operator registration accepts an optional `FieldInputs FieldInputsFunc` callback:
+
+```go
+type FieldInputsFunc func(raw json.RawMessage) []string
+```
+
+When `pulse.Options.ProjectBufferedFields` is enabled, the runtime walks each request before opening the streaming iterator and calls `processing.NeededFields(req, schema, ext)` to compute the set of source fields that the operators actually read. Built-in operators are fully introspectable from their spec (`Field`, `Field2`, `PartitionBy`, `OrderBy`, `Target`, `Predictors`, plus expr-AST identifiers for `ATTR_FORMULA` / `FILTER_EXPRESSION`). Custom operators registered through this surface are opaque by default — the projection extractor widens to "every field" whenever it encounters a custom operator without a `FieldInputs` hook, so the runtime stays correct.
+
+To opt into projection on a custom operator, register `FieldInputs` and return every schema field the operator reads beyond its spec's explicit references:
+
+```go
+pulse.AggregatorRegistration{
+    Name:    "AGG_ACME_BLENDED_SCORE",
+    Factory: blendedScoreFactory,
+    Params:  []pulse.ParamMeta{{Name: "weight_field", JSONType: "string"}},
+    // Spec.Field carries the value field; weight_field names a second
+    // numeric field. Both must be in the projected map for the
+    // aggregator to compute correctly.
+    FieldInputs: func(raw json.RawMessage) []string {
+        var p struct {
+            WeightField string `json:"weight_field"`
+        }
+        _ = json.Unmarshal(raw, &p)
+        if p.WeightField == "" {
+            return nil
+        }
+        return []string{p.WeightField}
+    },
+}
+```
+
+Return value semantics:
+- `nil` / empty slice: no extra fields beyond the spec's `Field` (the operator reads only what the runtime can already infer).
+- Names not present in the schema are silently dropped by `NeededFields` — return-what-you-read; the extractor filters against the live schema.
+- Errors aren't part of the signature on purpose — `FieldInputs` runs on the hot path and should be allocation-free. Anything that needs decoding belongs in the factory.
+
+For filterers, the callback receives `nil` as `raw` (filterers don't carry a Params block today). Return the static set of extra fields the filterer reads beyond `Filterer.Field`.
+
+Tier-2 post-tests don't decode source records (they consume the materialized result row set after windows). Leave `FieldInputs` nil on tier-2 registrations.
+
+The hook is plumbed via `buildRuntimeExtensions` into `processing.ExtensionRegistry.FieldInputs`, keyed by `StreamabilityKey(category, name)`. `ExtensionRegistry.FieldInputsFor(category, name, raw)` returns `(inputs, true)` when the callback ran successfully, `(nil, false)` when the operator is custom but has no registered callback — that second case is what triggers the extractor to widen.
+
 ## Manifest discoverability
 
 `pulse manifest --json` and `pulse_manifest` include a top-level `Extensions` block whenever the host registered anything:
