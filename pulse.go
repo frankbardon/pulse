@@ -124,6 +124,28 @@ type Options struct {
 	// extensions.go for the full surface.
 	Extensions Extensions
 
+	// ShardWorkers caps the per-shard parallel worker pool used when
+	// Process operates on a shard archive (S6 of the sharding rollout).
+	// Zero means runtime.NumCPU(); 1 forces strictly serial execution
+	// (same byte-for-byte semantics as the pre-S6 path). Negative
+	// values are rejected at New() time.
+	//
+	// The parallel reducer engages only when every operator in the
+	// request is mergeable per processing.CanMergeRequest. Non-
+	// mergeable requests (percentile aggregators, window operators,
+	// tier-2 tests, two-pass attributes combined with groupers, ...)
+	// fall through to the serial shardIter path with no worker
+	// spawning. Worker count is also capped at the shard count — no
+	// point spawning more workers than shards.
+	//
+	// Order semantics: partials merge in shard insertion order (zip
+	// central-directory order). Associative+commutative aggregators
+	// (count, sum, min, max, null_count, frequency, distinct_count,
+	// mode) produce byte-equal results vs the serial path; Welford
+	// mean / variance / stddev drift within ULP on well-conditioned
+	// inputs (parallel formula, see processing.MergeOnline docstrings).
+	ShardWorkers int
+
 	// ProjectBufferedFields enables buffered-decode field projection.
 	// When true the runtime walks each request to compute the set of
 	// schema fields the operators actually read (processing.NeededFields)
@@ -186,11 +208,16 @@ func New(opts Options) (*Pulse, error) {
 		}
 	}
 
+	if opts.ShardWorkers < 0 {
+		return nil, fmt.Errorf("pulse: ShardWorkers must be >= 0 (0 means runtime.NumCPU(), 1 forces serial)")
+	}
+
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields)
 	svc.SetExtensions(buildRuntimeExtensions(opts.Extensions))
 	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))
+	svc.SetShardWorkers(opts.ShardWorkers)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:     opts.ImportsDir,

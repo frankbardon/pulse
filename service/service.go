@@ -22,6 +22,14 @@ type Service struct {
 	projectBuffered bool
 	extensions      *processing.ExtensionRegistry
 	extensionsSnap  *descriptor.ExtensionsSnapshot
+
+	// shardWorkers caps the per-shard parallel worker pool the Process
+	// path spawns when a request is mergeable per
+	// processing.CanMergeRequest. Zero is interpreted as
+	// runtime.NumCPU() at dispatch time; 1 forces strictly serial
+	// execution (the pre-S6 path). The reducer caps spawn count at
+	// the shard count regardless of this knob.
+	shardWorkers int
 }
 
 // New creates a new Service with the given filesystem configuration.
@@ -73,6 +81,21 @@ func (s *Service) SetExtensions(r *processing.ExtensionRegistry) {
 // and MCP schema-binding paths.
 func (s *Service) Extensions() *processing.ExtensionRegistry {
 	return s.extensions
+}
+
+// SetShardWorkers configures the per-shard parallel worker pool cap.
+// Zero falls back to runtime.NumCPU() at dispatch time; 1 disables
+// parallelism (strictly serial path). Negative values are not
+// rejected here — pulse.New() performs that validation at the public
+// API boundary.
+func (s *Service) SetShardWorkers(n int) {
+	s.shardWorkers = n
+}
+
+// ShardWorkers returns the configured cap. Exposed for tests and the
+// shard-reduce orchestrator.
+func (s *Service) ShardWorkers() int {
+	return s.shardWorkers
 }
 
 // SetExtensionsSnapshot installs the descriptor-side projection of
@@ -221,6 +244,16 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// omitted, based on each named field's schema type. Caller can opt
 	// out via SetDisableDefaults / pulse.Options{DisableDefaults: true}.
 	s.applyDefaults(req, cohort.Schema())
+
+	// Per-shard parallel fast path: when the cohort is archive-backed,
+	// the request is mergeable, and ShardWorkers != 1, fan out across
+	// a bounded worker pool and reduce partials in shard insertion
+	// order. Non-mergeable requests (percentiles, windows, tier-2
+	// tests, etc.) fall through to the serial shardIter path below
+	// with byte-for-byte identical semantics.
+	if workers, ok := s.shouldFanOut(req, cohort); ok {
+		return s.processShardArchiveParallel(ctx, req, cohort, path, workers)
+	}
 
 	iter := s.newScanIter(cohort, path)
 	defer iter.Close()

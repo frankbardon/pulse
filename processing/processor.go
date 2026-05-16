@@ -135,6 +135,77 @@ func CanStreamRequest(req *types.Request, schema *encoding.Schema) bool {
 	return p.canStream(req)
 }
 
+// CanMergeRequest reports whether a request's online state is
+// mergeable across input partitions — the gate that the per-shard
+// parallel reducer in service/shard_reduce.go consults before fanning
+// out work across a worker pool. Returns true iff every aggregator,
+// grouper, and filterer is mergeable AND the request contains no
+// windows, no features, no regressions, no tests, no two-pass
+// attributes, and no decimal-typed aggregation targets. A nil/empty
+// aggregation list returns false (nothing to merge).
+//
+// Mergeable is a strict subset of Streamable. Custom extension
+// operators are conservatively treated as non-mergeable (the merge
+// surface is not yet exposed on the extension registration struct).
+func CanMergeRequest(req *types.Request, schema *encoding.Schema) bool {
+	if req == nil {
+		return false
+	}
+	if len(req.Aggregations) == 0 {
+		return false
+	}
+	if len(req.Windows) > 0 || len(req.Features) > 0 ||
+		len(req.Regressions) > 0 || len(req.Tests) > 0 ||
+		len(req.PostTests) > 0 {
+		return false
+	}
+	for _, attr := range req.Attributes {
+		// Row-local attributes (FORMULA, DATE_PART) are mergeable in
+		// principle — they add a derived column per row before each
+		// aggregator folds it. Two-pass attributes (ZSCORE, TSCORE,
+		// NORMALIZED, REG_*) need pass-1 population stats that the
+		// per-shard reducer would have to derive from merged Welford
+		// state; v1 routes those through the serial path.
+		if attr == nil {
+			return false
+		}
+		switch attr.Type {
+		case types.ATTR_FORMULA, types.ATTR_DATE_PART:
+			// row-local: mergeable.
+		default:
+			return false
+		}
+	}
+	for _, grp := range req.Groups {
+		if grp == nil || !grp.Type.Mergeable() {
+			return false
+		}
+	}
+	for _, f := range req.Filterers {
+		if f == nil || !f.Type.Streamable() {
+			return false
+		}
+	}
+	for _, agg := range req.Aggregations {
+		if agg == nil || !agg.Type.Mergeable() {
+			return false
+		}
+		// Decimal-typed fields aggregate via AggregateDecimalField;
+		// the per-shard reducer doesn't yet handle the wide path.
+		if schema != nil {
+			if f := schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
+				return false
+			}
+		}
+		// Custom extension aggregators do not yet expose MergeOnline;
+		// reject conservatively.
+		if _, builtin := aggregatorRegistry[agg.Type]; !builtin {
+			return false
+		}
+	}
+	return true
+}
+
 // requiresTwoPass reports whether the attribute type implements
 // TwoPassAttribute (and therefore needs a PrePass over filter-passing
 // records before per-row emission). Mirrors the attribute factories in
