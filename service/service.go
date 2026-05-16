@@ -223,7 +223,7 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// out via SetDisableDefaults / pulse.Options{DisableDefaults: true}.
 	s.applyDefaults(req, cohort.Schema())
 
-	iter := newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
+	iter := s.newScanIter(cohort, path)
 	defer iter.Close()
 
 	s.applyProjection(iter, req, cohort.Schema())
@@ -244,12 +244,42 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	return resp, nil
 }
 
+// scanIterator is the internal interface satisfied by both the
+// single-file streamingIterator and the multi-shard shardIter. It
+// extends processing.RecordIterator with the auxiliary hooks Service
+// needs (projection, reuse, error reporting, lifecycle). Callers
+// constructed via newScanIter receive whichever implementation matches
+// the cohort shape — shard archives route through shardIter, single
+// files through streamingIterator. The processing layer sees only
+// processing.RecordIterator and consumes both uniformly.
+type scanIterator interface {
+	processing.RecordIterator
+	SetProjection(keep encoding.FieldFilter, size int)
+	SetReuse(reuse bool)
+	Err() error
+	Close() error
+}
+
+// newScanIter dispatches on whether the cohort backs onto a shard
+// archive (non-empty Shards) or a single .pulse file. The returned
+// iterator carries the same semantics in both branches; the multi-
+// shard variant walks shards in central-directory order and folds
+// records through the same processing pipeline as a concatenated
+// single-file cohort.
+func (s *Service) newScanIter(cohort *Cohort, path string) scanIterator {
+	if shards := cohort.Shards(); len(shards) > 0 {
+		return newShardIter(s.fs.Fs(), path, cohort.Schema(), shards)
+	}
+	return newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
+}
+
 // applyProjection installs a NeededFields-based projection filter on
-// the streaming iterator when ProjectBufferedFields is enabled and
-// the request's needed-field set is provably narrower than the
-// schema. A wide set (extraction couldn't introspect) leaves the
-// iterator on the full-decode path.
-func (s *Service) applyProjection(iter *streamingIterator, req *types.Request, schema *encoding.Schema) {
+// the scanning iterator when ProjectBufferedFields is enabled and the
+// request's needed-field set is provably narrower than the schema. A
+// wide set (extraction couldn't introspect) leaves the iterator on
+// the full-decode path. Works uniformly for single-file and multi-
+// shard iterators via the scanIterator interface.
+func (s *Service) applyProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) {
 	if !s.projectBuffered || iter == nil || req == nil || schema == nil {
 		return
 	}
