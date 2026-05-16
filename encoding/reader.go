@@ -40,10 +40,31 @@ func (rr *RecordReader) ReadRecord(values map[string]float64, nulls map[string]b
 	return rr.ReadRecordWithWide(values, nulls, nil)
 }
 
+// FieldFilter returns true for field names whose values should be
+// written into the caller's maps. Used by ReadRecordWithWideProjected
+// to skip map writes for fields the request doesn't read. A nil
+// FieldFilter is equivalent to "keep every field."
+type FieldFilter func(name string) bool
+
 // ReadRecordWithWide reads a record and populates a wide map with typed
 // values for decimal128, point_f64, and h3_cell fields. The wide map may
 // be nil to skip wide population.
 func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[string]bool, wide map[string]any) error {
+	return rr.readRecord(values, nulls, wide, nil)
+}
+
+// ReadRecordWithWideProjected reads a record but only writes the
+// fields for which keep(name) returns true into the caller's maps.
+// Bytes for excluded fields are still consumed from the underlying
+// reader so byte offsets stay aligned — projection saves map
+// allocations, not decode work.
+//
+// keep == nil falls back to the full-decode path.
+func (rr *RecordReader) ReadRecordWithWideProjected(values map[string]float64, nulls map[string]bool, wide map[string]any, keep FieldFilter) error {
+	return rr.readRecord(values, nulls, wide, keep)
+}
+
+func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]bool, wide map[string]any, keep FieldFilter) error {
 	// Clear caller-provided maps.
 	for k := range values {
 		delete(values, k)
@@ -56,6 +77,7 @@ func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[
 	}
 
 	for _, field := range rr.schema.Fields {
+		keepField := keep == nil || keep(field.Name)
 		switch field.Type {
 		case FieldTypePackedBool:
 			v, err := ReadBit(rr.r, uint(field.BitPosition))
@@ -64,6 +86,9 @@ func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[
 					return io.EOF
 				}
 				return err
+			}
+			if !keepField {
+				continue
 			}
 			if v {
 				values[field.Name] = 1
@@ -78,6 +103,9 @@ func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[
 					return io.EOF
 				}
 				return err
+			}
+			if !keepField {
+				continue
 			}
 			// For nullable bool, bit=0 can mean null or false depending on convention.
 			// Treat as: 1=true, 0=false. Null tracking requires a separate null bitmap
@@ -96,6 +124,9 @@ func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[
 				}
 				return err
 			}
+			if !keepField {
+				continue
+			}
 			if v == nullableU4NullSentinel {
 				nulls[field.Name] = true
 				values[field.Name] = 0
@@ -110,6 +141,9 @@ func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[
 					return io.EOF
 				}
 				return err
+			}
+			if !keepField {
+				continue
 			}
 			if field.Type == FieldTypeNullableDecimal128 && isNull {
 				nulls[field.Name] = true
@@ -129,6 +163,9 @@ func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[
 				}
 				return err
 			}
+			if !keepField {
+				continue
+			}
 			// No useful float64 representation; record stores 0 to keep
 			// the values map populated for callers that index by name.
 			values[field.Name] = 0
@@ -144,6 +181,9 @@ func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[
 				}
 				return err
 			}
+			if !keepField {
+				continue
+			}
 			values[field.Name] = float64(c)
 			if wide != nil {
 				wide[field.Name] = c
@@ -156,6 +196,9 @@ func (rr *RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[
 					return io.EOF
 				}
 				return err
+			}
+			if !keepField {
+				continue
 			}
 			values[field.Name] = rawToFloat64(field.Type, raw)
 		}

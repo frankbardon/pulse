@@ -20,6 +20,7 @@ import (
 type Service struct {
 	fs              *fs.Config
 	disableDefaults bool
+	projectBuffered bool
 	extensions      *processing.ExtensionRegistry
 	extensionsSnap  *descriptor.ExtensionsSnapshot
 }
@@ -37,6 +38,27 @@ func New(fsConfig *fs.Config) *Service {
 // only what the runtime mutates before Process / Compose execution.
 func (s *Service) SetDisableDefaults(disabled bool) {
 	s.disableDefaults = disabled
+}
+
+// SetProjectBufferedFields enables buffered-decode field projection.
+// When enabled the streaming iterator computes the set of fields a
+// request actually reads (NeededFields) and skips map writes for
+// fields outside that set. Per-record memory drops proportional to
+// the projection ratio; decode CPU is unchanged. Default is false;
+// pulse.Options{ProjectBufferedFields: true} opts in.
+//
+// Extension operators without a registered FieldInputs hook widen
+// the projection to "every field" automatically — projection is
+// always a strict superset of the fields actually consumed, so it
+// can never produce a wrong answer.
+func (s *Service) SetProjectBufferedFields(enabled bool) {
+	s.projectBuffered = enabled
+}
+
+// ProjectBufferedFields reports the current setting. Read by callers
+// that need to know whether to compute NeededFields ahead of time.
+func (s *Service) ProjectBufferedFields() bool {
+	return s.projectBuffered
 }
 
 // SetExtensions installs an ExtensionRegistry containing embedder-
@@ -127,6 +149,8 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	iter := newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
 	defer iter.Close()
 
+	s.applyProjection(iter, req, cohort.Schema())
+
 	proc := processing.NewProcessorWithExtensions(cohort.Schema(), s.extensions)
 	resp, err := proc.Process(ctx, req, iter)
 	if err != nil {
@@ -141,6 +165,28 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	}
 
 	return resp, nil
+}
+
+// applyProjection installs a NeededFields-based projection filter on
+// the streaming iterator when ProjectBufferedFields is enabled and
+// the request's needed-field set is provably narrower than the
+// schema. A wide set (extraction couldn't introspect) leaves the
+// iterator on the full-decode path.
+func (s *Service) applyProjection(iter *streamingIterator, req *types.Request, schema *encoding.Schema) {
+	if !s.projectBuffered || iter == nil || req == nil || schema == nil {
+		return
+	}
+	needed := processing.NeededFields(req, schema, s.extensions)
+	if needed.IsWide() {
+		return
+	}
+	size := needed.Len()
+	if size == 0 || size >= len(schema.Fields) {
+		return
+	}
+	iter.SetProjection(func(name string) bool {
+		return needed.Has(name)
+	}, size)
 }
 
 // AskInput captures the per-call options the facade hands the service.

@@ -50,6 +50,8 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | Extension registration validation rule (regex, reserved namespace, ParamMeta shape) | `extensions_validate.go` + `skills/extension-points.md` + CLAUDE.md "Extension Points" section | `TestExtensions_NameInvalidRegex`, `TestExtensions_NameReservedNamespace`, `TestExtensions_ParamMetaInvalidJSONType` |
 | `FacetRequest` / `FacetResult` shape | `types/facet.go` + `skills/facet-design.md` + `descriptor/capabilities_facet.go` + `descriptor/facet.go` (`ValidateFacet`) | `TestFacetSchema_*`, `TestManifestFacetCapability` |
 | Facet streamability conditions | `descriptor/capabilities_facet.go` (`StreamableConditions`) + `skills/facet-design.md` | reviewer enforcement |
+| `pulse.Options.ProjectBufferedFields` flag or `processing.NeededFields` extraction (new operator slot, expr identifier source, Params-referenced field) | CLAUDE.md "Projected buffered decode" subsection + `skills/extension-points.md` (FieldInputs hook + extractor surface) | `TestNeededFields_*`, `TestProjection_BufferedMatchesFullDecode_*`, `TestProjection_ByteCursorAlignmentWhenSkipping`, `TestReadRecordProjected_*` |
+| `FieldInputsFunc` hook on a registration struct (added/removed) | `extensions.go` (registration struct field) + `extensions_runtime.go` (wire into ExtensionRegistry.FieldInputs) + `skills/extension-points.md` | `TestNeededFields_ExtensionWithFieldInputs`, `TestNeededFields_UnknownExtensionWidens` |
 
 The Update Demand applies recursively to itself: new trigger rows require this table to be updated in the same PR. `TestUpdateDemandTableCovers` parses this section and asserts every component category and contract type has a row.
 
@@ -181,6 +183,12 @@ Capability declarations live in `descriptor/capabilities_*.go`. MCP tool metadat
 
 Four orchestrator modes — single-pass, grouped, two-pass attributes (Welford-Pébaÿ), streaming features. Forced buffered: median/percentile/zscore aggregators, `ATTR_PERCENTILE`, `GROUP_QUANTILE`/`GROUP_DATE`, window operators, decimal/geo paths, tier-1 tests combined with groupers/features/two-pass attrs, all tier-2 tests. CLI streams via `pulse api process --stream` / `pulse api compose --stream` (NDJSON one row per line). Library: `pulse.ProcessStream(ctx, req) (RowIter, error)`.
 
+### Projected buffered decode
+
+`pulse.Options.ProjectBufferedFields` (opt-in, defaults `false`) enables per-request field projection on the streaming iterator. When enabled, `processing.NeededFields(req, schema, ext)` walks every request slot — Aggregations.Field, Attributes (Field, Target, Predictors, expr-AST identifiers via `expr-lang/expr/parser` + `expr-lang/expr/ast` for `ATTR_FORMULA` / `FILTER_EXPRESSION`), Filterers.Field, Groups.Field, Windows (Field + PartitionBy + OrderBy), Features (Field + `stratify` / `target` from Params for `FEAT_TRAIN_TEST_SPLIT` / `FEAT_TARGET_ENCODE`), Tests (Field, Field2, SplitBy, Rows, Cols, SubjectField, OrderBy), Regressions (Target + Predictors), Sort.Field — and returns the `FieldSet` the request actually reads. The iterator's `ReadRecordWithWideProjected` then advances byte cursors for every field but skips map writes outside the set. Per-record `values`/`nulls`/`wide` map allocations drop proportional to the projection ratio; decode CPU is unchanged. Bit-packed neighbours stay correct because every field still consumes its on-wire bytes, only the map writes are guarded.
+
+Extension operators surface a per-registration `FieldInputs FieldInputsFunc` hook. When set, the projection extractor calls it with the operator's `Params` and includes the returned field names. When absent on a custom operator, the extractor widens to `*` (every field) — projection then falls back to the full-decode path so the runtime stays correct. Built-in operators are fully introspectable; only extension-resolved operators can widen.
+
 ### Parallel Compose
 
 `pulse.ComposeParallel(ctx, req, opts)` fans out a `ComposedRequest` over a bounded worker pool. Order-preserving by slot index. `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` (FailFast defaults true). CLI: `pulse api compose --parallel N [--no-fail-fast]`.
@@ -270,6 +278,8 @@ Hermetic testing: `fs.NewMemMap()` returns a `Config` backed by `afero.NewMemMap
 **Manifest visibility:** the root manifest carries a top-level `extensions` block listing every registered operator + expr function + lookup table (with `has_rows_data` to distinguish static maps from function-driven tables). The schema-bound MCP tools (post-`pulse_inspect`) include custom names in their per-category enums.
 
 **Snapshot pattern:** `descriptor.ExtensionsSnapshot` is the read-only projection passed into `descriptor.PredictOptions.Extensions` and `mcp.BindSessionToolsWithExtensions`. Built by `pulse.New` via `buildExtensionsSnapshot`, cached on the Service. Predict and the schema binder consume the snapshot only — descriptor stays free of `service/` and `processing/` imports (gated by `TestPredictNoExecutionImports`).
+
+**FieldInputs hook (buffered-projection introspection):** every operator registration (`AggregatorRegistration`, `AttributeRegistration`, `FiltererRegistration`, `GrouperRegistration`, `WindowRegistration`, `FeatureRegistration`, `TestRegistration`) accepts an optional `FieldInputs FieldInputsFunc`. When set, `processing.NeededFields` calls it with the operator's raw `Params` and includes the returned field names in the projection set. When omitted on a custom operator, the projection extractor widens to "every field" so the runtime stays correct (the operator is opaque). Built-in operators are always introspectable; only extension-resolved operators can widen. The hook is plumbed via `buildRuntimeExtensions` into `processing.ExtensionRegistry.FieldInputs`, keyed by `StreamabilityKey(category, name)`.
 
 The embedder-facing surface lives in `extensions.go` (types), `extensions_validate.go` (validation), `extensions_probe.go` (probe-validation), `extensions_runtime.go` (runtime registry conversion), and `extensions_snapshot.go` (manifest/predict snapshot). The runtime-side overlay lives in `processing/extensions.go`.
 

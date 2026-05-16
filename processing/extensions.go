@@ -1,12 +1,21 @@
 package processing
 
 import (
+	"encoding/json"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/processing/feature"
 	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
+
+// FieldInputsFunc reports the additional source-field names an
+// extension operator reads beyond the spec's explicit Field/Field2/
+// PartitionBy/etc. references. raw carries the operator's Params
+// block (may be nil for filterers). Return value is consumed by the
+// buffered-projection extractor; nil/empty means "no extra fields."
+type FieldInputsFunc func(raw json.RawMessage) []string
 
 // ExtensionRegistry holds per-Service overlays for every operator
 // category that supports the public extension API. A nil receiver is
@@ -43,6 +52,15 @@ type ExtensionRegistry struct {
 	// LookupTables are exposed to the runtime expression environment
 	// via the built-in lookup() function. Mirrors pulse.LookupTable.
 	LookupTables map[string]LookupTable
+
+	// FieldInputs is the per-(category, name) field-introspection
+	// callback consulted by the buffered-projection extractor
+	// (NeededFields). When the registry contains an entry for an
+	// extension operator the projection extractor calls the callback
+	// with the operator's raw Params; otherwise the extractor widens
+	// the projection to "every field" so the runtime stays correct
+	// for embedders that haven't opted in.
+	FieldInputs map[string]FieldInputsFunc
 }
 
 // ExprFunction is the runtime-side mirror of pulse.ExprFunction. The
@@ -283,6 +301,29 @@ func (r *ExtensionRegistry) FeatureFactories() map[types.FeatureType]feature.Fac
 		return nil
 	}
 	return r.Features
+}
+
+// FieldInputsFor consults the FieldInputs overlay for the operator
+// identified by (category, name). Returns (inputs, true) when the
+// registration supplied a callback, ([], true) when no extra fields
+// are read, or (nil, false) when the operator is custom but has no
+// registered callback — caller should treat that as "can't introspect"
+// and widen the projection.
+//
+// Built-in operators are not stored in this map; callers should only
+// reach FieldInputsFor for extension-resolved operators.
+func (r *ExtensionRegistry) FieldInputsFor(category, name string, raw json.RawMessage) ([]string, bool) {
+	if r == nil || r.FieldInputs == nil {
+		return nil, false
+	}
+	fn, ok := r.FieldInputs[StreamabilityKey(category, name)]
+	if !ok {
+		return nil, false
+	}
+	if fn == nil {
+		return nil, true
+	}
+	return fn(raw), true
 }
 
 // CustomAggregatorNames returns the overlay-only aggregator names in
