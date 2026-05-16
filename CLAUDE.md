@@ -250,6 +250,12 @@ Extension API contract:
 - `TestExtensions_Predict_AcceptsCustomFeatureType` / `TestExtensions_Predict_FlagsUnknownCustomFeature` / `TestExtensions_Predict_StreamableFlagFromSnapshot` / `TestExtensions_Predict_BufferedCustomAggregatorBlocksStreaming` / `TestExtensions_Predict_DescriptorImportContractHolds` — predict integration.
 - `TestMCPSchemaBinding_IncludesCustomAggregator` / `TestMCPSchemaBinding_BackwardCompatBindNoCustomNames` / `TestMCPSchemaBinding_DedupAndSort` — MCP schema binding.
 
+Sharding contract:
+- `TestShardArchiveStructuralCohesion` — incoming shard's structural schema must be byte-equal to canonical (field count, name, type, byte_offset, bit_position, categorical width); mismatches raise `PULSE_SHARD_SCHEMA_MISMATCH`.
+- `TestShardArchiveDictPrefixRule` — categorical dictionaries must be prefix-related across shards; incoming-prefix-of-canonical accepts, canonical-prefix-of-incoming returns an extended canonical schema, neither raises `PULSE_SHARD_DICT_DIVERGENCE`.
+- `TestShardArchiveDictWidthOverflow` — dictionary extensions exceeding the declared width capacity (256 / 65 536 / 2^32) raise `PULSE_SHARD_DICT_WIDTH_OVERFLOW`.
+- `TestShardArchiveDescriptionDivergenceWarns` — per-field description divergence emits `PULSE_SHARD_DESCRIPTION_DIVERGENCE` as a warning (not an error); canonical description wins downstream.
+
 Other contract gates (not in the prefix set but load-bearing): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestRegressionStreamabilityMatchesTypes`, `TestRegressionTypesKnown`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known` (Aggregations/Attributes/Filterers/Groups/Windows/Features/Tests), `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestMCPErrorsLookup_RoundTrip`, `TestFacetSchema_*`, `TestManifestFacetCapability`, `TestValidateFacet_*`, `TestShardArchiveMagicDispatch`.
 
 ## Build / Env

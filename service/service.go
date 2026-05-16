@@ -148,6 +148,12 @@ func (s *Service) Open(_ context.Context, path string) (*Cohort, error) {
 // Cohort whose Schema reads from the archive's reserved
 // `_schema.pulse` entry and whose Shards slice enumerates every
 // non-reserved entry in central-directory order.
+//
+// Record counts on every ShardEntry are populated by peeking each
+// shard's own header — that is the authoritative source per the
+// design contract (§3 of the sharding placeholder). The
+// `_schema.pulse` extension's AggregateRecordCount is a cached
+// sanity check; the per-shard headers win.
 func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 	reader := bytes.NewReader(data)
 	arch, err := encoding.OpenArchive(reader, int64(len(data)))
@@ -155,39 +161,43 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 		return nil, err
 	}
 
-	// Read canonical schema from the reserved _schema.pulse entry.
+	// Read canonical schema + sharding metadata from the reserved
+	// _schema.pulse entry via ReadSchemaDoc.
 	rc, err := arch.Open(encoding.ReservedSchemaName)
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
 
-	if err := encoding.ReadHeader(rc); err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
-			fmt.Sprintf("reading header from %s in archive: %s",
-				encoding.ReservedSchemaName, path))
-	}
-	schema, err := encoding.ReadSchema(rc)
+	doc, err := encoding.ReadSchemaDoc(rc)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
-			fmt.Sprintf("reading schema from %s in archive: %s",
+			fmt.Sprintf("reading schema doc from %s in archive: %s",
 				encoding.ReservedSchemaName, path))
 	}
 
 	// Enumerate shard entries — every entry except the reserved
-	// schema. RecordCount is left at zero in S1; S2 fills it.
+	// schema. Per-shard RecordCount comes from peeking each shard's
+	// header.
 	entries := arch.Entries()
 	shards := make([]ShardEntry, 0, len(entries))
 	for _, e := range entries {
 		if e.Name == encoding.ReservedSchemaName {
 			continue
 		}
-		shards = append(shards, ShardEntry{Filename: e.Name})
+		count, perr := arch.PeekShardRecordCount(e.Name)
+		if perr != nil {
+			return nil, perr
+		}
+		shards = append(shards, ShardEntry{
+			Filename:    e.Name,
+			RecordCount: count,
+		})
 	}
 
 	return &Cohort{
 		path:   path,
-		schema: schema,
+		schema: doc.Schema,
 		fs:     s.fs.Fs(),
 		shards: shards,
 	}, nil

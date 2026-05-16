@@ -398,6 +398,37 @@ const (
 	// archive's central directory may be valid while a constituent
 	// shard's bytes are not a single-file Pulse cohort.
 	PULSE_SHARD_HEADER_INVALID Code = "PULSE_SHARD_HEADER_INVALID"
+
+	// PULSE_SHARD_SCHEMA_MISMATCH indicates an incoming shard's
+	// structural schema (field count, per-field name/type/byte_offset/
+	// bit_position, categorical width) is not byte-equal to the
+	// archive's canonical schema. The insert is rejected; descriptions
+	// alone diverging do NOT raise this code (see
+	// PULSE_SHARD_DESCRIPTION_DIVERGENCE).
+	PULSE_SHARD_SCHEMA_MISMATCH Code = "PULSE_SHARD_SCHEMA_MISMATCH"
+
+	// PULSE_SHARD_DICT_DIVERGENCE indicates an incoming shard's
+	// categorical dictionary is not prefix-related to the canonical
+	// dictionary on the same field. Pulse permits append-only growth
+	// (incoming prefix of canonical, or canonical prefix of incoming
+	// — see PULSE_SHARD_DICT_WIDTH_OVERFLOW for the capacity guard),
+	// but rejects reorders or new values inserted before existing
+	// ones.
+	PULSE_SHARD_DICT_DIVERGENCE Code = "PULSE_SHARD_DICT_DIVERGENCE"
+
+	// PULSE_SHARD_DICT_WIDTH_OVERFLOW indicates a categorical
+	// dictionary extension that would exceed the declared field
+	// width's capacity (256 for u8, 65 536 for u16, 2^32 for u32).
+	// The field's width is fixed at folder creation; widening
+	// requires rebuilding the archive with a wider categorical type.
+	PULSE_SHARD_DICT_WIDTH_OVERFLOW Code = "PULSE_SHARD_DICT_WIDTH_OVERFLOW"
+
+	// PULSE_SHARD_DESCRIPTION_DIVERGENCE is emitted as a WARNING (not
+	// an error) when an incoming shard's per-field description differs
+	// from the canonical schema's. Descriptions are advisory metadata;
+	// the canonical description in `_schema.pulse` wins for any
+	// downstream consumer.
+	PULSE_SHARD_DESCRIPTION_DIVERGENCE Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -492,6 +523,10 @@ var allCodes = []Code{
 	PULSE_ARCHIVE_CORRUPT,
 	PULSE_SHARD_MISSING,
 	PULSE_SHARD_HEADER_INVALID,
+	PULSE_SHARD_SCHEMA_MISMATCH,
+	PULSE_SHARD_DICT_DIVERGENCE,
+	PULSE_SHARD_DICT_WIDTH_OVERFLOW,
+	PULSE_SHARD_DESCRIPTION_DIVERGENCE,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

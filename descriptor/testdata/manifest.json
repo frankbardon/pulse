@@ -2764,7 +2764,7 @@
         ]
       }
     ],
-    "error_codes_count": 83,
+    "error_codes_count": 87,
     "error_domains": [
       "CLI",
       "DATA",
@@ -2830,8 +2830,12 @@
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_QUERY_AMBIGUOUS",
       "PULSE_QUERY_UNRESOLVED",
+      "PULSE_SHARD_DESCRIPTION_DIVERGENCE",
+      "PULSE_SHARD_DICT_DIVERGENCE",
+      "PULSE_SHARD_DICT_WIDTH_OVERFLOW",
       "PULSE_SHARD_HEADER_INVALID",
       "PULSE_SHARD_MISSING",
+      "PULSE_SHARD_SCHEMA_MISMATCH",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
       "PULSE_TEST_BALANCED_DESIGN_REQUIRED",
@@ -4030,4 +4034,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 89f2cb81377317dbd952323e2b737f4a484416ff5141d8d697b4b57965d1045f
+// golden-hash: 78d17de5a481e818b9d704f7358a155a4d4b12753db1b53d1c9d7a6584e14c71

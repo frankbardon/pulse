@@ -302,6 +302,133 @@ func TestArchive_PeekShardHeader_InvalidMagic(t *testing.T) {
 	}
 }
 
+// --- PeekShardRecordCount (S2) ---
+
+func TestArchive_PeekShardRecordCount_ZeroRecords(t *testing.T) {
+	single := buildSinglePulse(t)
+	data := buildArchive(t, single, map[string][]byte{
+		"a.pulse": single,
+	}, []string{"a.pulse"})
+
+	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("OpenArchive: %v", err)
+	}
+	got, err := arch.PeekShardRecordCount("a.pulse")
+	if err != nil {
+		t.Fatalf("PeekShardRecordCount: %v", err)
+	}
+	if got != 0 {
+		t.Errorf("zero-record shard count = %d, want 0", got)
+	}
+}
+
+func TestArchive_PeekShardRecordCount_WithRecords(t *testing.T) {
+	// Build a single-file cohort with 3 records (4 bytes/record for u32).
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
+		},
+	}
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		t.Fatalf("WriteSchema: %v", err)
+	}
+	// 3 records of 4 bytes each.
+	for _, v := range []uint32{1, 2, 3} {
+		var rec [4]byte
+		rec[0] = byte(v)
+		buf.Write(rec[:])
+	}
+	shardBytes := buf.Bytes()
+
+	archBytes := buildArchive(t, buildSinglePulse(t), map[string][]byte{
+		"shard.pulse": shardBytes,
+	}, []string{"shard.pulse"})
+
+	arch, err := encoding.OpenArchive(bytes.NewReader(archBytes), int64(len(archBytes)))
+	if err != nil {
+		t.Fatalf("OpenArchive: %v", err)
+	}
+	got, err := arch.PeekShardRecordCount("shard.pulse")
+	if err != nil {
+		t.Fatalf("PeekShardRecordCount: %v", err)
+	}
+	if got != 3 {
+		t.Errorf("record count = %d, want 3", got)
+	}
+}
+
+func TestArchive_PeekShardRecordCount_InvalidHeader(t *testing.T) {
+	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
+		"bad.pulse": []byte("garbage"),
+	}, []string{"bad.pulse"})
+	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("OpenArchive: %v", err)
+	}
+	_, perr := arch.PeekShardRecordCount("bad.pulse")
+	if !errors.HasCode(perr, errors.PULSE_SHARD_HEADER_INVALID) {
+		t.Errorf("expected PULSE_SHARD_HEADER_INVALID, got %v", perr)
+	}
+}
+
+// --- TestArchive_Open_PopulatesRecordCounts (S2) ---
+
+func TestArchive_Open_PopulatesRecordCounts(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
+		},
+	}
+	// Build canonical schema doc (header + schema + SHRD).
+	var docBuf bytes.Buffer
+	if err := encoding.WriteSchemaDoc(&docBuf, schema, 5, 2); err != nil {
+		t.Fatalf("WriteSchemaDoc: %v", err)
+	}
+
+	mkShard := func(records int) []byte {
+		var b bytes.Buffer
+		if err := encoding.WriteHeader(&b); err != nil {
+			t.Fatalf("WriteHeader: %v", err)
+		}
+		if err := encoding.WriteSchema(&b, schema); err != nil {
+			t.Fatalf("WriteSchema: %v", err)
+		}
+		for i := 0; i < records; i++ {
+			b.Write([]byte{byte(i), 0, 0, 0})
+		}
+		return b.Bytes()
+	}
+	archBytes := buildArchive(t, docBuf.Bytes(), map[string][]byte{
+		"a.pulse": mkShard(2),
+		"b.pulse": mkShard(3),
+	}, []string{"a.pulse", "b.pulse"})
+
+	cfg := fs.NewMemMap()
+	if err := afero.WriteFile(cfg.Fs(), "archive.pulse", archBytes, 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	svc := service.New(cfg)
+	c, err := svc.Open(context.Background(), "archive.pulse")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	shards := c.Shards()
+	if len(shards) != 2 {
+		t.Fatalf("shards = %d, want 2", len(shards))
+	}
+	if shards[0].RecordCount != 2 {
+		t.Errorf("shards[0].RecordCount = %d, want 2", shards[0].RecordCount)
+	}
+	if shards[1].RecordCount != 3 {
+		t.Errorf("shards[1].RecordCount = %d, want 3", shards[1].RecordCount)
+	}
+}
+
 // --- ReservedSchemaName constant ---
 
 func TestArchive_ReservedSchemaName(t *testing.T) {
