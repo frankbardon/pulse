@@ -112,6 +112,11 @@ func commands() []Command {
 		{Name: "mcp", Description: "Serve the Model Context Protocol over stdio"},
 		{Name: "synth", Description: "Generate synthetic .pulse cohorts from a schema or profile"},
 		{Name: "profile", Description: "Capture statistical summaries of cohorts for synthesis"},
+		{Name: "shard create", Description: "Create a new shard archive from one or more single-file .pulse shards"},
+		{Name: "shard add", Description: "Append a shard to an existing archive"},
+		{Name: "shard remove", Description: "Remove a shard from an archive by basename"},
+		{Name: "shard list", Description: "List shards inside an archive"},
+		{Name: "shard extract", Description: "Extract a shard's standalone .pulse bytes to stdout"},
 	}
 }
 

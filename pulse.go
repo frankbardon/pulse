@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -237,6 +238,20 @@ func New(opts Options) (*Pulse, error) {
 }
 
 // Open reads a .pulse file and returns a Cohort with the parsed schema.
+//
+// Anchor syntax: a path of the form "archive.pulse#shard.pulse" opens
+// the archive, locates the named shard inside it, and returns a single-
+// shard cohort whose schema comes from the shard's own header (not the
+// canonical schema in `_schema.pulse`). The returned Cohort has an
+// empty Shards slice — anchor-resolved shards stand alone for the
+// purposes of facade methods. Anchors require an archive backing the
+// path; using `#` against a single-file `.pulse` raises
+// PULSE_ARCHIVE_MAGIC_INVALID. A literal `#` in a filename is not
+// supported in v1.
+//
+// Anchor parsing happens inside service.Service.Open as well, so the
+// other facade methods (Process, Sample, Facet, ...) that receive an
+// anchored Cohort path resolve consistently.
 func (p *Pulse) Open(ctx context.Context, path string) (*Cohort, error) {
 	inner, err := p.svc.Open(ctx, path)
 	if err != nil {
@@ -831,6 +846,50 @@ func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
 // and never expose the filesystem directly.
 func (p *Pulse) Fs() afero.Fs {
 	return p.fsys
+}
+
+// CreateShardArchive writes a fresh Pulse shard archive at archivePath
+// containing the supplied single-file shardPaths. The first shard
+// seeds the canonical schema; remaining shards are validated via
+// structural cohesion + the append-only dictionary prefix rule. The
+// archive is written atomically (temp file + rename) so partial
+// writes never appear at archivePath. See service.CreateShardArchive
+// for the full error surface.
+func (p *Pulse) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) error {
+	return p.svc.CreateShardArchive(ctx, archivePath, shardPaths)
+}
+
+// AddShard validates the incoming single-file shard against the
+// archive's canonical schema and appends it. Dict growth that the
+// incoming shard introduces is reflected in the rewritten
+// `_schema.pulse` payload before the new shard payload is appended.
+// v1 reads the whole archive into memory and writes it back via
+// temp+rename — semantically equivalent to true in-place append and
+// crash-safe at the canonical-path level.
+func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) error {
+	return p.svc.AddShard(ctx, archivePath, shardPath)
+}
+
+// RemoveShard rewrites the archive omitting the named shard. The
+// canonical schema is preserved (dictionary entries are never
+// shrunk). Returns PULSE_SHARD_MISSING when the named shard is not in
+// the archive.
+func (p *Pulse) RemoveShard(ctx context.Context, archivePath, shardBasename string) error {
+	return p.svc.RemoveShard(ctx, archivePath, shardBasename)
+}
+
+// ListShards returns the archive's shard manifest in central-
+// directory order (which equals shard insertion order). Single-file
+// cohorts return an empty slice.
+func (p *Pulse) ListShards(ctx context.Context, archivePath string) ([]ShardEntry, error) {
+	return p.svc.ListShards(ctx, archivePath)
+}
+
+// ExtractShard returns an io.ReadCloser over the named shard's
+// standalone single-file `.pulse` bytes. Suitable for piping to
+// `pulse inspect -` or writing back to disk.
+func (p *Pulse) ExtractShard(ctx context.Context, archivePath, shardBasename string) (io.ReadCloser, error) {
+	return p.svc.ExtractShard(ctx, archivePath, shardBasename)
 }
 
 // resolveCohortPath builds the file path from a Cohort specification.

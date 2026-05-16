@@ -86,6 +86,11 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
 | `import auto SOURCE` | Auto-detect a source format, convert into the managed `.pulse` pool, and track lifetime via TTL sidecar. Flags: `--format`, `--handle`, `--ttl` (default `7d`; accepts Go duration, day form `7d`, or `pin`), `--sheet`, `--overwrite`. Pulse-format sources pass through unchanged with no sidecar. | https://frankbardon.github.io/pulse/cli/import-auto.html |
 | `import list` | List managed-import handles with TTL status. Expired and pinned entries are flagged. | https://frankbardon.github.io/pulse/cli/import-list.html |
 | `import drop HANDLE` | Remove one managed handle (file + sidecar) from the pool. | https://frankbardon.github.io/pulse/cli/import-drop.html |
+| `shard create ARCHIVE --include SHARD ...` | Create a new shard archive from one or more single-file `.pulse` shards. Atomic temp+rename; first include seeds the canonical schema. | https://frankbardon.github.io/pulse/cli/shard-create.html |
+| `shard add ARCHIVE SHARD` | Append a shard to an existing archive (validated for structural cohesion + dict prefix rule). | https://frankbardon.github.io/pulse/cli/shard-add.html |
+| `shard remove ARCHIVE BASENAME` | Remove a shard from an archive by basename. Canonical schema is preserved. | https://frankbardon.github.io/pulse/cli/shard-remove.html |
+| `shard list ARCHIVE` | List shards inside an archive with per-shard record counts. | https://frankbardon.github.io/pulse/cli/shard-list.html |
+| `shard extract ARCHIVE BASENAME` | Write one shard's standalone `.pulse` bytes to stdout. | https://frankbardon.github.io/pulse/cli/shard-extract.html |
 </reference>
 
 <workflow id="typical-session" name="typical-mcp-session">

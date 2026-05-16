@@ -57,6 +57,7 @@ func buildApp() *cli.Command {
 			pcli.MCPCommand(),
 			pcli.SynthCommand(),
 			pcli.ProfileCommand(),
+			pcli.ShardCommand(),
 		},
 	}
 }

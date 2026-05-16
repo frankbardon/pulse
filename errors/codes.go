@@ -429,6 +429,19 @@ const (
 	// the canonical description in `_schema.pulse` wins for any
 	// downstream consumer.
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
+
+	// PULSE_SHARD_RESERVED_NAME indicates a caller attempted to insert
+	// a shard whose basename collides with the reserved canonical
+	// schema entry name (`_schema.pulse`). The reserved name is
+	// addressable only through the archive's own canonical-schema
+	// channel; user shards must pick a different basename.
+	PULSE_SHARD_RESERVED_NAME Code = "PULSE_SHARD_RESERVED_NAME"
+
+	// PULSE_SHARD_NAME_COLLISION indicates two shards in the same
+	// archive (or two paths handed to `pulse shard create`) share a
+	// basename. Zip entry names are flat — basenames must be unique
+	// within an archive.
+	PULSE_SHARD_NAME_COLLISION Code = "PULSE_SHARD_NAME_COLLISION"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -527,6 +540,8 @@ var allCodes = []Code{
 	PULSE_SHARD_DICT_DIVERGENCE,
 	PULSE_SHARD_DICT_WIDTH_OVERFLOW,
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE,
+	PULSE_SHARD_RESERVED_NAME,
+	PULSE_SHARD_NAME_COLLISION,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

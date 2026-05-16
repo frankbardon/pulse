@@ -42,6 +42,26 @@
       {
         "name": "profile",
         "description": "Capture statistical summaries of cohorts for synthesis"
+      },
+      {
+        "name": "shard create",
+        "description": "Create a new shard archive from one or more single-file .pulse shards"
+      },
+      {
+        "name": "shard add",
+        "description": "Append a shard to an existing archive"
+      },
+      {
+        "name": "shard remove",
+        "description": "Remove a shard from an archive by basename"
+      },
+      {
+        "name": "shard list",
+        "description": "List shards inside an archive"
+      },
+      {
+        "name": "shard extract",
+        "description": "Extract a shard's standalone .pulse bytes to stdout"
       }
     ],
     "components": {
@@ -2764,7 +2784,7 @@
         ]
       }
     ],
-    "error_codes_count": 87,
+    "error_codes_count": 89,
     "error_domains": [
       "CLI",
       "DATA",
@@ -2835,6 +2855,8 @@
       "PULSE_SHARD_DICT_WIDTH_OVERFLOW",
       "PULSE_SHARD_HEADER_INVALID",
       "PULSE_SHARD_MISSING",
+      "PULSE_SHARD_NAME_COLLISION",
+      "PULSE_SHARD_RESERVED_NAME",
       "PULSE_SHARD_SCHEMA_MISMATCH",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
@@ -4034,4 +4056,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 78d17de5a481e818b9d704f7358a155a4d4b12753db1b53d1c9d7a6584e14c71
+// golden-hash: 112daa016a21c4f53378749ad5645d6f7334fc66496a58f1c12960cba66b0d12

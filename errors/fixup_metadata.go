@@ -842,4 +842,24 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_RESERVED_NAME: {
+		Message: "Cannot insert a shard whose basename collides with the reserved canonical schema entry (`_schema.pulse`); the reserved name is addressable only through the archive's canonical-schema channel.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Shard", "Basename"},
+				Hint:   "Rename the incoming shard to a non-reserved basename (e.g. `20190101.pulse`) before adding it to the archive.",
+			},
+		},
+	},
+	PULSE_SHARD_NAME_COLLISION: {
+		Message: "Two shards in the same archive share a basename; zip entry names are flat and must be unique within an archive.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Shard", "Basename"},
+				Hint:   "Rename one of the colliding shards to a unique basename before insertion. Inspect the existing archive via `pulse shard list <archive>` to confirm the taken names.",
+			},
+		},
+	},
 }

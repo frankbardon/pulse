@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -135,7 +136,15 @@ func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
 // magic, PULSE_ARCHIVE_CORRUPT when the zip EOCD or central directory
 // is unreadable, and PULSE_SHARD_MISSING when an archive lacks the
 // reserved `_schema.pulse` entry.
-func (s *Service) Open(_ context.Context, path string) (*Cohort, error) {
+func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
+	// Anchor syntax: "archive.pulse#shard.pulse" opens one shard inside
+	// the archive as a single-shard cohort. Recognised before the magic
+	// dispatch so anchored facades (Process, Sample, Facet, ...) reach
+	// the right code path.
+	if archivePath, anchor, ok := splitAnchorPath(path); ok {
+		return s.OpenAnchor(ctx, archivePath, anchor)
+	}
+
 	data, err := afero.ReadFile(s.fs.Fs(), path)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
@@ -163,6 +172,72 @@ func (s *Service) Open(_ context.Context, path string) (*Cohort, error) {
 		path:   path,
 		schema: schema,
 		fs:     s.fs.Fs(),
+	}, nil
+}
+
+// OpenAnchor opens a single shard inside a Pulse shard archive as if
+// it were a standalone single-file `.pulse` cohort. The schema is
+// read from the shard's own header (NOT the archive's canonical
+// schema) so anchor-addressed shards stand alone for the purposes of
+// facade methods. Shards is empty on the returned Cohort.
+//
+// Errors:
+//   - PULSE_ARCHIVE_MAGIC_INVALID — archivePath is not a Pulse shard archive.
+//   - PULSE_SHARD_MISSING — the named entry is not present in the archive.
+//   - PULSE_SHARD_RESERVED_NAME — entry is the reserved `_schema.pulse`.
+//   - PULSE_SHARD_HEADER_INVALID / ENCODING_INVALID — the shard payload is malformed.
+func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Cohort, error) {
+	if entry == encoding.ReservedSchemaName {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
+			"cannot anchor-open the reserved canonical schema entry",
+			map[string]any{"entry": entry})
+	}
+	data, err := afero.ReadFile(s.fs.Fs(), archivePath)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("opening cohort file for anchor: %s", archivePath))
+	}
+	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+	// Read the entry payload into memory so the returned Cohort owns
+	// its byte buffer — the section reader's lifetime is tied to the
+	// archive (and therefore to `data`), but a Cohort just stores the
+	// path. We synthesise a backing afero.Fs that serves the path
+	// "<archive>#<entry>" returning the shard bytes, so downstream
+	// readers (streamingIterator) round-trip cleanly.
+	rc, err := arch.Open(entry)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	payload, err := io.ReadAll(rc)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("reading anchored shard %q from %s", entry, archivePath))
+	}
+
+	r := bytes.NewReader(payload)
+	if err := encoding.ReadHeader(r); err != nil {
+		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+			fmt.Sprintf("invalid shard header for anchor: %s#%s", archivePath, entry))
+	}
+	schema, err := encoding.ReadSchema(r)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("reading shard schema for anchor: %s#%s", archivePath, entry))
+	}
+
+	// Surface the shard via an in-memory overlay so streamingIterator
+	// can re-open by path. Path is the literal anchor form so error
+	// messages stay informative.
+	anchorPath := archivePath + "#" + entry
+	overlay := newAnchorOverlay(s.fs.Fs(), anchorPath, payload)
+	return &Cohort{
+		path:   anchorPath,
+		schema: schema,
+		fs:     overlay,
 	}, nil
 }
 
@@ -298,11 +373,21 @@ type scanIterator interface {
 // shard variant walks shards in central-directory order and folds
 // records through the same processing pipeline as a concatenated
 // single-file cohort.
+//
+// The iterator is constructed against the cohort's own fs handle
+// rather than the service's fs. For regular Open these are the
+// same; for OpenAnchor the cohort carries an in-memory overlay so
+// the streaming iterator can resolve the virtual `archive#shard`
+// path back to the anchored shard bytes.
 func (s *Service) newScanIter(cohort *Cohort, path string) scanIterator {
-	if shards := cohort.Shards(); len(shards) > 0 {
-		return newShardIter(s.fs.Fs(), path, cohort.Schema(), shards)
+	fsys := cohort.fs
+	if fsys == nil {
+		fsys = s.fs.Fs()
 	}
-	return newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
+	if shards := cohort.Shards(); len(shards) > 0 {
+		return newShardIter(fsys, path, cohort.Schema(), shards)
+	}
+	return newStreamingIterator(fsys, path, cohort.Schema())
 }
 
 // applyProjection installs a NeededFields-based projection filter on
@@ -517,4 +602,17 @@ func resolveCohortPath(c *types.Cohort) string {
 		return c.DataDir + "/" + c.Filename
 	}
 	return c.Filename
+}
+
+// splitAnchorPath splits an archive-and-anchor path of the form
+// "archive.pulse#entry.pulse" into (archivePath, entry, true). Returns
+// ("", "", false) when no `#` is present. Resolves at the FIRST `#` —
+// literal `#` in a filename is not supported in v1.
+func splitAnchorPath(path string) (string, string, bool) {
+	for i := 0; i < len(path); i++ {
+		if path[i] == '#' {
+			return path[:i], path[i+1:], true
+		}
+	}
+	return "", "", false
 }

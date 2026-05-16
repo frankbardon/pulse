@@ -87,7 +87,7 @@ pulse/
 
 `pulse.go` re-exports `types.Request` → `pulse.Request`, `types.Response` → `pulse.Response`, `types.ComposedRequest` → `pulse.ComposedRequest`, plus `synth.Spec`/`Result`/`Options`/`Profile`/`ProfileOptions`.
 
-CLI commands map 1:1 to manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`.
+CLI commands map 1:1 to manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`, and the `shard` group (`shard create`, `shard add`, `shard remove`, `shard list`, `shard extract`).
 
 `internal/mcp/` registers eleven tools (one per facade method plus `pulse_ask` one-shot that collapses inspect→predict→process and `pulse_facet_schema` for multi-field rich facets) and two resource schemes (`pulse://`, `pulse-skill://`).
 
@@ -268,6 +268,10 @@ Sharding contract:
 - `TestShardArchiveInspect` — `Inspect` on a shard archive exposes `Shards` in central-directory order with per-shard `RecordCount` and a cumulative aggregate matching the sum; single-file cohorts keep `Shards` empty.
 - `TestShardArchivePredict` — `Predict` on a shard archive reports the cumulative record total and `Shards` listing; streamability is inherited from the request against the canonical schema (unchanged from single-file behavior).
 - `TestShardArchiveProcessParallel` — per-shard parallel reducer produces byte-equal results vs the serial path for associative+commutative aggregators (`AGG_COUNT`/`AGG_SUM`/`AGG_MIN`/`AGG_MAX`/`AGG_NULL_COUNT`/`AGG_FREQUENCY`) and within-ULP results for Welford-mean (`AGG_AVERAGE`). Non-mergeable requests (percentile aggregators, window operators, tier-2 tests, two-pass attributes combined with groupers) fall through to the serial `shardIter` with no worker spawning. `ShardWorkers=1` is byte-equal to the pre-S6 serial path.
+- `TestShardArchiveReservedName` — inserting a shard whose basename collides with the reserved `_schema.pulse` entry raises `PULSE_SHARD_RESERVED_NAME` at `CreateShardArchive` / `AddShard` / `pulse shard create` / `pulse shard add`.
+- `TestShardArchiveNameCollision` — two shards in the same archive (or two `--include` paths sharing a basename) raise `PULSE_SHARD_NAME_COLLISION`.
+- `TestShardArchiveAnchorSyntax` — `pulse.Open("archive.pulse#shard.pulse")` returns a single-shard cohort whose schema comes from the shard's own header; missing-anchor raises `PULSE_SHARD_MISSING`; anchor against a single-file `.pulse` raises `PULSE_ARCHIVE_MAGIC_INVALID`.
+- `TestShardArchiveAddCrashRecovery` — interrupted `AddShard` (failure between temp-file write and rename) leaves the canonical archive at its prior valid state; partial writes never appear at the destination path (atomic temp+rename).
 
 Other contract gates (not in the prefix set but load-bearing): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestRegressionStreamabilityMatchesTypes`, `TestRegressionTypesKnown`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known` (Aggregations/Attributes/Filterers/Groups/Windows/Features/Tests), `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestMCPErrorsLookup_RoundTrip`, `TestFacetSchema_*`, `TestManifestFacetCapability`, `TestValidateFacet_*`, `TestShardArchiveMagicDispatch`.
 
