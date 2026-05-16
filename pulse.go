@@ -818,6 +818,13 @@ func resolveCohortPath(c *types.Cohort) string {
 // service so embedders can address pulse.ShardEntry directly.
 type ShardEntry = service.ShardEntry
 
+// ShardInfo is one shard entry as surfaced by Inspect / Predict. Re-
+// exported from descriptor so embedders consuming the no-execute
+// surface can address pulse.ShardInfo directly. Mirrors ShardEntry's
+// shape (filename + record count); the two types are parallel because
+// descriptor/ cannot import service/.
+type ShardInfo = descriptor.ShardInfo
+
 // Cohort represents an opened .pulse file with its parsed schema.
 // It wraps the service-layer Cohort to provide a clean public API.
 type Cohort struct {

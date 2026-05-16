@@ -18,6 +18,8 @@
         "age"
       ]
     },
+    "record_count": 0,
+    "shards": [],
     "streamable": true,
     "suggestions": [],
     "defaults_applied": []
@@ -25,4 +27,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fe7a07d2d3b1581e6dacc3f1bfa9ca35076a0c50c80cf10aa303cbdd98f1e282
+// golden-hash: 24e35649d6eb4de5fe8c96cccb3263283cad3ab15e3cfe2ff373890726cecd1e

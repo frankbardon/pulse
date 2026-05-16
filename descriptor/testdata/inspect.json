@@ -39,9 +39,11 @@
           ]
         }
       }
-    ]
+    ],
+    "shards": [],
+    "record_count": 0
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: cf71e715945ab9d959fe96876d1f5f7ad005854de01277d55348c5bdbda789a6
+// golden-hash: e40aa9017552f9f4f48cd9d27f774b7808b252dc28cbfcbc43cdafdfb1cb101d

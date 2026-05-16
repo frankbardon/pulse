@@ -29,6 +29,8 @@
         "grade"
       ]
     },
+    "record_count": 0,
+    "shards": [],
     "streamable": true,
     "suggestions": [
       {
@@ -61,4 +63,4 @@
     }
   ]
 }
-// golden-hash: 3b617500724409e31983b506e314cfe90b14cd8eeea29605705cb19f5ddc6e38
+// golden-hash: c3a095c483f9eafdcac4dc53924b5a05e621277375edaf3edaa7c8c49d45e1ba

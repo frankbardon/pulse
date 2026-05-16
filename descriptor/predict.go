@@ -60,11 +60,26 @@ type PredictResult struct {
 	Valid      bool               `json:"valid"`
 	Request    *types.Request     `json:"request"`
 	SchemaInfo *PredictSchemaInfo `json:"schema_info,omitempty"`
+	// RecordCount reports the cumulative record total across all shards
+	// when the cohort is a shard archive, and zero for single-file
+	// cohorts (predict reads only headers/schemas, so single-file
+	// counts are not computed by this no-execute path). The count is
+	// derived by peeking each shard's own header.
+	RecordCount int64 `json:"record_count"`
+	// Shards mirrors InspectResult.Shards for archive-backed cohorts.
+	// Empty (but non-nil) for single-file cohorts. Listed in zip
+	// central-directory order.
+	Shards []ShardInfo `json:"shards"`
 	// Streamable reports whether ProcessStream / process --stream can
 	// emit rows without buffering the entire result. False whenever the
 	// request uses groups, attributes, windows, decimal fields, or any
 	// non-streamable operator. Computed via per-type Streamable() methods
 	// plus schema-aware checks.
+	//
+	// Streamability is a property of the request and the canonical
+	// schema, not of the cohort shape — archive-backed cohorts inherit
+	// the same streamability as a single-file cohort with the same
+	// schema.
 	Streamable bool `json:"streamable"`
 	// StreamableReasons lists the gates that forced Streamable=false. Empty
 	// when Streamable=true. Useful for users debugging why their request
@@ -129,6 +144,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	result := &PredictResult{
 		Valid:           true,
 		Request:         req,
+		Shards:          []ShardInfo{},
 		DefaultsApplied: []DefaultApplied{},
 	}
 	env := NewEnvelope(result)
@@ -300,9 +316,117 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	return len(reasons) == 0, reasons
 }
 
-// PredictFromBytes is a convenience wrapper that creates a reader from bytes.
+// PredictFromBytes routes data to either the single-file predict path
+// or the archive predict path based on the first four bytes. Archive
+// detection is by the zip magic PK\x03\x04; single-file (or any other
+// prefix) falls through to Predict, which surfaces the standard
+// ENCODING_INVALID envelope on malformed input.
+//
+// For archive-backed cohorts: the canonical schema is read from the
+// reserved _schema.pulse entry and used for every validation step
+// (field existence, type compatibility, streamability). The cumulative
+// record total and per-shard list are added to the PredictResult; the
+// request is validated against the canonical schema and inherits the
+// same streamability gates that a single-file cohort with the same
+// schema would produce.
 func PredictFromBytes(data []byte, req *types.Request, opts *PredictOptions) *Envelope {
+	if len(data) >= 4 && data[0] == 'P' && data[1] == 'K' && data[2] == 0x03 && data[3] == 0x04 {
+		return predictArchive(data, req, opts)
+	}
 	return Predict(bytes.NewReader(data), req, opts)
+}
+
+// predictArchive runs the predict pipeline against a Pulse shard
+// archive. The canonical _schema.pulse entry supplies the schema the
+// request validates against; per-shard headers contribute the
+// cumulative RecordCount and Shards listing. Streamability is computed
+// from the same gates the single-file path uses — a shard archive
+// inherits the streamability of its request against the canonical
+// schema, not of its shape (see PredictResult.Streamable docs).
+func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Envelope {
+	reader := bytes.NewReader(data)
+	arch, err := encoding.OpenArchive(reader, int64(len(data)))
+	if err != nil {
+		result := &PredictResult{
+			Valid:           false,
+			Request:         req,
+			Shards:          []ShardInfo{},
+			DefaultsApplied: []DefaultApplied{},
+			Suggestions:     []Suggestion{},
+		}
+		env := NewEnvelope(result)
+		env.AddError(string(errors.PULSE_ARCHIVE_CORRUPT), "invalid pulse shard archive: "+err.Error(), nil)
+		return env
+	}
+
+	rc, oerr := arch.Open(encoding.ReservedSchemaName)
+	if oerr != nil {
+		result := &PredictResult{
+			Valid:           false,
+			Request:         req,
+			Shards:          []ShardInfo{},
+			DefaultsApplied: []DefaultApplied{},
+			Suggestions:     []Suggestion{},
+		}
+		env := NewEnvelope(result)
+		env.AddError(string(errors.PULSE_SHARD_MISSING),
+			"archive missing reserved schema entry "+encoding.ReservedSchemaName+": "+oerr.Error(), nil)
+		return env
+	}
+
+	// Materialize the canonical schema-doc payload so we can feed
+	// Predict (which expects a ReadSeeker over header + schema). We
+	// only need the leading header + schema block; the trailing SHRD
+	// extension on _schema.pulse is harmless to Predict because
+	// Predict only reads ReadHeader + ReadSchema, then validates the
+	// request against schema-derived state.
+	canonical, rerr := io.ReadAll(rc)
+	_ = rc.Close()
+	if rerr != nil {
+		result := &PredictResult{
+			Valid:           false,
+			Request:         req,
+			Shards:          []ShardInfo{},
+			DefaultsApplied: []DefaultApplied{},
+			Suggestions:     []Suggestion{},
+		}
+		env := NewEnvelope(result)
+		env.AddError(string(errors.ENCODING_INVALID),
+			"reading canonical schema entry "+encoding.ReservedSchemaName+": "+rerr.Error(), nil)
+		return env
+	}
+
+	env := Predict(bytes.NewReader(canonical), req, opts)
+	result, _ := env.Data.(*PredictResult)
+	if result == nil {
+		return env
+	}
+
+	// Enumerate non-reserved entries in central-directory order and
+	// sum per-shard record counts via PeekShardRecordCount.
+	var cumulative int64
+	shards := make([]ShardInfo, 0)
+	for _, entry := range arch.Entries() {
+		if entry.Name == encoding.ReservedSchemaName {
+			continue
+		}
+		count, perr := arch.PeekShardRecordCount(entry.Name)
+		if perr != nil {
+			env.AddError(string(errors.PULSE_SHARD_HEADER_INVALID),
+				"peeking record count for shard "+entry.Name+": "+perr.Error(),
+				map[string]any{"entry": entry.Name})
+			result.Valid = false
+			continue
+		}
+		shards = append(shards, ShardInfo{
+			Filename:    entry.Name,
+			RecordCount: count,
+		})
+		cumulative += count
+	}
+	result.Shards = shards
+	result.RecordCount = cumulative
+	return env
 }
 
 // validateRequestFields checks that all referenced fields exist and that
