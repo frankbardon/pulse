@@ -373,6 +373,31 @@ const (
 	// PULSE_LOOKUP_MISS indicates a lookup table call provided a key
 	// tuple that is not present in the table.
 	PULSE_LOOKUP_MISS Code = "PULSE_LOOKUP_MISS"
+
+	// PULSE_ARCHIVE_MAGIC_INVALID indicates a cohort path whose leading
+	// bytes match neither the single-file Pulse magic ("PULSE\x00\x00\x00")
+	// nor the zip-archive magic (PK\x03\x04). Surfaced by pulse.Open
+	// when the file is not a recognised Pulse artifact.
+	PULSE_ARCHIVE_MAGIC_INVALID Code = "PULSE_ARCHIVE_MAGIC_INVALID"
+
+	// PULSE_ARCHIVE_CORRUPT indicates a Pulse shard archive whose zip
+	// end-of-central-directory record is missing or invalid, or whose
+	// central directory cannot be parsed. The archive is unreadable
+	// until repaired (typically via re-creation from constituent shards).
+	PULSE_ARCHIVE_CORRUPT Code = "PULSE_ARCHIVE_CORRUPT"
+
+	// PULSE_SHARD_MISSING indicates the central directory references an
+	// entry that is not addressable inside the archive, or a caller
+	// requested a shard by name that does not exist. Distinct from
+	// PULSE_ARCHIVE_CORRUPT in that the archive itself is structurally
+	// valid; only the named entry is absent.
+	PULSE_SHARD_MISSING Code = "PULSE_SHARD_MISSING"
+
+	// PULSE_SHARD_HEADER_INVALID indicates a shard payload inside an
+	// archive failed its first-read magic + format-version check. The
+	// archive's central directory may be valid while a constituent
+	// shard's bytes are not a single-file Pulse cohort.
+	PULSE_SHARD_HEADER_INVALID Code = "PULSE_SHARD_HEADER_INVALID"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -463,6 +488,10 @@ var allCodes = []Code{
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_LOOKUP_TABLE_UNKNOWN,
 	PULSE_LOOKUP_MISS,
+	PULSE_ARCHIVE_MAGIC_INVALID,
+	PULSE_ARCHIVE_CORRUPT,
+	PULSE_SHARD_MISSING,
+	PULSE_SHARD_HEADER_INVALID,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

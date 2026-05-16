@@ -767,4 +767,42 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ARCHIVE_MAGIC_INVALID: {
+		Message: "The file's leading bytes match neither the single-file Pulse magic (\"PULSE\\x00\\x00\\x00\") nor the zip-archive magic (PK\\x03\\x04).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Cohort", "Filename"},
+				Hint:   "Verify the file is a Pulse cohort: a single-file .pulse or a Pulse shard archive. Re-import the source data or pass the correct path.",
+			},
+		},
+	},
+	PULSE_ARCHIVE_CORRUPT: {
+		Message: "The zip end-of-central-directory or central directory of the shard archive could not be parsed.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Rebuild the archive from its constituent shards via `pulse shard create`; the central directory or EOCD record is missing or truncated (often the result of a crash mid-write).",
+			},
+		},
+	},
+	PULSE_SHARD_MISSING: {
+		Message: "The named shard is not present in the archive's central directory.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Cohort", "Filename"},
+				Hint:   "List the archive's shards via `pulse shard list <archive>` and reference an existing basename, or add the missing shard via `pulse shard add <archive> <shard>`.",
+			},
+		},
+	},
+	PULSE_SHARD_HEADER_INVALID: {
+		Message: "The shard payload inside the archive failed its magic + format-version check on first read.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "The shard's bytes are not a valid single-file .pulse cohort. Remove the bad shard via `pulse shard remove`, then re-import and re-add the source data.",
+			},
+		},
+	},
 }

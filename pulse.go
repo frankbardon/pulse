@@ -814,6 +814,10 @@ func resolveCohortPath(c *types.Cohort) string {
 	return c.Filename
 }
 
+// ShardEntry is one shard inside a Pulse shard archive. Re-exported from
+// service so embedders can address pulse.ShardEntry directly.
+type ShardEntry = service.ShardEntry
+
 // Cohort represents an opened .pulse file with its parsed schema.
 // It wraps the service-layer Cohort to provide a clean public API.
 type Cohort struct {
@@ -834,4 +838,10 @@ func (c *Cohort) Field(name string) *encoding.Field {
 // Returns nil, false if the field is not found or is not categorical.
 func (c *Cohort) Categorical(name string) (*encoding.Dictionary, bool) {
 	return c.inner.Schema().Categorical(name)
+}
+
+// Shards returns the shard manifest for an archive-backed cohort. Empty
+// for single-file cohorts. The returned slice is a defensive copy.
+func (c *Cohort) Shards() []ShardEntry {
+	return c.inner.Shards()
 }

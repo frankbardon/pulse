@@ -99,11 +99,29 @@ func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
 }
 
 // Open reads a .pulse file and returns a Cohort with the parsed schema.
+// Dispatches on the file's leading magic bytes:
+//
+//   - "PULSE\x00\x00\x00" (single-file cohort) — reads header + schema
+//     directly from the file. Shards is empty.
+//   - "PK\x03\x04" (zip archive) — parses the zip central directory,
+//     reads the canonical schema from the reserved `_schema.pulse`
+//     entry, and populates Shards with every other entry in
+//     central-directory order. S1 leaves RecordCount at zero; later
+//     phases populate from `_schema.pulse` metadata or shard headers.
+//
+// Returns PULSE_ARCHIVE_MAGIC_INVALID when the file matches neither
+// magic, PULSE_ARCHIVE_CORRUPT when the zip EOCD or central directory
+// is unreadable, and PULSE_SHARD_MISSING when an archive lacks the
+// reserved `_schema.pulse` entry.
 func (s *Service) Open(_ context.Context, path string) (*Cohort, error) {
 	data, err := afero.ReadFile(s.fs.Fs(), path)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening cohort file: %s", path))
+	}
+
+	if len(data) >= 4 && data[0] == 'P' && data[1] == 'K' && data[2] == 0x03 && data[3] == 0x04 {
+		return s.openArchive(path, data)
 	}
 
 	r := bytes.NewReader(data)
@@ -123,6 +141,55 @@ func (s *Service) Open(_ context.Context, path string) (*Cohort, error) {
 		path:   path,
 		schema: schema,
 		fs:     s.fs.Fs(),
+	}, nil
+}
+
+// openArchive parses a Pulse shard archive from data and constructs a
+// Cohort whose Schema reads from the archive's reserved
+// `_schema.pulse` entry and whose Shards slice enumerates every
+// non-reserved entry in central-directory order.
+func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
+	reader := bytes.NewReader(data)
+	arch, err := encoding.OpenArchive(reader, int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+
+	// Read canonical schema from the reserved _schema.pulse entry.
+	rc, err := arch.Open(encoding.ReservedSchemaName)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+
+	if err := encoding.ReadHeader(rc); err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("reading header from %s in archive: %s",
+				encoding.ReservedSchemaName, path))
+	}
+	schema, err := encoding.ReadSchema(rc)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("reading schema from %s in archive: %s",
+				encoding.ReservedSchemaName, path))
+	}
+
+	// Enumerate shard entries — every entry except the reserved
+	// schema. RecordCount is left at zero in S1; S2 fills it.
+	entries := arch.Entries()
+	shards := make([]ShardEntry, 0, len(entries))
+	for _, e := range entries {
+		if e.Name == encoding.ReservedSchemaName {
+			continue
+		}
+		shards = append(shards, ShardEntry{Filename: e.Name})
+	}
+
+	return &Cohort{
+		path:   path,
+		schema: schema,
+		fs:     s.fs.Fs(),
+		shards: shards,
 	}, nil
 }
 
