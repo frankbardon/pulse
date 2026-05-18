@@ -1104,3 +1104,14 @@ func (c *Cohort) Categorical(name string) (*encoding.Dictionary, bool) {
 func (c *Cohort) Shards() []ShardEntry {
 	return c.inner.Shards()
 }
+
+// RecordCount returns the number of records in the cohort. For
+// single-file cohorts this is derived from the byte length of the
+// record region divided by the per-record size implied by the schema.
+// For archive-backed cohorts the caller should sum per-shard
+// RecordCount values from Shards() — the underlying service Cohort
+// errors on RecordCount for archives because the byte-region path
+// doesn't apply across shards.
+func (c *Cohort) RecordCount() (int64, error) {
+	return c.inner.RecordCount()
+}
