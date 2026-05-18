@@ -6,10 +6,7 @@ import (
 	"os"
 
 	"github.com/frankbardon/pulse/descriptor"
-	"github.com/frankbardon/pulse/types"
 	cli "github.com/urfave/cli/v3"
-
-	"github.com/frankbardon/pulse"
 )
 
 // CohortCommand returns the cohort command group.
@@ -121,13 +118,7 @@ func cohortFilterCmd() *cli.Command {
 				return err
 			}
 
-			resp, err := p.Process(ctx, &pulse.Request{
-				Cohort: &types.Cohort{Filename: input},
-				Filterers: []*types.Filterer{{
-					Type:       types.FILTER_EXPRESSION,
-					Expression: filterExpr,
-				}},
-			})
+			written, err := p.FilterToFile(ctx, input, output, filterExpr)
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "FILTER_ERROR", err.Error())
@@ -136,14 +127,14 @@ func cohortFilterCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, resp)
+				return writeEnvelope(cmd.Writer, map[string]any{
+					"input":           input,
+					"output":          output,
+					"written_records": written,
+				})
 			}
 
-			filtered := int64(0)
-			if resp.Metadata != nil {
-				filtered = resp.Metadata.FilteredRows
-			}
-			writeText(cmd.Writer, "Filtered %d rows from %s to %s\n", filtered, input, output)
+			writeText(cmd.Writer, "Filtered %d rows from %s to %s\n", written, input, output)
 			return nil
 		},
 	}
