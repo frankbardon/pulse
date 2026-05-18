@@ -25,6 +25,54 @@ func (t AggregationType) Streamable() bool {
 	return false
 }
 
+// Mergeable reports whether this aggregation type's running state can
+// be combined across partitions of the input via an associative+
+// commutative merge (count/sum/min/max/null_count), a parallel-friendly
+// recurrence (Welford-mean / variance / stddev), or a union of per-
+// value count maps (frequency / mode / distinct_count). The per-shard
+// parallel reducer in service/shard_reduce.go consults this method
+// (mirrored by processing.CanMergeRequest) to decide whether to fan
+// out shard processing across a bounded worker pool.
+//
+// Mergeable implies Streamable — a buffered-only aggregator cannot
+// expose mergeable state. The default branch returns false so newly-
+// added aggregator types must opt in explicitly. AGG_MEDIAN /
+// AGG_PERCENTILE / AGG_ZSCORE require a sorted view of every value
+// and stay non-mergeable; AGG_SKEWNESS / AGG_KURTOSIS rely on M3/M4
+// recurrences whose parallel-merge formula is non-trivial and is
+// deferred to a follow-up — they fall through to the serial path.
+func (t AggregationType) Mergeable() bool {
+	switch t {
+	case AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX,
+		AGG_RANGE, AGG_VARIANCE, AGG_STDDEV,
+		AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT,
+		AGG_NULL_COUNT:
+		return true
+	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
+		AGG_SKEWNESS, AGG_KURTOSIS:
+		return false
+	}
+	return false
+}
+
+// Mergeable reports whether this group type's per-key state can be
+// combined across partitions of the input. CATEGORY and RANGE (online)
+// derive their key purely from the row's value so per-shard buckets
+// merge by key-union; QUANTILE/DATE depend on the full set or a
+// finalize-time bucketization that the parallel reducer cannot
+// replicate piecewise. ROUNDED could be mergeable in principle but is
+// deferred — the parallel orchestrator only opts in on combinations
+// we exercise in goldens today.
+func (t GroupType) Mergeable() bool {
+	switch t {
+	case GROUP_CATEGORY, GROUP_RANGE:
+		return true
+	case GROUP_ROUNDED, GROUP_QUANTILE, GROUP_DATE:
+		return false
+	}
+	return false
+}
+
 // Streamable reports whether this attribute type can be computed in a
 // streaming path. Three tiers exist at runtime:
 //

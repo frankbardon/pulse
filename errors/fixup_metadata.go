@@ -767,4 +767,99 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ARCHIVE_MAGIC_INVALID: {
+		Message: "The file's leading bytes match neither the single-file Pulse magic (\"PULSE\\x00\\x00\\x00\") nor the zip-archive magic (PK\\x03\\x04).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Cohort", "Filename"},
+				Hint:   "Verify the file is a Pulse cohort: a single-file .pulse or a Pulse shard archive. Re-import the source data or pass the correct path.",
+			},
+		},
+	},
+	PULSE_ARCHIVE_CORRUPT: {
+		Message: "The zip end-of-central-directory or central directory of the shard archive could not be parsed.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Rebuild the archive from its constituent shards via `pulse shard create`; the central directory or EOCD record is missing or truncated (often the result of a crash mid-write).",
+			},
+		},
+	},
+	PULSE_SHARD_MISSING: {
+		Message: "The named shard is not present in the archive's central directory.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Cohort", "Filename"},
+				Hint:   "List the archive's shards via `pulse shard list <archive>` and reference an existing basename, or add the missing shard via `pulse shard add <archive> <shard>`.",
+			},
+		},
+	},
+	PULSE_SHARD_HEADER_INVALID: {
+		Message: "The shard payload inside the archive failed its magic + format-version check on first read.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "The shard's bytes are not a valid single-file .pulse cohort. Remove the bad shard via `pulse shard remove`, then re-import and re-add the source data.",
+			},
+		},
+	},
+	PULSE_SHARD_SCHEMA_MISMATCH: {
+		Message: "The incoming shard's structural schema (field count, per-field name/type/byte_offset/bit_position, categorical width) is not byte-equal to the archive's canonical schema.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Re-import the source data using the same schema as the canonical archive (run `pulse inspect <archive>` to view the canonical fields), or rebuild the archive against the new schema via `pulse shard create`.",
+			},
+		},
+	},
+	PULSE_SHARD_DICT_DIVERGENCE: {
+		Message: "The incoming shard's categorical dictionary is not prefix-related to the canonical dictionary on the same field; reorders and inserts before existing values are rejected.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Align dictionaries upstream so the incoming shard either equals the canonical dictionary up to its length (older snapshot) or extends it at the tail (new values appended). Re-import the source with the corrected dictionary order, or split into a separate archive.",
+			},
+		},
+	},
+	PULSE_SHARD_DICT_WIDTH_OVERFLOW: {
+		Message: "The categorical dictionary extension would exceed the declared field width's capacity (256 for u8, 65 536 for u16, 2^32 for u32).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Rebuild the archive with a wider categorical type for the affected field (categorical_u8 -> categorical_u16, or categorical_u16 -> categorical_u32). The width is fixed at folder creation; pick growth headroom up front next time.",
+			},
+		},
+	},
+	PULSE_SHARD_DESCRIPTION_DIVERGENCE: {
+		Message: "An incoming shard's per-field description differs from the canonical schema's; descriptions are advisory and the canonical description wins, but the divergence is surfaced as a warning so embedders can keep cohort metadata in sync.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "Fields", "*", "Description"},
+				Hint:   "Update the source data's per-field description to match the canonical archive's, or accept the warning (downstream consumers see the canonical description).",
+			},
+		},
+	},
+	PULSE_SHARD_RESERVED_NAME: {
+		Message: "Cannot insert a shard whose basename collides with the reserved canonical schema entry (`_schema.pulse`); the reserved name is addressable only through the archive's canonical-schema channel.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Shard", "Basename"},
+				Hint:   "Rename the incoming shard to a non-reserved basename (e.g. `20190101.pulse`) before adding it to the archive.",
+			},
+		},
+	},
+	PULSE_SHARD_NAME_COLLISION: {
+		Message: "Two shards in the same archive share a basename; zip entry names are flat and must be unique within an archive.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Shard", "Basename"},
+				Hint:   "Rename one of the colliding shards to a unique basename before insertion. Inspect the existing archive via `pulse shard list <archive>` to confirm the taken names.",
+			},
+		},
+	},
 }

@@ -4,46 +4,53 @@
     "field_count": 3,
     "fields": [
       {
+        "name": "id",
+        "type": "u32",
+        "byte_offset": 0,
+        "bit_position": 0,
+        "description": "Record id",
+        "description_source": "schema",
+        "categorical": false
+      },
+      {
         "name": "score",
         "type": "f64",
-        "byte_offset": 0,
+        "byte_offset": 4,
         "bit_position": 0,
-        "description": "Student test score value",
+        "description": "Numeric score",
         "description_source": "schema",
         "categorical": false
       },
       {
-        "name": "age",
-        "type": "u8",
-        "byte_offset": 0,
-        "bit_position": 0,
-        "description": "Age of the participant in years",
-        "description_source": "schema",
-        "categorical": false
-      },
-      {
-        "name": "color",
+        "name": "region",
         "type": "categorical_u8",
-        "byte_offset": 0,
+        "byte_offset": 12,
         "bit_position": 0,
-        "description": "Primary color category",
+        "description": "Region code",
         "description_source": "schema",
         "categorical": true,
         "dictionary": {
-          "total_entries": 3,
+          "total_entries": 2,
           "truncated": false,
           "values": [
-            "red",
-            "green",
-            "blue"
+            "US",
+            "CA"
           ]
         }
       }
     ],
-    "shards": [],
-    "record_count": 0
+    "shards": [
+      {
+        "filename": "20190101.pulse",
+        "record_count": 3
+      },
+      {
+        "filename": "20190201.pulse",
+        "record_count": 3
+      }
+    ],
+    "record_count": 6
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: e40aa9017552f9f4f48cd9d27f774b7808b252dc28cbfcbc43cdafdfb1cb101d

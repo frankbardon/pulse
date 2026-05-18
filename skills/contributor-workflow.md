@@ -111,6 +111,49 @@ new aggregation kind on numeric fields, a new contribution-style accumulator):
 4. Add section in `skills/mcp-integration.md` (Tool surface + Schema-bound enums if applicable).
 5. Run: `go test ./skills/ -run TestSkillsCoverAllMCPTools && go test ./descriptor/ -run TestManifestMCPToolsComplete && go test ./internal/mcp/ -run TestMCPSchemaBinding`.
 
+## Adding a shard (managing a shard archive)
+
+When an embedder wants to manage a multi-shard `.pulse` archive (a zip-archive cohort that fans out across N standalone `.pulse` shards under union semantics):
+
+1. **Create the archive** from one or more existing single-file `.pulse` shards. First include seeds the canonical schema; remaining includes are validated against it via structural cohesion + the dict prefix rule. Atomic temp + rename:
+
+   ```bash
+   pulse shard create q1_2019.pulse \
+       --include 20190101.pulse \
+       --include 20190108.pulse \
+       --include 20190115.pulse
+   ```
+
+2. **Append a shard** to an existing archive. Validates cohesion + dict prefix, grows the canonical dict if needed (rewriting `_schema.pulse` before placing the new shard), then in-place appends the payload:
+
+   ```bash
+   pulse shard add q1_2019.pulse 20190122.pulse
+   ```
+
+3. **List shards** inside an archive (reads `_schema.pulse` + central directory, prints basenames + per-shard record counts):
+
+   ```bash
+   pulse shard list q1_2019.pulse
+   ```
+
+4. **Verify** by re-validating every shard's header + cohesion against the canonical schema:
+
+   ```bash
+   pulse shard verify q1_2019.pulse
+   ```
+
+5. **Compact** to reclaim orphan bytes (e.g. after `pulse shard remove`) and refresh canonical metadata (`aggregate_record_count`, `shard_count`):
+
+   ```bash
+   pulse shard compact q1_2019.pulse
+   ```
+
+Read-side commands (`pulse api process`, `pulse api compose`, `pulse api sample`, `pulse api facet`, `pulse inspect`, `pulse predict`) accept shard-archive paths transparently — see `skills/cohort-schema-design.md` (Sharded cohorts) for the union semantics and memory multiplier.
+
+**Concurrency caveat:** Pulse does **not** provide writer locking. Two processes running `pulse shard add` against the same archive race; last writer wins, earlier writer's shard is lost. Sharding is single-writer by design — the caller owns concurrency control (orchestrator coordination, external advisory lock, or a single-writer architecture).
+
+For maintainers extending the sharding internals, the implementation surface lives in `encoding/archive.go` (Zip64 read/write + EOCD), `encoding/schema_doc.go` (`_schema.pulse` parser/writer), `encoding/cohesion.go` (structural + dict-prefix validators), `service/shard_iter.go` (multi-shard row iterator), `service/shard_reduce.go` (parallel reducer for mergeable ops), `service/shard_admin.go` (create/add/remove/list/extract), `service/shard_compact.go`, `service/shard_verify.go`, `service/anchor_overlay.go` (anchor-syntax overlay), and `internal/cli/shard.go` (CLI thin adapter).
+
 ## Wiring Pulse into an MCP client
 
 1. Build the binary: `make build`. The resulting `bin/pulse` must be on the client's `PATH` (or referenced absolutely).

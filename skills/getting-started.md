@@ -86,6 +86,11 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
 | `import auto SOURCE` | Auto-detect a source format, convert into the managed `.pulse` pool, and track lifetime via TTL sidecar. Flags: `--format`, `--handle`, `--ttl` (default `7d`; accepts Go duration, day form `7d`, or `pin`), `--sheet`, `--overwrite`. Pulse-format sources pass through unchanged with no sidecar. | https://frankbardon.github.io/pulse/cli/import-auto.html |
 | `import list` | List managed-import handles with TTL status. Expired and pinned entries are flagged. | https://frankbardon.github.io/pulse/cli/import-list.html |
 | `import drop HANDLE` | Remove one managed handle (file + sidecar) from the pool. | https://frankbardon.github.io/pulse/cli/import-drop.html |
+| `shard create ARCHIVE --include SHARD ...` | Create a new shard archive from one or more single-file `.pulse` shards. Atomic temp+rename; first include seeds the canonical schema. | https://frankbardon.github.io/pulse/cli/shard-create.html |
+| `shard add ARCHIVE SHARD` | Append a shard to an existing archive (validated for structural cohesion + dict prefix rule). | https://frankbardon.github.io/pulse/cli/shard-add.html |
+| `shard remove ARCHIVE BASENAME` | Remove a shard from an archive by basename. Canonical schema is preserved. | https://frankbardon.github.io/pulse/cli/shard-remove.html |
+| `shard list ARCHIVE` | List shards inside an archive with per-shard record counts. | https://frankbardon.github.io/pulse/cli/shard-list.html |
+| `shard extract ARCHIVE BASENAME` | Write one shard's standalone `.pulse` bytes to stdout. | https://frankbardon.github.io/pulse/cli/shard-extract.html |
 </reference>
 
 <workflow id="typical-session" name="typical-mcp-session">
@@ -143,6 +148,38 @@ Legacy multi-step shape:
 {"request": "..."}
 ```
 </workflow>
+
+<example name="shard-archive-workflow">
+## Shard archives
+
+A `.pulse` path can be either a single-file cohort or a **shard archive** (uncompressed Zip64, magic `PK\x03\x04`) containing one canonical `_schema.pulse` entry plus N standalone shard payloads. Every facade method (`Process`, `Compose`, `Sample`, `Facet`, `Inspect`, `Predict`, `ProcessStream`) operates transparently on the union of shards — there is no separate facade for archives.
+
+Build the archive from existing shards (atomic temp+rename), then run requests against it like any other cohort:
+
+```bash
+$ pulse shard create q1_2019.pulse \
+    --include 20190101.pulse \
+    --include 20190108.pulse
+$ pulse api process --request q1.json --cohort q1_2019.pulse
+$ pulse inspect q1_2019.pulse#20190101.pulse
+```
+
+The `archive.pulse#shard.pulse` anchor opens one shard as a one-shard cohort — useful for inspecting a single wave inside a quarterly archive, or for mixing whole-archive and per-shard slots inside a `Compose`:
+
+```json
+{
+  "requests": [
+    {"cohort": {"filename": "Q1_2019.pulse"},                "aggregations": [...]},
+    {"cohort": {"filename": "Q1_2019.pulse#20190101.pulse"}, "aggregations": [...]},
+    {"cohort": {"filename": "wave_2018.pulse"},              "aggregations": [...]}
+  ]
+}
+```
+
+The first slot fans out across every shard in the archive; the second targets just one shard via anchor syntax; the third is a legacy single-file cohort. Compose is order-preserving by slot.
+
+See `skills/cohort-schema-design.md` (Sharded cohorts) for archive layout, dict cohesion rules, memory multiplier on forced-buffered ops, and the concurrency contract.
+</example>
 
 <example name="canonical-process-request">
 ## Canonical process request

@@ -42,6 +42,34 @@
       {
         "name": "profile",
         "description": "Capture statistical summaries of cohorts for synthesis"
+      },
+      {
+        "name": "shard create",
+        "description": "Create a new shard archive from one or more single-file .pulse shards"
+      },
+      {
+        "name": "shard add",
+        "description": "Append a shard to an existing archive"
+      },
+      {
+        "name": "shard remove",
+        "description": "Remove a shard from an archive by basename"
+      },
+      {
+        "name": "shard list",
+        "description": "List shards inside an archive"
+      },
+      {
+        "name": "shard compact",
+        "description": "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata"
+      },
+      {
+        "name": "shard verify",
+        "description": "Re-validate every shard's header + cohesion against the canonical schema"
+      },
+      {
+        "name": "shard extract",
+        "description": "Extract a shard's standalone .pulse bytes to stdout"
       }
     ],
     "components": {
@@ -2764,7 +2792,7 @@
         ]
       }
     ],
-    "error_codes_count": 79,
+    "error_codes_count": 89,
     "error_domains": [
       "CLI",
       "DATA",
@@ -2801,6 +2829,8 @@
       "PROCESSING_STATE",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
+      "PULSE_ARCHIVE_CORRUPT",
+      "PULSE_ARCHIVE_MAGIC_INVALID",
       "PULSE_DECIMAL_DIVIDE_BY_ZERO",
       "PULSE_DECIMAL_OVERFLOW",
       "PULSE_DECIMAL_PRECISION_LOSS",
@@ -2828,6 +2858,14 @@
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_QUERY_AMBIGUOUS",
       "PULSE_QUERY_UNRESOLVED",
+      "PULSE_SHARD_DESCRIPTION_DIVERGENCE",
+      "PULSE_SHARD_DICT_DIVERGENCE",
+      "PULSE_SHARD_DICT_WIDTH_OVERFLOW",
+      "PULSE_SHARD_HEADER_INVALID",
+      "PULSE_SHARD_MISSING",
+      "PULSE_SHARD_NAME_COLLISION",
+      "PULSE_SHARD_RESERVED_NAME",
+      "PULSE_SHARD_SCHEMA_MISMATCH",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
       "PULSE_TEST_BALANCED_DESIGN_REQUIRED",
@@ -2928,6 +2966,7 @@
       {
         "name": "u8",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -2993,6 +3032,7 @@
       {
         "name": "u16",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3058,6 +3098,7 @@
       {
         "name": "u32",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3123,6 +3164,7 @@
       {
         "name": "u64",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3188,6 +3230,7 @@
       {
         "name": "f32",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3253,6 +3296,7 @@
       {
         "name": "f64",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3318,6 +3362,7 @@
       {
         "name": "nullable_bool",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3361,6 +3406,7 @@
       {
         "name": "nullable_u4",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3426,6 +3472,7 @@
       {
         "name": "nullable_u8",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3491,6 +3538,7 @@
       {
         "name": "nullable_u16",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3556,6 +3604,7 @@
       {
         "name": "date",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3624,6 +3673,7 @@
       {
         "name": "packed_bool",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3667,6 +3717,7 @@
       {
         "name": "categorical_u8",
         "categorical": true,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
@@ -3701,6 +3752,7 @@
       {
         "name": "categorical_u16",
         "categorical": true,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
@@ -3735,6 +3787,7 @@
       {
         "name": "categorical_u32",
         "categorical": true,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
@@ -3769,6 +3822,7 @@
       {
         "name": "decimal128",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
@@ -3800,6 +3854,7 @@
       {
         "name": "nullable_decimal128",
         "categorical": false,
+        "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
@@ -3927,7 +3982,7 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 80,
+    "examples_count": 81,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -3940,6 +3995,7 @@
       "windows"
     ],
     "example_tags": [
+      "anchor",
       "bayesian",
       "before-after",
       "buffered-pipeline",
@@ -3985,6 +4041,7 @@
       "resampling",
       "ridge",
       "selection",
+      "sharded",
       "small-sample",
       "stepwise",
       "streaming-friendly",
@@ -4026,4 +4083,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 12ed1d3b18f52630e31ec80ea1cddab2a29ca1c18ade8dc9f63215125503eb97
+// golden-hash: c84ec6cc2ea284c1fc1148e8dd57fa0fe1e65a516d765ab66b3f9148d2133a17

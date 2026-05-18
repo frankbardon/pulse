@@ -168,6 +168,14 @@ Keep records that match an expr-lang predicate.
 ```
 </example>
 
+<rule severity="caveat" topic="sharded-buffered-memory">
+## Shard archives and forced-buffered ops
+
+Forced-buffered operations on a shard archive materialize across the **union** of shards, not per-shard. This is mathematically required for global percentile semantics (median-of-medians is not the median). Buffered ops in this set: `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_ZSCORE`, all window operators (`WIN_*`), decimal paths, `ATTR_PERCENTILE`, `GROUP_QUANTILE`, `GROUP_DATE`, tier-1 tests combined with groupers/features/two-pass attrs, and every tier-2 post test.
+
+Memory cost scales with shard count. A 13-week quarterly archive costs roughly 13× the single-shard buffer for these ops. Pick shard granularity with this multiplier in mind. The single-file path is unaffected. See `cohort-schema-design` (Sharded cohorts) for the archive layout and the full streamability gate list.
+</rule>
+
 <rule severity="should" topic="null-strategy">
 ## Null strategy and small-group caveats
 

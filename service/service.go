@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sort"
-	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -23,6 +23,14 @@ type Service struct {
 	projectBuffered bool
 	extensions      *processing.ExtensionRegistry
 	extensionsSnap  *descriptor.ExtensionsSnapshot
+
+	// shardWorkers caps the per-shard parallel worker pool the Process
+	// path spawns when a request is mergeable per
+	// processing.CanMergeRequest. Zero is interpreted as
+	// runtime.NumCPU() at dispatch time; 1 forces strictly serial
+	// execution (the pre-S6 path). The reducer caps spawn count at
+	// the shard count regardless of this knob.
+	shardWorkers int
 }
 
 // New creates a new Service with the given filesystem configuration.
@@ -76,6 +84,21 @@ func (s *Service) Extensions() *processing.ExtensionRegistry {
 	return s.extensions
 }
 
+// SetShardWorkers configures the per-shard parallel worker pool cap.
+// Zero falls back to runtime.NumCPU() at dispatch time; 1 disables
+// parallelism (strictly serial path). Negative values are not
+// rejected here — pulse.New() performs that validation at the public
+// API boundary.
+func (s *Service) SetShardWorkers(n int) {
+	s.shardWorkers = n
+}
+
+// ShardWorkers returns the configured cap. Exposed for tests and the
+// shard-reduce orchestrator.
+func (s *Service) ShardWorkers() int {
+	return s.shardWorkers
+}
+
 // SetExtensionsSnapshot installs the descriptor-side projection of
 // the registered extensions for manifest + predict consumption. Pass
 // nil to clear; pulse.New populates this alongside SetExtensions.
@@ -99,11 +122,37 @@ func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
 }
 
 // Open reads a .pulse file and returns a Cohort with the parsed schema.
-func (s *Service) Open(_ context.Context, path string) (*Cohort, error) {
+// Dispatches on the file's leading magic bytes:
+//
+//   - "PULSE\x00\x00\x00" (single-file cohort) — reads header + schema
+//     directly from the file. Shards is empty.
+//   - "PK\x03\x04" (zip archive) — parses the zip central directory,
+//     reads the canonical schema from the reserved `_schema.pulse`
+//     entry, and populates Shards with every other entry in
+//     central-directory order. S1 leaves RecordCount at zero; later
+//     phases populate from `_schema.pulse` metadata or shard headers.
+//
+// Returns PULSE_ARCHIVE_MAGIC_INVALID when the file matches neither
+// magic, PULSE_ARCHIVE_CORRUPT when the zip EOCD or central directory
+// is unreadable, and PULSE_SHARD_MISSING when an archive lacks the
+// reserved `_schema.pulse` entry.
+func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
+	// Anchor syntax: "archive.pulse#shard.pulse" opens one shard inside
+	// the archive as a single-shard cohort. Recognised before the magic
+	// dispatch so anchored facades (Process, Sample, Facet, ...) reach
+	// the right code path.
+	if archivePath, anchor, ok := splitAnchorPath(path); ok {
+		return s.OpenAnchor(ctx, archivePath, anchor)
+	}
+
 	data, err := afero.ReadFile(s.fs.Fs(), path)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening cohort file: %s", path))
+	}
+
+	if len(data) >= 4 && data[0] == 'P' && data[1] == 'K' && data[2] == 0x03 && data[3] == 0x04 {
+		return s.openArchive(path, data)
 	}
 
 	r := bytes.NewReader(data)
@@ -123,6 +172,131 @@ func (s *Service) Open(_ context.Context, path string) (*Cohort, error) {
 		path:   path,
 		schema: schema,
 		fs:     s.fs.Fs(),
+	}, nil
+}
+
+// OpenAnchor opens a single shard inside a Pulse shard archive as if
+// it were a standalone single-file `.pulse` cohort. The schema is
+// read from the shard's own header (NOT the archive's canonical
+// schema) so anchor-addressed shards stand alone for the purposes of
+// facade methods. Shards is empty on the returned Cohort.
+//
+// Errors:
+//   - PULSE_ARCHIVE_MAGIC_INVALID — archivePath is not a Pulse shard archive.
+//   - PULSE_SHARD_MISSING — the named entry is not present in the archive.
+//   - PULSE_SHARD_RESERVED_NAME — entry is the reserved `_schema.pulse`.
+//   - PULSE_SHARD_HEADER_INVALID / ENCODING_INVALID — the shard payload is malformed.
+func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Cohort, error) {
+	if entry == encoding.ReservedSchemaName {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
+			"cannot anchor-open the reserved canonical schema entry",
+			map[string]any{"entry": entry})
+	}
+	data, err := afero.ReadFile(s.fs.Fs(), archivePath)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("opening cohort file for anchor: %s", archivePath))
+	}
+	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+	// Read the entry payload into memory so the returned Cohort owns
+	// its byte buffer — the section reader's lifetime is tied to the
+	// archive (and therefore to `data`), but a Cohort just stores the
+	// path. We synthesise a backing afero.Fs that serves the path
+	// "<archive>#<entry>" returning the shard bytes, so downstream
+	// readers (streamingIterator) round-trip cleanly.
+	rc, err := arch.Open(entry)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	payload, err := io.ReadAll(rc)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("reading anchored shard %q from %s", entry, archivePath))
+	}
+
+	r := bytes.NewReader(payload)
+	if err := encoding.ReadHeader(r); err != nil {
+		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+			fmt.Sprintf("invalid shard header for anchor: %s#%s", archivePath, entry))
+	}
+	schema, err := encoding.ReadSchema(r)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("reading shard schema for anchor: %s#%s", archivePath, entry))
+	}
+
+	// Surface the shard via an in-memory overlay so streamingIterator
+	// can re-open by path. Path is the literal anchor form so error
+	// messages stay informative.
+	anchorPath := archivePath + "#" + entry
+	overlay := newAnchorOverlay(s.fs.Fs(), anchorPath, payload)
+	return &Cohort{
+		path:   anchorPath,
+		schema: schema,
+		fs:     overlay,
+	}, nil
+}
+
+// openArchive parses a Pulse shard archive from data and constructs a
+// Cohort whose Schema reads from the archive's reserved
+// `_schema.pulse` entry and whose Shards slice enumerates every
+// non-reserved entry in central-directory order.
+//
+// Record counts on every ShardEntry are populated by peeking each
+// shard's own header — that is the authoritative source per the
+// design contract (§3 of the sharding placeholder). The
+// `_schema.pulse` extension's AggregateRecordCount is a cached
+// sanity check; the per-shard headers win.
+func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
+	reader := bytes.NewReader(data)
+	arch, err := encoding.OpenArchive(reader, int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+
+	// Read canonical schema + sharding metadata from the reserved
+	// _schema.pulse entry via ReadSchemaDoc.
+	rc, err := arch.Open(encoding.ReservedSchemaName)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+
+	doc, err := encoding.ReadSchemaDoc(rc)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("reading schema doc from %s in archive: %s",
+				encoding.ReservedSchemaName, path))
+	}
+
+	// Enumerate shard entries — every entry except the reserved
+	// schema. Per-shard RecordCount comes from peeking each shard's
+	// header.
+	entries := arch.Entries()
+	shards := make([]ShardEntry, 0, len(entries))
+	for _, e := range entries {
+		if e.Name == encoding.ReservedSchemaName {
+			continue
+		}
+		count, perr := arch.PeekShardRecordCount(e.Name)
+		if perr != nil {
+			return nil, perr
+		}
+		shards = append(shards, ShardEntry{
+			Filename:    e.Name,
+			RecordCount: count,
+		})
+	}
+
+	return &Cohort{
+		path:   path,
+		schema: doc.Schema,
+		fs:     s.fs.Fs(),
+		shards: shards,
 	}, nil
 }
 
@@ -146,7 +320,17 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// out via SetDisableDefaults / pulse.Options{DisableDefaults: true}.
 	s.applyDefaults(req, cohort.Schema())
 
-	iter := newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
+	// Per-shard parallel fast path: when the cohort is archive-backed,
+	// the request is mergeable, and ShardWorkers != 1, fan out across
+	// a bounded worker pool and reduce partials in shard insertion
+	// order. Non-mergeable requests (percentiles, windows, tier-2
+	// tests, etc.) fall through to the serial shardIter path below
+	// with byte-for-byte identical semantics.
+	if workers, ok := s.shouldFanOut(req, cohort); ok {
+		return s.processShardArchiveParallel(ctx, req, cohort, path, workers)
+	}
+
+	iter := s.newScanIter(cohort, path)
 	defer iter.Close()
 
 	s.applyProjection(iter, req, cohort.Schema())
@@ -167,12 +351,52 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	return resp, nil
 }
 
+// scanIterator is the internal interface satisfied by both the
+// single-file streamingIterator and the multi-shard shardIter. It
+// extends processing.RecordIterator with the auxiliary hooks Service
+// needs (projection, reuse, error reporting, lifecycle). Callers
+// constructed via newScanIter receive whichever implementation matches
+// the cohort shape — shard archives route through shardIter, single
+// files through streamingIterator. The processing layer sees only
+// processing.RecordIterator and consumes both uniformly.
+type scanIterator interface {
+	processing.RecordIterator
+	SetProjection(keep encoding.FieldFilter, size int)
+	SetReuse(reuse bool)
+	Err() error
+	Close() error
+}
+
+// newScanIter dispatches on whether the cohort backs onto a shard
+// archive (non-empty Shards) or a single .pulse file. The returned
+// iterator carries the same semantics in both branches; the multi-
+// shard variant walks shards in central-directory order and folds
+// records through the same processing pipeline as a concatenated
+// single-file cohort.
+//
+// The iterator is constructed against the cohort's own fs handle
+// rather than the service's fs. For regular Open these are the
+// same; for OpenAnchor the cohort carries an in-memory overlay so
+// the streaming iterator can resolve the virtual `archive#shard`
+// path back to the anchored shard bytes.
+func (s *Service) newScanIter(cohort *Cohort, path string) scanIterator {
+	fsys := cohort.fs
+	if fsys == nil {
+		fsys = s.fs.Fs()
+	}
+	if shards := cohort.Shards(); len(shards) > 0 {
+		return newShardIter(fsys, path, cohort.Schema(), shards)
+	}
+	return newStreamingIterator(fsys, path, cohort.Schema())
+}
+
 // applyProjection installs a NeededFields-based projection filter on
-// the streaming iterator when ProjectBufferedFields is enabled and
-// the request's needed-field set is provably narrower than the
-// schema. A wide set (extraction couldn't introspect) leaves the
-// iterator on the full-decode path.
-func (s *Service) applyProjection(iter *streamingIterator, req *types.Request, schema *encoding.Schema) {
+// the scanning iterator when ProjectBufferedFields is enabled and the
+// request's needed-field set is provably narrower than the schema. A
+// wide set (extraction couldn't introspect) leaves the iterator on
+// the full-decode path. Works uniformly for single-file and multi-
+// shard iterators via the scanIterator interface.
+func (s *Service) applyProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) {
 	if !s.projectBuffered || iter == nil || req == nil || schema == nil {
 		return
 	}
@@ -372,76 +596,30 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 	return responses, nil
 }
 
-// Sample returns up to n rows from the cohort as maps of field name to value.
-// Streams from disk — stops reading as soon as n rows are collected.
-func (s *Service) Sample(ctx context.Context, path string, n int) ([]map[string]any, error) {
-	cohort, err := s.Open(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
-	iter := newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
-	defer iter.Close()
-
-	var rows []map[string]any
-	for iter.Next() && len(rows) < n {
-		rows = append(rows, iter.Record().AllValues())
-	}
-	if iter.Err() != nil {
-		return nil, iter.Err()
-	}
-
-	return rows, nil
-}
-
-// Facet returns distinct values for the named field in the cohort.
-// For categorical fields, it returns the dictionary values.
-// For numeric fields, it returns string representations of all distinct values seen.
-func (s *Service) Facet(ctx context.Context, path string, field string) ([]string, error) {
-	cohort, err := s.Open(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
-	f := cohort.Schema().Field(field)
-	if f == nil {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("field %q not found in schema", field))
-	}
-
-	// For categorical fields, return dictionary values directly
-	if f.Type.IsCategorical() && f.Dictionary != nil {
-		return f.Dictionary.Values(), nil
-	}
-
-	// For numeric fields, stream records and collect distinct values.
-	iter := newStreamingIterator(s.fs.Fs(), path, cohort.Schema())
-	defer iter.Close()
-
-	seen := make(map[float64]struct{})
-	var values []string
-	for iter.Next() {
-		v, ok := iter.Record().NumericValue(field)
-		if !ok {
-			continue
-		}
-		if _, dup := seen[v]; dup {
-			continue
-		}
-		seen[v] = struct{}{}
-		values = append(values, strconv.FormatFloat(v, 'f', -1, 64))
-	}
-	if iter.Err() != nil {
-		return nil, iter.Err()
-	}
-
-	return values, nil
-}
-
 // resolveCohortPath builds the file path from a Cohort specification.
 func resolveCohortPath(c *types.Cohort) string {
 	if c.DataDir != "" {
 		return c.DataDir + "/" + c.Filename
 	}
 	return c.Filename
+}
+
+// splitAnchorPath splits an archive-and-anchor path of the form
+// "archive.pulse#entry.pulse" into (archivePath, entry, true). Returns
+// ("", "", false) when no `#` is present. Resolves at the FIRST `#` —
+// literal `#` in a filename is not supported in v1.
+func splitAnchorPath(path string) (string, string, bool) {
+	return SplitAnchorPath(path)
+}
+
+// SplitAnchorPath is the exported form of splitAnchorPath, used by the
+// pulse facade (Predict, Inspect) so anchor paths resolve consistently
+// across every entry point. See splitAnchorPath for semantics.
+func SplitAnchorPath(path string) (string, string, bool) {
+	for i := 0; i < len(path); i++ {
+		if path[i] == '#' {
+			return path[:i], path[i+1:], true
+		}
+	}
+	return "", "", false
 }

@@ -1,0 +1,20 @@
+{
+  "format_version": "1.0",
+  "data": {
+    "data": [
+      {
+        "score_count": 6,
+        "score_max": 60,
+        "score_min": 10,
+        "score_sum": 210
+      }
+    ],
+    "metadata": {
+      "total_rows": 6,
+      "filtered_rows": 6,
+      "cohort_file": "two_shards.pulse"
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

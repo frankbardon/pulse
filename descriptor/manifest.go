@@ -33,9 +33,17 @@ type Components struct {
 // the operator catalog that accepts it. The Compatible* slices are
 // derived from the per-operator AcceptsTypes declarations and let an
 // LLM look up "what can I do with a date field" in one place.
+//
+// ShardedCapable reports whether the type participates in a shard
+// archive without restriction. Every built-in field type is sharded-
+// capable today; the flag exists for forward compatibility with future
+// types that might not work across the union of shards (e.g. types
+// whose semantics depend on per-shard locality). Embedders should treat
+// the flag as advisory.
 type CohortFieldType struct {
 	Name                  string   `json:"name"`
 	Categorical           bool     `json:"categorical"`
+	ShardedCapable        bool     `json:"sharded_capable"`
 	CompatibleAggregators []string `json:"compatible_aggregators,omitempty"`
 	CompatibleAttributes  []string `json:"compatible_attributes,omitempty"`
 	CompatibleFilterers   []string `json:"compatible_filterers,omitempty"`
@@ -112,6 +120,13 @@ func commands() []Command {
 		{Name: "mcp", Description: "Serve the Model Context Protocol over stdio"},
 		{Name: "synth", Description: "Generate synthetic .pulse cohorts from a schema or profile"},
 		{Name: "profile", Description: "Capture statistical summaries of cohorts for synthesis"},
+		{Name: "shard create", Description: "Create a new shard archive from one or more single-file .pulse shards"},
+		{Name: "shard add", Description: "Append a shard to an existing archive"},
+		{Name: "shard remove", Description: "Remove a shard from an archive by basename"},
+		{Name: "shard list", Description: "List shards inside an archive"},
+		{Name: "shard compact", Description: "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata"},
+		{Name: "shard verify", Description: "Re-validate every shard's header + cohesion against the canonical schema"},
+		{Name: "shard extract", Description: "Extract a shard's standalone .pulse bytes to stdout"},
 	}
 }
 
@@ -127,8 +142,9 @@ func rawCohortFieldTypes() []CohortFieldType {
 			continue
 		}
 		out = append(out, CohortFieldType{
-			Name:        name,
-			Categorical: ft.IsCategorical(),
+			Name:           name,
+			Categorical:    ft.IsCategorical(),
+			ShardedCapable: true,
 		})
 	}
 	return out

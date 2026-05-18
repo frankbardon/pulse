@@ -2,6 +2,8 @@ package processing
 
 import (
 	"math"
+
+	"github.com/frankbardon/pulse/errors"
 )
 
 // This file holds OnlineAggregator implementations attached to the
@@ -397,4 +399,209 @@ func (a *nullCountAggregator) Finalize() (float64, error) {
 	out := float64(a.nNull)
 	a.nNull = 0
 	return out, nil
+}
+
+// --- Mergeable implementations (per-shard parallel reduce) ---
+//
+// MergeOnline folds another aggregator instance's state into the
+// receiver. Implementations assume the other instance was constructed
+// from the same Aggregation spec; the per-shard parallel orchestrator
+// in service/shard_reduce.go enforces this invariant. A type-mismatched
+// other returns PROCESSING_INTERNAL — a programming bug, not a runtime
+// user-input error.
+
+func mergeTypeMismatch(receiver string) error {
+	return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+		"MergeOnline received incompatible aggregator type for "+receiver)
+}
+
+func (a *countAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*countAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_COUNT")
+	}
+	a.n += b.n
+	return nil
+}
+
+func (a *sumAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*sumAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_SUM")
+	}
+	a.sum += b.sum
+	return nil
+}
+
+func (a *averageAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*averageAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_AVERAGE")
+	}
+	a.sum += b.sum
+	a.n += b.n
+	return nil
+}
+
+func (a *minAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*minAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_MIN")
+	}
+	if !b.seen {
+		return nil
+	}
+	if !a.seen || b.min < a.min {
+		a.min = b.min
+		a.seen = true
+	}
+	return nil
+}
+
+func (a *maxAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*maxAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_MAX")
+	}
+	if !b.seen {
+		return nil
+	}
+	if !a.seen || b.max > a.max {
+		a.max = b.max
+		a.seen = true
+	}
+	return nil
+}
+
+func (a *rangeAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*rangeAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_RANGE")
+	}
+	if !b.seen {
+		return nil
+	}
+	if !a.seen {
+		a.min, a.max = b.min, b.max
+		a.seen = true
+		return nil
+	}
+	if b.min < a.min {
+		a.min = b.min
+	}
+	if b.max > a.max {
+		a.max = b.max
+	}
+	return nil
+}
+
+// varianceAggregator uses the Chan-Welford parallel formula to merge
+// two (n, mean, M2) partials:
+//
+//	n      = n_a + n_b
+//	delta  = mean_b - mean_a
+//	mean   = mean_a + delta * n_b / n
+//	M2     = M2_a + M2_b + delta^2 * n_a * n_b / n
+//
+// The result equals the single-pass Welford output to within ULP on
+// well-conditioned inputs; goldens use a tolerance comparison.
+func (a *varianceAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*varianceAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_VARIANCE")
+	}
+	mergeWelford(&a.n, &a.mean, &a.m2, b.n, b.mean, b.m2)
+	return nil
+}
+
+func (a *stdDevAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*stdDevAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_STDDEV")
+	}
+	mergeWelford(&a.n, &a.mean, &a.m2, b.n, b.mean, b.m2)
+	return nil
+}
+
+// mergeWelford applies the Chan-Welford parallel reduction in place on
+// the receiver's (n, mean, M2). When the incoming partial has zero
+// observations the receiver is unchanged; when the receiver is empty
+// the incoming partial wins outright.
+func mergeWelford(nA *int64, meanA *float64, m2A *float64, nB int64, meanB float64, m2B float64) {
+	if nB == 0 {
+		return
+	}
+	if *nA == 0 {
+		*nA = nB
+		*meanA = meanB
+		*m2A = m2B
+		return
+	}
+	total := *nA + nB
+	delta := meanB - *meanA
+	newMean := *meanA + delta*float64(nB)/float64(total)
+	newM2 := *m2A + m2B + delta*delta*float64(*nA)*float64(nB)/float64(total)
+	*nA = total
+	*meanA = newMean
+	*m2A = newM2
+}
+
+func (a *frequencyAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*frequencyAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_FREQUENCY")
+	}
+	if len(b.counts) == 0 {
+		return nil
+	}
+	if a.counts == nil {
+		a.counts = make(map[float64]int, len(b.counts))
+	}
+	for v, c := range b.counts {
+		a.counts[v] += c
+	}
+	return nil
+}
+
+func (a *modeAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*modeAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_MODE")
+	}
+	if len(b.counts) == 0 {
+		return nil
+	}
+	if a.counts == nil {
+		a.counts = make(map[float64]int, len(b.counts))
+	}
+	for v, c := range b.counts {
+		a.counts[v] += c
+	}
+	return nil
+}
+
+func (a *distinctCountAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*distinctCountAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_DISTINCT_COUNT")
+	}
+	if len(b.set) == 0 {
+		return nil
+	}
+	if a.set == nil {
+		a.set = make(map[float64]struct{}, len(b.set))
+	}
+	for v := range b.set {
+		a.set[v] = struct{}{}
+	}
+	return nil
+}
+
+func (a *nullCountAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*nullCountAggregator)
+	if !ok {
+		return mergeTypeMismatch("AGG_NULL_COUNT")
+	}
+	a.nNull += b.nNull
+	return nil
 }

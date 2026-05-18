@@ -52,6 +52,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | Facet streamability conditions | `descriptor/capabilities_facet.go` (`StreamableConditions`) + `skills/facet-design.md` | reviewer enforcement |
 | `pulse.Options.ProjectBufferedFields` flag or `processing.NeededFields` extraction (new operator slot, expr identifier source, Params-referenced field) | CLAUDE.md "Projected buffered decode" subsection + `skills/extension-points.md` (FieldInputs hook + extractor surface) | `TestNeededFields_*`, `TestProjection_BufferedMatchesFullDecode_*`, `TestProjection_ByteCursorAlignmentWhenSkipping`, `TestReadRecordProjected_*` |
 | `FieldInputsFunc` hook on a registration struct (added/removed) | `extensions.go` (registration struct field) + `extensions_runtime.go` (wire into ExtensionRegistry.FieldInputs) + `skills/extension-points.md` | `TestNeededFields_ExtensionWithFieldInputs`, `TestNeededFields_UnknownExtensionWidens` |
+| Shard archive layout (entry names, `_schema.pulse` metadata block, magic dispatch, dict prefix rule) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded section) + `skills/contributor-workflow.md` (Adding-a-shard recipe) | `TestShardArchiveLayoutDocumented`, `TestSkillsCoverShardingTopics` |
 
 The Update Demand applies recursively to itself: new trigger rows require this table to be updated in the same PR. `TestUpdateDemandTableCovers` parses this section and asserts every component category and contract type has a row.
 
@@ -64,10 +65,19 @@ pulse/
 ├── cmd/pulse/              # CLI binary — only binary
 ├── pulse.go                # Public facade
 ├── service/                # Orchestration: wires processing to encoding
+│   ├── shard_iter.go       # Multi-shard row iterator (serial)
+│   ├── shard_reduce.go     # Per-shard parallel reducer for mergeable ops
+│   ├── shard_admin.go      # Create / Add / Remove / List / Extract
+│   ├── shard_compact.go    # Orphan-byte reclamation
+│   ├── shard_verify.go     # Full re-validation
+│   └── anchor_overlay.go   # archive.pulse#shard.pulse anchor overlay
 ├── processing/             # Aggregators, attributes, filterers, groupers
 │   ├── window/             # WIN_* operators
 │   └── feature/            # FEAT_* pre-filter feature engineers
 ├── encoding/               # .pulse binary codec
+│   ├── archive.go          # Zip64 read/write + EOCD parsing
+│   ├── schema_doc.go       # _schema.pulse canonical schema + SHRD trailer
+│   └── cohesion.go         # Structural + dict-prefix cohesion validators
 ├── io/                     # Tabular ↔ .pulse adapters
 │   ├── csv|tsv|ndjson|jsonarray|jsonshared/
 │   └── arrow|parquet|excel/
@@ -81,13 +91,14 @@ pulse/
 ├── docs/                   # mdBook source (GitHub Pages)
 └── internal/
     ├── cli/                # CLI internals
+    │   └── shard.go        # pulse shard create/add/remove/list/compact/verify/extract
     └── mcp/                # MCP server (wraps pulse.Pulse)
         └── mcptools/       # Tool name + description metadata (no import cycle)
 ```
 
 `pulse.go` re-exports `types.Request` → `pulse.Request`, `types.Response` → `pulse.Response`, `types.ComposedRequest` → `pulse.ComposedRequest`, plus `synth.Spec`/`Result`/`Options`/`Profile`/`ProfileOptions`.
 
-CLI commands map 1:1 to manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`.
+CLI commands map 1:1 to manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`, and the `shard` group (`shard create`, `shard add`, `shard remove`, `shard list`, `shard compact`, `shard verify`, `shard extract`).
 
 `internal/mcp/` registers eleven tools (one per facade method plus `pulse_ask` one-shot that collapses inspect→predict→process and `pulse_facet_schema` for multi-field rich facets) and two resource schemes (`pulse://`, `pulse-skill://`).
 
@@ -118,6 +129,8 @@ Field descriptions in `.pulse` files are capped at 1000 bytes (`PULSE_IMPORT_DES
 4. **Record data:** fixed-width rows; size derived from schema.
 
 17 field types (full table + sizes in `skills/cohort-schema-design.md`, enforced by `TestSkillsCoverAllFieldTypes`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `nullable_bool`, `nullable_u4`/`u8`/`u16`, `date`, `packed_bool`, `categorical_u8`/`u16`/`u32`, `decimal128`, `nullable_decimal128`. Bit-packed types (`nullable_bool`, `nullable_u4`, `packed_bool`) return `ByteSize() == 0` — they share bytes with adjacent fields. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`.
+
+**Shard archive variant.** A `.pulse` path can resolve to either the single-file layout above or to a **shard archive** — an uncompressed Zip64 (Method 0, store-only) whose first four bytes are the zip magic `PK\x03\x04` instead of the `PULSE` magic. The single-file byte format is **unchanged**; magic-byte dispatch at `pulse.Open` selects which shape to read. A shard archive carries one reserved `_schema.pulse` entry (header-only canonical schema + SHRD trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Each shard payload is a complete single-file `.pulse` per the layout above. Per-shard cohesion: structural strict (field count, name, type byte, byte_offset, bit_position, categorical width — byte-equal at insert), descriptions tolerant (divergence → warning). Categorical dictionaries grow under union-merge semantics at insert (`CreateShardArchive` / `AddShard`): canonical entries first in their existing order, then any new entries from incoming in their order; divergent incoming shards are byte-rewritten with remapped categorical indices so every record in the archive references the canonical dictionary. Width overflow on the union raises `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. The stricter prefix-only validator (`PULSE_SHARD_DICT_DIVERGENCE`) is retained for `pulse shard verify` and embedders that want to surface divergence as an error. Anchor syntax `archive.pulse#shard.pulse` opens one shard as a one-shard cohort. Concurrency is caller-owned — Pulse does not lock writers; recommended patterns are single-writer or external advisory lock. Forced-buffered ops materialize across the **union** of shards (memory cost scales with shard count). Full layout + dict semantics in `skills/cohort-schema-design.md` (Sharded cohorts).
 
 ### Smart defaults
 
@@ -192,6 +205,12 @@ Extension operators surface a per-registration `FieldInputs FieldInputsFunc` hoo
 
 `pulse.ComposeParallel(ctx, req, opts)` fans out a `ComposedRequest` over a bounded worker pool. Order-preserving by slot index. `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` (FailFast defaults true). CLI: `pulse api compose --parallel N [--no-fail-fast]`.
 
+### Parallel shards
+
+`pulse.Options.ShardWorkers` (default `0` ⇒ `runtime.NumCPU()`, opt-out `1`, negative invalid) enables a bounded per-shard worker pool inside `Process` when the cohort backs onto a shard archive. The reducer engages only when every operator is mergeable per `processing.CanMergeRequest`: aggregators in {`AGG_COUNT`, `AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_RANGE`, `AGG_VARIANCE`, `AGG_STDDEV`, `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_NULL_COUNT`}; groupers in {`GROUP_CATEGORY`, `GROUP_RANGE`}; filterers row-local (all built-ins); attributes empty or row-local only (`ATTR_FORMULA`, `ATTR_DATE_PART`); no windows / features / regressions / tests / two-pass attributes; non-decimal targets; built-in (not extension) operators only. Non-mergeable requests fall through to the serial `shardIter` path with byte-for-byte identical semantics — no worker spawning. Worker count is capped at the shard count (no point spawning more workers than shards). Order semantics: partials merge in shard insertion order (zip central-directory order). Associative+commutative aggregators produce byte-equal results vs serial; Welford mean / variance / stddev drift within ULP via the Chan-Welford parallel formula (`n = n_a + n_b`, weighted mean, `M2 = M2_a + M2_b + δ² · n_a · n_b / n`). `AGG_FREQUENCY` ties broken by dict order within the canonical schema across the merge.
+
+Implementation surface: `service/shard_reduce.go` (orchestrator + partial-state shape), `processing.MergeableAggregator` (`MergeOnline(other) error` on each mergeable aggregator), `processing.CanMergeRequest`, `types.AggregationType.Mergeable()` / `types.GroupType.Mergeable()`.
+
 ### Facet endpoints
 
 Two facet entry points. `pulse.Facet(ctx, path, field)` is the simple distinct-values returner — categorical fast path through the dictionary, numeric fields stream the file. `pulse.FacetSchema(ctx, *FacetRequest)` is the multi-field rich endpoint: per-value counts (sorted descending by count, ties ascending by value), null tallies, Welford online numeric stats (count/sum/min/max/mean/stddev), optional `NumericPercentiles` (forces a buffered per-field sort), optional `IncludeHistogram` with caller-supplied `HistogramRange` (single-pass), optional `DiscreteTopK` truncation with `TruncatedAt` warning, and optional `AdditiveFields` contribution counts that strip the field's own clauses from a copy of the base filter. Capability descriptor lives on `Manifest.Facet`. `descriptor.ValidateFacet(data, req)` is the no-execute predict equivalent. CLI: `pulse api facet` falls back to the simple shape unless any rich flag (`--request`, repeat `--field`, `--top-k`, `--percentile`, `--histogram`, `--additive`) is set; MCP exposes both `pulse_facet` and `pulse_facet_schema`.
@@ -250,7 +269,31 @@ Extension API contract:
 - `TestExtensions_Predict_AcceptsCustomFeatureType` / `TestExtensions_Predict_FlagsUnknownCustomFeature` / `TestExtensions_Predict_StreamableFlagFromSnapshot` / `TestExtensions_Predict_BufferedCustomAggregatorBlocksStreaming` / `TestExtensions_Predict_DescriptorImportContractHolds` — predict integration.
 - `TestMCPSchemaBinding_IncludesCustomAggregator` / `TestMCPSchemaBinding_BackwardCompatBindNoCustomNames` / `TestMCPSchemaBinding_DedupAndSort` — MCP schema binding.
 
-Other contract gates (not in the prefix set but load-bearing): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestRegressionStreamabilityMatchesTypes`, `TestRegressionTypesKnown`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known` (Aggregations/Attributes/Filterers/Groups/Windows/Features/Tests), `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestMCPErrorsLookup_RoundTrip`, `TestFacetSchema_*`, `TestManifestFacetCapability`, `TestValidateFacet_*`.
+Sharding contract:
+- `TestShardArchiveStructuralCohesion` — incoming shard's structural schema must be byte-equal to canonical (field count, name, type, byte_offset, bit_position, categorical width); mismatches raise `PULSE_SHARD_SCHEMA_MISMATCH`.
+- `TestShardArchiveDictPrefixRule` — categorical dictionaries must be prefix-related across shards; incoming-prefix-of-canonical accepts, canonical-prefix-of-incoming returns an extended canonical schema, neither raises `PULSE_SHARD_DICT_DIVERGENCE`.
+- `TestShardArchiveDictWidthOverflow` — dictionary extensions exceeding the declared width capacity (256 / 65 536 / 2^32) raise `PULSE_SHARD_DICT_WIDTH_OVERFLOW`.
+- `TestShardArchiveDescriptionDivergenceWarns` — per-field description divergence emits `PULSE_SHARD_DESCRIPTION_DIVERGENCE` as a warning (not an error); canonical description wins downstream.
+- `TestShardArchiveProcessSums` — `Process` on a shard archive equals `Process` on a manually-concatenated single-file cohort: byte-equal for associative+commutative ops (`AGG_COUNT`/`AGG_SUM`/`AGG_MIN`/`AGG_MAX`), ULP-tolerant for Welford-mean (`AGG_AVERAGE`).
+- `TestShardArchiveSampleGlobalOffsetLimit` — `Sample` applies offset and limit globally across the union of shards in central-directory (insertion) order; offsets that span into later shards yield rows from those shards onward and limits that span multiple shards collect across them in order. Single-file path unchanged.
+- `TestShardArchiveFacetSchemaMatches` — `FacetSchema` on a shard archive equals `FacetSchema` on a manually-concatenated single-file cohort: count/sum/min/max/mean/stddev byte-or-ULP-equal, optional percentiles match (forced-buffered union materialization), and optional histograms match bin-for-bin (single-pass union). Simple `Facet` returns the canonical dictionary for categorical fields and a union-distinct numeric set otherwise.
+- `TestShardArchiveProcessStream` — `ProcessStream` on a shard archive yields rows shard-by-shard in central-directory (insertion) order, with rows inside each shard preserving the shard's record order. Online aggregators accumulate across shards (`AGG_COUNT`/`AGG_SUM`/`AGG_MIN`/`AGG_MAX` byte-equal to concat); filters apply per-row across the union; forced-buffered ops (windows, percentile, etc.) materialize across the union per §5.2. Single-file ProcessStream regression covered.
+- `TestShardArchiveInspect` — `Inspect` on a shard archive exposes `Shards` in central-directory order with per-shard `RecordCount` and a cumulative aggregate matching the sum; single-file cohorts keep `Shards` empty.
+- `TestShardArchivePredict` — `Predict` on a shard archive reports the cumulative record total and `Shards` listing; streamability is inherited from the request against the canonical schema (unchanged from single-file behavior).
+- `TestShardArchiveProcessParallel` — per-shard parallel reducer produces byte-equal results vs the serial path for associative+commutative aggregators (`AGG_COUNT`/`AGG_SUM`/`AGG_MIN`/`AGG_MAX`/`AGG_NULL_COUNT`/`AGG_FREQUENCY`) and within-ULP results for Welford-mean (`AGG_AVERAGE`). Non-mergeable requests (percentile aggregators, window operators, tier-2 tests, two-pass attributes combined with groupers) fall through to the serial `shardIter` with no worker spawning. `ShardWorkers=1` is byte-equal to the pre-S6 serial path.
+- `TestShardArchiveReservedName` — inserting a shard whose basename collides with the reserved `_schema.pulse` entry raises `PULSE_SHARD_RESERVED_NAME` at `CreateShardArchive` / `AddShard` / `pulse shard create` / `pulse shard add`.
+- `TestShardArchiveNameCollision` — two shards in the same archive (or two `--include` paths sharing a basename) raise `PULSE_SHARD_NAME_COLLISION`.
+- `TestShardArchiveAnchorSyntax` — `pulse.Open("archive.pulse#shard.pulse")` returns a single-shard cohort whose schema comes from the shard's own header; missing-anchor raises `PULSE_SHARD_MISSING`; anchor against a single-file `.pulse` raises `PULSE_ARCHIVE_MAGIC_INVALID`.
+- `TestShardArchiveAddCrashRecovery` — interrupted `AddShard` (failure between temp-file write and rename) leaves the canonical archive at its prior valid state; partial writes never appear at the destination path (atomic temp+rename).
+- `TestShardArchiveCompactReclaimsOrphans` — `pulse shard compact` rewrites the archive to eliminate orphan bytes (synthetic orphan-byte fixture) and refreshes canonical metadata (`aggregate_record_count` + `shard_count`) after a `RemoveShard`; the post-Compact archive is no larger than the pre-Compact archive and the shard manifest survives in central-directory order.
+- `TestShardArchiveVerify` — `pulse shard verify` covers five outcomes against synthesized fixtures: healthy archives produce no errors and no warnings; structural-schema divergence raises `PULSE_SHARD_SCHEMA_MISMATCH`; categorical-dict prefix-rule violation raises `PULSE_SHARD_DICT_DIVERGENCE`; per-field description divergence emits a `PULSE_SHARD_DESCRIPTION_DIVERGENCE` warning (no error); a shard with non-Pulse payload bytes raises `PULSE_SHARD_HEADER_INVALID`.
+- `TestShardArchiveLayoutDocumented` — CLAUDE.md "Byte-layout invariants" mentions both the zip magic `PK\x03\x04` and the reserved `_schema.pulse` entry name.
+- `TestShardArchiveMissingEntry` — `Archive.Open` / `Archive.OpenAt` / `service.Open` anchor against an entry name absent from the central directory all raise `PULSE_SHARD_MISSING`.
+- `TestShardArchiveCorruptEOCD` — an archive whose zip end-of-central-directory record cannot be parsed raises `PULSE_ARCHIVE_CORRUPT` (distinct from `PULSE_ARCHIVE_MAGIC_INVALID`); the gate runs through both `encoding.OpenArchive` and `service.Open` paths.
+- `TestShardArchiveBackwardsCompat` — existing single-file `.pulse` cohorts open unchanged through the post-sharding `Open` dispatch path: bytes are not mutated, magic + `format_version` remain `PULSE\x00\x00\x00` + `0x01`, and the returned `Cohort.Shards` is empty.
+- `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a "Sharded" section and `skills/contributor-workflow.md` mentions sharding.
+
+Other contract gates (not in the prefix set but load-bearing): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestRegressionStreamabilityMatchesTypes`, `TestRegressionTypesKnown`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known` (Aggregations/Attributes/Filterers/Groups/Windows/Features/Tests), `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestMCPErrorsLookup_RoundTrip`, `TestFacetSchema_*`, `TestManifestFacetCapability`, `TestValidateFacet_*`, `TestShardArchiveMagicDispatch`.
 
 ## Build / Env
 

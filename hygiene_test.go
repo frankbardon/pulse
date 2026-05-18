@@ -219,6 +219,68 @@ func TestUpdateDemandTableCovers(t *testing.T) {
 	}
 }
 
+// TestShardArchiveLayoutDocumented verifies that CLAUDE.md's
+// "Byte-layout invariants" section documents the shard archive variant
+// — specifically the zip magic `PK\x03\x04` dispatch and the reserved
+// `_schema.pulse` entry name. Non-skippable CI gate (Update Demand row
+// for shard archive layout enforces this).
+func TestShardArchiveLayoutDocumented(t *testing.T) {
+	content := readClaudeMd(t)
+
+	start := strings.Index(content, "### Byte-layout invariants")
+	if start < 0 {
+		t.Fatal("CLAUDE.md does not contain '### Byte-layout invariants' section")
+	}
+	rest := content[start:]
+	// Section ends at the next "### " heading (the next subsection of
+	// "## Code Conventions") or the next "## " heading.
+	end := len(rest)
+	if idx := strings.Index(rest[len("### Byte-layout invariants"):], "\n### "); idx >= 0 {
+		end = len("### Byte-layout invariants") + idx
+	}
+	if idx := strings.Index(rest[len("### Byte-layout invariants"):], "\n## "); idx >= 0 && len("### Byte-layout invariants")+idx < end {
+		end = len("### Byte-layout invariants") + idx
+	}
+	section := rest[:end]
+
+	// The literal magic `PK\x03\x04` must appear (the four-byte zip
+	// magic — also expressible as the printable bytes "PK" plus two
+	// control bytes; we accept either the escaped-byte form or the
+	// literal "PK\x03\x04" string).
+	if !strings.Contains(section, `PK\x03\x04`) {
+		t.Error("CLAUDE.md 'Byte-layout invariants' section does not mention zip magic `PK\\x03\\x04`")
+	}
+	if !strings.Contains(section, "_schema.pulse") {
+		t.Error("CLAUDE.md 'Byte-layout invariants' section does not mention reserved entry `_schema.pulse`")
+	}
+}
+
+// TestSkillsCoverShardingTopics verifies that the cohort-schema-design
+// skill carries a "Sharded" section and the contributor-workflow skill
+// mentions sharding. Non-skippable CI gate (Update Demand row for
+// shard archive layout enforces this).
+func TestSkillsCoverShardingTopics(t *testing.T) {
+	schemaSkill, err := os.ReadFile(filepath.Join("skills", "cohort-schema-design.md"))
+	if err != nil {
+		t.Fatalf("reading skills/cohort-schema-design.md: %v", err)
+	}
+	if !strings.Contains(string(schemaSkill), "Sharded") {
+		t.Error("skills/cohort-schema-design.md does not contain a `Sharded` section heading or callout")
+	}
+
+	workflowSkill, err := os.ReadFile(filepath.Join("skills", "contributor-workflow.md"))
+	if err != nil {
+		t.Fatalf("reading skills/contributor-workflow.md: %v", err)
+	}
+	workflow := string(workflowSkill)
+	// Either the recipe heading or any reference to sharding suffices —
+	// the recipe is the load-bearing content but tolerate phrasing
+	// variations.
+	if !strings.Contains(workflow, "shard") && !strings.Contains(workflow, "Shard") {
+		t.Error("skills/contributor-workflow.md does not mention sharding")
+	}
+}
+
 // TestPerPackageCoverageFloors is a placeholder that documents the target
 // per-package coverage floors. Full coverage profiling infrastructure is not
 // yet implemented; this test serves as documentation and a reminder.

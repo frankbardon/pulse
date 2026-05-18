@@ -122,3 +122,37 @@ type StreamingGrouper interface {
 
 // GrouperFactory creates a Grouper from a type specification.
 type GrouperFactory func(grp *types.Group, schema *encoding.Schema) (Grouper, error)
+
+// MergeableAggregator is the optional sibling of OnlineAggregator for
+// aggregators whose running state is associative+commutative (or
+// associative under a parallel-friendly recurrence). Implementations
+// fold another instance's state into the receiver without rescanning
+// any rows, enabling per-shard parallel execution: each worker
+// computes its partial state from its shard, the orchestrator merges
+// partials in shard insertion order, then Finalize() emits the
+// aggregate.
+//
+// Implementations MUST be safe to call MergeOnline repeatedly. The
+// receiver absorbs other's state; other is left in an unspecified
+// state and should not be reused. Returning a non-nil error indicates
+// the two instances were not constructed from compatible specs (a
+// programming bug — the orchestrator only merges aggregators
+// constructed from the same Aggregation spec).
+//
+// MergeOnline preserves the mathematical contract of Finalize:
+//   - COUNT / SUM / NULL_COUNT: sum the counters.
+//   - MIN / MAX: pick the extremum, accounting for the "seen" flag.
+//   - MEAN (Welford): combine (n, mean, M2) via the Chan-Welford
+//     parallel formula so the merged mean equals the single-pass mean
+//     to within ULP on well-conditioned inputs.
+//   - FREQUENCY: union the per-value count maps; Finalize then picks
+//     the max as it does in the serial path.
+//
+// Aggregators whose state is fundamentally non-mergeable
+// (percentile/median/zscore — they require a sorted view) MUST NOT
+// implement this interface; the parallel orchestrator falls through
+// to the serial shard iterator for such requests.
+type MergeableAggregator interface {
+	OnlineAggregator
+	MergeOnline(other OnlineAggregator) error
+}

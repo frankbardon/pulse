@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -133,6 +134,77 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 func CanStreamRequest(req *types.Request, schema *encoding.Schema) bool {
 	p := &Processor{schema: schema}
 	return p.canStream(req)
+}
+
+// CanMergeRequest reports whether a request's online state is
+// mergeable across input partitions — the gate that the per-shard
+// parallel reducer in service/shard_reduce.go consults before fanning
+// out work across a worker pool. Returns true iff every aggregator,
+// grouper, and filterer is mergeable AND the request contains no
+// windows, no features, no regressions, no tests, no two-pass
+// attributes, and no decimal-typed aggregation targets. A nil/empty
+// aggregation list returns false (nothing to merge).
+//
+// Mergeable is a strict subset of Streamable. Custom extension
+// operators are conservatively treated as non-mergeable (the merge
+// surface is not yet exposed on the extension registration struct).
+func CanMergeRequest(req *types.Request, schema *encoding.Schema) bool {
+	if req == nil {
+		return false
+	}
+	if len(req.Aggregations) == 0 {
+		return false
+	}
+	if len(req.Windows) > 0 || len(req.Features) > 0 ||
+		len(req.Regressions) > 0 || len(req.Tests) > 0 ||
+		len(req.PostTests) > 0 {
+		return false
+	}
+	for _, attr := range req.Attributes {
+		// Row-local attributes (FORMULA, DATE_PART) are mergeable in
+		// principle — they add a derived column per row before each
+		// aggregator folds it. Two-pass attributes (ZSCORE, TSCORE,
+		// NORMALIZED, REG_*) need pass-1 population stats that the
+		// per-shard reducer would have to derive from merged Welford
+		// state; v1 routes those through the serial path.
+		if attr == nil {
+			return false
+		}
+		switch attr.Type {
+		case types.ATTR_FORMULA, types.ATTR_DATE_PART:
+			// row-local: mergeable.
+		default:
+			return false
+		}
+	}
+	for _, grp := range req.Groups {
+		if grp == nil || !grp.Type.Mergeable() {
+			return false
+		}
+	}
+	for _, f := range req.Filterers {
+		if f == nil || !f.Type.Streamable() {
+			return false
+		}
+	}
+	for _, agg := range req.Aggregations {
+		if agg == nil || !agg.Type.Mergeable() {
+			return false
+		}
+		// Decimal-typed fields aggregate via AggregateDecimalField;
+		// the per-shard reducer doesn't yet handle the wide path.
+		if schema != nil {
+			if f := schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
+				return false
+			}
+		}
+		// Custom extension aggregators do not yet expose MergeOnline;
+		// reject conservatively.
+		if _, builtin := aggregatorRegistry[agg.Type]; !builtin {
+			return false
+		}
+	}
+	return true
 }
 
 // requiresTwoPass reports whether the attribute type implements
@@ -655,8 +727,18 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		}
 	}
 
-	data := make([]map[string]any, 0, len(buckets))
-	for key, b := range buckets {
+	// Stable-emit by sorted bucket key so row order is deterministic
+	// across runs regardless of Go's map-iteration randomness or
+	// streaming-vs-buffered codepath choice.
+	keys := make([]string, 0, len(buckets))
+	for k := range buckets {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	data := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		b := buckets[key]
 		// +1 reserved for the group key written below.
 		row := make(map[string]any, len(specs)+1)
 		for i, oa := range b.online {
@@ -670,8 +752,9 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		data = append(data, row)
 	}
 
-	// Apply sort to grouped output, mirroring processRecords behavior so
-	// callers receive deterministic ordering on a small post-aggregate set.
+	// Apply explicit Sort to grouped output, mirroring processRecords
+	// behavior. The default stable key-order above gives a deterministic
+	// fallback when no Sort is specified.
 	if len(req.Sort) > 0 {
 		window.Sort(data, req.Sort)
 	}
@@ -1212,8 +1295,17 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 		return nil, err
 	}
 
-	data := make([]map[string]any, 0, len(groups))
-	for key, groupRecords := range groups {
+	// Stable-emit by sorted group key so row order is deterministic
+	// across runs regardless of Go's map-iteration randomness.
+	keys := make([]string, 0, len(groups))
+	for k := range groups {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	data := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		groupRecords := groups[key]
 		row, err := p.aggregate(req.Aggregations, groupRecords)
 		if err != nil {
 			return nil, err

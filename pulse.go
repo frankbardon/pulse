@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -124,6 +125,28 @@ type Options struct {
 	// extensions.go for the full surface.
 	Extensions Extensions
 
+	// ShardWorkers caps the per-shard parallel worker pool used when
+	// Process operates on a shard archive (S6 of the sharding rollout).
+	// Zero means runtime.NumCPU(); 1 forces strictly serial execution
+	// (same byte-for-byte semantics as the pre-S6 path). Negative
+	// values are rejected at New() time.
+	//
+	// The parallel reducer engages only when every operator in the
+	// request is mergeable per processing.CanMergeRequest. Non-
+	// mergeable requests (percentile aggregators, window operators,
+	// tier-2 tests, two-pass attributes combined with groupers, ...)
+	// fall through to the serial shardIter path with no worker
+	// spawning. Worker count is also capped at the shard count — no
+	// point spawning more workers than shards.
+	//
+	// Order semantics: partials merge in shard insertion order (zip
+	// central-directory order). Associative+commutative aggregators
+	// (count, sum, min, max, null_count, frequency, distinct_count,
+	// mode) produce byte-equal results vs the serial path; Welford
+	// mean / variance / stddev drift within ULP on well-conditioned
+	// inputs (parallel formula, see processing.MergeOnline docstrings).
+	ShardWorkers int
+
 	// ProjectBufferedFields enables buffered-decode field projection.
 	// When true the runtime walks each request to compute the set of
 	// schema fields the operators actually read (processing.NeededFields)
@@ -186,11 +209,16 @@ func New(opts Options) (*Pulse, error) {
 		}
 	}
 
+	if opts.ShardWorkers < 0 {
+		return nil, fmt.Errorf("pulse: ShardWorkers must be >= 0 (0 means runtime.NumCPU(), 1 forces serial)")
+	}
+
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields)
 	svc.SetExtensions(buildRuntimeExtensions(opts.Extensions))
 	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))
+	svc.SetShardWorkers(opts.ShardWorkers)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:     opts.ImportsDir,
@@ -210,6 +238,20 @@ func New(opts Options) (*Pulse, error) {
 }
 
 // Open reads a .pulse file and returns a Cohort with the parsed schema.
+//
+// Anchor syntax: a path of the form "archive.pulse#shard.pulse" opens
+// the archive, locates the named shard inside it, and returns a single-
+// shard cohort whose schema comes from the shard's own header (not the
+// canonical schema in `_schema.pulse`). The returned Cohort has an
+// empty Shards slice — anchor-resolved shards stand alone for the
+// purposes of facade methods. Anchors require an archive backing the
+// path; using `#` against a single-file `.pulse` raises
+// PULSE_ARCHIVE_MAGIC_INVALID. A literal `#` in a filename is not
+// supported in v1.
+//
+// Anchor parsing happens inside service.Service.Open as well, so the
+// other facade methods (Process, Sample, Facet, ...) that receive an
+// anchored Cohort path resolve consistently.
 func (p *Pulse) Open(ctx context.Context, path string) (*Cohort, error) {
 	inner, err := p.svc.Open(ctx, path)
 	if err != nil {
@@ -356,9 +398,24 @@ func (p *Pulse) touchManaged(ctx context.Context, path string) {
 // Inspect reads a .pulse file header and schema, returning structured field information.
 // It never reads record data.
 func (p *Pulse) Inspect(ctx context.Context, path string) (*descriptor.InspectResult, error) {
-	data, err := afero.ReadFile(p.fsys, path)
+	readPath := path
+	anchorEntry := ""
+	if archivePath, entry, ok := service.SplitAnchorPath(path); ok {
+		readPath = archivePath
+		anchorEntry = entry
+	}
+
+	data, err := afero.ReadFile(p.fsys, readPath)
 	if err != nil {
 		return nil, fmt.Errorf("pulse: reading file for inspect: %w", err)
+	}
+
+	if anchorEntry != "" {
+		shardBytes, aerr := extractShardBytes(data, anchorEntry)
+		if aerr != nil {
+			return nil, fmt.Errorf("pulse: inspect anchor: %w", aerr)
+		}
+		data = shardBytes
 	}
 
 	env := descriptor.InspectFromBytes(data, nil)
@@ -383,9 +440,28 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 
 	path := resolveCohortPath(req.Cohort)
 
-	data, err := afero.ReadFile(p.fsys, path)
+	// Anchor syntax (`archive.pulse#shard.pulse`): resolve against the
+	// named shard's standalone bytes so Predict validates against the
+	// shard's own schema and record count, mirroring what
+	// service.Open(anchor) returns at runtime.
+	readPath := path
+	anchorEntry := ""
+	if archivePath, entry, ok := service.SplitAnchorPath(path); ok {
+		readPath = archivePath
+		anchorEntry = entry
+	}
+
+	data, err := afero.ReadFile(p.fsys, readPath)
 	if err != nil {
 		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
+	}
+
+	if anchorEntry != "" {
+		shardBytes, aerr := extractShardBytes(data, anchorEntry)
+		if aerr != nil {
+			return nil, fmt.Errorf("pulse: predict anchor: %w", aerr)
+		}
+		data = shardBytes
 	}
 
 	env := descriptor.PredictFromBytes(data, req, &descriptor.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
@@ -806,6 +882,83 @@ func (p *Pulse) Fs() afero.Fs {
 	return p.fsys
 }
 
+// CreateShardArchive writes a fresh Pulse shard archive at archivePath
+// containing the supplied single-file shardPaths. The first shard
+// seeds the canonical schema; remaining shards are validated via
+// structural cohesion + the append-only dictionary prefix rule. The
+// archive is written atomically (temp file + rename) so partial
+// writes never appear at archivePath. See service.CreateShardArchive
+// for the full error surface.
+func (p *Pulse) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) error {
+	return p.svc.CreateShardArchive(ctx, archivePath, shardPaths)
+}
+
+// AddShard validates the incoming single-file shard against the
+// archive's canonical schema and appends it. Dict growth that the
+// incoming shard introduces is reflected in the rewritten
+// `_schema.pulse` payload before the new shard payload is appended.
+// v1 reads the whole archive into memory and writes it back via
+// temp+rename — semantically equivalent to true in-place append and
+// crash-safe at the canonical-path level.
+func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) error {
+	return p.svc.AddShard(ctx, archivePath, shardPath)
+}
+
+// RemoveShard rewrites the archive omitting the named shard. The
+// canonical schema is preserved (dictionary entries are never
+// shrunk). Returns PULSE_SHARD_MISSING when the named shard is not in
+// the archive.
+func (p *Pulse) RemoveShard(ctx context.Context, archivePath, shardBasename string) error {
+	return p.svc.RemoveShard(ctx, archivePath, shardBasename)
+}
+
+// ListShards returns the archive's shard manifest in central-
+// directory order (which equals shard insertion order). Single-file
+// cohorts return an empty slice.
+func (p *Pulse) ListShards(ctx context.Context, archivePath string) ([]ShardEntry, error) {
+	return p.svc.ListShards(ctx, archivePath)
+}
+
+// ExtractShard returns an io.ReadCloser over the named shard's
+// standalone single-file `.pulse` bytes. Suitable for piping to
+// `pulse inspect -` or writing back to disk.
+func (p *Pulse) ExtractShard(ctx context.Context, archivePath, shardBasename string) (io.ReadCloser, error) {
+	return p.svc.ExtractShard(ctx, archivePath, shardBasename)
+}
+
+// CompactShardArchive rewrites the archive to eliminate orphaned bytes
+// from prior in-place mutations and refreshes the canonical metadata
+// (aggregate_record_count + shard_count). v1 AddShard / RemoveShard
+// already use temp+rename (no orphan bytes in v1 archives), so Compact
+// primarily serves to refresh canonical metadata that may have drifted
+// if the archive was edited outside Pulse. The whole-archive rewrite
+// pattern is the explicit reclaim path per the design contract §7.1.
+func (p *Pulse) CompactShardArchive(ctx context.Context, archivePath string) error {
+	return p.svc.CompactShardArchive(ctx, archivePath)
+}
+
+// VerifyShardArchive opens the archive and re-validates every shard's
+// header (magic + format_version), structural cohesion against the
+// canonical schema, dictionary prefix rule, and cross-checks each
+// shard's record count against the canonical aggregate. Returns a
+// VerifyResult carrying any errors (PULSE_SHARD_HEADER_INVALID,
+// PULSE_SHARD_SCHEMA_MISMATCH, PULSE_SHARD_DICT_DIVERGENCE) and any
+// non-fatal warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE, aggregate
+// drift). Returns a non-nil error only when the archive itself cannot
+// be opened (archive corrupt, file missing, etc.); per-shard issues
+// are reported through the result struct so the caller can render the
+// full diagnosis.
+func (p *Pulse) VerifyShardArchive(ctx context.Context, archivePath string) (*VerifyResult, error) {
+	return p.svc.VerifyShardArchive(ctx, archivePath)
+}
+
+// VerifyResult carries the structured outcome of VerifyShardArchive.
+// Errors aggregate every fatal cohesion failure discovered while
+// walking the archive's shards; Warnings carry non-fatal divergences
+// (per-field description drift, aggregate-record-count mismatch). An
+// empty Errors slice means the archive is structurally sound.
+type VerifyResult = service.VerifyResult
+
 // resolveCohortPath builds the file path from a Cohort specification.
 func resolveCohortPath(c *types.Cohort) string {
 	if c.DataDir != "" {
@@ -813,6 +966,33 @@ func resolveCohortPath(c *types.Cohort) string {
 	}
 	return c.Filename
 }
+
+// extractShardBytes opens archiveBytes as a Pulse shard archive and
+// returns the named entry's payload, suitable as standalone single-file
+// .pulse input to descriptor.PredictFromBytes / descriptor.Inspect.
+func extractShardBytes(archiveBytes []byte, entryName string) ([]byte, error) {
+	arch, err := encoding.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	if err != nil {
+		return nil, err
+	}
+	rc, err := arch.Open(entryName)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
+}
+
+// ShardEntry is one shard inside a Pulse shard archive. Re-exported from
+// service so embedders can address pulse.ShardEntry directly.
+type ShardEntry = service.ShardEntry
+
+// ShardInfo is one shard entry as surfaced by Inspect / Predict. Re-
+// exported from descriptor so embedders consuming the no-execute
+// surface can address pulse.ShardInfo directly. Mirrors ShardEntry's
+// shape (filename + record count); the two types are parallel because
+// descriptor/ cannot import service/.
+type ShardInfo = descriptor.ShardInfo
 
 // Cohort represents an opened .pulse file with its parsed schema.
 // It wraps the service-layer Cohort to provide a clean public API.
@@ -834,4 +1014,10 @@ func (c *Cohort) Field(name string) *encoding.Field {
 // Returns nil, false if the field is not found or is not categorical.
 func (c *Cohort) Categorical(name string) (*encoding.Dictionary, bool) {
 	return c.inner.Schema().Categorical(name)
+}
+
+// Shards returns the shard manifest for an archive-backed cohort. Empty
+// for single-file cohorts. The returned slice is a defensive copy.
+func (c *Cohort) Shards() []ShardEntry {
+	return c.inner.Shards()
 }

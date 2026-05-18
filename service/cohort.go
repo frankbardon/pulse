@@ -10,11 +10,43 @@ import (
 	"github.com/spf13/afero"
 )
 
-// Cohort represents an opened .pulse file with its parsed schema.
+// ShardEntry is one shard inside a Pulse shard archive. Populated on a
+// Cohort opened against a `.pulse` artifact whose first four bytes
+// match the zip magic; empty for single-file cohorts.
+type ShardEntry struct {
+	// Filename is the basename of the shard inside the archive
+	// (e.g. "20190101.pulse"). Equals the zip entry name.
+	Filename string
+
+	// RecordCount is the number of records carried by the shard. S1
+	// leaves this at zero; S2 populates it either from the
+	// `_schema.pulse` aggregate metadata or from a first-read peek of
+	// the shard's own header.
+	RecordCount int64
+}
+
+// Cohort represents an opened .pulse file with its parsed schema. For
+// shard archives Shards is populated in central-directory order (which
+// equals shard insertion order). For single-file cohorts Shards is
+// empty.
 type Cohort struct {
 	path   string
 	schema *encoding.Schema
 	fs     afero.Fs
+
+	// shards is non-nil and non-empty when the cohort was opened
+	// against a Pulse shard archive (first four bytes = PK\x03\x04).
+	// Sorted by central-directory order.
+	shards []ShardEntry
+}
+
+// Shards returns the shard manifest for an archive-backed cohort. Returns
+// an empty slice for single-file cohorts. The returned slice is a
+// defensive copy; callers may mutate freely.
+func (c *Cohort) Shards() []ShardEntry {
+	out := make([]ShardEntry, len(c.shards))
+	copy(out, c.shards)
+	return out
 }
 
 // Schema returns the cohort's schema.

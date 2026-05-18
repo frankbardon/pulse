@@ -76,7 +76,16 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		return nil, err
 	}
 
-	iter := newStreamingIterator(s.fs.Fs(), path, schema)
+	// Route through newScanIter so the same accumulator loop runs over
+	// the union of shards for archive cohorts (sharding design contract
+	// §5.4). Welford / count / null tallies / histogram accumulators are
+	// online-mergeable — feeding every shard's rows through one
+	// accumulator yields the same result as a concatenated single-file
+	// equivalent. NumericPercentiles force buffered materialization
+	// across the union via the per-field values slice in
+	// numericAccumulator; that is mathematically required for global
+	// percentile semantics.
+	iter := s.newScanIter(cohort, path)
 	defer iter.Close()
 
 	var totalRows, filteredRows int64
