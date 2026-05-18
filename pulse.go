@@ -492,6 +492,25 @@ func (p *Pulse) Sample(ctx context.Context, path string, n int) ([]Record, error
 	return rows, err
 }
 
+// FilterToFile reads the single-file .pulse cohort at src, evaluates
+// filterExpr (FILTER_EXPRESSION semantics — same operators, identifiers,
+// expr functions, and lookup tables available to pulse.Process with a
+// FILTER_EXPRESSION filterer) against every record, and writes a new
+// single-file .pulse cohort at dst containing only matching records.
+// The header and schema bytes are copied byte-for-byte from src; only
+// the record payload differs.
+//
+// Shard archives are not supported in this entry — pass an anchored
+// single shard (`archive.pulse#shard.pulse`) or extract first. Returns
+// the number of records written to dst.
+func (p *Pulse) FilterToFile(ctx context.Context, src, dst, filterExpr string) (int64, error) {
+	n, err := p.svc.FilterToFile(ctx, src, dst, filterExpr)
+	if err == nil {
+		p.touchManaged(ctx, src)
+	}
+	return n, err
+}
+
 // Synth materializes a synthetic .pulse file at output from spec. The
 // generator is deterministic for a given (spec, opts.Seed) pair: same
 // seed produces a byte-identical file.
