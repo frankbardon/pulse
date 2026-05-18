@@ -609,6 +609,13 @@ func resolveCohortPath(c *types.Cohort) string {
 // ("", "", false) when no `#` is present. Resolves at the FIRST `#` —
 // literal `#` in a filename is not supported in v1.
 func splitAnchorPath(path string) (string, string, bool) {
+	return SplitAnchorPath(path)
+}
+
+// SplitAnchorPath is the exported form of splitAnchorPath, used by the
+// pulse facade (Predict, Inspect) so anchor paths resolve consistently
+// across every entry point. See splitAnchorPath for semantics.
+func SplitAnchorPath(path string) (string, string, bool) {
 	for i := 0; i < len(path); i++ {
 		if path[i] == '#' {
 			return path[:i], path[i+1:], true

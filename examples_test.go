@@ -1,6 +1,7 @@
 package pulse_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -53,6 +54,15 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		if report.RowsImported == 0 {
 			t.Fatalf("import %s: zero rows imported", name)
 		}
+	}
+
+	// Build a shard archive from transactions.pulse so anchor-syntax
+	// examples (cohort.filename = `transactions_sharded.pulse#wave1.pulse`)
+	// resolve at runtime. The two shards split records evenly; each is a
+	// complete standalone single-file .pulse so the anchor view reads
+	// like any other cohort.
+	if err := buildShardedTransactionsFixture(p, fs, tmp); err != nil {
+		t.Fatalf("build sharded transactions fixture: %v", err)
 	}
 
 	categories := []struct {
@@ -303,4 +313,60 @@ func parseFixtureFieldType(s string) encoding.FieldType {
 		return encoding.FieldTypeNullableDecimal128
 	}
 	return encoding.FieldTypeU8
+}
+
+// buildShardedTransactionsFixture takes the imported transactions.pulse
+// at dataDir/transactions.pulse, splits its records evenly into two
+// standalone single-file shards, and wraps them in a shard archive at
+// dataDir/transactions_sharded.pulse. The anchor-syntax aggregations
+// example (06_sharded_anchor) reads through the archive's `wave1.pulse`
+// shard.
+func buildShardedTransactionsFixture(p *pulse.Pulse, fs afero.Fs, dataDir string) error {
+	srcPath := filepath.Join(dataDir, "transactions.pulse")
+	src, err := afero.ReadFile(fs, srcPath)
+	if err != nil {
+		return err
+	}
+
+	r := bytes.NewReader(src)
+	if err := encoding.ReadHeader(r); err != nil {
+		return err
+	}
+	schema, err := encoding.ReadSchema(r)
+	if err != nil {
+		return err
+	}
+	preludeLen := len(src) - r.Len()
+	prelude := src[:preludeLen]
+	records := src[preludeLen:]
+
+	recordSize := 0
+	for _, f := range schema.Fields {
+		recordSize += f.Type.ByteSize()
+	}
+	if recordSize == 0 {
+		return nil
+	}
+	splitAt := (len(records) / recordSize) / 2 * recordSize
+
+	build := func(name string, recordTail []byte) (string, error) {
+		path := filepath.Join(dataDir, name)
+		buf := make([]byte, 0, len(prelude)+len(recordTail))
+		buf = append(buf, prelude...)
+		buf = append(buf, recordTail...)
+		return path, afero.WriteFile(fs, path, buf, 0o644)
+	}
+
+	wave1Path, err := build("wave1.pulse", records[:splitAt])
+	if err != nil {
+		return err
+	}
+	wave2Path, err := build("wave2.pulse", records[splitAt:])
+	if err != nil {
+		return err
+	}
+
+	archivePath := filepath.Join(dataDir, "transactions_sharded.pulse")
+	return p.CreateShardArchive(context.Background(), archivePath,
+		[]string{wave1Path, wave2Path})
 }

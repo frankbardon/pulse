@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Run an online aggregation against a single shard inside a shard archive using anchor syntax (`archive.pulse#shard.pulse`). The archive is opened, the named shard is resolved through its zip entry, and the request executes as if the shard were a standalone single-file cohort — no canonical-dict union, no cross-shard merge.",
+    "name": "sharded_anchor",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM"
+    ],
+    "tags": [
+      "anchor",
+      "sharded",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "amount",
+      "label": "n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "amount",
+      "label": "total"
+    }
+  ],
+  "cohort": {
+    "filename": "transactions_sharded.pulse#wave1.pulse",
+    "data_dir": ".data"
+  }
+}

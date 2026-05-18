@@ -329,6 +329,9 @@ var CanonicalTags = []string{
 
 	// Discovery / facet (1)
 	"facet",
+
+	// Cohort shape (2)
+	"sharded", "anchor",
 }
 
 // IsCanonicalTag reports whether tag belongs to the curated taxonomy.

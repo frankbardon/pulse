@@ -398,9 +398,24 @@ func (p *Pulse) touchManaged(ctx context.Context, path string) {
 // Inspect reads a .pulse file header and schema, returning structured field information.
 // It never reads record data.
 func (p *Pulse) Inspect(ctx context.Context, path string) (*descriptor.InspectResult, error) {
-	data, err := afero.ReadFile(p.fsys, path)
+	readPath := path
+	anchorEntry := ""
+	if archivePath, entry, ok := service.SplitAnchorPath(path); ok {
+		readPath = archivePath
+		anchorEntry = entry
+	}
+
+	data, err := afero.ReadFile(p.fsys, readPath)
 	if err != nil {
 		return nil, fmt.Errorf("pulse: reading file for inspect: %w", err)
+	}
+
+	if anchorEntry != "" {
+		shardBytes, aerr := extractShardBytes(data, anchorEntry)
+		if aerr != nil {
+			return nil, fmt.Errorf("pulse: inspect anchor: %w", aerr)
+		}
+		data = shardBytes
 	}
 
 	env := descriptor.InspectFromBytes(data, nil)
@@ -425,9 +440,28 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 
 	path := resolveCohortPath(req.Cohort)
 
-	data, err := afero.ReadFile(p.fsys, path)
+	// Anchor syntax (`archive.pulse#shard.pulse`): resolve against the
+	// named shard's standalone bytes so Predict validates against the
+	// shard's own schema and record count, mirroring what
+	// service.Open(anchor) returns at runtime.
+	readPath := path
+	anchorEntry := ""
+	if archivePath, entry, ok := service.SplitAnchorPath(path); ok {
+		readPath = archivePath
+		anchorEntry = entry
+	}
+
+	data, err := afero.ReadFile(p.fsys, readPath)
 	if err != nil {
 		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
+	}
+
+	if anchorEntry != "" {
+		shardBytes, aerr := extractShardBytes(data, anchorEntry)
+		if aerr != nil {
+			return nil, fmt.Errorf("pulse: predict anchor: %w", aerr)
+		}
+		data = shardBytes
 	}
 
 	env := descriptor.PredictFromBytes(data, req, &descriptor.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
@@ -931,6 +965,22 @@ func resolveCohortPath(c *types.Cohort) string {
 		return c.DataDir + "/" + c.Filename
 	}
 	return c.Filename
+}
+
+// extractShardBytes opens archiveBytes as a Pulse shard archive and
+// returns the named entry's payload, suitable as standalone single-file
+// .pulse input to descriptor.PredictFromBytes / descriptor.Inspect.
+func extractShardBytes(archiveBytes []byte, entryName string) ([]byte, error) {
+	arch, err := encoding.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	if err != nil {
+		return nil, err
+	}
+	rc, err := arch.Open(entryName)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
 }
 
 // ShardEntry is one shard inside a Pulse shard archive. Re-exported from
