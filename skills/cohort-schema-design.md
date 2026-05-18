@@ -129,15 +129,13 @@ Mismatch raises `PULSE_SHARD_SCHEMA_MISMATCH` and the insert is rejected.
 
 Field descriptions are **tolerant**: divergence across shards emits `PULSE_SHARD_DESCRIPTION_DIVERGENCE` as a warning (not an error). The canonical description carried in `_schema.pulse` wins for any downstream consumer.
 
-### Dictionary growth — append-only prefix rule
+### Dictionary growth — union merge
 
-Categorical dictionaries are malleable across shards under the append-only prefix rule. At shard insert, for each `categorical_*` field, the runtime compares the incoming shard's dict to the canonical dict:
+Categorical dictionaries are malleable across shards under union-merge semantics. At shard insert (`CreateShardArchive` / `AddShard`), for each `categorical_*` field the runtime computes the **union** of the canonical and incoming dictionaries: canonical entries first in their existing order, then any new entries from incoming in their order. The canonical `_schema.pulse` adopts the union; if the incoming shard's dict indices differ from the canonical (union) indices, the incoming shard's record bytes are rewritten with remapped categorical indices before being placed in the archive. Indices are stable across reads — record bytes always reference the canonical dictionary inside the archive.
 
-- **Incoming is a prefix of canonical.** Accept the shard as-is (older shard that never saw newer values).
-- **Canonical is a prefix of incoming.** Canonical adopts the extension — `_schema.pulse` is rewritten with the extended dict before the shard payload is placed.
-- **Neither is a prefix of the other.** Reject with `PULSE_SHARD_DICT_DIVERGENCE`. Align dictionaries upstream (e.g., reorder values so the incoming dict extends the canonical), or split into a separate archive.
+Width overflow: a union that would exceed the declared categorical width (256 entries for `categorical_u8`, 65,536 for `categorical_u16`, 2³² for `categorical_u32`) raises `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. The archive must be rebuilt with a wider categorical type. **Mitigation:** pick categorical widths with growth headroom at archive creation.
 
-Width overflow: dict growth that would exceed the declared categorical width (256 entries for `categorical_u8`, 65,536 for `categorical_u16`, 2³² for `categorical_u32`) raises `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. The archive must be rebuilt with a wider categorical type. **Mitigation:** pick categorical widths with growth headroom at archive creation.
+Pulse provides a stricter prefix-only validator (`encoding.ValidateDictPrefixRule` / surfaced through `pulse shard verify`) for callers that want to fail on divergence instead of merging — useful for archives whose embedders coordinate dictionaries upstream and want corruption detection.
 
 ### Memory shape
 

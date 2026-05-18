@@ -232,6 +232,144 @@ func ValidateDictPrefixRule(canonical, incoming *Schema) (*Schema, error) {
 	return canonical, nil
 }
 
+// DictRemap is the per-field index translation produced by
+// MergeDictUnion. The key is the incoming dictionary index; the value
+// is the corresponding canonical (union) dictionary index. Fields
+// whose incoming dictionary is already a prefix of the canonical
+// (union) dictionary are absent from the returned map — callers can
+// skip remapping their record bytes.
+type DictRemap = map[uint32]uint32
+
+// MergeDictUnion is the relaxed dictionary cohesion check. For each
+// categorical field it computes the union of canonical's and
+// incoming's dictionaries: canonical entries first in their existing
+// order, then any new entries from incoming in their order. Returns
+// the extended canonical schema (deep copy when an extension is
+// adopted; identical pointer when not) and a per-field-index map of
+// DictRemap entries describing how to translate incoming record
+// indices into canonical indices.
+//
+// The structural validator (ValidateStructuralCohesion) must run
+// FIRST — this validator assumes field positions, names, and
+// categorical widths already match.
+//
+// Errors:
+//
+//   - PULSE_SHARD_DICT_WIDTH_OVERFLOW when the union would exceed the
+//     field's categorical width capacity.
+//
+// MergeDictUnion is the default cohesion mode at insert time
+// (CreateShardArchive / AddShard). The stricter prefix-only rule
+// (ValidateDictPrefixRule) is retained for callers that want to
+// surface divergence as an error instead of merging — used by
+// VerifyShardArchive when checking archives written before the
+// union-merge default landed and by embedders that prefer to align
+// dictionaries upstream.
+func MergeDictUnion(canonical, incoming *Schema) (*Schema, map[int]DictRemap, error) {
+	if canonical == nil || incoming == nil {
+		return nil, nil, errors.NewCodedError(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+			"dict union validation requires non-nil canonical and incoming schemas")
+	}
+	if len(canonical.Fields) != len(incoming.Fields) {
+		return nil, nil, errors.NewCodedError(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+			"dict union validation requires identical field counts; run ValidateStructuralCohesion first")
+	}
+
+	var extended *Schema
+	remaps := map[int]DictRemap{}
+
+	for i := range canonical.Fields {
+		cf := &canonical.Fields[i]
+		nf := &incoming.Fields[i]
+		if !cf.Type.IsCategorical() {
+			continue
+		}
+		if cf.Type != nf.Type {
+			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+				fmt.Sprintf("field %q categorical width differs", cf.Name),
+				map[string]any{"field": cf.Name})
+		}
+
+		cv := dictValuesOrEmpty(cf.Dictionary)
+		nv := dictValuesOrEmpty(nf.Dictionary)
+
+		// Fast path: incoming is a prefix of canonical. No extension,
+		// no remap.
+		if isPrefix(nv, cv) {
+			continue
+		}
+
+		// Build the union: canonical entries first, then any
+		// incoming entries not already in canonical, in incoming
+		// order. The remap follows from the resulting index
+		// assignments.
+		unionVals := make([]string, len(cv))
+		copy(unionVals, cv)
+		canonicalIndex := make(map[string]uint32, len(cv))
+		for idx, v := range cv {
+			canonicalIndex[v] = uint32(idx)
+		}
+		for _, v := range nv {
+			if _, ok := canonicalIndex[v]; ok {
+				continue
+			}
+			canonicalIndex[v] = uint32(len(unionVals))
+			unionVals = append(unionVals, v)
+		}
+
+		maxEntries := cf.Type.MaxCategoricalEntries()
+		if uint32(len(unionVals)) > maxEntries {
+			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW,
+				fmt.Sprintf("field %q dictionary union (%d entries) exceeds %s capacity (%d entries)",
+					cf.Name, len(unionVals), cf.Type, maxEntries),
+				map[string]any{
+					"field":            cf.Name,
+					"type":             cf.Type.String(),
+					"capacity":         maxEntries,
+					"union_entries":    len(unionVals),
+					"canonical_values": cv,
+					"incoming_values":  nv,
+				})
+		}
+
+		// Adopt the extension on canonical.
+		if extended == nil {
+			extended = cloneSchema(canonical)
+		}
+		extDict := NewDictionary()
+		for _, v := range unionVals {
+			if _, err := extDict.Add(v); err != nil {
+				return nil, nil, err
+			}
+		}
+		extended.Fields[i].Dictionary = extDict
+
+		// Build the incoming → union remap. Identity entries are
+		// omitted so callers can skip work when remap[oldIdx] == oldIdx.
+		fieldRemap := make(DictRemap, len(nv))
+		for incomingIdx, v := range nv {
+			newIdx, ok := canonicalIndex[v]
+			if !ok {
+				// Defensive — every incoming value was added above.
+				return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_DICT_DIVERGENCE,
+					fmt.Sprintf("internal: field %q value %q absent from union after merge", cf.Name, v),
+					map[string]any{"field": cf.Name, "value": v})
+			}
+			if uint32(incomingIdx) != newIdx {
+				fieldRemap[uint32(incomingIdx)] = newIdx
+			}
+		}
+		if len(fieldRemap) > 0 {
+			remaps[i] = fieldRemap
+		}
+	}
+
+	if extended != nil {
+		return extended, remaps, nil
+	}
+	return canonical, remaps, nil
+}
+
 // dictValuesOrEmpty returns the dictionary's values in insertion
 // order, or an empty slice when the dictionary is nil (treat absent
 // dict as the zero-length prefix).

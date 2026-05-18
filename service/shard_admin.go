@@ -74,11 +74,18 @@ func (s *Service) CreateShardArchive(ctx context.Context, archivePath string, sh
 			if _, err := encoding.ValidateStructuralCohesion(canonical, schema); err != nil {
 				return err
 			}
-			extended, err := encoding.ValidateDictPrefixRule(canonical, schema)
+			extended, remap, err := encoding.MergeDictUnion(canonical, schema)
 			if err != nil {
 				return err
 			}
 			canonical = extended
+			if len(remap) > 0 {
+				rewritten, rerr := encoding.RewriteShardCategoricals(data, canonical, remap)
+				if rerr != nil {
+					return rerr
+				}
+				data = rewritten
+			}
 		}
 		shards = append(shards, incoming{basename: base, payload: data, schema: schema})
 	}
@@ -165,13 +172,23 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) e
 		return err
 	}
 
-	// Cohesion + dict prefix.
+	// Cohesion + union-merge dictionary. When the incoming shard's
+	// categorical dictionaries diverge from canonical, the union is
+	// adopted and the incoming bytes are rewritten to use canonical
+	// indices before being placed in the archive.
 	if _, err := encoding.ValidateStructuralCohesion(canonicalDoc.Schema, incomingSchema); err != nil {
 		return err
 	}
-	canonicalSchema, err := encoding.ValidateDictPrefixRule(canonicalDoc.Schema, incomingSchema)
+	canonicalSchema, remap, err := encoding.MergeDictUnion(canonicalDoc.Schema, incomingSchema)
 	if err != nil {
 		return err
+	}
+	if len(remap) > 0 {
+		rewritten, rerr := encoding.RewriteShardCategoricals(incomingBytes, canonicalSchema, remap)
+		if rerr != nil {
+			return rerr
+		}
+		incomingBytes = rewritten
 	}
 
 	// Enumerate existing shard payloads, detecting name collision.
