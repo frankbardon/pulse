@@ -19,11 +19,31 @@ import (
 	"github.com/frankbardon/pulse/imports"
 	"github.com/frankbardon/pulse/internal/query"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/service"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
+
+// MemberSet is the public alias for processing.MemberSet — the
+// read-only set type consumed by FilterToFileBySetAndExpr. Build one
+// via LoadMemberSetFromReader (recommended for newline-delimited files)
+// or by constructing a concrete impl directly.
+type MemberSet = processing.MemberSet
+
+// LoadMemberSetResult mirrors processing.LoadMemberSetResult so callers
+// can inspect drop counts after loading an include-set file.
+type LoadMemberSetResult = processing.LoadMemberSetResult
+
+// LoadMemberSetFromReader is the public alias for the underlying
+// processing-package loader. It reads newline-delimited values from r
+// and returns the best MemberSet impl for the named field on schema
+// (bitset for categorical, uint64 map for integer / date, string map
+// for decimal / fallback). Float fields are rejected.
+func LoadMemberSetFromReader(r io.Reader, schema *encoding.Schema, fieldName string) (LoadMemberSetResult, error) {
+	return processing.LoadMemberSetFromReader(r, schema, fieldName)
+}
 
 // Type aliases re-exported from the types package so embedders can use
 // pulse.Request instead of types.Request.
@@ -514,6 +534,41 @@ func (p *Pulse) Sample(ctx context.Context, path string, n int) ([]Record, error
 // archive inputs).
 func (p *Pulse) FilterToFile(ctx context.Context, src, dst, filterExpr string) (int64, error) {
 	n, err := p.svc.FilterToFile(ctx, src, dst, filterExpr)
+	if err == nil {
+		p.touchManaged(ctx, src)
+	}
+	return n, err
+}
+
+// ResolveCanonicalSchema returns the canonical encoding.Schema for the
+// cohort at src without streaming records. Resolves single-file,
+// shard-archive, and `archive#shard` anchor inputs identically to the
+// rest of the facade.
+//
+// Useful for callers that need to build an include-set before invoking
+// FilterToFileBySetAndExpr: the set loader requires the schema to pick
+// the best MemberSet impl (bitset / uint64 / string) for the field's
+// type.
+func (p *Pulse) ResolveCanonicalSchema(ctx context.Context, src string) (*encoding.Schema, error) {
+	return p.svc.ResolveCanonicalSchema(ctx, src)
+}
+
+// FilterToFileBySetAndExpr applies an optional MemberSet membership
+// test (record's value for includeField must be in set) combined with
+// an optional FILTER_EXPRESSION (filterExpr) to every record in src,
+// writing the survivors to dst. At least one of (set, filterExpr) must
+// be supplied; if both are present they are AND-combined and the set
+// is tested first so per-row work short-circuits on misses without
+// paying the expr eval cost.
+//
+// Input-shape dispatch is identical to FilterToFile (single-file,
+// shard archive, anchor). The set must be built against the same
+// canonical schema as src.
+//
+// Returns the number of records written to dst (sum across shards for
+// archive inputs).
+func (p *Pulse) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includeField string, set MemberSet, filterExpr string) (int64, error) {
+	n, err := p.svc.FilterToFileBySetAndExpr(ctx, src, dst, includeField, set, filterExpr)
 	if err == nil {
 		p.touchManaged(ctx, src)
 	}
@@ -1048,4 +1103,15 @@ func (c *Cohort) Categorical(name string) (*encoding.Dictionary, bool) {
 // for single-file cohorts. The returned slice is a defensive copy.
 func (c *Cohort) Shards() []ShardEntry {
 	return c.inner.Shards()
+}
+
+// RecordCount returns the number of records in the cohort. For
+// single-file cohorts this is derived from the byte length of the
+// record region divided by the per-record size implied by the schema.
+// For archive-backed cohorts the caller should sum per-shard
+// RecordCount values from Shards() — the underlying service Cohort
+// errors on RecordCount for archives because the byte-region path
+// doesn't apply across shards.
+func (c *Cohort) RecordCount() (int64, error) {
+	return c.inner.RecordCount()
 }

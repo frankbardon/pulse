@@ -45,6 +45,110 @@ import (
 // Returns the number of records written to dst (sum across shards for
 // archive inputs).
 func (s *Service) FilterToFile(ctx context.Context, src, dst, filterExpr string) (int64, error) {
+	if filterExpr == "" {
+		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
+			"filter_to_file requires a non-empty filter expression")
+	}
+	return s.filterToFile(ctx, src, dst, filterPlan{filterExpr: filterExpr})
+}
+
+// FilterToFileBySetAndExpr applies an include-set predicate (membership
+// test against an externally-supplied list of values) and optionally a
+// filter expression to every record in src, writing the survivors to
+// dst. At least one of (set, filterExpr) must be supplied — if both,
+// the set is tested first and the expression evaluated only on
+// surviving rows (cheap-check-first short-circuit).
+//
+// Input-shape dispatch matches FilterToFile (single-file, shard
+// archive, anchor). includeField names the field whose value is tested
+// for membership in set; the set must have been built against the same
+// canonical schema as src (the field is resolved per-call to keep the
+// predicate schema-coherent across shards).
+//
+// Returns the number of records written to dst.
+func (s *Service) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includeField string, set processing.MemberSet, filterExpr string) (int64, error) {
+	if set == nil && filterExpr == "" {
+		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
+			"filter_to_file requires at least one of include-set or filter expression")
+	}
+	if set != nil && includeField == "" {
+		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
+			"filter_to_file include-set requires a non-empty include field name")
+	}
+	return s.filterToFile(ctx, src, dst, filterPlan{
+		set:          set,
+		includeField: includeField,
+		filterExpr:   filterExpr,
+	})
+}
+
+// filterPlan captures the per-call predicate inputs so the input-shape
+// dispatch (single-file, shard archive, anchor) doesn't have to take a
+// growing list of optional arguments.
+type filterPlan struct {
+	set          processing.MemberSet
+	includeField string
+	filterExpr   string
+}
+
+// ResolveCanonicalSchema reads the canonical schema for src without
+// streaming the record payload. Single-file cohorts return their own
+// schema; shard archives return the canonical `_schema.pulse` schema;
+// anchored shards return the anchored shard's local schema. Used by
+// callers (notably the CLI cohort-filter include-from path) that need
+// schema introspection to build an include-set before invoking
+// FilterToFileBySetAndExpr.
+func (s *Service) ResolveCanonicalSchema(_ context.Context, src string) (*encoding.Schema, error) {
+	if src == "" {
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
+			"ResolveCanonicalSchema requires a non-empty path")
+	}
+	fsys := s.fs.Fs()
+
+	if archivePath, anchor, ok := splitAnchorPath(src); ok {
+		payload, err := s.readAnchoredShardBytes(archivePath, anchor)
+		if err != nil {
+			return nil, err
+		}
+		return readSchemaFromBytes(payload)
+	}
+
+	data, err := afero.ReadFile(fsys, src)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("opening cohort file: %s", src))
+	}
+
+	if isShardArchiveMagic(data) {
+		arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+		if err != nil {
+			return nil, err
+		}
+		doc, err := readSchemaDocEntry(arch)
+		if err != nil {
+			return nil, err
+		}
+		return doc.Schema, nil
+	}
+
+	return readSchemaFromBytes(data)
+}
+
+func readSchemaFromBytes(data []byte) (*encoding.Schema, error) {
+	br := bytes.NewReader(data)
+	if err := encoding.ReadHeader(br); err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			"invalid pulse file header")
+	}
+	schema, err := encoding.ReadSchema(br)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			"reading schema")
+	}
+	return schema, nil
+}
+
+func (s *Service) filterToFile(ctx context.Context, src, dst string, plan filterPlan) (int64, error) {
 	if src == "" {
 		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"filter_to_file requires a non-empty input path")
@@ -52,10 +156,6 @@ func (s *Service) FilterToFile(ctx context.Context, src, dst, filterExpr string)
 	if dst == "" {
 		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"filter_to_file requires a non-empty output path")
-	}
-	if filterExpr == "" {
-		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
-			"filter_to_file requires a non-empty filter expression")
 	}
 
 	fsys := s.fs.Fs()
@@ -67,7 +167,7 @@ func (s *Service) FilterToFile(ctx context.Context, src, dst, filterExpr string)
 		if err != nil {
 			return 0, err
 		}
-		return s.filterSingleFileBytesToFile(ctx, fsys, payload, dst, filterExpr)
+		return s.filterSingleFileBytesToFile(ctx, fsys, payload, dst, plan)
 	}
 
 	data, err := afero.ReadFile(fsys, src)
@@ -77,17 +177,17 @@ func (s *Service) FilterToFile(ctx context.Context, src, dst, filterExpr string)
 	}
 
 	if isShardArchiveMagic(data) {
-		return s.filterShardArchiveToFile(ctx, fsys, dst, filterExpr, data)
+		return s.filterShardArchiveToFile(ctx, fsys, dst, plan, data)
 	}
 
-	return s.filterSingleFileBytesToFile(ctx, fsys, data, dst, filterExpr)
+	return s.filterSingleFileBytesToFile(ctx, fsys, data, dst, plan)
 }
 
 // filterSingleFileBytesToFile runs the single-file filter loop over an
 // in-memory byte slice and writes the result to dst. Used both for
 // direct single-file inputs and for anchor-syntax inputs (where the
 // anchored shard's bytes form a complete standalone payload).
-func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs, data []byte, dst, filterExpr string) (int64, error) {
+func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs, data []byte, dst string, plan filterPlan) (int64, error) {
 	br := bytes.NewReader(data)
 	if err := encoding.ReadHeader(br); err != nil {
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
@@ -100,7 +200,7 @@ func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs
 	}
 	headerSchemaEnd := int64(len(data)) - int64(br.Len())
 
-	filterFn, err := s.buildSingleFilter(schema, filterExpr)
+	filterFn, err := s.buildCombinedFilter(schema, plan)
 	if err != nil {
 		return 0, err
 	}
@@ -125,7 +225,7 @@ func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs
 // → one output shard, basename preserved, central-directory order
 // preserved. Empty shards (zero surviving records) are kept so the
 // shard_count metadata stays stable across the filter.
-func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, dst, filterExpr string, data []byte) (int64, error) {
+func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, dst string, plan filterPlan, data []byte) (int64, error) {
 	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return 0, err
@@ -137,7 +237,7 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 	}
 	canonicalSchema := canonicalDoc.Schema
 
-	filterFn, err := s.buildSingleFilter(canonicalSchema, filterExpr)
+	filterFn, err := s.buildCombinedFilter(canonicalSchema, plan)
 	if err != nil {
 		return 0, err
 	}
@@ -267,6 +367,48 @@ func (s *Service) buildSingleFilter(schema *encoding.Schema, filterExpr string) 
 		return nil, err
 	}
 	return fns[0], nil
+}
+
+// buildCombinedFilter composes an optional MemberSet membership test
+// with an optional FILTER_EXPRESSION into one FilterFunc. The set
+// predicate runs first when both are present, so per-row work
+// short-circuits on misses without paying the expr eval cost.
+func (s *Service) buildCombinedFilter(schema *encoding.Schema, plan filterPlan) (processing.FilterFunc, error) {
+	var setFn processing.FilterFunc
+	if plan.set != nil {
+		fn, err := processing.BuildMemberSetPredicate(plan.set, schema, plan.includeField)
+		if err != nil {
+			return nil, err
+		}
+		setFn = fn
+	}
+
+	var exprFn processing.FilterFunc
+	if plan.filterExpr != "" {
+		fn, err := s.buildSingleFilter(schema, plan.filterExpr)
+		if err != nil {
+			return nil, err
+		}
+		exprFn = fn
+	}
+
+	switch {
+	case setFn != nil && exprFn != nil:
+		return func(rec *processing.Record) (bool, error) {
+			ok, err := setFn(rec)
+			if err != nil || !ok {
+				return false, err
+			}
+			return exprFn(rec)
+		}, nil
+	case setFn != nil:
+		return setFn, nil
+	case exprFn != nil:
+		return exprFn, nil
+	default:
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
+			"filter_to_file requires at least one of include-set or filter expression")
+	}
 }
 
 // readAnchoredShardBytes resolves an anchor (archivePath, entry) to the
