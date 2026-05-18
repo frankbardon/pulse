@@ -492,17 +492,26 @@ func (p *Pulse) Sample(ctx context.Context, path string, n int) ([]Record, error
 	return rows, err
 }
 
-// FilterToFile reads the single-file .pulse cohort at src, evaluates
-// filterExpr (FILTER_EXPRESSION semantics — same operators, identifiers,
-// expr functions, and lookup tables available to pulse.Process with a
+// FilterToFile reads the .pulse cohort at src, evaluates filterExpr
+// (FILTER_EXPRESSION semantics — same operators, identifiers, expr
+// functions, and lookup tables available to pulse.Process with a
 // FILTER_EXPRESSION filterer) against every record, and writes a new
-// single-file .pulse cohort at dst containing only matching records.
-// The header and schema bytes are copied byte-for-byte from src; only
-// the record payload differs.
+// .pulse cohort at dst containing only matching records.
 //
-// Shard archives are not supported in this entry — pass an anchored
-// single shard (`archive.pulse#shard.pulse`) or extract first. Returns
-// the number of records written to dst.
+// Dispatch matches the rest of the facade. Single-file inputs produce
+// single-file outputs whose header + schema bytes are copied byte-for-
+// byte from src. Shard archives produce shard archives that preserve
+// the per-shard layout: one input shard maps to one output shard at
+// the same basename, in central-directory (insertion) order, with
+// per-shard header + schema + categorical-dictionary bytes copied
+// verbatim. Empty shards survive so shard_count metadata stays stable;
+// the canonical `_schema.pulse` trailer's aggregate_record_count is
+// refreshed to the surviving total. The anchor form
+// `archive.pulse#shard.pulse` resolves a single shard and writes a
+// single-file output.
+//
+// Returns the number of records written to dst (sum across shards for
+// archive inputs).
 func (p *Pulse) FilterToFile(ctx context.Context, src, dst, filterExpr string) (int64, error) {
 	n, err := p.svc.FilterToFile(ctx, src, dst, filterExpr)
 	if err == nil {

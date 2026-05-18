@@ -97,7 +97,7 @@ func printInspectResult(cmd *cli.Command, result *descriptor.InspectResult) {
 func cohortFilterCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "filter",
-		Usage: "Filter a .pulse file to a new .pulse file",
+		Usage: "Filter a .pulse file (single-file or shard archive) to a new .pulse file",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
