@@ -79,6 +79,7 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
 | `compose` | Execute a ComposedRequest batch | https://frankbardon.github.io/pulse/cli/api-compose.html |
 | `predict` | Validate a request against the schema | https://frankbardon.github.io/pulse/cli/api-predict.html |
 | `cohort inspect` | Print schema and descriptions of a `.pulse` file | https://frankbardon.github.io/pulse/cli/cohort-inspect.html |
+| `cohort filter` | Filter a `.pulse` cohort (single-file, shard archive, or `archive.pulse#shard.pulse` anchor) to a new `.pulse` file. Accepts `--filter EXPR` (FILTER_EXPRESSION semantics), a file-backed include-set via `--include-from PATH --include-field NAME`, or both AND-combined (include-set tested first to short-circuit on misses). Include-set picks the most performant impl for the field type: bitset for categorical, `map[uint64]struct{}` for integer / date, `map[string]struct{}` for decimal / fallback. Float fields rejected — use `--filter` for numeric ranges. | https://frankbardon.github.io/pulse/cli/cohort-filter.html |
 | `sample` | Print N rows from a cohort | https://frankbardon.github.io/pulse/cli/api-sample.html |
 | `facet` | Print distinct values for one field (or a rich multi-field summary via `--request` / repeat `--field` / `--top-k` / `--percentile` / `--histogram` / `--additive`). | https://frankbardon.github.io/pulse/cli/api-facet.html |
 | `manifest` | Print the self-description manifest | https://frankbardon.github.io/pulse/cli/manifest.html |
