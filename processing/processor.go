@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -726,8 +727,18 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		}
 	}
 
-	data := make([]map[string]any, 0, len(buckets))
-	for key, b := range buckets {
+	// Stable-emit by sorted bucket key so row order is deterministic
+	// across runs regardless of Go's map-iteration randomness or
+	// streaming-vs-buffered codepath choice.
+	keys := make([]string, 0, len(buckets))
+	for k := range buckets {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	data := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		b := buckets[key]
 		// +1 reserved for the group key written below.
 		row := make(map[string]any, len(specs)+1)
 		for i, oa := range b.online {
@@ -741,8 +752,9 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		data = append(data, row)
 	}
 
-	// Apply sort to grouped output, mirroring processRecords behavior so
-	// callers receive deterministic ordering on a small post-aggregate set.
+	// Apply explicit Sort to grouped output, mirroring processRecords
+	// behavior. The default stable key-order above gives a deterministic
+	// fallback when no Sort is specified.
 	if len(req.Sort) > 0 {
 		window.Sort(data, req.Sort)
 	}
@@ -1283,8 +1295,17 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 		return nil, err
 	}
 
-	data := make([]map[string]any, 0, len(groups))
-	for key, groupRecords := range groups {
+	// Stable-emit by sorted group key so row order is deterministic
+	// across runs regardless of Go's map-iteration randomness.
+	keys := make([]string, 0, len(groups))
+	for k := range groups {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	data := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		groupRecords := groups[key]
 		row, err := p.aggregate(req.Aggregations, groupRecords)
 		if err != nil {
 			return nil, err

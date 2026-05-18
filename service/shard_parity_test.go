@@ -132,51 +132,33 @@ func TestShardParity_SingleFileVsArchiveVsAnchor(t *testing.T) {
 	}
 }
 
-// assertResponseParity compares two responses row-as-set: Go map
-// iteration randomness in the grouped reducer makes row ORDER
-// non-deterministic across calls, but the SET of rows must match.
-// Float cells use a ULP tolerance (Welford-merged means drift within
-// a few ULP across the parallel reduce path; associative integer ops
-// are byte-equal).
+// assertResponseParity compares two responses row-by-row in index
+// order. Grouped output is sorted by group key at emit time in
+// processing/processor.go, so row order is deterministic across
+// runs, codepaths, and worker counts. Float cells use a ULP
+// tolerance (Welford-merged means drift within a few ULP across the
+// parallel reduce path; associative integer ops are byte-equal).
 func assertResponseParity(t *testing.T, label string, a, b *types.Response) {
 	t.Helper()
 	if len(a.Data) != len(b.Data) {
 		t.Fatalf("%s: row count diverges: %d vs %d", label, len(a.Data), len(b.Data))
 	}
-	matched := make([]bool, len(b.Data))
-	for i, left := range a.Data {
-		idx := findMatchingRow(left, b.Data, matched)
-		if idx < 0 {
-			t.Errorf("%s row %d (%v) has no equivalent on right (%v)", label, i, left, b.Data)
-			continue
+	for i := range a.Data {
+		left, right := a.Data[i], b.Data[i]
+		if len(left) != len(right) {
+			t.Fatalf("%s row %d: key count diverges: %d vs %d", label, i, len(left), len(right))
 		}
-		matched[idx] = true
-	}
-}
-
-func findMatchingRow(target map[string]any, rows []map[string]any, matched []bool) int {
-	for i, row := range rows {
-		if matched[i] {
-			continue
-		}
-		if rowsEqual(target, row) {
-			return i
+		for k, lv := range left {
+			rv, ok := right[k]
+			if !ok {
+				t.Errorf("%s row %d: missing key %q on right", label, i, k)
+				continue
+			}
+			if !cellEqual(lv, rv) {
+				t.Errorf("%s row %d key %q: %v != %v", label, i, k, lv, rv)
+			}
 		}
 	}
-	return -1
-}
-
-func rowsEqual(a, b map[string]any) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, av := range a {
-		bv, ok := b[k]
-		if !ok || !cellEqual(av, bv) {
-			return false
-		}
-	}
-	return true
 }
 
 // cellEqual treats two floats as equal when their absolute difference
