@@ -185,7 +185,7 @@ func TestShardArchiveCompactReclaimsOrphans(t *testing.T) {
 func injectOrphanBytesBeforeCentralDirectory(t *testing.T, archiveBytes []byte, n int) []byte {
 	t.Helper()
 	// Locate EOCD by scanning the trailing 64 KiB (zip spec maximum).
-	const eocdSig = 0x06054b50
+	// Signature is 0x06054b50 (little-endian PK\x05\x06).
 	const eocdSize = 22 // minimum size; trailing comment may extend it
 	if len(archiveBytes) < eocdSize {
 		t.Fatalf("archive too small for EOCD: %d bytes", len(archiveBytes))
