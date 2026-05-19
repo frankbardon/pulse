@@ -147,6 +147,79 @@ func TestPredict_CategoricalWarning(t *testing.T) {
 	}
 }
 
+// TestCategoricalAggregationIssues_DirectAPI exercises the exported
+// helper that service.Process and the predict path both consume. The
+// helper is non-judgmental — caller decides whether to promote to
+// errors. Empty / nil inputs return nil.
+func TestCategoricalAggregationIssues_DirectAPI(t *testing.T) {
+	dict := makeDictionary(t, "X", "Y", "Z")
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "color", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict},
+			{Name: "score", Type: encoding.FieldTypeF64},
+		},
+	}
+
+	t.Run("nil request returns nil", func(t *testing.T) {
+		if got := CategoricalAggregationIssues(nil, schema); got != nil {
+			t.Errorf("nil request: got %d issues, want nil", len(got))
+		}
+	})
+
+	t.Run("nil schema returns nil", func(t *testing.T) {
+		req := &types.Request{Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "color"},
+		}}
+		if got := CategoricalAggregationIssues(req, nil); got != nil {
+			t.Errorf("nil schema: got %d issues, want nil", len(got))
+		}
+	})
+
+	t.Run("numeric agg on categorical fires", func(t *testing.T) {
+		req := &types.Request{Aggregations: []*types.Aggregation{
+			{Type: types.AGG_AVERAGE, Field: "color"},
+		}}
+		got := CategoricalAggregationIssues(req, schema)
+		if len(got) != 1 {
+			t.Fatalf("got %d issues, want 1", len(got))
+		}
+		if got[0].Code != string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL) {
+			t.Errorf("code = %q, want PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL", got[0].Code)
+		}
+	})
+
+	t.Run("numeric agg on numeric is silent", func(t *testing.T) {
+		req := &types.Request{Aggregations: []*types.Aggregation{
+			{Type: types.AGG_AVERAGE, Field: "score"},
+		}}
+		if got := CategoricalAggregationIssues(req, schema); len(got) != 0 {
+			t.Errorf("numeric-on-numeric: got %d issues, want 0", len(got))
+		}
+	})
+
+	t.Run("count on categorical is silent", func(t *testing.T) {
+		req := &types.Request{Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "color"},
+			{Type: types.AGG_FREQUENCY, Field: "color"},
+			{Type: types.AGG_MODE, Field: "color"},
+			{Type: types.AGG_DISTINCT_COUNT, Field: "color"},
+			{Type: types.AGG_NULL_COUNT, Field: "color"},
+		}}
+		if got := CategoricalAggregationIssues(req, schema); len(got) != 0 {
+			t.Errorf("categorical-friendly aggs: got %d issues, want 0", len(got))
+		}
+	})
+
+	t.Run("unknown field is silent", func(t *testing.T) {
+		req := &types.Request{Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "missing"},
+		}}
+		if got := CategoricalAggregationIssues(req, schema); len(got) != 0 {
+			t.Errorf("unknown field: got %d issues, want 0 (predict path emits the unknown-field error separately)", len(got))
+		}
+	})
+}
+
 func TestPredict_DescriptionQualityWarning(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{

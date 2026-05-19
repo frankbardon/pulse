@@ -167,6 +167,15 @@ type Options struct {
 	// inputs (parallel formula, see processing.MergeOnline docstrings).
 	ShardWorkers int
 
+	// Strict promotes request-validation warnings into hard errors at
+	// runtime. Today this covers the numeric-aggregation-on-categorical
+	// check (PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL); future runtime
+	// validations follow the same flag. Defaults to false — Process
+	// runs the request and emits warnings through the descriptor
+	// Envelope (visible via --json at the CLI boundary). Predict's
+	// PredictOptions.Strict remains independently controllable.
+	Strict bool
+
 	// ProjectBufferedFields enables buffered-decode field projection.
 	// When true the runtime walks each request to compute the set of
 	// schema fields the operators actually read (processing.NeededFields)
@@ -239,6 +248,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetExtensions(buildRuntimeExtensions(opts.Extensions))
 	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))
 	svc.SetShardWorkers(opts.ShardWorkers)
+	svc.SetStrict(opts.Strict)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:     opts.ImportsDir,
