@@ -30,6 +30,28 @@ type Schema struct {
 	Fields []Field
 }
 
+// RecordByteSize returns the on-wire stride of one record under this
+// schema. Bit-packed fields (PackedBool, NullableBool, NullableU4)
+// report ByteSize()==0 but the wire format still consumes one whole
+// byte per such field (synth/writer.go and io/import.go both advance
+// the byte cursor by one for these types and the RecordReader bit/
+// nibble helpers read one byte each). Summing ByteSize() directly
+// therefore undercounts the stride on any schema that mixes byte-
+// aligned and bit-packed fields — use this helper to keep stride
+// math consistent with the wire writers and reader.
+func (s *Schema) RecordByteSize() int {
+	stride := 0
+	for i := range s.Fields {
+		ft := s.Fields[i].Type
+		if ft == FieldTypePackedBool || ft == FieldTypeNullableBool || ft == FieldTypeNullableU4 {
+			stride++
+			continue
+		}
+		stride += ft.ByteSize()
+	}
+	return stride
+}
+
 // Field returns a pointer to the named field, or nil if not found.
 func (s *Schema) Field(name string) *Field {
 	for i := range s.Fields {

@@ -59,10 +59,7 @@ func RewriteShardCategoricals(shardBytes []byte, targetSchema *Schema, remap map
 		}
 	}
 
-	recordSize := 0
-	for _, f := range srcSchema.Fields {
-		recordSize += f.Type.ByteSize()
-	}
+	recordSize := srcSchema.RecordByteSize()
 
 	remaining := shardBytes[len(shardBytes)-src.Len():]
 

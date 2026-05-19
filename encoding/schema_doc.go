@@ -140,15 +140,8 @@ func (a *Archive) PeekShardRecordCount(name string) (int64, error) {
 			map[string]any{"entry": name, "cause": err.Error()})
 	}
 
-	recordSize := 0
-	for _, f := range schema.Fields {
-		recordSize += f.Type.ByteSize()
-	}
+	recordSize := schema.RecordByteSize()
 	if recordSize == 0 {
-		// Schemas of only bit-packed fields have zero declared size;
-		// the wire format still allocates whole-byte blocks. For S2
-		// we conservatively report zero rather than guess — callers
-		// that need exact counts on such schemas can re-decode.
 		return 0, nil
 	}
 
