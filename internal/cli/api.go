@@ -37,12 +37,14 @@ func apiProcessCmd() *cli.Command {
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
+			&cli.BoolFlag{Name: "strict", Usage: "Promote request-validation warnings into hard errors (e.g. numeric aggregation on a categorical field)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
 			jsonOut := cmd.Bool("json")
 			stream := cmd.Bool("stream")
 			noDefaults := cmd.Bool("no-defaults")
+			strict := cmd.Bool("strict")
 
 			req, err := loadRequest(reqPath)
 			if err != nil {
@@ -52,7 +54,7 @@ func apiProcessCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults})
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, Strict: strict})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
@@ -93,7 +95,24 @@ func apiProcessCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, resp)
+				env := descriptor.NewEnvelope(resp)
+				// Surface the categorical-aggregation warning on the
+				// envelope. Strict mode would have already errored in
+				// Process, so reaching this point in strict mode means
+				// no issues. In non-strict the warnings are advisory
+				// and the run continues.
+				if !strict && req != nil && req.Cohort != nil {
+					cohortPath := req.Cohort.Filename
+					if req.Cohort.DataDir != "" {
+						cohortPath = req.Cohort.DataDir + "/" + req.Cohort.Filename
+					}
+					if cohort, openErr := p.Open(ctx, cohortPath); openErr == nil {
+						for _, entry := range descriptor.CategoricalAggregationIssues(req, cohort.Schema()) {
+							env.AddWarning(entry.Code, entry.Message, entry.Details)
+						}
+					}
+				}
+				return writeJSON(cmd.Writer, env)
 			}
 
 			return writeJSON(cmd.Writer, resp)

@@ -27,6 +27,43 @@ var numericAggregations = map[types.AggregationType]bool{
 	types.AGG_PERCENTILE: true,
 }
 
+// CategoricalAggregationIssues returns one EnvelopeEntry per
+// (Aggregation slot referencing a categorical field, aggregator from
+// numericAggregations) pair found in req. Each entry carries the
+// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL code, a human-readable
+// message, and the {field, aggregation} details map. Strict-mode
+// promotion is the caller's responsibility — the helper itself is
+// non-judgmental and returns nil when the request, schema, or
+// Aggregations slice is empty / nil.
+//
+// Used by:
+//   - validateRequestFields (predict path) — emits to env.Warnings /
+//     env.Errors based on PredictOptions.Strict.
+//   - service.Process — wraps the first entry as a coded error when
+//     Service is configured strict; non-strict emission flows through
+//     the envelope at the CLI boundary.
+func CategoricalAggregationIssues(req *types.Request, schema *encoding.Schema) []*EnvelopeEntry {
+	if req == nil || schema == nil || len(req.Aggregations) == 0 {
+		return nil
+	}
+	var out []*EnvelopeEntry
+	for _, agg := range req.Aggregations {
+		f := schema.Field(agg.Field)
+		if f == nil {
+			continue
+		}
+		if !f.Type.IsCategorical() || !numericAggregations[agg.Type] {
+			continue
+		}
+		out = append(out, &EnvelopeEntry{
+			Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
+			Message: "numeric aggregation " + string(agg.Type) + " is not meaningful for categorical field " + agg.Field,
+			Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type)},
+		})
+	}
+	return out
+}
+
 // decimalSupportedAggregations are the v1 set of aggregations defined on
 // decimal128 fields. Any aggregation outside this set on a decimal field
 // emits PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
@@ -434,6 +471,17 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 // projected column set augments the schema with feature output names so
 // downstream stages can address derived columns.
 func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, opts *PredictOptions) {
+	// Numeric aggregation on categorical field — single helper, strict
+	// promotion happens here so service.Process can share the helper
+	// without owning predict's strict semantics.
+	for _, entry := range CategoricalAggregationIssues(req, schema) {
+		if opts.Strict {
+			env.Errors = append(env.Errors, entry)
+		} else {
+			env.Warnings = append(env.Warnings, entry)
+		}
+	}
+
 	// Check aggregation fields.
 	for _, agg := range req.Aggregations {
 		f := schema.Field(agg.Field)
@@ -447,20 +495,6 @@ func validateRequestFields(env *Envelope, req *types.Request, schema *encoding.S
 				map[string]any{"field": agg.Field, "aggregation": string(agg.Type)},
 			)
 			continue
-		}
-
-		// Warn if numeric aggregation is applied to categorical field.
-		if f.Type.IsCategorical() && numericAggregations[agg.Type] {
-			entry := &EnvelopeEntry{
-				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-				Message: "numeric aggregation " + string(agg.Type) + " is not meaningful for categorical field " + agg.Field,
-				Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type)},
-			}
-			if opts.Strict {
-				env.Errors = append(env.Errors, entry)
-			} else {
-				env.Warnings = append(env.Warnings, entry)
-			}
 		}
 
 		// Decimal field aggregation validity matrix.

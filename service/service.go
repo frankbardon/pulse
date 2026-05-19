@@ -31,6 +31,11 @@ type Service struct {
 	// execution (the pre-S6 path). The reducer caps spawn count at
 	// the shard count regardless of this knob.
 	shardWorkers int
+
+	// strict promotes runtime request-validation warnings into hard
+	// errors. Currently governs the categorical-aggregation check in
+	// Process; matches pulse.Options.Strict.
+	strict bool
 }
 
 // New creates a new Service with the given filesystem configuration.
@@ -97,6 +102,19 @@ func (s *Service) SetShardWorkers(n int) {
 // shard-reduce orchestrator.
 func (s *Service) ShardWorkers() int {
 	return s.shardWorkers
+}
+
+// SetStrict toggles the strict request-validation flag. When true,
+// Process promotes the categorical-aggregation warning into a
+// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL CodedError instead of
+// running the request.
+func (s *Service) SetStrict(strict bool) {
+	s.strict = strict
+}
+
+// Strict reports the current strict-validation setting.
+func (s *Service) Strict() bool {
+	return s.strict
 }
 
 // SetExtensionsSnapshot installs the descriptor-side projection of
@@ -319,6 +337,25 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// omitted, based on each named field's schema type. Caller can opt
 	// out via SetDisableDefaults / pulse.Options{DisableDefaults: true}.
 	s.applyDefaults(req, cohort.Schema())
+
+	// Strict-mode runtime validation: when a request asks for a numeric
+	// aggregation (SUM/AVG/MIN/MAX/STDDEV/VARIANCE/RANGE/ZSCORE/MEDIAN/
+	// PERCENTILE/SKEWNESS/KURTOSIS) against a categorical_* field, we
+	// already emit a warning via the predict envelope. In strict mode
+	// we promote that warning to a hard error here so callers fail
+	// fast instead of producing meaningless aggregates. Non-strict
+	// callers still see the warning through the predict path / the
+	// CLI envelope wiring.
+	if s.strict {
+		if issues := descriptor.CategoricalAggregationIssues(req, cohort.Schema()); len(issues) > 0 {
+			first := issues[0]
+			return nil, errors.NewCodedErrorWithDetails(
+				errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
+				first.Message,
+				first.Details,
+			)
+		}
+	}
 
 	// Per-shard parallel fast path: when the cohort is archive-backed,
 	// the request is mergeable, and ShardWorkers != 1, fan out across

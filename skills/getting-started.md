@@ -75,7 +75,7 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
 
 | Leaf | One-line | mdBook chapter |
 |---|---|---|
-| `process` | Execute a Request from a JSON file | https://frankbardon.github.io/pulse/cli/api-process.html |
+| `process` | Execute a Request from a JSON file. Flags: `--request`, `--json`, `--stream`, `--no-defaults`, `--strict` (promote request-validation warnings into hard errors, e.g. numeric aggregation on a categorical field). | https://frankbardon.github.io/pulse/cli/api-process.html |
 | `compose` | Execute a ComposedRequest batch | https://frankbardon.github.io/pulse/cli/api-compose.html |
 | `predict` | Validate a request against the schema | https://frankbardon.github.io/pulse/cli/api-predict.html |
 | `cohort inspect` | Print schema and descriptions of a `.pulse` file | https://frankbardon.github.io/pulse/cli/cohort-inspect.html |
