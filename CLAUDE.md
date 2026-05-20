@@ -229,6 +229,7 @@ Other load-bearing contract gates (not prefix-matched, enforced by their own pac
 - `PULSE_DATA_DIR` — base directory for `.pulse` cohort files. Used by `fs.Default()` when no explicit `DataDir` or `afero.Fs` is provided. Only required env var for runtime. Bypass via `pulse.Options{DataDir}` or `pulse.Options{FS}`.
 - `PULSE_IMPORTS_DIR` — managed-imports subdir under fs root. Defaults to `imports`. Honoured by `imports.Manager` (and so `pulse_import` / `pulse import auto`). `pulse.Options{ImportsDir}` overrides.
 - `PULSE_IMPORT_TTL` — default TTL for managed imports when caller doesn't pass one. Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin`. Defaults to `7d`. `pulse.Options{ImportTTL}` overrides.
+- `PULSE_LABEL_TABLES_DIR` — directory of JSON files auto-loaded as `LabelTables` at `pulse.New` time. Each `*.json` becomes a registered label table keyed by its filename (without the extension); file content is either a flat `{key: value}` map or `{"description": "...", "rows": {...}}`. Honoured when `pulse.Options{LabelTablesDir}` is empty. Empty / missing dir = no-op.
 
 Hermetic testing: `fs.NewMemMap()` returns a `Config` backed by `afero.NewMemMapFs()`. No disk I/O.
 

@@ -205,6 +205,22 @@ type Options struct {
 	// always safe — the worst case degenerates to the full-decode
 	// behaviour.
 	ProjectBufferedFields bool
+
+	// LabelTablesDir points at a directory of JSON files that the
+	// engine auto-registers as LabelTables at pulse.New time. Empty
+	// disables the loader (the only source of LabelTables is then
+	// Options.Extensions.LabelTables, set programmatically).
+	//
+	// File format: each *.json file is a mapping of source value to
+	// label string, or a wrapped object {"description": "...",
+	// "rows": {"k": "v"}}. The filename without the .json extension
+	// becomes the registered table name.
+	//
+	// Honoured after PULSE_LABEL_TABLES_DIR — programmatic value
+	// wins. Tables loaded from disk merge into Options.Extensions.
+	// LabelTables; collisions are rejected with
+	// PULSE_EXTENSION_DUPLICATE.
+	LabelTablesDir string
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -222,6 +238,9 @@ func (p *Pulse) Service() *service.Service { return p.svc }
 
 // New creates a new Pulse instance with the given options.
 func New(opts Options) (*Pulse, error) {
+	if err := loadLabelTablesFromDir(&opts); err != nil {
+		return nil, err
+	}
 	if err := validateExtensions(opts.Extensions); err != nil {
 		return nil, err
 	}
