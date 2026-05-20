@@ -28,7 +28,7 @@ Self-description is structural: the engine publishes a `Manifest` that names eve
 |---|---|
 | Cohort | A `.pulse` binary file: schema header + fixed-width records. |
 | Schema | Field list (name, type, description) embedded in the cohort header. |
-| Field | One column. Typed with one of 17 field types (`u8` ... `nullable_decimal128`). |
+| Field | One column. Typed with one of 13 field types (`u4` ... `decimal128`). Nullability is orthogonal — set `Nullable: true` on any field to opt into the per-record null bitmap. |
 | Record | One row. Fixed-width binary block. |
 | Aggregation | One of 16 `AGG_*` ops (COUNT, SUM, AVERAGE, ...) producing a per-group scalar. |
 | Attribute | One of 6 `ATTR_*` ops producing a per-record derived value. |
@@ -221,10 +221,12 @@ When an `aggregations[]` or `groups[]` slot names a `field` but omits `type`, Pu
 
 | Field type | Default aggregation | Default grouper |
 |---|---|---|
-| `u8`..`u64`, `f32`, `f64`, `nullable_u*`, `decimal128`, `nullable_decimal128` | `AGG_SUM` | `GROUP_RANGE` (interval 10) |
+| `u4`, `u8`..`u64`, `f32`, `f64`, `decimal128` | `AGG_SUM` | `GROUP_RANGE` (interval 10) |
 | `categorical_u8`/`u16`/`u32` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
 | `date` | (none — must be explicit) | `GROUP_DATE` (component `"day"`) |
-| `nullable_bool`, `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+
+The `Nullable` flag on a field never changes its default operator — it only controls bitmap participation.
 
 Rules: defaults never override an explicit `type`; they never cross categories (a missing aggregator does not insert a grouper); statistical tests (`tests[]`, `post_tests[]`) are not defaulted; filter expressions, features, attributes, and windows are out of scope.
 </reference>

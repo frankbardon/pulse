@@ -1,6 +1,6 @@
 ---
 name: cohort-schema-design
-description: Pick the right .pulse field type — u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, nullable_*, packed_bool, date. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs.
+description: Pick the right .pulse field type — u4/u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, packed_bool, date. Mark any field nullable to opt into the per-record null bitmap. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs.
 type: guide
 applies_to: inspect, predict
 ---
@@ -8,48 +8,57 @@ applies_to: inspect, predict
 # Cohort Schema Design
 
 <skill_overview>
-Schema design determines storage layout, encoding width, and downstream aggregation behavior for a `.pulse` cohort. Invoke this skill when authoring or reviewing a schema template, picking field types, or planning bit-packed runs.
+Schema design determines storage layout, encoding width, and downstream aggregation behavior for a `.pulse` cohort. Invoke this skill when authoring or reviewing a schema template, picking field types, planning bit-packed runs, or deciding which fields carry nulls.
 </skill_overview>
 
 <reference>
-## Field types (all 17)
+## Field types (all 13)
 
 | Type | Byte | Notes |
 |---|---|---|
+| `u4` | 0 | Bit-packed 4-bit unsigned (0..15) |
 | `u8` | 1 | Unsigned 8-bit (0..255) |
 | `u16` | 2 | Unsigned 16-bit (0..65,535) |
 | `u32` | 4 | Unsigned 32-bit (0..~4.29B) |
 | `u64` | 8 | Unsigned 64-bit |
 | `f32` | 4 | IEEE 754, ~7 significant digits |
 | `f64` | 8 | IEEE 754, ~15 significant digits |
-| `nullable_bool` | 0 | Bit-packed tri-state (null/true/false) |
-| `nullable_u4` | 0 | Bit-packed nibble; range 0..14, 15 = null |
-| `nullable_u8` | 1 | 8-bit unsigned with separate null bit |
-| `nullable_u16` | 2 | 16-bit unsigned with separate null bit |
 | `date` | 4 | Epoch days since Unix epoch (1970-01-01), no time component |
-| `packed_bool` | 0 | Bit-packed boolean, no null support |
+| `packed_bool` | 0 | Bit-packed boolean (1 bit) |
 | `categorical_u8` | 1 | Dictionary-encoded, ≤256 entries |
 | `categorical_u16` | 2 | Dictionary-encoded, ≤65,536 entries |
 | `categorical_u32` | 4 | Dictionary-encoded, ≤~4.29B entries |
 | `decimal128` | 16 | Fixed-point exact decimal, per-field (precision, scale) |
-| `nullable_decimal128` | 16 | `decimal128` plus an INT128_MIN null sentinel |
+
+Nullability is orthogonal to type. Any field may carry `Nullable: true` in its schema descriptor — see the "Null bitmap" reference below for the per-record bitmap layout that turns on when at least one field opts in.
+</reference>
+
+<reference>
+## Null bitmap
+
+Every schema field has a `Nullable bool` flag (1 byte on disk per field, alongside the type byte). When at least one field in a schema is marked `Nullable: true`, every record carries a trailing null bitmap of `ceil(field_count / 8)` bytes after the payload bytes. Bit ordering: field index `i` lives in byte `i / 8`, bit `i % 8` (LSB-first within each byte). `1` = null, `0` = present. When no field is nullable, the bitmap is absent and records use the legacy fixed-stride path with zero overhead.
+
+The bitmap is the sole null-tracking mechanism. There is no per-type inline sentinel for nulls — a `decimal128` value of all-zero bits is the canonical decimal zero, not a null marker, and the bitmap decides which rows are null. Aggregators consult `Record.NumericValue` which routes through the bitmap; null-skip semantics for sum/mean/percentile/etc are handled centrally.
+
+Per-record stride is `payload_bytes + ceil(field_count / 8)` when `Schema.HasBitmap()` is true, else `payload_bytes`. `Schema.RecordByteSize()` already includes the bitmap when applicable.
 </reference>
 
 <reference>
 ## Backwards compatibility
 
-Files containing `decimal128` or `nullable_decimal128` fields are unreadable by older binaries that pre-date those types. The reader rejects unknown FieldType bytes at schema parse time with `ENCODING_INVALID` — failure is loud and immediate, not silent at row decode. The format version byte stays at `0x01`; there is no flag-day version bump.
+This is a pre-release clean break — there is no compatibility with files written by earlier Pulse binaries. The format version byte stays at `0x01`; the schema descriptor format changed (added 1-byte Nullable flag per field), so old files fail loud at schema parse with `ENCODING_INVALID`. Recreate datasets through the import / synth path against the new binary.
 </reference>
 
 <reference>
 ## Type selection heuristics
 
-- Counts and IDs: pick the smallest unsigned width that fits the maximum value (`u8` < `u16` < `u32` < `u64`).
+- Counts and IDs: pick the smallest unsigned width that fits the maximum value (`u4` < `u8` < `u16` < `u32` < `u64`).
 - Floats: prefer `f32` for measurements where ~7 significant digits suffice; use `f64` for financial math, computed scores, or wide dynamic range.
-- Booleans without nulls: `packed_bool`. With nulls: `nullable_bool`.
-- Small ordinals with missing values (Likert 1-5, grades): `nullable_u4`.
+- Booleans: `packed_bool`. Add `Nullable: true` if some rows can be missing the value.
+- Small ordinals with missing values (Likert 1-5, grades): `u4` + `Nullable: true`.
 - Calendar dates: `date`. For sub-day timestamps, store as `u64` microseconds.
 - Strings: always categorical. Pick the width by expected distinct cardinality.
+- Any numeric column with sometimes-missing values: pick the base type by range, then add `Nullable: true`. The bitmap costs 1 bit per field per row, paid only when the schema has at least one nullable field.
 </reference>
 
 <reference>
@@ -67,9 +76,10 @@ Exceeding the chosen width raises `PULSE_IMPORT_CATEGORICAL_OVERFLOW`; an unboun
 <rule severity="should" topic="bit-packing">
 ## Bit-packing rules
 
-- `packed_bool`, `nullable_bool`, and `nullable_u4` return `ByteSize() == 0` and share bytes with adjacent packed fields.
+- `packed_bool` and `u4` return `ByteSize() == 0` and share bytes with adjacent packed fields. Use `FieldType.IsBitPacked()` to detect.
 - The encoder coalesces a run of consecutive packed fields into the minimum number of bytes; place packed fields next to each other for optimal layout.
 - Reordering schema fields can change byte offsets even when types are unchanged.
+- The trailing null bitmap (when present) is appended after the payload — bit-packed neighbours still share their payload bytes, and the bitmap occupies its own dedicated trailing bytes.
 </rule>
 
 <rule severity="must" topic="descriptions">

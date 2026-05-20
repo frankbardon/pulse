@@ -3626,7 +3626,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Pick the right .pulse field type — u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, nullable_*, packed_bool, date. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs."
+        "description": "Pick the right .pulse field type — u4/u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, packed_bool, date. Mark any field nullable to opt into the per-record null bitmap. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs."
       },
       {
         "name": "compose-requests",
@@ -3662,7 +3662,7 @@
       },
       {
         "name": "financial-cohorts",
-        "description": "Use decimal128 / nullable_decimal128 for money — precision and scale propagation, banker's rounding, divide-by-zero policy, currency-column patterns. Use when a cohort has monetary fields or hits PULSE_DECIMAL_OVERFLOW / PRECISION_LOSS / DIVIDE_BY_ZERO errors."
+        "description": "Use decimal128 for money — precision and scale propagation, banker's rounding, divide-by-zero policy, currency-column patterns. Nullability is opt-in via Field.Nullable plus the per-record bitmap. Use when a cohort has monetary fields or hits PULSE_DECIMAL_OVERFLOW / PRECISION_LOSS / DIVIDE_BY_ZERO errors."
       },
       {
         "name": "getting-started",
@@ -3806,4 +3806,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: cb30899e043f9a66edf73deafeefe08db765d91a8d2a4981fc4847723f688d6f
+// golden-hash: 67ef9eefa7cbf4eaa89adfcbb3c1566dd458751c9822b5c1ff9de57873750c02
