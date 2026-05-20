@@ -244,6 +244,12 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Validate response-level sort keys against the projected output columns.
 	validateSort(env, req, schema)
 
+	// Validate label bindings (display-time categorical translation). Snapshot
+	// carries the registered label tables; augment-mode collisions are
+	// checked against the projected output column set so a sibling
+	// "<field>_label" cannot shadow an aggregation/attribute label.
+	ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), projected)
+
 	// Check description quality.
 	validateDescriptionQuality(env, schema, opts)
 

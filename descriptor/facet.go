@@ -37,6 +37,13 @@ type FacetValidationResult struct {
 // Callers can use this to gate a UI before issuing the (potentially
 // expensive) FacetSchema call.
 func ValidateFacet(fileData io.ReadSeeker, req *types.FacetRequest) *Envelope {
+	return ValidateFacetWithExtensions(fileData, req, nil)
+}
+
+// ValidateFacetWithExtensions extends ValidateFacet with the
+// embedder-registered extension snapshot so label-table references
+// can be resolved. Pass nil to opt out (same behavior as ValidateFacet).
+func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest, snap *ExtensionsSnapshot) *Envelope {
 	result := &FacetValidationResult{Valid: true, Request: req}
 	env := NewEnvelope(result)
 
@@ -149,6 +156,12 @@ func ValidateFacet(fileData io.ReadSeeker, req *types.FacetRequest) *Envelope {
 				map[string]any{"field": fil.Field, "filterer": string(fil.Type)})
 		}
 	}
+
+	// Validate label bindings against the resolved schema. Facet has no
+	// projected output columns beyond the requested fields, so the extra
+	// set is empty — augment-mode collision detection only checks the
+	// schema namespace.
+	ValidateLabels(env, req.Labels, schema, snap, nil)
 
 	if len(env.Errors) > 0 {
 		result.Valid = false
