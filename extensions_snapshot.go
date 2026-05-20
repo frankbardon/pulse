@@ -116,6 +116,13 @@ func buildExtensionsSnapshot(ext Extensions) *descriptor.ExtensionsSnapshot {
 			HasRowsData: t.Rows != nil,
 		})
 	}
+	for name, t := range ext.LabelTables {
+		snap.LabelTables = append(snap.LabelTables, descriptor.LabelTableMeta{
+			Name:        name,
+			Description: t.Description,
+			HasRowsData: t.Rows != nil,
+		})
+	}
 	return snap
 }
 

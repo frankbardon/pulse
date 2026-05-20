@@ -2939,7 +2939,7 @@
         ]
       }
     ],
-    "error_codes_count": 97,
+    "error_codes_count": 104,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3008,6 +3008,13 @@
       "PULSE_JOIN_KIND_NOT_IMPLEMENTED",
       "PULSE_JOIN_TOO_MANY",
       "PULSE_JOIN_TYPE_MISMATCH",
+      "PULSE_LABEL_COLLISION",
+      "PULSE_LABEL_DUPLICATE_BINDING",
+      "PULSE_LABEL_FIELD_COLLISION",
+      "PULSE_LABEL_FIELD_NOT_CATEGORICAL",
+      "PULSE_LABEL_FIELD_UNKNOWN",
+      "PULSE_LABEL_LOOKUP_MISS",
+      "PULSE_LABEL_TABLE_UNKNOWN",
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
@@ -3986,7 +3993,8 @@
       "tests": [],
       "synth_distributions": [],
       "expr_functions": [],
-      "lookup_tables": []
+      "lookup_tables": [],
+      "label_tables": []
     },
     "facet": {
       "name": "facet_schema",
@@ -4054,4 +4062,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a340f45fb2ad3351af1a95255af90f55cc8a59aaac2926aeed1712ff5a52b1ec
+// golden-hash: 3cd46bde5bfa4fa0e289ddafbb3e0dfe73ea4712c51ac38eb394e0eeef9b4c6b

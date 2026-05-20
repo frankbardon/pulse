@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -108,6 +109,14 @@ type ExportJob struct {
 	Source string // input .pulse path
 	Target Writer
 	FS     afero.Fs
+	// Labels rewrites or augments categorical column values during
+	// export using embedder-registered label tables. Bindings name a
+	// categorical field plus a label table; mode=replace overwrites
+	// the column value, mode=augment emits a sibling "<field>_label"
+	// column. See types.LabelBinding for semantics. Nil/empty means
+	// the exporter writes raw resolved categorical values, matching
+	// pre-label behaviour.
+	Labels []*types.LabelBinding
 }
 
 // NewExportJob creates an ExportJob.
@@ -127,6 +136,10 @@ type ConvertJob struct {
 	KeepPulseAt string // optional: also write intermediate .pulse
 	SampleRows  int
 	FS          afero.Fs
+	// Labels apply to the export phase only — the import side reads
+	// raw source bytes and has no use for label translation. See
+	// ExportJob.Labels.
+	Labels []*types.LabelBinding
 }
 
 // NewConvertJob creates a ConvertJob with default settings.

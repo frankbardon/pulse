@@ -757,6 +757,14 @@ type Request struct {
 	// larger side as the probe — joined records flow through the
 	// standard filter / attribute / group / aggregator pipeline.
 	Joins []*JoinSpec `json:"joins,omitempty"`
+
+	// Labels rewrites or augments categorical output values using
+	// embedder-registered label tables. Each binding pairs a
+	// categorical field with a label-table name and a mode (replace
+	// or augment). Labels are display-only: filters, formulas, sort
+	// keys, and group keys still see raw values. Tables are sourced
+	// from pulse.Options.Extensions.LabelTables.
+	Labels []*LabelBinding `json:"labels,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.

@@ -69,6 +69,14 @@ type (
 	// FacetHistogram is the fixed-width binning of a numeric field.
 	FacetHistogram = types.FacetHistogram
 
+	// LabelBinding pairs a categorical field with a label table for
+	// output-time translation. See types.LabelBinding for semantics.
+	LabelBinding = types.LabelBinding
+	// LabelMode selects replace vs augment rendering for a binding.
+	LabelMode = types.LabelMode
+	// SampleRequest is the labelled variant of the Sample entry point.
+	SampleRequest = types.SampleRequest
+
 	// SynthSpec is the parsed synthesis request shape.
 	SynthSpec = synth.Spec
 	// SynthResult is the result of a successful Synth call.
@@ -93,6 +101,12 @@ type (
 	ErrorMetadata = errors.LookupResult
 	// ErrorFixup is one repair template attached to an error code.
 	ErrorFixup = errors.Fixup
+)
+
+// LabelMode constants re-exported for caller ergonomics.
+const (
+	LabelModeReplace = types.LabelModeReplace
+	LabelModeAugment = types.LabelModeAugment
 )
 
 // Record is a row of field→value data returned by Sample.

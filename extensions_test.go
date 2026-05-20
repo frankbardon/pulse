@@ -343,6 +343,67 @@ func TestExtensions_LookupTableNeitherOrBoth(t *testing.T) {
 	})
 }
 
+func TestExtensions_LabelTableRowsOK(t *testing.T) {
+	ext := pulse.Extensions{
+		LabelTables: map[string]pulse.LabelTable{
+			"country_names": {
+				Description: "ISO 3166-1 alpha-2 → display name",
+				Rows:        map[string]string{"US": "United States", "CA": "Canada"},
+			},
+		},
+	}
+	if _, err := pulse.New(newTestOptions(ext)); err != nil {
+		t.Fatalf("rows-backed label table rejected: %v", err)
+	}
+}
+
+func TestExtensions_LabelTableFuncOK(t *testing.T) {
+	ext := pulse.Extensions{
+		LabelTables: map[string]pulse.LabelTable{
+			"country_names": {
+				Lookup: func(key string) (string, bool, error) {
+					return "Resolved " + key, true, nil
+				},
+			},
+		},
+	}
+	if _, err := pulse.New(newTestOptions(ext)); err != nil {
+		t.Fatalf("function-backed label table rejected: %v", err)
+	}
+}
+
+func TestExtensions_LabelTableNeitherOrBoth(t *testing.T) {
+	t.Run("neither", func(t *testing.T) {
+		ext := pulse.Extensions{
+			LabelTables: map[string]pulse.LabelTable{"x": {}},
+		}
+		_, err := pulse.New(newTestOptions(ext))
+		assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+	})
+	t.Run("both", func(t *testing.T) {
+		ext := pulse.Extensions{
+			LabelTables: map[string]pulse.LabelTable{
+				"x": {
+					Rows:   map[string]string{"k": "v"},
+					Lookup: func(key string) (string, bool, error) { return "v", true, nil },
+				},
+			},
+		}
+		_, err := pulse.New(newTestOptions(ext))
+		assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+	})
+}
+
+func TestExtensions_LabelTableEmptyName(t *testing.T) {
+	ext := pulse.Extensions{
+		LabelTables: map[string]pulse.LabelTable{
+			"": {Rows: map[string]string{"k": "v"}},
+		},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
 func TestExtensions_SynthDistributionCollidesWithBuiltin(t *testing.T) {
 	// "uniform" is in synth.AllDistributions; registering it as an
 	// extension must collide.

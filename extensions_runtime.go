@@ -57,6 +57,16 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		}
 	}
 
+	if len(ext.LabelTables) > 0 {
+		r.LabelTables = make(map[string]processing.LabelTable, len(ext.LabelTables))
+		for name, t := range ext.LabelTables {
+			r.LabelTables[name] = processing.LabelTable{
+				Rows:   t.Rows,
+				Lookup: t.Lookup,
+			}
+		}
+	}
+
 	if len(ext.Aggregators) > 0 {
 		r.Aggregators = make(map[types.AggregationType]processing.AggregatorFactory, len(ext.Aggregators))
 		for _, reg := range ext.Aggregators {
@@ -156,5 +166,6 @@ func hasAnyRegistrations(ext Extensions) bool {
 		len(ext.Tests) > 0 ||
 		len(ext.SynthDistributions) > 0 ||
 		len(ext.ExprFunctions) > 0 ||
-		len(ext.LookupTables) > 0
+		len(ext.LookupTables) > 0 ||
+		len(ext.LabelTables) > 0
 }
