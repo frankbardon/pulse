@@ -1,22 +1,20 @@
 # CLAUDE.md
 
-## Project Overview
+Pulse is a self-describing tabular data processing engine. Ships as Go library (`github.com/frankbardon/pulse`) and CLI (`cmd/pulse/`). Library primary; CLI thin adapter.
 
-Pulse is a self-describing tabular data processing engine. Ships as a Go library (`github.com/frankbardon/pulse`) and a CLI binary (`cmd/pulse/`). Library is primary; CLI is a thin adapter.
+**Design principles**
 
-**Design principles:**
-
-- **Library-first.** `pulse.go` facade (`New`, `Open`, `Process`, `Compose`, `Import`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`) is the public API. CLI never contains business logic.
+- **Library-first.** `pulse.go` facade (`New`, `Open`, `Process`, `Compose`, `Import`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `ProcessStream`, `ProcessChain`, `CountRecords`, `ComposeParallel`) is the public API. CLI never contains business logic.
 - **Self-describing.** Every `.pulse` file carries its schema in the header. `descriptor/` provides `manifest`, `predict`, `inspect` — no-execute operations.
-- **Skill-augmented.** `skills/` embeds 22 markdown skills via `//go:embed`. LLM agents call `skills.List()` / `skills.Get(name)` to inject domain guidance.
-- **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators (AGG/ATTR/FILTER/GROUP/WIN/FEAT/TEST/SYNTH) + expr functions + lookup tables at `pulse.New()` time. Registered extensions are first-class — predict, manifest, MCP schema-binding, and the runtime treat them identically to built-ins. See `skills/extension-points.md`.
-- **Nexus relationship.** Pulse is standalone. Nexus (upstream orchestrator) discovers capabilities via `pulse manifest --json` and loads skills from the embedded pack. Pulse has no dependency on Nexus.
+- **Skill-augmented.** `skills/` embeds 23 markdown skills via `//go:embed`. LLM agents call `skills.List()` / `skills.Get(name)` for domain guidance.
+- **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators (AGG/ATTR/FILTER/GROUP/WIN/FEAT/TEST/SYNTH) + expr functions + lookup tables. First-class — predict, manifest, MCP, runtime treat identically to built-ins. See `skills/extension-points.md`.
+- **Nexus relationship.** Pulse standalone. Nexus discovers via `pulse manifest --json` + loads embedded skills. No reverse dependency.
 
-For contributor recipes — adding an aggregator, attribute, filterer, grouper, window operator, feature operator, statistical test, synth distribution, I/O format, MCP tool, error code, or field type; porting; debugging predict; regenerating goldens; wiring an MCP client — read `skills/contributor-workflow.md`.
+For recipes (adding operators, I/O formats, MCP tools, error codes, field types; porting; debugging predict; regenerating goldens; wiring MCP client) read `skills/contributor-workflow.md`.
 
 ## The Update Demand
 
-Any change to Pulse code, configuration, file format, or public surface MUST update the corresponding skill file(s) and CLAUDE.md in the same PR. Non-skippable CI failure if any trigger fires without the required update.
+Any change to Pulse code, configuration, file format, or public surface MUST update the corresponding skill file(s) and CLAUDE.md in the same PR. Non-skippable CI failure if trigger fires without required update.
 
 | If you change... | You MUST also update... | Enforced by |
 |---|---|---|
@@ -26,41 +24,37 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A registered grouper | `skills/grouper-design.md` + `descriptor/capabilities_groupers.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
 | A registered window operator | `skills/window-operations.md` + `descriptor/capabilities_windows.go` | `TestSkillsCoverAllWindowTypes`, `TestManifestOperatorsComplete` |
 | A registered feature operator | `skills/feature-engineering.md` + `descriptor/capabilities_features.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
-| A registered statistical test (`TEST_*`) | `skills/statistical-testing.md` + `types/streamability.go` + `descriptor/capabilities_tests.go` | `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
-| A registered tier-2 post-test variant | `descriptor/capabilities_tests.go` (`postTestCapabilities`) | `TestManifestPostTestsComplete` |
-| A registered regression operator (`REG_*`) | `skills/regression-modeling.md` + `descriptor/capabilities_regressions.go` | `TestSkillsCoverAllRegressions`, `TestManifestRegressionsComplete` |
-| A regression modifier (`Resample` / `Selection` enum value) | `skills/regression-modeling.md` + capability metadata | `TestManifestRegressionsComplete` |
-| A registered synth distribution kind | `skills/synthetic-data.md` + `descriptor/capabilities_distributions.go` | `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
-| An operator's streaming capability | `types/streamability.go` + `types/streamability_test.go` table | `TestRegistryStreamabilityMatchesTypes`, `TestManifestStreamableMatchesTypes` |
-| An error code (added/removed/renamed) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups via `pulse_errors_lookup` | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
-| A CLI leaf (added/removed/flag added) | `skills/getting-started.md` + `skills/contributor-workflow.md` if internal | `TestSkillsCoverAllCliLeaves` |
+| A registered statistical test (`TEST_*`) or tier-2 variant | `skills/statistical-testing.md` + `types/streamability.go` + `descriptor/capabilities_tests.go` | `TestStreamability_TestsKnown`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete` |
+| A registered regression (`REG_*`) or modifier | `skills/regression-modeling.md` + `descriptor/capabilities_regressions.go` | `TestSkillsCoverAllRegressions`, `TestManifestRegressionsComplete` |
+| A registered synth distribution | `skills/synthetic-data.md` + `descriptor/capabilities_distributions.go` | `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
+| An operator's streaming capability | `types/streamability.go` + `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestManifestStreamableMatchesTypes` |
+| An error code (add/remove/rename) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
+| A CLI leaf (add/remove/flag) | `skills/getting-started.md` + `skills/contributor-workflow.md` if internal | `TestSkillsCoverAllCliLeaves` |
 | A `--json` envelope or `format_version` value | CLAUDE.md "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
-| A `.pulse` file format change (header, new field type) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
+| A `.pulse` file format change (header, field type) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
 | A new non-skippable CI gate | CLAUDE.md "Non-Skippable CI Gates" list | `TestClaudeMdMentionsAllNonSkippableGates` |
 | A new architectural decision | CLAUDE.md (relevant section) + PRD if applicable | reviewer enforcement |
 | An environment variable | CLAUDE.md "Build / Env" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
-| A registered MCP tool (added/removed) | `skills/mcp-integration.md` + `internal/mcp/mcptools/meta.go` | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
-| Managed-import sidecar shape (`imports.Sidecar`) | `skills/mcp-integration.md` (Managed imports + TTL section) + `CLAUDE.md` "Build / Env" env var list | reviewer enforcement |
-| A new MCP action tool with field-name params | `internal/mcp/schema_bind.go` + `skills/mcp-integration.md` (Schema-bound enums section) | `TestMCPSchemaBinding_RemovesInvalidFields`, `TestMCPSchemaBinding_AllFieldsInFiltererEnum`, `TestMCPSchemaBinding_SampleAndFacetFieldEnum`, `TestMCPSchemaBinding_InspectSucceedsRegistersBindings`, `TestMCPSchemaBinding_BindOnOpenFalse` |
-| The default operator table | CLAUDE.md "Smart defaults" + `skills/getting-started.md` | `TestDefaults_Applied` + reviewer enforcement |
-| A natural-query parsing route | `internal/query/query.go` grammar + tests + `skills/query-router-prompt.md` + `skills/request-recipes.md` | `TestNaturalQuery_HeuristicGrammar` |
-| A request example under `examples/` | `_meta` block (unique kebab name, category matching directory, tags from canonical taxonomy, operators alphabetized + matching body) | `TestExamples_AllParseAsRequest`, `TestExamples_UniqueNames`, `TestExamples_TagsFromTaxonomy`, `TestExamples_OperatorsMatchBody`, `TestExamples_CategoryMatchesDirectory`, `TestManifestExamplesPopulated` |
-| Example tag taxonomy | `CanonicalTags` in `examples/library.go` + mdBook chapter `docs/src/examples/library.md` | `TestExamples_TagsFromTaxonomy` |
-| `pulse.Options.Extensions` API (Registration struct shape, ExprFunction, LookupTable, naming rules) | `skills/extension-points.md` + CLAUDE.md "Extension Points" section | `TestExtensions_NameInvalidRegex`, `TestExtensions_ProbeAggregator_StreamableMismatch`, `TestExtensions_Manifest_EmissionPopulatesAllCategories`, `TestExtensions_Predict_AcceptsCustomFeatureType`, `TestMCPSchemaBinding_IncludesCustomAggregator` |
-| Extension registration validation rule (regex, reserved namespace, ParamMeta shape) | `extensions_validate.go` + `skills/extension-points.md` + CLAUDE.md "Extension Points" section | `TestExtensions_NameInvalidRegex`, `TestExtensions_NameReservedNamespace`, `TestExtensions_ParamMetaInvalidJSONType` |
-| `FacetRequest` / `FacetResult` shape | `types/facet.go` + `skills/facet-design.md` + `descriptor/capabilities_facet.go` + `descriptor/facet.go` (`ValidateFacet`) | `TestFacetSchema_*`, `TestManifestFacetCapability` |
-| Facet streamability conditions | `descriptor/capabilities_facet.go` (`StreamableConditions`) + `skills/facet-design.md` | reviewer enforcement |
-| `pulse.Options.ProjectBufferedFields` flag or `processing.NeededFields` extraction (new operator slot, expr identifier source, Params-referenced field) | CLAUDE.md "Projected buffered decode" subsection + `skills/extension-points.md` (FieldInputs hook + extractor surface) | `TestNeededFields_*`, `TestProjection_BufferedMatchesFullDecode_*`, `TestProjection_ByteCursorAlignmentWhenSkipping`, `TestReadRecordProjected_*` |
-| `FieldInputsFunc` hook on a registration struct (added/removed) | `extensions.go` (registration struct field) + `extensions_runtime.go` (wire into ExtensionRegistry.FieldInputs) + `skills/extension-points.md` | `TestNeededFields_ExtensionWithFieldInputs`, `TestNeededFields_UnknownExtensionWidens` |
-| Shard archive layout (entry names, `_schema.pulse` metadata block, magic dispatch, dict prefix rule) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded section) + `skills/contributor-workflow.md` (Adding-a-shard recipe) | `TestShardArchiveLayoutDocumented`, `TestSkillsCoverShardingTopics` |
-| `ChainRequest` / `ChainResponse` shape OR `processing.CanChainRequest` gate (operator allowlist) | `types/chain.go` + `processing/chain.go` + `service/chain.go` + `descriptor/chain.go` (`ValidateChain`) + `descriptor/capabilities_chain.go` (`ProcessChainCapability`) + `skills/contributor-workflow.md` (Adding-a-chain-stage-predicate recipe) + `skills/getting-started.md` + `skills/mcp-integration.md` + CLAUDE.md "ProcessChain" section | `TestProcessChain_*`, `TestValidateChain_*`, `TestSkillsCoverAllCliLeaves`, `TestSkillsCoverAllMCPTools` |
-| `pulse.CountRecords` facade or its O(1) contract (single-file byte budget, archive SHRD trailer fast path) | `service/count.go` + `pulse.go` + CLAUDE.md "Predict / Inspect contracts" CountRecords entry | `TestCountRecords_*` |
-| `Request.Joins` slot or `JoinSpec`/`OnPair` shape (key types, As prefix, kind, multi-join rules) | `types/join.go` + `processing/join.go` (`HashJoinIterator`, `JoinedSchema`, `typesCompatibleForJoin`) + `service/join.go` (`processWithJoin`) + `descriptor/join.go` (`ValidateJoin`) + `descriptor/capabilities_join.go` (`JoinCapability`) + `skills/join-design.md` + CLAUDE.md "Pushdown hash join" section | `TestJoin_*`, `TestValidateJoin_*` |
-| Cohort-analytics aggregator catalog (`AGG_WEIGHTED_MEAN`/`RATIO`/`CI_LOWER`/`CI_UPPER`) | `processing/aggregator_cohort.go` + `types/types.go` + `types/streamability.go` + `descriptor/capabilities_aggregators.go` + `skills/aggregation-guide.md` | `TestAggregator_*`, `TestManifestOperatorsComplete`, `TestStreamability_AggregationsKnown`, `TestRegistryStreamabilityMatchesTypes` |
+| A registered MCP tool (add/remove) | `skills/mcp-integration.md` + `internal/mcp/mcptools/meta.go` | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
+| Managed-import sidecar shape (`imports.Sidecar`) | `skills/mcp-integration.md` + CLAUDE.md "Build / Env" | reviewer enforcement |
+| A new MCP action tool with field-name params | `internal/mcp/schema_bind.go` + `skills/mcp-integration.md` | `TestMCPSchemaBinding_*` suite |
+| The default operator table | CLAUDE.md "Smart defaults" + `skills/getting-started.md` | `TestDefaults_Applied` + reviewer |
+| A natural-query parsing route | `internal/query/query.go` + tests + `skills/query-router-prompt.md` + `skills/request-recipes.md` | `TestNaturalQuery_HeuristicGrammar` |
+| A request example under `examples/` | `_meta` block (kebab name, category=dir, canonical tags, alphabetized operators matching body) | `TestExamples_*` suite |
+| Example tag taxonomy | `CanonicalTags` in `examples/library.go` + `docs/src/examples/library.md` | `TestExamples_TagsFromTaxonomy` |
+| `pulse.Options.Extensions` API or registration validation rule | `extensions_validate.go` + `skills/extension-points.md` + CLAUDE.md "Extension Points" | `TestExtensions_*` suite |
+| `FacetRequest` / `FacetResult` shape or facet streamability | `types/facet.go` + `skills/facet-design.md` + `descriptor/capabilities_facet.go` + `descriptor/facet.go` | `TestFacetSchema_*`, `TestManifestFacetCapability` |
+| `pulse.Options.ProjectBufferedFields` flag or `processing.NeededFields` extractor | CLAUDE.md "Byte-layout invariants" pointer + `skills/extension-points.md` (FieldInputs hook) | `TestNeededFields_*`, `TestProjection_*`, `TestReadRecordProjected_*` |
+| `FieldInputsFunc` hook on a registration struct | `extensions.go` + `extensions_runtime.go` + `skills/extension-points.md` | `TestNeededFields_ExtensionWithFieldInputs`, `TestNeededFields_UnknownExtensionWidens` |
+| Shard archive layout (entry names, `_schema.pulse` block, magic dispatch, dict prefix rule) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded) + `skills/contributor-workflow.md` | `TestShardArchiveLayoutDocumented`, `TestSkillsCoverShardingTopics` |
+| `ChainRequest` / `ChainResponse` shape OR `processing.CanChainRequest` gate | `types/chain.go` + `processing/chain.go` + `service/chain.go` + `descriptor/chain.go` + `descriptor/capabilities_chain.go` + `skills/contributor-workflow.md` + `skills/getting-started.md` + `skills/mcp-integration.md` | `TestProcessChain_*`, `TestValidateChain_*`, `TestSkillsCoverAllCliLeaves`, `TestSkillsCoverAllMCPTools` |
+| `pulse.CountRecords` facade or its O(1) contract | `service/count.go` + `pulse.go` | `TestCountRecords_*` |
+| `Request.Joins` slot or `JoinSpec`/`OnPair` shape | `types/join.go` + `processing/join.go` + `service/join.go` + `descriptor/join.go` + `descriptor/capabilities_join.go` + `skills/join-design.md` | `TestJoin_*`, `TestValidateJoin_*` |
+| Cohort-analytics aggregator catalog (`AGG_WEIGHTED_MEAN`/`RATIO`/`CI_LOWER`/`CI_UPPER`) | `processing/aggregator_cohort.go` + `types/types.go` + `types/streamability.go` + `descriptor/capabilities_aggregators.go` + `skills/aggregation-guide.md` | `TestAggregator_*`, `TestManifestOperatorsComplete`, `TestStreamability_AggregationsKnown` |
 
-The Update Demand applies recursively to itself: new trigger rows require this table to be updated in the same PR. `TestUpdateDemandTableCovers` parses this section and asserts every component category and contract type has a row.
+Table is self-referential — new trigger rows require updating this table in the same PR. `TestUpdateDemandTableCovers` parses this section and asserts every component category and contract type has a row.
 
-If you find yourself wanting to defer the doc/skill update to "a follow-up PR," stop. The follow-up will not happen, the next Claude Code session will read stale guidance and produce wrong code. Update in the same PR or do not merge.
+Defer the doc/skill update to "a follow-up PR" and the follow-up will not happen. Update in the same PR or do not merge.
 
 ## Architecture
 
@@ -74,7 +68,7 @@ pulse/
 │   ├── shard_admin.go      # Create / Add / Remove / List / Extract
 │   ├── shard_compact.go    # Orphan-byte reclamation
 │   ├── shard_verify.go     # Full re-validation
-│   ├── chain.go            # ProcessChain: source-rooted linear chain executor
+│   ├── chain.go            # ProcessChain: source-rooted linear chain
 │   └── anchor_overlay.go   # archive.pulse#shard.pulse anchor overlay
 ├── processing/             # Aggregators, attributes, filterers, groupers
 │   ├── window/             # WIN_* operators
@@ -83,9 +77,7 @@ pulse/
 │   ├── archive.go          # Zip64 read/write + EOCD parsing
 │   ├── schema_doc.go       # _schema.pulse canonical schema + SHRD trailer
 │   └── cohesion.go         # Structural + dict-prefix cohesion validators
-├── io/                     # Tabular ↔ .pulse adapters
-│   ├── csv|tsv|ndjson|jsonarray|jsonshared/
-│   └── arrow|parquet|excel/
+├── io/                     # Tabular ↔ .pulse adapters (csv|tsv|ndjson|jsonarray|jsonshared|arrow|parquet|excel)
 ├── fs/                     # afero-based filesystem abstraction
 ├── errors/                 # Typed error codes (CodedError system)
 ├── types/                  # Request/response structs + streamability table
@@ -94,70 +86,66 @@ pulse/
 ├── examples/               # //go:embed runnable request examples
 ├── synth/                  # Synthetic data generator
 ├── docs/                   # mdBook source (GitHub Pages)
-└── internal/
-    ├── cli/                # CLI internals
-    │   └── shard.go        # pulse shard create/add/remove/list/compact/verify/extract
-    └── mcp/                # MCP server (wraps pulse.Pulse)
-        └── mcptools/       # Tool name + description metadata (no import cycle)
+└── internal/{cli,mcp}/     # CLI internals + MCP server
 ```
 
 `pulse.go` re-exports `types.Request` → `pulse.Request`, `types.Response` → `pulse.Response`, `types.ComposedRequest` → `pulse.ComposedRequest`, plus `synth.Spec`/`Result`/`Options`/`Profile`/`ProfileOptions`.
 
-CLI commands map 1:1 to manifest's command list: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`, and the `shard` group (`shard create`, `shard add`, `shard remove`, `shard list`, `shard compact`, `shard verify`, `shard extract`).
+CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `api {process,compose,facet,process-chain}`.
 
-`internal/mcp/` registers eleven tools (one per facade method plus `pulse_ask` one-shot that collapses inspect→predict→process and `pulse_facet_schema` for multi-field rich facets) and two resource schemes (`pulse://`, `pulse-skill://`).
+`internal/mcp/` registers eleven tools (one per facade method plus `pulse_ask` one-shot + `pulse_facet_schema`) and two resource schemes (`pulse://`, `pulse-skill://`).
 
-Documentation lives in `docs/` (mdBook, published to <https://frankbardon.github.io/pulse/>). Skills under `skills/` are the LLM-facing surface.
+Docs at <https://frankbardon.github.io/pulse/>. Skills under `skills/` are the LLM surface.
 
 ## Code Conventions
 
 ### Naming
 
-- All identifiers, comments, docs are Pulse-native. No predecessor references (`TestNoOrbitPrefix`, `TestNoOrbitPrefixes`).
-- Module path: `github.com/frankbardon/pulse`. `io/` sub-packages imported as `pio "..."` to avoid stdlib collision.
+- Pulse-native identifiers. No predecessor references (`TestNoOrbitPrefix`, `TestNoOrbitPrefixes`).
+- Module path: `github.com/frankbardon/pulse`. `io/` sub-packages imported as `pio "..."`.
 - Component types: SCREAMING_SNAKE — `AGG_COUNT`, `ATTR_ZSCORE`, `FILTER_INCLUDE`, `GROUP_CATEGORY`, `WIN_LAG`, `FEAT_LOG`, `TEST_T`.
 - Error codes: DOMAIN_CATEGORY — `ENCODING_INVALID`, `PROCESSING_CONFIG`, `SERVICE_VALIDATION`, `DATA_FILE`, `CLI_INPUT`, `PULSE_IMPORT_ROW_ERROR`.
 
 ### Error handling
 
-Six error domains: `CLI`, `DATA`, `ENCODING`, `PROCESSING`, `PULSE`, `SERVICE`. Canonical list in `errors/codes.go` (`allCodes`). Every code must have an entry in `codeMetadata` (`errors/fixup_metadata.go`) with a `Message` + at least one `Fixup` template OR `FixupNotApplicable: true`. Per-code prose is reactive lookup via `pulse_errors_lookup` (MCP) / `pulse errors lookup CODE` (CLI). Manifest carries only the alphabetized code-name list.
+Six domains: `CLI`, `DATA`, `ENCODING`, `PROCESSING`, `PULSE`, `SERVICE`. Canonical list in `errors/codes.go` (`allCodes`). Every code needs `codeMetadata` entry (`errors/fixup_metadata.go`) with `Message` + ≥1 `Fixup` template OR `FixupNotApplicable: true`. Per-code prose surfaced via `pulse_errors_lookup` (MCP) / `pulse errors lookup CODE` (CLI). Manifest carries name-only list.
 
-Field descriptions in `.pulse` files are capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_TOO_LONG`). Low-quality descriptions (empty, <10 chars, generic words like "n/a"/"tbd"/"value") emit `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` warnings (errors under `--strict`).
+Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_TOO_LONG`). Low-quality descriptions emit `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` warnings (errors under `--strict`).
 
 ### Byte-layout invariants
 
 `.pulse` binary format:
 
 1. **9-byte header:** 8-byte magic `PULSE\x00\x00\x00` + 1-byte format version `0x01`. `encoding.MagicBytes`, `encoding.FormatVersion`, `encoding.HeaderSize = 9`.
-2. **Schema block:** field descriptors (name, type byte, **nullable flag byte**, byte offset, bit position, optional description). The 1-byte nullable flag sits immediately after the type byte; `1` = field participates in the per-record null bitmap, `0` = field has no null state.
+2. **Schema block:** field descriptors (name, type byte, **nullable flag byte**, byte offset, bit position, optional description). Nullable flag immediately after type byte; `1` = participates in null bitmap.
 3. **Dictionary blocks:** inline after schema for `categorical_u8/u16/u32`.
 4. **Record data:** fixed-width rows; size derived from schema.
-5. **Per-record null bitmap (optional).** When the schema declares at least one nullable field (`Schema.HasBitmap()`), every record carries a trailing bitmap of `ceil(field_count / 8)` bytes after the payload. Bit ordering: field index `i` lives in byte `i / 8`, bit `i % 8` (LSB-first within each byte); `1` = null, `0` = present. When no field is nullable, the bitmap is absent and stride stays at the payload length. Helpers: `encoding.ReadBitmap`, `encoding.WriteBitmap`, `encoding.BitmapIsNull`, `encoding.BitmapSetNull`, `Schema.BitmapByteSize()`.
+5. **Per-record null bitmap (optional).** When schema has any nullable field (`Schema.HasBitmap()`), every record carries trailing bitmap of `ceil(field_count / 8)` bytes. Field index `i` → byte `i/8`, bit `i%8` (LSB-first); `1` = null. Absent when no nullable fields. Helpers: `encoding.ReadBitmap`, `encoding.WriteBitmap`, `encoding.BitmapIsNull`, `encoding.BitmapSetNull`, `Schema.BitmapByteSize()`.
 
-13 field types (full table + sizes in `skills/cohort-schema-design.md`, enforced by `TestSkillsCoverAllFieldTypes`): `u4`, `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `categorical_u8`/`u16`/`u32`, `decimal128`. Bit-packed types (`u4`, `packed_bool`) return `ByteSize() == 0` — they share bytes with adjacent fields (`FieldType.IsBitPacked()` reports this). Nullability is orthogonal to type — any field may carry `Field.Nullable = true` and participate in the per-record bitmap. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`. Decimal128 nulls flow through the bitmap; there is no in-band sentinel — every 16-byte pattern is a legitimate decimal value.
+13 field types (full table in `skills/cohort-schema-design.md`): `u4`, `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `categorical_u8`/`u16`/`u32`, `decimal128`. Bit-packed (`u4`, `packed_bool`) return `ByteSize() == 0` (share bytes with neighbours via `FieldType.IsBitPacked()`). Nullability orthogonal to type. Unknown type byte → `ENCODING_INVALID`. Decimal128 nulls via bitmap only — no in-band sentinel.
 
-**Shard archive variant.** A `.pulse` path can resolve to either the single-file layout above or to a **shard archive** — an uncompressed Zip64 (Method 0, store-only) whose first four bytes are the zip magic `PK\x03\x04` instead of the `PULSE` magic. The single-file byte format is **unchanged**; magic-byte dispatch at `pulse.Open` selects which shape to read. A shard archive carries one reserved `_schema.pulse` entry (header-only canonical schema + SHRD trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Each shard payload is a complete single-file `.pulse` per the layout above. Per-shard cohesion: structural strict (field count, name, type byte, byte_offset, bit_position, categorical width — byte-equal at insert), descriptions tolerant (divergence → warning). Categorical dictionaries grow under union-merge semantics at insert (`CreateShardArchive` / `AddShard`): canonical entries first in their existing order, then any new entries from incoming in their order; divergent incoming shards are byte-rewritten with remapped categorical indices so every record in the archive references the canonical dictionary. Width overflow on the union raises `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. The stricter prefix-only validator (`PULSE_SHARD_DICT_DIVERGENCE`) is retained for `pulse shard verify` and embedders that want to surface divergence as an error. Anchor syntax `archive.pulse#shard.pulse` opens one shard as a one-shard cohort. Concurrency is caller-owned — Pulse does not lock writers; recommended patterns are single-writer or external advisory lock. Forced-buffered ops materialize across the **union** of shards (memory cost scales with shard count). Full layout + dict semantics in `skills/cohort-schema-design.md` (Sharded cohorts).
+**Shard archive variant.** `.pulse` path resolves to either single-file layout above or **shard archive** — uncompressed Zip64 (Method 0, store-only) whose first four bytes are zip magic `PK\x03\x04` instead of `PULSE` magic. Single-file byte format **unchanged**; magic-byte dispatch at `pulse.Open` selects shape. Shard archive carries reserved `_schema.pulse` entry (header-only canonical schema + SHRD trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Per-shard cohesion: structural strict (byte-equal at insert), descriptions tolerant (divergence → warning). Categorical dictionaries grow under union-merge semantics; divergent incoming shards byte-rewritten with remapped indices so every record references canonical dict. Width overflow → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. Stricter prefix-only validator (`PULSE_SHARD_DICT_DIVERGENCE`) retained for `pulse shard verify`. Anchor syntax `archive.pulse#shard.pulse` opens one shard as one-shard cohort. Caller-owned concurrency. Forced-buffered ops materialize across union. Full detail + dict semantics in `skills/cohort-schema-design.md` (Sharded cohorts).
+
+**Projected buffered decode.** `pulse.Options.ProjectBufferedFields` (opt-in) enables per-request field projection on streaming iterator. `processing.NeededFields(req, schema, ext)` walks every request slot — Aggregations, Attributes (incl. expr-AST identifiers via `expr-lang/expr/parser` + `expr-lang/expr/ast` for `ATTR_FORMULA` / `FILTER_EXPRESSION`), Filterers, Groups, Windows (Field + PartitionBy + OrderBy), Features (Field + `stratify`/`target` Params), Tests, Regressions, Sort.Field — returns `FieldSet`. Iterator's `ReadRecordWithWideProjected` advances byte cursors for every field but skips map writes outside set. Bit-packed neighbours stay correct (every field consumes on-wire bytes; only map writes guarded). Extension operators surface `FieldInputs FieldInputsFunc` — absent → projection widens to `*` (full-decode fallback). Detail: `skills/extension-points.md`.
 
 ### Smart defaults
 
-When a request slot names a field but omits the operator `Type`, the engine infers it from the schema type. Rule table lives in `descriptor/defaults.go` (`defaultRules`).
+When a request slot names a field but omits `Type`, engine infers from schema type. Table in `descriptor/defaults.go` (`defaultRules`).
 
 | Field type | Default aggregation | Default grouper |
 |---|---|---|
 | numeric (u4/u8/u16/u32/u64, f32/f64, decimal128) | `AGG_SUM` | `GROUP_RANGE` (Interval 10) |
 | categorical_* | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
-| `date` | (explicit only) | `GROUP_DATE` (component `"day"`) |
+| `date` | (explicit only) | `GROUP_DATE` (`"day"`) |
 | `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
 
-`Field.Nullable` is orthogonal — it never changes the inferred operator, only whether the field participates in the bitmap.
-
-Defaults apply only when `Field` is set and `Type` is empty; never override explicit `Type`; never cross categories; never default tier-1/tier-2 tests, filter expressions, attributes, windows, or features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
+`Field.Nullable` orthogonal — never changes inferred operator, only bitmap participation. Defaults apply only when `Field` set and `Type` empty; never override explicit `Type`; never cross categories; never default tier-1/tier-2 tests, filter expressions, attributes, windows, features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
 
 ## Output Format Contract
 
 ### `--json` envelope
 
-All `--json` CLI output and descriptor operations use `descriptor.Envelope`:
+All `--json` CLI output + descriptor operations use `descriptor.Envelope`:
 
 ```json
 {
@@ -168,93 +156,46 @@ All `--json` CLI output and descriptor operations use `descriptor.Envelope`:
 }
 ```
 
-- `format_version` is always `"1.0"`. Changes MUST update this section (`TestClaudeMdMentionsFormatVersion`).
-- `errors` / `warnings` use `{"code", "message", "details"}` entries. Empty array (never null) when absent.
+- `format_version` always `"1.0"`. Changes MUST update this section.
+- `errors` / `warnings` use `{"code", "message", "details"}`. Empty array (never null) when absent.
 
-Additive-only policy: bump `format_version` only on backward-incompatible envelope shape changes. New `data` fields don't trigger a bump; renames/removals do.
+Additive-only: bump `format_version` only on backward-incompatible shape changes. New `data` fields don't bump; renames/removals do.
 
 ### Structural defense bans
 
-- **No `fmt.Sprintf`-built JSON.** All structured output goes through `encoding/json`. Grep-gated by `TestDescriptorNoFmtSprintf` over `descriptor/envelope.go`, `manifest.go`, `predict.go`, `inspect.go`.
-- **No hand-built XML/CDATA.** Use `encoding/xml` if XML is ever added.
+- **No `fmt.Sprintf`-built JSON.** All structured output through `encoding/json`. Grep-gated by `TestDescriptorNoFmtSprintf`.
+- **No hand-built XML/CDATA.** Use `encoding/xml`.
 - Use `descriptor.NewEnvelope(data)` — auto-sets `format_version`, empty `errors`, empty `warnings`.
 
 ### Manifest payload
 
-`descriptor.BuildManifest()` returns a deterministic LLM-bootstrap blob — one fetch per session, client-cached. Reachable via `pulse manifest --json` and `pulse_manifest`. Top-level fields on `Manifest` (sort-stable, golden-checked at `descriptor/testdata/manifest.json`):
-
-- `format_version` — `"1.0"`.
-- `commands []Command` — CLI leaf catalog.
-- `components Components` — six `[]Operator` slices (aggregators, attributes, filterers, groupers, windows, features). Each carries `name`, `category`, `description`, `params`, `accepts_types`, `emits_type` / `emits_type_note`, `streamable`, `streamable_hint`.
-- `tests []TestMeta` (tier-1) + `post_tests []TestMeta` (tier-2 with non-empty `variant`, `family ∈ AllTestTypes()`).
-- `synth_distributions []DistributionMeta`.
-- `error_codes_count int` + `error_domains []string` + `error_codes []string` — slim, name-only. Per-code detail via `pulse_errors_lookup`.
-- `mcp_tools []MCPTool`, `cohort_types []CohortFieldType` (with compatible-operator cross-refs), `skills []SkillMeta`.
-
-Capability declarations live in `descriptor/capabilities_*.go`. MCP tool metadata lives in `internal/mcp/mcptools/meta.go` (descriptor mirrors it without import cycle).
+`descriptor.BuildManifest()` returns deterministic LLM-bootstrap blob — one fetch per session, client-cached. Reachable via `pulse manifest --json` and `pulse_manifest`. Top-level: `format_version`, `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim, name-only), `mcp_tools`, `cohort_types`, `skills`, `extensions`, plus capability blocks `Facet`, `Join`, `ProcessChain`. Sort-stable; golden-checked at `descriptor/testdata/manifest.json`. Capability declarations: `descriptor/capabilities_*.go`. MCP tool metadata: `internal/mcp/mcptools/meta.go`.
 
 ### Predict / Inspect contracts
 
-- **Predict structural ban:** `descriptor/predict.go` MUST NOT import `service/` or `processing/`. Enforced by `TestPredictNoExecutionImports`. Predict reads only header + schema, never records. For capability lookups, use `types/` constants (e.g., `types.AllAggregationTypes()`).
-- **Inspect header-only:** reads only `encoding.ReadHeader` + `encoding.ReadSchema`. Dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`. Missing descriptions get a synthesized fallback with `description_source` flagged.
-- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods on `types.AggregationType`/`AttributeType`/`FiltererType`/`GroupType`/`WindowType`/`FeatureType` plus schema gates (decimal). Runtime parity via `processing.CanStreamRequest(req, schema)` (`TestPredict_Streamable_MatchesRuntime`).
-- **CountRecords header-fast:** `pulse.CountRecords(ctx, path) (uint64, error)` returns the cohort's record total without decoding payload bytes. Single-file: stat the file, stream header + schema through a counting reader, derive `count = (size − header − schema) / record_stride` — bytes read bounded by header+schema budget (`TestCountRecords_HeaderOnly`). Shard archive: read the zip central directory + `_schema.pulse` SHRD trailer's `AggregateRecordCount`; falls back to per-shard `PeekShardRecordCount` when the trailer is absent. Anchor (`archive#shard`): the named shard's count.
+- **Predict structural ban:** `descriptor/predict.go` MUST NOT import `service/` or `processing/`. Enforced by `TestPredictNoExecutionImports`. Reads only header + schema, never records. Capability lookups via `types/` constants.
+- **Inspect header-only:** reads only `encoding.ReadHeader` + `encoding.ReadSchema`. Dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`. Missing descriptions get synthesized fallback flagged with `description_source`.
+- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity via `processing.CanStreamRequest(req, schema)`.
+- **CountRecords header-fast:** `pulse.CountRecords(ctx, path) (uint64, error)` returns record total without decoding payload. Single-file: `(size − header − schema) / record_stride`. Shard archive: zip central directory + `_schema.pulse` SHRD trailer `AggregateRecordCount` (fallback to per-shard `PeekShardRecordCount`). Anchor: named shard's count.
 
-### Streaming Process
+### Execution modes (pointers)
 
-Four orchestrator modes — single-pass, grouped, two-pass attributes (Welford-Pébaÿ), streaming features. Forced buffered: median/percentile/zscore aggregators, `ATTR_PERCENTILE`, `GROUP_QUANTILE`/`GROUP_DATE`, window operators, decimal paths, tier-1 tests combined with groupers/features/two-pass attrs, all tier-2 tests. CLI streams via `pulse api process --stream` / `pulse api compose --stream` (NDJSON one row per line). Library: `pulse.ProcessStream(ctx, req) (RowIter, error)`.
+Heavy detail lives in the named skill — CLAUDE.md keeps the gate-relevant facts only.
 
-### Projected buffered decode
-
-`pulse.Options.ProjectBufferedFields` (opt-in, defaults `false`) enables per-request field projection on the streaming iterator. When enabled, `processing.NeededFields(req, schema, ext)` walks every request slot — Aggregations.Field, Attributes (Field, Target, Predictors, expr-AST identifiers via `expr-lang/expr/parser` + `expr-lang/expr/ast` for `ATTR_FORMULA` / `FILTER_EXPRESSION`), Filterers.Field, Groups.Field, Windows (Field + PartitionBy + OrderBy), Features (Field + `stratify` / `target` from Params for `FEAT_TRAIN_TEST_SPLIT` / `FEAT_TARGET_ENCODE`), Tests (Field, Field2, SplitBy, Rows, Cols, SubjectField, OrderBy), Regressions (Target + Predictors), Sort.Field — and returns the `FieldSet` the request actually reads. The iterator's `ReadRecordWithWideProjected` then advances byte cursors for every field but skips map writes outside the set. Per-record `values`/`nulls`/`wide` map allocations drop proportional to the projection ratio; decode CPU is unchanged. Bit-packed neighbours stay correct because every field still consumes its on-wire bytes, only the map writes are guarded.
-
-Extension operators surface a per-registration `FieldInputs FieldInputsFunc` hook. When set, the projection extractor calls it with the operator's `Params` and includes the returned field names. When absent on a custom operator, the extractor widens to `*` (every field) — projection then falls back to the full-decode path so the runtime stays correct. Built-in operators are fully introspectable; only extension-resolved operators can widen.
-
-### Parallel Compose
-
-`pulse.ComposeParallel(ctx, req, opts)` fans out a `ComposedRequest` over a bounded worker pool. Order-preserving by slot index. `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` (FailFast defaults true). CLI: `pulse api compose --parallel N [--no-fail-fast]`.
-
-### Parallel shards
-
-`pulse.Options.ShardWorkers` (default `0` ⇒ `runtime.NumCPU()`, opt-out `1`, negative invalid) enables a bounded per-shard worker pool inside `Process` when the cohort backs onto a shard archive. The reducer engages only when every operator is mergeable per `processing.CanMergeRequest`: aggregators in {`AGG_COUNT`, `AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_RANGE`, `AGG_VARIANCE`, `AGG_STDDEV`, `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_NULL_COUNT`}; groupers in {`GROUP_CATEGORY`, `GROUP_RANGE`}; filterers row-local (all built-ins); attributes empty or row-local only (`ATTR_FORMULA`, `ATTR_DATE_PART`); no windows / features / regressions / tests / two-pass attributes; non-decimal targets; built-in (not extension) operators only. Non-mergeable requests fall through to the serial `shardIter` path with byte-for-byte identical semantics — no worker spawning. Worker count is capped at the shard count (no point spawning more workers than shards). Order semantics: partials merge in shard insertion order (zip central-directory order). Associative+commutative aggregators produce byte-equal results vs serial; Welford mean / variance / stddev drift within ULP via the Chan-Welford parallel formula (`n = n_a + n_b`, weighted mean, `M2 = M2_a + M2_b + δ² · n_a · n_b / n`). `AGG_FREQUENCY` ties broken by dict order within the canonical schema across the merge.
-
-Implementation surface: `service/shard_reduce.go` (orchestrator + partial-state shape), `processing.MergeableAggregator` (`MergeOnline(other) error` on each mergeable aggregator), `processing.CanMergeRequest`, `types.AggregationType.Mergeable()` / `types.GroupType.Mergeable()`.
-
-### ProcessChain
-
-`pulse.ProcessChain(ctx, *ChainRequest) (*ChainResponse, error)` executes a source-rooted linear chain of `Request`s. Stage 0 runs against `ChainRequest.Cohort`; each subsequent stage receives the prior stage's `Response.Data` as a synthesised in-memory cohort (grouper keys become categorical_u32, aggregator outputs become f64, dictionaries lazily populated). The chain executor reuses the standard `processing.Processor` against a `SliceIterator` for stages >= 1 — no file open, no schema decode.
-
-Mergeable-only at v1. The gate (`processing.CanChainRequest`) requires `CanMergeRequest` to hold AND every aggregator to emit a single scalar (`AGG_FREQUENCY` / `AGG_MODE` are rejected because their Finalize emits a map/string). A failing stage surfaces `PULSE_CHAIN_NOT_MERGEABLE` with `{stage_index, stage_name}` in details so embedders can fall back to per-stage `Process`. An empty `Stages` slice surfaces `PULSE_CHAIN_EMPTY`.
-
-Predict equivalent: `descriptor.ValidateChain(data, *ChainRequest)` walks each stage against its predicted-input schema (synthesised from the prior stage's output), reports unknown-field references as `SERVICE_VALIDATION`, gate failures as `PULSE_CHAIN_NOT_MERGEABLE`, and emits per-stage output-field lists for debugging. No execution imports — descriptor's no-execute contract holds.
-
-CLI: `pulse api process-chain --request chain.json [--json] [--no-defaults]`. MCP: `pulse_process_chain` with a JSON-encoded `ChainRequest`. Manifest exposes `Manifest.ProcessChain` (mergeable aggregator/grouper/attribute allowlists + rejection-rule prose) for LLM-side routing between chain and per-stage fallback.
-
-Implementation surface: `types/chain.go` (request/response shapes), `processing/chain.go` (`CanChainRequest`, `ChainOutputSchema`, `RecordsFromChainRows`), `service/chain.go` (`Service.ProcessChain`), `descriptor/chain.go` (`ValidateChain`), `descriptor/capabilities_chain.go` (`ProcessChainCapability`).
-
-### Pushdown hash join
-
-`Request.Joins []*JoinSpec` enables pushdown equi-join. v1 envelope:
-
-- **Exactly one JoinSpec per Request.** `PULSE_JOIN_TOO_MANY` for two or more entries; multi-join chains land when the orchestrator gains a per-join intermediate state machine.
-- **Inner join only.** `PULSE_JOIN_KIND_NOT_IMPLEMENTED` for `"left"`, `"outer"`, `"anti"`. Outer-join correctness depends on the null bitmap being fully wired through every synthesised right-side field.
-- **In-memory build.** The right (build) side is materialised as a slice of `*Record`; the left (probe) side streams through `HashJoinIterator`. No spill in v1; `PULSE_JOIN_SPILL_DIR` + `PULSE_JOIN_MAX_MEMORY_BYTES` are reserved env vars for the follow-up partition-then-build-per-partition path.
-- **No smarter-side detection.** Build is always the spec's `Right` cohort. `pulse.CountRecords` (P-UP-4) is in place, but the orchestrator does not yet swap sides automatically.
-- **Joined schema.** `JoinedSchema(left, right, spec)` produces `left.Fields + right.Fields` with optional `spec.As` prefix on right fields. Non-prefixed collisions → `PULSE_JOIN_FIELD_COLLISION`.
-- **Key compatibility.** Identical types match; categorical of any width match each other; the unsigned-int / float / date numeric family is interchangeable within itself. Decimal128 keys reject cross-type comparisons.
-
-Implementation surface: `types/join.go` (`JoinSpec`, `OnPair`), `processing/join.go` (`HashJoinIterator`, `JoinedSchema`, `typesCompatibleForJoin`), `service/join.go` (`processWithJoin`), `descriptor/join.go` (`ValidateJoin`), `descriptor/capabilities_join.go` (`JoinCapability` — `Manifest.Join`).
-
-### Facet endpoints
-
-Two facet entry points. `pulse.Facet(ctx, path, field)` is the simple distinct-values returner — categorical fast path through the dictionary, numeric fields stream the file. `pulse.FacetSchema(ctx, *FacetRequest)` is the multi-field rich endpoint: per-value counts (sorted descending by count, ties ascending by value), null tallies, Welford online numeric stats (count/sum/min/max/mean/stddev), optional `NumericPercentiles` (forces a buffered per-field sort), optional `IncludeHistogram` with caller-supplied `HistogramRange` (single-pass), optional `DiscreteTopK` truncation with `TruncatedAt` warning, and optional `AdditiveFields` contribution counts that strip the field's own clauses from a copy of the base filter. Capability descriptor lives on `Manifest.Facet`. `descriptor.ValidateFacet(data, req)` is the no-execute predict equivalent. CLI: `pulse api facet` falls back to the simple shape unless any rich flag (`--request`, repeat `--field`, `--top-k`, `--percentile`, `--histogram`, `--additive`) is set; MCP exposes both `pulse_facet` and `pulse_facet_schema`.
+- **Streaming Process** (`pulse.ProcessStream`, `pulse api process --stream`): four orchestrator modes — single-pass, grouped, two-pass attributes (Welford-Pébaÿ), streaming features. Forced-buffered: median/percentile/zscore aggregators, `ATTR_PERCENTILE`, `GROUP_QUANTILE`/`GROUP_DATE`, window operators, decimal paths, tier-1 tests with groupers/features/two-pass, all tier-2 tests. NDJSON one row per line. See `skills/getting-started.md`.
+- **Projected buffered decode**: see "Byte-layout invariants" subsection above and `skills/extension-points.md` for the `FieldInputs` hook.
+- **Parallel Compose** (`pulse.ComposeParallel`, `pulse api compose --parallel N`): bounded worker pool over `ComposedRequest`. Order-preserving by slot index. `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` (FailFast defaults true). See `skills/compose-requests.md`.
+- **Parallel shards** (`pulse.Options.ShardWorkers`, default `0` ⇒ `runtime.NumCPU()`): bounded per-shard worker pool inside `Process` when cohort is a shard archive. Reducer engages only when every operator is mergeable per `processing.CanMergeRequest` (built-ins only; non-decimal targets; no windows/features/regressions/tests/two-pass). Non-mergeable falls through to serial `shardIter`. Associative+commutative byte-equal vs serial; Welford within ULP via Chan-Welford. Surface: `service/shard_reduce.go`, `processing.MergeableAggregator`, `types.AggregationType.Mergeable()`. See `skills/cohort-schema-design.md` (Sharded).
+- **ProcessChain** (`pulse.ProcessChain`, `pulse_process_chain`, `pulse api process-chain`): source-rooted linear chain. Stage 0 against `ChainRequest.Cohort`; subsequent stages receive prior `Response.Data` as synthesised in-memory cohort (grouper keys → categorical_u32, aggregator outputs → f64). Mergeable-only at v1 (`CanChainRequest` requires `CanMergeRequest` AND scalar aggregator emission — rejects `AGG_FREQUENCY`/`AGG_MODE`). Failures: `PULSE_CHAIN_NOT_MERGEABLE` (with `stage_index`/`stage_name`), `PULSE_CHAIN_EMPTY`. Predict equivalent: `descriptor.ValidateChain`. Surface: `types/chain.go`, `processing/chain.go`, `service/chain.go`, `descriptor/chain.go`, `descriptor/capabilities_chain.go`. See `skills/contributor-workflow.md`.
+- **Pushdown hash join** (`Request.Joins []*JoinSpec`): v1 = exactly one inner join per Request (`PULSE_JOIN_TOO_MANY`, `PULSE_JOIN_KIND_NOT_IMPLEMENTED`); in-memory build (no spill; `PULSE_JOIN_SPILL_DIR` + `PULSE_JOIN_MAX_MEMORY_BYTES` reserved); no smarter-side detection. `JoinedSchema(left,right,spec)` produces `left.Fields + right.Fields` with optional `spec.As` prefix; non-prefixed collisions → `PULSE_JOIN_FIELD_COLLISION`. Key compatibility: identical types match; categorical of any width match; unsigned-int/float/date numeric family interchangeable; decimal128 rejects cross-type. Surface: `types/join.go`, `processing/join.go`, `service/join.go`, `descriptor/join.go`, `descriptor/capabilities_join.go`. See `skills/join-design.md`.
+- **Facet endpoints**: `pulse.Facet(ctx, path, field)` simple distinct-values (categorical fast path through dict, numeric streams file). `pulse.FacetSchema(ctx, *FacetRequest)` rich multi-field — counts (sorted desc by count, ties asc by value), null tallies, Welford online numeric stats, optional `NumericPercentiles` (forces buffered per-field sort), optional `IncludeHistogram` with caller-supplied `HistogramRange` (single-pass), optional `DiscreteTopK` (`TruncatedAt` warning), optional `AdditiveFields` contribution counts. Capability: `Manifest.Facet`. Predict: `descriptor.ValidateFacet`. CLI `pulse api facet` falls back to simple shape unless rich flag set. See `skills/facet-design.md`.
 
 ## Non-Skippable CI Gates
 
 CLAUDE.md hygiene:
-- `TestClaudeMdMentionsFormatVersion` — CLAUDE.md must mention the current `format_version` `"1.0"`.
+- `TestClaudeMdMentionsFormatVersion` — CLAUDE.md must mention current `format_version` `"1.0"`.
 - `TestClaudeMdMentionsAllEnvVars` — every `PULSE_*` env var in Go source must appear in CLAUDE.md.
-- `TestClaudeMdMentionsAllNonSkippableGates` — every test name with these prefixes must be listed in CLAUDE.md.
+- `TestClaudeMdMentionsAllNonSkippableGates` — every test name with these prefixes (`TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage`) must be listed in CLAUDE.md.
 - `TestUpdateDemandTableCovers` — Update Demand table must cover every component category and contract type.
 
 Predecessor-reference hygiene:
@@ -273,97 +214,45 @@ Skill-coverage:
 - `TestSkillsCoverAllFieldTypes` — every field type appears in `skills/cohort-schema-design.md`.
 - `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator appears in `skills/window-operations.md`.
 - `TestSkillsCoverAllMCPTools` — every registered MCP tool appears in `skills/mcp-integration.md`.
-- `TestSkillsCoverAllSynthDistributions` — every distribution kind in `synth.AllDistributions()` appears in `skills/synthetic-data.md`.
+- `TestSkillsCoverAllSynthDistributions` — every distribution kind appears in `skills/synthetic-data.md`.
 - `TestSkillsCoverAllRegressions` — every `REG_*` operator appears in `skills/regression-modeling.md`.
+- `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section and `skills/contributor-workflow.md` mentions sharding.
 
-Extension API contract:
-- `TestExtensions_ValidRegistrationPasses` — round-trip a valid registration through `pulse.New`.
-- `TestExtensions_NameInvalidRegex` — name validation rejects malformed registrations.
-- `TestExtensions_NameWrongCategoryPrefix` — an `AggregatorRegistration` cannot smuggle an `ATTR_*`-prefixed name (and so on).
-- `TestExtensions_NameReservedNamespace` — `BUILTIN/STANDARD/CORE/PULSE` namespaces rejected.
-- `TestExtensions_CollisionWithBuiltin` — registering a built-in name returns `PULSE_EXTENSION_NAME_COLLISION`.
-- `TestExtensions_DuplicateWithinCategory` — duplicate registration in same category rejected.
-- `TestExtensions_DuplicateAcrossCategoriesAllowed` — same suffix is fine across category prefixes.
-- `TestExtensions_ParamMetaInvalidJSONType` / `TestExtensions_ParamMetaEmptyName` / `TestExtensions_ParamMetaRequiredWithDefault` — ParamMeta validation.
-- `TestExtensions_AttributeModeRequired` / `TestExtensions_AttributeModeUnknown` — attribute Mode enforcement.
-- `TestExtensions_TestTierMissingFactory` / `TestExtensions_TestTierBothFactoriesSet` — test tier ↔ factory pairing.
-- `TestExtensions_ExprFunctionEmptyName` / `TestExtensions_ExprFunctionNilFn` / `TestExtensions_ExprFunctionDuplicate` — expr-function validation.
-- `TestExtensions_LookupTableRowsOK` / `TestExtensions_LookupTableFuncOK` / `TestExtensions_LookupTableNeitherOrBoth` — exactly-one-of Rows/Lookup.
-- `TestExtensions_ProbeAggregator_StreamableMismatch` — Streamable=true with buffered-only factory.
-- `TestExtensions_ProbeAggregator_NonStreamableAccepted` — non-streamable registration accepts buffered-only factory.
-- `TestExtensions_ProbeAggregator_FactoryPanicCaught` / `TestExtensions_ProbeAggregator_FactoryReturnsError` / `TestExtensions_ProbeAggregator_FactoryReturnsNil` — probe error surface.
-- `TestExtensions_ProbeAttribute_RowLocalMismatch` / `TestExtensions_ProbeAttribute_TwoPassMismatch` / `TestExtensions_ProbeAttribute_BufferedAcceptsAnyComputer` — attribute Mode ↔ interface contract.
-- `TestExtensions_RegistryInstalledOnService` / `TestExtensions_ZeroValueProducesNilRegistry` / `TestExtensions_RegistryIsolationAcrossInstances` / `TestExtensions_RegistryFallsThroughToBuiltins` / `TestExtensions_OnlyExprEntriesYieldsRegistry` / `TestExtensions_AttributeStreamabilityFromMode` — Service-side wiring.
-- `TestExtensionRegistry_NilFallsThroughToBuiltin` / `TestExtensionRegistry_OverlayWinsOverBuiltin` / `TestExtensionRegistry_CustomAggregatorResolves` / `TestExtensionRegistry_IsStreamableOverridesBuiltin` / `TestExtensionRegistry_IsStreamableFallsBackToTypeSwitch` / `TestExtensionRegistry_IsolationBetweenRegistries` / `TestExtensionRegistry_CustomNamesEnumerateOverlayOnly` — overlay-registry semantics.
-- `TestExtensions_AggregatorRoundTrip_Streaming` / `_Buffered` / `_OverlayOverridesBuiltin` — aggregator end-to-end.
-- `TestExtensions_AttributeRoundTrip_RowLocal` / `_Buffered` — attribute end-to-end.
-- `TestExtensions_FiltererRoundTrip` / `TestExtensions_GrouperRoundTrip` / `TestExtensions_WindowRoundTrip` / `TestExtensions_FeatureRoundTrip` / `TestExtensions_TestRoundTrip_Tier1` / `TestExtensions_TestRoundTrip_Tier2` — remaining categories.
-- `TestExtensions_ExprFunction_AvailableInFormula` / `TestExtensions_LookupTable_AvailableInFormula` / `TestExtensions_LookupTable_AvailableInFilterExpression` / `TestExtensions_LookupTable_UnknownReturnsCodedError` / `TestExtensions_LookupTable_MissReturnsCodedError` / `TestExtensions_LookupTable_FuncBackedResolves` — expr env round-trip.
-- `TestExtensions_Manifest_EmissionPopulatesAllCategories` / `TestExtensions_Manifest_EmptyWhenNoExtensions` / `TestExtensions_Manifest_DeterministicSort` — manifest emission.
-- `TestExtensions_Predict_AcceptsCustomFeatureType` / `TestExtensions_Predict_FlagsUnknownCustomFeature` / `TestExtensions_Predict_StreamableFlagFromSnapshot` / `TestExtensions_Predict_BufferedCustomAggregatorBlocksStreaming` / `TestExtensions_Predict_DescriptorImportContractHolds` — predict integration.
-- `TestMCPSchemaBinding_IncludesCustomAggregator` / `TestMCPSchemaBinding_BackwardCompatBindNoCustomNames` / `TestMCPSchemaBinding_DedupAndSort` — MCP schema binding.
-
-Sharding contract:
-- `TestShardArchiveStructuralCohesion` — incoming shard's structural schema must be byte-equal to canonical (field count, name, type, byte_offset, bit_position, categorical width); mismatches raise `PULSE_SHARD_SCHEMA_MISMATCH`.
-- `TestShardArchiveDictPrefixRule` — categorical dictionaries must be prefix-related across shards; incoming-prefix-of-canonical accepts, canonical-prefix-of-incoming returns an extended canonical schema, neither raises `PULSE_SHARD_DICT_DIVERGENCE`.
-- `TestShardArchiveDictWidthOverflow` — dictionary extensions exceeding the declared width capacity (256 / 65 536 / 2^32) raise `PULSE_SHARD_DICT_WIDTH_OVERFLOW`.
-- `TestShardArchiveDescriptionDivergenceWarns` — per-field description divergence emits `PULSE_SHARD_DESCRIPTION_DIVERGENCE` as a warning (not an error); canonical description wins downstream.
-- `TestShardArchiveProcessSums` — `Process` on a shard archive equals `Process` on a manually-concatenated single-file cohort: byte-equal for associative+commutative ops (`AGG_COUNT`/`AGG_SUM`/`AGG_MIN`/`AGG_MAX`), ULP-tolerant for Welford-mean (`AGG_AVERAGE`).
-- `TestShardArchiveSampleGlobalOffsetLimit` — `Sample` applies offset and limit globally across the union of shards in central-directory (insertion) order; offsets that span into later shards yield rows from those shards onward and limits that span multiple shards collect across them in order. Single-file path unchanged.
-- `TestShardArchiveFacetSchemaMatches` — `FacetSchema` on a shard archive equals `FacetSchema` on a manually-concatenated single-file cohort: count/sum/min/max/mean/stddev byte-or-ULP-equal, optional percentiles match (forced-buffered union materialization), and optional histograms match bin-for-bin (single-pass union). Simple `Facet` returns the canonical dictionary for categorical fields and a union-distinct numeric set otherwise.
-- `TestShardArchiveProcessStream` — `ProcessStream` on a shard archive yields rows shard-by-shard in central-directory (insertion) order, with rows inside each shard preserving the shard's record order. Online aggregators accumulate across shards (`AGG_COUNT`/`AGG_SUM`/`AGG_MIN`/`AGG_MAX` byte-equal to concat); filters apply per-row across the union; forced-buffered ops (windows, percentile, etc.) materialize across the union per §5.2. Single-file ProcessStream regression covered.
-- `TestShardArchiveInspect` — `Inspect` on a shard archive exposes `Shards` in central-directory order with per-shard `RecordCount` and a cumulative aggregate matching the sum; single-file cohorts keep `Shards` empty.
-- `TestShardArchivePredict` — `Predict` on a shard archive reports the cumulative record total and `Shards` listing; streamability is inherited from the request against the canonical schema (unchanged from single-file behavior).
-- `TestShardArchiveProcessParallel` — per-shard parallel reducer produces byte-equal results vs the serial path for associative+commutative aggregators (`AGG_COUNT`/`AGG_SUM`/`AGG_MIN`/`AGG_MAX`/`AGG_NULL_COUNT`/`AGG_FREQUENCY`) and within-ULP results for Welford-mean (`AGG_AVERAGE`). Non-mergeable requests (percentile aggregators, window operators, tier-2 tests, two-pass attributes combined with groupers) fall through to the serial `shardIter` with no worker spawning. `ShardWorkers=1` is byte-equal to the pre-S6 serial path.
-- `TestShardArchiveReservedName` — inserting a shard whose basename collides with the reserved `_schema.pulse` entry raises `PULSE_SHARD_RESERVED_NAME` at `CreateShardArchive` / `AddShard` / `pulse shard create` / `pulse shard add`.
-- `TestShardArchiveNameCollision` — two shards in the same archive (or two `--include` paths sharing a basename) raise `PULSE_SHARD_NAME_COLLISION`.
-- `TestShardArchiveAnchorSyntax` — `pulse.Open("archive.pulse#shard.pulse")` returns a single-shard cohort whose schema comes from the shard's own header; missing-anchor raises `PULSE_SHARD_MISSING`; anchor against a single-file `.pulse` raises `PULSE_ARCHIVE_MAGIC_INVALID`.
-- `TestShardArchiveAddCrashRecovery` — interrupted `AddShard` (failure between temp-file write and rename) leaves the canonical archive at its prior valid state; partial writes never appear at the destination path (atomic temp+rename).
-- `TestShardArchiveCompactReclaimsOrphans` — `pulse shard compact` rewrites the archive to eliminate orphan bytes (synthetic orphan-byte fixture) and refreshes canonical metadata (`aggregate_record_count` + `shard_count`) after a `RemoveShard`; the post-Compact archive is no larger than the pre-Compact archive and the shard manifest survives in central-directory order.
-- `TestShardArchiveVerify` — `pulse shard verify` covers five outcomes against synthesized fixtures: healthy archives produce no errors and no warnings; structural-schema divergence raises `PULSE_SHARD_SCHEMA_MISMATCH`; categorical-dict prefix-rule violation raises `PULSE_SHARD_DICT_DIVERGENCE`; per-field description divergence emits a `PULSE_SHARD_DESCRIPTION_DIVERGENCE` warning (no error); a shard with non-Pulse payload bytes raises `PULSE_SHARD_HEADER_INVALID`.
-- `TestShardArchiveLayoutDocumented` — CLAUDE.md "Byte-layout invariants" mentions both the zip magic `PK\x03\x04` and the reserved `_schema.pulse` entry name.
-- `TestShardArchiveMissingEntry` — `Archive.Open` / `Archive.OpenAt` / `service.Open` anchor against an entry name absent from the central directory all raise `PULSE_SHARD_MISSING`.
-- `TestShardArchiveCorruptEOCD` — an archive whose zip end-of-central-directory record cannot be parsed raises `PULSE_ARCHIVE_CORRUPT` (distinct from `PULSE_ARCHIVE_MAGIC_INVALID`); the gate runs through both `encoding.OpenArchive` and `service.Open` paths.
-- `TestShardArchiveBackwardsCompat` — existing single-file `.pulse` cohorts open unchanged through the post-sharding `Open` dispatch path: bytes are not mutated, magic + `format_version` remain `PULSE\x00\x00\x00` + `0x01`, and the returned `Cohort.Shards` is empty.
-- `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a "Sharded" section and `skills/contributor-workflow.md` mentions sharding.
-
-Other contract gates (not in the prefix set but load-bearing): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestRegressionStreamabilityMatchesTypes`, `TestRegressionTypesKnown`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known` (Aggregations/Attributes/Filterers/Groups/Windows/Features/Tests), `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestMCPErrorsLookup_RoundTrip`, `TestFacetSchema_*`, `TestManifestFacetCapability`, `TestValidateFacet_*`, `TestShardArchiveMagicDispatch`.
+Other load-bearing contract gates (not prefix-matched, enforced by their own packages): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestManifestFacetCapability`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known`, `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestExtensions_*`, `TestShardArchive*`, `TestProcessChain_*`, `TestValidateChain_*`, `TestJoin_*`, `TestValidateJoin_*`, `TestFacetSchema_*`, `TestValidateFacet_*`, `TestCountRecords_*`, `TestNeededFields_*`, `TestProjection_*`, `TestReadRecordProjected_*`.
 
 ## Build / Env
 
-`make build` (default), `make test`, `make fmt`, `make vet`, `make lint`, `make cover`, `make clean`, `make docs`, `make docs-serve`, `make docs-clean`. A `.env` at repo root is auto-loaded by the Makefile.
+`make build` (default), `make test`, `make fmt`, `make vet`, `make lint`, `make cover`, `make clean`, `make docs`, `make docs-serve`, `make docs-clean`. A `.env` at repo root auto-loaded.
 
 **Environment variables:**
 
-- `PULSE_DATA_DIR` — base directory for `.pulse` cohort files. Used by `fs.Default()` when no explicit `DataDir` or `afero.Fs` is provided. Only required env var for runtime operation. Embedders can bypass via `pulse.Options{DataDir}` or `pulse.Options{FS}`.
-- `PULSE_IMPORTS_DIR` — managed-imports subdirectory under the Pulse fs root. Defaults to `imports`. Honoured by `imports.Manager` (and therefore by `pulse_import` / `pulse import auto`). `pulse.Options{ImportsDir}` overrides.
-- `PULSE_IMPORT_TTL` — default TTL for managed imports when the caller doesn't pass one. Accepts Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin` for never-expire. Defaults to `7d`. `pulse.Options{ImportTTL}` overrides.
+- `PULSE_DATA_DIR` — base directory for `.pulse` cohort files. Used by `fs.Default()` when no explicit `DataDir` or `afero.Fs` is provided. Only required env var for runtime. Bypass via `pulse.Options{DataDir}` or `pulse.Options{FS}`.
+- `PULSE_IMPORTS_DIR` — managed-imports subdir under fs root. Defaults to `imports`. Honoured by `imports.Manager` (and so `pulse_import` / `pulse import auto`). `pulse.Options{ImportsDir}` overrides.
+- `PULSE_IMPORT_TTL` — default TTL for managed imports when caller doesn't pass one. Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin`. Defaults to `7d`. `pulse.Options{ImportTTL}` overrides.
 
 Hermetic testing: `fs.NewMemMap()` returns a `Config` backed by `afero.NewMemMapFs()`. No disk I/O.
 
 ## Extension Points
 
-`pulse.Options.Extensions` is the public surface for embedders that need to inject domain-specific operators or expression-runtime extensions without forking the engine. Eight operator categories plus expression functions and lookup tables. Registration happens at `pulse.New()` time; restart to change the registered set.
+`pulse.Options.Extensions` is the public surface for embedders injecting domain operators or expression-runtime extensions. Eight operator categories plus expr functions and lookup tables. Registration at `pulse.New()` time; restart to change.
 
-**Naming policy:** custom operator names match `^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$` — three uppercase ASCII segments separated by underscores. Namespaces `BUILTIN`, `STANDARD`, `CORE`, `PULSE` are reserved. Collision with a built-in name is rejected. Validation runs in this order at `pulse.New`: regex/reserved/collision/duplicate → probe-validation (factory invocation + interface check) → runtime registration.
+**Naming policy:** `^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$`. Reserved namespaces: `BUILTIN`, `STANDARD`, `CORE`, `PULSE`. Collision with built-in rejected. Validation order at `pulse.New`: regex/reserved/collision/duplicate → probe-validation (factory + interface check) → runtime registration.
 
-**Probe-validation:** the engine constructs each registered factory once against a minimal synthetic schema. Streamable-flagged registrations must return the corresponding streaming interface (`OnlineAggregator` / `RowLocalAttribute` / `TwoPassAttribute`). Mismatch → `PULSE_EXTENSION_STREAMABLE_MISMATCH`. Factory panics are caught and surface as `PULSE_EXTENSION_FACTORY_PANIC`.
+**Probe-validation:** engine constructs each factory once against minimal synthetic schema. Streamable-flagged registrations must return streaming interface; mismatch → `PULSE_EXTENSION_STREAMABLE_MISMATCH`. Factory panics → `PULSE_EXTENSION_FACTORY_PANIC`.
 
-**Expression environment:** `ExprFunctions` are merged into the expr-lang environment used by `ATTR_FORMULA` and `FILTER_EXPRESSION`. `LookupTables` are reachable via the built-in `lookup(table, keys...)` function, which is auto-injected when at least one table is registered. Rows-backed tables join keys with `|`; function-backed tables receive the raw `[]string` slice. Unknown table → `PULSE_LOOKUP_TABLE_UNKNOWN`. Missing key → `PULSE_LOOKUP_MISS`.
+**Expression environment:** `ExprFunctions` merged into expr-lang env used by `ATTR_FORMULA` and `FILTER_EXPRESSION`. `LookupTables` reachable via auto-injected `lookup(table, keys...)`. Rows-backed tables join keys with `|`; function-backed receive raw `[]string`. Unknown table → `PULSE_LOOKUP_TABLE_UNKNOWN`. Missing key → `PULSE_LOOKUP_MISS`.
 
-**Manifest visibility:** the root manifest carries a top-level `extensions` block listing every registered operator + expr function + lookup table (with `has_rows_data` to distinguish static maps from function-driven tables). The schema-bound MCP tools (post-`pulse_inspect`) include custom names in their per-category enums.
+**Manifest visibility:** root manifest carries `extensions` block listing every registered operator + expr function + lookup table (`has_rows_data` distinguishes static maps from function-driven). Schema-bound MCP tools (post-`pulse_inspect`) include custom names in per-category enums.
 
-**Snapshot pattern:** `descriptor.ExtensionsSnapshot` is the read-only projection passed into `descriptor.PredictOptions.Extensions` and `mcp.BindSessionToolsWithExtensions`. Built by `pulse.New` via `buildExtensionsSnapshot`, cached on the Service. Predict and the schema binder consume the snapshot only — descriptor stays free of `service/` and `processing/` imports (gated by `TestPredictNoExecutionImports`).
+**Snapshot pattern:** `descriptor.ExtensionsSnapshot` — read-only projection passed into `descriptor.PredictOptions.Extensions` and `mcp.BindSessionToolsWithExtensions`. Built by `pulse.New` via `buildExtensionsSnapshot`, cached on Service. Descriptor stays free of `service/` and `processing/` imports.
 
-**FieldInputs hook (buffered-projection introspection):** every operator registration (`AggregatorRegistration`, `AttributeRegistration`, `FiltererRegistration`, `GrouperRegistration`, `WindowRegistration`, `FeatureRegistration`, `TestRegistration`) accepts an optional `FieldInputs FieldInputsFunc`. When set, `processing.NeededFields` calls it with the operator's raw `Params` and includes the returned field names in the projection set. When omitted on a custom operator, the projection extractor widens to "every field" so the runtime stays correct (the operator is opaque). Built-in operators are always introspectable; only extension-resolved operators can widen. The hook is plumbed via `buildRuntimeExtensions` into `processing.ExtensionRegistry.FieldInputs`, keyed by `StreamabilityKey(category, name)`.
+**FieldInputs hook:** every operator registration accepts optional `FieldInputs FieldInputsFunc`. When set, `processing.NeededFields` calls it with operator's raw `Params` and includes returned field names in projection set. When omitted on custom operator, projection extractor widens to "every field" (full-decode fallback). Hook plumbed via `buildRuntimeExtensions` into `processing.ExtensionRegistry.FieldInputs`, keyed by `StreamabilityKey(category, name)`.
 
-The embedder-facing surface lives in `extensions.go` (types), `extensions_validate.go` (validation), `extensions_probe.go` (probe-validation), `extensions_runtime.go` (runtime registry conversion), and `extensions_snapshot.go` (manifest/predict snapshot). The runtime-side overlay lives in `processing/extensions.go`.
-
-Full embedder-facing recipe in `skills/extension-points.md`.
+Surface: `extensions.go` (types), `extensions_validate.go` (validation), `extensions_probe.go` (probe), `extensions_runtime.go` (runtime registry), `extensions_snapshot.go` (manifest/predict snapshot). Runtime overlay: `processing/extensions.go`. Full recipe: `skills/extension-points.md`.
 
 ## Skill Pack
 
-23 skills under `skills/`, embedded via `//go:embed`. Each skill has YAML frontmatter:
+23 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
 
 ```yaml
 ---
@@ -376,9 +265,7 @@ applies_to: process, compose, predict
 
 `applies_to` entries must be valid CLI leaves (`process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`).
 
-Per-component target skill:
-
-| Category | Skill |
+| Category | Target skill |
 |---|---|
 | Aggregator (`AGG_*`) | `skills/aggregation-guide.md` |
 | Attribute (`ATTR_*`) | `skills/attribute-composition.md` |
@@ -392,21 +279,22 @@ Per-component target skill:
 | CLI leaf | `skills/getting-started.md` |
 | Field type | `skills/cohort-schema-design.md` |
 | MCP tool | `skills/mcp-integration.md` |
-| Facet endpoint (FacetSchema, FacetRequest/FacetResult) | `skills/facet-design.md` |
-| Error code | `errors/fixup_metadata.go` (surfaced via `pulse_errors_lookup`) |
-| Extension API surface (registration shape, expr funcs, lookup tables) | `skills/extension-points.md` |
+| Facet endpoint | `skills/facet-design.md` |
+| Join | `skills/join-design.md` |
+| Error code | `errors/fixup_metadata.go` (via `pulse_errors_lookup`) |
+| Extension API surface | `skills/extension-points.md` |
 
-**Current registered counts** (full lists in each skill, enforced by coverage gates): 21 aggregators, 9 attributes, 5 filterers, 5 groupers, 10 window operators, 9 feature operators, 20 statistical tests (18 tier-1 row tests + tier-2 variants), 12 synth distributions, 3 regressions.
+Current registered counts: 21 aggregators, 9 attributes, 5 filterers, 5 groupers, 10 windows, 9 features, 20 tests, 12 synth distributions, 3 regressions.
 
-Adding a new skill: create `skills/<name>.md` with frontmatter, add entry to `skills/index.json`, bump the count in `TestSkillsList_ReturnsAll` and `TestSkillsNames`. Run `go test ./skills/...`.
+Adding a skill: create `skills/<name>.md` with frontmatter, add entry to `skills/index.json`, bump count in `TestSkillsList_ReturnsAll` and `TestSkillsNames`. Run `go test ./skills/...`.
 
 ## What NOT to Do
 
-- **Do not import `service/` or `processing/` from `descriptor/`.** Predict/inspect/manifest are no-execute. `TestPredictNoExecutionImports` will fail.
+- **Do not import `service/` or `processing/` from `descriptor/`.** Predict/inspect/manifest are no-execute. `TestPredictNoExecutionImports` fails.
 - **Do not hand-edit golden files.** Regenerate via `go test ./descriptor/ -run 'Test.*Golden' -update`. `TestGoldensNotHandEdited` verifies hashes.
-- **Do not add implementation without tests in the same PR.** TDD: write the test first, watch it fail, then implement.
-- **Do not use `fmt.Sprintf` for JSON/XML.** Use `encoding/json` and `descriptor.NewEnvelope(data)`.
-- **Do not defer skill or CLAUDE.md updates.** The follow-up PR will not happen. Next session reads stale guidance.
-- **Do not add a component without updating the registry** (`processing/registry.go`) and `types.All*Types()`.
-- **Do not bypass `afero.Fs`** for file access — defeats `fs.NewMemMap()` and the custom-storage extension hook.
-- **Do not put business logic in `cmd/pulse/`.** CLI is a thin adapter — parse flags, construct library objects, call methods, format output.
+- **Do not add implementation without tests in the same PR.** TDD.
+- **Do not use `fmt.Sprintf` for JSON/XML.** Use `encoding/json` + `descriptor.NewEnvelope(data)`.
+- **Do not defer skill or CLAUDE.md updates.** Follow-up PR won't happen. Next session reads stale guidance.
+- **Do not add a component without updating the registry** (`processing/registry.go`) + `types.All*Types()`.
+- **Do not bypass `afero.Fs`** — defeats `fs.NewMemMap()` + custom-storage extension hook.
+- **Do not put business logic in `cmd/pulse/`.** CLI parses flags, constructs library objects, calls methods, formats output.
