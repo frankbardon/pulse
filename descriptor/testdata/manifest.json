@@ -3883,6 +3883,10 @@
         "description": "Use Request.Joins for pushdown hash join. v1 envelope: one inner join per Request, in-memory build, right-side hash + left-side probe. Use when comparing rows across cohorts; covers OnPair key-type compatibility, As prefix for field-collision avoidance, and the deferred outer/left/anti + spill items."
       },
       {
+        "name": "label-display",
+        "description": "Translate categorical IDs (ISO codes, SKUs, ICD codes) into display labels at output time without re-encoding the cohort. Per-request LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob; tables registered via Extensions.LabelTables or PULSE_LABEL_TABLES_DIR. Labels are display-only — filters, formulas, and sort still see raw values."
+      },
+      {
         "name": "mcp-integration",
         "description": "Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_ask, pulse_compose, pulse_sample, pulse_facet, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order."
       },
@@ -4062,4 +4066,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3cd46bde5bfa4fa0e289ddafbb3e0dfe73ea4712c51ac38eb394e0eeef9b4c6b
+// golden-hash: 10019284eba06e27f5e8b2fa58f249bcd61af567b8a4cbadc92cc8e2ecb4ce98
