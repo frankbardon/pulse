@@ -416,18 +416,39 @@ func (p *Pulse) Import(ctx context.Context, job *pio.ImportJob) (*pio.ImportRepo
 
 // Export converts a .pulse file into tabular output.
 // The job's FS field is set to the Pulse instance's filesystem if not already set.
+//
+// When job.Labels is non-empty, the facade builds the runtime label
+// resolver from the Service's registered LabelTables and attaches it
+// to job.LabelResolver before Run. The resolver applies replace /
+// augment translation to categorical column values during export.
 func (p *Pulse) Export(ctx context.Context, job *pio.ExportJob) (*pio.ExportReport, error) {
 	if job.FS == nil {
 		job.FS = p.fsys
+	}
+	if job.LabelResolver == nil && len(job.Labels) > 0 {
+		r, err := p.newIOLabelResolver(job.Labels)
+		if err != nil {
+			return nil, err
+		}
+		job.LabelResolver = r
 	}
 	return job.Run(ctx)
 }
 
 // Convert chains import and export with no intermediate file on disk.
 // The job's FS field is set to the Pulse instance's filesystem if not already set.
+//
+// Labels apply to the export half only — see Export.
 func (p *Pulse) Convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertReport, error) {
 	if job.FS == nil {
 		job.FS = p.fsys
+	}
+	if job.LabelResolver == nil && len(job.Labels) > 0 {
+		r, err := p.newIOLabelResolver(job.Labels)
+		if err != nil {
+			return nil, err
+		}
+		job.LabelResolver = r
 	}
 	return job.Run(ctx)
 }

@@ -46,10 +46,15 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		}
 	}
 
+	augmentInsertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver)
+
 	// Write header to target.
-	columns := make([]string, len(schema.Fields))
+	columns := make([]string, 0, len(schema.Fields))
 	for i, f := range schema.Fields {
-		columns[i] = f.Name
+		columns = append(columns, f.Name)
+		if augmentInsertAfter[i] {
+			columns = append(columns, f.Name+"_label")
+		}
 	}
 	if err := j.Target.WriteHeader(columns); err != nil {
 		return nil, err
@@ -111,13 +116,17 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			}
 		}
 
-		if err := j.Target.WriteRow(values); err != nil {
+		out := applyExportLabels(values, schema, j.LabelResolver, augmentInsertAfter, replaceFields)
+		if err := j.Target.WriteRow(out); err != nil {
 			rowErrors = append(rowErrors, RowError{Row: rowNum, Err: err})
 		} else {
 			converted++
 		}
 
 		if importJob != nil {
+			// Persist the *pre-label* values so the intermediate .pulse
+			// file mirrors source semantics; label translation is an
+			// output-time overlay, not an on-disk schema change.
 			allRows = append(allRows, convertedRow{values: values})
 		}
 
@@ -140,11 +149,15 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		}
 	}
 
-	return &ConvertReport{
+	report := &ConvertReport{
 		RowsConverted: converted,
 		Schema:        schema,
 		RowErrors:     rowErrors,
-	}, nil
+	}
+	if j.LabelResolver != nil {
+		report.LabelWarnings = j.LabelResolver.Warnings()
+	}
+	return report, nil
 }
 
 // Predict validates the conversion without writing.
