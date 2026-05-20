@@ -586,6 +586,59 @@ func (p *Pulse) Sample(ctx context.Context, path string, n int) ([]Record, error
 	return rows, err
 }
 
+// SampleResult bundles the rows and the resolver-side warnings from
+// a labelled Sample call. Warnings carry PULSE_LABEL_COLLISION and
+// PULSE_LABEL_LOOKUP_MISS records; an empty slice means the labels
+// resolved cleanly (or no Labels were requested).
+type SampleResult struct {
+	Rows     []Record
+	Warnings []SampleWarning
+}
+
+// SampleWarning is the envelope-ready projection of a single resolver
+// warning. The shape mirrors descriptor.EnvelopeWarning so callers can
+// fold it into a descriptor.Envelope at the CLI / MCP boundary.
+type SampleWarning struct {
+	Code    string
+	Message string
+	Details map[string]any
+}
+
+// SampleWithRequest is the labelled variant of Sample. The req struct
+// carries the cohort path (via Cohort.Filename), the row cap (N), and
+// LabelBinding entries that translate categorical values to display
+// labels in the returned rows.
+//
+// When Labels is empty the call degenerates to the same shape as
+// Sample, returning a SampleResult with no Warnings and no
+// transformation applied to the rows.
+func (p *Pulse) SampleWithRequest(ctx context.Context, req *SampleRequest) (*SampleResult, error) {
+	if req == nil {
+		return nil, fmt.Errorf("pulse: sample request is required")
+	}
+	if req.Cohort == nil || req.Cohort.Filename == "" {
+		return nil, fmt.Errorf("pulse: sample request requires Cohort.Filename")
+	}
+	path := req.Cohort.Filename
+	rows, warns, err := p.svc.SampleWithRequest(ctx, req, path)
+	if err != nil {
+		return nil, err
+	}
+	p.touchManaged(ctx, path)
+	out := &SampleResult{Rows: rows}
+	if len(warns) > 0 {
+		out.Warnings = make([]SampleWarning, len(warns))
+		for i, w := range warns {
+			out.Warnings[i] = SampleWarning{
+				Code:    string(w.Code),
+				Message: w.Message,
+				Details: w.Details,
+			}
+		}
+	}
+	return out, nil
+}
+
 // FilterToFile reads the .pulse cohort at src, evaluates filterExpr
 // (FILTER_EXPRESSION semantics — same operators, identifiers, expr
 // functions, and lookup tables available to pulse.Process with a
