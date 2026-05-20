@@ -30,25 +30,21 @@ func TestDefaults_Applied(t *testing.T) {
 		{encoding.FieldTypeU64, types.AGG_SUM, types.GROUP_RANGE},
 		{encoding.FieldTypeF32, types.AGG_SUM, types.GROUP_RANGE},
 		{encoding.FieldTypeF64, types.AGG_SUM, types.GROUP_RANGE},
-		{encoding.FieldTypeNullableU4, types.AGG_SUM, types.GROUP_RANGE},
-		{encoding.FieldTypeNullableU8, types.AGG_SUM, types.GROUP_RANGE},
-		{encoding.FieldTypeNullableU16, types.AGG_SUM, types.GROUP_RANGE},
+		{encoding.FieldTypeU4, types.AGG_SUM, types.GROUP_RANGE},
 		{encoding.FieldTypeDecimal128, types.AGG_SUM, types.GROUP_RANGE},
-		{encoding.FieldTypeNullableDecimal128, types.AGG_SUM, types.GROUP_RANGE},
 		{encoding.FieldTypeCategoricalU8, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
 		{encoding.FieldTypeCategoricalU16, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
 		{encoding.FieldTypeCategoricalU32, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
 		// Date: no aggregation default, GROUP_DATE for grouper.
 		{encoding.FieldTypeDate, "", types.GROUP_DATE},
-		{encoding.FieldTypeNullableBool, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
 		{encoding.FieldTypePackedBool, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
 	}
 
 	// Verify coverage matches the FieldType enum exactly: every known
 	// field type must appear in the table (catches new types added to
 	// encoding without a corresponding default rule decision).
-	if got := len(cases); got != 17 {
-		t.Fatalf("defaults table covers %d field types; expected 17", got)
+	if got := len(cases); got != 13 {
+		t.Fatalf("defaults table covers %d field types; expected 13", got)
 	}
 
 	for _, tc := range cases {

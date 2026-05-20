@@ -2,19 +2,19 @@ package encoding
 
 import "testing"
 
-func TestFieldTypes_All17Present(t *testing.T) {
-	// Verify we have exactly 17 field types (0..16).
-	if fieldTypeCount != 17 {
-		t.Fatalf("expected 17 field types, got %d", fieldTypeCount)
+func TestFieldTypes_All13Present(t *testing.T) {
+	// Verify we have exactly 13 field types (0..12).
+	if fieldTypeCount != 13 {
+		t.Fatalf("expected 13 field types, got %d", fieldTypeCount)
 	}
 
 	types := []FieldType{
 		FieldTypeU8, FieldTypeU16, FieldTypeU32, FieldTypeU64,
 		FieldTypeF32, FieldTypeF64,
-		FieldTypeNullableBool, FieldTypeNullableU4, FieldTypeNullableU8, FieldTypeNullableU16,
+		FieldTypeU4,
 		FieldTypeDate, FieldTypePackedBool,
 		FieldTypeCategoricalU8, FieldTypeCategoricalU16, FieldTypeCategoricalU32,
-		FieldTypeDecimal128, FieldTypeNullableDecimal128,
+		FieldTypeDecimal128,
 	}
 	if len(types) != int(fieldTypeCount) {
 		t.Fatalf("type list has %d entries, sentinel says %d", len(types), fieldTypeCount)
@@ -37,17 +37,13 @@ func TestFieldType_ByteSize(t *testing.T) {
 		{FieldTypeU64, 8},
 		{FieldTypeF32, 4},
 		{FieldTypeF64, 8},
-		{FieldTypeNullableBool, 0},
-		{FieldTypeNullableU4, 0},
-		{FieldTypeNullableU8, 1},
-		{FieldTypeNullableU16, 2},
+		{FieldTypeU4, 0},
 		{FieldTypeDate, 4},
 		{FieldTypePackedBool, 0},
 		{FieldTypeCategoricalU8, 1},
 		{FieldTypeCategoricalU16, 2},
 		{FieldTypeCategoricalU32, 4},
 		{FieldTypeDecimal128, 16},
-		{FieldTypeNullableDecimal128, 16},
 	}
 	for _, tc := range cases {
 		if got := tc.ft.ByteSize(); got != tc.want {
@@ -67,17 +63,13 @@ func TestFieldType_String(t *testing.T) {
 		{FieldTypeU64, "u64"},
 		{FieldTypeF32, "f32"},
 		{FieldTypeF64, "f64"},
-		{FieldTypeNullableBool, "nullable_bool"},
-		{FieldTypeNullableU4, "nullable_u4"},
-		{FieldTypeNullableU8, "nullable_u8"},
-		{FieldTypeNullableU16, "nullable_u16"},
+		{FieldTypeU4, "u4"},
 		{FieldTypeDate, "date"},
 		{FieldTypePackedBool, "packed_bool"},
 		{FieldTypeCategoricalU8, "categorical_u8"},
 		{FieldTypeCategoricalU16, "categorical_u16"},
 		{FieldTypeCategoricalU32, "categorical_u32"},
 		{FieldTypeDecimal128, "decimal128"},
-		{FieldTypeNullableDecimal128, "nullable_decimal128"},
 		{FieldType(255), "unknown(255)"},
 	}
 	for _, tc := range cases {

@@ -6,15 +6,11 @@
   {"name": "huge_int", "type": "u64", "description": "Unsigned 64-bit integer for very large counts"},
   {"name": "measurement", "type": "f32", "description": "Single-precision float; ~7 significant digits"},
   {"name": "precise_value", "type": "f64", "description": "Double-precision float; ~15 significant digits"},
-  {"name": "maybe_flag", "type": "nullable_bool", "description": "Tri-state flag (null/true/false) packed into one bit"},
-  {"name": "small_grade", "type": "nullable_u4", "description": "4-bit grade in 0..14, value 15 reserved as null"},
-  {"name": "maybe_age", "type": "nullable_u8", "description": "8-bit age in years; 0xFF reserved as null sentinel"},
-  {"name": "maybe_count", "type": "nullable_u16", "description": "16-bit count; 0xFFFF reserved as null sentinel"},
+  {"name": "small_grade", "type": "u4", "description": "4-bit grade in 0..15"},
   {"name": "event_date", "type": "date", "description": "Calendar date stored as days since the Unix epoch"},
-  {"name": "active", "type": "packed_bool", "description": "Bit-packed boolean activity flag (no null support)"},
+  {"name": "active", "type": "packed_bool", "description": "Bit-packed boolean activity flag"},
   {"name": "region", "type": "categorical_u8", "description": "Coarse region label (north/south/east/west)"},
   {"name": "city", "type": "categorical_u16", "description": "City of origin; mid-cardinality categorical"},
   {"name": "sku", "type": "categorical_u32", "description": "SKU identifier; high-cardinality categorical"},
-  {"name": "amount", "type": "decimal128", "precision": 20, "scale": 2, "description": "Monetary amount in USD with two decimal places of precision"},
-  {"name": "precise_amount", "type": "nullable_decimal128", "precision": 20, "scale": 6, "description": "High-precision amount with six decimals; null sentinel reserved"}
+  {"name": "amount", "type": "decimal128", "precision": 20, "scale": 2, "description": "Monetary amount in USD with two decimal places of precision"}
 ]

@@ -73,19 +73,11 @@ func TestWriteFieldValue_PackedBool(t *testing.T) {
 	}
 }
 
-func TestWriteFieldValue_NullableBool(t *testing.T) {
+func TestWriteFieldValue_U4(t *testing.T) {
 	var buf bytes.Buffer
-	err := WriteFieldValue(&buf, FieldTypeNullableBool, 0)
+	err := WriteFieldValue(&buf, FieldTypeU4, 0)
 	if err == nil {
-		t.Fatal("expected error for nullable bool")
-	}
-}
-
-func TestWriteFieldValue_NullableU4(t *testing.T) {
-	var buf bytes.Buffer
-	err := WriteFieldValue(&buf, FieldTypeNullableU4, 0)
-	if err == nil {
-		t.Fatal("expected error for nullable u4")
+		t.Fatal("expected error for u4 (bit-packed)")
 	}
 }
 
@@ -97,19 +89,11 @@ func TestReadFieldValue_PackedBool(t *testing.T) {
 	}
 }
 
-func TestReadFieldValue_NullableBool(t *testing.T) {
+func TestReadFieldValue_U4(t *testing.T) {
 	r := bytes.NewReader([]byte{0})
-	_, err := ReadFieldValue(r, FieldTypeNullableBool)
+	_, err := ReadFieldValue(r, FieldTypeU4)
 	if err == nil {
-		t.Fatal("expected error for nullable bool")
-	}
-}
-
-func TestReadFieldValue_NullableU4(t *testing.T) {
-	r := bytes.NewReader([]byte{0})
-	_, err := ReadFieldValue(r, FieldTypeNullableU4)
-	if err == nil {
-		t.Fatal("expected error for nullable u4")
+		t.Fatal("expected error for u4 (bit-packed)")
 	}
 }
 

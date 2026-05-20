@@ -295,12 +295,15 @@ func TestInferSchema_NullableDetection(t *testing.T) {
 	if f == nil {
 		t.Fatal("field 'val' not found")
 	}
-	// Should detect nullable integer type (NullableU8 since values fit in u8).
+	// Should detect a small integer base type with Nullable=true.
 	switch f.Type {
-	case encoding.FieldTypeNullableU4, encoding.FieldTypeNullableU8:
+	case encoding.FieldTypeU4, encoding.FieldTypeU8:
 		// acceptable
 	default:
-		t.Errorf("got %s, want nullable integer type", f.Type)
+		t.Errorf("got %s, want small unsigned integer type", f.Type)
+	}
+	if !f.Nullable {
+		t.Errorf("expected Nullable=true on field with null cells")
 	}
 }
 
@@ -319,8 +322,11 @@ func TestInferSchema_NullableBool(t *testing.T) {
 	if f == nil {
 		t.Fatal("field 'flag' not found")
 	}
-	if f.Type != encoding.FieldTypeNullableBool {
-		t.Errorf("got %s, want nullable_bool", f.Type)
+	if f.Type != encoding.FieldTypePackedBool {
+		t.Errorf("got %s, want packed_bool", f.Type)
+	}
+	if !f.Nullable {
+		t.Errorf("expected Nullable=true on bool field with null cells")
 	}
 }
 

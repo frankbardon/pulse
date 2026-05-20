@@ -222,7 +222,7 @@ func TestRewriteShardCategoricals_EmptyRemap_PreservesRecords(t *testing.T) {
 //	offset 0 : id              (u64,            8 bytes)
 //	offset 8 : brand           (categorical_u8, 1 byte)
 //	offset 9 : aware           (packed_bool,    1 byte on wire)
-//	offset 10: familiarity     (nullable_u4,    1 byte on wire)
+//	offset 10: familiarity     (u4,             1 byte on wire)
 //	offset 11: weight          (f64,            8 bytes)
 //
 // True record stride is 19 bytes. The pre-fix recordSize calc that
@@ -244,7 +244,7 @@ func buildPackedShard(t *testing.T, brandValues []string, records []packedRec) (
 			{Name: "brand", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 8,
 				CsvColumnIdx: 1, Dictionary: d},
 			{Name: "aware", Type: encoding.FieldTypePackedBool, ByteOffset: 9, BitPosition: 0, CsvColumnIdx: 2},
-			{Name: "familiarity", Type: encoding.FieldTypeNullableU4, ByteOffset: 10, BitPosition: 0, CsvColumnIdx: 3},
+			{Name: "familiarity", Type: encoding.FieldTypeU4, ByteOffset: 10, BitPosition: 0, CsvColumnIdx: 3},
 			{Name: "weight", Type: encoding.FieldTypeF64, ByteOffset: 11, CsvColumnIdx: 4},
 		},
 	}
@@ -276,7 +276,7 @@ type packedRec struct {
 	id          uint64
 	brandIdx    byte
 	aware       byte // 0 or 1
-	familiarity byte // 0x00..0x0F (0x0F = null sentinel)
+	familiarity byte // 0x00..0x0F (4-bit value; null state would live in bitmap)
 	weightBits  uint64
 }
 
@@ -322,7 +322,7 @@ func TestRewriteShardCategoricals_BitPackedSchema_NonEmptyRemap(t *testing.T) {
 			{Name: "brand", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 8,
 				CsvColumnIdx: 1, Dictionary: dictOf(t, "Acme", "Globex", "Initech")},
 			{Name: "aware", Type: encoding.FieldTypePackedBool, ByteOffset: 9, BitPosition: 0, CsvColumnIdx: 2},
-			{Name: "familiarity", Type: encoding.FieldTypeNullableU4, ByteOffset: 10, BitPosition: 0, CsvColumnIdx: 3},
+			{Name: "familiarity", Type: encoding.FieldTypeU4, ByteOffset: 10, BitPosition: 0, CsvColumnIdx: 3},
 			{Name: "weight", Type: encoding.FieldTypeF64, ByteOffset: 11, CsvColumnIdx: 4},
 		},
 	}
@@ -333,7 +333,7 @@ func TestRewriteShardCategoricals_BitPackedSchema_NonEmptyRemap(t *testing.T) {
 		[]string{"Acme", "Globex", "Soylent"},
 		[]packedRec{
 			{id: 100, brandIdx: 0, aware: 1, familiarity: 0x05, weightBits: 0x1111},
-			{id: 101, brandIdx: 2, aware: 0, familiarity: 0x0F, weightBits: 0x2222}, // null fam
+			{id: 101, brandIdx: 2, aware: 0, familiarity: 0x0F, weightBits: 0x2222},
 			{id: 102, brandIdx: 1, aware: 1, familiarity: 0x03, weightBits: 0x3333},
 			{id: 103, brandIdx: 2, aware: 0, familiarity: 0x07, weightBits: 0x4444},
 		})
@@ -359,9 +359,9 @@ func TestRewriteShardCategoricals_BitPackedSchema_NonEmptyRemap(t *testing.T) {
 	_, recs := decodePackedShard(t, rewritten)
 	want := []packedRec{
 		{id: 100, brandIdx: 0, aware: 1, familiarity: 0x05, weightBits: 0x1111},
-		{id: 101, brandIdx: 3, aware: 0, familiarity: 0x0F, weightBits: 0x2222}, // remapped 2→3
+		{id: 101, brandIdx: 3, aware: 0, familiarity: 0x0F, weightBits: 0x2222}, // brand remapped 2->3
 		{id: 102, brandIdx: 1, aware: 1, familiarity: 0x03, weightBits: 0x3333},
-		{id: 103, brandIdx: 3, aware: 0, familiarity: 0x07, weightBits: 0x4444}, // remapped 2→3
+		{id: 103, brandIdx: 3, aware: 0, familiarity: 0x07, weightBits: 0x4444}, // brand remapped 2->3
 	}
 	if len(recs) != len(want) {
 		t.Fatalf("rewritten record count: got %d, want %d", len(recs), len(want))
@@ -382,8 +382,8 @@ func TestSchema_RecordByteSize_MixedPackedAndAligned(t *testing.T) {
 			{Name: "id", Type: encoding.FieldTypeU64, ByteOffset: 0},
 			{Name: "brand", Type: encoding.FieldTypeCategoricalU16, ByteOffset: 8},
 			{Name: "aware", Type: encoding.FieldTypePackedBool, ByteOffset: 10, BitPosition: 0},
-			{Name: "familiarity", Type: encoding.FieldTypeNullableU4, ByteOffset: 11, BitPosition: 0},
-			{Name: "trust", Type: encoding.FieldTypeNullableBool, ByteOffset: 12, BitPosition: 0},
+			{Name: "familiarity", Type: encoding.FieldTypeU4, ByteOffset: 11, BitPosition: 0},
+			{Name: "trust", Type: encoding.FieldTypePackedBool, ByteOffset: 12, BitPosition: 0},
 			{Name: "weight", Type: encoding.FieldTypeF64, ByteOffset: 13},
 		},
 	}

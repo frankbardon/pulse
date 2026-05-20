@@ -7,6 +7,9 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 )
 
+// convertValue is now a pure value converter: nulls are handled by the
+// caller via the per-record bitmap, so this function is never invoked on
+// a null cell. Tests cover only the value-bearing branches.
 func TestConvertValue_AllTypes(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -14,36 +17,19 @@ func TestConvertValue_AllTypes(t *testing.T) {
 		ft      encoding.FieldType
 		wantErr bool
 	}{
+		{"u4", "5", encoding.FieldTypeU4, false},
+		{"u4_overflow", "16", encoding.FieldTypeU4, true},
 		{"u8", "42", encoding.FieldTypeU8, false},
-		{"u8_null", "", encoding.FieldTypeU8, false},
 		{"u16", "1000", encoding.FieldTypeU16, false},
-		{"u16_null", "null", encoding.FieldTypeU16, false},
 		{"u32", "100000", encoding.FieldTypeU32, false},
-		{"u32_null", "NA", encoding.FieldTypeU32, false},
 		{"u64", "999999999999", encoding.FieldTypeU64, false},
-		{"u64_null", "n/a", encoding.FieldTypeU64, false},
 		{"f32", "3.14", encoding.FieldTypeF32, false},
-		{"f32_null", "", encoding.FieldTypeF32, false},
 		{"f64", "3.14159265358979", encoding.FieldTypeF64, false},
-		{"f64_null", "", encoding.FieldTypeF64, false},
 		{"date", "2024-01-15", encoding.FieldTypeDate, false},
-		{"date_null", "", encoding.FieldTypeDate, false},
 		{"date_bad", "not-a-date", encoding.FieldTypeDate, true},
 		{"bool_true", "true", encoding.FieldTypePackedBool, false},
 		{"bool_false", "false", encoding.FieldTypePackedBool, false},
 		{"bool_yes", "yes", encoding.FieldTypePackedBool, false},
-		{"bool_null", "", encoding.FieldTypePackedBool, false},
-		{"nullable_bool_true", "true", encoding.FieldTypeNullableBool, false},
-		{"nullable_bool_false", "false", encoding.FieldTypeNullableBool, false},
-		{"nullable_bool_null", "", encoding.FieldTypeNullableBool, false},
-		{"nullable_bool_bad", "maybe", encoding.FieldTypeNullableBool, true},
-		{"nullable_u4", "5", encoding.FieldTypeNullableU4, false},
-		{"nullable_u4_null", "", encoding.FieldTypeNullableU4, false},
-		{"nullable_u4_overflow", "15", encoding.FieldTypeNullableU4, true},
-		{"nullable_u8", "100", encoding.FieldTypeNullableU8, false},
-		{"nullable_u8_null", "", encoding.FieldTypeNullableU8, false},
-		{"nullable_u16", "50000", encoding.FieldTypeNullableU16, false},
-		{"nullable_u16_null", "null", encoding.FieldTypeNullableU16, false},
 	}
 
 	for _, tc := range tests {
@@ -85,15 +71,6 @@ func TestConvertValue_Categorical(t *testing.T) {
 	}
 	if val3 != 0 {
 		t.Errorf("got %d, want 0", val3)
-	}
-
-	// Null.
-	val4, err := convertValue("", encoding.FieldTypeCategoricalU8, dict)
-	if err != nil {
-		t.Fatalf("error: %v", err)
-	}
-	if val4 != 0 {
-		t.Errorf("null categorical should be 0, got %d", val4)
 	}
 }
 
@@ -176,6 +153,8 @@ func TestConvertValue_UnsupportedType(t *testing.T) {
 	}
 }
 
+// formatFieldValue is also pure — nulls are applied separately by the
+// export loop via the per-record bitmap and never reach this function.
 func TestFormatFieldValue_AllTypes(t *testing.T) {
 	tests := []struct {
 		name string
@@ -189,10 +168,6 @@ func TestFormatFieldValue_AllTypes(t *testing.T) {
 		{"u64", encoding.FieldTypeU64, 999999999999, "999999999999"},
 		{"f32", encoding.FieldTypeF32, uint64(math.Float32bits(3.14)), "3.14"},
 		{"f64", encoding.FieldTypeF64, math.Float64bits(3.14), "3.14"},
-		{"nullable_u8", encoding.FieldTypeNullableU8, 42, "42"},
-		{"nullable_u8_null", encoding.FieldTypeNullableU8, 0xFF, ""},
-		{"nullable_u16", encoding.FieldTypeNullableU16, 1000, "1000"},
-		{"nullable_u16_null", encoding.FieldTypeNullableU16, 0xFFFF, ""},
 	}
 
 	for _, tc := range tests {
@@ -252,12 +227,8 @@ func TestFormatPackedValue_AllTypes(t *testing.T) {
 	}{
 		{"bool_true", encoding.FieldTypePackedBool, 1, "true"},
 		{"bool_false", encoding.FieldTypePackedBool, 0, "false"},
-		{"nullable_bool_null", encoding.FieldTypeNullableBool, 0, ""},
-		{"nullable_bool_false", encoding.FieldTypeNullableBool, 1, "false"},
-		{"nullable_bool_true", encoding.FieldTypeNullableBool, 2, "true"},
-		{"nullable_bool_unknown", encoding.FieldTypeNullableBool, 3, ""},
-		{"nullable_u4", encoding.FieldTypeNullableU4, 5, "5"},
-		{"nullable_u4_null", encoding.FieldTypeNullableU4, 0x0F, ""},
+		{"u4_low", encoding.FieldTypeU4, 5, "5"},
+		{"u4_high_masked", encoding.FieldTypeU4, 0xF5, "5"}, // upper nibble masked off
 	}
 
 	for _, tc := range tests {

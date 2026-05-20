@@ -8,17 +8,17 @@ import (
 )
 
 // TestPredict_REG_OLS_AcceptsBitPackedTargets asserts that REG_OLS treats
-// the three bit-packed integer encodings (nullable_u4, nullable_bool,
-// packed_bool) as first-class numeric targets. Before the
-// IsNumericForAnalytics widening these surfaced
-// "regression target field X is not numeric (got T)" SERVICE_VALIDATION.
+// the two bit-packed integer encodings (u4, packed_bool) as first-class
+// numeric targets. Before the IsNumericForAnalytics widening these
+// surfaced "regression target field X is not numeric (got T)"
+// SERVICE_VALIDATION.
 func TestPredict_REG_OLS_AcceptsBitPackedTargets(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Continuous predictor"},
-			{Name: "fam", Type: encoding.FieldTypeNullableU4, Description: "Likert familiarity 0-7 with 15 as null sentinel"},
+			{Name: "fam", Type: encoding.FieldTypeU4, Nullable: true, Description: "Likert familiarity 0-15"},
 			{Name: "subscribed", Type: encoding.FieldTypePackedBool, Description: "Subscription flag"},
-			{Name: "opted_in", Type: encoding.FieldTypeNullableBool, Description: "Opt-in flag"},
+			{Name: "opted_in", Type: encoding.FieldTypePackedBool, Nullable: true, Description: "Opt-in flag"},
 		},
 	}
 	data := buildTestPulseFile(t, schema)
@@ -45,7 +45,7 @@ func TestPredict_REG_OLS_AcceptsBitPackedPredictors(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64, Description: "Continuous response"},
-			{Name: "fam", Type: encoding.FieldTypeNullableU4, Description: "Likert familiarity"},
+			{Name: "fam", Type: encoding.FieldTypeU4, Nullable: true, Description: "Likert familiarity"},
 			{Name: "subscribed", Type: encoding.FieldTypePackedBool, Description: "Subscription flag"},
 		},
 	}
@@ -102,7 +102,7 @@ func TestPredict_REG_BAYES_LINEAR_AcceptsBitPackedTarget(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Continuous predictor"},
-			{Name: "score", Type: encoding.FieldTypeNullableU4, Description: "Likert score"},
+			{Name: "score", Type: encoding.FieldTypeU4, Nullable: true, Description: "Likert score"},
 		},
 	}
 	data := buildTestPulseFile(t, schema)
@@ -118,22 +118,21 @@ func TestPredict_REG_BAYES_LINEAR_AcceptsBitPackedTarget(t *testing.T) {
 	env := PredictFromBytes(data, req, nil)
 	for _, e := range env.Errors {
 		if e.Code == "SERVICE_VALIDATION" {
-			t.Fatalf("unexpected SERVICE_VALIDATION on REG_BAYES_LINEAR + nullable_u4 target: %s", e.Message)
+			t.Fatalf("unexpected SERVICE_VALIDATION on REG_BAYES_LINEAR + u4 target: %s", e.Message)
 		}
 	}
 }
 
 // TestIsNumericForAnalytics asserts the predicate exposes the broader
 // analytics-layer numeric set: existing integer/float/decimal types plus
-// the three bit-packed integer encodings.
+// the bit-packed integer encodings (u4, packed_bool) and date.
 func TestIsNumericForAnalytics(t *testing.T) {
 	includes := []encoding.FieldType{
 		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
 		encoding.FieldTypeF32, encoding.FieldTypeF64,
 		encoding.FieldTypeDate,
-		encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128,
-		encoding.FieldTypeNullableU4, encoding.FieldTypeNullableU8, encoding.FieldTypeNullableU16,
-		encoding.FieldTypeNullableBool, encoding.FieldTypePackedBool,
+		encoding.FieldTypeDecimal128,
+		encoding.FieldTypeU4, encoding.FieldTypePackedBool,
 	}
 	for _, ft := range includes {
 		if !ft.IsNumericForAnalytics() {
@@ -157,7 +156,7 @@ func TestIsNumeric(t *testing.T) {
 	includes := []encoding.FieldType{
 		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
 		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128,
+		encoding.FieldTypeDecimal128,
 	}
 	for _, ft := range includes {
 		if !ft.IsNumeric() {
@@ -166,8 +165,7 @@ func TestIsNumeric(t *testing.T) {
 	}
 	excludes := []encoding.FieldType{
 		encoding.FieldTypeDate,
-		encoding.FieldTypeNullableU4, encoding.FieldTypeNullableU8, encoding.FieldTypeNullableU16,
-		encoding.FieldTypeNullableBool, encoding.FieldTypePackedBool,
+		encoding.FieldTypeU4, encoding.FieldTypePackedBool,
 		encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32,
 	}
 	for _, ft := range excludes {

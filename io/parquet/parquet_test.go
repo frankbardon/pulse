@@ -514,7 +514,6 @@ func TestParquetExport_TypeMapping(t *testing.T) {
 		{encoding.FieldTypeF64, "2.71828"},
 		{encoding.FieldTypeDate, "2022-01-05"},
 		{encoding.FieldTypePackedBool, "true"},
-		{encoding.FieldTypeNullableBool, "false"},
 	}
 
 	for _, tt := range tests {
@@ -888,10 +887,7 @@ func TestPulseTypeToArrowType(t *testing.T) {
 		{encoding.FieldTypeF64, arrow.FLOAT64},
 		{encoding.FieldTypeDate, arrow.DATE32},
 		{encoding.FieldTypePackedBool, arrow.BOOL},
-		{encoding.FieldTypeNullableBool, arrow.BOOL},
-		{encoding.FieldTypeNullableU4, arrow.UINT8},
-		{encoding.FieldTypeNullableU8, arrow.UINT8},
-		{encoding.FieldTypeNullableU16, arrow.UINT16},
+		{encoding.FieldTypeU4, arrow.UINT8},
 		{encoding.FieldTypeCategoricalU8, arrow.STRING},
 		{encoding.FieldTypeCategoricalU16, arrow.STRING},
 		{encoding.FieldTypeCategoricalU32, arrow.STRING},
@@ -1138,22 +1134,24 @@ func TestPulseTypeToArrow_DefaultCase(t *testing.T) {
 	}
 }
 
-func TestArrowTypeToPulse_NullableCases(t *testing.T) {
-	// Test nullable variants.
-	if got := arrowTypeToPulse(arrow.PrimitiveTypes.Uint8, true); got != encoding.FieldTypeNullableU8 {
-		t.Errorf("nullable uint8: got %s", got)
+func TestArrowTypeToPulse_NullableIgnored(t *testing.T) {
+	// Nullability is carried separately by encoding.Field.Nullable, so the
+	// nullable flag passed to arrowTypeToPulse should not change the
+	// returned FieldType.
+	if got := arrowTypeToPulse(arrow.PrimitiveTypes.Uint8, true); got != encoding.FieldTypeU8 {
+		t.Errorf("nullable uint8: got %s, want u8", got)
 	}
-	if got := arrowTypeToPulse(arrow.PrimitiveTypes.Uint16, true); got != encoding.FieldTypeNullableU16 {
-		t.Errorf("nullable uint16: got %s", got)
+	if got := arrowTypeToPulse(arrow.PrimitiveTypes.Uint16, true); got != encoding.FieldTypeU16 {
+		t.Errorf("nullable uint16: got %s, want u16", got)
 	}
-	if got := arrowTypeToPulse(arrow.PrimitiveTypes.Int8, true); got != encoding.FieldTypeNullableU8 {
-		t.Errorf("nullable int8: got %s", got)
+	if got := arrowTypeToPulse(arrow.PrimitiveTypes.Int8, true); got != encoding.FieldTypeU8 {
+		t.Errorf("nullable int8: got %s, want u8", got)
 	}
-	if got := arrowTypeToPulse(arrow.PrimitiveTypes.Int16, true); got != encoding.FieldTypeNullableU16 {
-		t.Errorf("nullable int16: got %s", got)
+	if got := arrowTypeToPulse(arrow.PrimitiveTypes.Int16, true); got != encoding.FieldTypeU16 {
+		t.Errorf("nullable int16: got %s, want u16", got)
 	}
-	if got := arrowTypeToPulse(arrow.FixedWidthTypes.Boolean, true); got != encoding.FieldTypeNullableBool {
-		t.Errorf("nullable bool: got %s", got)
+	if got := arrowTypeToPulse(arrow.FixedWidthTypes.Boolean, true); got != encoding.FieldTypePackedBool {
+		t.Errorf("nullable bool: got %s, want packed_bool", got)
 	}
 }
 

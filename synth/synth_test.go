@@ -247,12 +247,13 @@ func TestSynth_RoundTripsThroughPulseFacade(t *testing.T) {
 }
 
 // TestSynth_NullableU8RespectsNullRate generates a nullable column and
-// verifies the empirical null rate is close to the requested rate.
+// verifies the empirical null rate is close to the requested rate. Null
+// state is carried by the per-record bitmap, not an inline sentinel.
 func TestSynth_NullableU8RespectsNullRate(t *testing.T) {
 	spec := &synth.Spec{
 		RowCount: 5000,
 		Fields: []synth.FieldSpec{
-			{Name: "n", Type: "nullable_u8", Distribution: synth.DistUniform,
+			{Name: "n", Type: "u8", Nullable: true, Distribution: synth.DistUniform,
 				Params:   map[string]any{"min": 1.0, "max": 100.0},
 				NullRate: 0.25},
 		},
@@ -261,14 +262,9 @@ func TestSynth_NullableU8RespectsNullRate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("synth: %v", err)
 	}
-	values := readU8Field(t, data, "n")
-	nulls := 0
-	for _, v := range values {
-		if v == 0xFF {
-			nulls++
-		}
-	}
-	frac := float64(nulls) / float64(len(values))
+	nulls := readNullCountForField(t, data, "n")
+	total := readRecordCount(t, data)
+	frac := float64(nulls) / float64(total)
 	if math.Abs(frac-0.25) > 0.03 {
 		t.Errorf("null fraction = %.3f, want near 0.25", frac)
 	}
@@ -412,6 +408,59 @@ func readField(t *testing.T, data []byte, name string) []float64 {
 		out = append(out, values[name])
 	}
 	return out
+}
+
+// readNullCountForField returns the number of records where the given
+// field is flagged null (via the per-record bitmap).
+func readNullCountForField(t *testing.T, data []byte, name string) int {
+	t.Helper()
+	r := bytes.NewReader(data)
+	if err := encoding.ReadHeader(r); err != nil {
+		t.Fatalf("read header: %v", err)
+	}
+	schema, err := encoding.ReadSchema(r)
+	if err != nil {
+		t.Fatalf("read schema: %v", err)
+	}
+	rr := encoding.NewRecordReader(r, schema)
+	values := make(map[string]float64)
+	nulls := make(map[string]bool)
+	count := 0
+	for {
+		err := rr.ReadRecord(values, nulls)
+		if err != nil {
+			break
+		}
+		if nulls[name] {
+			count++
+		}
+	}
+	return count
+}
+
+// readRecordCount returns the total number of records in a .pulse byte
+// stream by walking the iterator to exhaustion.
+func readRecordCount(t *testing.T, data []byte) int {
+	t.Helper()
+	r := bytes.NewReader(data)
+	if err := encoding.ReadHeader(r); err != nil {
+		t.Fatalf("read header: %v", err)
+	}
+	schema, err := encoding.ReadSchema(r)
+	if err != nil {
+		t.Fatalf("read schema: %v", err)
+	}
+	rr := encoding.NewRecordReader(r, schema)
+	values := make(map[string]float64)
+	nulls := make(map[string]bool)
+	n := 0
+	for {
+		if err := rr.ReadRecord(values, nulls); err != nil {
+			break
+		}
+		n++
+	}
+	return n
 }
 
 func mean(xs []float64) float64 {
