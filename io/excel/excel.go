@@ -351,7 +351,7 @@ func (w *Writer) formatCell(col int, v any) excelize.Cell {
 	if w.pulseSchema != nil && col < len(w.pulseSchema.Fields) {
 		f := w.pulseSchema.Fields[col]
 		switch f.Type {
-		case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+		case encoding.FieldTypeDecimal128:
 			return w.decimalCell(col, f, v)
 		}
 	}

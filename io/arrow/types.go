@@ -20,101 +20,55 @@ const (
 	PulseTypeMetadataKey = "pulse:type"
 )
 
-// TypeToPulse maps an Arrow data type (with its nullability flag) to a Pulse
-// FieldType. Lifted from the original io/parquet implementation so both the
-// Arrow IPC reader and the Parquet reader share a single source of truth.
+// TypeToPulse maps an Arrow data type to a Pulse FieldType. Nullability
+// is carried separately by encoding.Field.Nullable (driven by the Arrow
+// Field's nullable flag at the call site).
 //
 // Mapping rules:
 //   - Signed and unsigned integers of the same width collapse to Pulse's
 //     unsigned type at that width (Pulse has no signed integer types).
-//   - Nullable variants are chosen for u8/u16 widths and for bool when the
-//     Arrow field is marked nullable.
-//   - Both Date32 and Date64 collapse to FieldTypeDate; Pulse stores dates as
-//     days-since-epoch and discards the sub-day precision Date64 carries.
+//   - Both Date32 and Date64 collapse to FieldTypeDate; Pulse stores dates
+//     as days-since-epoch and discards the sub-day precision Date64 carries.
 //   - String and binary (in both standard and large variants), and any
-//     dictionary-encoded type, collapse to FieldTypeCategoricalU8. The import
-//     pipeline upgrades to wider categorical widths when the dictionary
-//     overflows.
-//   - Anything unrecognized falls back to FieldTypeF64. This is a deliberate
-//     conservative default: it lets unknown numeric Arrow types load without
-//     error, at the cost of precision for unusual cases.
-func TypeToPulse(dt arrow.DataType, nullable bool) encoding.FieldType {
+//     dictionary-encoded type, collapse to FieldTypeCategoricalU8. The
+//     import pipeline upgrades to wider categorical widths when the
+//     dictionary overflows.
+//   - Anything unrecognized falls back to FieldTypeF64.
+func TypeToPulse(dt arrow.DataType) encoding.FieldType {
 	switch dt.ID() {
-	case arrow.UINT8:
-		if nullable {
-			return encoding.FieldTypeNullableU8
-		}
+	case arrow.UINT8, arrow.INT8:
 		return encoding.FieldTypeU8
-	case arrow.UINT16:
-		if nullable {
-			return encoding.FieldTypeNullableU16
-		}
+	case arrow.UINT16, arrow.INT16:
 		return encoding.FieldTypeU16
-	case arrow.UINT32:
+	case arrow.UINT32, arrow.INT32:
 		return encoding.FieldTypeU32
-	case arrow.UINT64:
-		return encoding.FieldTypeU64
-	case arrow.INT8:
-		if nullable {
-			return encoding.FieldTypeNullableU8
-		}
-		return encoding.FieldTypeU8
-	case arrow.INT16:
-		if nullable {
-			return encoding.FieldTypeNullableU16
-		}
-		return encoding.FieldTypeU16
-	case arrow.INT32:
-		return encoding.FieldTypeU32
-	case arrow.INT64:
+	case arrow.UINT64, arrow.INT64:
 		return encoding.FieldTypeU64
 	case arrow.FLOAT32:
 		return encoding.FieldTypeF32
 	case arrow.FLOAT64:
 		return encoding.FieldTypeF64
 	case arrow.BOOL:
-		if nullable {
-			return encoding.FieldTypeNullableBool
-		}
 		return encoding.FieldTypePackedBool
-	case arrow.DATE32:
-		return encoding.FieldTypeDate
-	case arrow.DATE64:
+	case arrow.DATE32, arrow.DATE64:
 		return encoding.FieldTypeDate
 	case arrow.STRING, arrow.LARGE_STRING, arrow.BINARY, arrow.LARGE_BINARY:
 		return encoding.FieldTypeCategoricalU8
 	case arrow.DICTIONARY:
-		// Dictionary-encoded -> categorical.
 		return encoding.FieldTypeCategoricalU8
 	case arrow.DECIMAL128:
-		if nullable {
-			return encoding.FieldTypeNullableDecimal128
-		}
 		return encoding.FieldTypeDecimal128
 	default:
-		// Default to f64 for unknown types.
 		return encoding.FieldTypeF64
 	}
 }
 
 // TypeFromPulse maps a Pulse FieldType to an Arrow DataType for use when
-// constructing an Arrow schema for export. Lifted from the original
-// io/parquet implementation.
-//
-// Mapping rules:
-//   - Unsigned integer widths map to the matching Arrow primitive.
-//   - Float widths map to the matching Arrow primitive.
-//   - Date maps to Arrow Date32 (days-since-epoch), the more compact of the
-//     two Arrow date types and the natural fit for Pulse's storage.
-//   - All bool variants (packed and nullable) collapse to Arrow Boolean;
-//     nullability is carried by the field's Nullable flag, not the data type.
-//   - All categorical widths collapse to Arrow String. Writers that want
-//     dictionary encoding configure that as a column-encoding hint at write
-//     time, not as a data-type choice.
-//   - Anything unrecognized falls back to Float64.
+// constructing an Arrow schema for export. Nullability is carried by the
+// arrow.Field's Nullable flag, not the data type.
 func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
 	switch ft {
-	case encoding.FieldTypeU8:
+	case encoding.FieldTypeU4, encoding.FieldTypeU8:
 		return arrow.PrimitiveTypes.Uint8
 	case encoding.FieldTypeU16:
 		return arrow.PrimitiveTypes.Uint16
@@ -130,17 +84,9 @@ func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
 		return arrow.FixedWidthTypes.Date32
 	case encoding.FieldTypePackedBool:
 		return arrow.FixedWidthTypes.Boolean
-	case encoding.FieldTypeNullableBool:
-		return arrow.FixedWidthTypes.Boolean
-	case encoding.FieldTypeNullableU4:
-		return arrow.PrimitiveTypes.Uint8
-	case encoding.FieldTypeNullableU8:
-		return arrow.PrimitiveTypes.Uint8
-	case encoding.FieldTypeNullableU16:
-		return arrow.PrimitiveTypes.Uint16
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		return arrow.BinaryTypes.String
-	case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+	case encoding.FieldTypeDecimal128:
 		// Caller-resolved precision/scale; default 38/0 when not provided.
 		return &arrow.Decimal128Type{Precision: int32(encoding.MaxDecimalPrecision), Scale: 0}
 	default:
@@ -149,15 +95,11 @@ func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
 }
 
 // FieldFromPulse builds an Arrow Field for a Pulse schema entry, including
-// per-type details (decimal128 precision/scale).
+// per-type details (decimal128 precision/scale). Arrow's nullable flag is
+// driven by the Pulse field's Nullable attribute.
 func FieldFromPulse(f encoding.Field) arrow.Field {
-	nullable := f.Type == encoding.FieldTypeNullableDecimal128 ||
-		f.Type == encoding.FieldTypeNullableBool ||
-		f.Type == encoding.FieldTypeNullableU4 ||
-		f.Type == encoding.FieldTypeNullableU8 ||
-		f.Type == encoding.FieldTypeNullableU16
 	switch f.Type {
-	case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+	case encoding.FieldTypeDecimal128:
 		precision := int32(f.Precision)
 		if precision == 0 {
 			precision = int32(encoding.MaxDecimalPrecision)
@@ -165,10 +107,10 @@ func FieldFromPulse(f encoding.Field) arrow.Field {
 		return arrow.Field{
 			Name:     f.Name,
 			Type:     &arrow.Decimal128Type{Precision: precision, Scale: int32(f.Scale)},
-			Nullable: nullable,
+			Nullable: f.Nullable,
 		}
 	default:
-		return arrow.Field{Name: f.Name, Type: TypeFromPulse(f.Type), Nullable: nullable}
+		return arrow.Field{Name: f.Name, Type: TypeFromPulse(f.Type), Nullable: f.Nullable}
 	}
 }
 
@@ -177,13 +119,10 @@ func FieldFromPulse(f encoding.Field) arrow.Field {
 // (zero, false) otherwise — the caller should fall back to TypeToPulse.
 func PulseFieldFromArrow(af arrow.Field) (encoding.Field, bool) {
 	if dt, ok := af.Type.(*arrow.Decimal128Type); ok {
-		ft := encoding.FieldTypeDecimal128
-		if af.Nullable {
-			ft = encoding.FieldTypeNullableDecimal128
-		}
 		return encoding.Field{
 			Name:      af.Name,
-			Type:      ft,
+			Type:      encoding.FieldTypeDecimal128,
+			Nullable:  af.Nullable,
 			Precision: uint8(dt.Precision),
 			Scale:     uint8(dt.Scale),
 		}, true
@@ -336,6 +275,5 @@ func decimal128ArrayValueToString(v decimal128.Num, scale uint8) string {
 	for i := 0; i < 16; i++ {
 		le[i] = be[15-i]
 	}
-	d, _ := encoding.DecodeDecimal128(le)
-	return d.String(scale)
+	return encoding.DecodeDecimal128(le).String(scale)
 }

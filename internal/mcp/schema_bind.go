@@ -37,11 +37,11 @@ import (
 // the union for filterer/group references.
 type fieldClassification struct {
 	AllFields     []string
-	Numeric       []string // u*, f*, decimal*, nullable_u*
+	Numeric       []string // u4/u8/u16/u32/u64, f32/f64, decimal128
 	NumericNoDec  []string // numeric minus decimal (kept for symmetry with capabilities tables)
 	Categorical   []string // categorical_u8/u16/u32
 	Date          []string // date
-	Bool          []string // nullable_bool, packed_bool
+	Bool          []string // packed_bool
 	NumericOrDate []string // window OrderBy targets
 }
 
@@ -68,7 +68,7 @@ func classifyFields(schema *encoding.Schema) fieldClassification {
 		case f.Type == encoding.FieldTypeDate:
 			c.Date = append(c.Date, f.Name)
 			c.NumericOrDate = append(c.NumericOrDate, f.Name)
-		case f.Type == encoding.FieldTypeNullableBool || f.Type == encoding.FieldTypePackedBool:
+		case f.Type == encoding.FieldTypePackedBool:
 			c.Bool = append(c.Bool, f.Name)
 		}
 	}

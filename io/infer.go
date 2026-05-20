@@ -73,7 +73,7 @@ func InferSchema(reader Reader, sampleRows int) (*encoding.Schema, []InferenceWa
 
 	byteOffset := 0
 	for i, colName := range columns {
-		ft, colWarnings, err := inferColumnType(colName, samples[i])
+		ft, nullable, colWarnings, err := inferColumnType(colName, samples[i])
 		if err != nil {
 			return nil, nil, err
 		}
@@ -82,10 +82,15 @@ func InferSchema(reader Reader, sampleRows int) (*encoding.Schema, []InferenceWa
 		fields[i] = encoding.Field{
 			Name:         colName,
 			Type:         ft,
+			Nullable:     nullable,
 			ByteOffset:   byteOffset,
 			CsvColumnIdx: i,
 		}
-		byteOffset += ft.ByteSize()
+		if ft.IsBitPacked() {
+			byteOffset++
+		} else {
+			byteOffset += ft.ByteSize()
+		}
 	}
 
 	schema := &encoding.Schema{Fields: fields}
@@ -100,10 +105,12 @@ func ErrStopIteration() error {
 	return errStopIteration
 }
 
-// inferColumnType determines the best FieldType for a column from sample values.
-func inferColumnType(colName string, values []string) (encoding.FieldType, []InferenceWarning, error) {
+// inferColumnType determines the best FieldType for a column from sample
+// values. The second return value is the per-field Nullable flag — true
+// when at least one sampled cell was a null token.
+func inferColumnType(colName string, values []string) (encoding.FieldType, bool, []InferenceWarning, error) {
 	if len(values) == 0 {
-		return encoding.FieldTypeF64, nil, nil
+		return encoding.FieldTypeF64, false, nil, nil
 	}
 
 	hasNulls := false
@@ -123,64 +130,49 @@ func inferColumnType(colName string, values []string) (encoding.FieldType, []Inf
 		if hasNulls {
 			w = append(w, InferenceWarning{Column: colName, Message: "all values are null, defaulting to f64"})
 		}
-		return encoding.FieldTypeF64, w, nil
+		return encoding.FieldTypeF64, hasNulls, w, nil
 	}
 
 	// Try each type in priority order.
 	// 1. Boolean
 	if allBool(nonNullValues) {
-		if hasNulls {
-			return encoding.FieldTypeNullableBool, nil, nil
-		}
-		return encoding.FieldTypePackedBool, nil, nil
+		return encoding.FieldTypePackedBool, hasNulls, nil, nil
 	}
 
 	// 2. Integer types (ascending width)
 	if allInteger(nonNullValues) {
 		minVal, maxVal := intRange(nonNullValues)
 
-		if hasNulls {
-			// Nullable integer types
-			if minVal >= 0 && maxVal <= 15 {
-				return encoding.FieldTypeNullableU4, nil, nil
-			}
-			if minVal >= 0 && maxVal <= 255 {
-				return encoding.FieldTypeNullableU8, nil, nil
-			}
-			if minVal >= 0 && maxVal <= 65535 {
-				return encoding.FieldTypeNullableU16, nil, nil
-			}
-			// Fall through to float for larger nullable ints.
-			return encoding.FieldTypeF64, nil, nil
+		if minVal >= 0 && maxVal <= 15 {
+			return encoding.FieldTypeU4, hasNulls, nil, nil
 		}
-
 		if minVal >= 0 && maxVal <= 255 {
-			return encoding.FieldTypeU8, nil, nil
+			return encoding.FieldTypeU8, hasNulls, nil, nil
 		}
 		if minVal >= 0 && maxVal <= 65535 {
-			return encoding.FieldTypeU16, nil, nil
+			return encoding.FieldTypeU16, hasNulls, nil, nil
 		}
 		if minVal >= 0 && maxVal <= math.MaxUint32 {
-			return encoding.FieldTypeU32, nil, nil
+			return encoding.FieldTypeU32, hasNulls, nil, nil
 		}
 		if minVal >= 0 {
-			return encoding.FieldTypeU64, nil, nil
+			return encoding.FieldTypeU64, hasNulls, nil, nil
 		}
 		// Negative integers get promoted to float.
-		return encoding.FieldTypeF64, nil, nil
+		return encoding.FieldTypeF64, hasNulls, nil, nil
 	}
 
 	// 3. Float types
 	if allFloat(nonNullValues) {
 		if fitsF32(nonNullValues) {
-			return encoding.FieldTypeF32, nil, nil
+			return encoding.FieldTypeF32, hasNulls, nil, nil
 		}
-		return encoding.FieldTypeF64, nil, nil
+		return encoding.FieldTypeF64, hasNulls, nil, nil
 	}
 
 	// 4. Date
 	if allDate(nonNullValues) {
-		return encoding.FieldTypeDate, nil, nil
+		return encoding.FieldTypeDate, hasNulls, nil, nil
 	}
 
 	// 5. Categorical (string)
@@ -189,7 +181,7 @@ func inferColumnType(colName string, values []string) (encoding.FieldType, []Inf
 
 	// If all sample values are unique, the column is unbounded.
 	if uniqueVals == totalNonNull && totalNonNull >= minSampleRows {
-		return 0, nil, errors.NewCodedErrorWithDetails(
+		return 0, false, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_IMPORT_CATEGORICAL_UNBOUNDED,
 			fmt.Sprintf("column %q: all %d sampled values are unique, suggesting unbounded cardinality", colName, totalNonNull),
 			map[string]any{"column": colName, "unique": uniqueVals, "sampled": totalNonNull},
@@ -206,7 +198,7 @@ func inferColumnType(colName string, values []string) (encoding.FieldType, []Inf
 		})
 	}
 
-	return catType, warnings, nil
+	return catType, hasNulls, warnings, nil
 }
 
 // allBool checks if all values are boolean-like.

@@ -78,7 +78,7 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 
 		hitEOF := false
 		for i, f := range schema.Fields {
-			if f.Type == encoding.FieldTypePackedBool || f.Type == encoding.FieldTypeNullableBool || f.Type == encoding.FieldTypeNullableU4 {
+			if f.Type.IsBitPacked() {
 				b, err := r.ReadByte()
 				if err != nil {
 					hitEOF = true
@@ -89,17 +89,14 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 			}
 
 			if f.Type.IsDecimal() {
-				d, isNull, err := encoding.ReadDecimal128(r)
+				d, err := encoding.ReadDecimal128(r)
 				if err != nil {
 					hitEOF = true
 					break
 				}
-				switch {
-				case isNull:
-					values[i] = ""
-				case schemaAware:
+				if schemaAware {
 					values[i] = d
-				default:
+				} else {
 					values[i] = d.String(f.Scale)
 				}
 				continue
@@ -115,6 +112,19 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 
 		if hitEOF {
 			break
+		}
+
+		// Apply trailing null bitmap, if schema declares any nullable field.
+		if bmSize := schema.BitmapByteSize(); bmSize > 0 {
+			bitmap, err := encoding.ReadBitmap(r, bmSize)
+			if err != nil {
+				break
+			}
+			for i, f := range schema.Fields {
+				if f.Nullable && encoding.BitmapIsNull(bitmap, i) {
+					values[i] = ""
+				}
+			}
 		}
 
 		if err := j.Target.WriteRow(values); err != nil {
@@ -155,10 +165,7 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	}
 
 	// Estimate record count from remaining bytes and per-record size.
-	recordSize := 0
-	for _, f := range schema.Fields {
-		recordSize += f.Type.ByteSize()
-	}
+	recordSize := schema.RecordByteSize()
 	estimatedRows := 0
 	if recordSize > 0 {
 		estimatedRows = r.Len() / recordSize
@@ -171,6 +178,8 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 }
 
 // formatFieldValue converts a raw uint64 value back to a string representation.
+// Null state is applied separately by the export loop via the per-record
+// bitmap; this function never sees a null cell.
 func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictionary) string {
 	switch ft {
 	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
@@ -188,18 +197,6 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 		days := int64(uint32(raw))
 		t := time.Unix(days*86400, 0).UTC()
 		return t.Format("2006-01-02")
-
-	case encoding.FieldTypeNullableU8:
-		if raw == 0xFF {
-			return ""
-		}
-		return strconv.FormatUint(raw, 10)
-
-	case encoding.FieldTypeNullableU16:
-		if raw == 0xFFFF {
-			return ""
-		}
-		return strconv.FormatUint(raw, 10)
 
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		if dict != nil {
@@ -221,23 +218,8 @@ func formatPackedValue(ft encoding.FieldType, b byte) string {
 		}
 		return "false"
 
-	case encoding.FieldTypeNullableBool:
-		switch b {
-		case 0:
-			return ""
-		case 1:
-			return "false"
-		case 2:
-			return "true"
-		default:
-			return ""
-		}
-
-	case encoding.FieldTypeNullableU4:
-		if b == 0x0F {
-			return ""
-		}
-		return strconv.Itoa(int(b))
+	case encoding.FieldTypeU4:
+		return strconv.Itoa(int(b & 0x0F))
 
 	default:
 		return strconv.Itoa(int(b))

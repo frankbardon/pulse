@@ -177,10 +177,9 @@ func LoadMemberSetFromReader(r io.Reader, schema *encoding.Schema, fieldName str
 	switch {
 	case f.Type.IsCategorical() && f.Dictionary != nil:
 		bitset = newBitsetSet(f.Dictionary.Count())
-	case f.Type == encoding.FieldTypeU8, f.Type == encoding.FieldTypeU16,
+	case f.Type == encoding.FieldTypeU4,
+		f.Type == encoding.FieldTypeU8, f.Type == encoding.FieldTypeU16,
 		f.Type == encoding.FieldTypeU32, f.Type == encoding.FieldTypeU64,
-		f.Type == encoding.FieldTypeNullableU4, f.Type == encoding.FieldTypeNullableU8,
-		f.Type == encoding.FieldTypeNullableU16, f.Type == encoding.FieldTypeNullableBool,
 		f.Type == encoding.FieldTypePackedBool, f.Type == encoding.FieldTypeDate:
 		uset = newUint64Set(1024)
 	default:

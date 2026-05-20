@@ -55,9 +55,9 @@ var windowFieldRequired = map[types.WindowType]bool{
 // Categorical types and bit-packed boolean types are excluded.
 func isOrderableType(ft encoding.FieldType) bool {
 	switch ft {
-	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
+	case encoding.FieldTypeU4,
+		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
 		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeNullableU4, encoding.FieldTypeNullableU8, encoding.FieldTypeNullableU16,
 		encoding.FieldTypeDate:
 		return true
 	}
@@ -68,15 +68,15 @@ func isOrderableType(ft encoding.FieldType) bool {
 // value for window arithmetic (sum, avg, lag, ewma, etc.). Intentionally
 // narrower than the canonical encoding.FieldType.IsNumericForAnalytics:
 // decimal128 is excluded because the buffered decimal path is unimplemented
-// for window operators, and the bit-packed bool encodings are excluded
+// for window operators, and the bit-packed bool encoding is excluded
 // because windowing a 0/1 series rarely matches caller intent. Keep this
 // helper local; widen it only after the corresponding window engines
 // support the broader set.
 func isNumericType(ft encoding.FieldType) bool {
 	switch ft {
-	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
+	case encoding.FieldTypeU4,
+		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
 		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeNullableU4, encoding.FieldTypeNullableU8, encoding.FieldTypeNullableU16,
 		encoding.FieldTypeDate:
 		return true
 	}

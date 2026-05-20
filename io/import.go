@@ -78,6 +78,8 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	vals := make([]uint64, len(schema.Fields))
 	wideBytes := make([][16]byte, len(schema.Fields))
 	wideUsed := make([]bool, len(schema.Fields))
+	nullMask := make([]bool, len(schema.Fields))
+	bitmapSize := schema.BitmapByteSize()
 
 	err := j.Source.ReadRows(ctx, func(row []string) error {
 		select {
@@ -89,6 +91,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 
 		for i := range wideUsed {
 			wideUsed[i] = false
+			nullMask[i] = false
 		}
 
 		rowOK := true
@@ -97,6 +100,30 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 			var raw string
 			if colIdx < len(row) {
 				raw = strings.TrimSpace(row[colIdx])
+			}
+
+			nullCell := isNullToken(raw)
+			if nullCell {
+				if !f.Nullable {
+					rowErrors = append(rowErrors, RowError{
+						Row: rowNum,
+						Err: errors.NewCodedErrorWithDetails(
+							errors.PULSE_IMPORT_ROW_ERROR,
+							fmt.Sprintf("row %d, column %q: null value in non-nullable field", rowNum, f.Name),
+							map[string]any{"row": rowNum, "column": f.Name},
+						),
+					})
+					rowOK = false
+					break
+				}
+				nullMask[i] = true
+				if isWideFieldType(f.Type) {
+					wideBytes[i] = encoding.EncodeDecimal128(encoding.ZeroDecimal128())
+					wideUsed[i] = true
+				} else {
+					vals[i] = 0
+				}
+				continue
 			}
 
 			if isWideFieldType(f.Type) {
@@ -146,7 +173,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 				}
 				continue
 			}
-			if f.Type == encoding.FieldTypePackedBool || f.Type == encoding.FieldTypeNullableBool || f.Type == encoding.FieldTypeNullableU4 {
+			if f.Type.IsBitPacked() {
 				// Bit-packed types: write as single byte for simplicity.
 				recordsBuf.WriteByte(byte(vals[i]))
 				continue
@@ -155,6 +182,23 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 				return err
 			}
 		}
+
+		// Per-record null bitmap, if schema has any nullable field.
+		if bitmapSize > 0 {
+			bitmap := make([]byte, bitmapSize)
+			for i, f := range schema.Fields {
+				if !f.Nullable {
+					continue
+				}
+				if nullMask[i] {
+					encoding.BitmapSetNull(bitmap, i)
+				}
+			}
+			if err := encoding.WriteBitmap(&recordsBuf, bitmap); err != nil {
+				return err
+			}
+		}
+
 		rowsImported++
 		return nil
 	})
@@ -248,25 +292,17 @@ func isNullToken(raw string) bool {
 }
 
 // isWideFieldType reports whether the field type uses the 16-byte wide
-// import path (decimal128, nullable_decimal128).
+// import path (decimal128).
 func isWideFieldType(ft encoding.FieldType) bool {
-	return ft == encoding.FieldTypeDecimal128 ||
-		ft == encoding.FieldTypeNullableDecimal128
+	return ft == encoding.FieldTypeDecimal128
 }
 
-// convertValueWide converts a string value to the 16-byte representation
-// for wide field types. Returns the canonical encoding for null on
-// nullable_decimal128.
+// convertValueWide converts a non-null string value to the 16-byte
+// representation for wide field types. Null cells are handled by the
+// caller before this is called.
 func convertValueWide(raw string, f encoding.Field, _ *encoding.Dictionary) ([16]byte, error) {
 	switch f.Type {
-	case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
-		if isNullToken(raw) {
-			if f.Type == encoding.FieldTypeNullableDecimal128 {
-				return encoding.NullDecimalSentinel(), nil
-			}
-			// non-nullable decimal: zero value
-			return encoding.EncodeDecimal128(encoding.ZeroDecimal128()), nil
-		}
+	case encoding.FieldTypeDecimal128:
 		d, parsedScale, err := encoding.ParseDecimal128(raw)
 		if err != nil {
 			return [16]byte{}, err
@@ -284,55 +320,44 @@ func convertValueWide(raw string, f encoding.Field, _ *encoding.Dictionary) ([16
 				"decimal value exceeds field precision",
 				map[string]any{"value": raw, "precision": f.Precision, "scale": f.Scale})
 		}
-		enc := encoding.EncodeDecimal128(d)
-		// Reject the canonical NULL sentinel as a legitimate value.
-		if f.Type == encoding.FieldTypeNullableDecimal128 && enc == encoding.NullDecimalSentinel() {
-			return [16]byte{}, errors.NewCodedError(errors.PULSE_IMPORT_ROW_ERROR,
-				"decimal value collides with reserved NULL sentinel")
-		}
-		return enc, nil
+		return encoding.EncodeDecimal128(d), nil
 	default:
 		return [16]byte{}, fmt.Errorf("not a wide field type: %s", f.Type)
 	}
 }
 
-// convertValue converts a string value to the uint64 representation for the given type.
+// convertValue converts a non-null string value to the uint64
+// representation for the given type. Null cells are handled by the caller
+// before this is called; convertValue can assume raw is non-null.
 func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary) (uint64, error) {
-	isNull := isNullToken(raw)
-
 	switch ft {
-	case encoding.FieldTypeU8:
-		if isNull {
-			return 0, nil
+	case encoding.FieldTypeU4:
+		v, err := strconv.ParseUint(raw, 10, 8)
+		if err != nil {
+			return 0, err
 		}
+		if v > 0x0F {
+			return 0, fmt.Errorf("value %d exceeds u4 range", v)
+		}
+		return v, nil
+
+	case encoding.FieldTypeU8:
 		v, err := strconv.ParseUint(raw, 10, 8)
 		return v, err
 
 	case encoding.FieldTypeU16:
-		if isNull {
-			return 0, nil
-		}
 		v, err := strconv.ParseUint(raw, 10, 16)
 		return v, err
 
 	case encoding.FieldTypeU32:
-		if isNull {
-			return 0, nil
-		}
 		v, err := strconv.ParseUint(raw, 10, 32)
 		return v, err
 
 	case encoding.FieldTypeU64:
-		if isNull {
-			return 0, nil
-		}
 		v, err := strconv.ParseUint(raw, 10, 64)
 		return v, err
 
 	case encoding.FieldTypeF32:
-		if isNull {
-			return 0, nil
-		}
 		f, err := strconv.ParseFloat(raw, 32)
 		if err != nil {
 			return 0, err
@@ -340,9 +365,6 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary) 
 		return uint64(math.Float32bits(float32(f))), nil
 
 	case encoding.FieldTypeF64:
-		if isNull {
-			return 0, nil
-		}
 		f, err := strconv.ParseFloat(raw, 64)
 		if err != nil {
 			return 0, err
@@ -350,9 +372,6 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary) 
 		return math.Float64bits(f), nil
 
 	case encoding.FieldTypeDate:
-		if isNull {
-			return 0, nil
-		}
 		for _, layout := range dateFormats {
 			t, err := time.Parse(layout, raw)
 			if err == nil {
@@ -364,56 +383,9 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary) 
 		return 0, fmt.Errorf("cannot parse date: %q", raw)
 
 	case encoding.FieldTypePackedBool:
-		if isNull {
-			return 0, nil
-		}
 		return parseBoolValue(raw)
 
-	case encoding.FieldTypeNullableBool:
-		if isNull {
-			return 0, nil // 0 = null sentinel for nullable bool
-		}
-		b, err := parseBoolValue(raw)
-		if err != nil {
-			return 0, err
-		}
-		// Encode: 1 = false, 2 = true (0 = null).
-		if b == 1 {
-			return 2, nil
-		}
-		return 1, nil
-
-	case encoding.FieldTypeNullableU4:
-		if isNull {
-			return 0x0F, nil // sentinel for null
-		}
-		v, err := strconv.ParseUint(raw, 10, 8)
-		if err != nil {
-			return 0, err
-		}
-		if v > 14 {
-			return 0, fmt.Errorf("value %d exceeds nullable u4 range", v)
-		}
-		return v, nil
-
-	case encoding.FieldTypeNullableU8:
-		if isNull {
-			return 0xFF, nil // sentinel
-		}
-		v, err := strconv.ParseUint(raw, 10, 8)
-		return v, err
-
-	case encoding.FieldTypeNullableU16:
-		if isNull {
-			return 0xFFFF, nil // sentinel
-		}
-		v, err := strconv.ParseUint(raw, 10, 16)
-		return v, err
-
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
-		if isNull {
-			return 0, nil
-		}
 		if dict == nil {
 			return 0, fmt.Errorf("no dictionary for categorical field")
 		}

@@ -5,53 +5,45 @@ import "fmt"
 // FieldType identifies the data type stored in a schema field.
 type FieldType byte
 
-// nullableU4NullSentinel is the 4-bit value (0x0F = 15) reserved to mark
-// a nullable_u4 cell as null. The reader maps this raw value to the
-// Record's null map so downstream Record.NumericValue returns ok=false,
-// keeping aggregation denominators and regression observation counts
-// correct without any orchestrator-level branching.
-const nullableU4NullSentinel uint8 = 0x0F
-
-// All 17 field types supported by the .pulse format.
+// All 13 field types supported by the .pulse format. Nullability is
+// orthogonal to type — any field can be marked nullable via
+// encoding.Field.Nullable and the per-record null bitmap carries the
+// actual null state.
 const (
-	FieldTypeU8                 FieldType = iota // 0
-	FieldTypeU16                                 // 1
-	FieldTypeU32                                 // 2
-	FieldTypeU64                                 // 3
-	FieldTypeF32                                 // 4
-	FieldTypeF64                                 // 5
-	FieldTypeNullableBool                        // 6
-	FieldTypeNullableU4                          // 7
-	FieldTypeNullableU8                          // 8
-	FieldTypeNullableU16                         // 9
-	FieldTypeDate                                // 10
-	FieldTypePackedBool                          // 11
-	FieldTypeCategoricalU8                       // 12
-	FieldTypeCategoricalU16                      // 13
-	FieldTypeCategoricalU32                      // 14
-	FieldTypeDecimal128                          // 15
-	FieldTypeNullableDecimal128                  // 16
+	FieldTypeU8             FieldType = iota // 0
+	FieldTypeU16                             // 1
+	FieldTypeU32                             // 2
+	FieldTypeU64                             // 3
+	FieldTypeF32                             // 4
+	FieldTypeF64                             // 5
+	FieldTypeU4                              // 6  (4-bit, bit-packed)
+	FieldTypeDate                            // 7
+	FieldTypePackedBool                      // 8  (1-bit, bit-packed)
+	FieldTypeCategoricalU8                   // 9
+	FieldTypeCategoricalU16                  // 10
+	FieldTypeCategoricalU32                  // 11
+	FieldTypeDecimal128                      // 12
 
 	fieldTypeCount // sentinel
 )
 
 // ByteSize returns the number of bytes this field type occupies in a record.
-// Packed types (PackedBool, NullableBool, NullableU4) share bytes with
-// adjacent fields via bit packing and return 0 here.
+// Bit-packed types (U4, PackedBool) share bytes with adjacent fields and
+// return 0 here; their on-wire stride is handled by Schema.RecordByteSize.
 func (ft FieldType) ByteSize() int {
 	switch ft {
-	case FieldTypeU8, FieldTypeNullableU8, FieldTypeCategoricalU8:
+	case FieldTypeU8, FieldTypeCategoricalU8:
 		return 1
-	case FieldTypeU16, FieldTypeNullableU16, FieldTypeCategoricalU16:
+	case FieldTypeU16, FieldTypeCategoricalU16:
 		return 2
 	case FieldTypeU32, FieldTypeF32, FieldTypeDate, FieldTypeCategoricalU32:
 		return 4
 	case FieldTypeU64, FieldTypeF64:
 		return 8
-	case FieldTypeDecimal128, FieldTypeNullableDecimal128:
+	case FieldTypeDecimal128:
 		return 16
-	case FieldTypeNullableBool, FieldTypeNullableU4, FieldTypePackedBool:
-		return 0 // bit-packed, no whole-byte allocation
+	case FieldTypeU4, FieldTypePackedBool:
+		return 0 // bit-packed
 	default:
 		return 0
 	}
@@ -72,14 +64,8 @@ func (ft FieldType) String() string {
 		return "f32"
 	case FieldTypeF64:
 		return "f64"
-	case FieldTypeNullableBool:
-		return "nullable_bool"
-	case FieldTypeNullableU4:
-		return "nullable_u4"
-	case FieldTypeNullableU8:
-		return "nullable_u8"
-	case FieldTypeNullableU16:
-		return "nullable_u16"
+	case FieldTypeU4:
+		return "u4"
 	case FieldTypeDate:
 		return "date"
 	case FieldTypePackedBool:
@@ -92,8 +78,6 @@ func (ft FieldType) String() string {
 		return "categorical_u32"
 	case FieldTypeDecimal128:
 		return "decimal128"
-	case FieldTypeNullableDecimal128:
-		return "nullable_decimal128"
 	default:
 		return fmt.Sprintf("unknown(%d)", ft)
 	}
@@ -102,6 +86,14 @@ func (ft FieldType) String() string {
 // IsCategorical reports whether the field type is one of the categorical types.
 func (ft FieldType) IsCategorical() bool {
 	return ft == FieldTypeCategoricalU8 || ft == FieldTypeCategoricalU16 || ft == FieldTypeCategoricalU32
+}
+
+// IsBitPacked reports whether the field type shares its on-wire byte with
+// adjacent fields via bit packing (U4, PackedBool). Used by stride math
+// and the schema layout pass to advance the bit cursor instead of the
+// byte cursor.
+func (ft FieldType) IsBitPacked() bool {
+	return ft == FieldTypeU4 || ft == FieldTypePackedBool
 }
 
 // Numeric predicate hierarchy
@@ -125,9 +117,8 @@ func (ft FieldType) IsCategorical() bool {
 
 // IsNumeric reports whether the field type is a strict scalar number:
 // the unsigned-integer family (u8/u16/u32/u64), the float family
-// (f32/f64), and the decimal family (decimal128/nullable_decimal128).
-// Date and bit-packed integer encodings are excluded — see
-// IsNumericForAnalytics for the analytics-layer predicate.
+// (f32/f64), and decimal128. Date and bit-packed integer encodings are
+// excluded — see IsNumericForAnalytics for the analytics-layer predicate.
 func (ft FieldType) IsNumeric() bool {
 	if ft.IsDecimal() {
 		return true
@@ -143,30 +134,28 @@ func (ft FieldType) IsNumeric() bool {
 // IsNumericForAnalytics reports whether the field type carries a meaningful
 // scalar value for numeric analytics (regression, sum/avg/stddev/min/max/
 // variance aggregators). The set is broader than IsNumeric: bit-packed
-// integer encodings (nullable_u4, nullable_bool, packed_bool) and date
-// are included because their stored representation is an ordinal /
-// cardinal number the analytics layer can average, sum, or regress
-// without an explicit ATTR_FORMULA cast.
+// integer encodings (u4, packed_bool) and date are included because their
+// stored representation is an ordinal / cardinal number the analytics layer
+// can average, sum, or regress without an explicit ATTR_FORMULA cast.
 //
-// Null exclusion is the reader's responsibility: nullable_u4 marks 0x0F
-// as null at decode time so the downstream Record.NumericValue contract
-// (returns ok=false on null) keeps the aggregation denominator honest.
+// Null exclusion is the reader's responsibility: the per-record null
+// bitmap marks any field index as null at decode time so the downstream
+// Record.NumericValue contract (returns ok=false on null) keeps the
+// aggregation denominator honest.
 func (ft FieldType) IsNumericForAnalytics() bool {
 	if ft.IsNumeric() {
 		return true
 	}
 	switch ft {
-	case FieldTypeDate,
-		FieldTypeNullableU4, FieldTypeNullableU8, FieldTypeNullableU16,
-		FieldTypeNullableBool, FieldTypePackedBool:
+	case FieldTypeDate, FieldTypeU4, FieldTypePackedBool:
 		return true
 	}
 	return false
 }
 
-// IsDecimal reports whether the field type is a decimal128 variant.
+// IsDecimal reports whether the field type is decimal128.
 func (ft FieldType) IsDecimal() bool {
-	return ft == FieldTypeDecimal128 || ft == FieldTypeNullableDecimal128
+	return ft == FieldTypeDecimal128
 }
 
 // IsKnown reports whether the byte value corresponds to a registered type.

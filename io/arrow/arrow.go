@@ -208,14 +208,19 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 			byteOffset += pf.Type.ByteSize()
 			continue
 		}
-		ft := TypeToPulse(af.Type, af.Nullable)
+		ft := TypeToPulse(af.Type)
 		fields[i] = encoding.Field{
 			Name:         af.Name,
 			Type:         ft,
+			Nullable:     af.Nullable,
 			ByteOffset:   byteOffset,
 			CsvColumnIdx: i,
 		}
-		byteOffset += ft.ByteSize()
+		if ft.IsBitPacked() {
+			byteOffset++
+		} else {
+			byteOffset += ft.ByteSize()
+		}
 	}
 
 	return &encoding.Schema{Fields: fields}, nil
@@ -377,7 +382,7 @@ func (w *Writer) appendCell(c int, v any) error {
 	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
 		f := w.pulseSchema.Fields[c]
 		switch f.Type {
-		case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+		case encoding.FieldTypeDecimal128:
 			return w.appendDecimal(c, f, v)
 		}
 	}

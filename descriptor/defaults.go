@@ -45,17 +45,14 @@ type defaultRule struct {
 // "Defaults" section of skills/getting-started.md.
 var defaultRules = map[encoding.FieldType]defaultRule{
 	// Numeric integers and floats: SUM aggregation, RANGE bucketing.
-	encoding.FieldTypeU8:                 {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
-	encoding.FieldTypeU16:                {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
-	encoding.FieldTypeU32:                {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
-	encoding.FieldTypeU64:                {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
-	encoding.FieldTypeF32:                {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
-	encoding.FieldTypeF64:                {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
-	encoding.FieldTypeNullableU4:         {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
-	encoding.FieldTypeNullableU8:         {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
-	encoding.FieldTypeNullableU16:        {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
-	encoding.FieldTypeDecimal128:         {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
-	encoding.FieldTypeNullableDecimal128: {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
+	encoding.FieldTypeU4:         {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
+	encoding.FieldTypeU8:         {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
+	encoding.FieldTypeU16:        {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
+	encoding.FieldTypeU32:        {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
+	encoding.FieldTypeU64:        {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
+	encoding.FieldTypeF32:        {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
+	encoding.FieldTypeF64:        {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
+	encoding.FieldTypeDecimal128: {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
 
 	// Categorical fields: FREQUENCY tallies values, CATEGORY partitions by them.
 	encoding.FieldTypeCategoricalU8:  {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "categorical default"},
@@ -65,9 +62,8 @@ var defaultRules = map[encoding.FieldType]defaultRule{
 	// Date: no aggregation default (must be explicit); GROUP_DATE (day bucket).
 	encoding.FieldTypeDate: {Agg: "", Group: types.GROUP_DATE, FamilyTag: "date default"},
 
-	// Booleans (single-bit or tri-state): treated as categorical for defaulting.
-	encoding.FieldTypeNullableBool: {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "boolean default"},
-	encoding.FieldTypePackedBool:   {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "boolean default"},
+	// Booleans (single-bit): treated as categorical for defaulting.
+	encoding.FieldTypePackedBool: {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "boolean default"},
 }
 
 // defaultRangeInterval is the bucket width applied to a newly-defaulted

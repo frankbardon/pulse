@@ -11,6 +11,7 @@ import (
 type Field struct {
 	Name         string
 	Type         FieldType
+	Nullable     bool // true ⇒ field participates in per-record null bitmap
 	ByteOffset   int
 	BitPosition  int
 	CsvColumnIdx int
@@ -18,10 +19,10 @@ type Field struct {
 	Dictionary   *Dictionary // non-nil only for categorical types
 
 	// Precision is the decimal128 precision (1-38). Meaningful only when
-	// Type is FieldTypeDecimal128 or FieldTypeNullableDecimal128.
+	// Type is FieldTypeDecimal128.
 	Precision uint8
 	// Scale is the decimal128 scale (0-Precision). Meaningful only when
-	// Type is FieldTypeDecimal128 or FieldTypeNullableDecimal128.
+	// Type is FieldTypeDecimal128.
 	Scale uint8
 }
 
@@ -30,25 +31,45 @@ type Schema struct {
 	Fields []Field
 }
 
+// HasBitmap reports whether any field in the schema is marked nullable.
+// When true, every record carries a trailing null bitmap of
+// ceil(field_count/8) bytes after the payload; when false, records have
+// no bitmap (legacy fixed-stride path, zero overhead).
+func (s *Schema) HasBitmap() bool {
+	for i := range s.Fields {
+		if s.Fields[i].Nullable {
+			return true
+		}
+	}
+	return false
+}
+
+// BitmapByteSize returns the number of bytes the null bitmap occupies
+// per record, or 0 when no field is nullable.
+func (s *Schema) BitmapByteSize() int {
+	if !s.HasBitmap() {
+		return 0
+	}
+	return (len(s.Fields) + 7) / 8
+}
+
 // RecordByteSize returns the on-wire stride of one record under this
-// schema. Bit-packed fields (PackedBool, NullableBool, NullableU4)
-// report ByteSize()==0 but the wire format still consumes one whole
-// byte per such field (synth/writer.go and io/import.go both advance
-// the byte cursor by one for these types and the RecordReader bit/
-// nibble helpers read one byte each). Summing ByteSize() directly
-// therefore undercounts the stride on any schema that mixes byte-
-// aligned and bit-packed fields — use this helper to keep stride
-// math consistent with the wire writers and reader.
+// schema. Bit-packed fields (U4, PackedBool) report ByteSize()==0 but the
+// wire format still consumes one whole byte per such field. When the
+// schema declares at least one nullable field, the trailing null bitmap
+// of ceil(field_count/8) bytes is appended to every record and included
+// in the stride.
 func (s *Schema) RecordByteSize() int {
 	stride := 0
 	for i := range s.Fields {
 		ft := s.Fields[i].Type
-		if ft == FieldTypePackedBool || ft == FieldTypeNullableBool || ft == FieldTypeNullableU4 {
+		if ft.IsBitPacked() {
 			stride++
 			continue
 		}
 		stride += ft.ByteSize()
 	}
+	stride += s.BitmapByteSize()
 	return stride
 }
 
@@ -78,11 +99,13 @@ func (s *Schema) Categorical(name string) (*Dictionary, bool) {
 //	u16 field_count
 //	per field:
 //	  u8 type
+//	  u8 nullable (0 or 1)
 //	  u16 name_length + utf8 name
 //	  u32 byte_offset
 //	  u8 bit_position
 //	  u16 csv_column_idx
 //	  u16 description_length + utf8 description
+//	  (if decimal128) u8 precision + u8 scale
 //	  (if categorical) dictionary block
 func WriteSchema(w io.Writer, s *Schema) error {
 	fieldCount := uint16(len(s.Fields))
@@ -94,6 +117,15 @@ func WriteSchema(w io.Writer, s *Schema) error {
 		// Type byte.
 		if err := binary.Write(w, binary.LittleEndian, byte(f.Type)); err != nil {
 			return errors.WrapCodedError(err, errors.ENCODING_IO, "writing field type")
+		}
+
+		// Nullable flag.
+		var nullableByte uint8
+		if f.Nullable {
+			nullableByte = 1
+		}
+		if err := binary.Write(w, binary.LittleEndian, nullableByte); err != nil {
+			return errors.WrapCodedError(err, errors.ENCODING_IO, "writing nullable flag")
 		}
 
 		// Name: u16 len + bytes.
@@ -125,7 +157,7 @@ func WriteSchema(w io.Writer, s *Schema) error {
 			return err
 		}
 
-		// Decimal precision/scale metadata for decimal128 variants.
+		// Decimal precision/scale metadata for decimal128.
 		if f.Type.IsDecimal() {
 			if err := binary.Write(w, binary.LittleEndian, f.Precision); err != nil {
 				return errors.WrapCodedError(err, errors.ENCODING_IO, "writing decimal precision")
@@ -177,6 +209,13 @@ func ReadSchema(r io.Reader) (*Schema, error) {
 				"unknown field type byte",
 				map[string]any{"byte": typeByte, "field_index": i})
 		}
+
+		// Nullable flag.
+		var nullableByte uint8
+		if err := binary.Read(r, binary.LittleEndian, &nullableByte); err != nil {
+			return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading nullable flag")
+		}
+		f.Nullable = nullableByte != 0
 
 		// Name.
 		var nameLen uint16

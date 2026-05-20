@@ -48,38 +48,17 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 				rec.SetNumeric(field.Name, 0)
 			}
 
-		case FieldTypeNullableBool:
-			v, err := ReadBit(rr.r, uint(field.BitPosition))
-			if err != nil {
-				return mapEOF(err)
-			}
-			if v {
-				rec.SetNumeric(field.Name, 1)
-			} else {
-				rec.SetNumeric(field.Name, 0)
-			}
-
-		case FieldTypeNullableU4:
+		case FieldTypeU4:
 			v, err := ReadNibble(rr.r, field.BitPosition > 0)
 			if err != nil {
 				return mapEOF(err)
 			}
-			if v == nullableU4NullSentinel {
-				rec.SetNullField(field.Name)
-				rec.SetNumeric(field.Name, 0)
-				continue
-			}
 			rec.SetNumeric(field.Name, float64(v))
 
-		case FieldTypeDecimal128, FieldTypeNullableDecimal128:
-			d, isNull, err := ReadDecimal128(rr.r)
+		case FieldTypeDecimal128:
+			d, err := ReadDecimal128(rr.r)
 			if err != nil {
 				return mapEOF(err)
-			}
-			if field.Type == FieldTypeNullableDecimal128 && isNull {
-				rec.SetNullField(field.Name)
-				rec.SetNumeric(field.Name, 0)
-				continue
 			}
 			rec.SetNumeric(field.Name, d.Float64(field.Scale))
 			rec.SetWideField(field.Name, d)
@@ -96,6 +75,24 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 			rec.SetNumeric(field.Name, decodeFixed(field.Type, scratch[:n]))
 		}
 	}
+
+	// Trailing null bitmap, if the schema declares any nullable field.
+	if bmSize := rr.schema.BitmapByteSize(); bmSize > 0 {
+		bitmap, err := ReadBitmap(rr.r, bmSize)
+		if err != nil {
+			return mapEOF(err)
+		}
+		for i, field := range rr.schema.Fields {
+			if !field.Nullable {
+				continue
+			}
+			if BitmapIsNull(bitmap, i) {
+				rec.SetNullField(field.Name)
+				rec.SetNumeric(field.Name, 0)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -104,9 +101,9 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 // types so callers can fall through to typed readers.
 func fixedWidthBytes(ft FieldType) int {
 	switch ft {
-	case FieldTypeU8, FieldTypeNullableU8, FieldTypeCategoricalU8:
+	case FieldTypeU8, FieldTypeCategoricalU8:
 		return 1
-	case FieldTypeU16, FieldTypeNullableU16, FieldTypeCategoricalU16:
+	case FieldTypeU16, FieldTypeCategoricalU16:
 		return 2
 	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeF32:
 		return 4
@@ -123,9 +120,9 @@ func fixedWidthBytes(ft FieldType) int {
 // is required (the uint64 is stack-resident).
 func decodeFixed(ft FieldType, buf []byte) float64 {
 	switch ft {
-	case FieldTypeU8, FieldTypeNullableU8, FieldTypeCategoricalU8:
+	case FieldTypeU8, FieldTypeCategoricalU8:
 		return float64(buf[0])
-	case FieldTypeU16, FieldTypeNullableU16, FieldTypeCategoricalU16:
+	case FieldTypeU16, FieldTypeCategoricalU16:
 		return float64(binary.LittleEndian.Uint16(buf))
 	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32:
 		return float64(binary.LittleEndian.Uint32(buf))
