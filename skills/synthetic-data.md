@@ -74,7 +74,7 @@ After the user generates the file, you can verify the result over MCP:
 
 ### Field-type matrix
 
-Every type supported by the .pulse format works with synth. Use `decimal128` with a `params.scale` matching the field's declared scale; the writer rescales as needed via banker's rounding. `packed_bool`, `nullable_bool`, `nullable_u4` consume one byte per row in the writer to keep the layout aligned with the importer.
+Every type supported by the .pulse format works with synth. Use `decimal128` with a `params.scale` matching the field's declared scale; the writer rescales as needed via banker's rounding. The bit-packed types (`packed_bool`, `u4`) consume one byte per row in the writer to keep the layout aligned with the importer. Mark any field with `"nullable": true` in its FieldSpec to opt into the per-record null bitmap — distributions report null draws through that bitmap rather than via inline sentinels.
 
 ### Constraints
 

@@ -19,8 +19,6 @@ func TestRecordCodec_AllTypes(t *testing.T) {
 		{"u64", FieldTypeU64, 1<<48 | 7},
 		{"f32", FieldTypeF32, uint64(math.Float32bits(3.14))},
 		{"f64", FieldTypeF64, math.Float64bits(2.71828)},
-		{"nullable_u8", FieldTypeNullableU8, 200},
-		{"nullable_u16", FieldTypeNullableU16, 50000},
 		{"date", FieldTypeDate, 19500}, // days since epoch
 		{"categorical_u8", FieldTypeCategoricalU8, 5},
 		{"categorical_u16", FieldTypeCategoricalU16, 300},
@@ -75,31 +73,9 @@ func TestRecordCodec_PackedBool(t *testing.T) {
 	}
 }
 
-func TestRecordCodec_NullableBool(t *testing.T) {
-	// NullableBool uses 2 bits: presence + value.
-	var buf bytes.Buffer
-	buf.WriteByte(0b00000011) // bits 0=present, 1=value (true)
-
-	present, err := ReadBit(bytes.NewReader(buf.Bytes()), 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !present {
-		t.Error("should be present")
-	}
-
-	val, err := ReadBit(bytes.NewReader(buf.Bytes()), 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !val {
-		t.Error("value should be true")
-	}
-}
-
-func TestRecordCodec_NullableU4(t *testing.T) {
-	// NullableU4 uses a null sentinel (0x0F = null, 0x00..0x0E = value).
-	// It is packed as a nibble.
+func TestRecordCodec_U4Nibble(t *testing.T) {
+	// U4 is packed as a nibble (4 bits per value); null state is carried
+	// by the per-record bitmap, not by an inline sentinel.
 	var buf bytes.Buffer
 	buf.WriteByte(0x35) // low nibble=5, high nibble=3
 

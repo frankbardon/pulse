@@ -467,7 +467,8 @@ func TestExcelImport_InferredSchema(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	rows := make([][]string, 100)
 	for i := range rows {
-		rows[i] = []string{"10", "20", "30"}
+		// Use values above the u4 range (max 15) so inference resolves to u8.
+		rows[i] = []string{"100", "200", "30"}
 	}
 	helperCreateXLSX(t, fs, "infer.xlsx", "", []string{"a", "b", "c"}, rows)
 

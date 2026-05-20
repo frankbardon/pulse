@@ -289,14 +289,8 @@ func parseFixtureFieldType(s string) encoding.FieldType {
 		return encoding.FieldTypeF32
 	case "f64":
 		return encoding.FieldTypeF64
-	case "nullable_bool":
-		return encoding.FieldTypeNullableBool
-	case "nullable_u4":
-		return encoding.FieldTypeNullableU4
-	case "nullable_u8":
-		return encoding.FieldTypeNullableU8
-	case "nullable_u16":
-		return encoding.FieldTypeNullableU16
+	case "u4":
+		return encoding.FieldTypeU4
 	case "date":
 		return encoding.FieldTypeDate
 	case "packed_bool":
@@ -309,8 +303,6 @@ func parseFixtureFieldType(s string) encoding.FieldType {
 		return encoding.FieldTypeCategoricalU32
 	case "decimal128":
 		return encoding.FieldTypeDecimal128
-	case "nullable_decimal128":
-		return encoding.FieldTypeNullableDecimal128
 	}
 	return encoding.FieldTypeU8
 }

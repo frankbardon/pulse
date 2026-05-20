@@ -1,11 +1,10 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Exercise every narrow numeric type (u8 through f64 plus all three nullable variants) in one request via per-column SUM and AVERAGE.",
+    "description": "Exercise every narrow numeric type (u8 through f64 plus u4 and packed_bool) in one request via per-column SUM and AVERAGE.",
     "name": "all_narrow_types",
     "operators": [
       "AGG_AVERAGE",
-      "AGG_COUNT",
       "AGG_SUM"
     ],
     "tags": [
@@ -45,24 +44,9 @@
       "label": "f64_avg"
     },
     {
-      "type": "AGG_COUNT",
-      "field": "maybe_flag",
-      "label": "non_null_flags"
-    },
-    {
       "type": "AGG_AVERAGE",
       "field": "small_grade",
       "label": "grade_avg"
-    },
-    {
-      "type": "AGG_AVERAGE",
-      "field": "maybe_age",
-      "label": "age_avg"
-    },
-    {
-      "type": "AGG_SUM",
-      "field": "maybe_count",
-      "label": "count_sum"
     },
     {
       "type": "AGG_SUM",
@@ -74,5 +58,4 @@
     "filename": "all_types.pulse",
     "data_dir": ".data"
   }
-
 }

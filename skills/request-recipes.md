@@ -21,7 +21,7 @@ Every recipe is a JSON template with two kinds of placeholders. Replace each `$.
 | Marker | Replace with |
 |---|---|
 | `$file` | The `.pulse` cohort filename (e.g. `"sales.pulse"`). |
-| `$field:numeric` | Any numeric field: `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `nullable_u4`/`u8`/`u16`, `decimal128`, `nullable_decimal128`. |
+| `$field:numeric` | Any numeric field: `u4`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `decimal128`. Nullability (`Nullable: true`) is orthogonal to type — any of these may carry nulls via the per-record bitmap. |
 | `$field:categorical` | Any categorical field: `categorical_u8`, `categorical_u16`, `categorical_u32`. |
 | `$field:date` | A `date` field. |
 | `$field:any` | Any field type. Useful for `AGG_COUNT` / `AGG_DISTINCT_COUNT`. |

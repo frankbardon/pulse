@@ -3360,246 +3360,9 @@
         ]
       },
       {
-        "name": "nullable_bool",
+        "name": "u4",
         "categorical": false,
-        "sharded_capable": true,
-        "compatible_aggregators": [
-          "AGG_AVERAGE",
-          "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_KURTOSIS",
-          "AGG_MAX",
-          "AGG_MEDIAN",
-          "AGG_MIN",
-          "AGG_MODE",
-          "AGG_NULL_COUNT",
-          "AGG_PERCENTILE",
-          "AGG_RANGE",
-          "AGG_SKEWNESS",
-          "AGG_STDDEV",
-          "AGG_SUM",
-          "AGG_VARIANCE",
-          "AGG_ZSCORE"
-        ],
-        "compatible_attributes": [
-          "ATTR_FORMULA"
-        ],
-        "compatible_filterers": [
-          "FILTER_EXCLUDE",
-          "FILTER_EXPRESSION",
-          "FILTER_INCLUDE",
-          "FILTER_NULL"
-        ],
-        "compatible_groupers": [
-          "GROUP_CATEGORY"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
-        "compatible_features": [
-          "FEAT_TRAIN_TEST_SPLIT"
-        ]
-      },
-      {
-        "name": "nullable_u4",
-        "categorical": false,
-        "sharded_capable": true,
-        "compatible_aggregators": [
-          "AGG_AVERAGE",
-          "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_KURTOSIS",
-          "AGG_MAX",
-          "AGG_MEDIAN",
-          "AGG_MIN",
-          "AGG_MODE",
-          "AGG_NULL_COUNT",
-          "AGG_PERCENTILE",
-          "AGG_RANGE",
-          "AGG_SKEWNESS",
-          "AGG_STDDEV",
-          "AGG_SUM",
-          "AGG_VARIANCE",
-          "AGG_ZSCORE"
-        ],
-        "compatible_attributes": [
-          "ATTR_FORMULA",
-          "ATTR_NORMALIZED",
-          "ATTR_PERCENTILE",
-          "ATTR_REG_FITTED",
-          "ATTR_REG_LEVERAGE",
-          "ATTR_REG_RESIDUAL",
-          "ATTR_TSCORE",
-          "ATTR_ZSCORE"
-        ],
-        "compatible_filterers": [
-          "FILTER_EXCLUDE",
-          "FILTER_EXPRESSION",
-          "FILTER_INCLUDE",
-          "FILTER_NULL",
-          "FILTER_RANGE"
-        ],
-        "compatible_groupers": [
-          "GROUP_CATEGORY",
-          "GROUP_QUANTILE",
-          "GROUP_RANGE",
-          "GROUP_ROUNDED"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_EWMA",
-          "WIN_LAG",
-          "WIN_LEAD",
-          "WIN_MOVING_AVG",
-          "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
-          "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
-        ],
-        "compatible_features": [
-          "FEAT_BUCKETIZE",
-          "FEAT_LOG",
-          "FEAT_POLY",
-          "FEAT_SQRT",
-          "FEAT_TRAIN_TEST_SPLIT"
-        ]
-      },
-      {
-        "name": "nullable_u8",
-        "categorical": false,
-        "sharded_capable": true,
-        "compatible_aggregators": [
-          "AGG_AVERAGE",
-          "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_KURTOSIS",
-          "AGG_MAX",
-          "AGG_MEDIAN",
-          "AGG_MIN",
-          "AGG_MODE",
-          "AGG_NULL_COUNT",
-          "AGG_PERCENTILE",
-          "AGG_RANGE",
-          "AGG_SKEWNESS",
-          "AGG_STDDEV",
-          "AGG_SUM",
-          "AGG_VARIANCE",
-          "AGG_ZSCORE"
-        ],
-        "compatible_attributes": [
-          "ATTR_FORMULA",
-          "ATTR_NORMALIZED",
-          "ATTR_PERCENTILE",
-          "ATTR_REG_FITTED",
-          "ATTR_REG_LEVERAGE",
-          "ATTR_REG_RESIDUAL",
-          "ATTR_TSCORE",
-          "ATTR_ZSCORE"
-        ],
-        "compatible_filterers": [
-          "FILTER_EXCLUDE",
-          "FILTER_EXPRESSION",
-          "FILTER_INCLUDE",
-          "FILTER_NULL",
-          "FILTER_RANGE"
-        ],
-        "compatible_groupers": [
-          "GROUP_CATEGORY",
-          "GROUP_QUANTILE",
-          "GROUP_RANGE",
-          "GROUP_ROUNDED"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_EWMA",
-          "WIN_LAG",
-          "WIN_LEAD",
-          "WIN_MOVING_AVG",
-          "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
-          "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
-        ],
-        "compatible_features": [
-          "FEAT_BUCKETIZE",
-          "FEAT_LOG",
-          "FEAT_POLY",
-          "FEAT_SQRT",
-          "FEAT_TRAIN_TEST_SPLIT"
-        ]
-      },
-      {
-        "name": "nullable_u16",
-        "categorical": false,
-        "sharded_capable": true,
-        "compatible_aggregators": [
-          "AGG_AVERAGE",
-          "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_KURTOSIS",
-          "AGG_MAX",
-          "AGG_MEDIAN",
-          "AGG_MIN",
-          "AGG_MODE",
-          "AGG_NULL_COUNT",
-          "AGG_PERCENTILE",
-          "AGG_RANGE",
-          "AGG_SKEWNESS",
-          "AGG_STDDEV",
-          "AGG_SUM",
-          "AGG_VARIANCE",
-          "AGG_ZSCORE"
-        ],
-        "compatible_attributes": [
-          "ATTR_FORMULA",
-          "ATTR_NORMALIZED",
-          "ATTR_PERCENTILE",
-          "ATTR_REG_FITTED",
-          "ATTR_REG_LEVERAGE",
-          "ATTR_REG_RESIDUAL",
-          "ATTR_TSCORE",
-          "ATTR_ZSCORE"
-        ],
-        "compatible_filterers": [
-          "FILTER_EXCLUDE",
-          "FILTER_EXPRESSION",
-          "FILTER_INCLUDE",
-          "FILTER_NULL",
-          "FILTER_RANGE"
-        ],
-        "compatible_groupers": [
-          "GROUP_CATEGORY",
-          "GROUP_QUANTILE",
-          "GROUP_RANGE",
-          "GROUP_ROUNDED"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_EWMA",
-          "WIN_LAG",
-          "WIN_LEAD",
-          "WIN_MOVING_AVG",
-          "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
-          "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
-        ],
-        "compatible_features": [
-          "FEAT_BUCKETIZE",
-          "FEAT_LOG",
-          "FEAT_POLY",
-          "FEAT_SQRT",
-          "FEAT_TRAIN_TEST_SPLIT"
-        ]
+        "sharded_capable": true
       },
       {
         "name": "date",
@@ -3850,46 +3613,6 @@
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
-      },
-      {
-        "name": "nullable_decimal128",
-        "categorical": false,
-        "sharded_capable": true,
-        "compatible_aggregators": [
-          "AGG_AVERAGE",
-          "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_MAX",
-          "AGG_MEDIAN",
-          "AGG_MIN",
-          "AGG_MODE",
-          "AGG_NULL_COUNT",
-          "AGG_PERCENTILE",
-          "AGG_RANGE",
-          "AGG_SUM"
-        ],
-        "compatible_attributes": [
-          "ATTR_FORMULA"
-        ],
-        "compatible_filterers": [
-          "FILTER_EXCLUDE",
-          "FILTER_EXPRESSION",
-          "FILTER_INCLUDE",
-          "FILTER_NULL",
-          "FILTER_RANGE"
-        ],
-        "compatible_groupers": [
-          "GROUP_CATEGORY"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
-        "compatible_features": [
-          "FEAT_TRAIN_TEST_SPLIT"
-        ]
       }
     ],
     "skills": [
@@ -3903,7 +3626,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Pick the right .pulse field type — u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, nullable_*, packed_bool, date. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs."
+        "description": "Pick the right .pulse field type — u4/u8/u16/u32/u64, f32/f64, decimal128, categorical_u8/u16/u32, packed_bool, date. Mark any field nullable to opt into the per-record null bitmap. Use when designing a schema, evaluating storage layout, or choosing nullability and bit-packing tradeoffs."
       },
       {
         "name": "compose-requests",
@@ -3939,7 +3662,7 @@
       },
       {
         "name": "financial-cohorts",
-        "description": "Use decimal128 / nullable_decimal128 for money — precision and scale propagation, banker's rounding, divide-by-zero policy, currency-column patterns. Use when a cohort has monetary fields or hits PULSE_DECIMAL_OVERFLOW / PRECISION_LOSS / DIVIDE_BY_ZERO errors."
+        "description": "Use decimal128 for money — precision and scale propagation, banker's rounding, divide-by-zero policy, currency-column patterns. Nullability is opt-in via Field.Nullable plus the per-record bitmap. Use when a cohort has monetary fields or hits PULSE_DECIMAL_OVERFLOW / PRECISION_LOSS / DIVIDE_BY_ZERO errors."
       },
       {
         "name": "getting-started",
@@ -4083,4 +3806,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c84ec6cc2ea284c1fc1148e8dd57fa0fe1e65a516d765ab66b3f9148d2133a17
+// golden-hash: 67ef9eefa7cbf4eaa89adfcbb3c1566dd458751c9822b5c1ff9de57873750c02

@@ -296,7 +296,7 @@ func newKindAccumulator(f *encoding.Field, req *types.FacetRequest, bins int) (k
 	switch {
 	case f.Type.IsCategorical():
 		return newCategoricalAccumulator(f), nil
-	case f.Type == encoding.FieldTypeNullableBool || f.Type == encoding.FieldTypePackedBool:
+	case f.Type == encoding.FieldTypePackedBool:
 		return newBoolAccumulator(f), nil
 	case isFacetNumericType(f.Type):
 		wantPercentiles := len(req.NumericPercentiles) > 0
@@ -310,11 +310,11 @@ func newKindAccumulator(f *encoding.Field, req *types.FacetRequest, bins int) (k
 
 func isFacetNumericType(t encoding.FieldType) bool {
 	switch t {
-	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
+	case encoding.FieldTypeU4,
+		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
 		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeNullableU4, encoding.FieldTypeNullableU8, encoding.FieldTypeNullableU16,
 		encoding.FieldTypeDate,
-		encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+		encoding.FieldTypeDecimal128:
 		return true
 	}
 	return false

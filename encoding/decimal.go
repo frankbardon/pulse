@@ -35,20 +35,10 @@ var decimal128MaxAbs = new(big.Int).Exp(big.NewInt(10), big.NewInt(38), nil)
 // pow10 caches 10^n for n in [0, MaxDecimalPrecision].
 var pow10 [MaxDecimalPrecision + 1]*big.Int
 
-// nullDecimalSentinel is the bit pattern that represents NULL for the
-// nullable_decimal128 type. We pick INT128_MIN (-2^127) which is
-// outside the valid decimal128 range (|m| < 10^38 < 2^127). Documented
-// in skills/financial-cohorts.md and rejected as a legitimate value at
-// import.
-var nullDecimalSentinel [16]byte // computed in init()
-
 func init() {
 	for i := 0; i <= MaxDecimalPrecision; i++ {
 		pow10[i] = new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(i)), nil)
 	}
-	// INT128_MIN = -2^127 in two's-complement 16-byte little-endian:
-	// 0x00 ... 0x00 0x80 (high byte = 0x80).
-	nullDecimalSentinel[15] = 0x80
 }
 
 // ZeroDecimal128 returns a Decimal128 with mantissa 0.
@@ -451,12 +441,10 @@ func EncodeDecimal128(d Decimal128) [16]byte {
 }
 
 // DecodeDecimal128 deserializes 16 bytes of two's-complement little-endian
-// integer into a Decimal128. Returns the null sentinel detection result
-// in the second return value (true == NULL bit pattern).
-func DecodeDecimal128(buf [16]byte) (Decimal128, bool) {
-	if buf == nullDecimalSentinel {
-		return Decimal128{}, true
-	}
+// integer into a Decimal128. Null state is now carried by the per-record
+// bitmap (see encoding.Schema.HasBitmap), so this function does not flag
+// null values.
+func DecodeDecimal128(buf [16]byte) Decimal128 {
 	// Convert little-endian to big-endian.
 	var be [16]byte
 	for i := 0; i < 16; i++ {
@@ -465,7 +453,7 @@ func DecodeDecimal128(buf [16]byte) (Decimal128, bool) {
 	negative := be[0]&0x80 != 0
 	if !negative {
 		m := new(big.Int).SetBytes(be[:])
-		return Decimal128{mantissa: m}, false
+		return Decimal128{mantissa: m}
 	}
 	// Negative: reverse two's complement.
 	for i := range be {
@@ -479,13 +467,7 @@ func DecodeDecimal128(buf [16]byte) (Decimal128, bool) {
 	}
 	m := new(big.Int).SetBytes(be[:])
 	m.Neg(m)
-	return Decimal128{mantissa: m}, false
-}
-
-// NullDecimalSentinel returns a copy of the canonical 16-byte NULL pattern
-// for nullable_decimal128 fields.
-func NullDecimalSentinel() [16]byte {
-	return nullDecimalSentinel
+	return Decimal128{mantissa: m}
 }
 
 // WriteDecimal128 writes a Decimal128 to the .pulse record stream.
@@ -497,24 +479,15 @@ func WriteDecimal128(w io.Writer, d Decimal128) error {
 	return nil
 }
 
-// WriteDecimal128Null writes the nullable_decimal128 NULL sentinel.
-func WriteDecimal128Null(w io.Writer) error {
-	if _, err := w.Write(nullDecimalSentinel[:]); err != nil {
-		return errors.WrapCodedError(err, errors.ENCODING_IO, "writing decimal128 null")
-	}
-	return nil
-}
-
 // ReadDecimal128 reads 16 bytes of decimal128 from r and decodes them.
-// Returns the value and a flag indicating whether the bit pattern matches
-// the NULL sentinel.
-func ReadDecimal128(r io.Reader) (Decimal128, bool, error) {
+// Null state is carried by the per-record bitmap, not by the payload
+// bytes, so this function has no null channel.
+func ReadDecimal128(r io.Reader) (Decimal128, error) {
 	var buf [16]byte
 	if _, err := io.ReadFull(r, buf[:]); err != nil {
-		return Decimal128{}, false, errors.WrapCodedError(err, errors.ENCODING_IO, "reading decimal128")
+		return Decimal128{}, errors.WrapCodedError(err, errors.ENCODING_IO, "reading decimal128")
 	}
-	d, isNull := DecodeDecimal128(buf)
-	return d, isNull, nil
+	return DecodeDecimal128(buf), nil
 }
 
 // Sqrt returns floor-banker-rounded sqrt(d) at the target scale, given

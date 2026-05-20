@@ -16,6 +16,8 @@ import (
 // The mapping mirrors encoding.FieldType.String() — keep them in sync.
 func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 	switch name {
+	case "u4":
+		return encoding.FieldTypeU4, true
 	case "u8":
 		return encoding.FieldTypeU8, true
 	case "u16":
@@ -28,14 +30,6 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 		return encoding.FieldTypeF32, true
 	case "f64":
 		return encoding.FieldTypeF64, true
-	case "nullable_bool":
-		return encoding.FieldTypeNullableBool, true
-	case "nullable_u4":
-		return encoding.FieldTypeNullableU4, true
-	case "nullable_u8":
-		return encoding.FieldTypeNullableU8, true
-	case "nullable_u16":
-		return encoding.FieldTypeNullableU16, true
 	case "date":
 		return encoding.FieldTypeDate, true
 	case "packed_bool":
@@ -48,8 +42,6 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 		return encoding.FieldTypeCategoricalU32, true
 	case "decimal128":
 		return encoding.FieldTypeDecimal128, true
-	case "nullable_decimal128":
-		return encoding.FieldTypeNullableDecimal128, true
 	}
 	return 0, false
 }
@@ -81,6 +73,7 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 		field := encoding.Field{
 			Name:         fs.Name,
 			Type:         ft,
+			Nullable:     fs.Nullable,
 			Description:  fs.Description,
 			CsvColumnIdx: i,
 		}
@@ -107,7 +100,7 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 		field.ByteOffset = byteOffset
 		// Bit-packed types use the bit position field; consume a fresh
 		// byte for simplicity (matches io/import.go).
-		if ft == encoding.FieldTypePackedBool || ft == encoding.FieldTypeNullableBool || ft == encoding.FieldTypeNullableU4 {
+		if ft.IsBitPacked() {
 			field.BitPosition = bitCursor % 8
 			byteOffset += 1
 			bitCursor = 8
@@ -136,7 +129,7 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 
 // generate writes synthetic records to a bytes.Buffer, respecting any
 // declared constraints via rejection sampling.
-func generate(s *Spec, wfs []*writerField, recordsBuf *bytes.Buffer, rng *mrand.Rand) (rowsGenerated, rowsRejected int, warnings []string, err error) {
+func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *bytes.Buffer, rng *mrand.Rand) (rowsGenerated, rowsRejected int, warnings []string, err error) {
 	maxRej := s.MaxRejectionRate
 	if maxRej == 0 {
 		maxRej = 0.5
@@ -144,6 +137,7 @@ func generate(s *Spec, wfs []*writerField, recordsBuf *bytes.Buffer, rng *mrand.
 
 	row := make(map[string]any, len(wfs))
 	rowNullMask := make(map[string]bool, len(wfs))
+	bitmapSize := schema.BitmapByteSize()
 
 	cons, err := compileConstraints(s.Constraints, wfs)
 	if err != nil {
@@ -180,7 +174,7 @@ func generate(s *Spec, wfs []*writerField, recordsBuf *bytes.Buffer, rng *mrand.
 			}
 			continue
 		}
-		if encErr := encodeRow(recordsBuf, wfs, row, rowNullMask); encErr != nil {
+		if encErr := encodeRow(recordsBuf, wfs, row, rowNullMask, bitmapSize); encErr != nil {
 			return rowsGenerated, rowsRejected, warnings, encErr
 		}
 		rowsGenerated++
@@ -208,11 +202,25 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	return nil
 }
 
-func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMask map[string]bool) error {
+func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMask map[string]bool, bitmapSize int) error {
 	for _, wf := range wfs {
 		val := row[wf.spec.Name]
 		isNull := nullMask[wf.spec.Name]
 		if err := writeFieldValue(buf, wf, val, isNull); err != nil {
+			return err
+		}
+	}
+	if bitmapSize > 0 {
+		bitmap := make([]byte, bitmapSize)
+		for i, wf := range wfs {
+			if !wf.field.Nullable {
+				continue
+			}
+			if nullMask[wf.spec.Name] {
+				encoding.BitmapSetNull(bitmap, i)
+			}
+		}
+		if err := encoding.WriteBitmap(buf, bitmap); err != nil {
 			return err
 		}
 	}
@@ -223,6 +231,9 @@ func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) e
 	ft := wf.field.Type
 	switch ft {
 	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
+		if isNull {
+			return encoding.WriteFieldValue(buf, ft, 0)
+		}
 		f := toFloat64(val)
 		if f < 0 {
 			f = 0
@@ -234,66 +245,47 @@ func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) e
 		raw = clampUnsigned(raw, ft)
 		return encoding.WriteFieldValue(buf, ft, raw)
 	case encoding.FieldTypeF32:
+		if isNull {
+			return encoding.WriteFieldValue(buf, ft, 0)
+		}
 		f := toFloat32(val)
 		return encoding.WriteFieldValue(buf, ft, uint64(math.Float32bits(f)))
 	case encoding.FieldTypeF64:
+		if isNull {
+			return encoding.WriteFieldValue(buf, ft, 0)
+		}
 		f := toFloat64(val)
 		return encoding.WriteFieldValue(buf, ft, math.Float64bits(f))
 	case encoding.FieldTypeDate:
+		if isNull {
+			return encoding.WriteFieldValue(buf, ft, 0)
+		}
 		f := toFloat64(val)
 		days := uint32(int64(math.Floor(f + 0.5)))
 		return encoding.WriteFieldValue(buf, ft, uint64(days))
 	case encoding.FieldTypePackedBool:
 		// Single byte holding the flag in bit 0. Matches reader's ReadBit.
 		var b byte
-		if toBool(val) {
+		if !isNull && toBool(val) {
 			b = 1
 		}
 		_, err := buf.Write([]byte{b})
 		return err
-	case encoding.FieldTypeNullableBool:
-		// Single byte: bit0 = value, bit1 = null. Reader treats bit0 as
-		// the value; null tracking awaits a separate null bitmap (TODO
-		// upstream); we still write the bit so the format round-trips.
-		var b byte
-		if toBool(val) {
-			b |= 1
-		}
-		if isNull {
-			b |= 2
-		}
-		_, err := buf.Write([]byte{b})
-		return err
-	case encoding.FieldTypeNullableU4:
-		f := toFloat64(val)
-		if math.IsNaN(f) {
-			f = 0
-		}
-		v := uint8(math.Floor(f+0.5)) & 0x0F
-		if isNull {
-			// Reader emits the nibble as float; lacking a null bitmap, we
-			// store 0xF as a soft sentinel to make filtering easy in
-			// downstream tooling. The synthetic null mask is preserved
-			// out-of-band when the writer reports back.
-			v = 0x0F
+	case encoding.FieldTypeU4:
+		var v uint8
+		if !isNull {
+			f := toFloat64(val)
+			if math.IsNaN(f) {
+				f = 0
+			}
+			v = uint8(math.Floor(f+0.5)) & 0x0F
 		}
 		_, err := buf.Write([]byte{v})
 		return err
-	case encoding.FieldTypeNullableU8:
-		f := toFloat64(val)
-		v := uint8(math.Floor(f+0.5)) & 0xFF
-		if isNull {
-			v = 0xFF
-		}
-		return encoding.WriteFieldValue(buf, ft, uint64(v))
-	case encoding.FieldTypeNullableU16:
-		f := toFloat64(val)
-		v := uint16(math.Floor(f+0.5)) & 0xFFFF
-		if isNull {
-			v = 0xFFFF
-		}
-		return encoding.WriteFieldValue(buf, ft, uint64(v))
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
+		if isNull {
+			return encoding.WriteFieldValue(buf, ft, 0)
+		}
 		s, ok := val.(string)
 		if !ok {
 			return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
@@ -304,9 +296,9 @@ func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) e
 			return err
 		}
 		return encoding.WriteFieldValue(buf, ft, uint64(id))
-	case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
-		if isNull && ft == encoding.FieldTypeNullableDecimal128 {
-			return encoding.WriteDecimal128Null(buf)
+	case encoding.FieldTypeDecimal128:
+		if isNull {
+			return encoding.WriteDecimal128(buf, encoding.ZeroDecimal128())
 		}
 		dec, err := decimalFromValue(val, wf.field.Scale)
 		if err != nil {
@@ -418,4 +410,3 @@ func decimalFromFloat(f float64, scale uint8) (encoding.Decimal128, error) {
 	bf.Int(m)
 	return encoding.NewDecimal128FromBigInt(m)
 }
-

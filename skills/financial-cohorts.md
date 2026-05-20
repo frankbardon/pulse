@@ -1,6 +1,6 @@
 ---
 name: financial-cohorts
-description: Use decimal128 / nullable_decimal128 for money — precision and scale propagation, banker's rounding, divide-by-zero policy, currency-column patterns. Use when a cohort has monetary fields or hits PULSE_DECIMAL_OVERFLOW / PRECISION_LOSS / DIVIDE_BY_ZERO errors.
+description: Use decimal128 for money — precision and scale propagation, banker's rounding, divide-by-zero policy, currency-column patterns. Nullability is opt-in via Field.Nullable plus the per-record bitmap. Use when a cohort has monetary fields or hits PULSE_DECIMAL_OVERFLOW / PRECISION_LOSS / DIVIDE_BY_ZERO errors.
 type: guide
 applies_to: process, compose, predict, inspect
 ---
@@ -121,9 +121,9 @@ Fail-closed: a malformed row produces `PULSE_IMPORT_ROW_ERROR` and skips the row
 
 The standard comparison filterers (`FILTER_RANGE`, `FILTER_INCLUDE`, `FILTER_EXCLUDE`, `FILTER_EXPRESSION`) work natively on decimal128 fields. No new filter type is needed.
 
-## NULL: `nullable_decimal128`
+## NULL: bitmap-driven
 
-The `nullable_decimal128` type carries an extra null sentinel value: bit pattern `INT128_MIN` (`0x80` in the high byte, all other bytes zero). The importer rejects this exact value as a legitimate input — if your source data legitimately contains it, scale or shift before import.
+Decimal128 fields opt into nullability the same way every other type does — set `Field.Nullable = true` and the per-record null bitmap (see `skills/cohort-schema-design.md`'s "Null bitmap" reference) carries the missing state. There is no in-band sentinel — every 16-byte pattern is a legitimate decimal value, and the bitmap is the sole authority. Importers parse the configured null tokens (`""`, `"null"`, `"na"`, `"n/a"`, case-insensitive) into bitmap bits on nullable fields and reject them on non-nullable fields with `PULSE_IMPORT_ROW_ERROR`.
 
 ## Feature operators on decimal fields
 

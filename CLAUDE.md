@@ -124,11 +124,12 @@ Field descriptions in `.pulse` files are capped at 1000 bytes (`PULSE_IMPORT_DES
 `.pulse` binary format:
 
 1. **9-byte header:** 8-byte magic `PULSE\x00\x00\x00` + 1-byte format version `0x01`. `encoding.MagicBytes`, `encoding.FormatVersion`, `encoding.HeaderSize = 9`.
-2. **Schema block:** field descriptors (name, type byte, byte offset, bit position, optional description).
+2. **Schema block:** field descriptors (name, type byte, **nullable flag byte**, byte offset, bit position, optional description). The 1-byte nullable flag sits immediately after the type byte; `1` = field participates in the per-record null bitmap, `0` = field has no null state.
 3. **Dictionary blocks:** inline after schema for `categorical_u8/u16/u32`.
 4. **Record data:** fixed-width rows; size derived from schema.
+5. **Per-record null bitmap (optional).** When the schema declares at least one nullable field (`Schema.HasBitmap()`), every record carries a trailing bitmap of `ceil(field_count / 8)` bytes after the payload. Bit ordering: field index `i` lives in byte `i / 8`, bit `i % 8` (LSB-first within each byte); `1` = null, `0` = present. When no field is nullable, the bitmap is absent and stride stays at the payload length. Helpers: `encoding.ReadBitmap`, `encoding.WriteBitmap`, `encoding.BitmapIsNull`, `encoding.BitmapSetNull`, `Schema.BitmapByteSize()`.
 
-17 field types (full table + sizes in `skills/cohort-schema-design.md`, enforced by `TestSkillsCoverAllFieldTypes`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `nullable_bool`, `nullable_u4`/`u8`/`u16`, `date`, `packed_bool`, `categorical_u8`/`u16`/`u32`, `decimal128`, `nullable_decimal128`. Bit-packed types (`nullable_bool`, `nullable_u4`, `packed_bool`) return `ByteSize() == 0` — they share bytes with adjacent fields. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`.
+13 field types (full table + sizes in `skills/cohort-schema-design.md`, enforced by `TestSkillsCoverAllFieldTypes`): `u4`, `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `categorical_u8`/`u16`/`u32`, `decimal128`. Bit-packed types (`u4`, `packed_bool`) return `ByteSize() == 0` — they share bytes with adjacent fields (`FieldType.IsBitPacked()` reports this). Nullability is orthogonal to type — any field may carry `Field.Nullable = true` and participate in the per-record bitmap. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`. Decimal128 nulls flow through the bitmap; there is no in-band sentinel — every 16-byte pattern is a legitimate decimal value.
 
 **Shard archive variant.** A `.pulse` path can resolve to either the single-file layout above or to a **shard archive** — an uncompressed Zip64 (Method 0, store-only) whose first four bytes are the zip magic `PK\x03\x04` instead of the `PULSE` magic. The single-file byte format is **unchanged**; magic-byte dispatch at `pulse.Open` selects which shape to read. A shard archive carries one reserved `_schema.pulse` entry (header-only canonical schema + SHRD trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Each shard payload is a complete single-file `.pulse` per the layout above. Per-shard cohesion: structural strict (field count, name, type byte, byte_offset, bit_position, categorical width — byte-equal at insert), descriptions tolerant (divergence → warning). Categorical dictionaries grow under union-merge semantics at insert (`CreateShardArchive` / `AddShard`): canonical entries first in their existing order, then any new entries from incoming in their order; divergent incoming shards are byte-rewritten with remapped categorical indices so every record in the archive references the canonical dictionary. Width overflow on the union raises `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. The stricter prefix-only validator (`PULSE_SHARD_DICT_DIVERGENCE`) is retained for `pulse shard verify` and embedders that want to surface divergence as an error. Anchor syntax `archive.pulse#shard.pulse` opens one shard as a one-shard cohort. Concurrency is caller-owned — Pulse does not lock writers; recommended patterns are single-writer or external advisory lock. Forced-buffered ops materialize across the **union** of shards (memory cost scales with shard count). Full layout + dict semantics in `skills/cohort-schema-design.md` (Sharded cohorts).
 
@@ -138,10 +139,12 @@ When a request slot names a field but omits the operator `Type`, the engine infe
 
 | Field type | Default aggregation | Default grouper |
 |---|---|---|
-| numeric (u*/f*/decimal*) | `AGG_SUM` | `GROUP_RANGE` (Interval 10) |
+| numeric (u4/u8/u16/u32/u64, f32/f64, decimal128) | `AGG_SUM` | `GROUP_RANGE` (Interval 10) |
 | categorical_* | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
 | `date` | (explicit only) | `GROUP_DATE` (component `"day"`) |
-| `nullable_bool` / `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+
+`Field.Nullable` is orthogonal — it never changes the inferred operator, only whether the field participates in the bitmap.
 
 Defaults apply only when `Field` is set and `Type` is empty; never override explicit `Type`; never cross categories; never default tier-1/tier-2 tests, filter expressions, attributes, windows, or features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
 

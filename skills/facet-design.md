@@ -69,8 +69,8 @@ Field type drives the dispatch:
 | Field type | Summary kind | Notes |
 |---|---|---|
 | `categorical_u8/u16/u32` | discrete | Dictionary fast path: count by dict id, resolve to string at finalize. |
-| `nullable_bool`, `packed_bool` | discrete | Emits `"true"` and `"false"` counts; `null_count` carries the missing tally. |
-| `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `nullable_u4`/`u8`/`u16`, `date`, `decimal128`, `nullable_decimal128` | numeric | Welford online for mean/stddev; min/max/sum tracked alongside. Decimal fields convert via `Decimal128.Float64(scale)`. |
+| `packed_bool` | discrete | Emits `"true"` and `"false"` counts; `null_count` carries the bitmap-flagged missing tally when the field is `Nullable: true`. |
+| `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `decimal128` | numeric | Welford online for mean/stddev; min/max/sum tracked alongside. Decimal fields convert via `Decimal128.Float64(scale)`. Null cells (bitmap-flagged) are excluded from every statistic. |
 
 Asking for `numeric_percentiles` on a non-numeric field is a no-op
 (the `ValidateFacet` predict surface emits a warning). Histograms work

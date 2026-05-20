@@ -36,16 +36,17 @@ type Spec struct {
 type FieldSpec struct {
 	Name         string         `json:"name"`
 	Type         string         `json:"type"`
+	Nullable     bool           `json:"nullable,omitempty"`
 	Description  string         `json:"description,omitempty"`
 	Distribution string         `json:"distribution"`
 	Params       map[string]any `json:"params,omitempty"`
 
-	// Precision and Scale apply to decimal128 / nullable_decimal128.
+	// Precision and Scale apply to decimal128.
 	Precision uint8 `json:"precision,omitempty"`
 	Scale     uint8 `json:"scale,omitempty"`
 
 	// NullRate is the per-row probability that the field will be null.
-	// Only meaningful for nullable types and decimal128's nullable form.
+	// Only meaningful when Nullable is true; ignored otherwise.
 	NullRate float64 `json:"null_rate,omitempty"`
 }
 

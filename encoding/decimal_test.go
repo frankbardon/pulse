@@ -189,21 +189,10 @@ func TestDecimal128_RoundTripEncoding(t *testing.T) {
 			t.Fatalf("%s: %v", in, err)
 		}
 		buf := EncodeDecimal128(d)
-		d2, isNull := DecodeDecimal128(buf)
-		if isNull {
-			t.Fatalf("%s decoded as null", in)
-		}
+		d2 := DecodeDecimal128(buf)
 		if d2.String(0) != d.String(0) {
 			t.Errorf("round trip %s: got %s", in, d2.String(0))
 		}
-	}
-}
-
-func TestDecimal128_NullSentinel(t *testing.T) {
-	null := NullDecimalSentinel()
-	_, isNull := DecodeDecimal128(null)
-	if !isNull {
-		t.Fatal("expected null sentinel to decode as null")
 	}
 }
 

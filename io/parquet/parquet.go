@@ -259,14 +259,19 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 			byteOffset += pf.Type.ByteSize()
 			continue
 		}
-		ft := parrow.TypeToPulse(af.Type, af.Nullable)
+		ft := parrow.TypeToPulse(af.Type)
 		fields[i] = encoding.Field{
 			Name:         af.Name,
 			Type:         ft,
+			Nullable:     af.Nullable,
 			ByteOffset:   byteOffset,
 			CsvColumnIdx: i,
 		}
-		byteOffset += ft.ByteSize()
+		if ft.IsBitPacked() {
+			byteOffset++
+		} else {
+			byteOffset += ft.ByteSize()
+		}
 	}
 
 	return &encoding.Schema{Fields: fields}, nil
@@ -432,7 +437,7 @@ func (w *Writer) appendCell(c int, v any) error {
 	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
 		f := w.pulseSchema.Fields[c]
 		switch f.Type {
-		case encoding.FieldTypeDecimal128, encoding.FieldTypeNullableDecimal128:
+		case encoding.FieldTypeDecimal128:
 			return parrow.AppendDecimal128(w.bldr.Field(c), f, v)
 		}
 	}
@@ -511,9 +516,12 @@ func (w *Writer) Bytes() []byte {
 // source of truth. The thin wrappers below preserve the historical local
 // names (used by parquet's tests) without re-implementing the logic.
 
-// arrowTypeToPulse delegates to the shared io/arrow type map.
-func arrowTypeToPulse(dt arrow.DataType, nullable bool) encoding.FieldType {
-	return parrow.TypeToPulse(dt, nullable)
+// arrowTypeToPulse delegates to the shared io/arrow type map. Nullability
+// is carried by encoding.Field.Nullable, not by the type itself; this
+// helper exists for backward source-level symmetry with the older
+// signature and ignores the nullable argument.
+func arrowTypeToPulse(dt arrow.DataType, _ bool) encoding.FieldType {
+	return parrow.TypeToPulse(dt)
 }
 
 // pulseTypeToArrow delegates to the shared io/arrow type map.

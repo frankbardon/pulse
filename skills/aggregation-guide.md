@@ -38,7 +38,7 @@ Pulse exposes 18 aggregators and 6 filterers that run during `process` and `comp
 <rule severity="caveat" topic="decimal-aggregators">
 ## Decimal aggregators
 
-Aggregations on `decimal128` / `nullable_decimal128` fields are dispatched to a decimal-aware path that preserves precision:
+Aggregations on `decimal128` fields are dispatched to a decimal-aware path that preserves precision (nullability is orthogonal — set `Nullable: true` on the field to opt into the per-record null bitmap):
 
 - **AGG_SUM** errors with `PULSE_DECIMAL_OVERFLOW` on accumulator overflow.
 - **AGG_AVERAGE** preserves precision; falls back to f64 with `PULSE_DECIMAL_PRECISION_LOSS` warning if the sum would overflow `decimal128(38)`.
@@ -66,7 +66,7 @@ See `skills/financial-cohorts.md` for the SQL:2016 precision propagation rules a
 Numeric-only (12) — applying to a categorical field emits `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`:
 `AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_RANGE`, `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_STDDEV`, `AGG_VARIANCE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_ZSCORE`.
 
-The numeric set is the broader analytics-numeric family (`encoding.FieldType.IsNumericForAnalytics`): the integer / float / decimal types plus the bit-packed integer encodings `nullable_u4`, `nullable_bool`, `packed_bool`, and `date`. `AGG_AVERAGE` on `packed_bool` returns the proportion of `true`; `AGG_AVERAGE` on `nullable_u4` returns the mean of the stored ordinals with the `0x0F` null sentinel excluded from both numerator and denominator. No `ATTR_FORMULA float(field)` cast is needed — and skipping the cast keeps the request on the streaming path that the formula would have forced into the buffered orchestrator.
+The numeric set is the broader analytics-numeric family (`encoding.FieldType.IsNumericForAnalytics`): the integer / float / decimal types plus the bit-packed encodings `u4`, `packed_bool`, and `date`. `AGG_AVERAGE` on `packed_bool` returns the proportion of `true`; `AGG_AVERAGE` on `u4` returns the mean of the stored ordinals. Null cells (flagged via the per-record bitmap when a field is `Nullable: true`) are excluded from both numerator and denominator. No `ATTR_FORMULA float(field)` cast is needed — and skipping the cast keeps the request on the streaming path that the formula would have forced into the buffered orchestrator.
 
 Categorical-safe (5):
 `AGG_COUNT`, `AGG_NULL_COUNT`, `AGG_DISTINCT_COUNT`, `AGG_FREQUENCY`, `AGG_MODE`.

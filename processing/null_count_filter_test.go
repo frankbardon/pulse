@@ -7,20 +7,21 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// schema for the null tests: one nullable_decimal128 field whose null
-// state is honored by the reader / aggregators.
+// schema for the null tests: one decimal128 field marked nullable so
+// its null state lives in the per-record bitmap and is honored by the
+// reader / aggregators.
 func nullTestSchema(t *testing.T) *encoding.Schema {
 	t.Helper()
 	return &encoding.Schema{
 		Fields: []encoding.Field{
-			{Name: "amount", Type: encoding.FieldTypeNullableDecimal128, Precision: 10, Scale: 2, Description: "Amount with nulls"},
+			{Name: "amount", Type: encoding.FieldTypeDecimal128, Nullable: true, Precision: 10, Scale: 2, Description: "Amount with nulls"},
 		},
 	}
 }
 
 // makeNullableRecord builds a Record where `amount` is null or carries
 // the given value. Mirrors how the reader populates Record.values /
-// Record.nulls when it reads a nullable_decimal128 null cell.
+// Record.nulls when it reads a null cell flagged by the bitmap.
 func makeNullableRecord(schema *encoding.Schema, value float64, isNull bool) *Record {
 	values := map[string]float64{"amount": value}
 	nulls := map[string]bool{}

@@ -747,7 +747,7 @@ func TestArrowTypeToPulseType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.arrowType.Name(), func(t *testing.T) {
-			got := TypeToPulse(tt.arrowType, false)
+			got := TypeToPulse(tt.arrowType)
 			if got != tt.want {
 				t.Errorf("TypeToPulse(%v) = %s, want %s", tt.arrowType, got, tt.want)
 			}
@@ -755,20 +755,8 @@ func TestArrowTypeToPulseType(t *testing.T) {
 	}
 }
 
-func TestArrowTypeToPulse_NullableCases(t *testing.T) {
-	if got := TypeToPulse(arrow.PrimitiveTypes.Uint8, true); got != encoding.FieldTypeNullableU8 {
-		t.Errorf("nullable uint8: %s", got)
-	}
-	if got := TypeToPulse(arrow.PrimitiveTypes.Uint16, true); got != encoding.FieldTypeNullableU16 {
-		t.Errorf("nullable uint16: %s", got)
-	}
-	if got := TypeToPulse(arrow.FixedWidthTypes.Boolean, true); got != encoding.FieldTypeNullableBool {
-		t.Errorf("nullable bool: %s", got)
-	}
-}
-
 func TestArrowTypeToPulse_DefaultCase(t *testing.T) {
-	got := TypeToPulse(arrow.FixedWidthTypes.Time32ms, false)
+	got := TypeToPulse(arrow.FixedWidthTypes.Time32ms)
 	if got != encoding.FieldTypeF64 {
 		t.Errorf("default: got %s, want f64", got)
 	}
@@ -779,7 +767,7 @@ func TestArrowTypeToPulse_Dictionary(t *testing.T) {
 		IndexType: arrow.PrimitiveTypes.Int32,
 		ValueType: arrow.BinaryTypes.String,
 	}
-	got := TypeToPulse(dt, false)
+	got := TypeToPulse(dt)
 	if got != encoding.FieldTypeCategoricalU8 {
 		t.Errorf("dictionary: got %s", got)
 	}
@@ -798,10 +786,7 @@ func TestPulseTypeToArrowType(t *testing.T) {
 		{encoding.FieldTypeF64, arrow.FLOAT64},
 		{encoding.FieldTypeDate, arrow.DATE32},
 		{encoding.FieldTypePackedBool, arrow.BOOL},
-		{encoding.FieldTypeNullableBool, arrow.BOOL},
-		{encoding.FieldTypeNullableU4, arrow.UINT8},
-		{encoding.FieldTypeNullableU8, arrow.UINT8},
-		{encoding.FieldTypeNullableU16, arrow.UINT16},
+		{encoding.FieldTypeU4, arrow.UINT8},
 		{encoding.FieldTypeCategoricalU8, arrow.STRING},
 		{encoding.FieldTypeCategoricalU16, arrow.STRING},
 		{encoding.FieldTypeCategoricalU32, arrow.STRING},

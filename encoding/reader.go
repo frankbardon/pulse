@@ -96,27 +96,7 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 				values[field.Name] = 0
 			}
 
-		case FieldTypeNullableBool:
-			v, err := ReadBit(rr.r, uint(field.BitPosition))
-			if err != nil {
-				if err == io.EOF || isEOF(err) {
-					return io.EOF
-				}
-				return err
-			}
-			if !keepField {
-				continue
-			}
-			// For nullable bool, bit=0 can mean null or false depending on convention.
-			// Treat as: 1=true, 0=false. Null tracking requires a separate null bitmap
-			// which is not yet implemented; treat all as non-null for now.
-			if v {
-				values[field.Name] = 1
-			} else {
-				values[field.Name] = 0
-			}
-
-		case FieldTypeNullableU4:
+		case FieldTypeU4:
 			v, err := ReadNibble(rr.r, field.BitPosition > 0)
 			if err != nil {
 				if err == io.EOF || isEOF(err) {
@@ -127,15 +107,10 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 			if !keepField {
 				continue
 			}
-			if v == nullableU4NullSentinel {
-				nulls[field.Name] = true
-				values[field.Name] = 0
-				continue
-			}
 			values[field.Name] = float64(v)
 
-		case FieldTypeDecimal128, FieldTypeNullableDecimal128:
-			d, isNull, err := ReadDecimal128(rr.r)
+		case FieldTypeDecimal128:
+			d, err := ReadDecimal128(rr.r)
 			if err != nil {
 				if err == io.EOF || isEOF(err) {
 					return io.EOF
@@ -143,11 +118,6 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 				return err
 			}
 			if !keepField {
-				continue
-			}
-			if field.Type == FieldTypeNullableDecimal128 && isNull {
-				nulls[field.Name] = true
-				values[field.Name] = 0
 				continue
 			}
 			values[field.Name] = d.Float64(field.Scale)
@@ -167,6 +137,34 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 				continue
 			}
 			values[field.Name] = rawToFloat64(field.Type, raw)
+		}
+	}
+
+	// Trailing null bitmap, if the schema declares any nullable field.
+	if bmSize := rr.schema.BitmapByteSize(); bmSize > 0 {
+		bitmap, err := ReadBitmap(rr.r, bmSize)
+		if err != nil {
+			if err == io.EOF || isEOF(err) {
+				return io.EOF
+			}
+			return err
+		}
+		for i, field := range rr.schema.Fields {
+			if !field.Nullable {
+				continue
+			}
+			if !BitmapIsNull(bitmap, i) {
+				continue
+			}
+			keepField := keep == nil || keep(field.Name)
+			if !keepField {
+				continue
+			}
+			nulls[field.Name] = true
+			values[field.Name] = 0
+			if wide != nil {
+				delete(wide, field.Name)
+			}
 		}
 	}
 
