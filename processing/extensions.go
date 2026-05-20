@@ -53,6 +53,11 @@ type ExtensionRegistry struct {
 	// via the built-in lookup() function. Mirrors pulse.LookupTable.
 	LookupTables map[string]LookupTable
 
+	// LabelTables are the string-valued ID→label maps consumed by the
+	// output-time label resolver. Mirrors pulse.LabelTable. Indexed
+	// by the user-facing table name.
+	LabelTables map[string]LabelTable
+
 	// FieldInputs is the per-(category, name) field-introspection
 	// callback consulted by the buffered-projection extractor
 	// (NeededFields). When the registry contains an entry for an
@@ -77,6 +82,15 @@ type ExprFunction struct {
 type LookupTable struct {
 	Rows   map[string]float64
 	Lookup func(keys ...string) (float64, bool, error)
+}
+
+// LabelTable is the runtime-side mirror of pulse.LabelTable. The
+// label resolver consults this map when a request supplies a
+// LabelBinding referencing the table by name; exactly one of Rows or
+// Lookup is populated per table.
+type LabelTable struct {
+	Rows   map[string]string
+	Lookup func(key string) (string, bool, error)
 }
 
 // ExtensionAware is the optional interface that AttributeComputer /

@@ -942,4 +942,76 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_LABEL_FIELD_UNKNOWN: {
+		Message: "A LabelBinding references a field name not present in the cohort schema.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Field"},
+				Hint:   "Use a field name reported by pulse_inspect; categorical fields only.",
+			},
+		},
+	},
+	PULSE_LABEL_FIELD_NOT_CATEGORICAL: {
+		Message: "A LabelBinding references a non-categorical field. Labels translate dictionary string values; numeric and date fields have no dictionary key to translate.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Field"},
+				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field. For numeric translation, derive a categorical column upstream during import.",
+			},
+		},
+	},
+	PULSE_LABEL_TABLE_UNKNOWN: {
+		Message: "A LabelBinding references a label-table name that is not registered on the Service.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Table"},
+				Hint:   "Register the table in pulse.Options.Extensions.LabelTables before calling pulse.New, or correct the table name in the binding.",
+			},
+		},
+	},
+	PULSE_LABEL_FIELD_COLLISION: {
+		Message: "A LabelBinding in augment mode would emit a sibling \"<field>_label\" column whose name already exists in the request's output schema.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Mode"},
+				Hint:   "Switch the binding to replace mode, or rename the colliding existing field upstream so \"<field>_label\" is free.",
+				Examples: []any{"replace", "augment"},
+			},
+		},
+	},
+	PULSE_LABEL_DUPLICATE_BINDING: {
+		Message: "Two LabelBinding entries target the same Field. Each field may carry at most one binding per request.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels"},
+				Hint:   "Drop the duplicate entry; a single binding governs both replace and augment behaviour for one field.",
+			},
+		},
+	},
+	PULSE_LABEL_COLLISION: {
+		Message: "Two distinct source values resolve to the same label string in replace mode. The output disambiguates with the source value in parentheses (e.g. \"United States (US)\").",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Mode"},
+				Hint:   "Switch to augment mode if you need the source value preserved verbatim, or clean the table so labels are unique per source value.",
+				Examples: []any{"replace", "augment"},
+			},
+		},
+	},
+	PULSE_LABEL_LOOKUP_MISS: {
+		Message: "One or more categorical values present in the data have no entry in the label table. The output falls back to the raw resolved categorical value.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Table"},
+				Hint:   "Extend the label table to cover the unresolved values, or back the table with a Lookup func that synthesises a fallback for unknown keys.",
+			},
+		},
+	},
 }

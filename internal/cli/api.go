@@ -251,11 +251,13 @@ func apiSampleCmd() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
 			&cli.IntFlag{Name: "count", Aliases: []string{"n"}, Value: 10, Usage: "Number of rows to sample"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: field=table[:replace|augment]. Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
 			count := int(cmd.Int("count"))
 			jsonOut := cmd.Bool("json")
+			labelArgs := cmd.StringSlice("labels")
 
 			p, err := newPulse()
 			if err != nil {
@@ -265,19 +267,44 @@ func apiSampleCmd() *cli.Command {
 				return err
 			}
 
-			rows, err := p.Sample(ctx, input, count)
+			if len(labelArgs) == 0 {
+				rows, err := p.Sample(ctx, input, count)
+				if err != nil {
+					if jsonOut {
+						return writeErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err.Error())
+					}
+					return err
+				}
+				if jsonOut {
+					return writeEnvelope(cmd.Writer, rows)
+				}
+				return writeJSON(cmd.Writer, rows)
+			}
+
+			bindings, perr := parseLabelBindings(labelArgs)
+			if perr != nil {
+				if jsonOut {
+					return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", perr.Error())
+				}
+				return perr
+			}
+			result, err := p.SampleWithRequest(ctx, &pulse.SampleRequest{
+				Cohort: &types.Cohort{Filename: input}, N: count, Labels: bindings,
+			})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err.Error())
 				}
 				return err
 			}
-
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, rows)
+				env := descriptor.NewEnvelope(result.Rows)
+				for _, w := range result.Warnings {
+					env.AddWarning(w.Code, w.Message, w.Details)
+				}
+				return writeJSON(cmd.Writer, env)
 			}
-
-			return writeJSON(cmd.Writer, rows)
+			return writeJSON(cmd.Writer, result.Rows)
 		},
 	}
 }
@@ -297,6 +324,7 @@ func apiFacetCmd() *cli.Command {
 			&cli.Float64Flag{Name: "histogram-min", Usage: "Histogram lower bound (required with --histogram)"},
 			&cli.Float64Flag{Name: "histogram-max", Usage: "Histogram upper bound (required with --histogram)"},
 			&cli.StringSliceFlag{Name: "additive", Usage: "Compute additive contribution counts for this field (repeatable)"},
+			&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: field=table[:replace|augment]. Repeatable."},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -310,9 +338,10 @@ func apiFacetCmd() *cli.Command {
 			histMin := cmd.Float64("histogram-min")
 			histMax := cmd.Float64("histogram-max")
 			additive := cmd.StringSlice("additive")
+			labelArgs := cmd.StringSlice("labels")
 			jsonOut := cmd.Bool("json")
 
-			rich := reqPath != "" || len(fields) > 1 || topK > 0 || len(pcts) > 0 || includeHist || len(additive) > 0
+			rich := reqPath != "" || len(fields) > 1 || topK > 0 || len(pcts) > 0 || includeHist || len(additive) > 0 || len(labelArgs) > 0
 
 			p, err := newPulse()
 			if err != nil {
@@ -352,6 +381,16 @@ func apiFacetCmd() *cli.Command {
 					return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", err.Error())
 				}
 				return err
+			}
+			if len(labelArgs) > 0 {
+				bindings, perr := parseLabelBindings(labelArgs)
+				if perr != nil {
+					if jsonOut {
+						return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", perr.Error())
+					}
+					return perr
+				}
+				req.Labels = bindings
 			}
 			result, err := p.FacetSchema(ctx, req)
 			if err != nil {

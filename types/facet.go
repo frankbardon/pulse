@@ -48,6 +48,13 @@ type FacetRequest struct {
 	// histogram binning. Required when IncludeHistogram is true. The two
 	// values must satisfy min < max.
 	HistogramRange [2]float64 `json:"histogram_range,omitempty"`
+
+	// Labels rewrites or augments per-value keys in the response
+	// using embedder-registered label tables. Each binding's Field
+	// must appear in Fields and reference a categorical column;
+	// numeric fields ignore labels. See types.LabelBinding for
+	// semantics.
+	Labels []*LabelBinding `json:"labels,omitempty"`
 }
 
 // FacetResult is the response shape returned by pulse.FacetSchema.

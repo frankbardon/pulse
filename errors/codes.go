@@ -495,6 +495,51 @@ const (
 	// a per-field prefix on the right side, or rename one side at
 	// import time.
 	PULSE_JOIN_FIELD_COLLISION Code = "PULSE_JOIN_FIELD_COLLISION"
+
+	// PULSE_LABEL_FIELD_UNKNOWN indicates a LabelBinding references a
+	// field name not present in the cohort schema.
+	PULSE_LABEL_FIELD_UNKNOWN Code = "PULSE_LABEL_FIELD_UNKNOWN"
+
+	// PULSE_LABEL_FIELD_NOT_CATEGORICAL indicates a LabelBinding
+	// references a schema field whose type is not one of
+	// categorical_u8 / categorical_u16 / categorical_u32. Labels
+	// translate dictionary string values; other types have no
+	// dictionary key to translate.
+	PULSE_LABEL_FIELD_NOT_CATEGORICAL Code = "PULSE_LABEL_FIELD_NOT_CATEGORICAL"
+
+	// PULSE_LABEL_TABLE_UNKNOWN indicates a LabelBinding references a
+	// label-table name that is not registered on the Service. Tables
+	// are populated by pulse.Options.Extensions.LabelTables.
+	PULSE_LABEL_TABLE_UNKNOWN Code = "PULSE_LABEL_TABLE_UNKNOWN"
+
+	// PULSE_LABEL_FIELD_COLLISION indicates a LabelBinding in augment
+	// mode would emit a sibling "<field>_label" column whose name
+	// already exists in the request's output schema (an existing
+	// schema field or a prior augment binding). The augment suffix is
+	// fixed; resolve by renaming one of the colliding sources or
+	// switching to replace mode.
+	PULSE_LABEL_FIELD_COLLISION Code = "PULSE_LABEL_FIELD_COLLISION"
+
+	// PULSE_LABEL_DUPLICATE_BINDING indicates two LabelBinding
+	// entries in the same request target the same Field. Bindings
+	// must be unique per field within a request.
+	PULSE_LABEL_DUPLICATE_BINDING Code = "PULSE_LABEL_DUPLICATE_BINDING"
+
+	// PULSE_LABEL_COLLISION is a warning emitted in replace mode when
+	// two distinct source values resolve to the same label string
+	// (e.g. legacy and current ISO country codes both mapping to
+	// "United States"). The output disambiguates by appending the
+	// source value in parentheses ("United States (US)"); the warning
+	// names the affected source values so callers can clean the
+	// table or switch to augment mode.
+	PULSE_LABEL_COLLISION Code = "PULSE_LABEL_COLLISION"
+
+	// PULSE_LABEL_LOOKUP_MISS is a warning emitted when one or more
+	// categorical values present in the data have no entry in the
+	// label table. The output falls back to the raw resolved
+	// categorical value; the warning summarises the count of
+	// unresolved values per field so callers can audit gaps.
+	PULSE_LABEL_LOOKUP_MISS Code = "PULSE_LABEL_LOOKUP_MISS"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -603,6 +648,13 @@ var allCodes = []Code{
 	PULSE_JOIN_KEYS_EMPTY,
 	PULSE_JOIN_TOO_MANY,
 	PULSE_JOIN_FIELD_COLLISION,
+	PULSE_LABEL_FIELD_UNKNOWN,
+	PULSE_LABEL_FIELD_NOT_CATEGORICAL,
+	PULSE_LABEL_TABLE_UNKNOWN,
+	PULSE_LABEL_FIELD_COLLISION,
+	PULSE_LABEL_DUPLICATE_BINDING,
+	PULSE_LABEL_COLLISION,
+	PULSE_LABEL_LOOKUP_MISS,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

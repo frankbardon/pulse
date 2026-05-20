@@ -757,6 +757,14 @@ type Request struct {
 	// larger side as the probe — joined records flow through the
 	// standard filter / attribute / group / aggregator pipeline.
 	Joins []*JoinSpec `json:"joins,omitempty"`
+
+	// Labels rewrites or augments categorical output values using
+	// embedder-registered label tables. Each binding pairs a
+	// categorical field with a label-table name and a mode (replace
+	// or augment). Labels are display-only: filters, formulas, sort
+	// keys, and group keys still see raw values. Tables are sourced
+	// from pulse.Options.Extensions.LabelTables.
+	Labels []*LabelBinding `json:"labels,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
@@ -769,6 +777,16 @@ type ResponseMetadata struct {
 
 	// CohortFile is the filename of the processed cohort.
 	CohortFile string `json:"cohort_file,omitempty"`
+}
+
+// ResponseWarning is the envelope-ready projection of a cross-cutting
+// diagnostic emitted during a processing run (today: label-display
+// resolver warnings). Codes match the errors.Code namespace so a
+// CLI / MCP envelope wrapper can promote them verbatim.
+type ResponseWarning struct {
+	Code    string         `json:"code"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details,omitempty"`
 }
 
 // Response is the processing result type.
@@ -792,6 +810,13 @@ type Response struct {
 	// populate a result on failure; a failed fit surfaces as a
 	// PROCESSING_REGRESSION_* error on the envelope instead.
 	Regressions []*RegressionResult `json:"regressions,omitempty"`
+
+	// Warnings carries cross-cutting diagnostics surfaced after the
+	// processor finishes. Today this slot is populated by the label-
+	// display resolver (PULSE_LABEL_COLLISION, PULSE_LABEL_LOOKUP_MISS);
+	// future runtime overlays attach here too. CLI / MCP envelope
+	// wrappers promote each entry into the envelope's Warnings array.
+	Warnings []*ResponseWarning `json:"warnings,omitempty"`
 }
 
 // FileRequest identifies a file for operations like inspect.

@@ -54,6 +54,15 @@ type Extensions struct {
 	// whenever LookupTables is non-empty. Tables are read-only after
 	// pulse.New.
 	LookupTables map[string]LookupTable
+
+	// LabelTables expose static ID→label maps used by the output-time
+	// categorical-label overlay (per-request Labels slot on Request /
+	// SampleRequest / FacetRequest / ExportJob). Each table accepts a
+	// single string key (the categorical's resolved dictionary value)
+	// and returns a display string. Tables are read-only after
+	// pulse.New and do not affect filter / formula / sort semantics —
+	// only end-user output rendering.
+	LabelTables map[string]LabelTable
 }
 
 // ParamMeta describes one operator-specific parameter for manifest
@@ -279,6 +288,33 @@ type LookupTable struct {
 	// error from Lookup surfaces as PULSE_LOOKUP_MISS with the
 	// embedder's message attached.
 	Lookup func(keys ...string) (value float64, ok bool, err error)
+}
+
+// LabelTable exposes an ID→label map for display-time categorical
+// translation. Exactly one of Rows / Lookup must be non-nil.
+//
+// Rows is the simple path — a string→string map keyed by the resolved
+// categorical dictionary value. Lookup is the escape hatch for tables
+// that wrap an external store (e.g. a code-system service) or that
+// compose the label from multiple sources.
+//
+// LabelTable is intentionally distinct from LookupTable: LookupTable
+// returns float64 for the numeric expression environment, LabelTable
+// returns string for output rendering. Conflating them would force
+// every embedder to choose one shape over the other; the two surfaces
+// are independent.
+type LabelTable struct {
+	Description string
+	// Rows is the canonical static map. Key is the categorical's
+	// resolved dictionary value (the on-disk string the field
+	// presents, e.g. "US"); value is the display label (e.g.
+	// "United States").
+	Rows map[string]string
+	// Lookup is the function-driven accessor. Returns the label and
+	// true on hit; the second return is the miss signal. An error
+	// from Lookup surfaces as PULSE_LABEL_LOOKUP_MISS with the
+	// embedder's message attached.
+	Lookup func(key string) (label string, ok bool, err error)
 }
 
 // reservedExtensionNamespaces is the set of namespace segments

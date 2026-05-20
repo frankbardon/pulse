@@ -61,6 +61,54 @@ func TestMCPSchemaBinding_BackwardCompatBindNoCustomNames(t *testing.T) {
 	}
 }
 
+// TestMCPSchemaBinding_LabelsSchema asserts the labels slot is
+// injected when the cohort has categorical fields AND label tables
+// are registered. The field enum is constrained to categoricals; the
+// table enum is constrained to registered tables.
+func TestMCPSchemaBinding_LabelsSchema(t *testing.T) {
+	dict := encoding.NewDictionary()
+	dict.Add("US")
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "country", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict},
+			{Name: "amount", Type: encoding.FieldTypeF64},
+		},
+	}
+	snap := &descriptor.ExtensionsSnapshot{
+		LabelTables: []descriptor.LabelTableMeta{{Name: "country_names", HasRowsData: true}},
+	}
+	bound, err := BindWithExtensions(schema, snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(bound["pulse_process"])
+	if !strings.Contains(body, "\"labels\"") {
+		t.Fatalf("expected labels slot in pulse_process schema:\n%s", body)
+	}
+	if !strings.Contains(body, "country_names") {
+		t.Fatalf("expected table enum to include country_names:\n%s", body)
+	}
+	if !strings.Contains(body, `"replace"`) || !strings.Contains(body, `"augment"`) {
+		t.Fatalf("expected mode enum to contain replace + augment:\n%s", body)
+	}
+}
+
+// TestMCPSchemaBinding_LabelsOmittedWhenNoTables asserts the labels
+// slot is omitted when no tables are registered — advertising an
+// empty enum would just confuse the LLM.
+func TestMCPSchemaBinding_LabelsOmittedWhenNoTables(t *testing.T) {
+	dict := encoding.NewDictionary()
+	dict.Add("US")
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{{Name: "country", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict}},
+	}
+	bound, _ := Bind(schema)
+	body := string(bound["pulse_process"])
+	if strings.Contains(body, "\"labels\"") {
+		t.Fatalf("labels slot should be omitted when no tables registered:\n%s", body)
+	}
+}
+
 // TestMCPSchemaBinding_DedupAndSort verifies that merging an
 // extension snapshot does not introduce duplicate names and the
 // final enum is sorted.

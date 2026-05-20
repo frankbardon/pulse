@@ -2939,7 +2939,7 @@
         ]
       }
     ],
-    "error_codes_count": 97,
+    "error_codes_count": 104,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3008,6 +3008,13 @@
       "PULSE_JOIN_KIND_NOT_IMPLEMENTED",
       "PULSE_JOIN_TOO_MANY",
       "PULSE_JOIN_TYPE_MISMATCH",
+      "PULSE_LABEL_COLLISION",
+      "PULSE_LABEL_DUPLICATE_BINDING",
+      "PULSE_LABEL_FIELD_COLLISION",
+      "PULSE_LABEL_FIELD_NOT_CATEGORICAL",
+      "PULSE_LABEL_FIELD_UNKNOWN",
+      "PULSE_LABEL_LOOKUP_MISS",
+      "PULSE_LABEL_TABLE_UNKNOWN",
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
@@ -3876,6 +3883,10 @@
         "description": "Use Request.Joins for pushdown hash join. v1 envelope: one inner join per Request, in-memory build, right-side hash + left-side probe. Use when comparing rows across cohorts; covers OnPair key-type compatibility, As prefix for field-collision avoidance, and the deferred outer/left/anti + spill items."
       },
       {
+        "name": "label-display",
+        "description": "Translate categorical IDs (ISO codes, SKUs, ICD codes) into display labels at output time without re-encoding the cohort. Per-request LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob; tables registered via Extensions.LabelTables or PULSE_LABEL_TABLES_DIR. Labels are display-only — filters, formulas, and sort still see raw values."
+      },
+      {
         "name": "mcp-integration",
         "description": "Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_ask, pulse_compose, pulse_sample, pulse_facet, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order."
       },
@@ -3986,7 +3997,8 @@
       "tests": [],
       "synth_distributions": [],
       "expr_functions": [],
-      "lookup_tables": []
+      "lookup_tables": [],
+      "label_tables": []
     },
     "facet": {
       "name": "facet_schema",
@@ -4054,4 +4066,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a340f45fb2ad3351af1a95255af90f55cc8a59aaac2926aeed1712ff5a52b1ec
+// golden-hash: 10019284eba06e27f5e8b2fa58f249bcd61af567b8a4cbadc92cc8e2ecb4ce98

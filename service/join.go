@@ -93,5 +93,8 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = leftPath
 	}
+	if err := s.buildAndApplyLabels(req, resp); err != nil {
+		return nil, err
+	}
 	return resp, nil
 }

@@ -53,6 +53,9 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if err := validateFacetSchemaRequest(req, schema); err != nil {
 		return nil, err
 	}
+	if err := s.validateFacetLabels(req, schema); err != nil {
+		return nil, err
+	}
 
 	bins, err := resolveHistogramBins(req)
 	if err != nil {
@@ -146,6 +149,10 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 				result.Warnings = append(result.Warnings, warning)
 			}
 		}
+	}
+
+	if err := s.applyFacetLabels(req, result); err != nil {
+		return nil, err
 	}
 
 	return result, nil

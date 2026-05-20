@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -61,8 +62,9 @@ type ImportReport struct {
 
 // ExportReport summarizes the result of an export operation.
 type ExportReport struct {
-	RowsExported int
-	RowErrors    []RowError
+	RowsExported  int
+	RowErrors     []RowError
+	LabelWarnings []LabelWarning
 }
 
 // ConvertReport summarizes the result of a convert operation.
@@ -70,6 +72,7 @@ type ConvertReport struct {
 	RowsConverted int
 	Schema        *encoding.Schema
 	RowErrors     []RowError
+	LabelWarnings []LabelWarning
 }
 
 // RowError records a per-row error during import or export.
@@ -108,6 +111,21 @@ type ExportJob struct {
 	Source string // input .pulse path
 	Target Writer
 	FS     afero.Fs
+	// Labels rewrites or augments categorical column values during
+	// export using embedder-registered label tables. Bindings name a
+	// categorical field plus a label table; mode=replace overwrites
+	// the column value, mode=augment emits a sibling "<field>_label"
+	// column. See types.LabelBinding for semantics. Nil/empty means
+	// the exporter writes raw resolved categorical values, matching
+	// pre-label behaviour.
+	Labels []*types.LabelBinding
+	// LabelResolver carries the runtime resolver built from Labels +
+	// the pulse Service's registered LabelTables. The pulse.Export
+	// facade builds the resolver and sets this field; callers using
+	// io.ExportJob directly without a Pulse instance must supply a
+	// satisfying implementation (typically wrapping
+	// processing.BuildLabelResolver). Nil means no label translation.
+	LabelResolver LabelResolver
 }
 
 // NewExportJob creates an ExportJob.
@@ -127,6 +145,13 @@ type ConvertJob struct {
 	KeepPulseAt string // optional: also write intermediate .pulse
 	SampleRows  int
 	FS          afero.Fs
+	// Labels apply to the export phase only — the import side reads
+	// raw source bytes and has no use for label translation. See
+	// ExportJob.Labels.
+	Labels []*types.LabelBinding
+	// LabelResolver carries the runtime resolver. See
+	// ExportJob.LabelResolver.
+	LabelResolver LabelResolver
 }
 
 // NewConvertJob creates a ConvertJob with default settings.

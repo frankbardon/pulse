@@ -69,6 +69,14 @@ type (
 	// FacetHistogram is the fixed-width binning of a numeric field.
 	FacetHistogram = types.FacetHistogram
 
+	// LabelBinding pairs a categorical field with a label table for
+	// output-time translation. See types.LabelBinding for semantics.
+	LabelBinding = types.LabelBinding
+	// LabelMode selects replace vs augment rendering for a binding.
+	LabelMode = types.LabelMode
+	// SampleRequest is the labelled variant of the Sample entry point.
+	SampleRequest = types.SampleRequest
+
 	// SynthSpec is the parsed synthesis request shape.
 	SynthSpec = synth.Spec
 	// SynthResult is the result of a successful Synth call.
@@ -93,6 +101,12 @@ type (
 	ErrorMetadata = errors.LookupResult
 	// ErrorFixup is one repair template attached to an error code.
 	ErrorFixup = errors.Fixup
+)
+
+// LabelMode constants re-exported for caller ergonomics.
+const (
+	LabelModeReplace = types.LabelModeReplace
+	LabelModeAugment = types.LabelModeAugment
 )
 
 // Record is a row of field→value data returned by Sample.
@@ -191,6 +205,22 @@ type Options struct {
 	// always safe — the worst case degenerates to the full-decode
 	// behaviour.
 	ProjectBufferedFields bool
+
+	// LabelTablesDir points at a directory of JSON files that the
+	// engine auto-registers as LabelTables at pulse.New time. Empty
+	// disables the loader (the only source of LabelTables is then
+	// Options.Extensions.LabelTables, set programmatically).
+	//
+	// File format: each *.json file is a mapping of source value to
+	// label string, or a wrapped object {"description": "...",
+	// "rows": {"k": "v"}}. The filename without the .json extension
+	// becomes the registered table name.
+	//
+	// Honoured after PULSE_LABEL_TABLES_DIR — programmatic value
+	// wins. Tables loaded from disk merge into Options.Extensions.
+	// LabelTables; collisions are rejected with
+	// PULSE_EXTENSION_DUPLICATE.
+	LabelTablesDir string
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -208,6 +238,9 @@ func (p *Pulse) Service() *service.Service { return p.svc }
 
 // New creates a new Pulse instance with the given options.
 func New(opts Options) (*Pulse, error) {
+	if err := loadLabelTablesFromDir(&opts); err != nil {
+		return nil, err
+	}
 	if err := validateExtensions(opts.Extensions); err != nil {
 		return nil, err
 	}
@@ -402,18 +435,39 @@ func (p *Pulse) Import(ctx context.Context, job *pio.ImportJob) (*pio.ImportRepo
 
 // Export converts a .pulse file into tabular output.
 // The job's FS field is set to the Pulse instance's filesystem if not already set.
+//
+// When job.Labels is non-empty, the facade builds the runtime label
+// resolver from the Service's registered LabelTables and attaches it
+// to job.LabelResolver before Run. The resolver applies replace /
+// augment translation to categorical column values during export.
 func (p *Pulse) Export(ctx context.Context, job *pio.ExportJob) (*pio.ExportReport, error) {
 	if job.FS == nil {
 		job.FS = p.fsys
+	}
+	if job.LabelResolver == nil && len(job.Labels) > 0 {
+		r, err := p.newIOLabelResolver(job.Labels)
+		if err != nil {
+			return nil, err
+		}
+		job.LabelResolver = r
 	}
 	return job.Run(ctx)
 }
 
 // Convert chains import and export with no intermediate file on disk.
 // The job's FS field is set to the Pulse instance's filesystem if not already set.
+//
+// Labels apply to the export half only — see Export.
 func (p *Pulse) Convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertReport, error) {
 	if job.FS == nil {
 		job.FS = p.fsys
+	}
+	if job.LabelResolver == nil && len(job.Labels) > 0 {
+		r, err := p.newIOLabelResolver(job.Labels)
+		if err != nil {
+			return nil, err
+		}
+		job.LabelResolver = r
 	}
 	return job.Run(ctx)
 }
@@ -570,6 +624,59 @@ func (p *Pulse) Sample(ctx context.Context, path string, n int) ([]Record, error
 		p.touchManaged(ctx, path)
 	}
 	return rows, err
+}
+
+// SampleResult bundles the rows and the resolver-side warnings from
+// a labelled Sample call. Warnings carry PULSE_LABEL_COLLISION and
+// PULSE_LABEL_LOOKUP_MISS records; an empty slice means the labels
+// resolved cleanly (or no Labels were requested).
+type SampleResult struct {
+	Rows     []Record
+	Warnings []SampleWarning
+}
+
+// SampleWarning is the envelope-ready projection of a single resolver
+// warning. The shape mirrors descriptor.EnvelopeWarning so callers can
+// fold it into a descriptor.Envelope at the CLI / MCP boundary.
+type SampleWarning struct {
+	Code    string
+	Message string
+	Details map[string]any
+}
+
+// SampleWithRequest is the labelled variant of Sample. The req struct
+// carries the cohort path (via Cohort.Filename), the row cap (N), and
+// LabelBinding entries that translate categorical values to display
+// labels in the returned rows.
+//
+// When Labels is empty the call degenerates to the same shape as
+// Sample, returning a SampleResult with no Warnings and no
+// transformation applied to the rows.
+func (p *Pulse) SampleWithRequest(ctx context.Context, req *SampleRequest) (*SampleResult, error) {
+	if req == nil {
+		return nil, fmt.Errorf("pulse: sample request is required")
+	}
+	if req.Cohort == nil || req.Cohort.Filename == "" {
+		return nil, fmt.Errorf("pulse: sample request requires Cohort.Filename")
+	}
+	path := req.Cohort.Filename
+	rows, warns, err := p.svc.SampleWithRequest(ctx, req, path)
+	if err != nil {
+		return nil, err
+	}
+	p.touchManaged(ctx, path)
+	out := &SampleResult{Rows: rows}
+	if len(warns) > 0 {
+		out.Warnings = make([]SampleWarning, len(warns))
+		for i, w := range warns {
+			out.Warnings[i] = SampleWarning{
+				Code:    string(w.Code),
+				Message: w.Message,
+				Details: w.Details,
+			}
+		}
+	}
+	return out, nil
 }
 
 // FilterToFile reads the .pulse cohort at src, evaluates filterExpr

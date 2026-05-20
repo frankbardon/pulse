@@ -134,6 +134,9 @@ func validateExtensions(ext Extensions) error {
 	if err := validateLookupTables(ext.LookupTables); err != nil {
 		return err
 	}
+	if err := validateLabelTables(ext.LabelTables); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -409,6 +412,31 @@ func validateLookupTables(tables map[string]LookupTable) error {
 				errors.PULSE_EXTENSION_PARAM_INVALID,
 				fmt.Sprintf("lookup table %q must set exactly one of Rows or Lookup (got rows=%v lookup=%v)", name, hasRows, hasFn),
 				map[string]any{"category": "lookup_table", "name": name, "has_rows": hasRows, "has_lookup": hasFn},
+			)
+		}
+	}
+	return nil
+}
+
+// validateLabelTables asserts exactly one of Rows / Lookup is set per
+// table and that the table name is non-empty. Label tables are
+// referenced by name from per-request LabelBinding entries.
+func validateLabelTables(tables map[string]LabelTable) error {
+	for name, t := range tables {
+		if strings.TrimSpace(name) == "" {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				"label table has empty name",
+				map[string]any{"category": "label_table"},
+			)
+		}
+		hasRows := t.Rows != nil
+		hasFn := t.Lookup != nil
+		if hasRows == hasFn {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("label table %q must set exactly one of Rows or Lookup (got rows=%v lookup=%v)", name, hasRows, hasFn),
+				map[string]any{"category": "label_table", "name": name, "has_rows": hasRows, "has_lookup": hasFn},
 			)
 		}
 	}

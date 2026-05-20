@@ -22,6 +22,7 @@ type ExtensionsManifest struct {
 	SynthDistributions []OperatorMeta     `json:"synth_distributions"`
 	ExprFunctions      []ExprFunctionMeta `json:"expr_functions"`
 	LookupTables       []LookupTableMeta  `json:"lookup_tables"`
+	LabelTables        []LabelTableMeta   `json:"label_tables"`
 }
 
 // OperatorMeta is the manifest projection for an embedder-registered
@@ -68,6 +69,16 @@ type LookupTableMeta struct {
 	HasRowsData bool   `json:"has_rows_data"`
 }
 
+// LabelTableMeta is the manifest projection of a registered string-
+// valued label table. HasRowsData distinguishes the static Rows-backed
+// table from the function-driven Lookup table without exposing the
+// embedder's data.
+type LabelTableMeta struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	HasRowsData bool   `json:"has_rows_data"`
+}
+
 // ExtensionsSnapshot is the immutable read-only view that the service
 // hands to descriptor.BuildManifestWithExtensions and predict. It
 // carries everything the manifest + predict surfaces need without
@@ -84,6 +95,7 @@ type ExtensionsSnapshot struct {
 	SynthDistributions []OperatorMeta
 	ExprFunctions      []ExprFunctionMeta
 	LookupTables       []LookupTableMeta
+	LabelTables        []LabelTableMeta
 }
 
 // emptyExtensionsManifest returns a fully-populated ExtensionsManifest
@@ -101,6 +113,7 @@ func emptyExtensionsManifest() ExtensionsManifest {
 		SynthDistributions: []OperatorMeta{},
 		ExprFunctions:      []ExprFunctionMeta{},
 		LookupTables:       []LookupTableMeta{},
+		LabelTables:        []LabelTableMeta{},
 	}
 }
 
@@ -122,6 +135,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) ExtensionsManifest
 		SynthDistributions: sortOperatorMeta(snap.SynthDistributions),
 		ExprFunctions:      sortExprFunctionMeta(snap.ExprFunctions),
 		LookupTables:       sortLookupTableMeta(snap.LookupTables),
+		LabelTables:        sortLabelTableMeta(snap.LabelTables),
 	}
 	if out.Aggregators == nil {
 		out.Aggregators = []OperatorMeta{}
@@ -153,6 +167,9 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) ExtensionsManifest
 	if out.LookupTables == nil {
 		out.LookupTables = []LookupTableMeta{}
 	}
+	if out.LabelTables == nil {
+		out.LabelTables = []LabelTableMeta{}
+	}
 	return out
 }
 
@@ -181,6 +198,16 @@ func sortLookupTableMeta(in []LookupTableMeta) []LookupTableMeta {
 		return nil
 	}
 	out := make([]LookupTableMeta, len(in))
+	copy(out, in)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+func sortLabelTableMeta(in []LabelTableMeta) []LabelTableMeta {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]LabelTableMeta, len(in))
 	copy(out, in)
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out

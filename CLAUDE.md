@@ -51,6 +51,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | `pulse.CountRecords` facade or its O(1) contract | `service/count.go` + `pulse.go` | `TestCountRecords_*` |
 | `Request.Joins` slot or `JoinSpec`/`OnPair` shape | `types/join.go` + `processing/join.go` + `service/join.go` + `descriptor/join.go` + `descriptor/capabilities_join.go` + `skills/join-design.md` | `TestJoin_*`, `TestValidateJoin_*` |
 | Cohort-analytics aggregator catalog (`AGG_WEIGHTED_MEAN`/`RATIO`/`CI_LOWER`/`CI_UPPER`) | `processing/aggregator_cohort.go` + `types/types.go` + `types/streamability.go` + `descriptor/capabilities_aggregators.go` + `skills/aggregation-guide.md` | `TestAggregator_*`, `TestManifestOperatorsComplete`, `TestStreamability_AggregationsKnown` |
+| `pulse.Options.Extensions.LabelTables` registration, `types.LabelBinding` slot on `Request`/`SampleRequest`/`FacetRequest`/`ExportJob`/`ConvertJob`, or `PULSE_LABEL_TABLES_DIR` loader | `extensions.go` + `extensions_validate.go` + `extensions_runtime.go` + `extensions_snapshot.go` + `processing/extensions.go` + `processing/labels.go` + `types/labels.go` + `descriptor/labels.go` + `descriptor/extensions.go` + `io/labels.go` + `io/io.go` + `io/export.go` + `io/convert.go` + `label_adapter.go` + `label_loader.go` + `internal/cli/labels.go` + `internal/mcp/schema_bind.go` + `skills/label-display.md` + `skills/index.json` + CLAUDE.md "Build / Env" | `TestExtensions_LabelTable*`, `TestLabelResolver_*`, `TestValidateLabels_*`, `TestSampleWithRequest_*`, `TestProcess_GroupKey_*`, `TestProcess_Labels_*`, `TestFacetSchema_Labels_*`, `TestExportJob_Labels_*`, `TestLoadLabelTables_*`, `TestParseLabelBindings_*`, `TestMCPSchemaBinding_Labels*`, `TestSkillsList_ReturnsAll`, `TestSkillsNames`, `TestClaudeMdMentionsAllEnvVars` |
 
 Table is self-referential — new trigger rows require updating this table in the same PR. `TestUpdateDemandTableCovers` parses this section and asserts every component category and contract type has a row.
 
@@ -229,6 +230,7 @@ Other load-bearing contract gates (not prefix-matched, enforced by their own pac
 - `PULSE_DATA_DIR` — base directory for `.pulse` cohort files. Used by `fs.Default()` when no explicit `DataDir` or `afero.Fs` is provided. Only required env var for runtime. Bypass via `pulse.Options{DataDir}` or `pulse.Options{FS}`.
 - `PULSE_IMPORTS_DIR` — managed-imports subdir under fs root. Defaults to `imports`. Honoured by `imports.Manager` (and so `pulse_import` / `pulse import auto`). `pulse.Options{ImportsDir}` overrides.
 - `PULSE_IMPORT_TTL` — default TTL for managed imports when caller doesn't pass one. Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin`. Defaults to `7d`. `pulse.Options{ImportTTL}` overrides.
+- `PULSE_LABEL_TABLES_DIR` — directory of JSON files auto-loaded as `LabelTables` at `pulse.New` time. Each `*.json` becomes a registered label table keyed by its filename (without the extension); file content is either a flat `{key: value}` map or `{"description": "...", "rows": {...}}`. Honoured when `pulse.Options{LabelTablesDir}` is empty. Empty / missing dir = no-op.
 
 Hermetic testing: `fs.NewMemMap()` returns a `Config` backed by `afero.NewMemMapFs()`. No disk I/O.
 
@@ -252,7 +254,7 @@ Surface: `extensions.go` (types), `extensions_validate.go` (validation), `extens
 
 ## Skill Pack
 
-23 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
+24 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
 
 ```yaml
 ---
@@ -281,6 +283,7 @@ applies_to: process, compose, predict
 | MCP tool | `skills/mcp-integration.md` |
 | Facet endpoint | `skills/facet-design.md` |
 | Join | `skills/join-design.md` |
+| Label binding / display overlay | `skills/label-display.md` |
 | Error code | `errors/fixup_metadata.go` (via `pulse_errors_lookup`) |
 | Extension API surface | `skills/extension-points.md` |
 
