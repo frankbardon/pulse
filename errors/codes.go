@@ -442,6 +442,59 @@ const (
 	// basename. Zip entry names are flat — basenames must be unique
 	// within an archive.
 	PULSE_SHARD_NAME_COLLISION Code = "PULSE_SHARD_NAME_COLLISION"
+
+	// PULSE_CHAIN_NOT_MERGEABLE indicates a stage inside a
+	// ProcessChain request fails the chain gate. The gate accepts
+	// mergeable requests (same set as processing.CanMergeRequest)
+	// whose aggregators emit a single scalar per output row. Stages
+	// using windows, features, tier-1/tier-2 tests, regressions,
+	// two-pass attributes, AGG_FREQUENCY, AGG_MODE, or non-mergeable
+	// groupers / aggregators are rejected. The error details carry
+	// the offending stage index and name so callers can fall back to
+	// per-stage Process calls.
+	PULSE_CHAIN_NOT_MERGEABLE Code = "PULSE_CHAIN_NOT_MERGEABLE"
+
+	// PULSE_CHAIN_EMPTY indicates a ProcessChain request with zero
+	// stages, or a stage with a nil inner Request. The chain
+	// executor needs at least one stage with a real Request to run.
+	PULSE_CHAIN_EMPTY Code = "PULSE_CHAIN_EMPTY"
+
+	// PULSE_JOIN_TYPE_MISMATCH indicates an equi-join key pair where
+	// the left field's schema type differs from the right field's
+	// (e.g. left is u32, right is categorical_u8). Hash join requires
+	// type-compatible keys; mismatches surface this code so callers
+	// can either cast upstream (during import) or restructure the
+	// request.
+	PULSE_JOIN_TYPE_MISMATCH Code = "PULSE_JOIN_TYPE_MISMATCH"
+
+	// PULSE_JOIN_KIND_NOT_IMPLEMENTED indicates a join spec whose Kind
+	// is reserved but not yet implemented ("left", "outer", "anti").
+	// v1 supports "inner" (and empty == "inner"); the remaining kinds
+	// land once the null bitmap correctness path is fully wired for
+	// outer-join fills.
+	PULSE_JOIN_KIND_NOT_IMPLEMENTED Code = "PULSE_JOIN_KIND_NOT_IMPLEMENTED"
+
+	// PULSE_JOIN_FIELD_UNKNOWN indicates an OnPair references a field
+	// not present in the corresponding cohort's schema. Surfaced by
+	// descriptor.ValidateJoin and at runtime by the join orchestrator.
+	PULSE_JOIN_FIELD_UNKNOWN Code = "PULSE_JOIN_FIELD_UNKNOWN"
+
+	// PULSE_JOIN_KEYS_EMPTY indicates a join spec with an empty On
+	// slice. At least one equi-join pair is required.
+	PULSE_JOIN_KEYS_EMPTY Code = "PULSE_JOIN_KEYS_EMPTY"
+
+	// PULSE_JOIN_TOO_MANY indicates a Request with more than one
+	// JoinSpec. v1 supports exactly one join per Request; multi-join
+	// chains land when the orchestrator gains a per-join intermediate
+	// state machine.
+	PULSE_JOIN_TOO_MANY Code = "PULSE_JOIN_TOO_MANY"
+
+	// PULSE_JOIN_FIELD_COLLISION indicates the joined schema would
+	// carry two fields with the same name (left field + right field
+	// without an As prefix to disambiguate). Set JoinSpec.As to add
+	// a per-field prefix on the right side, or rename one side at
+	// import time.
+	PULSE_JOIN_FIELD_COLLISION Code = "PULSE_JOIN_FIELD_COLLISION"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -542,6 +595,14 @@ var allCodes = []Code{
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE,
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
+	PULSE_CHAIN_NOT_MERGEABLE,
+	PULSE_CHAIN_EMPTY,
+	PULSE_JOIN_TYPE_MISMATCH,
+	PULSE_JOIN_KIND_NOT_IMPLEMENTED,
+	PULSE_JOIN_FIELD_UNKNOWN,
+	PULSE_JOIN_KEYS_EMPTY,
+	PULSE_JOIN_TOO_MANY,
+	PULSE_JOIN_FIELD_COLLISION,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

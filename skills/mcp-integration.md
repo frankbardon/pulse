@@ -21,6 +21,7 @@ Every Pulse tool wraps a public library entry point. Inputs are JSON; outputs ar
 | `pulse_inspect` | Header + schema + dictionaries | `path` (string) |
 | `pulse_predict` | Validate a request against schema, no execution | `request` (JSON-encoded `types.Request`) |
 | `pulse_process` | Execute one request | `request` (JSON-encoded `types.Request`) |
+| `pulse_process_chain` | Execute a source-rooted linear chain of mergeable stages (stage N+1 feeds off stage N's rows) | `request` (JSON-encoded `pulse.ChainRequest`) |
 | `pulse_compose` | Execute a batch | `request` (JSON-encoded `types.ComposedRequest`) |
 | `pulse_sample` | First N rows | `path` (string), `count` (number, default 10) |
 | `pulse_facet` | Distinct values for one field (categorical fast path / numeric scan) | `path` (string), `field` (string) |

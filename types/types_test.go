@@ -207,6 +207,7 @@ func TestNoOrbitPrefix(t *testing.T) {
 		"Request", "Response", "Filterer", "Aggregation",
 		"Attribute", "Group", "Output", "Cohort",
 		"FileRequest", "FileResponse", "ComposedRequest",
+		"ChainRequest", "ChainStage", "ChainResponse",
 		"VersionResponse", "FiltererType", "AggregationType",
 		"GroupType", "AttributeType", "ResponseMetadata",
 		"Window", "WindowType", "OrderKey", "FrameSpec",

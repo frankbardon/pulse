@@ -53,6 +53,10 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | `pulse.Options.ProjectBufferedFields` flag or `processing.NeededFields` extraction (new operator slot, expr identifier source, Params-referenced field) | CLAUDE.md "Projected buffered decode" subsection + `skills/extension-points.md` (FieldInputs hook + extractor surface) | `TestNeededFields_*`, `TestProjection_BufferedMatchesFullDecode_*`, `TestProjection_ByteCursorAlignmentWhenSkipping`, `TestReadRecordProjected_*` |
 | `FieldInputsFunc` hook on a registration struct (added/removed) | `extensions.go` (registration struct field) + `extensions_runtime.go` (wire into ExtensionRegistry.FieldInputs) + `skills/extension-points.md` | `TestNeededFields_ExtensionWithFieldInputs`, `TestNeededFields_UnknownExtensionWidens` |
 | Shard archive layout (entry names, `_schema.pulse` metadata block, magic dispatch, dict prefix rule) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded section) + `skills/contributor-workflow.md` (Adding-a-shard recipe) | `TestShardArchiveLayoutDocumented`, `TestSkillsCoverShardingTopics` |
+| `ChainRequest` / `ChainResponse` shape OR `processing.CanChainRequest` gate (operator allowlist) | `types/chain.go` + `processing/chain.go` + `service/chain.go` + `descriptor/chain.go` (`ValidateChain`) + `descriptor/capabilities_chain.go` (`ProcessChainCapability`) + `skills/contributor-workflow.md` (Adding-a-chain-stage-predicate recipe) + `skills/getting-started.md` + `skills/mcp-integration.md` + CLAUDE.md "ProcessChain" section | `TestProcessChain_*`, `TestValidateChain_*`, `TestSkillsCoverAllCliLeaves`, `TestSkillsCoverAllMCPTools` |
+| `pulse.CountRecords` facade or its O(1) contract (single-file byte budget, archive SHRD trailer fast path) | `service/count.go` + `pulse.go` + CLAUDE.md "Predict / Inspect contracts" CountRecords entry | `TestCountRecords_*` |
+| `Request.Joins` slot or `JoinSpec`/`OnPair` shape (key types, As prefix, kind, multi-join rules) | `types/join.go` + `processing/join.go` (`HashJoinIterator`, `JoinedSchema`, `typesCompatibleForJoin`) + `service/join.go` (`processWithJoin`) + `descriptor/join.go` (`ValidateJoin`) + `descriptor/capabilities_join.go` (`JoinCapability`) + `skills/join-design.md` + CLAUDE.md "Pushdown hash join" section | `TestJoin_*`, `TestValidateJoin_*` |
+| Cohort-analytics aggregator catalog (`AGG_WEIGHTED_MEAN`/`RATIO`/`CI_LOWER`/`CI_UPPER`) | `processing/aggregator_cohort.go` + `types/types.go` + `types/streamability.go` + `descriptor/capabilities_aggregators.go` + `skills/aggregation-guide.md` | `TestAggregator_*`, `TestManifestOperatorsComplete`, `TestStreamability_AggregationsKnown`, `TestRegistryStreamabilityMatchesTypes` |
 
 The Update Demand applies recursively to itself: new trigger rows require this table to be updated in the same PR. `TestUpdateDemandTableCovers` parses this section and asserts every component category and contract type has a row.
 
@@ -70,6 +74,7 @@ pulse/
 │   ├── shard_admin.go      # Create / Add / Remove / List / Extract
 │   ├── shard_compact.go    # Orphan-byte reclamation
 │   ├── shard_verify.go     # Full re-validation
+│   ├── chain.go            # ProcessChain: source-rooted linear chain executor
 │   └── anchor_overlay.go   # archive.pulse#shard.pulse anchor overlay
 ├── processing/             # Aggregators, attributes, filterers, groupers
 │   ├── window/             # WIN_* operators
@@ -193,6 +198,7 @@ Capability declarations live in `descriptor/capabilities_*.go`. MCP tool metadat
 - **Predict structural ban:** `descriptor/predict.go` MUST NOT import `service/` or `processing/`. Enforced by `TestPredictNoExecutionImports`. Predict reads only header + schema, never records. For capability lookups, use `types/` constants (e.g., `types.AllAggregationTypes()`).
 - **Inspect header-only:** reads only `encoding.ReadHeader` + `encoding.ReadSchema`. Dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`. Missing descriptions get a synthesized fallback with `description_source` flagged.
 - **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods on `types.AggregationType`/`AttributeType`/`FiltererType`/`GroupType`/`WindowType`/`FeatureType` plus schema gates (decimal). Runtime parity via `processing.CanStreamRequest(req, schema)` (`TestPredict_Streamable_MatchesRuntime`).
+- **CountRecords header-fast:** `pulse.CountRecords(ctx, path) (uint64, error)` returns the cohort's record total without decoding payload bytes. Single-file: stat the file, stream header + schema through a counting reader, derive `count = (size − header − schema) / record_stride` — bytes read bounded by header+schema budget (`TestCountRecords_HeaderOnly`). Shard archive: read the zip central directory + `_schema.pulse` SHRD trailer's `AggregateRecordCount`; falls back to per-shard `PeekShardRecordCount` when the trailer is absent. Anchor (`archive#shard`): the named shard's count.
 
 ### Streaming Process
 
@@ -213,6 +219,31 @@ Extension operators surface a per-registration `FieldInputs FieldInputsFunc` hoo
 `pulse.Options.ShardWorkers` (default `0` ⇒ `runtime.NumCPU()`, opt-out `1`, negative invalid) enables a bounded per-shard worker pool inside `Process` when the cohort backs onto a shard archive. The reducer engages only when every operator is mergeable per `processing.CanMergeRequest`: aggregators in {`AGG_COUNT`, `AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_RANGE`, `AGG_VARIANCE`, `AGG_STDDEV`, `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_NULL_COUNT`}; groupers in {`GROUP_CATEGORY`, `GROUP_RANGE`}; filterers row-local (all built-ins); attributes empty or row-local only (`ATTR_FORMULA`, `ATTR_DATE_PART`); no windows / features / regressions / tests / two-pass attributes; non-decimal targets; built-in (not extension) operators only. Non-mergeable requests fall through to the serial `shardIter` path with byte-for-byte identical semantics — no worker spawning. Worker count is capped at the shard count (no point spawning more workers than shards). Order semantics: partials merge in shard insertion order (zip central-directory order). Associative+commutative aggregators produce byte-equal results vs serial; Welford mean / variance / stddev drift within ULP via the Chan-Welford parallel formula (`n = n_a + n_b`, weighted mean, `M2 = M2_a + M2_b + δ² · n_a · n_b / n`). `AGG_FREQUENCY` ties broken by dict order within the canonical schema across the merge.
 
 Implementation surface: `service/shard_reduce.go` (orchestrator + partial-state shape), `processing.MergeableAggregator` (`MergeOnline(other) error` on each mergeable aggregator), `processing.CanMergeRequest`, `types.AggregationType.Mergeable()` / `types.GroupType.Mergeable()`.
+
+### ProcessChain
+
+`pulse.ProcessChain(ctx, *ChainRequest) (*ChainResponse, error)` executes a source-rooted linear chain of `Request`s. Stage 0 runs against `ChainRequest.Cohort`; each subsequent stage receives the prior stage's `Response.Data` as a synthesised in-memory cohort (grouper keys become categorical_u32, aggregator outputs become f64, dictionaries lazily populated). The chain executor reuses the standard `processing.Processor` against a `SliceIterator` for stages >= 1 — no file open, no schema decode.
+
+Mergeable-only at v1. The gate (`processing.CanChainRequest`) requires `CanMergeRequest` to hold AND every aggregator to emit a single scalar (`AGG_FREQUENCY` / `AGG_MODE` are rejected because their Finalize emits a map/string). A failing stage surfaces `PULSE_CHAIN_NOT_MERGEABLE` with `{stage_index, stage_name}` in details so embedders can fall back to per-stage `Process`. An empty `Stages` slice surfaces `PULSE_CHAIN_EMPTY`.
+
+Predict equivalent: `descriptor.ValidateChain(data, *ChainRequest)` walks each stage against its predicted-input schema (synthesised from the prior stage's output), reports unknown-field references as `SERVICE_VALIDATION`, gate failures as `PULSE_CHAIN_NOT_MERGEABLE`, and emits per-stage output-field lists for debugging. No execution imports — descriptor's no-execute contract holds.
+
+CLI: `pulse api process-chain --request chain.json [--json] [--no-defaults]`. MCP: `pulse_process_chain` with a JSON-encoded `ChainRequest`. Manifest exposes `Manifest.ProcessChain` (mergeable aggregator/grouper/attribute allowlists + rejection-rule prose) for LLM-side routing between chain and per-stage fallback.
+
+Implementation surface: `types/chain.go` (request/response shapes), `processing/chain.go` (`CanChainRequest`, `ChainOutputSchema`, `RecordsFromChainRows`), `service/chain.go` (`Service.ProcessChain`), `descriptor/chain.go` (`ValidateChain`), `descriptor/capabilities_chain.go` (`ProcessChainCapability`).
+
+### Pushdown hash join
+
+`Request.Joins []*JoinSpec` enables pushdown equi-join. v1 envelope:
+
+- **Exactly one JoinSpec per Request.** `PULSE_JOIN_TOO_MANY` for two or more entries; multi-join chains land when the orchestrator gains a per-join intermediate state machine.
+- **Inner join only.** `PULSE_JOIN_KIND_NOT_IMPLEMENTED` for `"left"`, `"outer"`, `"anti"`. Outer-join correctness depends on the null bitmap being fully wired through every synthesised right-side field.
+- **In-memory build.** The right (build) side is materialised as a slice of `*Record`; the left (probe) side streams through `HashJoinIterator`. No spill in v1; `PULSE_JOIN_SPILL_DIR` + `PULSE_JOIN_MAX_MEMORY_BYTES` are reserved env vars for the follow-up partition-then-build-per-partition path.
+- **No smarter-side detection.** Build is always the spec's `Right` cohort. `pulse.CountRecords` (P-UP-4) is in place, but the orchestrator does not yet swap sides automatically.
+- **Joined schema.** `JoinedSchema(left, right, spec)` produces `left.Fields + right.Fields` with optional `spec.As` prefix on right fields. Non-prefixed collisions → `PULSE_JOIN_FIELD_COLLISION`.
+- **Key compatibility.** Identical types match; categorical of any width match each other; the unsigned-int / float / date numeric family is interchangeable within itself. Decimal128 keys reject cross-type comparisons.
+
+Implementation surface: `types/join.go` (`JoinSpec`, `OnPair`), `processing/join.go` (`HashJoinIterator`, `JoinedSchema`, `typesCompatibleForJoin`), `service/join.go` (`processWithJoin`), `descriptor/join.go` (`ValidateJoin`), `descriptor/capabilities_join.go` (`JoinCapability` — `Manifest.Join`).
 
 ### Facet endpoints
 
@@ -365,7 +396,7 @@ Per-component target skill:
 | Error code | `errors/fixup_metadata.go` (surfaced via `pulse_errors_lookup`) |
 | Extension API surface (registration shape, expr funcs, lookup tables) | `skills/extension-points.md` |
 
-**Current registered counts** (full lists in each skill, enforced by coverage gates): 16 aggregators, 9 attributes, 5 filterers, 5 groupers, 10 window operators, 9 feature operators, 20 statistical tests (18 tier-1 row tests + tier-2 variants), 12 synth distributions, 3 regressions.
+**Current registered counts** (full lists in each skill, enforced by coverage gates): 21 aggregators, 9 attributes, 5 filterers, 5 groupers, 10 window operators, 9 feature operators, 20 statistical tests (18 tier-1 row tests + tier-2 variants), 12 synth distributions, 3 regressions.
 
 Adding a new skill: create `skills/<name>.md` with frontmatter, add entry to `skills/index.json`, bump the count in `TestSkillsList_ReturnsAll` and `TestSkillsNames`. Run `go test ./skills/...`.
 

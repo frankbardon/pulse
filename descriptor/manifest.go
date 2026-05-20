@@ -105,6 +105,17 @@ type Manifest struct {
 	// entry today (facet_schema); future variants land under a slice
 	// when added.
 	Facet FacetCapability `json:"facet"`
+
+	// ProcessChain is the source-rooted linear chain endpoint
+	// capability descriptor (one entry today: process_chain).
+	// Carries the mergeable-operator allowlist and rejection rules
+	// so LLM clients can route between chain and per-stage fallback.
+	ProcessChain ProcessChainCapability `json:"process_chain"`
+
+	// Join is the pushdown hash-join capability descriptor (one
+	// entry today: hash_join). Carries the kind allowlist, spill
+	// envelope, and v1 limitations.
+	Join JoinCapability `json:"join"`
 }
 
 // commands returns the default set of CLI leaf commands.
@@ -112,6 +123,7 @@ func commands() []Command {
 	return []Command{
 		{Name: "process", Description: "Execute a processing request against a cohort"},
 		{Name: "compose", Description: "Execute multiple processing requests in batch"},
+		{Name: "process-chain", Description: "Execute a source-rooted linear chain of mergeable processing stages"},
 		{Name: "sample", Description: "Return sample rows from a cohort"},
 		{Name: "facet", Description: "Return distinct values for a field"},
 		{Name: "inspect", Description: "Inspect a .pulse file header and schema"},
@@ -286,6 +298,8 @@ func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *Manifest {
 		ExampleTags:        examples.AllTags(),
 		Extensions:         extensionsManifestFromSnapshot(snap),
 		Facet:              facetCapability(),
+		ProcessChain:       processChainCapability(),
+		Join:               joinCapability(),
 	}
 }
 

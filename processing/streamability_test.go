@@ -409,13 +409,24 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 // value. This catches drift between types/streamability.go and the
 // processing implementations.
 func TestRegistryStreamabilityMatchesTypes(t *testing.T) {
+	// Aggregators that require non-empty Params at construction time.
+	// Supply matching JSON so the factory does not fail before the
+	// streamability assertion runs.
+	paramsByType := map[types.AggregationType]string{
+		types.AGG_WEIGHTED_MEAN: `{"weight_field":"w"}`,
+		types.AGG_RATIO:         `{"numerator_field":"num","denominator_field":"den"}`,
+	}
 	for _, aggType := range types.AllAggregationTypes() {
 		factory, ok := aggregatorRegistry[aggType]
 		if !ok {
 			t.Errorf("aggregator %s not in registry", aggType)
 			continue
 		}
-		instance, err := factory(&types.Aggregation{Type: aggType, Field: "x"}, nil)
+		spec := &types.Aggregation{Type: aggType, Field: "x"}
+		if raw, ok := paramsByType[aggType]; ok {
+			spec.Params = []byte(raw)
+		}
+		instance, err := factory(spec, nil)
 		if err != nil {
 			t.Errorf("aggregator %s factory error: %v", aggType, err)
 			continue

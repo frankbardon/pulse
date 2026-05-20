@@ -12,6 +12,10 @@
         "description": "Execute multiple processing requests in batch"
       },
       {
+        "name": "process-chain",
+        "description": "Execute a source-rooted linear chain of mergeable processing stages"
+      },
+      {
         "name": "sample",
         "description": "Return sample rows from a cohort"
       },
@@ -95,6 +99,80 @@
             "u8"
           ],
           "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_CI_LOWER",
+          "category": "aggregator",
+          "description": "Lower bound of the confidence interval for the mean. Method \"normal\" streams via Welford and the Beasley-Springer-Moro inverse-normal quantile.",
+          "params": [
+            {
+              "name": "confidence",
+              "type": "float",
+              "required": false,
+              "default": 0.95,
+              "description": "Confidence level in the open interval (0, 1). Default 0.95."
+            },
+            {
+              "name": "method",
+              "type": "string",
+              "required": false,
+              "default": "normal",
+              "description": "\"normal\" (streamable Welford) today; \"bootstrap\" reserved for a buffered follow-up."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_bool",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (NaN when n \u003c 2)",
+          "streamable": true
+        },
+        {
+          "name": "AGG_CI_UPPER",
+          "category": "aggregator",
+          "description": "Upper bound of the confidence interval for the mean. See AGG_CI_LOWER for params and methods.",
+          "params": [
+            {
+              "name": "confidence",
+              "type": "float",
+              "required": false,
+              "default": 0.95,
+              "description": "Confidence level in the open interval (0, 1). Default 0.95."
+            },
+            {
+              "name": "method",
+              "type": "string",
+              "required": false,
+              "default": "normal",
+              "description": "\"normal\" (streamable Welford) today; \"bootstrap\" reserved for a buffered follow-up."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_bool",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (NaN when n \u003c 2)",
           "streamable": true
         },
         {
@@ -379,6 +457,46 @@
           "streamable": true
         },
         {
+          "name": "AGG_RATIO",
+          "category": "aggregator",
+          "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored. Denominator-zero yields NaN.",
+          "params": [
+            {
+              "name": "numerator_field",
+              "type": "string",
+              "required": true,
+              "description": "Schema field summed as the numerator."
+            },
+            {
+              "name": "denominator_field",
+              "type": "string",
+              "required": true,
+              "description": "Schema field summed as the denominator."
+            }
+          ],
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (NaN when denominator sum == 0)",
+          "streamable": true
+        },
+        {
           "name": "AGG_SKEWNESS",
           "category": "aggregator",
           "description": "Bias-corrected skewness via online moments.",
@@ -450,6 +568,35 @@
           "category": "aggregator",
           "description": "Population variance via Welford's online algorithm.",
           "params": null,
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_bool",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_WEIGHTED_MEAN",
+          "category": "aggregator",
+          "description": "Weighted arithmetic mean: sum(field * weight) / sum(weight). Streaming Chan-Welford recurrence.",
+          "params": [
+            {
+              "name": "weight_field",
+              "type": "string",
+              "required": true,
+              "description": "Schema field whose value is the per-row weight. Rows with a null weight or weight==0 are skipped."
+            }
+          ],
           "accepts_types": [
             "date",
             "f32",
@@ -2792,7 +2939,7 @@
         ]
       }
     ],
-    "error_codes_count": 89,
+    "error_codes_count": 97,
     "error_domains": [
       "CLI",
       "DATA",
@@ -2831,6 +2978,8 @@
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
+      "PULSE_CHAIN_EMPTY",
+      "PULSE_CHAIN_NOT_MERGEABLE",
       "PULSE_DECIMAL_DIVIDE_BY_ZERO",
       "PULSE_DECIMAL_OVERFLOW",
       "PULSE_DECIMAL_PRECISION_LOSS",
@@ -2853,6 +3002,12 @@
       "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
+      "PULSE_JOIN_FIELD_COLLISION",
+      "PULSE_JOIN_FIELD_UNKNOWN",
+      "PULSE_JOIN_KEYS_EMPTY",
+      "PULSE_JOIN_KIND_NOT_IMPLEMENTED",
+      "PULSE_JOIN_TOO_MANY",
+      "PULSE_JOIN_TYPE_MISMATCH",
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
@@ -2950,6 +3105,10 @@
         "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nTypically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
       },
       {
+        "name": "pulse_process_chain",
+        "description": "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators (AGG_COUNT/SUM/AVERAGE/MIN/MAX/RANGE/VARIANCE/STDDEV/DISTINCT_COUNT/NULL_COUNT), mergeable groupers (GROUP_CATEGORY, GROUP_RANGE), and row-local attributes (ATTR_FORMULA, ATTR_DATE_PART). Windows, features, statistical tests, regressions, two-pass attributes, AGG_FREQUENCY, AGG_MODE, and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE — fall back to pulse_compose / per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
+      },
+      {
         "name": "pulse_sample",
         "description": "Return up to N rows from a cohort. Diagnostic / preview tool — use after pulse_ask if you want to eyeball the underlying data."
       },
@@ -2969,6 +3128,8 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
@@ -2980,10 +3141,12 @@
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
+          "AGG_RATIO",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3035,6 +3198,8 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
@@ -3046,10 +3211,12 @@
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
+          "AGG_RATIO",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3101,6 +3268,8 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
@@ -3112,10 +3281,12 @@
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
+          "AGG_RATIO",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3167,6 +3338,8 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
@@ -3178,10 +3351,12 @@
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
+          "AGG_RATIO",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3233,6 +3408,8 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
@@ -3244,10 +3421,12 @@
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
+          "AGG_RATIO",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3299,6 +3478,8 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
@@ -3310,10 +3491,12 @@
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
+          "AGG_RATIO",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3370,6 +3553,8 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
@@ -3381,10 +3566,12 @@
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
+          "AGG_RATIO",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3439,6 +3626,8 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
@@ -3450,10 +3639,12 @@
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
+          "AGG_RATIO",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3486,7 +3677,8 @@
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
           "AGG_MODE",
-          "AGG_NULL_COUNT"
+          "AGG_NULL_COUNT",
+          "AGG_RATIO"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3521,7 +3713,8 @@
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
           "AGG_MODE",
-          "AGG_NULL_COUNT"
+          "AGG_NULL_COUNT",
+          "AGG_RATIO"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3556,7 +3749,8 @@
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
           "AGG_MODE",
-          "AGG_NULL_COUNT"
+          "AGG_NULL_COUNT",
+          "AGG_RATIO"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3591,7 +3785,8 @@
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
           "AGG_MODE",
-          "AGG_NULL_COUNT"
+          "AGG_NULL_COUNT",
+          "AGG_RATIO"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -3675,6 +3870,10 @@
       {
         "name": "import-best-practices",
         "description": "Import CSV, TSV, NDJSON, JSON array, Parquet, Arrow IPC, or Excel into .pulse with safe schema inference, null markers, fail-closed semantics. Use when building a new cohort or troubleshooting PULSE_IMPORT_* errors like CATEGORICAL_OVERFLOW or SCHEMA_AMBIGUOUS."
+      },
+      {
+        "name": "join-design",
+        "description": "Use Request.Joins for pushdown hash join. v1 envelope: one inner join per Request, in-memory build, right-side hash + left-side probe. Use when comparing rows across cohorts; covers OnPair key-type compatibility, As prefix for field-collision avoidance, and the deferred outer/left/anti + spill items."
       },
       {
         "name": "mcp-integration",
@@ -3801,9 +4000,58 @@
         "IncludeHistogram=false OR HistogramRange supplies caller-known [min, max] bounds",
         "every base filterer is row-local streamable (FILTER_INCLUDE / FILTER_EXCLUDE / FILTER_RANGE / FILTER_GEO_*)"
       ]
+    },
+    "process_chain": {
+      "name": "process_chain",
+      "max_stages": 0,
+      "mergeable_aggregators": [
+        "AGG_AVERAGE",
+        "AGG_COUNT",
+        "AGG_DISTINCT_COUNT",
+        "AGG_MAX",
+        "AGG_MIN",
+        "AGG_NULL_COUNT",
+        "AGG_RANGE",
+        "AGG_STDDEV",
+        "AGG_SUM",
+        "AGG_VARIANCE"
+      ],
+      "mergeable_groupers": [
+        "GROUP_CATEGORY",
+        "GROUP_RANGE"
+      ],
+      "row_local_attributes": [
+        "ATTR_DATE_PART",
+        "ATTR_FORMULA"
+      ],
+      "rejection_rules": [
+        "chain rejects windows, features, tier-1 row tests, tier-2 post tests, regressions",
+        "chain rejects two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
+        "chain rejects AGG_FREQUENCY and AGG_MODE (non-scalar emit)",
+        "chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
+        "chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
+        "chain rejects decimal128 aggregation targets",
+        "chain rejects extension aggregators (custom MergeOnline surface deferred)"
+      ]
+    },
+    "join": {
+      "name": "hash_join",
+      "max_joins_per_request": 1,
+      "kinds": [
+        "inner"
+      ],
+      "spill_bytes": 0,
+      "limitations": [
+        "v1: exactly one JoinSpec per Request — PULSE_JOIN_TOO_MANY otherwise.",
+        "v1: inner join only — left/outer/anti return PULSE_JOIN_KIND_NOT_IMPLEMENTED.",
+        "v1: no spill — the right (build) side is fully materialised in memory.",
+        "v1: build side is always the spec.Right cohort; smaller-side detection arrives in a follow-up.",
+        "Per-OnPair type compatibility: identical types match, categorical_* match each other, the unsigned-int + float + date family is interchangeable. decimal128 keys reject cross-type comparisons.",
+        "Joined records flow through the standard processor pipeline (filter / attribute / group / aggregator)."
+      ]
     }
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 67ef9eefa7cbf4eaa89adfcbb3c1566dd458751c9822b5c1ff9de57873750c02
+// golden-hash: a340f45fb2ad3351af1a95255af90f55cc8a59aaac2926aeed1712ff5a52b1ec

@@ -250,5 +250,91 @@ func aggregatorCapabilities() []Operator {
 			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
 		},
+		{
+			Name:        string(types.AGG_WEIGHTED_MEAN),
+			Category:    "aggregator",
+			Description: "Weighted arithmetic mean: sum(field * weight) / sum(weight). Streaming Chan-Welford recurrence.",
+			Params: []Param{
+				{
+					Name:        "weight_field",
+					Type:        "string",
+					Required:    true,
+					Description: "Schema field whose value is the per-row weight. Rows with a null weight or weight==0 are skipped.",
+				},
+			},
+			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+		},
+		{
+			Name:        string(types.AGG_RATIO),
+			Category:    "aggregator",
+			Description: "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored. Denominator-zero yields NaN.",
+			Params: []Param{
+				{
+					Name:        "numerator_field",
+					Type:        "string",
+					Required:    true,
+					Description: "Schema field summed as the numerator.",
+				},
+				{
+					Name:        "denominator_field",
+					Type:        "string",
+					Required:    true,
+					Description: "Schema field summed as the denominator.",
+				},
+			},
+			AcceptsTypes:  allCohortFieldTypes,
+			EmitsTypeNote: "scalar float64 (NaN when denominator sum == 0)",
+			Streamable:    true,
+		},
+		{
+			Name:        string(types.AGG_CI_LOWER),
+			Category:    "aggregator",
+			Description: "Lower bound of the confidence interval for the mean. Method \"normal\" streams via Welford and the Beasley-Springer-Moro inverse-normal quantile.",
+			Params: []Param{
+				{
+					Name:        "confidence",
+					Type:        "float",
+					Required:    false,
+					Default:     0.95,
+					Description: "Confidence level in the open interval (0, 1). Default 0.95.",
+				},
+				{
+					Name:        "method",
+					Type:        "string",
+					Required:    false,
+					Default:     "normal",
+					Description: "\"normal\" (streamable Welford) today; \"bootstrap\" reserved for a buffered follow-up.",
+				},
+			},
+			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			EmitsTypeNote: "scalar float64 (NaN when n < 2)",
+			Streamable:    true,
+		},
+		{
+			Name:        string(types.AGG_CI_UPPER),
+			Category:    "aggregator",
+			Description: "Upper bound of the confidence interval for the mean. See AGG_CI_LOWER for params and methods.",
+			Params: []Param{
+				{
+					Name:        "confidence",
+					Type:        "float",
+					Required:    false,
+					Default:     0.95,
+					Description: "Confidence level in the open interval (0, 1). Default 0.95.",
+				},
+				{
+					Name:        "method",
+					Type:        "string",
+					Required:    false,
+					Default:     "normal",
+					Description: "\"normal\" (streamable Welford) today; \"bootstrap\" reserved for a buffered follow-up.",
+				},
+			},
+			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			EmitsTypeNote: "scalar float64 (NaN when n < 2)",
+			Streamable:    true,
+		},
 	}
 }

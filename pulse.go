@@ -326,6 +326,56 @@ func (p *Pulse) Compose(ctx context.Context, req *ComposedRequest) ([]*Response,
 	return p.svc.Compose(ctx, req)
 }
 
+// CountRecords returns the number of records in the cohort at path
+// without decoding payload bytes. For single-file cohorts this is
+// O(1) — bytes read is bounded by header + schema size, independent
+// of the record count. For shard archives the cost is O(N shards)
+// (zip central-directory walk + reserved `_schema.pulse` SHRD
+// trailer). Anchor paths (`archive#shard.pulse`) report the named
+// shard's count only.
+//
+// Use this when a planner needs to make a cardinality-dependent
+// decision (sample injection, smaller-side hash join, batch
+// sizing) without paying the per-row decode cost of a full Process.
+func (p *Pulse) CountRecords(ctx context.Context, path string) (uint64, error) {
+	count, err := p.svc.CountRecords(ctx, path)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return count, err
+}
+
+// ChainRequest re-exports types.ChainRequest so callers can use
+// pulse.ChainRequest as the input to ProcessChain.
+type ChainRequest = types.ChainRequest
+
+// ChainStage re-exports types.ChainStage.
+type ChainStage = types.ChainStage
+
+// ChainResponse re-exports types.ChainResponse.
+type ChainResponse = types.ChainResponse
+
+// ProcessChain executes a source-rooted linear chain of Process
+// requests. The first stage runs against the cohort identified by
+// req.Cohort; each subsequent stage receives the previous stage's
+// rows as its input. All stages must be mergeable per the v1 chain
+// gate (processing.CanChainRequest); a non-mergeable stage surfaces
+// PULSE_CHAIN_NOT_MERGEABLE with the offending stage index so the
+// caller can fall back to per-stage Process calls.
+//
+// Why chain? Building a linear plan as N independent Process calls
+// pays N file-open + schema-rebind + per-stage validate costs.
+// ProcessChain collapses those into one open + one synth-schema
+// per intermediate stage, keeping the streaming iterator stack alive
+// across stages.
+func (p *Pulse) ProcessChain(ctx context.Context, req *ChainRequest) (*ChainResponse, error) {
+	resp, err := p.svc.ProcessChain(ctx, req)
+	if err == nil && req != nil && req.Cohort != nil {
+		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	}
+	return resp, err
+}
+
 // ComposeOptions controls parallel execution. See service.ComposeOptions.
 type ComposeOptions = service.ComposeOptions
 
