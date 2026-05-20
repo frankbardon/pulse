@@ -150,6 +150,9 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = path
 	}
+	if err := s.buildAndApplyLabels(req, resp); err != nil {
+		return nil, err
+	}
 	return resp, nil
 }
 

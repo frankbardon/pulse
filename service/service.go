@@ -342,6 +342,12 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// out via SetDisableDefaults / pulse.Options{DisableDefaults: true}.
 	s.applyDefaults(req, cohort.Schema())
 
+	// Label-binding validation runs before any record bytes are read so
+	// schema / table / collision failures surface as typed errors.
+	if err := s.validateProcessLabels(req, cohort.Schema()); err != nil {
+		return nil, err
+	}
+
 	// Strict-mode runtime validation: when a request asks for a numeric
 	// aggregation (SUM/AVG/MIN/MAX/STDDEV/VARIANCE/RANGE/ZSCORE/MEDIAN/
 	// PERCENTILE/SKEWNESS/KURTOSIS) against a categorical_* field, we
@@ -387,6 +393,10 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = path
+	}
+
+	if err := s.buildAndApplyLabels(req, resp); err != nil {
+		return nil, err
 	}
 
 	return resp, nil
