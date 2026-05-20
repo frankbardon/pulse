@@ -213,6 +213,9 @@ func buildFacetSchemaRequestSchema(c fieldClassification, snap *descriptor.Exten
 		"required":             []string{"fields"},
 		"additionalProperties": true,
 	}
+	if labels := buildLabelsSchema(c, snap); labels != nil {
+		requestObject["properties"].(map[string]any)["labels"] = labels
+	}
 	outer := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -449,6 +452,9 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 		},
 		"additionalProperties": true,
 	}
+	if labels := buildLabelsSchema(c, snap); labels != nil {
+		requestObject["properties"].(map[string]any)["labels"] = labels
+	}
 
 	outer := map[string]any{
 		"type": "object",
@@ -567,6 +573,66 @@ func buildFacetSchema(c fieldClassification) (json.RawMessage, error) {
 		"additionalProperties": true,
 	}
 	return json.Marshal(outer)
+}
+
+// buildLabelsSchema returns the JSON Schema fragment for a Request /
+// FacetRequest Labels slot, constrained to the cohort's categorical
+// fields and the snapshot's registered label tables. Returns nil
+// when there are no categorical fields OR no registered tables — in
+// either case the slot is non-functional and omitting it from the
+// schema is more honest than advertising an empty enum.
+func buildLabelsSchema(c fieldClassification, snap *descriptor.ExtensionsSnapshot) map[string]any {
+	if len(c.Categorical) == 0 {
+		return nil
+	}
+	tables := labelTableNames(snap)
+	if len(tables) == 0 {
+		return nil
+	}
+	field := map[string]any{
+		"type":        "string",
+		"description": "Categorical field whose values will be translated to labels.",
+		"enum":        c.Categorical,
+	}
+	table := map[string]any{
+		"type":        "string",
+		"description": "Registered label-table name (Extensions.LabelTables or PULSE_LABEL_TABLES_DIR).",
+		"enum":        tables,
+	}
+	binding := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"field": field,
+			"table": table,
+			"mode": map[string]any{
+				"type":        "string",
+				"description": "replace: rewrite the value with the label. augment: emit a sibling \"<field>_label\" column.",
+				"enum":        []string{"replace", "augment"},
+			},
+		},
+		"required":             []string{"field", "table"},
+		"additionalProperties": false,
+	}
+	return map[string]any{
+		"type":        "array",
+		"description": "Label bindings translate categorical values to display strings at output time. See types.LabelBinding.",
+		"items":       binding,
+	}
+}
+
+// labelTableNames extracts table names from the snapshot in sorted
+// order. Returns nil when the snapshot is empty so callers can skip
+// adding a useless empty enum.
+func labelTableNames(snap *descriptor.ExtensionsSnapshot) []string {
+	if snap == nil || len(snap.LabelTables) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(snap.LabelTables))
+	for _, t := range snap.LabelTables {
+		out = append(out, t.Name)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // enumStringField returns a property schema for a string with an enum
