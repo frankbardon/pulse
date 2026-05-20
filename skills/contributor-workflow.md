@@ -111,6 +111,16 @@ new aggregation kind on numeric fields, a new contribution-style accumulator):
 4. Add section in `skills/mcp-integration.md` (Tool surface + Schema-bound enums if applicable).
 5. Run: `go test ./skills/ -run TestSkillsCoverAllMCPTools && go test ./descriptor/ -run TestManifestMCPToolsComplete && go test ./internal/mcp/ -run TestMCPSchemaBinding`.
 
+## Adding a chain-stage predicate
+
+`ProcessChain` (`pulse.ProcessChain`, `pulse_process_chain`, `pulse api process-chain`) executes a linear pipeline whose stages all pass `processing.CanChainRequest`. Tighten or relax the gate as follows:
+
+1. Edit `processing/chain.go` — `CanChainRequest` calls `CanMergeRequest` first, then layers chain-specific exclusions (`aggregatorEmitsScalar`). Add a new exclusion branch when an operator is mergeable but its emit shape would break the synthesised f64/categorical_u32 schema.
+2. Mirror the rule in `descriptor/chain.go` — `chainGateOK` is the predict-side equivalent. Keep them in lockstep; a divergence makes predict pass requests that runtime later rejects.
+3. Update `descriptor/capabilities_chain.go` — `processChainCapability()` carries the manifest-facing allowlists and `RejectionRules` strings. Regenerate `descriptor/testdata/manifest.json` via `go test ./descriptor/ -update -run Golden` after edits.
+4. Add a failing-gate test in `service/chain_test.go` and a matching predict test in `descriptor/chain_test.go`.
+5. Skim `skills/getting-started.md` and `skills/mcp-integration.md` for any operator allowlist that needs adjustment.
+
 ## Adding a shard (managing a shard archive)
 
 When an embedder wants to manage a multi-shard `.pulse` archive (a zip-archive cohort that fans out across N standalone `.pulse` shards under union semantics):

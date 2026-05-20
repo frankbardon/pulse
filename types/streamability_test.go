@@ -24,6 +24,10 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_PERCENTILE:     false,
 		AGG_ZSCORE:         false,
 		AGG_NULL_COUNT:     true,
+		AGG_WEIGHTED_MEAN:  true,
+		AGG_RATIO:          true,
+		AGG_CI_LOWER:       true,
+		AGG_CI_UPPER:       true,
 	}
 	for _, agg := range AllAggregationTypes() {
 		want, ok := expected[agg]

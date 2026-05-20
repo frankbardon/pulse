@@ -81,6 +81,7 @@ func TestSkillsCoverAllCliLeaves(t *testing.T) {
 	// These are the CLI leaf commands from descriptor/manifest.go commands().
 	leaves := []string{
 		"process",
+		"process-chain",
 		"compose",
 		"sample",
 		"facet",

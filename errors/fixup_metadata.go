@@ -862,4 +862,84 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_CHAIN_NOT_MERGEABLE: {
+		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, AGG_FREQUENCY, AGG_MODE, or a non-mergeable grouper/aggregator).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Stages", "*", "Request"},
+				Hint:   "Run the offending stage as a standalone Process call (the details payload names the rejecting stage index) or restructure the stage to use mergeable, scalar-emitting aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (GROUP_CATEGORY, GROUP_RANGE).",
+			},
+		},
+	},
+	PULSE_CHAIN_EMPTY: {
+		Message: "A ProcessChain request must carry at least one stage with a non-nil Request.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Stages"},
+				Hint:   "Add at least one ChainStage with a real Request, or call Process directly when only a single stage is needed.",
+			},
+		},
+	},
+	PULSE_JOIN_TYPE_MISMATCH: {
+		Message: "A join key pair pairs fields whose schema types differ. Hash join keys must compare equal byte-for-byte after normalisation; type mismatches block this.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Joins", "*", "On"},
+				Hint:   "Re-import the right cohort with a matching type for the key field (e.g. cast u32 → u64 to align with the left side), or pre-aggregate one side to expose a compatible key column.",
+			},
+		},
+	},
+	PULSE_JOIN_KIND_NOT_IMPLEMENTED: {
+		Message: "The requested join Kind is reserved but not implemented yet. v1 supports \"inner\" (and empty == \"inner\"); \"left\", \"outer\", \"anti\" land in a follow-up.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Joins", "*", "Kind"},
+				Hint:   "Set Kind to \"inner\" (or leave it empty) for this Pulse version. Track upstream for outer/left/anti support.",
+			},
+		},
+	},
+	PULSE_JOIN_FIELD_UNKNOWN: {
+		Message: "A JoinSpec.On entry references a field not present in either the left or right cohort's schema.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Joins", "*", "On"},
+				Hint:   "Verify the field exists in the corresponding cohort via pulse_inspect (left side) or pulse_inspect of the JoinSpec.Right path.",
+			},
+		},
+	},
+	PULSE_JOIN_KEYS_EMPTY: {
+		Message: "A JoinSpec must carry at least one equi-join key pair under On.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Joins", "*", "On"},
+				Hint:   "Add at least one OnPair {LeftField, RightField} naming the schema columns to equate.",
+			},
+		},
+	},
+	PULSE_JOIN_TOO_MANY: {
+		Message: "v1 supports exactly one JoinSpec per Request. Multi-join chains land in a follow-up.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Joins"},
+				Hint:   "Split into multiple Process calls — pipe the first join's output through pulse_import or an intermediate .pulse handle, then attach the second join to a fresh Request.",
+			},
+		},
+	},
+	PULSE_JOIN_FIELD_COLLISION: {
+		Message: "The joined schema would carry two fields with the same name. Set JoinSpec.As to prefix the right-side fields, or rename one side at import.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Joins", "*", "As"},
+				Hint:   "Set As to a short identifier (e.g. \"r_\") so right-side columns become r_<name> in the joined record.",
+			},
+		},
+	},
 }

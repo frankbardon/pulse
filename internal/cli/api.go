@@ -19,6 +19,7 @@ func APICommand() *cli.Command {
 		Usage: "Execute processing operations against cohorts",
 		Commands: []*cli.Command{
 			apiProcessCmd(),
+			apiProcessChainCmd(),
 			apiComposeCmd(),
 			apiSampleCmd(),
 			apiFacetCmd(),
@@ -115,6 +116,52 @@ func apiProcessCmd() *cli.Command {
 				return writeJSON(cmd.Writer, env)
 			}
 
+			return writeJSON(cmd.Writer, resp)
+		},
+	}
+}
+
+func apiProcessChainCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "process-chain",
+		Usage: "Execute a source-rooted linear chain of mergeable processing stages",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Chain request JSON file path", Required: true},
+			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			reqPath := cmd.String("request")
+			jsonOut := cmd.Bool("json")
+			noDefaults := cmd.Bool("no-defaults")
+
+			chain, err := loadChainRequest(reqPath)
+			if err != nil {
+				if jsonOut {
+					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+				}
+				return err
+			}
+
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults})
+			if err != nil {
+				if jsonOut {
+					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+				}
+				return err
+			}
+
+			resp, err := p.ProcessChain(ctx, chain)
+			if err != nil {
+				if jsonOut {
+					return writeErrorEnvelope(cmd.Writer, "PROCESS_CHAIN_ERROR", err.Error())
+				}
+				return err
+			}
+
+			if jsonOut {
+				return writeEnvelope(cmd.Writer, resp)
+			}
 			return writeJSON(cmd.Writer, resp)
 		},
 	}
@@ -574,6 +621,19 @@ func loadComposedRequest(path string) (*types.ComposedRequest, error) {
 	var req types.ComposedRequest
 	if err := json.Unmarshal(data, &req); err != nil {
 		return nil, fmt.Errorf("parsing composed request JSON: %w", err)
+	}
+	return &req, nil
+}
+
+// loadChainRequest reads and parses a JSON chain request file.
+func loadChainRequest(path string) (*types.ChainRequest, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading request file: %w", err)
+	}
+	var req types.ChainRequest
+	if err := json.Unmarshal(data, &req); err != nil {
+		return nil, fmt.Errorf("parsing chain request JSON: %w", err)
 	}
 	return &req, nil
 }

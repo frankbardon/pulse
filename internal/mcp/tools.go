@@ -23,6 +23,7 @@ const (
 	ToolInspect        = mcptools.ToolInspect
 	ToolPredict        = mcptools.ToolPredict
 	ToolProcess        = mcptools.ToolProcess
+	ToolProcessChain   = mcptools.ToolProcessChain
 	ToolCompose        = mcptools.ToolCompose
 	ToolSample         = mcptools.ToolSample
 	ToolFacet          = mcptools.ToolFacet
@@ -41,6 +42,7 @@ const (
 	DescInspect        = mcptools.DescInspect
 	DescPredict        = mcptools.DescPredict
 	DescProcess        = mcptools.DescProcess
+	DescProcessChain   = mcptools.DescProcessChain
 	DescCompose        = mcptools.DescCompose
 	DescSample         = mcptools.DescSample
 	DescFacet          = mcptools.DescFacet
@@ -121,6 +123,14 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 			mcpgo.WithString("request", mcpgo.Description("JSON-encoded types.ComposedRequest"), mcpgo.Required()),
 		),
 		compose,
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolProcessChain,
+			mcpgo.WithDescription(DescProcessChain),
+			mcpgo.WithString("request", mcpgo.Description("JSON-encoded pulse.ChainRequest. Fields: cohort.filename (path to source for stage 0), stages ([]ChainStage with name + request)."), mcpgo.Required()),
+		),
+		handleProcessChain(p),
 	)
 
 	s.AddTool(
@@ -370,6 +380,24 @@ func handleCompose(p *pulse.Pulse) server.ToolHandlerFunc {
 			return mcpgo.NewToolResultError(fmt.Sprintf("parse request: %v", err)), nil
 		}
 		resp, err := p.Compose(ctx, &typed)
+		if err != nil {
+			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+		return jsonResult(resp)
+	}
+}
+
+func handleProcessChain(p *pulse.Pulse) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		body, err := requestBytes(req, "request")
+		if err != nil {
+			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+		var typed types.ChainRequest
+		if err := json.Unmarshal(body, &typed); err != nil {
+			return mcpgo.NewToolResultError(fmt.Sprintf("parse request: %v", err)), nil
+		}
+		resp, err := p.ProcessChain(ctx, &typed)
 		if err != nil {
 			return mcpgo.NewToolResultError(err.Error()), nil
 		}

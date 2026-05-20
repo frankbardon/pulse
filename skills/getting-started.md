@@ -60,6 +60,7 @@ Every Pulse capability you have access to is a tool registered against the MCP s
 | `pulse_facet_schema` | Multi-field rich facet — counts, null tallies, numeric stats, optional percentiles, histograms, and additive contribution counts. Prefer over repeated `pulse_facet` calls when summarising more than one field. | `request` (JSON-encoded `pulse.FacetRequest`) |
 | `pulse_predict` | Validate a `Request` against the cohort's schema. No execution. Reports `streamable`, `streamable_reasons`, `defaults_applied`, structured `suggestions`, plus the standard envelope. | `request` (JSON-encoded `types.Request`) |
 | `pulse_process` | Execute one `Request`. Returns rows + metadata + diagnostics envelope. | `request` |
+| `pulse_process_chain` | Execute a source-rooted linear chain (`ChainRequest`) of mergeable stages — stage N+1's input cohort is stage N's output rows. Collapses N round-trips into one open + N stage validations. Mergeable-only (`processing.CanChainRequest`); non-mergeable stages return `PULSE_CHAIN_NOT_MERGEABLE`. | `request` (JSON-encoded `pulse.ChainRequest`) |
 | `pulse_compose` | Execute a `ComposedRequest` (batch of requests against one cohort). Order-preserving. | `request` (JSON-encoded `types.ComposedRequest`) |
 | `pulse_ask` | **PREFERRED entry point.** One-shot import -> inspect -> predict -> process. Pass `source` (raw file path) to auto-import; pass `cohort` for an existing `.pulse` or managed handle. Accepts either a structured `request` or a natural-language `query` parsed against the cohort's schema. Optional `source`-side fields: `source_format`, `source_handle`, `source_ttl` (default `"7d"`, accepts `"pin"`), `source_sheet`, `source_overwrite`. With `on_invalid="suggest"` returns structured `Fixup` entries instead of erroring on predict failure. | `request` (JSON-encoded `pulse.AskRequest`) |
 
@@ -76,6 +77,7 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
 | Leaf | One-line | mdBook chapter |
 |---|---|---|
 | `process` | Execute a Request from a JSON file. Flags: `--request`, `--json`, `--stream`, `--no-defaults`, `--strict` (promote request-validation warnings into hard errors, e.g. numeric aggregation on a categorical field). | https://frankbardon.github.io/pulse/cli/api-process.html |
+| `process-chain` | Execute a source-rooted linear chain of mergeable processing stages. Flags: `--request`, `--json`, `--no-defaults`. Mergeable-only — rejected stages return `PULSE_CHAIN_NOT_MERGEABLE` so callers can fall back to per-stage `process`. | https://frankbardon.github.io/pulse/cli/api-process-chain.html |
 | `compose` | Execute a ComposedRequest batch | https://frankbardon.github.io/pulse/cli/api-compose.html |
 | `predict` | Validate a request against the schema | https://frankbardon.github.io/pulse/cli/api-predict.html |
 | `cohort inspect` | Print schema and descriptions of a `.pulse` file | https://frankbardon.github.io/pulse/cli/cohort-inspect.html |

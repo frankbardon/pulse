@@ -929,3 +929,50 @@ func TestCohort_SchemaNotNil(t *testing.T) {
 		t.Fatal("Schema() must not return nil for valid cohort")
 	}
 }
+
+// TestProcessChain_FacadeRoundTrip exercises the pulse.ProcessChain
+// facade against an in-memory cohort to confirm the type aliases and
+// service wiring are reachable from the public API.
+func TestProcessChain_FacadeRoundTrip(t *testing.T) {
+	memFs := afero.NewMemMapFs()
+	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
+		{"10"}, {"20"}, {"30"}, {"40"}, {"50"},
+	})
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	chain := &ChainRequest{
+		Cohort: &types.Cohort{Filename: "test.pulse"},
+		Stages: []*ChainStage{
+			{
+				Name: "sum",
+				Request: &Request{
+					Aggregations: []*types.Aggregation{
+						{Type: types.AGG_SUM, Field: "age", Label: "s"},
+					},
+				},
+			},
+			{
+				Name: "count_one",
+				Request: &Request{
+					Aggregations: []*types.Aggregation{
+						{Type: types.AGG_COUNT, Field: "s", Label: "n"},
+					},
+				},
+			},
+		},
+	}
+
+	resp, err := p.ProcessChain(context.Background(), chain)
+	if err != nil {
+		t.Fatalf("ProcessChain: %v", err)
+	}
+	if resp == nil || resp.Final == nil || len(resp.Final.Data) == 0 {
+		t.Fatalf("final empty: %#v", resp)
+	}
+	if got := resp.Final.Data[0]["n"].(float64); got != 1.0 {
+		t.Errorf("final count = %v, want 1.0", got)
+	}
+}

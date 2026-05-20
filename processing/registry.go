@@ -23,6 +23,10 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_DISTINCT_COUNT: newDistinctCountAggregator,
 	types.AGG_PERCENTILE:     newPercentileAggregator,
 	types.AGG_NULL_COUNT:     newNullCountAggregator,
+	types.AGG_WEIGHTED_MEAN:  newWeightedMeanAggregator,
+	types.AGG_RATIO:          newRatioAggregator,
+	types.AGG_CI_LOWER:       newCIAggregator(ciLower),
+	types.AGG_CI_UPPER:       newCIAggregator(ciUpper),
 }
 
 // attributeRegistry maps attribute types to their factory functions.

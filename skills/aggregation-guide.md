@@ -12,7 +12,7 @@ Pulse exposes 18 aggregators and 6 filterers that run during `process` and `comp
 </skill_overview>
 
 <reference>
-## Aggregators (19)
+## Aggregators (21)
 
 | Type | Meaning | Input |
 |------|---------|-------|
@@ -33,7 +33,23 @@ Pulse exposes 18 aggregators and 6 filterers that run during `process` and `comp
 | AGG_SKEWNESS | Population skewness (asymmetry). | numeric |
 | AGG_KURTOSIS | Excess kurtosis (tail heaviness vs normal). | numeric |
 | AGG_ZSCORE | Mean of per-value z-scores over the group (always ~0 by construction; useful as a sentinel). | numeric |
+| AGG_WEIGHTED_MEAN | `sum(field * weight) / sum(weight)` — streaming Chan-Welford with per-row weight column. | numeric (Params.`weight_field` required) |
+| AGG_RATIO | `sum(numerator_field) / sum(denominator_field)`. Aggregation `Field` is ignored. | numeric (Params.`numerator_field` + Params.`denominator_field`) |
+| AGG_CI_LOWER | Lower bound of the mean's confidence interval, normal method (Welford + inverse-normal quantile). | numeric (Params.`confidence`, Params.`method`) |
+| AGG_CI_UPPER | Upper bound of the mean's confidence interval. Mirrors AGG_CI_LOWER. | numeric (Params.`confidence`, Params.`method`) |
 </reference>
+
+<rule severity="caveat" topic="cohort-aggregators">
+## Cohort-analytics aggregators
+
+Four mergeable + streamable aggregators land first-class server-side computation for stats that were previously client-side folds:
+
+- **`AGG_WEIGHTED_MEAN`** — `Params.weight_field` (required). Skips rows whose target field OR weight field is null and rows whose weight is exactly zero. Mergeable via the parallel weighted Chan-Welford reduction.
+- **`AGG_RATIO`** — `Params.numerator_field` + `Params.denominator_field` (both required). Returns `NaN` when the denominator sum collapses to zero. The Aggregation's own `Field` is intentionally ignored — callers can pass the field name as a no-op or leave it empty when smart defaults are disabled.
+- **`AGG_CI_LOWER` / `AGG_CI_UPPER`** — `Params.confidence` (default `0.95`, must lie in `(0, 1)`), `Params.method` (default `"normal"`). The `"normal"` method uses sample variance `M2 / (n-1)` and the Beasley-Springer-Moro inverse-normal quantile; `"bootstrap"` is reserved for a buffered follow-up and returns `PROCESSING_CONFIG` today. Both bounds return `NaN` when `n < 2`.
+
+All four pass the chain gate (`processing.CanChainRequest`) — they emit a single scalar per output row, so they compose with `pulse.ProcessChain` for source-rooted dashboards that materialise weighted/ratio aggregates over multi-shard cohorts. `AGG_LIFT` and `AGG_SHARE` (the two remaining cohort aggregates from the Prism upstream plan) are deferred to a follow-up that adds a global-context hook to the Aggregator interface.
+</rule>
 
 <rule severity="caveat" topic="decimal-aggregators">
 ## Decimal aggregators

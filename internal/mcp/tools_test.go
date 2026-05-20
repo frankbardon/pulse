@@ -21,6 +21,7 @@ func TestRegisteredTools_Stable(t *testing.T) {
 		ToolInspect,
 		ToolPredict,
 		ToolProcess,
+		ToolProcessChain,
 		ToolCompose,
 		ToolSample,
 		ToolFacet,

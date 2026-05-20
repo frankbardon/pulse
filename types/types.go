@@ -35,6 +35,28 @@ const (
 	// AGG_COUNT, which counts records where the field is non-null. Stays
 	// streamable (O(1) state per row, no buffering).
 	AGG_NULL_COUNT AggregationType = "AGG_NULL_COUNT"
+
+	// AGG_WEIGHTED_MEAN computes a weighted arithmetic mean of the
+	// target field using a separately-named weight field. Params:
+	// `weight_field` (string, required). Emits sum(field * w) / sum(w).
+	// Streamable + mergeable via weighted Chan-Welford.
+	AGG_WEIGHTED_MEAN AggregationType = "AGG_WEIGHTED_MEAN"
+
+	// AGG_RATIO emits sum(numerator_field) / sum(denominator_field) at
+	// finalize. Params: `numerator_field` + `denominator_field`. The
+	// Aggregation's own Field is ignored. Streamable + mergeable (two
+	// independent sums).
+	AGG_RATIO AggregationType = "AGG_RATIO"
+
+	// AGG_CI_LOWER and AGG_CI_UPPER emit the lower / upper bound of a
+	// confidence interval for the mean of the named numeric field.
+	// Params: `confidence` (float, default 0.95), `method` (string,
+	// default "normal"). The "normal" method uses Welford mean + sample
+	// variance with z = inv_normal((1+confidence)/2); streamable +
+	// mergeable. The "bootstrap" method is reserved for a buffered
+	// follow-up — returns PROCESSING_CONFIG today.
+	AGG_CI_LOWER AggregationType = "AGG_CI_LOWER"
+	AGG_CI_UPPER AggregationType = "AGG_CI_UPPER"
 )
 
 // AllAggregationTypes returns all defined aggregation types.
@@ -45,6 +67,8 @@ func AllAggregationTypes() []AggregationType {
 		AGG_MEDIAN, AGG_VARIANCE, AGG_MODE, AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_DISTINCT_COUNT, AGG_PERCENTILE,
 		AGG_NULL_COUNT,
+		AGG_WEIGHTED_MEAN, AGG_RATIO,
+		AGG_CI_LOWER, AGG_CI_UPPER,
 	}
 }
 
@@ -724,6 +748,15 @@ type Request struct {
 	// — closed-form OLS/Bayes stream over sufficient statistics; GLM,
 	// Resample, and Selection variants force the buffered path.
 	Regressions []*RegressionSpec `json:"regressions,omitempty"`
+
+	// Joins describes pushdown hash-join legs attached to the primary
+	// cohort. v1 supports exactly one inner join per Request; multi-
+	// join chains and the left/outer/anti kinds land in a follow-up.
+	// When set, the orchestrator opens each Right cohort, builds a
+	// hash table over the smaller side's join keys, and streams the
+	// larger side as the probe — joined records flow through the
+	// standard filter / attribute / group / aggregator pipeline.
+	Joins []*JoinSpec `json:"joins,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
