@@ -299,6 +299,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXPORT_FIELD_UNKNOWN: {
+		Message: "An ExportJob.Includes / ConvertJob.Includes entry names a field that does not appear in the source schema.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Includes", "*"},
+				Hint:   "Run pulse inspect on the source .pulse file to list valid field names, then correct or drop the offending --include entry. Pass no --include flags to export every field.",
+			},
+		},
+	},
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW: {
 		Message: "A categorical column's observed dictionary exceeded the declared width capacity (u8 / u16 / u32).",
 		Fixups: []Fixup{

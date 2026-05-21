@@ -125,6 +125,56 @@ func TestExportJob_Labels_Augment(t *testing.T) {
 	}
 }
 
+func TestExportJob_Labels_Augment_RespectsIncludes(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	path := importLabelledCohort(t, fs)
+
+	// Project to country only; augment must still emit the sibling.
+	writer := &collectWriter{}
+	job := NewExportJob(path, writer)
+	job.FS = fs
+	job.Includes = []string{"country"}
+	job.LabelResolver = newFakeResolver("country", types.LabelModeAugment, map[string]string{
+		"US": "United States", "CA": "Canada",
+	})
+	if _, err := job.Run(context.Background()); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	want := []string{"country", "country_label"}
+	for i, h := range want {
+		if writer.header[i] != h {
+			t.Fatalf("header = %v, want %v", writer.header, want)
+		}
+	}
+	if writer.rows[0][1] != "United States" {
+		t.Fatalf("expected augmented label; got %v", writer.rows[0][1])
+	}
+}
+
+func TestExportJob_Labels_Augment_SkippedWhenSourceFieldExcluded(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	path := importLabelledCohort(t, fs)
+
+	// Excluding country must also drop its augment sibling — there is
+	// no in-band field for the label to attach to.
+	writer := &collectWriter{}
+	job := NewExportJob(path, writer)
+	job.FS = fs
+	job.Includes = []string{"amount"}
+	job.LabelResolver = newFakeResolver("country", types.LabelModeAugment, map[string]string{
+		"US": "United States",
+	})
+	if _, err := job.Run(context.Background()); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	if len(writer.header) != 1 || writer.header[0] != "amount" {
+		t.Fatalf("header = %v, want [amount] only", writer.header)
+	}
+	if len(writer.rows[0]) != 1 {
+		t.Fatalf("row width = %d, want 1", len(writer.rows[0]))
+	}
+}
+
 func TestExportJob_Labels_NoResolver(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	path := importLabelledCohort(t, fs)

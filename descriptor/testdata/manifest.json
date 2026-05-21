@@ -2939,7 +2939,7 @@
         ]
       }
     ],
-    "error_codes_count": 104,
+    "error_codes_count": 105,
     "error_domains": [
       "CLI",
       "DATA",
@@ -2983,6 +2983,7 @@
       "PULSE_DECIMAL_DIVIDE_BY_ZERO",
       "PULSE_DECIMAL_OVERFLOW",
       "PULSE_DECIMAL_PRECISION_LOSS",
+      "PULSE_EXPORT_FIELD_UNKNOWN",
       "PULSE_EXPORT_ROW_ERROR",
       "PULSE_EXTENSION_DUPLICATE",
       "PULSE_EXTENSION_FACTORY_PANIC",
@@ -4066,4 +4067,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 10019284eba06e27f5e8b2fa58f249bcd61af567b8a4cbadc92cc8e2ecb4ce98
+// golden-hash: 0c561fb4f652cbfdf5dd86f6d80981371666fd9b86f6b068969cfdb598fbd855

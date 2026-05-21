@@ -123,6 +123,18 @@ Limitations:
 If you need to round-trip data back into Pulse, use Parquet to preserve categorical encoding.
 </rule>
 
+<rule severity="note" topic="field-projection">
+## Projecting Fields on Export
+
+`ExportJob.Includes []string` (and `ConvertJob.Includes`) restricts the output to the named source-schema fields. Nil / empty selects every field — pre-projection behaviour, unchanged. Output column order always follows the source schema, never the include order, so the on-disk byte layout stays the source of truth and downstream consumers see a stable layout regardless of CLI invocation order.
+
+CLI surface: the `pulse export {csv|tsv|ndjson|jsonarray|parquet|arrow|excel}` subcommands accept a repeatable `--include` flag (e.g. `--include country --include amount`). Unknown names return `PULSE_EXPORT_FIELD_UNKNOWN` — run `pulse inspect` first to discover valid field names.
+
+Label interaction: `--labels field=table:augment` still emits the sibling `<field>_label` column, but only when the source field is itself included. Excluding a source field also drops its augment sibling — the sibling has nothing to attach to. Replace-mode bindings apply only to included fields. Convert: when `KeepPulseAt` is set, the intermediate `.pulse` file always carries the full source schema — projection is an output-time overlay, not an on-disk schema change.
+
+Embedder API: set `pio.ExportJob{Includes: []string{"a", "b"}}` (or `pio.ConvertJob`); duplicates dedupe; the in-memory order matches schema order in the emitted row.
+</rule>
+
 <rule severity="note" topic="no-mcp-tool">
 ## Export has no MCP tool today
 

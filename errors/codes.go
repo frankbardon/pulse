@@ -134,6 +134,13 @@ const (
 	// PULSE_EXPORT_ROW_ERROR indicates a per-row export error.
 	PULSE_EXPORT_ROW_ERROR Code = "PULSE_EXPORT_ROW_ERROR"
 
+	// PULSE_EXPORT_FIELD_UNKNOWN indicates an ExportJob.Includes /
+	// ConvertJob.Includes entry names a field that does not appear in
+	// the source schema. Details carry the offending name plus the
+	// list of known field names so the caller can correct the request
+	// without re-fetching the schema.
+	PULSE_EXPORT_FIELD_UNKNOWN Code = "PULSE_EXPORT_FIELD_UNKNOWN"
+
 	// PULSE_IMPORT_CATEGORICAL_OVERFLOW indicates dictionary exceeds width capacity.
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW Code = "PULSE_IMPORT_CATEGORICAL_OVERFLOW"
 
@@ -583,6 +590,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_SCHEMA_AMBIGUOUS,
 	PULSE_IMPORT_ROW_ERROR,
 	PULSE_EXPORT_ROW_ERROR,
+	PULSE_EXPORT_FIELD_UNKNOWN,
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW,
 	PULSE_IMPORT_CATEGORICAL_UNBOUNDED,
 	PULSE_IMPORT_DESCRIPTION_TOO_LONG,

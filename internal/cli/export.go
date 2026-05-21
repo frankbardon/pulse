@@ -13,6 +13,7 @@ import (
 var exportFlags = []cli.Flag{
 	&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
 	&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output file path", Required: true},
+	&cli.StringSliceFlag{Name: "include", Usage: "Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order."},
 	&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: field=table[:replace|augment]. Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 }
@@ -50,6 +51,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 	input := cmd.String("input")
 	output := cmd.String("output")
 	labelArgs := cmd.StringSlice("labels")
+	includes := cmd.StringSlice("include")
 	jsonOut := cmd.Bool("json")
 
 	fs := afero.NewOsFs()
@@ -64,6 +66,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 
 	job := pio.NewExportJob(input, writer)
 	job.FS = fs
+	job.Includes = includes
 
 	if len(labelArgs) > 0 {
 		bindings, perr := parseLabelBindings(labelArgs)
