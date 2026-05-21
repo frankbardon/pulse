@@ -46,11 +46,21 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		}
 	}
 
-	augmentInsertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver)
+	includeMask, err := resolveIncludeMask(schema, j.Includes)
+	if err != nil {
+		return nil, err
+	}
 
-	// Write header to target.
+	augmentInsertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
+
+	// Write header to target. Projection drops excluded fields from
+	// the output header; the intermediate .pulse file (when
+	// KeepPulseAt is set) still carries the full schema below.
 	columns := make([]string, 0, len(schema.Fields))
 	for i, f := range schema.Fields {
+		if !includeMask[i] {
+			continue
+		}
 		columns = append(columns, f.Name)
 		if augmentInsertAfter[i] {
 			columns = append(columns, f.Name+"_label")
@@ -88,7 +98,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	}
 	var allRows []convertedRow
 
-	err := j.Source.ReadRows(ctx, func(row []string) error {
+	err = j.Source.ReadRows(ctx, func(row []string) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -116,7 +126,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			}
 		}
 
-		out := applyExportLabels(values, schema, j.LabelResolver, augmentInsertAfter, replaceFields)
+		out := applyExportLabels(values, schema, j.LabelResolver, augmentInsertAfter, replaceFields, includeMask)
 		if err := j.Target.WriteRow(out); err != nil {
 			rowErrors = append(rowErrors, RowError{Row: rowNum, Err: err})
 		} else {

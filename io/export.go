@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -44,8 +45,20 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		return nil, err
 	}
 
+	// Resolve the include mask. Nil / empty Includes selects every
+	// field; otherwise every entry must name a field in schema or the
+	// caller is rejected up-front with PULSE_EXPORT_FIELD_UNKNOWN.
+	includeMask, err := resolveIncludeMask(schema, j.Includes)
+	if err != nil {
+		return nil, err
+	}
+
 	// Hand the source schema to schema-aware writers so they can build
-	// native typed columns for decimal128.
+	// native typed columns for decimal128. Schema-aware writers see
+	// the full source schema; the writer is expected to ignore values
+	// for projected-out columns because we never emit them. Projection
+	// over typed columnar formats (parquet / arrow / excel) is a
+	// follow-up — see ExportJob.Includes doc.
 	if saw, ok := j.Target.(SchemaAwareWriter); ok {
 		saw.SetPulseSchema(schema)
 	}
@@ -54,11 +67,15 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	// add sibling "<field>_label" columns. augmentInsertAfter records,
 	// for each source field index, whether a sibling cell should be
 	// appended immediately after that field in every emitted row.
-	augmentInsertAfter, augmentFieldNames, replaceFields := planLabelColumns(schema, j.LabelResolver)
+	// Projection-excluded fields never emit augment siblings.
+	augmentInsertAfter, augmentFieldNames, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
 
 	// Write header to target.
 	columns := make([]string, 0, len(schema.Fields)+len(augmentFieldNames))
 	for i, f := range schema.Fields {
+		if !includeMask[i] {
+			continue
+		}
 		columns = append(columns, f.Name)
 		if augmentInsertAfter[i] {
 			columns = append(columns, f.Name+"_label")
@@ -137,7 +154,7 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 			}
 		}
 
-		out := applyExportLabels(values, schema, j.LabelResolver, augmentInsertAfter, replaceFields)
+		out := applyExportLabels(values, schema, j.LabelResolver, augmentInsertAfter, replaceFields, includeMask)
 		if err := j.Target.WriteRow(out); err != nil {
 			rowErrors = append(rowErrors, RowError{Row: row + 1, Err: err})
 			row++
@@ -167,15 +184,20 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 //   - replaceFields is the set of source-field indices whose value
 //     should be rewritten in place by the resolver.
 //
-// Passing a nil resolver returns zero values across the board, so
-// the caller path stays a single nil-check.
-func planLabelColumns(schema *encoding.Schema, r LabelResolver) (insertAfter []bool, augmentNames []string, replaceFields map[int]bool) {
+// includeMask gates which fields participate. A nil mask is treated
+// as "all included" so existing call sites that have no projection
+// can pass nil. Passing a nil resolver returns zero values across the
+// board, so the caller path stays a single nil-check.
+func planLabelColumns(schema *encoding.Schema, r LabelResolver, includeMask []bool) (insertAfter []bool, augmentNames []string, replaceFields map[int]bool) {
 	if r == nil || schema == nil {
 		return make([]bool, len(schema.Fields)), nil, nil
 	}
 	insertAfter = make([]bool, len(schema.Fields))
 	replaceFields = map[int]bool{}
 	for i, f := range schema.Fields {
+		if includeMask != nil && !includeMask[i] {
+			continue
+		}
 		if !r.Has(f.Name) {
 			continue
 		}
@@ -190,18 +212,57 @@ func planLabelColumns(schema *encoding.Schema, r LabelResolver) (insertAfter []b
 	return insertAfter, augmentNames, replaceFields
 }
 
-// applyExportLabels rewrites the row values per the resolver. For
-// replace bindings the source-field value is overwritten in place;
-// for augment bindings a new cell is inserted immediately after the
-// source field. The output slice is freshly allocated only when at
-// least one augment binding adds a column; replace-only and no-label
-// paths return the input slice untouched (writer implementations
-// already stringify / copy before returning).
-func applyExportLabels(values []any, schema *encoding.Schema, r LabelResolver, insertAfter []bool, replaceFields map[int]bool) []any {
-	if r == nil {
-		return values
+// resolveIncludeMask returns a per-field boolean mask selecting the
+// columns to emit. A nil / empty includes slice selects every field.
+// Any include entry that does not match a schema field name is
+// rejected with PULSE_EXPORT_FIELD_UNKNOWN. Duplicates are silently
+// deduplicated; output ordering always follows schema order, never
+// the include order, so the on-disk byte layout stays the source of
+// truth.
+func resolveIncludeMask(schema *encoding.Schema, includes []string) ([]bool, error) {
+	mask := make([]bool, len(schema.Fields))
+	if len(includes) == 0 {
+		for i := range mask {
+			mask[i] = true
+		}
+		return mask, nil
 	}
-	if len(replaceFields) > 0 {
+	known := make(map[string]int, len(schema.Fields))
+	names := make([]string, 0, len(schema.Fields))
+	for i, f := range schema.Fields {
+		known[f.Name] = i
+		names = append(names, f.Name)
+	}
+	for _, name := range includes {
+		idx, ok := known[name]
+		if !ok {
+			return nil, errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXPORT_FIELD_UNKNOWN,
+				fmt.Sprintf("include field %q does not appear in source schema", name),
+				map[string]any{
+					"field":        name,
+					"known_fields": names,
+				},
+			)
+		}
+		mask[idx] = true
+	}
+	return mask, nil
+}
+
+// applyExportLabels rewrites the row values per the resolver and
+// applies projection. For replace bindings the source-field value is
+// overwritten in place; for augment bindings a new cell is inserted
+// immediately after the source field. When includeMask filters out
+// fields, the returned slice carries only the included source values
+// (plus augment siblings for included source fields). The output
+// slice is freshly allocated when projection drops at least one
+// field or at least one augment binding adds a column; on the
+// no-projection, no-augment path the input slice is returned
+// untouched (writer implementations already stringify / copy before
+// returning). includeMask of nil is treated as "all included".
+func applyExportLabels(values []any, schema *encoding.Schema, r LabelResolver, insertAfter []bool, replaceFields map[int]bool, includeMask []bool) []any {
+	if r != nil && len(replaceFields) > 0 {
 		for idx := range replaceFields {
 			s, ok := values[idx].(string)
 			if !ok {
@@ -212,13 +273,20 @@ func applyExportLabels(values []any, schema *encoding.Schema, r LabelResolver, i
 			}
 		}
 	}
-	if !anyTrue(insertAfter) {
+
+	hasAugment := r != nil && anyTrue(insertAfter)
+	projecting := includeMask != nil && !allTrue(includeMask)
+	if !hasAugment && !projecting {
 		return values
 	}
+
 	out := make([]any, 0, len(values)+countTrue(insertAfter))
 	for i, v := range values {
+		if includeMask != nil && !includeMask[i] {
+			continue
+		}
 		out = append(out, v)
-		if !insertAfter[i] {
+		if !hasAugment || !insertAfter[i] {
 			continue
 		}
 		raw, ok := v.(string)
@@ -233,6 +301,15 @@ func applyExportLabels(values []any, schema *encoding.Schema, r LabelResolver, i
 		}
 	}
 	return out
+}
+
+func allTrue(bs []bool) bool {
+	for _, b := range bs {
+		if !b {
+			return false
+		}
+	}
+	return true
 }
 
 func anyTrue(bs []bool) bool {

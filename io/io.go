@@ -111,6 +111,14 @@ type ExportJob struct {
 	Source string // input .pulse path
 	Target Writer
 	FS     afero.Fs
+	// Includes restricts the export to the named source-schema fields,
+	// in source-schema order. Nil / empty means export every field
+	// (prior behaviour). Names must match Schema.Fields[i].Name
+	// exactly. Unknown names return PULSE_EXPORT_FIELD_UNKNOWN with
+	// the offending name + list of known fields. Label augment
+	// siblings ("<field>_label") are emitted only for included source
+	// fields; replace mode applies to included fields as before.
+	Includes []string
 	// Labels rewrites or augments categorical column values during
 	// export using embedder-registered label tables. Bindings name a
 	// categorical field plus a label table; mode=replace overwrites
@@ -145,6 +153,12 @@ type ConvertJob struct {
 	KeepPulseAt string // optional: also write intermediate .pulse
 	SampleRows  int
 	FS          afero.Fs
+	// Includes restricts the export half to the named schema fields,
+	// in schema order. Nil / empty means write every field. The
+	// intermediate .pulse file (when KeepPulseAt is set) always
+	// carries the full schema — projection is an output-time overlay,
+	// not an on-disk schema change. See ExportJob.Includes.
+	Includes []string
 	// Labels apply to the export phase only — the import side reads
 	// raw source bytes and has no use for label translation. See
 	// ExportJob.Labels.

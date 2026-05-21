@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/spf13/afero"
 )
 
@@ -57,6 +59,68 @@ func TestConvertJob_KeepPulse(t *testing.T) {
 	exists, _ := afero.Exists(fs, "intermediate.pulse")
 	if !exists {
 		t.Error("intermediate.pulse was not written")
+	}
+}
+
+func TestConvertJob_Includes_ProjectsOutputButKeepsFullSchemaIntermediate(t *testing.T) {
+	rows := [][]string{
+		{"10", "alpha", "US"},
+		{"20", "beta", "GB"},
+	}
+	source := newMockReader([]string{"age", "name", "country"}, rows)
+	target := &collectWriter{}
+	fs := afero.NewMemMapFs()
+
+	job := NewConvertJob(source, target)
+	job.KeepPulseAt = "kept.pulse"
+	job.FS = fs
+	job.Includes = []string{"age", "country"}
+
+	if _, err := job.Run(context.Background()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(target.header) != 2 || target.header[0] != "age" || target.header[1] != "country" {
+		t.Fatalf("output header = %v, want [age country]", target.header)
+	}
+	for i, row := range target.rows {
+		if len(row) != 2 {
+			t.Errorf("output row %d width = %d, want 2", i, len(row))
+		}
+	}
+
+	// Intermediate .pulse must still carry every source field.
+	f, err := fs.Open("kept.pulse")
+	if err != nil {
+		t.Fatalf("open intermediate: %v", err)
+	}
+	defer f.Close()
+	if err := encoding.ReadHeader(f); err != nil {
+		t.Fatalf("read header: %v", err)
+	}
+	schema, err := encoding.ReadSchema(f)
+	if err != nil {
+		t.Fatalf("read schema: %v", err)
+	}
+	if len(schema.Fields) != 3 {
+		t.Errorf("intermediate schema fields = %d, want 3 (projection must not narrow on-disk schema)", len(schema.Fields))
+	}
+}
+
+func TestConvertJob_Includes_UnknownField(t *testing.T) {
+	rows := [][]string{{"10", "x"}}
+	source := newMockReader([]string{"age", "name"}, rows)
+	target := &collectWriter{}
+
+	job := NewConvertJob(source, target)
+	job.Includes = []string{"missing"}
+
+	_, err := job.Run(context.Background())
+	if err == nil {
+		t.Fatal("expected PULSE_EXPORT_FIELD_UNKNOWN, got nil")
+	}
+	if !errors.HasCode(err, errors.PULSE_EXPORT_FIELD_UNKNOWN) {
+		t.Errorf("err code = %v, want PULSE_EXPORT_FIELD_UNKNOWN", err)
 	}
 }
 
