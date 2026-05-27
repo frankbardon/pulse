@@ -4036,6 +4036,10 @@
         "description": "Run tier-1 row tests (TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F, TEST_ANOVA_WELCH, TEST_ANOVA_RM, TEST_KS, TEST_PAIRED_T, TEST_PROP_Z, TEST_PEARSON_R, TEST_SPEARMAN_R, TEST_KENDALL_TAU, TEST_MANN_WHITNEY_U, TEST_WILCOXON_SR, TEST_KRUSKAL_WALLIS, TEST_BROWN_FORSYTHE, TEST_FISHER_EXACT, TEST_SHAPIRO_WILK) and tier-2 post-tests (TEST_TUKEY_HSD, TEST_TREND, variants). Use when a request mentions hypothesis testing, p-values, ANOVA, t-tests, correlations, normality, or post-hoc comparisons."
       },
       {
+        "name": "streaming-and-watching",
+        "description": "Build reactive consumers on top of Pulse — Request.Hash() for cache keys, StreamResult[T] for incremental output (ProcessStreamResult / SynthStream), Watch/WatchDir for file-change observation, FilterToFileWithRequest for deterministic derived cohorts, and manifest CommandAnnotations for caching policy. Use when wiring Pulse into long-running services, building materialization caches, or reacting to .pulse file mutations."
+      },
+      {
         "name": "synthetic-data",
         "description": "Generate deterministic synthetic .pulse cohorts via pulse_synth_from_schema or pulse_synth_from_profile — 12 distributions (normal, lognormal, poisson, exponential, pareto, bernoulli, weighted_categorical, regex, uniform, uniform_date, monotonic_from, constant), pairwise correlations, constraints. Use when seeding tests or sharing reproducible data without leaking real values."
       },
@@ -4195,4 +4199,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7e34db2e44c39c325c5c5bdc55a125962aa578fb95af15f04c8de2769f18470e
+// golden-hash: 000d83a43924a790f922e334e114a63272f7ee527b0702224a6fe0cb4a0e6393

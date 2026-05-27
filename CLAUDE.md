@@ -260,7 +260,7 @@ Surface: `extensions.go` (types), `extensions_validate.go` (validation), `extens
 
 ## Skill Pack
 
-24 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
+25 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
 
 ```yaml
 ---
@@ -292,6 +292,7 @@ applies_to: process, compose, predict
 | Label binding / display overlay | `skills/label-display.md` |
 | Error code | `errors/fixup_metadata.go` (via `pulse_errors_lookup`) |
 | Extension API surface | `skills/extension-points.md` |
+| Request hashing / StreamResult / Watch / FilterToFileWithRequest / manifest annotations | `skills/streaming-and-watching.md` |
 
 Current registered counts: 21 aggregators, 9 attributes, 5 filterers, 5 groupers, 10 windows, 9 features, 20 tests, 12 synth distributions, 3 regressions.
 

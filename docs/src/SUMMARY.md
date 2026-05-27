@@ -31,7 +31,11 @@
 - [pulse.Ask Unified Entry Point](library/ask.md)
 - [Custom Filesystems](library/custom-fs.md)
 - [Streaming & ProcessStream](library/streaming.md)
+- [StreamResult[T]](library/stream-result.md)
 - [Parallel Compose](library/parallel-compose.md)
+- [Request Hashing](library/request-hashing.md)
+- [Watch & WatchDir](library/watch.md)
+- [Deterministic FilterToFile](library/filter-to-file.md)
 
 # .pulse File Format
 
