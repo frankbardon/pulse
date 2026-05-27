@@ -5,75 +5,203 @@
     "commands": [
       {
         "name": "process",
-        "description": "Execute a processing request against a cohort"
+        "description": "Execute a processing request against a cohort",
+        "annotations": {
+          "streamable": true,
+          "deterministic": true,
+          "expensive": true
+        }
       },
       {
         "name": "compose",
-        "description": "Execute multiple processing requests in batch"
+        "description": "Execute multiple processing requests in batch",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
       },
       {
         "name": "process-chain",
-        "description": "Execute a source-rooted linear chain of mergeable processing stages"
+        "description": "Execute a source-rooted linear chain of mergeable processing stages",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
       },
       {
         "name": "sample",
-        "description": "Return sample rows from a cohort"
+        "description": "Return sample rows from a cohort",
+        "annotations": {
+          "streamable": true,
+          "deterministic": false,
+          "expensive": false
+        }
       },
       {
         "name": "facet",
-        "description": "Return distinct values for a field"
+        "description": "Return distinct values for a field",
+        "annotations": {
+          "streamable": true,
+          "deterministic": true,
+          "expensive": false
+        }
       },
       {
         "name": "inspect",
-        "description": "Inspect a .pulse file header and schema"
+        "description": "Inspect a .pulse file header and schema",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
       },
       {
         "name": "predict",
-        "description": "Validate a request without executing"
+        "description": "Validate a request without executing",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
       },
       {
         "name": "manifest",
-        "description": "Output the root manifest"
+        "description": "Output the root manifest",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
       },
       {
         "name": "mcp",
-        "description": "Serve the Model Context Protocol over stdio"
+        "description": "Serve the Model Context Protocol over stdio",
+        "annotations": {
+          "streamable": true,
+          "deterministic": false,
+          "expensive": false
+        }
       },
       {
         "name": "synth",
-        "description": "Generate synthetic .pulse cohorts from a schema or profile"
+        "description": "Generate synthetic .pulse cohorts from a schema or profile",
+        "annotations": {
+          "streamable": true,
+          "deterministic": false,
+          "expensive": true
+        }
       },
       {
         "name": "profile",
-        "description": "Capture statistical summaries of cohorts for synthesis"
+        "description": "Capture statistical summaries of cohorts for synthesis",
+        "annotations": {
+          "streamable": true,
+          "deterministic": true,
+          "expensive": true
+        }
       },
       {
         "name": "shard create",
-        "description": "Create a new shard archive from one or more single-file .pulse shards"
+        "description": "Create a new shard archive from one or more single-file .pulse shards",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
       },
       {
         "name": "shard add",
-        "description": "Append a shard to an existing archive"
+        "description": "Append a shard to an existing archive",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
       },
       {
         "name": "shard remove",
-        "description": "Remove a shard from an archive by basename"
+        "description": "Remove a shard from an archive by basename",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
       },
       {
         "name": "shard list",
-        "description": "List shards inside an archive"
+        "description": "List shards inside an archive",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
       },
       {
         "name": "shard compact",
-        "description": "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata"
+        "description": "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
       },
       {
         "name": "shard verify",
-        "description": "Re-validate every shard's header + cohesion against the canonical schema"
+        "description": "Re-validate every shard's header + cohesion against the canonical schema",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
       },
       {
         "name": "shard extract",
-        "description": "Extract a shard's standalone .pulse bytes to stdout"
+        "description": "Extract a shard's standalone .pulse bytes to stdout",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      }
+    ],
+    "operations": [
+      {
+        "name": "filter_to_file",
+        "description": "Filter a cohort and write the result to a deterministic .pulse output",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
+      },
+      {
+        "name": "process_stream",
+        "description": "Execute a processing request and return a structured StreamResult of incremental rows",
+        "annotations": {
+          "streamable": true,
+          "deterministic": true,
+          "expensive": true
+        }
+      },
+      {
+        "name": "synth_stream",
+        "description": "Generate synthetic respondents incrementally via a structured StreamResult",
+        "annotations": {
+          "streamable": true,
+          "deterministic": false,
+          "expensive": true
+        }
+      },
+      {
+        "name": "watch",
+        "description": "Observe .pulse file changes and emit ChangeEvent records",
+        "annotations": {
+          "streamable": true,
+          "deterministic": false,
+          "expensive": false
+        }
       }
     ],
     "components": {
@@ -4067,4 +4195,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0c561fb4f652cbfdf5dd86f6d80981371666fd9b86f6b068969cfdb598fbd855
+// golden-hash: 7e34db2e44c39c325c5c5bdc55a125962aa578fb95af15f04c8de2769f18470e
