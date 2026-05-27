@@ -222,20 +222,6 @@ func (w *watcher) run(ctx context.Context, out chan<- ChangeEvent) {
 	}
 }
 
-// seed primes the state map without emitting events so a fresh watcher
-// only fires on subsequent mutations. Files that disappear before the
-// first tick still trigger Removed; files added later still trigger
-// Created.
-func (w *watcher) seed() {
-	for _, p := range w.discover() {
-		st, ok := w.statHash(p)
-		if !ok {
-			continue
-		}
-		w.state[p] = st
-	}
-}
-
 // tick polls the watched scope once and returns the resulting events.
 func (w *watcher) tick() []ChangeEvent {
 	current := make(map[string]*fileState, len(w.state))
@@ -419,9 +405,7 @@ func looksLikeTempSibling(tempPath, targetPath string) bool {
 func (w *watcher) discover() []string {
 	if !w.dirMode {
 		out := make([]string, 0, len(w.roots))
-		for _, r := range w.roots {
-			out = append(out, r)
-		}
+		out = append(out, w.roots...)
 		return out
 	}
 	var out []string
