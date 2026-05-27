@@ -13,6 +13,29 @@ import (
 type Command struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+
+	// Annotations carries the three per-command capability hints
+	// (streamable / deterministic / expensive). Embedders use these to
+	// decide whether to wrap a command in caching or invoke it directly.
+	// Always populated for built-in commands.
+	Annotations CommandAnnotations `json:"annotations"`
+}
+
+// CommandAnnotations carries three capability flags per command.
+//
+//   - Streamable: the command has a streaming variant. Callers can
+//     invoke the streaming form for incremental output.
+//   - Deterministic: the command produces the same output given the
+//     same inputs (including the source file's content hash). Callers
+//     can safely cache results keyed by the request hash.
+//   - Expensive: the command is worth caching. Cheap operations may
+//     not be worth the cache machinery; expensive ones (regression,
+//     filter-to-file, profile) typically are. Hint to consumers, not
+//     a hard constraint.
+type CommandAnnotations struct {
+	Streamable    bool `json:"streamable"`
+	Deterministic bool `json:"deterministic"`
+	Expensive     bool `json:"expensive"`
 }
 
 // Components lists every registered processing component grouped by
@@ -70,8 +93,15 @@ type SkillMeta struct {
 // The payload is deterministic and free of cohort data. Clients cache it
 // for a session.
 type Manifest struct {
-	FormatVersion      string             `json:"format_version"`
-	Commands           []Command          `json:"commands"`
+	FormatVersion string    `json:"format_version"`
+	Commands      []Command `json:"commands"`
+
+	// Operations enumerates library-only entry points that do not back a
+	// CLI leaf (today: filter_to_file, watch, process_stream). Each entry
+	// carries the same CommandAnnotations as a CLI leaf so consumers can
+	// reason uniformly about caching / streaming. The slice is sorted by
+	// Name for determinism.
+	Operations         []Command          `json:"operations"`
 	Components         Components         `json:"components"`
 	Tests              []TestMeta         `json:"tests"`
 	PostTests          []TestMeta         `json:"post_tests"`
@@ -118,27 +148,41 @@ type Manifest struct {
 	Join JoinCapability `json:"join"`
 }
 
-// commands returns the default set of CLI leaf commands.
+// operations returns the library-only entry points that do not back a
+// CLI leaf. They carry the same CommandAnnotations as commands so the
+// manifest exposes a uniform shape across CLI and library surfaces.
+func operations() []Command {
+	return []Command{
+		{Name: "filter_to_file", Description: "Filter a cohort and write the result to a deterministic .pulse output", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "process_stream", Description: "Execute a processing request and return a structured StreamResult of incremental rows", Annotations: CommandAnnotations{Streamable: true, Deterministic: true, Expensive: true}},
+		{Name: "synth_stream", Description: "Generate synthetic respondents incrementally via a structured StreamResult", Annotations: CommandAnnotations{Streamable: true, Deterministic: false, Expensive: true}},
+		{Name: "watch", Description: "Observe .pulse file changes and emit ChangeEvent records", Annotations: CommandAnnotations{Streamable: true, Deterministic: false, Expensive: false}},
+	}
+}
+
+// commands returns the default set of CLI leaf commands. Each entry
+// carries its capability annotations (streamable / deterministic /
+// expensive) so manifest consumers can decide whether to cache.
 func commands() []Command {
 	return []Command{
-		{Name: "process", Description: "Execute a processing request against a cohort"},
-		{Name: "compose", Description: "Execute multiple processing requests in batch"},
-		{Name: "process-chain", Description: "Execute a source-rooted linear chain of mergeable processing stages"},
-		{Name: "sample", Description: "Return sample rows from a cohort"},
-		{Name: "facet", Description: "Return distinct values for a field"},
-		{Name: "inspect", Description: "Inspect a .pulse file header and schema"},
-		{Name: "predict", Description: "Validate a request without executing"},
-		{Name: "manifest", Description: "Output the root manifest"},
-		{Name: "mcp", Description: "Serve the Model Context Protocol over stdio"},
-		{Name: "synth", Description: "Generate synthetic .pulse cohorts from a schema or profile"},
-		{Name: "profile", Description: "Capture statistical summaries of cohorts for synthesis"},
-		{Name: "shard create", Description: "Create a new shard archive from one or more single-file .pulse shards"},
-		{Name: "shard add", Description: "Append a shard to an existing archive"},
-		{Name: "shard remove", Description: "Remove a shard from an archive by basename"},
-		{Name: "shard list", Description: "List shards inside an archive"},
-		{Name: "shard compact", Description: "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata"},
-		{Name: "shard verify", Description: "Re-validate every shard's header + cohesion against the canonical schema"},
-		{Name: "shard extract", Description: "Extract a shard's standalone .pulse bytes to stdout"},
+		{Name: "process", Description: "Execute a processing request against a cohort", Annotations: CommandAnnotations{Streamable: true, Deterministic: true, Expensive: true}},
+		{Name: "compose", Description: "Execute multiple processing requests in batch", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "process-chain", Description: "Execute a source-rooted linear chain of mergeable processing stages", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "sample", Description: "Return sample rows from a cohort", Annotations: CommandAnnotations{Streamable: true, Deterministic: false, Expensive: false}},
+		{Name: "facet", Description: "Return distinct values for a field", Annotations: CommandAnnotations{Streamable: true, Deterministic: true, Expensive: false}},
+		{Name: "inspect", Description: "Inspect a .pulse file header and schema", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "predict", Description: "Validate a request without executing", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "manifest", Description: "Output the root manifest", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "mcp", Description: "Serve the Model Context Protocol over stdio", Annotations: CommandAnnotations{Streamable: true, Deterministic: false, Expensive: false}},
+		{Name: "synth", Description: "Generate synthetic .pulse cohorts from a schema or profile", Annotations: CommandAnnotations{Streamable: true, Deterministic: false, Expensive: true}},
+		{Name: "profile", Description: "Capture statistical summaries of cohorts for synthesis", Annotations: CommandAnnotations{Streamable: true, Deterministic: true, Expensive: true}},
+		{Name: "shard create", Description: "Create a new shard archive from one or more single-file .pulse shards", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "shard add", Description: "Append a shard to an existing archive", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "shard remove", Description: "Remove a shard from an archive by basename", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "shard list", Description: "List shards inside an archive", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "shard compact", Description: "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "shard verify", Description: "Re-validate every shard's header + cohesion against the canonical schema", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "shard extract", Description: "Extract a shard's standalone .pulse bytes to stdout", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 	}
 }
 
@@ -275,6 +319,7 @@ func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *Manifest {
 	return &Manifest{
 		FormatVersion: "1.0",
 		Commands:      commands(),
+		Operations:    operations(),
 		Components: Components{
 			Aggregators: sortByName(aggregatorCapabilities()),
 			Attributes:  sortByName(attributeCapabilities()),

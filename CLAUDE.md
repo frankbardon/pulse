@@ -53,6 +53,11 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | Cohort-analytics aggregator catalog (`AGG_WEIGHTED_MEAN`/`RATIO`/`CI_LOWER`/`CI_UPPER`) | `processing/aggregator_cohort.go` + `types/types.go` + `types/streamability.go` + `descriptor/capabilities_aggregators.go` + `skills/aggregation-guide.md` | `TestAggregator_*`, `TestManifestOperatorsComplete`, `TestStreamability_AggregationsKnown` |
 | `ExportJob.Includes` / `ConvertJob.Includes` projection slot or its CLI `--include` surface | `io/io.go` + `io/export.go` + `io/convert.go` + `internal/cli/export.go` + `errors/codes.go` + `errors/fixup_metadata.go` + `skills/export-format-selection.md` | `TestExportJob_Includes_*`, `TestConvertJob_Includes_*`, `TestCodesHaveFixups` |
 | `pulse.Options.Extensions.LabelTables` registration, `types.LabelBinding` slot on `Request`/`SampleRequest`/`FacetRequest`/`ExportJob`/`ConvertJob`, or `PULSE_LABEL_TABLES_DIR` loader | `extensions.go` + `extensions_validate.go` + `extensions_runtime.go` + `extensions_snapshot.go` + `processing/extensions.go` + `processing/labels.go` + `types/labels.go` + `descriptor/labels.go` + `descriptor/extensions.go` + `io/labels.go` + `io/io.go` + `io/export.go` + `io/convert.go` + `label_adapter.go` + `label_loader.go` + `internal/cli/labels.go` + `internal/mcp/schema_bind.go` + `skills/label-display.md` + `skills/index.json` + CLAUDE.md "Build / Env" | `TestExtensions_LabelTable*`, `TestLabelResolver_*`, `TestValidateLabels_*`, `TestSampleWithRequest_*`, `TestProcess_GroupKey_*`, `TestProcess_Labels_*`, `TestFacetSchema_Labels_*`, `TestExportJob_Labels_*`, `TestLoadLabelTables_*`, `TestParseLabelBindings_*`, `TestMCPSchemaBinding_Labels*`, `TestSkillsList_ReturnsAll`, `TestSkillsNames`, `TestClaudeMdMentionsAllEnvVars` |
+| `types.CanonicalHash` algorithm or `Request.Hash` / `ComposedRequest.Hash` / `FacetRequest.Hash` / `ChainRequest.Hash` / `synth.Spec.Hash` surface | `types/hash.go` + `synth/hash.go` | `TestCanonicalHash_*`, `TestSpecHash_*` |
+| `StreamResult[T]` shape or `Pulse.ProcessStreamResult` / `Pulse.SynthStream` variants | `stream.go` + `descriptor/manifest.go` (Operations) | `TestProcessStreamResult_*` |
+| `Pulse.Watch` / `Pulse.WatchDir` API or `WatchOptions` / `ChangeEvent` shape | `watch.go` + `descriptor/manifest.go` (Operations) | `TestWatch_*` |
+| `FilterToFileRequest` / `FilterToFileResult` shape, deterministic-naming rule, or `Pulse.FilterToFileWithRequest` dedup contract | `filter_to_file_request.go` + `descriptor/manifest.go` (Operations) | `TestFilterToFileWithRequest_*` |
+| Manifest `CommandAnnotations` field or `Manifest.Operations` slot | `descriptor/manifest.go` + `descriptor/testdata/manifest.json` | `TestManifest_CommandAnnotationsPopulated`, `TestManifest_OperationsPopulated`, `TestManifest_AnnotationSemantics` |
 
 Table is self-referential — new trigger rows require updating this table in the same PR. `TestUpdateDemandTableCovers` parses this section and asserts every component category and contract type has a row.
 
@@ -255,7 +260,7 @@ Surface: `extensions.go` (types), `extensions_validate.go` (validation), `extens
 
 ## Skill Pack
 
-24 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
+25 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
 
 ```yaml
 ---
@@ -287,6 +292,7 @@ applies_to: process, compose, predict
 | Label binding / display overlay | `skills/label-display.md` |
 | Error code | `errors/fixup_metadata.go` (via `pulse_errors_lookup`) |
 | Extension API surface | `skills/extension-points.md` |
+| Request hashing / StreamResult / Watch / FilterToFileWithRequest / manifest annotations | `skills/streaming-and-watching.md` |
 
 Current registered counts: 21 aggregators, 9 attributes, 5 filterers, 5 groupers, 10 windows, 9 features, 20 tests, 12 synth distributions, 3 regressions.
 
