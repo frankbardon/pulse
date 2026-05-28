@@ -197,7 +197,7 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 		mcpgo.NewTool(ToolExamplesSearch,
 			mcpgo.WithDescription(DescExamplesSearch),
 			mcpgo.WithString("query", mcpgo.Description("Optional case-insensitive substring (matched against name, description, operators)")),
-			mcpgo.WithArray("tags", mcpgo.Description("Optional list of canonical taxonomy tags; results must carry every tag (AND)")),
+			mcpgo.WithArray("tags", mcpgo.Description("Optional list of canonical taxonomy tags; results must carry every tag (AND)"), mcpgo.WithStringItems()),
 			mcpgo.WithString("category", mcpgo.Description("Optional exact directory: aggregations, attributes, features, filterers, groupers, tests, windows")),
 		),
 		handleExamplesSearch(p),
