@@ -1003,6 +1003,13 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_LABEL_TABLE_NOT_ENUMERABLE: {
+		Message: "A reverse label lookup was attempted against a function-driven table (Lookup closure only, no static Rows map). Reverse search requires enumerable Rows.",
+		// No caller-request field to repair: the fix is registration-time
+		// (register the table with a static Rows map, e.g. from a cached
+		// snapshot, rather than a Lookup-only closure).
+		FixupNotApplicable: true,
+	},
 	PULSE_LABEL_COLLISION: {
 		Message: "Two distinct source values resolve to the same label string in replace mode. The output disambiguates with the source value in parentheses (e.g. \"United States (US)\").",
 		Fixups: []Fixup{

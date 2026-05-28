@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -221,6 +222,18 @@ type Options struct {
 	// LabelTables; collisions are rejected with
 	// PULSE_EXTENSION_DUPLICATE.
 	LabelTablesDir string
+
+	// AutoLabels are default LabelBindings the engine injects into every
+	// read request (Process / Compose / Facet / Sample) before
+	// validation, so registered label tables render display strings
+	// without the caller specifying bindings per request. Each binding
+	// is applied only when its Field is present and categorical in the
+	// target cohort's schema and the caller has not already bound that
+	// field — a default that does not fit a given cohort is silently
+	// skipped, never an error. Bindings whose Table is not registered are
+	// rejected at New time. Empty (the default) disables auto-binding
+	// entirely; existing behaviour is unchanged.
+	AutoLabels []LabelBinding
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -245,6 +258,9 @@ func New(opts Options) (*Pulse, error) {
 		return nil, err
 	}
 	if err := probeExtensions(opts.Extensions); err != nil {
+		return nil, err
+	}
+	if err := validateAutoLabels(opts.AutoLabels, opts.Extensions.LabelTables); err != nil {
 		return nil, err
 	}
 
@@ -282,6 +298,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetStrict(opts.Strict)
+	svc.SetAutoLabels(autoLabelPtrs(opts.AutoLabels))
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:     opts.ImportsDir,
@@ -298,6 +315,52 @@ func New(opts Options) (*Pulse, error) {
 		fsys:    fsCfg.Fs(),
 		imports: importsMgr,
 	}, nil
+}
+
+// validateAutoLabels checks each default binding's shape and that its
+// table is registered. Field presence + categorical-ness are NOT checked
+// here — those are per-cohort and handled at request time by skipping
+// defaults that do not fit a given schema.
+func validateAutoLabels(bindings []LabelBinding, tables map[string]LabelTable) error {
+	for i := range bindings {
+		b := bindings[i]
+		if strings.TrimSpace(b.Field) == "" {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"auto_labels: Field is required",
+				map[string]any{"index": i})
+		}
+		if strings.TrimSpace(b.Table) == "" {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"auto_labels: Table is required",
+				map[string]any{"index": i, "field": b.Field})
+		}
+		mode := b.LabelModeOrDefault()
+		if mode != LabelModeReplace && mode != LabelModeAugment {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				fmt.Sprintf("auto_labels: Mode %q is invalid (expected %q or %q)", b.Mode, LabelModeReplace, LabelModeAugment),
+				map[string]any{"index": i, "field": b.Field, "mode": string(b.Mode)})
+		}
+		if _, ok := tables[b.Table]; !ok {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_LABEL_TABLE_UNKNOWN,
+				fmt.Sprintf("auto_labels: table %q not registered on Extensions.LabelTables", b.Table),
+				map[string]any{"index": i, "field": b.Field, "table": b.Table})
+		}
+	}
+	return nil
+}
+
+// autoLabelPtrs copies the value-typed Options.AutoLabels into the
+// pointer slice the service layer stores.
+func autoLabelPtrs(bindings []LabelBinding) []*types.LabelBinding {
+	if len(bindings) == 0 {
+		return nil
+	}
+	out := make([]*types.LabelBinding, len(bindings))
+	for i := range bindings {
+		cp := bindings[i]
+		out[i] = &cp
+	}
+	return out
 }
 
 // Open reads a .pulse file and returns a Cohort with the parsed schema.

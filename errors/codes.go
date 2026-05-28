@@ -532,6 +532,12 @@ const (
 	// must be unique per field within a request.
 	PULSE_LABEL_DUPLICATE_BINDING Code = "PULSE_LABEL_DUPLICATE_BINDING"
 
+	// PULSE_LABEL_TABLE_NOT_ENUMERABLE indicates a reverse lookup
+	// (ResolveLabel / pulse_label_resolve) was attempted against a
+	// function-driven label table that exposes only a Lookup closure
+	// and no static Rows map. Reverse search requires enumerable Rows.
+	PULSE_LABEL_TABLE_NOT_ENUMERABLE Code = "PULSE_LABEL_TABLE_NOT_ENUMERABLE"
+
 	// PULSE_LABEL_COLLISION is a warning emitted in replace mode when
 	// two distinct source values resolve to the same label string
 	// (e.g. legacy and current ISO country codes both mapping to
@@ -661,6 +667,7 @@ var allCodes = []Code{
 	PULSE_LABEL_TABLE_UNKNOWN,
 	PULSE_LABEL_FIELD_COLLISION,
 	PULSE_LABEL_DUPLICATE_BINDING,
+	PULSE_LABEL_TABLE_NOT_ENUMERABLE,
 	PULSE_LABEL_COLLISION,
 	PULSE_LABEL_LOOKUP_MISS,
 }

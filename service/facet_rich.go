@@ -53,6 +53,16 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if err := validateFacetSchemaRequest(req, schema); err != nil {
 		return nil, err
 	}
+	// Inject configured default label bindings (schema-filtered) for the
+	// fields being faceted so registered tables render in facet output
+	// without per-call bindings.
+	if len(s.autoLabels) > 0 {
+		faceted := make(map[string]bool, len(req.Fields))
+		for _, f := range req.Fields {
+			faceted[f] = true
+		}
+		s.applyAutoLabels(&req.Labels, schema, nil, faceted)
+	}
 	if err := s.validateFacetLabels(req, schema); err != nil {
 		return nil, err
 	}
