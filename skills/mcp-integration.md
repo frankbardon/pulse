@@ -232,6 +232,27 @@ The handler accepts either a JSON-encoded string (above) or a structured object 
 - **Stdout discipline:** in stdio mode, stdout is the JSON-RPC transport. The server logs to stderr. This is invisible to you but affects what a host can show in its UI.
 </reference>
 
+<embedding>
+## Embedding the MCP server (for host applications)
+
+`pulse mcp` is the standalone path. A host that has already constructed a
+`*pulse.Pulse` — especially one configured with `Options.Extensions` (custom
+operators, expression functions, label tables) — serves the same MCP surface
+from its own process via the public `mcpserve` package:
+
+```go
+p, _ := pulse.New(pulse.Options{DataDir: dir, Extensions: myExtensions})
+// Over the process's stdin/stdout (what an MCP client spawns as a subprocess):
+_ = mcpserve.ServeStdio(p, mcpserve.Options{BindOnOpen: true})
+// Or with an injected transport (tests, custom pipes):
+_ = mcpserve.Serve(ctx, p, mcpserve.Options{BindOnOpen: true}, in, out)
+```
+
+This is the only way a domain layer's in-process Go extensions reach MCP
+clients — the stock `pulse` binary cannot load them. The tool surface,
+schema-binding, and resource schemes are identical to `pulse mcp`.
+</embedding>
+
 <see_also>
 - getting-started — Pulse vocabulary and the 10 MCP tools
 - request-recipes — copy-pasteable request JSON skeletons keyed by intent
