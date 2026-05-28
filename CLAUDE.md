@@ -38,6 +38,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A registered MCP tool (add/remove) | `skills/mcp-integration.md` + `internal/mcp/mcptools/meta.go` | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
 | Managed-import sidecar shape (`imports.Sidecar`) | `skills/mcp-integration.md` + CLAUDE.md "Build / Env" | reviewer enforcement |
 | A new MCP action tool with field-name params | `internal/mcp/schema_bind.go` + `skills/mcp-integration.md` | `TestMCPSchemaBinding_*` suite |
+| The public MCP-serve entry (`mcpserve.Serve` / `mcpserve.ServeStdio`) | `mcpserve/` + `skills/mcp-integration.md` (Embedding section) | reviewer enforcement |
 | The default operator table | CLAUDE.md "Smart defaults" + `skills/getting-started.md` | `TestDefaults_Applied` + reviewer |
 | A natural-query parsing route | `internal/query/query.go` + tests + `skills/query-router-prompt.md` + `skills/request-recipes.md` | `TestNaturalQuery_HeuristicGrammar` |
 | A request example under `examples/` | `_meta` block (kebab name, category=dir, canonical tags, alphabetized operators matching body) | `TestExamples_*` suite |
