@@ -3067,7 +3067,7 @@
         ]
       }
     ],
-    "error_codes_count": 105,
+    "error_codes_count": 106,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3143,6 +3143,7 @@
       "PULSE_LABEL_FIELD_NOT_CATEGORICAL",
       "PULSE_LABEL_FIELD_UNKNOWN",
       "PULSE_LABEL_LOOKUP_MISS",
+      "PULSE_LABEL_TABLE_NOT_ENUMERABLE",
       "PULSE_LABEL_TABLE_UNKNOWN",
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
@@ -3227,6 +3228,14 @@
       {
         "name": "pulse_inspect",
         "description": "ADVANCED. Read header and schema of a .pulse file. Never reads record data. Typically callers should use pulse_ask instead — pulse_ask runs inspect + predict + execute in one call and is the preferred entry point for analytical questions. Use pulse_inspect directly only when you need schema-only output without running a request (e.g., listing fields for a UI, debugging dictionary contents)."
+      },
+      {
+        "name": "pulse_label_resolve",
+        "description": "Reverse-resolve a human-readable name — including a minor misspelling — to the raw categorical key(s) a Pulse filter or grouper expects. Labels are output-only — filter / group / sort keys operate on the raw categorical value — so when a user names a brand, category, region, etc., call this to get the key before authoring a FILTER_INCLUDE or GROUP_CATEGORY. Args: table (a name from pulse_label_tables), query (the name to search; typo-tolerant), and optional limit (default 10). Returns {key, value, score} ranked by score, a confidence in [0,1]: 1.0 exact (or exact-key), ~0.9+ prefix/near-typo, lower is fuzzy (edit-distance + trigram). Matching normalizes case and punctuation. Decision rule: if the top score is high (\u003e=0.9) and clearly ahead of the next, use it; if the best score is low or several are close, present the top names to the user and ask which they meant rather than guessing. An empty query returns the first rows (browse mode, score 0)."
+      },
+      {
+        "name": "pulse_label_tables",
+        "description": "List the registered label tables (ID→display-name dictionaries for categorical fields). Returns each table's name, row count, and whether it is enumerable (reverse-searchable). Use this to discover which categorical dimensions can be resolved by name (e.g. brand, category, region) before calling pulse_label_resolve. Output surfaces already render these labels automatically; this tool and pulse_label_resolve are for the INPUT direction — turning a user-supplied name into the raw categorical key a filter / grouper needs."
       },
       {
         "name": "pulse_manifest",
@@ -4199,4 +4208,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 000d83a43924a790f922e334e114a63272f7ee527b0702224a6fe0cb4a0e6393
+// golden-hash: 14c166a58620ce56bbd7a6e45ff1ecd380b630b7cf146eef61fee6af5b7b278b

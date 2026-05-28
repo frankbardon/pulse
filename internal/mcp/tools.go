@@ -38,6 +38,8 @@ const (
 	ToolImport         = mcptools.ToolImport
 	ToolDrop           = mcptools.ToolDrop
 	ToolImportsList    = mcptools.ToolImportsList
+	ToolLabelTables    = mcptools.ToolLabelTables
+	ToolLabelResolve   = mcptools.ToolLabelResolve
 
 	DescInspect        = mcptools.DescInspect
 	DescPredict        = mcptools.DescPredict
@@ -57,6 +59,8 @@ const (
 	DescImport         = mcptools.DescImport
 	DescDrop           = mcptools.DescDrop
 	DescImportsList    = mcptools.DescImportsList
+	DescLabelTables    = mcptools.DescLabelTables
+	DescLabelResolve   = mcptools.DescLabelResolve
 )
 
 // ToolMeta is the canonical (name, description) record for one registered
@@ -243,6 +247,23 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 			mcpgo.WithDescription(DescImportsList),
 		),
 		handleImportsList(p),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolLabelTables,
+			mcpgo.WithDescription(DescLabelTables),
+		),
+		handleLabelTables(p),
+	)
+
+	s.AddTool(
+		mcpgo.NewTool(ToolLabelResolve,
+			mcpgo.WithDescription(DescLabelResolve),
+			mcpgo.WithString("table", mcpgo.Description("Label table name (from pulse_label_tables, e.g. 'brand')"), mcpgo.Required()),
+			mcpgo.WithString("query", mcpgo.Description("Name to resolve, case-insensitive; empty returns the first rows (browse mode)")),
+			mcpgo.WithNumber("limit", mcpgo.Description("Maximum matches to return. Default 10.")),
+		),
+		handleLabelResolve(p),
 	)
 }
 
@@ -603,6 +624,44 @@ func intersectErrorLookup(code, domain, query string) []perr.LookupResult {
 		return []perr.LookupResult{}
 	}
 	return base
+}
+
+// handleLabelTables lists the registered label tables (name, row count,
+// enumerable). The INPUT-direction discovery companion to
+// pulse_label_resolve.
+func handleLabelTables(p *pulse.Pulse) server.ToolHandlerFunc {
+	return func(_ context.Context, _ mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		tables := p.LabelTables()
+		if tables == nil {
+			tables = []pulse.LabelTableInfo{}
+		}
+		return jsonResult(tables)
+	}
+}
+
+// handleLabelResolve reverse-resolves a human-readable name to the raw
+// categorical key(s) a filter / grouper expects.
+func handleLabelResolve(p *pulse.Pulse) server.ToolHandlerFunc {
+	return func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		args := req.GetArguments()
+		table, _ := args["table"].(string)
+		if table == "" {
+			return mcpgo.NewToolResultError("missing or invalid 'table'"), nil
+		}
+		query, _ := args["query"].(string)
+		limit := 0
+		if raw, ok := args["limit"].(float64); ok {
+			limit = int(raw)
+		}
+		matches, err := p.ResolveLabel(table, query, limit)
+		if err != nil {
+			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+		if matches == nil {
+			matches = []pulse.LabelMatch{}
+		}
+		return jsonResult(matches)
+	}
 }
 
 // requestBytes pulls a request blob from a tool argument. The argument may

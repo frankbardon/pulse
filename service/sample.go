@@ -34,6 +34,16 @@ func (s *Service) SampleWithRequest(ctx context.Context, req *types.SampleReques
 		return nil, nil, nil
 	}
 
+	// Inject configured default label bindings (schema-filtered) so
+	// registered tables render in sampled rows without per-call bindings.
+	// A failed open here is non-fatal — the real error surfaces in
+	// validateSampleLabels / sampleOffsetLimit below.
+	if len(s.autoLabels) > 0 {
+		if cohort, err := s.Open(ctx, path); err == nil {
+			s.applyAutoLabels(&req.Labels, cohort.Schema(), nil, nil)
+		}
+	}
+
 	// Header-only predict-time validation. Reads the schema once, lets
 	// descriptor.ValidateLabels surface every binding-shape failure
 	// (unknown field, non-categorical, unknown table, augment

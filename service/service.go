@@ -36,6 +36,14 @@ type Service struct {
 	// errors. Currently governs the categorical-aggregation check in
 	// Process; matches pulse.Options.Strict.
 	strict bool
+
+	// autoLabels are default LabelBindings injected into every read
+	// request before validation. Each is applied only when its field is
+	// present + categorical in the target cohort's schema and the caller
+	// has not already bound that field — so a default that does not fit a
+	// given cohort is silently skipped rather than failing the request.
+	// Matches pulse.Options.AutoLabels.
+	autoLabels []*types.LabelBinding
 }
 
 // New creates a new Service with the given filesystem configuration.
@@ -115,6 +123,19 @@ func (s *Service) SetStrict(strict bool) {
 // Strict reports the current strict-validation setting.
 func (s *Service) Strict() bool {
 	return s.strict
+}
+
+// SetAutoLabels installs the default LabelBindings injected into read
+// requests before validation. Pass nil to clear. See the autoLabels
+// field and applyAutoLabels for the schema-aware filtering applied per
+// request. Matches pulse.Options.AutoLabels.
+func (s *Service) SetAutoLabels(bindings []*types.LabelBinding) {
+	s.autoLabels = bindings
+}
+
+// AutoLabels returns the configured default bindings. Exposed for tests.
+func (s *Service) AutoLabels() []*types.LabelBinding {
+	return s.autoLabels
 }
 
 // SetExtensionsSnapshot installs the descriptor-side projection of
@@ -341,6 +362,11 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// omitted, based on each named field's schema type. Caller can opt
 	// out via SetDisableDefaults / pulse.Options{DisableDefaults: true}.
 	s.applyDefaults(req, cohort.Schema())
+
+	// Inject configured default label bindings (schema-filtered) before
+	// validation so registered tables render display strings without the
+	// caller specifying bindings per request.
+	s.applyAutoLabels(&req.Labels, cohort.Schema(), collectOutputLabels(req), nil)
 
 	// Label-binding validation runs before any record bytes are read so
 	// schema / table / collision failures surface as typed errors.
