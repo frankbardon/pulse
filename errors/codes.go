@@ -553,6 +553,18 @@ const (
 	// categorical value; the warning summarises the count of
 	// unresolved values per field so callers can audit gaps.
 	PULSE_LABEL_LOOKUP_MISS Code = "PULSE_LABEL_LOOKUP_MISS"
+
+	// PULSE_REQUEST_UNKNOWN_FIELD indicates a request JSON carried a
+	// top-level key that is not a recognised Request slot. JSON
+	// decoding silently ignores unknown keys, so the offending slot
+	// is dropped and the request runs as if that operation were
+	// absent. The most common cause is reusing a manifest
+	// operator-catalog field name ("groupers", "aggregators") as the
+	// request key instead of the request slot name ("groups",
+	// "aggregations"). Surfaced by the MCP action handlers before
+	// execution; details carry the offending key(s), the nearest
+	// valid slot, and the full valid-key list.
+	PULSE_REQUEST_UNKNOWN_FIELD Code = "PULSE_REQUEST_UNKNOWN_FIELD"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -670,6 +682,7 @@ var allCodes = []Code{
 	PULSE_LABEL_TABLE_NOT_ENUMERABLE,
 	PULSE_LABEL_COLLISION,
 	PULSE_LABEL_LOOKUP_MISS,
+	PULSE_REQUEST_UNKNOWN_FIELD,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

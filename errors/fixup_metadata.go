@@ -1031,4 +1031,14 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_REQUEST_UNKNOWN_FIELD: {
+		Message: "The request JSON contains a top-level key that is not a recognised Request slot. JSON decoding silently ignores unknown keys, so the intended operation is dropped and the request runs as if it were absent. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\").",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Hint:     "Rename the offending key to its canonical request slot (the error details carry the nearest valid key). Request slots are: cohort, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, regressions, joins, labels, outputs. The manifest's \"groupers\"/\"aggregators\" name the available OPERATORS; the request slots that hold them are \"groups\"/\"aggregations\".",
+				Examples: []any{"groupers -> groups", "aggregators -> aggregations"},
+			},
+		},
+	},
 }

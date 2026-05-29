@@ -3067,7 +3067,7 @@
         ]
       }
     ],
-    "error_codes_count": 106,
+    "error_codes_count": 107,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3150,6 +3150,7 @@
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_QUERY_AMBIGUOUS",
       "PULSE_QUERY_UNRESOLVED",
+      "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_SHARD_DESCRIPTION_DIVERGENCE",
       "PULSE_SHARD_DICT_DIVERGENCE",
       "PULSE_SHARD_DICT_WIDTH_OVERFLOW",
@@ -3247,7 +3248,7 @@
       },
       {
         "name": "pulse_process",
-        "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nTypically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
+        "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion.\n\nTypically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
       },
       {
         "name": "pulse_process_chain",
@@ -4208,4 +4209,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 14c166a58620ce56bbd7a6e45ff1ecd380b630b7cf146eef61fee6af5b7b278b
+// golden-hash: df255de9f8d2ea7b973719ae7a9c9f5ae740bcfc943ef7b4f8bf5ab53092afc7

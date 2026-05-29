@@ -339,7 +339,8 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 				"additionalProperties": true,
 			},
 			"aggregations": map[string]any{
-				"type": "array",
+				"type":        "array",
+				"description": "Aggregation operations. The request key is \"aggregations\" (NOT \"aggregators\" — \"aggregators\" is the manifest's operator-catalog field name). Each entry selects an AGG_* operator.",
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -386,7 +387,8 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 				},
 			},
 			"groups": map[string]any{
-				"type": "array",
+				"type":        "array",
+				"description": "Grouping operations. The request key is \"groups\" (NOT \"groupers\" — \"groupers\" is the manifest's operator-catalog field name). Each entry selects a GROUP_* operator.",
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
