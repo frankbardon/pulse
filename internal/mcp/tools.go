@@ -322,6 +322,9 @@ func handleAsk(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool, handlers bo
 		if err != nil {
 			return mcpgo.NewToolResultError(err.Error()), nil
 		}
+		if ce := checkUnknownKeysAsk(body); ce != nil {
+			return codedErrorResult(ce), nil
+		}
 		var typed pulse.AskRequest
 		if err := json.Unmarshal(body, &typed); err != nil {
 			return mcpgo.NewToolResultError(fmt.Sprintf("parse request: %v", err)), nil
@@ -360,6 +363,9 @@ func handlePredict(p *pulse.Pulse) server.ToolHandlerFunc {
 		if err != nil {
 			return mcpgo.NewToolResultError(err.Error()), nil
 		}
+		if ce := checkUnknownRequestKeys(body); ce != nil {
+			return codedErrorResult(ce), nil
+		}
 		var typed types.Request
 		if err := json.Unmarshal(body, &typed); err != nil {
 			return mcpgo.NewToolResultError(fmt.Sprintf("parse request: %v", err)), nil
@@ -377,6 +383,9 @@ func handleProcess(p *pulse.Pulse) server.ToolHandlerFunc {
 		body, err := requestBytes(req, "request")
 		if err != nil {
 			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+		if ce := checkUnknownRequestKeys(body); ce != nil {
+			return codedErrorResult(ce), nil
 		}
 		var typed types.Request
 		if err := json.Unmarshal(body, &typed); err != nil {
@@ -396,6 +405,9 @@ func handleCompose(p *pulse.Pulse) server.ToolHandlerFunc {
 		if err != nil {
 			return mcpgo.NewToolResultError(err.Error()), nil
 		}
+		if ce := checkUnknownKeysComposed(body); ce != nil {
+			return codedErrorResult(ce), nil
+		}
 		var typed types.ComposedRequest
 		if err := json.Unmarshal(body, &typed); err != nil {
 			return mcpgo.NewToolResultError(fmt.Sprintf("parse request: %v", err)), nil
@@ -413,6 +425,9 @@ func handleProcessChain(p *pulse.Pulse) server.ToolHandlerFunc {
 		body, err := requestBytes(req, "request")
 		if err != nil {
 			return mcpgo.NewToolResultError(err.Error()), nil
+		}
+		if ce := checkUnknownKeysChain(body); ce != nil {
+			return codedErrorResult(ce), nil
 		}
 		var typed types.ChainRequest
 		if err := json.Unmarshal(body, &typed); err != nil {

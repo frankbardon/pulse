@@ -132,6 +132,21 @@ What gets constrained on the bound `pulse_process` / `pulse_predict` / `pulse_co
 | `pulse_facet` `field` arg | All cohort field names |
 | `pulse_facet_schema` `request.fields[]` / `request.additive_fields[]` / `request.filterers[].field` | All cohort field names |
 
+### Request slot keys vs. catalog names
+
+A request's grouping operations go under the `groups` key and its aggregations under `aggregations`. These are **not** the same identifiers the manifest uses for its operator catalogs, which are `groupers` and `aggregators` — those catalogs only enumerate the available `GROUP_*` / `AGG_*` operators. A common authoring mistake is reusing the catalog name as the request key (`{"groupers": [...]}`), which JSON decoding silently drops, so the request runs as if the grouping were absent.
+
+`pulse_predict`, `pulse_process`, `pulse_compose`, `pulse_process_chain`, and `pulse_ask` guard against this: an unrecognized top-level request key is rejected with `PULSE_REQUEST_UNKNOWN_FIELD`, whose message and `details` carry the offending key, the nearest valid slot (`groupers → groups`, `aggregators → aggregations`), and the full valid-key list. Rename the key to the suggested slot and retry.
+
+| Request slot | Manifest catalog |
+|---|---|
+| `groups` | `groupers` |
+| `aggregations` | `aggregators` |
+| `attributes` | `attributes` |
+| `filterers` | `filterers` |
+| `windows` | `windows` |
+| `features` | `features` |
+
 ### Trigger and lifecycle
 
 - Binding fires on a successful `pulse_inspect`, not on resource subscription. Inspect is the natural moment: the server has just read the schema.
