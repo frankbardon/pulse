@@ -39,6 +39,7 @@ func apiProcessCmd() *cli.Command {
 			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
 			&cli.BoolFlag{Name: "strict", Usage: "Promote request-validation warnings into hard errors (e.g. numeric aggregation on a categorical field)"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized (post-defaults) request on the envelope under \"request\". Streaming output skips this — NDJSON has no envelope."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
@@ -46,6 +47,7 @@ func apiProcessCmd() *cli.Command {
 			stream := cmd.Bool("stream")
 			noDefaults := cmd.Bool("no-defaults")
 			strict := cmd.Bool("strict")
+			echoRequest := cmd.Bool("echo-request")
 
 			req, err := loadRequest(reqPath)
 			if err != nil {
@@ -55,7 +57,7 @@ func apiProcessCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, Strict: strict})
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, Strict: strict, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
@@ -113,6 +115,13 @@ func apiProcessCmd() *cli.Command {
 						}
 					}
 				}
+				// Process mutates req in place via service.applyDefaults,
+				// so by the time we reach here req is the normalized
+				// (post-defaults) form. Echo it verbatim — what the
+				// caller sees is exactly what the engine ran.
+				if echoRequest {
+					env.WithRequest(req)
+				}
 				return writeJSON(cmd.Writer, env)
 			}
 
@@ -129,11 +138,13 @@ func apiProcessChainCmd() *cli.Command {
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Chain request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized ChainRequest on the envelope under \"request\". Each stage's Request reflects the per-stage post-defaults form captured during execution."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
 			jsonOut := cmd.Bool("json")
 			noDefaults := cmd.Bool("no-defaults")
+			echoRequest := cmd.Bool("echo-request")
 
 			chain, err := loadChainRequest(reqPath)
 			if err != nil {
@@ -143,7 +154,7 @@ func apiProcessChainCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults})
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
@@ -160,7 +171,11 @@ func apiProcessChainCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, resp)
+				var echoed any
+				if echoRequest && resp != nil && resp.NormalizedRequest != nil {
+					echoed = resp.NormalizedRequest
+				}
+				return writeEnvelopeWithRequest(cmd.Writer, resp, echoed)
 			}
 			return writeJSON(cmd.Writer, resp)
 		},
@@ -178,6 +193,7 @@ func apiComposeCmd() *cli.Command {
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized ComposedRequest on the envelope under \"request\". Each slot reflects its post-defaults form. Streaming output skips this."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
@@ -186,6 +202,7 @@ func apiComposeCmd() *cli.Command {
 			workers := int(cmd.Int("parallel"))
 			noFailFast := cmd.Bool("no-fail-fast")
 			noDefaults := cmd.Bool("no-defaults")
+			echoRequest := cmd.Bool("echo-request")
 
 			composed, err := loadComposedRequest(reqPath)
 			if err != nil {
@@ -195,7 +212,7 @@ func apiComposeCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults})
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
@@ -235,7 +252,14 @@ func apiComposeCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, responses)
+				var echoed any
+				if echoRequest {
+					// Each sub-request was mutated in place by service
+					// during execution. Echo the composed request as a
+					// whole — each slot is the post-defaults form.
+					echoed = composed
+				}
+				return writeEnvelopeWithRequest(cmd.Writer, responses, echoed)
 			}
 
 			return writeJSON(cmd.Writer, responses)
@@ -252,12 +276,14 @@ func apiSampleCmd() *cli.Command {
 			&cli.IntFlag{Name: "count", Aliases: []string{"n"}, Value: 10, Usage: "Number of rows to sample"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: field=table[:replace|augment]. Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved SampleRequest on the envelope under \"request\"."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
 			count := int(cmd.Int("count"))
 			jsonOut := cmd.Bool("json")
 			labelArgs := cmd.StringSlice("labels")
+			echoRequest := cmd.Bool("echo-request")
 
 			p, err := newPulse()
 			if err != nil {
@@ -276,7 +302,14 @@ func apiSampleCmd() *cli.Command {
 					return err
 				}
 				if jsonOut {
-					return writeEnvelope(cmd.Writer, rows)
+					var echoed any
+					if echoRequest {
+						echoed = &pulse.SampleRequest{
+							Cohort: &types.Cohort{Filename: input},
+							N:      count,
+						}
+					}
+					return writeEnvelopeWithRequest(cmd.Writer, rows, echoed)
 				}
 				return writeJSON(cmd.Writer, rows)
 			}
@@ -288,9 +321,10 @@ func apiSampleCmd() *cli.Command {
 				}
 				return perr
 			}
-			result, err := p.SampleWithRequest(ctx, &pulse.SampleRequest{
+			sampleReq := &pulse.SampleRequest{
 				Cohort: &types.Cohort{Filename: input}, N: count, Labels: bindings,
-			})
+			}
+			result, err := p.SampleWithRequest(ctx, sampleReq)
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err.Error())
@@ -299,6 +333,9 @@ func apiSampleCmd() *cli.Command {
 			}
 			if jsonOut {
 				env := descriptor.NewEnvelope(result.Rows)
+				if echoRequest {
+					env.WithRequest(sampleReq)
+				}
 				for _, w := range result.Warnings {
 					env.AddWarning(w.Code, w.Message, w.Details)
 				}
@@ -326,6 +363,7 @@ func apiFacetCmd() *cli.Command {
 			&cli.StringSliceFlag{Name: "additive", Usage: "Compute additive contribution counts for this field (repeatable)"},
 			&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: field=table[:replace|augment]. Repeatable."},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved FacetRequest on the envelope under \"request\"."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
@@ -340,6 +378,7 @@ func apiFacetCmd() *cli.Command {
 			additive := cmd.StringSlice("additive")
 			labelArgs := cmd.StringSlice("labels")
 			jsonOut := cmd.Bool("json")
+			echoRequest := cmd.Bool("echo-request")
 
 			rich := reqPath != "" || len(fields) > 1 || topK > 0 || len(pcts) > 0 || includeHist || len(additive) > 0 || len(labelArgs) > 0
 
@@ -367,7 +406,14 @@ func apiFacetCmd() *cli.Command {
 					return err
 				}
 				if jsonOut {
-					return writeEnvelope(cmd.Writer, values)
+					var echoed any
+					if echoRequest {
+						echoed = &pulse.FacetRequest{
+							Cohort: &types.Cohort{Filename: input},
+							Fields: []string{fields[0]},
+						}
+					}
+					return writeEnvelopeWithRequest(cmd.Writer, values, echoed)
 				}
 				for _, v := range values {
 					writeText(cmd.Writer, "%s\n", v)
@@ -400,7 +446,11 @@ func apiFacetCmd() *cli.Command {
 				return err
 			}
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, result)
+				var echoed any
+				if echoRequest {
+					echoed = req
+				}
+				return writeEnvelopeWithRequest(cmd.Writer, result, echoed)
 			}
 			return writeJSON(cmd.Writer, result)
 		},
@@ -466,11 +516,13 @@ func apiPredictCmd() *cli.Command {
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "strict", Usage: "Treat warnings as errors"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized request on the envelope under \"request\" (distinct from PredictResult.Request, which echoes the raw input)."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
 			jsonOut := cmd.Bool("json")
 			strict := cmd.Bool("strict")
+			echoRequest := cmd.Bool("echo-request")
 
 			req, err := loadRequest(reqPath)
 			if err != nil {
@@ -502,7 +554,7 @@ func apiPredictCmd() *cli.Command {
 				return err
 			}
 
-			opts := &descriptor.PredictOptions{Strict: strict}
+			opts := &descriptor.PredictOptions{Strict: strict, EchoRequest: echoRequest}
 			env := descriptor.PredictFromBytes(data, req, opts)
 
 			if jsonOut {

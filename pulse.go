@@ -223,6 +223,21 @@ type Options struct {
 	// PULSE_EXTENSION_DUPLICATE.
 	LabelTablesDir string
 
+	// EchoRequest causes execution paths and descriptor operations to
+	// populate descriptor.Envelope.Request with the *normalized* request
+	// that was executed — smart defaults resolved, per-stage forms
+	// captured for ProcessChain. Off by default to keep wire size
+	// unchanged for hot paths and existing callers. The streaming
+	// process / compose paths skip the echo unconditionally (NDJSON
+	// emit per row, no envelope construction). Predict / inspect /
+	// facet / chain / join descriptor endpoints honor the flag via
+	// PredictOptions and the equivalent option structs.
+	//
+	// Intended for automation callers that want to log or replay the
+	// exact request the engine ran without re-deriving defaults
+	// themselves.
+	EchoRequest bool
+
 	// AutoLabels are default LabelBindings the engine injects into every
 	// read request (Process / Compose / Facet / Sample) before
 	// validation, so registered label tables render display strings
@@ -299,6 +314,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetStrict(opts.Strict)
 	svc.SetAutoLabels(autoLabelPtrs(opts.AutoLabels))
+	svc.SetEchoRequest(opts.EchoRequest)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:     opts.ImportsDir,

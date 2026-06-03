@@ -53,6 +53,19 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 			map[string]any{"stage_index": 0, "stage_name": req.Stages[0].Name})
 	}
 
+	// Capture the post-defaults form of every stage when echo is on so
+	// the boundary (CLI / MCP) can publish a normalized request alongside
+	// the response. The capture is a snapshot taken *after* applyDefaults
+	// so it reflects exactly what the engine ran.
+	var normStages []*types.ChainStage
+	if s.echoRequest {
+		normStages = make([]*types.ChainStage, 0, len(req.Stages))
+		normStages = append(normStages, &types.ChainStage{
+			Name:    req.Stages[0].Name,
+			Request: snapshotRequest(stage0),
+		})
+	}
+
 	firstResp, err := s.Process(ctx, stage0)
 	if err != nil {
 		return nil, err
@@ -87,6 +100,13 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 				map[string]any{"stage_index": i, "stage_name": req.Stages[i].Name})
 		}
 
+		if s.echoRequest {
+			normStages = append(normStages, &types.ChainStage{
+				Name:    req.Stages[i].Name,
+				Request: snapshotRequest(stage),
+			})
+		}
+
 		resp, err := s.runChainStage(ctx, stage, synthSchema, records)
 		if err != nil {
 			return nil, err
@@ -99,7 +119,45 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 	if len(out.Stages) > 0 {
 		out.Final = out.Stages[len(out.Stages)-1]
 	}
+	if s.echoRequest {
+		out.NormalizedRequest = &types.ChainRequest{
+			Cohort: req.Cohort,
+			Stages: normStages,
+		}
+	}
 	return out, nil
+}
+
+// snapshotRequest returns a value-level copy of req with the same
+// aggregator and grouper deep-clone the predict path uses. Used by
+// ProcessChain to capture per-stage normalized requests without holding
+// a reference to the live (still-executing) Request struct.
+func snapshotRequest(req *types.Request) *types.Request {
+	if req == nil {
+		return nil
+	}
+	clone := *req
+	if len(req.Aggregations) > 0 {
+		clone.Aggregations = make([]*types.Aggregation, len(req.Aggregations))
+		for i, a := range req.Aggregations {
+			if a == nil {
+				continue
+			}
+			ac := *a
+			clone.Aggregations[i] = &ac
+		}
+	}
+	if len(req.Groups) > 0 {
+		clone.Groups = make([]*types.Group, len(req.Groups))
+		for i, g := range req.Groups {
+			if g == nil {
+				continue
+			}
+			gc := *g
+			clone.Groups[i] = &gc
+		}
+	}
+	return &clone
 }
 
 // runChainStage runs the processor against an in-memory record set

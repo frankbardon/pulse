@@ -60,6 +60,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | `FilterToFileRequest` / `FilterToFileResult` shape, deterministic-naming rule, or `Pulse.FilterToFileWithRequest` dedup contract | `filter_to_file_request.go` + `descriptor/manifest.go` (Operations) | `TestFilterToFileWithRequest_*` |
 | Manifest `CommandAnnotations` field or `Manifest.Operations` slot | `descriptor/manifest.go` + `descriptor/testdata/manifest.json` | `TestManifest_CommandAnnotationsPopulated`, `TestManifest_OperationsPopulated`, `TestManifest_AnnotationSemantics` |
 | `Request.Crosstab` slot, `CrosstabSpec` / `MatrixPayload` / `CrosstabResult` shape, or `AggregationType.MarginReducibility` classification | `types/crosstab.go` + `types/streamability.go` + `types/types.go` + `processing/crosstab.go` + `service/crosstab.go` + `descriptor/crosstab.go` + `descriptor/capabilities_crosstab.go` + `descriptor/manifest.go` + `internal/mcp/schema_bind.go` + `skills/crosstab-guide.md` + `skills/index.json` | `TestCrosstab_CountCellByteEqualToManual`, `TestCrosstab_MedianMarginRecomputesFromRaw`, `TestCrosstab_NormalizeRow_SumsToOne`, `TestCrosstab_NormalizeColumn_SumsToOne`, `TestCrosstab_NormalizeTotal_SumsToOne`, `TestCrosstab_NestedAxes`, `TestCrosstab_BinningGrouperOnAxis`, `TestCrosstab_LongShape`, `TestCrosstab_ConflictsWithGroupsRejected`, `TestCrosstab_AllAggregatorsClassified`, `TestPredict_Crosstab_MatrixForcesBuffered`, `TestPredict_Crosstab_LongNoMarginsStreamable`, `TestManifest_CrosstabCapabilityPopulated` |
+| `descriptor.Envelope.Request` field, `pulse.Options.EchoRequest`, `PredictOptions.EchoRequest`, `ChainResponse.NormalizedRequest`, or the `--echo-request` CLI surface | `descriptor/envelope.go` + `descriptor/predict.go` + `pulse.go` + `service/service.go` + `service/chain.go` + `types/chain.go` + `internal/cli/api.go` + `internal/cli/json.go` + CLAUDE.md "Output Format Contract" | `TestEnvelope_RequestOmittedByDefault`, `TestEnvelope_RequestPopulatedWhenSet`, `TestPredict_EchoRequest_Normalized`, `TestProcessChain_NormalizedRequest_PerStage` |
 
 Table is self-referential — new trigger rows require updating this table in the same PR. `TestUpdateDemandTableCovers` parses this section and asserts every component category and contract type has a row.
 
@@ -160,6 +161,7 @@ All `--json` CLI output + descriptor operations use `descriptor.Envelope`:
 {
   "format_version": "1.0",
   "data": { ... },
+  "request": { ... },
   "errors": [],
   "warnings": []
 }
@@ -167,14 +169,15 @@ All `--json` CLI output + descriptor operations use `descriptor.Envelope`:
 
 - `format_version` always `"1.0"`. Changes MUST update this section.
 - `errors` / `warnings` use `{"code", "message", "details"}`. Empty array (never null) when absent.
+- `request` is opt-in echo of the *normalized* request that produced `data`. Omitted entirely (the `omitempty` rule) unless `pulse.Options.EchoRequest` is true or the CLI was invoked with `--echo-request`. Shape varies by operation: `Request` for process/predict, `ComposedRequest` for compose, `ChainRequest` for process-chain (per-stage normalized form captured during execution), `FacetRequest` for facet, `SampleRequest` for sample. Streaming output (`--stream`, `ProcessStream`) skips the echo by construction — NDJSON has no envelope. Use `descriptor.NewEnvelopeWithRequest(data, req)` or `env.WithRequest(req)` to populate it.
 
-Additive-only: bump `format_version` only on backward-incompatible shape changes. New `data` fields don't bump; renames/removals do.
+Additive-only: bump `format_version` only on backward-incompatible shape changes. New `data` fields don't bump; renames/removals do. The `request` field is additive (omitempty) and does NOT bump `format_version`.
 
 ### Structural defense bans
 
 - **No `fmt.Sprintf`-built JSON.** All structured output through `encoding/json`. Grep-gated by `TestDescriptorNoFmtSprintf`.
 - **No hand-built XML/CDATA.** Use `encoding/xml`.
-- Use `descriptor.NewEnvelope(data)` — auto-sets `format_version`, empty `errors`, empty `warnings`.
+- Use `descriptor.NewEnvelope(data)` — auto-sets `format_version`, empty `errors`, empty `warnings`. Use `descriptor.NewEnvelopeWithRequest(data, req)` (or `env.WithRequest(req)`) when echo is enabled at the call site.
 
 ### Manifest payload
 

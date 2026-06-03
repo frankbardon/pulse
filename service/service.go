@@ -44,6 +44,14 @@ type Service struct {
 	// given cohort is silently skipped rather than failing the request.
 	// Matches pulse.Options.AutoLabels.
 	autoLabels []*types.LabelBinding
+
+	// echoRequest causes ProcessChain to capture per-stage normalized
+	// requests into ChainResponse.NormalizedRequest so the CLI / MCP
+	// boundary can publish them on the envelope. Other execution paths
+	// (Process, Compose, Facet, Sample) keep the in-place defaults
+	// mutation behavior — the boundary clones for echo purposes itself.
+	// Matches pulse.Options.EchoRequest.
+	echoRequest bool
 }
 
 // New creates a new Service with the given filesystem configuration.
@@ -136,6 +144,19 @@ func (s *Service) SetAutoLabels(bindings []*types.LabelBinding) {
 // AutoLabels returns the configured default bindings. Exposed for tests.
 func (s *Service) AutoLabels() []*types.LabelBinding {
 	return s.autoLabels
+}
+
+// SetEchoRequest toggles per-stage normalized-request capture in
+// ProcessChain. When true, ChainResponse carries a NormalizedRequest
+// snapshot built during execution; when false, that field is nil.
+// Matches pulse.Options.EchoRequest.
+func (s *Service) SetEchoRequest(enabled bool) {
+	s.echoRequest = enabled
+}
+
+// EchoRequest reports the current echo setting.
+func (s *Service) EchoRequest() bool {
+	return s.echoRequest
 }
 
 // SetExtensionsSnapshot installs the descriptor-side projection of

@@ -69,6 +69,84 @@ func TestProcessChain_TwoStageByteEqualToManual(t *testing.T) {
 	}
 }
 
+// TestProcessChain_NormalizedRequest_PerStage validates the per-stage
+// normalized echo: ChainResponse.NormalizedRequest is nil when echo is
+// off, and when on it carries each stage's post-defaults form. Stage 0
+// runs against the on-disk schema; later stages against the synthesized
+// stage-output schema. Both must show defaults resolved.
+func TestProcessChain_NormalizedRequest_PerStage(t *testing.T) {
+	schema := testSchema()
+	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
+	ctx := context.Background()
+
+	// Build a chain where stage 0 omits the aggregator Type (numeric
+	// default → AGG_SUM) and stage 1 references the aggregate output
+	// without a Type (numeric f64 default → AGG_SUM).
+	makeChain := func() *types.ChainRequest {
+		return &types.ChainRequest{
+			Cohort: &types.Cohort{Filename: "test.pulse"},
+			Stages: []*types.ChainStage{
+				{
+					Name: "stage0",
+					Request: &types.Request{
+						Cohort:       &types.Cohort{Filename: "test.pulse"},
+						Aggregations: []*types.Aggregation{{Field: "score", Label: "sum_score"}},
+					},
+				},
+				{
+					Name: "stage1",
+					Request: &types.Request{
+						Aggregations: []*types.Aggregation{{Field: "sum_score", Label: "total"}},
+					},
+				},
+			},
+		}
+	}
+
+	// Echo off: NormalizedRequest must be nil.
+	svcOff := New(cfg)
+	respOff, err := svcOff.ProcessChain(ctx, makeChain())
+	if err != nil {
+		t.Fatalf("echo-off ProcessChain: %v", err)
+	}
+	if respOff.NormalizedRequest != nil {
+		t.Errorf("NormalizedRequest set with EchoRequest=false: %#v", respOff.NormalizedRequest)
+	}
+
+	// Echo on: per-stage capture, each stage shows AGG_SUM defaulted.
+	svcOn := New(cfg)
+	svcOn.SetEchoRequest(true)
+	respOn, err := svcOn.ProcessChain(ctx, makeChain())
+	if err != nil {
+		t.Fatalf("echo-on ProcessChain: %v", err)
+	}
+	if respOn.NormalizedRequest == nil {
+		t.Fatal("NormalizedRequest nil with EchoRequest=true")
+	}
+	if got := len(respOn.NormalizedRequest.Stages); got != 2 {
+		t.Fatalf("NormalizedRequest.Stages length = %d; want 2", got)
+	}
+	for i, st := range respOn.NormalizedRequest.Stages {
+		if st == nil || st.Request == nil {
+			t.Fatalf("stage %d normalized form nil", i)
+		}
+		if len(st.Request.Aggregations) != 1 {
+			t.Fatalf("stage %d Aggregations = %d; want 1", i, len(st.Request.Aggregations))
+		}
+		if got := st.Request.Aggregations[0].Type; got != types.AGG_SUM {
+			t.Errorf("stage %d normalized Type = %q; want %q (per-stage default)",
+				i, got, types.AGG_SUM)
+		}
+	}
+	// Names propagated unchanged.
+	if respOn.NormalizedRequest.Stages[0].Name != "stage0" {
+		t.Errorf("stage 0 Name = %q; want stage0", respOn.NormalizedRequest.Stages[0].Name)
+	}
+	if respOn.NormalizedRequest.Stages[1].Name != "stage1" {
+		t.Errorf("stage 1 Name = %q; want stage1", respOn.NormalizedRequest.Stages[1].Name)
+	}
+}
+
 // TestProcessChain_NonMergeableMiddleStageReturnsError validates that
 // the chain executor refuses a non-mergeable stage and surfaces the
 // offending stage index.

@@ -90,6 +90,12 @@ type PredictOptions struct {
 	// embedder-registered ops as unknown, and feeds streamability
 	// overrides into computeStreamable.
 	Extensions *ExtensionsSnapshot
+
+	// EchoRequest causes Predict to populate envelope.Request with the
+	// normalized (post-defaults) request. PredictResult.Request stays
+	// the raw input request — the envelope field is the new uniform
+	// surface across all envelope-producing endpoints. Off by default.
+	EchoRequest bool
 }
 
 // PredictResult holds the validated request and any diagnostics.
@@ -217,6 +223,14 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		result.DefaultsApplied = applied
 	}
 	req = resolved
+
+	// EchoRequest publishes the normalized clone on the envelope. The
+	// clone is the same struct downstream validators see, so what the
+	// caller gets on env.Request is exactly what an engine run would
+	// execute. PredictResult.Request remains the raw input (back-compat).
+	if opts.EchoRequest {
+		env.Request = resolved
+	}
 
 	// Validate pre-filter feature operators and compute the post-feature
 	// column set so downstream stages can reference derived columns.

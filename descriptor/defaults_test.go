@@ -311,6 +311,61 @@ func TestDefaults_UnknownFieldLeftAlone(t *testing.T) {
 	}
 }
 
+// TestPredict_EchoRequest_Normalized verifies the opt-in envelope echo
+// surfaces the *normalized* request (defaults resolved) on
+// envelope.Request, leaving PredictResult.Request untouched as the raw
+// input. With the flag off the envelope field stays absent.
+func TestPredict_EchoRequest_Normalized(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "revenue", Type: encoding.FieldTypeF64, Description: "Revenue in USD."},
+		},
+	}
+	data := buildTestPulseFile(t, schema)
+
+	// Defaulted request — field set, no Type.
+	makeReq := func() *types.Request {
+		return &types.Request{Aggregations: []*types.Aggregation{{Field: "revenue"}}}
+	}
+
+	// Flag off: envelope.Request must be nil.
+	envOff := PredictFromBytes(data, makeReq(), &PredictOptions{})
+	if envOff.Request != nil {
+		t.Fatalf("EchoRequest=false produced envelope.Request: %#v", envOff.Request)
+	}
+
+	// Flag on: envelope.Request is the normalized clone; its first
+	// aggregation has the inferred Type populated.
+	rawReq := makeReq()
+	envOn := PredictFromBytes(data, rawReq, &PredictOptions{EchoRequest: true})
+	if envOn.Request == nil {
+		t.Fatal("EchoRequest=true did not populate envelope.Request")
+	}
+	normalized, ok := envOn.Request.(*types.Request)
+	if !ok {
+		t.Fatalf("envelope.Request type = %T; want *types.Request", envOn.Request)
+	}
+	if len(normalized.Aggregations) != 1 {
+		t.Fatalf("normalized.Aggregations length = %d; want 1", len(normalized.Aggregations))
+	}
+	if normalized.Aggregations[0].Type != types.AGG_SUM {
+		t.Errorf("normalized aggregation Type = %q; want %q",
+			normalized.Aggregations[0].Type, types.AGG_SUM)
+	}
+	// Raw input must remain untouched — predict never mutates the caller's request.
+	if rawReq.Aggregations[0].Type != "" {
+		t.Errorf("raw request mutated: Type = %q", rawReq.Aggregations[0].Type)
+	}
+	// PredictResult.Request stays the raw form (back-compat).
+	result, ok := envOn.Data.(*PredictResult)
+	if !ok {
+		t.Fatal("Data is not *PredictResult")
+	}
+	if result.Request != rawReq {
+		t.Error("PredictResult.Request is not the raw input")
+	}
+}
+
 // TestDefaults_NilInputs verifies that ResolveDefaults is safe against
 // nil requests and nil schemas (returns nil, no panic).
 func TestDefaults_NilInputs(t *testing.T) {
