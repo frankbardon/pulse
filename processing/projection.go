@@ -118,6 +118,33 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 			continue
 		}
 		addKnown(a.Field)
+		addAggParamFields(out, a, known)
+	}
+
+	if req.Crosstab != nil {
+		for _, g := range req.Crosstab.Rows {
+			if g == nil {
+				continue
+			}
+			addKnown(g.Field)
+		}
+		for _, g := range req.Crosstab.Columns {
+			if g == nil {
+				continue
+			}
+			addKnown(g.Field)
+		}
+		if c := req.Crosstab.Cell; c != nil {
+			addKnown(c.Field)
+			addAggParamFields(out, c, known)
+		}
+	}
+
+	for _, b := range req.Labels {
+		if b == nil {
+			continue
+		}
+		addKnown(b.Field)
 	}
 
 	for _, a := range req.Attributes {
@@ -239,6 +266,17 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 				addAllKnown(inputs)
 			}
 		}
+		if req.Crosstab != nil && req.Crosstab.Cell != nil {
+			a := req.Crosstab.Cell
+			if _, custom := ext.Aggregators[a.Type]; custom {
+				inputs, ok := ext.FieldInputsFor("aggregator", string(a.Type), a.Params)
+				if !ok {
+					out.Widen()
+					return out
+				}
+				addAllKnown(inputs)
+			}
+		}
 		for _, a := range req.Attributes {
 			if a == nil {
 				continue
@@ -332,6 +370,40 @@ func (v *exprIdentVisitor) Visit(node *exprast.Node) {
 	}
 	if _, ok := v.known[id.Value]; ok {
 		v.out.Add(id.Value)
+	}
+}
+
+// addAggParamFields walks an aggregation's Params for built-in field
+// references that don't live on the Aggregation struct itself. Today
+// that is the cohort-analytics family:
+//
+//   - AGG_WEIGHTED_MEAN: Params.weight_field
+//   - AGG_RATIO:         Params.numerator_field, Params.denominator_field
+//
+// Extension aggregators take a separate code path that defers to the
+// registered FieldInputs hook; this helper handles only the built-ins.
+func addAggParamFields(out FieldSet, a *types.Aggregation, known map[string]struct{}) {
+	if a == nil {
+		return
+	}
+	switch a.Type {
+	case types.AGG_WEIGHTED_MEAN:
+		if name, ok := jsonStringField(a.Params, "weight_field"); ok {
+			if _, in := known[name]; in {
+				out.Add(name)
+			}
+		}
+	case types.AGG_RATIO:
+		if name, ok := jsonStringField(a.Params, "numerator_field"); ok {
+			if _, in := known[name]; in {
+				out.Add(name)
+			}
+		}
+		if name, ok := jsonStringField(a.Params, "denominator_field"); ok {
+			if _, in := known[name]; in {
+				out.Add(name)
+			}
+		}
 	}
 }
 

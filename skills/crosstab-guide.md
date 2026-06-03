@@ -89,6 +89,12 @@ The single streamable case: `shape: long` + every `margins` flag false + `normal
 
 `pulse predict` reports the exact buffered reasons via `StreamableReasons`. Run it before an expensive crosstab so the buffered cost is intentional, not accidental.
 
+### Buffered-set field projection (automatic)
+
+Because the crosstab path materializes the filter-passing record set, memory cost on wide cohorts (hundreds of fields) was historically catastrophic — every buffered record carried every schema field even when only a handful were referenced. The orchestrator now projects each buffered record to only the fields actually referenced by the request: rows-axis groupers, columns-axis groupers, the cell aggregation (including `weight_field` / `numerator_field` / `denominator_field` on `AGG_WEIGHTED_MEAN` and `AGG_RATIO`), filterers, label bindings, tier-1 tests, regressions, features, and attribute source fields. Per-record memory drops from `O(|schema|)` to `O(|referenced|)`.
+
+The projection is automatic and silent — there is no flag to set and the behavior is unchanged for narrow cohorts. Requests carrying a `FILTER_EXPRESSION` whose expression fails to parse, an extension operator without a registered `FieldInputs` hook, or any construct whose field set the walker cannot prove complete fall back transparently to the full-decode path. Output bytes are byte-equal across the two paths.
+
 ## Recipes for common cross-tabulations
 
 Use these as starting points; every recipe is a runnable shape.

@@ -481,6 +481,28 @@ func (s *Service) applyProjection(iter scanIterator, req *types.Request, schema 
 	if !s.projectBuffered || iter == nil || req == nil || schema == nil {
 		return
 	}
+	s.installProjection(iter, req, schema)
+}
+
+// applyCrosstabProjection is the crosstab-specific variant of
+// applyProjection that ignores the opts.ProjectBufferedFields gate.
+// Crosstab always materializes the filter-passing record set; on wide
+// cohorts the projection win is the difference between a working query
+// and an out-of-memory event, so the optimisation is mandatory for the
+// crosstab path even when the cohort-wide flag is off. Falls back to
+// full decode silently when the needed-field set widens (extension
+// operator without FieldInputs, malformed expression, etc.).
+func (s *Service) applyCrosstabProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) {
+	if iter == nil || req == nil || schema == nil {
+		return
+	}
+	s.installProjection(iter, req, schema)
+}
+
+// installProjection is the shared mechanics behind applyProjection
+// and applyCrosstabProjection. The two callers diverge only on the
+// gate that decides whether projection is attempted at all.
+func (s *Service) installProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) {
 	needed := processing.NeededFields(req, schema, s.extensions)
 	if needed.IsWide() {
 		return
