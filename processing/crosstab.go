@@ -284,11 +284,34 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		cellValues = normalized
 	}
 
+	// Tier-1 row tests fold over the filter-passing record set, mirroring
+	// the buffered grouped path in processRecords. Streamable tests run
+	// online; buffered tests (TEST_KS, TEST_MANN_WHITNEY_U,
+	// TEST_FISHER_EXACT, etc.) collect rows internally during UpdateRow
+	// and decide at Finalize. Same semantics as a hand-written grouped
+	// request — see skills/crosstab-guide.md "Statistical testing".
+	rowTests, err := p.buildRowTests(req.Tests)
+	if err != nil {
+		return nil, err
+	}
+	for _, rt := range rowTests {
+		for _, rec := range filtered {
+			if err := rt.test.UpdateRow(rec); err != nil {
+				return nil, err
+			}
+		}
+	}
+	testResults, err := finalizeRowTests(rowTests)
+	if err != nil {
+		return nil, err
+	}
+
 	resp := &types.Response{
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,
 		},
+		Tests: testResults,
 	}
 
 	shape := spec.ShapeOrDefault()
@@ -297,12 +320,62 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			Shape:  shape,
 			Matrix: buildMatrixPayload(spec, rowPart, colPart, cellValues, cellPresent, rowMargins, rowMarginPresent, colMargins, colMarginPresent, grandMargin, grandPresent, cellLabel, mode),
 		}
-		return resp, nil
+	} else {
+		resp.Crosstab = &types.CrosstabResult{Shape: shape}
+		resp.Data = buildLongRows(spec, rowPart, colPart, cellValues, cellPresent, rowMargins, rowMarginPresent, colMargins, colMarginPresent, grandMargin, grandPresent, cellLabel)
 	}
 
-	resp.Crosstab = &types.CrosstabResult{Shape: shape}
-	resp.Data = buildLongRows(spec, rowPart, colPart, cellValues, cellPresent, rowMargins, rowMarginPresent, colMargins, colMarginPresent, grandMargin, grandPresent, cellLabel)
+	// Tier-2 post-tests run over the materialized cell rows. Margin rows
+	// are excluded — they are emission-time annotations, not statistical
+	// observations. For shape=matrix the orchestrator synthesises the
+	// cell-row view; for shape=long the cell rows are already
+	// addressable as the non-margin subset of resp.Data.
+	postRows := buildCellRowsForPostTest(spec, rowPart, colPart, cellValues, cellPresent, cellLabel)
+	postResults, err := p.runPostTests(req.PostTests, postRows)
+	if err != nil {
+		return nil, err
+	}
+	resp.PostTests = postResults
+
 	return resp, nil
+}
+
+// buildCellRowsForPostTest synthesises one row per present cell with
+// every axis field populated and the cell label set to the (possibly
+// normalized) cell value. Excludes margin annotations. Matches the
+// cell-only subset of buildLongRows so a tier-2 post test sees the
+// same observations regardless of the configured shape.
+func buildCellRowsForPostTest(spec *types.CrosstabSpec,
+	rowPart, colPart *CrosstabAxisPartition,
+	cellValues map[crosstabCellKey]float64,
+	cellPresent map[crosstabCellKey]bool,
+	cellLabel string,
+) []map[string]any {
+	rowFields := types.AxisFieldNames(spec.Rows)
+	colFields := types.AxisFieldNames(spec.Columns)
+	var out []map[string]any
+	for i, rcomp := range rowPart.Keys {
+		for j, ccomp := range colPart.Keys {
+			key := crosstabCellKey{rcomp, ccomp}
+			if !cellPresent[key] {
+				continue
+			}
+			row := make(map[string]any, len(rowFields)+len(colFields)+1)
+			for k, f := range rowFields {
+				if k < len(rowPart.Tuples[i]) {
+					row[f] = rowPart.Tuples[i][k]
+				}
+			}
+			for k, f := range colFields {
+				if k < len(colPart.Tuples[j]) {
+					row[f] = colPart.Tuples[j][k]
+				}
+			}
+			row[cellLabel] = cellValues[key]
+			out = append(out, row)
+		}
+	}
+	return out
 }
 
 // normalizeDenominator returns the denominator to divide a cell by under
