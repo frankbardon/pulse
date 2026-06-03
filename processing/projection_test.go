@@ -259,6 +259,137 @@ func TestNeededFields_UnknownNamesDropped(t *testing.T) {
 	}
 }
 
+func TestNeededFields_CrosstabAxesAndCell(t *testing.T) {
+	schema := mkSchema("region", "segment", "value", "unused", "noise")
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value"},
+		},
+	}
+	got := NeededFields(req, schema, nil)
+	if got.IsWide() {
+		t.Fatalf("expected narrow set, got wide")
+	}
+	want := []string{"region", "segment", "value"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+func TestNeededFields_CrosstabNestedAxes(t *testing.T) {
+	schema := mkSchema("r1", "r2", "r3", "c1", "v", "unused")
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "r1"},
+				{Type: types.GROUP_CATEGORY, Field: "r2"},
+				{Type: types.GROUP_CATEGORY, Field: "r3"},
+			},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "c1"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "v"},
+		},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"c1", "r1", "r2", "r3", "v"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+func TestNeededFields_CrosstabCellParamsWeightedMean(t *testing.T) {
+	schema := mkSchema("region", "segment", "value", "weight", "unused")
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell: &types.Aggregation{
+				Type:   types.AGG_WEIGHTED_MEAN,
+				Field:  "value",
+				Params: json.RawMessage(`{"weight_field":"weight"}`),
+			},
+		},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"region", "segment", "value", "weight"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+func TestNeededFields_CrosstabCellParamsRatio(t *testing.T) {
+	schema := mkSchema("region", "segment", "num", "den", "unused")
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell: &types.Aggregation{
+				Type:   types.AGG_RATIO,
+				Field:  "num",
+				Params: json.RawMessage(`{"numerator_field":"num","denominator_field":"den"}`),
+			},
+		},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"den", "num", "region", "segment"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+func TestNeededFields_LabelBindingField(t *testing.T) {
+	schema := mkSchema("region", "value", "unused")
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "value"},
+		},
+		Labels: []*types.LabelBinding{
+			{Field: "region", Table: "regions", Mode: types.LabelModeReplace},
+		},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"region", "value"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+func TestNeededFields_TopLevelAggregationWeightedMean(t *testing.T) {
+	schema := mkSchema("v", "w", "unused")
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{
+			Type:   types.AGG_WEIGHTED_MEAN,
+			Field:  "v",
+			Params: json.RawMessage(`{"weight_field":"w"}`),
+		}},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"v", "w"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+func TestNeededFields_CrosstabFilterExpressionBailsOut(t *testing.T) {
+	schema := mkSchema("region", "segment", "value", "unused")
+	req := &types.Request{
+		Filterers: []*types.Filterer{{
+			Type:       types.FILTER_EXPRESSION,
+			Expression: "not parseable (",
+		}},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value"},
+		},
+	}
+	got := NeededFields(req, schema, nil)
+	if !got.IsWide() {
+		t.Fatalf("expected wide set on unparseable filter expression, got %v", sortedFields(got))
+	}
+}
+
 func TestNeededFields_NilInputsWiden(t *testing.T) {
 	if !NeededFields(nil, mkSchema("a"), nil).IsWide() {
 		t.Errorf("nil request must widen")

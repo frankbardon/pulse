@@ -41,6 +41,16 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	iter := s.newScanIter(cohort, path)
 	defer iter.Close()
 
+	// Crosstab always materializes the filter-passing record set. On
+	// wide cohorts that materialization is the dominant memory cost.
+	// Project the iterator to only the fields the request actually
+	// references so each Record's value/null/wide maps allocate at
+	// retained-field width instead of full schema width. Forced on
+	// independent of opts.ProjectBufferedFields because the crosstab
+	// path has no streamable alternative — the savings are load-bearing
+	// on cohorts beyond ~50 fields.
+	s.applyCrosstabProjection(iter, req, cohort.Schema())
+
 	// Materialize every record once. Crosstab buffers by construction
 	// (recursive Grouper partitioning needs the full set), so the
 	// streaming iterator is consumed up-front.
