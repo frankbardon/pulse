@@ -362,6 +362,19 @@ const (
 	// Implementation supports n ≤ 5000; n above the bound surfaces a
 	// PULSE_TEST_SHAPIRO_N_BOUND warning.
 	TEST_SHAPIRO_WILK TestType = "TEST_SHAPIRO_WILK"
+
+	// TEST_Z_TWO_SAMPLE is the two-sample z-test on the means of a
+	// numeric Field across two groups defined by a categorical SplitBy.
+	// Mathematically identical to TEST_WELCH for the test statistic and
+	// standard error, but the p-value is computed from the standard
+	// normal CDF Φ rather than the Student-t CDF T_df. The variant
+	// matches large-sample survey conventions (e.g. weighted-proportion
+	// tests already computed as means with an n denominator) where the
+	// Student-t correction is not desired. For small n the divergence
+	// from TEST_WELCH is non-trivial; predict surfaces no warning, so
+	// callers choose intentionally. Streams via the same per-group
+	// Welford buckets as TEST_T / TEST_WELCH.
+	TEST_Z_TWO_SAMPLE TestType = "TEST_Z_TWO_SAMPLE"
 )
 
 // AllTestTypes returns every defined statistical test type in alphabetical
@@ -388,6 +401,7 @@ func AllTestTypes() []TestType {
 		TEST_TUKEY_HSD,
 		TEST_WELCH,
 		TEST_WILCOXON_SR,
+		TEST_Z_TWO_SAMPLE,
 	}
 }
 

@@ -190,6 +190,15 @@ func testCapabilities() []TestMeta {
 			Params:      []Param{alphaParam},
 			Requires:    []string{"Field"},
 		},
+		{
+			Name:        string(types.TEST_Z_TWO_SAMPLE),
+			Family:      string(types.TEST_Z_TWO_SAMPLE),
+			Tier:        1,
+			Description: "Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ.",
+			Streamable:  types.TEST_Z_TWO_SAMPLE.Streamable(),
+			Params:      []Param{alphaParam},
+			Requires:    []string{"Field", "SplitBy"},
+		},
 		// Tier-2 natives: TREND and TUKEY_HSD are exclusively post-tests.
 		{
 			Name:        string(types.TEST_TREND),

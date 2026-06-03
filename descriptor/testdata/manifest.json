@@ -2126,6 +2126,26 @@
           "Field",
           "Field2"
         ]
+      },
+      {
+        "name": "TEST_Z_TWO_SAMPLE",
+        "family": "TEST_Z_TWO_SAMPLE",
+        "tier": 1,
+        "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
       }
     ],
     "post_tests": [
@@ -4270,4 +4290,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ed49d0aecdc54e4cccea52aab5da7734cb13af5c822c2d0250b5e48c0cfb2ec4
+// golden-hash: b59a8336ad374023ad5b1775e7529720208f99ab91dcc2f450896686a7a99c02
