@@ -78,6 +78,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		{"aggregations", "aggregations", 4},
 		{"tests", "tests", 27},
 		{"regression", "regression", 11},
+		{"crosstab", "crosstab", 13},
 	}
 
 	for _, cat := range categories {
@@ -135,11 +136,12 @@ func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
 	}
 	// Test-only requests legitimately have nil Data — the rows slot is
 	// empty when the request carries no aggregations. Accept that as
-	// long as at least one of Tests, PostTests, or Regressions is
-	// populated. Regression-only requests (e.g., simple OLS) emit no
-	// rows; their result lives in resp.Regressions instead.
-	if resp.Data == nil && len(resp.Tests) == 0 && len(resp.PostTests) == 0 && len(resp.Regressions) == 0 {
-		t.Fatalf("%s: nil data and no test/regression results", examplePath)
+	// long as at least one of Tests, PostTests, Regressions, or
+	// Crosstab is populated. Regression-only requests (e.g., simple
+	// OLS) emit no rows; matrix-shape crosstabs populate Crosstab
+	// instead of Data.
+	if resp.Data == nil && len(resp.Tests) == 0 && len(resp.PostTests) == 0 && len(resp.Regressions) == 0 && resp.Crosstab == nil {
+		t.Fatalf("%s: nil data and no test/regression/crosstab results", examplePath)
 	}
 }
 

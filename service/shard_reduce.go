@@ -101,8 +101,8 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	partials := make([]*shardPartial, len(shards))
 	jobs := make(chan int, len(shards))
 	var (
-		wg      sync.WaitGroup
-		errOnce sync.Once
+		wg       sync.WaitGroup
+		errOnce  sync.Once
 		firstErr error
 	)
 	cctx, cancel := context.WithCancel(ctx)

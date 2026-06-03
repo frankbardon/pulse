@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Mean session_minutes per (region, treatment) cell paired with TEST_ANOVA_F across the four region groups. The crosstab shows the per-cell means; the F-test reports whether region means differ significantly. Combines the visualization (crosstab) with the inference (ANOVA) in one Process call.",
+    "name": "crosstab_means_with_anova_inference",
+    "operators": [
+      "AGG_AVERAGE",
+      "GROUP_CATEGORY",
+      "TEST_ANOVA_F"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "k-sample",
+      "comparison"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "treatment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_AVERAGE",
+      "field": "session_minutes",
+      "label": "mean_session"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "tests": [
+    {
+      "type": "TEST_ANOVA_F",
+      "field": "session_minutes",
+      "split_by": "region",
+      "alpha": 0.05,
+      "label": "region_session_anova"
+    }
+  ]
+}

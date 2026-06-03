@@ -347,6 +347,10 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required")
 	}
 
+	if req.Crosstab != nil {
+		return s.processCrosstab(ctx, req)
+	}
+
 	if len(req.Joins) > 0 {
 		return s.processWithJoin(ctx, req)
 	}

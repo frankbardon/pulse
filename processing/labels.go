@@ -38,7 +38,7 @@ type labelBindingState struct {
 	table          LabelTable
 	mode           types.LabelMode
 	tableName      string
-	alwaysDisambig map[string]bool // source values whose label collides with another source's label
+	alwaysDisambig map[string]bool   // source values whose label collides with another source's label
 	labelToSource  map[string]string // label → first source seen (online collision detection)
 	missCounts     map[string]int
 	collisionPairs map[string]map[string]bool // label → set of source values that emit it

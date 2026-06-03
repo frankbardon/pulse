@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Nested row axis: rows are the (region, segment) tuple, columns are conversion outcome. Row tuples carry two components; ColumnKeys carries one. Demonstrates multi-grouper composite-key axis materialization.",
+    "name": "crosstab_nested_region_segment_by_converted",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      },
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "converted"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true
+    },
+    "normalize": "row"
+  }
+}

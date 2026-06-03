@@ -96,11 +96,11 @@ func TestResolveLabel_Misspelling(t *testing.T) {
 		query string
 		want  string
 	}{
-		{"Addidas", "Adidas"},   // adjacent transposition + doubled letter
-		{"Nikee", "Nike"},       // trailing typo
-		{"adiddas", "Adidas"},   // doubled letter
+		{"Addidas", "Adidas"},           // adjacent transposition + doubled letter
+		{"Nikee", "Nike"},               // trailing typo
+		{"adiddas", "Adidas"},           // doubled letter
 		{"new balanace", "New Balance"}, // typo with space
-		{"Reebock", "Reebok"},   // inserted letter
+		{"Reebock", "Reebok"},           // inserted letter
 	}
 	for _, c := range cases {
 		got, err := p.ResolveLabel("brand", c.query, 5)

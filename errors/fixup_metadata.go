@@ -986,9 +986,9 @@ var codeMetadata = map[Code]Metadata{
 		Message: "A LabelBinding in augment mode would emit a sibling \"<field>_label\" column whose name already exists in the request's output schema.",
 		Fixups: []Fixup{
 			{
-				Action: FixupReplaceField,
-				Path:   []string{"Labels", "*", "Mode"},
-				Hint:   "Switch the binding to replace mode, or rename the colliding existing field upstream so \"<field>_label\" is free.",
+				Action:   FixupReplaceField,
+				Path:     []string{"Labels", "*", "Mode"},
+				Hint:     "Switch the binding to replace mode, or rename the colliding existing field upstream so \"<field>_label\" is free.",
 				Examples: []any{"replace", "augment"},
 			},
 		},
@@ -1014,9 +1014,9 @@ var codeMetadata = map[Code]Metadata{
 		Message: "Two distinct source values resolve to the same label string in replace mode. The output disambiguates with the source value in parentheses (e.g. \"United States (US)\").",
 		Fixups: []Fixup{
 			{
-				Action: FixupReplaceField,
-				Path:   []string{"Labels", "*", "Mode"},
-				Hint:   "Switch to augment mode if you need the source value preserved verbatim, or clean the table so labels are unique per source value.",
+				Action:   FixupReplaceField,
+				Path:     []string{"Labels", "*", "Mode"},
+				Hint:     "Switch to augment mode if you need the source value preserved verbatim, or clean the table so labels are unique per source value.",
 				Examples: []any{"replace", "augment"},
 			},
 		},
@@ -1030,6 +1030,62 @@ var codeMetadata = map[Code]Metadata{
 				Hint:   "Extend the label table to cover the unresolved values, or back the table with a Lookup func that synthesises a fallback for unknown keys.",
 			},
 		},
+	},
+	PULSE_CROSSTAB_EMPTY_ROWS: {
+		Message: "The Crosstab section has no row-axis groupers. A crosstab requires at least one grouper on each axis.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Crosstab", "Rows"},
+				Hint:   "Add at least one Group entry to Crosstab.Rows; for a single-axis aggregation use a plain Process request with Groups + Aggregations instead.",
+			},
+		},
+	},
+	PULSE_CROSSTAB_EMPTY_COLUMNS: {
+		Message: "The Crosstab section has no column-axis groupers. A crosstab requires at least one grouper on each axis.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Crosstab", "Columns"},
+				Hint:   "Add at least one Group entry to Crosstab.Columns; for a single-axis aggregation use a plain Process request with Groups + Aggregations instead.",
+			},
+		},
+	},
+	PULSE_CROSSTAB_MISSING_CELL: {
+		Message: "The Crosstab section has no Cell aggregation. The cell aggregation is the value emitted per (row-tuple, column-tuple) intersection and is required.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Cell"},
+				Hint:     "Set Crosstab.Cell to an Aggregation with Type + Field; AGG_COUNT is the classic count crosstab cell, AGG_AVERAGE / AGG_SUM the typical numeric cells.",
+				Examples: []any{"AGG_COUNT", "AGG_AVERAGE", "AGG_SUM"},
+			},
+		},
+	},
+	PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS: {
+		Message: "A Crosstab section was supplied alongside top-level Groups or Aggregations on the same Request. The two surfaces are mutually exclusive.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups"},
+				Hint:   "Remove top-level Groups + Aggregations from the Request; the Crosstab section already lowers to a grouped request internally. If both shapes are needed, split into two Compose requests.",
+			},
+		},
+	},
+	PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE: {
+		Message: "The Crosstab section requested a normalization mode whose required margin cannot be computed (e.g. an aggregator whose margin is undefined on an empty axis).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Normalize"},
+				Hint:     "Switch Normalize to \"none\" to leave cells un-normalized, or pick a cell aggregator whose margin is defined under the chosen normalization direction.",
+				Examples: []any{"none", "row", "column", "total"},
+			},
+		},
+	},
+	PULSE_CROSSTAB_AGG_UNCLASSIFIED: {
+		Message:            "Internal guard: the margin pass encountered an aggregator with no MarginReducibility classification. Adding a new aggregator without updating AggregationType.MarginReducibility is the only way to reach this code.",
+		FixupNotApplicable: true,
 	},
 	PULSE_REQUEST_UNKNOWN_FIELD: {
 		Message: "The request JSON contains a top-level key that is not a recognised Request slot. JSON decoding silently ignores unknown keys, so the intended operation is dropped and the request runs as if it were absent. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\").",

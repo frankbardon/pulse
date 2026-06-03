@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Region × converted count crosstab with row normalization. Cells in each row sum to 1, so the value at (region, converted=yes) is the conversion rate within that region.",
+    "name": "crosstab_row_normalize_conversion_rate",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "proportion-analysis",
+      "comparison"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "converted"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true
+    },
+    "normalize": "row"
+  }
+}

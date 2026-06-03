@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Time-series crosstab: monthly period buckets via GROUP_DATE on the row axis, segment on the column axis, cell counts. Row-normalized so each month's row shows the segment mix at that point in time.",
+    "name": "crosstab_monthly_period_by_segment",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "time-series",
+      "proportion-analysis"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_DATE",
+        "field": "period",
+        "params": {
+          "unit": "month"
+        }
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true
+    },
+    "normalize": "row"
+  }
+}

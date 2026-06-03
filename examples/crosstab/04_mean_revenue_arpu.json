@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "ARPU table — mean revenue per (region, treatment) cell with row, column, and grand margins. Margins are recomputed from raw rows (mean_reducible classification), NOT averaged across cells.",
+    "name": "crosstab_mean_revenue_by_region_treatment",
+    "operators": [
+      "AGG_AVERAGE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "comparison",
+      "financial"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "treatment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_AVERAGE",
+      "field": "revenue",
+      "label": "arpu"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  }
+}

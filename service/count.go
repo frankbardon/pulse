@@ -19,7 +19,7 @@ import (
 //     Bytes read is bounded by header + schema size — O(1) in the
 //     record count.
 //   - Shard archive (zip magic): read the archive's central directory
-//     + the reserved `_schema.pulse` entry. The SHRD trailer's
+//   - the reserved `_schema.pulse` entry. The SHRD trailer's
 //     AggregateRecordCount is the cached sum of every shard's record
 //     count; cohesive archives keep it in lockstep with the
 //     per-shard headers. Cost is O(N shards) for the directory walk,
