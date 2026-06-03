@@ -89,9 +89,13 @@ The single streamable case: `shape: long` + every `margins` flag false + `normal
 
 `pulse predict` reports the exact buffered reasons via `StreamableReasons`. Run it before an expensive crosstab so the buffered cost is intentional, not accidental.
 
-## Pair with chi-square / Fisher exact
+## Recipes for common cross-tabulations
 
-For inference on a count crosstab (is the row × column relationship statistically meaningful?) Pulse already ships `TEST_CHISQ` and `TEST_FISHER_EXACT` in the tier-1 test set. Do NOT build new independence-testing logic — use the existing operators alongside the crosstab. Typical pattern:
+Use these as starting points; every recipe is a runnable shape.
+
+### Frequency cross-tab (raw counts)
+
+The classic contingency-table view. Cell aggregator is `AGG_COUNT`, margins on.
 
 ```json
 {
@@ -101,14 +105,299 @@ For inference on a count crosstab (is the row × column relationship statistical
     "columns": [{"type": "GROUP_CATEGORY", "field": "outcome"}],
     "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
     "margins": {"rows": true, "columns": true, "grand": true}
+  }
+}
+```
+
+Runnable equivalent in this repo: `examples/crosstab/01_count_with_column_normalize.json`.
+
+### Conversion rate per row (row %)
+
+`normalize: row` divides each cell by its row margin. The (region, converted=yes) cell becomes the conversion rate within that region. Each row sums to 1.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "rate"},
+    "margins": {"rows": true},
+    "normalize": "row"
+  }
+}
+```
+
+Runnable: `examples/crosstab/02_row_normalize_proportions.json`.
+
+### Column proportions (column %)
+
+`normalize: column` — answers "what share of the column belongs to each row?" Each column sums to 1.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "share"},
+    "margins": {"columns": true},
+    "normalize": "column"
+  }
+}
+```
+
+### Joint distribution (total %)
+
+`normalize: total` divides each cell by the grand total. The whole table sums to 1; each cell is the joint probability P(row=r, col=c).
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "segment"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "p"},
+    "margins": {"grand": true},
+    "normalize": "total"
+  }
+}
+```
+
+Runnable: `examples/crosstab/03_total_normalize_joint.json`.
+
+### Mean of a numeric cell (ARPU table)
+
+Cell aggregator is `AGG_AVERAGE`. The (region, treatment) cell is the mean revenue under that combination. **Row, column, and grand margins are recomputed from raw rows** — they are NOT averages of the cell means. Order matters: a region-margin mean over (n_A=10 revenue=100, n_B=1000 revenue=50) is closer to 50, not 75.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "treatment"}],
+    "cell":    {"type": "AGG_AVERAGE", "field": "revenue", "label": "arpu"},
+    "margins": {"rows": true, "columns": true, "grand": true}
+  }
+}
+```
+
+Runnable: `examples/crosstab/04_mean_revenue_arpu.json`.
+
+### Median per cell (recompute classification)
+
+`AGG_MEDIAN` is `recompute`-class — its margin cannot be derived from cell values. Pulse always recomputes it from raw rows so the row margin for region=R is the median of every revenue in region=R, NOT the median of cell medians.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+    "cell":    {"type": "AGG_MEDIAN", "field": "revenue", "label": "median_revenue"},
+    "margins": {"rows": true, "columns": true, "grand": true}
+  }
+}
+```
+
+Runnable: `examples/crosstab/05_median_revenue_recompute.json`.
+
+### Binning a continuous variable on an axis
+
+`GROUP_RANGE` on the row axis turns a continuous variable into ranges that index the rows. `GROUP_ROUNDED` and `GROUP_QUANTILE` work the same way; `GROUP_DATE` slices a date column by day / week / month / quarter / year.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_RANGE", "field": "revenue_before", "interval": 100}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "treatment"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    "margins": {"rows": true}
+  }
+}
+```
+
+Runnable: `examples/crosstab/06_binning_grouper_axis.json`.
+
+### Nested axis headers (multi-grouper rows)
+
+Multiple groupers on `rows` produce nested row tuples. The row header lists every grouper field in order; each `RowKey` tuple carries that many components.
+
+```json
+{
+  "crosstab": {
+    "rows": [
+      {"type": "GROUP_CATEGORY", "field": "region"},
+      {"type": "GROUP_CATEGORY", "field": "segment"}
+    ],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    "margins": {"rows": true},
+    "normalize": "row"
+  }
+}
+```
+
+Runnable: `examples/crosstab/07_nested_row_axes.json`. The same pattern works on `columns`.
+
+### Time-series crosstab via GROUP_DATE
+
+Row axis is a monthly bucket; columns are the categorical breakdown. Row-normalize to see the mix at each point in time.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_DATE", "field": "period", "params": {"unit": "month"}}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    "margins": {"rows": true},
+    "normalize": "row"
+  }
+}
+```
+
+Runnable: `examples/crosstab/11_date_grouper_axis.json`.
+
+### Long-form output for downstream pipelines
+
+`shape: long` emits one row per cell on `Response.Data` instead of a matrix on `Response.Crosstab`. Margin rows are tagged via the `_margin` field (`"row"`, `"column"`, `"grand"`).
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    "margins": {"rows": true, "columns": true, "grand": true},
+    "shape":   "long"
+  }
+}
+```
+
+Runnable: `examples/crosstab/08_long_shape_margins.json`.
+
+## Statistical testing the crosstab result
+
+A crosstab is a visualization. The inferential question — "is what I see statistically significant?" — is the job of Pulse's existing statistical tests. The two surfaces compose in a single `Request`: keep the `crosstab` section, add a `tests` (tier-1) or `post_tests` (tier-2) slot. The conflict guard (`PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS`) only fires for top-level `groups` + `aggregations`; `tests` are free to ride along.
+
+### Independence on a count crosstab — chi-square
+
+For "is row × column relationship meaningful?" on a count crosstab, pair `TEST_CHISQ`. Same `rows` and `cols` field names as the crosstab's row/column axis. Streamable.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "segment"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    "margins": {"rows": true, "columns": true, "grand": true}
   },
   "tests": [
-    {"type": "TEST_CHISQ", "rows": "treatment", "cols": "outcome"}
+    {"type": "TEST_CHISQ", "rows": "segment", "cols": "converted", "alpha": 0.05}
   ]
 }
 ```
 
-Use `TEST_FISHER_EXACT` instead of `TEST_CHISQ` when any expected cell count is below 5 (the classic small-sample threshold for the asymptotic χ² approximation).
+Runnable: `examples/crosstab/09_with_chi_square_inference.json`. The test's response carries the χ² statistic, degrees of freedom, p-value, and per-cell expected counts.
+
+`TEST_CHISQ` warns (`PULSE_TEST_EXPECTED_COUNT_TOO_LOW`) when any expected cell count drops below 5 — that is your signal to switch to Fisher's exact.
+
+### Small-sample 2×2 — Fisher's exact
+
+Replace `TEST_CHISQ` with `TEST_FISHER_EXACT` for 2×2 tables when expected counts are small. The v1 implementation supports only 2×2; larger contingency tables stay on chi-square.
+
+```json
+{
+  "filterers": [{"type": "FILTER_INCLUDE", "field": "region", "values": ["east"]}],
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "treatment"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    "margins": {"rows": true, "columns": true, "grand": true}
+  },
+  "tests": [
+    {"type": "TEST_FISHER_EXACT", "rows": "treatment", "cols": "converted", "alpha": 0.05}
+  ]
+}
+```
+
+Runnable: `examples/crosstab/10_with_fisher_exact_small_sample.json`.
+
+### Comparing means across cell groups — t-test / ANOVA
+
+When the cell is `AGG_AVERAGE`, the inferential question becomes "do these means differ significantly?" Pulse's tier-1 tests answer that directly off the raw row stream, in parallel with the crosstab:
+
+- **Two groups → `TEST_T` / `TEST_WELCH`.** Set `field` to the numeric column and `split_by` to the categorical split. Streamable.
+- **k groups (k ≥ 2) → `TEST_ANOVA_F`** (homoscedastic) or **`TEST_ANOVA_WELCH`** (unequal variances). Streamable.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "treatment"}],
+    "cell":    {"type": "AGG_AVERAGE", "field": "session_minutes", "label": "mean_session"},
+    "margins": {"rows": true, "columns": true, "grand": true}
+  },
+  "tests": [
+    {"type": "TEST_ANOVA_F", "field": "session_minutes", "split_by": "region", "alpha": 0.05}
+  ]
+}
+```
+
+Runnable: `examples/crosstab/12_means_with_anova_inference.json`. Use `post_tests` with `TEST_TUKEY_HSD` for pairwise post-hoc on a significant ANOVA.
+
+### Nonparametric alternative — Mann-Whitney / Kruskal-Wallis
+
+When the cell numeric is heavy-tailed (revenue, durations) and the t-test's normality assumption is suspect, swap in the rank-based alternative:
+
+- **Two groups → `TEST_MANN_WHITNEY_U`** (replaces `TEST_T`).
+- **k groups → `TEST_KRUSKAL_WALLIS`** (replaces `TEST_ANOVA_F`).
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "treatment"}],
+    "cell":    {"type": "AGG_AVERAGE", "field": "revenue", "label": "mean_revenue"},
+    "margins": {"columns": true, "grand": true}
+  },
+  "tests": [
+    {"type": "TEST_MANN_WHITNEY_U", "field": "revenue", "split_by": "treatment", "alpha": 0.05}
+  ]
+}
+```
+
+Runnable: `examples/crosstab/13_means_with_mann_whitney_robust.json`. Both nonparametric tests are buffered (rank-based); predict will flag the request as non-streamable.
+
+### Two-proportion z-test on a normalized crosstab
+
+When the cell is a proportion (row- or column-normalized count crosstab on a binary outcome), `TEST_PROP_Z` tests whether two groups' success rates differ. The test reads raw rows, so it pairs cleanly with the visualization:
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "treatment"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "rate"},
+    "margins": {"rows": true},
+    "normalize": "row"
+  },
+  "tests": [
+    {"type": "TEST_PROP_Z", "field": "converted", "split_by": "treatment",
+     "params": "{\"success\": \"yes\"}"}
+  ]
+}
+```
+
+### Test-picking cheat sheet
+
+| Cell aggregator | Inferential question | Tier-1 test | Notes |
+|---|---|---|---|
+| `AGG_COUNT` | Row × column independence | `TEST_CHISQ` | Streaming-friendly. Warns when expected < 5. |
+| `AGG_COUNT` (2×2, small n) | Row × column independence | `TEST_FISHER_EXACT` | Buffered. 2×2 only in v1. |
+| `AGG_COUNT` on a binary outcome | Group A rate = Group B rate | `TEST_PROP_Z` | Streamable. Needs `params.success`. |
+| `AGG_AVERAGE` (2 groups, normal) | Means differ | `TEST_T` / `TEST_WELCH` | Streamable. |
+| `AGG_AVERAGE` (k groups, normal) | All means equal | `TEST_ANOVA_F` / `TEST_ANOVA_WELCH` | Streamable. Pair with `TEST_TUKEY_HSD` post-test. |
+| `AGG_AVERAGE` (heavy tails, 2) | Distributions differ | `TEST_MANN_WHITNEY_U` | Buffered, rank-based. |
+| `AGG_AVERAGE` (heavy tails, k) | Distributions differ | `TEST_KRUSKAL_WALLIS` | Buffered. |
+| Any | Series trend over time | `TEST_TREND` (tier-2) | Run as `post_tests` over windowed cells. |
+
+The full list lives at `skills/statistical-testing.md`.
 
 ## Conflicts and rejections
 

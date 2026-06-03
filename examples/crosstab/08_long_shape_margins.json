@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Same region × segment count crosstab as the canonical example, but emitted in shape=long. Response.Data carries one tuple per cell; margin rows are flagged via the `_margin` field (\"row\", \"column\", or \"grand\") so downstream consumers can distinguish data rows from margins.",
+    "name": "crosstab_long_shape_with_margins",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    },
+    "shape": "long"
+  }
+}

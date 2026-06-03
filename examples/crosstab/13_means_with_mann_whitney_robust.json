@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Mean revenue per (region, treatment) cell paired with TEST_MANN_WHITNEY_U comparing revenue between treatment arms. Nonparametric alternative to TEST_T: use when revenue is heavy-tailed / lognormal and the t-test's normality assumption is suspect.",
+    "name": "crosstab_means_with_mann_whitney_robust",
+    "operators": [
+      "AGG_AVERAGE",
+      "GROUP_CATEGORY",
+      "TEST_MANN_WHITNEY_U"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "hypothesis-test",
+      "tier-1-test",
+      "nonparametric",
+      "two-sample",
+      "comparison"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "treatment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_AVERAGE",
+      "field": "revenue",
+      "label": "mean_revenue"
+    },
+    "margins": {
+      "columns": true,
+      "grand": true
+    }
+  },
+  "tests": [
+    {
+      "type": "TEST_MANN_WHITNEY_U",
+      "field": "revenue",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "treatment_revenue_mwu"
+    }
+  ]
+}

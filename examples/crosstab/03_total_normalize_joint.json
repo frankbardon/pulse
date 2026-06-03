@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Segment × converted count crosstab with total normalization. Whole table sums to 1; each cell is the joint probability P(segment=s, converted=c).",
+    "name": "crosstab_total_normalize_joint",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "proportion-analysis",
+      "distribution-shape"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "converted"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "p"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    },
+    "normalize": "total"
+  }
+}

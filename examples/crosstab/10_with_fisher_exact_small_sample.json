@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Small-sample 2×2 count crosstab (treatment × converted) paired with TEST_FISHER_EXACT. Use Fisher's exact instead of chi-square when any expected cell count drops below 5 — the asymptotic χ² approximation loses accuracy in that regime.",
+    "name": "crosstab_with_fisher_exact_small_sample",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY",
+      "TEST_FISHER_EXACT"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "hypothesis-test",
+      "tier-1-test",
+      "exact-test",
+      "small-sample"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "region",
+      "values": ["east"]
+    }
+  ],
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "treatment"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "converted"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "tests": [
+    {
+      "type": "TEST_FISHER_EXACT",
+      "rows": "treatment",
+      "cols": "converted",
+      "alpha": 0.05,
+      "label": "treatment_conversion_exact"
+    }
+  ]
+}

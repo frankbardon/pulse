@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Continuous-variable crosstab: revenue_before binned via GROUP_RANGE on the row axis, treatment on the column axis, count cells. Demonstrates that binning groupers work on either axis with zero new operator code.",
+    "name": "crosstab_revenue_bin_by_treatment",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY",
+      "GROUP_RANGE"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "distribution-shape",
+      "comparison"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_RANGE",
+        "field": "revenue_before",
+        "interval": 100
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "treatment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true
+    }
+  }
+}

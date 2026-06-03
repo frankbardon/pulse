@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Count crosstab (segment × converted) paired with a TEST_CHISQ independence test on the same fields. The crosstab visualizes the contingency table; the test reports a p-value for the null hypothesis that segment and conversion are independent.",
+    "name": "crosstab_with_chi_square_inference",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY",
+      "TEST_CHISQ"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "hypothesis-test",
+      "tier-1-test",
+      "proportion-analysis"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "converted"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "tests": [
+    {
+      "type": "TEST_CHISQ",
+      "rows": "segment",
+      "cols": "converted",
+      "alpha": 0.05,
+      "label": "segment_conversion_independence"
+    }
+  ]
+}
