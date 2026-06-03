@@ -1,6 +1,6 @@
 ---
 name: statistical-testing
-description: Run tier-1 row tests (TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F, TEST_ANOVA_WELCH, TEST_ANOVA_RM, TEST_KS, TEST_PAIRED_T, TEST_PROP_Z, TEST_PEARSON_R, TEST_SPEARMAN_R, TEST_KENDALL_TAU, TEST_MANN_WHITNEY_U, TEST_WILCOXON_SR, TEST_KRUSKAL_WALLIS, TEST_BROWN_FORSYTHE, TEST_FISHER_EXACT, TEST_SHAPIRO_WILK) and tier-2 post-tests (TEST_TUKEY_HSD, TEST_TREND, variants). Use when a request mentions hypothesis testing, p-values, ANOVA, t-tests, correlations, normality, or post-hoc comparisons.
+description: Run tier-1 row tests (TEST_T, TEST_WELCH, TEST_Z_TWO_SAMPLE, TEST_CHISQ, TEST_ANOVA_F, TEST_ANOVA_WELCH, TEST_ANOVA_RM, TEST_KS, TEST_PAIRED_T, TEST_PROP_Z, TEST_PEARSON_R, TEST_SPEARMAN_R, TEST_KENDALL_TAU, TEST_MANN_WHITNEY_U, TEST_WILCOXON_SR, TEST_KRUSKAL_WALLIS, TEST_BROWN_FORSYTHE, TEST_FISHER_EXACT, TEST_SHAPIRO_WILK) and tier-2 post-tests (TEST_TUKEY_HSD, TEST_TREND, variants). Use when a request mentions hypothesis testing, p-values, ANOVA, t-tests, correlations, normality, or post-hoc comparisons.
 type: guide
 applies_to: process, compose, predict
 ---
@@ -46,6 +46,7 @@ Response:
 | Goal | Tier | Example |
 |---|---|---|
 | Treatment vs control on a continuous outcome | 1 | `TEST_T` on `revenue` split by `treatment` |
+| Large-sample two-mean comparison (normal-CDF p) | 1 | `TEST_Z_TWO_SAMPLE` on `weighted_mean` split by `arm` |
 | Independence of two categorical variables | 1 | `TEST_CHISQ` on `region × churned` |
 | Compare means across k categories on raw rows | 1 | `TEST_ANOVA_F` on `revenue` split by `region` |
 | Distribution comparison (CDF) | 1 | `TEST_KS` two-sample, raw rows |
@@ -81,6 +82,24 @@ Streamable: yes. Reuses online Welford moments.
 ### TEST_WELCH — explicit two-sample Welch t-test alias
 
 Identical to `TEST_T` with `split_by` set. Provided so requests can document intent. Same Details payload.
+
+### TEST_Z_TWO_SAMPLE — two-sample z-test on means
+
+Large-sample variant of `TEST_WELCH`. Same Welch standard error (`√(va/na + vb/nb)`), same test statistic `(meanA − meanB) / SE`, but the p-value is the two-sided tail of the standard normal `Φ` instead of the Student-t `T_df`. No degrees of freedom; `DF` is reported as 0.
+
+Use when:
+- n is large per group (≥ ~50) AND the caller explicitly wants z-based inference (e.g. survey conventions where per-group variance is treated as known).
+- Porting a workflow that already runs `scipy.stats.norm.cdf` on a `(m1 − m2) / √(v1/n1 + v2/n2)` statistic and you want byte-equal parity.
+
+For small n the divergence from `TEST_WELCH` is non-trivial — at n=50 each group, p-values differ by ~0.005; at n≥200 the difference is <0.001. When in doubt, prefer `TEST_WELCH`.
+
+Required fields:
+- `field` — numeric measurement
+- `split_by` — categorical producing exactly two groups
+
+Output Details: same as `TEST_WELCH` (`groups`, `n`, `mean`, `variance`, `diff`, `ci_low`, `ci_high`, `effect_size.cohens_d`). Variant: `two_sample_normal`.
+
+Streamable: yes. Reuses online Welford moments.
 
 ### TEST_CHISQ — chi-square independence
 
@@ -335,6 +354,7 @@ Streamable: no.
 |---|---|---|
 | `TEST_T` | yes | reuses online μ, σ², n per split bucket |
 | `TEST_WELCH` | yes | alias of `TEST_T` two-sample |
+| `TEST_Z_TWO_SAMPLE` | yes | same Welford state as `TEST_WELCH`, p-value via Φ |
 | `TEST_CHISQ` | yes | online contingency counts |
 | `TEST_ANOVA_F` | yes | online per-group moments |
 | `TEST_PEARSON_R` | yes | online cross-product Welford |
@@ -362,6 +382,7 @@ Tier-2 (`post_tests`) always runs over the materialized result set after windows
 |---|---|---|
 | `TEST_T` | ✓ | — |
 | `TEST_WELCH` | ✓ (alias of two-sample `TEST_T`) | — |
+| `TEST_Z_TWO_SAMPLE` | ✓ (Welch SE, normal-CDF p) | — |
 | `TEST_CHISQ` | ✓ | — |
 | `TEST_ANOVA_F` | ✓ | ✓ (from summary stats) |
 | `TEST_KS` | ✓ (forces buffered path) | ✓ (variant `two_sample_post`) |
