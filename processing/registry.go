@@ -49,6 +49,8 @@ var filtererRegistry = map[types.FiltererType]FiltererFactory{
 	types.FILTER_RANGE:      newRangeFilterer,
 	types.FILTER_EXPRESSION: newExpressionFilterer,
 	types.FILTER_NULL:       newNullFilterer,
+	types.FILTER_TRUE:       newTrueFilterer,
+	types.FILTER_FALSE:      newFalseFilterer,
 }
 
 // grouperRegistry maps group types to their factory functions.

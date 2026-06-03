@@ -1028,6 +1028,33 @@
           "streamable": true
         },
         {
+          "name": "FILTER_FALSE",
+          "category": "filterer",
+          "description": "Keep records where Field is logically false. Strict mode (default, omit Values) requires packed_bool. Opt into JavaScript-style coercion across any field type with Values=[\"truthy\"].",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true
+        },
+        {
           "name": "FILTER_INCLUDE",
           "category": "filterer",
           "description": "Keep records whose field value appears in the supplied Values list.",
@@ -1094,6 +1121,33 @@
             "nullable_u16",
             "nullable_u4",
             "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true
+        },
+        {
+          "name": "FILTER_TRUE",
+          "category": "filterer",
+          "description": "Keep records where Field is logically true. Strict mode (default, omit Values) requires packed_bool. Opt into JavaScript-style coercion across any field type with Values=[\"truthy\"].",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "nullable_bool",
+            "nullable_decimal128",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
             "u16",
             "u32",
             "u64",
@@ -3334,9 +3388,11 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
           "FILTER_NULL",
-          "FILTER_RANGE"
+          "FILTER_RANGE",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
@@ -3404,9 +3460,11 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
           "FILTER_NULL",
-          "FILTER_RANGE"
+          "FILTER_RANGE",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
@@ -3474,9 +3532,11 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
           "FILTER_NULL",
-          "FILTER_RANGE"
+          "FILTER_RANGE",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
@@ -3544,9 +3604,11 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
           "FILTER_NULL",
-          "FILTER_RANGE"
+          "FILTER_RANGE",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
@@ -3614,9 +3676,11 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
           "FILTER_NULL",
-          "FILTER_RANGE"
+          "FILTER_RANGE",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
@@ -3684,9 +3748,11 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
           "FILTER_NULL",
-          "FILTER_RANGE"
+          "FILTER_RANGE",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
@@ -3760,9 +3826,11 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
           "FILTER_NULL",
-          "FILTER_RANGE"
+          "FILTER_RANGE",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
@@ -3825,8 +3893,10 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
-          "FILTER_NULL"
+          "FILTER_NULL",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -3858,8 +3928,10 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
-          "FILTER_NULL"
+          "FILTER_NULL",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -3894,8 +3966,10 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
-          "FILTER_NULL"
+          "FILTER_NULL",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -3930,8 +4004,10 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
-          "FILTER_NULL"
+          "FILTER_NULL",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -3966,8 +4042,10 @@
         "compatible_filterers": [
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
+          "FILTER_FALSE",
           "FILTER_INCLUDE",
-          "FILTER_NULL"
+          "FILTER_NULL",
+          "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -4290,4 +4368,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b59a8336ad374023ad5b1775e7529720208f99ab91dcc2f450896686a7a99c02
+// golden-hash: 585bbb4ca68e533b179bae2afce28973364ae9b91b9264ab60535015be9dfd8b

@@ -76,6 +76,8 @@ func TestStreamability_FilterersKnown(t *testing.T) {
 		FILTER_RANGE:      true,
 		FILTER_EXPRESSION: true,
 		FILTER_NULL:       true,
+		FILTER_TRUE:       true,
+		FILTER_FALSE:      true,
 	}
 	for _, f := range AllFiltererTypes() {
 		want, ok := expected[f]

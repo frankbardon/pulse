@@ -1,6 +1,6 @@
 ---
 name: aggregation-guide
-description: Choose between the 16 AGG_* operators (SUM, AVG, MEDIAN, PERCENTILE, ZSCORE, FREQUENCY, MODE, KURTOSIS, ...) and 5 FILTER_* operators. Use when assembling a Process request, interpreting percentile/frequency output, or picking a row-filter.
+description: Choose between the 16 AGG_* operators (SUM, AVG, MEDIAN, PERCENTILE, ZSCORE, FREQUENCY, MODE, KURTOSIS, ...) and 7 FILTER_* operators. Use when assembling a Process request, interpreting percentile/frequency output, or picking a row-filter.
 type: guide
 applies_to: process, compose, predict
 ---
@@ -8,7 +8,7 @@ applies_to: process, compose, predict
 # Aggregation Guide
 
 <skill_overview>
-Pulse exposes 18 aggregators and 6 filterers that run during `process` and `compose`. Invoke this skill when choosing aggregators for a request, validating numeric-vs-categorical compatibility, or shaping filterers before grouping.
+Pulse exposes 21 aggregators and 7 filterers that run during `process` and `compose`. Invoke this skill when choosing aggregators for a request, validating numeric-vs-categorical compatibility, or shaping filterers before grouping.
 </skill_overview>
 
 <reference>
@@ -116,7 +116,7 @@ For "give me the per-value count of one or more fields" without aggregating acro
 </reference>
 
 <reference>
-## Filterers (6)
+## Filterers (7)
 
 Filterers run before grouping and aggregation. The `types.Filterer` JSON shape is `{"type", "field", "values", "expression"}`; only the keys relevant to each filterer type are used.
 
@@ -126,6 +126,8 @@ Filterers run before grouping and aggregation. The `types.Filterer` JSON shape i
 | FILTER_EXCLUDE | `field`, `values` (string list) | Drop records whose field value is in `values`. Nulls pass through. |
 | FILTER_RANGE | `field`, `values` (exactly `[min, max]`) | Keep records where `min <= value <= max` (both bounds inclusive). Nulls are dropped. |
 | FILTER_NULL | `field`, `values` (exactly `["is_null"]` or `["is_not_null"]`) | Keep records based on null state of the field. Use `is_null` to keep records where the field is null; `is_not_null` to drop them. |
+| FILTER_TRUE | `field`, optional `values=["truthy"]` | Keep records where `field` is logically true. Strict mode (default, omit `values`) requires `field` to be `packed_bool` and matches rows whose value is 1; null rows are dropped. Opt-in `values=["truthy"]` accepts any field type and applies JavaScript `Boolean(value)` semantics — `0`, `NaN`, `""`, and null coerce to falsy and are dropped. |
+| FILTER_FALSE | `field`, optional `values=["truthy"]` | Mirror of FILTER_TRUE. Strict mode keeps `packed_bool` rows whose value is 0; null rows are dropped. With `values=["truthy"]`, JS-falsy rows (including null / missing) are kept — same coercion table as FILTER_TRUE. |
 | FILTER_EXPRESSION | `expression` (expr-lang string returning bool) | Evaluate `expression` against the record's field map; keep records where it returns `true`. No `field` key. |
 </reference>
 
@@ -174,6 +176,37 @@ To count nulls and non-nulls in a single request, combine `AGG_COUNT` (non-null)
   {"type": "AGG_NULL_COUNT", "field": "email", "label": "n_missing"}
 ]}
 ```
+</example>
+
+<example name="filter-true-false">
+Keep records where `is_active` (a `packed_bool` field) is true. Strict mode — no `values` key.
+
+```json
+{"type": "FILTER_TRUE", "field": "is_active"}
+```
+
+Drop records where `is_active` is true (i.e. keep the explicit `false` rows; nulls are dropped).
+
+```json
+{"type": "FILTER_FALSE", "field": "is_active"}
+```
+
+Opt into JavaScript-style coercion to filter a non-boolean column. The block below keeps any row whose `notes` text is non-empty (empty string and null are dropped):
+
+```json
+{"type": "FILTER_TRUE", "field": "notes", "values": ["truthy"]}
+```
+
+`values=["truthy"]` is the only opt-in token; without it, `FILTER_TRUE` / `FILTER_FALSE` reject non-`packed_bool` fields with `PROCESSING_CONFIG` so a coercion is never silent. Coercion table mirrors JavaScript `Boolean(value)`:
+
+| Field shape | Falsy values | Everything else |
+|---|---|---|
+| numeric (u*, f*, date, packed_bool) | `0`, `NaN` | truthy |
+| categorical_* (resolved string) | `""` | truthy |
+| decimal128 | mantissa == 0 | truthy |
+| null / missing | always falsy | — |
+
+Use strict mode whenever the field actually is `packed_bool` — it avoids a per-row map allocation that the coercion path needs.
 </example>
 
 <example name="filter-expression">

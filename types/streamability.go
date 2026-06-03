@@ -173,7 +173,8 @@ func (t FiltererType) Streamable() bool {
 	switch t {
 	case FILTER_INCLUDE, FILTER_EXCLUDE, FILTER_RANGE,
 		FILTER_EXPRESSION,
-		FILTER_NULL:
+		FILTER_NULL,
+		FILTER_TRUE, FILTER_FALSE:
 		return true
 	}
 	return false

@@ -85,6 +85,24 @@ const (
 	// Mode is "is_null" (keep null-valued records) or "is_not_null" (keep
 	// non-null records). Row-local; streamable.
 	FILTER_NULL FiltererType = "FILTER_NULL"
+
+	// FILTER_TRUE keeps records where Field is logically true. Default
+	// (strict) mode requires Field to be packed_bool and keeps records
+	// whose value is 1. Opt-in JavaScript-style truthiness coercion is
+	// enabled with Values=["truthy"]; in that mode any field type is
+	// accepted and the same rules JS uses for `Boolean(value)` apply
+	// (0, NaN, empty string, null → falsy; everything else → truthy).
+	// Row-local; streamable.
+	FILTER_TRUE FiltererType = "FILTER_TRUE"
+
+	// FILTER_FALSE keeps records where Field is logically false. Default
+	// (strict) mode requires Field to be packed_bool and keeps records
+	// whose value is 0. Opt-in JavaScript-style falsiness coercion is
+	// enabled with Values=["truthy"]; in that mode any field type is
+	// accepted and records whose value would coerce to falsy under
+	// `Boolean(value)` are kept (0, NaN, empty string, null → kept).
+	// Row-local; streamable.
+	FILTER_FALSE FiltererType = "FILTER_FALSE"
 )
 
 // AllFiltererTypes returns all defined filterer types.
@@ -92,9 +110,11 @@ func AllFiltererTypes() []FiltererType {
 	return []FiltererType{
 		FILTER_EXCLUDE,
 		FILTER_EXPRESSION,
+		FILTER_FALSE,
 		FILTER_INCLUDE,
 		FILTER_NULL,
 		FILTER_RANGE,
+		FILTER_TRUE,
 	}
 }
 

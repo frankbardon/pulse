@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/expr-lang/expr"
@@ -211,4 +212,113 @@ func (f *nullFilterer) Build(filter *types.Filterer, _ *encoding.Schema) (Filter
 		}
 		return present, nil
 	}, nil
+}
+
+// --- Boolean (FILTER_TRUE / FILTER_FALSE) ---
+
+// boolFilterer keeps records whose Field is logically true (want=true) or
+// logically false (want=false). Default (strict) mode requires Field to
+// be a packed_bool column; the predicate matches the raw 0/1 value. Opt
+// into JavaScript-style coercion with Values=["truthy"] — any field type
+// is then accepted and `Boolean(value)` semantics apply (0, NaN, "",
+// null → falsy; everything else → truthy).
+type boolFilterer struct {
+	want bool
+}
+
+func newTrueFilterer() FiltererBuilder  { return &boolFilterer{want: true} }
+func newFalseFilterer() FiltererBuilder { return &boolFilterer{want: false} }
+
+func (f *boolFilterer) typeName() types.FiltererType {
+	if f.want {
+		return types.FILTER_TRUE
+	}
+	return types.FILTER_FALSE
+}
+
+func (f *boolFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
+	tn := f.typeName()
+	if filter.Field == "" {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("%s requires a Field", tn))
+	}
+
+	truthyMode := false
+	switch len(filter.Values) {
+	case 0:
+		// strict mode
+	case 1:
+		switch filter.Values[0] {
+		case "truthy":
+			truthyMode = true
+		case "strict":
+			truthyMode = false
+		default:
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("%s Values[0]=%q; must be \"truthy\" or \"strict\" (or omit Values for strict)", tn, filter.Values[0]))
+		}
+	default:
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("%s accepts at most one Values entry (\"truthy\" or \"strict\"); got %d", tn, len(filter.Values)))
+	}
+
+	field := schema.Field(filter.Field)
+	if field == nil {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("%s field %q not found in schema", tn, filter.Field))
+	}
+	if !truthyMode && field.Type != encoding.FieldTypePackedBool {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("%s strict mode requires packed_bool field; %q is %s. Pass Values=[\"truthy\"] to opt into JavaScript-style coercion.",
+				tn, filter.Field, field.Type.String()))
+	}
+
+	fieldName := filter.Field
+	want := f.want
+
+	if !truthyMode {
+		return func(record *Record) (bool, error) {
+			v, ok := record.NumericValue(fieldName)
+			if !ok {
+				return false, nil // null → drop in both directions
+			}
+			isTrue := v != 0
+			return isTrue == want, nil
+		}, nil
+	}
+
+	return func(record *Record) (bool, error) {
+		all := record.AllValues()
+		v, present := all[fieldName]
+		if !present {
+			// null / missing — JS coerces to false
+			return !want, nil
+		}
+		return jsTruthy(v) == want, nil
+	}, nil
+}
+
+// jsTruthy returns whether v would coerce to true under JavaScript's
+// Boolean(value) rules. Pulse record values are produced by AllValues,
+// so the concrete types in play are nil, bool, string (categorical
+// resolved), float64 (numeric/packed_bool/date), and encoding.Decimal128
+// (wide map). Anything else falls back to "non-nil → truthy" to mirror
+// JS object coercion.
+func jsTruthy(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return false
+	case bool:
+		return x
+	case string:
+		return x != ""
+	case float64:
+		return x != 0 && !math.IsNaN(x)
+	case float32:
+		return x != 0 && !math.IsNaN(float64(x))
+	case encoding.Decimal128:
+		return x.Sign() != 0
+	default:
+		return true
+	}
 }
