@@ -46,5 +46,21 @@ func filtererCapabilities() []Operator {
 			EmitsTypeNote: "record-level predicate",
 			Streamable:    true,
 		},
+		{
+			Name:          string(types.FILTER_TRUE),
+			Category:      "filterer",
+			Description:   "Keep records where Field is logically true. Strict mode (default, omit Values) requires packed_bool. Opt into JavaScript-style coercion across any field type with Values=[\"truthy\"].",
+			AcceptsTypes:  allCohortFieldTypes,
+			EmitsTypeNote: "record-level predicate",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.FILTER_FALSE),
+			Category:      "filterer",
+			Description:   "Keep records where Field is logically false. Strict mode (default, omit Values) requires packed_bool. Opt into JavaScript-style coercion across any field type with Values=[\"truthy\"].",
+			AcceptsTypes:  allCohortFieldTypes,
+			EmitsTypeNote: "record-level predicate",
+			Streamable:    true,
+		},
 	}
 }
