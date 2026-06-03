@@ -21,6 +21,14 @@ func writeEnvelope(w io.Writer, data any) error {
 	return writeJSON(w, env)
 }
 
+// writeEnvelopeWithRequest wraps data + the normalized request in a
+// descriptor.Envelope and writes JSON to w. Pass nil for request to fall
+// back to the writeEnvelope shape (the field is omitted via omitempty).
+func writeEnvelopeWithRequest(w io.Writer, data, request any) error {
+	env := descriptor.NewEnvelopeWithRequest(data, request)
+	return writeJSON(w, env)
+}
+
 // writeErrorEnvelope writes an error envelope to w.
 func writeErrorEnvelope(w io.Writer, code, message string) error {
 	env := descriptor.NewEnvelope(nil)

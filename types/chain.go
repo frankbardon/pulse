@@ -47,4 +47,14 @@ type ChainResponse struct {
 
 	// Final aliases the last entry in Stages for ergonomic access.
 	Final *Response `json:"final"`
+
+	// NormalizedRequest is the chain request the engine actually
+	// executed — each stage's Request reflects smart-defaults
+	// resolution against its per-stage schema (the original cohort
+	// for stage 0, the synthesised stage-output schemas for stages
+	// 1+). Populated only when pulse.Options.EchoRequest is true at
+	// service-construction time; nil otherwise so the wire size is
+	// unchanged for callers that do not need it. Serialised under
+	// the omitempty rule.
+	NormalizedRequest *ChainRequest `json:"normalized_request,omitempty"`
 }

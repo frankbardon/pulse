@@ -76,8 +76,8 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
 
 | Leaf | One-line | mdBook chapter |
 |---|---|---|
-| `process` | Execute a Request from a JSON file. Flags: `--request`, `--json`, `--stream`, `--no-defaults`, `--strict` (promote request-validation warnings into hard errors, e.g. numeric aggregation on a categorical field). | https://frankbardon.github.io/pulse/cli/api-process.html |
-| `process-chain` | Execute a source-rooted linear chain of mergeable processing stages. Flags: `--request`, `--json`, `--no-defaults`. Mergeable-only — rejected stages return `PULSE_CHAIN_NOT_MERGEABLE` so callers can fall back to per-stage `process`. | https://frankbardon.github.io/pulse/cli/api-process-chain.html |
+| `process` | Execute a Request from a JSON file. Flags: `--request`, `--json`, `--stream`, `--no-defaults`, `--strict` (promote request-validation warnings into hard errors, e.g. numeric aggregation on a categorical field), `--echo-request` (include the normalized request on `envelope.request`; ignored under `--stream`). | https://frankbardon.github.io/pulse/cli/api-process.html |
+| `process-chain` | Execute a source-rooted linear chain of mergeable processing stages. Flags: `--request`, `--json`, `--no-defaults`, `--echo-request` (per-stage normalized echo on `envelope.request`). Mergeable-only — rejected stages return `PULSE_CHAIN_NOT_MERGEABLE` so callers can fall back to per-stage `process`. | https://frankbardon.github.io/pulse/cli/api-process-chain.html |
 | `compose` | Execute a ComposedRequest batch | https://frankbardon.github.io/pulse/cli/api-compose.html |
 | `predict` | Validate a request against the schema | https://frankbardon.github.io/pulse/cli/api-predict.html |
 | `cohort inspect` | Print schema and descriptions of a `.pulse` file | https://frankbardon.github.io/pulse/cli/cohort-inspect.html |
