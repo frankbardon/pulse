@@ -684,6 +684,129 @@ func indexOfKey(keys []types.AxisKey, want string) (int, bool) {
 	return -1, false
 }
 
+// TestCrosstab_Tier1TestSurfaces verifies a tier-1 test attached to a
+// crosstab request fires and lands in Response.Tests — guards against
+// the silent-drop regression where RunCrosstab forgot to invoke the
+// tests slot.
+func TestCrosstab_Tier1TestSurfaces(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+		},
+		Tests: []*types.Test{
+			{Type: types.TEST_CHISQ, Rows: "region", Cols: "segment", Alpha: 0.05, Label: "indep"},
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(resp.Tests) != 1 {
+		t.Fatalf("expected 1 tier-1 test result; got %d", len(resp.Tests))
+	}
+	if resp.Tests[0].Type != types.TEST_CHISQ {
+		t.Errorf("test type = %s, want TEST_CHISQ", resp.Tests[0].Type)
+	}
+	if resp.Tests[0].Label != "indep" {
+		t.Errorf("test label = %q, want %q", resp.Tests[0].Label, "indep")
+	}
+}
+
+// TestCrosstab_Tier1TestEqualsStandalone verifies the test fold runs
+// over the same filter-passing record set the cell aggregation sees,
+// not a different sub-population. The TEST_CHISQ statistic from a
+// crosstab+test pairing must equal the statistic from a standalone
+// TEST_CHISQ request against the same cohort.
+func TestCrosstab_Tier1TestEqualsStandalone(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	paired := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+		},
+		Tests: []*types.Test{
+			{Type: types.TEST_CHISQ, Rows: "region", Cols: "segment", Alpha: 0.05},
+		},
+	}
+	standalone := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+		},
+		Tests: []*types.Test{
+			{Type: types.TEST_CHISQ, Rows: "region", Cols: "segment", Alpha: 0.05},
+		},
+	}
+
+	a, err := svc.Process(ctx, paired)
+	if err != nil {
+		t.Fatalf("paired: %v", err)
+	}
+	b, err := svc.Process(ctx, standalone)
+	if err != nil {
+		t.Fatalf("standalone: %v", err)
+	}
+	if len(a.Tests) != 1 || len(b.Tests) != 1 {
+		t.Fatalf("expected one test result on each path")
+	}
+	if !floatClose(a.Tests[0].Statistic, b.Tests[0].Statistic, 1e-9) {
+		t.Errorf("statistic divergence: paired=%v standalone=%v",
+			a.Tests[0].Statistic, b.Tests[0].Statistic)
+	}
+	if !floatClose(a.Tests[0].PValue, b.Tests[0].PValue, 1e-9) {
+		t.Errorf("p-value divergence: paired=%v standalone=%v",
+			a.Tests[0].PValue, b.Tests[0].PValue)
+	}
+}
+
+// TestCrosstab_Tier2PostTestSurfaces verifies a tier-2 post-test runs
+// over the synthesised cell rows when shape=matrix. TEST_TREND on a
+// monthly time-series crosstab is the canonical example.
+func TestCrosstab_Tier2PostTestSurfaces(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+		},
+		PostTests: []*types.Test{
+			{Type: types.TEST_TREND, Field: "n",
+				OrderBy: []types.OrderKey{{Field: "region"}},
+				Alpha:   0.05, Label: "trend"},
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(resp.PostTests) != 1 {
+		t.Fatalf("expected 1 tier-2 post-test result; got %d", len(resp.PostTests))
+	}
+	if resp.PostTests[0].Type != types.TEST_TREND {
+		t.Errorf("post-test type = %s, want TEST_TREND", resp.PostTests[0].Type)
+	}
+}
+
 // TestCrosstab_AllAggregatorsClassified is the CI guard: every
 // registered aggregator must have a non-default
 // MarginReducibility classification. Reaching the default branch is a
