@@ -66,9 +66,9 @@ func ValidateStructuralCohesion(canonical, incoming *Schema) ([]CohesionWarning,
 				fmt.Sprintf("field %d name differs: canonical=%q, incoming=%q",
 					i, cf.Name, nf.Name),
 				map[string]any{
-					"field_index":     i,
-					"canonical_name":  cf.Name,
-					"incoming_name":   nf.Name,
+					"field_index":    i,
+					"canonical_name": cf.Name,
+					"incoming_name":  nf.Name,
 				})
 		}
 		if cf.Type != nf.Type {
@@ -86,9 +86,9 @@ func ValidateStructuralCohesion(canonical, incoming *Schema) ([]CohesionWarning,
 				fmt.Sprintf("field %q byte offset differs: canonical=%d, incoming=%d",
 					cf.Name, cf.ByteOffset, nf.ByteOffset),
 				map[string]any{
-					"field":             cf.Name,
-					"canonical_offset":  cf.ByteOffset,
-					"incoming_offset":   nf.ByteOffset,
+					"field":            cf.Name,
+					"canonical_offset": cf.ByteOffset,
+					"incoming_offset":  nf.ByteOffset,
 				})
 		}
 		if cf.BitPosition != nf.BitPosition {
@@ -96,9 +96,9 @@ func ValidateStructuralCohesion(canonical, incoming *Schema) ([]CohesionWarning,
 				fmt.Sprintf("field %q bit position differs: canonical=%d, incoming=%d",
 					cf.Name, cf.BitPosition, nf.BitPosition),
 				map[string]any{
-					"field":                cf.Name,
-					"canonical_bit_pos":    cf.BitPosition,
-					"incoming_bit_pos":     nf.BitPosition,
+					"field":             cf.Name,
+					"canonical_bit_pos": cf.BitPosition,
+					"incoming_bit_pos":  nf.BitPosition,
 				})
 		}
 		// Categorical width identity is already enforced by the
@@ -197,10 +197,10 @@ func ValidateDictPrefixRule(canonical, incoming *Schema) (*Schema, error) {
 					fmt.Sprintf("field %q dictionary growth (%d entries) exceeds %s capacity (%d entries)",
 						cf.Name, len(nv), cf.Type, maxEntries),
 					map[string]any{
-						"field":             cf.Name,
-						"type":              cf.Type.String(),
-						"capacity":          maxEntries,
-						"incoming_entries":  len(nv),
+						"field":            cf.Name,
+						"type":             cf.Type.String(),
+						"capacity":         maxEntries,
+						"incoming_entries": len(nv),
 					})
 			}
 			if extended == nil {
@@ -218,11 +218,11 @@ func ValidateDictPrefixRule(canonical, incoming *Schema) (*Schema, error) {
 				fmt.Sprintf("field %q dictionaries are not prefix-related; align dictionaries upstream",
 					cf.Name),
 				map[string]any{
-					"field":               cf.Name,
-					"canonical_entries":   len(cv),
-					"incoming_entries":    len(nv),
-					"canonical_values":    cv,
-					"incoming_values":     nv,
+					"field":             cf.Name,
+					"canonical_entries": len(cv),
+					"incoming_entries":  len(nv),
+					"canonical_values":  cv,
+					"incoming_values":   nv,
 				})
 		}
 	}

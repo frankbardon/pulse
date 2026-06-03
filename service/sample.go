@@ -152,7 +152,6 @@ func rawAsString(v any) (string, bool) {
 	return s, ok
 }
 
-
 // sampleOffsetLimit is the internal helper that powers Sample and the
 // shard-aware tests. offset>0 walks rows from the head of the union
 // stream until offset rows have been seen, then collects up to limit

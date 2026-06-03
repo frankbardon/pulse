@@ -438,6 +438,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 			},
 			"tests":      testsArraySchema(c, testTypes),
 			"post_tests": testsArraySchema(c, testTypes),
+			"crosstab":   crosstabSchema(c, aggTypes, groupTypes),
 			"outputs": map[string]any{
 				"type": "array",
 				"items": map[string]any{
@@ -467,6 +468,72 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 		"additionalProperties": true,
 	}
 	return json.Marshal(outer)
+}
+
+// crosstabSchema returns the JSON Schema for the Crosstab section. Row
+// and column axis groupers reuse the same Group shape as the top-level
+// groups array; the cell aggregation reuses the Aggregation shape; the
+// normalize / shape enums are constrained to known values.
+func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[string]any {
+	groupItem := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"type":     map[string]any{"type": "string", "enum": groupTypes},
+			"field":    enumStringField(c.AllFields, "Field to group by on this axis."),
+			"interval": map[string]any{"type": "number"},
+			"params":   map[string]any{},
+		},
+		"required":             []string{"type", "field"},
+		"additionalProperties": true,
+	}
+	return map[string]any{
+		"type":        "object",
+		"description": "Cross-tabulation directive. Composes rows × columns groupers with a cell aggregation; emits matrix or long-form result. Mutually exclusive with top-level groups + aggregations.",
+		"properties": map[string]any{
+			"rows": map[string]any{
+				"type":        "array",
+				"description": "Row-axis groupers. Multiple entries produce nested rows.",
+				"items":       groupItem,
+			},
+			"columns": map[string]any{
+				"type":        "array",
+				"description": "Column-axis groupers. Multiple entries produce nested columns.",
+				"items":       groupItem,
+			},
+			"cell": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"type":   map[string]any{"type": "string", "enum": aggTypes},
+					"field":  enumStringField(c.AllFields, "Field the cell aggregation reads. AGG_COUNT may name any field."),
+					"label":  map[string]any{"type": "string"},
+					"params": map[string]any{},
+				},
+				"required":             []string{"type", "field"},
+				"additionalProperties": true,
+			},
+			"margins": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"rows":    map[string]any{"type": "boolean"},
+					"columns": map[string]any{"type": "boolean"},
+					"grand":   map[string]any{"type": "boolean"},
+				},
+				"additionalProperties": false,
+			},
+			"normalize": map[string]any{
+				"type":        "string",
+				"enum":        []string{"none", "row", "column", "total"},
+				"description": "Normalization direction. Row/column/total each divide cells by the corresponding margin; none leaves cells raw.",
+			},
+			"shape": map[string]any{
+				"type":        "string",
+				"enum":        []string{"matrix", "long"},
+				"description": "Output shape. matrix (default) populates Response.Crosstab.Matrix; long emits tuple rows on Response.Data.",
+			},
+		},
+		"required":             []string{"rows", "columns", "cell"},
+		"additionalProperties": true,
+	}
 }
 
 // testsArraySchema returns the JSON Schema for a tests/post_tests array

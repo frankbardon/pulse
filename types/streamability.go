@@ -59,6 +59,71 @@ func (t AggregationType) Mergeable() bool {
 	return false
 }
 
+// MarginReducibility classifies how a crosstab margin for this
+// aggregator can be computed. Three classes:
+//
+//   - MarginSummable — margin = sum of cells (e.g. AGG_COUNT, AGG_SUM,
+//     AGG_NULL_COUNT). The reshape pass can derive the margin cheaply
+//     from the long-form cell table without re-aggregating.
+//   - MarginMeanReducible — margin derivable only when each cell also
+//     carries its observation count (e.g. AGG_AVERAGE = Σ(cellMean·cellN)
+//     / ΣcellN). Pulse does not yet emit per-cell counts in long form,
+//     so v1 routes these through the recompute path; the classification
+//     is preserved for future optimization.
+//   - MarginRecompute — margin cannot be derived from cells and must be
+//     recomputed over the raw rows (every order- or distribution-
+//     dependent aggregator: AGG_MEDIAN, AGG_PERCENTILE, AGG_STDDEV,
+//     AGG_VARIANCE, AGG_MODE, etc.).
+//
+// The default branch returns MarginRecompute so any newly-added
+// aggregator that forgets to opt in computes the correct margin (slower
+// but right) rather than silently producing the wrong margin.
+//
+// service/crosstab.go consults this method to decide whether the
+// margin can be derived from cell sums (when MarginSummable + no
+// normalization round-off concern) or must be recomputed via a sibling
+// Compose request. In v1 every margin is recomputed (see
+// skills/crosstab-guide.md "Margin computation"); the classification
+// drives the manifest capability block and future fast-path work.
+func (t AggregationType) MarginReducibility() MarginReducibility {
+	switch t {
+	case AGG_COUNT, AGG_SUM, AGG_NULL_COUNT, AGG_DISTINCT_COUNT,
+		AGG_FREQUENCY:
+		// FREQUENCY is summable per category: each cell's per-value
+		// counts merge by key union (same logic the per-shard reducer
+		// uses); classified as summable for that reason. The reshape
+		// pass treats it as recompute today because the long-form
+		// emitter writes a map, not a scalar.
+		return MarginSummable
+	case AGG_AVERAGE, AGG_WEIGHTED_MEAN, AGG_RATIO:
+		return MarginMeanReducible
+	case AGG_MIN, AGG_MAX, AGG_RANGE,
+		AGG_STDDEV, AGG_VARIANCE,
+		AGG_MEDIAN, AGG_PERCENTILE, AGG_MODE,
+		AGG_ZSCORE, AGG_SKEWNESS, AGG_KURTOSIS,
+		AGG_CI_LOWER, AGG_CI_UPPER:
+		return MarginRecompute
+	}
+	return MarginRecompute
+}
+
+// MarginReducibility classifies how a crosstab margin can be derived
+// from per-cell aggregations. See AggregationType.MarginReducibility.
+type MarginReducibility string
+
+const (
+	// MarginSummable means the margin equals the sum of cell values
+	// (count, sum, null_count, distinct_count, frequency).
+	MarginSummable MarginReducibility = "summable"
+	// MarginMeanReducible means the margin is derivable only when each
+	// cell also carries its observation count (average, ratio).
+	MarginMeanReducible MarginReducibility = "mean_reducible"
+	// MarginRecompute means the margin cannot be derived from cells and
+	// must be recomputed over the raw filter-passing rows (median,
+	// stddev, percentile, mode, ...).
+	MarginRecompute MarginReducibility = "recompute"
+)
+
 // Mergeable reports whether this group type's per-key state can be
 // combined across partitions of the input. CATEGORY and RANGE (online)
 // derive their key purely from the row's value so per-shard buckets

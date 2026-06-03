@@ -162,7 +162,6 @@ func TestPredict_Suggestions_DecimalAggMismatch(t *testing.T) {
 	}
 }
 
-
 // ----- Source 3: date misuse ---------------------------------------------
 
 func TestPredict_Suggestions_GroupCategoryOnDate(t *testing.T) {

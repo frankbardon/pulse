@@ -143,4 +143,3 @@ func BenchmarkMemberSet_BuildPredicate_Uint64(b *testing.B) {
 		_, _ = fn(rec)
 	}
 }
-

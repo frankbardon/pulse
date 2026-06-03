@@ -765,6 +765,16 @@ type Request struct {
 	// keys, and group keys still see raw values. Tables are sourced
 	// from pulse.Options.Extensions.LabelTables.
 	Labels []*LabelBinding `json:"labels,omitempty"`
+
+	// Crosstab is an optional cross-tabulation directive. When set,
+	// the engine composes the cell aggregation across the row × column
+	// grouper grid, computes the requested margins via sibling Compose
+	// requests, applies the configured normalization, and returns the
+	// result either as a structured matrix on Response.Crosstab
+	// (shape=matrix, default) or as long-form rows on Response.Data
+	// (shape=long). Mutually exclusive with top-level Groups /
+	// Aggregations — see PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS.
+	Crosstab *CrosstabSpec `json:"crosstab,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
@@ -817,6 +827,13 @@ type Response struct {
 	// future runtime overlays attach here too. CLI / MCP envelope
 	// wrappers promote each entry into the envelope's Warnings array.
 	Warnings []*ResponseWarning `json:"warnings,omitempty"`
+
+	// Crosstab carries the structured matrix payload when the originating
+	// Request set Crosstab and Shape=matrix (the default). Nil otherwise.
+	// For Shape=long the cell rows land on Data verbatim — the existing
+	// grouped-tuple format — so any consumer of long-form rows keeps
+	// working unchanged.
+	Crosstab *CrosstabResult `json:"crosstab,omitempty"`
 }
 
 // FileRequest identifies a file for operations like inspect.

@@ -78,4 +78,3 @@ type SampleRequest struct {
 	// embedder-registered label tables. See LabelBinding.
 	Labels []*LabelBinding `json:"labels,omitempty"`
 }
-

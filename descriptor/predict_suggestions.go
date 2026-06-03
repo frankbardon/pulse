@@ -37,10 +37,10 @@ var streamableAlternatives = map[string]streamableAlt{
 	// AGG_ZSCORE → ATTR_ZSCORE: the streaming two-pass attribute
 	// produces per-row standardized scores without materialising the
 	// full row set.
-	string(types.AGG_ZSCORE):       {Replacement: string(types.ATTR_ZSCORE), Category: "attribute"},
-	string(types.ATTR_PERCENTILE):  {Replacement: "", Category: "attribute"},
-	string(types.GROUP_QUANTILE): {Replacement: string(types.GROUP_RANGE), Category: "grouper"},
-	string(types.GROUP_DATE):     {Replacement: "", Category: "grouper"},
+	string(types.AGG_ZSCORE):      {Replacement: string(types.ATTR_ZSCORE), Category: "attribute"},
+	string(types.ATTR_PERCENTILE): {Replacement: "", Category: "attribute"},
+	string(types.GROUP_QUANTILE):  {Replacement: string(types.GROUP_RANGE), Category: "grouper"},
+	string(types.GROUP_DATE):      {Replacement: "", Category: "grouper"},
 }
 
 // commonPercentiles lists the canonical percentile values predict
@@ -172,6 +172,7 @@ func appendTypoSuggestions(out []Suggestion, req *types.Request, schema *encodin
 //   - Aggregation on a decimal field that is not on the decimal-supported
 //     list → the supported aggregations for that field type
 //     (confidence 0.6).
+//
 // Reuses the fixup hint from errors.MetadataFor when one is registered
 // for the underlying code so prose stays in lockstep with the fixup
 // table.

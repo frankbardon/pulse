@@ -244,6 +244,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Validate response-level sort keys against the projected output columns.
 	validateSort(env, req, schema)
 
+	// Validate the Crosstab section (structural + axis field references +
+	// normalization gates). Streamability reasons land via
+	// computeStreamable below.
+	validateCrosstab(env, req, schema, opts)
+
 	// Validate label bindings (display-time categorical translation). Snapshot
 	// carries the registered label tables; augment-mode collisions are
 	// checked against the projected output column set so a sibling
@@ -315,6 +320,17 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 				break
 			}
 		}
+	}
+
+	// Crosstab dispatch overrides the regular streamable gate: when set,
+	// crosstabStreamableReasons is the authoritative list (matrix shape,
+	// margins, normalization, or nested axes all force buffered).
+	if req.Crosstab != nil {
+		reasons = append(reasons, crosstabStreamableReasons(req.Crosstab)...)
+		// Crosstab does not require the standard "at least one
+		// aggregation" gate — the cell aggregation lives on
+		// req.Crosstab.Cell, not req.Aggregations.
+		return len(reasons) == 0, reasons
 	}
 
 	if len(req.Aggregations) == 0 {

@@ -13,10 +13,10 @@ import (
 // Echoes the request unchanged and exposes the inferred output
 // schema as a list of field names.
 type JoinValidationResult struct {
-	Valid       bool                `json:"valid"`
-	Request     *types.Request      `json:"request"`
-	LeftSchema  *PredictSchemaInfo  `json:"left_schema,omitempty"`
-	RightSchema *PredictSchemaInfo  `json:"right_schema,omitempty"`
+	Valid        bool               `json:"valid"`
+	Request      *types.Request     `json:"request"`
+	LeftSchema   *PredictSchemaInfo `json:"left_schema,omitempty"`
+	RightSchema  *PredictSchemaInfo `json:"right_schema,omitempty"`
 	JoinedFields []string           `json:"joined_fields,omitempty"`
 }
 

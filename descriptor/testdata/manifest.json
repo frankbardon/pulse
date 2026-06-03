@@ -3067,7 +3067,7 @@
         ]
       }
     ],
-    "error_codes_count": 107,
+    "error_codes_count": 113,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3108,6 +3108,12 @@
       "PULSE_ARCHIVE_MAGIC_INVALID",
       "PULSE_CHAIN_EMPTY",
       "PULSE_CHAIN_NOT_MERGEABLE",
+      "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
+      "PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS",
+      "PULSE_CROSSTAB_EMPTY_COLUMNS",
+      "PULSE_CROSSTAB_EMPTY_ROWS",
+      "PULSE_CROSSTAB_MISSING_CELL",
+      "PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE",
       "PULSE_DECIMAL_DIVIDE_BY_ZERO",
       "PULSE_DECIMAL_OVERFLOW",
       "PULSE_DECIMAL_PRECISION_LOSS",
@@ -3978,6 +3984,10 @@
         "description": "Step-by-step recipes for extending Pulse — adding aggregators, attributes, filterers, groupers, windows, features, statistical tests, synth distributions, I/O formats, MCP tools, error codes, field types. Also covers porting, debugging predict mismatches, regenerating goldens, wiring an MCP client, and running CI gates locally. Use when modifying Pulse internals."
       },
       {
+        "name": "crosstab-guide",
+        "description": "Build cross-tabulations with the Crosstab request section — rows × columns groupers, cell aggregation, margins-are-reaggregations, normalize directions (row / column / total), streamability tradeoff, matrix vs long shape, and pairing with TEST_CHISQ / TEST_FISHER_EXACT for inference on count crosstabs. Use when a request needs a contingency table, frequency cross-tab, or any (row × column) cell view."
+      },
+      {
         "name": "debugging-with-predict",
         "description": "Validate a request against a .pulse schema with pulse_predict before executing — surfaces field-name typos, type mismatches, leakage warnings, streamability gates, and applied defaults. Use when a Process call errored or before running an expensive request."
       },
@@ -4058,10 +4068,11 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 81,
+    "examples_count": 82,
     "example_categories": [
       "aggregations",
       "attributes",
+      "crosstab",
       "facet",
       "features",
       "filterers",
@@ -4204,9 +4215,59 @@
         "Per-OnPair type compatibility: identical types match, categorical_* match each other, the unsigned-int + float + date family is interchangeable. decimal128 keys reject cross-type comparisons.",
         "Joined records flow through the standard processor pipeline (filter / attribute / group / aggregator)."
       ]
+    },
+    "crosstab": {
+      "name": "crosstab",
+      "normalize_modes": [
+        "column",
+        "none",
+        "row",
+        "total"
+      ],
+      "shapes": [
+        "long",
+        "matrix"
+      ],
+      "summable_aggregators": [
+        "AGG_COUNT",
+        "AGG_DISTINCT_COUNT",
+        "AGG_FREQUENCY",
+        "AGG_NULL_COUNT",
+        "AGG_SUM"
+      ],
+      "mean_reducible_aggregators": [
+        "AGG_AVERAGE",
+        "AGG_RATIO",
+        "AGG_WEIGHTED_MEAN"
+      ],
+      "recompute_aggregators": [
+        "AGG_CI_LOWER",
+        "AGG_CI_UPPER",
+        "AGG_KURTOSIS",
+        "AGG_MAX",
+        "AGG_MEDIAN",
+        "AGG_MIN",
+        "AGG_MODE",
+        "AGG_PERCENTILE",
+        "AGG_RANGE",
+        "AGG_SKEWNESS",
+        "AGG_STDDEV",
+        "AGG_VARIANCE",
+        "AGG_ZSCORE"
+      ],
+      "streaming_exceptions": [
+        "shape=long with margins.rows / margins.columns / margins.grand all false and normalize=none streams through the standard grouped path"
+      ],
+      "rejection_rules": [
+        "crosstab requires at least one grouper in rows (PULSE_CROSSTAB_EMPTY_ROWS)",
+        "crosstab requires at least one grouper in columns (PULSE_CROSSTAB_EMPTY_COLUMNS)",
+        "crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
+        "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
+        "matrix shape, any margin, or any normalization forces the buffered path"
+      ]
     }
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: df255de9f8d2ea7b973719ae7a9c9f5ae740bcfc943ef7b4f8bf5ab53092afc7
+// golden-hash: 556738cf3c8986ed7aee6a25b26fdaf55d3f4a17c632f015ac5fff8c43af8b38

@@ -146,6 +146,13 @@ type Manifest struct {
 	// entry today: hash_join). Carries the kind allowlist, spill
 	// envelope, and v1 limitations.
 	Join JoinCapability `json:"join"`
+
+	// Crosstab is the cross-tabulation endpoint capability
+	// descriptor (Request.Crosstab). Carries the normalize / shape
+	// allowlists plus the per-aggregator margin-reducibility
+	// classification so LLM clients can decide which cell aggregator
+	// will recompute its margin and which is summable.
+	Crosstab CrosstabCapability `json:"crosstab"`
 }
 
 // operations returns the library-only entry points that do not back a
@@ -345,6 +352,7 @@ func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *Manifest {
 		Facet:              facetCapability(),
 		ProcessChain:       processChainCapability(),
 		Join:               joinCapability(),
+		Crosstab:           crosstabCapability(),
 	}
 }
 

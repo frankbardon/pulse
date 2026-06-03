@@ -554,6 +554,46 @@ const (
 	// unresolved values per field so callers can audit gaps.
 	PULSE_LABEL_LOOKUP_MISS Code = "PULSE_LABEL_LOOKUP_MISS"
 
+	// PULSE_CROSSTAB_EMPTY_ROWS indicates a Crosstab section was
+	// presented with no row-axis groupers. A crosstab requires at
+	// least one grouper on each axis; use a plain grouped Process
+	// request when only one axis is needed.
+	PULSE_CROSSTAB_EMPTY_ROWS Code = "PULSE_CROSSTAB_EMPTY_ROWS"
+
+	// PULSE_CROSSTAB_EMPTY_COLUMNS indicates a Crosstab section was
+	// presented with no column-axis groupers. Mirrors PULSE_CROSSTAB_
+	// EMPTY_ROWS for the column axis.
+	PULSE_CROSSTAB_EMPTY_COLUMNS Code = "PULSE_CROSSTAB_EMPTY_COLUMNS"
+
+	// PULSE_CROSSTAB_MISSING_CELL indicates a Crosstab section was
+	// presented without a Cell aggregation. The cell aggregation is
+	// the value emitted per (row-tuple, column-tuple) intersection
+	// and is required.
+	PULSE_CROSSTAB_MISSING_CELL Code = "PULSE_CROSSTAB_MISSING_CELL"
+
+	// PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS indicates a Crosstab
+	// section was presented alongside top-level Groups or
+	// Aggregations on the same Request. The two surfaces are
+	// mutually exclusive; the crosstab section already lowers to a
+	// grouped request internally.
+	PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS Code = "PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS"
+
+	// PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE indicates a Crosstab
+	// section requested a normalization mode whose required margin
+	// cannot be computed (e.g. normalize=row on a degenerate request
+	// where the row-margin aggregation has no defined finalizer for
+	// the chosen aggregator). Default behavior is to leave the
+	// affected cells as null and surface the warning; strict mode
+	// promotes it to an error.
+	PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE Code = "PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE"
+
+	// PULSE_CROSSTAB_AGG_UNCLASSIFIED is an internal guard surfaced
+	// when the margin computation encounters an aggregator that has
+	// not been classified in AggregationType.MarginReducibility().
+	// Reaching this code means a new aggregator was added without
+	// updating the reducibility table — a CI-gated repair.
+	PULSE_CROSSTAB_AGG_UNCLASSIFIED Code = "PULSE_CROSSTAB_AGG_UNCLASSIFIED"
+
 	// PULSE_REQUEST_UNKNOWN_FIELD indicates a request JSON carried a
 	// top-level key that is not a recognised Request slot. JSON
 	// decoding silently ignores unknown keys, so the offending slot
@@ -682,6 +722,12 @@ var allCodes = []Code{
 	PULSE_LABEL_TABLE_NOT_ENUMERABLE,
 	PULSE_LABEL_COLLISION,
 	PULSE_LABEL_LOOKUP_MISS,
+	PULSE_CROSSTAB_EMPTY_ROWS,
+	PULSE_CROSSTAB_EMPTY_COLUMNS,
+	PULSE_CROSSTAB_MISSING_CELL,
+	PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS,
+	PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE,
+	PULSE_CROSSTAB_AGG_UNCLASSIFIED,
 	PULSE_REQUEST_UNKNOWN_FIELD,
 }
 
