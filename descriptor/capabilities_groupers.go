@@ -17,7 +17,7 @@ func grouperCapabilities() []Operator {
 		{
 			Name:        string(types.GROUP_DATE),
 			Category:    "grouper",
-			Description: "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week).",
+			Description: "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
 			Params: []Param{
 				{
 					Name:        "component",
@@ -27,9 +27,16 @@ func grouperCapabilities() []Operator {
 					Description: "Calendar component to bucket by.",
 					EnumValues:  []string{"day", "day_of_week", "month", "quarter", "week", "year"},
 				},
+				{
+					Name:        "fiscal_offset",
+					Type:        "int",
+					Required:    false,
+					Default:     0,
+					Description: "Months after January when the fiscal year starts; valid only with component=year or component=quarter. Range [-11, 11]; offsets normalise mod 12 (offset=-3 == offset=9 => October start). 0 (default) = calendar year. Non-zero offsets prefix keys with FY using the end-year convention (Apr 2024-Mar 2025 with offset=3 => FY2025).",
+				},
 			},
 			AcceptsTypes:   []string{"date"},
-			EmitsTypeNote:  "string group key per row (e.g. 2024-Q1, 2024-01)",
+			EmitsTypeNote:  "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1)",
 			Streamable:     false,
 			StreamableHint: "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.",
 		},

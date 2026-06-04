@@ -73,16 +73,20 @@ Bin ages into 10-year ranges.
 Groups records by a date component extracted from a `date` type field. The field value is interpreted as epoch days since Unix epoch (1970-01-01) and converted to a UTC timestamp for component extraction.
 
 - **Fields**: Requires a `date` type field.
-- **Config**: `params` is a JSON object `{"component": "<component>"}` where component is one of: `year`, `quarter`, `month`, `week`, `day`, `day_of_week`. Defaults to `month` if `params` is omitted.
-- **Key format**:
+- **Config**: `params` is a JSON object `{"component": "<component>", "fiscal_offset": <int>}`. `component` is one of `year`, `quarter`, `month`, `week`, `day`, `day_of_week` and defaults to `month`. `fiscal_offset` is optional and defaults to `0`.
+- **Key format (calendar)**:
   - `year` → `"2024"`
   - `quarter` → `"2024-Q1"`
   - `month` → `"2024-01"`
   - `week` → `"2024-W03"` (ISO week)
   - `day` → `"2024-01-15"`
   - `day_of_week` → `"Monday"`
+- **Fiscal offset**: `fiscal_offset` is the number of months after January that the fiscal year starts; valid range `[-11, 11]`. Only meaningful with `component=year` or `component=quarter` — combining `fiscal_offset != 0` with any other component is rejected with `PROCESSING_CONFIG`. Offsets normalise modulo 12, so `fiscal_offset=-3` and `fiscal_offset=9` both pin an October-start fiscal year. `fiscal_offset=0` is byte-identical to the no-offset path (calendar year, no `FY` prefix).
+- **Key format (fiscal, end-year convention)**: a fiscal year is labelled by the calendar year in which it ENDS. The April-start fiscal year running Apr 2024 → Mar 2025 emits `FY2025`; an October-start fiscal year running Oct 2023 → Sep 2024 emits `FY2024`.
+  - `year` + fiscal → `"FY2025"`
+  - `quarter` + fiscal → `"FY2025-Q1"` (Q1 is the first three months of the fiscal year, NOT the first three calendar months)
 - **Null handling**: Records with null values are skipped (not grouped).
-- **Use when**: You want to segment time-series data by calendar periods (e.g., monthly enrollment counts, quarterly revenue, day-of-week patterns).
+- **Use when**: You want to segment time-series data by calendar periods (e.g., monthly enrollment counts, quarterly revenue, day-of-week patterns), or by fiscal periods that do not align with the calendar year (UK April-start `fiscal_offset=3`, US Federal October-start `fiscal_offset=9` or equivalently `-3`).
 </reference>
 
 <example name="group-date">
@@ -95,6 +99,38 @@ Group enrollments by month.
   ],
   "aggregations": [
     {"type": "AGG_COUNT", "field": "id"}
+  ]
+}
+```
+</example>
+
+<example name="group-date-fiscal-quarter">
+Group revenue by fiscal quarter under a UK-style April-start fiscal year.
+Keys emit as `FY2025-Q1` (Apr-Jun 2024), `FY2025-Q2` (Jul-Sep 2024), etc.
+
+```json
+{
+  "groups": [
+    {"type": "GROUP_DATE", "field": "booked_on", "params": {"component": "quarter", "fiscal_offset": 3}}
+  ],
+  "aggregations": [
+    {"type": "AGG_SUM", "field": "revenue"}
+  ]
+}
+```
+</example>
+
+<example name="group-date-fiscal-year-us-federal">
+Group obligations by US Federal fiscal year (October start). `fiscal_offset=9`
+and `fiscal_offset=-3` are equivalent. Keys emit as `FY2024`, `FY2025`, ...
+
+```json
+{
+  "groups": [
+    {"type": "GROUP_DATE", "field": "obligated_on", "params": {"component": "year", "fiscal_offset": 9}}
+  ],
+  "aggregations": [
+    {"type": "AGG_SUM", "field": "amount"}
   ]
 }
 ```

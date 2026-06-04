@@ -2,6 +2,7 @@ package processing
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -777,6 +778,162 @@ func TestGrouper_Date_NullHandling(t *testing.T) {
 	}
 	if len(groups["2024-01"]) != 2 {
 		t.Errorf("group 2024-01 count = %d, want 2", len(groups["2024-01"]))
+	}
+}
+
+// makeFiscalDateGrouper constructs a GROUP_DATE with the given component and
+// fiscal_offset; passing component="" defaults to month.
+func makeFiscalDateGrouper(t *testing.T, component string, fiscalOffset int, schema *encoding.Schema) Grouper {
+	t.Helper()
+	factory, ok := grouperRegistry[types.GROUP_DATE]
+	if !ok {
+		t.Fatalf("no grouper registered for GROUP_DATE")
+	}
+	if component == "" {
+		component = "month"
+	}
+	params := json.RawMessage(fmt.Sprintf(`{"component":%q,"fiscal_offset":%d}`, component, fiscalOffset))
+	g, err := factory(&types.Group{Type: types.GROUP_DATE, Field: "enrolled", Params: params}, schema)
+	if err != nil {
+		t.Fatalf("create grouper: %v", err)
+	}
+	return g
+}
+
+// TestGrouper_Date_FiscalQuarter_AprilStart pins the canonical UK-style
+// fiscal calendar (offset=3 => April-start FY) with end-year labels: a date
+// inside April-June 2024 lands in FY2025-Q1, March 2024 lands in the
+// preceding FY2024-Q4, and December 2024 (still inside FY2025) lands in
+// FY2025-Q3.
+func TestGrouper_Date_FiscalQuarter_AprilStart(t *testing.T) {
+	schema := dateSchema()
+	g := makeFiscalDateGrouper(t, "quarter", 3, schema)
+
+	records := makeRecords(schema, "enrolled", []float64{
+		epochDays(2024, 4, 1),   // FY2025-Q1 (Apr-Jun)
+		epochDays(2024, 6, 30),  // FY2025-Q1
+		epochDays(2024, 7, 1),   // FY2025-Q2 (Jul-Sep)
+		epochDays(2024, 12, 31), // FY2025-Q3 (Oct-Dec)
+		epochDays(2025, 3, 31),  // FY2025-Q4 (Jan-Mar)
+		epochDays(2024, 3, 31),  // FY2024-Q4 (preceding fiscal year)
+	})
+	groups, err := g.Group(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := map[string]int{
+		"FY2025-Q1": 2,
+		"FY2025-Q2": 1,
+		"FY2025-Q3": 1,
+		"FY2025-Q4": 1,
+		"FY2024-Q4": 1,
+	}
+	if len(groups) != len(want) {
+		t.Fatalf("group count = %d, want %d, groups: %v", len(groups), len(want), groupKeys(groups))
+	}
+	for k, n := range want {
+		if len(groups[k]) != n {
+			t.Errorf("group %s count = %d, want %d", k, len(groups[k]), n)
+		}
+	}
+}
+
+// TestGrouper_Date_FiscalYear_OctoberStart pins US-Federal-style FY: Oct 1
+// 2023 through Sep 30 2024 is FY2024, Oct 1 2024 flips to FY2025.
+func TestGrouper_Date_FiscalYear_OctoberStart(t *testing.T) {
+	schema := dateSchema()
+	g := makeFiscalDateGrouper(t, "year", 9, schema)
+
+	records := makeRecords(schema, "enrolled", []float64{
+		epochDays(2023, 10, 1), // FY2024
+		epochDays(2024, 9, 30), // FY2024
+		epochDays(2024, 10, 1), // FY2025
+	})
+	groups, err := g.Group(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(groups["FY2024"]) != 2 {
+		t.Errorf("FY2024 count = %d, want 2", len(groups["FY2024"]))
+	}
+	if len(groups["FY2025"]) != 1 {
+		t.Errorf("FY2025 count = %d, want 1", len(groups["FY2025"]))
+	}
+}
+
+// TestGrouper_Date_FiscalOffset_NegativeEquivalence asserts that offset=-3
+// (3 months earlier) and offset=9 (October start) produce identical
+// fiscal-year bucketing. Both should land Oct 1 2024 in FY2025.
+func TestGrouper_Date_FiscalOffset_NegativeEquivalence(t *testing.T) {
+	schema := dateSchema()
+	records := makeRecords(schema, "enrolled", []float64{
+		epochDays(2023, 10, 1),
+		epochDays(2024, 9, 30),
+		epochDays(2024, 10, 1),
+	})
+
+	gNeg := makeFiscalDateGrouper(t, "year", -3, schema)
+	gPos := makeFiscalDateGrouper(t, "year", 9, schema)
+
+	groupsNeg, err := gNeg.Group(records, "enrolled")
+	if err != nil {
+		t.Fatalf("neg group: %v", err)
+	}
+	groupsPos, err := gPos.Group(records, "enrolled")
+	if err != nil {
+		t.Fatalf("pos group: %v", err)
+	}
+	for _, k := range []string{"FY2024", "FY2025"} {
+		if len(groupsNeg[k]) != len(groupsPos[k]) {
+			t.Errorf("key %s: neg=%d pos=%d (should match)", k, len(groupsNeg[k]), len(groupsPos[k]))
+		}
+	}
+}
+
+// TestGrouper_Date_FiscalOffset_ZeroIsCalendar asserts that fiscal_offset=0
+// is byte-identical to the no-fiscal_offset path: keys must be bare years
+// (no FY prefix) so existing behaviour is preserved.
+func TestGrouper_Date_FiscalOffset_ZeroIsCalendar(t *testing.T) {
+	schema := dateSchema()
+	g := makeFiscalDateGrouper(t, "year", 0, schema)
+
+	records := makeRecords(schema, "enrolled", []float64{
+		epochDays(2024, 1, 15),
+		epochDays(2025, 6, 1),
+	})
+	groups, err := g.Group(records, "enrolled")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := groups["2024"]; !ok {
+		t.Errorf("offset=0 year key should be %q (no FY prefix), got %v", "2024", groupKeys(groups))
+	}
+	if _, ok := groups["FY2024"]; ok {
+		t.Errorf("offset=0 must not emit FY-prefixed key")
+	}
+}
+
+func TestGrouper_Date_FiscalOffset_OutOfRange(t *testing.T) {
+	schema := dateSchema()
+	factory := grouperRegistry[types.GROUP_DATE]
+	for _, off := range []int{-12, 12, 50, -50} {
+		params := json.RawMessage(fmt.Sprintf(`{"component":"year","fiscal_offset":%d}`, off))
+		_, err := factory(&types.Group{Type: types.GROUP_DATE, Field: "enrolled", Params: params}, schema)
+		if err == nil {
+			t.Errorf("expected error for fiscal_offset=%d, got nil", off)
+		}
+	}
+}
+
+func TestGrouper_Date_FiscalOffset_InvalidComponent(t *testing.T) {
+	schema := dateSchema()
+	factory := grouperRegistry[types.GROUP_DATE]
+	for _, comp := range []string{"month", "week", "day", "day_of_week"} {
+		params := json.RawMessage(fmt.Sprintf(`{"component":%q,"fiscal_offset":3}`, comp))
+		_, err := factory(&types.Group{Type: types.GROUP_DATE, Field: "enrolled", Params: params}, schema)
+		if err == nil {
+			t.Errorf("expected error for fiscal_offset with component=%s, got nil", comp)
+		}
 	}
 }
 

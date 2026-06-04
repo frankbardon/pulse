@@ -290,7 +290,8 @@ func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*
 // --- Date Grouper ---
 
 type dateGroupParams struct {
-	Component string `json:"component"`
+	Component    string `json:"component"`
+	FiscalOffset *int   `json:"fiscal_offset,omitempty"`
 }
 
 var validDateGroupComponents = map[string]bool{
@@ -298,12 +299,22 @@ var validDateGroupComponents = map[string]bool{
 	"week": true, "day": true, "day_of_week": true,
 }
 
+// fiscalComponents lists the only components that meaningfully accept a
+// fiscal_offset. Month/week/day/day_of_week buckets do not shift under a
+// fiscal calendar, so combining them with fiscal_offset is rejected at
+// construction time.
+var fiscalComponents = map[string]bool{
+	"year": true, "quarter": true,
+}
+
 type dateGrouper struct {
-	component string
+	component    string
+	fiscalOffset int // 0 = calendar; non-zero = FY starts at month (((offset%12)+12)%12)+1
 }
 
 func newDateGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 	component := "month"
+	fiscalOffset := 0
 	if len(grp.Params) > 0 {
 		var params dateGroupParams
 		if err := json.Unmarshal(grp.Params, &params); err != nil {
@@ -313,6 +324,9 @@ func newDateGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 		if params.Component != "" {
 			component = params.Component
 		}
+		if params.FiscalOffset != nil {
+			fiscalOffset = *params.FiscalOffset
+		}
 	}
 
 	if !validDateGroupComponents[component] {
@@ -320,7 +334,34 @@ func newDateGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 			fmt.Sprintf("invalid date group component %q: must be one of year, quarter, month, week, day, day_of_week", component))
 	}
 
-	return &dateGrouper{component: component}, nil
+	if fiscalOffset < -11 || fiscalOffset > 11 {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("invalid GROUP_DATE fiscal_offset %d: must be in range [-11, 11]", fiscalOffset))
+	}
+	if fiscalOffset != 0 && !fiscalComponents[component] {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("GROUP_DATE fiscal_offset only applies to component=year or component=quarter, got %q", component))
+	}
+
+	return &dateGrouper{component: component, fiscalOffset: fiscalOffset}, nil
+}
+
+// fiscalYearQuarter returns the fiscal year (end-year convention) and the
+// 1-indexed fiscal quarter for a calendar date under a given fiscal offset.
+// Offset normalisation: start_month_1idx = ((offset%12)+12)%12 + 1, so
+// offset=3 and offset=-9 both yield start_month=April; offset=9 and
+// offset=-3 both yield start_month=October.
+func fiscalYearQuarter(t time.Time, offset int) (int, int) {
+	startMonth := ((offset%12)+12)%12 + 1
+	calYear := t.Year()
+	calMonth := int(t.Month())
+	fy := calYear
+	if startMonth != 1 && calMonth >= startMonth {
+		fy = calYear + 1
+	}
+	elapsed := (calMonth - startMonth + 12) % 12
+	fq := elapsed/3 + 1
+	return fy, fq
 }
 
 func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
@@ -339,9 +380,19 @@ func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Reco
 		var key string
 		switch g.component {
 		case "year":
-			key = fmt.Sprintf("%d", t.Year())
+			if g.fiscalOffset != 0 {
+				fy, _ := fiscalYearQuarter(t, g.fiscalOffset)
+				key = fmt.Sprintf("FY%d", fy)
+			} else {
+				key = fmt.Sprintf("%d", t.Year())
+			}
 		case "quarter":
-			key = fmt.Sprintf("%d-Q%d", t.Year(), (int(t.Month())-1)/3+1)
+			if g.fiscalOffset != 0 {
+				fy, fq := fiscalYearQuarter(t, g.fiscalOffset)
+				key = fmt.Sprintf("FY%d-Q%d", fy, fq)
+			} else {
+				key = fmt.Sprintf("%d-Q%d", t.Year(), (int(t.Month())-1)/3+1)
+			}
 		case "month":
 			key = t.Format("2006-01")
 		case "week":
