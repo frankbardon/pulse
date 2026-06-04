@@ -204,11 +204,12 @@ func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs
 	if err != nil {
 		return 0, err
 	}
+	keep := s.fieldFilterForPlan(schema, plan)
 
 	out := bytes.NewBuffer(make([]byte, 0, len(data)))
 	out.Write(data[:headerSchemaEnd])
 
-	written, err := s.streamFilterRecords(ctx, data, br, schema, filterFn, out)
+	written, err := s.streamFilterRecords(ctx, data, br, schema, filterFn, keep, out)
 	if err != nil {
 		return 0, err
 	}
@@ -241,6 +242,7 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 	if err != nil {
 		return 0, err
 	}
+	keep := s.fieldFilterForPlan(canonicalSchema, plan)
 
 	// Per-shard filter + accumulate output payloads.
 	type filteredShard struct {
@@ -279,7 +281,7 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 
 		buf := bytes.NewBuffer(make([]byte, 0, len(shardBytes)))
 		buf.Write(shardBytes[:localHeaderSchemaEnd])
-		written, ferr := s.streamFilterRecords(ctx, shardBytes, br, canonicalSchema, filterFn, buf)
+		written, ferr := s.streamFilterRecords(ctx, shardBytes, br, canonicalSchema, filterFn, keep, buf)
 		if ferr != nil {
 			return 0, ferr
 		}
@@ -319,10 +321,27 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 // header+schema), applies filterFn against records decoded with schema,
 // and writes raw record-byte ranges from data into out for kept rows.
 // Returns the number of records written.
-func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *bytes.Reader, schema *encoding.Schema, filterFn processing.FilterFunc, out *bytes.Buffer) (int64, error) {
-	values := make(map[string]float64, len(schema.Fields))
-	nulls := make(map[string]bool, len(schema.Fields))
-	wide := make(map[string]any, len(schema.Fields))
+//
+// keep narrows per-record map population to the fields the predicate
+// actually reads (built once via fieldFilterForPlan). A nil keep falls
+// through to the full-decode path — used when the predicate's field set
+// can't be proven (malformed expression, unknown extension hook).
+func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *bytes.Reader, schema *encoding.Schema, filterFn processing.FilterFunc, keep encoding.FieldFilter, out *bytes.Buffer) (int64, error) {
+	mapSize := len(schema.Fields)
+	if keep != nil {
+		mapSize = 0
+		for _, f := range schema.Fields {
+			if keep(f.Name) {
+				mapSize++
+			}
+		}
+		if mapSize == 0 {
+			mapSize = 1
+		}
+	}
+	values := make(map[string]float64, mapSize)
+	nulls := make(map[string]bool, mapSize)
+	wide := make(map[string]any, mapSize)
 	rr := encoding.NewRecordReader(br, schema)
 
 	var written int64
@@ -331,7 +350,7 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 			return 0, err
 		}
 		posStart := int64(len(data)) - int64(br.Len())
-		err := rr.ReadRecordWithWide(values, nulls, wide)
+		err := rr.ReadRecordWithWideProjected(values, nulls, wide, keep)
 		if err == io.EOF {
 			break
 		}
@@ -352,6 +371,41 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 		written++
 	}
 	return written, nil
+}
+
+// fieldFilterForPlan returns a per-field projection filter narrowing
+// per-record map population to the fields the plan's predicates actually
+// read. Returns nil when the field set can't be narrowed safely
+// (malformed expression, extension hook without introspection) — the
+// caller then falls through to the full-decode path via
+// ReadRecordWithWideProjected's nil-filter contract.
+//
+// The set is built by feeding a synthetic types.Request through
+// processing.NeededFields (the same machinery the buffered Process path
+// uses since v0.12.3) and then unioning the MemberSet include field.
+// Saves map allocations + float64 conversions for unreferenced columns;
+// byte reads still happen so file offsets stay aligned.
+func (s *Service) fieldFilterForPlan(schema *encoding.Schema, plan filterPlan) encoding.FieldFilter {
+	if schema == nil {
+		return nil
+	}
+	req := &types.Request{}
+	if plan.filterExpr != "" {
+		req.Filterers = []*types.Filterer{
+			{Type: types.FILTER_EXPRESSION, Expression: plan.filterExpr},
+		}
+	}
+	set := processing.NeededFields(req, schema, s.extensions)
+	if set.IsWide() {
+		return nil
+	}
+	if plan.set != nil && plan.includeField != "" {
+		set.Add(plan.includeField)
+	}
+	if set.Len() == 0 {
+		return nil
+	}
+	return func(name string) bool { return set.Has(name) }
 }
 
 // buildSingleFilter resolves filterExpr into a single FilterFunc bound
