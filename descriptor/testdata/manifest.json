@@ -1188,7 +1188,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -1204,12 +1204,19 @@
                 "week",
                 "year"
               ]
+            },
+            {
+              "name": "fiscal_offset",
+              "type": "int",
+              "required": false,
+              "default": 0,
+              "description": "Months after January when the fiscal year starts; valid only with component=year or component=quarter. Range [-11, 11]; offsets normalise mod 12 (offset=-3 == offset=9 =\u003e October start). 0 (default) = calendar year. Non-zero offsets prefix keys with FY using the end-year convention (Apr 2024-Mar 2025 with offset=3 =\u003e FY2025)."
             }
           ],
           "accepts_types": [
             "date"
           ],
-          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01)",
+          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1)",
           "streamable": false,
           "streamable_hint": "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute."
         },
@@ -4368,4 +4375,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 585bbb4ca68e533b179bae2afce28973364ae9b91b9264ab60535015be9dfd8b
+// golden-hash: 0624b3935266d69aaf825eb4001215dadd4ae6f704984149f6370fb1614f8ac6
