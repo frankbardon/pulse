@@ -1139,6 +1139,450 @@ func TestCrosstab_PartialMarginMedianRecomputesFromRaw(t *testing.T) {
 	}
 }
 
+// TestCrosstab_NormalizeWithin_RowFixesColPrefix exercises the user's
+// canonical cross-axis scenario: Rows=[brand-like], Cols=[wavedate-like,
+// xxx-like]. With normalize=row, normalize_within=0 the denominator for
+// each cell is the count over the inner-column (xxx) leaf within the
+// fixed (rowBrand, outerColWavedate) slab. Cells in each
+// (rowBrand, outerColWavedate) row-slice must therefore sum to 1.0
+// across the inner-column dimension.
+//
+// Fixture mapping onto crosstabRecords:
+//   - rowAxis (brand)            ⇒ region
+//   - outerCol (wavedate)        ⇒ segment
+//   - innerCol (xxx — independent value bin) ⇒ GROUP_RANGE on value @ 50
+//
+// Per-slab denominators (from crosstabRecords):
+//
+//	(north, retail)    cells across value bins: bin[0,50)=3   denom=3
+//	(north, wholesale) bin[100,150)=1                          denom=1
+//	(south, retail)    bin[0,50)=2                              denom=2
+//	(south, wholesale) bin[0,50)=1 + bin[50,100)=1              denom=2
+//	(east, retail)     bin[0,50)=1                              denom=1
+//	(east, wholesale)  (empty — slab dropped)
+func TestCrosstab_NormalizeWithin_RowFixesColPrefix(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	within := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+				{Type: types.GROUP_RANGE, Field: "value", Interval: 50},
+			},
+			Cell:            &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:       types.CrosstabNormalizeRow,
+			NormalizeWithin: &within,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	matrix := resp.Crosstab.Matrix
+
+	type slab struct{ row, outerCol string }
+	sums := map[slab]float64{}
+	for i, rk := range matrix.RowKeys {
+		for j, ck := range matrix.ColumnKeys {
+			cell := matrix.Cells[i][j]
+			if !cell.Present {
+				continue
+			}
+			key := slab{row: rk[0].(string), outerCol: ck[0].(string)}
+			sums[key] += cell.Scalar()
+		}
+	}
+	if len(sums) == 0 {
+		t.Fatal("no present cells")
+	}
+	for s, sum := range sums {
+		if !floatClose(sum, 1.0, 1e-9) {
+			t.Errorf("slab (row=%s, outerCol=%s) sum = %v, want 1.0", s.row, s.outerCol, sum)
+		}
+	}
+}
+
+// TestCrosstab_NormalizeWithin_ColumnFixesRowPrefix is the symmetric
+// twin: normalize=column with normalize_within=0 partitioning the row
+// axis. Cells inside each (colKey, outerRowPrefix) column slice must
+// sum to 1.0 across the inner-row dimension.
+//
+// Same fixture; axes swapped so segment is the outer row, the value bin
+// is the inner row, and region is the column axis.
+func TestCrosstab_NormalizeWithin_ColumnFixesRowPrefix(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	within := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+				{Type: types.GROUP_RANGE, Field: "value", Interval: 50},
+			},
+			Columns:         []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Cell:            &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:       types.CrosstabNormalizeColumn,
+			NormalizeWithin: &within,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	matrix := resp.Crosstab.Matrix
+
+	type slab struct{ col, outerRow string }
+	sums := map[slab]float64{}
+	for i, rk := range matrix.RowKeys {
+		for j, ck := range matrix.ColumnKeys {
+			cell := matrix.Cells[i][j]
+			if !cell.Present {
+				continue
+			}
+			key := slab{col: ck[0].(string), outerRow: rk[0].(string)}
+			sums[key] += cell.Scalar()
+		}
+	}
+	if len(sums) == 0 {
+		t.Fatal("no present cells")
+	}
+	for s, sum := range sums {
+		if !floatClose(sum, 1.0, 1e-9) {
+			t.Errorf("slab (col=%s, outerRow=%s) sum = %v, want 1.0", s.col, s.outerRow, sum)
+		}
+	}
+}
+
+// TestCrosstab_NormalizeWithin_CombinedWithLevel exercises the composition
+// of NormalizeLevel (same-axis truncation) and NormalizeWithin (cross-
+// axis prefix). When normalize=row, NormalizeLevel=0 collapses deeper
+// row groupers and NormalizeWithin=0 fixes the col-axis outer prefix.
+//
+// Fixture: Rows=[region, segment], Cols=[segment, GROUP_RANGE value@50],
+// normalize=row, NormalizeLevel=0, NormalizeWithin=0.
+//
+// Denominator scope per cell: Σ records where region == cell.row[0]
+// AND segment == cell.col[0]. The row prefix (region) is held across
+// all `segment` row values; the col prefix (segment) is held across
+// all value bins.
+//
+// For each (rowRegion, outerColSegment) slab, the matrix cells in
+// every (region, *) row × (segment, *) column combination must sum to
+// the per-region/segment record count divided by itself = 1.0.
+func TestCrosstab_NormalizeWithin_CombinedWithLevel(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	level := 0
+	within := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+				{Type: types.GROUP_RANGE, Field: "value", Interval: 50},
+			},
+			Cell:            &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:       types.CrosstabNormalizeRow,
+			NormalizeLevel:  &level,
+			NormalizeWithin: &within,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	matrix := resp.Crosstab.Matrix
+
+	type slab struct{ rowPrefix, colPrefix string }
+	sums := map[slab]float64{}
+	for i, rk := range matrix.RowKeys {
+		for j, ck := range matrix.ColumnKeys {
+			cell := matrix.Cells[i][j]
+			if !cell.Present {
+				continue
+			}
+			key := slab{rowPrefix: rk[0].(string), colPrefix: ck[0].(string)}
+			sums[key] += cell.Scalar()
+		}
+	}
+	if len(sums) == 0 {
+		t.Fatal("no present cells")
+	}
+	for s, sum := range sums {
+		if !floatClose(sum, 1.0, 1e-9) {
+			t.Errorf("slab (rowPrefix=%s, colPrefix=%s) sum = %v, want 1.0",
+				s.rowPrefix, s.colPrefix, sum)
+		}
+	}
+}
+
+// TestCrosstab_NormalizeWithin_ColumnCombinedWithLevel mirrors the
+// row-side composition test for normalize=column. NormalizeLevel
+// truncates the column axis to its top-level grouper; NormalizeWithin
+// fixes a prefix of the row axis. Each (rowPrefix, colPrefix) slab
+// must sum to 1.0.
+//
+// Fixture: Rows=[segment, GROUP_RANGE value@50], Cols=[region, segment],
+// normalize=column, NormalizeLevel=0, NormalizeWithin=0.
+func TestCrosstab_NormalizeWithin_ColumnCombinedWithLevel(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	level := 0
+	within := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+				{Type: types.GROUP_RANGE, Field: "value", Interval: 50},
+			},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			},
+			Cell:            &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:       types.CrosstabNormalizeColumn,
+			NormalizeLevel:  &level,
+			NormalizeWithin: &within,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	matrix := resp.Crosstab.Matrix
+
+	type slab struct{ rowPrefix, colPrefix string }
+	sums := map[slab]float64{}
+	for i, rk := range matrix.RowKeys {
+		for j, ck := range matrix.ColumnKeys {
+			cell := matrix.Cells[i][j]
+			if !cell.Present {
+				continue
+			}
+			key := slab{rowPrefix: rk[0].(string), colPrefix: ck[0].(string)}
+			sums[key] += cell.Scalar()
+		}
+	}
+	if len(sums) == 0 {
+		t.Fatal("no present cells")
+	}
+	for s, sum := range sums {
+		if !floatClose(sum, 1.0, 1e-9) {
+			t.Errorf("slab (rowPrefix=%s, colPrefix=%s) sum = %v, want 1.0",
+				s.rowPrefix, s.colPrefix, sum)
+		}
+	}
+}
+
+// TestCrosstab_NormalizeWithin_LongShape verifies long-shape emission
+// carries the normalized cell values when normalize_within is active.
+// The cross-axis partition does not introduce a new _margin tag (user-
+// facing semantics deliberately reuse the existing per-cell row format);
+// data rows must reach Response.Data with normalized values that obey
+// the (rowKey, outerColPrefix) slab-sum invariant.
+func TestCrosstab_NormalizeWithin_LongShape(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	within := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+				{Type: types.GROUP_RANGE, Field: "value", Interval: 50},
+			},
+			Cell:            &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:       types.CrosstabNormalizeRow,
+			NormalizeWithin: &within,
+			Shape:           types.CrosstabShapeLong,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(resp.Data) == 0 {
+		t.Fatal("Response.Data empty in long shape")
+	}
+	// No _margin rows (we did not request margins). Verify and sum.
+	type slab struct{ row, outerCol string }
+	sums := map[slab]float64{}
+	for _, row := range resp.Data {
+		if _, ok := row["_margin"]; ok {
+			t.Errorf("unexpected _margin row in long-shape output without margins request: %v", row)
+			continue
+		}
+		v, _ := row["n"].(float64)
+		key := slab{row: row["region"].(string), outerCol: row["segment"].(string)}
+		sums[key] += v
+	}
+	for s, sum := range sums {
+		if !floatClose(sum, 1.0, 1e-9) {
+			t.Errorf("long-shape slab (row=%s, outerCol=%s) sum = %v, want 1.0", s.row, s.outerCol, sum)
+		}
+	}
+}
+
+// TestCrosstab_NormalizeWithinOutOfRangeRejected confirms the runtime
+// gate rejects a normalize_within value outside [0, len(other-axis)-1].
+func TestCrosstab_NormalizeWithinOutOfRangeRejected(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	bad := 5
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+				{Type: types.GROUP_RANGE, Field: "value", Interval: 50},
+			},
+			Cell:            &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:       types.CrosstabNormalizeRow,
+			NormalizeWithin: &bad,
+		},
+	}
+	_, err := svc.Process(ctx, req)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	ce, ok := err.(*errors.CodedError)
+	if !ok {
+		t.Fatalf("expected *CodedError; got %T (%v)", err, err)
+	}
+	if ce.Code != errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE {
+		t.Errorf("code = %v, want PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE", ce.Code)
+	}
+}
+
+// TestCrosstab_NormalizeWithinOutOfRangeRejected_ColumnAxis covers the
+// runtime gate's symmetric branch: normalize=column inspects the row
+// axis length, so the out-of-range message names "rows".
+func TestCrosstab_NormalizeWithinOutOfRangeRejected_ColumnAxis(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	bad := 5
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:            []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns:         []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:            &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:       types.CrosstabNormalizeColumn,
+			NormalizeWithin: &bad,
+		},
+	}
+	_, err := svc.Process(ctx, req)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	ce, ok := err.(*errors.CodedError)
+	if !ok {
+		t.Fatalf("expected *CodedError; got %T (%v)", err, err)
+	}
+	if ce.Code != errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE {
+		t.Errorf("code = %v, want PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE", ce.Code)
+	}
+	if axis, _ := ce.Details["axis"].(string); axis != "rows" {
+		t.Errorf("details.axis = %q, want \"rows\" (column-normalize branch inspects row axis)", axis)
+	}
+}
+
+// TestCrosstab_NormalizeWithinWithTotalRejected confirms NormalizeWithin
+// is rejected when paired with Normalize=total (no other axis to
+// partition).
+func TestCrosstab_NormalizeWithinWithTotalRejected(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	within := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:            []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns:         []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:            &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:       types.CrosstabNormalizeTotal,
+			NormalizeWithin: &within,
+		},
+	}
+	_, err := svc.Process(ctx, req)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	ce, ok := err.(*errors.CodedError)
+	if !ok {
+		t.Fatalf("expected *CodedError; got %T (%v)", err, err)
+	}
+	if ce.Code != errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE {
+		t.Errorf("code = %v, want PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE", ce.Code)
+	}
+}
+
+// TestCrosstab_NormalizeWithinWithoutNormalizeRejected confirms
+// NormalizeWithin requires a normalize direction (row / column).
+func TestCrosstab_NormalizeWithinWithoutNormalizeRejected(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	within := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:            []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns:         []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:            &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			NormalizeWithin: &within,
+		},
+	}
+	_, err := svc.Process(ctx, req)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	ce, ok := err.(*errors.CodedError)
+	if !ok {
+		t.Fatalf("expected *CodedError; got %T (%v)", err, err)
+	}
+	if ce.Code != errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS {
+		t.Errorf("code = %v, want PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS", ce.Code)
+	}
+}
+
 // TestCrosstab_AllAggregatorsClassified is the CI guard: every
 // registered aggregator must have a non-default
 // MarginReducibility classification. Reaching the default branch is a

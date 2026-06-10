@@ -1129,6 +1129,39 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE: {
+		Message: "The Crosstab section's normalize_within falls outside the valid range for the OPPOSITE axis. Valid depths are zero-indexed from the top of the other axis: 0 for the first grouper, len(other-axis)-1 for the leaf. The other axis is Crosstab.Columns when Normalize=row and Crosstab.Rows when Normalize=column.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "NormalizeWithin"},
+				Hint:     "Pick a depth in [0, len(other-axis)-1] where the other axis is Crosstab.Columns when Normalize=row and Crosstab.Rows when Normalize=column. Omit the field entirely to keep the full row / column marginal denominator (the original behavior).",
+				Examples: []any{0, 1},
+			},
+		},
+	},
+	PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS: {
+		Message: "The Crosstab section set normalize_within without selecting a normalization direction. The cross-axis partition selector only has meaning when Normalize is row or column.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Normalize"},
+				Hint:     "Set Crosstab.Normalize to \"row\" or \"column\" to choose which axis hosts the cell-marginal numerator, or drop the normalize_within field to keep raw cell values.",
+				Examples: []any{"row", "column"},
+			},
+		},
+	},
+	PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE: {
+		Message: "The Crosstab section set normalize_within alongside Normalize=total. Total normalization uses a scalar grand-total denominator with no other axis to partition; normalize_within applies only to Normalize=row or Normalize=column.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Normalize"},
+				Hint:     "Switch Normalize to \"row\" or \"column\" if a cross-axis partitioned denominator is intended, or drop normalize_within to keep the scalar grand-total denominator.",
+				Examples: []any{"row", "column"},
+			},
+		},
+	},
 	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED: {
 		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (AGG_SET_FREQUENCY emits map[string]int per cell). Dividing one map by another is undefined; the normalize directive cannot be applied.",
 		Fixups: []Fixup{

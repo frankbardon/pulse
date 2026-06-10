@@ -398,23 +398,84 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		}
 	}
 
+	// Cross-axis partition normalization. When spec.NormalizeWithin is
+	// set, the denominator fixes the full normalize-axis key (truncated
+	// to NormalizeLevel if that is also set) AND a prefix of the OTHER
+	// axis at the configured depth. Distinct from same-axis truncation
+	// (NormalizeLevel alone) — both can coexist on the same request.
+	var crossMargins map[crosstabCellKey]float64
+	var crossLeafRowToPartial map[string]string
+	var crossLeafColToPartial map[string]string
+	crossActive := false
+	if mode != types.CrosstabNormalizeNone && spec.NormalizeWithin != nil {
+		var rowDepth, colDepth int
+		var partitionAxis []*types.Group
+		switch mode {
+		case types.CrosstabNormalizeRow:
+			rowDepth = spec.NormalizeLevelOrLeaf(len(spec.Rows))
+			colDepth = *spec.NormalizeWithin
+		case types.CrosstabNormalizeColumn:
+			colDepth = spec.NormalizeLevelOrLeaf(len(spec.Columns))
+			rowDepth = *spec.NormalizeWithin
+		}
+		partitionAxis = append(partitionAxis, spec.Rows[:rowDepth+1]...)
+		partitionAxis = append(partitionAxis, spec.Columns[:colDepth+1]...)
+		joined, err := p.PartitionByAxis(partitionAxis, filtered)
+		if err != nil {
+			return nil, err
+		}
+		crossMargins = make(map[crosstabCellKey]float64, len(joined.Keys))
+		for _, jkey := range joined.Keys {
+			bucket := joined.Records[jkey]
+			if len(bucket) == 0 {
+				continue
+			}
+			row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
+			if err != nil {
+				return nil, err
+			}
+			if row == nil {
+				continue
+			}
+			parts := strings.Split(jkey, crosstabAxisKeySep)
+			rPartKey := strings.Join(parts[:rowDepth+1], crosstabAxisKeySep)
+			cPartKey := strings.Join(parts[rowDepth+1:], crosstabAxisKeySep)
+			crossMargins[crosstabCellKey{rPartKey, cPartKey}] = coerceFloat64(row[cellLabel])
+		}
+		crossLeafRowToPartial = buildLeafToPartial(rowPart.Keys, rowDepth)
+		crossLeafColToPartial = buildLeafToPartial(colPart.Keys, colDepth)
+		crossActive = true
+	}
+
 	if mode != types.CrosstabNormalizeNone {
 		// Map-valued aggregators rejected upstream by the
 		// MapValued() gate; every cell here is scalar.
 		normalized := make(map[crosstabCellKey]any, len(cellValues))
 		for ck, v := range cellValues {
-			rLookup := ck.row
-			if leafRowToPartial != nil {
-				rLookup = leafRowToPartial[ck.row]
+			var denom float64
+			var ok bool
+			if crossActive {
+				key := crosstabCellKey{
+					row: crossLeafRowToPartial[ck.row],
+					col: crossLeafColToPartial[ck.col],
+				}
+				if d, present := crossMargins[key]; present {
+					denom, ok = d, true
+				}
+			} else {
+				rLookup := ck.row
+				if leafRowToPartial != nil {
+					rLookup = leafRowToPartial[ck.row]
+				}
+				cLookup := ck.col
+				if leafColToPartial != nil {
+					cLookup = leafColToPartial[ck.col]
+				}
+				denom, ok = normalizeDenominator(mode, rLookup, cLookup,
+					partialRowMargins, partialRowPresent,
+					partialColMargins, partialColPresent,
+					coerceFloat64(grandMargin), grandPresent)
 			}
-			cLookup := ck.col
-			if leafColToPartial != nil {
-				cLookup = leafColToPartial[ck.col]
-			}
-			denom, ok := normalizeDenominator(mode, rLookup, cLookup,
-				partialRowMargins, partialRowPresent,
-				partialColMargins, partialColPresent,
-				coerceFloat64(grandMargin), grandPresent)
 			if !ok || denom == 0 {
 				// Divide-by-zero policy: drop the cell. Downstream
 				// rendering sees Present=false.
@@ -814,6 +875,30 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request) error {
 				return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE,
 					"crosstab normalize_level is out of range for the column axis",
 					map[string]any{"normalize_level": lvl, "axis": "columns", "axis_len": len(spec.Columns)})
+			}
+		}
+	}
+	if spec.NormalizeWithin != nil {
+		switch spec.NormalizeOrDefault() {
+		case types.CrosstabNormalizeNone:
+			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS,
+				"crosstab normalize_within requires Normalize to be row or column",
+				map[string]any{"normalize_within": *spec.NormalizeWithin})
+		case types.CrosstabNormalizeTotal:
+			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE,
+				"crosstab normalize_within cannot be combined with Normalize=total",
+				map[string]any{"normalize_within": *spec.NormalizeWithin})
+		case types.CrosstabNormalizeRow:
+			if w := *spec.NormalizeWithin; w < 0 || w >= len(spec.Columns) {
+				return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE,
+					"crosstab normalize_within is out of range for the column axis",
+					map[string]any{"normalize_within": w, "axis": "columns", "axis_len": len(spec.Columns)})
+			}
+		case types.CrosstabNormalizeColumn:
+			if w := *spec.NormalizeWithin; w < 0 || w >= len(spec.Rows) {
+				return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE,
+					"crosstab normalize_within is out of range for the row axis",
+					map[string]any{"normalize_within": w, "axis": "rows", "axis_len": len(spec.Rows)})
 			}
 		}
 	}

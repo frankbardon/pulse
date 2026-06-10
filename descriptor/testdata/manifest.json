@@ -3425,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 118,
+    "error_codes_count": 121,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3476,6 +3476,9 @@
       "PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS",
       "PULSE_CROSSTAB_NORMALIZE_MAP_VALUED",
       "PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE",
+      "PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE",
+      "PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE",
+      "PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS",
       "PULSE_DECIMAL_DIVIDE_BY_ZERO",
       "PULSE_DECIMAL_OVERFLOW",
       "PULSE_DECIMAL_PRECISION_LOSS",
@@ -4861,6 +4864,12 @@
         "normalize_level requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS)",
         "normalize_level cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE)"
       ],
+      "supports_normalize_within": true,
+      "normalize_within_rules": [
+        "normalize_within must be in [0, len(other-axis)-1] where other-axis is columns when normalize=row and rows when normalize=column (PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE)",
+        "normalize_within requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS)",
+        "normalize_within cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE)"
+      ],
       "map_valued_cell_aggregators": [
         "AGG_SET_FREQUENCY"
       ]
@@ -4869,4 +4878,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 242bbbacc73fa6dabfef4f16ce8f1e0701f155f4c5df4564e77e2d34539cf72a
+// golden-hash: 6f54e7348b48d8df4f01dc9024e0c382338b2efeefa32f8b052f311ad6e30ea2
