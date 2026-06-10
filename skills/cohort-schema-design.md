@@ -224,4 +224,17 @@ Pulse does **not** provide concurrent-writer protection. Two processes running `
 - External advisory lock (flock, orchestrator coordination).
 
 Read-side concurrency is safe — readers snapshot the central directory and `_schema.pulse` at `Open` time and never re-read. A concurrent `shard add` does not affect an already-open reader; re-open to see new shards.
+
+## Iterator mmap policy
+
+`Process` and the other streaming facades back their record scan with a memory-mapped read when the underlying `afero.Fs` ultimately resolves to a regular on-disk file. Eligibility is decided at iterator init by `service.resolveRealPath`, which probes the fs in this order:
+
+1. `fs` satisfies the `service.RealPather` capability interface (`interface{ RealPath(name string) (string, error) }`). Both `*afero.BasePathFs` (the default fs returned by `fs.Default()` under `PULSE_DATA_DIR`) and external opt-in wrappers — e.g. a CopyOnRead overlay that downloads `.pulse` objects from object storage into a local cache — match this layer. The returned path must be `os.Open`-able at the moment of the call.
+2. `fs` is `*afero.OsFs`. The cohort path is already the on-disk path.
+
+`MemMapFs`, `ReadOnlyFs`, and any other wrapper that doesn't advertise `RealPath` return `("", false)` and the iterator falls back to `afero.ReadFile`. Hermetic tests built on `fs.NewMemMap()` therefore stay clean — they exercise the non-mmap path automatically with no `t.Skip` required.
+
+The probe is intentionally a fast capability check. There is no third "open-and-inspect" layer that would issue an extra `Open`+`Stat` per `Process` call to discover a real path the wrappers didn't advertise. Rationale lives inline at `service/fs_probe.go`: every fs Pulse depends on (in-tree `BasePathFs`, downstream CoR overlays) can advertise `RealPath` at near-zero cost; charging a syscall on the hot path to rescue mis-implemented wrappers would penalise the common case.
+
+Implication for embedders: when wiring a new `afero.Fs` implementation whose virtual paths ultimately map to a regular local file, implement `RealPather` to opt that fs into the mmap fast path. See `skills/contributor-workflow.md` ("Adding a new `afero.Fs` implementation") for the contributor rule and the regression test that catches a missing capability.
 </reference>
