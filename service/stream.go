@@ -48,8 +48,9 @@ type streamingIterator struct {
 	// memory (no extra indirection over a SectionReader).
 	//
 	// mmapCleanup is the unmap+close pair returned by mmapFileBytes.
-	// Both nil when the iterator fell back to afero.ReadFile (memFs,
-	// non-OsFs filesystems, or platforms where mmap is unavailable).
+	// Both nil when the iterator fell back to afero.ReadFile (MemMapFs,
+	// custom fs without RealPather, or platforms where mmap is
+	// unavailable).
 	mmapBytes   []byte
 	mmapCleanup func() error
 
@@ -81,27 +82,35 @@ func (it *streamingIterator) initFromFile() error {
 		it.initFromReader(bytes.NewReader(it.mmapBytes))
 		return nil
 	}
-	// Fast path: when the underlying filesystem is the host OS, mmap
-	// the file read-only and serve reads directly from the mapped
-	// region. Avoids the whole-file allocation + memcpy that
-	// afero.ReadFile performs.
+	// Fast path: when the underlying filesystem ultimately maps to a
+	// regular on-disk file, mmap it read-only and serve reads directly
+	// from the mapped region. Avoids the whole-file allocation + memcpy
+	// that afero.ReadFile performs.
+	//
+	// resolveRealPath probes for the RealPather capability interface
+	// (satisfied by *afero.BasePathFs out of the box and by any external
+	// fs that opts in — e.g. a CoR overlay caching GCS objects to a
+	// tempdir) and falls back to a direct *afero.OsFs check. The default
+	// Pulse fs is BasePathFs(OsFs, PULSE_DATA_DIR), so the default
+	// configuration takes this path.
 	//
 	// Capability-detected (not flagged) — failures fall back to
-	// afero.ReadFile so callers using MemMapFs, BasePathFs over a
-	// non-OS root, custom Fs implementations, or platforms where the
-	// kernel rejects mmap continue to work unchanged. SIGBUS on
-	// truncation is a documented mmap hazard; Pulse's write-then-read
-	// pattern makes it improbable in practice, but a misbehaving
-	// external writer could still tear a file beneath us.
-	if _, ok := it.fs.(*afero.OsFs); ok {
-		if data, cleanup, err := mmapFileBytes(it.path); err == nil {
+	// afero.ReadFile so callers using MemMapFs, custom Fs
+	// implementations without RealPath, or platforms where the kernel
+	// rejects mmap continue to work unchanged. SIGBUS on truncation is
+	// a documented mmap hazard; Pulse's write-then-read pattern makes
+	// it improbable in practice, but a misbehaving external writer
+	// could still tear a file beneath us.
+	if realPath, ok := resolveRealPath(it.fs, it.path); ok {
+		if data, cleanup, err := mmapFileBytes(realPath); err == nil {
 			it.mmapBytes = data
 			it.mmapCleanup = cleanup
 			it.initFromReader(bytes.NewReader(data))
 			return nil
 		}
-		// Fall through to ReadFile on mmap failure (e.g. empty file or
-		// EACCES on a special file).
+		// Fall through to ReadFile on mmap failure (e.g. empty file,
+		// EACCES on a special file, or errMmapUnsupported on non-unix
+		// builds).
 	}
 	data, err := afero.ReadFile(it.fs, it.path)
 	if err != nil {
