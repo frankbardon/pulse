@@ -318,6 +318,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_SET_OVERFLOW: {
+		Message: "A multi-select column's observed dictionary exceeds the largest set width (set_u64 holds at most 64 entries).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Denormalize to one row per (record, element) pair, or wait for set_u128. If the dictionary is actually bounded, raise --sample-rows or supply a force_type schema hint.",
+			},
+		},
+	},
 	PULSE_IMPORT_CATEGORICAL_UNBOUNDED: {
 		Message: "The categorical inference heuristic believes the column has unbounded cardinality and should be modeled as a string.",
 		Fixups: []Fixup{

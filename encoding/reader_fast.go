@@ -73,6 +73,9 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 				return mapEOF(err)
 			}
 			rec.SetNumeric(field.Name, decodeFixed(field.Type, scratch[:n]))
+			if field.Type.IsSet() {
+				rec.SetWideField(field.Name, decodeSetMask(field.Type, scratch[:n]))
+			}
 		}
 	}
 
@@ -101,13 +104,13 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 // types so callers can fall through to typed readers.
 func fixedWidthBytes(ft FieldType) int {
 	switch ft {
-	case FieldTypeU8, FieldTypeCategoricalU8:
+	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
 		return 1
-	case FieldTypeU16, FieldTypeCategoricalU16:
+	case FieldTypeU16, FieldTypeCategoricalU16, FieldTypeSetU16:
 		return 2
-	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeF32:
+	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeF32, FieldTypeSetU32:
 		return 4
-	case FieldTypeU64, FieldTypeF64:
+	case FieldTypeU64, FieldTypeF64, FieldTypeSetU64:
 		return 8
 	default:
 		return 0
@@ -120,18 +123,36 @@ func fixedWidthBytes(ft FieldType) int {
 // is required (the uint64 is stack-resident).
 func decodeFixed(ft FieldType, buf []byte) float64 {
 	switch ft {
-	case FieldTypeU8, FieldTypeCategoricalU8:
+	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
 		return float64(buf[0])
-	case FieldTypeU16, FieldTypeCategoricalU16:
+	case FieldTypeU16, FieldTypeCategoricalU16, FieldTypeSetU16:
 		return float64(binary.LittleEndian.Uint16(buf))
-	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32:
+	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeSetU32:
 		return float64(binary.LittleEndian.Uint32(buf))
-	case FieldTypeU64:
+	case FieldTypeU64, FieldTypeSetU64:
 		return float64(binary.LittleEndian.Uint64(buf))
 	case FieldTypeF32:
 		return float64(math.Float32frombits(binary.LittleEndian.Uint32(buf)))
 	case FieldTypeF64:
 		return math.Float64frombits(binary.LittleEndian.Uint64(buf))
+	}
+	return 0
+}
+
+// decodeSetMask returns the full uint64 bitmask payload for a set-typed
+// field. Used to populate the wide map so consumers get bit-level
+// precision (the float64 echo in values map can lose high bits for
+// set_u64).
+func decodeSetMask(ft FieldType, buf []byte) uint64 {
+	switch ft {
+	case FieldTypeSetU8:
+		return uint64(buf[0])
+	case FieldTypeSetU16:
+		return uint64(binary.LittleEndian.Uint16(buf))
+	case FieldTypeSetU32:
+		return uint64(binary.LittleEndian.Uint32(buf))
+	case FieldTypeSetU64:
+		return binary.LittleEndian.Uint64(buf)
 	}
 	return 0
 }

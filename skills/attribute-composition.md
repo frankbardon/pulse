@@ -214,3 +214,14 @@ if(category == "Group A", 1, 0)
 
 The dictionary lookup is performed automatically before expression evaluation. Arithmetic on categorical fields in formulas is not supported; use string comparisons (`==`, `!=`, `in`) or branch on the label and emit a numeric result.
 </reference>
+
+<section title="Set-typed attributes (multi-select bitmasks)">
+
+For columns typed `set_u8`, `set_u16`, `set_u32`, `set_u64`, two row-local attributes derive per-row scalars from the set mask:
+
+- `ATTR_SET_POPCOUNT` — emits an integer per row equal to the number of labels selected (the bitmask popcount). Use this to compute "how many products does each respondent own".
+- `ATTR_SET_HAS` — emits 0/1 per row indicating whether the configured label is selected. Configure via `Params: {"label": "VISA"}`; the bit position is resolved once against the field's dictionary at construction time and reduces to a single bitwise op per row.
+
+Both are streamable (`RowLocalAttribute`). For ad-hoc set predicates inside `ATTR_FORMULA`, the built-in expression helpers `contains`, `has_any`, `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor` are always available; `Record.AllValues()` resolves set fields to a sorted `[]string` of labels so the helpers consume natural list operands.
+
+</section>

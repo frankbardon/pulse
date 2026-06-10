@@ -2,10 +2,13 @@ package encoding
 
 import "testing"
 
-func TestFieldTypes_All13Present(t *testing.T) {
-	// Verify we have exactly 13 field types (0..12).
-	if fieldTypeCount != 13 {
-		t.Fatalf("expected 13 field types, got %d", fieldTypeCount)
+func TestFieldTypes_All17Present(t *testing.T) {
+	// Verify we have exactly 17 field types (0..16). Bytes 13–16 are the
+	// set_u8/u16/u32/u64 multi-select family added alongside the
+	// categorical family — same inline dictionary block, fixed-width
+	// bitmask payload.
+	if fieldTypeCount != 17 {
+		t.Fatalf("expected 17 field types, got %d", fieldTypeCount)
 	}
 
 	types := []FieldType{
@@ -15,6 +18,7 @@ func TestFieldTypes_All13Present(t *testing.T) {
 		FieldTypeDate, FieldTypePackedBool,
 		FieldTypeCategoricalU8, FieldTypeCategoricalU16, FieldTypeCategoricalU32,
 		FieldTypeDecimal128,
+		FieldTypeSetU8, FieldTypeSetU16, FieldTypeSetU32, FieldTypeSetU64,
 	}
 	if len(types) != int(fieldTypeCount) {
 		t.Fatalf("type list has %d entries, sentinel says %d", len(types), fieldTypeCount)

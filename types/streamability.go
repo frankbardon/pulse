@@ -19,7 +19,10 @@ func (t AggregationType) Streamable() bool {
 		AGG_DISTINCT_COUNT,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
-		AGG_CI_LOWER, AGG_CI_UPPER:
+		AGG_CI_LOWER, AGG_CI_UPPER,
+		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
+		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
+		AGG_SET_DISTINCT_VALUES:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE:
 		return false
@@ -50,7 +53,10 @@ func (t AggregationType) Mergeable() bool {
 		AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
-		AGG_CI_LOWER, AGG_CI_UPPER:
+		AGG_CI_LOWER, AGG_CI_UPPER,
+		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
+		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
+		AGG_SET_DISTINCT_VALUES:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
 		AGG_SKEWNESS, AGG_KURTOSIS:
@@ -88,20 +94,28 @@ func (t AggregationType) Mergeable() bool {
 func (t AggregationType) MarginReducibility() MarginReducibility {
 	switch t {
 	case AGG_COUNT, AGG_SUM, AGG_NULL_COUNT, AGG_DISTINCT_COUNT,
-		AGG_FREQUENCY:
+		AGG_FREQUENCY,
+		// Set unions, popcount sums, and per-element frequency
+		// histograms all reduce by addition across cells.
+		AGG_SET_UNION, AGG_SET_FREQUENCY,
+		AGG_SET_CARDINALITY_SUM, AGG_SET_DISTINCT_VALUES:
 		// FREQUENCY is summable per category: each cell's per-value
 		// counts merge by key union (same logic the per-shard reducer
 		// uses); classified as summable for that reason. The reshape
 		// pass treats it as recompute today because the long-form
 		// emitter writes a map, not a scalar.
 		return MarginSummable
-	case AGG_AVERAGE, AGG_WEIGHTED_MEAN, AGG_RATIO:
+	case AGG_AVERAGE, AGG_WEIGHTED_MEAN, AGG_RATIO,
+		AGG_SET_CARDINALITY_AVG:
 		return MarginMeanReducible
 	case AGG_MIN, AGG_MAX, AGG_RANGE,
 		AGG_STDDEV, AGG_VARIANCE,
 		AGG_MEDIAN, AGG_PERCENTILE, AGG_MODE,
 		AGG_ZSCORE, AGG_SKEWNESS, AGG_KURTOSIS,
-		AGG_CI_LOWER, AGG_CI_UPPER:
+		AGG_CI_LOWER, AGG_CI_UPPER,
+		// AND across cells ≠ AND across all rows in general — recompute
+		// from raw rows.
+		AGG_SET_INTERSECTION:
 		return MarginRecompute
 	}
 	return MarginRecompute
@@ -134,7 +148,8 @@ const (
 // we exercise in goldens today.
 func (t GroupType) Mergeable() bool {
 	switch t {
-	case GROUP_CATEGORY, GROUP_RANGE:
+	case GROUP_CATEGORY, GROUP_RANGE,
+		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
 	case GROUP_ROUNDED, GROUP_QUANTILE, GROUP_DATE:
 		return false
@@ -159,7 +174,8 @@ func (t AttributeType) Streamable() bool {
 	switch t {
 	case ATTR_FORMULA, ATTR_DATE_PART,
 		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
-		ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE:
+		ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE,
+		ATTR_SET_POPCOUNT, ATTR_SET_HAS:
 		return true
 	case ATTR_PERCENTILE:
 		return false
@@ -174,7 +190,9 @@ func (t FiltererType) Streamable() bool {
 	case FILTER_INCLUDE, FILTER_EXCLUDE, FILTER_RANGE,
 		FILTER_EXPRESSION,
 		FILTER_NULL,
-		FILTER_TRUE, FILTER_FALSE:
+		FILTER_TRUE, FILTER_FALSE,
+		FILTER_SET_CONTAINS_ANY, FILTER_SET_CONTAINS_ALL,
+		FILTER_SET_CONTAINS_NONE, FILTER_SET_EQUALS:
 		return true
 	}
 	return false
@@ -190,7 +208,8 @@ func (t FiltererType) Streamable() bool {
 // streaming iterator can flip the gate without re-deriving the rule.
 func (t GroupType) Streamable() bool {
 	switch t {
-	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE:
+	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE,
+		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
 	case GROUP_QUANTILE, GROUP_DATE:
 		return false

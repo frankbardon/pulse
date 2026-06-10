@@ -239,7 +239,36 @@ Tiny groups produce unstable summary stats. Pair non-trivial aggregations with `
 Higher moments (`AGG_STDDEV`, `AGG_VARIANCE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`) require n ≥ 2 non-null values; below that, they return 0 rather than erroring (skewness/kurtosis also return 0 when stddev is 0).
 </rule>
 
+<section title="Set-typed aggregators (multi-select bitmasks)">
+
+For columns typed `set_u8`, `set_u16`, `set_u32`, or `set_u64` (multi-select survey-style fields backed by a shared dictionary), six dedicated aggregators sit alongside the scalar family:
+
+- `AGG_SET_UNION` — bitwise OR across rows. Rich result is the sorted slice of labels selected by at least one contributing row; scalar fallback is the popcount of the union mask.
+- `AGG_SET_INTERSECTION` — bitwise AND across rows. Rich result is the labels selected by every contributing row; scalar fallback is the popcount. Margin recompute (AND across cells is NOT equal to AND across all rows in general).
+- `AGG_SET_FREQUENCY` — per-bit row count returning a `map[label]int`. Scalar fallback is the max single-label frequency. Smart-default aggregator for `set_*` fields.
+- `AGG_SET_CARDINALITY_SUM` — total number of selections across the input (sum of popcounts).
+- `AGG_SET_CARDINALITY_AVG` — mean popcount per contributing row.
+- `AGG_SET_DISTINCT_VALUES` — count of distinct exact mask values seen (each combination treated atomically).
+
+All six are streamable and mergeable; `INTERSECTION`'s margin is recompute, `CARDINALITY_AVG` is mean-reducible, the rest are summable. UNION / INTERSECTION / FREQUENCY satisfy `RichAggregator` and surface their typed payload through `Response.Data` rows and Crosstab cells.
+
+</section>
+
+<section title="Filtering set columns">
+
+Set fields support four label-resolved filterers:
+
+- `FILTER_SET_CONTAINS_ANY` — keep rows with at least one of the listed labels selected.
+- `FILTER_SET_CONTAINS_ALL` — keep rows with every listed label selected.
+- `FILTER_SET_CONTAINS_NONE` — drop rows with any listed label selected (null rows pass).
+- `FILTER_SET_EQUALS` — exact-mask match. Useful with `GROUP_SET_VALUE`.
+
+Pass labels through `Filterer.Values` exactly as they appear in the schema dictionary; resolution to bitmask happens once at build time. Ad-hoc expressions can also reach for the built-in helpers `contains`, `has_any`, `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor` via `FILTER_EXPRESSION` / `ATTR_FORMULA`.
+
+</section>
+
 <see_also>
 - attribute-composition — per-record attributes (including ATTR_ZSCORE).
 - grouper-design — how groupers partition data before aggregation runs.
+- cohort-schema-design — set_u8/u16/u32/u64 field type semantics.
 </see_also>

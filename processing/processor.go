@@ -588,10 +588,11 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	if err != nil {
 		return nil, err
 	}
-	streamGrp, ok := grouperInstance.(StreamingGrouper)
-	if !ok {
+	streamGrp, _ := grouperInstance.(StreamingGrouper)
+	multiGrp, _ := grouperInstance.(MultiKeyStreamingGrouper)
+	if streamGrp == nil && multiGrp == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-			fmt.Sprintf("grouper %s does not implement StreamingGrouper", grp.Type))
+			fmt.Sprintf("grouper %s does not implement StreamingGrouper or MultiKeyStreamingGrouper", grp.Type))
 	}
 
 	// Pre-compute aggregator labels so per-key bucket construction is cheap.
@@ -694,35 +695,50 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			r.Set(ra.label, val)
 		}
 
-		key, ok, err := streamGrp.KeyForRow(r, grp.Field)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue // null group key — buffered path skips these too
+		var rowKeys []string
+		if multiGrp != nil {
+			keys, ok, err := multiGrp.KeysForRow(r, grp.Field)
+			if err != nil {
+				return nil, err
+			}
+			if !ok || len(keys) == 0 {
+				continue
+			}
+			rowKeys = keys
+		} else {
+			key, ok, err := streamGrp.KeyForRow(r, grp.Field)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				continue // null group key — buffered path skips these too
+			}
+			rowKeys = []string{key}
 		}
 
-		b, exists := buckets[key]
-		if !exists {
-			online := make([]OnlineAggregator, len(specs))
-			for i, s := range specs {
-				inst, err := s.factory(s.agg, p.schema)
-				if err != nil {
+		for _, key := range rowKeys {
+			b, exists := buckets[key]
+			if !exists {
+				online := make([]OnlineAggregator, len(specs))
+				for i, s := range specs {
+					inst, err := s.factory(s.agg, p.schema)
+					if err != nil {
+						return nil, err
+					}
+					oa, ok := inst.(OnlineAggregator)
+					if !ok {
+						return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+							fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
+					}
+					online[i] = oa
+				}
+				b = &bucket{online: online}
+				buckets[key] = b
+			}
+			for i, oa := range b.online {
+				if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
 					return nil, err
 				}
-				oa, ok := inst.(OnlineAggregator)
-				if !ok {
-					return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-						fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
-				}
-				online[i] = oa
-			}
-			b = &bucket{online: online}
-			buckets[key] = b
-		}
-		for i, oa := range b.online {
-			if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
-				return nil, err
 			}
 		}
 	}

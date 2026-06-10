@@ -80,30 +80,29 @@ func reflectiveExprTrampoline(fn any) func(args ...any) (any, error) {
 
 // ExprOptions returns the expr-lang Option slice an ExtensionRegistry
 // contributes to ATTR_FORMULA / FILTER_EXPRESSION compilation. A nil
-// receiver and a registry with no expression-side entries both return
-// nil — the caller's base options stay untouched.
+// receiver still returns the built-in set helpers; non-nil receivers
+// layer their custom ExprFunctions and (when LookupTables are
+// registered) the `lookup` builtin on top.
 //
-// Two contributions:
+// Contributions:
+//   - set helpers (`contains`, `has_any`, `has_all`, `has_none`,
+//     `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor`)
+//     are always registered. Record.AllValues() resolves set fields to
+//     []string of labels, so the helpers consume []string operands.
 //   - One expr.Function per ExprFunctions entry, registered under its
 //     declared Name.
 //   - The built-in `lookup(table, keys...)` function when at least one
-//     LookupTable is registered. The function resolves keys against
-//     the named table and returns a float64 on hit; PULSE_LOOKUP_MISS
-//     on miss; PULSE_LOOKUP_TABLE_UNKNOWN when the table is not
-//     registered.
+//     LookupTable is registered.
 //
 // Expressions in cohorts with no lookup tables registered still
 // reference `lookup` legally — the function returns
 // PULSE_LOOKUP_TABLE_UNKNOWN at evaluation time. The compile-time
 // typecheck (E8) catches static misuse.
 func (r *ExtensionRegistry) ExprOptions() []expr.Option {
+	out := setExprOptions()
 	if r == nil {
-		return nil
+		return out
 	}
-	if len(r.ExprFunctions) == 0 && len(r.LookupTables) == 0 {
-		return nil
-	}
-	out := make([]expr.Option, 0, len(r.ExprFunctions)+1)
 	for _, fn := range r.ExprFunctions {
 		if fn.Fn == nil {
 			continue

@@ -90,5 +90,21 @@ func grouperCapabilities() []Operator {
 			EmitsTypeNote: "rounded numeric key per row",
 			Streamable:    true,
 		},
+		{
+			Name:          string(types.GROUP_SET_VALUE),
+			Category:      "grouper",
+			Description:   "Partition rows by the exact set mask (one bucket per unique combination). Bucket key = sorted label list joined with \"|\".",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "string bucket key per row (e.g. \"AMEX|VISA\")",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.GROUP_SET_PER_ELEMENT),
+			Category:      "grouper",
+			Description:   "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount. Implements MultiKeyStreamingGrouper.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "string bucket key per selected label per row",
+			Streamable:    true,
+		},
 	}
 }

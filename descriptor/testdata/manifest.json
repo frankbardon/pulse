@@ -322,6 +322,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -349,6 +353,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -376,6 +384,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -495,6 +507,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -522,6 +538,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -616,12 +636,100 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
             "u8"
           ],
           "emits_type_note": "scalar float64 (NaN when denominator sum == 0)",
+          "streamable": true
+        },
+        {
+          "name": "AGG_SET_CARDINALITY_AVG",
+          "category": "aggregator",
+          "description": "Average popcount per contributing row — typical number of selections.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_SET_CARDINALITY_SUM",
+          "category": "aggregator",
+          "description": "Sum of popcounts across contributing rows — total selections seen.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "scalar int64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_SET_DISTINCT_VALUES",
+          "category": "aggregator",
+          "description": "Count of distinct exact mask values seen; each combination is atomic.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "scalar int64",
+          "streamable": true
+        },
+        {
+          "name": "AGG_SET_FREQUENCY",
+          "category": "aggregator",
+          "description": "Per-bit row count: how many rows had each set label selected.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "rich map[string]int (label→row count); scalar fallback = max single-label frequency",
+          "streamable": true
+        },
+        {
+          "name": "AGG_SET_INTERSECTION",
+          "category": "aggregator",
+          "description": "Bitwise-AND a set field across rows; returns the resolved labels for every bit set in every contributing row.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "rich []string (resolved labels); scalar fallback = popcount of the intersection mask",
+          "streamable": true
+        },
+        {
+          "name": "AGG_SET_UNION",
+          "category": "aggregator",
+          "description": "Bitwise-OR a set field across rows; returns the resolved labels for every bit set in any contributing row.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "rich []string (resolved labels); scalar fallback = popcount of the union mask",
           "streamable": true
         },
         {
@@ -813,6 +921,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -930,6 +1042,43 @@
           "streamable": true
         },
         {
+          "name": "ATTR_SET_HAS",
+          "category": "attribute",
+          "description": "Per-row boolean: whether the configured label's bit is set on the set field.",
+          "params": [
+            {
+              "name": "label",
+              "type": "string",
+              "required": true,
+              "description": "Dictionary label whose bit position is checked per row."
+            }
+          ],
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type": "packed_bool",
+          "emits_type_note": "one 0/1 per record",
+          "streamable": true
+        },
+        {
+          "name": "ATTR_SET_POPCOUNT",
+          "category": "attribute",
+          "description": "Per-row popcount of a set field — the number of selected labels.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type": "u8",
+          "emits_type_note": "one small integer per record (0..set width)",
+          "streamable": true
+        },
+        {
           "name": "ATTR_TSCORE",
           "category": "attribute",
           "description": "Per-row T-score: z-score scaled and shifted to mean 50, stddev 10.",
@@ -992,6 +1141,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -1019,6 +1172,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -1046,6 +1203,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -1073,6 +1234,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -1100,6 +1265,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -1130,6 +1299,62 @@
           "streamable": true
         },
         {
+          "name": "FILTER_SET_CONTAINS_ALL",
+          "category": "filterer",
+          "description": "Keep records where the set field has every bit in the supplied Values labels set.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true
+        },
+        {
+          "name": "FILTER_SET_CONTAINS_ANY",
+          "category": "filterer",
+          "description": "Keep records where the set field shares at least one bit with the supplied Values labels.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true
+        },
+        {
+          "name": "FILTER_SET_CONTAINS_NONE",
+          "category": "filterer",
+          "description": "Keep records where the set field shares no bits with the supplied Values labels (null rows pass).",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true
+        },
+        {
+          "name": "FILTER_SET_EQUALS",
+          "category": "filterer",
+          "description": "Keep records whose set field mask exactly matches the supplied Values labels.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true
+        },
+        {
           "name": "FILTER_TRUE",
           "category": "filterer",
           "description": "Keep records where Field is logically true. Strict mode (default, omit Values) requires packed_bool. Opt into JavaScript-style coercion across any field type with Values=[\"truthy\"].",
@@ -1148,6 +1373,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -1177,6 +1406,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -1302,6 +1535,34 @@
           ],
           "emits_type_note": "rounded numeric key per row",
           "streamable": true
+        },
+        {
+          "name": "GROUP_SET_PER_ELEMENT",
+          "category": "grouper",
+          "description": "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount. Implements MultiKeyStreamingGrouper.",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "string bucket key per selected label per row",
+          "streamable": true
+        },
+        {
+          "name": "GROUP_SET_VALUE",
+          "category": "grouper",
+          "description": "Partition rows by the exact set mask (one bucket per unique combination). Bucket key = sorted label list joined with \"|\".",
+          "params": null,
+          "accepts_types": [
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8"
+          ],
+          "emits_type_note": "string bucket key per row (e.g. \"AMEX|VISA\")",
+          "streamable": true
         }
       ],
       "windows": [
@@ -1324,6 +1585,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -1500,6 +1765,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -1528,6 +1797,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -1792,6 +2065,10 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u16",
+            "set_u32",
+            "set_u64",
+            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -3148,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 116,
+    "error_codes_count": 117,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3219,6 +3496,7 @@
       "PULSE_IMPORT_HANDLE_EXISTS",
       "PULSE_IMPORT_ROW_ERROR",
       "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
+      "PULSE_IMPORT_SET_OVERFLOW",
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
       "PULSE_JOIN_FIELD_COLLISION",
@@ -4068,6 +4346,202 @@
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
+      },
+      {
+        "name": "set_u8",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO",
+          "AGG_SET_CARDINALITY_AVG",
+          "AGG_SET_CARDINALITY_SUM",
+          "AGG_SET_DISTINCT_VALUES",
+          "AGG_SET_FREQUENCY",
+          "AGG_SET_INTERSECTION",
+          "AGG_SET_UNION"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_SET_HAS",
+          "ATTR_SET_POPCOUNT"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_INCLUDE",
+          "FILTER_NULL",
+          "FILTER_SET_CONTAINS_ALL",
+          "FILTER_SET_CONTAINS_ANY",
+          "FILTER_SET_CONTAINS_NONE",
+          "FILTER_SET_EQUALS",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_SET_PER_ELEMENT",
+          "GROUP_SET_VALUE"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
+      },
+      {
+        "name": "set_u16",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO",
+          "AGG_SET_CARDINALITY_AVG",
+          "AGG_SET_CARDINALITY_SUM",
+          "AGG_SET_DISTINCT_VALUES",
+          "AGG_SET_FREQUENCY",
+          "AGG_SET_INTERSECTION",
+          "AGG_SET_UNION"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_SET_HAS",
+          "ATTR_SET_POPCOUNT"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_INCLUDE",
+          "FILTER_NULL",
+          "FILTER_SET_CONTAINS_ALL",
+          "FILTER_SET_CONTAINS_ANY",
+          "FILTER_SET_CONTAINS_NONE",
+          "FILTER_SET_EQUALS",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_SET_PER_ELEMENT",
+          "GROUP_SET_VALUE"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
+      },
+      {
+        "name": "set_u32",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO",
+          "AGG_SET_CARDINALITY_AVG",
+          "AGG_SET_CARDINALITY_SUM",
+          "AGG_SET_DISTINCT_VALUES",
+          "AGG_SET_FREQUENCY",
+          "AGG_SET_INTERSECTION",
+          "AGG_SET_UNION"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_SET_HAS",
+          "ATTR_SET_POPCOUNT"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_INCLUDE",
+          "FILTER_NULL",
+          "FILTER_SET_CONTAINS_ALL",
+          "FILTER_SET_CONTAINS_ANY",
+          "FILTER_SET_CONTAINS_NONE",
+          "FILTER_SET_EQUALS",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_SET_PER_ELEMENT",
+          "GROUP_SET_VALUE"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
+      },
+      {
+        "name": "set_u64",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO",
+          "AGG_SET_CARDINALITY_AVG",
+          "AGG_SET_CARDINALITY_SUM",
+          "AGG_SET_DISTINCT_VALUES",
+          "AGG_SET_FREQUENCY",
+          "AGG_SET_INTERSECTION",
+          "AGG_SET_UNION"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_SET_HAS",
+          "ATTR_SET_POPCOUNT"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_INCLUDE",
+          "FILTER_NULL",
+          "FILTER_SET_CONTAINS_ALL",
+          "FILTER_SET_CONTAINS_ANY",
+          "FILTER_SET_CONTAINS_NONE",
+          "FILTER_SET_EQUALS",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_SET_PER_ELEMENT",
+          "GROUP_SET_VALUE"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       }
     ],
     "skills": [
@@ -4341,11 +4815,16 @@
         "AGG_DISTINCT_COUNT",
         "AGG_FREQUENCY",
         "AGG_NULL_COUNT",
+        "AGG_SET_CARDINALITY_SUM",
+        "AGG_SET_DISTINCT_VALUES",
+        "AGG_SET_FREQUENCY",
+        "AGG_SET_UNION",
         "AGG_SUM"
       ],
       "mean_reducible_aggregators": [
         "AGG_AVERAGE",
         "AGG_RATIO",
+        "AGG_SET_CARDINALITY_AVG",
         "AGG_WEIGHTED_MEAN"
       ],
       "recompute_aggregators": [
@@ -4358,6 +4837,7 @@
         "AGG_MODE",
         "AGG_PERCENTILE",
         "AGG_RANGE",
+        "AGG_SET_INTERSECTION",
         "AGG_SKEWNESS",
         "AGG_STDDEV",
         "AGG_VARIANCE",
@@ -4384,4 +4864,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ec10c9378620f4649fe4bef69caa2fe6c127c3b4999fa3cd85d861142a89885b
+// golden-hash: fec7e9f7a0694e463ad95b1a2ba8fc2669dc60bed157110086917d05aa79ad89

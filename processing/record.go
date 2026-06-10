@@ -97,6 +97,73 @@ func (r *Record) NumericValue(name string) (float64, bool) {
 	return v, ok
 }
 
+// SetValue returns the raw bitmask for a set-typed field. Bit i is set
+// when dictionary entry i is selected. Returns (0, false) when the field
+// is null, missing, or not a set type.
+//
+// The mask is sourced from the typed wide map so bit-level precision is
+// preserved across all four width tiers (set_u8/u16/u32/u64) — callers
+// that need exact-bit semantics MUST NOT read set fields via NumericValue
+// because the float64 echo loses high bits for set_u64.
+func (r *Record) SetValue(name string) (uint64, bool) {
+	if r.nulls[name] {
+		return 0, false
+	}
+	if r.wide == nil {
+		return 0, false
+	}
+	v, ok := r.wide[name]
+	if !ok {
+		return 0, false
+	}
+	mask, ok := v.(uint64)
+	if !ok {
+		return 0, false
+	}
+	return mask, true
+}
+
+// SetLabels decodes a set-typed field's bitmask into a slice of resolved
+// dictionary labels in bit order (i.e. dictionary insertion order, which
+// is also the bit-assignment order). Returns (nil, false) when the field
+// is null, missing, not a set type, or has no dictionary. Empty mask
+// returns ([]string{}, true) — the field is present but the respondent
+// picked nothing.
+func (r *Record) SetLabels(name string) ([]string, bool) {
+	mask, ok := r.SetValue(name)
+	if !ok {
+		return nil, false
+	}
+	f := r.schema.Field(name)
+	if f == nil || !f.Type.IsSet() || f.Dictionary == nil {
+		return nil, false
+	}
+	return resolveSetLabels(mask, f.Dictionary), true
+}
+
+// resolveSetLabels walks the bits of a set mask in ascending bit order
+// and returns the dictionary labels for set bits. Bit i ↔ dict entry i.
+// Bits beyond dict.Len() are ignored (the writer must not set them; the
+// reader stays defensive against a corrupt or remapped payload).
+func resolveSetLabels(mask uint64, dict *encoding.Dictionary) []string {
+	if mask == 0 || dict == nil {
+		return []string{}
+	}
+	dictLen := dict.Count()
+	out := make([]string, 0, 8)
+	for i := 0; i < dictLen && i < 64; i++ {
+		if mask&(uint64(1)<<uint(i)) == 0 {
+			continue
+		}
+		label := dict.Resolve(uint32(i))
+		if label == "" {
+			continue
+		}
+		out = append(out, label)
+	}
+	return out
+}
+
 // StringValue returns the resolved string value for categorical fields.
 // For non-categorical fields, returns the empty string and false.
 func (r *Record) StringValue(name string) (string, bool) {
@@ -155,6 +222,13 @@ func (r *Record) AllValues() map[string]any {
 	for k, v := range r.wide {
 		if r.nulls[k] {
 			continue
+		}
+		f := r.schema.Field(k)
+		if f != nil && f.Type.IsSet() && f.Dictionary != nil {
+			if mask, ok := v.(uint64); ok {
+				out[k] = resolveSetLabels(mask, f.Dictionary)
+				continue
+			}
 		}
 		out[k] = v
 	}

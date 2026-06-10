@@ -91,10 +91,24 @@ var allCohortFieldTypes = []string{
 	"nullable_u4",
 	"nullable_u8",
 	"packed_bool",
+	"set_u16",
+	"set_u32",
+	"set_u64",
+	"set_u8",
 	"u16",
 	"u32",
 	"u64",
 	"u8",
+}
+
+// setFieldTypes lists the bitmask multi-select field types. Used by every
+// AGG_SET_* / FILTER_SET_* / GROUP_SET_* / ATTR_SET_* operator — they
+// reject non-set fields at construction time.
+var setFieldTypes = []string{
+	"set_u16",
+	"set_u32",
+	"set_u64",
+	"set_u8",
 }
 
 // aggregatorCapabilities is the static metadata table for every
@@ -334,6 +348,54 @@ func aggregatorCapabilities() []Operator {
 			},
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64 (NaN when n < 2)",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_SET_UNION),
+			Category:      "aggregator",
+			Description:   "Bitwise-OR a set field across rows; returns the resolved labels for every bit set in any contributing row.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "rich []string (resolved labels); scalar fallback = popcount of the union mask",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_SET_INTERSECTION),
+			Category:      "aggregator",
+			Description:   "Bitwise-AND a set field across rows; returns the resolved labels for every bit set in every contributing row.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "rich []string (resolved labels); scalar fallback = popcount of the intersection mask",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_SET_FREQUENCY),
+			Category:      "aggregator",
+			Description:   "Per-bit row count: how many rows had each set label selected.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "rich map[string]int (label→row count); scalar fallback = max single-label frequency",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_SET_CARDINALITY_SUM),
+			Category:      "aggregator",
+			Description:   "Sum of popcounts across contributing rows — total selections seen.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "scalar int64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_SET_CARDINALITY_AVG),
+			Category:      "aggregator",
+			Description:   "Average popcount per contributing row — typical number of selections.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_SET_DISTINCT_VALUES),
+			Category:      "aggregator",
+			Description:   "Count of distinct exact mask values seen; each combination is atomic.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
 		},
 	}

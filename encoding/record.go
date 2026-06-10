@@ -14,13 +14,13 @@ import (
 // this function will reject those types with ENCODING_TYPE_MISMATCH.
 func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 	switch ft {
-	case FieldTypeU8, FieldTypeCategoricalU8:
+	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
 		return binary.Write(w, binary.LittleEndian, uint8(val))
-	case FieldTypeU16, FieldTypeCategoricalU16:
+	case FieldTypeU16, FieldTypeCategoricalU16, FieldTypeSetU16:
 		return binary.Write(w, binary.LittleEndian, uint16(val))
-	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32:
+	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeSetU32:
 		return binary.Write(w, binary.LittleEndian, uint32(val))
-	case FieldTypeU64:
+	case FieldTypeU64, FieldTypeSetU64:
 		return binary.Write(w, binary.LittleEndian, val)
 	case FieldTypeF32:
 		return binary.Write(w, binary.LittleEndian, uint32(val))
@@ -43,19 +43,19 @@ func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 // For bit-packed types (U4, PackedBool), use ReadBit/ReadNibble instead.
 func ReadFieldValue(r io.Reader, ft FieldType) (uint64, error) {
 	switch ft {
-	case FieldTypeU8, FieldTypeCategoricalU8:
+	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
 		var v uint8
 		err := binary.Read(r, binary.LittleEndian, &v)
 		return uint64(v), err
-	case FieldTypeU16, FieldTypeCategoricalU16:
+	case FieldTypeU16, FieldTypeCategoricalU16, FieldTypeSetU16:
 		var v uint16
 		err := binary.Read(r, binary.LittleEndian, &v)
 		return uint64(v), err
-	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32:
+	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeSetU32:
 		var v uint32
 		err := binary.Read(r, binary.LittleEndian, &v)
 		return uint64(v), err
-	case FieldTypeU64:
+	case FieldTypeU64, FieldTypeSetU64:
 		var v uint64
 		err := binary.Read(r, binary.LittleEndian, &v)
 		return v, err

@@ -12,7 +12,7 @@ Schema design determines storage layout, encoding width, and downstream aggregat
 </skill_overview>
 
 <reference>
-## Field types (all 13)
+## Field types (all 17)
 
 | Type | Byte | Notes |
 |---|---|---|
@@ -29,6 +29,10 @@ Schema design determines storage layout, encoding width, and downstream aggregat
 | `categorical_u16` | 2 | Dictionary-encoded, ≤65,536 entries |
 | `categorical_u32` | 4 | Dictionary-encoded, ≤~4.29B entries |
 | `decimal128` | 16 | Fixed-point exact decimal, per-field (precision, scale) |
+| `set_u8` | 1 | Multi-select bitmask over a shared dictionary (≤8 labels). Bit `i` = label `dict[i]` selected. |
+| `set_u16` | 2 | Multi-select bitmask, ≤16 labels. |
+| `set_u32` | 4 | Multi-select bitmask, ≤32 labels. |
+| `set_u64` | 8 | Multi-select bitmask, ≤64 labels. |
 
 Nullability is orthogonal to type. Any field may carry `Nullable: true` in its schema descriptor — see the "Null bitmap" reference below for the per-record bitmap layout that turns on when at least one field opts in.
 </reference>
@@ -71,6 +75,27 @@ This is a pre-release clean break — there is no compatibility with files writt
 | up to ~4.29B | `categorical_u32` |
 
 Exceeding the chosen width raises `PULSE_IMPORT_CATEGORICAL_OVERFLOW`; an unbounded inferred dictionary raises `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`.
+</reference>
+
+<reference>
+## Set columns (multi-select bitmasks)
+
+Set-typed columns model "the respondent picked several values from a shared catalog" — for example a survey field listing which credit-card issuers a respondent holds. The payload is a fixed-width unsigned integer; bit `i` is set when the dictionary's `i`-th entry was selected. The dictionary lives inline in the schema block (same encoding as `categorical_*`), so every shard's records reference a known label list and bitwise operations (`|` = union, `&` = intersection, `^` = symmetric difference) work uniformly.
+
+| Distinct labels | Width | On-wire bytes |
+|---|---|---|
+| ≤ 8 | `set_u8` | 1 |
+| ≤ 16 | `set_u16` | 2 |
+| ≤ 32 | `set_u32` | 4 |
+| ≤ 64 | `set_u64` | 8 |
+
+An empty mask (`0x00`) is a valid value meaning "no selection" — it is NOT a null. Null state lives in the per-record bitmap as for any other field.
+
+Shard archives merge set dictionaries with the same union semantics as categoricals; per-record bitmasks are rewritten with the bit-permutation matrix derived from the dict remap. Width overflow → `PULSE_SHARD_DICT_WIDTH_OVERFLOW` at insert time. Importer cardinality overflow → `PULSE_IMPORT_SET_OVERFLOW`.
+
+`Record.SetValue(name) (uint64, bool)` returns the raw mask through `Record.wide` so set_u64's high bits survive (float64 precision footgun avoided). `Record.SetLabels(name)` resolves the mask to a sorted `[]string` of dictionary labels; `Record.AllValues()` does the same for the expression environment so `"VISA" in card_issuers` works inside `FILTER_EXPRESSION` and `ATTR_FORMULA`.
+
+The dedicated operator surface is six aggregators (`AGG_SET_*`), four filterers (`FILTER_SET_*`), two groupers (`GROUP_SET_*`), and two attributes (`ATTR_SET_*`); see the aggregation-guide, grouper-design, and attribute-composition skills for details. Smart defaults pair `AGG_SET_FREQUENCY` with `GROUP_SET_PER_ELEMENT` so "respondents per option" answers without further configuration.
 </reference>
 
 <rule severity="should" topic="bit-packing">

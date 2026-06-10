@@ -42,6 +42,7 @@ type fieldClassification struct {
 	Categorical   []string // categorical_u8/u16/u32
 	Date          []string // date
 	Bool          []string // packed_bool
+	Set           []string // set_u8/u16/u32/u64 multi-select bitmasks
 	NumericOrDate []string // window OrderBy targets
 }
 
@@ -65,6 +66,8 @@ func classifyFields(schema *encoding.Schema) fieldClassification {
 			}
 		case f.Type.IsCategorical():
 			c.Categorical = append(c.Categorical, f.Name)
+		case f.Type.IsSet():
+			c.Set = append(c.Set, f.Name)
 		case f.Type == encoding.FieldTypeDate:
 			c.Date = append(c.Date, f.Name)
 			c.NumericOrDate = append(c.NumericOrDate, f.Name)

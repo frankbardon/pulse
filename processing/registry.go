@@ -27,6 +27,13 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_RATIO:          newRatioAggregator,
 	types.AGG_CI_LOWER:       newCIAggregator(ciLower),
 	types.AGG_CI_UPPER:       newCIAggregator(ciUpper),
+
+	types.AGG_SET_UNION:           newSetUnionAggregator,
+	types.AGG_SET_INTERSECTION:    newSetIntersectionAggregator,
+	types.AGG_SET_FREQUENCY:       newSetFrequencyAggregator,
+	types.AGG_SET_CARDINALITY_SUM: newSetCardinalitySumAggregator,
+	types.AGG_SET_CARDINALITY_AVG: newSetCardinalityAvgAggregator,
+	types.AGG_SET_DISTINCT_VALUES: newSetDistinctValuesAggregator,
 }
 
 // attributeRegistry maps attribute types to their factory functions.
@@ -40,6 +47,9 @@ var attributeRegistry = map[types.AttributeType]AttributeFactory{
 	types.ATTR_REG_FITTED:   newRegFittedAttribute,
 	types.ATTR_REG_RESIDUAL: newRegResidualAttribute,
 	types.ATTR_REG_LEVERAGE: newRegLeverageAttribute,
+
+	types.ATTR_SET_POPCOUNT: newSetPopcountAttribute,
+	types.ATTR_SET_HAS:      newSetHasAttribute,
 }
 
 // filtererRegistry maps filterer types to their factory functions.
@@ -51,6 +61,11 @@ var filtererRegistry = map[types.FiltererType]FiltererFactory{
 	types.FILTER_NULL:       newNullFilterer,
 	types.FILTER_TRUE:       newTrueFilterer,
 	types.FILTER_FALSE:      newFalseFilterer,
+
+	types.FILTER_SET_CONTAINS_ANY:  newSetContainsAnyFilterer,
+	types.FILTER_SET_CONTAINS_ALL:  newSetContainsAllFilterer,
+	types.FILTER_SET_CONTAINS_NONE: newSetContainsNoneFilterer,
+	types.FILTER_SET_EQUALS:        newSetEqualsFilterer,
 }
 
 // grouperRegistry maps group types to their factory functions.
@@ -60,4 +75,7 @@ var grouperRegistry = map[types.GroupType]GrouperFactory{
 	types.GROUP_QUANTILE: newQuantileGrouper,
 	types.GROUP_RANGE:    newRangeGrouper,
 	types.GROUP_ROUNDED:  newRoundedGrouper,
+
+	types.GROUP_SET_VALUE:       newSetValueGrouper,
+	types.GROUP_SET_PER_ELEMENT: newSetPerElementGrouper,
 }

@@ -245,17 +245,25 @@ func TestLookupBuiltin_FuncBackedError(t *testing.T) {
 
 // ---- ExprOptions ------------------------------------------------------
 
+// setExprHelperCount is the number of always-on set helpers contributed
+// by ExprOptions (contains / has_any / has_all / has_none / popcount /
+// set_union / set_intersect / set_diff / set_xor). Bump this constant
+// when the helper roster changes.
+const setExprHelperCount = 9
+
 func TestExprOptions_NilRegistry(t *testing.T) {
 	var r *ExtensionRegistry
-	if opts := r.ExprOptions(); opts != nil {
-		t.Errorf("nil registry must yield nil ExprOptions, got %v", opts)
+	opts := r.ExprOptions()
+	if len(opts) != setExprHelperCount {
+		t.Errorf("nil registry must yield %d built-in set helpers, got %d", setExprHelperCount, len(opts))
 	}
 }
 
 func TestExprOptions_NoEntries(t *testing.T) {
 	r := &ExtensionRegistry{}
-	if opts := r.ExprOptions(); opts != nil {
-		t.Errorf("empty registry must yield nil ExprOptions, got %v", opts)
+	opts := r.ExprOptions()
+	if len(opts) != setExprHelperCount {
+		t.Errorf("empty registry must yield %d built-in set helpers, got %d", setExprHelperCount, len(opts))
 	}
 }
 
@@ -267,8 +275,9 @@ func TestExprOptions_SkipsNilFn(t *testing.T) {
 		},
 	}
 	opts := r.ExprOptions()
-	if len(opts) != 1 {
-		t.Errorf("expected 1 option (nil Fn skipped), got %d", len(opts))
+	want := setExprHelperCount + 1
+	if len(opts) != want {
+		t.Errorf("expected %d options (set helpers + 1 custom, nil Fn skipped), got %d", want, len(opts))
 	}
 }
 

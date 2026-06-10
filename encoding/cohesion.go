@@ -101,14 +101,15 @@ func ValidateStructuralCohesion(canonical, incoming *Schema) ([]CohesionWarning,
 					"incoming_bit_pos":  nf.BitPosition,
 				})
 		}
-		// Categorical width identity is already enforced by the
-		// Type-byte check (FieldTypeCategoricalU8 / U16 / U32 are
-		// distinct bytes). The explicit case below makes the
-		// contract self-documenting for reviewers and surfaces a
-		// clearer error message if the type check ever loosens.
-		if cf.Type.IsCategorical() && cf.Type != nf.Type {
+		// Dictionary-bearing width identity is already enforced by the
+		// Type-byte check (FieldTypeCategoricalU8/U16/U32 and
+		// FieldTypeSetU8/U16/U32/U64 are distinct bytes). The explicit
+		// case below makes the contract self-documenting for reviewers
+		// and surfaces a clearer error message if the type check ever
+		// loosens.
+		if cf.Type.HasDictionary() && cf.Type != nf.Type {
 			return warnings, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
-				fmt.Sprintf("field %q categorical width differs: canonical=%s, incoming=%s",
+				fmt.Sprintf("field %q dictionary width differs: canonical=%s, incoming=%s",
 					cf.Name, cf.Type, nf.Type),
 				map[string]any{
 					"field":           cf.Name,
@@ -172,14 +173,14 @@ func ValidateDictPrefixRule(canonical, incoming *Schema) (*Schema, error) {
 	for i := range canonical.Fields {
 		cf := &canonical.Fields[i]
 		nf := &incoming.Fields[i]
-		if !cf.Type.IsCategorical() {
+		if !cf.Type.HasDictionary() {
 			continue
 		}
 		// Defense in depth — structural validator already rejects
 		// width changes.
 		if cf.Type != nf.Type {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
-				fmt.Sprintf("field %q categorical width differs", cf.Name),
+				fmt.Sprintf("field %q dictionary width differs", cf.Name),
 				map[string]any{"field": cf.Name})
 		}
 		cv := dictValuesOrEmpty(cf.Dictionary)
@@ -191,7 +192,7 @@ func ValidateDictPrefixRule(canonical, incoming *Schema) (*Schema, error) {
 		case isPrefix(cv, nv):
 			// Canonical is a prefix; incoming extends it. Verify the
 			// extension fits the declared width before accepting.
-			maxEntries := cf.Type.MaxCategoricalEntries()
+			maxEntries := cf.Type.MaxDictEntries()
 			if uint32(len(nv)) > maxEntries {
 				return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW,
 					fmt.Sprintf("field %q dictionary growth (%d entries) exceeds %s capacity (%d entries)",
@@ -281,12 +282,12 @@ func MergeDictUnion(canonical, incoming *Schema) (*Schema, map[int]DictRemap, er
 	for i := range canonical.Fields {
 		cf := &canonical.Fields[i]
 		nf := &incoming.Fields[i]
-		if !cf.Type.IsCategorical() {
+		if !cf.Type.HasDictionary() {
 			continue
 		}
 		if cf.Type != nf.Type {
 			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
-				fmt.Sprintf("field %q categorical width differs", cf.Name),
+				fmt.Sprintf("field %q dictionary width differs", cf.Name),
 				map[string]any{"field": cf.Name})
 		}
 
@@ -317,7 +318,7 @@ func MergeDictUnion(canonical, incoming *Schema) (*Schema, map[int]DictRemap, er
 			unionVals = append(unionVals, v)
 		}
 
-		maxEntries := cf.Type.MaxCategoricalEntries()
+		maxEntries := cf.Type.MaxDictEntries()
 		if uint32(len(unionVals)) > maxEntries {
 			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW,
 				fmt.Sprintf("field %q dictionary union (%d entries) exceeds %s capacity (%d entries)",
