@@ -73,11 +73,19 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 		return nil, err
 	}
 
-	// Per-row Record reuse is safe: FusedCrosstabState consumes the
-	// record inline (axis keys + cell update) and retains no pointer
-	// past the Update call.
-	EnableReuse(iter)
-
+	// NOTE: We intentionally do NOT call EnableReuse(iter) here, even
+	// though the FusedCrosstabState consumes each record inline and
+	// retains no pointer past Update. The streamingIterator's reuse
+	// fast path (ReadRecordReused) walks every schema field — it does
+	// NOT honour the projection installed by
+	// service.applyCrosstabProjection. On wide cohorts (the 200-field
+	// canonical bench) skipping projection costs an order of magnitude
+	// more than the per-record map allocation the non-reuse path
+	// incurs. The non-reuse Next path routes through
+	// ReadRecordWithWidePlan whenever a DecodePlan was installed, so
+	// the per-record decode budget collapses to the retained subset.
+	// Plumbing a projected-reuse decoder is the long-term cleanup; the
+	// trade-off here favours the dramatically larger projection win.
 	for iter.Next() {
 		rec := iter.Record()
 		state.AddTotalRow()
