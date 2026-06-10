@@ -66,6 +66,161 @@ func decodeShardRecords(t *testing.T, b []byte) (*encoding.Schema, [][2]uint32) 
 	return schema, out
 }
 
+// buildShardWithSet emits a minimal valid single-file .pulse shard with
+// an id (u32) column and an issuers (set_u8) column. Records are
+// supplied as (id, mask) pairs — the mask is the raw bitmask in the
+// shard's own dictionary frame.
+func buildShardWithSet(t *testing.T, dictValues []string, records [][2]uint32) ([]byte, *encoding.Schema) {
+	t.Helper()
+	d := encoding.NewDictionary()
+	for _, v := range dictValues {
+		if _, err := d.Add(v); err != nil {
+			t.Fatalf("dict add: %v", err)
+		}
+	}
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "issuers", Type: encoding.FieldTypeSetU8, ByteOffset: 4,
+				CsvColumnIdx: 1, Dictionary: d},
+		},
+	}
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		t.Fatalf("WriteSchema: %v", err)
+	}
+	for _, r := range records {
+		var rec [5]byte
+		binary.LittleEndian.PutUint32(rec[0:4], r[0])
+		rec[4] = byte(r[1])
+		buf.Write(rec[:])
+	}
+	return buf.Bytes(), schema
+}
+
+func decodeShardRecordsWithSet(t *testing.T, b []byte) (*encoding.Schema, [][2]uint32) {
+	t.Helper()
+	r := bytes.NewReader(b)
+	if err := encoding.ReadHeader(r); err != nil {
+		t.Fatalf("ReadHeader: %v", err)
+	}
+	schema, err := encoding.ReadSchema(r)
+	if err != nil {
+		t.Fatalf("ReadSchema: %v", err)
+	}
+	tail := make([]byte, r.Len())
+	if _, err := r.Read(tail); err != nil {
+		t.Fatalf("read tail: %v", err)
+	}
+	out := make([][2]uint32, 0, len(tail)/5)
+	for i := 0; i < len(tail); i += 5 {
+		id := binary.LittleEndian.Uint32(tail[i : i+4])
+		mask := uint32(tail[i+4])
+		out = append(out, [2]uint32{id, mask})
+	}
+	return schema, out
+}
+
+// TestMergeDictUnion_Divergent_RewritesSetMasks pins the set-field
+// analog of TestMergeDictUnion_Divergent_RewritesIndices. The
+// categorical case rewrites a single index per record; the set case
+// must rewrite EVERY set bit independently according to the dict
+// remap. A divergent union that both reorders an existing label and
+// appends a new one is the failure mode most likely to escape the
+// remapSetMask unit case. Silent-corruption risk if this bit math
+// regresses, since masks would still parse but reference the wrong
+// dictionary labels.
+func TestMergeDictUnion_Divergent_RewritesSetMasks(t *testing.T) {
+	// Canonical dict: Apple=0, Banana=1, Cherry=2.
+	canonical := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "issuers", Type: encoding.FieldTypeSetU8, ByteOffset: 4,
+				CsvColumnIdx: 1, Dictionary: dictOf(t, "Apple", "Banana", "Cherry")},
+		},
+	}
+	// Incoming dict: Banana=0, Apple=1, Date=2 — reorders Apple/Banana
+	// and introduces Date as a new label. Union must become
+	// [Apple, Banana, Cherry, Date] with remap {0→1, 1→0, 2→3}.
+	incomingBytes, incomingSchema := buildShardWithSet(t,
+		[]string{"Banana", "Apple", "Date"},
+		[][2]uint32{
+			{1, 0b001}, // Banana only         (incoming bit 0)
+			{2, 0b010}, // Apple only          (incoming bit 1)
+			{3, 0b100}, // Date only           (incoming bit 2)
+			{4, 0b111}, // Banana+Apple+Date
+			{5, 0b000}, // empty mask survives intact
+		})
+
+	extended, remap, err := encoding.MergeDictUnion(canonical, incomingSchema)
+	if err != nil {
+		t.Fatalf("MergeDictUnion: %v", err)
+	}
+
+	gotDict := extended.Fields[1].Dictionary.Values()
+	wantDict := []string{"Apple", "Banana", "Cherry", "Date"}
+	if len(gotDict) != len(wantDict) {
+		t.Fatalf("union dict size: got %d (%v), want %d (%v)", len(gotDict), gotDict, len(wantDict), wantDict)
+	}
+	for i := range gotDict {
+		if gotDict[i] != wantDict[i] {
+			t.Errorf("dict[%d]: got %q, want %q", i, gotDict[i], wantDict[i])
+		}
+	}
+
+	r, ok := remap[1]
+	if !ok {
+		t.Fatalf("expected remap for field index 1, got %v", remap)
+	}
+	wantRemap := encoding.DictRemap{0: 1, 1: 0, 2: 3}
+	if len(r) != len(wantRemap) {
+		t.Errorf("remap size: got %d (%v), want %d (%v)", len(r), r, len(wantRemap), wantRemap)
+	}
+	for k, v := range wantRemap {
+		if r[k] != v {
+			t.Errorf("remap[%d]: got %d, want %d", k, r[k], v)
+		}
+	}
+
+	rewritten, err := encoding.RewriteShardCategoricals(incomingBytes, extended, remap)
+	if err != nil {
+		t.Fatalf("RewriteShardCategoricals: %v", err)
+	}
+
+	rewrittenSchema, recs := decodeShardRecordsWithSet(t, rewritten)
+	rwDict := rewrittenSchema.Fields[1].Dictionary.Values()
+	if len(rwDict) != 4 || rwDict[3] != "Date" {
+		t.Fatalf("rewritten shard dict: got %v", rwDict)
+	}
+
+	// Hand-computed expected masks in the UNION frame:
+	//   Banana=1, Apple=0, Cherry=2, Date=3.
+	// id=1: Banana (incoming 0b001) → Banana in union frame is bit 1 → 0b010
+	// id=2: Apple (incoming 0b010)  → Apple  in union frame is bit 0 → 0b001
+	// id=3: Date  (incoming 0b100)  → Date   in union frame is bit 3 → 0b1000
+	// id=4: B+A+D (incoming 0b111)  → bits 0+1+3 in union frame      → 0b1011
+	// id=5: empty                                                    → 0b000
+	wantRecs := [][2]uint32{
+		{1, 0b0010},
+		{2, 0b0001},
+		{3, 0b1000},
+		{4, 0b1011},
+		{5, 0b0000},
+	}
+	if len(recs) != len(wantRecs) {
+		t.Fatalf("rewritten record count: got %d, want %d", len(recs), len(wantRecs))
+	}
+	for i := range recs {
+		if recs[i] != wantRecs[i] {
+			t.Errorf("rec[%d]: got id=%d mask=0b%04b, want id=%d mask=0b%04b",
+				i, recs[i][0], recs[i][1], wantRecs[i][0], wantRecs[i][1])
+		}
+	}
+}
+
 func TestMergeDictUnion_Divergent_RewritesIndices(t *testing.T) {
 	canonical := &encoding.Schema{
 		Fields: []encoding.Field{

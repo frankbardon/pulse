@@ -211,6 +211,238 @@ func TestCrosstab_ScalarCellPathUnchanged(t *testing.T) {
 	}
 }
 
+// TestCrosstab_SetPerElementOnRowAxis verifies GROUP_SET_PER_ELEMENT on
+// a crosstab row axis correctly composes with the existing multi-grouper
+// partitioning: a single input row fans into one row bucket per set bit
+// it carries, and each fanned copy is independently partitioned by the
+// column axis. PR 65 acknowledged set groupers on crosstab axes as
+// "should work through existing multi-grouper plumbing but untested" —
+// this test pins the property so a refactor of partitionByAxis or the
+// processor bucket loop cannot silently regress per-element fan-out on
+// axes.
+func TestCrosstab_SetPerElementOnRowAxis(t *testing.T) {
+	schema := crosstabSetSchema(t)
+	// 4 records varying region and tag mask.
+	//
+	//   R1: north, {VISA, MC}     (fans into 2 row buckets: VISA, MC)
+	//   R2: north, {AMEX}         (fans into 1 row bucket : AMEX)
+	//   R3: south, {VISA}         (fans into 1 row bucket : VISA)
+	//   R4: south, {}             (empty mask → fans into NOTHING)
+	recs := []*Record{
+		crosstabSetRecord(schema, 0, 0b0011),
+		crosstabSetRecord(schema, 0, 0b0100),
+		crosstabSetRecord(schema, 1, 0b0001),
+		crosstabSetRecord(schema, 1, 0b0000),
+	}
+	p := NewProcessor(schema)
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "region", Label: "n"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+	}
+	resp, err := p.RunCrosstab(context.Background(), req, recs)
+	if err != nil {
+		t.Fatalf("RunCrosstab: %v", err)
+	}
+	m := resp.Crosstab.Matrix
+	if m == nil {
+		t.Fatal("expected matrix payload")
+	}
+
+	rowIdx := axisKeyIndex(m.RowKeys)
+	colIdx := axisKeyIndex(m.ColumnKeys)
+
+	type cellExp struct {
+		row, col string
+		want     float64
+	}
+	wantCells := []cellExp{
+		// VISA row gets R1 (north) + R3 (south).
+		{row: "VISA", col: "north", want: 1},
+		{row: "VISA", col: "south", want: 1},
+		// MC row gets R1 (north only).
+		{row: "MC", col: "north", want: 1},
+		// AMEX row gets R2 (north only).
+		{row: "AMEX", col: "north", want: 1},
+	}
+	for _, c := range wantCells {
+		ri, ok := rowIdx[c.row]
+		if !ok {
+			t.Errorf("row %q missing from RowKeys %v", c.row, m.RowKeys)
+			continue
+		}
+		ci, ok := colIdx[c.col]
+		if !ok {
+			t.Errorf("col %q missing from ColumnKeys %v", c.col, m.ColumnKeys)
+			continue
+		}
+		cell := m.Cells[ri][ci]
+		if !cell.Present {
+			t.Errorf("cell (%s,%s) not present", c.row, c.col)
+			continue
+		}
+		if cell.Scalar() != c.want {
+			t.Errorf("cell (%s,%s) count: got %v, want %v", c.row, c.col, cell.Scalar(), c.want)
+		}
+	}
+
+	// Empty-mask row contributes zero cells; the DISC bit is never set
+	// in any record, so it must not appear as a row key.
+	for _, k := range m.RowKeys {
+		if len(k) != 1 {
+			t.Errorf("row key %v has unexpected arity", k)
+			continue
+		}
+		label, _ := k[0].(string)
+		if label == "DISC" {
+			t.Errorf("DISC must not appear as row key (no record holds it): %v", m.RowKeys)
+		}
+	}
+
+	// Total set-bit fan-out must equal the sum of present cell scalars.
+	// ∑ popcount(mask) across all rows = 2 + 1 + 1 + 0 = 4.
+	var totalCount float64
+	for ri := range m.Cells {
+		for ci := range m.Cells[ri] {
+			if m.Cells[ri][ci].Present {
+				totalCount += m.Cells[ri][ci].Scalar()
+			}
+		}
+	}
+	if totalCount != 4 {
+		t.Errorf("sum of present cell counts: got %v, want 4 (∑ popcount across rows)", totalCount)
+	}
+}
+
+// TestCrosstab_SetPerElementOnBothAxes pins the "no double-counting
+// under dual fan-out" property of GROUP_SET_PER_ELEMENT used on BOTH
+// axes simultaneously. A row with popcount=k contributes to k² cells
+// (k row buckets × k column buckets), and cells (a,b) where a row
+// doesn't hold both a and b must be absent — the per-axis fan-out is
+// independent, not cartesian-over-the-source-mask.
+func TestCrosstab_SetPerElementOnBothAxes(t *testing.T) {
+	schema := crosstabSetSchema(t)
+	// R1: {VISA, MC}  → contributes to (VISA,VISA) (VISA,MC) (MC,VISA) (MC,MC) → 4 cells
+	// R2: {AMEX}      → contributes to (AMEX,AMEX)                           → 1 cell
+	// R3: {VISA}      → contributes to (VISA,VISA)                            → 1 cell
+	// R4: {}          → contributes to NO cell
+	recs := []*Record{
+		crosstabSetRecord(schema, 0, 0b0011),
+		crosstabSetRecord(schema, 0, 0b0100),
+		crosstabSetRecord(schema, 1, 0b0001),
+		crosstabSetRecord(schema, 1, 0b0000),
+	}
+	p := NewProcessor(schema)
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}},
+			Columns: []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "region", Label: "n"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+	}
+	resp, err := p.RunCrosstab(context.Background(), req, recs)
+	if err != nil {
+		t.Fatalf("RunCrosstab: %v", err)
+	}
+	m := resp.Crosstab.Matrix
+	if m == nil {
+		t.Fatal("expected matrix payload")
+	}
+
+	rowIdx := axisKeyIndex(m.RowKeys)
+	colIdx := axisKeyIndex(m.ColumnKeys)
+
+	// Expected present cells with their counts.
+	type cellExp struct {
+		row, col string
+		want     float64
+	}
+	wantCells := []cellExp{
+		{row: "VISA", col: "VISA", want: 2}, // R1 + R3
+		{row: "VISA", col: "MC", want: 1},   // R1
+		{row: "MC", col: "VISA", want: 1},   // R1
+		{row: "MC", col: "MC", want: 1},     // R1
+		{row: "AMEX", col: "AMEX", want: 1}, // R2
+	}
+	wantPresent := make(map[[2]string]float64, len(wantCells))
+	for _, c := range wantCells {
+		wantPresent[[2]string{c.row, c.col}] = c.want
+	}
+
+	for ri, rk := range m.RowKeys {
+		for ci, ck := range m.ColumnKeys {
+			rLabel := rk[0].(string)
+			cLabel := ck[0].(string)
+			cell := m.Cells[ri][ci]
+			want, expected := wantPresent[[2]string{rLabel, cLabel}]
+			if expected {
+				if !cell.Present {
+					t.Errorf("cell (%s,%s) expected present but absent", rLabel, cLabel)
+					continue
+				}
+				if cell.Scalar() != want {
+					t.Errorf("cell (%s,%s) count: got %v, want %v", rLabel, cLabel, cell.Scalar(), want)
+				}
+			} else if cell.Present {
+				// Negative assertion: no record holds BOTH labels, so cell must not be present.
+				t.Errorf("cell (%s,%s) unexpectedly present (count=%v); no record holds both labels",
+					rLabel, cLabel, cell.Scalar())
+			}
+		}
+	}
+
+	// Defensive: re-confirm via grand total.
+	// ∑ popcount² across rows = 2² + 1² + 1² + 0² = 6.
+	var totalCount float64
+	for ri := range m.Cells {
+		for ci := range m.Cells[ri] {
+			if m.Cells[ri][ci].Present {
+				totalCount += m.Cells[ri][ci].Scalar()
+			}
+		}
+	}
+	if totalCount != 6 {
+		t.Errorf("sum of present cell counts: got %v, want 6 (∑ popcount² across rows)", totalCount)
+	}
+
+	// DISC bit is never set in any record — must not appear on either axis.
+	for _, k := range m.RowKeys {
+		if label, _ := k[0].(string); label == "DISC" {
+			t.Errorf("DISC must not appear as row key: %v", m.RowKeys)
+		}
+	}
+	for _, k := range m.ColumnKeys {
+		if label, _ := k[0].(string); label == "DISC" {
+			t.Errorf("DISC must not appear as column key: %v", m.ColumnKeys)
+		}
+	}
+
+	// rowIdx/colIdx live only to fail-loudly if axis-key sort order
+	// changes — both maps are populated above.
+	_ = rowIdx
+	_ = colIdx
+}
+
+// axisKeyIndex builds a label → index map from a list of single-grouper
+// AxisKey tuples. Used by the set-axis crosstab tests to look up cells
+// by row/column label regardless of sort order.
+func axisKeyIndex(keys []types.AxisKey) map[string]int {
+	out := make(map[string]int, len(keys))
+	for i, k := range keys {
+		if len(k) == 0 {
+			continue
+		}
+		if label, ok := k[0].(string); ok {
+			out[label] = i
+		}
+	}
+	return out
+}
+
 // TestCrosstab_RichDispatchInBufferedAggregate verifies the
 // dispatchAggregatorResult helper routes RichAggregator output into
 // Response.Data when no Crosstab section is in play (plain grouped

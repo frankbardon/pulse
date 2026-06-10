@@ -170,6 +170,79 @@ func TestInfer_SetMinPctRespectsCustom(t *testing.T) {
 	}
 }
 
+// TestInfer_SetExactlySixtyFourTokensInfersSetU64 pins the at-64-tokens
+// boundary in probeSetClassification (io/infer.go:363) and setWidth
+// (io/infer.go:400-413). The existing overflow test uses 70 tokens —
+// proving the >64 reject path — but no test pins exactly-64-tokens →
+// set_u64. A regression where the gate is mis-coded as `>= 64` would
+// silently kick the column to categorical_u16 instead of set_u64.
+func TestInfer_SetExactlySixtyFourTokensInfersSetU64(t *testing.T) {
+	// 64 rows, each cell carrying a pipe-delimited pair of tokens
+	// drawn from a 64-token alphabet. Every token T00..T63 appears at
+	// least once across the rows. Average post-split cardinality is
+	// exactly 2 — above the 1.0 floor that AvgCardinalityOneRejectsSet
+	// pins. minSampleRows=50, so 64 rows comfortably exceeds the floor.
+	const n = 64
+	rows := make([][]string, 0, n)
+	categories := []string{"A", "B", "C", "D"}
+	for i := 0; i < n; i++ {
+		a := "T" + itoa(i)
+		b := "T" + itoa((i+1)%n)
+		rows = append(rows, []string{
+			categories[i%len(categories)],
+			a + "|" + b,
+		})
+	}
+	r := newMockReader([]string{"id", "issuers"}, rows)
+	res, err := InferSchemaWithOptions(r, InferOptions{})
+	if err != nil {
+		t.Fatalf("InferSchemaWithOptions: %v", err)
+	}
+	got := res.Schema.Field("issuers").Type
+	if got != encoding.FieldTypeSetU64 {
+		t.Errorf("exactly-64 unique tokens type = %s, want set_u64", got)
+	}
+	if d := res.Delimiters["issuers"]; d != "|" {
+		t.Errorf("delimiter = %q, want |", d)
+	}
+}
+
+// TestConvertValue_SetU64_Bit63RoundTrip pins the highest bit of
+// set_u64 through convertValue. The mask is stored as a uint64 raw
+// value through the codec — bit 63 (1<<63 = 0x8000_0000_0000_0000) is
+// the boundary the format permits. A regression that signed-int-casts
+// the mask anywhere along the path would lose bit 63.
+func TestConvertValue_SetU64_Bit63RoundTrip(t *testing.T) {
+	dict := encoding.NewDictionary()
+	// Push 64 tokens. Token T63 lands at dict index 63 → bit 63 of the
+	// set_u64 mask.
+	for i := 0; i < 64; i++ {
+		if _, err := dict.Add("T" + itoa(i)); err != nil {
+			t.Fatalf("dict.Add: %v", err)
+		}
+	}
+
+	cases := []struct {
+		raw  string
+		want uint64
+	}{
+		{"T63", 1 << 63},                     // highest bit alone
+		{"T0|T63", (1 << 63) | 1},            // bit 0 and bit 63
+		{"T31|T32|T63", (1 << 31) | (1 << 32) | (1 << 63)},
+		{"", 0},
+	}
+	for _, c := range cases {
+		got, err := convertValue(c.raw, encoding.FieldTypeSetU64, dict, "|")
+		if err != nil {
+			t.Errorf("convertValue %q: %v", c.raw, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("convertValue %q = 0x%016x, want 0x%016x", c.raw, got, c.want)
+		}
+	}
+}
+
 func TestConvertValue_SetU8(t *testing.T) {
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"VISA", "MC", "AMEX", "DISC"} {

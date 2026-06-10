@@ -105,6 +105,92 @@ func TestReadRecordProjected_PackedBoolNeighborAlignment(t *testing.T) {
 	}
 }
 
+// TestReadRecordProjected_SetFieldAlignment exercises the projected
+// reader through a set_u8 field — once with the set field EXCLUDED
+// from projection (cursor must advance past the mask byte so the
+// scalar neighbour after it still decodes), and once with the set
+// field INCLUDED (the wide map must carry the raw uint64 mask). Set
+// fields share the default branch of the per-field dispatch with
+// other scalar types but additionally populate wide[name] = raw so
+// downstream operators can read the bitmask without float coercion.
+// Existing projection tests cover scalars and bit-packed neighbours;
+// neither covers set fields, leaving the mask-byte-advance contract
+// untested.
+func TestReadRecordProjected_SetFieldAlignment(t *testing.T) {
+	// 3-field schema: id (u32, offset 0), issuers (set_u8, offset 4),
+	// age (u8, offset 5). Total record stride: 6 bytes.
+	schema := &Schema{
+		Fields: []Field{
+			{Name: "id", Type: FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "issuers", Type: FieldTypeSetU8, ByteOffset: 4, CsvColumnIdx: 1},
+			{Name: "age", Type: FieldTypeU8, ByteOffset: 5, CsvColumnIdx: 2},
+		},
+	}
+
+	// Encode one record: id=42, issuers mask=0b1010 (two bits set), age=33.
+	var buf bytes.Buffer
+	if err := WriteFieldValue(&buf, FieldTypeU32, 42); err != nil {
+		t.Fatalf("write id: %v", err)
+	}
+	if err := WriteFieldValue(&buf, FieldTypeSetU8, 0b1010); err != nil {
+		t.Fatalf("write issuers: %v", err)
+	}
+	if err := WriteFieldValue(&buf, FieldTypeU8, 33); err != nil {
+		t.Fatalf("write age: %v", err)
+	}
+	recordBytes := buf.Bytes()
+	if len(recordBytes) != 6 {
+		t.Fatalf("record stride: got %d, want 6", len(recordBytes))
+	}
+
+	// --- Sub-test 1: set field EXCLUDED from projection ---
+	rr := NewRecordReader(bytes.NewReader(recordBytes), schema)
+	values := make(map[string]float64)
+	nulls := make(map[string]bool)
+	wide := make(map[string]any)
+	keep := func(name string) bool { return name == "id" || name == "age" }
+	if err := rr.ReadRecordWithWideProjected(values, nulls, wide, keep); err != nil {
+		t.Fatalf("ReadRecordWithWideProjected (issuers excluded): %v", err)
+	}
+	if _, ok := values["issuers"]; ok {
+		t.Errorf("excluded issuers must not appear in values map")
+	}
+	if _, ok := wide["issuers"]; ok {
+		t.Errorf("excluded issuers must not appear in wide map")
+	}
+	if got, ok := values["id"]; !ok || got != 42 {
+		t.Errorf("id: got %v ok=%v, want 42", got, ok)
+	}
+	// Critical: this asserts the cursor advanced past the set_u8 mask
+	// byte. If the projection path skipped the read, the u8 age field
+	// would decode 0b1010 = 10 from the mask byte and EOF on the age
+	// byte (or read past end into the bitmap).
+	if got, ok := values["age"]; !ok || got != 33 {
+		t.Errorf("age: got %v ok=%v, want 33 — cursor misaligned through skipped set_u8 mask", got, ok)
+	}
+
+	// --- Sub-test 2: set field INCLUDED in projection ---
+	rr2 := NewRecordReader(bytes.NewReader(recordBytes), schema)
+	values2 := make(map[string]float64)
+	nulls2 := make(map[string]bool)
+	wide2 := make(map[string]any)
+	keepAll := func(name string) bool { return true }
+	if err := rr2.ReadRecordWithWideProjected(values2, nulls2, wide2, keepAll); err != nil {
+		t.Fatalf("ReadRecordWithWideProjected (issuers included): %v", err)
+	}
+	rawMask, ok := wide2["issuers"]
+	if !ok {
+		t.Fatal("issuers missing from wide map when projected in")
+	}
+	if rawMask.(uint64) != 0b1010 {
+		t.Errorf("wide[issuers] = 0b%b, want 0b1010 (raw uint64 mask)", rawMask)
+	}
+	if values2["id"] != 42 || values2["age"] != 33 {
+		t.Errorf("scalar neighbors corrupt with set field projected in: id=%v age=%v",
+			values2["id"], values2["age"])
+	}
+}
+
 // TestReadRecordProjected_NilFilterFallsThrough verifies that passing a
 // nil FieldFilter populates every field — identical behaviour to
 // ReadRecordWithWide.
