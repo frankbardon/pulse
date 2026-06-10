@@ -61,10 +61,37 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	// bytes. Otherwise fall through to the serial
 	// materializeRecords(iter) path that has driven crosstab since E2.
 	//
-	// E3-S2 is decode-only: the parallel path still produces a single
-	// []*processing.Record consumed by RunCrosstab unchanged. E3-S3
-	// will compose this with per-worker partial accumulators and
-	// merge them before the orchestrator runs.
+	// E3-S2 wired the decode-only segment fan-out: workers append to
+	// per-worker slabs and the orchestrator stitches them into a
+	// single []*processing.Record consumed by RunCrosstab unchanged.
+	// E3-S3 layers per-worker partial aggregator state on top via
+	// reduceParallelBuffered, but only mergeable requests
+	// (processing.CanMergeRequest) qualify. A crosstab request always
+	// fails that gate today — validateCrosstabSpec rejects
+	// req.Aggregations and CanMergeRequest requires non-empty
+	// Aggregations — so the dispatch keeps the slice path for every
+	// crosstab call. The mergeable arm is wired here so E3-S4 has a
+	// single, documented dispatch point to broaden the eligibility
+	// from.
+	if processing.CanMergeRequest(req, cohort.Schema()) {
+		mergedResp, mergedOK, err := s.crosstabDecodeReduceMergeable(ctx, req, cohort, path, iter)
+		if err != nil {
+			return nil, err
+		}
+		if mergedOK {
+			if mergedResp.Metadata != nil {
+				mergedResp.Metadata.CohortFile = path
+			}
+			if err := s.buildAndApplyLabels(req, mergedResp); err != nil {
+				return nil, err
+			}
+			return mergedResp, nil
+		}
+		// mergedOK=false signals the mergeable path bailed pre-dispatch
+		// (small cohort, MemMapFs, shard archive). Fall through to the
+		// slice path.
+	}
+
 	records, err := s.crosstabDecodeRecords(ctx, cohort, path, iter)
 	if err != nil {
 		return nil, err
@@ -83,6 +110,77 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 		return nil, err
 	}
 	return resp, nil
+}
+
+// crosstabDecodeReduceMergeable is the mergeable-arm dispatcher: it
+// shares the same bail predicates as crosstabDecodeRecords (shard
+// archive → bail, MemMapFs → bail, below threshold → bail) but on
+// success returns a finalised *types.Response from
+// reduceParallelBuffered instead of a []*processing.Record. The third
+// return value (ok) is true when the reducer ran end-to-end; false
+// signals the caller should fall back to the slice path (the caller,
+// processCrosstab, then calls into materializeRecords + RunCrosstab as
+// it did pre-E3-S3).
+//
+// Today this arm is unreachable from a crosstab request because
+// validateCrosstabSpec rejects req.Aggregations and CanMergeRequest
+// requires non-empty Aggregations — the gate in processCrosstab
+// therefore always trips false for crosstab and the slice path is
+// taken. The dispatch is wired here so E3-S4's broader Process-level
+// gate has a single integration point to share, and so unit tests can
+// exercise reduceParallelBuffered without re-routing the call chain.
+func (s *Service) crosstabDecodeReduceMergeable(
+	ctx context.Context,
+	req *types.Request,
+	cohort *Cohort,
+	path string,
+	iter scanIterator,
+) (*types.Response, bool, error) {
+	// Shard archives: bail. Same reasoning as crosstabDecodeRecords —
+	// intra-shard segment decode on top of the per-shard reducer would
+	// double-spawn workers.
+	if len(cohort.Shards()) > 0 {
+		return nil, false, nil
+	}
+	si, ok := iter.(*streamingIterator)
+	if !ok {
+		return nil, false, nil
+	}
+	if s.decodeWorkers == 1 {
+		return nil, false, nil
+	}
+
+	projectMapHint := len(cohort.Schema().Fields)
+	if si.projectSize > 0 {
+		projectMapHint = si.projectSize
+	}
+	pctx, cleanup, available, err := buildParallelDecodeContext(
+		s, path, cohort.Schema(), si.plan, si.project, projectMapHint,
+	)
+	if err != nil {
+		return nil, false, err
+	}
+	if !available {
+		return nil, false, nil
+	}
+	workers, ok := shouldFanOutDecode(s.decodeWorkers, pctx.totalRecords)
+	if !ok {
+		if cleanup != nil {
+			_ = cleanup()
+		}
+		return nil, false, nil
+	}
+	defer func() {
+		if cleanup != nil {
+			_ = cleanup()
+		}
+	}()
+
+	resp, err := s.reduceParallelBuffered(ctx, req, cohort.Schema(), pctx, workers)
+	if err != nil {
+		return nil, false, err
+	}
+	return resp, true, nil
 }
 
 // materializeRecords drains an iterator into a slice. Crosstab forces
