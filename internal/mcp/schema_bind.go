@@ -539,6 +539,11 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"minimum":     0,
 				"description": "Zero-indexed depth in the nested axis whose value constitutes the 100% denominator. 0 selects the top-level grouper; len(axis)-1 (default) selects the leaf. Applies only when normalize is row or column; rejected when set with normalize=none or normalize=total.",
 			},
+			"normalize_within": map[string]any{
+				"type":        "integer",
+				"minimum":     0,
+				"description": "Zero-indexed depth on the OPPOSITE axis whose value fixes a partition of the 100% denominator. With normalize=row it fixes a prefix of the column axis (so the denominator collapses only columns deeper than this level while holding the full row key); with normalize=column it fixes a prefix of the row axis. Composes independently with normalize_level. Rejected when normalize is none or total.",
+			},
 		},
 		"required":             []string{"rows", "columns", "cell"},
 		"additionalProperties": true,

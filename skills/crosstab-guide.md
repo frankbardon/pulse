@@ -143,6 +143,41 @@ Rejection rules:
 - `PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS` — `normalize_level` set with `normalize: none`. The level only has meaning when a direction is chosen.
 - `PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE` — `normalize_level` set with `normalize: total`. Total uses a scalar grand-total denominator with no axis to descend.
 
+### Cross-axis partitioned denominator (`normalize_within`)
+
+`normalize_level` collapses depth on the same axis as `normalize`. `normalize_within` is its cross-axis sibling: it fixes a prefix of the **opposite** axis inside the 100% denominator. The two compose independently — one truncates the normalize axis, the other partitions the other axis.
+
+- `normalize: row` + `normalize_within: W` ⇒ denominator partitions records by `(full row key, columns[:W+1])`. Cells in each `(rowKey, outerColPrefix)` slab sum to 1 across the inner-column dimension.
+- `normalize: column` + `normalize_within: W` ⇒ denominator partitions records by `(full column key, rows[:W+1])`. Symmetric.
+- Omit `normalize_within` to keep the standard row / column marginal (no cross-axis partition — original behavior).
+
+Canonical survey scenario — `rows=[brand]`, `columns=[wavedate, xxx]`, `cell=AGG_SUM(weight)`, `normalize=row`, `normalize_within=0`: each cell is divided by `Σ weight over xxx` within the fixed `(brand, wavedate)` slab. The brand × wavedate slab of xxx cells sums to 1.0, so each cell is the share of that brand's weight in that wave going to that xxx response. Plain `normalize=row` would collapse the entire column axis (all wavedate × xxx) into one denominator; plain `normalize=column normalize_level=0` would collapse all brands into one denominator. Neither matches the survey-share semantics — `normalize_within` does.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "brand"}],
+    "columns": [
+      {"type": "GROUP_DATE", "field": "wavedate", "interval": "month"},
+      {"type": "GROUP_CATEGORY", "field": "xxx"}
+    ],
+    "cell":             {"type": "AGG_SUM", "field": "weight", "label": "share"},
+    "normalize":        "row",
+    "normalize_within": 0
+  }
+}
+```
+
+Composing with `normalize_level`: `rows=[region, brand]`, `columns=[wavedate, xxx]`, `normalize=row`, `normalize_level=0`, `normalize_within=0` ⇒ denominator partitions by `(region, wavedate)` — both axes' deeper levels collapse. Cells in each `(region, wavedate)` slab sum to 1.0 across `(brand, xxx)`.
+
+Long-shape emission does not add a new `_margin` tag for the cross-axis partition; cells emit as normal data rows with the normalized values. Displayed row / column margin vectors (when `margins.rows`/`margins.columns` are set) remain the full marginals — the cross-axis denominator is internal to the cell normalization and not surfaced as a separate margin row.
+
+Rejection rules:
+
+- `PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE` — value outside `[0, len(other-axis)-1]` where other-axis is `columns` when `normalize=row` and `rows` when `normalize=column`.
+- `PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS` — `normalize_within` set with `normalize: none`.
+- `PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE` — `normalize_within` set with `normalize: total`.
+
 ## Shape
 
 - `matrix` (default) — explicit structured payload on `Response.Crosstab.Matrix`. Carries `RowHeader`, `ColumnHeader`, ordered `RowKeys` / `ColumnKeys` tuples, the dense `Cells` matrix, optional `RowMargins` / `ColumnMargins` / `GrandTotal`, the `CellLabel`, and `NormalizeApplied`. Designed for downstream renderers (Prism heatmap) without re-deriving axis structure.

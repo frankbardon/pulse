@@ -81,6 +81,35 @@ func validateCrosstab(env *Envelope, req *types.Request, schema *encoding.Schema
 			}
 		}
 	}
+	if spec.NormalizeWithin != nil {
+		mode := spec.NormalizeOrDefault()
+		switch mode {
+		case types.CrosstabNormalizeNone:
+			env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS),
+				"crosstab normalize_within requires Normalize to be row or column",
+				map[string]any{"normalize": string(mode), "normalize_within": *spec.NormalizeWithin})
+		case types.CrosstabNormalizeTotal:
+			env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE),
+				"crosstab normalize_within cannot be combined with Normalize=total",
+				map[string]any{"normalize": string(mode), "normalize_within": *spec.NormalizeWithin})
+		case types.CrosstabNormalizeRow:
+			if otherLen := len(spec.Columns); otherLen > 0 {
+				if w := *spec.NormalizeWithin; w < 0 || w >= otherLen {
+					env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE),
+						"crosstab normalize_within is out of range for the column axis",
+						map[string]any{"normalize_within": w, "axis": "columns", "axis_len": otherLen})
+				}
+			}
+		case types.CrosstabNormalizeColumn:
+			if otherLen := len(spec.Rows); otherLen > 0 {
+				if w := *spec.NormalizeWithin; w < 0 || w >= otherLen {
+					env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE),
+						"crosstab normalize_within is out of range for the row axis",
+						map[string]any{"normalize_within": w, "axis": "rows", "axis_len": otherLen})
+				}
+			}
+		}
+	}
 
 	// Walk axis field references; emit unknown-field errors with the
 	// same surface predict uses for the top-level Group slot. The

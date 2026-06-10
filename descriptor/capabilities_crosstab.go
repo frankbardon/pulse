@@ -56,6 +56,17 @@ type CrosstabCapability struct {
 	// NormalizeLevel slot. Intended for LLM-side autocomplete.
 	NormalizeLevelRules []string `json:"normalize_level_rules"`
 
+	// SupportsNormalizeWithin reports whether the engine honors
+	// CrosstabSpec.NormalizeWithin — the cross-axis partition
+	// selector that fixes a prefix of the OPPOSITE axis (columns
+	// when normalize=row, rows when normalize=column) inside the
+	// 100% denominator. Composes independently with NormalizeLevel.
+	SupportsNormalizeWithin bool `json:"supports_normalize_within"`
+
+	// NormalizeWithinRules names the rejection rules specific to the
+	// NormalizeWithin slot.
+	NormalizeWithinRules []string `json:"normalize_within_rules"`
+
 	// MapValuedCellAggregators is the alphabetized list of aggregator
 	// names whose Crosstab Cell output is map-valued (rich payload
 	// per cell, e.g. AGG_SET_FREQUENCY's per-label row counts). These
@@ -99,6 +110,12 @@ func crosstabCapability() CrosstabCapability {
 			"normalize_level must be in [0, len(axis)-1] for the axis selected by normalize (PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE)",
 			"normalize_level requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS)",
 			"normalize_level cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE)",
+		},
+		SupportsNormalizeWithin: true,
+		NormalizeWithinRules: []string{
+			"normalize_within must be in [0, len(other-axis)-1] where other-axis is columns when normalize=row and rows when normalize=column (PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE)",
+			"normalize_within requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS)",
+			"normalize_within cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE)",
 		},
 	}
 	cap.RejectionRules = append(cap.RejectionRules,

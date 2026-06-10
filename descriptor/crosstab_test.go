@@ -311,6 +311,109 @@ func TestPredict_Crosstab_NormalizeLevelGate(t *testing.T) {
 	}
 }
 
+// TestPredict_Crosstab_NormalizeWithinGate exercises the three
+// rejection branches added by the NormalizeWithin slot.
+func TestPredict_Crosstab_NormalizeWithinGate(t *testing.T) {
+	schema := crosstabPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	mkReq := func(mode types.CrosstabNormalize, rows, cols []*types.Group, within *int) *types.Request {
+		return &types.Request{
+			Crosstab: &types.CrosstabSpec{
+				Rows:            rows,
+				Columns:         cols,
+				Cell:            &types.Aggregation{Type: types.AGG_COUNT, Field: "value"},
+				Normalize:       mode,
+				NormalizeWithin: within,
+			},
+		}
+	}
+
+	// Out of range: normalize=row + 1-grouper column axis + within=1.
+	{
+		bad := 1
+		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeRow,
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &bad), nil)
+		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE) {
+			t.Errorf("expected PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE; got errors=%v", env.Errors)
+		}
+	}
+
+	// Out of range, symmetric: normalize=column + 1-grouper row axis + within=1.
+	{
+		bad := 1
+		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeColumn,
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &bad), nil)
+		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE) {
+			t.Errorf("expected PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE (column-normalize branch); got errors=%v", env.Errors)
+		}
+	}
+
+	// Without axis: normalize=none + within set.
+	{
+		within := 0
+		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeNone,
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &within), nil)
+		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS) {
+			t.Errorf("expected PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS; got errors=%v", env.Errors)
+		}
+	}
+
+	// Incompatible: normalize=total + within set.
+	{
+		within := 0
+		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeTotal,
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &within), nil)
+		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE) {
+			t.Errorf("expected PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE; got errors=%v", env.Errors)
+		}
+	}
+
+	// Valid: normalize=row on 1-grouper row axis with 2-grouper column
+	// axis, within=0 (top of columns). No errors.
+	{
+		within := 0
+		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeRow,
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			[]*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+			}, &within), nil)
+		if hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE) ||
+			hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS) ||
+			hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE) {
+			t.Errorf("valid normalize_within should not raise within errors; got %v", env.Errors)
+		}
+	}
+}
+
+// TestManifest_CrosstabCapabilityNormalizeWithin verifies the manifest
+// capability block surfaces the new NormalizeWithin feature flag and
+// its rejection rules.
+func TestManifest_CrosstabCapabilityNormalizeWithin(t *testing.T) {
+	m := BuildManifest()
+	if !m.Crosstab.SupportsNormalizeWithin {
+		t.Error("manifest.Crosstab.SupportsNormalizeWithin should be true")
+	}
+	if len(m.Crosstab.NormalizeWithinRules) != 3 {
+		t.Errorf("NormalizeWithinRules len = %d, want 3", len(m.Crosstab.NormalizeWithinRules))
+	}
+	mustContain := []string{
+		"PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE",
+		"PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS",
+		"PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE",
+	}
+	for _, code := range mustContain {
+		if !containsSubstring(m.Crosstab.NormalizeWithinRules, code) {
+			t.Errorf("NormalizeWithinRules missing %s; got %v", code, m.Crosstab.NormalizeWithinRules)
+		}
+	}
+}
+
 // TestManifest_CrosstabCapabilityNormalizeLevel verifies the manifest
 // capability block surfaces the new NormalizeLevel feature flag and
 // its rejection rules.

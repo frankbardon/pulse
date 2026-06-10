@@ -73,6 +73,23 @@ type CrosstabSpec struct {
 	// normalization behavior. Rejected when set with normalize=total
 	// (no axis to descend) or normalize=none.
 	NormalizeLevel *int `json:"normalize_level,omitempty"`
+
+	// NormalizeWithin selects a prefix depth on the OTHER axis whose
+	// value, combined with the full normalize-axis key (or its
+	// NormalizeLevel-truncated form), constitutes the 100% denominator.
+	// Zero-indexed from the top of the other axis (0 = first grouper).
+	// Applies only when Normalize=row or Normalize=column. Absent (nil)
+	// leaves the denominator scope unchanged — the existing row /
+	// column marginal. Rejected when set with normalize=none or
+	// normalize=total (no other axis to partition).
+	//
+	// Example: Rows=[brand], Columns=[wavedate, xxx], Normalize=row,
+	// NormalizeWithin=0 ⇒ each cell is divided by Σ over xxx within
+	// (brand, wavedate); the (brand, wavedate) slab of xxx cells sums
+	// to 1. Combines independently with NormalizeLevel — that field
+	// truncates the normalize axis; this one fixes a prefix of the
+	// OTHER axis.
+	NormalizeWithin *int `json:"normalize_within,omitempty"`
 }
 
 // NormalizeOrDefault returns the configured normalization mode, defaulting

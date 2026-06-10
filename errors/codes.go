@@ -629,6 +629,28 @@ const (
 	// AGG_SET_CARDINALITY_SUM) for normalized output.
 	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED Code = "PULSE_CROSSTAB_NORMALIZE_MAP_VALUED"
 
+	// PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE indicates the
+	// Crosstab section's normalize_within value falls outside the
+	// valid range [0, len(other-axis)-1] for the axis OPPOSITE the
+	// one selected by Normalize (columns when normalize=row, rows
+	// when normalize=column). Valid depths are zero-indexed from the
+	// top of the other axis.
+	PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE Code = "PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE"
+
+	// PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS indicates
+	// normalize_within was set on a Crosstab section whose Normalize
+	// is "none". The cross-axis partition selector only has meaning
+	// when a normalization direction is selected; set Normalize to
+	// row or column, or omit normalize_within.
+	PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS Code = "PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS"
+
+	// PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE indicates
+	// normalize_within was set with normalize=total. Total
+	// normalization uses a scalar grand-total denominator with no
+	// other axis to partition; normalize_within applies only to
+	// normalize=row or normalize=column.
+	PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE Code = "PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE"
+
 	// PULSE_REQUEST_UNKNOWN_FIELD indicates a request JSON carried a
 	// top-level key that is not a recognised Request slot. JSON
 	// decoding silently ignores unknown keys, so the offending slot
@@ -768,6 +790,9 @@ var allCodes = []Code{
 	PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS,
 	PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE,
 	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED,
+	PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE,
+	PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS,
+	PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE,
 	PULSE_REQUEST_UNKNOWN_FIELD,
 }
 
