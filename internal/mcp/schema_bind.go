@@ -530,6 +530,11 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"enum":        []string{"matrix", "long"},
 				"description": "Output shape. matrix (default) populates Response.Crosstab.Matrix; long emits tuple rows on Response.Data.",
 			},
+			"normalize_level": map[string]any{
+				"type":        "integer",
+				"minimum":     0,
+				"description": "Zero-indexed depth in the nested axis whose value constitutes the 100% denominator. 0 selects the top-level grouper; len(axis)-1 (default) selects the leaf. Applies only when normalize is row or column; rejected when set with normalize=none or normalize=total.",
+			},
 		},
 		"required":             []string{"rows", "columns", "cell"},
 		"additionalProperties": true,

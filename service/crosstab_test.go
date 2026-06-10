@@ -807,6 +807,338 @@ func TestCrosstab_Tier2PostTestSurfaces(t *testing.T) {
 	}
 }
 
+// TestCrosstab_PartialColumnNormalize_SumsToOneWithinParent verifies
+// that normalize=column with NormalizeLevel=0 on a 2-grouper column
+// axis makes every cell + row pairing under a shared top-level column
+// value sum to 1.0. The default (leaf) behavior would instead require
+// cells in each leaf column to sum to 1.0; the partial behavior
+// promotes the parent grouper to the 100% denominator.
+func TestCrosstab_PartialColumnNormalize_SumsToOneWithinParent(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	level := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			},
+			Cell:           &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:      types.CrosstabNormalizeColumn,
+			NormalizeLevel: &level,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	matrix := resp.Crosstab.Matrix
+	regionCols := map[string][]int{}
+	for j, k := range matrix.ColumnKeys {
+		region := k[0].(string)
+		regionCols[region] = append(regionCols[region], j)
+	}
+	if len(regionCols) < 2 {
+		t.Fatalf("expected >=2 distinct top-level regions; got %d", len(regionCols))
+	}
+	for region, cols := range regionCols {
+		var sum float64
+		for _, j := range cols {
+			for i := range matrix.RowKeys {
+				if matrix.Cells[i][j].Present {
+					sum += matrix.Cells[i][j].Value
+				}
+			}
+		}
+		if !floatClose(sum, 1.0, 1e-9) {
+			t.Errorf("region %s partial column sum = %v, want 1.0", region, sum)
+		}
+	}
+}
+
+// TestCrosstab_PartialRowNormalize_SumsToOneWithinParent mirrors the
+// column case for nested rows.
+func TestCrosstab_PartialRowNormalize_SumsToOneWithinParent(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	level := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			},
+			Columns:        []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:           &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:      types.CrosstabNormalizeRow,
+			NormalizeLevel: &level,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	matrix := resp.Crosstab.Matrix
+	regionRows := map[string][]int{}
+	for i, k := range matrix.RowKeys {
+		region := k[0].(string)
+		regionRows[region] = append(regionRows[region], i)
+	}
+	if len(regionRows) < 2 {
+		t.Fatalf("expected >=2 distinct top-level row regions; got %d", len(regionRows))
+	}
+	for region, rows := range regionRows {
+		var sum float64
+		for _, i := range rows {
+			for j := range matrix.ColumnKeys {
+				if matrix.Cells[i][j].Present {
+					sum += matrix.Cells[i][j].Value
+				}
+			}
+		}
+		if !floatClose(sum, 1.0, 1e-9) {
+			t.Errorf("region %s partial row sum = %v, want 1.0", region, sum)
+		}
+	}
+}
+
+// TestCrosstab_NormalizeLevelLeaf_ByteEqualToDefault confirms the
+// short-circuit: setting NormalizeLevel to len(axis)-1 produces
+// numerically identical cells to omitting the field entirely.
+func TestCrosstab_NormalizeLevelLeaf_ByteEqualToDefault(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	mkSpec := func(level *int) *types.CrosstabSpec {
+		return &types.CrosstabSpec{
+			Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			},
+			Cell:           &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:      types.CrosstabNormalizeColumn,
+			NormalizeLevel: level,
+		}
+	}
+	leaf := 1
+	respA, err := svc.Process(ctx, &types.Request{Cohort: &types.Cohort{Filename: "ct.pulse"}, Crosstab: mkSpec(nil)})
+	if err != nil {
+		t.Fatalf("Process A: %v", err)
+	}
+	respB, err := svc.Process(ctx, &types.Request{Cohort: &types.Cohort{Filename: "ct.pulse"}, Crosstab: mkSpec(&leaf)})
+	if err != nil {
+		t.Fatalf("Process B: %v", err)
+	}
+	a := respA.Crosstab.Matrix
+	b := respB.Crosstab.Matrix
+	if len(a.Cells) != len(b.Cells) {
+		t.Fatalf("row count diverged: %d vs %d", len(a.Cells), len(b.Cells))
+	}
+	for i := range a.Cells {
+		if len(a.Cells[i]) != len(b.Cells[i]) {
+			t.Fatalf("col count diverged at row %d: %d vs %d", i, len(a.Cells[i]), len(b.Cells[i]))
+		}
+		for j := range a.Cells[i] {
+			if a.Cells[i][j].Present != b.Cells[i][j].Present || a.Cells[i][j].Value != b.Cells[i][j].Value {
+				t.Errorf("cell [%d][%d] diverged: A=%+v B=%+v", i, j, a.Cells[i][j], b.Cells[i][j])
+			}
+		}
+	}
+}
+
+// TestCrosstab_NormalizeLevelOutOfRangeRejected confirms the runtime
+// gate rejects a depth value outside [0, len(axis)-1].
+func TestCrosstab_NormalizeLevelOutOfRangeRejected(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	bad := 5
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			},
+			Cell:           &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:      types.CrosstabNormalizeColumn,
+			NormalizeLevel: &bad,
+		},
+	}
+	_, err := svc.Process(ctx, req)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	ce, ok := err.(*errors.CodedError)
+	if !ok {
+		t.Fatalf("expected *CodedError; got %T (%v)", err, err)
+	}
+	if ce.Code != errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE {
+		t.Errorf("code = %v, want PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE", ce.Code)
+	}
+}
+
+// TestCrosstab_NormalizeLevelWithTotalRejected confirms NormalizeLevel
+// is rejected when paired with Normalize=total (no axis to descend).
+func TestCrosstab_NormalizeLevelWithTotalRejected(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	level := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:           []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns:        []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:           &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:      types.CrosstabNormalizeTotal,
+			NormalizeLevel: &level,
+		},
+	}
+	_, err := svc.Process(ctx, req)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	ce, ok := err.(*errors.CodedError)
+	if !ok {
+		t.Fatalf("expected *CodedError; got %T (%v)", err, err)
+	}
+	if ce.Code != errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE {
+		t.Errorf("code = %v, want PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE", ce.Code)
+	}
+}
+
+// TestCrosstab_NormalizeLevelLongShapeTagEmission verifies long-shape
+// output carries both leaf (_margin=column) and partial
+// (_margin=column_at_<depth>) margin rows when display margins +
+// partial-depth normalization combine.
+func TestCrosstab_NormalizeLevelLongShapeTagEmission(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	level := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			},
+			Cell:           &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Normalize:      types.CrosstabNormalizeColumn,
+			NormalizeLevel: &level,
+			Shape:          types.CrosstabShapeLong,
+			Margins:        types.CrosstabMargins{Columns: true},
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	tags := map[string]int{}
+	for _, row := range resp.Data {
+		if t, ok := row["_margin"].(string); ok {
+			tags[t]++
+		}
+	}
+	if tags["column"] == 0 {
+		t.Errorf("missing leaf _margin=column rows; tags=%v", tags)
+	}
+	if tags["column_at_0"] == 0 {
+		t.Errorf("missing partial _margin=column_at_0 rows; tags=%v", tags)
+	}
+}
+
+// TestCrosstab_PartialMarginMedianRecomputesFromRaw verifies that
+// partial-depth normalization with a recompute-class aggregator
+// (AGG_MEDIAN) derives the partial denominator from the raw row set
+// for the truncated axis tuple — not from the leaf cell medians.
+// Fixture composition (north column, leaves: retail + wholesale):
+//
+//	(north, retail)    raw values:    [10, 20, 30] → median 20
+//	(north, wholesale) raw values:    [100]        → median 100
+//	north top-level    raw values:    [10, 20, 30, 100] → median 25
+//
+// Cells live on rows keyed by segment. The (retail) row × (north, retail)
+// cell is median([10,20,30]) = 20. Under partial-column normalization at
+// level=0 the denominator is 25, so the normalized cell is 20/25 = 0.8.
+// The median-of-cell-medians (20+100)/2 = 60 would give 0.333 — the test
+// is failed by that path.
+func TestCrosstab_PartialMarginMedianRecomputesFromRaw(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	ctx := context.Background()
+
+	level := 0
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			},
+			Cell:           &types.Aggregation{Type: types.AGG_MEDIAN, Field: "value", Label: "m"},
+			Normalize:      types.CrosstabNormalizeColumn,
+			NormalizeLevel: &level,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	matrix := resp.Crosstab.Matrix
+
+	rowIdx := -1
+	for i, k := range matrix.RowKeys {
+		if k[0] == "retail" {
+			rowIdx = i
+			break
+		}
+	}
+	colIdx := -1
+	for j, k := range matrix.ColumnKeys {
+		if k[0] == "north" && k[1] == "retail" {
+			colIdx = j
+			break
+		}
+	}
+	if rowIdx < 0 || colIdx < 0 {
+		t.Fatalf("missing axis tuple: rowIdx=%d colIdx=%d", rowIdx, colIdx)
+	}
+	got := matrix.Cells[rowIdx][colIdx]
+	if !got.Present {
+		t.Fatal("cell not present")
+	}
+	if floatClose(got.Value, 20.0/60.0, 1e-9) {
+		t.Errorf("normalization denominator was median-of-cell-medians (60); want partial recompute over raw rows (25)")
+	}
+	if !floatClose(got.Value, 20.0/25.0, 1e-9) {
+		t.Errorf("normalized median cell = %v, want 0.8 (20/25)", got.Value)
+	}
+}
+
 // TestCrosstab_AllAggregatorsClassified is the CI guard: every
 // registered aggregator must have a non-default
 // MarginReducibility classification. Reaching the default branch is a

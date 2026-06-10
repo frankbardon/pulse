@@ -187,6 +187,45 @@ func TestMCPSchemaBinding_SampleAndFacetFieldEnum(t *testing.T) {
 	}
 }
 
+// TestMCPSchemaBinding_CrosstabNormalizeLevel verifies the bound
+// process schema exposes Crosstab.normalize_level with the documented
+// integer constraint and a non-empty description.
+func TestMCPSchemaBinding_CrosstabNormalizeLevel(t *testing.T) {
+	schemas, err := Bind(makeSchema())
+	if err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+	raw, ok := schemas[mcptools.ToolProcess]
+	if !ok {
+		t.Fatal("missing process schema")
+	}
+	req := decodeRequestSchema(t, raw)
+	props, _ := req["properties"].(map[string]any)
+	cross, _ := props["crosstab"].(map[string]any)
+	if cross == nil {
+		t.Fatal("crosstab schema missing from request")
+	}
+	cprops, _ := cross["properties"].(map[string]any)
+	level, _ := cprops["normalize_level"].(map[string]any)
+	if level == nil {
+		t.Fatal("crosstab.normalize_level property missing")
+	}
+	if typ, _ := level["type"].(string); typ != "integer" {
+		t.Errorf("normalize_level.type = %q, want integer", typ)
+	}
+	if mn, ok := level["minimum"]; !ok {
+		t.Error("normalize_level.minimum missing")
+	} else if v, _ := mn.(int); v != 0 {
+		// JSON loads numbers as float64 in some paths; accept either.
+		if f, _ := mn.(float64); f != 0 {
+			t.Errorf("normalize_level.minimum = %v, want 0", mn)
+		}
+	}
+	if desc, _ := level["description"].(string); desc == "" {
+		t.Error("normalize_level.description should be non-empty")
+	}
+}
+
 // fakeSessionWithTools implements server.SessionWithTools so we can drive
 // AddSessionTools end-to-end without depending on transport-specific
 // session implementations (stdio and in-process sessions don't implement

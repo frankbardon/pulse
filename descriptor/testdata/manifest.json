@@ -3148,7 +3148,7 @@
         ]
       }
     ],
-    "error_codes_count": 113,
+    "error_codes_count": 116,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3194,6 +3194,9 @@
       "PULSE_CROSSTAB_EMPTY_COLUMNS",
       "PULSE_CROSSTAB_EMPTY_ROWS",
       "PULSE_CROSSTAB_MISSING_CELL",
+      "PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE",
+      "PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE",
+      "PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS",
       "PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE",
       "PULSE_DECIMAL_DIVIDE_BY_ZERO",
       "PULSE_DECIMAL_OVERFLOW",
@@ -4173,7 +4176,7 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 94,
+    "examples_count": 95,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -4369,10 +4372,16 @@
         "crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
         "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
         "matrix shape, any margin, or any normalization forces the buffered path"
+      ],
+      "supports_normalize_level": true,
+      "normalize_level_rules": [
+        "normalize_level must be in [0, len(axis)-1] for the axis selected by normalize (PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE)",
+        "normalize_level requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS)",
+        "normalize_level cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE)"
       ]
     }
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0624b3935266d69aaf825eb4001215dadd4ae6f704984149f6370fb1614f8ac6
+// golden-hash: ec10c9378620f4649fe4bef69caa2fe6c127c3b4999fa3cd85d861142a89885b

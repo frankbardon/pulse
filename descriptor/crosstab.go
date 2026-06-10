@@ -52,6 +52,35 @@ func validateCrosstab(env *Envelope, req *types.Request, schema *encoding.Schema
 			"crosstab shape must be one of: matrix, long",
 			map[string]any{"shape": string(spec.Shape)})
 	}
+	if spec.NormalizeLevel != nil {
+		mode := spec.NormalizeOrDefault()
+		switch mode {
+		case types.CrosstabNormalizeNone:
+			env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS),
+				"crosstab normalize_level requires Normalize to be row or column",
+				map[string]any{"normalize": string(mode), "normalize_level": *spec.NormalizeLevel})
+		case types.CrosstabNormalizeTotal:
+			env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE),
+				"crosstab normalize_level cannot be combined with Normalize=total",
+				map[string]any{"normalize": string(mode), "normalize_level": *spec.NormalizeLevel})
+		case types.CrosstabNormalizeRow:
+			if axisLen := len(spec.Rows); axisLen > 0 {
+				if lvl := *spec.NormalizeLevel; lvl < 0 || lvl >= axisLen {
+					env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE),
+						"crosstab normalize_level is out of range for the row axis",
+						map[string]any{"normalize_level": lvl, "axis": "rows", "axis_len": axisLen})
+				}
+			}
+		case types.CrosstabNormalizeColumn:
+			if axisLen := len(spec.Columns); axisLen > 0 {
+				if lvl := *spec.NormalizeLevel; lvl < 0 || lvl >= axisLen {
+					env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE),
+						"crosstab normalize_level is out of range for the column axis",
+						map[string]any{"normalize_level": lvl, "axis": "columns", "axis_len": axisLen})
+				}
+			}
+		}
+	}
 
 	// Walk axis field references; emit unknown-field errors with the
 	// same surface predict uses for the top-level Group slot. The

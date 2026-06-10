@@ -1087,6 +1087,39 @@ var codeMetadata = map[Code]Metadata{
 		Message:            "Internal guard: the margin pass encountered an aggregator with no MarginReducibility classification. Adding a new aggregator without updating AggregationType.MarginReducibility is the only way to reach this code.",
 		FixupNotApplicable: true,
 	},
+	PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE: {
+		Message: "The Crosstab section's normalize_level falls outside the valid range for the targeted axis. Valid depths are zero-indexed from the top of the axis: 0 for the first grouper, len(axis)-1 for the leaf.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "NormalizeLevel"},
+				Hint:     "Pick a depth in [0, len(axis)-1] where axis = Crosstab.Rows when Normalize=row and Crosstab.Columns when Normalize=column. Omit the field entirely to default to the leaf (the original per-leaf-tuple normalization).",
+				Examples: []any{0, 1, 2},
+			},
+		},
+	},
+	PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS: {
+		Message: "The Crosstab section set normalize_level without selecting a normalization direction. The level selector only has meaning when Normalize is row or column.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Normalize"},
+				Hint:     "Set Crosstab.Normalize to \"row\" or \"column\" to choose which axis the level descends, or drop the normalize_level field to keep raw cell values.",
+				Examples: []any{"row", "column"},
+			},
+		},
+	},
+	PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE: {
+		Message: "The Crosstab section set normalize_level alongside Normalize=total. Total normalization uses a scalar grand-total denominator with no axis to descend; the level selector applies only to Normalize=row or Normalize=column.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Normalize"},
+				Hint:     "Switch Normalize to \"row\" or \"column\" if a partial-depth denominator is intended, or drop normalize_level to keep the scalar grand-total denominator.",
+				Examples: []any{"row", "column"},
+			},
+		},
+	},
 	PULSE_REQUEST_UNKNOWN_FIELD: {
 		Message: "The request JSON contains a top-level key that is not a recognised Request slot. JSON decoding silently ignores unknown keys, so the intended operation is dropped and the request runs as if it were absent. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\").",
 		Fixups: []Fixup{

@@ -64,6 +64,15 @@ type CrosstabSpec struct {
 	Margins   CrosstabMargins   `json:"margins,omitzero"`
 	Normalize CrosstabNormalize `json:"normalize,omitempty"`
 	Shape     CrosstabShape     `json:"shape,omitempty"`
+
+	// NormalizeLevel selects the depth in the nested axis whose value
+	// constitutes the 100% denominator for normalization. Zero-indexed
+	// from the top of the axis (0 = first grouper). Applies only when
+	// Normalize=row or Normalize=column. Absent (nil) defaults to the
+	// leaf — len(axis)-1 — which is the original per-leaf-tuple
+	// normalization behavior. Rejected when set with normalize=total
+	// (no axis to descend) or normalize=none.
+	NormalizeLevel *int `json:"normalize_level,omitempty"`
 }
 
 // NormalizeOrDefault returns the configured normalization mode, defaulting
@@ -82,6 +91,28 @@ func (s *CrosstabSpec) ShapeOrDefault() CrosstabShape {
 		return CrosstabShapeMatrix
 	}
 	return s.Shape
+}
+
+// NormalizeLevelOrLeaf returns the configured normalize depth clamped
+// to a valid axis position. axisLen is the count of groupers on the
+// relevant axis (rows when normalize=row, columns when
+// normalize=column). When NormalizeLevel is nil, negative, or
+// >= axisLen, the leaf depth (axisLen-1) is returned. An axisLen of 0
+// yields 0; callers must guard against the empty-axis case
+// independently (the validator does).
+func (s *CrosstabSpec) NormalizeLevelOrLeaf(axisLen int) int {
+	if axisLen <= 0 {
+		return 0
+	}
+	leaf := axisLen - 1
+	if s == nil || s.NormalizeLevel == nil {
+		return leaf
+	}
+	lvl := *s.NormalizeLevel
+	if lvl < 0 || lvl > leaf {
+		return leaf
+	}
+	return lvl
 }
 
 // NeedsRowMargin reports whether the row-margin vector is required

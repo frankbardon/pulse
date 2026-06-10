@@ -44,6 +44,17 @@ type CrosstabCapability struct {
 	// RejectionRules names the structural failures the validator
 	// emits. Intended for LLM-side autocomplete; not a strict schema.
 	RejectionRules []string `json:"rejection_rules"`
+
+	// SupportsNormalizeLevel reports whether the engine honors
+	// CrosstabSpec.NormalizeLevel — the depth-index selector that
+	// picks a parent grouper as the 100% denominator on nested row /
+	// column axes. Always true in v1; carried so clients can detect
+	// the feature without inferring it from CLI version.
+	SupportsNormalizeLevel bool `json:"supports_normalize_level"`
+
+	// NormalizeLevelRules names the rejection rules specific to the
+	// NormalizeLevel slot. Intended for LLM-side autocomplete.
+	NormalizeLevelRules []string `json:"normalize_level_rules"`
 }
 
 // crosstabCapability returns the canonical Crosstab capability block for
@@ -73,6 +84,12 @@ func crosstabCapability() CrosstabCapability {
 			"crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
 			"crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
 			"matrix shape, any margin, or any normalization forces the buffered path",
+		},
+		SupportsNormalizeLevel: true,
+		NormalizeLevelRules: []string{
+			"normalize_level must be in [0, len(axis)-1] for the axis selected by normalize (PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE)",
+			"normalize_level requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS)",
+			"normalize_level cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE)",
 		},
 	}
 	for _, t := range types.AllAggregationTypes() {
