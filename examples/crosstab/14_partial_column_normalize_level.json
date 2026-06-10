@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Partial-depth column normalization on a nested column axis. With normalize_level=0 the top-level region grouper constitutes the 100% denominator: every cell under a shared region (across both segment leaves) sums to 1. Long shape with margins.columns: true emits both the leaf _margin=column rows and the partial _margin=column_at_0 rows.",
+    "name": "crosstab_partial_column_normalize_level",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "buffered-pipeline",
+      "cohort-analysis",
+      "cross-tabulation",
+      "proportion-analysis"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "converted"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      },
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "share"
+    },
+    "margins": {
+      "columns": true
+    },
+    "normalize": "column",
+    "normalize_level": 0,
+    "shape": "long"
+  }
+}

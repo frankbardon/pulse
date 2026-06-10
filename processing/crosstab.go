@@ -117,6 +117,32 @@ func CompositeAxisKey(parts []string) string {
 	return strings.Join(parts, crosstabAxisKeySep)
 }
 
+// truncateCompositeKey returns the prefix of a composite axis key
+// containing the first level+1 segments. Used to translate a leaf
+// composite key (one segment per grouper in the axis) to the partial
+// composite key that addresses the level-th depth bucket.
+func truncateCompositeKey(composite string, level int) string {
+	if level < 0 {
+		return composite
+	}
+	parts := strings.Split(composite, crosstabAxisKeySep)
+	if level+1 >= len(parts) {
+		return composite
+	}
+	return strings.Join(parts[:level+1], crosstabAxisKeySep)
+}
+
+// buildLeafToPartial constructs the leaf→partial composite-key map for
+// a sorted slice of leaf axis keys. Each entry maps a leaf composite
+// key to its truncated prefix at the chosen depth.
+func buildLeafToPartial(leafKeys []string, level int) map[string]string {
+	out := make(map[string]string, len(leafKeys))
+	for _, k := range leafKeys {
+		out[k] = truncateCompositeKey(k, level)
+	}
+	return out
+}
+
 // CrosstabValidationError represents a structural failure surfaced by
 // pre-execution validation in RunCrosstab. The error wraps a CodedError
 // so callers see the same PULSE_CROSSTAB_* code regardless of entry
@@ -266,12 +292,102 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	}
 
 	mode := spec.NormalizeOrDefault()
+
+	// Partial-depth normalization. When spec.NormalizeLevel selects a
+	// non-leaf depth on the normalization axis, build partial margins
+	// keyed by the truncated composite key and a leaf→partial lookup so
+	// the per-cell loop dispatches through the partial denominator.
+	// When level == leaf (default), partial structures alias the leaf
+	// maps; byte-equal output is preserved.
+	var partialRowPart, partialColPart *CrosstabAxisPartition
+	var partialRowMargins map[string]float64
+	var partialRowPresent map[string]bool
+	var partialColMargins map[string]float64
+	var partialColPresent map[string]bool
+	var leafRowToPartial map[string]string
+	var leafColToPartial map[string]string
+	rowNormLevel := -1
+	colNormLevel := -1
+
+	if mode == types.CrosstabNormalizeRow {
+		axisLen := len(spec.Rows)
+		level := spec.NormalizeLevelOrLeaf(axisLen)
+		rowNormLevel = level
+		if level == axisLen-1 {
+			partialRowMargins = rowMargins
+			partialRowPresent = rowMarginPresent
+		} else {
+			partialRowPart, err = p.PartitionByAxis(spec.Rows[:level+1], filtered)
+			if err != nil {
+				return nil, err
+			}
+			partialRowMargins = make(map[string]float64, len(partialRowPart.Keys))
+			partialRowPresent = make(map[string]bool, len(partialRowPart.Keys))
+			for _, pkey := range partialRowPart.Keys {
+				bucket := partialRowPart.Records[pkey]
+				if len(bucket) == 0 {
+					continue
+				}
+				row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
+				if err != nil {
+					return nil, err
+				}
+				if row == nil {
+					continue
+				}
+				partialRowMargins[pkey] = coerceFloat64(row[cellLabel])
+				partialRowPresent[pkey] = true
+			}
+			leafRowToPartial = buildLeafToPartial(rowPart.Keys, level)
+		}
+	}
+	if mode == types.CrosstabNormalizeColumn {
+		axisLen := len(spec.Columns)
+		level := spec.NormalizeLevelOrLeaf(axisLen)
+		colNormLevel = level
+		if level == axisLen-1 {
+			partialColMargins = colMargins
+			partialColPresent = colMarginPresent
+		} else {
+			partialColPart, err = p.PartitionByAxis(spec.Columns[:level+1], filtered)
+			if err != nil {
+				return nil, err
+			}
+			partialColMargins = make(map[string]float64, len(partialColPart.Keys))
+			partialColPresent = make(map[string]bool, len(partialColPart.Keys))
+			for _, pkey := range partialColPart.Keys {
+				bucket := partialColPart.Records[pkey]
+				if len(bucket) == 0 {
+					continue
+				}
+				row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
+				if err != nil {
+					return nil, err
+				}
+				if row == nil {
+					continue
+				}
+				partialColMargins[pkey] = coerceFloat64(row[cellLabel])
+				partialColPresent[pkey] = true
+			}
+			leafColToPartial = buildLeafToPartial(colPart.Keys, level)
+		}
+	}
+
 	if mode != types.CrosstabNormalizeNone {
 		normalized := make(map[crosstabCellKey]float64, len(cellValues))
 		for ck, v := range cellValues {
-			denom, ok := normalizeDenominator(mode, ck.row, ck.col,
-				rowMargins, rowMarginPresent,
-				colMargins, colMarginPresent,
+			rLookup := ck.row
+			if leafRowToPartial != nil {
+				rLookup = leafRowToPartial[ck.row]
+			}
+			cLookup := ck.col
+			if leafColToPartial != nil {
+				cLookup = leafColToPartial[ck.col]
+			}
+			denom, ok := normalizeDenominator(mode, rLookup, cLookup,
+				partialRowMargins, partialRowPresent,
+				partialColMargins, partialColPresent,
 				grandMargin, grandPresent)
 			if !ok || denom == 0 {
 				// Divide-by-zero policy: drop the cell. Downstream
@@ -322,7 +438,11 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		}
 	} else {
 		resp.Crosstab = &types.CrosstabResult{Shape: shape}
-		resp.Data = buildLongRows(spec, rowPart, colPart, cellValues, cellPresent, rowMargins, rowMarginPresent, colMargins, colMarginPresent, grandMargin, grandPresent, cellLabel)
+		resp.Data = buildLongRows(spec, rowPart, colPart, cellValues, cellPresent,
+			rowMargins, rowMarginPresent, colMargins, colMarginPresent,
+			grandMargin, grandPresent, cellLabel,
+			partialRowPart, partialRowMargins, partialRowPresent, rowNormLevel,
+			partialColPart, partialColMargins, partialColPresent, colNormLevel)
 	}
 
 	// Tier-2 post-tests run over the materialized cell rows. Margin rows
@@ -472,6 +592,12 @@ func buildLongRows(spec *types.CrosstabSpec,
 	colMargins map[string]float64, colPresent map[string]bool,
 	grand float64, grandPresent bool,
 	cellLabel string,
+	partialRowPart *CrosstabAxisPartition,
+	partialRowMargins map[string]float64, partialRowPresent map[string]bool,
+	rowNormLevel int,
+	partialColPart *CrosstabAxisPartition,
+	partialColMargins map[string]float64, partialColPresent map[string]bool,
+	colNormLevel int,
 ) []map[string]any {
 	rowFields := types.AxisFieldNames(spec.Rows)
 	colFields := types.AxisFieldNames(spec.Columns)
@@ -535,6 +661,43 @@ func buildLongRows(spec *types.CrosstabSpec,
 			"_margin": "grand",
 		})
 	}
+	// Partial-depth margin rows. Emitted only when the corresponding
+	// display flag is set, the normalization axis matches the margin
+	// surface, and the selected level is shallower than the leaf. The
+	// leaf-level rows above are unchanged; partial rows ride alongside
+	// them so consumers see both denominators in one pass.
+	if spec.Margins.Rows && partialRowPart != nil && rowNormLevel >= 0 && rowNormLevel < len(spec.Rows)-1 {
+		tag := fmt.Sprintf("row_at_%d", rowNormLevel)
+		for i, pcomp := range partialRowPart.Keys {
+			if !partialRowPresent[pcomp] {
+				continue
+			}
+			row := make(map[string]any, len(rowFields)+2)
+			tuple := partialRowPart.Tuples[i]
+			for k := 0; k < len(rowFields) && k < len(tuple); k++ {
+				row[rowFields[k]] = tuple[k]
+			}
+			row[cellLabel] = partialRowMargins[pcomp]
+			row["_margin"] = tag
+			data = append(data, row)
+		}
+	}
+	if spec.Margins.Columns && partialColPart != nil && colNormLevel >= 0 && colNormLevel < len(spec.Columns)-1 {
+		tag := fmt.Sprintf("column_at_%d", colNormLevel)
+		for j, pcomp := range partialColPart.Keys {
+			if !partialColPresent[pcomp] {
+				continue
+			}
+			row := make(map[string]any, len(colFields)+2)
+			tuple := partialColPart.Tuples[j]
+			for k := 0; k < len(colFields) && k < len(tuple); k++ {
+				row[colFields[k]] = tuple[k]
+			}
+			row[cellLabel] = partialColMargins[pcomp]
+			row["_margin"] = tag
+			data = append(data, row)
+		}
+	}
 	return data
 }
 
@@ -590,6 +753,30 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request) error {
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown crosstab shape: %q", spec.Shape),
 			map[string]any{"shape": string(spec.Shape)})
+	}
+	if spec.NormalizeLevel != nil {
+		switch spec.NormalizeOrDefault() {
+		case types.CrosstabNormalizeNone:
+			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS,
+				"crosstab normalize_level requires Normalize to be row or column",
+				map[string]any{"normalize_level": *spec.NormalizeLevel})
+		case types.CrosstabNormalizeTotal:
+			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE,
+				"crosstab normalize_level cannot be combined with Normalize=total",
+				map[string]any{"normalize_level": *spec.NormalizeLevel})
+		case types.CrosstabNormalizeRow:
+			if lvl := *spec.NormalizeLevel; lvl < 0 || lvl >= len(spec.Rows) {
+				return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE,
+					"crosstab normalize_level is out of range for the row axis",
+					map[string]any{"normalize_level": lvl, "axis": "rows", "axis_len": len(spec.Rows)})
+			}
+		case types.CrosstabNormalizeColumn:
+			if lvl := *spec.NormalizeLevel; lvl < 0 || lvl >= len(spec.Columns) {
+				return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE,
+					"crosstab normalize_level is out of range for the column axis",
+					map[string]any{"normalize_level": lvl, "axis": "columns", "axis_len": len(spec.Columns)})
+			}
+		}
 	}
 	// Internal guard: every aggregator must carry a reducibility
 	// classification. The default branch returns MarginRecompute, so

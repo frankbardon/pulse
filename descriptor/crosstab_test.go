@@ -157,6 +157,105 @@ func TestManifest_CrosstabCapabilityPopulated(t *testing.T) {
 	}
 }
 
+// TestPredict_Crosstab_NormalizeLevelGate exercises the three rejection
+// branches added by the NormalizeLevel slot.
+func TestPredict_Crosstab_NormalizeLevelGate(t *testing.T) {
+	schema := crosstabPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	mkReq := func(mode types.CrosstabNormalize, columns []*types.Group, level *int) *types.Request {
+		return &types.Request{
+			Crosstab: &types.CrosstabSpec{
+				Rows:           []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Columns:        columns,
+				Cell:           &types.Aggregation{Type: types.AGG_COUNT, Field: "value"},
+				Normalize:      mode,
+				NormalizeLevel: level,
+			},
+		}
+	}
+
+	// Out of range: 2-grouper column axis, level=2.
+	{
+		bad := 2
+		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeColumn,
+			[]*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			}, &bad), nil)
+		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE) {
+			t.Errorf("expected PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE; got errors=%v", env.Errors)
+		}
+	}
+
+	// Without nested axis: normalize=none + level set.
+	{
+		level := 0
+		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeNone,
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &level), nil)
+		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS) {
+			t.Errorf("expected PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS; got errors=%v", env.Errors)
+		}
+	}
+
+	// Incompatible: normalize=total + level set.
+	{
+		level := 0
+		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeTotal,
+			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &level), nil)
+		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE) {
+			t.Errorf("expected PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE; got errors=%v", env.Errors)
+		}
+	}
+
+	// Valid: normalize=column on 2-grouper axis, level=0 (top). No errors.
+	{
+		level := 0
+		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeColumn,
+			[]*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			}, &level), nil)
+		if hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE) ||
+			hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS) ||
+			hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE) {
+			t.Errorf("valid normalize_level should not raise level errors; got %v", env.Errors)
+		}
+	}
+}
+
+// TestManifest_CrosstabCapabilityNormalizeLevel verifies the manifest
+// capability block surfaces the new NormalizeLevel feature flag and
+// its rejection rules.
+func TestManifest_CrosstabCapabilityNormalizeLevel(t *testing.T) {
+	m := BuildManifest()
+	if !m.Crosstab.SupportsNormalizeLevel {
+		t.Error("manifest.Crosstab.SupportsNormalizeLevel should be true")
+	}
+	if len(m.Crosstab.NormalizeLevelRules) != 3 {
+		t.Errorf("NormalizeLevelRules len = %d, want 3", len(m.Crosstab.NormalizeLevelRules))
+	}
+	mustContain := []string{
+		"PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE",
+		"PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS",
+		"PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE",
+	}
+	for _, code := range mustContain {
+		if !containsSubstring(m.Crosstab.NormalizeLevelRules, code) {
+			t.Errorf("NormalizeLevelRules missing %s; got %v", code, m.Crosstab.NormalizeLevelRules)
+		}
+	}
+}
+
+func hasErrorCode(env *Envelope, code errors.Code) bool {
+	for _, e := range env.Errors {
+		if e.Code == string(code) {
+			return true
+		}
+	}
+	return false
+}
+
 func containsSubstring(haystack []string, needle string) bool {
 	for _, s := range haystack {
 		if strings.Contains(s, needle) {

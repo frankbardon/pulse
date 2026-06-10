@@ -69,6 +69,44 @@ A normalize direction implies the corresponding margin computation even when `ma
 
 Divide-by-zero policy: when the required margin is zero (empty row, empty column, empty table), the cell is dropped (`MatrixCell.Present=false`). Downstream renderers must show null/empty, not zero.
 
+### Partial-depth normalization
+
+When the normalization axis has nested groupers (e.g. `columns: [region, segment, product]`), the default denominator is the **leaf composite** — cells in each leaf `(region, segment, product)` column sum to 1. `normalize_level` lets the caller pick a higher grouper as the 100% denominator:
+
+- `normalize_level: 0` — denominator is the value of the first (top-level) grouper. Cells under the same top-level value, across every nested child column, sum to 1.
+- `normalize_level: 1` — denominator is the value of the second grouper. Cells under the same `(top, second)` tuple sum to 1.
+- omitted or `len(axis)-1` — leaf-tuple denominator (the original behavior). The two are byte-equal.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "outcome"}],
+    "columns": [
+      {"type": "GROUP_CATEGORY", "field": "region"},
+      {"type": "GROUP_CATEGORY", "field": "segment"},
+      {"type": "GROUP_CATEGORY", "field": "product"}
+    ],
+    "cell":            {"type": "AGG_COUNT", "field": "id", "label": "share"},
+    "normalize":       "column",
+    "normalize_level": 0
+  }
+}
+```
+
+Each region (the top-level column grouper) holds 100% of the count; cells partition that count across the `(segment, product)` leaves below it.
+
+Symmetric for `normalize: row` — `normalize_level` picks a parent grouper on the nested row axis.
+
+Partial margins are recomputed from raw rows just like leaf margins, so `recompute`-class aggregators (`AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_STDDEV`) produce statistically correct partial denominators — the median for `region=north` is the standalone median of every `north` record, not the median of the per-`(segment, product)` cell medians.
+
+Long-shape (`shape: long`) emission with `margins.columns: true` (or `margins.rows: true` for row partials) emits one extra row per partial bucket tagged `_margin: "column_at_<depth>"` (or `row_at_<depth>`), alongside the existing leaf `_margin: "column"` rows. Matrix shape keeps the leaf-level margin vectors unchanged; the partial denominator surfaces only via the long-shape tag.
+
+Rejection rules:
+
+- `PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE` — value outside `[0, len(axis)-1]` for the axis selected by `normalize`.
+- `PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS` — `normalize_level` set with `normalize: none`. The level only has meaning when a direction is chosen.
+- `PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE` — `normalize_level` set with `normalize: total`. Total uses a scalar grand-total denominator with no axis to descend.
+
 ## Shape
 
 - `matrix` (default) — explicit structured payload on `Response.Crosstab.Matrix`. Carries `RowHeader`, `ColumnHeader`, ordered `RowKeys` / `ColumnKeys` tuples, the dense `Cells` matrix, optional `RowMargins` / `ColumnMargins` / `GrandTotal`, the `CellLabel`, and `NormalizeApplied`. Designed for downstream renderers (Prism heatmap) without re-deriving axis structure.
