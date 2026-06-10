@@ -13,42 +13,52 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// --- Category Grouper ---
-
-type categoryGrouper struct {
-	schema *encoding.Schema
-}
-
-func newCategoryGrouper(_ *types.Group, schema *encoding.Schema) (Grouper, error) {
-	return &categoryGrouper{schema: schema}, nil
-}
-
-func (g *categoryGrouper) KeyForRow(r *Record, field string) (string, bool, error) {
-	v, ok := r.NumericValue(field)
-	if !ok {
-		return "", false, nil
-	}
-	f := g.schema.Field(field)
-	if f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
-		key := f.Dictionary.Resolve(uint32(v))
-		if key == "" {
-			key = fmt.Sprintf("%d", uint32(v))
-		}
-		return key, true, nil
-	}
+// formatRoundedNumeric formats a float64 in the same shape every
+// numeric-key grouper uses today — integer-valued floats render via
+// strconv.FormatInt, fractional values via FormatFloat with -1
+// precision. Lifted out of categoryGrouper / roundedGrouper /
+// rangeGrouper so the KeyFor and Group paths share a single
+// canonicalisation site.
+func formatRoundedNumeric(v float64) string {
 	if v == math.Trunc(v) {
-		return strconv.FormatInt(int64(v), 10), true, nil
+		return strconv.FormatInt(int64(v), 10)
 	}
-	return strconv.FormatFloat(v, 'f', -1, 64), true, nil
+	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
-func (g *categoryGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
-	// Pass 1: compute keys (buffered to avoid recomputation) and per-key counts.
+// groupKeyResult collects the per-record bucket key plus a "used"
+// flag used by every streamable grouper's Group implementation. The
+// underlying KeyFor returns an ErrGrouperKeyNull sentinel for null
+// rows; we translate that to used=false so Group continues to skip
+// them silently (matching its long-standing contract).
+func keyForOrSkip(g StreamableGrouper, r *Record) (string, bool, error) {
+	key, err := g.KeyFor(r)
+	if err != nil {
+		if isGrouperKeyNull(err) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return key, true, nil
+}
+
+// isGrouperKeyNull recognises the ErrGrouperKeyNull sentinel without
+// pulling stderrors into every grouper file.
+func isGrouperKeyNull(err error) bool {
+	return err == ErrGrouperKeyNull
+}
+
+// streamableGroup is the shared Group() implementation for streamable
+// groupers — pass-1 computes per-record keys via KeyFor, pass-2 fills
+// pre-sized per-key slices. Lifted so categoryGrouper / roundedGrouper /
+// rangeGrouper / dateGrouper share the exact same partition shape and
+// no key-format logic is duplicated.
+func streamableGroup(g StreamableGrouper, records []*Record) (map[string][]*Record, error) {
 	keys := make([]string, len(records))
 	used := make([]bool, len(records))
 	counts := make(map[string]int)
 	for i, r := range records {
-		key, ok, err := g.KeyForRow(r, field)
+		key, ok, err := keyForOrSkip(g, r)
 		if err != nil {
 			return nil, err
 		}
@@ -59,8 +69,6 @@ func (g *categoryGrouper) Group(records []*Record, field string) (map[string][]*
 		used[i] = true
 		counts[key]++
 	}
-
-	// Pass 2: pre-allocate per-key slices to known final size, then append.
 	groups := make(map[string][]*Record, len(counts))
 	for k, n := range counts {
 		groups[k] = make([]*Record, 0, n)
@@ -69,15 +77,59 @@ func (g *categoryGrouper) Group(records []*Record, field string) (map[string][]*
 		if !used[i] {
 			continue
 		}
-		k := keys[i]
-		groups[k] = append(groups[k], r)
+		groups[keys[i]] = append(groups[keys[i]], r)
 	}
 	return groups, nil
+}
+
+// --- Category Grouper ---
+
+type categoryGrouper struct {
+	schema *encoding.Schema
+	field  string
+}
+
+func newCategoryGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
+	return &categoryGrouper{schema: schema, field: grp.Field}, nil
+}
+
+// KeyFor implements StreamableGrouper.KeyFor. Categorical fields resolve
+// the wire-format dictionary index to its label; non-categorical numeric
+// fields stringify the value via formatRoundedNumeric so the output
+// matches the historical Group() partition key byte-for-byte.
+func (g *categoryGrouper) KeyFor(r *Record) (string, error) {
+	v, ok := r.NumericValue(g.field)
+	if !ok {
+		return "", ErrGrouperKeyNull
+	}
+	if g.schema != nil {
+		if f := g.schema.Field(g.field); f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
+			key := f.Dictionary.Resolve(uint32(v))
+			if key == "" {
+				key = strconv.FormatUint(uint64(uint32(v)), 10)
+			}
+			return key, nil
+		}
+	}
+	return formatRoundedNumeric(v), nil
+}
+
+// KeyForRow delegates to KeyFor — single source of truth for the
+// category bucket key format. The field argument is accepted for
+// StreamingGrouper compatibility; runtime callers always pass
+// grp.Field which matches g.field by construction.
+func (g *categoryGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
+	return keyForOrSkip(g, r)
+}
+
+func (g *categoryGrouper) Group(records []*Record, _ string) (map[string][]*Record, error) {
+	return streamableGroup(g, records)
 }
 
 // --- Rounded Grouper ---
 
 type roundedGrouper struct {
+	field    string
 	interval float64
 }
 
@@ -85,57 +137,33 @@ func newRoundedGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 	if grp.Interval <= 0 {
 		grp.Interval = 1 // default to 1
 	}
-	return &roundedGrouper{interval: grp.Interval}, nil
+	return &roundedGrouper{field: grp.Field, interval: grp.Interval}, nil
 }
 
-func (g *roundedGrouper) KeyForRow(r *Record, field string) (string, bool, error) {
-	v, ok := r.NumericValue(field)
+// KeyFor implements StreamableGrouper.KeyFor. Floor-rounds the value to
+// the configured interval and emits the stringified rounded value via
+// formatRoundedNumeric — identical to today's Group() partition key.
+func (g *roundedGrouper) KeyFor(r *Record) (string, error) {
+	v, ok := r.NumericValue(g.field)
 	if !ok {
-		return "", false, nil
+		return "", ErrGrouperKeyNull
 	}
 	rounded := math.Floor(v/g.interval) * g.interval
-	if rounded == math.Trunc(rounded) {
-		return strconv.FormatInt(int64(rounded), 10), true, nil
-	}
-	return strconv.FormatFloat(rounded, 'f', -1, 64), true, nil
+	return formatRoundedNumeric(rounded), nil
 }
 
-func (g *roundedGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
-	// Pass 1: compute keys (buffered) and per-key counts.
-	keys := make([]string, len(records))
-	used := make([]bool, len(records))
-	counts := make(map[string]int)
-	for i, r := range records {
-		key, ok, err := g.KeyForRow(r, field)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		keys[i] = key
-		used[i] = true
-		counts[key]++
-	}
+func (g *roundedGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
+	return keyForOrSkip(g, r)
+}
 
-	// Pass 2: pre-allocate per-key slices, then append.
-	groups := make(map[string][]*Record, len(counts))
-	for k, n := range counts {
-		groups[k] = make([]*Record, 0, n)
-	}
-	for i, r := range records {
-		if !used[i] {
-			continue
-		}
-		k := keys[i]
-		groups[k] = append(groups[k], r)
-	}
-	return groups, nil
+func (g *roundedGrouper) Group(records []*Record, _ string) (map[string][]*Record, error) {
+	return streamableGroup(g, records)
 }
 
 // --- Range Grouper ---
 
 type rangeGrouper struct {
+	field    string
 	interval float64
 }
 
@@ -143,61 +171,30 @@ func newRangeGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 	if grp.Interval <= 0 {
 		grp.Interval = 1 // default to 1
 	}
-	return &rangeGrouper{interval: grp.Interval}, nil
+	return &rangeGrouper{field: grp.Field, interval: grp.Interval}, nil
 }
 
-func (g *rangeGrouper) KeyForRow(r *Record, field string) (string, bool, error) {
-	v, ok := r.NumericValue(field)
+// KeyFor implements StreamableGrouper.KeyFor. Emits a "lo-hi" range
+// string covering the half-open bin [low, low+interval). low+interval
+// can drift due to FP error on non-power-of-two intervals; the format
+// matches the historical Group() output exactly because both call into
+// formatRoundedNumeric on identical inputs.
+func (g *rangeGrouper) KeyFor(r *Record) (string, error) {
+	v, ok := r.NumericValue(g.field)
 	if !ok {
-		return "", false, nil
+		return "", ErrGrouperKeyNull
 	}
 	low := math.Floor(v/g.interval) * g.interval
 	high := low + g.interval
-	var lowStr, highStr string
-	if low == math.Trunc(low) {
-		lowStr = strconv.FormatInt(int64(low), 10)
-	} else {
-		lowStr = strconv.FormatFloat(low, 'f', -1, 64)
-	}
-	if high == math.Trunc(high) {
-		highStr = strconv.FormatInt(int64(high), 10)
-	} else {
-		highStr = strconv.FormatFloat(high, 'f', -1, 64)
-	}
-	return lowStr + "-" + highStr, true, nil
+	return formatRoundedNumeric(low) + "-" + formatRoundedNumeric(high), nil
 }
 
-func (g *rangeGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
-	// Pass 1: compute keys (buffered) and per-key counts.
-	keys := make([]string, len(records))
-	used := make([]bool, len(records))
-	counts := make(map[string]int)
-	for i, r := range records {
-		key, ok, err := g.KeyForRow(r, field)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		keys[i] = key
-		used[i] = true
-		counts[key]++
-	}
+func (g *rangeGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
+	return keyForOrSkip(g, r)
+}
 
-	// Pass 2: pre-allocate per-key slices, then append.
-	groups := make(map[string][]*Record, len(counts))
-	for k, n := range counts {
-		groups[k] = make([]*Record, 0, n)
-	}
-	for i, r := range records {
-		if !used[i] {
-			continue
-		}
-		k := keys[i]
-		groups[k] = append(groups[k], r)
-	}
-	return groups, nil
+func (g *rangeGrouper) Group(records []*Record, _ string) (map[string][]*Record, error) {
+	return streamableGroup(g, records)
 }
 
 // --- Quantile Grouper ---
@@ -218,6 +215,13 @@ type indexedValue struct {
 	record *Record
 	value  float64
 }
+
+// quantileGrouper deliberately does NOT implement StreamableGrouper.
+// Bucket assignment depends on a sorted view of the full record set
+// (each row's rank is set by every other row's value), so per-record
+// KeyFor would lie. The fused crosstab path detects the missing
+// interface via type assertion and falls back to the buffered
+// PartitionByAxis route.
 
 func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
 	groups := make(map[string][]*Record)
@@ -308,6 +312,7 @@ var fiscalComponents = map[string]bool{
 }
 
 type dateGrouper struct {
+	field        string
 	component    string
 	fiscalOffset int // 0 = calendar; non-zero = FY starts at month (((offset%12)+12)%12)+1
 }
@@ -343,7 +348,7 @@ func newDateGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
 			fmt.Sprintf("GROUP_DATE fiscal_offset only applies to component=year or component=quarter, got %q", component))
 	}
 
-	return &dateGrouper{component: component, fiscalOffset: fiscalOffset}, nil
+	return &dateGrouper{field: grp.Field, component: component, fiscalOffset: fiscalOffset}, nil
 }
 
 // fiscalYearQuarter returns the fiscal year (end-year convention) and the
@@ -364,62 +369,62 @@ func fiscalYearQuarter(t time.Time, offset int) (int, int) {
 	return fy, fq
 }
 
-func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
-	// Pass 1: compute keys (buffered to avoid recomputing time formatting) and per-key counts.
-	keys := make([]string, len(records))
-	used := make([]bool, len(records))
-	counts := make(map[string]int)
-	for i, r := range records {
-		v, ok := r.NumericValue(field)
-		if !ok {
-			continue // skip null values
+// formatDateKey is the shared bucket-key formatter for dateGrouper. Both
+// the buffered Group() path and the streaming KeyFor / KeyForRow paths
+// call into it so the date / fiscal_offset formatting lives in one
+// place. Returns the canonical bucket key for the configured component.
+func (g *dateGrouper) formatDateKey(t time.Time) string {
+	switch g.component {
+	case "year":
+		if g.fiscalOffset != 0 {
+			fy, _ := fiscalYearQuarter(t, g.fiscalOffset)
+			return fmt.Sprintf("FY%d", fy)
 		}
-
-		t := time.Unix(int64(v)*86400, 0).UTC()
-
-		var key string
-		switch g.component {
-		case "year":
-			if g.fiscalOffset != 0 {
-				fy, _ := fiscalYearQuarter(t, g.fiscalOffset)
-				key = fmt.Sprintf("FY%d", fy)
-			} else {
-				key = fmt.Sprintf("%d", t.Year())
-			}
-		case "quarter":
-			if g.fiscalOffset != 0 {
-				fy, fq := fiscalYearQuarter(t, g.fiscalOffset)
-				key = fmt.Sprintf("FY%d-Q%d", fy, fq)
-			} else {
-				key = fmt.Sprintf("%d-Q%d", t.Year(), (int(t.Month())-1)/3+1)
-			}
-		case "month":
-			key = t.Format("2006-01")
-		case "week":
-			y, w := t.ISOWeek()
-			key = fmt.Sprintf("%d-W%02d", y, w)
-		case "day":
-			key = t.Format("2006-01-02")
-		case "day_of_week":
-			key = t.Weekday().String()
+		return fmt.Sprintf("%d", t.Year())
+	case "quarter":
+		if g.fiscalOffset != 0 {
+			fy, fq := fiscalYearQuarter(t, g.fiscalOffset)
+			return fmt.Sprintf("FY%d-Q%d", fy, fq)
 		}
+		return fmt.Sprintf("%d-Q%d", t.Year(), (int(t.Month())-1)/3+1)
+	case "month":
+		return t.Format("2006-01")
+	case "week":
+		y, w := t.ISOWeek()
+		return fmt.Sprintf("%d-W%02d", y, w)
+	case "day":
+		return t.Format("2006-01-02")
+	case "day_of_week":
+		return t.Weekday().String()
+	}
+	// Construction rejects unknown components, so this is unreachable
+	// in normal use. Return empty string to keep the partition stable
+	// if the contract ever drifts.
+	return ""
+}
 
-		keys[i] = key
-		used[i] = true
-		counts[key]++
+// KeyFor implements StreamableGrouper.KeyFor. Per-record date
+// classification is fully local — the same calendar conversion the
+// buffered Group() path runs, lifted into formatDateKey. GROUP_DATE
+// itself remains marked non-streamable for the Process orchestrator
+// because grouped streaming Process is not wired through today; the
+// crosstab fused path consumes KeyFor directly.
+func (g *dateGrouper) KeyFor(r *Record) (string, error) {
+	v, ok := r.NumericValue(g.field)
+	if !ok {
+		return "", ErrGrouperKeyNull
 	}
+	t := time.Unix(int64(v)*86400, 0).UTC()
+	return g.formatDateKey(t), nil
+}
 
-	// Pass 2: pre-allocate per-key slices, then append.
-	groups := make(map[string][]*Record, len(counts))
-	for k, n := range counts {
-		groups[k] = make([]*Record, 0, n)
-	}
-	for i, r := range records {
-		if !used[i] {
-			continue
-		}
-		k := keys[i]
-		groups[k] = append(groups[k], r)
-	}
-	return groups, nil
+// KeyForRow is the StreamingGrouper-shape adapter on top of KeyFor.
+// Allows downstream code that consults StreamingGrouper to drive
+// dateGrouper per record without buffering.
+func (g *dateGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
+	return keyForOrSkip(g, r)
+}
+
+func (g *dateGrouper) Group(records []*Record, _ string) (map[string][]*Record, error) {
+	return streamableGroup(g, records)
 }
