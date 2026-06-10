@@ -621,6 +621,14 @@ const (
 	// normalize=row or normalize=column.
 	PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE Code = "PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE"
 
+	// PULSE_CROSSTAB_NORMALIZE_MAP_VALUED indicates the Crosstab
+	// section requested a normalize mode (row / column / total)
+	// paired with a cell aggregator whose output is map-valued
+	// (AGG_SET_FREQUENCY). Dividing one map by another is undefined;
+	// drop the normalize directive or pick a scalar aggregator (e.g.
+	// AGG_SET_CARDINALITY_SUM) for normalized output.
+	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED Code = "PULSE_CROSSTAB_NORMALIZE_MAP_VALUED"
+
 	// PULSE_REQUEST_UNKNOWN_FIELD indicates a request JSON carried a
 	// top-level key that is not a recognised Request slot. JSON
 	// decoding silently ignores unknown keys, so the offending slot
@@ -759,6 +767,7 @@ var allCodes = []Code{
 	PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE,
 	PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS,
 	PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE,
+	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED,
 	PULSE_REQUEST_UNKNOWN_FIELD,
 }
 

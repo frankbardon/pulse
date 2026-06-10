@@ -176,6 +176,22 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err := validateCrosstabSpec(spec, req); err != nil {
 		return nil, err
 	}
+	// Map-valued aggregators (AGG_SET_FREQUENCY today) cannot normalize —
+	// dividing one map by another is undefined. Reject up-front so the
+	// dispatch loop below can treat every scalar/rich routing as safe.
+	if spec.Cell != nil &&
+		spec.NormalizeOrDefault() != types.CrosstabNormalizeNone &&
+		spec.Cell.Type.MapValued() {
+		return nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED,
+			"crosstab normalize="+string(spec.NormalizeOrDefault())+
+				" is incompatible with map-valued cell aggregator "+
+				string(spec.Cell.Type),
+			map[string]any{
+				"aggregation": string(spec.Cell.Type),
+				"normalize":   string(spec.NormalizeOrDefault()),
+			})
+	}
 
 	if err := p.applyFeatures(req.Features, records); err != nil {
 		return nil, err
@@ -203,7 +219,13 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	cellAgg := spec.Cell
 	cellLabel := spec.CellLabel()
 
-	cellValues := make(map[crosstabCellKey]float64, len(rowPart.Keys)*len(colPart.Keys))
+	// cellValues admits any aggregator payload — scalar float64 for the
+	// usual aggregators, plus rich shapes (map[string]int, []string) when
+	// the cell aggregator implements RichAggregator. The normalize gate
+	// below rejects spec.Normalize != none paired with a MapValued()
+	// aggregator (see types.AggregationType.MapValued), so partial /
+	// margin paths that need a float64 denominator stay scalar.
+	cellValues := make(map[crosstabCellKey]any, len(rowPart.Keys)*len(colPart.Keys))
 	cellPresent := make(map[crosstabCellKey]bool, len(rowPart.Keys)*len(colPart.Keys))
 
 	for _, rkey := range rowPart.Keys {
@@ -227,15 +249,15 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if row == nil {
 				continue
 			}
-			cellValues[crosstabCellKey{rkey, ckey}] = coerceFloat64(row[cellLabel])
+			cellValues[crosstabCellKey{rkey, ckey}] = row[cellLabel]
 			cellPresent[crosstabCellKey{rkey, ckey}] = true
 		}
 	}
 
-	var rowMargins map[string]float64
+	var rowMargins map[string]any
 	var rowMarginPresent map[string]bool
 	if spec.NeedsRowMargin() {
-		rowMargins = make(map[string]float64, len(rowPart.Keys))
+		rowMargins = make(map[string]any, len(rowPart.Keys))
 		rowMarginPresent = make(map[string]bool, len(rowPart.Keys))
 		for _, rkey := range rowPart.Keys {
 			bucket := rowPart.Records[rkey]
@@ -249,15 +271,15 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if row == nil {
 				continue
 			}
-			rowMargins[rkey] = coerceFloat64(row[cellLabel])
+			rowMargins[rkey] = row[cellLabel]
 			rowMarginPresent[rkey] = true
 		}
 	}
 
-	var colMargins map[string]float64
+	var colMargins map[string]any
 	var colMarginPresent map[string]bool
 	if spec.NeedsColumnMargin() {
-		colMargins = make(map[string]float64, len(colPart.Keys))
+		colMargins = make(map[string]any, len(colPart.Keys))
 		colMarginPresent = make(map[string]bool, len(colPart.Keys))
 		for _, ckey := range colPart.Keys {
 			bucket := colPart.Records[ckey]
@@ -271,12 +293,12 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if row == nil {
 				continue
 			}
-			colMargins[ckey] = coerceFloat64(row[cellLabel])
+			colMargins[ckey] = row[cellLabel]
 			colMarginPresent[ckey] = true
 		}
 	}
 
-	var grandMargin float64
+	var grandMargin any
 	grandPresent := false
 	if spec.NeedsGrandMargin() {
 		if len(filtered) > 0 {
@@ -285,7 +307,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				return nil, err
 			}
 			if row != nil {
-				grandMargin = coerceFloat64(row[cellLabel])
+				grandMargin = row[cellLabel]
 				grandPresent = true
 			}
 		}
@@ -314,7 +336,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		level := spec.NormalizeLevelOrLeaf(axisLen)
 		rowNormLevel = level
 		if level == axisLen-1 {
-			partialRowMargins = rowMargins
+			// Normalize rejected for map cells; coerce-cast the leaf
+			// margin map (every value is float64 here).
+			partialRowMargins = coerceAnyMarginMap(rowMargins)
 			partialRowPresent = rowMarginPresent
 		} else {
 			partialRowPart, err = p.PartitionByAxis(spec.Rows[:level+1], filtered)
@@ -346,7 +370,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		level := spec.NormalizeLevelOrLeaf(axisLen)
 		colNormLevel = level
 		if level == axisLen-1 {
-			partialColMargins = colMargins
+			partialColMargins = coerceAnyMarginMap(colMargins)
 			partialColPresent = colMarginPresent
 		} else {
 			partialColPart, err = p.PartitionByAxis(spec.Columns[:level+1], filtered)
@@ -375,7 +399,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	}
 
 	if mode != types.CrosstabNormalizeNone {
-		normalized := make(map[crosstabCellKey]float64, len(cellValues))
+		// Map-valued aggregators rejected upstream by the
+		// MapValued() gate; every cell here is scalar.
+		normalized := make(map[crosstabCellKey]any, len(cellValues))
 		for ck, v := range cellValues {
 			rLookup := ck.row
 			if leafRowToPartial != nil {
@@ -388,14 +414,14 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			denom, ok := normalizeDenominator(mode, rLookup, cLookup,
 				partialRowMargins, partialRowPresent,
 				partialColMargins, partialColPresent,
-				grandMargin, grandPresent)
+				coerceFloat64(grandMargin), grandPresent)
 			if !ok || denom == 0 {
 				// Divide-by-zero policy: drop the cell. Downstream
 				// rendering sees Present=false.
 				cellPresent[ck] = false
 				continue
 			}
-			normalized[ck] = v / denom
+			normalized[ck] = coerceFloat64(v) / denom
 		}
 		cellValues = normalized
 	}
@@ -467,7 +493,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // same observations regardless of the configured shape.
 func buildCellRowsForPostTest(spec *types.CrosstabSpec,
 	rowPart, colPart *CrosstabAxisPartition,
-	cellValues map[crosstabCellKey]float64,
+	cellValues map[crosstabCellKey]any,
 	cellPresent map[crosstabCellKey]bool,
 	cellLabel string,
 ) []map[string]any {
@@ -529,11 +555,11 @@ func normalizeDenominator(mode types.CrosstabNormalize, rkey, ckey string,
 
 func buildMatrixPayload(spec *types.CrosstabSpec,
 	rowPart, colPart *CrosstabAxisPartition,
-	cellValues map[crosstabCellKey]float64,
+	cellValues map[crosstabCellKey]any,
 	cellPresent map[crosstabCellKey]bool,
-	rowMargins map[string]float64, rowPresent map[string]bool,
-	colMargins map[string]float64, colPresent map[string]bool,
-	grand float64, grandPresent bool,
+	rowMargins map[string]any, rowPresent map[string]bool,
+	colMargins map[string]any, colPresent map[string]bool,
+	grand any, grandPresent bool,
 	cellLabel string, mode types.CrosstabNormalize,
 ) *types.MatrixPayload {
 	payload := &types.MatrixPayload{
@@ -586,11 +612,11 @@ func buildMatrixPayload(spec *types.CrosstabSpec,
 
 func buildLongRows(spec *types.CrosstabSpec,
 	rowPart, colPart *CrosstabAxisPartition,
-	cellValues map[crosstabCellKey]float64,
+	cellValues map[crosstabCellKey]any,
 	cellPresent map[crosstabCellKey]bool,
-	rowMargins map[string]float64, rowPresent map[string]bool,
-	colMargins map[string]float64, colPresent map[string]bool,
-	grand float64, grandPresent bool,
+	rowMargins map[string]any, rowPresent map[string]bool,
+	colMargins map[string]any, colPresent map[string]bool,
+	grand any, grandPresent bool,
 	cellLabel string,
 	partialRowPart *CrosstabAxisPartition,
 	partialRowMargins map[string]float64, partialRowPresent map[string]bool,
@@ -699,6 +725,19 @@ func buildLongRows(spec *types.CrosstabSpec,
 		}
 	}
 	return data
+}
+
+// coerceAnyMarginMap converts a map[string]any margin map (the post-
+// widening shape) to a map[string]float64 for the partial-normalization
+// paths. Only invoked after the MapValued() gate has rejected map cells,
+// so every entry is guaranteed scalar — non-numeric entries coerce to
+// zero via coerceFloat64.
+func coerceAnyMarginMap(in map[string]any) map[string]float64 {
+	out := make(map[string]float64, len(in))
+	for k, v := range in {
+		out[k] = coerceFloat64(v)
+	}
+	return out
 }
 
 func coerceFloat64(v any) float64 {

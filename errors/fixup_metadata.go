@@ -1129,6 +1129,23 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED: {
+		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (AGG_SET_FREQUENCY emits map[string]int per cell). Dividing one map by another is undefined; the normalize directive cannot be applied.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Normalize"},
+				Hint:     "Drop the normalize directive (or set it to \"none\") to keep map-valued cells, or swap the cell aggregator to a scalar form (e.g. AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG) so normalization is defined.",
+				Examples: []any{"none"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Cell", "Type"},
+				Hint:     "Pick a scalar aggregator if the normalize directive must stay. AGG_SET_CARDINALITY_SUM gives summable popcount per cell; AGG_SET_CARDINALITY_AVG gives mean selections.",
+				Examples: []any{"AGG_SET_CARDINALITY_SUM", "AGG_SET_CARDINALITY_AVG"},
+			},
+		},
+	},
 	PULSE_REQUEST_UNKNOWN_FIELD: {
 		Message: "The request JSON contains a top-level key that is not a recognised Request slot. JSON decoding silently ignores unknown keys, so the intended operation is dropped and the request runs as if it were absent. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\").",
 		Fixups: []Fixup{

@@ -55,6 +55,15 @@ type CrosstabCapability struct {
 	// NormalizeLevelRules names the rejection rules specific to the
 	// NormalizeLevel slot. Intended for LLM-side autocomplete.
 	NormalizeLevelRules []string `json:"normalize_level_rules"`
+
+	// MapValuedCellAggregators is the alphabetized list of aggregator
+	// names whose Crosstab Cell output is map-valued (rich payload
+	// per cell, e.g. AGG_SET_FREQUENCY's per-label row counts). These
+	// aggregators emit map[string]int into MatrixCell.Value and the
+	// long-shape cell rows; normalize modes (row / column / total) are
+	// incompatible because dividing one map by another is undefined.
+	// Derived from types.AggregationType.MapValued() at build time.
+	MapValuedCellAggregators []string `json:"map_valued_cell_aggregators"`
 }
 
 // crosstabCapability returns the canonical Crosstab capability block for
@@ -92,6 +101,8 @@ func crosstabCapability() CrosstabCapability {
 			"normalize_level cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE)",
 		},
 	}
+	cap.RejectionRules = append(cap.RejectionRules,
+		"map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)")
 	for _, t := range types.AllAggregationTypes() {
 		switch t.MarginReducibility() {
 		case types.MarginSummable:
@@ -101,9 +112,13 @@ func crosstabCapability() CrosstabCapability {
 		case types.MarginRecompute:
 			cap.RecomputeAggregators = append(cap.RecomputeAggregators, string(t))
 		}
+		if t.MapValued() {
+			cap.MapValuedCellAggregators = append(cap.MapValuedCellAggregators, string(t))
+		}
 	}
 	sort.Strings(cap.SummableAggregators)
 	sort.Strings(cap.MeanReducibleAggregators)
 	sort.Strings(cap.RecomputeAggregators)
+	sort.Strings(cap.MapValuedCellAggregators)
 	return cap
 }

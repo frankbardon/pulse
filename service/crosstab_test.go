@@ -120,7 +120,7 @@ func TestCrosstab_CountCellByteEqualToManual(t *testing.T) {
 			t.Errorf("(%s,%s) cell not present", pair[0], pair[1])
 			continue
 		}
-		if !floatClose(cell.Value, want, 0.001) {
+		if !floatClose(cell.Scalar(), want, 0.001) {
 			t.Errorf("(%s,%s) cell = %v, want %v", pair[0], pair[1], cell.Value, want)
 		}
 	}
@@ -185,7 +185,7 @@ func TestCrosstab_MedianMarginRecomputesFromRaw(t *testing.T) {
 
 	for i, k := range matrix.RowKeys {
 		region := k[0].(string)
-		got := matrix.RowMargins[i].Value
+		got := matrix.RowMargins[i].Scalar()
 		want := rowMargins[region]
 		if !floatClose(got, want, 0.001) {
 			t.Errorf("row margin (%s) = %v, want %v (standalone median)", region, got, want)
@@ -196,7 +196,7 @@ func TestCrosstab_MedianMarginRecomputesFromRaw(t *testing.T) {
 	// Standalone row margin for north = median(10,20,30,100) = 25.
 	// Verify they differ — guards against accidental cell-summation.
 	if i, ok := indexOfKey(matrix.RowKeys, "north"); ok {
-		got := matrix.RowMargins[i].Value
+		got := matrix.RowMargins[i].Scalar()
 		if floatClose(got, 60.0, 0.001) {
 			t.Errorf("row margin computed as median-of-cells (60); should be standalone median (25)")
 		}
@@ -209,7 +209,7 @@ func TestCrosstab_MedianMarginRecomputesFromRaw(t *testing.T) {
 	if !matrix.GrandTotal.Present {
 		t.Fatal("grand margin not present")
 	}
-	if !floatClose(matrix.GrandTotal.Value, 20.0, 0.001) {
+	if !floatClose(matrix.GrandTotal.Scalar(), 20.0, 0.001) {
 		t.Errorf("grand median = %v, want 20.0", matrix.GrandTotal.Value)
 	}
 }
@@ -241,7 +241,7 @@ func TestCrosstab_NormalizeRow_SumsToOne(t *testing.T) {
 		var sum float64
 		for j := range matrix.ColumnKeys {
 			if matrix.Cells[i][j].Present {
-				sum += matrix.Cells[i][j].Value
+				sum += matrix.Cells[i][j].Scalar()
 			}
 		}
 		// Every row in the fixture has at least one cell with rows.
@@ -277,7 +277,7 @@ func TestCrosstab_NormalizeColumn_SumsToOne(t *testing.T) {
 		var sum float64
 		for i := range matrix.RowKeys {
 			if matrix.Cells[i][j].Present {
-				sum += matrix.Cells[i][j].Value
+				sum += matrix.Cells[i][j].Scalar()
 			}
 		}
 		if !floatClose(sum, 1.0, 1e-9) {
@@ -312,7 +312,7 @@ func TestCrosstab_NormalizeTotal_SumsToOne(t *testing.T) {
 	for i := range matrix.RowKeys {
 		for j := range matrix.ColumnKeys {
 			if matrix.Cells[i][j].Present {
-				sum += matrix.Cells[i][j].Value
+				sum += matrix.Cells[i][j].Scalar()
 			}
 		}
 	}
@@ -394,7 +394,7 @@ func TestCrosstab_NestedAxes(t *testing.T) {
 		t.Fatal("missing retail column")
 	}
 	cell := matrix.Cells[rowIdx][colIdx]
-	if !cell.Present || !floatClose(cell.Value, 3.0, 0.001) {
+	if !cell.Present || !floatClose(cell.Scalar(), 3.0, 0.001) {
 		t.Errorf("(north,retail) → retail cell = %+v, want 3.0", cell)
 	}
 }
@@ -519,7 +519,7 @@ func TestCrosstab_DivideByZeroDropsCell(t *testing.T) {
 		var sum float64
 		for i := range matrix.RowKeys {
 			if matrix.Cells[i][j].Present {
-				sum += matrix.Cells[i][j].Value
+				sum += matrix.Cells[i][j].Scalar()
 			}
 		}
 		if !floatClose(sum, 1.0, 1e-9) {
@@ -851,7 +851,7 @@ func TestCrosstab_PartialColumnNormalize_SumsToOneWithinParent(t *testing.T) {
 		for _, j := range cols {
 			for i := range matrix.RowKeys {
 				if matrix.Cells[i][j].Present {
-					sum += matrix.Cells[i][j].Value
+					sum += matrix.Cells[i][j].Scalar()
 				}
 			}
 		}
@@ -901,7 +901,7 @@ func TestCrosstab_PartialRowNormalize_SumsToOneWithinParent(t *testing.T) {
 		for _, i := range rows {
 			for j := range matrix.ColumnKeys {
 				if matrix.Cells[i][j].Present {
-					sum += matrix.Cells[i][j].Value
+					sum += matrix.Cells[i][j].Scalar()
 				}
 			}
 		}
@@ -1131,10 +1131,10 @@ func TestCrosstab_PartialMarginMedianRecomputesFromRaw(t *testing.T) {
 	if !got.Present {
 		t.Fatal("cell not present")
 	}
-	if floatClose(got.Value, 20.0/60.0, 1e-9) {
+	if floatClose(got.Scalar(), 20.0/60.0, 1e-9) {
 		t.Errorf("normalization denominator was median-of-cell-medians (60); want partial recompute over raw rows (25)")
 	}
-	if !floatClose(got.Value, 20.0/25.0, 1e-9) {
+	if !floatClose(got.Scalar(), 20.0/25.0, 1e-9) {
 		t.Errorf("normalized median cell = %v, want 0.8 (20/25)", got.Value)
 	}
 }

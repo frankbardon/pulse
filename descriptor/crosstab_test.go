@@ -74,6 +74,93 @@ func TestPredict_Crosstab_LongNoMarginsStreamable(t *testing.T) {
 	}
 }
 
+// crosstabSetPredictSchema mirrors crosstabPredictSchema but swaps the
+// numeric "value" field for a set-typed "tags" field — used by the
+// map-valued-cell normalize gate tests.
+func crosstabSetPredictSchema(t *testing.T) *encoding.Schema {
+	t.Helper()
+	return &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "region", Type: encoding.FieldTypeCategoricalU8,
+				Description: "Region categorical identifier dimension",
+				Dictionary:  makeDictionary(t, "north", "south")},
+			{Name: "tags", Type: encoding.FieldTypeSetU8,
+				Description: "Multi-select tag bitmask over 4-element catalog",
+				Dictionary:  makeDictionary(t, "VISA", "MC", "AMEX", "DISC")},
+		},
+	}
+}
+
+// TestPredict_Crosstab_MapValuedNormalizeRejected verifies the predict
+// gate raises PULSE_CROSSTAB_NORMALIZE_MAP_VALUED for every normalize
+// direction paired with a map-valued cell aggregator (AGG_SET_FREQUENCY).
+func TestPredict_Crosstab_MapValuedNormalizeRejected(t *testing.T) {
+	schema := crosstabSetPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+	for _, mode := range []types.CrosstabNormalize{
+		types.CrosstabNormalizeRow,
+		types.CrosstabNormalizeColumn,
+		types.CrosstabNormalizeTotal,
+	} {
+		req := &types.Request{
+			Crosstab: &types.CrosstabSpec{
+				Rows:      []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Columns:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Cell:      &types.Aggregation{Type: types.AGG_SET_FREQUENCY, Field: "tags"},
+				Normalize: mode,
+			},
+		}
+		env := PredictFromBytes(data, req, nil)
+		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED) {
+			codes := make([]string, 0, len(env.Errors))
+			for _, e := range env.Errors {
+				codes = append(codes, e.Code)
+			}
+			t.Errorf("normalize=%s: missing PULSE_CROSSTAB_NORMALIZE_MAP_VALUED; got %v",
+				mode, codes)
+		}
+	}
+}
+
+// TestPredict_Crosstab_MapValuedNormalizeNoneAccepted ensures map-valued
+// cells are accepted when normalize is none (or omitted).
+func TestPredict_Crosstab_MapValuedNormalizeNoneAccepted(t *testing.T) {
+	schema := crosstabSetPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SET_FREQUENCY, Field: "tags"},
+		},
+	}
+	env := PredictFromBytes(data, req, nil)
+	if hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED) {
+		t.Error("normalize=none must not raise PULSE_CROSSTAB_NORMALIZE_MAP_VALUED")
+	}
+}
+
+// TestManifest_CrosstabMapValuedCellAggregators verifies the manifest
+// capability advertises the map-valued cell aggregator list and that
+// AGG_SET_FREQUENCY appears in it.
+func TestManifest_CrosstabMapValuedCellAggregators(t *testing.T) {
+	m := BuildManifest()
+	if len(m.Crosstab.MapValuedCellAggregators) == 0 {
+		t.Fatal("manifest.crosstab.map_valued_cell_aggregators is empty")
+	}
+	found := false
+	for _, a := range m.Crosstab.MapValuedCellAggregators {
+		if a == string(types.AGG_SET_FREQUENCY) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("AGG_SET_FREQUENCY missing from map_valued_cell_aggregators: %v",
+			m.Crosstab.MapValuedCellAggregators)
+	}
+}
+
 // TestPredict_Crosstab_NormalizeForcesBuffered verifies normalize != none
 // forces buffered.
 func TestPredict_Crosstab_NormalizeForcesBuffered(t *testing.T) {

@@ -504,7 +504,8 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"items":       groupItem,
 			},
 			"cell": map[string]any{
-				"type": "object",
+				"type":        "object",
+				"description": "Cell aggregation. Most aggregators emit scalar cells (number in matrix payload). Map-valued aggregators (advertised under Manifest.Crosstab.MapValuedCellAggregators — AGG_SET_FREQUENCY today) emit per-label row-count maps (object); pairing them with normalize=row/column/total raises PULSE_CROSSTAB_NORMALIZE_MAP_VALUED.",
 				"properties": map[string]any{
 					"type":   map[string]any{"type": "string", "enum": aggTypes},
 					"field":  enumStringField(c.AllFields, "Field the cell aggregation reads. AGG_COUNT may name any field."),

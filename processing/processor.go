@@ -520,7 +520,10 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		if label == "" {
 			label = fmt.Sprintf("%s_%s", e.agg.Type, e.agg.Field)
 		}
-		row[label] = val
+		row[label], err = dispatchAggregatorResult(e.online, val)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var data []map[string]any
@@ -762,7 +765,10 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			if err != nil {
 				return nil, err
 			}
-			row[specs[i].label] = val
+			row[specs[i].label], err = dispatchAggregatorResult(oa, val)
+			if err != nil {
+				return nil, err
+			}
 		}
 		row[grp.Field] = key
 		data = append(data, row)
@@ -967,7 +973,10 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		if label == "" {
 			label = fmt.Sprintf("%s_%s", e.agg.Type, e.agg.Field)
 		}
-		row[label] = val
+		row[label], err = dispatchAggregatorResult(e.online, val)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var data []map[string]any
@@ -1390,7 +1399,35 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 		if err != nil {
 			return nil, err
 		}
-		row[label] = val
+		row[label], err = dispatchAggregatorResult(aggregator, val)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return row, nil
+}
+
+// dispatchAggregatorResult routes the aggregator's output into the
+// response row. Aggregators that implement RichAggregator emit their
+// structured payload (map[string]int for AGG_SET_FREQUENCY, []string
+// for AGG_SET_UNION / AGG_SET_INTERSECTION); the float64 contract
+// remains the scalar fallback for callers that only consume scalars.
+// A RichAggregator returning nil (Rich payload not applicable for this
+// invocation, e.g. empty input) falls back to the scalar value.
+//
+// Accepts `any` so the same dispatch wraps both Aggregator (buffered
+// path) and OnlineAggregator (streaming path) instances — the
+// underlying concrete type satisfies both interfaces when it implements
+// RichAggregator.
+func dispatchAggregatorResult(agg any, scalar float64) (any, error) {
+	if rich, ok := agg.(RichAggregator); ok {
+		v, err := rich.Rich()
+		if err != nil {
+			return nil, err
+		}
+		if v != nil {
+			return v, nil
+		}
+	}
+	return scalar, nil
 }

@@ -3425,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 117,
+    "error_codes_count": 118,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3474,6 +3474,7 @@
       "PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE",
       "PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE",
       "PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS",
+      "PULSE_CROSSTAB_NORMALIZE_MAP_VALUED",
       "PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE",
       "PULSE_DECIMAL_DIVIDE_BY_ZERO",
       "PULSE_DECIMAL_OVERFLOW",
@@ -4851,17 +4852,21 @@
         "crosstab requires at least one grouper in columns (PULSE_CROSSTAB_EMPTY_COLUMNS)",
         "crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
         "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
-        "matrix shape, any margin, or any normalization forces the buffered path"
+        "matrix shape, any margin, or any normalization forces the buffered path",
+        "map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)"
       ],
       "supports_normalize_level": true,
       "normalize_level_rules": [
         "normalize_level must be in [0, len(axis)-1] for the axis selected by normalize (PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE)",
         "normalize_level requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS)",
         "normalize_level cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE)"
+      ],
+      "map_valued_cell_aggregators": [
+        "AGG_SET_FREQUENCY"
       ]
     }
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: fec7e9f7a0694e463ad95b1a2ba8fc2669dc60bed157110086917d05aa79ad89
+// golden-hash: f70bcf4f48883653504e938d49d85c3d96a8388d8a2447060e5fd1af814cf34e

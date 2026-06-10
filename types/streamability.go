@@ -121,6 +121,22 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 	return MarginRecompute
 }
 
+// MapValued reports whether the aggregator emits a map-valued
+// (per-bit / per-key) rich payload via the RichAggregator interface.
+// Used by Crosstab to gate normalize compatibility (dividing one map by
+// another is undefined) and by predict to surface the constraint up
+// front. Aggregators that emit []string rich payloads (AGG_SET_UNION,
+// AGG_SET_INTERSECTION) still expose a meaningful scalar fallback
+// (popcount) so they remain scalar-compatible and are NOT classified as
+// map-valued.
+func (t AggregationType) MapValued() bool {
+	switch t {
+	case AGG_SET_FREQUENCY:
+		return true
+	}
+	return false
+}
+
 // MarginReducibility classifies how a crosstab margin can be derived
 // from per-cell aggregations. See AggregationType.MarginReducibility.
 type MarginReducibility string
