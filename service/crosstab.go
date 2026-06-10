@@ -51,24 +51,23 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	// on cohorts beyond ~50 fields.
 	s.applyCrosstabProjection(iter, req, cohort.Schema())
 
-	// Materialize every record once. Crosstab buffers by construction
-	// (recursive Grouper partitioning needs the full set), so the
-	// streaming iterator is consumed up-front.
+	// Decode dispatch: when the cohort is single-file (not a shard
+	// archive — those parallelise via ShardWorkers), the iterator's
+	// mmap path engaged (resolveRealPath succeeds), the cohort exceeds
+	// parallelDecodeRecordThreshold, and the caller has not forced
+	// serial (DecodeWorkers != 1), segment the mmap'd record region
+	// across N workers. Each worker decodes its segment with its own
+	// bytes.Reader + RecordReader over the shared read-only mmap
+	// bytes. Otherwise fall through to the serial
+	// materializeRecords(iter) path that has driven crosstab since E2.
 	//
-	// E3-S1 plumbing: read the configured DecodeWorkers cap here so
-	// the buffered Process path observes the knob. This story stops
-	// at the read — E3-S2 wires the actual fan-out by branching on
-	// shouldFanOutDecode(workers, recordCount) and segmenting the
-	// mmap'd payload at record-stride boundaries. The threshold
-	// constant (parallelDecodeRecordThreshold) governs the small-
-	// cohort fallback.
-	_ = s.decodeWorkers
-	records, err := materializeRecords(iter)
+	// E3-S2 is decode-only: the parallel path still produces a single
+	// []*processing.Record consumed by RunCrosstab unchanged. E3-S3
+	// will compose this with per-worker partial accumulators and
+	// merge them before the orchestrator runs.
+	records, err := s.crosstabDecodeRecords(ctx, cohort, path, iter)
 	if err != nil {
 		return nil, err
-	}
-	if iter.Err() != nil {
-		return nil, iter.Err()
 	}
 
 	proc := processing.NewProcessorWithExtensions(cohort.Schema(), s.extensions)
@@ -94,6 +93,126 @@ func materializeRecords(iter scanIterator) ([]*processing.Record, error) {
 	var records []*processing.Record
 	for iter.Next() {
 		records = append(records, iter.Record())
+	}
+	return records, nil
+}
+
+// crosstabDecodeRecords picks between the serial and segment-aware
+// parallel decode paths. Returns the same []*processing.Record both
+// arms emit so the surrounding orchestration (processor construction,
+// RunCrosstab, label overlay) is unchanged.
+//
+// Bail to serial when any of these conditions fire:
+//
+//   - the cohort is a shard archive (Shards non-empty); shard-level
+//     parallelism is handled by shouldFanOut + processShardArchiveParallel
+//     elsewhere and the crosstab path does not yet reach that route
+//   - shouldFanOutDecode rejects (DecodeWorkers==1 or recordCount below
+//     the threshold)
+//   - resolveRealPath misses (mmap can't engage on this fs — MemMapFs,
+//     custom fs without RealPather, mmap-unsupported platform)
+//   - the cohort is the OpenAnchor in-memory overlay (its overlay fs
+//     doesn't satisfy RealPather, so resolveRealPath naturally misses)
+//
+// On bail we fall through to materializeRecords(iter) verbatim — the
+// iterator already has applyCrosstabProjection installed, so the
+// projection + plan caching applies in both arms.
+func (s *Service) crosstabDecodeRecords(
+	ctx context.Context,
+	cohort *Cohort,
+	path string,
+	iter scanIterator,
+) ([]*processing.Record, error) {
+	// Shard archives delegate to the shard parallel reducer elsewhere
+	// (today crosstab+shards routes through this serial path because
+	// the shard reducer doesn't speak crosstab); intra-shard segment
+	// decode on top would double-stack workers. Bail.
+	if len(cohort.Shards()) > 0 {
+		return s.crosstabDecodeRecordsSerial(iter)
+	}
+
+	si, ok := iter.(*streamingIterator)
+	if !ok {
+		// Defensive: today every single-file cohort returns
+		// *streamingIterator from newScanIter. Future iterator variants
+		// would have to opt in to parallel decode via a new interface;
+		// for now anything unrecognised falls back to serial.
+		return s.crosstabDecodeRecordsSerial(iter)
+	}
+
+	// Pre-flight bail: DecodeWorkers==1 means "force serial" and short-
+	// circuits before we even probe the fs. Mirrors the symmetric
+	// shouldFanOut shape in shard_reduce.go.
+	if s.decodeWorkers == 1 {
+		return s.crosstabDecodeRecordsSerial(iter)
+	}
+
+	// Build the parallel context: probes the fs for a real on-disk
+	// path, mmaps the file, and resolves the record-region offset +
+	// stride + total record count. Returns ok=false when the fs
+	// doesn't satisfy RealPather (MemMapFs, in-memory anchor
+	// overlay), when mmap fails, or when the file is too small for
+	// even one record. The cost of this probe is bounded: one
+	// resolveRealPath syscall + one mmap (constant-time on linux/
+	// darwin) + a 9-byte header read and the schema replay against an
+	// already-mapped slice. Far cheaper than the alternative
+	// (cohort.RecordCount whole-file slurp) and only paid once per
+	// crosstab call.
+	projectMapHint := len(cohort.Schema().Fields)
+	if si.projectSize > 0 {
+		projectMapHint = si.projectSize
+	}
+	pctx, cleanup, available, err := buildParallelDecodeContext(
+		s, path, cohort.Schema(), si.plan, si.project, projectMapHint,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !available {
+		return s.crosstabDecodeRecordsSerial(iter)
+	}
+
+	// Now that the resolved totalRecords is in hand, apply the
+	// threshold + worker-count predicate. Below-threshold cohorts
+	// release the mmap and fall back to the serial iterator (which
+	// will re-mmap on its own — afero.ReadFile on the bail path is
+	// fine because we only reach it for cohorts < 100K records,
+	// where the whole-file alloc is a few MB).
+	workers, ok := shouldFanOutDecode(s.decodeWorkers, pctx.totalRecords)
+	if !ok {
+		if cleanup != nil {
+			_ = cleanup()
+		}
+		return s.crosstabDecodeRecordsSerial(iter)
+	}
+	defer func() {
+		if cleanup != nil {
+			_ = cleanup()
+		}
+	}()
+
+	// Defensive stride sanity: bit-packed neighbours can never straddle
+	// a stride boundary because Schema.RecordByteSize allots one byte
+	// per bit-packed field. If a future schema introduced a sub-byte-
+	// aligned stride, the resulting fractional split would silently
+	// truncate; surface that loudly instead.
+	if pctx.stride <= 0 {
+		return s.crosstabDecodeRecordsSerial(iter)
+	}
+
+	return materializeRecordsParallel(ctx, pctx, workers)
+}
+
+// crosstabDecodeRecordsSerial is the existing materializeRecords path
+// wrapped so the dispatcher can call it from every bail arm with the
+// same signature.
+func (s *Service) crosstabDecodeRecordsSerial(iter scanIterator) ([]*processing.Record, error) {
+	records, err := materializeRecords(iter)
+	if err != nil {
+		return nil, err
+	}
+	if iter.Err() != nil {
+		return nil, iter.Err()
 	}
 	return records, nil
 }
