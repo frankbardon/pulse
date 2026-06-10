@@ -33,6 +33,7 @@ docs/book/
 
 # Project
 .planning/
+.worktrees/
 tmp/
 
 # Editors
