@@ -1,4 +1,4 @@
-.PHONY: build clean test cover fmt vet lint docs docs-serve docs-clean
+.PHONY: build clean test cover fmt vet lint bench docs docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -39,6 +39,14 @@ vet:
 
 lint: vet
 	$(GO) run honnef.co/go/tools/cmd/staticcheck@latest ./...
+
+# bench runs the in-tree benchmark suite. Manual target — not wired into
+# `make test`. Covers the service-layer crosstab + scan benches plus the
+# encoding-layer codec benches; new bench packages should be added here.
+# Reference numbers for the crosstab-perf epic come from
+# BenchmarkBufferedProcessWideCohort in ./service.
+bench:
+	$(GO) test -bench=. -benchmem -run='^$$' -count=1 ./service/... ./encoding/... ./processing/...
 
 docs:
 	mdbook build docs
