@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "groupers",
+    "description": "Fan each respondent into one bucket per held credit-card issuer via GROUP_SET_PER_ELEMENT, then count respondents and average age per issuer. A single row contributes to every set bit it carries — so a VISA|MC|AMEX wallet lands in three buckets.",
+    "name": "group_set_per_element_issuers",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "GROUP_SET_PER_ELEMENT"
+    ],
+    "tags": [
+      "cardinality-analysis",
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "card_issuers.pulse",
+    "data_dir": ".data"
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "respondent_id",
+      "label": "respondents"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "age",
+      "label": "avg_age"
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_SET_PER_ELEMENT",
+      "field": "issuers"
+    }
+  ],
+  "sort": [
+    {
+      "field": "issuers"
+    }
+  ]
+}

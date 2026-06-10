@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Map-valued crosstab cells: region (rows) × age-decile (columns) with AGG_SET_FREQUENCY as the cell aggregator. Each cell carries a {label: count} map of credit-card issuer occurrences within that region/age bucket. Exercises the MatrixCell.Value=any contract and the RichAggregator dispatch path — normalize must stay 'none' because per-bit maps cannot be normalized as scalars.",
+    "name": "crosstab_set_frequency_map_cells",
+    "operators": [
+      "AGG_SET_FREQUENCY",
+      "GROUP_CATEGORY",
+      "GROUP_RANGE"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cardinality-analysis"
+    ]
+  },
+  "cohort": {
+    "filename": "card_issuers.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_RANGE",
+        "field": "age",
+        "interval": 10
+      }
+    ],
+    "cell": {
+      "type": "AGG_SET_FREQUENCY",
+      "field": "issuers",
+      "label": "issuer_counts"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    },
+    "normalize": "none",
+    "shape": "matrix"
+  }
+}
