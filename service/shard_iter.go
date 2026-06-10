@@ -59,6 +59,14 @@ type shardIter struct {
 	// full decode.
 	project     encoding.FieldFilter
 	projectSize int
+
+	// plan / planKey: precomputed DecodePlan over (it.schema, retained
+	// set derived from it.project). Built once at SetProjection time
+	// so per-record Next() walks the plan instead of every schema
+	// field. Mirrors streamingIterator semantics. Stays nil when
+	// project is nil.
+	plan    *encoding.DecodePlan
+	planKey string
 }
 
 // newShardIter constructs a multi-shard iterator over the cohort's
@@ -187,9 +195,12 @@ func (it *shardIter) Next() bool {
 		nulls := make(map[string]bool)
 		wide := make(map[string]any)
 		var err error
-		if it.project != nil {
+		switch {
+		case it.plan != nil:
+			err = it.reader.ReadRecordWithWidePlan(values, nulls, wide, it.project, it.plan)
+		case it.project != nil:
 			err = it.reader.ReadRecordWithWideProjected(values, nulls, wide, it.project)
-		} else {
+		default:
 			err = it.reader.ReadRecordWithWide(values, nulls, wide)
 		}
 		if err == io.EOF {
@@ -232,10 +243,33 @@ func (it *shardIter) SetReuse(reuse bool) {
 }
 
 // SetProjection installs a field-keep filter. MUST be called before
-// the first Next(). Mirrors streamingIterator.SetProjection.
+// the first Next(). Mirrors streamingIterator.SetProjection — builds
+// a DecodePlan once at install time and caches it for the per-record
+// Next() path.
 func (it *shardIter) SetProjection(keep encoding.FieldFilter, size int) {
 	it.project = keep
 	it.projectSize = size
+	if keep == nil {
+		it.plan = nil
+		it.planKey = ""
+		return
+	}
+	if it.schema == nil {
+		return
+	}
+	retained := retainedFromFilter(it.schema, keep)
+	key := joinRetainedKey(retained)
+	if it.plan != nil && key == it.planKey {
+		return
+	}
+	plan, err := it.schema.BuildDecodePlan(retained)
+	if err != nil {
+		it.plan = nil
+		it.planKey = ""
+		return
+	}
+	it.plan = plan
+	it.planKey = key
 }
 
 // Err returns any error encountered during iteration.

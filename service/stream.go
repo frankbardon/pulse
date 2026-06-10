@@ -62,6 +62,17 @@ type streamingIterator struct {
 	// map allocation when projection is active.
 	project     encoding.FieldFilter
 	projectSize int
+
+	// plan is the precomputed DecodePlan for (it.schema, retained set
+	// derived from it.project). Built once at SetProjection time and
+	// reused on every Next() — the per-record hot path walks the plan
+	// instead of every schema field. Stays nil when project is nil
+	// (full-decode path) so SetProjection(nil, 0) is identical to
+	// today's behaviour. planKey memoises the sorted retained set so
+	// re-calling SetProjection with the same retained set reuses the
+	// existing plan rather than rebuilding.
+	plan    *encoding.DecodePlan
+	planKey string
 }
 
 // newStreamingIterator creates a streaming iterator for the given cohort.
@@ -188,9 +199,21 @@ func (it *streamingIterator) Next() bool {
 	nulls := make(map[string]bool)
 	wide := make(map[string]any)
 	var err error
-	if it.project != nil {
+	switch {
+	case it.plan != nil:
+		// Plan-driven projected decode: SkipBytes segments seek past
+		// unprojected on-wire ranges with a single io.Seeker call;
+		// DecodeFields segments run the per-field decoder for the
+		// retained group only. Plan was built once at SetProjection
+		// time and reused across every Next() call.
+		err = it.reader.ReadRecordWithWidePlan(values, nulls, wide, it.project, it.plan)
+	case it.project != nil:
+		// Projection requested but plan construction was skipped
+		// (defensive — currently SetProjection always builds when
+		// it.project is non-nil). Fall back to the per-field
+		// projected decode.
 		err = it.reader.ReadRecordWithWideProjected(values, nulls, wide, it.project)
-	} else {
+	default:
 		err = it.reader.ReadRecordWithWide(values, nulls, wide)
 	}
 	if err == io.EOF {
@@ -214,10 +237,62 @@ func (it *streamingIterator) Next() bool {
 // number of accepted fields, used to size the per-record map
 // allocation. Pass nil to clear (full decode).
 //
+// Builds a DecodePlan once for (it.schema, retained-set derived from
+// keep) and caches it on the iterator. The per-record Next() path
+// walks the plan instead of every schema field — unprojected byte
+// ranges become a single SkipBytes / Seek call. The plan is keyed by
+// (schema-pointer-identity, sorted-retained-set-string); same retained
+// set returns the same plan reference.
+//
+// SetProjection(nil, 0) clears the cached plan and reverts to the
+// full-decode path used today.
+//
 // MUST be called before the first Next() call.
 func (it *streamingIterator) SetProjection(keep encoding.FieldFilter, size int) {
 	it.project = keep
 	it.projectSize = size
+	if keep == nil {
+		// Cleared projection ⇒ full-decode path. Drop any cached plan
+		// so Next() takes the existing ReadRecordWithWide branch.
+		it.plan = nil
+		it.planKey = ""
+		return
+	}
+	it.installPlan(keep)
+}
+
+// installPlan derives the sorted retained set from keep against
+// it.schema, builds a DecodePlan if the retained set differs from any
+// previously cached plan, and stores the result. A nil it.schema is a
+// no-op (defensive — the iterator constructor always wires the
+// schema), as is a BuildDecodePlan error (no plan today emits one,
+// but the contract is reserved).
+func (it *streamingIterator) installPlan(keep encoding.FieldFilter) {
+	if it.schema == nil {
+		return
+	}
+	retained := retainedFromFilter(it.schema, keep)
+	key := joinRetainedKey(retained)
+	if it.plan != nil && key == it.planKey {
+		// Same retained set ⇒ reuse the existing plan. Cache key is
+		// (schema-pointer-identity, sorted-retained-set-string); the
+		// iterator only ever sees one schema, so the schema half is
+		// implicit.
+		return
+	}
+	plan, err := it.schema.BuildDecodePlan(retained)
+	if err != nil {
+		// BuildDecodePlan reserves the error slot for future shape
+		// validation; today it always returns nil. On error, drop
+		// back to the per-field projected path silently — the caller
+		// already has it.project installed so projection still works,
+		// just without the plan elision.
+		it.plan = nil
+		it.planKey = ""
+		return
+	}
+	it.plan = plan
+	it.planKey = key
 }
 
 // SetReuse toggles per-row Record reuse. When true, Next returns the
