@@ -18,31 +18,102 @@ const minSampleRows = 50
 // defaultSampleRows is the default sample size when no value is specified.
 const defaultSampleRows = 500
 
+// defaultSetInferenceMinPct is the default percentage of non-null
+// sampled cells that must contain the inferred delimiter for a column
+// to be classified as a set_* field type. Set 0 on InferOptions to
+// accept this default; values >100 are clamped to 100.
+const defaultSetInferenceMinPct = 30
+
+// setInferenceDelimiterPriority is the order in which the inference
+// heuristic probes delimiters for multi-select detection. Pipe first
+// because it almost never appears in legitimate categorical text;
+// semicolon second; comma is intentionally absent (a comma-delimited
+// cell inside CSV is unparseable through the CSV reader).
+var setInferenceDelimiterPriority = []string{"|", ";"}
+
+// DefaultSetDelimiter is the delimiter assumed by convertValue when no
+// per-column delimiter has been recorded (explicit-schema imports that
+// skipped the inference pass). Always |.
+const DefaultSetDelimiter = "|"
+
 // InferenceWarning records a non-fatal observation during inference.
 type InferenceWarning struct {
 	Column  string
 	Message string
 }
 
+// InferOptions parameterises InferSchemaWithOptions. The zero value is
+// safe — SampleRows / SetInferenceMinPct fall back to their package
+// defaults and ColumnTypeOverrides is treated as empty.
+type InferOptions struct {
+	// SampleRows caps how many rows InferSchema reads before
+	// finalizing column types. Defaults to defaultSampleRows when
+	// <= 0; min-clamped to minSampleRows.
+	SampleRows int
+	// SetInferenceMinPct is the minimum percentage of non-null
+	// sampled cells that must contain the inferred delimiter for the
+	// column to be classified as set_*. Defaults to
+	// defaultSetInferenceMinPct (30) when 0.
+	SetInferenceMinPct int
+	// ColumnTypeOverrides maps column name to forced FieldType,
+	// bypassing the inference heuristics entirely for those columns.
+	// For set_* / categorical_* types the dictionary is still built
+	// from observed sample values during the inference pass; the
+	// override only fixes the column's storage type.
+	ColumnTypeOverrides map[string]encoding.FieldType
+}
+
+// InferenceResult bundles the inference output. The Delimiters map is
+// populated for columns classified as set_*; callers (importers) use
+// it to pack per-cell masks during the row pass.
+type InferenceResult struct {
+	Schema     *encoding.Schema
+	Warnings   []InferenceWarning
+	Delimiters map[string]string
+}
+
 // InferSchema samples up to sampleRows rows from reader and proposes a Schema.
 // If sampleRows <= 0, defaultSampleRows is used. The minimum is minSampleRows.
+// Wrapper over InferSchemaWithOptions that drops the delimiter map; only
+// CSV/TSV/Excel paths that ignore set-typed import packing should call
+// this entry. Importers should call InferSchemaWithOptions directly.
 func InferSchema(reader Reader, sampleRows int) (*encoding.Schema, []InferenceWarning, error) {
+	res, err := InferSchemaWithOptions(reader, InferOptions{SampleRows: sampleRows})
+	if err != nil {
+		return nil, nil, err
+	}
+	return res.Schema, res.Warnings, nil
+}
+
+// InferSchemaWithOptions is the parameterised inference entry. Returns
+// the schema, accumulated warnings, AND the per-column delimiter map
+// for columns classified as set_*. The delimiter map is used by
+// ImportJob.Run during the row pass to split delimited cells into
+// token lists for bit-packing.
+func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult, error) {
+	sampleRows := opts.SampleRows
 	if sampleRows <= 0 {
 		sampleRows = defaultSampleRows
 	}
 	if sampleRows < minSampleRows {
 		sampleRows = minSampleRows
 	}
+	minPct := opts.SetInferenceMinPct
+	if minPct <= 0 {
+		minPct = defaultSetInferenceMinPct
+	}
+	if minPct > 100 {
+		minPct = 100
+	}
 
 	columns, err := reader.ReadHeader()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if len(columns) == 0 {
-		return nil, nil, errors.NewCodedError(errors.PULSE_IMPORT_SCHEMA_AMBIGUOUS, "no columns in header")
+		return nil, errors.NewCodedError(errors.PULSE_IMPORT_SCHEMA_AMBIGUOUS, "no columns in header")
 	}
 
-	// Collect sample data per column.
 	numCols := len(columns)
 	samples := make([][]string, numCols)
 	for i := range samples {
@@ -61,23 +132,28 @@ func InferSchema(reader Reader, sampleRows int) (*encoding.Schema, []InferenceWa
 		return nil
 	})
 	if err != nil && err != errStopIteration {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if rowCount == 0 {
-		return nil, nil, errors.NewCodedError(errors.PULSE_IMPORT_SCHEMA_AMBIGUOUS, "no data rows to sample")
+		return nil, errors.NewCodedError(errors.PULSE_IMPORT_SCHEMA_AMBIGUOUS, "no data rows to sample")
 	}
 
 	var warnings []InferenceWarning
 	fields := make([]encoding.Field, numCols)
+	delimiters := map[string]string{}
 
 	byteOffset := 0
 	for i, colName := range columns {
-		ft, nullable, colWarnings, err := inferColumnType(colName, samples[i])
+		ft, nullable, delim, colWarnings, err := inferColumnTypeWithOpts(colName, samples[i],
+			minPct, opts.ColumnTypeOverrides[colName])
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		warnings = append(warnings, colWarnings...)
+		if delim != "" {
+			delimiters[colName] = delim
+		}
 
 		fields[i] = encoding.Field{
 			Name:         colName,
@@ -93,8 +169,11 @@ func InferSchema(reader Reader, sampleRows int) (*encoding.Schema, []InferenceWa
 		}
 	}
 
-	schema := &encoding.Schema{Fields: fields}
-	return schema, warnings, nil
+	return &InferenceResult{
+		Schema:     &encoding.Schema{Fields: fields},
+		Warnings:   warnings,
+		Delimiters: delimiters,
+	}, nil
 }
 
 // errStopIteration is a sentinel used internally to stop row iteration early.
@@ -105,19 +184,32 @@ func ErrStopIteration() error {
 	return errStopIteration
 }
 
-// inferColumnType determines the best FieldType for a column from sample
-// values. The second return value is the per-field Nullable flag — true
-// when at least one sampled cell was a null token.
-func inferColumnType(colName string, values []string) (encoding.FieldType, bool, []InferenceWarning, error) {
+// inferColumnTypeWithOpts is the parameterised inference entry. It
+// honours the column-type override (when non-zero), respects the set
+// inference threshold for delimited-cell detection, and returns the
+// chosen delimiter alongside the field type so importers can pack
+// per-row masks consistently. Delegates to inferColumnType for the
+// no-override / default-threshold path so the legacy entry stays a
+// straight pass-through.
+func inferColumnTypeWithOpts(colName string, values []string, minPct int,
+	override encoding.FieldType,
+) (encoding.FieldType, bool, string, []InferenceWarning, error) {
+	if override != 0 {
+		ft, nullable, delim, warnings := applyTypeOverride(colName, values, override)
+		return ft, nullable, delim, warnings, nil
+	}
 	if len(values) == 0 {
-		return encoding.FieldTypeF64, false, nil, nil
+		return encoding.FieldTypeF64, false, "", nil, nil
 	}
 
 	hasNulls := false
 	nonNullValues := make([]string, 0, len(values))
 	for _, v := range values {
 		trimmed := strings.TrimSpace(v)
-		if trimmed == "" || strings.EqualFold(trimmed, "null") || strings.EqualFold(trimmed, "na") || strings.EqualFold(trimmed, "n/a") {
+		if trimmed == "" ||
+			strings.EqualFold(trimmed, "null") ||
+			strings.EqualFold(trimmed, "na") ||
+			strings.EqualFold(trimmed, "n/a") {
 			hasNulls = true
 		} else {
 			nonNullValues = append(nonNullValues, trimmed)
@@ -125,80 +217,199 @@ func inferColumnType(colName string, values []string) (encoding.FieldType, bool,
 	}
 
 	if len(nonNullValues) == 0 {
-		// All nulls - default to nullable f64.
 		var w []InferenceWarning
 		if hasNulls {
-			w = append(w, InferenceWarning{Column: colName, Message: "all values are null, defaulting to f64"})
+			w = append(w, InferenceWarning{Column: colName,
+				Message: "all values are null, defaulting to f64"})
 		}
-		return encoding.FieldTypeF64, hasNulls, w, nil
+		return encoding.FieldTypeF64, hasNulls, "", w, nil
 	}
 
-	// Try each type in priority order.
-	// 1. Boolean
 	if allBool(nonNullValues) {
-		return encoding.FieldTypePackedBool, hasNulls, nil, nil
+		return encoding.FieldTypePackedBool, hasNulls, "", nil, nil
 	}
-
-	// 2. Integer types (ascending width)
 	if allInteger(nonNullValues) {
 		minVal, maxVal := intRange(nonNullValues)
-
-		if minVal >= 0 && maxVal <= 15 {
-			return encoding.FieldTypeU4, hasNulls, nil, nil
+		switch {
+		case minVal >= 0 && maxVal <= 15:
+			return encoding.FieldTypeU4, hasNulls, "", nil, nil
+		case minVal >= 0 && maxVal <= 255:
+			return encoding.FieldTypeU8, hasNulls, "", nil, nil
+		case minVal >= 0 && maxVal <= 65535:
+			return encoding.FieldTypeU16, hasNulls, "", nil, nil
+		case minVal >= 0 && maxVal <= math.MaxUint32:
+			return encoding.FieldTypeU32, hasNulls, "", nil, nil
+		case minVal >= 0:
+			return encoding.FieldTypeU64, hasNulls, "", nil, nil
 		}
-		if minVal >= 0 && maxVal <= 255 {
-			return encoding.FieldTypeU8, hasNulls, nil, nil
-		}
-		if minVal >= 0 && maxVal <= 65535 {
-			return encoding.FieldTypeU16, hasNulls, nil, nil
-		}
-		if minVal >= 0 && maxVal <= math.MaxUint32 {
-			return encoding.FieldTypeU32, hasNulls, nil, nil
-		}
-		if minVal >= 0 {
-			return encoding.FieldTypeU64, hasNulls, nil, nil
-		}
-		// Negative integers get promoted to float.
-		return encoding.FieldTypeF64, hasNulls, nil, nil
+		return encoding.FieldTypeF64, hasNulls, "", nil, nil
 	}
-
-	// 3. Float types
 	if allFloat(nonNullValues) {
 		if fitsF32(nonNullValues) {
-			return encoding.FieldTypeF32, hasNulls, nil, nil
+			return encoding.FieldTypeF32, hasNulls, "", nil, nil
 		}
-		return encoding.FieldTypeF64, hasNulls, nil, nil
+		return encoding.FieldTypeF64, hasNulls, "", nil, nil
 	}
-
-	// 4. Date
 	if allDate(nonNullValues) {
-		return encoding.FieldTypeDate, hasNulls, nil, nil
+		return encoding.FieldTypeDate, hasNulls, "", nil, nil
 	}
 
-	// 5. Categorical (string)
+	// Set inference: probe known delimiters in priority order. A
+	// classification fires when the delimiter appears in at least
+	// minPct% of cells AND post-split unique tokens fit in set_u64
+	// (≤64) AND average post-split cardinality > 1 (rules out
+	// "occasional pipe in a categorical string" misclassifications).
+	if ft, delim, ok := probeSetClassification(nonNullValues, minPct); ok {
+		return ft, hasNulls, delim, nil, nil
+	}
+
+	// Categorical fallback (existing).
 	uniqueVals := uniqueCount(nonNullValues)
 	totalNonNull := len(nonNullValues)
-
-	// If all sample values are unique, the column is unbounded.
 	if uniqueVals == totalNonNull && totalNonNull >= minSampleRows {
-		return 0, false, nil, errors.NewCodedErrorWithDetails(
+		return 0, false, "", nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_IMPORT_CATEGORICAL_UNBOUNDED,
-			fmt.Sprintf("column %q: all %d sampled values are unique, suggesting unbounded cardinality", colName, totalNonNull),
+			fmt.Sprintf("column %q: all %d sampled values are unique, suggesting unbounded cardinality",
+				colName, totalNonNull),
 			map[string]any{"column": colName, "unique": uniqueVals, "sampled": totalNonNull},
 		)
 	}
-
 	var warnings []InferenceWarning
 	catType := categoricalWidth(uniqueVals)
-
 	if uniqueVals == totalNonNull && totalNonNull < minSampleRows {
 		warnings = append(warnings, InferenceWarning{
 			Column:  colName,
 			Message: fmt.Sprintf("all %d sampled values are unique but sample is small; treating as categorical", totalNonNull),
 		})
 	}
+	return catType, hasNulls, "", warnings, nil
+}
 
-	return catType, hasNulls, warnings, nil
+// applyTypeOverride bypasses inference for a column. Nullability is
+// still derived from the sampled values (null tokens flip the flag).
+// For set fields the delimiter probes the same priority list and falls
+// back to DefaultSetDelimiter when no probe fires.
+func applyTypeOverride(colName string, values []string, override encoding.FieldType,
+) (encoding.FieldType, bool, string, []InferenceWarning) {
+	hasNulls := false
+	nonNullValues := make([]string, 0, len(values))
+	for _, v := range values {
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" ||
+			strings.EqualFold(trimmed, "null") ||
+			strings.EqualFold(trimmed, "na") ||
+			strings.EqualFold(trimmed, "n/a") {
+			hasNulls = true
+		} else {
+			nonNullValues = append(nonNullValues, trimmed)
+		}
+	}
+	if override.IsSet() {
+		delim := pickSetDelimiter(nonNullValues)
+		if delim == "" {
+			delim = DefaultSetDelimiter
+		}
+		return override, hasNulls, delim, []InferenceWarning{{
+			Column:  colName,
+			Message: fmt.Sprintf("column %q forced to %s via column_type_overrides", colName, override),
+		}}
+	}
+	return override, hasNulls, "", []InferenceWarning{{
+		Column:  colName,
+		Message: fmt.Sprintf("column %q forced to %s via column_type_overrides", colName, override),
+	}}
+}
+
+// pickSetDelimiter scans the priority list and returns the first
+// delimiter that appears in at least one sampled cell. Empty when no
+// delimiter is found.
+func pickSetDelimiter(values []string) string {
+	for _, d := range setInferenceDelimiterPriority {
+		for _, v := range values {
+			if strings.Contains(v, d) {
+				return d
+			}
+		}
+	}
+	return ""
+}
+
+// probeSetClassification decides whether the sampled cells look like a
+// multi-select set column under the configured threshold.
+func probeSetClassification(values []string, minPct int) (encoding.FieldType, string, bool) {
+	for _, delim := range setInferenceDelimiterPriority {
+		hits := 0
+		for _, v := range values {
+			if strings.Contains(v, delim) {
+				hits++
+			}
+		}
+		if hits == 0 {
+			continue
+		}
+		pct := hits * 100 / len(values)
+		if pct < minPct {
+			continue
+		}
+		uniq := map[string]struct{}{}
+		totalTokens := 0
+		for _, v := range values {
+			toks := splitSetTokens(v, delim)
+			totalTokens += len(toks)
+			for _, t := range toks {
+				uniq[t] = struct{}{}
+			}
+		}
+		if len(uniq) == 0 || len(uniq) > 64 {
+			continue
+		}
+		// Average post-split cardinality must exceed 1, ruling out
+		// columns that only occasionally carry a delimiter inside a
+		// free-text categorical string.
+		if float64(totalTokens)/float64(len(values)) <= 1.0 {
+			continue
+		}
+		return setWidth(len(uniq)), delim, true
+	}
+	return 0, "", false
+}
+
+// splitSetTokens breaks a raw cell into trimmed, non-empty tokens by
+// the given delimiter. No quote handling — delimited values containing
+// the delimiter as literal data require the column_type_overrides
+// escape hatch.
+func splitSetTokens(raw, delim string) []string {
+	if raw == "" || delim == "" {
+		return nil
+	}
+	parts := strings.Split(raw, delim)
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		t := strings.TrimSpace(p)
+		if t == "" {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+// setWidth selects the smallest set_* width that fits unique tokens.
+// Mirrors categoricalWidth in spirit; cardinality > 64 falls back to
+// categorical (caller-side probe filters this case before invocation).
+func setWidth(unique int) encoding.FieldType {
+	switch {
+	case unique <= 8:
+		return encoding.FieldTypeSetU8
+	case unique <= 16:
+		return encoding.FieldTypeSetU16
+	case unique <= 32:
+		return encoding.FieldTypeSetU32
+	case unique <= 64:
+		return encoding.FieldTypeSetU64
+	}
+	// Caller already gated; reaching here is a programming bug.
+	return encoding.FieldTypeCategoricalU8
 }
 
 // allBool checks if all values are boolean-like.

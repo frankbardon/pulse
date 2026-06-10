@@ -106,13 +106,22 @@ func decodeLine(line []byte) (map[string]any, []string, error) {
 		}
 	}
 
-	// Validate no nested objects or arrays.
+	// Validate no nested objects; reject arrays-of-objects /
+	// arrays-of-arrays. Scalar arrays are accepted — they round-trip
+	// through jsonshared.ValueToString as pipe-joined strings so the
+	// set-type inference path can pick them up. Element-type policing
+	// stays local to keep the error message specific.
 	for k, v := range obj {
-		switch v.(type) {
+		switch val := v.(type) {
 		case map[string]any:
 			return nil, nil, fmt.Errorf("nested object at key %q is not supported", k)
 		case []any:
-			return nil, nil, fmt.Errorf("array at key %q is not supported", k)
+			for _, el := range val {
+				switch el.(type) {
+				case map[string]any, []any:
+					return nil, nil, fmt.Errorf("non-scalar element in array at key %q is not supported", k)
+				}
+			}
 		}
 	}
 

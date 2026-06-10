@@ -95,6 +95,52 @@ func (ft FieldType) String() string {
 	}
 }
 
+// ParseFieldType inverts FieldType.String, returning the typed value
+// and ok=true when name matches a registered FieldType. Caller paths
+// (managed-imports sidecar parsing, MCP schema validation, ad-hoc
+// admin tooling) use this to round-trip an externally supplied type
+// name through the codec layer without relying on stringly typed
+// switches in every place.
+func ParseFieldType(name string) (FieldType, bool) {
+	switch name {
+	case "u4":
+		return FieldTypeU4, true
+	case "u8":
+		return FieldTypeU8, true
+	case "u16":
+		return FieldTypeU16, true
+	case "u32":
+		return FieldTypeU32, true
+	case "u64":
+		return FieldTypeU64, true
+	case "f32":
+		return FieldTypeF32, true
+	case "f64":
+		return FieldTypeF64, true
+	case "date":
+		return FieldTypeDate, true
+	case "packed_bool":
+		return FieldTypePackedBool, true
+	case "categorical_u8":
+		return FieldTypeCategoricalU8, true
+	case "categorical_u16":
+		return FieldTypeCategoricalU16, true
+	case "categorical_u32":
+		return FieldTypeCategoricalU32, true
+	case "decimal128":
+		return FieldTypeDecimal128, true
+	case "set_u8":
+		return FieldTypeSetU8, true
+	case "set_u16":
+		return FieldTypeSetU16, true
+	case "set_u32":
+		return FieldTypeSetU32, true
+	case "set_u64":
+		return FieldTypeSetU64, true
+	}
+	return 0, false
+}
+
 // IsCategorical reports whether the field type is one of the categorical types.
 func (ft FieldType) IsCategorical() bool {
 	return ft == FieldTypeCategoricalU8 || ft == FieldTypeCategoricalU16 || ft == FieldTypeCategoricalU32

@@ -96,6 +96,33 @@ Shard archives merge set dictionaries with the same union semantics as categoric
 `Record.SetValue(name) (uint64, bool)` returns the raw mask through `Record.wide` so set_u64's high bits survive (float64 precision footgun avoided). `Record.SetLabels(name)` resolves the mask to a sorted `[]string` of dictionary labels; `Record.AllValues()` does the same for the expression environment so `"VISA" in card_issuers` works inside `FILTER_EXPRESSION` and `ATTR_FORMULA`.
 
 The dedicated operator surface is six aggregators (`AGG_SET_*`), four filterers (`FILTER_SET_*`), two groupers (`GROUP_SET_*`), and two attributes (`ATTR_SET_*`); see the aggregation-guide, grouper-design, and attribute-composition skills for details. Smart defaults pair `AGG_SET_FREQUENCY` with `GROUP_SET_PER_ELEMENT` so "respondents per option" answers without further configuration.
+
+### Importing set columns
+
+The inference engine classifies a column as `set_*` when the **delimited-cell heuristic** fires:
+
+1. At least `pulse.Options.SetInferenceMinPct`% of non-null sampled cells contain the inferred delimiter (default 30; the threshold is also exposed per-import via `imports.Spec.SetInferenceMinPct`).
+2. Post-split unique tokens fit `set_u64` (≤ 64). Larger cardinalities fall through to `categorical_*`.
+3. Average post-split cardinality is > 1 (rules out columns that occasionally carry a delimiter inside a free-text categorical string).
+
+The delimiter is probed in priority order — `|` first, `;` second. Comma is intentionally absent because a comma-delimited cell inside CSV is unparseable through the CSV reader. When the heuristic fires, the chosen delimiter is cached per column on the `ImportJob` so the row pass can split consistently; explicit-schema imports default to `|`.
+
+`Parquet` / `Arrow` files with `LIST<UTF8>` columns are recognised natively: `TypeToPulse(arrow.LIST)` returns `set_u8` as the initial guess, and `FormatValue` joins the list elements with `|` so the downstream import path treats them like delimited strings. `NDJSON` and JSON Array files allow scalar arrays at the top level (e.g. `"tags": ["a", "b"]`); arrays-of-objects / arrays-of-arrays still raise a typed parse error.
+
+When the heuristic misfires, override with the **force-type sidecar**:
+
+```json
+// imports/<handle>.pulse.sidecar.json
+{
+  "handle": "...",
+  "column_type_overrides": {
+    "issuers": "set_u8",
+    "tags": "categorical_u8"
+  }
+}
+```
+
+The sidecar override skips inference for the named columns and pins the column type; the dictionary is still built from observed sample values during the row pass. Unknown FieldType names raise `SERVICE_VALIDATION` at sidecar load so misconfigurations never reach the codec. Programmatic callers can pass `imports.Spec.ColumnTypeOverrides` directly to `Pulse.Import` to inject the same intent without writing the sidecar by hand.
 </reference>
 
 <rule severity="should" topic="bit-packing">

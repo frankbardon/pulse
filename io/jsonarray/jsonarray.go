@@ -97,11 +97,16 @@ func decodeObject(dec *json.Decoder) (map[string]any, []string, error) {
 		if err := dec.Decode(&val); err != nil {
 			return nil, nil, err
 		}
-		switch val.(type) {
+		switch v := val.(type) {
 		case map[string]any:
 			return nil, nil, fmt.Errorf("nested object at key %q is not supported", key)
 		case []any:
-			return nil, nil, fmt.Errorf("array at key %q is not supported", key)
+			for _, el := range v {
+				switch el.(type) {
+				case map[string]any, []any:
+					return nil, nil, fmt.Errorf("non-scalar element in array at key %q is not supported", key)
+				}
+			}
 		}
 		obj[key] = val
 	}
