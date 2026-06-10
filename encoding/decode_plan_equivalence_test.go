@@ -107,13 +107,6 @@ func encodeRecord(t *testing.T, schema *Schema, fieldValues map[string]any, null
 	return got
 }
 
-// equivalenceCase carries everything the comparator needs.
-type equivalenceCase struct {
-	name    string
-	schema  *Schema
-	records [][]byte
-}
-
 // allFieldNames returns the schema's fields in schema order.
 func allFieldNames(s *Schema) []string {
 	out := make([]string, len(s.Fields))
