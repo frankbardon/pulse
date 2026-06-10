@@ -108,6 +108,40 @@ func TestNew_CustomFS(t *testing.T) {
 	}
 }
 
+// TestNew_NegativeDecodeWorkersRejected pins the validation that
+// pulse.Options.DecodeWorkers < 0 fails fast at New time. Mirrors
+// the symmetric ShardWorkers contract so callers see consistent
+// guard rails on both worker-pool knobs.
+func TestNew_NegativeDecodeWorkersRejected(t *testing.T) {
+	_, err := New(Options{
+		FS:            afero.NewMemMapFs(),
+		DecodeWorkers: -1,
+	})
+	if err == nil {
+		t.Fatal("New with DecodeWorkers=-1: expected error, got nil")
+	}
+}
+
+// TestNew_DecodeWorkersPropagatedToService verifies that the value
+// the caller passes through pulse.Options.DecodeWorkers is installed
+// on the underlying Service. Pure plumbing check — fan-out behavior
+// lands in E3-S2.
+func TestNew_DecodeWorkersPropagatedToService(t *testing.T) {
+	cases := []int{0, 1, 2, 4}
+	for _, want := range cases {
+		p, err := New(Options{
+			FS:            afero.NewMemMapFs(),
+			DecodeWorkers: want,
+		})
+		if err != nil {
+			t.Fatalf("New(DecodeWorkers=%d): %v", want, err)
+		}
+		if got := p.Service().DecodeWorkers(); got != want {
+			t.Fatalf("Service.DecodeWorkers() for opts.DecodeWorkers=%d: got %d, want %d", want, got, want)
+		}
+	}
+}
+
 func TestNew_CustomDataDir(t *testing.T) {
 	p, err := New(Options{
 		DataDir: "/custom/data",

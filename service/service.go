@@ -32,6 +32,18 @@ type Service struct {
 	// the shard count regardless of this knob.
 	shardWorkers int
 
+	// decodeWorkers caps the per-cohort parallel decode worker pool
+	// the buffered Process path spawns when the cohort exceeds
+	// parallelDecodeRecordThreshold and the request is mergeable.
+	// Zero is interpreted as runtime.NumCPU() at dispatch time; 1
+	// forces strictly serial execution (the pre-E3 path). Cohorts
+	// below the threshold stay serial regardless of this knob.
+	// Matches pulse.Options.DecodeWorkers.
+	//
+	// E3-S1 plumbing only: the buffered Process path reads this field
+	// but does not yet act on it; the fan-out logic lands in E3-S2.
+	decodeWorkers int
+
 	// strict promotes runtime request-validation warnings into hard
 	// errors. Currently governs the categorical-aggregation check in
 	// Process; matches pulse.Options.Strict.
@@ -118,6 +130,39 @@ func (s *Service) SetShardWorkers(n int) {
 // shard-reduce orchestrator.
 func (s *Service) ShardWorkers() int {
 	return s.shardWorkers
+}
+
+// parallelDecodeRecordThreshold is the minimum cohort record count
+// for the buffered Process path to consider per-segment parallel
+// decode. Below this floor, worker spawn + state-merge overhead
+// dominates the savings from segmenting decode, so the path stays
+// serial regardless of decodeWorkers. Chosen to match the in-tree
+// BenchmarkBufferedProcessWideCohort row count (100K) where the
+// parallel decode win first becomes measurable on the canonical
+// reference cohort.
+//
+// E3-S1 sets the constant and the dispatch site reads it; the
+// fan-out logic that consults the threshold lands in E3-S2.
+const parallelDecodeRecordThreshold = 100_000
+
+// SetDecodeWorkers configures the per-cohort parallel decode worker
+// pool cap used by the buffered Process path. Zero falls back to
+// runtime.NumCPU() at dispatch time when the cohort exceeds
+// parallelDecodeRecordThreshold; 1 disables parallelism (strictly
+// serial path). Negative values are not rejected here — pulse.New()
+// performs that validation at the public API boundary.
+//
+// E3-S1 plumbing only: the setter installs the value and the
+// buffered Process path reads it via DecodeWorkers(), but the fan-
+// out logic lands in E3-S2.
+func (s *Service) SetDecodeWorkers(n int) {
+	s.decodeWorkers = n
+}
+
+// DecodeWorkers returns the configured cap. Exposed for tests and
+// the buffered-decode orchestrator that lands in E3-S2.
+func (s *Service) DecodeWorkers() int {
+	return s.decodeWorkers
 }
 
 // SetStrict toggles the strict request-validation flag. When true,

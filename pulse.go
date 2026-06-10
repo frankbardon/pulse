@@ -182,6 +182,27 @@ type Options struct {
 	// inputs (parallel formula, see processing.MergeOnline docstrings).
 	ShardWorkers int
 
+	// DecodeWorkers caps the per-cohort parallel decode worker pool the
+	// buffered Process path spawns when a single-file cohort is large
+	// enough to benefit from segmenting record-decode across workers
+	// (E3 of the crosstab-perf rollout). Zero means runtime.NumCPU()
+	// at dispatch time when the cohort exceeds
+	// service.parallelDecodeRecordThreshold (currently 100_000
+	// records); 1 forces strictly serial execution (the pre-E3 path)
+	// regardless of cohort size. Negative values are rejected at
+	// New() time.
+	//
+	// Below the threshold the buffered Process path stays serial
+	// regardless of this knob — worker spawn + merge overhead
+	// dominates savings on small inputs. Sharded cohorts continue to
+	// route through ShardWorkers; the two knobs are orthogonal (one
+	// fans out across shards, the other fans out across record
+	// segments within a single file or shard payload).
+	//
+	// E3-S1 plumbing only: the buffered Process path reads this value
+	// but does not yet act on it. The fan-out logic lands in E3-S2.
+	DecodeWorkers int
+
 	// Strict promotes request-validation warnings into hard errors at
 	// runtime. Today this covers the numeric-aggregation-on-categorical
 	// check (PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL); future runtime
@@ -318,6 +339,9 @@ func New(opts Options) (*Pulse, error) {
 	if opts.ShardWorkers < 0 {
 		return nil, fmt.Errorf("pulse: ShardWorkers must be >= 0 (0 means runtime.NumCPU(), 1 forces serial)")
 	}
+	if opts.DecodeWorkers < 0 {
+		return nil, fmt.Errorf("pulse: DecodeWorkers must be >= 0 (0 means runtime.NumCPU() above threshold, 1 forces serial)")
+	}
 
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
@@ -325,6 +349,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetExtensions(buildRuntimeExtensions(opts.Extensions))
 	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))
 	svc.SetShardWorkers(opts.ShardWorkers)
+	svc.SetDecodeWorkers(opts.DecodeWorkers)
 	svc.SetStrict(opts.Strict)
 	svc.SetAutoLabels(autoLabelPtrs(opts.AutoLabels))
 	svc.SetEchoRequest(opts.EchoRequest)

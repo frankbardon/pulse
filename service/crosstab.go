@@ -54,6 +54,15 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	// Materialize every record once. Crosstab buffers by construction
 	// (recursive Grouper partitioning needs the full set), so the
 	// streaming iterator is consumed up-front.
+	//
+	// E3-S1 plumbing: read the configured DecodeWorkers cap here so
+	// the buffered Process path observes the knob. This story stops
+	// at the read — E3-S2 wires the actual fan-out by branching on
+	// shouldFanOutDecode(workers, recordCount) and segmenting the
+	// mmap'd payload at record-stride boundaries. The threshold
+	// constant (parallelDecodeRecordThreshold) governs the small-
+	// cohort fallback.
+	_ = s.decodeWorkers
 	records, err := materializeRecords(iter)
 	if err != nil {
 		return nil, err
