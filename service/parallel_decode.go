@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/types"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -69,6 +70,75 @@ type DecodeCallback func(rec *processing.Record) error
 // number of records the worker will receive (not the cohort total),
 // useful when the callback wants to pre-size a slice or accumulator.
 type DecodeCallbackFactory func(workerIdx, recordCount int) DecodeCallback
+
+// canParallelDecode is the eligibility predicate for the buffered
+// Process path's segment-aware parallel decode. It is the single
+// integration site E3-S4 uses to gate the broader (non-crosstab) Process
+// dispatch — every condition the parallel reducer needs is checked here
+// in one place so the dispatch site can stay a single if-statement and
+// so future stories that broaden the gate (e.g. extending mergeability
+// to crosstab cells) have one function to amend.
+//
+// Eligibility is the AND of:
+//
+//   - workers != 1 — the caller has not forced strictly serial
+//     execution (DecodeWorkers == 1 is the documented "force serial"
+//     knob, mirroring ShardWorkers == 1)
+//   - recordCount >= parallelDecodeRecordThreshold — the cohort is large
+//     enough to amortise per-worker spawn + state-merge overhead
+//   - the cohort is a single-file .pulse (not a shard archive) —
+//     archives parallelise via the per-shard reducer in shard_reduce.go;
+//     stacking intra-shard segment decode on top of that would
+//     double-spawn workers on the same CPUs
+//   - resolveRealPath succeeds on the cohort fs+path pair — mmap
+//     requires a real on-disk file; MemMapFs, the anchor overlay, and
+//     custom afero.Fs implementations without RealPather all bail here
+//   - processing.CanMergeRequest(req, schema) is true — the request's
+//     online state must be mergeable across worker partitions (the same
+//     gate the per-shard reducer in shard_reduce.go consults)
+//
+// On success returns (true, ""). On bail returns (false, reason) where
+// reason is a short, user-debuggable string suitable for a debug log /
+// pprof label / future telemetry tag. The reason strings stay terse and
+// stable so downstream tooling can pattern-match.
+//
+// canParallelDecode is a pure predicate — it never mmap's the file or
+// constructs the parallelDecodeContext; that work happens at the
+// dispatch site after the gate accepts. The cheap resolveRealPath probe
+// is the closest to side-effect-ful work here, but it is bounded by one
+// type-assertion + (for *afero.BasePathFs) one path-join, both
+// constant-time.
+func (s *Service) canParallelDecode(
+	req *types.Request,
+	schema *encoding.Schema,
+	cohort *Cohort,
+	workers int,
+	recordCount int,
+) (bool, string) {
+	if workers == 1 {
+		return false, "decode_workers=1 (forced serial)"
+	}
+	if recordCount < parallelDecodeRecordThreshold {
+		return false, fmt.Sprintf("below threshold (%d < %d)",
+			recordCount, parallelDecodeRecordThreshold)
+	}
+	if cohort == nil {
+		return false, "nil cohort"
+	}
+	if len(cohort.Shards()) > 0 {
+		return false, "shard archive (use ShardWorkers)"
+	}
+	if cohort.fs == nil {
+		return false, "nil cohort fs"
+	}
+	if _, ok := resolveRealPath(cohort.fs, cohort.path); !ok {
+		return false, "mmap unavailable (no RealPath)"
+	}
+	if !processing.CanMergeRequest(req, schema) {
+		return false, "non-mergeable request"
+	}
+	return true, ""
+}
 
 // shouldFanOutDecode reports whether the buffered Process path should
 // fan out per-segment parallel decode. The decision is gated by:

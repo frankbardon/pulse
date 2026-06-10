@@ -503,6 +503,35 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 		return s.processShardArchiveParallel(ctx, req, cohort, path, workers)
 	}
 
+	// Per-cohort parallel decode fast path (single-file branch). When
+	// the request is mergeable (processing.CanMergeRequest), the cohort
+	// is a single .pulse file (not a shard archive — those route through
+	// shouldFanOut above), the cohort is large enough to amortise
+	// per-worker spawn overhead (recordCount >= the documented threshold),
+	// mmap is available on this fs (resolveRealPath succeeds), and the
+	// caller has not forced strictly serial (DecodeWorkers != 1),
+	// segment the mmap'd record region across N workers and fold
+	// per-worker partial aggregator state in worker-index order.
+	//
+	// The eligibility gate is the canParallelDecode predicate; it stays
+	// pure (no mmap, no payload decode) so the bail path is free. Record
+	// count is taken from the header-fast pulse.CountRecords path, NOT
+	// a whole-file slurp — a cohort that bails on the threshold check
+	// must not pay the parallel path's mmap setup cost.
+	//
+	// On eligibility we re-derive the same DecodePlan + projection the
+	// scanIter would have installed (processing.NeededFields →
+	// Schema.BuildDecodePlan), build the parallelDecodeContext, and
+	// dispatch into reduceParallelBuffered. Ineligible (and any post-
+	// gate failure that doesn't surface a hard error) drops through to
+	// the serial scanIter path below — byte-equal vs today's output for
+	// every bail case is a load-bearing acceptance criterion.
+	if resp, ok, err := s.processSingleFileParallelMaybe(ctx, req, cohort, path); err != nil {
+		return nil, err
+	} else if ok {
+		return resp, nil
+	}
+
 	iter := s.newScanIter(cohort, path)
 	defer iter.Close()
 
@@ -526,6 +555,154 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	}
 
 	return resp, nil
+}
+
+// processSingleFileParallelMaybe is the per-cohort parallel-decode
+// dispatcher invoked from Process. Returns (resp, true, nil) on a
+// successful parallel-reduce run; (nil, false, nil) when the gate
+// rejects (caller falls through to the serial scanIter path); or
+// (nil, false, err) on a hard failure that should not be silently
+// swallowed (e.g. corrupted cohort header surfaced during the parallel
+// context setup).
+//
+// The gate composes canParallelDecode with the parallel context setup
+// (which does the actual mmap). Even after canParallelDecode accepts,
+// the post-pctx checks shouldFanOutDecode and buildParallelDecodeContext
+// can still bail (mmap failure on a real path, empty cohort, etc.); in
+// every bail branch we release any cleanup the setup already acquired
+// and return (nil, false, nil) so Process drops into the serial arm
+// with byte-equal output.
+//
+// The DecodePlan + projection passed into buildParallelDecodeContext
+// mirrors what scanIter + applyProjection would have installed on the
+// serial path: when ProjectBufferedFields is enabled and the request
+// has a narrower needed-set than the schema, we build the same plan
+// the streamingIterator caches and feed it to the parallel decoder so
+// per-record decode cost is the same as the serial projected path.
+// When projection is disabled or the needed set is wide, plan == nil
+// and the parallel decoder falls back to ReadRecordWithWide — same as
+// today's serial unprojected path.
+func (s *Service) processSingleFileParallelMaybe(
+	ctx context.Context,
+	req *types.Request,
+	cohort *Cohort,
+	path string,
+) (*types.Response, bool, error) {
+	schema := cohort.Schema()
+
+	// Resolve worker count once. canParallelDecode treats workers != 1
+	// as "may parallelise"; the resolution (zero → NumCPU, cap at record
+	// count) lives inside shouldFanOutDecode so we keep the worker-cap
+	// math in one place.
+	workers := s.decodeWorkers
+
+	// Cheap pre-gate: every condition canParallelDecode checks EXCEPT
+	// the record-count threshold. We pay this round of probes BEFORE
+	// calling CountRecords so a MemMapFs/shard-archive/serial-forced
+	// cohort never opens the file an extra time. Counting records on
+	// the single-file branch costs one Open + header+schema read;
+	// negligible for an mmap'd OsFs cohort but observable on hermetic
+	// MemMapFs tests that count file opens to assert mmap is NOT
+	// engaging (see service/fs_counting_test.go). The downstream
+	// canParallelDecode call duplicates these checks so the gate stays
+	// a pure single-call predicate for callers that already know the
+	// record count.
+	if workers == 1 {
+		return nil, false, nil
+	}
+	if len(cohort.Shards()) > 0 {
+		return nil, false, nil
+	}
+	if cohort.fs == nil {
+		return nil, false, nil
+	}
+	if _, ok := resolveRealPath(cohort.fs, path); !ok {
+		return nil, false, nil
+	}
+	if !processing.CanMergeRequest(req, schema) {
+		return nil, false, nil
+	}
+
+	// Header-fast record count via the CountRecords path — single-file
+	// branch reads only header + schema bytes (no payload decode), so
+	// the gate cost is bounded regardless of cohort size. A failure here
+	// is unusual (we already opened the cohort upstream) but if it does
+	// occur we fall back to serial; the serial path will surface the
+	// same error if it is a real cohort-integrity issue.
+	count, err := s.CountRecords(ctx, path)
+	if err != nil {
+		return nil, false, nil
+	}
+	if eligible, _ := s.canParallelDecode(req, schema, cohort, workers, int(count)); !eligible {
+		return nil, false, nil
+	}
+
+	// Compute the projected decode plan + keep filter so the parallel
+	// workers walk the same plan the serial streamingIterator would
+	// have installed. Mirrors installProjection in service.go and the
+	// streamingIterator.installPlan path in stream.go.
+	var (
+		keep           encoding.FieldFilter
+		plan           *encoding.DecodePlan
+		projectMapHint = len(schema.Fields)
+	)
+	if s.projectBuffered {
+		needed := processing.NeededFields(req, schema, s.extensions)
+		if !needed.IsWide() {
+			size := needed.Len()
+			if size > 0 && size < len(schema.Fields) {
+				keep = func(name string) bool { return needed.Has(name) }
+				projectMapHint = size
+				retained := retainedFromFilter(schema, keep)
+				if p, perr := schema.BuildDecodePlan(retained); perr == nil {
+					plan = p
+				}
+			}
+		}
+	}
+
+	pctx, cleanup, available, err := buildParallelDecodeContext(
+		s, path, schema, plan, keep, projectMapHint,
+	)
+	if err != nil {
+		// A real header/schema replay error inside buildParallelDecodeContext
+		// is surfaced as a typed error; the serial path would re-read the
+		// same bytes and hit the same failure, so bubble it up.
+		return nil, false, err
+	}
+	if !available {
+		// pctx unavailable: empty cohort, mmap rejected, RealPather
+		// missed despite canParallelDecode's probe. Fall back to serial.
+		return nil, false, nil
+	}
+	resolvedWorkers, ok := shouldFanOutDecode(workers, pctx.totalRecords)
+	if !ok {
+		// Post-pctx resolved worker count fell below 2 (e.g. cohort
+		// totalRecords from buildParallelDecodeContext disagreed with
+		// the header-fast count, or the cap collapsed). Release the
+		// mmap and bail.
+		if cleanup != nil {
+			_ = cleanup()
+		}
+		return nil, false, nil
+	}
+	defer func() {
+		if cleanup != nil {
+			_ = cleanup()
+		}
+	}()
+
+	resp, err := s.reduceParallelBuffered(ctx, req, schema, pctx, resolvedWorkers)
+	if err != nil {
+		return nil, false, err
+	}
+	if resp.Metadata != nil {
+		resp.Metadata.CohortFile = path
+	}
+	if err := s.buildAndApplyLabels(req, resp); err != nil {
+		return nil, false, err
+	}
+	return resp, true, nil
 }
 
 // scanIterator is the internal interface satisfied by both the
