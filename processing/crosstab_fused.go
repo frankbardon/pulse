@@ -29,6 +29,15 @@ import (
 // mis-routed request fails fast with a typed CodedError instead of
 // producing a diverging result.
 //
+// Hot-path representation (E4-S4P): rather than addressing cell and
+// margin accumulators through a string-keyed map per record, the state
+// interns each axis composite key into a per-axis integer index the
+// first time it is observed and stores accumulators in a 2D slice
+// indexed by (rowIdx, colIdx). Per-record lookup drops from two hash
+// probes (a strings.Join allocation plus a map[crosstabCellKey]
+// lookup) to two map[string]int probes (one per axis) plus pure slice
+// indexing into cells/rowMargins/colMargins.
+//
 // Memory cost is O(cells + row margins + col margins + cross margins)
 // rather than O(records): each cell holds one OnlineAggregator instance
 // (the same one the streaming Process path drives), no record bucket.
@@ -56,14 +65,35 @@ type FusedCrosstabState struct {
 	rowGroupers []StreamableGrouper
 	colGroupers []StreamableGrouper
 
-	// Per-cell accumulator and the symmetric margin maps. Keys are the
-	// composite axis keys produced by joining per-grouper KeyFor outputs
-	// with crosstabAxisKeySep (byte-equal to PartitionByAxis composite
-	// keys). Construction is lazy: a key first appears when a record
-	// lands in its bucket.
-	cells       map[crosstabCellKey]OnlineAggregator
-	rowMargins  map[string]OnlineAggregator
-	colMargins  map[string]OnlineAggregator
+	// Per-axis key interners. rowIndex maps a composite axis key to the
+	// integer index assigned at first sight; rowKeys preserves insertion
+	// order so Finalize can re-emit sorted-by-string output without
+	// re-deriving the (key → index) mapping. Mirror story for columns.
+	// The interner replaces the per-record hash-table lookup at the
+	// cells / rowMargins / colMargins map with single-int slice
+	// addressing, and consolidates the per-record key normalization
+	// (strings.Join) into the interner's hash probe.
+	rowIndex map[string]int
+	rowKeys  []string
+	rowAxis  []types.AxisKey
+
+	colIndex map[string]int
+	colKeys  []string
+	colAxis  []types.AxisKey
+
+	// Per-cell accumulator matrix indexed by [rowIdx][colIdx]. The slice
+	// grows column-wise as new columns are observed; existing rows are
+	// extended in lockstep so cells[rowIdx][colIdx] is well-defined for
+	// every observed (rowIdx, colIdx). Unobserved cells stay nil; the
+	// Update path lazy-constructs the OnlineAggregator the first time
+	// it routes a record into the cell.
+	cells [][]OnlineAggregator
+
+	// Per-row and per-column margin accumulators indexed by rowIdx /
+	// colIdx. Allocated only when the corresponding margin slot in the
+	// spec is enabled.
+	rowMargins  []OnlineAggregator
+	colMargins  []OnlineAggregator
 	grandMargin OnlineAggregator
 
 	// Cross-axis margin map. Populated when spec.NormalizeWithin != nil
@@ -72,6 +102,11 @@ type FusedCrosstabState struct {
 	// in processing/crosstab.go::crossActive (lines 410–448). Always
 	// scalar-aggregated — the map cell gate above rejects map-valued
 	// aggregators paired with normalization.
+	//
+	// Cross-margin cardinality is typically much smaller than cell
+	// cardinality (one entry per outer-prefix slab, not one per cell)
+	// so the cost of the additional hash probe is dwarfed by the per-
+	// record cell update; kept as a map for simplicity.
 	crossMargins  map[crosstabCellKey]OnlineAggregator
 	crossActive   bool
 	crossRowDepth int
@@ -81,20 +116,17 @@ type FusedCrosstabState struct {
 	// rowNormLevel != leaf the row denominator switches from the leaf
 	// row margin to a margin keyed by the depth-truncated row prefix; the
 	// fused path materialises that partial-margin accumulator alongside
-	// the leaf one. Mirror story for column.
-	partialRowMargins map[string]OnlineAggregator
-	partialColMargins map[string]OnlineAggregator
+	// the leaf one. Mirror story for column. We address each partial
+	// margin via a dedicated interner so the partial accumulator slice
+	// indexes parallel the leaf-axis interner structure.
+	partialRowIndex   map[string]int
+	partialRowKeys    []string
+	partialRowMargins []OnlineAggregator
+	partialColIndex   map[string]int
+	partialColKeys    []string
+	partialColMargins []OnlineAggregator
 	rowNormLevel      int
 	colNormLevel      int
-
-	// Row-key tracking. We retain insertion-time the tuple form alongside
-	// each composite key so Finalize can emit MatrixPayload.RowKeys /
-	// ColumnKeys without re-parsing the composite-key strings — the
-	// buffered path does this via PartitionByAxis.Tuples; the fused path
-	// rebuilds the same shape by remembering the per-grouper keys at
-	// first sight.
-	rowTuples map[string]types.AxisKey
-	colTuples map[string]types.AxisKey
 
 	// Row counters.
 	totalRows    int64
@@ -179,19 +211,16 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 		cellFactory:  cellFactory,
 		rowGroupers:  rowGroupers,
 		colGroupers:  colGroupers,
-		cells:        make(map[crosstabCellKey]OnlineAggregator),
-		rowTuples:    make(map[string]types.AxisKey),
-		colTuples:    make(map[string]types.AxisKey),
+		rowIndex:     make(map[string]int, 64),
+		colIndex:     make(map[string]int, 64),
 		rowNormLevel: -1,
 		colNormLevel: -1,
 	}
 
-	if spec.NeedsRowMargin() {
-		st.rowMargins = make(map[string]OnlineAggregator)
-	}
-	if spec.NeedsColumnMargin() {
-		st.colMargins = make(map[string]OnlineAggregator)
-	}
+	// Pre-size cells slice header to skip the first append's grow when
+	// the cohort lands at least one record on the (0,0) cell.
+	st.cells = make([][]OnlineAggregator, 0, 16)
+
 	if spec.NeedsGrandMargin() {
 		st.grandMargin, err = newOnlineCell(cellFactory, spec.Cell, schema)
 		if err != nil {
@@ -200,20 +229,20 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 	}
 
 	// Partial-depth (normalize_level) bookkeeping. When the configured
-	// level is the leaf the partial map aliases the leaf margin map
+	// level is the leaf the partial accumulators alias the leaf margin
 	// (no extra accumulators needed); only the truncate-to-prefix case
-	// allocates a parallel map.
+	// allocates a parallel interner + slice.
 	mode := spec.NormalizeOrDefault()
 	if mode == types.CrosstabNormalizeRow {
 		st.rowNormLevel = spec.NormalizeLevelOrLeaf(len(spec.Rows))
 		if st.rowNormLevel < len(spec.Rows)-1 {
-			st.partialRowMargins = make(map[string]OnlineAggregator)
+			st.partialRowIndex = make(map[string]int, 16)
 		}
 	}
 	if mode == types.CrosstabNormalizeColumn {
 		st.colNormLevel = spec.NormalizeLevelOrLeaf(len(spec.Columns))
 		if st.colNormLevel < len(spec.Columns)-1 {
-			st.partialColMargins = make(map[string]OnlineAggregator)
+			st.partialColIndex = make(map[string]int, 16)
 		}
 	}
 
@@ -351,6 +380,92 @@ func (s *FusedCrosstabState) AssertCanFuse(req *types.Request) error {
 	return nil
 }
 
+// internRowKey returns the integer index assigned to rowKey, allocating
+// a new index on first sight and recording the per-grouper tuple for
+// Finalize's MatrixPayload re-emission.
+func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) int {
+	if idx, ok := s.rowIndex[rowKey]; ok {
+		return idx
+	}
+	idx := len(s.rowKeys)
+	s.rowIndex[rowKey] = idx
+	s.rowKeys = append(s.rowKeys, rowKey)
+	s.rowAxis = append(s.rowAxis, tuple)
+	// Grow the cells matrix to carry one row per interned row index.
+	// The new row is sized to the current column count so existing
+	// (rowIdx<idx, colIdx) cells remain at their indices.
+	s.cells = append(s.cells, make([]OnlineAggregator, len(s.colKeys)))
+	if s.rowMargins != nil || s.spec.NeedsRowMargin() {
+		// Lazy-init row margins slice on first row to skip the
+		// allocation when no row-margin is requested.
+		if s.rowMargins == nil {
+			s.rowMargins = make([]OnlineAggregator, 0, 16)
+		}
+		s.rowMargins = append(s.rowMargins, nil)
+	}
+	return idx
+}
+
+// internColKey returns the integer index assigned to colKey, allocating
+// a new index on first sight and extending every existing row's column
+// slice in lockstep so cells[rowIdx][colIdx] is addressable for every
+// interned rowIdx.
+func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) int {
+	if idx, ok := s.colIndex[colKey]; ok {
+		return idx
+	}
+	idx := len(s.colKeys)
+	s.colIndex[colKey] = idx
+	s.colKeys = append(s.colKeys, colKey)
+	s.colAxis = append(s.colAxis, tuple)
+	// Extend every existing row by one column. Doubling capacity is
+	// unnecessary here since the column count grows independently
+	// per cohort and we want stable index addressing.
+	for i := range s.cells {
+		s.cells[i] = append(s.cells[i], nil)
+	}
+	if s.colMargins != nil || s.spec.NeedsColumnMargin() {
+		if s.colMargins == nil {
+			s.colMargins = make([]OnlineAggregator, 0, 16)
+		}
+		s.colMargins = append(s.colMargins, nil)
+	}
+	return idx
+}
+
+// internPartialRowKey is the partial-depth (normalize_level) sibling of
+// internRowKey. Constructs the partial accumulator on first sight.
+func (s *FusedCrosstabState) internPartialRowKey(key string) (int, error) {
+	if idx, ok := s.partialRowIndex[key]; ok {
+		return idx, nil
+	}
+	idx := len(s.partialRowKeys)
+	s.partialRowIndex[key] = idx
+	s.partialRowKeys = append(s.partialRowKeys, key)
+	agg, err := newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
+	if err != nil {
+		return -1, err
+	}
+	s.partialRowMargins = append(s.partialRowMargins, agg)
+	return idx, nil
+}
+
+// internPartialColKey is the column-axis sibling of internPartialRowKey.
+func (s *FusedCrosstabState) internPartialColKey(key string) (int, error) {
+	if idx, ok := s.partialColIndex[key]; ok {
+		return idx, nil
+	}
+	idx := len(s.partialColKeys)
+	s.partialColIndex[key] = idx
+	s.partialColKeys = append(s.partialColKeys, key)
+	agg, err := newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
+	if err != nil {
+		return -1, err
+	}
+	s.partialColMargins = append(s.partialColMargins, agg)
+	return idx, nil
+}
+
 // Update folds a single filter-passing record into the cell, margin,
 // and cross-margin accumulators it touches. The caller is responsible
 // for running filters / row-local attributes / features / etc. before
@@ -387,47 +502,43 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		return nil
 	}
 
-	if _, present := s.rowTuples[rowKey]; !present {
-		s.rowTuples[rowKey] = rowTuple
-	}
-	if _, present := s.colTuples[colKey]; !present {
-		s.colTuples[colKey] = colTuple
-	}
+	rowIdx := s.internRowKey(rowKey, rowTuple)
+	colIdx := s.internColKey(colKey, colTuple)
 
-	cellKey := crosstabCellKey{row: rowKey, col: colKey}
-	cell, present := s.cells[cellKey]
-	if !present {
+	// Cell update — slice indexing, no map hash.
+	cell := s.cells[rowIdx][colIdx]
+	if cell == nil {
 		cell, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
 		if err != nil {
 			return err
 		}
-		s.cells[cellKey] = cell
+		s.cells[rowIdx][colIdx] = cell
 	}
 	if err := cell.UpdateRow(rec, s.cellField); err != nil {
 		return err
 	}
 
 	if s.rowMargins != nil {
-		mar, present := s.rowMargins[rowKey]
-		if !present {
+		mar := s.rowMargins[rowIdx]
+		if mar == nil {
 			mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
 			if err != nil {
 				return err
 			}
-			s.rowMargins[rowKey] = mar
+			s.rowMargins[rowIdx] = mar
 		}
 		if err := mar.UpdateRow(rec, s.cellField); err != nil {
 			return err
 		}
 	}
 	if s.colMargins != nil {
-		mar, present := s.colMargins[colKey]
-		if !present {
+		mar := s.colMargins[colIdx]
+		if mar == nil {
 			mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
 			if err != nil {
 				return err
 			}
-			s.colMargins[colKey] = mar
+			s.colMargins[colIdx] = mar
 		}
 		if err := mar.UpdateRow(rec, s.cellField); err != nil {
 			return err
@@ -439,31 +550,23 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		}
 	}
 
-	if s.partialRowMargins != nil {
+	if s.partialRowIndex != nil {
 		pkey := truncateCompositeKey(rowKey, s.rowNormLevel)
-		mar, present := s.partialRowMargins[pkey]
-		if !present {
-			mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
-			if err != nil {
-				return err
-			}
-			s.partialRowMargins[pkey] = mar
+		pIdx, perr := s.internPartialRowKey(pkey)
+		if perr != nil {
+			return perr
 		}
-		if err := mar.UpdateRow(rec, s.cellField); err != nil {
+		if err := s.partialRowMargins[pIdx].UpdateRow(rec, s.cellField); err != nil {
 			return err
 		}
 	}
-	if s.partialColMargins != nil {
+	if s.partialColIndex != nil {
 		pkey := truncateCompositeKey(colKey, s.colNormLevel)
-		mar, present := s.partialColMargins[pkey]
-		if !present {
-			mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
-			if err != nil {
-				return err
-			}
-			s.partialColMargins[pkey] = mar
+		pIdx, perr := s.internPartialColKey(pkey)
+		if perr != nil {
+			return perr
 		}
-		if err := mar.UpdateRow(rec, s.cellField); err != nil {
+		if err := s.partialColMargins[pIdx].UpdateRow(rec, s.cellField); err != nil {
 			return err
 		}
 	}
@@ -512,14 +615,29 @@ func (s *FusedCrosstabState) SetTotalRows(n int64) {
 // and the buffered path drops it). A non-null non-nil err is a
 // genuine grouper failure (e.g. a custom StreamableGrouper extension's
 // KeyFor panicking) and is bubbled through unchanged.
+//
+// Fast path for single-grouper axes: no strings.Join, no parts slice
+// allocation — the per-grouper key IS the composite key. Multi-grouper
+// axes fall through to the join path (still allocating but only one
+// per axis per record).
 func axisKeyAndTuple(groupers []StreamableGrouper, rec *Record) (string, types.AxisKey, bool, error) {
-	if len(groupers) == 0 {
+	switch len(groupers) {
+	case 0:
 		// Empty axis is a programming bug — validateCrosstabSpec rejects
 		// zero-grouper axes up-front so reaching here means the gate
 		// drifted. Surface a typed error rather than a silent placement
 		// into the "" bucket.
 		return "", nil, false, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"fused crosstab axis has zero groupers; spec validation should have rejected")
+	case 1:
+		key, err := groupers[0].KeyFor(rec)
+		if err != nil {
+			if stderrors.Is(err, ErrGrouperKeyNull) {
+				return "", nil, false, nil
+			}
+			return "", nil, false, err
+		}
+		return key, types.AxisKey{key}, true, nil
 	}
 	parts := make([]string, 0, len(groupers))
 	tuple := make(types.AxisKey, 0, len(groupers))
@@ -566,21 +684,38 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	// Deterministic key emission order: sort by composite axis key. The
 	// buffered RunCrosstab does the same via PartitionByAxis (sort.Strings
 	// on the bucket keys), so the fused output matches byte-for-byte.
-	rowKeys := sortedKeys(s.rowTuples)
-	colKeys := sortedKeys(s.colTuples)
+	// We sort the row/col axis index permutations so we can walk the
+	// slice in the canonical (string-key) order without materializing
+	// every cell into a string-keyed map.
+	rowKeys := append([]string(nil), s.rowKeys...)
+	sort.Strings(rowKeys)
+	colKeys := append([]string(nil), s.colKeys...)
+	sort.Strings(colKeys)
 
-	// Finalize every cell and margin to scalar/rich values. We materialise
-	// the cell values once into cellValues; the normalize pass below
-	// rewrites them when mode != none.
-	cellValues, cellPresent, err := finalizeCells(s.cells)
+	// Build per-key tuple lookup for the downstream MatrixPayload /
+	// long-shape emitters.
+	rowTuples := make(map[string]types.AxisKey, len(rowKeys))
+	for i, k := range s.rowKeys {
+		rowTuples[k] = s.rowAxis[i]
+	}
+	colTuples := make(map[string]types.AxisKey, len(colKeys))
+	for i, k := range s.colKeys {
+		colTuples[k] = s.colAxis[i]
+	}
+
+	// Finalize every cell and margin to scalar/rich values. The cells
+	// matrix is sparse — unobserved (rowIdx, colIdx) pairs hold nil
+	// accumulators and stay out of the emitted map (which the renderer
+	// treats as Present=false).
+	cellValues, cellPresent, err := s.finalizeCells()
 	if err != nil {
 		return nil, err
 	}
-	rowMargins, rowMarginPresent, err := finalizeMarginMap(s.rowMargins)
+	rowMargins, rowMarginPresent, err := s.finalizeRowMargins()
 	if err != nil {
 		return nil, err
 	}
-	colMargins, colMarginPresent, err := finalizeMarginMap(s.colMargins)
+	colMargins, colMarginPresent, err := s.finalizeColMargins()
 	if err != nil {
 		return nil, err
 	}
@@ -612,8 +747,8 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	var leafColToPartial map[string]string
 
 	if mode == types.CrosstabNormalizeRow {
-		if s.partialRowMargins != nil {
-			partialRowDenom, partialRowDenomPresent, err = finalizeFloatMargins(s.partialRowMargins)
+		if s.partialRowIndex != nil {
+			partialRowDenom, partialRowDenomPresent, err = s.finalizePartialRowMargins()
 			if err != nil {
 				return nil, err
 			}
@@ -624,8 +759,8 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		}
 	}
 	if mode == types.CrosstabNormalizeColumn {
-		if s.partialColMargins != nil {
-			partialColDenom, partialColDenomPresent, err = finalizeFloatMargins(s.partialColMargins)
+		if s.partialColIndex != nil {
+			partialColDenom, partialColDenomPresent, err = s.finalizePartialColMargins()
 			if err != nil {
 				return nil, err
 			}
@@ -707,8 +842,8 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 
 	// Re-materialise sorted RowKeys / ColumnKeys as []AxisKey tuples,
 	// preserving the per-grouper key list captured at first sight.
-	rowPart := &CrosstabAxisPartition{Keys: rowKeys, Tuples: tuplesForKeys(rowKeys, s.rowTuples)}
-	colPart := &CrosstabAxisPartition{Keys: colKeys, Tuples: tuplesForKeys(colKeys, s.colTuples)}
+	rowPart := &CrosstabAxisPartition{Keys: rowKeys, Tuples: tuplesForKeys(rowKeys, rowTuples)}
+	colPart := &CrosstabAxisPartition{Keys: colKeys, Tuples: tuplesForKeys(colKeys, colTuples)}
 
 	shape := s.spec.ShapeOrDefault()
 	if shape == types.CrosstabShapeMatrix {
@@ -736,38 +871,53 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	return resp, nil
 }
 
-// finalizeCells drives Finalize on every cell aggregator and dispatches
-// through dispatchAggregatorResult so map-valued (AGG_SET_FREQUENCY) and
-// slice-valued (AGG_SET_UNION) cells surface their rich payload. The
-// returned maps own no references to the aggregator instances; safe to
-// drop the state after this call.
-func finalizeCells(in map[crosstabCellKey]OnlineAggregator) (map[crosstabCellKey]any, map[crosstabCellKey]bool, error) {
-	values := make(map[crosstabCellKey]any, len(in))
-	present := make(map[crosstabCellKey]bool, len(in))
-	for k, agg := range in {
-		scalar, err := agg.Finalize()
-		if err != nil {
-			return nil, nil, err
+// finalizeCells walks the 2D cell slice in (rowIdx, colIdx) insertion
+// order and builds the string-keyed result map the downstream renderers
+// consume. Nil entries (cells never touched by a record) are silently
+// dropped from the present set — matches the buffered path's behaviour
+// where a (rowKey, colKey) pair with no records lands no cell value.
+func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[crosstabCellKey]bool, error) {
+	// Pre-size to the dense cap, even though sparsely populated cells
+	// will leave headroom — saves rehashes on the dense common case.
+	nCells := len(s.rowKeys) * len(s.colKeys)
+	values := make(map[crosstabCellKey]any, nCells)
+	present := make(map[crosstabCellKey]bool, nCells)
+	for rIdx, row := range s.cells {
+		rKey := s.rowKeys[rIdx]
+		for cIdx, agg := range row {
+			if agg == nil {
+				continue
+			}
+			scalar, err := agg.Finalize()
+			if err != nil {
+				return nil, nil, err
+			}
+			v, err := dispatchAggregatorResult(agg, scalar)
+			if err != nil {
+				return nil, nil, err
+			}
+			ck := crosstabCellKey{row: rKey, col: s.colKeys[cIdx]}
+			values[ck] = v
+			present[ck] = true
 		}
-		v, err := dispatchAggregatorResult(agg, scalar)
-		if err != nil {
-			return nil, nil, err
-		}
-		values[k] = v
-		present[k] = true
 	}
 	return values, present, nil
 }
 
-// finalizeMarginMap is the sibling of finalizeCells for the per-row /
-// per-column / per-partial margin maps. Same dispatch rules.
-func finalizeMarginMap(in map[string]OnlineAggregator) (map[string]any, map[string]bool, error) {
-	if in == nil {
+// finalizeRowMargins drives Finalize on every row-margin accumulator
+// and builds the string-keyed result map the downstream renderers
+// consume. Nil entries (rows present in the interner but never reached
+// a row-margin update) are dropped.
+func (s *FusedCrosstabState) finalizeRowMargins() (map[string]any, map[string]bool, error) {
+	if s.rowMargins == nil {
 		return nil, nil, nil
 	}
-	values := make(map[string]any, len(in))
-	present := make(map[string]bool, len(in))
-	for k, agg := range in {
+	values := make(map[string]any, len(s.rowMargins))
+	present := make(map[string]bool, len(s.rowMargins))
+	for i, agg := range s.rowMargins {
+		if agg == nil {
+			continue
+		}
 		scalar, err := agg.Finalize()
 		if err != nil {
 			return nil, nil, err
@@ -776,23 +926,53 @@ func finalizeMarginMap(in map[string]OnlineAggregator) (map[string]any, map[stri
 		if err != nil {
 			return nil, nil, err
 		}
-		values[k] = v
-		present[k] = true
+		key := s.rowKeys[i]
+		values[key] = v
+		present[key] = true
 	}
 	return values, present, nil
 }
 
-// finalizeFloatMargins is the scalar-only variant of finalizeMarginMap
-// used for partial-depth (normalize_level) denominators. Map-valued
+// finalizeColMargins is the column-axis sibling of finalizeRowMargins.
+func (s *FusedCrosstabState) finalizeColMargins() (map[string]any, map[string]bool, error) {
+	if s.colMargins == nil {
+		return nil, nil, nil
+	}
+	values := make(map[string]any, len(s.colMargins))
+	present := make(map[string]bool, len(s.colMargins))
+	for i, agg := range s.colMargins {
+		if agg == nil {
+			continue
+		}
+		scalar, err := agg.Finalize()
+		if err != nil {
+			return nil, nil, err
+		}
+		v, err := dispatchAggregatorResult(agg, scalar)
+		if err != nil {
+			return nil, nil, err
+		}
+		key := s.colKeys[i]
+		values[key] = v
+		present[key] = true
+	}
+	return values, present, nil
+}
+
+// finalizePartialRowMargins is the scalar-only variant for partial-
+// depth (normalize_level) denominators on the row axis. Map-valued
 // aggregators are rejected upstream when normalize != none, so every
 // margin here is guaranteed scalar; we still funnel through
 // dispatchAggregatorResult + coerceFloat64 so a future numeric-cell
 // rich payload (e.g. dictionary-of-floats) continues to coerce
 // predictably.
-func finalizeFloatMargins(in map[string]OnlineAggregator) (map[string]float64, map[string]bool, error) {
-	values := make(map[string]float64, len(in))
-	present := make(map[string]bool, len(in))
-	for k, agg := range in {
+func (s *FusedCrosstabState) finalizePartialRowMargins() (map[string]float64, map[string]bool, error) {
+	values := make(map[string]float64, len(s.partialRowMargins))
+	present := make(map[string]bool, len(s.partialRowMargins))
+	for i, agg := range s.partialRowMargins {
+		if agg == nil {
+			continue
+		}
 		scalar, err := agg.Finalize()
 		if err != nil {
 			return nil, nil, err
@@ -801,22 +981,35 @@ func finalizeFloatMargins(in map[string]OnlineAggregator) (map[string]float64, m
 		if err != nil {
 			return nil, nil, err
 		}
-		values[k] = coerceFloat64(v)
-		present[k] = true
+		key := s.partialRowKeys[i]
+		values[key] = coerceFloat64(v)
+		present[key] = true
 	}
 	return values, present, nil
 }
 
-// sortedKeys returns the deterministic sorted key list for a string-keyed
-// map. Mirrors the per-axis key sort in PartitionByAxis so the fused
-// output's row / column order matches the buffered output byte-for-byte.
-func sortedKeys(m map[string]types.AxisKey) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
+// finalizePartialColMargins is the column-axis sibling of
+// finalizePartialRowMargins.
+func (s *FusedCrosstabState) finalizePartialColMargins() (map[string]float64, map[string]bool, error) {
+	values := make(map[string]float64, len(s.partialColMargins))
+	present := make(map[string]bool, len(s.partialColMargins))
+	for i, agg := range s.partialColMargins {
+		if agg == nil {
+			continue
+		}
+		scalar, err := agg.Finalize()
+		if err != nil {
+			return nil, nil, err
+		}
+		v, err := dispatchAggregatorResult(agg, scalar)
+		if err != nil {
+			return nil, nil, err
+		}
+		key := s.partialColKeys[i]
+		values[key] = coerceFloat64(v)
+		present[key] = true
 	}
-	sort.Strings(out)
-	return out
+	return values, present, nil
 }
 
 // tuplesForKeys returns the per-key axis tuple list in the same order

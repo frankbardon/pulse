@@ -32,10 +32,15 @@ import (
 //     by construction. The two non-recompute classes overlap exactly
 //     with the set of mergeable, scalar, cell-derived aggregators.
 //   - Every grouper on req.Crosstab.Rows ∪ req.Crosstab.Columns is
-//     streamable per the registry's Streamability table
-//     (types.GroupType.Streamable). GROUP_QUANTILE and GROUP_DATE need
-//     a finalize-time bucketization that the fused walk cannot
-//     replicate piecewise.
+//     constructable and the resulting instance implements
+//     StreamableGrouper (i.e. exposes a per-record KeyFor). The static
+//     types.GroupType.Streamable() table is too narrow here — it tracks
+//     Process-level streamability rather than per-record key derivation
+//     (GROUP_DATE is non-streamable at the Process layer but does
+//     implement StreamableGrouper.KeyFor and is therefore fusable). We
+//     consult the actual interface via a factory-probe to widen the
+//     gate while still rejecting truly key-non-derivable groupers
+//     (GROUP_QUANTILE).
 //   - No req.Features — every FEAT_* operator forces a buffered
 //     pre-filter pass that the fused path skips.
 //   - No req.Attributes of type ATTR_FORMULA with a non-empty
@@ -101,22 +106,17 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 		}
 	}
 
-	// Every grouper on either axis must stream.
-	for _, g := range req.Crosstab.Rows {
-		if g == nil {
-			return false, "nil grouper on row axis"
-		}
-		if !g.Type.Streamable() {
-			return false, fmt.Sprintf("non-streamable grouper on row axis (%s)", g.Type)
-		}
+	// Every grouper on either axis must implement StreamableGrouper.
+	// Probe-construct via the registry's factory and assert the
+	// interface — this widens past the conservative
+	// types.GroupType.Streamable() table to admit per-record-keyable
+	// groupers like GROUP_DATE while still rejecting GROUP_QUANTILE
+	// (which has no per-record key derivation).
+	if reason, ok := axisStreamable(req.Crosstab.Rows, schema, ext, "row"); !ok {
+		return false, reason
 	}
-	for _, g := range req.Crosstab.Columns {
-		if g == nil {
-			return false, "nil grouper on column axis"
-		}
-		if !g.Type.Streamable() {
-			return false, fmt.Sprintf("non-streamable grouper on column axis (%s)", g.Type)
-		}
+	if reason, ok := axisStreamable(req.Crosstab.Columns, schema, ext, "column"); !ok {
+		return false, reason
 	}
 
 	// Features force a buffered pre-filter pass.
@@ -166,6 +166,45 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 	}
 
 	return true, ""
+}
+
+// axisStreamable probe-constructs each grouper on an axis via the
+// registry factory and asserts that the resulting instance implements
+// StreamableGrouper. The probe is cheap — built-in grouper factories
+// validate Params (e.g. GROUP_DATE's component / fiscal_offset) and
+// stash the field name, but do not touch records.
+//
+// Returns ("", true) when every grouper is streamable. Returns
+// (reason, false) on the first miss, with the reason in the same shape
+// the previous types.GroupType.Streamable()-based gate produced:
+// "non-streamable grouper on <axis> axis (<TYPE>)". An unknown grouper
+// type (factory miss) likewise disqualifies the request — the runtime
+// would have errored a moment later anyway.
+//
+// axisName is the human-readable axis label embedded in the reason
+// string ("row" / "column").
+func axisStreamable(axis []*types.Group, schema *encoding.Schema, ext *ExtensionRegistry, axisName string) (string, bool) {
+	for _, g := range axis {
+		if g == nil {
+			return fmt.Sprintf("nil grouper on %s axis", axisName), false
+		}
+		factory, ok := ext.LookupGrouper(g.Type)
+		if !ok {
+			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
+		}
+		instance, err := factory(g, schema)
+		if err != nil {
+			// Construction failure surfaces as a buffered fallback —
+			// the buffered path's RunCrosstab will surface the same
+			// error with a richer code, and the gate just needs to
+			// decline fusion. Mirror the legacy reason shape.
+			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
+		}
+		if _, ok := instance.(StreamableGrouper); !ok {
+			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
+		}
+	}
+	return "", true
 }
 
 // unintrospectableExtension scans every operator slot in req against

@@ -154,15 +154,59 @@ func TestCanFuseCrosstab_NonStreamableGrouperOnRowAxis(t *testing.T) {
 	}
 }
 
+// GROUP_QUANTILE on the column axis is the canonical
+// non-key-derivable case — the per-record fused walk cannot replicate
+// its finalize-time bucketization. After E4-S4P the gate consults the
+// StreamableGrouper interface directly rather than the static
+// GroupType.Streamable() table; GROUP_QUANTILE has no StreamableGrouper
+// implementation and is rejected here.
 func TestCanFuseCrosstab_NonStreamableGrouperOnColumnAxis(t *testing.T) {
 	req := happyPathCrosstabRequest()
-	req.Crosstab.Columns = []*types.Group{{Type: types.GROUP_DATE, Field: "ts"}}
+	req.Crosstab.Columns = []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score", Interval: 4}}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
 	if ok {
-		t.Fatalf("expected ineligible for GROUP_DATE on column axis")
+		t.Fatalf("expected ineligible for GROUP_QUANTILE on column axis")
 	}
-	if !strings.Contains(reason, "non-streamable grouper on column axis") || !strings.Contains(reason, "GROUP_DATE") {
+	if !strings.Contains(reason, "non-streamable grouper on column axis") || !strings.Contains(reason, "GROUP_QUANTILE") {
 		t.Fatalf("unexpected reason %q", reason)
+	}
+}
+
+// GROUP_DATE on either axis must be accepted by the widened gate.
+// The static GroupType.Streamable() table returns false for GROUP_DATE
+// (Process-level streaming is not wired through), but the per-record
+// key derivation (StreamableGrouper.KeyFor) IS implemented — the fused
+// crosstab path consumes that directly. The canonical 1M-row bench
+// uses a fiscal-offset GROUP_DATE column axis; this test pins the
+// widened gate so the bench can actually engage the fused path.
+func TestCanFuseCrosstab_GroupDateOnAxisAccepted(t *testing.T) {
+	// fiscal_offset=10 mirrors the canonical bench shape: October FY
+	// start (the same offset huge-request.json carries).
+	dateParams := []byte(`{"component":"quarter","fiscal_offset":10}`)
+	cases := []struct {
+		name string
+		axis string
+	}{
+		{"RowAxis", "row"},
+		{"ColumnAxis", "column"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := happyPathCrosstabRequest()
+			grp := &types.Group{Type: types.GROUP_DATE, Field: "ts", Params: dateParams}
+			if tc.axis == "row" {
+				req.Crosstab.Rows = []*types.Group{grp}
+			} else {
+				req.Crosstab.Columns = []*types.Group{grp}
+			}
+			ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
+			if !ok {
+				t.Fatalf("expected fused-eligible for GROUP_DATE on %s axis, got reason %q", tc.axis, reason)
+			}
+			if reason != "" {
+				t.Fatalf("expected empty reason on success, got %q", reason)
+			}
+		})
 	}
 }
 
