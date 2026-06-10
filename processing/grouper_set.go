@@ -48,7 +48,8 @@ func resolveSetGrouperDict(grp *types.Group, schema *encoding.Schema) (*encoding
 // stringify the zero value.
 
 type setValueGrouper struct {
-	dict *encoding.Dictionary
+	field string
+	dict  *encoding.Dictionary
 }
 
 func newSetValueGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
@@ -56,23 +57,32 @@ func newSetValueGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, err
 	if err != nil {
 		return nil, err
 	}
-	return &setValueGrouper{dict: dict}, nil
+	return &setValueGrouper{field: grp.Field, dict: dict}, nil
 }
 
-func (g *setValueGrouper) KeyForRow(r *Record, field string) (string, bool, error) {
-	m, ok := r.SetValue(field)
+// KeyFor implements StreamableGrouper.KeyFor. The bound field's mask is
+// decoded against the dictionary into sorted, pipe-joined labels —
+// identical shape to the buffered Group() path. An empty mask is a
+// valid bucket key of "" and does NOT trigger ErrGrouperKeyNull; only a
+// null / missing field does.
+func (g *setValueGrouper) KeyFor(r *Record) (string, error) {
+	m, ok := r.SetValue(g.field)
 	if !ok {
-		return "", false, nil
+		return "", ErrGrouperKeyNull
 	}
 	labels := resolveMaskLabels(m, g.dict)
 	sort.Strings(labels)
-	return strings.Join(labels, "|"), true, nil
+	return strings.Join(labels, "|"), nil
 }
 
-func (g *setValueGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
+func (g *setValueGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
+	return keyForOrSkip(g, r)
+}
+
+func (g *setValueGrouper) Group(records []*Record, _ string) (map[string][]*Record, error) {
 	groups := make(map[string][]*Record)
 	for _, r := range records {
-		key, ok, err := g.KeyForRow(r, field)
+		key, ok, err := keyForOrSkip(g, r)
 		if err != nil {
 			return nil, err
 		}
