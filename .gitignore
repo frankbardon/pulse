@@ -50,3 +50,4 @@ Thumbs.db
 # Env
 .env
 .env.local
+.planning/*/.flow-runtime/
