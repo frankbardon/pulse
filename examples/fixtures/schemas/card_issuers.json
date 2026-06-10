@@ -1,0 +1,6 @@
+[
+  {"name": "respondent_id", "type": "u32", "description": "Unique respondent identifier (1..N)"},
+  {"name": "age", "type": "u8", "description": "Respondent age in completed years (18-65)"},
+  {"name": "region", "type": "categorical_u8", "description": "Geographic region (north, south, east, west)"},
+  {"name": "issuers", "type": "set_u8", "description": "Multi-select credit-card issuers held; pipe-delimited tokens (VISA, MC, AMEX, DISC)"}
+]

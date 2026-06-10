@@ -29,7 +29,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		t.Fatalf("pulse.New: %v", err)
 	}
 
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures"}
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers"}
 	for _, name := range cohorts {
 		csvPath := filepath.Join("examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("examples", "fixtures", "schemas", name+".json")
@@ -276,8 +276,14 @@ func loadFixtureSchema(path string) (*encoding.Schema, error) {
 }
 
 // parseFixtureFieldType maps the schema-template strings to FieldType.
-// Covers only the types used by the fixture schemas.
+// Delegates to encoding.ParseFieldType so set_* and any future type
+// strings work without a per-test allowlist; the explicit switch is
+// retained as a fallback for legacy strings the canonical parser may
+// not know about.
 func parseFixtureFieldType(s string) encoding.FieldType {
+	if ft, ok := encoding.ParseFieldType(s); ok {
+		return ft
+	}
 	switch s {
 	case "u8":
 		return encoding.FieldTypeU8
