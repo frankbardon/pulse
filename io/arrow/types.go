@@ -3,6 +3,7 @@ package arrow
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -58,6 +59,16 @@ func TypeToPulse(dt arrow.DataType) encoding.FieldType {
 		return encoding.FieldTypeCategoricalU8
 	case arrow.DECIMAL128:
 		return encoding.FieldTypeDecimal128
+	case arrow.LIST, arrow.LARGE_LIST, arrow.FIXED_SIZE_LIST:
+		// Multi-select / repeated-string columns map to Pulse's
+		// set_u* family; the import pipeline picks the smallest
+		// width that fits the observed dictionary (set_u8 first,
+		// widened by AddWithLimit during the row pass). Element
+		// types other than string are not supported today —
+		// FormatValue falls through to the generic stringifier,
+		// which produces a representation the convertValue set
+		// path will fail to parse meaningfully.
+		return encoding.FieldTypeSetU8
 	default:
 		return encoding.FieldTypeF64
 	}
@@ -86,6 +97,13 @@ func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
 		return arrow.FixedWidthTypes.Boolean
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		return arrow.BinaryTypes.String
+	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
+		// Pulse set columns are bitmask-over-shared-dictionary on
+		// the wire, but the natural Arrow analogue for round-trip
+		// export is LIST<UTF8> — one element per selected token.
+		// Conversion lives in the exporter; FieldFromPulse uses the
+		// canonical List type carrying nullable string elements.
+		return arrow.ListOf(arrow.BinaryTypes.String)
 	case encoding.FieldTypeDecimal128:
 		// Caller-resolved precision/scale; default 38/0 when not provided.
 		return &arrow.Decimal128Type{Precision: int32(encoding.MaxDecimalPrecision), Scale: 0}
@@ -254,10 +272,72 @@ func FormatValue(arr arrow.Array, idx int) string {
 		// Reconstruct the canonical decimal string at the declared scale
 		// using Pulse's encoding to avoid round-tripping through float64.
 		return decimal128ArrayValueToString(v, uint8(dt.Scale))
+	case *array.List:
+		return formatStringList(a.ListValues(), a.Offsets(), idx)
+	case *array.LargeList:
+		return formatStringListLarge(a.ListValues(), a.Offsets(), idx)
+	case *array.FixedSizeList:
+		listLen := int(a.DataType().(*arrow.FixedSizeListType).Len())
+		start := idx * listLen
+		return formatStringListSlice(a.ListValues(), start, start+listLen)
 	default:
 		// Fallback: use the String representation from the array.
 		return fmt.Sprintf("%v", a.GetOneForMarshal(idx))
 	}
+}
+
+// formatStringList pipe-joins the string elements of one list value
+// from a variable-length list array. Element types other than string
+// fall back to the Arrow library's canonical text representation,
+// which downstream set inference will likely reject — that matches the
+// type-mapping note in TypeToPulse.
+func formatStringList(elements arrow.Array, offsets []int32, idx int) string {
+	start := int(offsets[idx])
+	end := int(offsets[idx+1])
+	return formatStringListSlice(elements, start, end)
+}
+
+// formatStringListLarge is the int64-offsets sibling of
+// formatStringList for LargeList arrays.
+func formatStringListLarge(elements arrow.Array, offsets []int64, idx int) string {
+	start := int(offsets[idx])
+	end := int(offsets[idx+1])
+	return formatStringListSlice(elements, start, end)
+}
+
+// formatStringListSlice joins child-array elements at the given index
+// range with "|", skipping nulls. Non-string element arrays fall back
+// to the generic FormatValue path which produces the Arrow library's
+// canonical representation per element.
+func formatStringListSlice(elements arrow.Array, start, end int) string {
+	if start >= end {
+		return ""
+	}
+	parts := make([]string, 0, end-start)
+	switch ea := elements.(type) {
+	case *array.String:
+		for i := start; i < end; i++ {
+			if ea.IsNull(i) {
+				continue
+			}
+			parts = append(parts, ea.Value(i))
+		}
+	case *array.LargeString:
+		for i := start; i < end; i++ {
+			if ea.IsNull(i) {
+				continue
+			}
+			parts = append(parts, ea.Value(i))
+		}
+	default:
+		for i := start; i < end; i++ {
+			if elements.IsNull(i) {
+				continue
+			}
+			parts = append(parts, FormatValue(elements, i))
+		}
+	}
+	return strings.Join(parts, "|")
 }
 
 // decimal128ArrayValueToString renders an arrow.decimal128 value at the

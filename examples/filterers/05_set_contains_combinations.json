@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "category": "filterers",
+    "description": "Chain three set filterers (CONTAINS_ALL, CONTAINS_NONE, EQUALS) on a multi-select issuers column. Filterers compose with AND semantics — survivors must hold VISA, lack DISC, and carry exactly the {VISA, MC} pair. Count survivors by region.",
+    "name": "filter_set_contains_combinations",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_SET_CONTAINS_ALL",
+      "FILTER_SET_CONTAINS_NONE",
+      "FILTER_SET_EQUALS",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "comparison",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "card_issuers.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_SET_CONTAINS_ALL",
+      "field": "issuers",
+      "values": ["VISA"]
+    },
+    {
+      "type": "FILTER_SET_CONTAINS_NONE",
+      "field": "issuers",
+      "values": ["DISC"]
+    },
+    {
+      "type": "FILTER_SET_EQUALS",
+      "field": "issuers",
+      "values": ["VISA", "MC"]
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "respondent_id",
+      "label": "n"
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "sort": [
+    {
+      "field": "region"
+    }
+  ]
+}

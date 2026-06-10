@@ -318,6 +318,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_SET_OVERFLOW: {
+		Message: "A multi-select column's observed dictionary exceeds the largest set width (set_u64 holds at most 64 entries).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Denormalize to one row per (record, element) pair, or wait for set_u128. If the dictionary is actually bounded, raise --sample-rows or supply a force_type schema hint.",
+			},
+		},
+	},
 	PULSE_IMPORT_CATEGORICAL_UNBOUNDED: {
 		Message: "The categorical inference heuristic believes the column has unbounded cardinality and should be modeled as a string.",
 		Fixups: []Fixup{
@@ -1117,6 +1126,23 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Crosstab", "Normalize"},
 				Hint:     "Switch Normalize to \"row\" or \"column\" if a partial-depth denominator is intended, or drop normalize_level to keep the scalar grand-total denominator.",
 				Examples: []any{"row", "column"},
+			},
+		},
+	},
+	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED: {
+		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (AGG_SET_FREQUENCY emits map[string]int per cell). Dividing one map by another is undefined; the normalize directive cannot be applied.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Normalize"},
+				Hint:     "Drop the normalize directive (or set it to \"none\") to keep map-valued cells, or swap the cell aggregator to a scalar form (e.g. AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG) so normalization is defined.",
+				Examples: []any{"none"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Cell", "Type"},
+				Hint:     "Pick a scalar aggregator if the normalize directive must stay. AGG_SET_CARDINALITY_SUM gives summable popcount per cell; AGG_SET_CARDINALITY_AVG gives mean selections.",
+				Examples: []any{"AGG_SET_CARDINALITY_SUM", "AGG_SET_CARDINALITY_AVG"},
 			},
 		},
 	},

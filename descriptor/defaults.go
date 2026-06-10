@@ -64,6 +64,14 @@ var defaultRules = map[encoding.FieldType]defaultRule{
 
 	// Booleans (single-bit): treated as categorical for defaulting.
 	encoding.FieldTypePackedBool: {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "boolean default"},
+
+	// Set bitmasks: survey-friendly defaults — per-bit row counts plus
+	// per-element fan-out so the typical question "respondents per
+	// option" answers without further configuration.
+	encoding.FieldTypeSetU8:  {Agg: types.AGG_SET_FREQUENCY, Group: types.GROUP_SET_PER_ELEMENT, FamilyTag: "set default"},
+	encoding.FieldTypeSetU16: {Agg: types.AGG_SET_FREQUENCY, Group: types.GROUP_SET_PER_ELEMENT, FamilyTag: "set default"},
+	encoding.FieldTypeSetU32: {Agg: types.AGG_SET_FREQUENCY, Group: types.GROUP_SET_PER_ELEMENT, FamilyTag: "set default"},
+	encoding.FieldTypeSetU64: {Agg: types.AGG_SET_FREQUENCY, Group: types.GROUP_SET_PER_ELEMENT, FamilyTag: "set default"},
 }
 
 // defaultRangeInterval is the bucket width applied to a newly-defaulted

@@ -28,6 +28,13 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_RATIO:          true,
 		AGG_CI_LOWER:       true,
 		AGG_CI_UPPER:       true,
+
+		AGG_SET_UNION:           true,
+		AGG_SET_INTERSECTION:    true,
+		AGG_SET_FREQUENCY:       true,
+		AGG_SET_CARDINALITY_SUM: true,
+		AGG_SET_CARDINALITY_AVG: true,
+		AGG_SET_DISTINCT_VALUES: true,
 	}
 	for _, agg := range AllAggregationTypes() {
 		want, ok := expected[agg]
@@ -54,6 +61,9 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 		ATTR_REG_FITTED:   true,
 		ATTR_REG_RESIDUAL: true,
 		ATTR_REG_LEVERAGE: true,
+
+		ATTR_SET_POPCOUNT: true,
+		ATTR_SET_HAS:      true,
 	}
 	for _, a := range AllAttributeTypes() {
 		want, ok := expected[a]
@@ -78,6 +88,11 @@ func TestStreamability_FilterersKnown(t *testing.T) {
 		FILTER_NULL:       true,
 		FILTER_TRUE:       true,
 		FILTER_FALSE:      true,
+
+		FILTER_SET_CONTAINS_ANY:  true,
+		FILTER_SET_CONTAINS_ALL:  true,
+		FILTER_SET_CONTAINS_NONE: true,
+		FILTER_SET_EQUALS:        true,
 	}
 	for _, f := range AllFiltererTypes() {
 		want, ok := expected[f]
@@ -100,6 +115,9 @@ func TestStreamability_GroupsKnown(t *testing.T) {
 		GROUP_RANGE:    true,
 		GROUP_QUANTILE: false,
 		GROUP_DATE:     false,
+
+		GROUP_SET_VALUE:       true,
+		GROUP_SET_PER_ELEMENT: true,
 	}
 	for _, g := range AllGroupTypes() {
 		want, ok := expected[g]

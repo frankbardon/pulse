@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"math/bits"
 
 	"github.com/frankbardon/pulse/errors"
 )
@@ -136,10 +137,64 @@ func applyRemap(rec []byte, e rewriteEntry) error {
 		if v, ok := e.remap[old]; ok {
 			binary.LittleEndian.PutUint32(rec[e.offset:e.offset+4], v)
 		}
+	case FieldTypeSetU8:
+		old := uint64(rec[e.offset])
+		newMask, err := remapSetMask(old, e.remap, 8)
+		if err != nil {
+			return err
+		}
+		rec[e.offset] = byte(newMask)
+	case FieldTypeSetU16:
+		old := uint64(binary.LittleEndian.Uint16(rec[e.offset : e.offset+2]))
+		newMask, err := remapSetMask(old, e.remap, 16)
+		if err != nil {
+			return err
+		}
+		binary.LittleEndian.PutUint16(rec[e.offset:e.offset+2], uint16(newMask))
+	case FieldTypeSetU32:
+		old := uint64(binary.LittleEndian.Uint32(rec[e.offset : e.offset+4]))
+		newMask, err := remapSetMask(old, e.remap, 32)
+		if err != nil {
+			return err
+		}
+		binary.LittleEndian.PutUint32(rec[e.offset:e.offset+4], uint32(newMask))
+	case FieldTypeSetU64:
+		old := binary.LittleEndian.Uint64(rec[e.offset : e.offset+8])
+		newMask, err := remapSetMask(old, e.remap, 64)
+		if err != nil {
+			return err
+		}
+		binary.LittleEndian.PutUint64(rec[e.offset:e.offset+8], newMask)
 	default:
 		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
-			"shard rewrite: non-categorical field in remap plan",
+			"shard rewrite: non-dictionary field in remap plan",
 			map[string]any{"type": e.ftype.String()})
 	}
 	return nil
+}
+
+// remapSetMask rewrites a set field's bitmask under a dict remap. For
+// every set bit i, the new mask has bit remap[i] set (or bit i when no
+// remap entry exists). width is the field type's bit capacity and
+// gates the new bit position so a remap that promotes a value past the
+// declared width surfaces as PULSE_SHARD_DICT_WIDTH_OVERFLOW — the
+// dict-union path already enforces this at the schema level, but the
+// rewrite stays defensive against a corrupted remap.
+func remapSetMask(mask uint64, remap DictRemap, width uint32) (uint64, error) {
+	var out uint64
+	for mask != 0 {
+		i := uint32(bits.TrailingZeros64(mask))
+		newBit := i
+		if v, ok := remap[i]; ok {
+			newBit = v
+		}
+		if newBit >= width {
+			return 0, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW,
+				"shard rewrite: remapped set bit position exceeds field width",
+				map[string]any{"width": width, "new_bit": newBit, "old_bit": i})
+		}
+		out |= uint64(1) << newBit
+		mask &= mask - 1
+	}
+	return out, nil
 }

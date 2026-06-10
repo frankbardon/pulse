@@ -243,7 +243,7 @@ func renderInspectField(f encoding.Field, limit int) *InspectField {
 		field.Scale = &s
 	}
 
-	if f.Type.IsCategorical() && f.Dictionary != nil {
+	if f.Type.HasDictionary() && f.Dictionary != nil {
 		values := f.Dictionary.Values()
 		dictInfo := &DictionaryInfo{
 			TotalEntries: len(values),
@@ -265,6 +265,8 @@ func synthesizeDescription(f encoding.Field) string {
 	switch {
 	case f.Type.IsCategorical():
 		return "Categorical field: " + f.Name
+	case f.Type.IsSet():
+		return "Set field: " + f.Name
 	case f.Type.IsDecimal():
 		return "Decimal field: " + f.Name
 	}

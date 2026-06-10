@@ -177,7 +177,7 @@ func TestCrosstabProjection_MedianMarginUnchangedOnWideCohort(t *testing.T) {
 	if !m.RowMargins[northIdx].Present {
 		t.Fatal("expected north row margin present")
 	}
-	if !floatClose(m.RowMargins[northIdx].Value, 25.0, 0.001) {
+	if !floatClose(m.RowMargins[northIdx].Scalar(), 25.0, 0.001) {
 		t.Errorf("north row median margin = %v, want 25 (median of raw rows; got median-of-medians would be 60)",
 			m.RowMargins[northIdx].Value)
 	}
@@ -225,7 +225,7 @@ func TestCrosstabProjection_FilterExpressionFallsBackToFullDecode(t *testing.T) 
 	for _, row := range resp.Crosstab.Matrix.Cells {
 		for _, cell := range row {
 			if cell.Present {
-				total += cell.Value
+				total += cell.Scalar()
 			}
 		}
 	}
@@ -338,7 +338,7 @@ func assertMatrixEqual(t *testing.T, name string, a, b *types.MatrixPayload) {
 			if a.Cells[i][j].Present != b.Cells[i][j].Present {
 				t.Errorf("%s: Cell[%d][%d] Present differs: %v vs %v", name, i, j, a.Cells[i][j].Present, b.Cells[i][j].Present)
 			}
-			if a.Cells[i][j].Present && !floatClose(a.Cells[i][j].Value, b.Cells[i][j].Value, 1e-9) {
+			if a.Cells[i][j].Present && !floatClose(a.Cells[i][j].Scalar(), b.Cells[i][j].Scalar(), 1e-9) {
 				t.Errorf("%s: Cell[%d][%d] Value differs: %v vs %v", name, i, j, a.Cells[i][j].Value, b.Cells[i][j].Value)
 			}
 		}
@@ -350,7 +350,7 @@ func assertMatrixEqual(t *testing.T, name string, a, b *types.MatrixPayload) {
 		if a.RowMargins[i].Present != b.RowMargins[i].Present {
 			t.Errorf("%s: RowMargin[%d] Present differs: %v vs %v", name, i, a.RowMargins[i].Present, b.RowMargins[i].Present)
 		}
-		if a.RowMargins[i].Present && !floatClose(a.RowMargins[i].Value, b.RowMargins[i].Value, 1e-9) {
+		if a.RowMargins[i].Present && !floatClose(a.RowMargins[i].Scalar(), b.RowMargins[i].Scalar(), 1e-9) {
 			t.Errorf("%s: RowMargin[%d] Value differs: %v vs %v", name, i, a.RowMargins[i].Value, b.RowMargins[i].Value)
 		}
 	}
@@ -361,14 +361,14 @@ func assertMatrixEqual(t *testing.T, name string, a, b *types.MatrixPayload) {
 		if a.ColumnMargins[i].Present != b.ColumnMargins[i].Present {
 			t.Errorf("%s: ColumnMargin[%d] Present differs", name, i)
 		}
-		if a.ColumnMargins[i].Present && !floatClose(a.ColumnMargins[i].Value, b.ColumnMargins[i].Value, 1e-9) {
+		if a.ColumnMargins[i].Present && !floatClose(a.ColumnMargins[i].Scalar(), b.ColumnMargins[i].Scalar(), 1e-9) {
 			t.Errorf("%s: ColumnMargin[%d] Value differs: %v vs %v", name, i, a.ColumnMargins[i].Value, b.ColumnMargins[i].Value)
 		}
 	}
 	if a.GrandTotal.Present != b.GrandTotal.Present {
 		t.Errorf("%s: GrandTotal.Present differs: %v vs %v", name, a.GrandTotal.Present, b.GrandTotal.Present)
 	}
-	if a.GrandTotal.Present && !floatClose(a.GrandTotal.Value, b.GrandTotal.Value, 1e-9) {
+	if a.GrandTotal.Present && !floatClose(a.GrandTotal.Scalar(), b.GrandTotal.Scalar(), 1e-9) {
 		t.Errorf("%s: GrandTotal.Value differs: %v vs %v", name, a.GrandTotal.Value, b.GrandTotal.Value)
 	}
 }

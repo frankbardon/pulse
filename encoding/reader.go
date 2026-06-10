@@ -137,6 +137,14 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 				continue
 			}
 			values[field.Name] = rawToFloat64(field.Type, raw)
+			// Set types: expose the full uint64 mask via the wide map so
+			// operators that need bit-level precision (everything beyond
+			// the 2^53 float64 limit, plus set_u64 generally) can read
+			// without losing high bits to float coercion. The float64
+			// echo in values stays for any caller that only consults it.
+			if field.Type.IsSet() && wide != nil {
+				wide[field.Name] = raw
+			}
 		}
 	}
 

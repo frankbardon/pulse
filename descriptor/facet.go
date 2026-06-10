@@ -124,6 +124,19 @@ func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest
 				fmt.Sprintf("include_histogram ignored for non-numeric field %q (type %s)", name, f.Type.String()),
 				map[string]any{"field": name, "type": f.Type.String()})
 		}
+		// Set-typed fields: numeric stats are not meaningful on bitmasks
+		// (mean / percentile / histogram of raw mask values is gibberish).
+		// Reject up-front so the caller switches to per-bit value_counts.
+		if f.Type.IsSet() && len(req.NumericPercentiles) > 0 {
+			env.AddError(string(errors.SERVICE_VALIDATION),
+				fmt.Sprintf("numeric_percentiles is not meaningful on set field %q; use the per-bit value_counts that the facet surface already returns", name),
+				map[string]any{"field": name, "type": f.Type.String()})
+		}
+		if f.Type.IsSet() && req.IncludeHistogram {
+			env.AddError(string(errors.SERVICE_VALIDATION),
+				fmt.Sprintf("include_histogram is not meaningful on set field %q; use the per-bit value_counts that the facet surface already returns", name),
+				map[string]any{"field": name, "type": f.Type.String()})
+		}
 	}
 
 	for _, name := range req.AdditiveFields {

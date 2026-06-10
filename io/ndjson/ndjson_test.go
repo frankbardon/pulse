@@ -623,16 +623,47 @@ func TestNdjsonReader_ReadRowsWithoutInit(t *testing.T) {
 	}
 }
 
+// TestNdjsonReader_ArrayValue covers both cases after the set
+// import-inference landing: (1) scalar arrays are accepted and
+// pipe-joined into the tabular cell so downstream set inference can
+// detect them; (2) nested objects / non-scalar element arrays are
+// still rejected with a typed parse error.
 func TestNdjsonReader_ArrayValue(t *testing.T) {
-	data := `{"name":"alice","tags":["a","b"]}
-`
-	r := NewReaderFromBytes([]byte(data))
-	defer r.Close()
-
-	_, err := r.ReadHeader()
-	if err == nil {
-		t.Fatal("expected error for array value")
-	}
+	t.Run("ScalarArrayAccepted", func(t *testing.T) {
+		// First line consumed by ReadHeader; second line yields the
+		// row whose array gets pipe-joined.
+		data := "{\"name\":\"alice\",\"tags\":[\"a\",\"b\"]}\n" +
+			"{\"name\":\"bob\",\"tags\":[\"c\",\"d\"]}\n"
+		r := NewReaderFromBytes([]byte(data))
+		defer r.Close()
+		header, err := r.ReadHeader()
+		if err != nil {
+			t.Fatalf("ReadHeader: %v", err)
+		}
+		if len(header) != 2 {
+			t.Fatalf("header = %v, want [name tags]", header)
+		}
+		var rows [][]string
+		err = r.ReadRows(context.Background(), func(row []string) error {
+			rows = append(rows, row)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("ReadRows: %v", err)
+		}
+		if len(rows) != 1 || rows[0][1] != "c|d" {
+			t.Errorf("rows[0] = %v, want [bob c|d]", rows[0])
+		}
+	})
+	t.Run("NestedObjectInArrayRejected", func(t *testing.T) {
+		data := "{\"name\":\"a\",\"tags\":[{\"k\":\"v\"}]}\n"
+		r := NewReaderFromBytes([]byte(data))
+		defer r.Close()
+		_, err := r.ReadHeader()
+		if err == nil {
+			t.Fatal("expected error for non-scalar array element")
+		}
+	})
 }
 
 func TestNdjsonWriter_WriteRowNoHeader(t *testing.T) {

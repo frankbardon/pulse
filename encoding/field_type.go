@@ -23,6 +23,10 @@ const (
 	FieldTypeCategoricalU16                  // 10
 	FieldTypeCategoricalU32                  // 11
 	FieldTypeDecimal128                      // 12
+	FieldTypeSetU8                           // 13 (bitmask over shared dict, ≤8 members)
+	FieldTypeSetU16                          // 14 (≤16 members)
+	FieldTypeSetU32                          // 15 (≤32 members)
+	FieldTypeSetU64                          // 16 (≤64 members)
 
 	fieldTypeCount // sentinel
 )
@@ -32,13 +36,13 @@ const (
 // return 0 here; their on-wire stride is handled by Schema.RecordByteSize.
 func (ft FieldType) ByteSize() int {
 	switch ft {
-	case FieldTypeU8, FieldTypeCategoricalU8:
+	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
 		return 1
-	case FieldTypeU16, FieldTypeCategoricalU16:
+	case FieldTypeU16, FieldTypeCategoricalU16, FieldTypeSetU16:
 		return 2
-	case FieldTypeU32, FieldTypeF32, FieldTypeDate, FieldTypeCategoricalU32:
+	case FieldTypeU32, FieldTypeF32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeSetU32:
 		return 4
-	case FieldTypeU64, FieldTypeF64:
+	case FieldTypeU64, FieldTypeF64, FieldTypeSetU64:
 		return 8
 	case FieldTypeDecimal128:
 		return 16
@@ -78,9 +82,63 @@ func (ft FieldType) String() string {
 		return "categorical_u32"
 	case FieldTypeDecimal128:
 		return "decimal128"
+	case FieldTypeSetU8:
+		return "set_u8"
+	case FieldTypeSetU16:
+		return "set_u16"
+	case FieldTypeSetU32:
+		return "set_u32"
+	case FieldTypeSetU64:
+		return "set_u64"
 	default:
 		return fmt.Sprintf("unknown(%d)", ft)
 	}
+}
+
+// ParseFieldType inverts FieldType.String, returning the typed value
+// and ok=true when name matches a registered FieldType. Caller paths
+// (managed-imports sidecar parsing, MCP schema validation, ad-hoc
+// admin tooling) use this to round-trip an externally supplied type
+// name through the codec layer without relying on stringly typed
+// switches in every place.
+func ParseFieldType(name string) (FieldType, bool) {
+	switch name {
+	case "u4":
+		return FieldTypeU4, true
+	case "u8":
+		return FieldTypeU8, true
+	case "u16":
+		return FieldTypeU16, true
+	case "u32":
+		return FieldTypeU32, true
+	case "u64":
+		return FieldTypeU64, true
+	case "f32":
+		return FieldTypeF32, true
+	case "f64":
+		return FieldTypeF64, true
+	case "date":
+		return FieldTypeDate, true
+	case "packed_bool":
+		return FieldTypePackedBool, true
+	case "categorical_u8":
+		return FieldTypeCategoricalU8, true
+	case "categorical_u16":
+		return FieldTypeCategoricalU16, true
+	case "categorical_u32":
+		return FieldTypeCategoricalU32, true
+	case "decimal128":
+		return FieldTypeDecimal128, true
+	case "set_u8":
+		return FieldTypeSetU8, true
+	case "set_u16":
+		return FieldTypeSetU16, true
+	case "set_u32":
+		return FieldTypeSetU32, true
+	case "set_u64":
+		return FieldTypeSetU64, true
+	}
+	return 0, false
 }
 
 // IsCategorical reports whether the field type is one of the categorical types.
@@ -178,4 +236,53 @@ func (ft FieldType) MaxCategoricalEntries() uint32 {
 	default:
 		return 0
 	}
+}
+
+// IsSet reports whether the field type is a bitmask-over-dictionary set
+// (multi-select) type. Set fields share the categorical dictionary block
+// shape but the on-wire payload is a fixed-width unsigned integer whose
+// bit i corresponds to dictionary entry i.
+func (ft FieldType) IsSet() bool {
+	switch ft {
+	case FieldTypeSetU8, FieldTypeSetU16, FieldTypeSetU32, FieldTypeSetU64:
+		return true
+	}
+	return false
+}
+
+// MaxSetEntries returns the maximum dictionary size (= bitmask capacity)
+// for a set type. Returns 0 for non-set types.
+func (ft FieldType) MaxSetEntries() uint32 {
+	switch ft {
+	case FieldTypeSetU8:
+		return 8
+	case FieldTypeSetU16:
+		return 16
+	case FieldTypeSetU32:
+		return 32
+	case FieldTypeSetU64:
+		return 64
+	default:
+		return 0
+	}
+}
+
+// HasDictionary reports whether the field type carries an inline
+// dictionary block in the schema (categorical_* or set_*).
+func (ft FieldType) HasDictionary() bool {
+	return ft.IsCategorical() || ft.IsSet()
+}
+
+// MaxDictEntries returns the capacity of the inline dictionary block
+// for dictionary-bearing types. Categoricals return MaxCategoricalEntries;
+// sets return MaxSetEntries (= bitmask width). Non-dictionary types
+// return 0.
+func (ft FieldType) MaxDictEntries() uint32 {
+	switch {
+	case ft.IsSet():
+		return ft.MaxSetEntries()
+	case ft.IsCategorical():
+		return ft.MaxCategoricalEntries()
+	}
+	return 0
 }

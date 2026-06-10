@@ -198,7 +198,7 @@ func commands() []Command {
 // cohortFieldTypes() from the operator capability tables.
 func rawCohortFieldTypes() []CohortFieldType {
 	var out []CohortFieldType
-	for i := range 19 {
+	for i := range 17 {
 		ft := encoding.FieldType(i)
 		name := ft.String()
 		if len(name) > 7 && name[:7] == "unknown" {

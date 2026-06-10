@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 	pformat "github.com/frankbardon/pulse/io/format"
@@ -47,12 +48,13 @@ const (
 // MCP server invocation can only reach files under the directory it
 // was launched from.
 type Manager struct {
-	afs        afero.Fs
-	srcFs      afero.Fs
-	jailRoot   string
-	importsDir string
-	defaultTTL time.Duration
-	now        func() time.Time
+	afs                       afero.Fs
+	srcFs                     afero.Fs
+	jailRoot                  string
+	importsDir                string
+	defaultTTL                time.Duration
+	defaultSetInferenceMinPct int
+	now                       func() time.Time
 }
 
 // Options configure Manager construction. Zero values are valid: the
@@ -79,6 +81,13 @@ type Options struct {
 	// server invocation reaches only files under the directory it was
 	// launched from. Ignored when SourceFS is set explicitly.
 	SourceJailRoot string
+
+	// DefaultSetInferenceMinPct overrides the default set-inference
+	// threshold (% of non-null sampled cells containing the inferred
+	// delimiter). Zero falls back to the package default (30). Per
+	// import overrides via Spec.SetInferenceMinPct still take
+	// precedence.
+	DefaultSetInferenceMinPct int
 
 	// Now is the clock; injected for testing. Defaults to time.Now.
 	Now func() time.Time
@@ -157,13 +166,49 @@ func New(afs afero.Fs, opts Options) (*Manager, error) {
 	}
 
 	return &Manager{
-		afs:        afs,
-		srcFs:      srcFs,
-		jailRoot:   jail,
-		importsDir: dir,
-		defaultTTL: ttl,
-		now:        now,
+		afs:                       afs,
+		srcFs:                     srcFs,
+		jailRoot:                  jail,
+		importsDir:                dir,
+		defaultTTL:                ttl,
+		defaultSetInferenceMinPct: opts.DefaultSetInferenceMinPct,
+		now:                       now,
 	}, nil
+}
+
+// effectiveSetInferenceMinPct picks the strongest applicable threshold:
+// per-spec override beats Manager default beats package default (30).
+func (m *Manager) effectiveSetInferenceMinPct(spec int) int {
+	if spec > 0 {
+		return spec
+	}
+	if m.defaultSetInferenceMinPct > 0 {
+		return m.defaultSetInferenceMinPct
+	}
+	return 0
+}
+
+// parseColumnTypeOverrides converts the string→string sidecar form to
+// the typed map ImportJob consumes. Unknown FieldType names raise
+// SERVICE_VALIDATION so the caller can correct the override before the
+// import pass touches sample data.
+func parseColumnTypeOverrides(in map[string]string) (map[string]encoding.FieldType, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]encoding.FieldType, len(in))
+	for col, name := range in {
+		ft, ok := encoding.ParseFieldType(name)
+		if !ok {
+			return nil, perr.NewCodedErrorWithDetails(
+				perr.SERVICE_VALIDATION,
+				fmt.Sprintf("column_type_overrides[%q] is not a known FieldType: %s",
+					col, name),
+				map[string]any{"column": col, "type": name})
+		}
+		out[col] = ft
+	}
+	return out, nil
 }
 
 // JailRoot returns the cleaned absolute root the Manager confines
@@ -291,6 +336,12 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 
 	job := pio.NewImportJob(reader, target)
 	job.FS = m.afs
+	job.SetInferenceMinPct = m.effectiveSetInferenceMinPct(spec.SetInferenceMinPct)
+	if overrides, oerr := parseColumnTypeOverrides(spec.ColumnTypeOverrides); oerr != nil {
+		return nil, oerr
+	} else if len(overrides) > 0 {
+		job.ColumnTypeOverrides = overrides
+	}
 	report, err := job.Run(ctx)
 	if err != nil {
 		return nil, err
@@ -302,13 +353,14 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 	}
 	now := m.now()
 	sidecar := Sidecar{
-		Handle:       handle,
-		Format:       pformat.Pulse,
-		SourcePath:   spec.SourcePath,
-		SourceFormat: format,
-		ImportedAt:   now,
-		TTLSeconds:   ttlSeconds(ttl),
-		RowsImported: report.RowsImported,
+		Handle:              handle,
+		Format:              pformat.Pulse,
+		SourcePath:          spec.SourcePath,
+		SourceFormat:        format,
+		ImportedAt:          now,
+		TTLSeconds:          ttlSeconds(ttl),
+		RowsImported:        report.RowsImported,
+		ColumnTypeOverrides: spec.ColumnTypeOverrides,
 	}
 	if ttl > 0 {
 		sidecar.ExpiresAt = now.Add(ttl)

@@ -95,6 +95,24 @@ type ImportJob struct {
 	Schema     *encoding.Schema
 	SampleRows int // default 500, min 50
 	FS         afero.Fs
+	// SetInferenceMinPct configures the delimited-cell heuristic for
+	// inferring set_* field types during the inference pass. A column
+	// is classified as set_* when at least this percentage of non-
+	// null sampled cells contain the inferred delimiter, the
+	// post-split unique token count fits in set_u64 (≤64), and the
+	// average post-split cardinality is > 1. Zero is treated as 30%.
+	// Ignored when Schema is supplied.
+	SetInferenceMinPct int
+	// ColumnTypeOverrides bypasses inference for the named columns
+	// (keyed by column name). Used by the managed-import sidecar's
+	// force_type escape hatch. Ignored when Schema is supplied.
+	ColumnTypeOverrides map[string]encoding.FieldType
+	// SetDelimiters maps set-typed column name to the delimiter the
+	// importer should use when splitting cell strings into tokens
+	// for per-row mask packing. Populated by inference; absent
+	// entries (explicit-schema imports or non-set columns) fall back
+	// to DefaultSetDelimiter ("|").
+	SetDelimiters map[string]string
 }
 
 // NewImportJob creates an ImportJob with default settings.

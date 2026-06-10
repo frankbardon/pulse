@@ -93,6 +93,16 @@ func (s *Schema) Categorical(name string) (*Dictionary, bool) {
 	return f.Dictionary, true
 }
 
+// SetField returns the dictionary for a named set-typed field.
+// Returns nil, false if the field is not found or is not a set type.
+func (s *Schema) SetField(name string) (*Dictionary, bool) {
+	f := s.Field(name)
+	if f == nil || !f.Type.IsSet() || f.Dictionary == nil {
+		return nil, false
+	}
+	return f.Dictionary, true
+}
+
 // WriteSchema serializes a schema to w.
 // Format:
 //
@@ -167,12 +177,12 @@ func WriteSchema(w io.Writer, s *Schema) error {
 			}
 		}
 
-		// Dictionary block for categorical types.
-		if f.Type.IsCategorical() && f.Dictionary != nil {
+		// Dictionary block for types that carry one (categorical_* and set_*).
+		if f.Type.HasDictionary() && f.Dictionary != nil {
 			if _, err := f.Dictionary.WriteTo(w); err != nil {
 				return err
 			}
-		} else if f.Type.IsCategorical() {
+		} else if f.Type.HasDictionary() {
 			// Write empty dictionary.
 			if err := binary.Write(w, binary.LittleEndian, uint32(0)); err != nil {
 				return errors.WrapCodedError(err, errors.ENCODING_IO, "writing empty dictionary")
@@ -266,8 +276,8 @@ func ReadSchema(r io.Reader) (*Schema, error) {
 			}
 		}
 
-		// Dictionary for categorical types.
-		if f.Type.IsCategorical() {
+		// Dictionary for types that carry one (categorical_* and set_*).
+		if f.Type.HasDictionary() {
 			dict := NewDictionary()
 			if _, err := dict.ReadFrom(r); err != nil {
 				return nil, err

@@ -34,7 +34,7 @@ func TestConvertValue_AllTypes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := convertValue(tc.raw, tc.ft, nil)
+			_, err := convertValue(tc.raw, tc.ft, nil, "")
 			if tc.wantErr && err == nil {
 				t.Error("expected error, got nil")
 			}
@@ -48,7 +48,7 @@ func TestConvertValue_AllTypes(t *testing.T) {
 func TestConvertValue_Categorical(t *testing.T) {
 	dict := encoding.NewDictionary()
 
-	val, err := convertValue("apple", encoding.FieldTypeCategoricalU8, dict)
+	val, err := convertValue("apple", encoding.FieldTypeCategoricalU8, dict, "")
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestConvertValue_Categorical(t *testing.T) {
 		t.Errorf("got %d, want 0", val)
 	}
 
-	val2, err := convertValue("banana", encoding.FieldTypeCategoricalU8, dict)
+	val2, err := convertValue("banana", encoding.FieldTypeCategoricalU8, dict, "")
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestConvertValue_Categorical(t *testing.T) {
 	}
 
 	// Duplicate returns same ID.
-	val3, err := convertValue("apple", encoding.FieldTypeCategoricalU8, dict)
+	val3, err := convertValue("apple", encoding.FieldTypeCategoricalU8, dict, "")
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -75,14 +75,14 @@ func TestConvertValue_Categorical(t *testing.T) {
 }
 
 func TestConvertValue_CategoricalNilDict(t *testing.T) {
-	_, err := convertValue("val", encoding.FieldTypeCategoricalU8, nil)
+	_, err := convertValue("val", encoding.FieldTypeCategoricalU8, nil, "")
 	if err == nil {
 		t.Error("expected error for nil dictionary")
 	}
 }
 
 func TestConvertValue_F32_Bits(t *testing.T) {
-	val, err := convertValue("3.14", encoding.FieldTypeF32, nil)
+	val, err := convertValue("3.14", encoding.FieldTypeF32, nil, "")
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestConvertValue_F32_Bits(t *testing.T) {
 }
 
 func TestConvertValue_F64_Bits(t *testing.T) {
-	val, err := convertValue("3.14159265358979", encoding.FieldTypeF64, nil)
+	val, err := convertValue("3.14159265358979", encoding.FieldTypeF64, nil, "")
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestConvertValue_BoolValues(t *testing.T) {
 	boolFalse := []string{"false", "no", "0", "f", "n", "False", "NO", "F", "N"}
 
 	for _, v := range boolTrue {
-		val, err := convertValue(v, encoding.FieldTypePackedBool, nil)
+		val, err := convertValue(v, encoding.FieldTypePackedBool, nil, "")
 		if err != nil {
 			t.Errorf("parseBool(%q): %v", v, err)
 		}
@@ -118,7 +118,7 @@ func TestConvertValue_BoolValues(t *testing.T) {
 	}
 
 	for _, v := range boolFalse {
-		val, err := convertValue(v, encoding.FieldTypePackedBool, nil)
+		val, err := convertValue(v, encoding.FieldTypePackedBool, nil, "")
 		if err != nil {
 			t.Errorf("parseBool(%q): %v", v, err)
 		}
@@ -139,7 +139,7 @@ func TestConvertValue_DateFormats(t *testing.T) {
 	}
 
 	for _, d := range dates {
-		_, err := convertValue(d, encoding.FieldTypeDate, nil)
+		_, err := convertValue(d, encoding.FieldTypeDate, nil, "")
 		if err != nil {
 			t.Errorf("date %q: %v", d, err)
 		}
@@ -147,7 +147,7 @@ func TestConvertValue_DateFormats(t *testing.T) {
 }
 
 func TestConvertValue_UnsupportedType(t *testing.T) {
-	_, err := convertValue("x", encoding.FieldType(200), nil)
+	_, err := convertValue("x", encoding.FieldType(200), nil, "")
 	if err == nil {
 		t.Error("expected error for unsupported type")
 	}
@@ -208,7 +208,7 @@ func TestFormatFieldValue_Categorical(t *testing.T) {
 
 func TestFormatFieldValue_Date(t *testing.T) {
 	// Round-trip: convert a date string to raw, then format it back.
-	raw, err := convertValue("2024-01-15", encoding.FieldTypeDate, nil)
+	raw, err := convertValue("2024-01-15", encoding.FieldTypeDate, nil, "")
 	if err != nil {
 		t.Fatalf("convertValue: %v", err)
 	}

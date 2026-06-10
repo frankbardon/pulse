@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Exercise the set_* multi-select bitmask field type via every AGG_SET_* aggregator plus FILTER_SET_CONTAINS_ANY on a small credit-card-issuer survey cohort.",
+    "name": "set_card_issuers",
+    "operators": [
+      "AGG_SET_CARDINALITY_AVG",
+      "AGG_SET_CARDINALITY_SUM",
+      "AGG_SET_DISTINCT_VALUES",
+      "AGG_SET_FREQUENCY",
+      "AGG_SET_INTERSECTION",
+      "AGG_SET_UNION",
+      "FILTER_SET_CONTAINS_ANY"
+    ],
+    "tags": [
+      "cardinality-analysis",
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "card_issuers.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_SET_CONTAINS_ANY",
+      "field": "issuers",
+      "values": ["VISA", "MC"]
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_SET_UNION",
+      "field": "issuers",
+      "label": "issuer_union"
+    },
+    {
+      "type": "AGG_SET_INTERSECTION",
+      "field": "issuers",
+      "label": "issuer_intersection"
+    },
+    {
+      "type": "AGG_SET_FREQUENCY",
+      "field": "issuers",
+      "label": "issuer_counts"
+    },
+    {
+      "type": "AGG_SET_CARDINALITY_SUM",
+      "field": "issuers",
+      "label": "total_selections"
+    },
+    {
+      "type": "AGG_SET_CARDINALITY_AVG",
+      "field": "issuers",
+      "label": "avg_selections_per_respondent"
+    },
+    {
+      "type": "AGG_SET_DISTINCT_VALUES",
+      "field": "issuers",
+      "label": "distinct_combinations"
+    }
+  ]
+}

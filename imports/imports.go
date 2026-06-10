@@ -65,6 +65,17 @@ type Spec struct {
 	// InlineBytes carries the raw source bytes for in-memory imports.
 	// Format must be set explicitly when this is non-nil.
 	InlineBytes []byte
+
+	// SetInferenceMinPct configures the import-side delimited-cell
+	// heuristic for set_* inference. Zero accepts the default (30).
+	// Persisted onto the sidecar so repeated opens use the same value.
+	SetInferenceMinPct int
+
+	// ColumnTypeOverrides force-types specific columns (matching
+	// header names), bypassing inference for those columns. Values
+	// are canonical FieldType strings (e.g. "set_u8",
+	// "categorical_u16"). Persisted onto the sidecar.
+	ColumnTypeOverrides map[string]string
 }
 
 // Result describes the outcome of a managed-import call. Managed=false
@@ -95,6 +106,14 @@ type Sidecar struct {
 	ExpiresAt    time.Time `json:"expires_at,omitzero"`
 	TTLSeconds   int64     `json:"ttl_seconds"`
 	RowsImported int       `json:"rows_imported"`
+	// ColumnTypeOverrides is the force-type escape hatch for
+	// inference. Maps column name (matching the source header) to a
+	// canonical Pulse FieldType.String() value — e.g. "set_u8",
+	// "categorical_u16", "f64". When non-empty, the importer skips
+	// inference for the named columns and uses the override for the
+	// column type (dictionary is still built from observed values
+	// during the row pass). Empty / nil means no overrides.
+	ColumnTypeOverrides map[string]string `json:"column_type_overrides,omitempty"`
 }
 
 // Entry is one row of Manager.List output — the snapshot returned to

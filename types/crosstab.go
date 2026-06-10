@@ -207,9 +207,43 @@ type AxisHeader struct {
 // row × column tuple), which downstream consumers must render as null /
 // empty rather than zero (the AGG_AVERAGE of an empty set is undefined,
 // not zero).
+//
+// Value is a scalar/rich union. Scalar aggregators populate a float64
+// (existing JSON shape preserved byte-for-byte through encoding/json).
+// RichAggregator implementations populate the structured payload
+// directly: AGG_SET_FREQUENCY emits map[string]int (per-label row
+// counts), AGG_SET_UNION / AGG_SET_INTERSECTION emit []string (sorted
+// dictionary labels). Normalize modes (row/column/total) are only
+// defined for scalar cells; the Crosstab validator rejects them paired
+// with map-valued aggregators (see types.AggregationType.MapValued).
 type MatrixCell struct {
-	Value   float64 `json:"value,omitempty"`
-	Present bool    `json:"present"`
+	Value   any  `json:"value,omitempty"`
+	Present bool `json:"present"`
+}
+
+// Scalar returns the cell's scalar form for callers that expect a
+// numeric value. Returns 0 when the cell is absent OR when Value is
+// non-scalar (rich payload). Use Value directly with a type switch to
+// distinguish scalar / map / slice payloads.
+func (c MatrixCell) Scalar() float64 {
+	if !c.Present {
+		return 0
+	}
+	switch v := c.Value.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case uint32:
+		return float64(v)
+	case uint64:
+		return float64(v)
+	}
+	return 0
 }
 
 // MatrixPayload is the structured matrix-shape response carried on

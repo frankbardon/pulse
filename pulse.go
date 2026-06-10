@@ -249,6 +249,19 @@ type Options struct {
 	// rejected at New time. Empty (the default) disables auto-binding
 	// entirely; existing behaviour is unchanged.
 	AutoLabels []LabelBinding
+
+	// SetInferenceMinPct configures the delimited-cell heuristic used
+	// when an importer must classify a column as set_* vs categorical.
+	// Threshold is the minimum percentage of non-null sampled cells
+	// that must contain the inferred delimiter for the column to be
+	// classified as set_*; combined with two other gates (post-split
+	// unique token count ≤ 64 + average post-split cardinality > 1)
+	// the threshold trades off false-positive misclassifications
+	// against missed multi-select columns. Zero falls back to the
+	// package default of 30. Values > 100 clamp to 100. Per-import
+	// overrides via the managed-import Spec still take precedence over
+	// this default.
+	SetInferenceMinPct int
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -317,10 +330,11 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetEchoRequest(opts.EchoRequest)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
-		ImportsDir:     opts.ImportsDir,
-		DefaultTTL:     opts.ImportTTL,
-		SourceFS:       opts.ImportSourceFS,
-		SourceJailRoot: opts.ImportSourceJailRoot,
+		ImportsDir:                opts.ImportsDir,
+		DefaultTTL:                opts.ImportTTL,
+		SourceFS:                  opts.ImportSourceFS,
+		SourceJailRoot:            opts.ImportSourceJailRoot,
+		DefaultSetInferenceMinPct: opts.SetInferenceMinPct,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("pulse: configuring imports manager: %w", err)

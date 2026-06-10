@@ -120,6 +120,23 @@ type StreamingGrouper interface {
 	KeyForRow(record *Record, field string) (key string, ok bool, err error)
 }
 
+// MultiKeyStreamingGrouper is the optional sibling of StreamingGrouper
+// for groupers that fan a single record into multiple per-key buckets
+// — GROUP_SET_PER_ELEMENT is the canonical implementer: a row whose
+// set field selected N labels contributes to N buckets, one per label.
+//
+// The streaming orchestrator prefers this interface when present and
+// drives UpdateRow once per resulting key; groupers that implement
+// only StreamingGrouper continue to follow the single-key path.
+//
+// Implementations MUST be safe to call repeatedly; ok=false signals
+// the row should be skipped (e.g. null or empty set); ok=true means
+// at least one key was returned. An empty key slice with ok=true is
+// not a valid response — return ok=false instead.
+type MultiKeyStreamingGrouper interface {
+	KeysForRow(record *Record, field string) (keys []string, ok bool, err error)
+}
+
 // GrouperFactory creates a Grouper from a type specification.
 type GrouperFactory func(grp *types.Group, schema *encoding.Schema) (Grouper, error)
 
@@ -155,4 +172,24 @@ type GrouperFactory func(grp *types.Group, schema *encoding.Schema) (Grouper, er
 type MergeableAggregator interface {
 	OnlineAggregator
 	MergeOnline(other OnlineAggregator) error
+}
+
+// RichAggregator is the optional sibling of Aggregator for aggregators
+// whose natural output is not a scalar float64 — set-typed aggregators
+// emit []string (resolved labels) or map[string]int (per-label counts).
+//
+// Callers invoke Aggregate or Finalize first (legacy float64 contract;
+// implementations return a sensible scalar fallback such as popcount or
+// distinct-mask-count), then check whether the aggregator also satisfies
+// RichAggregator. When it does, Rich returns the typed value and the
+// orchestrator routes it into Response.Data rows or Crosstab cells
+// instead of the float64.
+//
+// Implementations MUST be safe to call Rich exactly once after
+// Aggregate/Finalize. Returning (nil, nil) signals "use the float64
+// path" — useful when an aggregator implements the interface for type
+// reasons but produced no rich value for a given input.
+type RichAggregator interface {
+	Aggregator
+	Rich() (any, error)
 }

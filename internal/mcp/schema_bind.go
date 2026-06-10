@@ -42,6 +42,7 @@ type fieldClassification struct {
 	Categorical   []string // categorical_u8/u16/u32
 	Date          []string // date
 	Bool          []string // packed_bool
+	Set           []string // set_u8/u16/u32/u64 multi-select bitmasks
 	NumericOrDate []string // window OrderBy targets
 }
 
@@ -65,6 +66,8 @@ func classifyFields(schema *encoding.Schema) fieldClassification {
 			}
 		case f.Type.IsCategorical():
 			c.Categorical = append(c.Categorical, f.Name)
+		case f.Type.IsSet():
+			c.Set = append(c.Set, f.Name)
 		case f.Type == encoding.FieldTypeDate:
 			c.Date = append(c.Date, f.Name)
 			c.NumericOrDate = append(c.NumericOrDate, f.Name)
@@ -501,7 +504,8 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"items":       groupItem,
 			},
 			"cell": map[string]any{
-				"type": "object",
+				"type":        "object",
+				"description": "Cell aggregation. Most aggregators emit scalar cells (number in matrix payload). Map-valued aggregators (advertised under Manifest.Crosstab.MapValuedCellAggregators — AGG_SET_FREQUENCY today) emit per-label row-count maps (object); pairing them with normalize=row/column/total raises PULSE_CROSSTAB_NORMALIZE_MAP_VALUED.",
 				"properties": map[string]any{
 					"type":   map[string]any{"type": "string", "enum": aggTypes},
 					"field":  enumStringField(c.AllFields, "Field the cell aggregation reads. AGG_COUNT may name any field."),

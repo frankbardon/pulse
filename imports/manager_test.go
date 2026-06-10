@@ -2,6 +2,7 @@ package imports
 
 import (
 	"context"
+	stdjson "encoding/json"
 	"os"
 	"path"
 	"path/filepath"
@@ -564,5 +565,71 @@ func TestManager_Jail_DisabledWhenSourceFSExplicit(t *testing.T) {
 	_, err = m.Open(context.Background(), Spec{SourcePath: "/anywhere/data.csv"})
 	if err != nil {
 		t.Errorf("Open: %v — jail should be inactive when SourceFS is explicit", err)
+	}
+}
+
+// writeSetCSV writes a CSV whose "issuers" column carries
+// pipe-delimited tokens but only in a minority of rows; without the
+// override the importer would land it as categorical. With the
+// override pinning set_u8 the inference is bypassed entirely.
+func writeSetCSV(t *testing.T, afs afero.Fs, p string) {
+	t.Helper()
+	body := "id,issuers\n1,VISA|MC\n2,VISA\n3,AMEX\n"
+	if err := afero.WriteFile(afs, p, []byte(body), 0o644); err != nil {
+		t.Fatalf("write %s: %v", p, err)
+	}
+}
+
+// TestManager_Open_CSV_ColumnTypeOverridesPersist confirms (a) the
+// force_type sidecar override is honored at import time and (b) the
+// resulting Sidecar JSON round-trips the override map so a later
+// session can re-open with the same intent.
+func TestManager_Open_CSV_ColumnTypeOverridesPersist(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	writeSetCSV(t, afs, "issuers.csv")
+	res, err := m.Open(context.Background(), Spec{
+		SourcePath: "issuers.csv",
+		ColumnTypeOverrides: map[string]string{
+			"issuers": "set_u8",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if !res.Managed {
+		t.Fatal("expected Managed=true")
+	}
+	// Read sidecar back from disk and verify ColumnTypeOverrides
+	// round-tripped.
+	sidecarPath := res.Path + SidecarSuffix
+	raw, err := afero.ReadFile(afs, sidecarPath)
+	if err != nil {
+		t.Fatalf("read sidecar: %v", err)
+	}
+	var got Sidecar
+	if err := stdjson.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("unmarshal sidecar: %v", err)
+	}
+	if got.ColumnTypeOverrides == nil || got.ColumnTypeOverrides["issuers"] != "set_u8" {
+		t.Errorf("sidecar.ColumnTypeOverrides = %v, want issuers->set_u8",
+			got.ColumnTypeOverrides)
+	}
+}
+
+// TestManager_Open_CSV_ColumnTypeOverridesUnknownRejected covers the
+// validation that runs when the sidecar carries an unknown FieldType
+// string — parseColumnTypeOverrides should fail fast with
+// SERVICE_VALIDATION rather than passing through to ImportJob.
+func TestManager_Open_CSV_ColumnTypeOverridesUnknownRejected(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	writeSetCSV(t, afs, "issuers.csv")
+	_, err := m.Open(context.Background(), Spec{
+		SourcePath: "issuers.csv",
+		ColumnTypeOverrides: map[string]string{
+			"issuers": "not_a_real_type",
+		},
+	})
+	if err == nil {
+		t.Fatal("expected SERVICE_VALIDATION for unknown override type")
 	}
 }

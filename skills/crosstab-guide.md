@@ -41,6 +41,42 @@ Multiple groupers per axis produce nested headers. `rows: [{field: region}, {fie
 
 `cell` is a single `Aggregation`. Reuses every registered `AGG_*` operator: a `cell` of `AGG_AVERAGE` of `revenue` by `region × segment` produces a per-cell mean with no extra cell code.
 
+### Map-valued cells
+
+Most aggregators emit scalar cells — `MatrixCell.Value` carries a `float64` and serializes as a JSON number. **Map-valued aggregators** (advertised on `manifest.crosstab.map_valued_cell_aggregators`) emit per-key rich payloads instead. The widening lives entirely in `MatrixCell.Value`, which is typed `any`; scalar cells still marshal byte-for-byte as they did before.
+
+| Aggregator | `MatrixCell.Value` payload | Notes |
+|---|---|---|
+| Every scalar aggregator (`AGG_COUNT`, `AGG_SUM`, `AGG_AVERAGE`, …) | `float64` | Unchanged. JSON shape identical to pre-widening. |
+| `AGG_SET_FREQUENCY` | `map[string]int` | One key per dictionary label that appeared at least once in the cell's bucket; zero-count labels are omitted. JSON shape: `{"VISA": 3, "MC": 1}`. |
+| `AGG_SET_UNION`, `AGG_SET_INTERSECTION` | scalar (popcount) by default; `[]string` of labels surfaced through the `RichAggregator` interface when reading at the dispatch layer | Cells still serialize as a number for backward compat; the rich `[]string` form is used by `Response.Data` rows from `Process` for ungrouped/grouped paths. |
+
+Margins for map-valued cells are recomputed against the row/column/grand buckets and emit maps as well. The row margin for `AGG_SET_FREQUENCY` over the "north" row is the per-label histogram of every "north" record, NOT the sum of the per-cell maps in that row (they happen to agree for counts but the API contract is "margins recompute over raw rows" — see the next section).
+
+#### `normalize` is incompatible with map-valued cells
+
+Dividing one map by another is undefined. Pairing `normalize=row/column/total` with a map-valued cell aggregator raises `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED` (both at predict time and at runtime). To get normalized output from set columns, switch the cell aggregator to a scalar form:
+
+- `AGG_SET_CARDINALITY_SUM` — total bits set across cells; summable, normalizes cleanly.
+- `AGG_SET_CARDINALITY_AVG` — mean popcount per row in the cell.
+
+#### Reading map cells
+
+Callers consuming `Response.Crosstab.Matrix.Cells[i][j].Value` must type-switch:
+
+```go
+switch v := cell.Value.(type) {
+case float64:
+    // scalar aggregator path
+case map[string]int:
+    // AGG_SET_FREQUENCY path — one entry per non-zero dictionary label
+case []string:
+    // (reserved) rich-set fall-through; not emitted in Crosstab cells today
+}
+```
+
+`MatrixCell.Scalar()` is a convenience accessor that returns the `float64` form when present and zero otherwise — useful for downstream code that only needs scalar cells and can ignore rich payloads.
+
 ## Margins are re-aggregations, NOT sums of cells
 
 This is the most important correctness invariant.

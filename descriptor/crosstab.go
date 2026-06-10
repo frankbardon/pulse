@@ -138,6 +138,15 @@ func validateCrosstab(env *Envelope, req *types.Request, schema *encoding.Schema
 				"normalize="+string(mode)+" on a recompute-margin aggregator ("+string(spec.Cell.Type)+") requires recomputing the margin over raw rows; v1 does this automatically but cost is non-trivial",
 				map[string]any{"aggregation": string(spec.Cell.Type), "normalize": string(mode)})
 		}
+		// Reject normalize × map-valued aggregator. Map cells
+		// (AGG_SET_FREQUENCY today) cannot be divided by a margin —
+		// the operation is undefined.
+		if mode != types.CrosstabNormalizeNone && spec.Cell.Type.MapValued() {
+			env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED),
+				"crosstab normalize="+string(mode)+" is incompatible with map-valued cell aggregator "+string(spec.Cell.Type)+
+					" — drop normalize or pick a scalar aggregator",
+				map[string]any{"aggregation": string(spec.Cell.Type), "normalize": string(mode)})
+		}
 	}
 }
 

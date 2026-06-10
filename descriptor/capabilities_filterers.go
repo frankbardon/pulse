@@ -62,5 +62,37 @@ func filtererCapabilities() []Operator {
 			EmitsTypeNote: "record-level predicate",
 			Streamable:    true,
 		},
+		{
+			Name:          string(types.FILTER_SET_CONTAINS_ANY),
+			Category:      "filterer",
+			Description:   "Keep records where the set field shares at least one bit with the supplied Values labels.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "record-level predicate",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.FILTER_SET_CONTAINS_ALL),
+			Category:      "filterer",
+			Description:   "Keep records where the set field has every bit in the supplied Values labels set.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "record-level predicate",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.FILTER_SET_CONTAINS_NONE),
+			Category:      "filterer",
+			Description:   "Keep records where the set field shares no bits with the supplied Values labels (null rows pass).",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "record-level predicate",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.FILTER_SET_EQUALS),
+			Category:      "filterer",
+			Description:   "Keep records whose set field mask exactly matches the supplied Values labels.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsTypeNote: "record-level predicate",
+			Streamable:    true,
+		},
 	}
 }

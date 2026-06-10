@@ -207,3 +207,14 @@ The current processor honors a single grouper per request: only `req.Groups[0]` 
 Each output row contains the aggregation values plus one extra key whose name is the grouper's `field` and whose value is the group key string (e.g., `"department": "Engineering"`). Reserve aggregation `label`s that do not collide with the group field name.
 </reference>
 
+<section title="Set-typed groupers (multi-select bitmasks)">
+
+For columns typed `set_u8`, `set_u16`, `set_u32`, `set_u64`, two groupers partition rows by the bitmask payload:
+
+- `GROUP_SET_VALUE` — atomic mask = bucket. Bucket key is the sorted label list joined with `|`, e.g. `"AMEX|VISA"`. One row → one bucket. Single-key streaming via `StreamingGrouper.KeyForRow`.
+- `GROUP_SET_PER_ELEMENT` — per-bit fan-out. One row → N buckets, one per selected label. Smart-default grouper for `set_*` fields ("respondents per option" is the typical survey question). Implements `MultiKeyStreamingGrouper.KeysForRow` so the streaming orchestrator drives `UpdateRow` per bucket without buffering.
+
+Empty-mask rows contribute to zero buckets in PER_ELEMENT (no labels selected = nothing to fan into); VALUE buckets them under the empty key. Both groupers reject non-set fields at construction with PROCESSING_CONFIG.
+
+</section>
+

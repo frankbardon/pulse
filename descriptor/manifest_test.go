@@ -108,9 +108,9 @@ func TestManifestIncludesCohortTypes(t *testing.T) {
 		t.Fatal("CohortTypes is empty")
 	}
 
-	// Must have 13 field types.
-	if len(m.CohortTypes) != 13 {
-		t.Errorf("CohortTypes count = %d, want 13", len(m.CohortTypes))
+	// Must have 17 field types — the original 13 plus set_u8/u16/u32/u64.
+	if len(m.CohortTypes) != 17 {
+		t.Errorf("CohortTypes count = %d, want 17", len(m.CohortTypes))
 	}
 
 	// Check that categorical fields are marked.

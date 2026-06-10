@@ -371,11 +371,19 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 		// ATTR_REG_* need Target + Predictors. Provide minimum viable
 		// params so factory succeeds.
 		spec := &types.Attribute{Type: attrType, Field: "x"}
+		setDict := encoding.NewDictionary()
+		if _, err := setDict.Add("VISA"); err != nil {
+			t.Fatalf("dict add: %v", err)
+		}
+		if _, err := setDict.Add("AMEX"); err != nil {
+			t.Fatalf("dict add: %v", err)
+		}
 		schema := &encoding.Schema{
 			Fields: []encoding.Field{
 				{Name: "x", Type: encoding.FieldTypeDate},
 				{Name: "y", Type: encoding.FieldTypeF64},
 				{Name: "p1", Type: encoding.FieldTypeF64},
+				{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: setDict},
 			},
 		}
 		switch attrType {
@@ -386,6 +394,11 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 			spec.Target = "y"
 			spec.Predictors = []string{"p1"}
+		case types.ATTR_SET_POPCOUNT:
+			spec.Field = "tags"
+		case types.ATTR_SET_HAS:
+			spec.Field = "tags"
+			spec.Params = []byte(`{"label":"VISA"}`)
 		}
 		instance, err := factory(spec, schema)
 		if err != nil {

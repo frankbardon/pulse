@@ -129,13 +129,42 @@ func TestReader_NestedObject(t *testing.T) {
 	}
 }
 
+// TestReader_ArrayValue covers two cases since the set-import-inference
+// landing: (1) scalar arrays are accepted and round-trip through
+// jsonshared.ValueToString as a pipe-joined string so the set
+// inference heuristic can detect them; (2) nested objects / arrays
+// still raise a typed parse error.
 func TestReader_ArrayValue(t *testing.T) {
-	r := NewReaderFromBytes([]byte(`[{"name":"a","tags":["x","y"]}]`))
-	defer r.Close()
-	_, err := r.ReadHeader()
-	if err == nil {
-		t.Fatal("expected error for array-valued field")
-	}
+	t.Run("ScalarArrayAccepted", func(t *testing.T) {
+		r := NewReaderFromBytes([]byte(`[{"name":"a","tags":["x","y"]}]`))
+		defer r.Close()
+		header, err := r.ReadHeader()
+		if err != nil {
+			t.Fatalf("ReadHeader: %v", err)
+		}
+		if len(header) != 2 || header[1] != "tags" {
+			t.Fatalf("header = %v, want [name tags]", header)
+		}
+		var rows [][]string
+		err = r.ReadRows(context.Background(), func(row []string) error {
+			rows = append(rows, row)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("ReadRows: %v", err)
+		}
+		if len(rows) != 1 || rows[0][1] != "x|y" {
+			t.Errorf("rows[0] = %v, want [a x|y]", rows[0])
+		}
+	})
+	t.Run("NestedObjectInArrayRejected", func(t *testing.T) {
+		r := NewReaderFromBytes([]byte(`[{"name":"a","tags":[{"k":"v"}]}]`))
+		defer r.Close()
+		_, err := r.ReadHeader()
+		if err == nil {
+			t.Fatal("expected error for non-scalar array element")
+		}
+	})
 }
 
 func TestReader_MixedKeys(t *testing.T) {

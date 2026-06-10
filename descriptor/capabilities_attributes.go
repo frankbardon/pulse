@@ -99,5 +99,31 @@ func attributeCapabilities() []Operator {
 			Streamable:     true,
 			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
 		},
+		{
+			Name:          string(types.ATTR_SET_POPCOUNT),
+			Category:      "attribute",
+			Description:   "Per-row popcount of a set field — the number of selected labels.",
+			AcceptsTypes:  setFieldTypes,
+			EmitsType:     "u8",
+			EmitsTypeNote: "one small integer per record (0..set width)",
+			Streamable:    true,
+		},
+		{
+			Name:        string(types.ATTR_SET_HAS),
+			Category:    "attribute",
+			Description: "Per-row boolean: whether the configured label's bit is set on the set field.",
+			Params: []Param{
+				{
+					Name:        "label",
+					Type:        "string",
+					Required:    true,
+					Description: "Dictionary label whose bit position is checked per row.",
+				},
+			},
+			AcceptsTypes:  setFieldTypes,
+			EmitsType:     "packed_bool",
+			EmitsTypeNote: "one 0/1 per record",
+			Streamable:    true,
+		},
 	}
 }

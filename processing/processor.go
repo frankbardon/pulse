@@ -520,7 +520,10 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		if label == "" {
 			label = fmt.Sprintf("%s_%s", e.agg.Type, e.agg.Field)
 		}
-		row[label] = val
+		row[label], err = dispatchAggregatorResult(e.online, val)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var data []map[string]any
@@ -588,10 +591,11 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	if err != nil {
 		return nil, err
 	}
-	streamGrp, ok := grouperInstance.(StreamingGrouper)
-	if !ok {
+	streamGrp, _ := grouperInstance.(StreamingGrouper)
+	multiGrp, _ := grouperInstance.(MultiKeyStreamingGrouper)
+	if streamGrp == nil && multiGrp == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-			fmt.Sprintf("grouper %s does not implement StreamingGrouper", grp.Type))
+			fmt.Sprintf("grouper %s does not implement StreamingGrouper or MultiKeyStreamingGrouper", grp.Type))
 	}
 
 	// Pre-compute aggregator labels so per-key bucket construction is cheap.
@@ -694,35 +698,50 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			r.Set(ra.label, val)
 		}
 
-		key, ok, err := streamGrp.KeyForRow(r, grp.Field)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue // null group key — buffered path skips these too
+		var rowKeys []string
+		if multiGrp != nil {
+			keys, ok, err := multiGrp.KeysForRow(r, grp.Field)
+			if err != nil {
+				return nil, err
+			}
+			if !ok || len(keys) == 0 {
+				continue
+			}
+			rowKeys = keys
+		} else {
+			key, ok, err := streamGrp.KeyForRow(r, grp.Field)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				continue // null group key — buffered path skips these too
+			}
+			rowKeys = []string{key}
 		}
 
-		b, exists := buckets[key]
-		if !exists {
-			online := make([]OnlineAggregator, len(specs))
-			for i, s := range specs {
-				inst, err := s.factory(s.agg, p.schema)
-				if err != nil {
+		for _, key := range rowKeys {
+			b, exists := buckets[key]
+			if !exists {
+				online := make([]OnlineAggregator, len(specs))
+				for i, s := range specs {
+					inst, err := s.factory(s.agg, p.schema)
+					if err != nil {
+						return nil, err
+					}
+					oa, ok := inst.(OnlineAggregator)
+					if !ok {
+						return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+							fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
+					}
+					online[i] = oa
+				}
+				b = &bucket{online: online}
+				buckets[key] = b
+			}
+			for i, oa := range b.online {
+				if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
 					return nil, err
 				}
-				oa, ok := inst.(OnlineAggregator)
-				if !ok {
-					return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-						fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
-				}
-				online[i] = oa
-			}
-			b = &bucket{online: online}
-			buckets[key] = b
-		}
-		for i, oa := range b.online {
-			if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
-				return nil, err
 			}
 		}
 	}
@@ -746,7 +765,10 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			if err != nil {
 				return nil, err
 			}
-			row[specs[i].label] = val
+			row[specs[i].label], err = dispatchAggregatorResult(oa, val)
+			if err != nil {
+				return nil, err
+			}
 		}
 		row[grp.Field] = key
 		data = append(data, row)
@@ -951,7 +973,10 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		if label == "" {
 			label = fmt.Sprintf("%s_%s", e.agg.Type, e.agg.Field)
 		}
-		row[label] = val
+		row[label], err = dispatchAggregatorResult(e.online, val)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var data []map[string]any
@@ -1374,7 +1399,35 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 		if err != nil {
 			return nil, err
 		}
-		row[label] = val
+		row[label], err = dispatchAggregatorResult(aggregator, val)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return row, nil
+}
+
+// dispatchAggregatorResult routes the aggregator's output into the
+// response row. Aggregators that implement RichAggregator emit their
+// structured payload (map[string]int for AGG_SET_FREQUENCY, []string
+// for AGG_SET_UNION / AGG_SET_INTERSECTION); the float64 contract
+// remains the scalar fallback for callers that only consume scalars.
+// A RichAggregator returning nil (Rich payload not applicable for this
+// invocation, e.g. empty input) falls back to the scalar value.
+//
+// Accepts `any` so the same dispatch wraps both Aggregator (buffered
+// path) and OnlineAggregator (streaming path) instances — the
+// underlying concrete type satisfies both interfaces when it implements
+// RichAggregator.
+func dispatchAggregatorResult(agg any, scalar float64) (any, error) {
+	if rich, ok := agg.(RichAggregator); ok {
+		v, err := rich.Rich()
+		if err != nil {
+			return nil, err
+		}
+		if v != nil {
+			return v, nil
+		}
+	}
+	return scalar, nil
 }

@@ -29,10 +29,24 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		if !ok {
 			return nil, fmt.Errorf("schema inference requires a ResetReader source")
 		}
-		var err error
-		schema, inferWarnings, err = InferSchema(j.Source, j.SampleRows)
+		res, err := InferSchemaWithOptions(j.Source, InferOptions{
+			SampleRows:          j.SampleRows,
+			SetInferenceMinPct:  j.SetInferenceMinPct,
+			ColumnTypeOverrides: j.ColumnTypeOverrides,
+		})
 		if err != nil {
 			return nil, err
+		}
+		schema = res.Schema
+		inferWarnings = res.Warnings
+		if j.SetDelimiters == nil {
+			j.SetDelimiters = res.Delimiters
+		} else {
+			for k, v := range res.Delimiters {
+				if _, present := j.SetDelimiters[k]; !present {
+					j.SetDelimiters[k] = v
+				}
+			}
 		}
 		if err := rr.Reset(); err != nil {
 			return nil, fmt.Errorf("resetting reader after inference: %w", err)
@@ -44,10 +58,12 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	}
 	_ = inferWarnings
 
-	// Build dictionaries for categorical fields.
+	// Build dictionaries for categorical and set fields. Both share
+	// the inline-dictionary block on the .pulse codec; set fields use
+	// the dictionary bit-positions as on-wire mask bits.
 	dicts := make(map[int]*encoding.Dictionary)
 	for i := range schema.Fields {
-		if schema.Fields[i].Type.IsCategorical() {
+		if schema.Fields[i].Type.HasDictionary() {
 			if schema.Fields[i].Dictionary == nil {
 				schema.Fields[i].Dictionary = encoding.NewDictionary()
 			}
@@ -145,7 +161,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 				continue
 			}
 
-			v, err := convertValue(raw, f.Type, dicts[i])
+			v, err := convertValue(raw, f.Type, dicts[i], j.setDelimiterFor(f.Name))
 			if err != nil {
 				rowErrors = append(rowErrors, RowError{
 					Row: rowNum,
@@ -326,10 +342,27 @@ func convertValueWide(raw string, f encoding.Field, _ *encoding.Dictionary) ([16
 	}
 }
 
+// setDelimiterFor returns the configured delimiter for a set-typed
+// column, falling back to DefaultSetDelimiter when no entry exists
+// (explicit-schema imports or columns whose inference did not produce
+// a delimiter hint). Returns "|" for the empty / missing case so
+// convertValue always has a deterministic split character.
+func (j *ImportJob) setDelimiterFor(name string) string {
+	if j == nil || j.SetDelimiters == nil {
+		return DefaultSetDelimiter
+	}
+	if d, ok := j.SetDelimiters[name]; ok && d != "" {
+		return d
+	}
+	return DefaultSetDelimiter
+}
+
 // convertValue converts a non-null string value to the uint64
 // representation for the given type. Null cells are handled by the caller
-// before this is called; convertValue can assume raw is non-null.
-func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary) (uint64, error) {
+// before this is called; convertValue can assume raw is non-null. The
+// setDelim argument is consumed only by set_* field types; other types
+// ignore it. Pass DefaultSetDelimiter when set_* paths are not exercised.
+func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary, setDelim string) (uint64, error) {
 	switch ft {
 	case encoding.FieldTypeU4:
 		v, err := strconv.ParseUint(raw, 10, 8)
@@ -395,6 +428,29 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary) 
 			return 0, err
 		}
 		return uint64(id), nil
+
+	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
+		if dict == nil {
+			return 0, fmt.Errorf("no dictionary for set field")
+		}
+		delim := setDelim
+		if delim == "" {
+			delim = DefaultSetDelimiter
+		}
+		tokens := splitSetTokens(raw, delim)
+		var mask uint64
+		maxEntries := ft.MaxSetEntries()
+		for _, tok := range tokens {
+			id, err := dict.AddWithLimit(tok, maxEntries)
+			if err != nil {
+				return 0, errors.NewCodedErrorWithDetails(
+					errors.PULSE_IMPORT_SET_OVERFLOW,
+					fmt.Sprintf("set dictionary overflowed %s (max %d entries)", ft, maxEntries),
+					map[string]any{"type": string(ft), "max_entries": maxEntries, "token": tok})
+			}
+			mask |= uint64(1) << id
+		}
+		return mask, nil
 
 	default:
 		return 0, fmt.Errorf("unsupported field type: %s", ft)

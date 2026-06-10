@@ -57,6 +57,43 @@ const (
 	// follow-up — returns PROCESSING_CONFIG today.
 	AGG_CI_LOWER AggregationType = "AGG_CI_LOWER"
 	AGG_CI_UPPER AggregationType = "AGG_CI_UPPER"
+
+	// Set-typed aggregators. Each consumes a single set_* field whose
+	// per-row payload is a fixed-width bitmask over a shared dictionary;
+	// bit i ↔ dictionary entry i.
+
+	// AGG_SET_UNION reduces by bitwise OR across rows. The result is a
+	// uint64 mask representing the union of every selection observed.
+	// Mergeable + streamable; margin-summable for crosstab.
+	AGG_SET_UNION AggregationType = "AGG_SET_UNION"
+
+	// AGG_SET_INTERSECTION reduces by bitwise AND across rows. The
+	// result mask carries a bit only when every contributing row had
+	// that bit set. Mergeable + streamable, but NOT margin-reducible
+	// (AND across cells ≠ AND across all rows in general) — crosstab
+	// margins recompute from raw rows.
+	AGG_SET_INTERSECTION AggregationType = "AGG_SET_INTERSECTION"
+
+	// AGG_SET_FREQUENCY emits a per-element histogram. The result is
+	// map[label]int — one entry per dictionary value, counting the rows
+	// whose mask had that bit set. Mergeable (bin-by-bin sum) + summable
+	// margin. This is the survey-friendly default ("respondents per
+	// issuer"). Used as a Crosstab Cell aggregator the result is a
+	// map-valued cell payload.
+	AGG_SET_FREQUENCY AggregationType = "AGG_SET_FREQUENCY"
+
+	// AGG_SET_CARDINALITY_SUM sums popcount(mask) across rows. Mergeable
+	// + streamable + summable margin.
+	AGG_SET_CARDINALITY_SUM AggregationType = "AGG_SET_CARDINALITY_SUM"
+
+	// AGG_SET_CARDINALITY_AVG returns mean popcount(mask) per row.
+	// Mergeable + streamable; margin = mean-reducible (needs per-cell n).
+	AGG_SET_CARDINALITY_AVG AggregationType = "AGG_SET_CARDINALITY_AVG"
+
+	// AGG_SET_DISTINCT_VALUES counts the distinct exact masks observed
+	// (treats each combination as atomic). Mergeable via the union of
+	// seen-mask sets.
+	AGG_SET_DISTINCT_VALUES AggregationType = "AGG_SET_DISTINCT_VALUES"
 )
 
 // AllAggregationTypes returns all defined aggregation types.
@@ -69,6 +106,9 @@ func AllAggregationTypes() []AggregationType {
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
+		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
+		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
+		AGG_SET_DISTINCT_VALUES,
 	}
 }
 
@@ -103,6 +143,27 @@ const (
 	// `Boolean(value)` are kept (0, NaN, empty string, null → kept).
 	// Row-local; streamable.
 	FILTER_FALSE FiltererType = "FILTER_FALSE"
+
+	// Set-typed filterers. Each takes a set_* Field plus a Values []string
+	// list of dictionary labels; the builder resolves the labels into a
+	// query mask at compile time so the per-row check is a single bitwise
+	// op. Row-local; streamable.
+
+	// FILTER_SET_CONTAINS_ANY keeps records whose set mask shares at
+	// least one bit with the resolved query mask (row & q != 0).
+	FILTER_SET_CONTAINS_ANY FiltererType = "FILTER_SET_CONTAINS_ANY"
+
+	// FILTER_SET_CONTAINS_ALL keeps records whose set mask has every bit
+	// in the resolved query mask set (row & q == q).
+	FILTER_SET_CONTAINS_ALL FiltererType = "FILTER_SET_CONTAINS_ALL"
+
+	// FILTER_SET_CONTAINS_NONE keeps records whose set mask shares no
+	// bits with the resolved query mask (row & q == 0).
+	FILTER_SET_CONTAINS_NONE FiltererType = "FILTER_SET_CONTAINS_NONE"
+
+	// FILTER_SET_EQUALS keeps records whose set mask exactly equals the
+	// resolved query mask.
+	FILTER_SET_EQUALS FiltererType = "FILTER_SET_EQUALS"
 )
 
 // AllFiltererTypes returns all defined filterer types.
@@ -114,6 +175,10 @@ func AllFiltererTypes() []FiltererType {
 		FILTER_INCLUDE,
 		FILTER_NULL,
 		FILTER_RANGE,
+		FILTER_SET_CONTAINS_ALL,
+		FILTER_SET_CONTAINS_ANY,
+		FILTER_SET_CONTAINS_NONE,
+		FILTER_SET_EQUALS,
 		FILTER_TRUE,
 	}
 }
@@ -127,11 +192,33 @@ const (
 	GROUP_RANGE    GroupType = "GROUP_RANGE"
 	GROUP_QUANTILE GroupType = "GROUP_QUANTILE"
 	GROUP_DATE     GroupType = "GROUP_DATE"
+
+	// GROUP_SET_VALUE treats the set mask as an atomic value. Each
+	// distinct mask is its own bucket; the bucket key is the sorted
+	// pipe-delimited label list (e.g. "AMEX|VISA"). One row → one
+	// bucket. Streamable + mergeable.
+	GROUP_SET_VALUE GroupType = "GROUP_SET_VALUE"
+
+	// GROUP_SET_PER_ELEMENT explodes the set: each row fans into one
+	// bucket per set bit, keyed by the resolved dictionary label. One
+	// row → N buckets (where N = popcount(mask)). Cardinality multiplies.
+	// Streamable via the multi-key streaming hook (KeysForRow on
+	// StreamingGrouper). This is the survey-friendly default
+	// ("respondents per option").
+	GROUP_SET_PER_ELEMENT GroupType = "GROUP_SET_PER_ELEMENT"
 )
 
 // AllGroupTypes returns all defined group types.
 func AllGroupTypes() []GroupType {
-	return []GroupType{GROUP_CATEGORY, GROUP_DATE, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED}
+	return []GroupType{
+		GROUP_CATEGORY,
+		GROUP_DATE,
+		GROUP_QUANTILE,
+		GROUP_RANGE,
+		GROUP_ROUNDED,
+		GROUP_SET_PER_ELEMENT,
+		GROUP_SET_VALUE,
+	}
 }
 
 // AttributeType identifies a specific derived-attribute computation.
@@ -170,6 +257,15 @@ const (
 	// IRLS weight matrix; both deferred to Phase 9. Specs with any
 	// Penalty set are rejected at factory time with PROCESSING_CONFIG.
 	ATTR_REG_LEVERAGE AttributeType = "ATTR_REG_LEVERAGE"
+
+	// ATTR_SET_POPCOUNT emits popcount(mask) per row as a numeric column.
+	// Field must reference a set_* field. Streamable.
+	ATTR_SET_POPCOUNT AttributeType = "ATTR_SET_POPCOUNT"
+
+	// ATTR_SET_HAS emits a packed_bool per row indicating whether the
+	// set field has a specific dictionary label set. Params.value names
+	// the label whose bit is tested. Streamable.
+	ATTR_SET_HAS AttributeType = "ATTR_SET_HAS"
 )
 
 // AllAttributeTypes returns all defined attribute types.
@@ -182,6 +278,8 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_REG_FITTED,
 		ATTR_REG_LEVERAGE,
 		ATTR_REG_RESIDUAL,
+		ATTR_SET_HAS,
+		ATTR_SET_POPCOUNT,
 		ATTR_TSCORE,
 		ATTR_ZSCORE,
 	}

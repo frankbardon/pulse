@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Derive three per-row metrics from a set_* multi-select column: ATTR_SET_POPCOUNT yields wallet size, ATTR_SET_HAS yields a 0/1 indicator for a single label (VISA), and ATTR_FORMULA uses the always-on has_any expr helper to yield a 0/1 indicator for the {VISA, MC} disjunction. Aggregate all three across the cohort.",
+    "name": "attr_set_popcount_and_has",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_SUM",
+      "ATTR_FORMULA",
+      "ATTR_SET_HAS",
+      "ATTR_SET_POPCOUNT"
+    ],
+    "tags": [
+      "feature-engineering",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "card_issuers.pulse",
+    "data_dir": ".data"
+  },
+  "attributes": [
+    {
+      "type": "ATTR_SET_POPCOUNT",
+      "field": "issuers",
+      "label": "wallet_size"
+    },
+    {
+      "type": "ATTR_SET_HAS",
+      "field": "issuers",
+      "label": "has_visa",
+      "params": {"label": "VISA"}
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "field": "issuers",
+      "label": "has_visa_or_mc",
+      "expression": "has_any(issuers, 'VISA', 'MC')"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "wallet_size",
+      "label": "avg_wallet_size"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "has_visa",
+      "label": "visa_holders"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "has_visa_or_mc",
+      "label": "visa_or_mc_holders"
+    }
+  ]
+}
