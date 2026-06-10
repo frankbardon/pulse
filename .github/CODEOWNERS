@@ -1,0 +1,4 @@
+# Default owner for everything in this repo.
+# Required-code-owner-review on branch protection enforces a review from
+# the listed owner(s) before any PR can merge into main.
+*       @frankbardon
