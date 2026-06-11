@@ -36,9 +36,10 @@ import (
 //   - normalize_within: 0  (fixes the outer column grouper as the denominator slab)
 //
 // This bench is the standing measurement surface for the crosstab-perf
-// epic — E2-S4, E3-S5, and E4-S5 will compare deltas against the baseline
-// captured here. No numerical perf assertion lives in this story; it just
-// stands up the harness.
+// epic — E2-S4, E3-S5, and E4-S5 compare deltas against the baseline
+// captured here. E4-S5 extended it with `b.Run("fused", …)` and
+// `b.Run("buffered", …)` sub-cases so the fused-vs-buffered ratio is
+// directly observable in a single bench invocation.
 func BenchmarkBufferedProcessWideCohort(b *testing.B) {
 	const (
 		fieldCount = 200
@@ -63,49 +64,68 @@ func BenchmarkBufferedProcessWideCohort(b *testing.B) {
 	}
 
 	cfg, _ := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
-	svc := New(cfg)
 
-	fiscalOffset := -3
-	req := &types.Request{
-		Cohort: &types.Cohort{Filename: path},
-		Crosstab: &types.CrosstabSpec{
-			Rows: []*types.Group{
-				{Type: types.GROUP_CATEGORY, Field: "brand"},
-			},
-			Columns: []*types.Group{
-				{
-					Type:   types.GROUP_DATE,
-					Field:  "waveDate",
-					Params: dateParams("quarter", &fiscalOffset),
+	buildReq := func() *types.Request {
+		fiscalOffset := -3
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: path},
+			Crosstab: &types.CrosstabSpec{
+				Rows: []*types.Group{
+					{Type: types.GROUP_CATEGORY, Field: "brand"},
 				},
-				{Type: types.GROUP_CATEGORY, Field: "cardFeeling"},
+				Columns: []*types.Group{
+					{
+						Type:   types.GROUP_DATE,
+						Field:  "waveDate",
+						Params: dateParams("quarter", &fiscalOffset),
+					},
+					{Type: types.GROUP_CATEGORY, Field: "cardFeeling"},
+				},
+				Cell: &types.Aggregation{
+					Type:  types.AGG_SUM,
+					Field: "weight",
+					Label: "sum_weight",
+				},
+				Margins:         types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+				Shape:           types.CrosstabShapeMatrix,
+				Normalize:       types.CrosstabNormalizeRow,
+				NormalizeWithin: intPtr(0),
 			},
-			Cell: &types.Aggregation{
-				Type:  types.AGG_SUM,
-				Field: "weight",
-				Label: "sum_weight",
-			},
-			Margins:         types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
-			Shape:           types.CrosstabShapeMatrix,
-			Normalize:       types.CrosstabNormalizeRow,
-			NormalizeWithin: intPtr(0),
-		},
-	}
-
-	// Sanity-check the request once before the timed loop so a bench
-	// failure surfaces as a real error, not a timed-out hang.
-	ctx := context.Background()
-	if _, err := svc.Process(ctx, req); err != nil {
-		b.Fatalf("warmup Process: %v", err)
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for b.Loop() {
-		if _, err := svc.Process(ctx, req); err != nil {
-			b.Fatalf("Process: %v", err)
 		}
 	}
+	ctx := context.Background()
+
+	// Sub-cases: fused (default) and buffered (forced via
+	// SetDisableCrosstabFusion). Each sub-case warms up once outside the
+	// timed loop so a request failure surfaces as a real error, not a
+	// timed-out hang. Service is fresh per sub-case so neither path
+	// inherits state (decode-plan cache, dispatch flag) from the other.
+	b.Run("fused", func(b *testing.B) {
+		svc := New(cfg)
+		svc.SetDisableCrosstabFusion(false)
+		if _, err := svc.Process(ctx, buildReq()); err != nil {
+			b.Fatalf("warmup Process (fused): %v", err)
+		}
+		b.ReportAllocs()
+		for b.Loop() {
+			if _, err := svc.Process(ctx, buildReq()); err != nil {
+				b.Fatalf("Process (fused): %v", err)
+			}
+		}
+	})
+	b.Run("buffered", func(b *testing.B) {
+		svc := New(cfg)
+		svc.SetDisableCrosstabFusion(true)
+		if _, err := svc.Process(ctx, buildReq()); err != nil {
+			b.Fatalf("warmup Process (buffered): %v", err)
+		}
+		b.ReportAllocs()
+		for b.Loop() {
+			if _, err := svc.Process(ctx, buildReq()); err != nil {
+				b.Fatalf("Process (buffered): %v", err)
+			}
+		}
+	})
 }
 
 // dateParams renders a GROUP_DATE params JSON blob with the given
@@ -125,7 +145,11 @@ func intPtr(v int) *int { return &v }
 // representing the long categorical tail of the real cohort. Includes at
 // least one decimal128, one set_u8, one packed_bool, and one nullable
 // categorical for downstream epics' decode-plan goldens.
-func buildWideCohort(b *testing.B, fieldCount, rowCount int) (*encoding.Schema, []byte) {
+//
+// Accepts testing.TB so the same fixture builder serves both bench
+// driver code (b.Run sub-cases) and the E2E equivalence golden in
+// service/crosstab_fused_test.go.
+func buildWideCohort(b testing.TB, fieldCount, rowCount int) (*encoding.Schema, []byte) {
 	b.Helper()
 
 	// Named-field dictionaries.
