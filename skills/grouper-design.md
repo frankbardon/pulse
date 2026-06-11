@@ -218,3 +218,34 @@ Empty-mask rows contribute to zero buckets in PER_ELEMENT (no labels selected = 
 
 </section>
 
+<section title="StreamableGrouper interface (fused crosstab axis groupers)">
+
+Built-in groupers expose an optional `StreamableGrouper` interface defined in `processing/interfaces.go`. It is the field-bound sibling of `StreamingGrouper` used by the fused crosstab path (`skills/crosstab-guide.md` — Fused mergeable path) to derive a per-record axis bucket key without an explicit field argument:
+
+```go
+type StreamableGrouper interface {
+    Grouper
+    // KeyFor returns the bucket key for record on the grouper's bound
+    // field. Returns (key, nil) on success. Returns ("", ErrGrouperKeyNull)
+    // when the record's field is null, missing, or otherwise has no
+    // defined bucket.
+    KeyFor(record *Record) (string, error)
+}
+```
+
+The grouper instance stashes the target field at factory time (extracted from `*types.Group`), so the per-record hot path computes a key with a single method call and no extra argument plumbing. Null-or-missing values surface as the `ErrGrouperKeyNull` sentinel — distinct from an empty-string key, which `GROUP_SET_VALUE` legitimately emits when the mask is empty. Consumers check the sentinel via `errors.Is(err, processing.ErrGrouperKeyNull)` and treat it as a "record cannot be placed on this axis" signal (skip, fall through to the partner axis margin only, etc.).
+
+| Grouper | Implements `StreamableGrouper` | Notes |
+|---|---|---|
+| `GROUP_CATEGORY` | yes | Dictionary or value-direct key. |
+| `GROUP_RANGE` | yes | `"low-high"` bin key per record. |
+| `GROUP_ROUNDED` | yes | Lower-bound bin key per record. |
+| `GROUP_DATE` | yes | Calendar / fiscal component key per record. Streamable at this interface even though `GroupType.Streamable()` is false (the static table tracks Process-level streamability, not per-record key derivation). |
+| `GROUP_SET_VALUE` | yes | Sorted-label-list key; empty mask returns `""` (a valid key), not the sentinel. |
+| `GROUP_QUANTILE` | no | Bucket assignment depends on global rank; cannot be computed from a single record. |
+| `GROUP_SET_PER_ELEMENT` | no | Fans one record into many buckets; uses `MultiKeyStreamingGrouper.KeysForRow` instead. |
+
+Back-compat contract: the interface is purely additive — `Grouper` (and its existing `Group(records, field)` method) is the base contract every grouper still implements. Non-streamable groupers (`GROUP_QUANTILE`, `GROUP_SET_PER_ELEMENT`) do NOT implement `StreamableGrouper`; callers must use Go interface assertion (`instance, ok := g.(StreamableGrouper)`) to discriminate at construction time. The fused crosstab gate (`processing.CanFuseCrosstab`) probes via factory + assertion and falls back to the buffered RunCrosstab path when any axis grouper misses, so a new grouper that does NOT implement `StreamableGrouper` is automatically excluded from the fused path without any further change. Embedder-supplied grouper extensions can implement `StreamableGrouper` (and return `ErrGrouperKeyNull` from `KeyFor` on null inputs) to opt their grouper into the fused crosstab path; omitting the interface keeps it on the buffered path.
+
+</section>
+
