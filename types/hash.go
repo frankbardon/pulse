@@ -169,6 +169,18 @@ func writeCanonicalJSON(buf *bytes.Buffer, v any) error {
 // request → same hash, across processes and Pulse versions where the
 // request's semantic meaning is unchanged. See CanonicalHash for the
 // algorithm.
+//
+// Slot coverage is data-driven: every JSON-tagged field on Request
+// participates in the hash via the json.Marshal → canonicalize →
+// sha256 pipeline. The Overlays slot (E1-S1) is covered automatically
+// — each OverlaySpec contributes its Name/Kind/Scope/Ref to the
+// canonical bytes in declared spec order (slices preserve order), and
+// the discriminated OverlayRef union hashes only the populated arm
+// because every family pointer carries `json:",omitempty"`. An
+// overlay-free Request (nil or empty Overlays slice) omits the
+// `overlays` key entirely via the slot's own `omitempty` tag, so its
+// hash is byte-identical to the pre-Overlays canonical form — see
+// TestCanonicalHash_OverlayFreeByteIdentity.
 func (r *Request) Hash() string {
 	if r == nil {
 		return CanonicalHash("request", (*Request)(nil))
