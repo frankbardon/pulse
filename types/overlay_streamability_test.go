@@ -14,6 +14,10 @@ import "testing"
 // value all fail the gate so the table cannot silently drift.
 func TestStreamability_OverlaysKnown(t *testing.T) {
 	expected := map[OverlayKind]bool{
+		// CHISQ_MATRIX is inferential and consumes the whole-matrix
+		// contingency table — the host crosstab path is buffered and
+		// the chi-square test itself walks the materialised matrix.
+		OverlayKindChiSqMatrix: false,
 		// DELTA_VS_MARGIN shares INDEX_VS_MARGIN's buffered footprint —
 		// its margin centerpoint is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.

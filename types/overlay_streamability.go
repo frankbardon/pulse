@@ -32,6 +32,13 @@ package types
 // is NOT in the streamable set today — its host crosstab is always
 // buffered.
 var OverlayStreamability = map[OverlayKind]bool{
+	// OVERLAY_CHISQ_MATRIX is inherently buffered — the χ² independence
+	// test consumes the whole-matrix observed × expected contingency
+	// table, every margin recurrence is buffered on the host crosstab
+	// path, and the runtime handler walks the materialised matrix
+	// directly. Inferential overlays as a family stay buffered until a
+	// future streamable-test path is plumbed.
+	OverlayKindChiSqMatrix:    false,
 	OverlayKindDeltaVsMargin:  false,
 	OverlayKindIndexVsMargin:  false,
 	OverlayKindShareOfCol:     false,

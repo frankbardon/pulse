@@ -33,6 +33,55 @@ import "encoding/json"
 type OverlayKind string
 
 const (
+	// OverlayKindChiSqMatrix emits a whole-matrix χ² independence test
+	// across the row × column contingency table built from the host
+	// crosstab cells. MATRIX scope over a MATRIX (crosstab) host with
+	// SCALAR payload — the layer carries a single chi-square statistic
+	// plus its degrees of freedom and the corresponding p-value, all
+	// surfaced through OverlaySummary (Statistic / PValue / Parameters
+	// {"df"}). First inferential overlay kind and first SCALAR-shape
+	// Crosstab overlay; establishes the SCALAR payload plumbing pattern
+	// the remaining E2 inferential kinds and the E5 post-test family
+	// reuse.
+	//
+	// Math:
+	//
+	//	expected[r,c] = row_margin[r] * col_margin[c] / grand_total
+	//	chisq         = Σ_{r,c} (observed[r,c] - expected[r,c])² / expected[r,c]
+	//	df            = (rows - 1) * (cols - 1)
+	//	p_value       = 1 - chi2_cdf(chisq, df)
+	//
+	// Implementation reuses the χ² survival helper that backs TEST_CHISQ
+	// (processing/test_stat.go chiSquareSurvival) so the overlay and the
+	// row-test surface produce identical p-values for the same
+	// contingency.
+	//
+	// Absent-cell policy: a structurally absent host cell (Present=false)
+	// is treated as an observed count of 0 — the matrix shape stays
+	// rectangular, the row / column / grand margins continue to drive
+	// the expected-count recurrence, and an absent observation does not
+	// invent a count. The handler documents the policy alongside the
+	// runtime dispatch.
+	//
+	// Low-expected-count warning: when any expected[r,c] < 5 the handler
+	// emits a single PULSE_OVERLAY_EXPECTED_LOW warning (canonical χ²
+	// low-count heuristic; mirrors PULSE_TEST_EXPECTED_COUNT_TOO_LOW on
+	// the TEST_CHISQ surface). The code constant is promoted from a stub
+	// string to the canonical errors.PULSE_OVERLAY_EXPECTED_LOW slot in
+	// a later story (E2-S10); this kind lands the warning with the stub
+	// string so the runtime contract is observable today and the
+	// canonical promotion is a non-breaking rename.
+	//
+	// Scope is MATRIX (not CELL) because the test is whole-table; the
+	// validator rejects any other scope. The Ref union is left empty —
+	// the test is implicit-margin (uses the host's row / column / grand
+	// margins inline), so callers supplying a Ref.Margin (or any other
+	// ref-family pointer) get PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+	//
+	// Inherently buffered because the host crosstab path is always
+	// buffered (margins recomputed from raw rows).
+	OverlayKindChiSqMatrix OverlayKind = "OVERLAY_CHISQ_MATRIX"
+
 	// OverlayKindDeltaVsMargin emits a per-cell additive delta against
 	// the matching axis margin: cell - margin. CELL-scoped over a MATRIX
 	// (crosstab) host. Unlike INDEX_VS_MARGIN (a ratio) and the SHARE_OF_*
@@ -115,6 +164,7 @@ const (
 // gate enforces table completeness).
 func AllOverlayKinds() []OverlayKind {
 	return []OverlayKind{
+		OverlayKindChiSqMatrix,
 		OverlayKindDeltaVsMargin,
 		OverlayKindIndexVsMargin,
 		OverlayKindShareOfCol,
@@ -395,6 +445,34 @@ type OverlaySummary struct {
 	// overlays, 1 for ratio overlays. Renderers use it to centre
 	// diverging colour ramps.
 	Baseline *float64 `json:"baseline,omitempty"`
+
+	// Statistic is the headline test statistic for inferential overlays
+	// (E2-S6: chi-square statistic for OVERLAY_CHISQ_MATRIX; later: KS
+	// D statistic, Fisher odds ratio, etc.). Pointer + omitempty so
+	// descriptive overlays leave the field absent — Statistic is only
+	// meaningful when the kind produces a single distinguished scalar
+	// the renderer should highlight (typically alongside PValue).
+	Statistic *float64 `json:"statistic,omitempty"`
+
+	// PValue is the inferential overlay's p-value (probability under
+	// the null hypothesis). Pointer + omitempty so descriptive overlays
+	// leave the field absent — non-nil only when the kind produces a
+	// hypothesis-test result the renderer should surface alongside
+	// Statistic.
+	PValue *float64 `json:"p_value,omitempty"`
+
+	// Parameters carries kind-specific test parameters in a flexible
+	// shape so the inferential overlay catalog (E2-S6..S9, E5-S4) can
+	// expose distribution / model parameters without per-kind struct
+	// churn. Examples:
+	//   OVERLAY_CHISQ_MATRIX  → {"df": 4.0}
+	//   OVERLAY_FISHER_MATRIX → {"odds_ratio": 1.42}
+	//   OVERLAY_KS_*          → {"d": 0.18}
+	// Keys are SCREAMING_SNAKE-free lowercase strings; values are
+	// float64. Empty / nil when the kind has no extra parameters to
+	// surface. The map shape is forward-compatible — new keys land
+	// additively without breaking existing renderer code.
+	Parameters map[string]float64 `json:"parameters,omitempty"`
 }
 
 // OverlayLayer is the response-side wrapper for one executed overlay

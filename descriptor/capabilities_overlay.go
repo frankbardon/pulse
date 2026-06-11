@@ -133,6 +133,28 @@ func OverlayCapabilities() []OverlayCapability {
 // expected to grow in lock-step.
 func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 	switch kind {
+	case types.OverlayKindChiSqMatrix:
+		return OverlayCapability{
+			Kind: types.OverlayKindChiSqMatrix,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeScalar,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeMatrix,
+			},
+			// No Ref family — the χ² test is implicit-margin (uses the
+			// host's row / column / grand margins inline). Callers
+			// supplying any Ref family pointer fail
+			// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time.
+			RefKinds: []string{},
+			Description: "Whole-matrix χ² independence test across the host crosstab's row × column " +
+				"contingency table. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload — " +
+				"the layer carries the chi-square statistic plus degrees of freedom and p-value via " +
+				"OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. First inferential overlay and " +
+				"first SCALAR-shape Crosstab overlay; the Ref union is left empty (implicit-margin). " +
+				"Reuses the χ² survival helper backing TEST_CHISQ. Emits " +
+				"PULSE_OVERLAY_EXPECTED_LOW when any expected cell value is below 5.",
+		}
 	case types.OverlayKindDeltaVsMargin:
 		return OverlayCapability{
 			Kind: types.OverlayKindDeltaVsMargin,

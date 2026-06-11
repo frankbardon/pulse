@@ -238,6 +238,7 @@ type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types
 // (types/overlay.go + types/overlay_streamability.go), add the runtime
 // handler in this package, and add the dispatch entry here.
 var overlayHandlers = map[types.OverlayKind]overlayHandler{
+	types.OverlayKindChiSqMatrix:    applyChiSqMatrix,
 	types.OverlayKindDeltaVsMargin:  applyDeltaVsMargin,
 	types.OverlayKindIndexVsMargin:  applyIndexVsMargin,
 	types.OverlayKindShareOfCol:     applyShareOfCol,
@@ -297,6 +298,222 @@ func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 		}
 	}
 	return layers, warnings, nil
+}
+
+// applyChiSqMatrix is the OVERLAY_CHISQ_MATRIX handler. It computes a
+// whole-matrix χ² independence test across the host crosstab's row ×
+// column contingency table and surfaces the statistic, degrees of
+// freedom, and p-value through a SCALAR OverlayPayload + an extended
+// OverlaySummary (Statistic / PValue / Parameters{"df"}).
+//
+// Math:
+//
+//	expected[r,c] = row_margin[r] * col_margin[c] / grand_total
+//	chisq         = Σ_{r,c} (observed[r,c] - expected[r,c])² / expected[r,c]
+//	df            = (rows - 1) * (cols - 1)
+//	p_value       = chi2_survival(chisq, df)        // = 1 - chi2_cdf
+//
+// The χ² survival function (chiSquareSurvival) is the same helper that
+// backs TEST_CHISQ — overlay and row-test surfaces produce identical
+// p-values for the same contingency. The handler does NOT recompute
+// margins; it consumes whatever the host crosstab produced (per PRD §6:
+// "buffered execution — handlers never re-scan records").
+//
+// Absent-cell policy: a structurally absent host cell (Present=false)
+// is treated as an observed count of 0. The matrix shape stays
+// rectangular, the row / column / grand margins continue to drive the
+// expected-count recurrence, and an absent observation does not invent
+// a count. This is the conservative choice — the alternative ("drop
+// the row / column containing the absent cell") would distort margins
+// and is reserved for a future explicit-mode kind.
+//
+// Low-expected-count warning (canonical χ² rule): when any expected
+// cell value is below 5 the handler emits one PULSE_OVERLAY_EXPECTED_LOW
+// warning carrying the count of low-expected cells and the offending
+// minimum. Code is emitted as the stub string
+// "PULSE_OVERLAY_EXPECTED_LOW" today; E2-S10 promotes it to a canonical
+// errors.PULSE_OVERLAY_EXPECTED_LOW constant. The stub keeps the
+// runtime contract observable while the promotion stays a non-breaking
+// rename. Mirrors how E1-S3 stubbed PULSE_OVERLAY_REF_ZERO before E1-S7
+// canonicalised it.
+//
+// Output shape: SCALAR payload with Scalar populated to the χ²
+// statistic; Matrix / Series slots stay nil. Layer.Summary carries the
+// statistic, p-value, and {df} parameter map plus Min/Max/Count
+// describing the input contingency (Count = observed cell count
+// including absent-as-zero entries, Min/Max = observed-count extrema).
+//
+// Degenerate inputs:
+//   - Rows < 2 OR Cols < 2: χ² independence requires at least a 2×2
+//     contingency; smaller tables emit a stub-coded error via the
+//     handler's CodedError return so the orchestrator surfaces the
+//     same shape predict would have flagged.
+//   - Grand total == 0: every expected cell is undefined; the handler
+//     emits the same stub-coded error.
+//   - Any expected cell zero (because either the row or column margin
+//     is zero): the corresponding observed contribution is dropped
+//     (consistent with TEST_CHISQ's "expected > 0" guard) and the
+//     low-expected warning still fires.
+//
+// Defense in depth: the descriptor validator rejects ref / scope shape
+// mismatches at predict time. The handler still defends against a nil
+// crosstab payload (ApplyOverlays already gates that) and against
+// degenerate contingencies.
+func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+	rowCount := host.RowCount()
+	colCount := host.ColumnCount()
+
+	// Degenerate-shape guard: χ² independence requires ≥ 2 rows × 2 cols.
+	// Mirrors the TEST_CHISQ guard (PULSE_TEST_CONTINGENCY_DEGENERATE)
+	// but surfaces a stub-coded shape mismatch on the overlay layer so
+	// the orchestrator gets a consistent failure mode.
+	if rowCount < 2 || colCount < 2 {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_INTERNAL,
+			"overlay "+string(spec.Kind)+" requires a host contingency of at least 2 rows × 2 columns",
+			map[string]any{
+				"code":  string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+				"kind":  string(spec.Kind),
+				"rows":  rowCount,
+				"cols":  colCount,
+			})
+	}
+
+	// Build the observed contingency from the host cells. Absent cells
+	// contribute zero (documented absent-cell policy). Sum into local
+	// row / col / grand totals so we are independent of whether the
+	// host populated RowMargins / ColumnMargins — the χ² test owns its
+	// own margin recurrence to keep the math self-contained.
+	observed := make([][]float64, rowCount)
+	rowTotals := make([]float64, rowCount)
+	colTotals := make([]float64, colCount)
+	var grand float64
+	var observedCount int
+	var observedMin, observedMax float64
+	for i := 0; i < rowCount; i++ {
+		row := make([]float64, colCount)
+		for j := 0; j < colCount; j++ {
+			v, present := host.CellAt(i, j)
+			if !present {
+				// Absent host cell → observed[i][j] = 0; the cell does
+				// not contribute to row / col / grand totals (correct
+				// for absent-as-zero — a zero observation has count 0).
+				continue
+			}
+			row[j] = v
+			rowTotals[i] += v
+			colTotals[j] += v
+			grand += v
+			if observedCount == 0 {
+				observedMin, observedMax = v, v
+			} else {
+				if v < observedMin {
+					observedMin = v
+				}
+				if v > observedMax {
+					observedMax = v
+				}
+			}
+			observedCount++
+		}
+		observed[i] = row
+	}
+
+	// Grand-total guard: every expected cell is undefined when N == 0.
+	if grand <= 0 {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_INTERNAL,
+			"overlay "+string(spec.Kind)+" requires a non-zero grand total; got 0",
+			map[string]any{
+				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+				"kind": string(spec.Kind),
+			})
+	}
+
+	// χ² recurrence. Mirrors processing/test_chisq.go Finalize() so the
+	// overlay and the row-test surface produce identical statistics for
+	// the same contingency. expected > 0 guard matches the same line in
+	// test_chisq — when expected is zero (row or column margin is zero)
+	// the cell's contribution is dropped; the low-expected warning
+	// still fires.
+	var stat float64
+	expectedMin := math.Inf(1)
+	lowExpectedCells := 0
+	for i := 0; i < rowCount; i++ {
+		for j := 0; j < colCount; j++ {
+			expected := rowTotals[i] * colTotals[j] / grand
+			if expected < expectedMin {
+				expectedMin = expected
+			}
+			if expected < 5 {
+				lowExpectedCells++
+			}
+			if expected > 0 {
+				diff := observed[i][j] - expected
+				stat += diff * diff / expected
+			}
+		}
+	}
+	df := float64((rowCount - 1) * (colCount - 1))
+	pValue := chiSquareSurvival(stat, df)
+
+	// SCALAR payload — Statistic + PValue + Parameters{"df"} ride on
+	// the Summary so the renderer can surface the test result without
+	// inspecting Payload.Scalar. We still populate Payload.Scalar with
+	// the χ² statistic so the SCALAR shape contract holds: every SCALAR
+	// overlay carries a meaningful single value in OverlayPayload.Scalar.
+	scalar := stat
+	df64 := df
+	pv := pValue
+
+	var warnings []OverlayWarning
+	if lowExpectedCells > 0 {
+		// Stub code per story acceptance — E2-S10 promotes to a
+		// canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant. The
+		// stub string keeps the runtime contract observable today and
+		// the promotion stays a non-breaking rename.
+		warnings = append(warnings, OverlayWarning{
+			Code: "PULSE_OVERLAY_EXPECTED_LOW",
+			Message: "overlay " + string(spec.Kind) +
+				" χ² approximation may be unreliable: cells with expected count < 5 detected",
+			Details: map[string]any{
+				"kind":               string(spec.Kind),
+				"low_expected_cells": lowExpectedCells,
+				"expected_min":       expectedMin,
+			},
+		})
+	}
+
+	summary := &types.OverlaySummary{
+		Statistic: &scalar,
+		PValue:    &pv,
+		Parameters: map[string]float64{
+			"df": df64,
+		},
+	}
+	if observedCount > 0 {
+		mn, mx, count := observedMin, observedMax, observedCount
+		summary.Min = &mn
+		summary.Max = &mx
+		summary.Count = &count
+	} else {
+		zeroCount := 0
+		summary.Count = &zeroCount
+	}
+
+	layer := types.OverlayLayer{
+		Name:  overlayLayerName(spec),
+		Kind:  spec.Kind,
+		Scope: spec.Scope,
+		Ref:   spec.Ref,
+		Payload: types.OverlayPayload{
+			Shape:  types.OverlayShapeScalar,
+			Scalar: &scalar,
+		},
+		Summary: summary,
+	}
+
+	return layer, warnings, nil
 }
 
 // applyDeltaVsMargin is the OVERLAY_DELTA_VS_MARGIN handler. For every
@@ -1229,6 +1446,12 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		return spec.Name
 	}
 	switch spec.Kind {
+	case types.OverlayKindChiSqMatrix:
+		// CHISQ_MATRIX is a whole-matrix overlay with no axis
+		// dispatch; the synthesised default is the bare kind string
+		// in lower-case "chisq_matrix" shape so renderers can use it
+		// directly as a tab / legend label without uppercasing.
+		return "chisq_matrix"
 	case types.OverlayKindDeltaVsMargin:
 		// DELTA_VS_MARGIN dispatches all three axes; the synthesised
 		// default surfaces whichever axis the caller asked for. Falls

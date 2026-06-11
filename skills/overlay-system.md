@@ -21,6 +21,7 @@ Every overlay kind ships as a row in this table. New kinds extend `types.AllOver
 
 | Kind | Scope | Shape | Streamable | RefFamily | Description |
 |---|---|---|---|---|---|
+| `OVERLAY_CHISQ_MATRIX` | `matrix` | `scalar` | no (buffered) | — (implicit-margin) | Whole-matrix χ² independence test across the host crosstab's row × column contingency table. First inferential overlay AND first SCALAR-shape Crosstab overlay. Math: `expected[r,c] = row_margin[r] * col_margin[c] / grand_total`, `chisq = Σ (observed - expected)² / expected`, `df = (rows - 1) * (cols - 1)`, `p_value = 1 - chi2_cdf(chisq, df)`. The χ² survival helper backing `TEST_CHISQ` is reused so the overlay and the row-test surface produce identical p-values for the same contingency. SCALAR payload: `OverlayPayload.Scalar` carries the χ² statistic; `OverlaySummary.Statistic`, `OverlaySummary.PValue`, and `OverlaySummary.Parameters["df"]` carry the renderer-facing test result. The `Ref` union is left EMPTY — CHISQ_MATRIX is implicit-margin (uses the host's row / column / grand margins inline), so a caller-supplied `Ref.Margin` (or any other ref-family pointer) fires `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. Absent host cells are treated as observed count 0 (the matrix shape stays rectangular; an absent observation does not invent a count). When any expected cell value is below 5 the handler emits `PULSE_OVERLAY_EXPECTED_LOW` (canonical χ² low-count heuristic; stub-coded today, promoted to `errors.PULSE_OVERLAY_EXPECTED_LOW` in E2-S10). Degenerate contingencies (rows < 2, cols < 2, grand total = 0) short-circuit with a stub-coded shape mismatch. |
 | `OVERLAY_DELTA_VS_MARGIN` | `cell` | `matrix` | no (buffered) | `Margin` | Per-cell additive delta `cell - margin` against the matching axis margin. CELL scope over a MATRIX (crosstab) host. Supports all three margin axes (row / column / grand) — callers pick the axis explicitly via `Ref.Margin.Axis` and the handler dispatches the matching margin slot. Output preserves the host cell's units — a $-valued AGG_SUM cell minus a $-valued row margin yields a $-valued deviation in the same currency. No division and no Welford recurrence, so `PULSE_OVERLAY_REF_ZERO` is never emitted (a missing host cell stays absent per the existing null contract; a missing margin produces an absent overlay cell without an accompanying warning). Renderers centre diverging colour ramps on `baseline = 0`. |
 | `OVERLAY_INDEX_VS_MARGIN` | `cell` | `matrix` | no (buffered) | `Margin` | Per-cell index score `100 * cell / margin` against the matching axis margin. E1 supports CELL scope over a MATRIX (crosstab) host; ROW / COLUMN / TOTAL ship in later epics alongside the matching payload shapes. |
 | `OVERLAY_SHARE_OF_COL` | `cell` | `matrix` | no (buffered) | `Margin` | Per-cell share-of-column ratio `cell / col_margin`. CELL scope over a MATRIX (crosstab) host. Cells along a single column sum to 1.0 in the absence of missing cells; renderers can present the layer as a 100%-stacked vertical projection. Structurally column-axis-locked — the spec must populate `Ref.Margin`, but the runtime handler always reads the column margin regardless of the axis value. |
@@ -41,6 +42,18 @@ Every overlay payload is one of three shapes. The shape is independent of the sc
 `OverlayPayload.Shape` echoes which field is populated. Exactly one is meaningful per layer. The matrix shape reuses `crosstab.MatrixPayload` directly so renderers handle the overlay grid with the same row/column header machinery as the base.
 
 `SeriesPayload` is minimal — `Keys []string` and `Values []float64` of equal length, in matching index order. Later series-bearing families (time-series overlays, sparkline projections) may extend it additively without breaking the existing JSON contract.
+
+### Scalar shape + inferential summary
+
+`OVERLAY_CHISQ_MATRIX` is the first SCALAR-shape Crosstab overlay and the first inferential overlay in the catalog. `OverlayPayload.Scalar` carries the headline statistic (χ² for CHISQ_MATRIX), and the renderer-facing test result rides on the extended `OverlaySummary`:
+
+| Field | Type | Use |
+|---|---|---|
+| `Summary.Statistic` | `*float64` | The kind's distinguished statistic (CHISQ_MATRIX: χ²; KS: D; Fisher: log-odds). Mirrors `Payload.Scalar` for SCALAR shapes; descriptive overlays leave it absent. |
+| `Summary.PValue` | `*float64` | The inferential overlay's p-value. Non-nil only when the kind produces a hypothesis-test result. |
+| `Summary.Parameters` | `map[string]float64` | Kind-specific parameters in a flexible map shape. CHISQ_MATRIX: `{"df": <degrees of freedom>}`. Fisher (later): `{"odds_ratio": …}`. KS (later): `{"d": …}`. Keys are lowercase strings; values are float64. New keys land additively as later inferential kinds plug in without per-kind struct churn. |
+
+The fields are pointer / map and JSON `omitempty`, so descriptive (non-inferential) overlays do not surface them. Renderers branch on presence rather than kind — anything that populates `Summary.PValue` is a test the renderer can label as such.
 
 ## Scopes
 

@@ -39,6 +39,15 @@ import (
 //     built with string concatenation so descriptor envelope output
 //     stays grep-clean against the structural defense ban.
 
+// chiSqMatrixSupportedScopes is the E2-supported scope set for
+// OVERLAY_CHISQ_MATRIX. The χ² independence test is a whole-matrix
+// inferential overlay — Scope=MATRIX is the only sensible footprint
+// and any other scope (CELL / ROW / COLUMN / TOTAL / GROUP) fires
+// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
+var chiSqMatrixSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeMatrix: true,
+}
+
 // deltaVsMarginSupportedScopes is the E2-supported scope set for
 // OVERLAY_DELTA_VS_MARGIN. DELTA_VS_MARGIN is a CELL-scoped overlay by
 // construction — every cell receives an additive deviation against
@@ -150,6 +159,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 	}
 
 	switch spec.Kind {
+	case types.OverlayKindChiSqMatrix:
+		validateOverlayChiSqMatrix(env, req, spec, index)
 	case types.OverlayKindDeltaVsMargin:
 		validateOverlayDeltaVsMargin(env, req, spec, index)
 	case types.OverlayKindIndexVsMargin:
@@ -224,6 +235,67 @@ func validateOverlayIndexVsMargin(env *Envelope, req *types.Request, spec *types
 	if !indexVsMarginSupportedScopes[spec.Scope] {
 		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (E1 supports: cell)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+}
+
+// validateOverlayChiSqMatrix enforces the per-kind contract for
+// OVERLAY_CHISQ_MATRIX: the host result must be MATRIX-shaped (i.e.
+// Request.Crosstab is non-nil), Scope must be MATRIX, and the Ref
+// union must be EMPTY — unlike the Margin-bearing CELL overlays the
+// χ² independence test is implicit-margin and uses the host's row /
+// column / grand margins inline. A caller-supplied Ref.Margin (or any
+// other ref-family pointer) is a shape mismatch.
+//
+// Errors emitted (in order, first hit short-circuits the spec):
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
+//     pointer is populated.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
+//     than MATRIX.
+func validateOverlayChiSqMatrix(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref must be empty — CHISQ_MATRIX is implicit-margin. A caller
+	// supplying any family pointer (Margin / Sibling / BaselineIndex /
+	// Population / Stage / Slot) is using the wrong overlay shape.
+	if spec.Ref.Margin != nil ||
+		spec.Ref.Sibling != nil ||
+		spec.Ref.BaselineIndex != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the χ² test uses the host's row / column / grand margins inline)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Host must be MATRIX-shaped — χ² independence consumes a row ×
+	// column contingency table sourced from the host crosstab.
+	if req.Crosstab == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Scope must be MATRIX. CHISQ_MATRIX is a whole-table test —
+	// CELL / ROW / COLUMN / TOTAL / GROUP are not meaningful for the
+	// statistic the kind emits.
+	if !chiSqMatrixSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: matrix)",
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
