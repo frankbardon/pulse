@@ -225,3 +225,24 @@ When porting functionality from an external source into Pulse:
 ## Testing with in-memory filesystem
 
 Use `fs.NewMemMap()` for hermetic tests. It returns a `fs.Config` backed by `afero.NewMemMapFs()` — no disk I/O.
+
+## Adding a new `afero.Fs` implementation
+
+When you wire a new `afero.Fs` whose virtual paths ultimately resolve to a regular on-disk file (for example a copy-on-read overlay that caches remote objects into a local tempdir, a base-path wrapper, or any prefix-translating shim), implement the `service.RealPather` capability interface on the fs (or on a wrapper around it):
+
+```go
+// service.RealPather — defined in service/fs_probe.go.
+type RealPather interface {
+    RealPath(name string) (string, error)
+}
+```
+
+The returned path MUST be `os.Open`-able at the moment of the call and the bytes MUST be identical to what `fs.Open(name).Read` would yield. The signature deliberately matches `*afero.BasePathFs.RealPath` so that wrapper is detected automatically.
+
+Why this matters: `service.resolveRealPath` is the eligibility probe that decides whether the streaming iterator engages the mmap fast path. Without `RealPather`, the probe falls through to the `*afero.OsFs` check and then to the `afero.ReadFile` slow path. **Failure to implement this interface silently disables the mmap optimization — no error, no warning, just a regression in scan throughput on cold-cache wide cohorts.** The mmap policy and probe order are documented at `skills/cohort-schema-design.md` ("Iterator mmap policy") and the rationale for omitting an open-and-inspect fallback is inline at `service/fs_probe.go`.
+
+The regression gate is the `countingFs` test family in `service/` (e.g. `TestCountingFs_*`) — a wrapper that fails the test if `Process` calls `afero.ReadFile` on a single-file cohort path when the fs advertises a real path. If you add a new wrapper and the gate flips red, the wrapper is almost certainly missing `RealPather`.
+
+For caches that materialize the file lazily (CoR overlays), advertise `RealPath` only after the local copy is on disk; return a non-nil error during the in-flight download window so the probe declines and the iterator falls back to `afero.ReadFile` for that call.
+
+Hermetic tests that need to exercise the non-mmap path keep using `fs.NewMemMap()` — `MemMapFs` does not satisfy `RealPather` and the probe correctly declines.

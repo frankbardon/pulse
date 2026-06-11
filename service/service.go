@@ -205,17 +205,47 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 		return s.OpenAnchor(ctx, archivePath, anchor)
 	}
 
-	data, err := afero.ReadFile(s.fs.Fs(), path)
+	// Streaming open: read only the 4-byte magic prefix to discriminate
+	// between single-file (.pulse) and shard archive (Zip64) layouts.
+	// The single-file branch then advances through the 9-byte header +
+	// schema block without ever materializing the record payload — on
+	// large cohorts (hundreds of MB) this turns an O(file size) alloc
+	// into an O(header + schema) read. The shard archive branch keeps
+	// the full slurp because encoding.OpenArchive needs the central
+	// directory at the file's tail and the EOCD requires random access
+	// across the whole zip; switching that to a streaming open is a
+	// separate scope (see story Notes).
+	f, err := s.fs.Fs().Open(path)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening cohort file: %s", path))
 	}
+	defer f.Close()
 
-	if len(data) >= 4 && data[0] == 'P' && data[1] == 'K' && data[2] == 0x03 && data[3] == 0x04 {
+	var magic [4]byte
+	n, err := io.ReadFull(f, magic[:])
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("reading magic prefix from cohort file: %s", path))
+	}
+	if n >= 4 && magic[0] == 'P' && magic[1] == 'K' && magic[2] == 0x03 && magic[3] == 0x04 {
+		// Shard archive: slurp via afero so encoding.OpenArchive can
+		// scan the EOCD at the file tail. afero.ReadFile opens its own
+		// handle; the deferred Close above releases the streaming one.
+		// This is intentionally not optimised here — see comment above.
+		data, rerr := afero.ReadFile(s.fs.Fs(), path)
+		if rerr != nil {
+			return nil, errors.WrapCodedError(rerr, errors.SERVICE_RESOURCE,
+				fmt.Sprintf("opening cohort file: %s", path))
+		}
 		return s.openArchive(path, data)
 	}
 
-	r := bytes.NewReader(data)
+	// Single-file branch: feed the already-consumed magic bytes back to
+	// ReadHeader via a MultiReader so it sees the full 9-byte prefix.
+	// ReadSchema then streams field descriptors + inline dictionary
+	// blocks directly off the file handle.
+	r := io.MultiReader(bytes.NewReader(magic[:n]), f)
 
 	if err := encoding.ReadHeader(r); err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
