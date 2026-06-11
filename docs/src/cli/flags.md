@@ -62,7 +62,7 @@ Several flags appear on multiple commands with identical semantics.
 
 ### `--no-defaults`
 
-Available on: `api process`, `api compose`, `api ask`.
+Available on: `api process`, `api compose`.
 
 Disable the runtime smart-defaults pass that infers operator `Type`
 from the named field's schema type when the caller omits it. Forces

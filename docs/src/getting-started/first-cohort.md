@@ -137,7 +137,6 @@ the full convert recipe.
 
 - **Compose**: batch multiple requests in one call —
   [`pulse api compose`](../cli/api-compose.md).
-- **Ask**: natural-language one-shot — [`pulse api ask`](../cli/api-ask.md).
 - **Sample / Facet**: cheap read-only probes — [`api sample`](../cli/api-sample.md),
   [`api facet`](../cli/api-facet.md).
 - **Window / Feature / Test operators**: pull from the skill pack

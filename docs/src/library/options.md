@@ -88,7 +88,7 @@ callers can see what would have been inferred even when defaults are
 disabled.
 
 CLI parity: `pulse api process --no-defaults`, `pulse api compose
---no-defaults`, `pulse api ask --no-defaults`.
+--no-defaults`.
 
 ## Defaults at a glance
 

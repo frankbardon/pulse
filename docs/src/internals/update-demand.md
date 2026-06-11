@@ -35,7 +35,6 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | An error code's fixup template | Entry in `errors/fixup_metadata.go` (`codeMetadata`) + `**Fixup**:` line in `skills/error-code-reference.md` under that code | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` |
 | A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known`, `TestManifestStreamableMatchesTypes` |
 | The default operator table | `CLAUDE.md` "Code Conventions → Smart defaults" + `skills/getting-started.md` ("Defaults" section) | `TestDefaults_Applied` + reviewer enforcement |
-| A natural-query parsing route (new grammar shape) | `internal/query/query.go` grammar + `internal/query/query_test.go` fixtures + `skills/query-router-prompt.md` (router prompt grammar) + `skills/request-recipes.md` (target shapes) | `TestNaturalQuery_HeuristicGrammar` |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 

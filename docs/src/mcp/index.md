@@ -32,7 +32,9 @@ mkdir -p /var/data/pulse
 
 # 4. From the LLM session, call:
 #    pulse_manifest      → cache once
-#    pulse_ask           → run analyses
+#    pulse_inspect       → open a cohort
+#    pulse_predict       → validate a request
+#    pulse_process       → execute
 ```
 
 ## Wiring into a host
@@ -85,12 +87,11 @@ Any host that speaks the MCP stdio transport can launch `pulse mcp` the same way
 
 ### Tool surface
 
-Sixteen tools, registered at server start. Names and order match `internal/mcp/mcptools/meta.go`.
+Fifteen tools, registered at server start. Names and order match `internal/mcp/mcptools/meta.go`.
 
 | Tool | Purpose |
 |---|---|
 | `pulse_manifest` | **Call first.** Self-description: commands, operators (with accepted types + streamability), tier-1/tier-2 tests, regressions, synth distributions, error code list, MCP tool list, cohort field types with operator cross-references. Cache once per session. |
-| `pulse_ask` | **Preferred entry point.** One-shot: optional auto-import → inspect → predict → execute. Accepts `source` (raw file path) + `query` (natural language, **beta**) or a structured `request`. |
 | `pulse_inspect` | Read `.pulse` header + schema (no record bytes). Side effect: registers session-scoped schema-bound tool variants (see below). |
 | `pulse_predict` | Validate a request against the schema without executing. Returns errors, warnings, applied defaults, streamability reasons. |
 | `pulse_process` | Execute one pre-built request. |
@@ -106,8 +107,6 @@ Sixteen tools, registered at server start. Names and order match `internal/mcp/m
 | `pulse_skills_list` | Embedded skill metadata. |
 | `pulse_skills_get` | Fetch one skill body by name. |
 
-> **Natural-language `query` is beta.** Heuristic parsing only — silent misinterpretation is possible. The LLM should always check the `query_resolution` and resolved `request` in the response before trusting results. For production, author a structured `request` against the cached manifest and skip the `query` field.
-
 ### Resources
 
 | URI scheme | Yields |
@@ -122,38 +121,25 @@ Resources are registered once at server start. Files added afterwards do not app
 | Name | Args | Returns |
 |---|---|---|
 | `pulse-bootstrap` | none | A short instructions block telling the assistant what to call (and in what order) before authoring any request, and where the authoritative references live. Inject at session start. |
-| `pulse-author-request` | `question` | A guided tool-call sequence for translating a natural-language analytical question into a Pulse request: manifest → examples search → ask. |
+| `pulse-author-request` | `question` | A guided tool-call sequence for translating an analytical question into a Pulse request: manifest → examples search → inspect → predict → process. |
 
 Hosts that surface prompts as slash commands let users trigger these directly.
 
 ## Recommended session flow
 
-The two-call default for nearly every user request:
+The default sequence for nearly every user request:
 
 1. **`pulse_manifest`** once at session start. No arguments. Cache the payload — it is deterministic for a binary version and carries every fact needed to author a valid request.
-2. **`pulse_ask`** for everything else. It collapses import + inspect + predict + execute into one round trip. When the user hands the LLM a raw file:
+2. **`pulse_import`** when the user hands the LLM a raw tabular file (CSV/TSV/NDJSON/JSONArray/Parquet/Arrow/Excel). Returns a managed handle that subsequent tools address as if it were a `.pulse`. Skip when the cohort already exists as a managed handle or `.pulse` file in `PULSE_DATA_DIR`.
+3. **`pulse_inspect`** on the handle (or path). Reads header + schema only — no record bytes — and registers session-scoped, schema-bound variants of the action tools (see below).
+4. **`pulse_predict`** with the authored request. Validates against the schema, surfaces applied defaults, streamability, and any structural errors / warnings. Each error code carries Fixup metadata so the LLM can repair the request without another round trip.
+5. **`pulse_process`** to execute. Use `pulse_compose` to batch multiple requests against the same cohort in one round trip.
 
-   ```json
-   {
-     "request": "{\"source\":\"data.csv\",\"query\":\"average revenue by month\"}"
-   }
-   ```
+Cheaper probes are available without going through `pulse_process`:
 
-   When the cohort already exists as a managed handle or `.pulse` file:
-
-   ```json
-   {
-     "request": "{\"cohort\":{\"filename\":\"sales.pulse\"},\"query\":\"top 5 regions by revenue\"}"
-   }
-   ```
-
-   On predict-invalid with `on_invalid="suggest"`, the response carries structured `Fixup` entries derived from each error code's metadata so the LLM can repair the request without another round trip.
-
-Reach for the multi-step path (`pulse_inspect` → `pulse_predict` → `pulse_process`) only when:
-- diagnosing a failed predict and you want the full envelope,
-- previewing rows (`pulse_sample`) or value distributions (`pulse_facet`),
-- pre-staging a managed handle with a specific name / TTL / pinning (`pulse_import`),
-- batching multiple requests in one call (`pulse_compose`).
+- **`pulse_sample`** for a row preview.
+- **`pulse_facet`** for distinct values of a single field.
+- **`pulse_examples_search`** / **`pulse_examples_get`** to crib a runnable request template from the embedded library.
 
 ## Managed imports + TTL
 
@@ -166,11 +152,11 @@ Reach for the multi-step path (`pulse_inspect` → `pulse_predict` → `pulse_pr
 
 **Import jail.** Absolute source paths are confined to a single directory tree (the *jail root*). Default: the working directory the MCP server was launched from. Paths that escape the jail (including `..`) return `PULSE_IMPORT_SOURCE_FORBIDDEN`. Override via `pulse.Options.ImportSourceJailRoot` when embedding.
 
-**Sliding TTL.** Default lifetime is `7d` (overridable via `PULSE_IMPORT_TTL`, or per-import via the `ttl` field — accepts Go duration like `"24h"`, day form like `"7d"`, or `"pin"` for never-expire). Every subsequent inspect/predict/process/sample/facet/ask against the handle slides `expires_at` forward. The pool self-sweeps on every `pulse_import` call — no daemon required. Inspect with `pulse_imports_list`; evict manually with `pulse_drop`.
+**Sliding TTL.** Default lifetime is `7d` (overridable via `PULSE_IMPORT_TTL`, or per-import via the `ttl` field — accepts Go duration like `"24h"`, day form like `"7d"`, or `"pin"` for never-expire). Every subsequent inspect/predict/process/sample/facet against the handle slides `expires_at` forward. The pool self-sweeps on every `pulse_import` call — no daemon required. Inspect with `pulse_imports_list`; evict manually with `pulse_drop`.
 
 ## Schema-bound enums
 
-After a successful `pulse_inspect` (or after `pulse_ask` opens a cohort), the server registers session-scoped variants of the action tools (`pulse_process`, `pulse_predict`, `pulse_compose`, `pulse_sample`, `pulse_facet`) whose JSON Schemas embed enum constraints on field-name parameters. The LLM picks field names from a typed list rather than free-texting and discovering on predict that the name was wrong.
+After a successful `pulse_inspect`, the server registers session-scoped variants of the action tools (`pulse_process`, `pulse_predict`, `pulse_compose`, `pulse_sample`, `pulse_facet`) whose JSON Schemas embed enum constraints on field-name parameters. The LLM picks field names from a typed list rather than free-texting and discovering on predict that the name was wrong.
 
 What gets constrained on bound `pulse_process` / `pulse_predict` / `pulse_compose` schemas:
 
@@ -226,7 +212,6 @@ Embedders can override per-instance via `pulse.Options{DataDir, ImportsDir, Impo
 | `pulse_import` returns `PULSE_IMPORT_SOURCE_FORBIDDEN` for an absolute path | Path escapes the import jail (default = server's working dir) | Either move the file under the jail, launch the server from a higher-level directory, or set `pulse.Options.ImportSourceJailRoot` when embedding |
 | `pulse_inspect` succeeds but bound enums never fire | Stdio session — binding is a no-op there | Use `pulse_predict` for validation; the manifest's `accepts_types` lists give the LLM the same information |
 | Tool calls hang | Host wrote non-protocol bytes to the server's stdin, or server wrote non-protocol bytes to stdout | Check server stderr; restart the session. `pulse mcp` itself only writes a one-line startup notice to stderr at boot |
-| `pulse_ask` with `query` returns nonsense or wrong fields | Natural-language parsing is heuristic and beta | Inspect `query_resolution` in the response. For production, author a structured `request` against the cached manifest |
 
 To see what the server registers without launching the host:
 
@@ -258,7 +243,6 @@ If you are writing a system prompt for an LLM agent that uses Pulse, point it at
 | Import a tabular source into `.pulse` | `import-best-practices` |
 | Pick an export format | `export-format-selection` |
 | Work with `decimal128` (currency, precise arithmetic) | `financial-cohorts` |
-| Route a natural-language query to a Pulse request | `query-router-prompt` |
 | Get started end-to-end (LLM walkthrough) | `getting-started` |
 
 The agent should call `pulse_skills_list` once at session start to enumerate the catalog, then `pulse_skills_get` on demand. The returned text is authoritative; this site does not duplicate it and may lag.

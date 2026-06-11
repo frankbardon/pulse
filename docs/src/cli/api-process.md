@@ -129,7 +129,6 @@ pulse api process --request req.json --stream | \
 ## Related
 
 - [`pulse api compose`](api-compose.md) — batch of requests in one call
-- [`pulse api ask`](api-ask.md) — natural-language one-shot
 - [`pulse api predict`](api-predict.md) — validate without executing
 - [`pulse api sample`](api-sample.md) — quick row preview
 - [Library: pulse.New & Options](../library/options.md) — the Go-side
