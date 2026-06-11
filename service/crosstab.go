@@ -10,10 +10,20 @@ import (
 // processCrosstab is the dispatch arm of Process for requests carrying a
 // Crosstab section. The orchestrator opens the cohort, applies smart
 // defaults to the cell aggregation (so omitting the cell Type still
-// works when the field's schema type fixes the choice), drains every
-// filter-passing record into memory, and hands off to
-// processing.Processor.RunCrosstab for the recursive-partition + per-cell
-// aggregation + margins + normalization pipeline.
+// works when the field's schema type fixes the choice), then either
+// hands off to the fused streaming accumulator (when
+// processing.CanFuseCrosstab accepts the request) or drains every
+// filter-passing record into memory and runs the buffered
+// processing.Processor.RunCrosstab pipeline.
+//
+// Fused vs buffered: the fused path holds O(cells + margins) memory and
+// decodes the cohort exactly once; the buffered path materialises every
+// filter-passing record before partitioning. Both produce byte-equal
+// MatrixPayload / long-shape output for any request the gate accepts,
+// asserted by TestCrosstabFused_EquivalenceVsBuffered. The gate rejects
+// requests that require buffer-only finalize (AGG_MEDIAN cell, tier-1
+// tests, two-pass attributes, etc.); those still take the buffered
+// path here.
 //
 // Crosstabs are inherently buffered (matrix shape, any margin, any
 // normalization → buffered) except for the degenerate "long + no
@@ -36,6 +46,17 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	s.applyAutoLabels(&req.Labels, cohort.Schema(), collectOutputLabels(req), nil)
 	if err := s.validateProcessLabels(req, cohort.Schema()); err != nil {
 		return nil, err
+	}
+
+	// Dispatch to the fused streaming path when the gate accepts.
+	// The gate is the load-bearing exclusion check — features, tier-1
+	// tests, two-pass attributes, non-streamable groupers, non-online
+	// cell aggregators, expression-runtime filters/attributes, and
+	// opaque extension operators all fall back to the buffered path.
+	if !s.disableCrosstabFusion {
+		if ok, _ := processing.CanFuseCrosstab(req, cohort.Schema(), s.extensions); ok {
+			return s.processCrosstabFused(ctx, cohort, path, req)
+		}
 	}
 
 	iter := s.newScanIter(cohort, path)

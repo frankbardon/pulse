@@ -1,9 +1,26 @@
 package processing
 
 import (
+	stderrors "errors"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
+
+// ErrGrouperKeyNull is the sentinel error returned by
+// StreamableGrouper.KeyFor when the record's grouped field is null,
+// missing, or otherwise has no defined bucket key. Callers in the fused
+// crosstab path (and any future per-record bucket router) check it via
+// errors.Is to decide whether to skip the record.
+//
+// The sentinel is distinct from an empty-string key — set-typed
+// groupers (GROUP_SET_VALUE with an empty mask) legitimately emit "" as
+// a valid bucket key, so an in-band string sentinel is impossible.
+//
+// Exported so embedder-supplied StreamableGrouper extensions can
+// return the same null signal the built-in groupers do; the fused
+// crosstab router accepts the sentinel from any source.
+var ErrGrouperKeyNull = stderrors.New("processing: grouper key null")
 
 // Aggregator computes a single aggregate value from a set of records.
 type Aggregator interface {
@@ -118,6 +135,33 @@ type StreamingGrouper interface {
 	// ok=false signals the row should be skipped (e.g. null value);
 	// ok=true means the key is valid for bucketing.
 	KeyForRow(record *Record, field string) (key string, ok bool, err error)
+}
+
+// StreamableGrouper is the field-bound sibling of StreamingGrouper used
+// by the fused crosstab path. The grouper instance carries its target
+// field (extracted from the *types.Group at factory time), so the
+// per-record hot path can compute a bucket key with a single method
+// call and no extra argument plumbing — important for tight decode
+// loops that route each record into the correct cell accumulator.
+//
+// Semantics mirror StreamingGrouper.KeyForRow without the explicit
+// field argument and without the ok bool. Null / missing values are
+// signalled by returning ErrGrouperKeyNull instead of a non-nil
+// (key, nil) pair — empty-string is a legitimate bucket key for set
+// groupers, so an in-band string sentinel is not safe.
+//
+// Streamable groupers (CATEGORY, RANGE, ROUNDED, DATE, SET_VALUE) all
+// implement this interface; non-streamable groupers (QUANTILE) and
+// multi-key streaming groupers (SET_PER_ELEMENT) do NOT — callers must
+// use interface assertion to discriminate.
+type StreamableGrouper interface {
+	Grouper
+	// KeyFor returns the bucket key for record on the grouper's bound
+	// field. Returns (key, nil) on success. Returns ("", ErrGrouperKeyNull)
+	// when the record's field is null, missing, or otherwise has no
+	// defined bucket (e.g. an empty mask on SET_VALUE remains a valid
+	// key of ""; only an absent/null mask triggers the sentinel).
+	KeyFor(record *Record) (string, error)
 }
 
 // MultiKeyStreamingGrouper is the optional sibling of StreamingGrouper

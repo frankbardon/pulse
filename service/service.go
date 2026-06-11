@@ -64,6 +64,25 @@ type Service struct {
 	// mutation behavior — the boundary clones for echo purposes itself.
 	// Matches pulse.Options.EchoRequest.
 	echoRequest bool
+
+	// disableCrosstabFusion forces processCrosstab to skip the fused
+	// streaming dispatch and always take the buffered RunCrosstab
+	// path. Default false (fusion engages when the gate accepts).
+	// Used by the equivalence test below to compare fused vs buffered
+	// output byte-for-byte; embedders can also set it via
+	// SetDisableCrosstabFusion(true) to disable the optimisation
+	// without rebuilding pulse.New().
+	disableCrosstabFusion bool
+}
+
+// SetDisableCrosstabFusion toggles the fused-crosstab dispatch in
+// processCrosstab. When true, every crosstab request takes the
+// buffered RunCrosstab path even when CanFuseCrosstab would accept
+// it. Exposed so the equivalence test in service/crosstab_fused_test.go
+// can drive the same request through both paths and assert
+// byte-equal output without relying on internals.
+func (s *Service) SetDisableCrosstabFusion(disabled bool) {
+	s.disableCrosstabFusion = disabled
 }
 
 // New creates a new Service with the given filesystem configuration.
