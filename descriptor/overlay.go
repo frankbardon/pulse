@@ -57,6 +57,16 @@ var chiSqRowSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeRow: true,
 }
 
+// chiSqColSupportedScopes is the E2-supported scope set for
+// OVERLAY_CHISQ_COL. The per-column χ² goodness-of-fit test is a COLUMN-
+// scoped inferential overlay (mechanical column-axis twin of
+// CHISQ_ROW) — Scope=COLUMN is the only sensible footprint and any other
+// scope (CELL / ROW / MATRIX / TOTAL / GROUP) fires
+// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
+var chiSqColSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeColumn: true,
+}
+
 // deltaVsMarginSupportedScopes is the E2-supported scope set for
 // OVERLAY_DELTA_VS_MARGIN. DELTA_VS_MARGIN is a CELL-scoped overlay by
 // construction — every cell receives an additive deviation against
@@ -168,6 +178,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 	}
 
 	switch spec.Kind {
+	case types.OverlayKindChiSqCol:
+		validateOverlayChiSqCol(env, req, spec, index)
 	case types.OverlayKindChiSqMatrix:
 		validateOverlayChiSqMatrix(env, req, spec, index)
 	case types.OverlayKindChiSqRow:
@@ -369,6 +381,70 @@ func validateOverlayChiSqRow(env *Envelope, req *types.Request, spec *types.Over
 	if !chiSqRowSupportedScopes[spec.Scope] {
 		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: row)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+}
+
+// validateOverlayChiSqCol enforces the per-kind contract for
+// OVERLAY_CHISQ_COL: the host result must be MATRIX-shaped (i.e.
+// Request.Crosstab is non-nil), Scope must be COLUMN, and the Ref union
+// must be EMPTY — the per-column χ² goodness-of-fit test is implicit-
+// margin and uses the host's row / column / grand margins inline
+// (mirrors the CHISQ_MATRIX / CHISQ_ROW contract). A caller-supplied
+// Ref.Margin (or any other ref-family pointer) is a shape mismatch.
+//
+// Errors emitted (in order, first hit short-circuits the spec):
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
+//     pointer is populated.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
+//     than COLUMN.
+func validateOverlayChiSqCol(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref must be empty — CHISQ_COL is implicit-margin (mechanical
+	// column-axis twin of CHISQ_ROW; same contract as CHISQ_MATRIX).
+	// A caller supplying any family pointer (Margin / Sibling /
+	// BaselineIndex / Population / Stage / Slot) is using the wrong
+	// overlay shape.
+	if spec.Ref.Margin != nil ||
+		spec.Ref.Sibling != nil ||
+		spec.Ref.BaselineIndex != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the per-column χ² test uses the host's row / column / grand margins inline)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Host must be MATRIX-shaped — per-column χ² goodness-of-fit
+	// consumes a row × column contingency table sourced from the host
+	// crosstab.
+	if req.Crosstab == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Scope must be COLUMN. CHISQ_COL emits one statistic per column
+	// tuple — CELL / ROW / MATRIX / TOTAL / GROUP are not meaningful
+	// for the per-column statistic the kind emits.
+	if !chiSqColSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: column)",
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),

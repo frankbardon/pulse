@@ -926,6 +926,112 @@ func TestValidateOverlay_ChiSqRow_NoCrosstabHostRejected(t *testing.T) {
 	}
 }
 
+// TestValidateOverlay_ChiSqCol_HappyPath asserts a well-formed
+// OVERLAY_CHISQ_COL overlay riding on a MATRIX-shaped crosstab passes
+// the predict gate without surfacing any overlay-specific errors.
+// CHISQ_COL is the mechanical column-axis twin of CHISQ_ROW:
+// Scope=COLUMN, Ref=empty (implicit-margin).
+func TestValidateOverlay_ChiSqCol_HappyPath(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Crosstab: crosstabHostSpec(),
+		Overlays: []types.OverlaySpec{
+			{
+				Name:  "chisq_col",
+				Kind:  types.OverlayKindChiSqCol,
+				Scope: types.OverlayScopeColumn,
+				Ref:   types.OverlayRef{},
+			},
+		},
+	}
+
+	env := PredictFromBytes(data, req, nil)
+
+	for _, code := range []errors.Code{
+		errors.PULSE_OVERLAY_KIND_UNKNOWN,
+		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
+	} {
+		if hasErrorCode(env, code) {
+			t.Errorf("unexpected overlay error %s on CHISQ_COL happy-path request", code)
+		}
+	}
+}
+
+// TestValidateOverlay_ChiSqCol_ScopeUnsupported asserts the per-kind
+// scope gate rejects every non-COLUMN scope on CHISQ_COL. CHISQ_COL
+// emits one statistic per column tuple — CELL / ROW / MATRIX / TOTAL /
+// GROUP scopes are all rejected with PULSE_OVERLAY_SCOPE_UNSUPPORTED.
+func TestValidateOverlay_ChiSqCol_ScopeUnsupported(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	for _, scope := range []types.OverlayScope{
+		types.OverlayScopeCell,
+		types.OverlayScopeRow,
+		types.OverlayScopeMatrix,
+		types.OverlayScopeGroup,
+		types.OverlayScopeTotal,
+	} {
+		t.Run(string(scope), func(t *testing.T) {
+			req := &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{
+					{
+						Kind:  types.OverlayKindChiSqCol,
+						Scope: scope,
+						Ref:   types.OverlayRef{},
+					},
+				},
+			}
+			env := PredictFromBytes(data, req, nil)
+			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
+				codes := make([]string, 0, len(env.Errors))
+				for _, e := range env.Errors {
+					codes = append(codes, e.Code)
+				}
+				t.Fatalf("scope=%s: expected PULSE_OVERLAY_SCOPE_UNSUPPORTED; got %v",
+					scope, codes)
+			}
+		})
+	}
+}
+
+// TestValidateOverlay_ChiSqCol_RefRejected asserts the validator
+// rejects a CHISQ_COL spec that populates any Ref-family pointer.
+// CHISQ_COL is implicit-margin (mirrors CHISQ_MATRIX / CHISQ_ROW) —
+// any Ref pointer is a shape mismatch and must fire
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+func TestValidateOverlay_ChiSqCol_RefRejected(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Crosstab: crosstabHostSpec(),
+		Overlays: []types.OverlaySpec{
+			{
+				Kind:  types.OverlayKindChiSqCol,
+				Scope: types.OverlayScopeColumn,
+				Ref: types.OverlayRef{
+					Margin: &types.OverlayMarginRef{Axis: types.MarginAxisColumn},
+				},
+			},
+		},
+	}
+
+	env := PredictFromBytes(data, req, nil)
+	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+		codes := make([]string, 0, len(env.Errors))
+		for _, e := range env.Errors {
+			codes = append(codes, e.Code)
+		}
+		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when CHISQ_COL populates Ref.Margin; got %v",
+			codes)
+	}
+}
+
 // TestValidateOverlay_EmptySliceNoop asserts the validator is a no-op
 // for requests without overlays — predict still runs every other gate
 // untouched.

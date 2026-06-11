@@ -133,6 +133,30 @@ func OverlayCapabilities() []OverlayCapability {
 // expected to grow in lock-step.
 func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 	switch kind {
+	case types.OverlayKindChiSqCol:
+		return OverlayCapability{
+			Kind: types.OverlayKindChiSqCol,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeColumn,
+			},
+			// No Ref family — the per-column χ² goodness-of-fit test is
+			// implicit-margin (uses the host's row / column / grand
+			// margins inline). Callers supplying any Ref family pointer
+			// fail PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict
+			// time.
+			RefKinds: []string{},
+			Description: "Per-column χ² goodness-of-fit test across the host crosstab's row distribution. " +
+				"COLUMN scope over a MATRIX (crosstab) host with SERIES payload — one entry per column tuple " +
+				"carrying the column's χ² statistic, degrees of freedom (rows - 1), and p-value via " +
+				"OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. Mechanical column-axis twin of " +
+				"OVERLAY_CHISQ_ROW; mirrors the SeriesPayload entries plumbing pattern (Entries[i].Key == " +
+				"host ColumnKeys[i] element-for-element). The Ref union is left empty (implicit-margin). " +
+				"Reuses the χ² survival helper backing TEST_CHISQ. Emits PULSE_OVERLAY_EXPECTED_LOW once " +
+				"per offending column when any expected cell value in the column is below 5.",
+		}
 	case types.OverlayKindChiSqMatrix:
 		return OverlayCapability{
 			Kind: types.OverlayKindChiSqMatrix,

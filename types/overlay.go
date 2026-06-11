@@ -130,6 +130,53 @@ const (
 	// buffered (margins recomputed from raw rows).
 	OverlayKindChiSqRow OverlayKind = "OVERLAY_CHISQ_ROW"
 
+	// OverlayKindChiSqCol emits a per-column χ² goodness-of-fit test
+	// across the host crosstab's row × column contingency table. COLUMN
+	// scope over a MATRIX (crosstab) host with SERIES payload — one
+	// per-column entry carrying the column's χ² statistic, degrees of
+	// freedom (rows - 1), and p-value via OverlaySummary
+	// {Statistic, PValue, Parameters{"df"}}. Mechanical column-axis twin
+	// of OVERLAY_CHISQ_ROW; mirrors the SeriesPayload entries plumbing
+	// pattern (Entries[i].Key == host ColumnKeys[i] element-for-element).
+	//
+	// Math (per column c):
+	//
+	//	observed[r] = host.Cell(r, c)
+	//	expected[r] = row_margin[r] * col_margin[c] / grand_total
+	//	chisq_c    = Σ_r (observed[r] - expected[r])² / expected[r]
+	//	df          = rows - 1
+	//	p_value     = chi2_survival(chisq_c, df)   // = 1 - chi2_cdf
+	//
+	// Tests whether each column's observed row distribution differs
+	// from the expected distribution derived from row margins under
+	// independence. The χ² survival helper (chiSquareSurvival) is the
+	// same helper that backs TEST_CHISQ and the CHISQ_MATRIX / CHISQ_ROW
+	// overlays — overlay surfaces produce identical p-values for the
+	// same contingency.
+	//
+	// Absent-cell policy: a structurally absent host cell (Present=
+	// false) is treated as an observed count of 0 (matches the
+	// CHISQ_MATRIX / CHISQ_ROW policy). The per-column recurrence still
+	// consumes every row slot; an absent observation does not collapse
+	// the row count.
+	//
+	// Low-expected-count warning: when any expected[r] in column c is
+	// below 5 the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning
+	// per offending column (not per cell — the column is the diagnostic
+	// unit for goodness-of-fit). Stub-coded today; E2-S10 promotes it
+	// to the canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant.
+	//
+	// Scope is COLUMN (not CELL, ROW, or MATRIX) because each column's
+	// test is independent — the validator rejects any other scope. The
+	// Ref union is left empty — the test is implicit-margin (uses the
+	// host's row / column / grand margins inline), so callers supplying
+	// a Ref.Margin (or any other ref-family pointer) get
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+	//
+	// Inherently buffered because the host crosstab path is always
+	// buffered (margins recomputed from raw rows).
+	OverlayKindChiSqCol OverlayKind = "OVERLAY_CHISQ_COL"
+
 	// OverlayKindDeltaVsMargin emits a per-cell additive delta against
 	// the matching axis margin: cell - margin. CELL-scoped over a MATRIX
 	// (crosstab) host. Unlike INDEX_VS_MARGIN (a ratio) and the SHARE_OF_*
@@ -212,6 +259,7 @@ const (
 // gate enforces table completeness).
 func AllOverlayKinds() []OverlayKind {
 	return []OverlayKind{
+		OverlayKindChiSqCol,
 		OverlayKindChiSqMatrix,
 		OverlayKindChiSqRow,
 		OverlayKindDeltaVsMargin,

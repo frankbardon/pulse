@@ -4872,6 +4872,18 @@
     },
     "overlays": [
       {
+        "kind": "OVERLAY_CHISQ_COL",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "column"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Per-column χ² goodness-of-fit test across the host crosstab's row distribution. COLUMN scope over a MATRIX (crosstab) host with SERIES payload — one entry per column tuple carrying the column's χ² statistic, degrees of freedom (rows - 1), and p-value via OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. Mechanical column-axis twin of OVERLAY_CHISQ_ROW; mirrors the SeriesPayload entries plumbing pattern (Entries[i].Key == host ColumnKeys[i] element-for-element). The Ref union is left empty (implicit-margin). Reuses the χ² survival helper backing TEST_CHISQ. Emits PULSE_OVERLAY_EXPECTED_LOW once per offending column when any expected cell value in the column is below 5."
+      },
+      {
         "kind": "OVERLAY_CHISQ_MATRIX",
         "shapes": [
           "scalar"
@@ -4984,4 +4996,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 12edbb091cb8df6e02cc54dec3727735d45afc9f990af283d9cd37f62c98a13c
+// golden-hash: 7a315ceec91433de0065b6c1e9469723a984b09aa461539d2ee0f3a1c5869ad4

@@ -32,6 +32,13 @@ package types
 // is NOT in the streamable set today — its host crosstab is always
 // buffered.
 var OverlayStreamability = map[OverlayKind]bool{
+	// OVERLAY_CHISQ_COL is inherently buffered — mechanical column-axis
+	// twin of CHISQ_ROW. Each per-column goodness-of-fit test consumes
+	// the column's observed row distribution AND every row margin (for
+	// the expected-count recurrence), all of which the buffered host
+	// crosstab orchestrator already materialised. Inferential overlays
+	// as a family stay buffered until a streamable-test path is plumbed.
+	OverlayKindChiSqCol: false,
 	// OVERLAY_CHISQ_MATRIX is inherently buffered — the χ² independence
 	// test consumes the whole-matrix observed × expected contingency
 	// table, every margin recurrence is buffered on the host crosstab

@@ -238,6 +238,7 @@ type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types
 // (types/overlay.go + types/overlay_streamability.go), add the runtime
 // handler in this package, and add the dispatch entry here.
 var overlayHandlers = map[types.OverlayKind]overlayHandler{
+	types.OverlayKindChiSqCol:       applyChiSqCol,
 	types.OverlayKindChiSqMatrix:    applyChiSqMatrix,
 	types.OverlayKindChiSqRow:       applyChiSqRow,
 	types.OverlayKindDeltaVsMargin:  applyDeltaVsMargin,
@@ -706,6 +707,218 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 					"row_index":          i,
 					"low_expected_cells": rowLowExpected,
 					"expected_min":       rowExpectedMin,
+				},
+			})
+		}
+	}
+
+	layer := types.OverlayLayer{
+		Name:  overlayLayerName(spec),
+		Kind:  spec.Kind,
+		Scope: spec.Scope,
+		Ref:   spec.Ref,
+		Payload: types.OverlayPayload{
+			Shape: types.OverlayShapeSeries,
+			Series: &types.SeriesPayload{
+				Entries: entries,
+			},
+		},
+	}
+
+	return layer, warnings, nil
+}
+
+// applyChiSqCol is the OVERLAY_CHISQ_COL handler. Mechanical column-axis
+// twin of applyChiSqRow — computes a per-column χ² goodness-of-fit test
+// across the host crosstab's row distribution and surfaces one
+// (Statistic, df, p-value) triple per column tuple via a SERIES
+// OverlayPayload — each SeriesEntry carries an OverlaySummary with the
+// same {Statistic, PValue, Parameters{"df"}} shape CHISQ_MATRIX uses on
+// the layer-level summary and CHISQ_ROW uses on its per-row entries.
+//
+// Math (per column c):
+//
+//	observed[r] = host.Cell(r, c)              (absent cell → 0)
+//	expected[r] = row_margin[r] * col_margin[c] / grand_total
+//	chisq_c    = Σ_r (observed[r] - expected[r])² / expected[r]
+//	df          = rows - 1                     (one free parameter per row)
+//	p_value     = chiSquareSurvival(chisq_c, df)
+//
+// The χ² survival helper (chiSquareSurvival) is the same helper that
+// backs TEST_CHISQ, CHISQ_MATRIX, and CHISQ_ROW — per-column tests
+// produce identical p-values for the same observed × expected pair.
+// Margins are reconstructed from observed cells (absent-as-zero) so the
+// test is self-contained: the handler does NOT depend on whether the
+// host populated RowMargins / ColumnMargins.
+//
+// Absent-cell policy: a structurally absent host cell (Present=false)
+// is treated as an observed count of 0. Matches the CHISQ_MATRIX /
+// CHISQ_ROW policy. The matrix shape stays rectangular, the row count
+// never collapses, and an absent observation does not invent a count.
+//
+// Low-expected-count warning: when ANY expected[r] in column c is below
+// 5 the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning per
+// offending column (not per cell — the column is the diagnostic unit
+// for goodness-of-fit). Stub-coded today; E2-S10 promotes to canonical.
+//
+// SERIES entry order: SeriesPayload.Entries[i].Key == host ColumnKeys[i]
+// element-for-element. The parallel-slice contract is the renderer-
+// facing guarantee — entries can be laid alongside the host's column
+// keys without re-keying.
+//
+// Output shape: SERIES payload populated with Entries; Scalar / Matrix
+// slots stay nil. Each entry's Summary carries {Statistic, PValue,
+// Parameters{"df"}}; no layer-level Summary is populated (the per-
+// column statistics ride on the entries, not the layer-level summary
+// slot — matches the CHISQ_ROW per-entry summary policy).
+//
+// Degenerate inputs:
+//   - Rows < 2: per-column χ² requires at least 2 rows (df = rows - 1
+//     ≥ 1); smaller matrices fail with a stub-coded shape mismatch.
+//   - Cols == 0: SERIES payload comes back with an empty Entries slice
+//     (no error — the spec is well-formed; there are simply no columns
+//     to test).
+//   - Per-column grand total = 0: the column contributes an entry with
+//     NaN Statistic and NaN PValue (mirrors the CHISQ_ROW degenerate-
+//     row policy without short-circuiting the whole layer).
+//
+// Defense in depth: the descriptor validator rejects ref / scope shape
+// mismatches at predict time. The handler still defends against a nil
+// crosstab payload (ApplyOverlays already gates that) and against
+// degenerate matrix shapes.
+func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+	rowCount := host.RowCount()
+	colCount := host.ColumnCount()
+
+	// Degenerate-shape guard: per-column χ² goodness-of-fit requires ≥ 2
+	// rows so df = rows - 1 ≥ 1. Cols == 0 is acceptable (empty Entries
+	// slice). Mirrors CHISQ_ROW's shape guard but only over the row axis.
+	if rowCount < 2 {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_INTERNAL,
+			"overlay "+string(spec.Kind)+" requires a host contingency of at least 2 rows",
+			map[string]any{
+				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+				"kind": string(spec.Kind),
+				"rows": rowCount,
+				"cols": colCount,
+			})
+	}
+
+	// Build the observed matrix + per-row and per-column totals from
+	// host cells (absent-as-zero per documented policy). Owning the
+	// margin recurrence keeps the test self-contained — independent of
+	// whether the host populated RowMargins / ColumnMargins.
+	observed := make([][]float64, rowCount)
+	rowTotals := make([]float64, rowCount)
+	colTotals := make([]float64, colCount)
+	var grand float64
+	for i := 0; i < rowCount; i++ {
+		row := make([]float64, colCount)
+		for j := 0; j < colCount; j++ {
+			v, present := host.CellAt(i, j)
+			if !present {
+				continue
+			}
+			row[j] = v
+			rowTotals[i] += v
+			colTotals[j] += v
+			grand += v
+		}
+		observed[i] = row
+	}
+
+	payload := host.Payload()
+	entries := make([]types.SeriesEntry, 0, colCount)
+	var warnings []OverlayWarning
+	df := float64(rowCount - 1)
+
+	for c := 0; c < colCount; c++ {
+		// Per-column degenerate guards. A column whose total is zero
+		// (every observation in the column is absent or zero) cannot
+		// produce a meaningful test — surface NaN statistic / p-value
+		// but keep the entry slot so the parallel-slice contract holds.
+		// Equally when grand == 0 every expected cell is undefined.
+		var (
+			stat           float64
+			colLowExpected int
+			colExpectedMin = math.Inf(1)
+		)
+		degenerate := false
+		if grand <= 0 || colTotals[c] <= 0 {
+			degenerate = true
+		}
+		if !degenerate {
+			for r := 0; r < rowCount; r++ {
+				expected := rowTotals[r] * colTotals[c] / grand
+				if expected < colExpectedMin {
+					colExpectedMin = expected
+				}
+				if expected < 5 {
+					colLowExpected++
+				}
+				if expected > 0 {
+					diff := observed[r][c] - expected
+					stat += diff * diff / expected
+				}
+			}
+		}
+
+		// Build the per-column Summary. Mirror CHISQ_ROW's per-entry
+		// shape: Statistic + PValue + Parameters{"df"}. Degenerate
+		// columns emit NaN statistic / p-value so the parallel-slice
+		// contract holds without short-circuiting the whole layer.
+		entrySummary := types.OverlaySummary{
+			Parameters: map[string]float64{
+				"df": df,
+			},
+		}
+		if degenerate {
+			nan := math.NaN()
+			entrySummary.Statistic = &nan
+			pv := math.NaN()
+			entrySummary.PValue = &pv
+		} else {
+			statCopy := stat
+			pValue := chiSquareSurvival(stat, df)
+			entrySummary.Statistic = &statCopy
+			entrySummary.PValue = &pValue
+		}
+
+		// Resolve the column's composite axis-key tuple. payload.ColumnKeys
+		// is the canonical source — entries align element-for-element
+		// with ColumnKeys[i] (the documented parallel-slice contract).
+		var key types.AxisKey
+		if c < len(payload.ColumnKeys) {
+			// Copy so the response is independent of the host payload
+			// (callers may mutate the host matrix during downstream
+			// rendering even though the overlay surface is read-only).
+			key = append(types.AxisKey(nil), payload.ColumnKeys[c]...)
+		}
+
+		entries = append(entries, types.SeriesEntry{
+			Key:     key,
+			Summary: entrySummary,
+		})
+
+		// One warning per offending column (not per cell — the column
+		// is the diagnostic unit for goodness-of-fit). Skip for
+		// degenerate columns since the expected-count recurrence did
+		// not execute.
+		if !degenerate && colLowExpected > 0 {
+			// Stub code per story acceptance — E2-S10 promotes to a
+			// canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant. The
+			// stub string keeps the runtime contract observable today
+			// and the promotion stays a non-breaking rename.
+			warnings = append(warnings, OverlayWarning{
+				Code: "PULSE_OVERLAY_EXPECTED_LOW",
+				Message: "overlay " + string(spec.Kind) +
+					" χ² approximation may be unreliable: column contains cells with expected count < 5",
+				Details: map[string]any{
+					"kind":               string(spec.Kind),
+					"col_index":          c,
+					"low_expected_cells": colLowExpected,
+					"expected_min":       colExpectedMin,
 				},
 			})
 		}
@@ -1657,6 +1870,11 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		return spec.Name
 	}
 	switch spec.Kind {
+	case types.OverlayKindChiSqCol:
+		// CHISQ_COL is a COLUMN-scoped overlay with no axis dispatch
+		// (the column axis is structurally fixed); synthesised default
+		// mirrors CHISQ_MATRIX / CHISQ_ROW's lower-case bare-kind shape.
+		return "chisq_col"
 	case types.OverlayKindChiSqMatrix:
 		// CHISQ_MATRIX is a whole-matrix overlay with no axis
 		// dispatch; the synthesised default is the bare kind string

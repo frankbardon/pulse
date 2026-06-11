@@ -14,6 +14,12 @@ import "testing"
 // value all fail the gate so the table cannot silently drift.
 func TestStreamability_OverlaysKnown(t *testing.T) {
 	expected := map[OverlayKind]bool{
+		// CHISQ_COL is inferential — mechanical column-axis twin of
+		// CHISQ_ROW; each per-column goodness-of-fit test reads the
+		// column's observed row distribution AND every row margin to
+		// drive the expected-count recurrence, all of which require the
+		// buffered host crosstab matrix.
+		OverlayKindChiSqCol: false,
 		// CHISQ_MATRIX is inferential and consumes the whole-matrix
 		// contingency table — the host crosstab path is buffered and
 		// the chi-square test itself walks the materialised matrix.
