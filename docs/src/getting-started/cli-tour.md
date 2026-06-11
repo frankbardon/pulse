@@ -19,7 +19,7 @@ pulse [--json] [--slim]
 ├── export      .pulse  → tabular (same format set)
 ├── convert     Tabular → tabular, with .pulse as the transparent middle
 ├── cohort      Inspect or filter an existing .pulse file
-├── api         Processing operations (process, compose, ask, predict, sample, facet)
+├── api         Processing operations (process, compose, predict, sample, facet)
 ├── synth       Generate synthetic cohorts (from-schema, from-profile)
 ├── profile     Capture a statistical profile of a cohort
 ├── skills      Read the embedded LLM skill pack
@@ -40,7 +40,6 @@ The "processing facade" — these are the operations exposed via the
 |---|---|---|
 | `pulse api process`  | Execute one request against a cohort | [api process](../cli/api-process.md) |
 | `pulse api compose`  | Execute multiple requests in batch / parallel | [api compose](../cli/api-compose.md) |
-| `pulse api ask`      | Parse a natural-language query and execute | [api ask](../cli/api-ask.md) |
 | `pulse api predict`  | Validate a request without executing | [api predict](../cli/api-predict.md) |
 | `pulse api sample`   | Return up to N rows | [api sample](../cli/api-sample.md) |
 | `pulse api facet`    | Return distinct values of a field | [api facet](../cli/api-facet.md) |

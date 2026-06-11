@@ -9,9 +9,9 @@ stable regardless of whether the underlying request shape streams
 inside the engine — non-streamable requests return the same iterator,
 they just buffer once internally before yielding.
 
-> **LLM agents using MCP:** see `skills/request-recipes.md` for the
-> MCP-side streaming surface (`pulse_process` with the streaming
-> option). The Streamable predicate is the same on both surfaces.
+> **LLM agents using MCP:** the MCP-side streaming surface is
+> `pulse_process` with the streaming option. The Streamable predicate
+> is the same on both surfaces.
 
 ## The iterator API
 

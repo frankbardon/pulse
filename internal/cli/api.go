@@ -24,7 +24,6 @@ func APICommand() *cli.Command {
 			apiSampleCmd(),
 			apiFacetCmd(),
 			apiPredictCmd(),
-			apiAskCmd(),
 		},
 	}
 }
@@ -585,105 +584,6 @@ func apiPredictCmd() *cli.Command {
 
 			if !result.Valid {
 				return fmt.Errorf("validation failed")
-			}
-			return nil
-		},
-	}
-}
-
-// apiAskCmd is the natural-query one-shot leaf. It accepts either a
-// structured request JSON file (--request), a natural-language query
-// (--query) against a cohort file (--file), or both — query parsing
-// fills slots the structured request left empty.
-func apiAskCmd() *cli.Command {
-	return &cli.Command{
-		Name:  "ask",
-		Usage: "Ask a question of a cohort: parse a natural-language query into a request and execute",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "file", Aliases: []string{"f"}, Usage: "Cohort .pulse file path"},
-			&cli.StringFlag{Name: "query", Aliases: []string{"q"}, Usage: "Natural-language query string (e.g. \"average revenue by region\")"},
-			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Optional structured request JSON file path"},
-			&cli.StringFlag{Name: "on-invalid", Value: "abort", Usage: "Predict-invalid behavior: \"abort\" (default) or \"suggest\""},
-			&cli.BoolFlag{Name: "predict", Usage: "Validate without executing"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			file := cmd.String("file")
-			query := cmd.String("query")
-			reqPath := cmd.String("request")
-			onInvalid := cmd.String("on-invalid")
-			predictOnly := cmd.Bool("predict")
-			jsonOut := cmd.Bool("json")
-			noDefaults := cmd.Bool("no-defaults")
-
-			if query == "" && reqPath == "" {
-				msg := "ask requires either --query or --request"
-				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", msg)
-				}
-				return fmt.Errorf("%s", msg)
-			}
-
-			ask := &pulse.AskRequest{
-				File:      file,
-				Query:     query,
-				OnInvalid: onInvalid,
-				Predict:   predictOnly,
-			}
-			if reqPath != "" {
-				req, err := loadRequest(reqPath)
-				if err != nil {
-					if jsonOut {
-						return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", err.Error())
-					}
-					return err
-				}
-				ask.Request = req
-			}
-
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults})
-			if err != nil {
-				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
-				}
-				return err
-			}
-
-			resp, err := p.Ask(ctx, ask)
-			if err != nil {
-				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "ASK_ERROR", err.Error())
-				}
-				return err
-			}
-
-			if jsonOut {
-				return writeJSON(cmd.Writer, resp)
-			}
-
-			// Human-friendly output. Mirror `pulse api process` for the
-			// row data, but lead with a parsed-request echo so the
-			// caller can see how their natural-language query was
-			// translated.
-			if resp.QueryResolution != nil {
-				writeText(cmd.Writer, "Query: %s\n", resp.QueryResolution.Query)
-				writeText(cmd.Writer, "Matched fields: %v\n", resp.QueryResolution.MatchedFields)
-				writeText(cmd.Writer, "Confidence: %.2f\n\n", resp.QueryResolution.Confidence)
-			}
-			if resp.Predict != nil && resp.Predict.Request != nil {
-				writeText(cmd.Writer, "Resolved request:\n")
-				_ = writeJSON(cmd.Writer, resp.Predict.Request)
-				writeText(cmd.Writer, "\n")
-			}
-			if resp.Process != nil {
-				return writeJSON(cmd.Writer, resp.Process)
-			}
-			for _, e := range resp.Errors {
-				writeText(cmd.Writer, "Error [%s]: %s\n", e.Code, e.Message)
-			}
-			for _, w := range resp.Warnings {
-				writeText(cmd.Writer, "Warning [%s]: %s\n", w.Code, w.Message)
 			}
 			return nil
 		},

@@ -8,7 +8,7 @@ applies_to: process, compose, predict
 # Error Code Reference
 
 <skill_overview>
-This skill teaches you HOW to use Pulse's typed error system — how the envelope is shaped, what the DOMAIN_CATEGORY codes mean, the repair workflow predict and Ask hand you, and where to fetch per-code detail. It is intentionally short: per-code prose and fixup templates live behind the `pulse_errors_lookup` MCP tool and the `pulse errors lookup CODE` CLI leaf so the bootstrap context stays lean. Treat this skill as the orientation; treat the lookup tool as the catalog.
+This skill teaches you HOW to use Pulse's typed error system — how the envelope is shaped, what the DOMAIN_CATEGORY codes mean, the repair workflow predict hands you, and where to fetch per-code detail. It is intentionally short: per-code prose and fixup templates live behind the `pulse_errors_lookup` MCP tool and the `pulse errors lookup CODE` CLI leaf so the bootstrap context stays lean. Treat this skill as the orientation; treat the lookup tool as the catalog.
 </skill_overview>
 
 <reference>
@@ -52,11 +52,9 @@ The shared `*_INTERNAL` suffix (e.g. `ENCODING_INTERNAL`) signals a Pulse invari
 ## Repair workflow
 
 1. Read the envelope's first error or warning entry — `code` and `message`.
-2. If you authored the request: run `pulse_predict` first (or set `predict=true` on `pulse_ask`). Predict returns the same envelope plus a `data.suggestions[]` array carrying structured fixup proposals (`path`, `current`, `proposed`, `confidence`) generated directly from the per-code metadata. Apply the highest-confidence suggestion and re-run.
+2. If you authored the request: run `pulse_predict` first. Predict returns the same envelope plus a `data.suggestions[]` array carrying structured fixup proposals (`path`, `current`, `proposed`, `confidence`) generated directly from the per-code metadata. Apply the highest-confidence suggestion and re-run.
 3. If `suggestions` is empty or the code is unfamiliar, call `pulse_errors_lookup` with `code=<the code>`. The tool returns the canonical `message` plus the `fixups[]` template list (action class, optional request path, hint sentence, ranked examples).
 4. For systematic exploration (e.g. "what `PULSE_TEST_*` codes might fire for this test?"), call `pulse_errors_lookup` with `domain=PULSE` or `query="paired"` and scan the result list.
-
-`pulse_ask` with `on_invalid="suggest"` collapses steps 1–2 into a single round trip: predict-invalid responses come back with a populated `suggestions[]` and no execution-side failure.
 </workflow>
 
 <reference>

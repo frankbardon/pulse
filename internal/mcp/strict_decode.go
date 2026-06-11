@@ -158,22 +158,6 @@ func levenshtein(a, b string) int {
 	return prev[len(rb)]
 }
 
-// checkUnknownKeysAsk validates the nested "request" object inside an
-// AskRequest body. Returns nil when no structured request is present
-// (query-only asks carry no Request slot to validate).
-func checkUnknownKeysAsk(body []byte) *perr.CodedError {
-	var probe struct {
-		Request json.RawMessage `json:"request"`
-	}
-	if err := json.Unmarshal(body, &probe); err != nil {
-		return nil
-	}
-	if len(probe.Request) == 0 {
-		return nil
-	}
-	return checkUnknownRequestKeys(probe.Request)
-}
-
 // checkUnknownKeysComposed validates each request inside a
 // ComposedRequest body, tagging the offending request's index into the
 // returned error's details.

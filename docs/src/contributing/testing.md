@@ -63,7 +63,6 @@ Their full names appear in CLAUDE.md so the
 | `TestManifestStreamableMatchesTypes`    | Manifest `Streamable` flags mirror the type-level methods |
 | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` | Each error code has a fixup template and the skill row to match |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
-| `TestNaturalQuery_HeuristicGrammar`     | The `internal/query` parser fixtures cover its documented shapes |
 
 (See `CLAUDE.md` "CI gates" for the full prose; this table is the
 quick-reference.)

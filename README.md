@@ -119,16 +119,6 @@ pulse api compose --request batch.json --parallel 4 --json
 
 Library equivalent: `pulse.ComposeParallel(ctx, req, pulse.ComposeOptions{MaxWorkers: 4})`. Order-preserving by slot; `--no-fail-fast` aggregates errors instead of cancelling on first failure.
 
-### Natural-language ask
-
-> **Beta — do not trust yet.** The natural-language query path (`pulse api ask --query`, `pulse_ask` with `query`) is experimental. Parsing is heuristic, coverage is partial, and silent misinterpretation is possible. Inspect the resolved request before relying on the result, and prefer a structured `request` for production workloads.
-
-```bash
-pulse api ask --file data.pulse --query "average revenue by region, top 5"
-```
-
-Parses the query against the schema, validates, and executes — one round trip. Pass `--predict` to validate without executing, `--on-invalid suggest` to get structured fixup hints instead of an error.
-
 ### Export and convert
 
 ```bash
@@ -187,8 +177,7 @@ pulse
 │   ├── compose --request FILE [--json] [--stream] [--parallel N] [--no-fail-fast]
 │   ├── sample --input FILE --count N
 │   ├── facet --input FILE --field NAME
-│   ├── predict --request FILE --json [--strict]
-│   └── ask [--file F] [--query Q] [--request FILE] [--predict] [--on-invalid suggest]
+│   └── predict --request FILE --json [--strict]
 ├── synth
 │   ├── from-schema --spec FILE --output FILE [--rows N] [--seed N]
 │   └── from-profile --profile FILE --output FILE --rows N [--seed N]
@@ -249,7 +238,6 @@ Restart the host. Pulse tools appear in the tool list.
 | Tool | Purpose |
 |---|---|
 | `pulse_manifest` | **Call first.** Self-description: commands, operators, accepted types, tests, regressions, distributions, error codes, MCP tools, cohort field types. Cache once per session. |
-| `pulse_ask` | **Preferred entry point.** One-shot import → inspect → predict → execute. Accepts `source` (raw file) + `query` (natural language, **beta — see below**) or a structured `request`. |
 | `pulse_inspect` | Read header + schema (no record bytes). Also binds session-scoped field-name enums on action tools. |
 | `pulse_predict` | Validate a request against the schema without executing. |
 | `pulse_process` | Execute one pre-built request. |
@@ -275,15 +263,15 @@ Two prompts (`pulse-bootstrap`, `pulse-author-request`) are registered for hosts
 
 ### Recommended session flow
 
-1. `pulse_manifest` once. Cache the result.
-2. `pulse_ask` with `source` + `query` (or `cohort` + `query`) for everything else.
-3. Reach for `pulse_predict` / `pulse_sample` / `pulse_facet` / `pulse_compose` only when you need finer control than the one-shot affords.
-
-> **Natural-language `query` is beta.** Heuristic parsing only — silent misinterpretation is possible. Always check `query_resolution` and the resolved `request` in the response before trusting results. For production, author a structured `request` against the cached manifest and skip the `query` field.
+1. `pulse_manifest` once at session start. Cache the result — it is deterministic for a binary version and carries every fact needed to author a valid request.
+2. `pulse_import` when the user hands the LLM a raw tabular file; skip when the cohort already exists as a managed handle or `.pulse` under `PULSE_DATA_DIR`.
+3. `pulse_inspect` on the handle (or path). Reads header + schema only and binds session-scoped field-name enums on the action tools.
+4. `pulse_predict` with the authored request. Validates against the schema; each error code carries Fixup metadata so the LLM can repair the request without another round trip.
+5. `pulse_process` to execute. Use `pulse_compose` for batching, `pulse_sample` / `pulse_facet` for cheap probes.
 
 ### Schema-bound enums
 
-After a successful `pulse_inspect` (or after `pulse_ask` opens a cohort), the server registers session-scoped variants of the action tools whose JSON Schemas embed enums on field-name parameters — picked from a typed list rather than free-texted. Works on SSE / Streamable HTTP transports; on stdio the session does not support tool overrides, so enums are advisory and `pulse_predict` remains the validation gate. Disable with `--bind-on-open=false`.
+After a successful `pulse_inspect`, the server registers session-scoped variants of the action tools whose JSON Schemas embed enums on field-name parameters — picked from a typed list rather than free-texted. Works on SSE / Streamable HTTP transports; on stdio the session does not support tool overrides, so enums are advisory and `pulse_predict` remains the validation gate. Disable with `--bind-on-open=false`.
 
 The `mcp-integration` skill (`pulse skills show mcp-integration`) is the authoritative reference.
 
@@ -359,7 +347,7 @@ func main() {
 
 ### Public facade
 
-`pulse.Pulse` exposes: `New`, `Open`, `Process`, `ProcessStream`, `Compose`, `ComposeParallel`, `Ask`, `Import`, `ImportFile`, `Drop`, `Imports`, `SweepImports`, `ResolveImport`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `Manifest`, plus example/error lookup helpers.
+`pulse.Pulse` exposes: `New`, `Open`, `Process`, `ProcessStream`, `Compose`, `ComposeParallel`, `Import`, `ImportFile`, `Drop`, `Imports`, `SweepImports`, `ResolveImport`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `Manifest`, plus example/error lookup helpers.
 
 ### Custom filesystem
 
@@ -423,8 +411,6 @@ pulse skills show aggregation-guide
 | `export-format-selection` | CSV / TSV / NDJSON / JSON array / Parquet / Arrow / Excel |
 | `financial-cohorts` | decimal128 semantics for money |
 | `mcp-integration` | MCP tool surface, schema-bound enums, session bootstrap |
-| `request-recipes` | Canonical request JSON skeletons keyed by intent |
-| `query-router-prompt` | System-prompt template for natural-language → AskRequest |
 | `contributor-workflow` | Recipes for extending Pulse |
 
 ### From Go

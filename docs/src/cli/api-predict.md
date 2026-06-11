@@ -125,6 +125,5 @@ The full code-by-code recovery playbook lives in
 ## Related
 
 - [`pulse api process`](api-process.md) — executes a validated request
-- [`pulse api ask`](api-ask.md) — combined predict + execute
-- [Library: pulse.Predict / Ask](../library/ask.md) — Go counterparts
+- [Library: pulse.Predict](../library/overview.md) — Go counterpart
 - `skills/debugging-with-predict.md` — LLM-side iteration recipe

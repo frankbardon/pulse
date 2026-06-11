@@ -3425,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 121,
+    "error_codes_count": 119,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3520,8 +3520,6 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
-      "PULSE_QUERY_AMBIGUOUS",
-      "PULSE_QUERY_UNRESOLVED",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_SHARD_DESCRIPTION_DIVERGENCE",
       "PULSE_SHARD_DICT_DIVERGENCE",
@@ -3559,12 +3557,8 @@
     ],
     "mcp_tools": [
       {
-        "name": "pulse_ask",
-        "description": "PREFERRED ENTRY POINT. The unified one-shot for analytical queries against a Pulse cohort. One call does all of: (optional) import the source file, inspect schema, validate the request, and execute. Replaces the manual pulse_import → pulse_inspect → pulse_predict → pulse_process chain for the common case.\n\nThree input modes (combine freely):\n  - source=\"data.csv\" + query=\"average revenue by month\" — point at a raw file and ask in English. Pulse imports it (managed handle, 7d TTL by default), parses the question against the schema, and runs it.\n  - source=\"data.csv\" + request={...} — auto-import + structured request.\n  - request={cohort:{filename:\"x.pulse\"}, ...} — operate on an already-imported handle.\n\nExamples:\n  {\"source\":\"orders.csv\",\"query\":\"total revenue by region, top 5\"}\n  {\"source\":\"experiment.parquet\",\"query\":\"t-test of score between treatment and control\"}\n  {\"source\":\"/Users/me/data/sales.csv\",\"query\":\"trend over time\",\"source_ttl\":\"30d\"}\n  {\"request\":{\"cohort\":{\"filename\":\"imports/orders.pulse\"},\"aggregations\":[{\"type\":\"AGG_AVERAGE\",\"field\":\"revenue\"}]}}\n\nOptional knobs: predict=true to validate without executing; on_invalid=\"suggest\" to return structured fixup hints instead of an error; source_format / source_handle / source_ttl / source_sheet / source_overwrite to customise the auto-import. Use pulse_ask first; fall back to the lower-level tools only when you need finer control."
-      },
-      {
         "name": "pulse_compose",
-        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop. For single-question analytical asks, prefer pulse_ask."
+        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop."
       },
       {
         "name": "pulse_drop",
@@ -3584,7 +3578,7 @@
       },
       {
         "name": "pulse_facet",
-        "description": "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use after pulse_ask when you need the unique-value set of one column (e.g., before authoring a FILTER_INCLUDE). For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive contribution counts, prefer pulse_facet_schema."
+        "description": "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use when you need the unique-value set of one column (e.g., before authoring a FILTER_INCLUDE). For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive contribution counts, prefer pulse_facet_schema."
       },
       {
         "name": "pulse_facet_schema",
@@ -3592,7 +3586,7 @@
       },
       {
         "name": "pulse_import",
-        "description": "Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet/ask against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false."
+        "description": "Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false."
       },
       {
         "name": "pulse_imports_list",
@@ -3600,7 +3594,7 @@
       },
       {
         "name": "pulse_inspect",
-        "description": "ADVANCED. Read header and schema of a .pulse file. Never reads record data. Typically callers should use pulse_ask instead — pulse_ask runs inspect + predict + execute in one call and is the preferred entry point for analytical questions. Use pulse_inspect directly only when you need schema-only output without running a request (e.g., listing fields for a UI, debugging dictionary contents)."
+        "description": "Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata. Use when you need schema-only output without running a request — listing fields for a UI, debugging dictionary contents, or confirming a field's type before authoring a request slot."
       },
       {
         "name": "pulse_label_resolve",
@@ -3616,11 +3610,11 @@
       },
       {
         "name": "pulse_predict",
-        "description": "ADVANCED. Validate a processing request against a cohort schema without executing. Typically callers should use pulse_ask with predict=true instead — same validation, plus auto-import and natural-language query support, in one call. Use pulse_predict directly only when you need standalone validation diagnostics on a pre-built request (e.g., a request constructor verifying its output before storage)."
+        "description": "Validate a processing request against a cohort schema without executing. Returns the same diagnostics pulse_process would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Use to verify a hand-authored or programmatically generated request before storage or execution; cheap because it reads only the cohort header + schema."
       },
       {
         "name": "pulse_process",
-        "description": "ADVANCED. Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion.\n\nTypically callers should use pulse_ask instead — pulse_ask accepts a `source` path (auto-imports), a `query` (natural language), and produces the same execution result plus structured fixup suggestions on failure. Use pulse_process directly only when you already have a hand-authored types.Request and a cohort handle, AND want to skip the inspect + predict round-trip."
+        "description": "Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion."
       },
       {
         "name": "pulse_process_chain",
@@ -3628,7 +3622,7 @@
       },
       {
         "name": "pulse_sample",
-        "description": "Return up to N rows from a cohort. Diagnostic / preview tool — use after pulse_ask if you want to eyeball the underlying data."
+        "description": "Return up to N rows from a cohort. Diagnostic / preview tool — use after running a request when you want to eyeball the underlying data."
       },
       {
         "name": "pulse_skills_get",
@@ -4623,19 +4617,11 @@
       },
       {
         "name": "mcp-integration",
-        "description": "Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_ask, pulse_compose, pulse_sample, pulse_facet, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order."
-      },
-      {
-        "name": "query-router-prompt",
-        "description": "System-prompt template a calling LLM uses to translate natural-language analytical questions into a Pulse AskRequest JSON payload. Use when wiring Pulse behind an upstream LLM (Nexus, agent shells) that takes free-text user input and must route to pulse_ask."
+        "description": "Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_compose, pulse_sample, pulse_facet, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order."
       },
       {
         "name": "regression-modeling",
         "description": "Fit OLS (with optional l1/l2/elasticnet penalty), GLM (logistic, poisson, gamma), and Bayesian linear regression. Use when a request needs coefficient estimates, R²/deviance, std errors, or per-row residuals; covers the 13 textbook regression names (Simple/Multiple/Linear/Logistic/Ridge/Lasso/Polynomial/Bayesian/Jackknife/ElasticNet/Ecological/Stepwise) via 3 operators + 2 modifiers + FEAT_POLY composition."
-      },
-      {
-        "name": "request-recipes",
-        "description": "Canonical Pulse request JSON skeletons keyed by analytical intent — compare two groups, rank top N, trend over time, ANOVA with Tukey post-hoc, paired before/after, frequency cross-tab. Use when starting from a natural-language ask and needing a runnable JSON template."
       },
       {
         "name": "statistical-testing",
@@ -4878,4 +4864,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6f54e7348b48d8df4f01dc9024e0c382338b2efeefa32f8b052f311ad6e30ea2
+// golden-hash: 9cfa6fc2ca382f24b7100b49813f062f96e8f45b2293b5778a031b1cfd59b3f4

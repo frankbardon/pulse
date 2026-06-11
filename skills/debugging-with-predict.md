@@ -24,8 +24,6 @@ Predict reads only the cohort header and schema; it never executes the request. 
 3. Resolve every entry in `errors` and review `warnings`. Read `data.suggestions[]` — structured machine-actionable fixups derived from each error code's metadata.
 4. Check `data.streamable` and `data.streamable_reasons` — buffering gates surface here.
 5. Once clean, call `pulse_process` with the same `request` payload.
-
-For the one-shot path, call `pulse_ask` with `{"request": ..., "predict": true, "on_invalid": "suggest"}`. The response carries `predict` (the PredictResult) plus `suggestions` ready to act on; the engine skips execution.
 </workflow>
 
 <reference>

@@ -9,8 +9,8 @@ import (
 
 func TestSkillsList_ReturnsAll(t *testing.T) {
 	items := List()
-	if len(items) != 26 {
-		t.Fatalf("List() returned %d skills, want 26", len(items))
+	if len(items) != 24 {
+		t.Fatalf("List() returned %d skills, want 24", len(items))
 	}
 }
 
@@ -110,8 +110,8 @@ func TestSkillsManifestConsistent(t *testing.T) {
 
 func TestSkillsNames(t *testing.T) {
 	names := Names()
-	if len(names) != 26 {
-		t.Fatalf("Names() returned %d, want 26", len(names))
+	if len(names) != 24 {
+		t.Fatalf("Names() returned %d, want 24", len(names))
 	}
 	if !slices.Contains(names, "getting-started") {
 		t.Error("Names() does not contain 'getting-started'")

@@ -12,7 +12,6 @@
 
 - [api process](cli/api-process.md)
 - [api compose](cli/api-compose.md)
-- [api ask](cli/api-ask.md)
 - [cohort inspect](cli/cohort-inspect.md)
 - [api predict](cli/api-predict.md)
 - [api sample](cli/api-sample.md)
@@ -28,7 +27,6 @@
 
 - [Go API Overview](library/overview.md)
 - [pulse.New & Options](library/options.md)
-- [pulse.Ask Unified Entry Point](library/ask.md)
 - [Custom Filesystems](library/custom-fs.md)
 - [Streaming & ProcessStream](library/streaming.md)
 - [StreamResult[T]](library/stream-result.md)

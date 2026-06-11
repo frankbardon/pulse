@@ -21,7 +21,7 @@ Sub-packages you'll commonly touch:
 
 | Package | Purpose |
 |---|---|
-| `github.com/frankbardon/pulse`            | Public facade (`Pulse`, `Options`, `Request`, `Response`, `Ask`, ...) |
+| `github.com/frankbardon/pulse`            | Public facade (`Pulse`, `Options`, `Request`, `Response`, ...) |
 | `github.com/frankbardon/pulse/types`      | Request/response structs, component-type constants (`AGG_*`, ...) |
 | `github.com/frankbardon/pulse/io`         | Tabular adapter interfaces (`Reader`, `Writer`, `ImportJob`, `ExportJob`, `ConvertJob`) |
 | `github.com/frankbardon/pulse/io/<fmt>`   | Per-format readers/writers (`csv`, `tsv`, `ndjson`, `jsonarray`, `parquet`, `arrow`, `excel`) |
@@ -31,8 +31,8 @@ Sub-packages you'll commonly touch:
 | `github.com/frankbardon/pulse/synth`      | Synthetic data generator and profile types |
 | `github.com/frankbardon/pulse/skills`     | Embedded skill pack — `skills.List()`, `skills.Get(name)` |
 
-The `internal/` subtree (`internal/cli`, `internal/mcp`,
-`internal/query`) is exactly that — internal. Don't import it.
+The `internal/` subtree (`internal/cli`, `internal/mcp`) is exactly
+that — internal. Don't import it.
 
 ## The facade
 
@@ -62,7 +62,6 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `ProcessStream(ctx, req) (RowIter, error)` | Same, pull-based iterator over result rows |
 | `Compose(ctx, req) ([]*Response, error)` | Execute a batch sequentially |
 | `ComposeParallel(ctx, req, opts) ([]*Response, error)` | Execute a batch in parallel with a worker pool |
-| `Ask(ctx, askReq) (*AskResponse, error)` | Unified entry: predict + (optionally) process, with natural-language query support |
 | `Import(ctx, job) (*ImportReport, error)` | Tabular → `.pulse` |
 | `Export(ctx, job) (*ExportReport, error)` | `.pulse` → tabular |
 | `Convert(ctx, job) (*ConvertReport, error)` | Tabular → tabular, with `.pulse` as the transparent middle |
@@ -127,8 +126,6 @@ func main() {
 ## Where to go from here
 
 - [pulse.New & Options](options.md) — full `Options` reference.
-- [pulse.Ask Unified Entry Point](ask.md) — the one-shot facade
-  the MCP server uses internally.
 - [Custom Filesystems](custom-fs.md) — in-memory testing pattern,
   custom storage backends.
 - [Streaming & ProcessStream](streaming.md) — pull-based iteration,
