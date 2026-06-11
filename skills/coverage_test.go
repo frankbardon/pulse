@@ -182,14 +182,12 @@ func TestSkillsCoverAllWindowTypes(t *testing.T) {
 // kind catalog and the skill body stay in lock-step.
 //
 // E1-S12 lands the gate. The matching skills/overlay-system.md body
-// lands in E1-S13, so this test t.Skips until the skill arrives. The
-// E1-S13 commit unblocks the gate by dropping the t.Skip; do NOT
-// remove the loop body when flipping the skip — the iteration is the
-// load-bearing assertion.
+// lands in E1-S13, which flips the lookup from t.Skip to t.Fatal so a
+// missing skill becomes a hard failure rather than a silent skip.
 func TestSkillsCoverAllOverlayKinds(t *testing.T) {
 	content, ok := Get("overlay-system")
 	if !ok {
-		t.Skip("skills/overlay-system.md lands in E1-S13; flip the t.Skip off in that commit")
+		t.Fatal("skills/overlay-system.md not found")
 	}
 	for _, k := range types.AllOverlayKinds() {
 		if !strings.Contains(content, string(k)) {

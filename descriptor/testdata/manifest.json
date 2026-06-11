@@ -4624,6 +4624,10 @@
         "description": "Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_compose, pulse_sample, pulse_facet, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order."
       },
       {
+        "name": "overlay-system",
+        "description": "Result overlay decoration framework — request-driven derived projections (index, sibling delta, baseline lift, population comparison, multi-stage chain reference) that decorate a primary result without re-deriving on the client side. Covers the OverlaySpec / OverlayLayer surface, the three-shape model (scalar / series / matrix), the six reference families (Margin, Sibling, BaselineIndex, Population, Stage, Slot), spec-order viz contract, streamable-vs-buffered split, and a worked OVERLAY_INDEX_VS_MARGIN example against a 2-axis crosstab."
+      },
+      {
         "name": "regression-modeling",
         "description": "Fit OLS (with optional l1/l2/elasticnet penalty), GLM (logistic, poisson, gamma), and Bayesian linear regression. Use when a request needs coefficient estimates, R²/deviance, std errors, or per-row residuals; covers the 13 textbook regression names (Simple/Multiple/Linear/Logistic/Ridge/Lasso/Polynomial/Bayesian/Jackknife/ElasticNet/Ecological/Stepwise) via 3 operators + 2 modifiers + FEAT_POLY composition."
       },
@@ -4884,4 +4888,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 61616d2824e3218aaefe8f91db4f8003e322429bd1b9f4d0ce462cf4438c0eaa
+// golden-hash: 0715b6742da4b980acb60adff31c808c4f9c13ade4ad02a5ccd9c7154c4ceba0
