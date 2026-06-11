@@ -683,25 +683,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	PULSE_QUERY_UNRESOLVED: {
-		Message: "The natural-language query parser could not map a token to any operator, schema field, or bucket within the edit-distance budget.",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceField,
-				Hint:   "Re-phrase using one of the canonical shapes in skills/request-recipes.md (\"<agg> <field>\", \"<agg> <field> by <field>\", \"top N <field> by count\"); confirm every field reference appears in pulse inspect --json output.",
-			},
-		},
-	},
-	PULSE_QUERY_AMBIGUOUS: {
-		Message: "A query token matched multiple schema fields at the same edit distance; the parser picked the lexically first match.",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceField,
-				Hint:   "Re-phrase using the full schema field name to remove the ambiguity, or edit the resolved request to point at the intended field.",
-			},
-		},
-	},
-
 	// ---------- PULSE — EXTENSIONS / LOOKUP ----------
 	PULSE_EXTENSION_NAME_INVALID: {
 		Message: "An embedder registration name does not match the required pattern <CATEGORY>_<NAMESPACE>_<NAME> with uppercase ASCII segments.",
