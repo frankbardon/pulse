@@ -225,6 +225,68 @@ Pulse does **not** provide concurrent-writer protection. Two processes running `
 
 Read-side concurrency is safe — readers snapshot the central directory and `_schema.pulse` at `Open` time and never re-read. A concurrent `shard add` does not affect an already-open reader; re-open to see new shards.
 
+## Parallel decode
+
+The buffered Process path on a single-file (non-shard) cohort can fan out record-decode across a worker pool when the request is mergeable. This is the E3 surface of the crosstab-perf rollout, controlled by `pulse.Options.DecodeWorkers` (see CLAUDE.md "Build / Env" for the knob, defaults, and rejection of negative values). It is **orthogonal to `ShardWorkers`** — shard archives parallelise across shards via `service/shard_reduce.go`; this path parallelises across record segments within a single file. The two never stack: a shard-archive cohort is gated out below.
+
+### When parallel decode engages
+
+Every condition in `service.canParallelDecode` must hold (this is the single integration site Process consults):
+
+- `DecodeWorkers != 1` — the caller has not forced strictly serial.
+- `recordCount >= service.parallelDecodeRecordThreshold` (currently `100_000`) — below this the worker spawn + state-merge overhead dominates the segment win. Record count is taken from the header-fast `pulse.CountRecords` path, never a payload slurp, so a bail on threshold pays no extra I/O.
+- The cohort is single-file (`len(cohort.Shards()) == 0`) — shard archives use `ShardWorkers` instead; stacking would double-spawn workers on the same CPUs.
+- `resolveRealPath` returns a real on-disk path — mmap is required to share the record region read-only across workers. `MemMapFs`, the anchor overlay, and custom `afero.Fs` implementations without `RealPather` all bail here.
+- `processing.CanMergeRequest(req, schema)` is true — every operator in the request must support associative merge of per-worker partial state. The same gate the per-shard reducer uses (built-ins only; non-decimal targets; no windows/features/regressions/tests/two-pass; aggregator emits scalar).
+
+Any bail returns a short stable reason string (e.g. `"below threshold (50000 < 100000)"`, `"mmap unavailable (no RealPath)"`, `"non-mergeable request"`) suitable for debug logs or future telemetry. Process falls through to the serial `scanIter` path with byte-equal output.
+
+### Why crosstab is NOT exercised today
+
+Crosstab requests fail `CanMergeRequest`. `validateCrosstabSpec` requires `req.Aggregations` to be empty (cell aggregation lives in `Crosstab.Cell` instead), but `CanMergeRequest` requires `len(req.Aggregations) > 0`. The infrastructure here is therefore dormant on the canonical crosstab-perf benchmark (`tmp/huge-request.json`) and exists to benefit **future non-crosstab buffered Process calls** — wide cohorts with a mergeable request slate. E3 ships parallel decode as orthogonal plumbing alongside the crosstab-perf headline epics (projection, decode plans), not as a crosstab speedup.
+
+### How segments are chosen
+
+`parallelDecodeMmap` partitions the mmap'd record region into `workers` contiguous ranges at stride-aligned boundaries (`Schema.RecordByteSize()`). The first `workers-1` segments each get `floor(totalRecords / workers)` records; the last segment absorbs the remainder so the partition covers exactly `[0, totalRecords)`. Each worker constructs its own `bytes.Reader` over its sub-slice of the shared mmap, walks records via `RecordReader.ReadRecordWithWidePlan` (when the same projected `DecodePlan` Process would have installed on the serial path is non-nil) or `ReadRecordWithWide` otherwise, and fires its per-record callback. Cancellation is polled at each record boundary; the first worker to return a non-nil error propagates through the errgroup and cancels the rest.
+
+Bit-packed neighbours can never straddle a segment boundary because record stride is byte-aligned per the byte-layout invariants (`Schema.RecordByteSize` reserves one byte per bit-packed field). A defensive assertion at dispatch catches a malformed schema with a typed `PROCESSING_INTERNAL` error before fan-out.
+
+### Mergeable-aggregator requirement
+
+Each worker owns a `*shardPartial` — the same shape `shard_reduce.go` uses for archive-shard parallelism. Per-record callbacks update only the worker's own partial; there is no shared mutable state on the hot path. After the errgroup boundary completes, `mergeShardPartials` folds partials in **worker-index order** (which equals cohort byte order because segments are assigned contiguous record ranges), then `finalizeMergedPartial` emits the Response. Worker-index iteration order matters for the Welford-Pébaÿ AGG_MEAN / AGG_STDDEV / AGG_VARIANCE merge: Chan-Welford is associative but not strictly commutative when partition sizes differ, so floating-point byte equality across runs depends on stable order.
+
+Adding a new aggregator that should compose under this path means implementing `MergeableAggregator.Merge(other)` AND declaring `AggregationType.Mergeable() == true`. See `skills/contributor-workflow.md` for the contributor rule. Associative+commutative aggregators (count, sum, min, max, null_count, frequency, distinct_count, mode) produce byte-equal results vs the serial path; Welford mean / variance / stddev drift within ULP via Chan-Welford (the same guarantee the shard reducer ships).
+
+### Threshold rule
+
+`parallelDecodeRecordThreshold = 100_000` records. Below this the buffered Process path stays serial regardless of `DecodeWorkers`. The constant is colocated with the gate (`service/service.go`) and the worker-count resolution (`shouldFanOutDecode`); changing it touches both the predicate and the dispatcher together. Tests at `service/decode_workers_test.go` and `service/parallel_decode_eligibility_test.go` lock the threshold semantics; `TestProcess_ParallelDecode_BelowThresholdBails` is the canonical regression.
+
+### Observed perf characteristics
+
+Reference cohort: 200-field synth × 100K rows, mergeable request slate, OsFs (mmap engaged), 10-core box.
+
+| Worker count          | Wall-clock          | Memory  | Allocs |
+|-----------------------|---------------------|---------|--------|
+| `DecodeWorkers=1` (serial) | ~478ms          | 25 MB   | 1.1M   |
+| `DecodeWorkers=2`     | ~506ms (regression — parallel overhead) | 778 MB | 21.6M |
+| `DecodeWorkers=4`     | ~363ms              | 778 MB  | 21.6M  |
+| `DecodeWorkers=10` (NumCPU) | ~370ms          | 778 MB  | 21.6M  |
+
+Observed NumCPU-vs-serial wall-clock ratio: **0.747** (~25 % win). The E3-S5 acceptance target was **0.67** (33 % win); the perf gate test (`TestParallelDecode_PerfGate`, build-tagged `perf`) currently does **not** clear that threshold. Document the honest number — do not claim the 33 % win the code does not yet deliver.
+
+**Root cause of the alloc explosion.** `service/service.go`'s parallel dispatcher hardcodes `projectMapHint = len(schema.Fields)` for the parallel context and only narrows when `s.projectBuffered` is true. With projection disabled, each per-worker map is sized for ALL 200 fields per record. Result: 21.6M parallel allocs vs 1.1M serial. Plumbing the projected `DecodePlan` retained-set size into `parallelDecodeContext.projectMapHint` (mirroring `streamingIterator.projectSize`) likely closes the gap and clears the 0.67 gate. This is the high-priority follow-up for the next E3 iteration.
+
+**Workers=2 regression.** At low worker count parallel overhead (errgroup setup + per-worker state allocation + the post-Wait merge fold) dominates the segment win. Recommend `DecodeWorkers >= 3` for best results until a cost-model fan-out gate lands in `shouldFanOutDecode`. The constant-time predicate is fine; the worker-count floor is the natural next gate.
+
+### Surface
+
+- `service/parallel_decode.go` — `canParallelDecode` (predicate), `shouldFanOutDecode` (worker-count resolver), `parallelDecodeMmap` (segment-aware fan-out), `buildParallelDecodeContext` (mmap + cursor setup).
+- `service/parallel_reduce.go` — `reduceParallelBuffered` (per-worker partial state + worker-index merge fold).
+- `service/service.go` — `processSingleFileParallelMaybe` (dispatch site in `Process`, post-`shouldFanOut`-for-shards check), `SetDecodeWorkers` / `DecodeWorkers()` (service-level setter/getter), `parallelDecodeRecordThreshold` constant.
+- `pulse.go` — `Options.DecodeWorkers` (public knob, validated at `New`).
+
+CI gates: `TestProcess_ParallelDecode_ByteEqualToSerial`, `TestProcess_ParallelDecode_BelowThresholdBails`, `TestProcess_ParallelDecode_MemMapFsBails`, `TestProcess_ParallelDecode_NonMergeableBails`, `TestProcess_ParallelDecode_WorkersOneBails`, `TestCanParallelDecode_*`, `TestShouldFanOutDecode_*` (the E3-S4 matrix), plus the build-tagged `TestParallelDecode_PerfGate` (E3-S5).
+
 ## Decode plan and projection
 
 When `pulse.Options.ProjectBufferedFields` is enabled, the streaming iterator decodes each record by walking a precomputed `encoding.DecodePlan` instead of every schema field. Lifetime is purely runtime: nothing about the `.pulse` file changes — the plan is built in-memory from `(Schema, retained set)` and dies with the iterator.

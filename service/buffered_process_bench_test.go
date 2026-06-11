@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"runtime"
 	"testing"
 	"time"
 
@@ -126,6 +127,195 @@ func BenchmarkBufferedProcessWideCohort(b *testing.B) {
 			}
 		}
 	})
+}
+
+// BenchmarkBufferedProcessWideCohortMergeable is the parallel-decode-
+// driving sibling to BenchmarkBufferedProcessWideCohort. The original
+// crosstab bench routes through the slice-collecting buffered path
+// because Crosstab requests are non-mergeable per
+// processing.CanMergeRequest (req.Aggregations must be empty when
+// req.Crosstab is set). The canParallelDecode gate wired in E3-S4
+// therefore never engages on that bench, leaving the DecodeWorkers knob
+// dormant.
+//
+// To exercise the E3-S3 per-worker partial-aggregator reducer + E3-S4
+// dispatch we drive the same 200-field × 100K-row synth cohort with a
+// mergeable request shape: AGG_SUM + AGG_COUNT + AGG_MIN on the
+// `weight` field. Those aggregators are all associative+commutative
+// (the shard-reduce path already covers them) so the request passes
+// processing.CanMergeRequest and the parallel reducer fires.
+//
+// Worker-count sub-cases (1, 2, 4, runtime.NumCPU()) sweep
+// pulse.Options.DecodeWorkers — N=1 forces the serial scanIter baseline,
+// N>=2 hits canParallelDecode. The b.ReportMetric "workers" tag makes
+// the sub-case identifier survive into bench JSON / benchstat output.
+//
+// Acceptance: TestParallelDecode_PerfGate (//go:build perf) re-runs this
+// bench via testing.Benchmark and asserts the NumCPU variant's ns/op is
+// at most 0.67× the workers=1 baseline. Default CI skips the gate
+// (build-tag exclusion); the maintainer runs it on demand via
+// `go test -tags=perf ./service/... -run TestParallelDecode_PerfGate`.
+//
+// The unchanged BenchmarkBufferedProcessWideCohort (crosstab) stays as
+// the crosstab-orchestrator baseline and remains the E1/E2/E4 perf
+// surface; this sibling bench owns the E3 parallel-decode surface only.
+func BenchmarkBufferedProcessWideCohortMergeable(b *testing.B) {
+	const (
+		fieldCount = 200
+		rowCount   = 100_000
+	)
+
+	dir := b.TempDir()
+	osFs := afero.NewOsFs()
+	path := dir + "/bench_wide_mergeable.pulse"
+
+	schema, payload := buildWideCohort(b, fieldCount, rowCount)
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		b.Fatalf("WriteHeader: %v", err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		b.Fatalf("WriteSchema: %v", err)
+	}
+	buf.Write(payload)
+	if err := afero.WriteFile(osFs, path, buf.Bytes(), 0644); err != nil {
+		b.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, _ := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
+
+	// Mergeable request: AGG_SUM + AGG_COUNT + AGG_MIN on the weight
+	// field. All three are MergeableAggregator implementations per the
+	// shard-reduce path; processing.CanMergeRequest accepts so the
+	// parallel reducer fires when DecodeWorkers != 1 and the cohort
+	// clears parallelDecodeRecordThreshold (100K records, threshold
+	// is 100K, so we are exactly at the floor — the gate's
+	// recordCount >= threshold check accepts).
+	mkReq := func() *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: path},
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_SUM, Field: "weight", Label: "sum_w"},
+				{Type: types.AGG_COUNT, Field: "weight", Label: "n"},
+				{Type: types.AGG_MIN, Field: "weight", Label: "lo"},
+			},
+		}
+	}
+
+	// Worker-count sub-cases. Each sub-case spins up a fresh Service
+	// with its DecodeWorkers cap so per-bench state isolation matches
+	// the production code path (pulse.New → svc.SetDecodeWorkers).
+	numCPU := runtime.NumCPU()
+	workerCases := []struct {
+		name    string
+		workers int
+	}{
+		{"workers=1", 1},
+		{"workers=2", 2},
+		{"workers=4", 4},
+		{fmt.Sprintf("workers=numcpu=%d", numCPU), numCPU},
+	}
+
+	for _, tc := range workerCases {
+		b.Run(tc.name, func(b *testing.B) {
+			runMergeableBenchInner(b, cfg, mkReq, tc.workers)
+		})
+	}
+}
+
+// runMergeableBenchInner runs the inner loop of
+// BenchmarkBufferedProcessWideCohortMergeable for one worker count. It
+// is extracted from the b.Run closure so the perf gate
+// (parallel_decode_perf_test.go, //go:build perf) can call it from a
+// testing.Benchmark closure WITHOUT having to re-run every sub-case to
+// isolate one. The bench-only signature (no t/sync) keeps it in the
+// _test.go scope without leaking into the package's exported surface.
+func runMergeableBenchInner(
+	b *testing.B,
+	cfg *fs.Config,
+	mkReq func() *types.Request,
+	workers int,
+) {
+	b.Helper()
+	svc := New(cfg)
+	svc.SetDecodeWorkers(workers)
+	ctx := context.Background()
+
+	// Sanity-check the request once before the timed loop so a bench
+	// failure surfaces as a real error, not a timed-out hang.
+	if _, err := svc.Process(ctx, mkReq()); err != nil {
+		b.Fatalf("warmup Process (workers=%d): %v", workers, err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := svc.Process(ctx, mkReq()); err != nil {
+			b.Fatalf("Process (workers=%d): %v", workers, err)
+		}
+	}
+	// ReportMetric the worker count so benchstat / JSON output can pivot
+	// on it without parsing the sub-case name.
+	b.ReportMetric(float64(workers), "workers")
+}
+
+// runMergeableBench is the entry point the perf gate
+// (TestParallelDecode_PerfGate) uses to drive ONE worker-count variant
+// via testing.Benchmark. It rebuilds the synth cohort + fs.Config
+// fixture fresh per call so the gate is independent of the canonical
+// BenchmarkBufferedProcessWideCohortMergeable invocation and free of
+// shared mutable state with concurrent t.Parallel sub-tests.
+//
+// The cohort it writes matches the canonical bench's fixture
+// (200-field × 100K-row synth via buildWideCohort) exactly so the gate's
+// ratio reflects the same workload the canonical bench reports.
+//
+// Note: testing.Benchmark drives the closure repeatedly until the
+// returned BenchmarkResult converges; we materialise the fixture once
+// up-front (outside b.ResetTimer) but inside the closure so each gate
+// invocation gets its own TempDir. The cost of fixture build is amortised
+// across the convergence iterations (testing.Benchmark runs b.N up to
+// ~1e9 with the standard 1 ns/op floor, so the fixture cost is < 1 % of
+// total wall-clock).
+func runMergeableBench(b *testing.B, workers int) {
+	b.Helper()
+
+	const (
+		fieldCount = 200
+		rowCount   = 100_000
+	)
+
+	dir := b.TempDir()
+	osFs := afero.NewOsFs()
+	path := dir + "/perfgate_wide_mergeable.pulse"
+
+	schema, payload := buildWideCohort(b, fieldCount, rowCount)
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		b.Fatalf("WriteHeader: %v", err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		b.Fatalf("WriteSchema: %v", err)
+	}
+	buf.Write(payload)
+	if err := afero.WriteFile(osFs, path, buf.Bytes(), 0644); err != nil {
+		b.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, _ := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
+
+	mkReq := func() *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: path},
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_SUM, Field: "weight", Label: "sum_w"},
+				{Type: types.AGG_COUNT, Field: "weight", Label: "n"},
+				{Type: types.AGG_MIN, Field: "weight", Label: "lo"},
+			},
+		}
+	}
+
+	runMergeableBenchInner(b, cfg, mkReq, workers)
 }
 
 // dateParams renders a GROUP_DATE params JSON blob with the given

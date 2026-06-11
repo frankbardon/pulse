@@ -1,0 +1,41 @@
+{
+  "cohort": {
+    "filename": "/Volumes/Extreme Pro/Work/bera/data/vc/1.pulse"
+  },
+  "filterers": [],
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "brand"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_DATE",
+        "field": "waveDate",
+        "params": {
+          "component": "quarter",
+          "fiscal_offset": -3
+        }
+      },
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "cardFeeling"
+      }
+    ],
+    "cell": {
+      "type": "AGG_SUM",
+      "field": "weight",
+      "label": "sum_weight"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    },
+    "shape": "matrix",
+    "normalize": "row",
+    "normalize_within": 0
+  }
+}
