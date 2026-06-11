@@ -475,10 +475,24 @@ func (s *FusedCrosstabState) internPartialColKey(key string) (int, error) {
 // caller's filter contribute to totalRows only via the totalRows
 // counter the caller separately advances.
 //
-// Records whose row-axis or column-axis key is null on any grouper
-// (ErrGrouperKeyNull from KeyFor) are silently skipped — they have no
-// placement in the matrix, matching the buffered behavior where the
-// recursive PartitionByAxis drops them from every bucket.
+// Axis-key nullity is tracked independently per axis. A record whose
+// row-axis composite key is non-null AND col-axis composite key is
+// non-null lands a cell update at the (rowIdx, colIdx) intersection.
+// A record whose row-axis key is non-null but col-axis key is null
+// (or vice versa) still contributes to the appropriate axis margin
+// (rowMargin via the row key, colMargin via the col key), matching the
+// buffered RunCrosstab path: there `PartitionByAxis(spec.Rows, filtered)`
+// builds the row partition over all filtered records with valid row
+// keys regardless of column key nullity (and vice versa). The grand
+// margin counts every filter-passing record regardless of any axis
+// nullity. Partial-depth (normalize_level) margins follow the same
+// per-axis gate: row partial-margin updates whenever the row axis key
+// is non-null. Cross-axis (normalize_within) margins update only when
+// BOTH the row prefix at crossRowDepth AND the column prefix at
+// crossColDepth are non-null — mirroring the buffered joined-partition
+// behaviour at processing/crosstab.go::crossActive (lines ~410-448),
+// where the partition only contains records whose prefix groupers all
+// produce non-null keys.
 func (s *FusedCrosstabState) Update(rec *Record) error {
 	if rec == nil {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
@@ -486,105 +500,130 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	}
 	s.filteredRows++
 
-	rowKey, rowTuple, ok, err := axisKeyAndTuple(s.rowGroupers, rec)
+	rowKey, rowTuple, rowPartialKeys, rowDepth, rowOk, err := axisKeyAndPartials(s.rowGroupers, rec)
 	if err != nil {
 		return err
 	}
-	if !ok {
-		// Null on a row-axis grouper → unplaceable. Mirror buffered.
-		return nil
-	}
-	colKey, colTuple, ok, err := axisKeyAndTuple(s.colGroupers, rec)
+	colKey, colTuple, colPartialKeys, colDepth, colOk, err := axisKeyAndPartials(s.colGroupers, rec)
 	if err != nil {
 		return err
 	}
-	if !ok {
-		return nil
-	}
 
-	rowIdx := s.internRowKey(rowKey, rowTuple)
-	colIdx := s.internColKey(colKey, colTuple)
-
-	// Cell update — slice indexing, no map hash.
-	cell := s.cells[rowIdx][colIdx]
-	if cell == nil {
-		cell, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
-		if err != nil {
-			return err
-		}
-		s.cells[rowIdx][colIdx] = cell
-	}
-	if err := cell.UpdateRow(rec, s.cellField); err != nil {
-		return err
-	}
-
-	if s.rowMargins != nil {
-		mar := s.rowMargins[rowIdx]
-		if mar == nil {
-			mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
-			if err != nil {
-				return err
-			}
-			s.rowMargins[rowIdx] = mar
-		}
-		if err := mar.UpdateRow(rec, s.cellField); err != nil {
-			return err
-		}
-	}
-	if s.colMargins != nil {
-		mar := s.colMargins[colIdx]
-		if mar == nil {
-			mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
-			if err != nil {
-				return err
-			}
-			s.colMargins[colIdx] = mar
-		}
-		if err := mar.UpdateRow(rec, s.cellField); err != nil {
-			return err
-		}
-	}
+	// Grand margin counts every filter-passing record regardless of axis
+	// nullity — mirrors the buffered RunCrosstab path where
+	// spec.NeedsGrandMargin aggregates over all of `filtered`, never
+	// touching the per-axis partitions.
 	if s.grandMargin != nil {
 		if err := s.grandMargin.UpdateRow(rec, s.cellField); err != nil {
 			return err
 		}
 	}
 
-	if s.partialRowIndex != nil {
-		pkey := truncateCompositeKey(rowKey, s.rowNormLevel)
-		pIdx, perr := s.internPartialRowKey(pkey)
-		if perr != nil {
-			return perr
+	// Row-axis updates (independent of column-axis nullity). A non-null
+	// composite row key is enough to intern the row and update its row
+	// margin; the buffered PartitionByAxis(spec.Rows, filtered) bucket for
+	// this row key contains every record with this row key, even those
+	// whose column key is null.
+	var rowIdx int
+	if rowOk {
+		rowIdx = s.internRowKey(rowKey, rowTuple)
+		if s.rowMargins != nil {
+			mar := s.rowMargins[rowIdx]
+			if mar == nil {
+				mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
+				if err != nil {
+					return err
+				}
+				s.rowMargins[rowIdx] = mar
+			}
+			if err := mar.UpdateRow(rec, s.cellField); err != nil {
+				return err
+			}
 		}
-		if err := s.partialRowMargins[pIdx].UpdateRow(rec, s.cellField); err != nil {
-			return err
+		if s.partialRowIndex != nil {
+			pkey := truncateCompositeKey(rowKey, s.rowNormLevel)
+			pIdx, perr := s.internPartialRowKey(pkey)
+			if perr != nil {
+				return perr
+			}
+			if err := s.partialRowMargins[pIdx].UpdateRow(rec, s.cellField); err != nil {
+				return err
+			}
 		}
 	}
-	if s.partialColIndex != nil {
-		pkey := truncateCompositeKey(colKey, s.colNormLevel)
-		pIdx, perr := s.internPartialColKey(pkey)
-		if perr != nil {
-			return perr
+
+	// Column-axis updates (independent of row-axis nullity). Mirror story
+	// for the col margin and column partial-depth margin.
+	var colIdx int
+	if colOk {
+		colIdx = s.internColKey(colKey, colTuple)
+		if s.colMargins != nil {
+			mar := s.colMargins[colIdx]
+			if mar == nil {
+				mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
+				if err != nil {
+					return err
+				}
+				s.colMargins[colIdx] = mar
+			}
+			if err := mar.UpdateRow(rec, s.cellField); err != nil {
+				return err
+			}
 		}
-		if err := s.partialColMargins[pIdx].UpdateRow(rec, s.cellField); err != nil {
+		if s.partialColIndex != nil {
+			pkey := truncateCompositeKey(colKey, s.colNormLevel)
+			pIdx, perr := s.internPartialColKey(pkey)
+			if perr != nil {
+				return perr
+			}
+			if err := s.partialColMargins[pIdx].UpdateRow(rec, s.cellField); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Cell update — only when BOTH axis composite keys are non-null. The
+	// cells matrix grows lazily via the interners above; if a row was
+	// interned for margin tracking but no record landed both keys, the
+	// (rowIdx, colIdx) slot stays nil and Finalize emits an absent cell.
+	if rowOk && colOk {
+		cell := s.cells[rowIdx][colIdx]
+		if cell == nil {
+			cell, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
+			if err != nil {
+				return err
+			}
+			s.cells[rowIdx][colIdx] = cell
+		}
+		if err := cell.UpdateRow(rec, s.cellField); err != nil {
 			return err
 		}
 	}
 
+	// Cross-axis (normalize_within) margin. Buffered
+	// processing/crosstab.go::crossActive partitions filtered records by
+	// spec.Rows[:rowDepth+1] ++ spec.Columns[:colDepth+1] and only buckets
+	// records whose prefix groupers all produce non-null keys. The fused
+	// equivalent: gate on row prefix at crossRowDepth+1 succeeding AND col
+	// prefix at crossColDepth+1 succeeding. Note this is per-PREFIX (not
+	// full-axis) — a record whose deeper grouper is null but whose prefix
+	// groupers all succeed still contributes to the cross margin.
 	if s.crossActive {
-		rPart := truncateCompositeKey(rowKey, s.crossRowDepth)
-		cPart := truncateCompositeKey(colKey, s.crossColDepth)
-		ckey := crosstabCellKey{row: rPart, col: cPart}
-		mar, present := s.crossMargins[ckey]
-		if !present {
-			mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
-			if err != nil {
+		if rowDepth > s.crossRowDepth && colDepth > s.crossColDepth {
+			rPart := rowPartialKeys[s.crossRowDepth]
+			cPart := colPartialKeys[s.crossColDepth]
+			ckey := crosstabCellKey{row: rPart, col: cPart}
+			mar, present := s.crossMargins[ckey]
+			if !present {
+				mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
+				if err != nil {
+					return err
+				}
+				s.crossMargins[ckey] = mar
+			}
+			if err := mar.UpdateRow(rec, s.cellField); err != nil {
 				return err
 			}
-			s.crossMargins[ckey] = mar
-		}
-		if err := mar.UpdateRow(rec, s.cellField); err != nil {
-			return err
 		}
 	}
 	return nil
@@ -608,6 +647,75 @@ func (s *FusedCrosstabState) SetTotalRows(n int64) {
 	s.totalRows = n
 }
 
+// axisKeyAndPartials computes the composite key + axis tuple for one
+// record across an ordered grouper chain, AND additionally returns the
+// per-depth prefix composite keys so callers can address partial-depth
+// (normalize_level) and cross-axis (normalize_within) margins without
+// re-splitting the composite key. partialKeys[i] is the composite key
+// formed by joining groupers[0..i] inclusive; len(partialKeys) ==
+// successDepth (the number of groupers that produced a non-null key
+// before the first null). When successDepth < len(groupers) the axis
+// composite key did not fully resolve and fullOk is false; partialKeys
+// still carries the prefix keys that DID resolve. When successDepth ==
+// len(groupers) the full composite key resolved and fullOk is true.
+//
+// The buffered RunCrosstab path drops records whose row composite key
+// is null from the row partition but still buckets them in the column
+// partition (and vice versa). The fused path mirrors that by acting on
+// each axis independently — Update calls axisKeyAndPartials once per
+// axis and uses (fullOk_row, fullOk_col) and partial-depth keys to
+// dispatch updates to the cell, margin, partial-margin, and cross-
+// margin accumulators independently.
+//
+// Allocation profile: single-grouper axes allocate one types.AxisKey
+// (1 element) and one partialKeys slice (1 element). Multi-grouper
+// axes allocate a length-`len(groupers)` tuple, a length-successDepth
+// partialKeys slice, and one composite-key string per depth.
+func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
+	fullKey string, fullTuple types.AxisKey,
+	partialKeys []string, successDepth int,
+	fullOk bool, err error,
+) {
+	switch len(groupers) {
+	case 0:
+		// Empty axis is a programming bug — validateCrosstabSpec rejects
+		// zero-grouper axes up-front so reaching here means the gate
+		// drifted. Surface a typed error rather than a silent placement.
+		return "", nil, nil, 0, false, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+			"fused crosstab axis has zero groupers; spec validation should have rejected")
+	case 1:
+		key, kerr := groupers[0].KeyFor(rec)
+		if kerr != nil {
+			if stderrors.Is(kerr, ErrGrouperKeyNull) {
+				return "", nil, nil, 0, false, nil
+			}
+			return "", nil, nil, 0, false, kerr
+		}
+		return key, types.AxisKey{key}, []string{key}, 1, true, nil
+	}
+	tuple := make(types.AxisKey, 0, len(groupers))
+	partials := make([]string, 0, len(groupers))
+	for _, g := range groupers {
+		key, kerr := g.KeyFor(rec)
+		if kerr != nil {
+			if stderrors.Is(kerr, ErrGrouperKeyNull) {
+				// Partial success: return whatever prefix resolved. The
+				// composite full key + tuple are empty since the full
+				// axis did not resolve.
+				return "", nil, partials, len(partials), false, nil
+			}
+			return "", nil, nil, 0, false, kerr
+		}
+		tuple = append(tuple, key)
+		if len(partials) == 0 {
+			partials = append(partials, key)
+		} else {
+			partials = append(partials, partials[len(partials)-1]+crosstabAxisKeySep+key)
+		}
+	}
+	return partials[len(partials)-1], tuple, partials, len(partials), true, nil
+}
+
 // axisKeyAndTuple computes the composite key + axis tuple for one
 // record across an ordered grouper chain. Returns (key, tuple, true,
 // nil) on success; (..., false, nil) when any grouper in the chain
@@ -620,6 +728,11 @@ func (s *FusedCrosstabState) SetTotalRows(n int64) {
 // allocation — the per-grouper key IS the composite key. Multi-grouper
 // axes fall through to the join path (still allocating but only one
 // per axis per record).
+//
+// Retained for callers that don't need partial-depth keys; Update
+// itself now uses axisKeyAndPartials. Keeping both surfaces means a
+// future caller (e.g. a one-shot grouper-only probe) can pay only the
+// full-key cost.
 func axisKeyAndTuple(groupers []StreamableGrouper, rec *Record) (string, types.AxisKey, bool, error) {
 	switch len(groupers) {
 	case 0:
