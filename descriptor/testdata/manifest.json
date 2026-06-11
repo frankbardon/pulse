@@ -4617,7 +4617,7 @@
       },
       {
         "name": "mcp-integration",
-        "description": "Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_ask, pulse_compose, pulse_sample, pulse_facet, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order."
+        "description": "Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_compose, pulse_sample, pulse_facet, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order."
       },
       {
         "name": "regression-modeling",
@@ -4864,4 +4864,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 53017c93465eabc654c02e07fa0dfa645fa3bb2c6b8f9c4743fc4cdd05cc44b3
+// golden-hash: 9cfa6fc2ca382f24b7100b49813f062f96e8f45b2293b5778a031b1cfd59b3f4
