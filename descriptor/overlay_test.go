@@ -1173,6 +1173,147 @@ func TestValidateOverlay_FisherExactCell_NoCrosstabHostRejected(t *testing.T) {
 	}
 }
 
+// TestValidateOverlay_ExpectedLowWarn pins the predict-vs-runtime
+// boundary for the canonical χ² low-expected-count warning code
+// PULSE_OVERLAY_EXPECTED_LOW. Predict is no-execute: it sees the
+// request, the .pulse file header, and the schema — but NOT the
+// records the crosstab will eventually fold. Expected-count
+// computation (row_margin × col_margin / grand_total < 5) requires
+// observing the per-cell counts the host crosstab produces from those
+// records, which is data only the runtime path holds.
+//
+// Contract pinned by this test:
+//
+//   - PredictFromBytes does NOT emit PULSE_OVERLAY_EXPECTED_LOW on a
+//     well-formed CHISQ_MATRIX overlay — the per-kind predict gate
+//     accepts the spec without inspecting records, and the warning
+//     surfaces only after ApplyOverlays consumes the materialised host
+//     matrix at runtime.
+//   - The same applies to CHISQ_ROW, CHISQ_COL, and FISHER_EXACT_CELL
+//     (every inferential overlay that emits PULSE_OVERLAY_EXPECTED_LOW
+//     at runtime is silent at predict time).
+//
+// Runtime emission lives at
+// processing/overlay_chisq_matrix_test.go::TestOverlay_ChiSqMatrix_ExpectedLowEmitsWarn
+// (and its CHISQ_ROW / CHISQ_COL / FISHER_EXACT_CELL siblings). Those
+// tests cover the warning's positive surface; this test pins the
+// negative surface at predict time so a future refactor that pushes
+// the warning into ValidateOverlays (and accidentally drops it from
+// runtime) fails closed.
+//
+// This is the "warn, not error" test the E2-S12 story names — predict
+// does not promote PULSE_OVERLAY_EXPECTED_LOW to an envelope error,
+// AND predict does not surface it as a warning either; the warning is
+// deferred to the runtime overlay handler, which has the records to
+// compute expected counts.
+func TestValidateOverlay_ExpectedLowWarn(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	// Every E2 inferential overlay that emits PULSE_OVERLAY_EXPECTED_LOW
+	// at runtime must be silent at predict time.
+	cases := []struct {
+		name string
+		req  *types.Request
+	}{
+		{
+			name: "CHISQ_MATRIX",
+			req: &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{
+					{
+						Kind:  types.OverlayKindChiSqMatrix,
+						Scope: types.OverlayScopeMatrix,
+					},
+				},
+			},
+		},
+		{
+			name: "CHISQ_ROW",
+			req: &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{
+					{
+						Kind:  types.OverlayKindChiSqRow,
+						Scope: types.OverlayScopeRow,
+					},
+				},
+			},
+		},
+		{
+			name: "CHISQ_COL",
+			req: &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{
+					{
+						Kind:  types.OverlayKindChiSqCol,
+						Scope: types.OverlayScopeColumn,
+					},
+				},
+			},
+		},
+		{
+			name: "FISHER_EXACT_CELL",
+			req: &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{
+					{
+						Kind:  types.OverlayKindFisherExactCell,
+						Scope: types.OverlayScopeCell,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := PredictFromBytes(data, tc.req, nil)
+
+			// Predict must NOT surface PULSE_OVERLAY_EXPECTED_LOW on the
+			// envelope's Errors slice — the warning is runtime-only.
+			if hasErrorCode(env, errors.PULSE_OVERLAY_EXPECTED_LOW) {
+				codes := make([]string, 0, len(env.Errors))
+				for _, e := range env.Errors {
+					codes = append(codes, e.Code)
+				}
+				t.Fatalf("predict emitted PULSE_OVERLAY_EXPECTED_LOW; expected runtime-only emission. Envelope errors: %v",
+					codes)
+			}
+
+			// Predict must NOT surface PULSE_OVERLAY_EXPECTED_LOW on the
+			// envelope's Warnings slice either — the warning is keyed to
+			// per-cell expected counts that only the runtime path computes
+			// (predict cannot see records, only schema). Asserting against
+			// Warnings closes the loop: predict is silent on this code in
+			// both directions.
+			for _, w := range env.Warnings {
+				if w.Code == string(errors.PULSE_OVERLAY_EXPECTED_LOW) {
+					t.Fatalf("predict surfaced PULSE_OVERLAY_EXPECTED_LOW as a warning; expected runtime-only emission. Envelope warnings: %+v",
+						env.Warnings)
+				}
+			}
+
+			// Sanity check: the per-kind predict gates still accept the
+			// spec (none of the structural overlay errors land). If a
+			// structural error landed the negative assertion above would
+			// pass vacuously — exercise the positive happy-path surface
+			// the per-kind happy-path tests already pin so this test
+			// fails closed if the structural gates regress.
+			for _, code := range []errors.Code{
+				errors.PULSE_OVERLAY_KIND_UNKNOWN,
+				errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+				errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
+			} {
+				if hasErrorCode(env, code) {
+					t.Errorf("unexpected structural overlay error %s on well-formed %s spec; envelope errors: %+v",
+						code, tc.name, env.Errors)
+				}
+			}
+		})
+	}
+}
+
 // TestValidateOverlay_EmptySliceNoop asserts the validator is a no-op
 // for requests without overlays — predict still runs every other gate
 // untouched.
