@@ -227,7 +227,7 @@ If you are writing a system prompt for an LLM agent that uses Pulse, point it at
 | LLM task | Skill |
 |---|---|
 | MCP wiring, tool surface, schema binding | `mcp-integration` |
-| Author a `Process` request | `request-recipes` |
+| Author a `Process` request | `getting-started`, `aggregation-guide` |
 | Compose multiple sub-requests in one call | `compose-requests` |
 | Iterate on a request with `pulse_predict` | `debugging-with-predict` |
 | Look up an error code or warning | `error-code-reference` |

@@ -8,8 +8,8 @@ against a `.pulse` file and prints the result. It's the most-used
 leaf in the binary.
 
 > **LLM agents using MCP:** the equivalent surface is the
-> `pulse_process` MCP tool — see `skills/request-recipes.md` for
-> request skeletons.
+> `pulse_process` MCP tool — see `skills/getting-started.md` and
+> `skills/aggregation-guide.md` for request authoring guidance.
 
 ## Synopsis
 
@@ -46,7 +46,7 @@ serialised to JSON. Minimal example:
 The full request grammar — filterers, groupers, attributes, window
 operators, features, sort, tests, post-tests — is documented in
 [`types.Request`](https://github.com/frankbardon/pulse/blob/main/types/types.go);
-the LLM-facing companion is `skills/request-recipes.md`.
+the LLM-facing companion is `skills/aggregation-guide.md`.
 
 ## Output
 
