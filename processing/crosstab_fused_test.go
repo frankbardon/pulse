@@ -465,6 +465,236 @@ func normalizeWithinSchema(t *testing.T) *encoding.Schema {
 	}
 }
 
+// fusedCrosstabRecordsWithNulls builds a (region, segment, value) record
+// stream where some records have a null row key (region) and others have
+// a null column key (segment). Used by the per-axis-null equivalence
+// tests added in E4-S4Q. The buffered RunCrosstab path captures these
+// records on the non-null axis margin (and the grand margin) regardless
+// of the partner axis nullity; the fused path must do the same.
+//
+// Layout:
+//
+//	(north, retail):     [10, 20]           — placed cells
+//	(north, NULL):       [50, 60]           — row margin contribution only
+//	(NULL,  wholesale):  [100, 110]         — column margin contribution only
+//	(NULL,  NULL):       [200]              — grand margin contribution only
+//	(south, retail):     [5]                — placed cells
+//	(east,  NULL):       [1, 2, 3]          — row margin only; entire row's
+//	                                          col keys are null so this row
+//	                                          appears in RowKeys with no
+//	                                          placed cells
+func fusedCrosstabRecordsWithNulls(schema *encoding.Schema) []*Record {
+	mk := func(region, segment uint64, value float64) *Record {
+		return NewRecord(schema, map[string]float64{
+			"region":  float64(region),
+			"segment": float64(segment),
+			"value":   value,
+		})
+	}
+	mkRowNull := func(segment uint64, value float64) *Record {
+		r := NewRecord(schema, map[string]float64{
+			"segment": float64(segment),
+			"value":   value,
+		})
+		r.SetNull("region")
+		return r
+	}
+	mkColNull := func(region uint64, value float64) *Record {
+		r := NewRecord(schema, map[string]float64{
+			"region": float64(region),
+			"value":  value,
+		})
+		r.SetNull("segment")
+		return r
+	}
+	mkBothNull := func(value float64) *Record {
+		r := NewRecord(schema, map[string]float64{"value": value})
+		r.SetNull("region")
+		r.SetNull("segment")
+		return r
+	}
+	return []*Record{
+		mk(0, 0, 10), mk(0, 0, 20), // (north, retail)
+		mkColNull(0, 50), mkColNull(0, 60), // (north, NULL)
+		mkRowNull(1, 100), mkRowNull(1, 110), // (NULL, wholesale)
+		mkBothNull(200),  // (NULL, NULL)
+		mk(1, 0, 5),      // (south, retail)
+		mkColNull(2, 1),  // (east, NULL)
+		mkColNull(2, 2),  // (east, NULL)
+		mkColNull(2, 3),  // (east, NULL)
+	}
+}
+
+// TestFusedCrosstab_RowNullColValidStillFeedsColMargin: records whose
+// row key is null but column key is valid must contribute to the column
+// margin in the fused path, mirroring the buffered RunCrosstab path
+// where PartitionByAxis(spec.Columns, filtered) groups records by column
+// key regardless of row key nullity. Pre-E4-S4Q the fused path skipped
+// the entire record on any axis nullity — those rows disappeared from
+// the column margin.
+func TestFusedCrosstab_RowNullColValidStillFeedsColMargin(t *testing.T) {
+	schema := fusedCrosstabSchema(t)
+	recs := fusedCrosstabRecordsWithNulls(schema)
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "sum"},
+			Shape:   types.CrosstabShapeMatrix,
+			Margins: types.CrosstabMargins{Columns: true, Grand: true},
+		},
+	}
+	want := runBufferedCrosstab(t, schema, req, recs)
+	got := runFusedCrosstab(t, schema, req, recs)
+
+	if want.Crosstab == nil || got.Crosstab == nil {
+		t.Fatalf("missing Crosstab on response: want=%v got=%v", want.Crosstab, got.Crosstab)
+	}
+	assertMatrixEqual(t, want.Crosstab.Matrix, got.Crosstab.Matrix)
+	assertMetadataEqual(t, want.Metadata, got.Metadata)
+
+	// Spot-check: the wholesale column margin must include the
+	// (NULL, wholesale) records' value contribution (100 + 110 = 210).
+	// We don't hard-code the expected sum here; the buffered/fused
+	// equivalence above is the load-bearing assertion. This spot check
+	// guards against silent regression in the buffered path itself.
+	m := got.Crosstab.Matrix
+	for i, ck := range m.ColumnKeys {
+		if len(ck) > 0 && ck[0] == "wholesale" {
+			if !m.ColumnMargins[i].Present {
+				t.Errorf("wholesale column margin must be present; got absent")
+			}
+			if m.ColumnMargins[i].Scalar() < 210 {
+				t.Errorf("wholesale column margin = %v; want >= 210 (null-region contributions)",
+					m.ColumnMargins[i].Scalar())
+			}
+		}
+	}
+}
+
+// TestFusedCrosstab_ColNullRowValidStillFeedsRowMargin: mirror of the
+// above — records whose column key is null but row key is valid must
+// contribute to the row margin in the fused path. Pre-E4-S4Q those rows
+// were dropped entirely.
+func TestFusedCrosstab_ColNullRowValidStillFeedsRowMargin(t *testing.T) {
+	schema := fusedCrosstabSchema(t)
+	recs := fusedCrosstabRecordsWithNulls(schema)
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "sum"},
+			Shape:   types.CrosstabShapeMatrix,
+			Margins: types.CrosstabMargins{Rows: true, Grand: true},
+		},
+	}
+	want := runBufferedCrosstab(t, schema, req, recs)
+	got := runFusedCrosstab(t, schema, req, recs)
+
+	if want.Crosstab == nil || got.Crosstab == nil {
+		t.Fatalf("missing Crosstab on response: want=%v got=%v", want.Crosstab, got.Crosstab)
+	}
+	assertMatrixEqual(t, want.Crosstab.Matrix, got.Crosstab.Matrix)
+	assertMetadataEqual(t, want.Metadata, got.Metadata)
+
+	// Spot-check: the north row margin must include the (north, NULL)
+	// records' value contribution (10 + 20 + 50 + 60 = 140).
+	m := got.Crosstab.Matrix
+	for i, rk := range m.RowKeys {
+		if len(rk) > 0 && rk[0] == "north" {
+			if !m.RowMargins[i].Present {
+				t.Errorf("north row margin must be present; got absent")
+			}
+			if m.RowMargins[i].Scalar() < 140 {
+				t.Errorf("north row margin = %v; want >= 140 (null-segment contributions)",
+					m.RowMargins[i].Scalar())
+			}
+		}
+	}
+}
+
+// TestFusedCrosstab_RowKeysIncludeAllSeenBrands: the canonical real-world
+// divergence — a row whose every record carries a null column key must
+// still appear in RowKeys (matching buffered PartitionByAxis(spec.Rows,
+// filtered) behaviour). Pre-E4-S4Q the fused path dropped these rows
+// entirely because Update returned early on any axis nullity.
+func TestFusedCrosstab_RowKeysIncludeAllSeenBrands(t *testing.T) {
+	schema := fusedCrosstabSchema(t)
+	recs := fusedCrosstabRecordsWithNulls(schema)
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "sum"},
+			Shape:   types.CrosstabShapeMatrix,
+			Margins: types.CrosstabMargins{Rows: true},
+		},
+	}
+	want := runBufferedCrosstab(t, schema, req, recs)
+	got := runFusedCrosstab(t, schema, req, recs)
+
+	if want.Crosstab == nil || got.Crosstab == nil {
+		t.Fatalf("missing Crosstab on response: want=%v got=%v", want.Crosstab, got.Crosstab)
+	}
+	assertMatrixEqual(t, want.Crosstab.Matrix, got.Crosstab.Matrix)
+	assertMetadataEqual(t, want.Metadata, got.Metadata)
+
+	// "east" appears only via records whose segment is null — assert it
+	// shows up in the fused RowKeys.
+	m := got.Crosstab.Matrix
+	foundEast := false
+	for _, rk := range m.RowKeys {
+		if len(rk) > 0 && rk[0] == "east" {
+			foundEast = true
+			break
+		}
+	}
+	if !foundEast {
+		t.Errorf("expected 'east' in RowKeys; got %v (regression of pre-E4-S4Q axis-null bug)",
+			m.RowKeys)
+	}
+}
+
+// TestFusedCrosstab_GrandMarginCountsAllPostFilterRows: the grand margin
+// must aggregate over every filter-passing record regardless of axis-key
+// nullity. The buffered RunCrosstab applies the cell aggregator to the
+// raw `filtered` slice; the fused path must drive grandMargin from every
+// Update call.
+func TestFusedCrosstab_GrandMarginCountsAllPostFilterRows(t *testing.T) {
+	schema := fusedCrosstabSchema(t)
+	recs := fusedCrosstabRecordsWithNulls(schema)
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Shape:   types.CrosstabShapeMatrix,
+			Margins: types.CrosstabMargins{Grand: true},
+		},
+	}
+	want := runBufferedCrosstab(t, schema, req, recs)
+	got := runFusedCrosstab(t, schema, req, recs)
+
+	if want.Crosstab == nil || got.Crosstab == nil {
+		t.Fatalf("missing Crosstab on response: want=%v got=%v", want.Crosstab, got.Crosstab)
+	}
+	assertMatrixEqual(t, want.Crosstab.Matrix, got.Crosstab.Matrix)
+	assertMetadataEqual(t, want.Metadata, got.Metadata)
+
+	// Explicit assertion: the grand AGG_COUNT must equal the post-filter
+	// record count regardless of axis nullity. fusedCrosstabRecordsWithNulls
+	// returns 12 records; none are filtered out by this request.
+	m := got.Crosstab.Matrix
+	if !m.GrandTotal.Present {
+		t.Fatalf("grand total must be present")
+	}
+	wantCount := float64(len(recs))
+	if m.GrandTotal.Scalar() != wantCount {
+		t.Errorf("grand AGG_COUNT = %v; want %v (one per post-filter record)",
+			m.GrandTotal.Scalar(), wantCount)
+	}
+}
+
 // normalizeWithinRecords populates the canonical normalize_within
 // fixture: every (brand, wavedate, xxx) slab carries enough records to
 // produce a non-trivial cell count, so the normalize-within denominator
