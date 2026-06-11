@@ -907,6 +907,17 @@ type Request struct {
 	// (shape=long). Mutually exclusive with top-level Groups /
 	// Aggregations — see PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS.
 	Crosstab *CrosstabSpec `json:"crosstab,omitempty"`
+
+	// Overlays is the list of overlay-layer specifications that
+	// decorate the primary result with derived projections — index-
+	// vs-margin scores, sibling comparisons, baseline lifts, etc.
+	// Each spec produces one OverlayLayer in Response.Overlays in
+	// matching order. Per-kind semantics, required Ref fields, and
+	// scope compatibility live in the overlay catalog (see
+	// types/overlay.go). E1 ships OVERLAY_INDEX_VS_MARGIN over
+	// crosstab results; later epics extend the catalog to
+	// regressions, group results, and ProcessChain stages.
+	Overlays []OverlaySpec `json:"overlays,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
@@ -966,6 +977,13 @@ type Response struct {
 	// grouped-tuple format — so any consumer of long-form rows keeps
 	// working unchanged.
 	Crosstab *CrosstabResult `json:"crosstab,omitempty"`
+
+	// Overlays carries the executed overlay layers, one entry per
+	// Request.Overlays spec in matching order. Each layer holds its
+	// derived payload (scalar / series / matrix) plus optional
+	// renderer-friendly summary metadata. Omitted entirely when the
+	// originating Request had no overlays.
+	Overlays []OverlayLayer `json:"overlays,omitempty"`
 }
 
 // FileRequest identifies a file for operations like inspect.
