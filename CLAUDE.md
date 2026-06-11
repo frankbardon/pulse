@@ -40,7 +40,6 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A new MCP action tool with field-name params | `internal/mcp/schema_bind.go` + `skills/mcp-integration.md` | `TestMCPSchemaBinding_*` suite |
 | The public MCP-serve entry (`mcpserve.Serve` / `mcpserve.ServeStdio`) | `mcpserve/` + `skills/mcp-integration.md` (Embedding section) | reviewer enforcement |
 | The default operator table | CLAUDE.md "Smart defaults" + `skills/getting-started.md` | `TestDefaults_Applied` + reviewer |
-| A natural-query parsing route | `internal/query/query.go` + tests + `skills/query-router-prompt.md` + `skills/request-recipes.md` | `TestNaturalQuery_HeuristicGrammar` |
 | A request example under `examples/` | `_meta` block (kebab name, category=dir, canonical tags, alphabetized operators matching body) | `TestExamples_*` suite |
 | Example tag taxonomy | `CanonicalTags` in `examples/library.go` + `docs/src/examples/library.md` | `TestExamples_TagsFromTaxonomy` |
 | `pulse.Options.Extensions` API or registration validation rule | `extensions_validate.go` + `skills/extension-points.md` + CLAUDE.md "Extension Points" | `TestExtensions_*` suite |
@@ -110,7 +109,7 @@ pulse/
 
 CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `api {process,compose,facet,process-chain}`.
 
-`internal/mcp/` registers eleven tools (one per facade method plus `pulse_ask` one-shot + `pulse_facet_schema`) and two resource schemes (`pulse://`, `pulse-skill://`).
+`internal/mcp/` registers ten tools (one per facade method plus `pulse_facet_schema`) and two resource schemes (`pulse://`, `pulse-skill://`).
 
 Docs at <https://frankbardon.github.io/pulse/>. Skills under `skills/` are the LLM surface.
 
@@ -240,7 +239,7 @@ Skill-coverage:
 - `TestSkillsCoverAllRegressions` — every `REG_*` operator appears in `skills/regression-modeling.md`.
 - `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section and `skills/contributor-workflow.md` mentions sharding.
 
-Other load-bearing contract gates (not prefix-matched, enforced by their own packages): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestManifestFacetCapability`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known`, `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestNaturalQuery_HeuristicGrammar`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestExtensions_*`, `TestShardArchive*`, `TestProcessChain_*`, `TestValidateChain_*`, `TestJoin_*`, `TestValidateJoin_*`, `TestFacetSchema_*`, `TestValidateFacet_*`, `TestCountRecords_*`, `TestNeededFields_*`, `TestProjection_*`, `TestReadRecordProjected_*`.
+Other load-bearing contract gates (not prefix-matched, enforced by their own packages): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestManifestFacetCapability`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known`, `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestExtensions_*`, `TestShardArchive*`, `TestProcessChain_*`, `TestValidateChain_*`, `TestJoin_*`, `TestValidateJoin_*`, `TestFacetSchema_*`, `TestValidateFacet_*`, `TestCountRecords_*`, `TestNeededFields_*`, `TestProjection_*`, `TestReadRecordProjected_*`.
 
 ## Build / Env
 
@@ -280,7 +279,7 @@ Surface: `extensions.go` (types), `extensions_validate.go` (validation), `extens
 
 ## Skill Pack
 
-26 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
+24 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
 
 ```yaml
 ---
