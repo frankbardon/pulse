@@ -151,10 +151,14 @@ type PredictResult struct {
 	// Empty when req.Overlays is empty; never nil in JSON output.
 	//
 	// Per kind-catalog-v1 PRD §I-FR-I3 the predict surface is
-	// `OverlaysApplied + OverlaysSchemaDivergence + OverlayCost`. E1
-	// emits the first slot only; the latter two are placeholder
-	// shapes wired here so downstream callers can rely on the field
-	// set today.
+	// `OverlaysApplied + OverlaysSchemaDivergence + OverlayCost`.
+	// Predict emits one descriptor per spec in matching order across
+	// the full overlay catalog (E2 ships 10 kinds; future epics
+	// append entries to types.AllOverlayKinds() and inherit the same
+	// per-spec emission without re-opening this slot).
+	// OverlaysSchemaDivergence stays empty until Compose-driven
+	// divergence detection lands (E7-S14); OverlayCost is a flat 1.0
+	// per kind until per-kind heuristics land (E10-S3).
 	OverlaysApplied []OverlayAppliedDescriptor `json:"overlays_applied"`
 
 	// OverlaysSchemaDivergence lists every (left, right) overlay-spec
@@ -199,10 +203,10 @@ type OverlayAppliedDescriptor struct {
 	// Scope echoes the spec's scope.
 	Scope types.OverlayScope `json:"scope"`
 
-	// Streamable mirrors types.OverlayStreamable(kind). False for E1's
-	// only kind (OVERLAY_INDEX_VS_MARGIN), but the field is present so
-	// later catalog entries surface their per-kind streamability
-	// uniformly.
+	// Streamable mirrors types.OverlayStreamable(kind). False for
+	// every E2 kind today (the whole crosstab catalog is buffered);
+	// later epics flip kinds to streamable kind-by-kind and the field
+	// surfaces the per-kind decision uniformly.
 	Streamable bool `json:"streamable"`
 }
 
