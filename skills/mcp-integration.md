@@ -220,11 +220,9 @@ The legacy multi-step shape is still supported end-to-end:
 
 1. (Optional) `pulse_import` — convert a raw source into a managed handle.
 2. `pulse_inspect` — read the cohort schema; binds enums.
-3. Author a `types.Request` against the schema. See `request-recipes`.
+3. Author a `types.Request` against the schema.
 4. `pulse_predict` — validate against the schema. Read `errors`, `warnings`, `suggestions`, `streamable_reasons`.
 5. `pulse_process` (or `pulse_compose` for batches) — execute.
-
-For natural-language input from a user, the default is still `pulse_ask` under the `query` field — do not author a request by hand from prose. See `query-router-prompt` for the recommended system-prompt template.
 </workflow>
 
 <example name="predict-via-mcp">
@@ -272,8 +270,6 @@ schema-binding, and resource schemes are identical to `pulse mcp`.
 
 <see_also>
 - getting-started — Pulse vocabulary and the 10 MCP tools
-- request-recipes — copy-pasteable request JSON skeletons keyed by intent
-- query-router-prompt — system-prompt template for natural-language queries
 - debugging-with-predict — pattern for iterating on a request before processing
 - error-code-reference — error codes the tools may return inside the envelope
 </see_also>

@@ -121,7 +121,7 @@ For pointing a human at the right chapter. The MCP tool list above is the LLM-fa
    }
    ```
 
-   The server inspects (binding schema-aware enums into the session's action tools), validates, executes, and returns import metadata, the predict envelope, and the result rows in one response. On predict failure with `on_invalid="suggest"`, the response carries structured `Fixup` entries so you can repair the request without re-querying the schema. For natural-language input, the `query` parser maps prose to a structured request against the cohort's schema — see `query-router-prompt` for the prompt template.
+   The server inspects (binding schema-aware enums into the session's action tools), validates, executes, and returns import metadata, the predict envelope, and the result rows in one response. On predict failure with `on_invalid="suggest"`, the response carries structured `Fixup` entries so you can repair the request without re-querying the schema.
 
 3. Iterate against the same handle in subsequent `pulse_ask` calls. Every call slides the managed-import TTL forward (default `7d`); pass `source_ttl: "pin"` if you want the handle to outlive activity-based expiry.
 
@@ -205,7 +205,7 @@ See `skills/cohort-schema-design.md` (Sharded cohorts) for archive layout, dict 
 }
 ```
 
-JSON tags mirror `types.Request`: `cohort`, `filterers`, `features`, `attributes`, `groups`, `aggregations`, `windows`, `sort`, `tests`, `post_tests`, `outputs`. See `request-recipes` for a fuller catalog keyed by intent.
+JSON tags mirror `types.Request`: `cohort`, `filterers`, `features`, `attributes`, `groups`, `aggregations`, `windows`, `sort`, `tests`, `post_tests`, `outputs`.
 </example>
 
 <reference>
@@ -261,8 +261,6 @@ Every Pulse response is wrapped in:
 </reference>
 
 <see_also>
-- request-recipes — copy-pasteable request JSON skeletons keyed by analytical intent; start here when authoring requests quickly
-- query-router-prompt — system-prompt template for translating natural-language asks into a structured request
 - cohort-schema-design — field types and schema authoring
 - aggregation-guide — `AGG_*` operations and filtering
 - attribute-composition — `ATTR_*` per-record derivations

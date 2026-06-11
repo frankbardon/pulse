@@ -423,8 +423,6 @@ pulse skills show aggregation-guide
 | `export-format-selection` | CSV / TSV / NDJSON / JSON array / Parquet / Arrow / Excel |
 | `financial-cohorts` | decimal128 semantics for money |
 | `mcp-integration` | MCP tool surface, schema-bound enums, session bootstrap |
-| `request-recipes` | Canonical request JSON skeletons keyed by intent |
-| `query-router-prompt` | System-prompt template for natural-language → AskRequest |
 | `contributor-workflow` | Recipes for extending Pulse |
 
 ### From Go
