@@ -32,10 +32,11 @@ package types
 // is NOT in the streamable set today — its host crosstab is always
 // buffered.
 var OverlayStreamability = map[OverlayKind]bool{
-	OverlayKindIndexVsMargin: false,
-	OverlayKindShareOfCol:    false,
-	OverlayKindShareOfRow:    false,
-	OverlayKindShareOfTotal:  false,
+	OverlayKindIndexVsMargin:  false,
+	OverlayKindShareOfCol:     false,
+	OverlayKindShareOfRow:     false,
+	OverlayKindShareOfTotal:   false,
+	OverlayKindZScoreVsMargin: false,
 }
 
 // OverlayStreamable reports whether the given overlay kind streams and

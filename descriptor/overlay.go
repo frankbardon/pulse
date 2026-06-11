@@ -71,6 +71,17 @@ var shareOfTotalSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
+// zscoreVsMarginSupportedScopes is the E2-supported scope set for
+// OVERLAY_ZSCORE_VS_MARGIN. ZSCORE_VS_MARGIN is a CELL-scoped overlay
+// by construction — every cell receives a deviation score against the
+// matching margin slice's standard deviation. Unlike the SHARE_OF_*
+// triad the axis is not structurally locked: the validator accepts
+// every known MarginAxis (row / column / grand) and dispatches the
+// matching slice at runtime.
+var zscoreVsMarginSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeCell: true,
+}
+
 // validMarginAxes enumerates the on-wire MarginAxis values that an
 // OverlayMarginRef may carry. Mirrors the constant block in
 // types/overlay.go so the predict gate stays parity-true with the
@@ -136,6 +147,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayShareOfRow(env, req, spec, index)
 	case types.OverlayKindShareOfTotal:
 		validateOverlayShareOfTotal(env, req, spec, index)
+	case types.OverlayKindZScoreVsMargin:
+		validateOverlayZScoreVsMargin(env, req, spec, index)
 	}
 }
 
@@ -390,6 +403,69 @@ func validateOverlayShareOfTotal(env *Envelope, req *types.Request, spec *types.
 	// Scope must be CELL. SHARE_OF_TOTAL is a cell-decoration overlay
 	// by construction.
 	if !shareOfTotalSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+}
+
+// validateOverlayZScoreVsMargin enforces the per-kind contract for
+// OVERLAY_ZSCORE_VS_MARGIN: Ref must populate Margin (the axis-margin
+// reference family), Margin.Axis must be a known MarginAxis (any of
+// row / column / grand — unlike the SHARE_OF_* triad the runtime
+// handler dispatches all three axes), the host result must be MATRIX-
+// shaped (i.e. Request.Crosstab is non-nil), and Scope must be CELL.
+func validateOverlayZScoreVsMargin(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref family must be Margin. ZSCORE_VS_MARGIN shares the same ref
+	// shape contract as INDEX_VS_MARGIN / SHARE_OF_* — the centerpoint
+	// is an axis-margin slot.
+	if spec.Ref.Margin == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Margin.Axis must be a known MarginAxis. ZSCORE_VS_MARGIN
+	// accepts every known axis at predict time AND at runtime (the
+	// runtime handler dispatches the matching slice); unknown values
+	// are a shape mismatch.
+	if !validMarginAxes[spec.Ref.Margin.Axis] {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"axis":  string(spec.Ref.Margin.Axis),
+			})
+		return
+	}
+
+	// Host must be MATRIX-shaped — z-score-vs-margin needs a crosstab
+	// margin slot to subtract from each cell AND a crosstab cell grid
+	// to drive the per-slice Welford recurrence.
+	if req.Crosstab == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"axis":  string(spec.Ref.Margin.Axis),
+			})
+		return
+	}
+
+	// Scope must be CELL. ZSCORE_VS_MARGIN is a cell-decoration overlay
+	// by construction.
+	if !zscoreVsMarginSupportedScopes[spec.Scope] {
 		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
 			map[string]any{

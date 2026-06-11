@@ -472,6 +472,94 @@ func TestValidateOverlay_ShareOfTotal_ScopeUnsupported(t *testing.T) {
 	}
 }
 
+// TestValidateOverlay_ZScoreVsMargin_HappyPath asserts a well-formed
+// OVERLAY_ZSCORE_VS_MARGIN overlay riding on a MATRIX-shaped crosstab
+// passes the predict gate without surfacing any overlay-specific
+// errors. Unlike the SHARE_OF_* triad (each structurally axis-locked
+// to one MarginAxis at runtime) ZSCORE_VS_MARGIN supports all three
+// axes — the validator therefore runs the happy-path check for each
+// axis to guard against an accidental axis-lock regression.
+func TestValidateOverlay_ZScoreVsMargin_HappyPath(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	for _, axis := range []types.MarginAxis{
+		types.MarginAxisRow,
+		types.MarginAxisColumn,
+		types.MarginAxisGrand,
+	} {
+		t.Run(string(axis), func(t *testing.T) {
+			req := &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{
+					{
+						Name:  "zscore_" + string(axis),
+						Kind:  types.OverlayKindZScoreVsMargin,
+						Scope: types.OverlayScopeCell,
+						Ref: types.OverlayRef{
+							Margin: &types.OverlayMarginRef{Axis: axis},
+						},
+					},
+				},
+			}
+
+			env := PredictFromBytes(data, req, nil)
+
+			for _, code := range []errors.Code{
+				errors.PULSE_OVERLAY_KIND_UNKNOWN,
+				errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+				errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
+			} {
+				if hasErrorCode(env, code) {
+					t.Errorf("axis=%s: unexpected overlay error %s on ZSCORE_VS_MARGIN happy-path request",
+						axis, code)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateOverlay_ZScoreVsMargin_ScopeUnsupported asserts the per-
+// kind scope gate rejects non-CELL scopes on ZSCORE_VS_MARGIN. Matches
+// the INDEX_VS_MARGIN / SHARE_OF_* scope check — ZSCORE_VS_MARGIN is
+// CELL-only by construction.
+func TestValidateOverlay_ZScoreVsMargin_ScopeUnsupported(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	for _, scope := range []types.OverlayScope{
+		types.OverlayScopeRow,
+		types.OverlayScopeColumn,
+		types.OverlayScopeMatrix,
+		types.OverlayScopeGroup,
+		types.OverlayScopeTotal,
+	} {
+		t.Run(string(scope), func(t *testing.T) {
+			req := &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{
+					{
+						Kind:  types.OverlayKindZScoreVsMargin,
+						Scope: scope,
+						Ref: types.OverlayRef{
+							Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+						},
+					},
+				},
+			}
+			env := PredictFromBytes(data, req, nil)
+			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
+				codes := make([]string, 0, len(env.Errors))
+				for _, e := range env.Errors {
+					codes = append(codes, e.Code)
+				}
+				t.Fatalf("scope=%s: expected PULSE_OVERLAY_SCOPE_UNSUPPORTED; got %v",
+					scope, codes)
+			}
+		})
+	}
+}
+
 // TestValidateOverlay_EmptySliceNoop asserts the validator is a no-op
 // for requests without overlays — predict still runs every other gate
 // untouched.

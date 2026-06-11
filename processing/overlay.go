@@ -238,10 +238,11 @@ type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types
 // (types/overlay.go + types/overlay_streamability.go), add the runtime
 // handler in this package, and add the dispatch entry here.
 var overlayHandlers = map[types.OverlayKind]overlayHandler{
-	types.OverlayKindIndexVsMargin: applyIndexVsMargin,
-	types.OverlayKindShareOfCol:    applyShareOfCol,
-	types.OverlayKindShareOfRow:    applyShareOfRow,
-	types.OverlayKindShareOfTotal:  applyShareOfTotal,
+	types.OverlayKindIndexVsMargin:  applyIndexVsMargin,
+	types.OverlayKindShareOfCol:     applyShareOfCol,
+	types.OverlayKindShareOfRow:     applyShareOfRow,
+	types.OverlayKindShareOfTotal:   applyShareOfTotal,
+	types.OverlayKindZScoreVsMargin: applyZScoreVsMargin,
 }
 
 // ApplyOverlays executes every spec in specs against the host view
@@ -867,6 +868,234 @@ func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.O
 	return layer, warnings, nil
 }
 
+// applyZScoreVsMargin is the OVERLAY_ZSCORE_VS_MARGIN handler. For
+// every present host cell it computes (cell - margin) / sd where:
+//
+//   - margin is the matching axis margin slot (ROW → RowMargins[rowIdx],
+//     COLUMN → ColumnMargins[colIdx], GRAND → GrandTotal) — the same
+//     centerpoint INDEX_VS_MARGIN reads. The handler does NOT
+//     recompute the margin; it consumes whatever value the host
+//     produced (mean for AGG_MEAN, sum for AGG_SUM, etc).
+//   - sd is the population standard deviation of the cell values in
+//     the same margin slice (per-row cells for axis=row, per-column
+//     cells for axis=column, every matrix cell for axis=grand). Only
+//     present cells contribute to the slice — absent host cells do
+//     not pollute the variance recurrence. Computed via the shared
+//     WelfordStdDev helper (processing/welford.go) using the
+//     numerically-stable Welford-Pébaÿ recurrence over central moment
+//     M2.
+//
+// Output shape: MATRIX payload mirroring the host's RowKeys /
+// ColumnKeys / headers so renderers can lay the overlay on top of the
+// base matrix with the same header machinery as INDEX_VS_MARGIN.
+// Missing host cells (Present=false) stay absent on the overlay;
+// cells where the margin is missing OR where the slice's sd is zero
+// (every cell in the slice was equal — degenerate variance) become
+// absent overlay cells plus one PULSE_OVERLAY_REF_ZERO warning per
+// failing cell so the orchestrator can promote them to envelope
+// warnings.
+//
+// Unlike the SHARE_OF_* triad (each structurally axis-locked),
+// ZSCORE_VS_MARGIN dispatches all three axes — the handler reads
+// MarginFor(spec.Ref.Margin.Axis, ...) instead of forcing a fixed
+// axis. The validator (descriptor/overlay.go) gates Ref.Margin /
+// known axes / scope at predict time.
+//
+// Summary: Min / Max / Count / Baseline populated. Baseline is 0 —
+// a z-score expresses cells in standard-deviation units away from
+// the margin centerpoint, so zero is the no-deviation reference and
+// renderers centre diverging colour ramps on that point.
+//
+// Defense in depth: the descriptor validator rejects bad axes / refs
+// / scopes at predict time. This handler still re-checks the Margin
+// pointer + axis so a misconfigured caller fails closed rather than
+// dividing by an unset slot.
+func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+	if spec.Ref.Margin == nil {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_INTERNAL,
+			"overlay "+string(spec.Kind)+" requires Ref.Margin",
+			map[string]any{
+				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+				"kind": string(spec.Kind),
+			})
+	}
+	axis := spec.Ref.Margin.Axis
+
+	rowCount := host.RowCount()
+	colCount := host.ColumnCount()
+	payload := host.Payload()
+
+	// Pre-compute the per-slice sd values. Axis dispatch:
+	//
+	//   row    → one sd per row (over present cells in that row).
+	//   column → one sd per column (over present cells in that column).
+	//   grand  → a single sd over every present cell in the matrix.
+	//
+	// Slices intentionally exclude absent host cells — a structurally
+	// missing observation cannot contribute to a population variance.
+	// Slices with fewer than two present cells return sd == 0 (the
+	// helper's contract); the per-cell loop treats that the same as a
+	// missing-margin condition and surfaces PULSE_OVERLAY_REF_ZERO.
+	var (
+		rowSDs  []float64
+		colSDs  []float64
+		grandSD float64
+	)
+	switch axis {
+	case types.MarginAxisRow:
+		rowSDs = make([]float64, rowCount)
+		for i := 0; i < rowCount; i++ {
+			slice := make([]float64, 0, colCount)
+			for j := 0; j < colCount; j++ {
+				if v, ok := host.CellAt(i, j); ok {
+					slice = append(slice, v)
+				}
+			}
+			rowSDs[i] = WelfordStdDev(slice)
+		}
+	case types.MarginAxisColumn:
+		colSDs = make([]float64, colCount)
+		for j := 0; j < colCount; j++ {
+			slice := make([]float64, 0, rowCount)
+			for i := 0; i < rowCount; i++ {
+				if v, ok := host.CellAt(i, j); ok {
+					slice = append(slice, v)
+				}
+			}
+			colSDs[j] = WelfordStdDev(slice)
+		}
+	case types.MarginAxisGrand:
+		slice := make([]float64, 0, rowCount*colCount)
+		for i := 0; i < rowCount; i++ {
+			for j := 0; j < colCount; j++ {
+				if v, ok := host.CellAt(i, j); ok {
+					slice = append(slice, v)
+				}
+			}
+		}
+		grandSD = WelfordStdDev(slice)
+	}
+
+	cells := make([][]types.MatrixCell, rowCount)
+	var (
+		warnings []OverlayWarning
+		minV     float64
+		maxV     float64
+		seen     int
+	)
+	for i := 0; i < rowCount; i++ {
+		row := make([]types.MatrixCell, colCount)
+		for j := 0; j < colCount; j++ {
+			cellVal, cellPresent := host.CellAt(i, j)
+			if !cellPresent {
+				continue
+			}
+			marginVal, marginPresent := host.MarginFor(axis, i, j)
+			if !marginPresent {
+				warnings = append(warnings, OverlayWarning{
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+					Message: "overlay " + string(spec.Kind) + " denominator missing on " + string(axis) + " axis",
+					Details: map[string]any{
+						"kind":       string(spec.Kind),
+						"axis":       string(axis),
+						"row_index":  i,
+						"col_index":  j,
+						"margin_set": marginPresent,
+					},
+				})
+				continue
+			}
+			var sd float64
+			switch axis {
+			case types.MarginAxisRow:
+				sd = rowSDs[i]
+			case types.MarginAxisColumn:
+				sd = colSDs[j]
+			case types.MarginAxisGrand:
+				sd = grandSD
+			}
+			if sd == 0 {
+				warnings = append(warnings, OverlayWarning{
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+					Message: "overlay " + string(spec.Kind) + " standard deviation is zero on " + string(axis) + " axis (degenerate slice)",
+					Details: map[string]any{
+						"kind":      string(spec.Kind),
+						"axis":      string(axis),
+						"row_index": i,
+						"col_index": j,
+						"sd":        sd,
+					},
+				})
+				continue
+			}
+			score := (cellVal - marginVal) / sd
+			if math.IsNaN(score) || math.IsInf(score, 0) {
+				warnings = append(warnings, OverlayWarning{
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+					Message: "overlay " + string(spec.Kind) + " produced non-finite value on " + string(axis) + " axis",
+					Details: map[string]any{
+						"kind":      string(spec.Kind),
+						"axis":      string(axis),
+						"row_index": i,
+						"col_index": j,
+					},
+				})
+				continue
+			}
+			row[j] = types.MatrixCell{Value: score, Present: true}
+			if seen == 0 {
+				minV, maxV = score, score
+			} else {
+				if score < minV {
+					minV = score
+				}
+				if score > maxV {
+					maxV = score
+				}
+			}
+			seen++
+		}
+		cells[i] = row
+	}
+
+	overlayPayload := &types.MatrixPayload{
+		RowHeader:        payload.RowHeader,
+		ColumnHeader:     payload.ColumnHeader,
+		RowKeys:          append([]types.AxisKey(nil), payload.RowKeys...),
+		ColumnKeys:       append([]types.AxisKey(nil), payload.ColumnKeys...),
+		Cells:            cells,
+		CellLabel:        overlayLayerName(spec),
+		NormalizeApplied: types.CrosstabNormalizeNone,
+	}
+
+	layer := types.OverlayLayer{
+		Name:  overlayLayerName(spec),
+		Kind:  spec.Kind,
+		Scope: spec.Scope,
+		Ref:   spec.Ref,
+		Payload: types.OverlayPayload{
+			Shape:  types.OverlayShapeMatrix,
+			Matrix: overlayPayload,
+		},
+	}
+
+	baseline := 0.0
+	summary := &types.OverlaySummary{Baseline: &baseline}
+	if seen > 0 {
+		mn, mx, count := minV, maxV, seen
+		summary.Min = &mn
+		summary.Max = &mx
+		summary.Count = &count
+	} else {
+		zeroCount := 0
+		summary.Count = &zeroCount
+	}
+	layer.Summary = summary
+
+	return layer, warnings, nil
+}
+
 // overlayLayerName returns the renderer-facing label for a layer.
 // Honours an explicit Name on the spec; otherwise synthesises a
 // deterministic default keyed by Kind + axis (the only ref family E1
@@ -895,6 +1124,15 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// reflects that even if the spec's Ref.Margin.Axis happens to
 		// echo a different value.
 		return string(spec.Kind) + "_" + string(types.MarginAxisGrand)
+	case types.OverlayKindZScoreVsMargin:
+		// ZSCORE_VS_MARGIN dispatches all three axes; the synthesised
+		// default surfaces whichever axis the caller asked for. Falls
+		// through to the bare-kind string if Ref.Margin is unset (the
+		// validator rejects that shape at predict time but the
+		// synthesiser stays defensive).
+		if spec.Ref.Margin != nil {
+			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
+		}
 	}
 	return string(spec.Kind)
 }

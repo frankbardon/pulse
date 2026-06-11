@@ -33,6 +33,11 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// streamable series-shape variant under Process context is
 		// deferred to E3.
 		OverlayKindShareOfTotal: false,
+		// ZSCORE_VS_MARGIN shares INDEX_VS_MARGIN's buffered footprint —
+		// both the per-slice Welford recurrence and the margin
+		// centerpoint require a fully-materialised matrix, so the host
+		// crosstab path stays buffered.
+		OverlayKindZScoreVsMargin: false,
 	}
 
 	for _, k := range AllOverlayKinds() {

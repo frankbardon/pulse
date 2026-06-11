@@ -189,6 +189,23 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"can present the layer as a single-population share projection. Completes the share triad " +
 				"(row / col / total).",
 		}
+	case types.OverlayKindZScoreVsMargin:
+		return OverlayCapability{
+			Kind: types.OverlayKindZScoreVsMargin,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			RefKinds: []string{"Margin"},
+			Description: "Per-cell standardized-margin z-score: (cell - margin) / sd where sd is the " +
+				"population standard deviation of cell values within the same margin slice " +
+				"(per-row cells for axis=row, per-column cells for axis=column, every matrix cell " +
+				"for axis=grand). CELL scope over a MATRIX (crosstab) host. Supports all three " +
+				"margin axes (row / column / grand). Output is unitless deviation; renderers centre " +
+				"diverging colour ramps on baseline=0.",
+		}
 	}
 	return OverlayCapability{Kind: kind}
 }

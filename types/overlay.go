@@ -75,6 +75,21 @@ const (
 	// INDEX_VS_MARGIN — the host crosstab orchestrator recomputes
 	// margins from raw rows before ApplyOverlays runs.
 	OverlayKindShareOfTotal OverlayKind = "OVERLAY_SHARE_OF_TOTAL"
+
+	// OverlayKindZScoreVsMargin emits a per-cell standardized-margin
+	// z-score: (cell - margin) / sd where margin is the matching axis
+	// margin slot and sd is the population standard deviation of the
+	// cell values within the same margin slice. CELL-scoped over a
+	// MATRIX (crosstab) host. Unlike the SHARE_OF_* triad (each of
+	// which is structurally axis-locked), ZSCORE_VS_MARGIN supports
+	// every axis a Margin reference can target (row / column / grand);
+	// callers pick the axis explicitly via Ref.Margin.Axis and the
+	// handler dispatches the matching slice. First non-ratio overlay
+	// in the catalog — output is unitless deviation, not a ratio or
+	// percentage. Inherently buffered for the same reason as
+	// INDEX_VS_MARGIN — both the host crosstab path and the per-slice
+	// Welford recurrence rely on a fully-materialised matrix.
+	OverlayKindZScoreVsMargin OverlayKind = "OVERLAY_ZSCORE_VS_MARGIN"
 )
 
 // AllOverlayKinds returns every defined overlay kind in alphabetical
@@ -90,6 +105,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
+		OverlayKindZScoreVsMargin,
 	}
 }
 
