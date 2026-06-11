@@ -204,6 +204,66 @@ Because the crosstab path materializes the filter-passing record set, memory cos
 
 The projection is automatic and silent — there is no flag to set and the behavior is unchanged for narrow cohorts. Requests carrying a `FILTER_EXPRESSION` whose expression fails to parse, an extension operator without a registered `FieldInputs` hook, or any construct whose field set the walker cannot prove complete fall back transparently to the full-decode path. Output bytes are byte-equal across the two paths.
 
+### Fused mergeable path (automatic)
+
+When the cell aggregator is mergeable and every axis grouper exposes a per-record key (`StreamableGrouper.KeyFor`), the orchestrator skips record materialization entirely and folds each filter-passing record into per-cell / per-margin online aggregator state during the same single decode pass. Wide-cohort crosstabs that would otherwise materialize the full filter-passing record set drop from `O(records)` working memory to `O(cells + margins)`. The classification is automatic — there is no flag and the output is byte-equal to the buffered path on accepted requests (asserted by an equivalence golden suite plus a build-tagged perf gate).
+
+Eligibility (all must hold):
+
+- **Cell aggregator is mergeable + non-recompute.** `AggregationType.Mergeable()` is true and `MarginReducibility()` is `summable` or `mean_reducible`. The recompute class (`AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_ZSCORE`, `AGG_STDDEV` when classified as recompute) cannot be folded online — they fall back.
+- **Every row/column grouper implements `StreamableGrouper`.** `GROUP_CATEGORY`, `GROUP_RANGE`, `GROUP_ROUNDED`, `GROUP_DATE`, and `GROUP_SET_VALUE` qualify. `GROUP_QUANTILE` needs finalize-time sort and `GROUP_SET_PER_ELEMENT` fans one record into many keys — neither qualifies. The gate consults the interface directly (not the static `GroupType.Streamable()` table), so `GROUP_DATE` is fusable on an axis even though it is buffered at the top-level Process layer.
+- **No tier-1 tests, no tier-2 post-tests, no features.** Tests fold over the buffered row set; features run a buffered pre-filter pass.
+- **No `ATTR_FORMULA` with a non-empty expression and no `FILTER_EXPRESSION`.** The expression runtime widens the projection extractor to "every field"; the fused path's tight decode bound depends on a precise projection.
+- **No decimal128 cell field.** The decimal aggregation path is buffered today.
+- **No extension operator registered without a `FieldInputs` hook.** An opaque extension widens the projection set, defeating the fused path's decode-cost advantage.
+
+Everything else (margins, normalize, normalize_level, normalize_within, nested axes on either side, the shape selector) composes with the fused path identically to the buffered path. **Margins still recompute from raw rows in the fused case** — each margin slot runs its own dedicated online aggregator over the records that touch it, so the median-on-margin correctness rule from the buffered section above carries over unchanged. **Cross-axis null handling (E4-S4Q):** axis composite keys are interned per axis the moment they resolve. A record whose row key is non-null but column key is null still updates the row margin (and the grand margin); cells land only at intersections where both axes resolved. The fused path tracks row keys and column keys independently — symmetric with the buffered path's `PartitionByAxis(rows, ...)` and `PartitionByAxis(columns, ...)` calls, which build the two partitions over the full filtered slice regardless of partner-axis nullity. `normalize_level` and `normalize_within` semantics are unchanged from the buffered section: same-axis truncation for `normalize_level`, opposite-axis prefix for `normalize_within`, both gates compose.
+
+What gets short-circuited: no `service.materializeRecords` drain, no recursive `processing.PartitionByAxis` per axis, no second buffered traversal for margin recompute. The orchestrator opens the cohort, applies defaults, runs the gate, and (on accept) streams the iterator directly into a `processing.FusedCrosstabState` whose `Update(rec)` folds the record into every accumulator it touches.
+
+#### Eligible request
+
+Matches the canonical `examples/crosstab/huge-request.json` shape — survey-style row-normalize-within: brand × (wave, response), sum of weight, row normalize partitioned by wave. Mergeable cell, two streamable groupers on the column axis (`GROUP_DATE` admitted via the interface), no tests, no expression.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "brand"}],
+    "columns": [
+      {"type": "GROUP_DATE", "field": "waveDate", "interval": "quarter"},
+      {"type": "GROUP_CATEGORY", "field": "response"}
+    ],
+    "cell":             {"type": "AGG_SUM", "field": "weight", "label": "share"},
+    "margins":          {"rows": true, "columns": true, "grand": true},
+    "normalize":        "row",
+    "normalize_within": 0
+  }
+}
+```
+
+#### Non-eligible request
+
+`AGG_MEDIAN` on the cell is recompute-class — it needs a sorted view per cell. Falls back to buffered. Same fallback if you add `tests: [{type: "TEST_CHISQ", ...}]`, or set the cell field to a `decimal128` column, or use `GROUP_QUANTILE` on either axis.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+    "cell":    {"type": "AGG_MEDIAN", "field": "revenue", "label": "med"}
+  }
+}
+```
+
+#### Perf characteristics
+
+- **Synth 200-field × 100K-row matrix crosstab, sum-of-weight cell, two-grouper column axis, row-normalize-within:** fused ~0.51 × buffered wall-clock (~47 % faster). This is the perf gate's accept window (the test asserts ≤ 0.80 ×; the maintainer's M1 Max comfortably clears it).
+- **Canonical 1 M-row real cohort:** fused 2.57 s vs E2 buffered baseline 3.82 s (~32 % faster). The smaller delta vs synth reflects the wider variance of decoded payloads on the real cohort.
+- **Allocs/op:** fused is slightly higher (~+25 %) because each unique cell allocates a fresh `OnlineAggregator` instance on first sight (vs the buffered path's one slab allocation per partition bucket).
+- **Bytes/op:** fused is ~−18 % lower because the per-record materialisation cost dominates the buffered path on wide cohorts.
+
+When fusion does NOT engage (the gate rejects), the request transparently runs the buffered path with the existing record-set projection (the previous section). Run `pulse predict --json` to see streamability classification — predict still reports a buffered crosstab as buffered because the buffer-vs-fuse distinction is internal to the orchestrator.
+
 ## Recipes for common cross-tabulations
 
 Use these as starting points; every recipe is a runnable shape.
