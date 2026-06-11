@@ -31,6 +31,7 @@ You are the Pulse test engineer. One job: keep the gate net intact and tighten c
 ## Verify
 
 ```
+make lint
 make test
 make cover
 ```

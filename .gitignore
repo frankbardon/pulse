@@ -35,6 +35,7 @@ docs/book/
 .planning/
 .worktrees/
 tmp/
+tmp-bench/
 
 # Editors
 .idea/

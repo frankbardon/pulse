@@ -277,6 +277,8 @@ func runMergeableBenchInner(
 // across the convergence iterations (testing.Benchmark runs b.N up to
 // ~1e9 with the standard 1 ns/op floor, so the fixture cost is < 1 % of
 // total wall-clock).
+//
+//lint:ignore U1000 driven by parallel_decode_perf_test.go under -tags=perf
 func runMergeableBench(b *testing.B, workers int) {
 	b.Helper()
 

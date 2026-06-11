@@ -716,58 +716,6 @@ func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
 	return partials[len(partials)-1], tuple, partials, len(partials), true, nil
 }
 
-// axisKeyAndTuple computes the composite key + axis tuple for one
-// record across an ordered grouper chain. Returns (key, tuple, true,
-// nil) on success; (..., false, nil) when any grouper in the chain
-// signals ErrGrouperKeyNull (the record is unplaceable on this axis
-// and the buffered path drops it). A non-null non-nil err is a
-// genuine grouper failure (e.g. a custom StreamableGrouper extension's
-// KeyFor panicking) and is bubbled through unchanged.
-//
-// Fast path for single-grouper axes: no strings.Join, no parts slice
-// allocation — the per-grouper key IS the composite key. Multi-grouper
-// axes fall through to the join path (still allocating but only one
-// per axis per record).
-//
-// Retained for callers that don't need partial-depth keys; Update
-// itself now uses axisKeyAndPartials. Keeping both surfaces means a
-// future caller (e.g. a one-shot grouper-only probe) can pay only the
-// full-key cost.
-func axisKeyAndTuple(groupers []StreamableGrouper, rec *Record) (string, types.AxisKey, bool, error) {
-	switch len(groupers) {
-	case 0:
-		// Empty axis is a programming bug — validateCrosstabSpec rejects
-		// zero-grouper axes up-front so reaching here means the gate
-		// drifted. Surface a typed error rather than a silent placement
-		// into the "" bucket.
-		return "", nil, false, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-			"fused crosstab axis has zero groupers; spec validation should have rejected")
-	case 1:
-		key, err := groupers[0].KeyFor(rec)
-		if err != nil {
-			if stderrors.Is(err, ErrGrouperKeyNull) {
-				return "", nil, false, nil
-			}
-			return "", nil, false, err
-		}
-		return key, types.AxisKey{key}, true, nil
-	}
-	parts := make([]string, 0, len(groupers))
-	tuple := make(types.AxisKey, 0, len(groupers))
-	for _, g := range groupers {
-		key, err := g.KeyFor(rec)
-		if err != nil {
-			if stderrors.Is(err, ErrGrouperKeyNull) {
-				return "", nil, false, nil
-			}
-			return "", nil, false, err
-		}
-		parts = append(parts, key)
-		tuple = append(tuple, key)
-	}
-	return strings.Join(parts, crosstabAxisKeySep), tuple, true, nil
-}
-
 // TotalRows returns the total-row counter for use after Finalize. The
 // orchestrator's metadata block reads from this. Exposed publicly so
 // tests can assert the bookkeeping without inspecting unexported state.
