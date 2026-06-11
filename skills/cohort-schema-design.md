@@ -225,6 +225,23 @@ Pulse does **not** provide concurrent-writer protection. Two processes running `
 
 Read-side concurrency is safe — readers snapshot the central directory and `_schema.pulse` at `Open` time and never re-read. A concurrent `shard add` does not affect an already-open reader; re-open to see new shards.
 
+## Decode plan and projection
+
+When `pulse.Options.ProjectBufferedFields` is enabled, the streaming iterator decodes each record by walking a precomputed `encoding.DecodePlan` instead of every schema field. Lifetime is purely runtime: nothing about the `.pulse` file changes — the plan is built in-memory from `(Schema, retained set)` and dies with the iterator.
+
+How it is built. `processing.NeededFields(req, schema, ext)` produces the retained set from the request's slots (Aggregations, Attributes, Filterers, Groups, Windows, Features, Tests, Regressions, Sort.Field, plus `Crosstab.Rows/Columns/Cell` and `Labels[].Field` on the crosstab path). The iterator hands that set to `Schema.BuildDecodePlan(retained)`, which returns a deterministic `[]Segment` of two concrete types:
+
+- `SkipBytes{N}` — the iterator advances the underlying reader N bytes with a single `Seek` (or `io.CopyN` discard) and decodes nothing. Coalesces every contiguous run of unprojected non-bit-packed fields into one segment.
+- `DecodeFields{Fields}` — the existing per-field decode loop, scoped to one group of fields.
+
+Bit-packed grouping. `u4` and `packed_bool` neighbours form one group (each member consumes a full byte on-wire via `ReadBit` / `ReadNibble`). The group is **all-or-nothing**: if any member is retained the whole group becomes one `DecodeFields` (unretained members are still decoded to keep the cursor aligned, only their map writes are suppressed by the keep filter); if no member is retained the group folds into a single `SkipBytes{N: K}` where K is the group size.
+
+Bitmap whole-or-skip. When `Schema.HasBitmap()` (see "Null bitmap" above) and at least one nullable field is retained, the plan appends a final `DecodeFields` carrying every nullable field in schema order — the iterator reads the bitmap once and surfaces nulls for the retained subset. When no nullable field is retained the plan appends a single `SkipBytes{N: Schema.BitmapByteSize()}` and the bitmap is never read.
+
+Plan cache. The iterator caches the plan keyed by `(schema-pointer identity, joined sorted retained-set string)`. Re-calling `SetProjection` with the same retained set reuses the same plan; the cache lives on the iterator and is discarded when it closes. Nothing in a request's lifetime invalidates an already-built plan — the plan is a pure function of inputs.
+
+Bench reference. On a 200-field synth cohort × 100K rows, projecting to 4 fields drops `Process` from ~1.07s to ~155ms (~7×, 14× fewer allocs) versus the per-field walk. See CLAUDE.md "Byte-layout invariants" projected-decode paragraph for the gate-relevant summary and `skills/extension-points.md` for the `FieldInputs` hook custom operators use to participate.
+
 ## Iterator mmap policy
 
 `Process` and the other streaming facades back their record scan with a memory-mapped read when the underlying `afero.Fs` ultimately resolves to a regular on-disk file. Eligibility is decided at iterator init by `service.resolveRealPath`, which probes the fs in this order:

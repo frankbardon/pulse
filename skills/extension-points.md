@@ -249,6 +249,8 @@ Tier-2 post-tests don't decode source records (they consume the materialized res
 
 The hook is plumbed via `buildRuntimeExtensions` into `processing.ExtensionRegistry.FieldInputs`, keyed by `StreamabilityKey(category, name)`. `ExtensionRegistry.FieldInputsFor(category, name, raw)` returns `(inputs, true)` when the callback ran successfully, `(nil, false)` when the operator is custom but has no registered callback — that second case is what triggers the extractor to widen.
 
+Interaction with the decode plan. The retained set `NeededFields` returns feeds `Schema.BuildDecodePlan` (see `skills/cohort-schema-design.md` "Decode plan and projection"). A registration **with** `FieldInputs` participates normally — its contributed fields land in the retained set and the plan emits `SkipBytes` segments for every contiguous unprojected run, so unread byte ranges are advanced with a single `Seek`. A registration **without** `FieldInputs` widens the retained set to `*` (every schema field), which produces a full-coverage plan with **no** `SkipBytes` segments — equivalent to the unprojected per-field walk. Both shapes are correct; only the plan-driven one elides byte ranges. If your operator only ever reads `Spec.Field` and nothing else (the common case), the spec's explicit references already participate without a callback — register `FieldInputs` only when the operator reads additional fields named through `Params`.
+
 ## Manifest discoverability
 
 `pulse manifest --json` and `pulse_manifest` include a top-level `Extensions` block whenever the host registered anything:
