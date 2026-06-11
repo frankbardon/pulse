@@ -144,6 +144,14 @@ func TestOverlayCapabilities_FieldsSorted(t *testing.T) {
 		if !sort.StringsAreSorted(c.RefKinds) {
 			t.Errorf("entry %q: RefKinds not sorted: %v", c.Kind, c.RefKinds)
 		}
+
+		// E2-S11: Fields slot lists Level / Within field-name strings
+		// for the share / index / delta / zscore family; alphabetised
+		// for golden stability mirroring the RefKinds / Shapes / Scopes
+		// sort contract.
+		if !sort.StringsAreSorted(c.Fields) {
+			t.Errorf("entry %q: Fields not sorted: %v", c.Kind, c.Fields)
+		}
 	}
 }
 

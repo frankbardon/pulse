@@ -554,6 +554,41 @@ type OverlaySpec struct {
 	// Params holds operator-specific configuration as raw JSON. Per-
 	// kind schema documented alongside the kind's processor.
 	Params json.RawMessage `json:"params,omitempty"`
+
+	// Level truncates the same axis the overlay scopes (when paired
+	// with a CELL-scope handler that honours Level/Within) to a
+	// parent-grouper prefix at the configured depth. Default zero
+	// (omitted on the wire) preserves the leaf-axis denominator, which
+	// is byte-identical to the pre-Level handler output. Non-zero
+	// values mirror the buffered crosstab's NormalizeLevel semantics:
+	// the row/column-margin denominator is truncated to the configured
+	// depth of the SAME axis the overlay axis-locks to. Honoured by the
+	// share/index/delta/zscore family; the χ²/Fisher inferential family
+	// rejects non-zero values with PULSE_OVERLAY_LEVEL_OUT_OF_RANGE
+	// because those kinds compute their own contingency from the host
+	// row + column margins (Level/Within would alter the implicit-
+	// margin contract). See processing/crosstab_normalize.go for the
+	// shared key-prefix helpers and skills/overlay-system.md for the
+	// per-kind matrix.
+	Level int `json:"level,omitempty"`
+
+	// Within fixes a prefix of the OPPOSITE axis at the configured
+	// depth (when paired with a CELL-scope handler that honours
+	// Level/Within), producing a cross-axis partitioned denominator
+	// rather than a same-axis truncated one. Default zero (omitted on
+	// the wire) preserves the leaf-axis denominator, which is byte-
+	// identical to the pre-Within handler output. Non-zero values
+	// mirror the buffered crosstab's NormalizeWithin semantics: a
+	// SHARE_OF_ROW overlay with Within=0 produces row shares that sum
+	// to 1.0 within each fixed level-0 column prefix (instead of across
+	// the full row). Composes with Level the same way the crosstab
+	// path composes NormalizeLevel + NormalizeWithin. Honoured by the
+	// share/index/delta/zscore family; the χ²/Fisher inferential family
+	// rejects non-zero values with PULSE_OVERLAY_LEVEL_OUT_OF_RANGE
+	// (same rationale as Level above). See
+	// processing/crosstab_normalize.go and
+	// skills/overlay-system.md for the per-kind matrix.
+	Within int `json:"within,omitempty"`
 }
 
 // SeriesPayload is the canonical strip used by series-shaped overlay

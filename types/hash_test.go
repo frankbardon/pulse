@@ -242,3 +242,56 @@ func TestCanonicalHash_OverlaysIncluded(t *testing.T) {
 		t.Fatalf("differing Name must produce different hash")
 	}
 }
+
+// TestCanonicalHash_OverlayLevelDistinct verifies that overlay specs
+// differing only in Level produce distinct canonical hashes — and the
+// same for Within. Locks the E2-S11 contract that non-zero Level /
+// Within values fold into the canonical hash so distinct overlay
+// slates produce distinct hashes (zero defaults preserve byte-
+// identity via OverlayFreeByteIdentity above).
+func TestCanonicalHash_OverlayLevelDistinct(t *testing.T) {
+	base := func() *Request {
+		return &Request{
+			Cohort: &Cohort{Filename: "a.pulse"},
+			Overlays: []OverlaySpec{
+				{
+					Name:  "row_share",
+					Kind:  OverlayKindShareOfRow,
+					Scope: OverlayScopeCell,
+					Ref:   OverlayRef{Margin: &OverlayMarginRef{Axis: MarginAxisRow}},
+				},
+			},
+		}
+	}
+
+	zeroLevel := base()
+	level1 := base()
+	level1.Overlays[0].Level = 1
+	if zeroLevel.Hash() == level1.Hash() {
+		t.Fatalf("Level=0 and Level=1 must produce distinct hashes")
+	}
+
+	level2 := base()
+	level2.Overlays[0].Level = 2
+	if level1.Hash() == level2.Hash() {
+		t.Fatalf("Level=1 and Level=2 must produce distinct hashes")
+	}
+
+	zeroWithin := base()
+	within1 := base()
+	within1.Overlays[0].Within = 1
+	if zeroWithin.Hash() == within1.Hash() {
+		t.Fatalf("Within=0 and Within=1 must produce distinct hashes")
+	}
+
+	// Mixed Level + Within distinct from each slot individually.
+	bothSet := base()
+	bothSet.Overlays[0].Level = 1
+	bothSet.Overlays[0].Within = 1
+	if bothSet.Hash() == level1.Hash() {
+		t.Fatalf("Level=1+Within=1 must hash distinctly from Level=1 alone")
+	}
+	if bothSet.Hash() == within1.Hash() {
+		t.Fatalf("Level=1+Within=1 must hash distinctly from Within=1 alone")
+	}
+}

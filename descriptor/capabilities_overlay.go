@@ -76,6 +76,19 @@ type OverlayCapability struct {
 	// types.OverlayStreamable(kind) — Buffered is !streamable.
 	Buffered bool `json:"buffered"`
 
+	// Fields lists the OverlaySpec slot names beyond Kind / Scope /
+	// Ref / Params that the kind's runtime honours. Sorted
+	// alphabetically for golden stability. E2-S11 introduces "level"
+	// and "within" — the share / index / delta / zscore family honours
+	// both (prefix-axis denominator dispatch) while the χ² / Fisher
+	// inferential family leaves the list empty (Level / Within must
+	// stay zero; non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE).
+	// SHARE_OF_TOTAL declares the fields for renderer-facing parity
+	// with the rest of the share family even though the grand-axis
+	// denominator makes the slots inert at runtime — the predict gate
+	// still accepts in-range values without behavior change.
+	Fields []string `json:"fields,omitempty"`
+
 	// Description is a short human-readable summary of what the kind
 	// computes. Mirrors the prose in the matching skill.
 	Description string `json:"description"`
@@ -116,6 +129,7 @@ func OverlayCapabilities() []OverlayCapability {
 			return string(entry.Scopes[i]) < string(entry.Scopes[j])
 		})
 		sort.Strings(entry.RefKinds)
+		sort.Strings(entry.Fields)
 		caps = append(caps, entry)
 	}
 	return caps
@@ -213,12 +227,14 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeCell,
 			},
 			RefKinds: []string{"Margin"},
+			Fields:   []string{"level", "within"},
 			Description: "Per-cell additive delta against the matching axis margin: cell - margin. " +
 				"CELL scope over a MATRIX (crosstab) host. Supports all three margin axes " +
 				"(row / column / grand). Output preserves the host cell's units — a $-valued " +
 				"cell minus a $-valued margin yields a $-valued deviation. No division and " +
 				"no Welford recurrence, so PULSE_OVERLAY_REF_ZERO is never emitted; renderers " +
-				"centre diverging colour ramps on baseline=0.",
+				"centre diverging colour ramps on baseline=0. Honours OverlaySpec Level / " +
+				"Within slots for nested-axis denominator truncation (E2-S11).",
 		}
 	case types.OverlayKindFisherExactCell:
 		return OverlayCapability{
@@ -257,8 +273,11 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeCell,
 			},
 			RefKinds: []string{"Margin"},
+			Fields:   []string{"level", "within"},
 			Description: "Per-cell index score against the matching axis margin: 100 * cell / margin. " +
-				"E1 supports CELL scope over a MATRIX (crosstab) host with a Margin reference.",
+				"E1 supports CELL scope over a MATRIX (crosstab) host with a Margin reference. " +
+				"Honours OverlaySpec Level / Within slots for nested-axis denominator truncation " +
+				"(E2-S11).",
 		}
 	case types.OverlayKindShareOfCol:
 		return OverlayCapability{
@@ -270,9 +289,11 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeCell,
 			},
 			RefKinds: []string{"Margin"},
+			Fields:   []string{"level", "within"},
 			Description: "Per-cell share-of-column ratio: cell / col_margin. CELL scope over a MATRIX " +
 				"(crosstab) host. Column cells sum to 1.0 in the absence of missing cells; renderers " +
-				"can present the layer as a 100%-stacked vertical projection.",
+				"can present the layer as a 100%-stacked vertical projection. Honours OverlaySpec " +
+				"Level / Within slots for nested-axis denominator truncation (E2-S11).",
 		}
 	case types.OverlayKindShareOfRow:
 		return OverlayCapability{
@@ -284,9 +305,11 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeCell,
 			},
 			RefKinds: []string{"Margin"},
+			Fields:   []string{"level", "within"},
 			Description: "Per-cell share-of-row ratio: cell / row_margin. CELL scope over a MATRIX " +
 				"(crosstab) host. Row cells sum to 1.0 in the absence of missing cells; renderers " +
-				"can present the layer as a 100%-stacked horizontal projection.",
+				"can present the layer as a 100%-stacked horizontal projection. Honours OverlaySpec " +
+				"Level / Within slots for nested-axis denominator truncation (E2-S11).",
 		}
 	case types.OverlayKindShareOfTotal:
 		return OverlayCapability{
@@ -298,10 +321,13 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeCell,
 			},
 			RefKinds: []string{"Margin"},
+			Fields:   []string{"level", "within"},
 			Description: "Per-cell share-of-grand-total ratio: cell / grand_total. CELL scope over a MATRIX " +
 				"(crosstab) host. The entire matrix sums to 1.0 in the absence of missing cells; renderers " +
 				"can present the layer as a single-population share projection. Completes the share triad " +
-				"(row / col / total).",
+				"(row / col / total). Declares the level / within fields for renderer-facing parity with " +
+				"the rest of the share family; the grand-axis denominator makes both slots inert at runtime " +
+				"(E2-S11).",
 		}
 	case types.OverlayKindZScoreVsMargin:
 		return OverlayCapability{
@@ -313,12 +339,15 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeCell,
 			},
 			RefKinds: []string{"Margin"},
+			Fields:   []string{"level", "within"},
 			Description: "Per-cell standardized-margin z-score: (cell - margin) / sd where sd is the " +
 				"population standard deviation of cell values within the same margin slice " +
 				"(per-row cells for axis=row, per-column cells for axis=column, every matrix cell " +
 				"for axis=grand). CELL scope over a MATRIX (crosstab) host. Supports all three " +
 				"margin axes (row / column / grand). Output is unitless deviation; renderers centre " +
-				"diverging colour ramps on baseline=0.",
+				"diverging colour ramps on baseline=0. The margin centroid honours OverlaySpec " +
+				"Level / Within slots for nested-axis denominator truncation; the SD denominator " +
+				"continues to fold over the full per-axis slice (E2-S11).",
 		}
 	}
 	return OverlayCapability{Kind: kind}

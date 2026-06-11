@@ -235,6 +235,54 @@ Multiple specs ride the same `Request.Overlays` slice. Each produces one layer i
 
 `Response.Overlays` carries three layers, indices 0 / 1 / 2, matching the spec order. Renderers can offer the user a dropdown to switch between denominators without re-issuing the request.
 
+## Level / Within nested-axis denominators
+
+`OverlaySpec.Level` and `OverlaySpec.Within` are two integer slots (default zero, `omitempty` on the wire) that drive nested-axis prefix-denominator dispatch on the share / index / delta / zscore family. Both mirror the `CrosstabSpec.NormalizeLevel` / `CrosstabSpec.NormalizeWithin` semantics from `skills/crosstab-guide.md` so an overlay with `(Level=L, Within=W)` produces byte-equivalent denominators to a crosstab `normalize=row, normalize_level=L, normalize_within=W` against the same host matrix (with the caveat that the equivalence holds for summable cell aggregators — recompute-class aggregators like `AGG_MEDIAN` still recompute their margins from raw rows on the crosstab side).
+
+`Level` truncates the SAME axis the overlay is centerpoint-locked to. Counting from the leaf:
+
+- `Level=0` (default) → no truncation. The denominator is the leaf-axis margin (byte-identical to the no-Level handler output).
+- `Level=N>0` → drop N groupers from the right; the denominator folds across all cells whose row tuple shares the first `(axisDepth - N)` groupers.
+- `Level >= axisDepth` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
+
+`Within` fixes a prefix of the OPPOSITE axis at the same counting model:
+
+- `Within=0` (default) → no opposite-axis fixing. The denominator folds across every cell in the opposite axis.
+- `Within=N>0` → fix the opposite-axis prefix to first `(oppositeDepth - N)` groupers; the denominator partitions by `(samePrefix, oppositePrefix)`.
+- `Within >= oppositeDepth` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
+
+The two slots compose. `OVERLAY_SHARE_OF_ROW` with `Level=1` on a 2-deep row axis and `Within=1` on a 2-deep column axis produces cells whose shares sum to 1.0 within each `(rowParentPrefix, colParentPrefix)` bucket.
+
+Per-kind matrix:
+
+| Kind | Honours `Level` / `Within` | Notes |
+|---|---|---|
+| `OVERLAY_SHARE_OF_ROW` | yes | Level on row axis, Within on column axis. |
+| `OVERLAY_SHARE_OF_COL` | yes | Level on column axis, Within on row axis. |
+| `OVERLAY_SHARE_OF_TOTAL` | declared but inert | The grand-axis denominator does not partition by prefix. Predict accepts in-range values; runtime ignores them. |
+| `OVERLAY_INDEX_VS_MARGIN` | yes | Axis driven by `Ref.Margin.Axis`. Level truncates same axis; Within fixes opposite. |
+| `OVERLAY_DELTA_VS_MARGIN` | yes | Same axis dispatch as INDEX_VS_MARGIN. |
+| `OVERLAY_ZSCORE_VS_MARGIN` | margin centroid only | The `(cell - margin)` numerator honours Level / Within; the SD denominator stays full-slice (a stable z-score requires a stable variance reference). |
+| `OVERLAY_CHISQ_MATRIX` / `OVERLAY_CHISQ_ROW` / `OVERLAY_CHISQ_COL` / `OVERLAY_FISHER_EXACT_CELL` | no | Implicit-margin inferential family. Non-zero Level / Within fire `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` — the kind's contingency math assumes the host's row + col + grand margins inline and Level / Within would alter that contract. |
+
+The math reuses the same prefix-key helpers (`processing.SameAxisPrefixDepth`, `processing.OppositeAxisPrefixDepth`, `processing.AxisKeyPrefix`) the buffered crosstab `normalize_level` / `normalize_within` path consults — per PRD § 4.C FR-C3 ("Reuse existing helpers; do not duplicate math") the overlay slot composition lands without re-implementing the partial-depth or cross-axis-partition denominator math.
+
+```json
+{
+  "overlays": [
+    {
+      "name":  "row_share_parent",
+      "kind":  "OVERLAY_SHARE_OF_ROW",
+      "scope": "cell",
+      "ref":   {"margin": {"axis": "row"}},
+      "level": 1
+    }
+  ]
+}
+```
+
+The default zero value is `omitempty` so the on-wire JSON is unchanged for any caller that has not yet engaged the slot.
+
 ## Validation rules (E1)
 
 The descriptor validator (`descriptor.ValidateOverlays`) runs alongside the crosstab / aggregator / test gates. Errors are emitted on the envelope so a caller surfacing multiple structural problems sees them all in one pass.
@@ -246,6 +294,9 @@ The descriptor validator (`descriptor.ValidateOverlays`) runs alongside the cros
 | `OVERLAY_INDEX_VS_MARGIN` with unknown `Ref.Margin.Axis` | `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` |
 | `OVERLAY_INDEX_VS_MARGIN` without a `Request.Crosstab` host | `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` |
 | `OVERLAY_INDEX_VS_MARGIN` with `scope` other than `cell` (E1) | `PULSE_OVERLAY_SCOPE_UNSUPPORTED` |
+| `OverlaySpec.Level` ≥ same-axis depth (share / index / delta / zscore family) | `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` |
+| `OverlaySpec.Within` ≥ opposite-axis depth (share / index / delta / zscore family) | `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` |
+| Non-zero `Level` / `Within` on χ² / Fisher inferential family | `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` |
 | Runtime margin denominator is exactly zero | `PULSE_OVERLAY_REF_ZERO` (warning) |
 
 `PULSE_OVERLAY_REF_ZERO` is a warning-class code rather than a hard error. A cell that divides by a zero margin still appears in the payload (the runtime layer surfaces the value as the divide-by-zero policy of the kind — `NaN` for `INDEX_VS_MARGIN`) and the warning lets the renderer flag the affected slots without stopping the rest of the matrix from rendering. Reach the per-code prose via `pulse_errors_lookup` (MCP) or `pulse errors lookup CODE` (CLI).

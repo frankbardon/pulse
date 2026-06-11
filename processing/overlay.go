@@ -112,6 +112,32 @@ func (h *CrosstabHostView) ColumnCount() int {
 	return len(h.payload.ColumnKeys)
 }
 
+// RowAxisDepth returns the per-row tuple length (the count of row
+// groupers the host crosstab declared). Reads `len(RowKeys[0])` when
+// the host has at least one row; zero otherwise. Used by the overlay
+// Level / Within handlers to clamp configured depth values into the
+// valid `[0, RowAxisDepth())` range via EffectiveAxisDepth (see
+// processing/crosstab_normalize.go).
+func (h *CrosstabHostView) RowAxisDepth() int {
+	if h == nil || h.payload == nil || len(h.payload.RowKeys) == 0 {
+		return 0
+	}
+	return len(h.payload.RowKeys[0])
+}
+
+// ColumnAxisDepth returns the per-column tuple length (the count of
+// column groupers the host crosstab declared). Reads
+// `len(ColumnKeys[0])` when the host has at least one column; zero
+// otherwise. Used by the overlay Level / Within handlers to clamp
+// configured depth values into the valid `[0, ColumnAxisDepth())`
+// range via EffectiveAxisDepth (see processing/crosstab_normalize.go).
+func (h *CrosstabHostView) ColumnAxisDepth() int {
+	if h == nil || h.payload == nil || len(h.payload.ColumnKeys) == 0 {
+		return 0
+	}
+	return len(h.payload.ColumnKeys[0])
+}
+
 // CellAt returns the scalar form of the host cell at (rowIdx,
 // colIdx) plus a present flag mirroring MatrixCell.Present. Returns
 // (0, false) when the indices are out of range or the cell is
@@ -269,11 +295,13 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 // When specs is non-empty but host is nil the call fails fast — every
 // E1 overlay family expects a MATRIX-shaped host.
 //
-// TODO(E2-S11): wire belt-and-suspenders
-// errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE runtime parity with the
-// descriptor.ValidateOverlays predict gate once OverlaySpec carries a
-// Level slot. The code + fixup ship today (E2-S10) so the catalog is
-// in place when E2-S11 wires the slot through.
+// Level / Within belt-and-suspenders gate (E2-S11): before dispatching
+// each spec ApplyOverlays runs `validateOverlayLevelWithinRuntime` to
+// surface PULSE_OVERLAY_LEVEL_OUT_OF_RANGE for out-of-range Level /
+// Within values against the host's RowAxisDepth / ColumnAxisDepth.
+// The same condition is caught at predict time
+// (descriptor.ValidateOverlays); the runtime gate is defensive in case
+// the predict step was bypassed (programmatic Process callers).
 func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.OverlayLayer, []OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
@@ -286,6 +314,9 @@ func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 	var warnings []OverlayWarning
 	for i := range specs {
 		spec := &specs[i]
+		if err := validateOverlayLevelWithinRuntime(spec, host, i); err != nil {
+			return nil, nil, err
+		}
 		handler, ok := overlayHandlers[spec.Kind]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
@@ -307,6 +338,141 @@ func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 		}
 	}
 	return layers, warnings, nil
+}
+
+// validateOverlayLevelWithinRuntime is the runtime mirror of
+// descriptor.ValidateOverlays' Level / Within out-of-range gate. The
+// rules:
+//
+//   - For the share / index / delta / zscore family the handler
+//     dispatches the per-axis prefix denominator off Level (same
+//     axis the overlay is centerpoint-locked to) and Within (the
+//     opposite axis). Level / Within must each be in `[0, axisDepth)`
+//     for their respective axis. Out-of-range fires
+//     PULSE_OVERLAY_LEVEL_OUT_OF_RANGE with Details carrying the
+//     spec index, kind, level, within, and axis depths.
+//
+//   - For the χ² / Fisher inferential family Level and Within MUST be
+//     zero — those handlers compute their own contingency from the
+//     host margins and Level / Within would alter the implicit-margin
+//     contract. Non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE.
+//
+// Zero defaults (Level == 0 && Within == 0) preserve byte-identity
+// against the pre-S11 overlay handlers — the gate returns nil for
+// every existing well-formed spec.
+//
+// The runtime gate is structurally distinct from the predict gate:
+// predict only sees `req.Crosstab` (a CrosstabSpec) while runtime sees
+// the materialised host. They agree on the failure code; the runtime
+// gate uses host RowAxisDepth / ColumnAxisDepth for the upper bound
+// where predict uses len(spec.Rows) / len(spec.Columns).
+func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, host *CrosstabHostView, specIndex int) error {
+	if spec == nil {
+		return nil
+	}
+	switch spec.Kind {
+	case types.OverlayKindChiSqCol,
+		types.OverlayKindChiSqMatrix,
+		types.OverlayKindChiSqRow,
+		types.OverlayKindFisherExactCell:
+		// Inferential family — Level / Within must both be zero. Non-
+		// zero values alter the implicit-margin contract those kinds
+		// rely on (they compute contingency from the host's row + col
+		// margins inline).
+		if spec.Level != 0 || spec.Within != 0 {
+			return errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_INTERNAL,
+				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-margin inferential kind)",
+				map[string]any{
+					"code":   string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+					"index":  specIndex,
+					"kind":   string(spec.Kind),
+					"level":  spec.Level,
+					"within": spec.Within,
+				})
+		}
+		return nil
+	}
+	// Share / index / delta / zscore family — Level and Within must each
+	// be in `[0, axisDepth)` for their respective axis. The axis Level
+	// truncates is the same axis the overlay is centerpoint-locked to;
+	// Within truncates the OPPOSITE axis. Resolve the axis pair off the
+	// kind so the gate stays kind-aware (mirrors the handler dispatch).
+	levelAxisDepth, withinAxisDepth := overlayLevelWithinAxisDepths(spec, host)
+	if spec.Level < 0 || (levelAxisDepth > 0 && spec.Level >= levelAxisDepth) {
+		return errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_INTERNAL,
+			"overlay "+string(spec.Kind)+" Level is out of range for the host axis",
+			map[string]any{
+				"code":             string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+				"index":            specIndex,
+				"kind":             string(spec.Kind),
+				"level":            spec.Level,
+				"level_axis_depth": levelAxisDepth,
+			})
+	}
+	if spec.Within < 0 || (withinAxisDepth > 0 && spec.Within >= withinAxisDepth) {
+		return errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_INTERNAL,
+			"overlay "+string(spec.Kind)+" Within is out of range for the host opposite axis",
+			map[string]any{
+				"code":              string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+				"index":             specIndex,
+				"kind":              string(spec.Kind),
+				"within":            spec.Within,
+				"within_axis_depth": withinAxisDepth,
+			})
+	}
+	return nil
+}
+
+// overlayLevelWithinAxisDepths resolves which host axis the spec's
+// Level and Within slots address. Returns
+// `(levelAxisDepth, withinAxisDepth)`:
+//
+//   - SHARE_OF_ROW: Level on ROW axis, Within on COLUMN axis.
+//   - SHARE_OF_COL: Level on COLUMN axis, Within on ROW axis.
+//   - SHARE_OF_TOTAL: Level / Within both nominally on the grand axis;
+//     the helper returns row + column depths so the gate accepts only
+//     zero values for both slots (grand axis has no per-cell prefix
+//     truncation surface — see overlay_share_of_total_handler comments).
+//   - INDEX_VS_MARGIN / DELTA_VS_MARGIN / ZSCORE_VS_MARGIN: axis is
+//     driven by Ref.Margin.Axis; Level truncates that axis and Within
+//     truncates the opposite one. When Ref.Margin is nil (predict
+//     would have rejected) the helper returns (0, 0) so the gate falls
+//     through gracefully — the per-kind handler still defends.
+func overlayLevelWithinAxisDepths(spec *types.OverlaySpec, host *CrosstabHostView) (levelAxisDepth, withinAxisDepth int) {
+	rowDepth := host.RowAxisDepth()
+	colDepth := host.ColumnAxisDepth()
+	switch spec.Kind {
+	case types.OverlayKindShareOfRow:
+		return rowDepth, colDepth
+	case types.OverlayKindShareOfCol:
+		return colDepth, rowDepth
+	case types.OverlayKindShareOfTotal:
+		// Grand axis has no per-cell prefix surface — the row /
+		// column depths are both upper-bounded so non-zero Level /
+		// Within fail the gate. SHARE_OF_TOTAL's denominator is the
+		// grand total; Level / Within slots are inert for this kind
+		// at v1.
+		return rowDepth, colDepth
+	case types.OverlayKindIndexVsMargin,
+		types.OverlayKindDeltaVsMargin,
+		types.OverlayKindZScoreVsMargin:
+		if spec.Ref.Margin == nil {
+			return 0, 0
+		}
+		switch spec.Ref.Margin.Axis {
+		case types.MarginAxisRow:
+			return rowDepth, colDepth
+		case types.MarginAxisColumn:
+			return colDepth, rowDepth
+		case types.MarginAxisGrand:
+			// Grand axis: same comment as SHARE_OF_TOTAL.
+			return rowDepth, colDepth
+		}
+	}
+	return 0, 0
 }
 
 // applyChiSqMatrix is the OVERLAY_CHISQ_MATRIX handler. It computes a
@@ -987,6 +1153,10 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 	}
 	axis := spec.Ref.Margin.Axis
 
+	// E2-S11: Level / Within prefix-bucket denominator dispatch (same
+	// shape as INDEX_VS_MARGIN — direction is driven by axis).
+	buckets, bucketKeys := buildOverlayDenominators(spec, host, overlayDenominatorAxisFor(axis))
+
 	rowCount := host.RowCount()
 	colCount := host.ColumnCount()
 	payload := host.Payload()
@@ -1004,7 +1174,7 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 			if !cellPresent {
 				continue
 			}
-			marginVal, marginPresent := host.MarginFor(axis, i, j)
+			marginVal, marginPresent := resolveOverlayDenominator(spec, host, axis, i, j, buckets, bucketKeys)
 			if !marginPresent {
 				// No division: a missing margin simply produces an absent
 				// overlay cell. PULSE_OVERLAY_REF_ZERO does NOT fire —
@@ -1440,13 +1610,184 @@ func intToString(n int64) string {
 	return string(buf[i:])
 }
 
-// applyIndexVsMargin is the OVERLAY_INDEX_VS_MARGIN handler. For every
-// present host cell it computes (cell / margin × 100) where margin is
-// the matching axis slot (ROW → RowMargins[rowIdx], COLUMN →
-// ColumnMargins[colIdx], GRAND → GrandTotal). Missing or zero
-// denominators emit NaN cells plus one PULSE_OVERLAY_REF_ZERO warning
-// per failing cell so the orchestrator can promote them to envelope
-// warnings.
+// resolveOverlayDenominator returns the denominator value for cell
+// (rowIdx, colIdx) under the spec's Level / Within configuration. When
+// Level / Within are both zero (the default), the legacy MarginFor
+// lookup is used and the returned value is byte-identical to the
+// pre-S11 handler output (preserving the E1 / E2-S1..S9 byte-identity
+// guarantee). When either slot is non-zero, the per-cell denominator
+// is sourced from the precomputed prefix-bucket map keyed by the
+// effective (rowPrefix, colPrefix) bucket the cell belongs to.
+//
+// Returns (value, present). A missing margin slot (legacy path) or a
+// missing prefix bucket (non-legacy path) returns present=false so the
+// caller can surface the PULSE_OVERLAY_REF_ZERO warning consistently
+// across both code paths.
+//
+// axis is the same MarginAxis the handler is centerpoint-locked to
+// (e.g. SHARE_OF_ROW always passes types.MarginAxisRow); buckets is
+// the prefix-bucket denominator map the caller pre-populated when
+// OverlayLevelEnabled(spec) is true (nil otherwise).
+func resolveOverlayDenominator(
+	spec *types.OverlaySpec,
+	host *CrosstabHostView,
+	axis types.MarginAxis,
+	rowIdx, colIdx int,
+	buckets map[overlayPrefixBucketKey]float64,
+	bucketKeys map[overlayCellLocator]overlayPrefixBucketKey,
+) (float64, bool) {
+	if !OverlayLevelEnabled(spec) {
+		return host.MarginFor(axis, rowIdx, colIdx)
+	}
+	key, ok := bucketKeys[overlayCellLocator{rowIdx: rowIdx, colIdx: colIdx}]
+	if !ok {
+		return 0, false
+	}
+	v, present := buckets[key]
+	if !present {
+		return 0, false
+	}
+	return v, true
+}
+
+// overlayDenominatorAxisFor maps a MarginAxis to the direction enum
+// the buildOverlayDenominators precompute uses. Used by INDEX /
+// DELTA / ZSCORE handlers whose direction is driven by Ref.Margin.Axis
+// at runtime (the share triad uses fixed directions because their
+// axis is structurally locked).
+func overlayDenominatorAxisFor(axis types.MarginAxis) overlayDenominatorAxis {
+	switch axis {
+	case types.MarginAxisRow:
+		return overlayDenominatorAxisRow
+	case types.MarginAxisColumn:
+		return overlayDenominatorAxisColumn
+	case types.MarginAxisGrand:
+		return overlayDenominatorAxisGrand
+	}
+	return overlayDenominatorAxisRow
+}
+
+// buildOverlayDenominators precomputes the prefix-bucket denominator
+// map for an axis-locked overlay handler honouring the spec's Level /
+// Within slots. Returns:
+//
+//   - buckets: (rowPrefix, colPrefix) → sum of present cells in that
+//     bucket, folded according to direction (row / column / grand).
+//   - cellKeys: per-cell lookup (rowIdx, colIdx) → bucket key, so the
+//     handler dispatch can find each cell's denominator without
+//     re-deriving the prefix on every read.
+//
+// Per PRD § 4.C FR-C3 the function reuses the shared
+// processing/crosstab_normalize.go helpers (SameAxisPrefixDepth /
+// OppositeAxisPrefixDepth / AxisKeyPrefix) so the math stays parity-
+// true with the buffered crosstab `normalize_level` / `normalize_within`
+// path against the same host matrix.
+//
+// direction picks which cells fold into each bucket:
+//
+//   - overlayDenominatorAxisRow: per-cell denominator = sum of cells
+//     sharing (rowPrefix, colPrefix). Used by SHARE_OF_ROW +
+//     INDEX/DELTA/ZSCORE(row).
+//   - overlayDenominatorAxisColumn: same bucket signature, same fold;
+//     callers requesting column-axis dispatch get the same
+//     (rowPrefix, colPrefix) → cell-sum buckets — the directional
+//     name is purely documentation. The bucket signature is
+//     symmetric because cells in the SAME (rowPrefix, colPrefix)
+//     bucket form the cross-axis-partitioned denominator regardless of
+//     which axis is "same" vs "opposite" from the handler's POV.
+//   - overlayDenominatorAxisGrand: rowPrefix and colPrefix are both
+//     the empty string — every present cell folds into the single
+//     bucket. Same value as the host's GrandTotal.
+//
+// Returns (nil, nil) when the spec does not engage the prefix-bucket
+// path (OverlayLevelEnabled is false) so the caller short-circuits
+// the precompute. Out-of-range Level / Within are caught by the
+// runtime gate before this function is reached; defensive clamping
+// in the shared helpers keeps the function panic-free.
+func buildOverlayDenominators(
+	spec *types.OverlaySpec,
+	host *CrosstabHostView,
+	direction overlayDenominatorAxis,
+) (
+	map[overlayPrefixBucketKey]float64,
+	map[overlayCellLocator]overlayPrefixBucketKey,
+) {
+	if !OverlayLevelEnabled(spec) {
+		return nil, nil
+	}
+	rowCount := host.RowCount()
+	colCount := host.ColumnCount()
+	payload := host.Payload()
+	if payload == nil {
+		return nil, nil
+	}
+
+	// Resolve the prefix depths for SAME and OPPOSITE axes. Direction
+	// picks which axis is which:
+	//
+	//   row direction    → same=ROW, opposite=COLUMN
+	//   column direction → same=COLUMN, opposite=ROW
+	//   grand direction  → no SAME/OPPOSITE split; both axes are
+	//                      effectively un-bucketed (prefix length 0).
+	var (
+		rowPrefixLen int
+		colPrefixLen int
+	)
+	rowDepth := host.RowAxisDepth()
+	colDepth := host.ColumnAxisDepth()
+	switch direction {
+	case overlayDenominatorAxisRow:
+		rowPrefixLen = SameAxisPrefixDepth(rowDepth, spec.Level)
+		colPrefixLen = OppositeAxisPrefixDepth(colDepth, spec.Within)
+	case overlayDenominatorAxisColumn:
+		colPrefixLen = SameAxisPrefixDepth(colDepth, spec.Level)
+		rowPrefixLen = OppositeAxisPrefixDepth(rowDepth, spec.Within)
+	case overlayDenominatorAxisGrand:
+		// Grand direction folds across every cell — no prefix
+		// discrimination. Both prefix lengths stay zero so every
+		// cell shares the empty-prefix bucket.
+		rowPrefixLen = 0
+		colPrefixLen = 0
+	}
+
+	buckets := make(map[overlayPrefixBucketKey]float64, rowCount*colCount)
+	cellKeys := make(map[overlayCellLocator]overlayPrefixBucketKey, rowCount*colCount)
+
+	for i := 0; i < rowCount; i++ {
+		var rowPrefix string
+		if rowPrefixLen > 0 && i < len(payload.RowKeys) {
+			rowPrefix = AxisKeyPrefix(payload.RowKeys[i], rowPrefixLen-1)
+		}
+		for j := 0; j < colCount; j++ {
+			var colPrefix string
+			if colPrefixLen > 0 && j < len(payload.ColumnKeys) {
+				colPrefix = AxisKeyPrefix(payload.ColumnKeys[j], colPrefixLen-1)
+			}
+			loc := overlayCellLocator{rowIdx: i, colIdx: j}
+			bucketKey := overlayPrefixBucketKey{row: rowPrefix, col: colPrefix}
+			cellKeys[loc] = bucketKey
+			// Only present cells contribute to the bucket sum (mirrors
+			// the buffered crosstab path: absent host cells contribute
+			// nothing to the normalisation denominator).
+			if v, ok := host.CellAt(i, j); ok {
+				buckets[bucketKey] += v
+			}
+		}
+	}
+
+	// Direction filtering: when overlayDenominatorAxisRow the
+	// denominator for cell (i, j) should fold ACROSS COLUMNS for fixed
+	// rowPrefix. Folding across the full (rowPrefix, colPrefix) bucket
+	// (as the loop above does) is correct when colPrefixLen > 0 (a
+	// non-zero Within slot fixes the column prefix). When Within == 0
+	// (colPrefixLen == 0) every cell shares colPrefix="" so the
+	// bucket sum spans every column in the rowPrefix — which is
+	// exactly the legacy row-margin behavior recovered through the
+	// prefix-bucket path. Symmetric for overlayDenominatorAxisColumn.
+	//
+	// No additional filtering required.
+	return buckets, cellKeys
+}
 //
 // Output shape: MATRIX payload mirroring the host's RowKeys /
 // ColumnKeys / headers so renderers can lay the overlay on top of the
@@ -1474,6 +1815,14 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 	}
 	axis := spec.Ref.Margin.Axis
 
+	// E2-S11: Level / Within prefix-bucket denominator dispatch. The
+	// direction is driven by Ref.Margin.Axis:
+	//   row    → fold across columns within (rowPrefix, colPrefix)
+	//   column → fold across rows within (rowPrefix, colPrefix)
+	//   grand  → fold across every cell (Level / Within inert)
+	// See applyShareOfRow for the zero-default byte-identity contract.
+	buckets, bucketKeys := buildOverlayDenominators(spec, host, overlayDenominatorAxisFor(axis))
+
 	rowCount := host.RowCount()
 	colCount := host.ColumnCount()
 	payload := host.Payload()
@@ -1492,7 +1841,7 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 			if !cellPresent {
 				continue
 			}
-			marginVal, marginPresent := host.MarginFor(axis, i, j)
+			marginVal, marginPresent := resolveOverlayDenominator(spec, host, axis, i, j, buckets, bucketKeys)
 			if !marginPresent || marginVal == 0 {
 				warnings = append(warnings, OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
@@ -1618,6 +1967,16 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 	// response Ref.Margin.Axis faithful to what the caller requested.
 	axis := types.MarginAxisRow
 
+	// E2-S11: when the spec engages the Level / Within prefix-axis
+	// denominator path (either slot non-zero), precompute the per-cell
+	// (rowPrefix, colPrefix) bucket map so the per-cell loop dispatches
+	// through the prefix-bucket denominator instead of the legacy
+	// MarginFor lookup. The zero-default code path keeps using the
+	// legacy MarginFor lookup — byte-identical to the pre-S11 handler
+	// output (resolveOverlayDenominator short-circuits when
+	// OverlayLevelEnabled returns false).
+	buckets, bucketKeys := buildOverlayDenominators(spec, host, overlayDenominatorAxisRow)
+
 	rowCount := host.RowCount()
 	colCount := host.ColumnCount()
 	payload := host.Payload()
@@ -1636,7 +1995,7 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 			if !cellPresent {
 				continue
 			}
-			marginVal, marginPresent := host.MarginFor(axis, i, j)
+			marginVal, marginPresent := resolveOverlayDenominator(spec, host, axis, i, j, buckets, bucketKeys)
 			if !marginPresent || marginVal == 0 {
 				warnings = append(warnings, OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
@@ -1759,6 +2118,11 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 	// response Ref.Margin.Axis faithful to what the caller requested.
 	axis := types.MarginAxisColumn
 
+	// E2-S11: Level / Within prefix-bucket denominator dispatch (see
+	// applyShareOfRow for the documented zero-default byte-identity
+	// contract).
+	buckets, bucketKeys := buildOverlayDenominators(spec, host, overlayDenominatorAxisColumn)
+
 	rowCount := host.RowCount()
 	colCount := host.ColumnCount()
 	payload := host.Payload()
@@ -1777,7 +2141,7 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 			if !cellPresent {
 				continue
 			}
-			marginVal, marginPresent := host.MarginFor(axis, i, j)
+			marginVal, marginPresent := resolveOverlayDenominator(spec, host, axis, i, j, buckets, bucketKeys)
 			if !marginPresent || marginVal == 0 {
 				warnings = append(warnings, OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
@@ -2064,6 +2428,18 @@ func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types
 	}
 	axis := spec.Ref.Margin.Axis
 
+	// E2-S11: Level / Within prefix-bucket denominator dispatch — only
+	// the margin centroid (cell - margin numerator) honours the prefix-
+	// bucket path; the SD denominator continues to compute over the
+	// full per-axis slice. The behaviour is intentional — the
+	// statistical interpretation of a Z-score requires a stable slice
+	// SD that does not shift when Level / Within engage, and the
+	// prefix-bucket variance recurrence is reserved for future kinds.
+	// Zero-default Level=0/Within=0 stays byte-identical: the
+	// resolveOverlayDenominator short-circuits when
+	// OverlayLevelEnabled is false.
+	buckets, bucketKeys := buildOverlayDenominators(spec, host, overlayDenominatorAxisFor(axis))
+
 	rowCount := host.RowCount()
 	colCount := host.ColumnCount()
 	payload := host.Payload()
@@ -2133,7 +2509,7 @@ func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types
 			if !cellPresent {
 				continue
 			}
-			marginVal, marginPresent := host.MarginFor(axis, i, j)
+			marginVal, marginPresent := resolveOverlayDenominator(spec, host, axis, i, j, buckets, bucketKeys)
 			if !marginPresent {
 				warnings = append(warnings, OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),

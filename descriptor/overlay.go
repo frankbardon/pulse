@@ -154,16 +154,15 @@ var validMarginAxes = map[types.MarginAxis]bool{
 // referenced field types on sibling / baseline-index families) without
 // re-opening every call site.
 //
-// TODO(E2-S11): wire the PULSE_OVERLAY_LEVEL_OUT_OF_RANGE gate once
-// OverlaySpec carries a Level slot — when spec.Level >
-// len(req.Crosstab.Rows) (for row-axis overlays) or >
-// len(req.Crosstab.Columns) (for column-axis overlays), emit the
-// canonical errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE code with
-// Details = {"index": i, "kind": spec.Kind, "level": spec.Level,
-// "axis_depth": len(axis)}. Mirrors the
-// PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE gate at
-// validateCrosstabSpec. The code + fixup ship today (E2-S10) so the
-// catalog is in place when E2-S11 wires the slot through.
+// Level / Within out-of-range gate (E2-S11): runs alongside the per-
+// kind ref/scope checks via validateOverlayLevelWithinPredict. Mirrors
+// the PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE shape on the
+// crosstab path — out-of-range slots surface
+// PULSE_OVERLAY_LEVEL_OUT_OF_RANGE on the envelope with Details
+// carrying the spec index, kind, level / within, and the axis depth.
+// The runtime mirror lives at processing.validateOverlayLevelWithinRuntime
+// so a programmatic Process caller that skipped predict still gets
+// the same failure shape.
 func ValidateOverlays(env *Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions) {
 	if req == nil || len(req.Overlays) == 0 {
 		return
@@ -173,7 +172,133 @@ func ValidateOverlays(env *Envelope, req *types.Request, schema *encoding.Schema
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
 		validateOverlaySpec(env, req, spec, i)
+		validateOverlayLevelWithinPredict(env, req, spec, i)
 	}
+}
+
+// validateOverlayLevelWithinPredict mirrors the runtime
+// processing.validateOverlayLevelWithinRuntime gate at predict time.
+// Rules:
+//
+//   - For the share / index / delta / zscore family Level / Within
+//     are each in `[0, axisDepth)` for their respective axis. The
+//     axis Level addresses is the same axis the overlay is centerpoint-
+//     locked to; Within addresses the OPPOSITE axis. Out-of-range
+//     fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE with Details carrying
+//     the spec index, kind, level / within, and axis depth.
+//
+//   - For the χ² / Fisher inferential family Level / Within MUST be
+//     zero — those handlers compute their own contingency from the
+//     host margins inline and Level / Within would alter the implicit-
+//     margin contract. Non-zero values fire
+//     PULSE_OVERLAY_LEVEL_OUT_OF_RANGE.
+//
+//   - When req.Crosstab is nil the gate skips (the per-kind ref/scope
+//     check already surfaced PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE).
+//
+// Zero defaults (Level == 0 && Within == 0) pass — the runtime
+// resolver short-circuits to the legacy MarginFor lookup, preserving
+// the E1 / E2-S1..S9 byte-identity contract.
+func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	if spec == nil {
+		return
+	}
+	if req == nil || req.Crosstab == nil {
+		return
+	}
+	switch spec.Kind {
+	case types.OverlayKindChiSqCol,
+		types.OverlayKindChiSqMatrix,
+		types.OverlayKindChiSqRow,
+		types.OverlayKindFisherExactCell:
+		// Inferential family — Level / Within must both be zero.
+		if spec.Level != 0 || spec.Within != 0 {
+			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-margin inferential kind)",
+				map[string]any{
+					"index":  index,
+					"kind":   string(spec.Kind),
+					"level":  spec.Level,
+					"within": spec.Within,
+				})
+		}
+		return
+	}
+	// Share / index / delta / zscore family — Level on SAME axis,
+	// Within on OPPOSITE axis. Resolve the axis pair off the kind so
+	// the gate stays kind-aware (mirrors the runtime dispatch).
+	levelAxisDepth, withinAxisDepth, levelAxisLabel, withinAxisLabel := overlayLevelWithinAxisDepthsPredict(spec, req)
+	if spec.Level < 0 || (levelAxisDepth > 0 && spec.Level >= levelAxisDepth) {
+		env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+			"overlay "+string(spec.Kind)+" Level is out of range for the "+levelAxisLabel+" axis",
+			map[string]any{
+				"index":      index,
+				"kind":       string(spec.Kind),
+				"level":      spec.Level,
+				"axis":       levelAxisLabel,
+				"axis_depth": levelAxisDepth,
+			})
+	}
+	if spec.Within < 0 || (withinAxisDepth > 0 && spec.Within >= withinAxisDepth) {
+		env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+			"overlay "+string(spec.Kind)+" Within is out of range for the "+withinAxisLabel+" axis",
+			map[string]any{
+				"index":      index,
+				"kind":       string(spec.Kind),
+				"within":     spec.Within,
+				"axis":       withinAxisLabel,
+				"axis_depth": withinAxisDepth,
+			})
+	}
+}
+
+// overlayLevelWithinAxisDepthsPredict resolves which crosstab axis the
+// spec's Level / Within slots address. Returns the axis depths
+// (len(Rows) / len(Columns)) and axis labels ("rows" / "columns") for
+// the error details.
+//
+//   - SHARE_OF_ROW: Level on ROW axis, Within on COLUMN axis.
+//   - SHARE_OF_COL: Level on COLUMN axis, Within on ROW axis.
+//   - SHARE_OF_TOTAL: Level / Within nominally on grand; the helper
+//     returns row + column depths so non-zero values are accepted
+//     within the row / column range (SHARE_OF_TOTAL ignores Level /
+//     Within at runtime but the predict gate does not need to reject
+//     them — they are inert).
+//   - INDEX_VS_MARGIN / DELTA_VS_MARGIN / ZSCORE_VS_MARGIN: axis is
+//     driven by Ref.Margin.Axis; Level addresses that axis and
+//     Within addresses the opposite one.
+func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, req *types.Request) (
+	levelAxisDepth, withinAxisDepth int,
+	levelAxisLabel, withinAxisLabel string,
+) {
+	if req == nil || req.Crosstab == nil {
+		return 0, 0, "rows", "columns"
+	}
+	rowDepth := len(req.Crosstab.Rows)
+	colDepth := len(req.Crosstab.Columns)
+	switch spec.Kind {
+	case types.OverlayKindShareOfRow:
+		return rowDepth, colDepth, "rows", "columns"
+	case types.OverlayKindShareOfCol:
+		return colDepth, rowDepth, "columns", "rows"
+	case types.OverlayKindShareOfTotal:
+		return rowDepth, colDepth, "rows", "columns"
+	case types.OverlayKindIndexVsMargin,
+		types.OverlayKindDeltaVsMargin,
+		types.OverlayKindZScoreVsMargin:
+		if spec.Ref.Margin == nil {
+			return 0, 0, "rows", "columns"
+		}
+		switch spec.Ref.Margin.Axis {
+		case types.MarginAxisRow:
+			return rowDepth, colDepth, "rows", "columns"
+		case types.MarginAxisColumn:
+			return colDepth, rowDepth, "columns", "rows"
+		case types.MarginAxisGrand:
+			return rowDepth, colDepth, "rows", "columns"
+		}
+	}
+	return 0, 0, "rows", "columns"
 }
 
 // validateOverlaySpec applies the E1 ruleset to one OverlaySpec.
