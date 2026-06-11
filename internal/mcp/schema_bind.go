@@ -442,6 +442,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 			"tests":      testsArraySchema(c, testTypes),
 			"post_tests": testsArraySchema(c, testTypes),
 			"crosstab":   crosstabSchema(c, aggTypes, groupTypes),
+			"overlays":   overlaysSchema(),
 			"outputs": map[string]any{
 				"type": "array",
 				"items": map[string]any{
@@ -547,6 +548,65 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 		},
 		"required":             []string{"rows", "columns", "cell"},
 		"additionalProperties": true,
+	}
+}
+
+// overlayKindEnum returns the per-facade overlay_kind enum drawn from
+// descriptor.OverlayCapabilities(). The returned slice carries the
+// SCREAMING_SNAKE OverlayKind constants in the order
+// OverlayCapabilities() emits — alphabetised via types.AllOverlayKinds()
+// so the bound schema stays deterministic across sessions.
+//
+// E1 ships a single registered kind (OVERLAY_INDEX_VS_MARGIN); later
+// epics extend the catalog by adding entries to capabilities_overlay.go
+// and the enum here picks them up automatically. The scaffolding is
+// per-facade today; only pulse_process consumes the enum because E1
+// limits overlays to Request.Overlays. Later epics extend the same
+// pattern to compose / facet / chain.
+func overlayKindEnum() []string {
+	caps := descriptor.OverlayCapabilities()
+	out := make([]string, 0, len(caps))
+	for _, c := range caps {
+		out = append(out, string(c.Kind))
+	}
+	return out
+}
+
+// overlaysSchema returns the JSON Schema fragment describing the
+// Request.Overlays array. Each entry is an OverlaySpec whose kind enum
+// is the per-facade catalog returned by overlayKindEnum(). scope and
+// ref carry the on-wire union discriminator one level deeper — the
+// per-kind validation surface lives in predict, not in the schema.
+//
+// Scaffolding only: this surface mirrors the OverlaySpec shape
+// (types/overlay.go) but does NOT attempt per-kind correlation in JSON
+// Schema (the same limitation noted at the top of this file for
+// operator-type / field-type pairs). The enum on `kind` is the
+// load-bearing addition for E1.
+func overlaysSchema() map[string]any {
+	kinds := overlayKindEnum()
+	kindField := map[string]any{
+		"type":        "string",
+		"description": "Overlay catalog kind. Enum drawn from descriptor.OverlayCapabilities() — E1 ships OVERLAY_INDEX_VS_MARGIN; later epics extend the catalog automatically. See Manifest.Overlays for the per-kind shape/scope/ref-kind matrix.",
+	}
+	if len(kinds) > 0 {
+		kindField["enum"] = kinds
+	}
+	return map[string]any{
+		"type":        "array",
+		"description": "Overlay layer specifications. Each entry produces one OverlayLayer in Response.Overlays in matching order. See types.OverlaySpec.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":   map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Scope+Ref."},
+				"kind":   kindField,
+				"scope":  map[string]any{"type": "string", "description": "Where the overlay lands relative to the base result."},
+				"ref":    map[string]any{"type": "object", "description": "Discriminated reference family pointer; per-kind contract documented in Manifest.Overlays."},
+				"params": map[string]any{"description": "Operator-specific configuration. Per-kind schema lives alongside the kind's processor."},
+			},
+			"required":             []string{"kind", "scope"},
+			"additionalProperties": true,
+		},
 	}
 }
 

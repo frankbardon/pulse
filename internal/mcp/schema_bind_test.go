@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/mcp/mcptools"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
@@ -261,6 +262,80 @@ func TestMCPSchemaBinding_CrosstabNormalizeWithin(t *testing.T) {
 	}
 	if desc, _ := within["description"].(string); desc == "" {
 		t.Error("normalize_within.description should be non-empty")
+	}
+}
+
+// TestMCPSchemaBinding_OverlayKindEnum verifies the bound pulse_process
+// schema exposes Request.Overlays[].kind with an enum drawn from
+// descriptor.OverlayCapabilities(). For E1 the enum lists exactly
+// OVERLAY_INDEX_VS_MARGIN; later epics extend the catalog and the enum
+// picks up new kinds automatically via OverlayCapabilities().
+//
+// Per-facade scaffolding rule: only pulse_process consumes the enum at
+// E1 because Request.Overlays is the only surface; compose / facet /
+// chain pick up the same pattern as their request shapes grow overlay
+// slots in later epics.
+func TestMCPSchemaBinding_OverlayKindEnum(t *testing.T) {
+	schemas, err := Bind(makeSchema())
+	if err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+	raw, ok := schemas[mcptools.ToolProcess]
+	if !ok {
+		t.Fatal("missing process schema")
+	}
+	req := decodeRequestSchema(t, raw)
+	props, _ := req["properties"].(map[string]any)
+	overlays, _ := props["overlays"].(map[string]any)
+	if overlays == nil {
+		t.Fatal("request.overlays property missing")
+	}
+	if typ, _ := overlays["type"].(string); typ != "array" {
+		t.Errorf("overlays.type = %q, want array", typ)
+	}
+	items, _ := overlays["items"].(map[string]any)
+	if items == nil {
+		t.Fatal("overlays.items missing")
+	}
+	itemProps, _ := items["properties"].(map[string]any)
+	if itemProps == nil {
+		t.Fatal("overlays.items.properties missing")
+	}
+	kind, _ := itemProps["kind"].(map[string]any)
+	if kind == nil {
+		t.Fatal("overlays.items.properties.kind missing")
+	}
+	if typ, _ := kind["type"].(string); typ != "string" {
+		t.Errorf("overlays.items.properties.kind.type = %q, want string", typ)
+	}
+	enumAny, ok := kind["enum"].([]any)
+	if !ok {
+		t.Fatal("overlays.items.properties.kind.enum missing or wrong shape")
+	}
+	got := make([]string, 0, len(enumAny))
+	for _, v := range enumAny {
+		s, _ := v.(string)
+		got = append(got, s)
+	}
+
+	// Source of truth: descriptor.OverlayCapabilities(). E1 emits
+	// exactly OVERLAY_INDEX_VS_MARGIN; assert the slice matches what
+	// the descriptor catalog produces so future kinds flow through.
+	caps := descriptor.OverlayCapabilities()
+	want := make([]string, 0, len(caps))
+	for _, c := range caps {
+		want = append(want, string(c.Kind))
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("overlay_kind enum = %v, want %v", got, want)
+	}
+	// E1 ground-truth: at least OVERLAY_INDEX_VS_MARGIN must be present
+	// and at index 0 (alphabetised; sole entry today).
+	if !slices.Contains(got, "OVERLAY_INDEX_VS_MARGIN") {
+		t.Errorf("overlay_kind enum missing OVERLAY_INDEX_VS_MARGIN: %v", got)
+	}
+	if len(got) == 1 && got[0] != "OVERLAY_INDEX_VS_MARGIN" {
+		t.Errorf("E1 expects sole entry OVERLAY_INDEX_VS_MARGIN, got %v", got)
 	}
 }
 
