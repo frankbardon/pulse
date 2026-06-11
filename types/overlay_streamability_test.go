@@ -19,6 +19,10 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// inherently buffered (see CLAUDE.md "Execution modes" →
 		// Crosstab).
 		OverlayKindIndexVsMargin: false,
+		// SHARE_OF_COL shares INDEX_VS_MARGIN's buffered footprint — its
+		// column-margin denominator is recomputed by the buffered
+		// crosstab orchestrator before ApplyOverlays runs.
+		OverlayKindShareOfCol: false,
 		// SHARE_OF_ROW shares INDEX_VS_MARGIN's buffered footprint — its
 		// row-margin denominator is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.

@@ -43,6 +43,17 @@ const (
 	// always recomputed from raw rows in the crosstab path.
 	OverlayKindIndexVsMargin OverlayKind = "OVERLAY_INDEX_VS_MARGIN"
 
+	// OverlayKindShareOfCol emits a per-cell share-of-column ratio: cell
+	// / col_margin. CELL-scoped over a MATRIX (crosstab) host. Cells
+	// along a single column sum to 1.0 in the absence of missing cells;
+	// renderers can present the layer as a 100%-stacked vertical
+	// projection. Structural twin of OVERLAY_SHARE_OF_ROW with the
+	// column-axis margin slot as the denominator. Inherently buffered for
+	// the same reason as INDEX_VS_MARGIN — the host crosstab
+	// orchestrator recomputes margins from raw rows before ApplyOverlays
+	// runs.
+	OverlayKindShareOfCol OverlayKind = "OVERLAY_SHARE_OF_COL"
+
 	// OverlayKindShareOfRow emits a per-cell share-of-row ratio: cell /
 	// row_margin. CELL-scoped over a MATRIX (crosstab) host. Cells along
 	// a single row sum to 1.0 in the absence of missing cells; renderers
@@ -63,6 +74,7 @@ const (
 func AllOverlayKinds() []OverlayKind {
 	return []OverlayKind{
 		OverlayKindIndexVsMargin,
+		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
 	}
 }

@@ -146,6 +146,20 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Description: "Per-cell index score against the matching axis margin: 100 * cell / margin. " +
 				"E1 supports CELL scope over a MATRIX (crosstab) host with a Margin reference.",
 		}
+	case types.OverlayKindShareOfCol:
+		return OverlayCapability{
+			Kind: types.OverlayKindShareOfCol,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			RefKinds: []string{"Margin"},
+			Description: "Per-cell share-of-column ratio: cell / col_margin. CELL scope over a MATRIX " +
+				"(crosstab) host. Column cells sum to 1.0 in the absence of missing cells; renderers " +
+				"can present the layer as a 100%-stacked vertical projection.",
+		}
 	case types.OverlayKindShareOfRow:
 		return OverlayCapability{
 			Kind: types.OverlayKindShareOfRow,

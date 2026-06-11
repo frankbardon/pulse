@@ -33,6 +33,7 @@ package types
 // buffered.
 var OverlayStreamability = map[OverlayKind]bool{
 	OverlayKindIndexVsMargin: false,
+	OverlayKindShareOfCol:    false,
 	OverlayKindShareOfRow:    false,
 }
 

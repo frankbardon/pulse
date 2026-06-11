@@ -315,6 +315,84 @@ func TestValidateOverlay_ShareOfRow_ScopeUnsupported(t *testing.T) {
 	}
 }
 
+// TestValidateOverlay_ShareOfCol_HappyPath asserts a well-formed
+// OVERLAY_SHARE_OF_COL overlay riding on a MATRIX-shaped crosstab
+// passes the predict gate without surfacing any overlay-specific
+// errors. Matches the SHARE_OF_ROW happy-path contract — the kind-
+// unknown gate auto-passes once the streamability row lands
+// (E2-S2), and the per-kind scope-cell + ref-margin checks accept.
+func TestValidateOverlay_ShareOfCol_HappyPath(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Crosstab: crosstabHostSpec(),
+		Overlays: []types.OverlaySpec{
+			{
+				Name:  "col_share",
+				Kind:  types.OverlayKindShareOfCol,
+				Scope: types.OverlayScopeCell,
+				Ref: types.OverlayRef{
+					Margin: &types.OverlayMarginRef{Axis: types.MarginAxisColumn},
+				},
+			},
+		},
+	}
+
+	env := PredictFromBytes(data, req, nil)
+
+	for _, code := range []errors.Code{
+		errors.PULSE_OVERLAY_KIND_UNKNOWN,
+		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
+	} {
+		if hasErrorCode(env, code) {
+			t.Errorf("unexpected overlay error %s on SHARE_OF_COL happy-path request", code)
+		}
+	}
+}
+
+// TestValidateOverlay_ShareOfCol_ScopeUnsupported asserts the per-kind
+// scope gate rejects non-CELL scopes on SHARE_OF_COL. Mirrors the
+// SHARE_OF_ROW scope check — SHARE_OF_COL is CELL-only by
+// construction.
+func TestValidateOverlay_ShareOfCol_ScopeUnsupported(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	for _, scope := range []types.OverlayScope{
+		types.OverlayScopeRow,
+		types.OverlayScopeColumn,
+		types.OverlayScopeMatrix,
+		types.OverlayScopeGroup,
+		types.OverlayScopeTotal,
+	} {
+		t.Run(string(scope), func(t *testing.T) {
+			req := &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{
+					{
+						Kind:  types.OverlayKindShareOfCol,
+						Scope: scope,
+						Ref: types.OverlayRef{
+							Margin: &types.OverlayMarginRef{Axis: types.MarginAxisColumn},
+						},
+					},
+				},
+			}
+			env := PredictFromBytes(data, req, nil)
+			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
+				codes := make([]string, 0, len(env.Errors))
+				for _, e := range env.Errors {
+					codes = append(codes, e.Code)
+				}
+				t.Fatalf("scope=%s: expected PULSE_OVERLAY_SCOPE_UNSUPPORTED; got %v",
+					scope, codes)
+			}
+		})
+	}
+}
+
 // TestValidateOverlay_EmptySliceNoop asserts the validator is a no-op
 // for requests without overlays — predict still runs every other gate
 // untouched.

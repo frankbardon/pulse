@@ -4886,6 +4886,20 @@
         "description": "Per-cell index score against the matching axis margin: 100 * cell / margin. E1 supports CELL scope over a MATRIX (crosstab) host with a Margin reference."
       },
       {
+        "kind": "OVERLAY_SHARE_OF_COL",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [
+          "Margin"
+        ],
+        "buffered": true,
+        "description": "Per-cell share-of-column ratio: cell / col_margin. CELL scope over a MATRIX (crosstab) host. Column cells sum to 1.0 in the absence of missing cells; renderers can present the layer as a 100%-stacked vertical projection."
+      },
+      {
         "kind": "OVERLAY_SHARE_OF_ROW",
         "shapes": [
           "matrix"
@@ -4904,4 +4918,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b97a164798c07bc8c37ba648218a29e2a399254e24c1d13b0d522458322c0b55
+// golden-hash: 8cb6a92f2da981c91f0b0ade8012870e3212194368a34a143914c8784c9be9be
