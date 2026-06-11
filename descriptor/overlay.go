@@ -39,6 +39,17 @@ import (
 //     built with string concatenation so descriptor envelope output
 //     stays grep-clean against the structural defense ban.
 
+// deltaVsMarginSupportedScopes is the E2-supported scope set for
+// OVERLAY_DELTA_VS_MARGIN. DELTA_VS_MARGIN is a CELL-scoped overlay by
+// construction — every cell receives an additive deviation against
+// the matching margin slot. Like ZSCORE_VS_MARGIN the axis is not
+// structurally locked: the validator accepts every known MarginAxis
+// (row / column / grand) and the runtime handler dispatches the
+// matching margin.
+var deltaVsMarginSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeCell: true,
+}
+
 // indexVsMarginSupportedScopes is the E1-supported scope set for
 // OVERLAY_INDEX_VS_MARGIN. Today only CELL ships; later epics widen
 // the gate to ROW / COLUMN / TOTAL once the matching payload shapes
@@ -139,6 +150,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 	}
 
 	switch spec.Kind {
+	case types.OverlayKindDeltaVsMargin:
+		validateOverlayDeltaVsMargin(env, req, spec, index)
 	case types.OverlayKindIndexVsMargin:
 		validateOverlayIndexVsMargin(env, req, spec, index)
 	case types.OverlayKindShareOfCol:
@@ -211,6 +224,69 @@ func validateOverlayIndexVsMargin(env *Envelope, req *types.Request, spec *types
 	if !indexVsMarginSupportedScopes[spec.Scope] {
 		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (E1 supports: cell)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+}
+
+// validateOverlayDeltaVsMargin enforces the per-kind contract for
+// OVERLAY_DELTA_VS_MARGIN: Ref must populate Margin (the axis-margin
+// reference family), Margin.Axis must be a known MarginAxis (any of
+// row / column / grand — unlike the SHARE_OF_* triad the runtime
+// handler dispatches all three axes, mirroring INDEX_VS_MARGIN and
+// ZSCORE_VS_MARGIN), the host result must be MATRIX-shaped (i.e.
+// Request.Crosstab is non-nil), and Scope must be CELL.
+func validateOverlayDeltaVsMargin(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref family must be Margin. DELTA_VS_MARGIN shares the same ref
+	// shape contract as INDEX_VS_MARGIN / SHARE_OF_* / ZSCORE_VS_MARGIN
+	// — the centerpoint is an axis-margin slot.
+	if spec.Ref.Margin == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Margin.Axis must be a known MarginAxis. DELTA_VS_MARGIN accepts
+	// every known axis at predict time AND at runtime (the runtime
+	// handler dispatches the matching margin); unknown values are a
+	// shape mismatch.
+	if !validMarginAxes[spec.Ref.Margin.Axis] {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"axis":  string(spec.Ref.Margin.Axis),
+			})
+		return
+	}
+
+	// Host must be MATRIX-shaped — delta-vs-margin needs a crosstab
+	// margin slot to subtract from each cell.
+	if req.Crosstab == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"axis":  string(spec.Ref.Margin.Axis),
+			})
+		return
+	}
+
+	// Scope must be CELL. DELTA_VS_MARGIN is a cell-decoration overlay
+	// by construction.
+	if !deltaVsMarginSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),

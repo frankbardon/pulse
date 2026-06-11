@@ -33,6 +33,20 @@ import "encoding/json"
 type OverlayKind string
 
 const (
+	// OverlayKindDeltaVsMargin emits a per-cell additive delta against
+	// the matching axis margin: cell - margin. CELL-scoped over a MATRIX
+	// (crosstab) host. Unlike INDEX_VS_MARGIN (a ratio) and the SHARE_OF_*
+	// triad (each a ratio scaled to 1.0), DELTA_VS_MARGIN preserves the
+	// host cell's units — a $-valued AGG_SUM cell minus a $-valued row
+	// margin yields a $-valued deviation in the same currency. There is
+	// no division and no Welford recurrence, so the handler never
+	// surfaces PULSE_OVERLAY_REF_ZERO. Supports all three axes (row /
+	// column / grand) — callers pick the axis explicitly via
+	// Ref.Margin.Axis and the handler dispatches the matching margin
+	// slot. Inherently buffered because the host crosstab path is always
+	// buffered (margins recomputed from raw rows).
+	OverlayKindDeltaVsMargin OverlayKind = "OVERLAY_DELTA_VS_MARGIN"
+
 	// OverlayKindIndexVsMargin produces an index score per cell (or per
 	// row/column, depending on Scope) by comparing the cell value against
 	// the matching axis margin: 100 * cell / margin. Scope=CELL emits one
@@ -101,6 +115,7 @@ const (
 // gate enforces table completeness).
 func AllOverlayKinds() []OverlayKind {
 	return []OverlayKind{
+		OverlayKindDeltaVsMargin,
 		OverlayKindIndexVsMargin,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,

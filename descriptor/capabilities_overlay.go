@@ -133,6 +133,23 @@ func OverlayCapabilities() []OverlayCapability {
 // expected to grow in lock-step.
 func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 	switch kind {
+	case types.OverlayKindDeltaVsMargin:
+		return OverlayCapability{
+			Kind: types.OverlayKindDeltaVsMargin,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			RefKinds: []string{"Margin"},
+			Description: "Per-cell additive delta against the matching axis margin: cell - margin. " +
+				"CELL scope over a MATRIX (crosstab) host. Supports all three margin axes " +
+				"(row / column / grand). Output preserves the host cell's units — a $-valued " +
+				"cell minus a $-valued margin yields a $-valued deviation. No division and " +
+				"no Welford recurrence, so PULSE_OVERLAY_REF_ZERO is never emitted; renderers " +
+				"centre diverging colour ramps on baseline=0.",
+		}
 	case types.OverlayKindIndexVsMargin:
 		return OverlayCapability{
 			Kind: types.OverlayKindIndexVsMargin,

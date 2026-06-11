@@ -14,6 +14,10 @@ import "testing"
 // value all fail the gate so the table cannot silently drift.
 func TestStreamability_OverlaysKnown(t *testing.T) {
 	expected := map[OverlayKind]bool{
+		// DELTA_VS_MARGIN shares INDEX_VS_MARGIN's buffered footprint —
+		// its margin centerpoint is recomputed by the buffered crosstab
+		// orchestrator before ApplyOverlays runs.
+		OverlayKindDeltaVsMargin: false,
 		// INDEX_VS_MARGIN rides on the buffered crosstab path — margins
 		// are always recomputed from raw rows, so the host operator is
 		// inherently buffered (see CLAUDE.md "Execution modes" →

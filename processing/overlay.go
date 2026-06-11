@@ -238,6 +238,7 @@ type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types
 // (types/overlay.go + types/overlay_streamability.go), add the runtime
 // handler in this package, and add the dispatch entry here.
 var overlayHandlers = map[types.OverlayKind]overlayHandler{
+	types.OverlayKindDeltaVsMargin:  applyDeltaVsMargin,
 	types.OverlayKindIndexVsMargin:  applyIndexVsMargin,
 	types.OverlayKindShareOfCol:     applyShareOfCol,
 	types.OverlayKindShareOfRow:     applyShareOfRow,
@@ -296,6 +297,129 @@ func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 		}
 	}
 	return layers, warnings, nil
+}
+
+// applyDeltaVsMargin is the OVERLAY_DELTA_VS_MARGIN handler. For every
+// present host cell it computes cell - margin where margin is the
+// matching axis margin slot (ROW → RowMargins[rowIdx], COLUMN →
+// ColumnMargins[colIdx], GRAND → GrandTotal). The output preserves the
+// host cell's units — a $-valued cell minus a $-valued margin yields a
+// $-valued deviation in the same currency. There is no division and no
+// Welford recurrence, so PULSE_OVERLAY_REF_ZERO is never emitted —
+// missing host cells stay absent on the overlay (existing null
+// contract); missing margins also produce absent overlay cells but
+// without an accompanying warning (no division-by-zero risk to flag).
+//
+// Unlike the SHARE_OF_* triad (each structurally axis-locked),
+// DELTA_VS_MARGIN dispatches all three axes — the handler reads
+// MarginFor(spec.Ref.Margin.Axis, ...) instead of forcing a fixed axis,
+// mirroring the ZSCORE_VS_MARGIN / INDEX_VS_MARGIN pattern.
+//
+// Output shape: MATRIX payload mirroring the host's RowKeys /
+// ColumnKeys / headers so renderers can lay the overlay on top of the
+// base matrix with the same header machinery as INDEX_VS_MARGIN.
+//
+// Summary: Min / Max / Count / Baseline populated. Baseline is 0 — a
+// delta of zero means "cell equals margin" (the no-deviation reference)
+// and renderers centre diverging colour ramps on that point.
+//
+// Defense in depth: the descriptor validator rejects bad axes / refs /
+// scopes at predict time. This handler still re-checks the Margin
+// pointer + axis so a misconfigured caller fails closed.
+func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+	if spec.Ref.Margin == nil {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_INTERNAL,
+			"overlay "+string(spec.Kind)+" requires Ref.Margin",
+			map[string]any{
+				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+				"kind": string(spec.Kind),
+			})
+	}
+	axis := spec.Ref.Margin.Axis
+
+	rowCount := host.RowCount()
+	colCount := host.ColumnCount()
+	payload := host.Payload()
+
+	cells := make([][]types.MatrixCell, rowCount)
+	var (
+		minV float64
+		maxV float64
+		seen int
+	)
+	for i := 0; i < rowCount; i++ {
+		row := make([]types.MatrixCell, colCount)
+		for j := 0; j < colCount; j++ {
+			cellVal, cellPresent := host.CellAt(i, j)
+			if !cellPresent {
+				continue
+			}
+			marginVal, marginPresent := host.MarginFor(axis, i, j)
+			if !marginPresent {
+				// No division: a missing margin simply produces an absent
+				// overlay cell. PULSE_OVERLAY_REF_ZERO does NOT fire —
+				// there is no zero-denominator hazard for DELTA_VS_MARGIN.
+				continue
+			}
+			delta := cellVal - marginVal
+			if math.IsNaN(delta) || math.IsInf(delta, 0) {
+				// Non-finite arithmetic should not be reachable for plain
+				// subtraction of finite host values; defense in depth
+				// against future host shapes that surface NaN cells.
+				continue
+			}
+			row[j] = types.MatrixCell{Value: delta, Present: true}
+			if seen == 0 {
+				minV, maxV = delta, delta
+			} else {
+				if delta < minV {
+					minV = delta
+				}
+				if delta > maxV {
+					maxV = delta
+				}
+			}
+			seen++
+		}
+		cells[i] = row
+	}
+
+	overlayPayload := &types.MatrixPayload{
+		RowHeader:        payload.RowHeader,
+		ColumnHeader:     payload.ColumnHeader,
+		RowKeys:          append([]types.AxisKey(nil), payload.RowKeys...),
+		ColumnKeys:       append([]types.AxisKey(nil), payload.ColumnKeys...),
+		Cells:            cells,
+		CellLabel:        overlayLayerName(spec),
+		NormalizeApplied: types.CrosstabNormalizeNone,
+	}
+
+	layer := types.OverlayLayer{
+		Name:  overlayLayerName(spec),
+		Kind:  spec.Kind,
+		Scope: spec.Scope,
+		Ref:   spec.Ref,
+		Payload: types.OverlayPayload{
+			Shape:  types.OverlayShapeMatrix,
+			Matrix: overlayPayload,
+		},
+	}
+
+	baseline := 0.0
+	summary := &types.OverlaySummary{Baseline: &baseline}
+	if seen > 0 {
+		mn, mx, count := minV, maxV, seen
+		summary.Min = &mn
+		summary.Max = &mx
+		summary.Count = &count
+	} else {
+		zeroCount := 0
+		summary.Count = &zeroCount
+	}
+	layer.Summary = summary
+
+	return layer, nil, nil
 }
 
 // applyIndexVsMargin is the OVERLAY_INDEX_VS_MARGIN handler. For every
@@ -1105,6 +1229,16 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		return spec.Name
 	}
 	switch spec.Kind {
+	case types.OverlayKindDeltaVsMargin:
+		// DELTA_VS_MARGIN dispatches all three axes; the synthesised
+		// default surfaces whichever axis the caller asked for. Falls
+		// through to the bare-kind string if Ref.Margin is unset (the
+		// validator rejects that shape at predict time but the
+		// synthesiser stays defensive). Mirrors INDEX_VS_MARGIN /
+		// ZSCORE_VS_MARGIN.
+		if spec.Ref.Margin != nil {
+			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
+		}
 	case types.OverlayKindIndexVsMargin:
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)

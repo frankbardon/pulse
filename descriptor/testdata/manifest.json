@@ -4872,6 +4872,20 @@
     },
     "overlays": [
       {
+        "kind": "OVERLAY_DELTA_VS_MARGIN",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [
+          "Margin"
+        ],
+        "buffered": true,
+        "description": "Per-cell additive delta against the matching axis margin: cell - margin. CELL scope over a MATRIX (crosstab) host. Supports all three margin axes (row / column / grand). Output preserves the host cell's units — a $-valued cell minus a $-valued margin yields a $-valued deviation. No division and no Welford recurrence, so PULSE_OVERLAY_REF_ZERO is never emitted; renderers centre diverging colour ramps on baseline=0."
+      },
+      {
         "kind": "OVERLAY_INDEX_VS_MARGIN",
         "shapes": [
           "matrix"
@@ -4946,4 +4960,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5f267f83df6ea8ce0ff296d5d430131513ab9b0a89bea022e8ca5b09cd292293
+// golden-hash: 4e52d55de1bef21ecd78d0123dfb93dae202c51de3dfc26d0c85d4de36cfb466
