@@ -44,6 +44,19 @@ const (
 	OverlayKindIndexVsMargin OverlayKind = "OVERLAY_INDEX_VS_MARGIN"
 )
 
+// AllOverlayKinds returns every defined overlay kind in alphabetical
+// order. Mirrors AllAggregationTypes / AllRegressionTypes — the
+// streamability table and per-kind validator iterate this surface so a
+// new kind only needs to be appended here, declared in the constant
+// block above, and have its streamability row added in
+// types/overlay_streamability.go (the TestStreamability_OverlaysKnown
+// gate enforces table completeness).
+func AllOverlayKinds() []OverlayKind {
+	return []OverlayKind{
+		OverlayKindIndexVsMargin,
+	}
+}
+
 // OverlayShape declares the structural footprint of an overlay's
 // rendered payload. Downstream renderers branch on this to lay the
 // overlay grid on top of the base result.
