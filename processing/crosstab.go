@@ -544,7 +544,76 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	}
 	resp.PostTests = postResults
 
+	// Overlay fold (E1-S6). When Request.Overlays is non-empty and the
+	// buffered exit produced a MATRIX-shaped CrosstabResult, wrap the
+	// finalised MatrixPayload in a CrosstabHostView and let
+	// ApplyOverlays dispatch each spec through the per-kind runtime
+	// handler (E1-S5). Result: Response.Overlays carries one
+	// OverlayLayer per spec in matching order, and every
+	// OverlayWarning is promoted to types.ResponseWarning so envelope
+	// consumers see the same diagnostics surface label warnings already
+	// use (see service/process_labels.go for the canonical promotion
+	// shape).
+	//
+	// Scope:
+	//
+	//   - shape=long is out of scope today — the validator
+	//     (descriptor.ValidateOverlays) requires a MATRIX host for
+	//     INDEX_VS_MARGIN; a misconfigured spec that survived predict
+	//     gets a defensive PULSE_OVERLAY_REF_INCOMPATIBLE_SHAPE-style
+	//     bail without touching resp.Overlays.
+	//   - Empty / nil req.Overlays leaves resp.Overlays nil — additive
+	//     byte-identity preserved against the pre-overlay baseline.
+	//   - The fused crosstab path (crosstab_fused.go) is intentionally
+	//     deferred per the E1 scope notes.
+	if err := applyOverlaysToResponse(req, resp); err != nil {
+		return nil, err
+	}
+
 	return resp, nil
+}
+
+// applyOverlaysToResponse runs the overlay fold against a finalised
+// crosstab response. No-op when req.Overlays is empty (additive byte-
+// identity contract); no-op when the response did not produce a MATRIX
+// payload (long-shape host today — the validator already rejected this
+// at predict time, so reaching here is the defense-in-depth branch).
+//
+// On success, resp.Overlays carries one OverlayLayer per spec in
+// matching order and resp.Warnings is extended with one
+// ResponseWarning per OverlayWarning the handlers emitted (mirrors the
+// label-resolver promotion in service/process_labels.go).
+//
+// On unknown overlay kind, ApplyOverlays returns a PROCESSING_INTERNAL
+// CodedError whose details carry the stub PULSE_OVERLAY_KIND_UNKNOWN
+// code — the E1-S7 promotion swaps the code string for a canonical
+// errors.Code without changing this surface.
+func applyOverlaysToResponse(req *types.Request, resp *types.Response) error {
+	if req == nil || len(req.Overlays) == 0 {
+		return nil
+	}
+	if resp == nil || resp.Crosstab == nil || resp.Crosstab.Matrix == nil {
+		// shape=long or no crosstab result — validator should have
+		// already rejected this at predict time. Defense in depth:
+		// quietly skip so we never panic on a nil host view.
+		return nil
+	}
+	host := NewCrosstabHostView(resp.Crosstab.Matrix)
+	layers, warnings, err := ApplyOverlays(req.Overlays, host)
+	if err != nil {
+		return err
+	}
+	if len(layers) > 0 {
+		resp.Overlays = layers
+	}
+	for _, w := range warnings {
+		resp.Warnings = append(resp.Warnings, &types.ResponseWarning{
+			Code:    w.Code,
+			Message: w.Message,
+			Details: w.Details,
+		})
+	}
+	return nil
 }
 
 // buildCellRowsForPostTest synthesises one row per present cell with
