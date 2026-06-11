@@ -21,6 +21,8 @@ Recipes for extending Pulse. Each recipe lists the files to touch, the registrie
 8. Update CLAUDE.md "Current registered components" count.
 9. Run: `go test ./skills/ -run TestSkillsCoverAllComponents && go test ./descriptor/ -run TestManifestOperatorsComplete && go test ./types/ -run TestStreamability_AggregationsKnown`.
 
+**Mergeable-aggregator rule.** Adding a new aggregator that is mergeable means implementing `MergeableAggregator.Merge(other)` and declaring it in `AggregationType.Mergeable()` (`types/types.go`) so it composes correctly under parallel decode (`service/parallel_reduce.go`) and shard reduce (`service/shard_reduce.go`). Both surfaces fold per-worker / per-shard partials in deterministic index order via `mergeShardPartials` + `finalizeMergedPartial`; an aggregator that is registered but not Mergeable will silently force the request down the serial `scanIter` / `shardIter` path. Associative+commutative aggregators (count, sum, min, max, frequency, distinct_count, mode) produce byte-equal merge output; Welford-Pébaÿ aggregators (mean, variance, stddev) use Chan-Welford and stay within ULP of serial. If your aggregator's online state can't be folded associatively, leave `Mergeable()` returning false — both parallel paths gate on `processing.CanMergeRequest` and will fall through cleanly. See `skills/cohort-schema-design.md` (Parallel decode) for the gate composition and observed perf characteristics.
+
 ## Adding a new attribute / filterer / grouper / window operator
 
 Same pattern as aggregator. Target skill differs:
