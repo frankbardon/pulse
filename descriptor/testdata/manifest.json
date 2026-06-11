@@ -4863,9 +4863,25 @@
       "map_valued_cell_aggregators": [
         "AGG_SET_FREQUENCY"
       ]
-    }
+    },
+    "overlays": [
+      {
+        "kind": "OVERLAY_INDEX_VS_MARGIN",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [
+          "Margin"
+        ],
+        "buffered": true,
+        "description": "Per-cell index score against the matching axis margin: 100 * cell / margin. E1 supports CELL scope over a MATRIX (crosstab) host with a Margin reference."
+      }
+    ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: cf58fafcfd67e8e9a9712505655c210e522ddf97a57de1245a01a25335707f10
+// golden-hash: 61616d2824e3218aaefe8f91db4f8003e322429bd1b9f4d0ce462cf4438c0eaa

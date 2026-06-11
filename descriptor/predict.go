@@ -142,6 +142,83 @@ type PredictResult struct {
 	// have been filled in. Empty when no defaults fire; never nil in
 	// JSON output.
 	DefaultsApplied []DefaultApplied `json:"defaults_applied"`
+
+	// OverlaysApplied lists every overlay spec the engine accepted, in
+	// req.Overlays order. Each entry echoes the catalog identity (Name,
+	// Kind, Scope) plus the streamability flag harvested from
+	// types.OverlayStreamable(kind) so the caller can reason about the
+	// buffered/streaming routing decision without re-parsing the spec.
+	// Empty when req.Overlays is empty; never nil in JSON output.
+	//
+	// Per kind-catalog-v1 PRD §I-FR-I3 the predict surface is
+	// `OverlaysApplied + OverlaysSchemaDivergence + OverlayCost`. E1
+	// emits the first slot only; the latter two are placeholder
+	// shapes wired here so downstream callers can rely on the field
+	// set today.
+	OverlaysApplied []OverlayAppliedDescriptor `json:"overlays_applied"`
+
+	// OverlaysSchemaDivergence lists every (left, right) overlay-spec
+	// slot pair that produced incompatible result-schema shapes. Empty
+	// in E1 — divergence detection lands with Compose wiring in a later
+	// epic — but the field is present so consumers can rely on the
+	// shape today. Per PRD §I-FR-I3 the placeholder is honoured as
+	// "this slot is reserved and shipped empty".
+	OverlaysSchemaDivergence []SlotPair `json:"overlays_schema_divergence"`
+
+	// OverlayCost maps each overlay-spec Name to a coarse cost score
+	// the routing layer can consult before execution. E1 emits a flat
+	// 1.0 per registered overlay; later epics replace the stub with
+	// per-kind heuristics that fold scope size + host shape size into
+	// the score. The map key is the overlay spec's Name when set, and
+	// the synthesised default (Kind + Scope + Ref) when empty —
+	// matching the Name field on OverlayAppliedDescriptor below.
+	// Empty when req.Overlays is empty; never nil in JSON output.
+	OverlayCost map[string]float64 `json:"overlay_cost"`
+}
+
+// OverlayAppliedDescriptor describes one accepted overlay spec the
+// predict path observed. Mirrors DefaultApplied / Suggestion in shape:
+// JSON-serialisable, omitempty-free for slice-friendly emit, populated
+// from the catalog entry rather than the raw spec so the caller cannot
+// confuse the surface with the raw OverlaySpec it submitted.
+//
+// Streamable echoes types.OverlayStreamable(kind). Note that a kind
+// can be streamable in isolation but force buffered when its host
+// (today: crosstab) is itself buffered — predict reports the kind's
+// own streamability, not the composed host-overlay decision. Callers
+// that need the composed decision should consult
+// PredictResult.Streamable + StreamableReasons.
+type OverlayAppliedDescriptor struct {
+	// Name echoes the renderer-facing label — either the spec's own
+	// Name or a synthesised default (Kind + Scope + Ref) when empty.
+	Name string `json:"name"`
+
+	// Kind is the on-wire SCREAMING_SNAKE OverlayKind value.
+	Kind types.OverlayKind `json:"kind"`
+
+	// Scope echoes the spec's scope.
+	Scope types.OverlayScope `json:"scope"`
+
+	// Streamable mirrors types.OverlayStreamable(kind). False for E1's
+	// only kind (OVERLAY_INDEX_VS_MARGIN), but the field is present so
+	// later catalog entries surface their per-kind streamability
+	// uniformly.
+	Streamable bool `json:"streamable"`
+}
+
+// SlotPair is a generic left-right slot reference placeholder used by
+// PredictResult.OverlaysSchemaDivergence. The shape is intentionally
+// minimal — two string-typed slot references, deferring the richer
+// (path, kind, message) detail to E7-S14 when Compose-driven
+// divergence lands. Empty in E1.
+type SlotPair struct {
+	// Left names the first overlay-spec slot in the divergent pair
+	// (e.g. "overlays[0]").
+	Left string `json:"left"`
+
+	// Right names the second overlay-spec slot in the divergent pair
+	// (e.g. "overlays[1]").
+	Right string `json:"right"`
 }
 
 // Suggestion is a structured next-action attached to PredictResult.
@@ -185,10 +262,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	}
 
 	result := &PredictResult{
-		Valid:           true,
-		Request:         req,
-		Shards:          []ShardInfo{},
-		DefaultsApplied: []DefaultApplied{},
+		Valid:                    true,
+		Request:                  req,
+		Shards:                   []ShardInfo{},
+		DefaultsApplied:          []DefaultApplied{},
+		OverlaysApplied:          []OverlayAppliedDescriptor{},
+		OverlaysSchemaDivergence: []SlotPair{},
+		OverlayCost:              map[string]float64{},
 	}
 	env := NewEnvelope(result)
 
@@ -269,6 +349,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// host operator (today: always-buffered crosstab); overlay streamability
 	// surfaces via types.OverlayStreamable in later epics.
 	ValidateOverlays(env, req, schema, opts)
+
+	// Populate the predict surface from req.Overlays. One descriptor per
+	// spec in matching order; OverlayCost is a flat 1.0 stub keyed by
+	// the spec's renderer-facing name (or a synthesised default when
+	// empty). OverlaysSchemaDivergence stays empty in E1 — Compose
+	// wiring lands later.
+	populateOverlayDescriptors(result, req)
 
 	// Validate label bindings (display-time categorical translation). Snapshot
 	// carries the registered label tables; augment-mode collisions are
@@ -428,11 +515,14 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 	arch, err := encoding.OpenArchive(reader, int64(len(data)))
 	if err != nil {
 		result := &PredictResult{
-			Valid:           false,
-			Request:         req,
-			Shards:          []ShardInfo{},
-			DefaultsApplied: []DefaultApplied{},
-			Suggestions:     []Suggestion{},
+			Valid:                    false,
+			Request:                  req,
+			Shards:                   []ShardInfo{},
+			DefaultsApplied:          []DefaultApplied{},
+			Suggestions:              []Suggestion{},
+			OverlaysApplied:          []OverlayAppliedDescriptor{},
+			OverlaysSchemaDivergence: []SlotPair{},
+			OverlayCost:              map[string]float64{},
 		}
 		env := NewEnvelope(result)
 		env.AddError(string(errors.PULSE_ARCHIVE_CORRUPT), "invalid pulse shard archive: "+err.Error(), nil)
@@ -442,11 +532,14 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 	rc, oerr := arch.Open(encoding.ReservedSchemaName)
 	if oerr != nil {
 		result := &PredictResult{
-			Valid:           false,
-			Request:         req,
-			Shards:          []ShardInfo{},
-			DefaultsApplied: []DefaultApplied{},
-			Suggestions:     []Suggestion{},
+			Valid:                    false,
+			Request:                  req,
+			Shards:                   []ShardInfo{},
+			DefaultsApplied:          []DefaultApplied{},
+			Suggestions:              []Suggestion{},
+			OverlaysApplied:          []OverlayAppliedDescriptor{},
+			OverlaysSchemaDivergence: []SlotPair{},
+			OverlayCost:              map[string]float64{},
 		}
 		env := NewEnvelope(result)
 		env.AddError(string(errors.PULSE_SHARD_MISSING),
@@ -464,11 +557,14 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 	_ = rc.Close()
 	if rerr != nil {
 		result := &PredictResult{
-			Valid:           false,
-			Request:         req,
-			Shards:          []ShardInfo{},
-			DefaultsApplied: []DefaultApplied{},
-			Suggestions:     []Suggestion{},
+			Valid:                    false,
+			Request:                  req,
+			Shards:                   []ShardInfo{},
+			DefaultsApplied:          []DefaultApplied{},
+			Suggestions:              []Suggestion{},
+			OverlaysApplied:          []OverlayAppliedDescriptor{},
+			OverlaysSchemaDivergence: []SlotPair{},
+			OverlayCost:              map[string]float64{},
 		}
 		env := NewEnvelope(result)
 		env.AddError(string(errors.ENCODING_INVALID),
@@ -717,4 +813,62 @@ func isLowQualityDescription(desc string) bool {
 	lower := strings.ToLower(trimmed)
 	unhelpful := []string{"n/a", "na", "none", "tbd", "todo", "unknown", "field", "data", "value", "column"}
 	return slices.Contains(unhelpful, lower)
+}
+
+// populateOverlayDescriptors fills PredictResult.OverlaysApplied and
+// PredictResult.OverlayCost from req.Overlays. Per kind-catalog-v1 PRD
+// §I-FR-I3 the predict surface is `OverlaysApplied +
+// OverlaysSchemaDivergence + OverlayCost`; E1 emits one
+// OverlayAppliedDescriptor per spec (Name + Kind + Scope + Streamable)
+// and a flat 1.0 OverlayCost stub keyed by the spec name. The
+// divergence slot stays empty in E1.
+//
+// The streamability echo consults types.OverlayStreamable(kind) — the
+// static table in types/overlay_streamability.go is the single source
+// of truth, so a kind that flips streamable automatically flips here.
+func populateOverlayDescriptors(result *PredictResult, req *types.Request) {
+	if result == nil || req == nil || len(req.Overlays) == 0 {
+		return
+	}
+	for i := range req.Overlays {
+		spec := &req.Overlays[i]
+		name := overlayDescriptorName(spec)
+		streamable, _ := types.OverlayStreamable(spec.Kind)
+		result.OverlaysApplied = append(result.OverlaysApplied, OverlayAppliedDescriptor{
+			Name:       name,
+			Kind:       spec.Kind,
+			Scope:      spec.Scope,
+			Streamable: streamable,
+		})
+		// E1 cost stub — flat 1.0 per overlay. Later epics replace
+		// this with per-kind heuristics folding scope size + host
+		// shape size into the score.
+		result.OverlayCost[name] = 1.0
+	}
+}
+
+// overlayDescriptorName returns the renderer-facing label for an
+// overlay spec. When the caller set OverlaySpec.Name explicitly that
+// string wins; otherwise we synthesise a deterministic default from
+// Kind + Scope + the populated Ref family pointer so the cost map and
+// descriptor stay keyed consistently.
+//
+// The processing layer synthesises its own default at execution time
+// (see types/overlay.go's OverlaySpec doc). Predict's synthesis must
+// stay aligned with that runtime default for the cost-map key to
+// match the response-side OverlayLayer.Name. Until the processing
+// helper is exported the synthesis here mirrors the documented
+// "Kind|Scope|Ref" recipe.
+func overlayDescriptorName(spec *types.OverlaySpec) string {
+	if spec == nil {
+		return ""
+	}
+	if spec.Name != "" {
+		return spec.Name
+	}
+	name := string(spec.Kind) + "|" + string(spec.Scope)
+	if spec.Ref.Margin != nil {
+		name += "|margin:" + string(spec.Ref.Margin.Axis)
+	}
+	return name
 }
