@@ -33,6 +33,11 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// its margin centerpoint is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.
 		OverlayKindDeltaVsMargin: false,
+		// FISHER_EXACT_CELL is inferential — per-cell 2×2 contingency
+		// reads each cell value AND its row + column margins, all of
+		// which require the buffered host crosstab matrix. PRD § 4.C
+		// FR-C2 canonical low-count contingency overlay.
+		OverlayKindFisherExactCell: false,
 		// INDEX_VS_MARGIN rides on the buffered crosstab path — margins
 		// are always recomputed from raw rows, so the host operator is
 		// inherently buffered (see CLAUDE.md "Execution modes" →

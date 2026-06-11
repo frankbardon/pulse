@@ -191,6 +191,91 @@ const (
 	// buffered (margins recomputed from raw rows).
 	OverlayKindDeltaVsMargin OverlayKind = "OVERLAY_DELTA_VS_MARGIN"
 
+	// OverlayKindFisherExactCell emits a per-cell Fisher's exact two-
+	// sided p-value computed against a 2×2 contingency table formed from
+	// the host crosstab cell, its row margin, its column margin, and the
+	// grand total. CELL-scoped over a MATRIX (crosstab) host. Closes the
+	// E2 inferential overlay catalog as the canonical low-count χ²
+	// backstop — when any expected count in the 2×2 falls below 5 the
+	// χ² approximation becomes unreliable and Fisher's exact is the
+	// correct surface to compute the p-value.
+	//
+	// Per-cell 2×2 contingency (for cell at (rowIdx, colIdx)):
+	//
+	//	            col=c              col≠c
+	//	  row=r     cell               row_margin - cell
+	//	  row≠r    col_margin - cell   grand - row_margin - col_margin + cell
+	//
+	// All four cells of the 2×2 are non-negative because every margin is
+	// recomputed by the buffered crosstab orchestrator from the same
+	// filter-passing row set the cells were built from — the row total
+	// dominates each individual row's cell, the column total dominates
+	// each individual column's cell, and the grand total equals the sum
+	// of row totals (= sum of column totals).
+	//
+	// Math: Fisher's exact two-sided p-value sums hypergeometric
+	// probabilities P(X = x | row_margin, col_margin, grand_total) for
+	// every feasible x in the marginal-constrained range whose log-
+	// probability is at most logPObs (the observed table's log-prob).
+	// Reuses logHypergeometric (processing/test_fisher.go) so the overlay
+	// surface produces identical p-values to TEST_FISHER_EXACT for the
+	// same 2×2.
+	//
+	// Output shape: MATRIX payload mirroring the host's RowKeys /
+	// ColumnKeys / headers so renderers can lay the overlay on top of
+	// the base matrix with the same header machinery as INDEX_VS_MARGIN.
+	// Each present host cell becomes a MatrixCell whose Value is the
+	// two-sided p-value as a float64. Missing host cells stay absent on
+	// the overlay; cells with a missing row or column margin become
+	// absent overlay cells (defense in depth — the buffered crosstab
+	// orchestrator already populates margins before the overlay fold,
+	// so this branch should not fire in practice).
+	//
+	// Absent-cell policy: a structurally absent host cell (Present=
+	// false) stays absent on the overlay (mirrors the SHARE_OF_* triad
+	// and INDEX_VS_MARGIN policy — an absent observation does not
+	// invent a 2×2).
+	//
+	// Ref handling: implicit-margin (empty Ref accepted). Row + column
+	// margins are resolved from the buffered crosstab host view's
+	// MarginFor(Row/Col, ...) resolver. Explicit Ref-family pointers
+	// (Margin / Sibling / BaselineIndex / Population / Stage / Slot)
+	// fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time.
+	// Mirrors the CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL ref policy.
+	//
+	// Low expected-cell warning (Cochran rule): when ANY of the four
+	// 2×2 expected counts {row_margin × col_margin / grand,
+	// row_margin × (grand - col_margin) / grand,
+	// (grand - row_margin) × col_margin / grand,
+	// (grand - row_margin) × (grand - col_margin) / grand} is below 1,
+	// OR when at least 20% of the four expected counts are below 5,
+	// the handler emits one PULSE_OVERLAY_EXPECTED_LOW warning per
+	// offending cell. Stub code per established E2-S6/S7/S8 policy;
+	// E2-S10 promotes to the canonical errors.PULSE_OVERLAY_EXPECTED_LOW
+	// constant. The warning is advisory — Fisher's exact stays exact in
+	// the low-count regime and the p-value is still emitted alongside.
+	// The threshold runs on the OVERLAY itself (not the underlying χ²
+	// surface) because Fisher's exact is the SOLUTION to the low-
+	// expected-count problem — the warning's intent here is to flag the
+	// CELLS where Fisher's exact (rather than the cheaper χ²
+	// approximation) is structurally required.
+	//
+	// Degenerate inputs:
+	//   - grand_total <= 0: layer emits absent cells everywhere
+	//     (no 2×2 can be formed); single PULSE_OVERLAY_REF_ZERO warning
+	//     surfaces the degenerate host.
+	//   - row_margin <= 0 OR col_margin <= 0 OR row_margin >= grand
+	//     OR col_margin >= grand for some cell: the 2×2 collapses to a
+	//     degenerate shape (one of the four cells must be zero); the
+	//     handler still emits a p-value of 1.0 (no rejection possible
+	//     under the fully-degenerate hypergeometric) without a warning.
+	//
+	// Inherently buffered because the host crosstab path is always
+	// buffered (margins recomputed from raw rows). PRD § 4.C FR-C2
+	// calls out OVERLAY_FISHER_EXACT_CELL as the canonical low-count
+	// contingency overlay closing the E2 inferential family.
+	OverlayKindFisherExactCell OverlayKind = "OVERLAY_FISHER_EXACT_CELL"
+
 	// OverlayKindIndexVsMargin produces an index score per cell (or per
 	// row/column, depending on Scope) by comparing the cell value against
 	// the matching axis margin: 100 * cell / margin. Scope=CELL emits one
@@ -263,6 +348,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindChiSqMatrix,
 		OverlayKindChiSqRow,
 		OverlayKindDeltaVsMargin,
+		OverlayKindFisherExactCell,
 		OverlayKindIndexVsMargin,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,

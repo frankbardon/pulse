@@ -54,7 +54,15 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// test path is plumbed.
 	OverlayKindChiSqRow:      false,
 	OverlayKindDeltaVsMargin: false,
-	OverlayKindIndexVsMargin:  false,
+	// OVERLAY_FISHER_EXACT_CELL is inherently buffered — the per-cell 2×2
+	// Fisher's exact test reads each cell value AND its row + column
+	// margins to build the 2×2 contingency, all of which the buffered
+	// host crosstab orchestrator already materialised. Inferential
+	// overlays as a family stay buffered until a streamable-test path
+	// is plumbed (PRD § 4.C FR-C2 — the canonical low-count contingency
+	// overlay closing the E2 inferential family).
+	OverlayKindFisherExactCell: false,
+	OverlayKindIndexVsMargin:   false,
 	OverlayKindShareOfCol:     false,
 	OverlayKindShareOfRow:     false,
 	OverlayKindShareOfTotal:   false,

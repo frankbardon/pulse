@@ -242,6 +242,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindChiSqMatrix:    applyChiSqMatrix,
 	types.OverlayKindChiSqRow:       applyChiSqRow,
 	types.OverlayKindDeltaVsMargin:  applyDeltaVsMargin,
+	types.OverlayKindFisherExactCell: applyFisherExactCell,
 	types.OverlayKindIndexVsMargin:  applyIndexVsMargin,
 	types.OverlayKindShareOfCol:     applyShareOfCol,
 	types.OverlayKindShareOfRow:     applyShareOfRow,
@@ -1061,6 +1062,375 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 	layer.Summary = summary
 
 	return layer, nil, nil
+}
+
+// applyFisherExactCell is the OVERLAY_FISHER_EXACT_CELL handler. For
+// every present host cell it builds a 2×2 contingency table from the
+// cell value, the row margin, the column margin, and the grand total
+// — then computes Fisher's exact two-sided p-value via the shared
+// fisherExactTwoSided helper (processing/fisher_exact.go). PRD § 4.C
+// FR-C2 calls out this kind as the canonical low-count contingency
+// overlay closing the E2 inferential family.
+//
+// 2×2 layout (for cell at (i, j)):
+//
+//	             col=j               col≠j
+//	  row=i      a = cell            b = row_margin - cell
+//	  row≠i      c = col_margin -    d = grand - row_margin
+//	                cell                 - col_margin + cell
+//
+// The 2×2 cells are non-negative because the buffered crosstab
+// orchestrator computes every margin from the same filter-passing row
+// set the cells were built from (row_margin >= cell, col_margin >=
+// cell, grand >= row_margin + col_margin - cell). The handler still
+// clamps each computed cell into the non-negative regime as defense in
+// depth — a host that somehow surfaces a row_margin < cell value
+// produces a saturated 2×2 (e.g. b = 0) instead of a negative entry.
+//
+// Output shape: MATRIX payload mirroring the host's RowKeys /
+// ColumnKeys / headers so renderers can lay the overlay on top of the
+// base matrix with the same header machinery as INDEX_VS_MARGIN. Each
+// present host cell becomes a MatrixCell whose Value is the two-sided
+// p-value as a float64. Missing host cells stay absent on the overlay;
+// cells where either margin slot is missing become absent overlay cells
+// (defense in depth — the buffered crosstab orchestrator already
+// populates margins before the overlay fold).
+//
+// Absent-cell policy: a structurally absent host cell (Present=false)
+// stays absent on the overlay. Mirrors the INDEX_VS_MARGIN / SHARE_OF_*
+// policy.
+//
+// Ref handling: implicit-margin. The validator rejects any populated
+// Ref-family pointer (Margin / Sibling / BaselineIndex / Population /
+// Stage / Slot) at predict time with
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, mirroring the CHISQ_*
+// implicit-margin contract. The handler reads MarginFor(Row, i, j) and
+// MarginFor(Column, i, j) directly from the host view's resolver — no
+// caller-side axis pointer needed.
+//
+// Low expected-cell warning (Cochran rule applied to the 2×2): when
+// any of the four expected cells of the 2×2 falls below 1 OR when at
+// least 20% (i.e. 1 out of 4 — the threshold is "≥ 20%" so a single
+// sub-5 expected cell triggers the warning) of the four expected
+// counts fall below 5, the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW
+// warning per offending cell carrying the (row_index, col_index) plus
+// the offending minimum expected count. Stub code per the established
+// E2-S6/S7/S8 policy — E2-S10 promotes to a canonical
+// errors.PULSE_OVERLAY_EXPECTED_LOW constant.
+//
+// The threshold runs on the OVERLAY itself (not the underlying χ²
+// surface) because Fisher's exact is the SOLUTION to the low-expected-
+// count problem — the warning's intent here is to flag the cells where
+// Fisher's exact (rather than the cheaper χ² approximation) is
+// structurally required. Renderers can use the warning to highlight
+// low-count cells whose p-value is exact-but-conservative.
+//
+// Degenerate inputs:
+//   - grand_total <= 0: every 2×2 is undefined; the handler emits
+//     absent overlay cells everywhere and surfaces one
+//     PULSE_OVERLAY_REF_ZERO warning describing the degenerate host
+//     (defense in depth — the buffered crosstab orchestrator should
+//     not produce a zero grand total when present cells exist).
+//   - row_margin <= 0 OR col_margin <= 0 for some (i, j): the 2×2
+//     collapses (a = 0 forces b = 0 OR c = 0 forces d = 0). Fisher's
+//     exact still returns p = 1.0 on a fully-degenerate 2×2 so the
+//     handler emits the cell with value 1.0 without an accompanying
+//     warning (consistent with TEST_FISHER_EXACT's degenerate-table
+//     policy at processing/test_fisher.go).
+//
+// Summary: Min / Max / Count / Baseline populated. Baseline is 0 — a
+// p-value of 0 expresses absolute evidence against the null hypothesis,
+// p of 1 expresses no evidence at all; renderers centre diverging
+// colour ramps on the conventional 0 baseline (significance threshold
+// renders as a fixed tick at α, not as the colour-ramp pivot).
+//
+// Defense in depth: the descriptor validator rejects ref / scope shape
+// mismatches at predict time. The handler still defends against a nil
+// crosstab payload (ApplyOverlays already gates that) and against
+// degenerate margins (grand_total <= 0).
+func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+	rowCount := host.RowCount()
+	colCount := host.ColumnCount()
+	payload := host.Payload()
+
+	// Grand total resolution. MarginFor(Grand, ...) ignores the row /
+	// col indices and returns payload.GrandTotal. A missing or non-
+	// positive grand total degenerates every 2×2 — surface a single
+	// PULSE_OVERLAY_REF_ZERO warning and emit an empty overlay (no
+	// cells). Mirrors the INDEX_VS_MARGIN missing-margin policy.
+	grandTotal, grandPresent := host.MarginFor(types.MarginAxisGrand, 0, 0)
+	if !grandPresent || grandTotal <= 0 {
+		cells := make([][]types.MatrixCell, rowCount)
+		for i := range cells {
+			cells[i] = make([]types.MatrixCell, colCount)
+		}
+		overlayPayload := &types.MatrixPayload{
+			RowHeader:        payload.RowHeader,
+			ColumnHeader:     payload.ColumnHeader,
+			RowKeys:          append([]types.AxisKey(nil), payload.RowKeys...),
+			ColumnKeys:       append([]types.AxisKey(nil), payload.ColumnKeys...),
+			Cells:            cells,
+			CellLabel:        overlayLayerName(spec),
+			NormalizeApplied: types.CrosstabNormalizeNone,
+		}
+		layer := types.OverlayLayer{
+			Name:  overlayLayerName(spec),
+			Kind:  spec.Kind,
+			Scope: spec.Scope,
+			Ref:   spec.Ref,
+			Payload: types.OverlayPayload{
+				Shape:  types.OverlayShapeMatrix,
+				Matrix: overlayPayload,
+			},
+		}
+		baseline := 0.0
+		zeroCount := 0
+		layer.Summary = &types.OverlaySummary{
+			Baseline: &baseline,
+			Count:    &zeroCount,
+		}
+		warnings := []OverlayWarning{{
+			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+			Message: "overlay " + string(spec.Kind) + " requires a positive grand total; got " + formatFloatForWarning(grandTotal),
+			Details: map[string]any{
+				"kind":         string(spec.Kind),
+				"grand_total":  grandTotal,
+				"margin_set":   grandPresent,
+			},
+		}}
+		return layer, warnings, nil
+	}
+
+	cells := make([][]types.MatrixCell, rowCount)
+	var (
+		warnings []OverlayWarning
+		minV     float64
+		maxV     float64
+		seen     int
+	)
+	for i := 0; i < rowCount; i++ {
+		row := make([]types.MatrixCell, colCount)
+		for j := 0; j < colCount; j++ {
+			cellVal, cellPresent := host.CellAt(i, j)
+			if !cellPresent {
+				continue
+			}
+			rowMarginVal, rowMarginPresent := host.MarginFor(types.MarginAxisRow, i, j)
+			if !rowMarginPresent {
+				// Defense in depth — the buffered crosstab orchestrator
+				// should always populate row margins before the overlay
+				// fold runs. An absent margin produces an absent overlay
+				// cell, no warning (no division-by-zero hazard here —
+				// Fisher's exact is structurally robust to degenerate
+				// 2×2 inputs).
+				continue
+			}
+			colMarginVal, colMarginPresent := host.MarginFor(types.MarginAxisColumn, i, j)
+			if !colMarginPresent {
+				continue
+			}
+
+			// Build the 2×2 contingency. The margins above are summed
+			// from the same filter-passing rows the host cells were
+			// built from, so they dominate the cell value — every 2×2
+			// entry is non-negative in the well-formed case. Clamp into
+			// the non-negative regime as defense in depth against a
+			// host that somehow surfaces row_margin < cell (e.g. a
+			// future overlay-aware host that pre-truncates margins).
+			//
+			// Convert to integer counts via math.Round. The host
+			// crosstab is an AGG_COUNT-style integer aggregate when
+			// Fisher's exact is meaningful — the validator allows the
+			// kind only against MATRIX hosts and the runtime path here
+			// rounds defensively so floating-point host values
+			// (e.g. AGG_SUM of integer fields) still produce well-
+			// formed integer 2×2 cells.
+			a := int(math.Round(cellVal))
+			b := int(math.Round(rowMarginVal)) - a
+			c := int(math.Round(colMarginVal)) - a
+			d := int(math.Round(grandTotal)) - int(math.Round(rowMarginVal)) - int(math.Round(colMarginVal)) + a
+			if b < 0 {
+				b = 0
+			}
+			if c < 0 {
+				c = 0
+			}
+			if d < 0 {
+				d = 0
+			}
+			if a < 0 {
+				a = 0
+			}
+
+			p := fisherExactTwoSided(a, b, c, d)
+			if math.IsNaN(p) || math.IsInf(p, 0) {
+				// Should be unreachable — fisherExactTwoSided clamps
+				// into [0, 1] and the lgamma-backed hypergeometric
+				// returns finite values for any non-negative integer
+				// inputs. Stay defensive so a future numerical edge
+				// case surfaces as an absent overlay cell rather than
+				// a non-finite renderable.
+				continue
+			}
+
+			// Cochran low-expected-count rule applied to the 2×2.
+			// Expected counts for the 2×2 are the standard outer-
+			// product / grand-total formulation. Threshold: ANY
+			// expected < 1 OR at least 20% of expected counts < 5
+			// (i.e. 1 of 4 — every sub-5 expected cell triggers the
+			// rule).
+			row1F := float64(a + b)
+			row2F := float64(c + d)
+			col1F := float64(a + c)
+			col2F := float64(b + d)
+			grandF := row1F + row2F
+			if grandF > 0 {
+				expA := row1F * col1F / grandF
+				expB := row1F * col2F / grandF
+				expC := row2F * col1F / grandF
+				expD := row2F * col2F / grandF
+				expectedMin := expA
+				for _, e := range []float64{expB, expC, expD} {
+					if e < expectedMin {
+						expectedMin = e
+					}
+				}
+				lowCount := 0
+				for _, e := range []float64{expA, expB, expC, expD} {
+					if e < 5 {
+						lowCount++
+					}
+				}
+				anyBelowOne := expA < 1 || expB < 1 || expC < 1 || expD < 1
+				// "at least 20% of expected counts < 5" — with four
+				// cells the threshold is 1 of 4 (20%) so a single sub-5
+				// expected cell triggers.
+				lowFraction := float64(lowCount) / 4.0
+				if anyBelowOne || lowFraction >= 0.20 {
+					warnings = append(warnings, OverlayWarning{
+						Code: "PULSE_OVERLAY_EXPECTED_LOW",
+						Message: "overlay " + string(spec.Kind) +
+							" Fisher's exact 2×2 contains low expected counts " +
+							"(any < 1 OR ≥ 20% < 5); χ² approximation would be unreliable",
+						Details: map[string]any{
+							"kind":         string(spec.Kind),
+							"row_index":    i,
+							"col_index":    j,
+							"expected_min": expectedMin,
+							"low_count":    lowCount,
+						},
+					})
+				}
+			}
+
+			row[j] = types.MatrixCell{Value: p, Present: true}
+			if seen == 0 {
+				minV, maxV = p, p
+			} else {
+				if p < minV {
+					minV = p
+				}
+				if p > maxV {
+					maxV = p
+				}
+			}
+			seen++
+		}
+		cells[i] = row
+	}
+
+	overlayPayload := &types.MatrixPayload{
+		RowHeader:        payload.RowHeader,
+		ColumnHeader:     payload.ColumnHeader,
+		RowKeys:          append([]types.AxisKey(nil), payload.RowKeys...),
+		ColumnKeys:       append([]types.AxisKey(nil), payload.ColumnKeys...),
+		Cells:            cells,
+		CellLabel:        overlayLayerName(spec),
+		NormalizeApplied: types.CrosstabNormalizeNone,
+	}
+
+	layer := types.OverlayLayer{
+		Name:  overlayLayerName(spec),
+		Kind:  spec.Kind,
+		Scope: spec.Scope,
+		Ref:   spec.Ref,
+		Payload: types.OverlayPayload{
+			Shape:  types.OverlayShapeMatrix,
+			Matrix: overlayPayload,
+		},
+	}
+
+	baseline := 0.0
+	summary := &types.OverlaySummary{Baseline: &baseline}
+	if seen > 0 {
+		mn, mx, count := minV, maxV, seen
+		summary.Min = &mn
+		summary.Max = &mx
+		summary.Count = &count
+	} else {
+		zeroCount := 0
+		summary.Count = &zeroCount
+	}
+	layer.Summary = summary
+
+	return layer, warnings, nil
+}
+
+// formatFloatForWarning renders a float64 into a no-fmt.Sprintf-safe
+// decimal string for warning messages. Mirrors the structural defense
+// ban on fmt.Sprintf in JSON-bearing paths (CLAUDE.md "Output Format
+// Contract"). strconv-free implementation: integers cast directly,
+// other values surface as a NaN / Inf token or the string form of the
+// rounded integer. Used by applyFisherExactCell's degenerate-host
+// warning where the offending value is most often 0 or a small
+// integer; coarse rendering is acceptable because the structured
+// Details map carries the exact float64 alongside.
+func formatFloatForWarning(v float64) string {
+	if math.IsNaN(v) {
+		return "NaN"
+	}
+	if math.IsInf(v, 1) {
+		return "+Inf"
+	}
+	if math.IsInf(v, -1) {
+		return "-Inf"
+	}
+	// Integer-valued floats render as their integer form so "0" emits
+	// "0" rather than "0.000000". Non-integer values fall back to a
+	// rounded-integer token; the Details map carries the exact float.
+	if v == math.Trunc(v) {
+		// Integer rendering via repeated division — no strconv, no fmt.
+		return intToString(int64(v))
+	}
+	return intToString(int64(math.Round(v))) + " (rounded)"
+}
+
+// intToString renders an int64 without fmt / strconv (the structural
+// defense ban on fmt.Sprintf in JSON-bearing paths covers any
+// formatting call site that touches an envelope). Used by
+// formatFloatForWarning above; consider lifting to a shared helper if
+// other overlay handlers grow similar needs.
+func intToString(n int64) string {
+	if n == 0 {
+		return "0"
+	}
+	neg := false
+	if n < 0 {
+		neg = true
+		n = -n
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		i--
+		buf[i] = '-'
+	}
+	return string(buf[i:])
 }
 
 // applyIndexVsMargin is the OVERLAY_INDEX_VS_MARGIN handler. For every
@@ -1896,6 +2266,13 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
+	case types.OverlayKindFisherExactCell:
+		// FISHER_EXACT_CELL is implicit-margin (no axis dispatch — the
+		// per-cell 2×2 always reads row + col margins from the host);
+		// synthesised default mirrors the CHISQ_* family's lower-case
+		// bare-kind shape so renderers can use it directly as a tab /
+		// legend label without uppercasing.
+		return "fisher_exact_cell"
 	case types.OverlayKindIndexVsMargin:
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)

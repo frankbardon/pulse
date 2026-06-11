@@ -78,6 +78,18 @@ var deltaVsMarginSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
+// fisherExactCellSupportedScopes is the E2-supported scope set for
+// OVERLAY_FISHER_EXACT_CELL. The per-cell Fisher's exact 2×2 test is
+// a CELL-scoped inferential overlay (canonical low-count χ² backstop;
+// PRD § 4.C FR-C2) — every cell receives an exact two-sided p-value
+// computed against a 2×2 contingency built from the cell + its row and
+// column margins. Scope=CELL is the only sensible footprint and any
+// other scope (ROW / COLUMN / MATRIX / TOTAL / GROUP) fires
+// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
+var fisherExactCellSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeCell: true,
+}
+
 // indexVsMarginSupportedScopes is the E1-supported scope set for
 // OVERLAY_INDEX_VS_MARGIN. Today only CELL ships; later epics widen
 // the gate to ROW / COLUMN / TOTAL once the matching payload shapes
@@ -186,6 +198,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayChiSqRow(env, req, spec, index)
 	case types.OverlayKindDeltaVsMargin:
 		validateOverlayDeltaVsMargin(env, req, spec, index)
+	case types.OverlayKindFisherExactCell:
+		validateOverlayFisherExactCell(env, req, spec, index)
 	case types.OverlayKindIndexVsMargin:
 		validateOverlayIndexVsMargin(env, req, spec, index)
 	case types.OverlayKindShareOfCol:
@@ -506,6 +520,68 @@ func validateOverlayDeltaVsMargin(env *Envelope, req *types.Request, spec *types
 	// Scope must be CELL. DELTA_VS_MARGIN is a cell-decoration overlay
 	// by construction.
 	if !deltaVsMarginSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+}
+
+// validateOverlayFisherExactCell enforces the per-kind contract for
+// OVERLAY_FISHER_EXACT_CELL: the host result must be MATRIX-shaped
+// (i.e. Request.Crosstab is non-nil), Scope must be CELL, and the Ref
+// union must be EMPTY — the per-cell 2×2 Fisher's exact test is
+// implicit-margin and reads the host's row + column margins inline
+// (mirrors the CHISQ_* implicit-margin contract). A caller-supplied
+// Ref.Margin (or any other ref-family pointer) is a shape mismatch.
+//
+// Errors emitted (in order, first hit short-circuits the spec):
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
+//     pointer is populated.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
+//     than CELL.
+func validateOverlayFisherExactCell(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref must be empty — FISHER_EXACT_CELL is implicit-margin (mirrors
+	// the CHISQ_* family). A caller supplying any family pointer
+	// (Margin / Sibling / BaselineIndex / Population / Stage / Slot)
+	// is using the wrong overlay shape.
+	if spec.Ref.Margin != nil ||
+		spec.Ref.Sibling != nil ||
+		spec.Ref.BaselineIndex != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the per-cell 2×2 Fisher's exact test reads the host's row + column margins inline)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Host must be MATRIX-shaped — per-cell Fisher's exact consumes a
+	// row × column contingency table sourced from the host crosstab.
+	if req.Crosstab == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Scope must be CELL. FISHER_EXACT_CELL emits one p-value per cell
+	// — ROW / COLUMN / MATRIX / TOTAL / GROUP scopes are not meaningful
+	// for the per-cell statistic the kind emits.
+	if !fisherExactCellSupportedScopes[spec.Scope] {
 		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
 			map[string]any{

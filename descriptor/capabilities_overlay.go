@@ -220,6 +220,33 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"no Welford recurrence, so PULSE_OVERLAY_REF_ZERO is never emitted; renderers " +
 				"centre diverging colour ramps on baseline=0.",
 		}
+	case types.OverlayKindFisherExactCell:
+		return OverlayCapability{
+			Kind: types.OverlayKindFisherExactCell,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			// No Ref family — the per-cell 2×2 Fisher's exact test is
+			// implicit-margin (uses the host's row + column margins +
+			// grand total inline). Callers supplying any Ref family
+			// pointer fail PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+			// at predict time. Mirrors the CHISQ_* implicit-margin
+			// contract.
+			RefKinds: []string{},
+			Description: "Per-cell Fisher's exact two-sided test against a 2×2 contingency table built from " +
+				"the host cell, its row margin, its column margin, and the grand total. CELL scope over a " +
+				"MATRIX (crosstab) host with MATRIX payload — each cell's value is the exact two-sided " +
+				"p-value as a float64. The Ref union is left empty (implicit-margin: row + col margins " +
+				"resolve from the buffered crosstab host view). Reuses the lgamma-backed hypergeometric " +
+				"primitive backing TEST_FISHER_EXACT (processing/test_fisher.go) via the shared " +
+				"fisherExactTwoSided helper. Canonical low-count contingency overlay (PRD § 4.C FR-C2) — " +
+				"emits PULSE_OVERLAY_EXPECTED_LOW per cell when the Cochran rule fires on the 2×2 (any " +
+				"expected < 1 OR ≥ 20% of expected counts < 5), flagging cells where the cheaper χ² " +
+				"approximation would be unreliable and Fisher's exact is structurally required.",
+		}
 	case types.OverlayKindIndexVsMargin:
 		return OverlayCapability{
 			Kind: types.OverlayKindIndexVsMargin,
