@@ -560,7 +560,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	//   - shape=long is out of scope today — the validator
 	//     (descriptor.ValidateOverlays) requires a MATRIX host for
 	//     INDEX_VS_MARGIN; a misconfigured spec that survived predict
-	//     gets a defensive PULSE_OVERLAY_REF_INCOMPATIBLE_SHAPE-style
+	//     gets a defensive PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE-style
 	//     bail without touching resp.Overlays.
 	//   - Empty / nil req.Overlays leaves resp.Overlays nil — additive
 	//     byte-identity preserved against the pre-overlay baseline.
@@ -585,9 +585,8 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // label-resolver promotion in service/process_labels.go).
 //
 // On unknown overlay kind, ApplyOverlays returns a PROCESSING_INTERNAL
-// CodedError whose details carry the stub PULSE_OVERLAY_KIND_UNKNOWN
-// code — the E1-S7 promotion swaps the code string for a canonical
-// errors.Code without changing this surface.
+// CodedError whose details carry the canonical
+// errors.PULSE_OVERLAY_KIND_UNKNOWN code.
 func applyOverlaysToResponse(req *types.Request, resp *types.Response) error {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil

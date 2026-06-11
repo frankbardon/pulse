@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -41,19 +42,6 @@ func crosstabHostSpec() *types.CrosstabSpec {
 	}
 }
 
-// hasErrorCodeString mirrors hasErrorCode but accepts the local
-// untyped overlay-code constants the validator emits today. E1-S7
-// promotes these to typed errors.Code values and the helper folds
-// back into hasErrorCode at that point.
-func hasErrorCodeString(env *Envelope, code string) bool {
-	for _, e := range env.Errors {
-		if e.Code == code {
-			return true
-		}
-	}
-	return false
-}
-
 // TestValidateOverlay_KindUnknown asserts that an OverlaySpec whose
 // Kind is not in AllOverlayKinds() surfaces PULSE_OVERLAY_KIND_UNKNOWN
 // on the envelope. Acceptance criterion 1 of E1-S3.
@@ -76,7 +64,7 @@ func TestValidateOverlay_KindUnknown(t *testing.T) {
 
 	env := PredictFromBytes(data, req, nil)
 
-	if !hasErrorCodeString(env, codeOverlayKindUnknown) {
+	if !hasErrorCode(env, errors.PULSE_OVERLAY_KIND_UNKNOWN) {
 		codes := make([]string, 0, len(env.Errors))
 		for _, e := range env.Errors {
 			codes = append(codes, e.Code)
@@ -161,7 +149,7 @@ func TestValidateOverlay_RefIncompatibleShape(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			env := PredictFromBytes(data, tc.req, nil)
-			if !hasErrorCodeString(env, codeOverlayRefIncompatibleShape) {
+			if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
 					codes = append(codes, e.Code)
@@ -201,7 +189,7 @@ func TestValidateOverlay_ScopeUnsupported(t *testing.T) {
 				},
 			}
 			env := PredictFromBytes(data, req, nil)
-			if !hasErrorCodeString(env, codeOverlayScopeUnsupported) {
+			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
 					codes = append(codes, e.Code)
@@ -238,12 +226,12 @@ func TestValidateOverlay_HappyPath(t *testing.T) {
 
 	env := PredictFromBytes(data, req, nil)
 
-	for _, code := range []string{
-		codeOverlayKindUnknown,
-		codeOverlayRefIncompatibleShape,
-		codeOverlayScopeUnsupported,
+	for _, code := range []errors.Code{
+		errors.PULSE_OVERLAY_KIND_UNKNOWN,
+		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
 	} {
-		if hasErrorCodeString(env, code) {
+		if hasErrorCode(env, code) {
 			t.Errorf("unexpected overlay error %s on happy-path request", code)
 		}
 	}
@@ -264,12 +252,12 @@ func TestValidateOverlay_EmptySliceNoop(t *testing.T) {
 
 	env := PredictFromBytes(data, req, nil)
 
-	for _, code := range []string{
-		codeOverlayKindUnknown,
-		codeOverlayRefIncompatibleShape,
-		codeOverlayScopeUnsupported,
+	for _, code := range []errors.Code{
+		errors.PULSE_OVERLAY_KIND_UNKNOWN,
+		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
 	} {
-		if hasErrorCodeString(env, code) {
+		if hasErrorCode(env, code) {
 			t.Errorf("unexpected overlay error %s when Request.Overlays is empty", code)
 		}
 	}

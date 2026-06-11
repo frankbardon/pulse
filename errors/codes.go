@@ -645,6 +645,36 @@ const (
 	// execution; details carry the offending key(s), the nearest
 	// valid slot, and the full valid-key list.
 	PULSE_REQUEST_UNKNOWN_FIELD Code = "PULSE_REQUEST_UNKNOWN_FIELD"
+
+	// PULSE_OVERLAY_KIND_UNKNOWN indicates a Request.Overlays entry
+	// referenced an OverlayKind not present in
+	// types.AllOverlayKinds(). Surfaced by descriptor.ValidateOverlays
+	// at predict time and as a defense-in-depth guard inside
+	// processing.ApplyOverlays.
+	PULSE_OVERLAY_KIND_UNKNOWN Code = "PULSE_OVERLAY_KIND_UNKNOWN"
+
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE indicates an
+	// OverlaySpec's Ref does not match the host shape required by the
+	// chosen Kind. E1 fires this in three cases for
+	// OVERLAY_INDEX_VS_MARGIN: missing Ref.Margin pointer, unknown
+	// Ref.Margin.Axis, or non-MATRIX host (Request.Crosstab is nil).
+	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
+
+	// PULSE_OVERLAY_SCOPE_UNSUPPORTED indicates an OverlaySpec named a
+	// scope that is not yet supported for the chosen Kind. E1 ships
+	// OVERLAY_INDEX_VS_MARGIN with Scope=CELL only; ROW / COLUMN /
+	// TOTAL / MATRIX / GROUP land in later epics alongside the matching
+	// payload shapes.
+	PULSE_OVERLAY_SCOPE_UNSUPPORTED Code = "PULSE_OVERLAY_SCOPE_UNSUPPORTED"
+
+	// PULSE_OVERLAY_REF_ZERO is a WARNING-class code emitted by an
+	// overlay handler when the referenced margin denominator is zero,
+	// absent, or yields a non-finite value (e.g. cell / 0 in
+	// OVERLAY_INDEX_VS_MARGIN). The affected cell stays absent on the
+	// overlay payload; the warning carries the row / column index and
+	// margin axis so callers can audit the failing cells. Surfaced as
+	// a Response.Warning, never as an envelope error.
+	PULSE_OVERLAY_REF_ZERO Code = "PULSE_OVERLAY_REF_ZERO"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -775,6 +805,10 @@ var allCodes = []Code{
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS,
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE,
 	PULSE_REQUEST_UNKNOWN_FIELD,
+	PULSE_OVERLAY_KIND_UNKNOWN,
+	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+	PULSE_OVERLAY_SCOPE_UNSUPPORTED,
+	PULSE_OVERLAY_REF_ZERO,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

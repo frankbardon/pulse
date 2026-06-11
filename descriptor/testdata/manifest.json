@@ -3425,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 119,
+    "error_codes_count": 123,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3519,6 +3519,10 @@
       "PULSE_LABEL_TABLE_UNKNOWN",
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_OVERLAY_KIND_UNKNOWN",
+      "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE",
+      "PULSE_OVERLAY_REF_ZERO",
+      "PULSE_OVERLAY_SCOPE_UNSUPPORTED",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_SHARD_DESCRIPTION_DIVERGENCE",
@@ -4864,4 +4868,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9cfa6fc2ca382f24b7100b49813f062f96e8f45b2293b5778a031b1cfd59b3f4
+// golden-hash: cf58fafcfd67e8e9a9712505655c210e522ddf97a57de1245a01a25335707f10

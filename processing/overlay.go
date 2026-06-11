@@ -27,10 +27,9 @@ import (
 //     for the spec's MarginAxis (ROW → RowMargins[rowIdx], COLUMN →
 //     ColumnMargins[colIdx], GRAND → GrandTotal).
 //
-// E1-S7 will promote the local error code strings to canonical
-// errors.Code constants with no signature change here. Fused-path
-// integration is deferred — E1 only wires the buffered crosstab exit;
-// later epics lift handler dispatch into crosstab_fused.go.
+// Fused-path integration is deferred — E1 only wires the buffered
+// crosstab exit; later epics lift handler dispatch into
+// crosstab_fused.go.
 //
 // Structural invariants:
 //
@@ -41,25 +40,15 @@ import (
 //     built with string concatenation so envelope output stays
 //     grep-clean against the structural defense ban.
 
-// Overlay error code strings — local until E1-S7 promotes them to
-// errors.Code constants. Keeping them inline lets E1 ship the runtime
-// without coupling to the errors package; the swap in E1-S7 is a
-// single grep-and-replace.
-const (
-	codeOverlayKindUnknown = "PULSE_OVERLAY_KIND_UNKNOWN"
-	codeOverlayRefZero     = "PULSE_OVERLAY_REF_ZERO"
-)
-
 // OverlayWarning is the in-process diagnostic emitted by an overlay
 // handler when it could not produce a meaningful value for some
 // subset of cells (zero denominator, missing margin slot). Carries the
-// stub error code, a renderer-friendly message, and structured details
-// so the orchestrator can promote each entry into a
-// types.ResponseWarning on the envelope. Lightweight wrapper — kept
-// local to processing/ until E1-S7 promotes the code string to a
-// canonical errors.Code.
+// canonical error code (today: errors.PULSE_OVERLAY_REF_ZERO), a
+// renderer-friendly message, and structured details so the
+// orchestrator can promote each entry into a types.ResponseWarning on
+// the envelope.
 type OverlayWarning struct {
-	// Code is the stub overlay error code (today: PULSE_OVERLAY_REF_ZERO).
+	// Code is the canonical overlay error code (today: errors.PULSE_OVERLAY_REF_ZERO).
 	Code string
 	// Message is the human-readable summary.
 	Message string
@@ -263,10 +252,9 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 // Defense in depth: the descriptor.ValidateOverlays gate rejects bad
 // kinds at predict time, so a missing dispatch entry should never
 // reach the runtime in practice; nonetheless ApplyOverlays guards
-// against an unknown kind and returns a stub-coded error
-// (PULSE_OVERLAY_KIND_UNKNOWN) so the orchestrator surfaces the same
-// failure mode that predict would have flagged. E1-S7 promotes this
-// to a canonical errors.Code with no signature change here.
+// against an unknown kind and returns a CodedError whose details carry
+// errors.PULSE_OVERLAY_KIND_UNKNOWN so the orchestrator surfaces the
+// same failure mode that predict would have flagged.
 //
 // host may be nil when specs is empty; ApplyOverlays short-circuits.
 // When specs is non-empty but host is nil the call fails fast — every
@@ -289,7 +277,7 @@ func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 				errors.PROCESSING_INTERNAL,
 				"overlay kind has no runtime handler: "+string(spec.Kind),
 				map[string]any{
-					"code":  codeOverlayKindUnknown,
+					"code":  string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 					"index": i,
 					"kind":  string(spec.Kind),
 				})
@@ -334,7 +322,7 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 			errors.PROCESSING_INTERNAL,
 			"overlay "+string(spec.Kind)+" requires Ref.Margin",
 			map[string]any{
-				"code": codeOverlayKindUnknown,
+				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -361,7 +349,7 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 			marginVal, marginPresent := host.MarginFor(axis, i, j)
 			if !marginPresent || marginVal == 0 {
 				warnings = append(warnings, OverlayWarning{
-					Code:    codeOverlayRefZero,
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " denominator missing or zero on " + string(axis) + " axis",
 					Details: map[string]any{
 						"kind":       string(spec.Kind),
@@ -376,7 +364,7 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 			score := cellVal / marginVal * 100.0
 			if math.IsNaN(score) || math.IsInf(score, 0) {
 				warnings = append(warnings, OverlayWarning{
-					Code:    codeOverlayRefZero,
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " produced non-finite value on " + string(axis) + " axis",
 					Details: map[string]any{
 						"kind":      string(spec.Kind),

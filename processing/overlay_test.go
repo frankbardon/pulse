@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -292,8 +293,9 @@ func TestApplyOverlays_IndexVsMargin_MissingMargin_EmitsWarning(t *testing.T) {
 		t.Fatalf("expected 9 warnings (one per cell), got %d", len(warnings))
 	}
 	for i, w := range warnings {
-		if w.Code != codeOverlayRefZero {
-			t.Fatalf("warning[%d] code = %q, want %q", i, w.Code, codeOverlayRefZero)
+		if w.Code != string(errors.PULSE_OVERLAY_REF_ZERO) {
+			t.Fatalf("warning[%d] code = %q, want %q", i, w.Code,
+				string(errors.PULSE_OVERLAY_REF_ZERO))
 		}
 	}
 	matrix := layers[0].Payload.Matrix

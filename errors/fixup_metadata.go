@@ -1170,4 +1170,48 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	// ---------- PULSE — OVERLAYS ----------
+	PULSE_OVERLAY_KIND_UNKNOWN: {
+		Message: "A Request.Overlays entry references an OverlayKind that is not in the catalog (types.AllOverlayKinds()). The validator rejects unknown kinds at predict time; reaching this code at runtime means the request bypassed validation.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Kind"},
+				Hint:     "Pick a registered OverlayKind. Check the overlay catalog via pulse manifest --json (overlay-kinds section); spelling and casing must match exactly.",
+				Examples: []any{"OVERLAY_INDEX_VS_MARGIN"},
+			},
+		},
+	},
+	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE: {
+		Message: "An OverlaySpec's Ref does not match the host shape required by the chosen Kind. OVERLAY_INDEX_VS_MARGIN requires a Ref.Margin pointer with a known MarginAxis (row / column / grand) AND a MATRIX-shaped host (Request.Crosstab non-nil).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Ref", "Margin"},
+				Hint:     "Set Ref.Margin = {Axis: \"row\" | \"column\" | \"grand\"} for OVERLAY_INDEX_VS_MARGIN; add Request.Crosstab to provide a MATRIX host so the margin slot has a denominator.",
+				Examples: []any{"row", "column", "grand"},
+			},
+		},
+	},
+	PULSE_OVERLAY_SCOPE_UNSUPPORTED: {
+		Message: "An OverlaySpec named a Scope that is not supported for the chosen Kind. E1 ships OVERLAY_INDEX_VS_MARGIN with Scope=cell only; row / column / total / matrix / group land in later epics alongside the matching payload shapes.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Scope"},
+				Hint:     "Set Scope to \"cell\" for OVERLAY_INDEX_VS_MARGIN; the wider projection scopes land in later releases.",
+				Examples: []any{"cell"},
+			},
+		},
+	},
+	PULSE_OVERLAY_REF_ZERO: {
+		Message: "An overlay handler observed a zero, missing, or non-finite margin denominator. The affected cell stays absent on the overlay payload; the warning carries the row / column index and margin axis so callers can audit the failing cells. Warning-class — surfaced as a Response.Warning, never as an envelope error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Filterers"},
+				Hint:   "Pre-filter rows that contribute zero margin sums (e.g. FILTER_EXCLUDE on the empty / null axis), or pick a cell aggregator whose denominator is bounded away from zero (AGG_COUNT margins are non-negative integers; AGG_SUM on signed numeric fields may legitimately produce zero).",
+			},
+		},
+	},
 }

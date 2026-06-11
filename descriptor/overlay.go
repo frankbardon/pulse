@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -12,20 +13,18 @@ import (
 //
 // E1 scope (kind-catalog-v1 milestone S3):
 //
-//   - Unknown OverlayKind            → PULSE_OVERLAY_KIND_UNKNOWN
+//   - Unknown OverlayKind            → errors.PULSE_OVERLAY_KIND_UNKNOWN
 //   - OVERLAY_INDEX_VS_MARGIN
 //       * Ref family must be Margin and Margin.Axis must be a known
 //         MarginAxis (row / column / grand).
 //       * Host result must be MATRIX-shaped, i.e. Request.Crosstab is
 //         non-nil. Without a crosstab there is no margin slot to
-//         reference; mismatch fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+//         reference; mismatch fires
+//         errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 //       * Scope must be one of the supported scopes for the kind. E1
 //         supports CELL only; everything else fires
-//         PULSE_OVERLAY_SCOPE_UNSUPPORTED. Later epics widen the set
-//         as ROW / COLUMN / TOTAL projections land.
-//
-// Error code strings are local untyped constants in this file; they
-// move to errors/codes.go in E1-S7 with no signature change here.
+//         errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED. Later epics widen the
+//         set as ROW / COLUMN / TOTAL projections land.
 //
 // Structural invariants (CLAUDE.md "Predict / Inspect contracts" +
 // "What NOT to Do"):
@@ -39,16 +38,6 @@ import (
 //   - No fmt.Sprintf in any JSON-bearing path. Error messages are
 //     built with string concatenation so descriptor envelope output
 //     stays grep-clean against the structural defense ban.
-
-// Overlay error code strings — local to this file until E1-S7 promotes
-// them to errors.Code constants. Keeping them inline lets E1 ship the
-// validator without coupling to the errors package, and the swap in
-// E1-S7 is a single grep-and-replace.
-const (
-	codeOverlayKindUnknown            = "PULSE_OVERLAY_KIND_UNKNOWN"
-	codeOverlayRefIncompatibleShape   = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
-	codeOverlayScopeUnsupported       = "PULSE_OVERLAY_SCOPE_UNSUPPORTED"
-)
 
 // indexVsMarginSupportedScopes is the E1-supported scope set for
 // OVERLAY_INDEX_VS_MARGIN. Today only CELL ships; later epics widen
@@ -105,7 +94,7 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 	// "is this kind in the catalog?" probe; AllOverlayKinds() and the
 	// streamability table are co-maintained per TestStreamability_OverlaysKnown.
 	if _, known := types.OverlayStreamable(spec.Kind); !known {
-		env.AddError(codeOverlayKindUnknown,
+		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 			"overlay kind is not in the catalog: "+string(spec.Kind),
 			map[string]any{
 				"index": index,
@@ -134,7 +123,7 @@ func validateOverlayIndexVsMargin(env *Envelope, req *types.Request, spec *types
 	// telling us which margin to compare against, OR without a
 	// crosstab host to host the margin.
 	if spec.Ref.Margin == nil {
-		env.AddError(codeOverlayRefIncompatibleShape,
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
 			map[string]any{
 				"index": index,
@@ -147,7 +136,7 @@ func validateOverlayIndexVsMargin(env *Envelope, req *types.Request, spec *types
 	// shape mismatch in the same family — the validator cannot resolve
 	// the margin slot if it does not know which one is targeted.
 	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(codeOverlayRefIncompatibleShape,
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
 			map[string]any{
 				"index": index,
@@ -163,7 +152,7 @@ func validateOverlayIndexVsMargin(env *Envelope, req *types.Request, spec *types
 	// (e.g. when group-result overlays land), but INDEX_VS_MARGIN
 	// specifically derives its denominator from a crosstab margin.
 	if req.Crosstab == nil {
-		env.AddError(codeOverlayRefIncompatibleShape,
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
 			map[string]any{
 				"index": index,
@@ -177,7 +166,7 @@ func validateOverlayIndexVsMargin(env *Envelope, req *types.Request, spec *types
 	// supports CELL only; ROW / COLUMN / TOTAL ship in later epics
 	// alongside the matching payload shapes.
 	if !indexVsMarginSupportedScopes[spec.Scope] {
-		env.AddError(codeOverlayScopeUnsupported,
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (E1 supports: cell)",
 			map[string]any{
 				"index": index,
