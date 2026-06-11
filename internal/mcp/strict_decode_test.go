@@ -130,17 +130,6 @@ func TestCheckUnknownKeysChain_TagsStage(t *testing.T) {
 	}
 }
 
-func TestCheckUnknownKeysAsk_NestedRequest(t *testing.T) {
-	body := []byte(`{"request":{"groupers":[]}}`)
-	if ce := checkUnknownKeysAsk(body); ce == nil {
-		t.Fatal("expected error for unknown key in ask.request, got nil")
-	}
-	// Query-only ask carries no structured request: nothing to validate.
-	if ce := checkUnknownKeysAsk([]byte(`{"query":"average revenue"}`)); ce != nil {
-		t.Errorf("query-only ask should pass, got %s", ce.Code)
-	}
-}
-
 // TestHandleProcess_UnknownKeyRejected proves the wiring: a request with
 // the misnamed "groupers" key is rejected at the handler before
 // execution, with an actionable error rather than a silent drop.

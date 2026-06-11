@@ -20,7 +20,7 @@ const (
 // read like tool descriptions: imperative, no marketing.
 const (
 	DescPromptBootstrap     = "Inject the Pulse session-bootstrap instructions into the conversation. Tells the assistant which tools to call (and in what order) before authoring any request, and where the authoritative request-shape references live. Useful when starting a fresh session against a Pulse MCP server."
-	DescPromptAuthorRequest = "Guided workflow for authoring a Pulse request from a natural-language question. Takes one argument: `question` — the user's analytical ask in plain English. Produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
+	DescPromptAuthorRequest = "Guided workflow for authoring a Pulse request as JSON against a cohort's schema. Takes one argument: `question` — the analytical question being answered. Produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
 )
 
 // registerPrompts attaches the prompts/list + prompts/get capability to the
@@ -41,7 +41,7 @@ func registerPrompts(s *server.MCPServer) {
 			PromptAuthorRequest,
 			mcpgo.WithPromptDescription(DescPromptAuthorRequest),
 			mcpgo.WithArgument("question",
-				mcpgo.ArgumentDescription("The user's analytical question in plain English. Passed through to pulse_ask in the recommended flow."),
+				mcpgo.ArgumentDescription("The analytical question being answered. Used to drive example-library and skill-pack discovery."),
 				mcpgo.RequiredArgument(),
 			),
 		),
@@ -70,7 +70,7 @@ The operator catalog, request-shape contracts, and runnable examples ship with t
 1. Call ` + "`pulse_manifest`" + ` if you haven't this session.
 2. Call ` + "`pulse_examples_search`" + ` with keywords from the user's question.
 3. If a match is found, ` + "`pulse_examples_get`" + ` and clone the body. Swap field names to match the target cohort.
-4. Call ` + "`pulse_ask`" + ` (preferred) with the request and a source path, OR ` + "`pulse_predict`" + ` then ` + "`pulse_process`" + ` for finer control.
+4. Call ` + "`pulse_predict`" + ` to validate the assembled request, then ` + "`pulse_process`" + ` to execute it.
 5. On any error code in the response envelope, call ` + "`pulse_errors_lookup`" + ` for the prescribed fix.
 
 # When the example library does not match
@@ -96,7 +96,7 @@ func authorRequestPromptHandler(_ context.Context, req mcpgo.GetPromptRequest) (
 		"2. Call `pulse_examples_search` with the most distinctive keywords from the question. Try several searches if the first returns nothing useful.\n" +
 		"3. If a relevant example exists, `pulse_examples_get` to retrieve the runnable body. Modify field names for the target cohort.\n" +
 		"4. If no example matches, identify the operator family from the manifest and call `pulse_skills_get` on the relevant skill (e.g. `regression-modeling`, `statistical-testing`).\n" +
-		"5. Call `pulse_ask` with the source path and the request body, OR with a natural-language `query` if the assembled request still feels uncertain.\n" +
+		"5. Submit the assembled request to `pulse_predict` to validate. If validation passes, submit it to `pulse_process` to execute. If validation fails with structured suggestions, apply the suggested fixups and retry `pulse_predict`.\n" +
 		"6. On any error code in the response, call `pulse_errors_lookup` for the prescribed fix.\n\n" +
 		"Do not infer request shapes from external documentation or source code — the manifest + example library are authoritative for this deployment."
 	return &mcpgo.GetPromptResult{
