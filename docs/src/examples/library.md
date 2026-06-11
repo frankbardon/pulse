@@ -99,6 +99,8 @@ The taxonomy spans four dimensions:
 | Regression / modeling | `regression`, `ecological`, `ols`, `glm`, `logistic`, `bayesian`, `regularization`, `ridge`, `lasso`, `elasticnet`, `polynomial`, `resampling`, `jackknife`, `selection`, `stepwise` |
 | Pipeline machinery | `tier-1-test`, `tier-2-test`, `composed`, `pre-filter`, `feature-pipeline`, `window-operator`, `streaming-friendly`, `buffered-pipeline` |
 | Risk / edge | `leakage-safe`, `leakage-risk`, `small-sample` |
+| Cohort shape | `sharded`, `anchor` |
+| Result decoration | `overlay` |
 
 The category (directory name) is **not** repeated in the tags — `_meta.category`
 carries that.

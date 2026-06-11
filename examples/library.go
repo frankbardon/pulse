@@ -22,7 +22,7 @@ import (
 	"sync"
 )
 
-//go:embed aggregations/*.json attributes/*.json crosstab/*.json facet/*.json features/*.json filterers/*.json groupers/*.json regression/*.json tests/*.json windows/*.json
+//go:embed aggregations/*.json attributes/*.json crosstab/*.json facet/*.json features/*.json filterers/*.json groupers/*.json overlays/*.json regression/*.json tests/*.json windows/*.json
 var content embed.FS
 
 // AllCategories returns every directory the library indexes, sorted
@@ -332,6 +332,9 @@ var CanonicalTags = []string{
 
 	// Cohort shape (2)
 	"sharded", "anchor",
+
+	// Result decoration (1)
+	"overlay",
 }
 
 // IsCanonicalTag reports whether tag belongs to the curated taxonomy.
