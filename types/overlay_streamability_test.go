@@ -27,6 +27,12 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// row-margin denominator is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.
 		OverlayKindShareOfRow: false,
+		// SHARE_OF_TOTAL shares INDEX_VS_MARGIN's buffered footprint —
+		// its grand-total denominator is recomputed by the buffered
+		// crosstab orchestrator before ApplyOverlays runs. The
+		// streamable series-shape variant under Process context is
+		// deferred to E3.
+		OverlayKindShareOfTotal: false,
 	}
 
 	for _, k := range AllOverlayKinds() {

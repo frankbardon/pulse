@@ -63,6 +63,14 @@ var shareOfColSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
+// shareOfTotalSupportedScopes is the E2-supported scope set for
+// OVERLAY_SHARE_OF_TOTAL. SHARE_OF_TOTAL is a CELL-scoped layer by
+// construction — every cell divides by the grand total. ROW /
+// COLUMN / TOTAL projections are not meaningful for this kind.
+var shareOfTotalSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeCell: true,
+}
+
 // validMarginAxes enumerates the on-wire MarginAxis values that an
 // OverlayMarginRef may carry. Mirrors the constant block in
 // types/overlay.go so the predict gate stays parity-true with the
@@ -126,6 +134,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayShareOfCol(env, req, spec, index)
 	case types.OverlayKindShareOfRow:
 		validateOverlayShareOfRow(env, req, spec, index)
+	case types.OverlayKindShareOfTotal:
+		validateOverlayShareOfTotal(env, req, spec, index)
 	}
 }
 
@@ -315,6 +325,71 @@ func validateOverlayShareOfCol(env *Envelope, req *types.Request, spec *types.Ov
 	// Scope must be CELL. SHARE_OF_COL is a cell-decoration overlay
 	// by construction.
 	if !shareOfColSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+}
+
+// validateOverlayShareOfTotal enforces the per-kind contract for
+// OVERLAY_SHARE_OF_TOTAL: Ref must populate Margin (the grand-total
+// reference family), Margin.Axis must be a known MarginAxis (the
+// runtime handler is grand-axis-locked, but the validator accepts any
+// known axis at predict time so a misconfigured caller fails closed
+// with a single shape-mismatch code rather than a stricter "must be
+// grand" code — matches the SHARE_OF_ROW / SHARE_OF_COL followup
+// policy), the host result must be MATRIX-shaped (i.e. Request.Crosstab
+// is non-nil), and Scope must be CELL.
+func validateOverlayShareOfTotal(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref family must be Margin. SHARE_OF_TOTAL shares the same ref
+	// shape contract as INDEX_VS_MARGIN / SHARE_OF_ROW / SHARE_OF_COL
+	// — the denominator is an axis-margin slot (the grand axis).
+	if spec.Ref.Margin == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Margin.Axis must be a known MarginAxis. SHARE_OF_TOTAL is grand-
+	// axis-locked at runtime, but the predict gate accepts any known
+	// axis to keep the failure modes orthogonal — an unknown axis is
+	// "shape mismatch", not "kind mismatch".
+	if !validMarginAxes[spec.Ref.Margin.Axis] {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"axis":  string(spec.Ref.Margin.Axis),
+			})
+		return
+	}
+
+	// Host must be MATRIX-shaped — share-of-total needs a crosstab
+	// grand-total slot to divide by.
+	if req.Crosstab == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"axis":  string(spec.Ref.Margin.Axis),
+			})
+		return
+	}
+
+	// Scope must be CELL. SHARE_OF_TOTAL is a cell-decoration overlay
+	// by construction.
+	if !shareOfTotalSupportedScopes[spec.Scope] {
 		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
 			map[string]any{

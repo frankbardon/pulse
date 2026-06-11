@@ -62,6 +62,19 @@ const (
 	// host crosstab orchestrator recomputes margins from raw rows before
 	// ApplyOverlays runs.
 	OverlayKindShareOfRow OverlayKind = "OVERLAY_SHARE_OF_ROW"
+
+	// OverlayKindShareOfTotal emits a per-cell share-of-grand-total
+	// ratio: cell / grand_total. CELL-scoped over a MATRIX (crosstab)
+	// host. The entire matrix sums to 1.0 in the absence of missing
+	// cells; renderers can present the layer as a single-population
+	// share projection where each cell's contribution to the whole
+	// table is visible at a glance. Completes the share triad
+	// (row / col / total). Structural twin of OVERLAY_SHARE_OF_ROW
+	// and OVERLAY_SHARE_OF_COL with the grand-axis margin slot as the
+	// denominator. Inherently buffered for the same reason as
+	// INDEX_VS_MARGIN — the host crosstab orchestrator recomputes
+	// margins from raw rows before ApplyOverlays runs.
+	OverlayKindShareOfTotal OverlayKind = "OVERLAY_SHARE_OF_TOTAL"
 )
 
 // AllOverlayKinds returns every defined overlay kind in alphabetical
@@ -76,6 +89,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindIndexVsMargin,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
+		OverlayKindShareOfTotal,
 	}
 }
 

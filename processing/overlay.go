@@ -241,6 +241,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindIndexVsMargin: applyIndexVsMargin,
 	types.OverlayKindShareOfCol:    applyShareOfCol,
 	types.OverlayKindShareOfRow:    applyShareOfRow,
+	types.OverlayKindShareOfTotal:  applyShareOfTotal,
 }
 
 // ApplyOverlays executes every spec in specs against the host view
@@ -715,6 +716,157 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 	return layer, warnings, nil
 }
 
+// applyShareOfTotal is the OVERLAY_SHARE_OF_TOTAL handler. For every
+// present host cell it computes cell / grand_total (no ×100 scale —
+// the layer is a ratio, not an indexed percentage). A missing or zero
+// grand-total denominator emits absent overlay cells plus one
+// PULSE_OVERLAY_REF_ZERO warning per failing cell so the orchestrator
+// can promote them to envelope warnings.
+//
+// The kind is structurally locked to the GRAND axis — unlike
+// INDEX_VS_MARGIN (which lets the caller pick row / column / grand),
+// SHARE_OF_TOTAL is grand-share-only by definition. Specs always
+// populate Ref.Margin, but the handler reads MarginFor(MarginAxisGrand,
+// ...) regardless of any axis the caller wrote. The validator gate
+// may later evolve to reject mismatched axes; today the handler is the
+// source of truth (matching the E2-S1 / E2-S2 followup policy).
+//
+// Output shape: MATRIX payload mirroring the host's RowKeys /
+// ColumnKeys / headers so renderers can lay the overlay on top of the
+// base matrix with the same header machinery. Missing host cells
+// (Present=false) stay absent on the overlay; cells where the grand
+// total is missing or zero become absent overlay cells plus the
+// warning.
+//
+// Summary: Min / Max / Count / Baseline populated. Baseline is set to
+// 0 to match the SHARE_OF_ROW / SHARE_OF_COL convention — share
+// ratios cluster near zero on populated matrices and renderers centre
+// diverging colour ramps on the population median rather than the
+// uniform baseline.
+//
+// NOTE per story description: the same kind name will later route to
+// a streamable series-shape handler under Process context (E3); this
+// story lands only the MATRIX dispatch.
+func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+	if spec.Ref.Margin == nil {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_INTERNAL,
+			"overlay "+string(spec.Kind)+" requires Ref.Margin",
+			map[string]any{
+				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+				"kind": string(spec.Kind),
+			})
+	}
+	// SHARE_OF_TOTAL is structurally locked to the GRAND axis — the
+	// spec must reference an axis, but the handler reads the grand
+	// total regardless. Echoing the spec's axis on the layer keeps the
+	// response Ref.Margin.Axis faithful to what the caller requested.
+	axis := types.MarginAxisGrand
+
+	rowCount := host.RowCount()
+	colCount := host.ColumnCount()
+	payload := host.Payload()
+
+	cells := make([][]types.MatrixCell, rowCount)
+	var (
+		warnings []OverlayWarning
+		minV     float64
+		maxV     float64
+		seen     int
+	)
+	for i := 0; i < rowCount; i++ {
+		row := make([]types.MatrixCell, colCount)
+		for j := 0; j < colCount; j++ {
+			cellVal, cellPresent := host.CellAt(i, j)
+			if !cellPresent {
+				continue
+			}
+			// MarginFor with MarginAxisGrand ignores the row / col
+			// indices and returns payload.GrandTotal (see MarginFor
+			// implementation above); passing i / j here keeps the
+			// signature uniform with the row / col handlers.
+			marginVal, marginPresent := host.MarginFor(axis, i, j)
+			if !marginPresent || marginVal == 0 {
+				warnings = append(warnings, OverlayWarning{
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+					Message: "overlay " + string(spec.Kind) + " denominator missing or zero on grand axis",
+					Details: map[string]any{
+						"kind":       string(spec.Kind),
+						"axis":       string(axis),
+						"row_index":  i,
+						"col_index":  j,
+						"margin_set": marginPresent,
+					},
+				})
+				continue
+			}
+			share := cellVal / marginVal
+			if math.IsNaN(share) || math.IsInf(share, 0) {
+				warnings = append(warnings, OverlayWarning{
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+					Message: "overlay " + string(spec.Kind) + " produced non-finite value on grand axis",
+					Details: map[string]any{
+						"kind":      string(spec.Kind),
+						"axis":      string(axis),
+						"row_index": i,
+						"col_index": j,
+					},
+				})
+				continue
+			}
+			row[j] = types.MatrixCell{Value: share, Present: true}
+			if seen == 0 {
+				minV, maxV = share, share
+			} else {
+				if share < minV {
+					minV = share
+				}
+				if share > maxV {
+					maxV = share
+				}
+			}
+			seen++
+		}
+		cells[i] = row
+	}
+
+	overlayPayload := &types.MatrixPayload{
+		RowHeader:        payload.RowHeader,
+		ColumnHeader:     payload.ColumnHeader,
+		RowKeys:          append([]types.AxisKey(nil), payload.RowKeys...),
+		ColumnKeys:       append([]types.AxisKey(nil), payload.ColumnKeys...),
+		Cells:            cells,
+		CellLabel:        overlayLayerName(spec),
+		NormalizeApplied: types.CrosstabNormalizeNone,
+	}
+
+	layer := types.OverlayLayer{
+		Name:  overlayLayerName(spec),
+		Kind:  spec.Kind,
+		Scope: spec.Scope,
+		Ref:   spec.Ref,
+		Payload: types.OverlayPayload{
+			Shape:  types.OverlayShapeMatrix,
+			Matrix: overlayPayload,
+		},
+	}
+
+	baseline := 0.0
+	summary := &types.OverlaySummary{Baseline: &baseline}
+	if seen > 0 {
+		mn, mx, count := minV, maxV, seen
+		summary.Min = &mn
+		summary.Max = &mx
+		summary.Count = &count
+	} else {
+		zeroCount := 0
+		summary.Count = &zeroCount
+	}
+	layer.Summary = summary
+
+	return layer, warnings, nil
+}
+
 // overlayLayerName returns the renderer-facing label for a layer.
 // Honours an explicit Name on the spec; otherwise synthesises a
 // deterministic default keyed by Kind + axis (the only ref family E1
@@ -738,6 +890,11 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// reflects that even if the spec's Ref.Margin.Axis happens to
 		// echo a different value.
 		return string(spec.Kind) + "_" + string(types.MarginAxisColumn)
+	case types.OverlayKindShareOfTotal:
+		// SHARE_OF_TOTAL is grand-axis-locked; the synthesised default
+		// reflects that even if the spec's Ref.Margin.Axis happens to
+		// echo a different value.
+		return string(spec.Kind) + "_" + string(types.MarginAxisGrand)
 	}
 	return string(spec.Kind)
 }

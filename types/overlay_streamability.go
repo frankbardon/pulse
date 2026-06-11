@@ -35,6 +35,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	OverlayKindIndexVsMargin: false,
 	OverlayKindShareOfCol:    false,
 	OverlayKindShareOfRow:    false,
+	OverlayKindShareOfTotal:  false,
 }
 
 // OverlayStreamable reports whether the given overlay kind streams and

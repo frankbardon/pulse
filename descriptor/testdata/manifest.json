@@ -4912,10 +4912,24 @@
         ],
         "buffered": true,
         "description": "Per-cell share-of-row ratio: cell / row_margin. CELL scope over a MATRIX (crosstab) host. Row cells sum to 1.0 in the absence of missing cells; renderers can present the layer as a 100%-stacked horizontal projection."
+      },
+      {
+        "kind": "OVERLAY_SHARE_OF_TOTAL",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [
+          "Margin"
+        ],
+        "buffered": true,
+        "description": "Per-cell share-of-grand-total ratio: cell / grand_total. CELL scope over a MATRIX (crosstab) host. The entire matrix sums to 1.0 in the absence of missing cells; renderers can present the layer as a single-population share projection. Completes the share triad (row / col / total)."
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8cb6a92f2da981c91f0b0ade8012870e3212194368a34a143914c8784c9be9be
+// golden-hash: 05193998651de81550bd367e39d228a4130012231a4483aaa8547f05a9a7184e

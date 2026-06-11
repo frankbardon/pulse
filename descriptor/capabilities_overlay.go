@@ -174,6 +174,21 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"(crosstab) host. Row cells sum to 1.0 in the absence of missing cells; renderers " +
 				"can present the layer as a 100%-stacked horizontal projection.",
 		}
+	case types.OverlayKindShareOfTotal:
+		return OverlayCapability{
+			Kind: types.OverlayKindShareOfTotal,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			RefKinds: []string{"Margin"},
+			Description: "Per-cell share-of-grand-total ratio: cell / grand_total. CELL scope over a MATRIX " +
+				"(crosstab) host. The entire matrix sums to 1.0 in the absence of missing cells; renderers " +
+				"can present the layer as a single-population share projection. Completes the share triad " +
+				"(row / col / total).",
+		}
 	}
 	return OverlayCapability{Kind: kind}
 }
