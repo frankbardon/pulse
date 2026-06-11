@@ -675,6 +675,29 @@ const (
 	// margin axis so callers can audit the failing cells. Surfaced as
 	// a Response.Warning, never as an envelope error.
 	PULSE_OVERLAY_REF_ZERO Code = "PULSE_OVERLAY_REF_ZERO"
+
+	// PULSE_OVERLAY_EXPECTED_LOW is a WARNING-class code emitted by the
+	// inferential overlay family (OVERLAY_CHISQ_MATRIX / CHISQ_ROW /
+	// CHISQ_COL / FISHER_EXACT_CELL) when the canonical "expected count
+	// is too low for the χ² approximation" heuristic fires. Mirrors
+	// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ surface — the
+	// statistic is still emitted alongside but the approximation is
+	// flagged as potentially unreliable so renderers can highlight the
+	// affected rows / columns / cells. Surfaced as a Response.Warning,
+	// never as an envelope error.
+	PULSE_OVERLAY_EXPECTED_LOW Code = "PULSE_OVERLAY_EXPECTED_LOW"
+
+	// PULSE_OVERLAY_LEVEL_OUT_OF_RANGE indicates an OverlaySpec's Level
+	// selector exceeds the nested-axis depth of the relevant host axis
+	// (Row axis depth = len(req.Crosstab.Rows), Column axis depth =
+	// len(req.Crosstab.Columns)). Mirrors
+	// PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab
+	// normalize_level surface. Forward-compat: E2-S10 registers the
+	// code + fixup so the catalog is in place for the deferred level /
+	// within overlay family in E2-S11; OverlaySpec carries no Level
+	// slot today, so this code is unreachable from runtime until that
+	// story wires the slot through.
+	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE Code = "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -809,6 +832,8 @@ var allCodes = []Code{
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 	PULSE_OVERLAY_SCOPE_UNSUPPORTED,
 	PULSE_OVERLAY_REF_ZERO,
+	PULSE_OVERLAY_EXPECTED_LOW,
+	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

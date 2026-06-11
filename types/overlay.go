@@ -66,11 +66,9 @@ const (
 	// Low-expected-count warning: when any expected[r,c] < 5 the handler
 	// emits a single PULSE_OVERLAY_EXPECTED_LOW warning (canonical χ²
 	// low-count heuristic; mirrors PULSE_TEST_EXPECTED_COUNT_TOO_LOW on
-	// the TEST_CHISQ surface). The code constant is promoted from a stub
-	// string to the canonical errors.PULSE_OVERLAY_EXPECTED_LOW slot in
-	// a later story (E2-S10); this kind lands the warning with the stub
-	// string so the runtime contract is observable today and the
-	// canonical promotion is a non-breaking rename.
+	// the TEST_CHISQ surface). The canonical
+	// errors.PULSE_OVERLAY_EXPECTED_LOW constant is the source of truth
+	// (promoted from a stub string in E2-S10).
 	//
 	// Scope is MATRIX (not CELL) because the test is whole-table; the
 	// validator rejects any other scope. The Ref union is left empty —
@@ -116,8 +114,8 @@ const (
 	// Low-expected-count warning: when any expected[c] < 5 in row r
 	// the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning per
 	// offending row (not per cell — the row is the diagnostic unit
-	// for goodness-of-fit). Stub-coded today; E2-S10 promotes it to
-	// the canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant.
+	// for goodness-of-fit). Canonical errors.PULSE_OVERLAY_EXPECTED_LOW
+	// constant (promoted from a stub string in E2-S10).
 	//
 	// Scope is ROW (not CELL or MATRIX) because each row's test is
 	// independent — the validator rejects any other scope. The Ref
@@ -163,8 +161,9 @@ const (
 	// Low-expected-count warning: when any expected[r] in column c is
 	// below 5 the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning
 	// per offending column (not per cell — the column is the diagnostic
-	// unit for goodness-of-fit). Stub-coded today; E2-S10 promotes it
-	// to the canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant.
+	// unit for goodness-of-fit). Canonical
+	// errors.PULSE_OVERLAY_EXPECTED_LOW constant (promoted from a stub
+	// string in E2-S10).
 	//
 	// Scope is COLUMN (not CELL, ROW, or MATRIX) because each column's
 	// test is independent — the validator rejects any other scope. The
@@ -250,10 +249,10 @@ const (
 	// (grand - row_margin) × (grand - col_margin) / grand} is below 1,
 	// OR when at least 20% of the four expected counts are below 5,
 	// the handler emits one PULSE_OVERLAY_EXPECTED_LOW warning per
-	// offending cell. Stub code per established E2-S6/S7/S8 policy;
-	// E2-S10 promotes to the canonical errors.PULSE_OVERLAY_EXPECTED_LOW
-	// constant. The warning is advisory — Fisher's exact stays exact in
-	// the low-count regime and the p-value is still emitted alongside.
+	// offending cell. Canonical errors.PULSE_OVERLAY_EXPECTED_LOW
+	// constant (promoted from a stub string in E2-S10). The warning is
+	// advisory — Fisher's exact stays exact in the low-count regime and
+	// the p-value is still emitted alongside.
 	// The threshold runs on the OVERLAY itself (not the underlying χ²
 	// surface) because Fisher's exact is the SOLUTION to the low-
 	// expected-count problem — the warning's intent here is to flag the

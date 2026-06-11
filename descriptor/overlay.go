@@ -153,6 +153,17 @@ var validMarginAxes = map[types.MarginAxis]bool{
 // so later kinds can validate against schema-derived state (e.g.
 // referenced field types on sibling / baseline-index families) without
 // re-opening every call site.
+//
+// TODO(E2-S11): wire the PULSE_OVERLAY_LEVEL_OUT_OF_RANGE gate once
+// OverlaySpec carries a Level slot — when spec.Level >
+// len(req.Crosstab.Rows) (for row-axis overlays) or >
+// len(req.Crosstab.Columns) (for column-axis overlays), emit the
+// canonical errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE code with
+// Details = {"index": i, "kind": spec.Kind, "level": spec.Level,
+// "axis_depth": len(axis)}. Mirrors the
+// PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE gate at
+// validateCrosstabSpec. The code + fixup ship today (E2-S10) so the
+// catalog is in place when E2-S11 wires the slot through.
 func ValidateOverlays(env *Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions) {
 	if req == nil || len(req.Overlays) == 0 {
 		return

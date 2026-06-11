@@ -1214,4 +1214,30 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_EXPECTED_LOW: {
+		Message: "An inferential overlay (OVERLAY_CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL / FISHER_EXACT_CELL) observed an expected count below the χ² approximation's reliability threshold (canonical rule: any expected cell below 5; Fisher's 2×2 rule: any cell < 1 OR ≥ 20% cells < 5). The statistic is still emitted alongside; the warning flags rows / columns / cells where the approximation may be unreliable. Warning-class — surfaced as a Response.Warning, never as an envelope error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Crosstab", "Rows"},
+				Hint:   "Lower the nested-axis Level (collapse a finer grouper) or widen the cells (raise observed counts) so the contingency margins reach the χ² reliability threshold — coarsen GROUP_DATE buckets, widen GROUP_RANGE intervals, or drop a deep grouper on the row axis. Alternatively, switch to OVERLAY_FISHER_EXACT_CELL (exact 2×2 p-values) which stays exact in the low-count regime.",
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Crosstab", "Columns"},
+				Hint:   "Same as the row-axis fix — coarsen or drop a column-axis grouper so the contingency cells aggregate enough observations to drive expected counts past the reliability threshold.",
+			},
+		},
+	},
+	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE: {
+		Message: "An OverlaySpec's Level selector exceeds the nested-axis depth of the relevant host axis. Valid depths are zero-indexed from the top of the axis: Row axis depth = len(Crosstab.Rows), Column axis depth = len(Crosstab.Columns). Mirrors PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab normalize_level surface.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Level"},
+				Hint:     "Pick a depth in [0, len(axis)-1] where axis = Crosstab.Rows for row-axis overlays and Crosstab.Columns for column-axis overlays. Omit the field entirely to default to the leaf (the deepest grouper on the axis).",
+				Examples: []any{0, 1, 2},
+			},
+		},
+	},
 }

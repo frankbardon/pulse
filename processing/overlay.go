@@ -268,6 +268,12 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 // host may be nil when specs is empty; ApplyOverlays short-circuits.
 // When specs is non-empty but host is nil the call fails fast — every
 // E1 overlay family expects a MATRIX-shaped host.
+//
+// TODO(E2-S11): wire belt-and-suspenders
+// errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE runtime parity with the
+// descriptor.ValidateOverlays predict gate once OverlaySpec carries a
+// Level slot. The code + fixup ship today (E2-S10) so the catalog is
+// in place when E2-S11 wires the slot through.
 func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.OverlayLayer, []OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
@@ -333,12 +339,9 @@ func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 // Low-expected-count warning (canonical χ² rule): when any expected
 // cell value is below 5 the handler emits one PULSE_OVERLAY_EXPECTED_LOW
 // warning carrying the count of low-expected cells and the offending
-// minimum. Code is emitted as the stub string
-// "PULSE_OVERLAY_EXPECTED_LOW" today; E2-S10 promotes it to a canonical
-// errors.PULSE_OVERLAY_EXPECTED_LOW constant. The stub keeps the
-// runtime contract observable while the promotion stays a non-breaking
-// rename. Mirrors how E1-S3 stubbed PULSE_OVERLAY_REF_ZERO before E1-S7
-// canonicalised it.
+// minimum. The canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant is
+// the source of truth (promoted from a stub string in E2-S10); mirrors
+// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ surface.
 //
 // Output shape: SCALAR payload with Scalar populated to the χ²
 // statistic; Matrix / Series slots stay nil. Layer.Summary carries the
@@ -471,12 +474,12 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 
 	var warnings []OverlayWarning
 	if lowExpectedCells > 0 {
-		// Stub code per story acceptance — E2-S10 promotes to a
-		// canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant. The
-		// stub string keeps the runtime contract observable today and
-		// the promotion stays a non-breaking rename.
+		// Canonical χ² low-expected-count warning. Code promoted from a
+		// stub string in E2-S10 to the canonical
+		// errors.PULSE_OVERLAY_EXPECTED_LOW constant; mirrors
+		// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ surface.
 		warnings = append(warnings, OverlayWarning{
-			Code: "PULSE_OVERLAY_EXPECTED_LOW",
+			Code: string(errors.PULSE_OVERLAY_EXPECTED_LOW),
 			Message: "overlay " + string(spec.Kind) +
 				" χ² approximation may be unreliable: cells with expected count < 5 detected",
 			Details: map[string]any{
@@ -549,7 +552,8 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 // Low-expected-count warning: when ANY expected[c] in row r is below 5
 // the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning per
 // offending row (not per cell — the row is the diagnostic unit for
-// goodness-of-fit). Stub-coded today; E2-S10 promotes to canonical.
+// goodness-of-fit). Canonical errors.PULSE_OVERLAY_EXPECTED_LOW
+// constant (promoted from a stub string in E2-S10).
 //
 // SERIES entry order: SeriesPayload.Entries[i].Key == host RowKeys[i]
 // element-for-element. The parallel-slice contract is the renderer-
@@ -695,12 +699,13 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 		// diagnostic unit for goodness-of-fit). Skip for degenerate
 		// rows since the expected-count recurrence did not execute.
 		if !degenerate && rowLowExpected > 0 {
-			// Stub code per story acceptance — E2-S10 promotes to a
-			// canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant. The
-			// stub string keeps the runtime contract observable today
-			// and the promotion stays a non-breaking rename.
+			// Canonical χ² low-expected-count warning. Code promoted
+			// from a stub string in E2-S10 to the canonical
+			// errors.PULSE_OVERLAY_EXPECTED_LOW constant; mirrors
+			// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ
+			// surface.
 			warnings = append(warnings, OverlayWarning{
-				Code: "PULSE_OVERLAY_EXPECTED_LOW",
+				Code: string(errors.PULSE_OVERLAY_EXPECTED_LOW),
 				Message: "overlay " + string(spec.Kind) +
 					" χ² approximation may be unreliable: row contains cells with expected count < 5",
 				Details: map[string]any{
@@ -760,7 +765,8 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 // Low-expected-count warning: when ANY expected[r] in column c is below
 // 5 the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning per
 // offending column (not per cell — the column is the diagnostic unit
-// for goodness-of-fit). Stub-coded today; E2-S10 promotes to canonical.
+// for goodness-of-fit). Canonical errors.PULSE_OVERLAY_EXPECTED_LOW
+// constant (promoted from a stub string in E2-S10).
 //
 // SERIES entry order: SeriesPayload.Entries[i].Key == host ColumnKeys[i]
 // element-for-element. The parallel-slice contract is the renderer-
@@ -907,12 +913,13 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 		// degenerate columns since the expected-count recurrence did
 		// not execute.
 		if !degenerate && colLowExpected > 0 {
-			// Stub code per story acceptance — E2-S10 promotes to a
-			// canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant. The
-			// stub string keeps the runtime contract observable today
-			// and the promotion stays a non-breaking rename.
+			// Canonical χ² low-expected-count warning. Code promoted
+			// from a stub string in E2-S10 to the canonical
+			// errors.PULSE_OVERLAY_EXPECTED_LOW constant; mirrors
+			// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ
+			// surface.
 			warnings = append(warnings, OverlayWarning{
-				Code: "PULSE_OVERLAY_EXPECTED_LOW",
+				Code: string(errors.PULSE_OVERLAY_EXPECTED_LOW),
 				Message: "overlay " + string(spec.Kind) +
 					" χ² approximation may be unreliable: column contains cells with expected count < 5",
 				Details: map[string]any{
@@ -1114,9 +1121,9 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 // sub-5 expected cell triggers the warning) of the four expected
 // counts fall below 5, the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW
 // warning per offending cell carrying the (row_index, col_index) plus
-// the offending minimum expected count. Stub code per the established
-// E2-S6/S7/S8 policy — E2-S10 promotes to a canonical
-// errors.PULSE_OVERLAY_EXPECTED_LOW constant.
+// the offending minimum expected count. Canonical
+// errors.PULSE_OVERLAY_EXPECTED_LOW constant (promoted from a stub
+// string in E2-S10).
 //
 // The threshold runs on the OVERLAY itself (not the underlying χ²
 // surface) because Fisher's exact is the SOLUTION to the low-expected-
@@ -1308,7 +1315,7 @@ func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (type
 				lowFraction := float64(lowCount) / 4.0
 				if anyBelowOne || lowFraction >= 0.20 {
 					warnings = append(warnings, OverlayWarning{
-						Code: "PULSE_OVERLAY_EXPECTED_LOW",
+						Code: string(errors.PULSE_OVERLAY_EXPECTED_LOW),
 						Message: "overlay " + string(spec.Kind) +
 							" Fisher's exact 2×2 contains low expected counts " +
 							"(any < 1 OR ≥ 20% < 5); χ² approximation would be unreliable",
