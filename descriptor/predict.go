@@ -263,6 +263,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// computeStreamable below.
 	validateCrosstab(env, req, schema, opts)
 
+	// Validate overlay specs (Request.Overlays). E1 covers OVERLAY_INDEX_VS_MARGIN
+	// only — unknown kind, ref-shape compatibility against the MATRIX host,
+	// and the per-kind supported scope set. Streamability is gated on the
+	// host operator (today: always-buffered crosstab); overlay streamability
+	// surfaces via types.OverlayStreamable in later epics.
+	ValidateOverlays(env, req, schema, opts)
+
 	// Validate label bindings (display-time categorical translation). Snapshot
 	// carries the registered label tables; augment-mode collisions are
 	// checked against the projected output column set so a sibling
