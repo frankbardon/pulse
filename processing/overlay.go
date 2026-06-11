@@ -239,6 +239,7 @@ type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types
 // handler in this package, and add the dispatch entry here.
 var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindIndexVsMargin: applyIndexVsMargin,
+	types.OverlayKindShareOfRow:    applyShareOfRow,
 }
 
 // ApplyOverlays executes every spec in specs against the host view
@@ -428,6 +429,150 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 	return layer, warnings, nil
 }
 
+// applyShareOfRow is the OVERLAY_SHARE_OF_ROW handler. For every
+// present host cell it computes cell / row_margin (no ×100 scale —
+// the layer is a ratio, not an indexed percentage). Missing or zero
+// row-margin denominators emit absent overlay cells plus one
+// PULSE_OVERLAY_REF_ZERO warning per failing cell so the orchestrator
+// can promote them to envelope warnings.
+//
+// The kind is structurally locked to the ROW axis — unlike
+// INDEX_VS_MARGIN (which lets the caller pick row / column / grand),
+// SHARE_OF_ROW is row-share-only by definition. Specs always populate
+// Ref.Margin, but the handler reads MarginFor(MarginAxisRow, ...)
+// regardless of any axis the caller wrote. The validator gate may
+// later evolve to reject mismatched axes; today the handler is the
+// source of truth.
+//
+// Output shape: MATRIX payload mirroring the host's RowKeys /
+// ColumnKeys / headers so renderers can lay the overlay on top of the
+// base matrix with the same header machinery. Missing host cells
+// (Present=false) stay absent on the overlay; cells where the row
+// margin is missing become absent overlay cells plus the warning.
+//
+// Summary: Min / Max / Count / Baseline populated. Baseline is always
+// 1 / row_count (the value each cell takes when the row distribution
+// is uniform), but for simplicity and renderer compatibility we
+// surface Baseline = 0 — share ratios cluster near zero on wide rows
+// and renderers centre diverging colour ramps on the population
+// median rather than the uniform baseline. Future renderer-side
+// metadata may refine this.
+func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+	if spec.Ref.Margin == nil {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_INTERNAL,
+			"overlay "+string(spec.Kind)+" requires Ref.Margin",
+			map[string]any{
+				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+				"kind": string(spec.Kind),
+			})
+	}
+	// SHARE_OF_ROW is structurally locked to the ROW axis — the spec
+	// must reference an axis, but the handler reads the row margin
+	// regardless. Echoing the spec's axis on the layer keeps the
+	// response Ref.Margin.Axis faithful to what the caller requested.
+	axis := types.MarginAxisRow
+
+	rowCount := host.RowCount()
+	colCount := host.ColumnCount()
+	payload := host.Payload()
+
+	cells := make([][]types.MatrixCell, rowCount)
+	var (
+		warnings []OverlayWarning
+		minV     float64
+		maxV     float64
+		seen     int
+	)
+	for i := 0; i < rowCount; i++ {
+		row := make([]types.MatrixCell, colCount)
+		for j := 0; j < colCount; j++ {
+			cellVal, cellPresent := host.CellAt(i, j)
+			if !cellPresent {
+				continue
+			}
+			marginVal, marginPresent := host.MarginFor(axis, i, j)
+			if !marginPresent || marginVal == 0 {
+				warnings = append(warnings, OverlayWarning{
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+					Message: "overlay " + string(spec.Kind) + " denominator missing or zero on row axis",
+					Details: map[string]any{
+						"kind":       string(spec.Kind),
+						"axis":       string(axis),
+						"row_index":  i,
+						"col_index":  j,
+						"margin_set": marginPresent,
+					},
+				})
+				continue
+			}
+			share := cellVal / marginVal
+			if math.IsNaN(share) || math.IsInf(share, 0) {
+				warnings = append(warnings, OverlayWarning{
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+					Message: "overlay " + string(spec.Kind) + " produced non-finite value on row axis",
+					Details: map[string]any{
+						"kind":      string(spec.Kind),
+						"axis":      string(axis),
+						"row_index": i,
+						"col_index": j,
+					},
+				})
+				continue
+			}
+			row[j] = types.MatrixCell{Value: share, Present: true}
+			if seen == 0 {
+				minV, maxV = share, share
+			} else {
+				if share < minV {
+					minV = share
+				}
+				if share > maxV {
+					maxV = share
+				}
+			}
+			seen++
+		}
+		cells[i] = row
+	}
+
+	overlayPayload := &types.MatrixPayload{
+		RowHeader:        payload.RowHeader,
+		ColumnHeader:     payload.ColumnHeader,
+		RowKeys:          append([]types.AxisKey(nil), payload.RowKeys...),
+		ColumnKeys:       append([]types.AxisKey(nil), payload.ColumnKeys...),
+		Cells:            cells,
+		CellLabel:        overlayLayerName(spec),
+		NormalizeApplied: types.CrosstabNormalizeNone,
+	}
+
+	layer := types.OverlayLayer{
+		Name:  overlayLayerName(spec),
+		Kind:  spec.Kind,
+		Scope: spec.Scope,
+		Ref:   spec.Ref,
+		Payload: types.OverlayPayload{
+			Shape:  types.OverlayShapeMatrix,
+			Matrix: overlayPayload,
+		},
+	}
+
+	baseline := 0.0
+	summary := &types.OverlaySummary{Baseline: &baseline}
+	if seen > 0 {
+		mn, mx, count := minV, maxV, seen
+		summary.Min = &mn
+		summary.Max = &mx
+		summary.Count = &count
+	} else {
+		zeroCount := 0
+		summary.Count = &zeroCount
+	}
+	layer.Summary = summary
+
+	return layer, warnings, nil
+}
+
 // overlayLayerName returns the renderer-facing label for a layer.
 // Honours an explicit Name on the spec; otherwise synthesises a
 // deterministic default keyed by Kind + axis (the only ref family E1
@@ -441,6 +586,11 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
+	case types.OverlayKindShareOfRow:
+		// SHARE_OF_ROW is row-axis-locked; the synthesised default
+		// reflects that even if the spec's Ref.Margin.Axis happens to
+		// echo a different value.
+		return string(spec.Kind) + "_" + string(types.MarginAxisRow)
 	}
 	return string(spec.Kind)
 }

@@ -22,6 +22,7 @@ Every overlay kind ships as a row in this table. New kinds extend `types.AllOver
 | Kind | Scope | Shape | Streamable | RefFamily | Description |
 |---|---|---|---|---|---|
 | `OVERLAY_INDEX_VS_MARGIN` | `cell` | `matrix` | no (buffered) | `Margin` | Per-cell index score `100 * cell / margin` against the matching axis margin. E1 supports CELL scope over a MATRIX (crosstab) host; ROW / COLUMN / TOTAL ship in later epics alongside the matching payload shapes. |
+| `OVERLAY_SHARE_OF_ROW` | `cell` | `matrix` | no (buffered) | `Margin` | Per-cell share-of-row ratio `cell / row_margin`. CELL scope over a MATRIX (crosstab) host. Cells along a single row sum to 1.0 in the absence of missing cells; renderers can present the layer as a 100%-stacked horizontal projection. Structurally row-axis-locked — the spec must populate `Ref.Margin`, but the runtime handler always reads the row margin regardless of the axis value. |
 
 ## The three-shape model
 

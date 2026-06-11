@@ -33,6 +33,7 @@ package types
 // buffered.
 var OverlayStreamability = map[OverlayKind]bool{
 	OverlayKindIndexVsMargin: false,
+	OverlayKindShareOfRow:    false,
 }
 
 // OverlayStreamable reports whether the given overlay kind streams and
