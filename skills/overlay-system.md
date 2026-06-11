@@ -235,6 +235,8 @@ Multiple specs ride the same `Request.Overlays` slice. Each produces one layer i
 
 `Response.Overlays` carries three layers, indices 0 / 1 / 2, matching the spec order. Renderers can offer the user a dropdown to switch between denominators without re-issuing the request.
 
+For per-kind JSON recipes against a Crosstab host — the share triad, the margin-comparison family, and the χ² / Fisher inferential family — see `skills/crosstab-guide.md` ("Overlays" section).
+
 ## Level / Within nested-axis denominators
 
 `OverlaySpec.Level` and `OverlaySpec.Within` are two integer slots (default zero, `omitempty` on the wire) that drive nested-axis prefix-denominator dispatch on the share / index / delta / zscore family. Both mirror the `CrosstabSpec.NormalizeLevel` / `CrosstabSpec.NormalizeWithin` semantics from `skills/crosstab-guide.md` so an overlay with `(Level=L, Within=W)` produces byte-equivalent denominators to a crosstab `normalize=row, normalize_level=L, normalize_within=W` against the same host matrix (with the caveat that the equivalence holds for summable cell aggregators — recompute-class aggregators like `AGG_MEDIAN` still recompute their margins from raw rows on the crosstab side).
