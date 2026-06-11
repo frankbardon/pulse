@@ -4884,6 +4884,18 @@
         "description": "Whole-matrix χ² independence test across the host crosstab's row × column contingency table. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload — the layer carries the chi-square statistic plus degrees of freedom and p-value via OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. First inferential overlay and first SCALAR-shape Crosstab overlay; the Ref union is left empty (implicit-margin). Reuses the χ² survival helper backing TEST_CHISQ. Emits PULSE_OVERLAY_EXPECTED_LOW when any expected cell value is below 5."
       },
       {
+        "kind": "OVERLAY_CHISQ_ROW",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "row"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Per-row χ² goodness-of-fit test across the host crosstab's column distribution. ROW scope over a MATRIX (crosstab) host with SERIES payload — one entry per row tuple carrying the row's χ² statistic, degrees of freedom (cols - 1), and p-value via OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. First SERIES-shape Crosstab overlay; establishes the SeriesPayload entries plumbing pattern. The Ref union is left empty (implicit-margin). Reuses the χ² survival helper backing TEST_CHISQ. Emits PULSE_OVERLAY_EXPECTED_LOW once per offending row when any expected cell value in the row is below 5."
+      },
+      {
         "kind": "OVERLAY_DELTA_VS_MARGIN",
         "shapes": [
           "matrix"
@@ -4972,4 +4984,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4b018b17ef7eb57927c2b71e4d96e46540b6e0e5ec33b487965f446b469e33d3
+// golden-hash: 12edbb091cb8df6e02cc54dec3727735d45afc9f990af283d9cd37f62c98a13c

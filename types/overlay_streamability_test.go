@@ -18,6 +18,11 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// contingency table — the host crosstab path is buffered and
 		// the chi-square test itself walks the materialised matrix.
 		OverlayKindChiSqMatrix: false,
+		// CHISQ_ROW is inferential — each per-row goodness-of-fit test
+		// reads the row's observed column distribution AND every column
+		// margin to drive the expected-count recurrence, all of which
+		// require the buffered host crosstab matrix.
+		OverlayKindChiSqRow: false,
 		// DELTA_VS_MARGIN shares INDEX_VS_MARGIN's buffered footprint —
 		// its margin centerpoint is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.

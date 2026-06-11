@@ -155,6 +155,30 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Reuses the χ² survival helper backing TEST_CHISQ. Emits " +
 				"PULSE_OVERLAY_EXPECTED_LOW when any expected cell value is below 5.",
 		}
+	case types.OverlayKindChiSqRow:
+		return OverlayCapability{
+			Kind: types.OverlayKindChiSqRow,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeRow,
+			},
+			// No Ref family — the per-row χ² goodness-of-fit test is
+			// implicit-margin (uses the host's row / column / grand
+			// margins inline). Callers supplying any Ref family pointer
+			// fail PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict
+			// time.
+			RefKinds: []string{},
+			Description: "Per-row χ² goodness-of-fit test across the host crosstab's column distribution. " +
+				"ROW scope over a MATRIX (crosstab) host with SERIES payload — one entry per row tuple " +
+				"carrying the row's χ² statistic, degrees of freedom (cols - 1), and p-value via " +
+				"OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. First SERIES-shape Crosstab overlay; " +
+				"establishes the SeriesPayload entries plumbing pattern. The Ref union is left empty " +
+				"(implicit-margin). Reuses the χ² survival helper backing TEST_CHISQ. Emits " +
+				"PULSE_OVERLAY_EXPECTED_LOW once per offending row when any expected cell value in the row " +
+				"is below 5.",
+		}
 	case types.OverlayKindDeltaVsMargin:
 		return OverlayCapability{
 			Kind: types.OverlayKindDeltaVsMargin,

@@ -38,8 +38,15 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// path, and the runtime handler walks the materialised matrix
 	// directly. Inferential overlays as a family stay buffered until a
 	// future streamable-test path is plumbed.
-	OverlayKindChiSqMatrix:    false,
-	OverlayKindDeltaVsMargin:  false,
+	OverlayKindChiSqMatrix: false,
+	// OVERLAY_CHISQ_ROW is inherently buffered — each per-row goodness-
+	// of-fit test consumes the row's observed column distribution AND
+	// every column margin (for the expected-count recurrence), all of
+	// which the buffered host crosstab orchestrator already materialised.
+	// Inferential overlays as a family stay buffered until a streamable-
+	// test path is plumbed.
+	OverlayKindChiSqRow:      false,
+	OverlayKindDeltaVsMargin: false,
 	OverlayKindIndexVsMargin:  false,
 	OverlayKindShareOfCol:     false,
 	OverlayKindShareOfRow:     false,

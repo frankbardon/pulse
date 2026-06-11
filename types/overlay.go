@@ -82,6 +82,54 @@ const (
 	// buffered (margins recomputed from raw rows).
 	OverlayKindChiSqMatrix OverlayKind = "OVERLAY_CHISQ_MATRIX"
 
+	// OverlayKindChiSqRow emits a per-row χ² goodness-of-fit test
+	// across the host crosstab's row × column contingency table. ROW
+	// scope over a MATRIX (crosstab) host with SERIES payload — one
+	// per-row entry carrying the row's χ² statistic, degrees of
+	// freedom (cols - 1), and p-value via OverlaySummary
+	// {Statistic, PValue, Parameters{"df"}}. First SERIES-shape
+	// Crosstab overlay; establishes the SeriesPayload entries
+	// plumbing pattern that the remaining E2 / E3 series families
+	// reuse.
+	//
+	// Math (per row r):
+	//
+	//	observed[c] = host.Cell(r, c)
+	//	expected[c] = row_margin[r] * col_margin[c] / grand_total
+	//	chisq_r    = Σ_c (observed[c] - expected[c])² / expected[c]
+	//	df          = cols - 1
+	//	p_value     = chi2_survival(chisq_r, df)   // = 1 - chi2_cdf
+	//
+	// Tests whether each row's observed column distribution differs
+	// from the expected distribution derived from column margins under
+	// independence. The χ² survival helper (chiSquareSurvival) is the
+	// same helper that backs TEST_CHISQ and the CHISQ_MATRIX overlay —
+	// overlay surfaces produce identical p-values for the same
+	// contingency.
+	//
+	// Absent-cell policy: a structurally absent host cell (Present=
+	// false) is treated as an observed count of 0 (matches the
+	// CHISQ_MATRIX policy). The per-row recurrence still consumes
+	// every column slot; an absent observation does not collapse the
+	// column count.
+	//
+	// Low-expected-count warning: when any expected[c] < 5 in row r
+	// the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning per
+	// offending row (not per cell — the row is the diagnostic unit
+	// for goodness-of-fit). Stub-coded today; E2-S10 promotes it to
+	// the canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant.
+	//
+	// Scope is ROW (not CELL or MATRIX) because each row's test is
+	// independent — the validator rejects any other scope. The Ref
+	// union is left empty — the test is implicit-margin (uses the
+	// host's row / column / grand margins inline), so callers
+	// supplying a Ref.Margin (or any other ref-family pointer) get
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+	//
+	// Inherently buffered because the host crosstab path is always
+	// buffered (margins recomputed from raw rows).
+	OverlayKindChiSqRow OverlayKind = "OVERLAY_CHISQ_ROW"
+
 	// OverlayKindDeltaVsMargin emits a per-cell additive delta against
 	// the matching axis margin: cell - margin. CELL-scoped over a MATRIX
 	// (crosstab) host. Unlike INDEX_VS_MARGIN (a ratio) and the SHARE_OF_*
@@ -165,6 +213,7 @@ const (
 func AllOverlayKinds() []OverlayKind {
 	return []OverlayKind{
 		OverlayKindChiSqMatrix,
+		OverlayKindChiSqRow,
 		OverlayKindDeltaVsMargin,
 		OverlayKindIndexVsMargin,
 		OverlayKindShareOfCol,
@@ -374,23 +423,61 @@ type OverlaySpec struct {
 	Params json.RawMessage `json:"params,omitempty"`
 }
 
-// SeriesPayload is the keys-and-values strip used by series-shaped
-// overlay payloads. Keys and Values share an index; len(Keys) ==
-// len(Values). Keys are the rendered axis-key strings (matching the
-// AxisKey display used by the matching base layer); Values are the
-// derived float64 entries.
+// SeriesPayload is the canonical strip used by series-shaped overlay
+// payloads. Each Entry pairs a composite axis-tuple key (matching the
+// host layer's AxisKey shape element-for-element) with an
+// OverlaySummary carrying the per-entry statistic / p-value / parameter
+// map. The shape generalises across host families: for a Crosstab host
+// the entry order matches MatrixPayload.RowKeys (CHISQ_ROW) or
+// ColumnKeys (CHISQ_COL); for a future process-grouped host the entry
+// order matches the host's grouper-key vector.
 //
-// Minimal placeholder: future series-bearing families (time-series
-// overlays, sparkline projections) may extend SeriesPayload with
-// additional metadata (axis name, value label). The shape is additive
-// so additional optional fields land without breaking the existing
-// JSON contract.
+// Per-entry key contract (E2-S7 lands this for OVERLAY_CHISQ_ROW): the
+// Series entries are a parallel slice to the host axis-key list — entry
+// i carries the same composite key as RowKeys[i] (CHISQ_ROW) or
+// ColumnKeys[i] (CHISQ_COL). This contract is the renderer-facing
+// guarantee that overlay layers can be laid on top of the host axis
+// without re-keying.
+//
+// Why the per-entry shape (Entries + Summary) over the earlier
+// flat-strip placeholder (Keys + Values): the earlier shape carried a
+// single float64 per key, which suits descriptive overlays but cannot
+// surface inferential metadata (statistic, p-value, parameter map)
+// without inventing a parallel summary slice. The canonical shape lets
+// SCALAR + SERIES inferential overlays reuse the same OverlaySummary
+// surface — CHISQ_ROW's per-row {Statistic, PValue, Parameters{"df"}}
+// reuses E2-S6's CHISQ_MATRIX summary shape verbatim, and the per-row
+// renderer reads each entry exactly the way it reads a SCALAR layer.
+// Future descriptive series families (per-row deviation strips) populate
+// only Summary.Min / Max / Count and leave Statistic / PValue unset.
+//
+// AxisKey is []any so numeric / categorical / date axis values keep
+// their native types (matching MatrixPayload.RowKeys); renderers join
+// or display tuple elements the same way they handle host row keys.
 type SeriesPayload struct {
-	// Keys is the ordered list of axis-key labels indexing this series.
-	Keys []string `json:"keys"`
+	// Entries is the ordered list of per-axis-key entries. Order
+	// matches the host axis-key list element-for-element.
+	Entries []SeriesEntry `json:"entries"`
+}
 
-	// Values is the per-key float64 strip. len(Values) == len(Keys).
-	Values []float64 `json:"values"`
+// SeriesEntry is one per-axis-key entry in a series-shaped overlay
+// payload. Key is the composite axis tuple (matching the host's
+// AxisKey shape, e.g. MatrixPayload.RowKeys[i] for a CHISQ_ROW
+// overlay); Summary carries the entry's statistic / p-value /
+// parameters in the same shape the SCALAR-payload OverlaySummary
+// uses on inferential overlays.
+type SeriesEntry struct {
+	// Key is the composite axis-tuple key identifying this entry.
+	// Matches the host axis-key list element-for-element (RowKeys[i]
+	// for CHISQ_ROW; ColumnKeys[i] for CHISQ_COL).
+	Key AxisKey `json:"key"`
+
+	// Summary carries the per-entry statistic / p-value / parameter
+	// map. Mirrors the SCALAR-payload OverlaySummary shape so
+	// inferential SERIES overlays surface the same renderer-facing
+	// fields per entry (e.g. CHISQ_ROW: Statistic = χ²_r,
+	// PValue = p_r, Parameters = {"df": cols - 1}).
+	Summary OverlaySummary `json:"summary"`
 }
 
 // OverlayPayload is the discriminated union carrying the actual
