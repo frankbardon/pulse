@@ -127,20 +127,17 @@ var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{}
 // `request_<index+1>`) — the resolver uses it to build the
 // `Label → Index` lookup table for `Reference` / `Targets` resolution.
 //
-// Resolution policy:
+// Resolution policy (E7-S5):
 //
 //   - Reference is REQUIRED on every spec. Empty Reference (or a
 //     Reference that does not resolve to any label in `labels`) fires
 //     a coded error carrying errors.PULSE_OVERLAY_REFERENCE_UNKNOWN
-//     (E7-S13 lands the canonical code; until then the chassis falls
-//     back to errors.PULSE_OVERLAY_REF_UNKNOWN).
+//     via processing.LookupReference.
 //   - Targets is REQUIRED to have at least one entry. Empty Targets
-//     fires the same coded error.
+//     fires PULSE_OVERLAY_TARGET_UNKNOWN.
 //   - A target label that does not resolve to any label in `labels`
 //     OR resolves to a nil slot (failed under FailFast=false) fires
-//     a coded error carrying errors.PULSE_OVERLAY_TARGET_UNKNOWN
-//     (E7-S13 lands the canonical code; until then the chassis falls
-//     back to errors.PULSE_OVERLAY_REF_UNKNOWN).
+//     PULSE_OVERLAY_TARGET_UNKNOWN via processing.LookupTarget.
 //
 // Defense in depth: the descriptor.ValidateComposedRequest gate
 // (E7-S14 will lift it) will reject bad references / unknown kinds at
@@ -159,36 +156,34 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
-	// Build the Label → Index lookup once per barrier entry. Empty
-	// labels do NOT participate (applyComposeLabelDefaults guarantees
-	// every slot has a non-empty label before the barrier runs, but
-	// the defense-in-depth skip keeps the resolver robust against
-	// caller misuse).
-	labelIndex := make(map[string]int, len(labels))
-	for i, name := range labels {
-		if name == "" {
-			continue
-		}
-		labelIndex[name] = i
+	// Build the per-slot lookup map ONCE per barrier entry via the
+	// canonical resolver. The chassis adapter builds a synthetic
+	// *types.ComposedRequest from the parallel labels slice so the
+	// resolver's pure surface stays the single source of truth for
+	// slot-label → *Response binding (E7-S5).
+	byLabel, byIndex, err := resolveComposeSlotsFromLabels(labels, responses)
+	if err != nil {
+		return nil, nil, err
 	}
 	layers := make([]types.OverlayLayer, 0, len(specs))
 	var warnings []OverlayWarning
 	for i := range specs {
 		spec := &specs[i]
-		// Reference must resolve to a known label AND a non-nil
-		// slot. The "slot is nil" check catches the FailFast=false
-		// path where a failed slot left a nil hole in the responses
-		// slice.
-		refIdx, err := resolveComposeSlotLabel(spec.Reference, labelIndex, responses, "reference", i)
+		// Reference must resolve to a known label AND a non-nil slot.
+		// LookupReference owns the canonical-code dispatch for the
+		// reference arm — empty label, unknown label, or nil slot all
+		// surface PULSE_OVERLAY_REFERENCE_UNKNOWN.
+		refResp, err := LookupReference(byLabel, spec.Reference, i)
 		if err != nil {
 			return nil, nil, err
 		}
+		refIdx := byIndex[spec.Reference]
 		if len(spec.Targets) == 0 {
 			return nil, nil, errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_INTERNAL,
 				"compose overlay spec must declare at least one target slot label",
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+					"code":  string(errors.PULSE_OVERLAY_TARGET_UNKNOWN),
 					"index": i,
 					"kind":  string(spec.Kind),
 					"which": "targets",
@@ -196,13 +191,13 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 		}
 		targetIdxs := make([]int, 0, len(spec.Targets))
 		targetResps := make([]*types.Response, 0, len(spec.Targets))
-		for _, label := range spec.Targets {
-			tIdx, err := resolveComposeSlotLabel(label, labelIndex, responses, "target", i)
+		for tIdx, label := range spec.Targets {
+			tResp, err := LookupTarget(byLabel, label, i, tIdx)
 			if err != nil {
 				return nil, nil, err
 			}
-			targetIdxs = append(targetIdxs, tIdx)
-			targetResps = append(targetResps, responses[tIdx])
+			targetIdxs = append(targetIdxs, byIndex[label])
+			targetResps = append(targetResps, tResp)
 		}
 		handler, ok := composeOverlayHandlers[spec.Kind]
 		if !ok {
@@ -216,7 +211,7 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 			// catches genuinely unknown kinds upstream.
 			handler = applyComposeStub
 		}
-		layer, ws, err := handler(spec, responses[refIdx], targetResps, refIdx, targetIdxs)
+		layer, ws, err := handler(spec, refResp, targetResps, refIdx, targetIdxs)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -228,76 +223,36 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 	return layers, warnings, nil
 }
 
-// resolveComposeSlotLabel resolves a slot label into a `responses`
-// slice index. Returns a coded error on empty / unknown label OR on
-// a nil response slot (the FailFast=false hole case).
+// resolveComposeSlotsFromLabels is the chassis-side adapter that lifts
+// the parallel `labels []string` slice the service-layer call site
+// hands to ApplyComposeOverlays into the canonical resolver shape. The
+// resolver (ResolveComposeSlots) takes a *types.ComposedRequest by
+// design — the per-slot Label lives on each *types.Request — so this
+// adapter synthesises a minimal ComposedRequest carrying only the
+// label slots the resolver needs.
 //
-// The canonical codes for this surface are
-// `PULSE_OVERLAY_REFERENCE_UNKNOWN` (Reference arm) and
-// `PULSE_OVERLAY_TARGET_UNKNOWN` (Target arm). E7-S13 lands the
-// canonical codes; until then this resolver falls back to
-// `PULSE_OVERLAY_REF_UNKNOWN` with the `which` Detail signalling the
-// arm. The arm is selected via the `which` parameter AND echoed in
-// the `which` Detail so the MCP fix-up surface can branch on either
-// signal.
-func resolveComposeSlotLabel(label string, labelIndex map[string]int, responses []*types.Response, which string, specIdx int) (int, error) {
-	if label == "" {
-		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
-			"compose overlay "+which+" slot label is empty",
-			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_REF_UNKNOWN),
-				"index": specIdx,
-				"which": which,
-			})
+// Auto-default policy is applied here exactly as ResolveComposeSlots
+// would apply it on a real *ComposedRequest: empty label at slot i →
+// `request_<i+1>`. Nil-label slots correspond to nil *Request entries
+// in the synthetic ComposedRequest, which the resolver skips entirely.
+//
+// Returns a coded error from ResolveComposeSlots on collision or
+// length mismatch — no additional failure modes are introduced by the
+// adapter.
+func resolveComposeSlotsFromLabels(labels []string, responses []*types.Response) (map[string]*types.Response, map[string]int, error) {
+	if len(labels) == 0 && len(responses) == 0 {
+		return map[string]*types.Response{}, map[string]int{}, nil
 	}
-	idx, ok := labelIndex[label]
-	if !ok {
-		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
-			"compose overlay "+which+" slot label not found: "+label,
-			map[string]any{
-				"code":       string(errors.PULSE_OVERLAY_REF_UNKNOWN),
-				"index":      specIdx,
-				"which":      which,
-				"slot_label": label,
-			})
+	// Build a synthetic *ComposedRequest from the labels slice. Empty
+	// labels at slot i translate into a non-nil *Request with empty
+	// Label, which the resolver fills with `request_<i+1>` per the
+	// same auto-default rule the service-side normaliser uses.
+	requests := make([]*types.Request, len(labels))
+	for i, name := range labels {
+		requests[i] = &types.Request{Label: name}
 	}
-	if idx < 0 || idx >= len(responses) {
-		// Defense in depth: labelIndex was built from the same labels
-		// slice that parallels responses, so this branch is
-		// structurally unreachable. The check keeps the resolver
-		// honest against future caller misuse.
-		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
-			"compose overlay "+which+" slot index out of range",
-			map[string]any{
-				"code":            string(errors.PULSE_OVERLAY_REF_UNKNOWN),
-				"index":           specIdx,
-				"which":           which,
-				"slot_label":      label,
-				"slot_index":      idx,
-				"responses_count": len(responses),
-			})
-	}
-	if responses[idx] == nil {
-		// FailFast=false hole: the slot at this index failed. The
-		// orchestrator includes the failed slot in `responses` as a
-		// nil entry; the resolver flags it as unknown so the overlay
-		// dispatch fails closed rather than panicking on a nil
-		// dereference downstream.
-		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
-			"compose overlay "+which+" slot is unavailable (slot failed): "+label,
-			map[string]any{
-				"code":       string(errors.PULSE_OVERLAY_REF_UNKNOWN),
-				"index":      specIdx,
-				"which":      which,
-				"slot_label": label,
-				"slot_index": idx,
-			})
-	}
-	return idx, nil
+	composed := &types.ComposedRequest{Requests: requests}
+	return ResolveComposeSlots(composed, responses)
 }
 
 // applyComposeStub is the compile-time stub handler shared by every

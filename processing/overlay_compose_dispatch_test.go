@@ -1,8 +1,10 @@
 package processing
 
 import (
+	"errors"
 	"testing"
 
+	pulseerrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -160,8 +162,9 @@ func TestApplyComposeOverlays_StubShapeInheritsReference(t *testing.T) {
 
 // TestApplyComposeOverlays_ReferenceUnknown_CodedError asserts that a
 // spec whose Reference does not match any label in `labels` surfaces
-// a coded PROCESSING_INTERNAL error with PULSE_OVERLAY_REF_UNKNOWN
-// details (E7-S13 will lift the code to PULSE_OVERLAY_REFERENCE_UNKNOWN).
+// a coded PROCESSING_INTERNAL error whose Details carry the canonical
+// PULSE_OVERLAY_REFERENCE_UNKNOWN code (lifted by E7-S5 from the
+// pre-E7-S5 PULSE_OVERLAY_REF_UNKNOWN fallback).
 func TestApplyComposeOverlays_ReferenceUnknown_CodedError(t *testing.T) {
 	responses := []*types.Response{
 		composeSlotOf(types.OverlayShapeScalar),
@@ -179,13 +182,15 @@ func TestApplyComposeOverlays_ReferenceUnknown_CodedError(t *testing.T) {
 	if err == nil {
 		t.Fatal("ApplyComposeOverlays(unknown reference): want error, got nil")
 	}
+	requireDetailCode(t, err, pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN)
 }
 
 // TestApplyComposeOverlays_TargetUnknown_CodedError asserts that a
 // spec whose Targets list contains a label that does not match any
-// entry in `labels` surfaces a coded PROCESSING_INTERNAL error with
-// PULSE_OVERLAY_REF_UNKNOWN details (E7-S13 will lift the code to
-// PULSE_OVERLAY_TARGET_UNKNOWN).
+// entry in `labels` surfaces a coded PROCESSING_INTERNAL error whose
+// Details carry the canonical PULSE_OVERLAY_TARGET_UNKNOWN code
+// (lifted by E7-S5 from the pre-E7-S5 PULSE_OVERLAY_REF_UNKNOWN
+// fallback).
 func TestApplyComposeOverlays_TargetUnknown_CodedError(t *testing.T) {
 	responses := []*types.Response{
 		composeSlotOf(types.OverlayShapeScalar),
@@ -202,6 +207,26 @@ func TestApplyComposeOverlays_TargetUnknown_CodedError(t *testing.T) {
 	_, _, err := ApplyComposeOverlays(specs, responses, labels)
 	if err == nil {
 		t.Fatal("ApplyComposeOverlays(unknown target): want error, got nil")
+	}
+	requireDetailCode(t, err, pulseerrors.PULSE_OVERLAY_TARGET_UNKNOWN)
+}
+
+// requireDetailCode asserts the error's CodedError.Details carry a
+// `code` key equal to the supplied canonical code string. Used by the
+// E7-S5 chassis tests to lock the canonical-code dispatch lifted from
+// the legacy PULSE_OVERLAY_REF_UNKNOWN fallback.
+func requireDetailCode(t *testing.T, err error, want pulseerrors.Code) {
+	t.Helper()
+	var coded *pulseerrors.CodedError
+	if !errors.As(err, &coded) {
+		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
+	}
+	got, ok := coded.Details["code"].(string)
+	if !ok {
+		t.Fatalf("CodedError.Details[code] is not a string: %T (%v)", coded.Details["code"], coded.Details)
+	}
+	if got != string(want) {
+		t.Fatalf("CodedError.Details[code] = %q, want %q", got, string(want))
 	}
 }
 
@@ -222,6 +247,7 @@ func TestApplyComposeOverlays_TargetsEmpty_CodedError(t *testing.T) {
 	if err == nil {
 		t.Fatal("ApplyComposeOverlays(empty targets): want error, got nil")
 	}
+	requireDetailCode(t, err, pulseerrors.PULSE_OVERLAY_TARGET_UNKNOWN)
 }
 
 // TestApplyComposeOverlays_NilSlot_CodedError asserts that resolving
@@ -245,4 +271,5 @@ func TestApplyComposeOverlays_NilSlot_CodedError(t *testing.T) {
 	if err == nil {
 		t.Fatal("ApplyComposeOverlays(nil target slot): want error, got nil")
 	}
+	requireDetailCode(t, err, pulseerrors.PULSE_OVERLAY_TARGET_UNKNOWN)
 }
