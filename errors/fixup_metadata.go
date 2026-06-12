@@ -1252,7 +1252,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_REF_UNKNOWN: {
-		Message: "A sibling-reference overlay (OVERLAY_DELTA_VS_SIBLING / OVERLAY_INDEX_VS_SIBLING) named a Sibling (Field, Value) pair that does not resolve to a known group on the SERIES host — either the named Field is not a grouper Field on the host, or the named Value does not match any observed axis-key value for that field. The affected layer surfaces NaN statistics across every present entry. Warning-class — surfaced as a Response.Warning, never as an envelope error.",
+		Message: "An overlay handler named a reference that does not resolve to a known slot on the host. Three arms today: (1) sibling-reference overlays (OVERLAY_DELTA_VS_SIBLING / OVERLAY_INDEX_VS_SIBLING) name a Sibling (Field, Value) pair that does not match any observed axis-key value on the SERIES host; (2) baseline-index overlays (OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_YOY) name a Position ordinal outside [0, host.GroupCount()) — Details carry {baseline_index, series_length}; (3) Facet-host population overlays (OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP) name a population field absent from the host FacetResult — Details carry {field, available_fields}. The affected layer surfaces NaN statistics across every present entry (arms 1–2) or fails fast (arm 3). Warning-class for arms 1–2, runtime error for arm 3 — surfaced as a Response.Warning or envelope error depending on arm.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1263,6 +1263,16 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Ref", "Sibling", "Value"},
 				Hint:   "Set Ref.Sibling.Value to an observed axis-key value for the named Field. Run pulse inspect --json on the cohort to enumerate the field's dictionary values, or pulse facet --field <name> to confirm the post-filter observed set.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref", "BaselineIndex", "Position"},
+				Hint:   "Set Ref.BaselineIndex.Position to a 0-based ordinal in [0, host series length). Run pulse predict --json or process --json with no overlay to confirm the series length the host produces (or process the host first and count Response.Data groups).",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref", "Population", "Cohort"},
+				Hint:   "Population overlays resolve against a FacetResult — ensure the named field is present in FacetRequest.Fields so the host pass computes per-value counts / Welford state for it. The error Details carry available_fields enumerating the host's resolved slots; pick one of those, or extend FacetRequest.Fields with the missing field name.",
 			},
 		},
 	},
