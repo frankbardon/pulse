@@ -2264,6 +2264,62 @@ const (
 	OverlayShapeMatrix OverlayShape = "matrix"
 )
 
+// FormulaNamespace returns the canonical variable identifier set the
+// OVERLAY_FORMULA evaluator exposes for a given host shape. It is the
+// single source of truth both the runtime FORMULA env builders
+// (`processing/overlay_formula.go` `buildFormulaPrototypeEnv*`) and the
+// predict-time identifier validator
+// (`descriptor/overlay_formula.go` `validateFormulaOverlay`) consult so
+// the two surfaces stay in lock-step — adding a new variable to the
+// MATRIX namespace is a one-line change here, and both the runtime
+// prototype env + the predict-time allowed set widen automatically.
+//
+// Living at this leaf (types/) lets descriptor/ read the namespace
+// without importing processing/ — preserving the
+// TestPredictNoExecutionImports gate (CLAUDE.md "What NOT to Do").
+//
+// Per-shape contents (research note
+// `.planning/result-overlay-system/research/formula-namespace.md` § 2):
+//
+//   - OverlayShapeMatrix:  cell, margin_row, margin_col, margin_grand,
+//     sd_row, sd_col, sd_grand. ref_cell + slot.<label>.cell live on
+//     the Compose-specific overlay walk and are added by the Compose
+//     validator on top of this base, not here.
+//   - OverlayShapeSeries:  value, total, prior. baseline is opt-in via
+//     `OverlaySpec.Params["baseline_position"]` and added by the
+//     validator when the param is set, not by this base set. ref_value
+//     lives on the Compose walk.
+//   - OverlayShapeScalar:  value. ref lives on the Compose walk.
+//
+// Returned slices are freshly allocated per call (callers may mutate
+// the returned slice without disturbing future calls). Unknown shapes
+// return an empty slice.
+func FormulaNamespace(shape OverlayShape) []string {
+	switch shape {
+	case OverlayShapeMatrix:
+		return []string{
+			"cell",
+			"margin_col",
+			"margin_grand",
+			"margin_row",
+			"sd_col",
+			"sd_grand",
+			"sd_row",
+		}
+	case OverlayShapeSeries:
+		return []string{
+			"prior",
+			"total",
+			"value",
+		}
+	case OverlayShapeScalar:
+		return []string{
+			"value",
+		}
+	}
+	return []string{}
+}
+
 // OverlayScope declares where an overlay's computation lands in the
 // base result. It is independent of OverlayShape — a CELL-scoped
 // overlay typically produces a matrix payload, a ROW-scoped overlay

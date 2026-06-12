@@ -301,10 +301,9 @@ func ValidateOverlays(env *Envelope, req *types.Request, schema *encoding.Schema
 	if req == nil || len(req.Overlays) == 0 {
 		return
 	}
-	_ = opts
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
-		validateOverlaySpec(env, req, spec, i)
+		validateOverlaySpec(env, req, spec, opts, i)
 		validateOverlayLevelWithinPredict(env, req, spec, i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, i)
 	}
@@ -789,7 +788,12 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, req *types.Req
 // Errors are emitted with deterministic Details so MCP / CLI
 // envelopes can render the index, kind, and offending value without
 // re-parsing the message string.
-func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+//
+// `opts` is threaded through so per-kind validators reach
+// `opts.Extensions` for embedder-side state (E5 / E8). Most kinds do
+// not consume opts today; the FORMULA dispatch (E8-S4) reads
+// `opts.Extensions.ExprFunctions` to widen the allowed identifier set.
+func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	if spec == nil {
 		return
 	}
@@ -840,6 +844,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayDeltaVsSibling(env, req, spec, index)
 	case types.OverlayKindFisherExactCell:
 		validateOverlayFisherExactCell(env, req, spec, index)
+	case types.OverlayKindFormula:
+		validateFormulaOverlay(env, req, spec, opts, index)
 	case types.OverlayKindIndexVsBaseline:
 		validateOverlayIndexVsBaseline(env, req, spec, index)
 	case types.OverlayKindIndexVsMargin:
