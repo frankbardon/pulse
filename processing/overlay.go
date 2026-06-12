@@ -2670,6 +2670,12 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
+	case types.OverlayKindIndexVsPrior:
+		// INDEX_VS_PRIOR is the windowed lag-1 kind; synthesised default
+		// surfaces the lower-case bare-kind string "index_vs_prior"
+		// matching the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES dispatch
+		// convention (no axis dispatch — the ordered host axis is fixed).
+		return "index_vs_prior"
 	case types.OverlayKindIndexVsSibling:
 		// INDEX_VS_SIBLING resolves a sibling via Ref.Sibling.{Field,
 		// Value}; the synthesised default surfaces the bare lower-case

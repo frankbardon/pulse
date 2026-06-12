@@ -301,6 +301,39 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Honours OverlaySpec Level / Within slots for nested-axis denominator truncation " +
 				"(E2-S11).",
 		}
+	case types.OverlayKindIndexVsPrior:
+		return OverlayCapability{
+			Kind: types.OverlayKindIndexVsPrior,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// Prior is the windowed-axis lag-N ref family (E4-S4 ships
+			// lag-1 only via Ref.Prior or an entirely empty Ref). Listed
+			// in the capability surface so MCP / manifest clients see the
+			// kind consumes the Prior arm even though the v1 authoring
+			// shape can leave Ref entirely empty.
+			RefKinds: []string{"Prior"},
+			Description: "Per-point windowed index against the immediately preceding point of an ordered SERIES " +
+				"(grouped Process) host: (point_value / prior_value) * 100. GROUP scope over a SERIES host with " +
+				"SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on " +
+				"Summary.Statistic. First streamable windowed-Process overlay in the catalog (E4-S4) and the " +
+				"first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state " +
+				"lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process " +
+				"fold (no second pass over records); the post-host finalize is the divide step. First present " +
+				"point emits NaN (no prior available — not a zero-denominator path, so no warning). Zero prior " +
+				"value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected entry. Absent host points emit a " +
+				"present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier " +
+				"— the next present point compares against the most recent PRESENT value. Ref accepts either " +
+				"Ref.Prior (with Lag zero or unset for v1; non-zero Lag is reserved for future window-N priors) " +
+				"or an entirely empty Ref (the implicit-default authoring shape); any other ref-family pointer " +
+				"fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — " +
+				"the lag carrier folds across the ordered axis without a prefix-bucket denominator); non-zero " +
+				"values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on " +
+				"baseline=100.",
+		}
 	case types.OverlayKindIndexVsSibling:
 		return OverlayCapability{
 			Kind: types.OverlayKindIndexVsSibling,

@@ -338,6 +338,78 @@ const (
 	// always recomputed from raw rows in the crosstab path.
 	OverlayKindIndexVsMargin OverlayKind = "OVERLAY_INDEX_VS_MARGIN"
 
+	// OverlayKindIndexVsPrior emits a per-point windowed index against the
+	// immediately preceding point of an ordered SERIES (grouped Process)
+	// host: `index_i = point_value_i / prior_value_{i-1} * 100`. GROUP
+	// scope over a SERIES host with SERIES payload — one `SeriesEntry`
+	// per host group key in host order, each carrying the index on
+	// `Summary.Statistic`. First **streamable** windowed-Process overlay
+	// in the catalog (E4-S4) and the first kind to use the windowed
+	// `Ref.Prior` arm of the `OverlayRef` discriminated union.
+	//
+	// Math (per host group ordinal `i`):
+	//
+	//	if i == 0           ⇒ NaN              (no prior available)
+	//	if prior_value == 0 ⇒ NaN + warning    (PULSE_OVERLAY_REF_ZERO)
+	//	otherwise           ⇒ point / prior * 100
+	//
+	// Carrier shape (single-state lag): the handler walks the ordered
+	// host series once. A single `float64` lag carrier remembers the most
+	// recently seen PRESENT value; each subsequent present point divides
+	// by the carrier and then advances the carrier to its own value.
+	// Absent host points (resolver reports `(0, false)`) emit NaN for
+	// that ordinal and DO NOT advance the carrier — the "prior" for the
+	// next present point remains the last present value. This single-
+	// state lag is what makes the kind streamable: the streaming-Process
+	// orchestrator carries one f64 lag value alongside the per-group
+	// accumulators inside the streaming fold, and the post-host finalize
+	// is the divide step.
+	//
+	// First-point semantics: the first ordinal has no prior by
+	// construction. The handler emits NaN on the first present entry and
+	// does NOT raise `PULSE_OVERLAY_REF_ZERO` — this is "no comparison
+	// available" rather than "denominator was zero". Renderers should
+	// surface the first entry as "no comparison" (typically a blank
+	// cell) rather than a degenerate signal.
+	//
+	// Zero-prior path: when the lag carrier is `0` at the divide step
+	// (the previous present point had a value of zero), the handler emits
+	// one `PULSE_OVERLAY_REF_ZERO` warning and surfaces NaN on the
+	// affected entries. Subsequent points continue to use the same lag
+	// carrier (since absent points do not advance the carrier, but a
+	// PRESENT zero DOES advance the carrier — and the next point will
+	// then again hit the zero-prior path). Mirrors the existing
+	// `PULSE_OVERLAY_REF_ZERO` contract used by the share / index /
+	// zscore family.
+	//
+	// Forward-compat lag knob: the `Ref.Prior.Lag` slot is reserved for
+	// future window-N priors (e.g. lag-3 for "compare against three
+	// points ago"). v1 ships lag-1 only — non-zero `Lag` is not
+	// exercised by this kind today; later stories will widen the carrier
+	// to a small ring buffer.
+	//
+	// Ref handling: the windowed `Ref.Prior` arm is the implicit default
+	// for this kind. The validator accepts both a populated
+	// `Ref.Prior` (with `Lag` zero or unset for v1) AND an entirely empty
+	// `Ref` (the omitempty-friendly authoring shape) — both spell "lag-
+	// 1 prior". Any other ref-family pointer (`Margin` / `Sibling` /
+	// `BaselineIndex` / `Population` / `Stage` / `Slot`) fires
+	// `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` at predict time.
+	//
+	// Scope must be GROUP. `Level` / `Within` MUST be zero (windowed
+	// kind — the lag carrier folds across the ordered axis without a
+	// prefix-bucket denominator; non-zero values fire
+	// `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` mirroring the
+	// `INDEX_VS_TOTAL` / χ² / Fisher implicit-margin family).
+	//
+	// Streamable. Per `types/overlay_streamability.go`, the streamability
+	// row is `true` — the single-state lag carrier is one f64 carried
+	// alongside the per-group accumulators inside the streaming Process
+	// fold, and the divide step happens at host finalize. Renderers
+	// centre diverging colour ramps on `baseline = 100` (mirrors
+	// `OVERLAY_INDEX_VS_MARGIN` / `OVERLAY_INDEX_VS_TOTAL`).
+	OverlayKindIndexVsPrior OverlayKind = "OVERLAY_INDEX_VS_PRIOR"
+
 	// OverlayKindIndexVsSibling emits a per-group index score against a
 	// sibling group named in `Ref.Sibling`: `(group_val / sibling_val) *
 	// 100.0` per host group key. GROUP scope over a SERIES (grouped
@@ -624,6 +696,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindDeltaVsSibling,
 		OverlayKindFisherExactCell,
 		OverlayKindIndexVsMargin,
+		OverlayKindIndexVsPrior,
 		OverlayKindIndexVsSibling,
 		OverlayKindIndexVsTotal,
 		OverlayKindShareOfCol,
@@ -789,6 +862,32 @@ type OverlayBaselineIndexRef struct {
 	Position int `json:"position,omitempty"`
 }
 
+// OverlayPriorRef is the ref-arm that carries the "previous point in the
+// ordered axis" semantics for windowed-SERIES kinds (the E4 windowed
+// catalog — see kind-catalog-v1 PRD §4 windowed family). It tags a spec
+// as "compare against the lag-N point" against a SERIES host whose
+// group-key order is the chronological ordering the orchestrator baked
+// in at finalize time (typically a `GROUP_DATE`-keyed grouped Process
+// result).
+//
+// E4-S4 (`OVERLAY_INDEX_VS_PRIOR`) is the first kind to consume this
+// arm and ships with lag-1 only. The `Lag` slot is reserved for future
+// window-N priors (lag-3 for "compare against three points ago", etc.);
+// non-zero `Lag` is NOT exercised by any shipping kind today. The
+// authoring shape stays forward-compatible — a v1 caller can leave
+// `Ref` entirely empty (the implicit default for the kind) OR populate
+// `Ref.Prior` with `Lag = 0` (or unset), and both shapes spell "lag-1
+// prior". When later windowed-N stories land they will accept positive
+// `Lag` values and the runtime carrier widens from a single f64 to a
+// small ring buffer.
+type OverlayPriorRef struct {
+	// Lag pins the window width back along the ordered axis. Zero (the
+	// omitempty default) means lag-1 — the immediately preceding point.
+	// Reserved: v1 windowed kinds ship lag-1 only and reject non-zero
+	// values at predict time; later stories widen the carrier.
+	Lag int `json:"lag,omitempty"`
+}
+
 // OverlayPopulationRef is reserved for "vs population" comparisons that
 // compare a filtered cohort against an unfiltered (or differently-
 // filtered) population. Not populated in E1.
@@ -832,6 +931,11 @@ type OverlayRef struct {
 
 	// BaselineIndex selects a fixed baseline coordinate. Reserved.
 	BaselineIndex *OverlayBaselineIndexRef `json:"baseline_index,omitempty"`
+
+	// Prior selects the lag-N point along the host's ordered axis
+	// (windowed-SERIES family — E4). E4-S4 (`OVERLAY_INDEX_VS_PRIOR`) is
+	// the first consumer and ships with lag-1 only.
+	Prior *OverlayPriorRef `json:"prior,omitempty"`
 
 	// Population selects an alternate cohort / population. Reserved.
 	Population *OverlayPopulationRef `json:"population,omitempty"`

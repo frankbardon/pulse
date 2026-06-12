@@ -250,6 +250,13 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// Handler: applyDeltaVsSibling in
 	// processing/overlay_delta_vs_sibling.go.
 	types.OverlayKindDeltaVsSibling: applyDeltaVsSibling,
+	// OVERLAY_INDEX_VS_PRIOR (E4-S4): per-point windowed index against
+	// the immediately preceding ordered-axis point — single-state lag
+	// carrier (one f64 alongside the per-group accumulators in the
+	// streaming fold). First streamable windowed-Process handler in the
+	// catalog. Handler: applyIndexVsPrior in
+	// processing/overlay_index_vs_prior.go.
+	types.OverlayKindIndexVsPrior: applyIndexVsPrior,
 	// OVERLAY_INDEX_VS_SIBLING (E3-S5): per-group ratio index against a
 	// sibling group named in Ref.Sibling, scaled to ×100. Buffered
 	// (sibling resolution requires the full materialised SeriesPayload).

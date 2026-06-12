@@ -125,13 +125,16 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 		case types.OverlayKindIndexVsTotal,
 			types.OverlayKindZScoreVsTotal,
 			types.OverlayKindDeltaVsSibling,
-			types.OverlayKindIndexVsSibling:
+			types.OverlayKindIndexVsSibling,
+			types.OverlayKindIndexVsPrior:
 			// SERIES-host: skipped from the MATRIX-host catalog gate.
 			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
 			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
 			// ZSCORE_VS_TOTAL; they are covered by their own per-kind
 			// happy-path tests against indexVsTotalSeriesHostReq()-style
-			// fixtures rather than this MATRIX-host fixture.
+			// fixtures rather than this MATRIX-host fixture. E4-S4 adds
+			// INDEX_VS_PRIOR (windowed lag-1) which is also SERIES-host
+			// and rides on the same skip rule.
 			continue
 		}
 		matrixHostKinds[k] = true
@@ -317,6 +320,14 @@ func TestPredict_OverlayCost_StreamableKindsLow(t *testing.T) {
 		types.OverlayKindShareOfTotal: {
 			Name:  "share_total_series",
 			Kind:  types.OverlayKindShareOfTotal,
+			Scope: types.OverlayScopeGroup,
+		},
+		// INDEX_VS_PRIOR (E4-S4): first streamable windowed-Process kind.
+		// SERIES host (same indexVsTotalSeriesHostReq fixture); the
+		// implicit-default authoring shape leaves Ref empty.
+		types.OverlayKindIndexVsPrior: {
+			Name:  "idx_prior",
+			Kind:  types.OverlayKindIndexVsPrior,
 			Scope: types.OverlayScopeGroup,
 		},
 	}
@@ -514,6 +525,7 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		types.OverlayKindShareOfTotal:   true,
 		types.OverlayKindDeltaVsSibling: true,
 		types.OverlayKindIndexVsSibling: true,
+		types.OverlayKindIndexVsPrior:   true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

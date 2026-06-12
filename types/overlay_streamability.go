@@ -74,6 +74,15 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// overlay closing the E2 inferential family).
 	OverlayKindFisherExactCell: false,
 	OverlayKindIndexVsMargin: false,
+	// OVERLAY_INDEX_VS_PRIOR is streamable — first windowed-Process
+	// overlay (E4-S4) in the streamable subset. The single-state lag
+	// carrier is one f64 carried alongside the per-group accumulators
+	// inside the streaming Process fold: each present point divides by
+	// the carrier and then advances it to its own value (absent host
+	// points do NOT advance the carrier — the "prior" stays the last
+	// PRESENT value). The post-host finalize step is the divide. v1
+	// ships lag-1 only via the implicit-default `Ref.Prior` arm.
+	OverlayKindIndexVsPrior: true,
 	// OVERLAY_INDEX_VS_SIBLING is buffered — the SERIES sibling-reference
 	// family resolves its comparison anchor via a (Field, Value) lookup
 	// against the materialised per-group accumulators, which the streaming

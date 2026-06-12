@@ -49,6 +49,11 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// inherently buffered (see CLAUDE.md "Execution modes" →
 		// Crosstab).
 		OverlayKindIndexVsMargin: false,
+		// INDEX_VS_PRIOR is the first streamable windowed-Process overlay
+		// (E4-S4). The single-state lag carrier is one f64 carried
+		// alongside the per-group accumulators inside the streaming
+		// Process fold; the post-host finalize is the divide step.
+		OverlayKindIndexVsPrior: true,
 		// INDEX_VS_SIBLING is buffered — sibling resolution against a
 		// (Field, Value) pair requires the full materialised
 		// SeriesPayload; the streaming Process pass cannot resolve the
