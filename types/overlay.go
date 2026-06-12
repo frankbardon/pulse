@@ -2090,6 +2090,42 @@ type OverlaySpec struct {
 	Within int `json:"within,omitempty"`
 }
 
+// OverlayOptions is the per-spec optimization knob bag for Compose-only
+// overlays. Carried on ComposeOverlaySpec.Options (omitempty). Default
+// behaviour is the SAFE path on every knob; non-default values opt the
+// runtime into a faster but caller-attested-correct execution mode.
+//
+// E7-S8 scope:
+//
+//   - DictPrefixFast — opt-in fast path for cross-slot categorical
+//     dictionary comparison. Default false (SAFE by-label join: every
+//     cell / group key is decoded via the slot's dictionary before
+//     comparison and tolerates arbitrary dict reordering). Setting
+//     true opts the runtime into direct-index comparison across slots;
+//     processing.ApplyComposeOverlays runs a per-invocation prefix-
+//     equality probe (checkDictPrefixEquality) over the reference +
+//     every target dictionary BEFORE per-kind dispatch; any divergence
+//     fires PULSE_OVERLAY_DICT_PREFIX_DRIFT. Probe-validation at
+//     `pulse.New` time is an E7-S8 scoping non-goal — cohort pairing is
+//     a per-request decision rather than a registration-time one, so
+//     the probe runs per ApplyComposeOverlays invocation instead. The
+//     fast path produces identical output to the safe path when the
+//     probe passes; the probe is the correctness barrier.
+//
+// Forward-compat: omitempty on every field keeps the canonical hash
+// byte-identical to a pre-OverlayOptions ComposeOverlaySpec when the
+// caller doesn't supply Options at all. New knobs land here under the
+// same omitempty rule.
+type OverlayOptions struct {
+	// DictPrefixFast opts into the byte-equal-prefix fast path for
+	// cross-slot categorical dictionary comparison. Default false (the
+	// SAFE by-label join). When true, processing.ApplyComposeOverlays
+	// runs a per-invocation prefix-equality probe over the reference
+	// and every target dictionary; mismatched prefixes fire
+	// PULSE_OVERLAY_DICT_PREFIX_DRIFT and the spec is rejected.
+	DictPrefixFast bool `json:"dict_prefix_fast,omitempty"`
+}
+
 // SeriesPayload is the canonical strip used by series-shaped overlay
 // payloads. Each Entry pairs a composite axis-tuple key (matching the
 // host layer's AxisKey shape element-for-element) with an

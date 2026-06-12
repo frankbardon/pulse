@@ -1402,6 +1402,24 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_DICT_PREFIX_DRIFT: {
+		// Minimal entry — full polish (richer Message + per-field Fixup
+		// hints) lands with E7-S13. This row keeps TestCodesHaveFixups
+		// green at E7-S8.
+		Message: "A Compose overlay spec opted into ComposeOverlaySpec.Options.DictPrefixFast but the reference slot and one or more target slots carry categorical dictionaries that do not share a byte-equal common prefix. The fast path engages direct-index comparison across slots; divergent dictionaries silently produce incorrect cell alignment under that mode so the runtime fails loud. Default behaviour is the safe by-label join (decode each key via the slot dictionary before comparison) and tolerates arbitrary dict reordering. Details carry the offending `reference` slot label, the `target_label`, the `field` whose dictionaries disagree, and the canonical `reference_dict_prefix` / `target_dict_prefix` strings (entries joined `|`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Options"},
+				Hint:   "Drop ComposeOverlaySpec.Options.DictPrefixFast (or set it to false) to fall back to the safe by-label join, which tolerates arbitrary dictionary reordering across slots. The fast path is an opt-in optimization for cohorts whose per-slot dictionaries are known to share a byte-equal prefix.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests"},
+				Hint:   "Re-issue the diverging slot Requests against cohorts whose categorical dictionaries share a byte-equal common prefix on the overlay's keying field — typically by importing both cohorts from the same canonical source or by aligning dictionaries upstream via the sharding append-only prefix rule (see encoding.ValidateDictPrefixRule).",
+			},
+		},
+	},
 	PULSE_OVERLAY_SLOT_NOT_CROSSTAB: {
 		// Minimal entry — full polish (kind-aware Fixup catalogue)
 		// lands with E7-S13 alongside the per-kind matrix-required

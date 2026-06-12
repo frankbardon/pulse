@@ -222,6 +222,22 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 		if err := checkSlotShapeAndSchema(refResp, targetResps, *spec, i); err != nil {
 			return nil, nil, err
 		}
+		// Categorical dictionary-prefix drift probe (E7-S8). Runs ONLY
+		// when the caller opted into the byte-equal fast path via
+		// ComposeOverlaySpec.Options.DictPrefixFast = true. Default
+		// behaviour (Options == nil OR DictPrefixFast == false) is the
+		// SAFE by-label join — every cell / group key compares via its
+		// decoded label string regardless of underlying categorical
+		// index assignment, so dictionary reordering is tolerated. The
+		// fast path opts into direct-index comparison; we fail loud
+		// with PULSE_OVERLAY_DICT_PREFIX_DRIFT when any slot
+		// dictionary diverges. See processing/compose_overlay_dictprobe.go
+		// for the probe-vs-pulse.New scoping discussion.
+		if spec.Options != nil && spec.Options.DictPrefixFast {
+			if err := checkDictPrefixEquality(refResp, targetResps, *spec, i); err != nil {
+				return nil, nil, err
+			}
+		}
 		handler, ok := composeOverlayHandlers[spec.Kind]
 		if !ok {
 			// E7-S4 chassis fallback: no per-kind handler registered

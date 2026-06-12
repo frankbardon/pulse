@@ -881,6 +881,32 @@ const (
 	// companion lands with E7-S14.
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
 
+	// PULSE_OVERLAY_DICT_PREFIX_DRIFT indicates a Compose overlay spec
+	// where ComposeOverlaySpec.Options.DictPrefixFast was opted into on a
+	// pair of slots whose categorical dictionaries do NOT share a
+	// byte-equal common prefix. The fast-path engages direct-index
+	// comparison across slots (skipping the by-label decode the default
+	// path performs); divergent dictionaries silently produce incorrect
+	// cell alignment under that mode so the runtime fails loud rather
+	// than degrading silently. Default behaviour is the SAFE by-label
+	// join — every cell / group key is decoded via the slot's dictionary
+	// before comparison and tolerates arbitrary dict reordering — so
+	// this code only fires for callers that explicitly opted into the
+	// fast path. Details carry the offending `reference` slot label, the
+	// `target_label`, the `field` whose dictionaries disagree, and the
+	// shorter `reference_dict_prefix` / `target_dict_prefix` strings
+	// joined with "|" so renderers can diff the two dictionaries
+	// verbatim. The check runs once per overlay spec at the post-slot
+	// barrier inside processing.ApplyComposeOverlays AFTER the key-set,
+	// shape, and schema gates have passed and BEFORE the per-kind
+	// handler dispatches. Probe-validation at registration time is an
+	// E7-S8 scoping non-goal: cohort pairing is a per-request decision
+	// rather than a registration-time one, so the probe runs per
+	// ApplyComposeOverlays invocation instead. Surfaced at runtime today
+	// (E7-S8); the descriptor.ValidateComposedRequest predict-time
+	// companion lands with E7-S14.
+	PULSE_OVERLAY_DICT_PREFIX_DRIFT Code = "PULSE_OVERLAY_DICT_PREFIX_DRIFT"
+
 	// PULSE_OVERLAY_SLOT_NOT_CROSSTAB indicates a Compose overlay spec
 	// whose Kind requires a MATRIX-shaped (crosstab) host but at least
 	// one resolved slot — reference or target — is not a crosstab
@@ -1048,6 +1074,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_SCHEMA_DIVERGENT,
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT,
 	PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
+	PULSE_OVERLAY_DICT_PREFIX_DRIFT,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

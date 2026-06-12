@@ -81,4 +81,15 @@ type ComposeOverlaySpec struct {
 	// Params["scale"] for share-vs-index variants, etc. Omitted on
 	// the wire when nil.
 	Params map[string]any `json:"params,omitempty"`
+
+	// Options carries per-spec optimization knobs that switch the
+	// runtime into a faster but caller-attested-correct execution
+	// mode. Default nil (and field-level omitempty inside
+	// OverlayOptions) keeps the canonical-hash byte-identical to a
+	// pre-Options ComposeOverlaySpec — every knob defaults to the SAFE
+	// path. E7-S8 lands one knob (DictPrefixFast: opt into byte-equal
+	// dict-prefix comparison across slots); subsequent stories may
+	// extend OverlayOptions with additional knobs under the same
+	// omitempty rule.
+	Options *OverlayOptions `json:"options,omitempty"`
 }
