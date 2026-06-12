@@ -3,6 +3,7 @@ package pulse
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"reflect"
 	"testing"
 
@@ -253,5 +254,184 @@ func TestProcess_OverlayEchoedRequest(t *testing.T) {
 	if parsed.Request.Overlays[0].Kind != types.OverlayKindIndexVsMargin {
 		t.Fatalf("wire-shape echoed kind = %q, want %q",
 			parsed.Request.Overlays[0].Kind, types.OverlayKindIndexVsMargin)
+	}
+}
+
+// TestExtensions_OverlayKinds_FormulaExprFn is the E8-S7 canonical-name
+// acceptance gate verifying that an embedder-registered ExprFunction
+// surfaced through `pulse.Options.Extensions.ExprFunctions` becomes
+// reachable from an `OVERLAY_FORMULA` `Params["formula"]` expression
+// when the Process facade dispatches a Crosstab + Overlays request.
+// Exercises the full extension thread: pulse.New(Options{Extensions:
+// {ExprFunctions: {...}}}) → ExtensionsSnapshot → buffered crosstab
+// exit → ApplyOverlaysWithExtensions → FORMULA compile-time
+// `ExprOptions()` slice → per-cell expr.Run.
+//
+// Also asserts Predict accepts the same registered-function call (no
+// PULSE_OVERLAY_FORMULA_INVALID_IDENT for the registered name) so the
+// predict + runtime surfaces agree on what an embedder can author. The
+// PredictResult.Streamable flag must report false for the FORMULA
+// catalog entry per types.OverlayStreamability — runtime fold is
+// buffered.
+func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
+	memFs, _ := crosstabOverlayPulseFile(t)
+
+	// Embedder function: classic percent-change between two values.
+	// Reachable from any FORMULA expression as a Go-side helper the
+	// caller didn't have to repeat per overlay.
+	pctChange := func(now, ref float64) float64 {
+		if ref == 0 {
+			return math.NaN()
+		}
+		return (now - ref) / ref * 100.0
+	}
+
+	p, err := New(Options{
+		FS: memFs,
+		Extensions: Extensions{
+			ExprFunctions: []ExprFunction{
+				{
+					Name:      "pct_change",
+					Signature: "pct_change(now float64, ref float64) float64",
+					Fn:        pctChange,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New(Extensions.ExprFunctions): %v", err)
+	}
+
+	// Build a Crosstab + FORMULA overlay request. The formula invokes
+	// the embedder-supplied pct_change(cell, 100). Per-cell expected
+	// value with cells {1..3, 10..30, 100..300} versus ref 100:
+	//   row 0: -99, -98, -97
+	//   row 1: -90, -80, -70
+	//   row 2:   0, 100, 200
+	req := crosstabOverlayRequest()
+	req.Overlays = []types.OverlaySpec{
+		{
+			Name:   "pct_change_overlay",
+			Kind:   types.OverlayKindFormula,
+			Scope:  types.OverlayScopeCell,
+			Params: json.RawMessage(`{"formula":"pct_change(cell, 100.0)"}`),
+		},
+	}
+
+	// Predict gate: registered function must NOT surface as unknown
+	// identifier; the FORMULA catalog entry must report streamable=false.
+	// The public Predict facade drops envelope.Errors on the floor when
+	// Valid=false (it returns the result rather than the envelope), so
+	// `result.Valid==true` is the load-bearing acceptance signal — the
+	// negative arm below uses descriptor.PredictFromBytes directly to
+	// inspect the error code.
+	predictResult, err := p.Predict(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Predict: %v", err)
+	}
+	if !predictResult.Valid {
+		t.Errorf("Predict.Valid = false; want true (registered ExprFunction visible to predict)")
+	}
+	if len(predictResult.OverlaysApplied) != 1 {
+		t.Fatalf("Predict.OverlaysApplied len = %d, want 1", len(predictResult.OverlaysApplied))
+	}
+	if predictResult.OverlaysApplied[0].Kind != types.OverlayKindFormula {
+		t.Errorf("Predict.OverlaysApplied[0].Kind = %q, want %q",
+			predictResult.OverlaysApplied[0].Kind, types.OverlayKindFormula)
+	}
+	if predictResult.OverlaysApplied[0].Streamable {
+		t.Errorf("Predict.OverlaysApplied[0].Streamable = true; want false (FORMULA is buffered)")
+	}
+
+	// Runtime arm: Process dispatches the FORMULA overlay against the
+	// crosstab matrix; every present cell must carry the pct_change
+	// result.
+	resp, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if resp == nil || resp.Crosstab == nil || resp.Crosstab.Matrix == nil {
+		t.Fatalf("expected crosstab matrix payload on response")
+	}
+	if len(resp.Overlays) != 1 {
+		t.Fatalf("Response.Overlays len = %d, want 1", len(resp.Overlays))
+	}
+	layer := resp.Overlays[0]
+	if layer.Kind != types.OverlayKindFormula {
+		t.Fatalf("layer.Kind = %q, want %q", layer.Kind, types.OverlayKindFormula)
+	}
+	if layer.Payload.Shape != types.OverlayShapeMatrix {
+		t.Fatalf("layer.Payload.Shape = %q, want %q",
+			layer.Payload.Shape, types.OverlayShapeMatrix)
+	}
+	if layer.Payload.Matrix == nil {
+		t.Fatalf("layer.Payload.Matrix nil")
+	}
+	want := [3][3]float64{
+		{-99, -98, -97},
+		{-90, -80, -70},
+		{0, 100, 200},
+	}
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			cell := layer.Payload.Matrix.Cells[i][j]
+			if !cell.Present {
+				t.Fatalf("Cells[%d][%d] absent; want present", i, j)
+			}
+			got, ok := cell.Value.(float64)
+			if !ok {
+				t.Fatalf("Cells[%d][%d].Value = %T, want float64", i, j, cell.Value)
+			}
+			if math.Abs(got-want[i][j]) > 1e-9 {
+				t.Errorf("Cells[%d][%d].Value = %v, want %v", i, j, got, want[i][j])
+			}
+		}
+	}
+
+	// Negative arm: a Pulse instance without the registered function
+	// must reject the same formula at Predict-time with
+	// PULSE_OVERLAY_FORMULA_INVALID_IDENT. Pulse.Predict surfaces the
+	// envelope.Data on Valid=false but drops envelope.Errors, so the
+	// negative arm drops down to descriptor.PredictFromBytes directly
+	// to inspect the on-wire error codes — mirrors what the CLI surface
+	// emits when --json is set. Pins the predict-rejection contract
+	// embedders rely on for catching authoring errors at validation
+	// time.
+	pBare, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New(no Extensions): %v", err)
+	}
+	predictBare, err := pBare.Predict(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Predict(no Extensions): %v", err)
+	}
+	if predictBare.Valid {
+		t.Errorf("Predict.Valid = true on bare instance; want false (registered ExprFunction missing)")
+	}
+
+	// Inspect the on-wire error code by re-driving the underlying
+	// predict path against the cohort bytes — same code path the CLI
+	// --json envelope emits and the contract surface the predict gate
+	// publishes.
+	data, err := afero.ReadFile(memFs, "overlay.pulse")
+	if err != nil {
+		t.Fatalf("ReadFile cohort: %v", err)
+	}
+	envBare := descriptor.PredictFromBytes(data, req, &descriptor.PredictOptions{
+		Extensions: pBare.Service().ExtensionsSnapshot(),
+	})
+	gotInvalidIdent := false
+	for _, e := range envBare.Errors {
+		if e.Code == "PULSE_OVERLAY_FORMULA_INVALID_IDENT" {
+			gotInvalidIdent = true
+			break
+		}
+	}
+	if !gotInvalidIdent {
+		codes := make([]string, 0, len(envBare.Errors))
+		for _, e := range envBare.Errors {
+			codes = append(codes, e.Code)
+		}
+		t.Errorf("Predict on bare instance: missing PULSE_OVERLAY_FORMULA_INVALID_IDENT; got %v", codes)
 	}
 }

@@ -899,6 +899,341 @@ func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 	}
 }
 
+// TestOverlay_Formula_Cell_Matrix is the E8-S7 canonical-name
+// acceptance gate for the MATRIX-host CELL-scope FORMULA path. Drives
+// the per-cell hot path through the public `applyFormula` entry against
+// the canonical 2x3 fixture and asserts every present cell carries the
+// expected `(cell - margin_grand) / sd_grand` value. Pins the spec the
+// research note § 2.1 contract documents for the MATRIX namespace — a
+// formula referencing the host's cell, the grand margin slot, and the
+// pre-computed grand SD slot all in one expression. The arithmetic
+// matches the standalone single-axis Welford SD baselines locked by
+// TestOverlay_Formula_NamespaceMatrixSDs.
+func TestOverlay_Formula_Cell_Matrix(t *testing.T) {
+	// 2x3 matrix:
+	//   row 0: [1, 2, 3]
+	//   row 1: [4, 5, 6]
+	// Grand margin (total) = 21. Grand SD (population) = sqrt(17.5/6).
+	host := newFormulaHostWithMargins(2, 3, func(r, c int) float64 {
+		return float64(r*3 + c + 1)
+	})
+	spec := newFormulaSpec("cell_matrix", "(cell - margin_grand) / sd_grand")
+
+	layer, warnings, err := applyFormula(&spec, host)
+	if err != nil {
+		t.Fatalf("applyFormula: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("unexpected warnings: %v", warnings)
+	}
+	if layer.Payload.Shape != types.OverlayShapeMatrix {
+		t.Fatalf("layer.Payload.Shape = %v, want matrix", layer.Payload.Shape)
+	}
+	if layer.Payload.Matrix == nil {
+		t.Fatalf("layer.Payload.Matrix nil")
+	}
+
+	grandTotal := 21.0
+	grandSD := math.Sqrt(17.5 / 6.0)
+	want := [][]float64{
+		{(1 - grandTotal) / grandSD, (2 - grandTotal) / grandSD, (3 - grandTotal) / grandSD},
+		{(4 - grandTotal) / grandSD, (5 - grandTotal) / grandSD, (6 - grandTotal) / grandSD},
+	}
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 3; j++ {
+			cell := layer.Payload.Matrix.Cells[i][j]
+			if !cell.Present {
+				t.Fatalf("Cells[%d][%d] absent; want present", i, j)
+			}
+			got, ok := cell.Value.(float64)
+			if !ok {
+				t.Fatalf("Cells[%d][%d].Value = %T, want float64", i, j, cell.Value)
+			}
+			if math.Abs(got-want[i][j]) > 1e-12 {
+				t.Errorf("Cells[%d][%d].Value = %v, want %v", i, j, got, want[i][j])
+			}
+		}
+	}
+}
+
+// TestOverlay_Formula_MarginAccess_RowMargin is the E8-S7 canonical-name
+// acceptance gate for the MATRIX-host `margin_row` identifier. Drives a
+// `cell / margin_row` formula against the 2x3 fixture and asserts every
+// present cell carries the row-share value. Sibling of
+// TestOverlay_Formula_MarginAccess_ColMargin /
+// TestOverlay_Formula_MarginAccess_GrandMargin.
+func TestOverlay_Formula_MarginAccess_RowMargin(t *testing.T) {
+	host := newFormulaHostWithMargins(2, 3, func(r, c int) float64 {
+		return float64(r*3 + c + 1)
+	})
+	spec := newFormulaSpec("margin_row_access", "cell / margin_row")
+
+	layer, _, err := applyFormula(&spec, host)
+	if err != nil {
+		t.Fatalf("applyFormula: %v", err)
+	}
+	// row 0 margin = 6, row 1 margin = 15.
+	want := [][]float64{
+		{1.0 / 6.0, 2.0 / 6.0, 3.0 / 6.0},
+		{4.0 / 15.0, 5.0 / 15.0, 6.0 / 15.0},
+	}
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 3; j++ {
+			got, _ := layer.Payload.Matrix.Cells[i][j].Value.(float64)
+			if math.Abs(got-want[i][j]) > 1e-12 {
+				t.Errorf("Cells[%d][%d].Value = %v, want %v", i, j, got, want[i][j])
+			}
+		}
+	}
+}
+
+// TestOverlay_Formula_MarginAccess_ColMargin is the E8-S7 canonical-name
+// acceptance gate for the MATRIX-host `margin_col` identifier. Drives a
+// `cell / margin_col` formula against the 2x3 fixture.
+func TestOverlay_Formula_MarginAccess_ColMargin(t *testing.T) {
+	host := newFormulaHostWithMargins(2, 3, func(r, c int) float64 {
+		return float64(r*3 + c + 1)
+	})
+	spec := newFormulaSpec("margin_col_access", "cell / margin_col")
+
+	layer, _, err := applyFormula(&spec, host)
+	if err != nil {
+		t.Fatalf("applyFormula: %v", err)
+	}
+	// col margins = 5, 7, 9.
+	want := [][]float64{
+		{1.0 / 5.0, 2.0 / 7.0, 3.0 / 9.0},
+		{4.0 / 5.0, 5.0 / 7.0, 6.0 / 9.0},
+	}
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 3; j++ {
+			got, _ := layer.Payload.Matrix.Cells[i][j].Value.(float64)
+			if math.Abs(got-want[i][j]) > 1e-12 {
+				t.Errorf("Cells[%d][%d].Value = %v, want %v", i, j, got, want[i][j])
+			}
+		}
+	}
+}
+
+// TestOverlay_Formula_MarginAccess_GrandMargin is the E8-S7
+// canonical-name acceptance gate for the MATRIX-host `margin_grand`
+// identifier. Drives a `cell / margin_grand` formula against the 2x3
+// fixture.
+func TestOverlay_Formula_MarginAccess_GrandMargin(t *testing.T) {
+	host := newFormulaHostWithMargins(2, 3, func(r, c int) float64 {
+		return float64(r*3 + c + 1)
+	})
+	spec := newFormulaSpec("margin_grand_access", "cell / margin_grand")
+
+	layer, _, err := applyFormula(&spec, host)
+	if err != nil {
+		t.Fatalf("applyFormula: %v", err)
+	}
+	// grand total = 21.
+	want := [][]float64{
+		{1.0 / 21.0, 2.0 / 21.0, 3.0 / 21.0},
+		{4.0 / 21.0, 5.0 / 21.0, 6.0 / 21.0},
+	}
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 3; j++ {
+			got, _ := layer.Payload.Matrix.Cells[i][j].Value.(float64)
+			if math.Abs(got-want[i][j]) > 1e-12 {
+				t.Errorf("Cells[%d][%d].Value = %v, want %v", i, j, got, want[i][j])
+			}
+		}
+	}
+}
+
+// TestOverlay_Formula_Series_Prior is the E8-S7 canonical-name
+// acceptance gate for the SERIES-host `prior` identifier. Drives a
+// `(value - prior) / prior` formula against a 4-entry series host
+// through the compile-once / bind-per-entry pattern (the SERIES dispatch
+// is not yet wired into the seriesOverlayHandlers table per E8-S6 —
+// FORMULA's SERIES integration tier is reserved as a follow-up; this
+// test locks the binder + program contract until the dispatch lands).
+//
+// First entry's `prior` is NaN per research note § 2.2 first-entry
+// semantics; the test asserts the eval bubbles NaN through the
+// expression (`(value - NaN) / NaN == NaN`) so the layer rendering can
+// emit absent for that slot when the SERIES dispatch eventually wires
+// in. Subsequent entries carry the lag-1 ratio (value - prior) / prior.
+func TestOverlay_Formula_Series_Prior(t *testing.T) {
+	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
+	values := []float64{10, 20, 30, 40}
+	resolver := func(i int) (float64, bool) { return values[i], true }
+	host := NewSeriesHostView(keys, resolver)
+
+	ctx := &FormulaContext{
+		Shape:       types.OverlayShapeSeries,
+		SeriesHost:  host,
+		SeriesTotal: 100,
+	}
+	spec := newFormulaSpec("series_prior", "(value - prior) / prior")
+	env := buildFormulaPrototypeEnvSeries(ctx)
+	program, err := compileFormulaProgram(&spec, "(value - prior) / prior", env)
+	if err != nil {
+		t.Fatalf("compileFormulaProgram: %v", err)
+	}
+
+	// Per-entry expected values. Entry 0's prior is NaN ⇒ result is NaN.
+	want := []float64{
+		math.NaN(),
+		(20 - 10) / 10.0,
+		(30 - 20) / 20.0,
+		(40 - 30) / 30.0,
+	}
+	for i := 0; i < len(values); i++ {
+		_, present := bindFormulaEnvSeries(env, ctx, i)
+		if !present {
+			t.Fatalf("bindFormulaEnvSeries(%d): present=false, want true", i)
+		}
+		rawOut, runErr := expr.Run(program.program, env)
+		if runErr != nil {
+			t.Fatalf("expr.Run @ %d: %v", i, runErr)
+		}
+		got, ok := coerceFormulaResult(rawOut)
+		if !ok {
+			t.Fatalf("coerceFormulaResult @ %d: %T (%v)", i, rawOut, rawOut)
+		}
+		if math.IsNaN(want[i]) {
+			if !math.IsNaN(got) {
+				t.Errorf("@ %d: got %v, want NaN (first-entry prior contract)", i, got)
+			}
+			continue
+		}
+		if math.Abs(got-want[i]) > 1e-12 {
+			t.Errorf("@ %d: got %v, want %v", i, got, want[i])
+		}
+	}
+}
+
+// TestOverlay_Formula_SlotAccess_Compose is the E8-S7 canonical-name
+// acceptance gate for the Compose `slot.<label>.cell` namespace per
+// research note § 2.4. Drives a two-slot scenario through the binder +
+// compile/run pattern: a matrix host carrying its own cell values, plus
+// two labeled Compose slots ("population" and "audience") each carrying
+// matrix-shaped per-cell payloads. The formula
+// `slot.population.cell / slot.audience.cell` is byte-evaluated against
+// every host cell and the resulting per-cell ratio asserted.
+//
+// The COMPOSE-host FORMULA dispatch is not yet wired into
+// composeOverlayHandlers per E8 scope (it relies on the per-shape
+// binders shipped by E8-S3; the per-Kind COMPOSE entry lands in a
+// follow-up). This test locks the slot-binding semantics in the
+// meantime so the dispatch integration tier stays trivial when it
+// arrives — every per-iteration binder write is asserted against a
+// known answer.
+func TestOverlay_Formula_SlotAccess_Compose(t *testing.T) {
+	// Host carries cell values 1..4 in a 2x2 grid (used by the formula
+	// only for the iteration coordinate space; the actual formula reads
+	// from the slot namespace so the host's `cell` value is incidental).
+	host := newFormulaHostWithMargins(2, 2, func(r, c int) float64 {
+		return float64(r*2 + c + 1)
+	})
+
+	// Two labeled slots — both matrix-shaped, populated with arithmetic
+	// values whose ratio is computable by hand.
+	populationSlot := formulaSlotBinding{
+		Label: "population",
+		MatrixCells: [][]float64{
+			{200, 400},
+			{600, 800},
+		},
+		MatrixPresent: [][]bool{
+			{true, true},
+			{true, true},
+		},
+	}
+	audienceSlot := formulaSlotBinding{
+		Label: "audience",
+		MatrixCells: [][]float64{
+			{100, 100},
+			{200, 200},
+		},
+		MatrixPresent: [][]bool{
+			{true, true},
+			{true, true},
+		},
+	}
+	ctx := &FormulaContext{
+		Shape:      types.OverlayShapeMatrix,
+		MatrixHost: host,
+		Slots:      []formulaSlotBinding{populationSlot, audienceSlot},
+	}
+	spec := newFormulaSpec("slot_access_compose", "slot.population.cell / slot.audience.cell")
+
+	env := buildFormulaPrototypeEnvMatrix(ctx)
+	// Compile against the slot-aware prototype env. The expr-lang env
+	// validator accepts the dotted member access because the prototype
+	// declares the nested map shape.
+	program, err := compileFormulaProgram(&spec, "slot.population.cell / slot.audience.cell", env)
+	if err != nil {
+		t.Fatalf("compileFormulaProgram: %v", err)
+	}
+
+	// Expected per-cell value = population / audience:
+	//   (0,0): 200 / 100 = 2
+	//   (0,1): 400 / 100 = 4
+	//   (1,0): 600 / 200 = 3
+	//   (1,1): 800 / 200 = 4
+	want := [][]float64{
+		{2.0, 4.0},
+		{3.0, 4.0},
+	}
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 2; j++ {
+			bindFormulaEnvMatrix(env, ctx, i, j)
+			rawOut, runErr := expr.Run(program.program, env)
+			if runErr != nil {
+				t.Fatalf("expr.Run @ (%d, %d): %v", i, j, runErr)
+			}
+			got, ok := coerceFormulaResult(rawOut)
+			if !ok {
+				t.Fatalf("coerceFormulaResult @ (%d, %d): %T (%v)", i, j, rawOut, rawOut)
+			}
+			if math.Abs(got-want[i][j]) > 1e-12 {
+				t.Errorf("@ (%d, %d): got %v, want %v", i, j, got, want[i][j])
+			}
+		}
+	}
+
+	// Sanity-check: engine-defaulted slot names also resolve. The E7-S1
+	// `request_<index+1>` Compose-label default ensures even unnamed
+	// slots get a stable identifier; this arm tests the binder accepts
+	// the canonical default label shape end-to-end.
+	defaultedSlot := formulaSlotBinding{
+		Label: "request_1",
+		MatrixCells: [][]float64{
+			{10, 20},
+			{30, 40},
+		},
+		MatrixPresent: [][]bool{
+			{true, true},
+			{true, true},
+		},
+	}
+	ctxDefaulted := &FormulaContext{
+		Shape:      types.OverlayShapeMatrix,
+		MatrixHost: host,
+		Slots:      []formulaSlotBinding{defaultedSlot},
+	}
+	specDefaulted := newFormulaSpec("slot_default_label", "slot.request_1.cell")
+	envDefaulted := buildFormulaPrototypeEnvMatrix(ctxDefaulted)
+	programDefaulted, err := compileFormulaProgram(&specDefaulted, "slot.request_1.cell", envDefaulted)
+	if err != nil {
+		t.Fatalf("compileFormulaProgram(defaulted): %v", err)
+	}
+	bindFormulaEnvMatrix(envDefaulted, ctxDefaulted, 1, 0)
+	rawOut, runErr := expr.Run(programDefaulted.program, envDefaulted)
+	if runErr != nil {
+		t.Fatalf("expr.Run(defaulted): %v", runErr)
+	}
+	got, _ := coerceFormulaResult(rawOut)
+	if got != 30.0 {
+		t.Errorf("defaulted slot @ (1, 0) = %v, want 30", got)
+	}
+}
+
 // TestExtensions_OverlayKinds_FormulaLookupTable verifies that an
 // embedder's LookupTables registration becomes reachable from a
 // FORMULA expression via the auto-injected `lookup(table, key)` builtin
