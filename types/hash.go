@@ -205,6 +205,19 @@ func (r *FacetRequest) Hash() string {
 }
 
 // Hash returns the canonical content hash of the ChainRequest.
+//
+// Slot coverage is data-driven: every JSON-tagged field on
+// ChainRequest participates via the json.Marshal → canonicalize →
+// sha256 pipeline. The whole-chain Overlays slot (E6-S2) is covered
+// automatically — each ChainOverlaySpec contributes its Name / Kind /
+// Ref{Index,Name} / Target{Index,Name} / Scope / Params to the
+// canonical bytes in declared spec order (slices preserve order),
+// and the StageRef discriminated reference hashes only the populated
+// arm because every field carries `json:",omitempty"`. An
+// overlay-free ChainRequest (nil or empty Overlays slice) omits the
+// `overlays` key entirely via the slot's own `omitempty` tag, so its
+// hash is byte-identical to the pre-Overlays canonical form — see
+// TestChainCanonicalHash_OverlayFreeByteIdentity.
 func (r *ChainRequest) Hash() string {
 	if r == nil {
 		return CanonicalHash("chain", (*ChainRequest)(nil))

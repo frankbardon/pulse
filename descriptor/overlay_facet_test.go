@@ -142,7 +142,7 @@ func TestValidateFacetOverlays_FacetHostKinds_RejectInvalidRef(t *testing.T) {
 		{"prior", types.OverlayRef{Prior: &types.OverlayPriorRef{}}},
 		{"rolling_mean", types.OverlayRef{RollingMean: &types.OverlayRollingMeanRef{}}},
 		{"yoy", types.OverlayRef{YoY: &types.OverlayYoYRef{}}},
-		{"stage", types.OverlayRef{Stage: &types.OverlayStageRef{}}},
+		{"stage", types.OverlayRef{Stage: &types.StageRef{}}},
 		{"slot", types.OverlayRef{Slot: &types.OverlaySlotRef{}}},
 		{"empty_ref", types.OverlayRef{}},
 		{"empty_cohort", types.OverlayRef{Population: &types.OverlayPopulationRef{}}},

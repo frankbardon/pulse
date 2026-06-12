@@ -123,6 +123,17 @@ new aggregation kind on numeric fields, a new contribution-style accumulator):
 4. Add a failing-gate test in `service/chain_test.go` and a matching predict test in `descriptor/chain_test.go`.
 5. Skim `skills/getting-started.md` and `skills/mcp-integration.md` for any operator allowlist that needs adjustment.
 
+### Whole-chain overlays (dual-slot, E6)
+
+`ChainRequest.Overlays []*ChainOverlaySpec` is the whole-chain overlay surface — overlays here execute AFTER every stage finalises (NOT between stages). Per-stage overlays continue to ride the universal `ChainStage.Request.Overlays []OverlaySpec` slot.
+
+- `ChainOverlaySpec` (in `types/chain.go`): `Name string`, `Kind OverlayKind`, `Ref StageRef`, `Target StageRef`, `Scope OverlayScope`, `Params map[string]any`.
+- `StageRef` (in `types/chain.go`): XOR `{Index *int, Name string}`. `Index` is a pointer so `0` is meaningful — the canonical "stage 0" call site sets `Index = &zero`, not `Index` unset. The downstream validator (lands in E6-S3 / E6-S7 / E6-S11) enforces "exactly one of Index / Name".
+- `OverlayRef.Stage` (in `types/overlay.go`) is the same `*StageRef` — there is exactly one `StageRef` declaration in the codebase. The legacy `OverlayStageRef` identifier is a type alias to `StageRef` and is deprecated.
+- `ChainResponse.Overlays []*OverlayLayer` reuses the universal `OverlayLayer` wrapper from `types/overlay.go` (one entry per `ChainRequest.Overlays` spec in matching index order).
+- Canonical-hash coverage is data-driven (`types/hash.go`): the slot's `omitempty` tag means overlay-free chain requests hash byte-identically to the pre-E6-S2 form; populated overlays fold into the hash automatically. Locked by `TestChainCanonicalHash_OverlayFreeByteIdentity` / `TestChainCanonicalHash_OverlaysIncluded`.
+- Whole-chain handler dispatch + per-kind validation land in E6-S3 / E6-S7 / E6-S11. E6-S2 ships the types only.
+
 ## Adding a shard (managing a shard archive)
 
 When an embedder wants to manage a multi-shard `.pulse` archive (a zip-archive cohort that fans out across N standalone `.pulse` shards under union semantics):

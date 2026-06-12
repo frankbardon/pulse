@@ -1853,14 +1853,6 @@ type OverlayPopulationRef struct {
 	Cohort string `json:"cohort,omitempty"`
 }
 
-// OverlayStageRef is reserved for ProcessChain-aware overlays that
-// reference an earlier stage's result. Not populated in E1.
-type OverlayStageRef struct {
-	// Stage indexes the earlier ChainRequest stage whose output is the
-	// comparison surface. Zero-based.
-	Stage int `json:"stage,omitempty"`
-}
-
 // OverlaySlotRef is reserved for slot-aware overlays that reference a
 // named slot of the base result (e.g. a labelled regression
 // coefficient, a named percentile bucket). Not populated in E1.
@@ -1911,8 +1903,15 @@ type OverlayRef struct {
 	// Population selects an alternate cohort / population. Reserved.
 	Population *OverlayPopulationRef `json:"population,omitempty"`
 
-	// Stage selects an earlier ProcessChain stage. Reserved.
-	Stage *OverlayStageRef `json:"stage,omitempty"`
+	// Stage selects an earlier ProcessChain stage's result. The
+	// pointee is the same StageRef discriminated reference declared
+	// in types/chain.go and consumed by the ChainOverlaySpec
+	// Ref/Target slots — there is exactly one StageRef type in the
+	// codebase. The per-stage overlay surface
+	// (Request.Overlays-style) can therefore name a chain stage
+	// using the same shape the whole-chain overlay surface uses.
+	// Wired into the per-kind validators starting in the E6 series.
+	Stage *StageRef `json:"stage,omitempty"`
 
 	// Slot selects a named slot on the base result. Reserved.
 	Slot *OverlaySlotRef `json:"slot,omitempty"`
