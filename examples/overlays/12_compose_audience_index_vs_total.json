@@ -1,0 +1,98 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Compose batch of two crosstab slots (total_pop, audience_a) over region x segment decorated with an OVERLAY_INDEX_VS_REF matrix-shape compose overlay that scores each audience_a cell against the matching total_pop cell (100 * audience_a / total_pop). First Compose-host matrix example in the catalog (E7-S9 MATRIX arm). Slot labels resolve via Request.Label after the E7-S1 auto-default — Reference names the baseline slot (the total population crosstab), Targets names the slot whose cells the overlay decorates. The compose chassis runs four sequential gates before the per-kind handler dispatches: slot label resolution (PULSE_OVERLAY_REF_UNKNOWN), key alignment (PULSE_OVERLAY_KEY_SET_DIVERGENT), schema match (PULSE_OVERLAY_SCHEMA_DIVERGENT), and optional dict-prefix drift (PULSE_OVERLAY_DICT_PREFIX_DRIFT, only when Options.DictPrefixFast=true). Both crosstabs read the same experiment.pulse cohort but differ via the Filterers slot — Filterers can carve out the audience subset without changing the matrix shape, so the key sets align by construction. Zero ref_cell emits PULSE_OVERLAY_REF_ZERO with NaN substitution; missing reference cells emit the same code with ref_missing=true and the overlay cell stays absent. Inherently buffered because the matrix arm runs through the Compose slot barrier (per the OVERLAY_INDEX_VS_REF dual-shape convention).",
+    "name": "compose-audience-index-vs-total",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "composed",
+      "cross-tabulation",
+      "overlay"
+    ]
+  },
+  "requests": [
+    {
+      "label": "total_pop",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "id",
+          "label": "n"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    },
+    {
+      "label": "audience_a",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["variant"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "id",
+          "label": "n"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "audience_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "cell",
+      "reference": "total_pop",
+      "targets": ["audience_a"]
+    }
+  ]
+}

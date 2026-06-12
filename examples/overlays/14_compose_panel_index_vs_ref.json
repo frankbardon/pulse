@@ -1,0 +1,130 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Compose batch of one reference slot (total_pop) plus three target slots (audience_a, audience_b, audience_c) grouped by region decorated with an OVERLAY_PANEL_INDEX_VS_REF series-shape compose overlay that fans out one OverlayLayer per target. Multi-reference dual-shape kind (E7-S12) — the chassis dispatches a multi-layer return surface so a single ComposeOverlaySpec produces len(spec.Targets) entries in ComposedResponse.Overlays (versus OVERLAY_PROP_Z_PANEL which packs N-slot output into ONE layer's per-cell vector — PANEL_INDEX_VS_REF spreads the panel across N parallel layers instead so renderers see N independent INDEX strips sharing one coord canvas). Each emitted layer is mathematically equivalent to OVERLAY_INDEX_VS_REF for one (reference, target[i]) pair — the handler reuses applyIndexVsRef verbatim per target then renames the resulting layer to '<spec.Name>__<spec.Targets[i]>' so renderers can address every panel target by a stable handle. Layer slice order is spec order then target order: layers[i] corresponds to spec.Targets[i] without any auxiliary index map. SERIES shape — every slot groups revenue by region, the reference (total_pop) provides the per-region baseline; the per-target indices report 100 * audience_revenue / total_pop_revenue per region. Cap enforcement via OverlayOptions.MaxPanelTargets defaults to 16 when Options is nil; three targets clears the default cap by a wide margin. Streamable via per-target SERIES emission (matrix arm forced buffered through the slot barrier, but the SERIES arm rides the streaming Process pass; mirrors the OVERLAY_INDEX_VS_REF dual-shape streamability convention).",
+    "name": "compose-panel-index-vs-ref",
+    "operators": [
+      "AGG_SUM",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "composed",
+      "overlay",
+      "streaming-friendly"
+    ]
+  },
+  "requests": [
+    {
+      "label": "total_pop",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "revenue",
+          "label": "revenue"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "region"
+        }
+      ]
+    },
+    {
+      "label": "audience_a",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["variant"]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "revenue",
+          "label": "revenue"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "region"
+        }
+      ]
+    },
+    {
+      "label": "audience_b",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "segment",
+          "values": ["segment_a"]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "revenue",
+          "label": "revenue"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "region"
+        }
+      ]
+    },
+    {
+      "label": "audience_c",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "converted",
+          "values": ["yes"]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "revenue",
+          "label": "revenue"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "region"
+        }
+      ]
+    }
+  ],
+  "overlays": [
+    {
+      "name": "audience_panel_index",
+      "kind": "OVERLAY_PANEL_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "total_pop",
+      "targets": ["audience_a", "audience_b", "audience_c"]
+    }
+  ]
+}

@@ -4664,7 +4664,7 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 111,
+    "examples_count": 114,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -5434,4 +5434,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c314e7995a46b55f90f183a8e1f8529796a31dc39fbd3aa7212dbe60296324dc
+// golden-hash: 789d8d91bc7b409eb48272925de00c566f640dd0d7fc164a0b609263975171e6
