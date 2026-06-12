@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "FacetSchema summarising a filtered experiment cohort's region distribution decorated with an OVERLAY_INDEX_VS_POP group overlay that scores each region's subset frequency against the population frequency from an unfiltered comparison cohort (100 * subset_freq / pop_freq). First FACET-host overlay (E5-S2): GROUP scope, Ref.Population names the comparison cohort, one SeriesEntry per host value carrying the index on Summary.Statistic. Streamable — runs as a post-finalize fold over the host's per-value distribution against the resolver's population view. Pop frequencies of zero emit PULSE_OVERLAY_REF_ZERO and skip the entry; renderers centre diverging colour ramps on baseline = 100.",
+    "name": "facet-index-vs-pop",
+    "operators": [],
+    "tags": [
+      "cohort-analysis",
+      "facet",
+      "overlay",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "fields": [
+    "region"
+  ],
+  "overlays": [
+    {
+      "name": "region_vs_population",
+      "kind": "OVERLAY_INDEX_VS_POP",
+      "scope": "group",
+      "ref": {
+        "population": {
+          "cohort": "experiment_population.pulse"
+        }
+      }
+    }
+  ]
+}
