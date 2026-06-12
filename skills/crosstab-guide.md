@@ -887,6 +887,101 @@ An overlay decorates the matrix; a `TEST_*` slot rides on raw rows. Both surface
 
 For the framework-level rules (shapes / scopes / refs taxonomy, validation rules, manifest visibility, adding a new overlay kind), see `skills/overlay-system.md`.
 
+### Compose-overlay recipes
+
+Crosstab is also the v1 host for the **Compose-only** overlay catalog — cross-Request comparisons that decorate one slot's matrix with a reference against another slot's matrix in the same `ComposedRequest`. The Compose surface adds a `(Reference, Targets)` slot-label pair on top of the per-Request `OverlayRef` discriminated union; every Compose-only kind passes through the slot-label resolution + key-alignment + schema-match + dict-prefix-drift gates BEFORE the per-kind handler dispatches. The dict-drift warning lives at `skills/overlay-system.md` ("Compose overlays" → "Gate order") — the by-label safe path is correct but slow, `OverlayOptions.DictPrefixFast` opts into byte-equal-prefix comparison with a per-invocation probe.
+
+The three recipes below cover the canonical matrix-host Compose kinds. Pair them with a `compose --json` request or `pulse_compose` MCP call.
+
+#### `OVERLAY_INDEX_VS_REF` — quarter-over-quarter index
+
+Compare Q4 sales against Q3 sales as a per-cell index `100 * Q4 / Q3`. Both slots share the same `region × segment` crosstab shape; the resolver locks key alignment on `(rows, columns)` before computing the ratio. Layer naming follows `spec.Name` ("qoq"); the matrix arm is forced buffered through the Compose slot barrier.
+
+```json
+{
+  "requests": [
+    {"label": "q3", "cohort": {"filename": "q3.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+       "cell":    {"type": "AGG_SUM", "field": "revenue", "label": "rev"}
+     }},
+    {"label": "q4", "cohort": {"filename": "q4.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+       "cell":    {"type": "AGG_SUM", "field": "revenue", "label": "rev"}
+     }}
+  ],
+  "overlays": [
+    {"name": "qoq", "kind": "OVERLAY_INDEX_VS_REF", "scope": "cell",
+     "reference": "q3", "targets": ["q4"]}
+  ]
+}
+```
+
+Each cell of the emitted overlay layer is `100 * (q4_cell / q3_cell)`. Index above `100` flags over-performing cells; below `100` flags under-performing. A zero reference cell fires `PULSE_OVERLAY_REF_ZERO` with NaN substitution; a missing reference cell (target carries a key the reference did not surface) emits the same code with `ref_missing=true` Details and the affected overlay cell stays absent. Set `Params["scale"] = 1` to read raw ratios instead of percentages.
+
+#### `OVERLAY_PROP_Z_CELL` — A/B conversion-rate significance
+
+Test whether the per-cell conversion rate in the treatment cohort differs significantly from the control cohort. Each cell is treated as a success count; its row margin is treated as the sample size on each side. The overlay cell carries the two-sided pooled-SE z-test p-value, computed via the same `standardNormalCDF` helper backing `TEST_PROP_Z`.
+
+```json
+{
+  "requests": [
+    {"label": "control", "cohort": {"filename": "control.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+       "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+       "margins": {"rows": true}
+     }},
+    {"label": "treatment", "cohort": {"filename": "treatment.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+       "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+       "margins": {"rows": true}
+     }}
+  ],
+  "overlays": [
+    {"name": "ab_signif", "kind": "OVERLAY_PROP_Z_CELL", "scope": "cell",
+     "reference": "control", "targets": ["treatment"]}
+  ]
+}
+```
+
+Each overlay cell carries the two-sided p-value as a `float64`. Renderers can colour cells with `p < 0.05` to flag significant lift / drop in conversion rate per `(region, converted=yes)` bucket. The row-margin `n` floor is canonical — missing row margins fall back to the cell value as the sample size, surfacing NaN via the pooled-SE gate rather than silently producing meaningless statistics. Degenerate `pooled ∈ {0, 1}` emits NaN + `PULSE_OVERLAY_REF_ZERO`.
+
+#### `OVERLAY_CHISQ_VS_REF` — distribution-shift goodness-of-fit
+
+Whole-matrix χ² test answering "does the target slot's distribution differ from the reference slot's distribution?" Scalar payload — the layer carries the χ² statistic on `OverlayPayload.Scalar` plus `OverlaySummary{Statistic, PValue, Parameters{"df"}}`. Reuses `chiSquareSurvival` so the overlay surface produces identical p-values to `TEST_CHISQ` for the same contingency.
+
+```json
+{
+  "requests": [
+    {"label": "expected", "cohort": {"filename": "baseline.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+       "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"}
+     }},
+    {"label": "observed", "cohort": {"filename": "current.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+       "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"}
+     }}
+  ],
+  "overlays": [
+    {"name": "shift_test", "kind": "OVERLAY_CHISQ_VS_REF", "scope": "matrix",
+     "reference": "expected", "targets": ["observed"]}
+  ]
+}
+```
+
+The reference distribution is scaled to the target's grand total before computing per-cell expected counts: `expected[i,j] = ref_cell * (target_N / ref_N)`. `df = (cells with expected > 0) - 1`. Small p-value flags a meaningful distribution shift between the two cohorts. The canonical χ² low-count rule applies — any `expected < 5` fires one `PULSE_OVERLAY_EXPECTED_LOW` warning per layer; switch to a per-cell Fisher's-exact-style backstop on small samples. Degenerate `target_N == 0` or `ref_N == 0` emits NaN + NaN with one `PULSE_OVERLAY_REF_ZERO` warning.
+
 ## Conflicts and rejections
 
 The crosstab section is mutually exclusive with top-level `groups` + `aggregations` on the same Request. Predict surfaces `PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS` when both are present. Either remove the top-level slots or split into two Compose requests.

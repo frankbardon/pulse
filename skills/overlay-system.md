@@ -264,6 +264,96 @@ Multiple specs ride the same `Request.Overlays` slice. Each produces one layer i
 
 For per-kind JSON recipes against a Crosstab host — the share triad, the margin-comparison family, and the χ² / Fisher inferential family — see `skills/crosstab-guide.md` ("Overlays" section).
 
+## Compose overlays
+
+Pulse exposes overlays at two slots:
+
+- `Request.Overlays []OverlaySpec` — per-result, decorates the same Request's primary payload against its own structure (margins, baselines, prior periods, populations). Covered above.
+- `ComposedRequest.Overlays []ComposeOverlaySpec` — cross-result, decorates one slot's result with a comparison against another slot in the same `ComposedRequest`. The two surfaces share the universal `OverlayKind` enum but route through different dispatch tables; the per-Request `OverlayRef` discriminated union is swapped for a `(Reference, Targets)` slot-label pair.
+
+The Compose slot is where year-over-year vs. lookalike vs. competitor comparisons live — anywhere the decoration needs a peer result rather than a derived projection of the host itself. The Compose layers land on `ComposedResponse.Overlays` in matching `Request.Overlays[i]` ↔ `Response.Overlays[i]` spec order.
+
+### `Request.Label` + auto-default
+
+Compose overlays address peer slots by name. Every `*Request` in `ComposedRequest.Requests` carries an optional `Label` string:
+
+```json
+{
+  "requests": [
+    {"label": "current", "cohort": {"filename": "q4.pulse"},  "crosstab": {...}},
+    {"label": "prior",   "cohort": {"filename": "q3.pulse"},  "crosstab": {...}}
+  ],
+  "overlays": [
+    {"name": "qoq", "kind": "OVERLAY_INDEX_VS_REF", "scope": "cell",
+     "reference": "prior", "targets": ["current"]}
+  ]
+}
+```
+
+An empty `Label` is auto-defaulted to `request_<i+1>` (1-based) before reference resolution — submitting two Requests with no Label yields stable handles `request_1` and `request_2` so a compose overlay can address them immediately. The synthesis happens against an in-memory clone; the caller's `*Request` pointer is not mutated. Two slots resolving to the same final Label (e.g. caller-supplied `"prior"` + a second slot whose default would also be `"prior"`) raise `PULSE_COMPOSE_LABEL_COLLISION`.
+
+### `ComposeOverlaySpec` shape
+
+```yaml
+name:       string            # renderer-facing label; default synthesised from Kind + Reference + Targets
+kind:       OverlayKind       # one of the 9 Compose-only kinds below
+scope:      cell|group|...    # reuses the universal OverlayScope enum
+reference:  string            # slot label naming the baseline Request
+targets:    [string]          # slot label(s) the comparison decorates; len >= 1
+level:      int               # same-axis prefix truncation (matrix-shape kinds only)
+within:     int               # opposite-axis prefix fixing (matrix-shape kinds only)
+params:     map[string]any    # kind-specific knobs (e.g. Params["scale"], Params["population"])
+options:    *OverlayOptions   # per-spec optimization knobs (DictPrefixFast, MaxPanelTargets)
+```
+
+Field order is the documented canonical-hash contract — keep `Name, Kind, Scope, Reference, Targets, Level, Within, Params, Options` in that order across Go struct, JSON envelope, and any future bindings.
+
+### 11 Compose-only kinds
+
+E7 ships 9 distinct `OverlayKind` constants. Two of them are dual-shape (the matrix arm and the series arm count as separate catalog entries in the inventory, which is where the "11 Compose-only kinds (9 single-target + 2 multi-reference)" PRD inventory count comes from).
+
+Single-target (one `Reference` + one or more `Targets`, one layer per target):
+
+- `OVERLAY_INDEX_VS_REF` — dual-shape (matrix + series). Per-cell / per-group ratio `(target / ref) * scale` (default `scale = 100`). Streamable via the SERIES dispatch; matrix arm is forced buffered through the Compose slot barrier.
+- `OVERLAY_DELTA_VS_REF` — dual-shape (matrix + series). Per-cell / per-group subtractive delta `target - ref`. Same streamability split as `OVERLAY_INDEX_VS_REF`.
+- `OVERLAY_PROP_Z_CELL` — per-cell two-proportion z-test against the reference's matching cell. Matrix payload of two-sided p-values. Buffered (inferential family).
+- `OVERLAY_T_CELL` — per-cell Welch t-test against the reference's matching cell. Matrix payload of two-sided p-values. Variance + n controlled via `Params`. Buffered.
+- `OVERLAY_T_VS_REF` — SERIES-shape Welch t-test sibling of `OVERLAY_T_CELL` (per-group, against the matching reference group). Buffered.
+- `OVERLAY_CHISQ_VS_REF` — whole-matrix χ² test against the reference matrix. Scalar payload. Buffered.
+- `OVERLAY_RANK` — per-cell rank of each target cell within `Params["population"]` (`row | column | matrix`). Reference is structural anchor only — RANK reads only target cells. Buffered.
+
+Multi-reference (one shared `Reference` + multiple `Targets`, fan-out):
+
+- `OVERLAY_PROP_Z_PANEL` — per-cell pairwise two-proportion z-test across the panel (`Reference` + every `Target`). Packs N-slot output into ONE layer's per-cell `[]float64` (flattened upper-triangular). Buffered.
+- `OVERLAY_PANEL_INDEX_VS_REF` — dual-shape (matrix + series) per-target ratio index against the shared reference. Spreads the panel across N parallel layers (one `OverlayLayer` per `Target`). Streamable via per-target SERIES emission; matrix arm forced buffered.
+
+Per-kind shape / scope / ref family / buffered flag / math one-liner / JSON example all live in the catalog table at the top of this skill — the `TestSkillsCoverAllOverlayKinds` gate enforces every kind appears in that table. Compose-host worked recipes for the matrix subset (`OVERLAY_INDEX_VS_REF`, `OVERLAY_PROP_Z_CELL`, `OVERLAY_CHISQ_VS_REF`) live in `skills/crosstab-guide.md` ("Compose-overlay recipes").
+
+### Gate order
+
+Every Compose overlay spec passes through four sequential gates BEFORE the per-kind handler dispatches. A failure at any gate short-circuits the remaining gates for that spec — the spec is rejected and the dispatcher moves on to the next spec without invoking the handler. The order is fixed so failure surface is deterministic:
+
+1. **Slot label resolution** — `Reference` + every `Targets[i]` must resolve to a known slot label (post-auto-default). Unknown handles fire `PULSE_OVERLAY_REF_UNKNOWN`.
+2. **Key alignment** — the axis-key sequence of the reference and each target must agree (matrix host: `RowKeys` + `ColumnKeys` element-for-element; series host: ordered group-key set). Drift fires `PULSE_OVERLAY_KEY_SET_DIVERGENT`.
+3. **Schema match** — the reference and every target must declare structurally identical schemas at the comparison fields (type byte equal; cell-field nullability equal). Drift fires `PULSE_OVERLAY_SCHEMA_DIVERGENT`.
+4. **Dict-prefix drift** (opt-in, when `Options.DictPrefixFast == true`) — every comparison field whose type is `categorical_*` must declare byte-equal dictionary prefixes across the reference and every target. Drift fires `PULSE_OVERLAY_DICT_PREFIX_DRIFT`.
+
+**Dict-drift risk paragraph (interview surface).** By default `Options.DictPrefixFast` is `false` and the safe path runs — every cell / group key is decoded via the slot's dictionary BEFORE comparison and arbitrary dictionary reordering across slots is tolerated. The safe path is correct but slow on wide categoricals because every cross-slot key comparison pays a full dict decode. Setting `Options.DictPrefixFast = true` opts into direct-index comparison across slots; the runtime then runs a per-invocation prefix-equality probe over the reference + every target dictionary and ANY divergence fires `PULSE_OVERLAY_DICT_PREFIX_DRIFT`. The fast path is byte-identical to the safe path when the probe passes — the probe is the correctness barrier. Cohort pairing is per-request, so the probe runs per `ApplyComposeOverlays` invocation rather than at `pulse.New` time (registration-time probe-validation is intentionally out of scope today).
+
+### `OverlayOptions.MaxPanelTargets`
+
+Multi-reference kinds (`OVERLAY_PROP_Z_PANEL`, `OVERLAY_PANEL_INDEX_VS_REF`) fan out across `Reference` + every `Target`. Panel combinatorics scale `O(N²)` per cell on the pairwise kinds and `O(N)` per cell on the fan-out kinds, so the chassis enforces a caller-attested cap. `OverlayOptions.MaxPanelTargets` defaults to `16` when `Options` is nil OR `Options.MaxPanelTargets == 0` — the catalog standardises on one cap surface so renderers can budget panel-layout state against a single knob. `len(spec.Targets) > MaxPanelTargets` fires `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP` at handler entry with `{kind, observed, cap}` Details. The cap counts target slots only — the reference is always present and does not count against the cap (so an authoring shape with 16 targets is valid against the default 16; 17 targets fail). Non-panel kinds ignore the slot.
+
+### Panel layer naming
+
+`OVERLAY_PANEL_INDEX_VS_REF` emits one `OverlayLayer` per `Target` (versus `OVERLAY_PROP_Z_PANEL` which packs N-slot output into one layer's per-cell vector). Each emitted layer follows the convention:
+
+```
+layers[i].Name = "<spec.Name>__<spec.Targets[i]>"
+```
+
+When `spec.Name == ""` the template degenerates to `"OVERLAY_PANEL_INDEX_VS_REF__<target_label>"` (the chassis `composeOverlayLayerName` fallback). Layer slice order is spec order then target order — `layers[i]` corresponds to `spec.Targets[i]` so renderers can address the emitted panel by target offset without an auxiliary index map. Stable across re-runs of the same spec.
+
 ## Windowed family
 
 Six overlay kinds attach to a SERIES (grouped Process) host whose first grouper is ordered (typically `GROUP_DATE`) and consume that ordering to compute point-relative comparisons: `OVERLAY_DELTA_VS_BASELINE`, `OVERLAY_INDEX_VS_BASELINE`, `OVERLAY_INDEX_VS_PRIOR`, `OVERLAY_INDEX_VS_ROLLING_MEAN`, `OVERLAY_YOY`, `OVERLAY_ZSCORE_VS_ROLLING`. They are catalogued in the table at the top of this skill (per-kind shape, ref family, streamability, error matrix); the per-kind JSON recipes — worked authoring shapes, gotchas, error code enumerations, and the streamable-vs-buffered rationale per kind — live in `skills/window-operations.md` ("Windowed-Process overlays" section).
