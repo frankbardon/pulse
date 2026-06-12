@@ -2677,10 +2677,20 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// echo a different value.
 		return string(spec.Kind) + "_" + string(types.MarginAxisColumn)
 	case types.OverlayKindShareOfTotal:
-		// SHARE_OF_TOTAL is grand-axis-locked; the synthesised default
-		// reflects that even if the spec's Ref.Margin.Axis happens to
-		// echo a different value.
-		return string(spec.Kind) + "_" + string(types.MarginAxisGrand)
+		// SHARE_OF_TOTAL dispatches both shapes: MATRIX (crosstab host,
+		// grand-axis-locked, Ref.Margin populated) and SERIES (grouped
+		// Process host, implicit-grand-total, Ref empty per E3-S3). The
+		// synthesised default reflects the host shape — when Ref.Margin
+		// is populated the MATRIX default surfaces
+		// "OVERLAY_SHARE_OF_TOTAL_grand" (echoing the grand-axis lock
+		// even if the caller passed a different axis); when Ref is empty
+		// the SERIES default surfaces "share_of_total" matching the
+		// INDEX_VS_TOTAL / CHISQ_* / FISHER_EXACT_CELL lower-case bare-
+		// kind convention.
+		if spec.Ref.Margin != nil {
+			return string(spec.Kind) + "_" + string(types.MarginAxisGrand)
+		}
+		return "share_of_total"
 	case types.OverlayKindZScoreVsMargin:
 		// ZSCORE_VS_MARGIN dispatches all three axes; the synthesised
 		// default surfaces whichever axis the caller asked for. Falls

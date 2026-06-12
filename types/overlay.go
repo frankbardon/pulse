@@ -361,17 +361,49 @@ const (
 	// ApplyOverlays runs.
 	OverlayKindShareOfRow OverlayKind = "OVERLAY_SHARE_OF_ROW"
 
-	// OverlayKindShareOfTotal emits a per-cell share-of-grand-total
-	// ratio: cell / grand_total. CELL-scoped over a MATRIX (crosstab)
-	// host. The entire matrix sums to 1.0 in the absence of missing
-	// cells; renderers can present the layer as a single-population
-	// share projection where each cell's contribution to the whole
-	// table is visible at a glance. Completes the share triad
-	// (row / col / total). Structural twin of OVERLAY_SHARE_OF_ROW
-	// and OVERLAY_SHARE_OF_COL with the grand-axis margin slot as the
-	// denominator. Inherently buffered for the same reason as
-	// INDEX_VS_MARGIN — the host crosstab orchestrator recomputes
-	// margins from raw rows before ApplyOverlays runs.
+	// OverlayKindShareOfTotal emits a share-of-grand-total ratio.
+	// Dual-shape overload — the dispatch selects the host shape and the
+	// runtime handler differs by host:
+	//
+	//   - MATRIX dispatch (E2-S3): per-cell ratio `cell / grand_total`.
+	//     CELL-scoped over a MATRIX (crosstab) host. The entire matrix
+	//     sums to 1.0 in the absence of missing cells; renderers can
+	//     present the layer as a single-population share projection
+	//     where each cell's contribution to the whole table is visible
+	//     at a glance. Completes the matrix share triad (row / col /
+	//     total). Structural twin of OVERLAY_SHARE_OF_ROW and
+	//     OVERLAY_SHARE_OF_COL with the grand-axis margin slot as the
+	//     denominator. Buffered (the host crosstab orchestrator
+	//     recomputes margins from raw rows before ApplyOverlays runs).
+	//     `Ref.Margin` is required (grand-axis-locked even though the
+	//     handler ignores the axis value).
+	//
+	//   - SERIES dispatch (E3-S3): per-group ratio
+	//     `group_val / grand_total`, scale 1.0 (no ×100 — emits the raw
+	//     share so cells over a complete partition sum to 1.0 within
+	//     ULP). GROUP-scoped over a SERIES (grouped Process) host with
+	//     SERIES payload — one `SeriesEntry` per host group key in host
+	//     order, each carrying the share on `Summary.Statistic`.
+	//     Streamable — sibling kind to OVERLAY_INDEX_VS_TOTAL, same
+	//     grand-total accumulator (`computeSeriesGrandTotal` in
+	//     processing/overlay_series.go) carried alongside the per-group
+	//     accumulators in the streaming Process fold (the streaming
+	//     orchestrator wiring lands in E3-S6; this kind ships the
+	//     post-finalize entry today). `Ref` MUST be empty
+	//     (implicit-grand-total); any Ref-family pointer fires
+	//     `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` at predict time.
+	//     Zero `grand_total` emits one `PULSE_OVERLAY_REF_ZERO` warning
+	//     and populates every entry's Statistic with NaN. Absent host
+	//     groups (resolver reports `(0, false)`) surface a present
+	//     SeriesEntry whose Summary leaves Statistic unset and do NOT
+	//     contribute to the grand total.
+	//
+	// The kind-catalog-v1 interview's resolved-decision rule kept the
+	// SHARE and INDEX kind names distinct ("readable kind names beat
+	// scale-param overloading at JSON-authoring time"), so the SERIES
+	// SHARE_OF_TOTAL dispatch is intentionally a separate kind from
+	// INDEX_VS_TOTAL even though the math overlaps — callers cannot
+	// confuse `share` with `index / 100` at the spec authoring surface.
 	OverlayKindShareOfTotal OverlayKind = "OVERLAY_SHARE_OF_TOTAL"
 
 	// OverlayKindZScoreVsMargin emits a per-cell standardized-margin

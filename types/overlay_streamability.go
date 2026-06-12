@@ -72,8 +72,19 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// "Streaming-capable subset".
 	OverlayKindIndexVsTotal: true,
 	OverlayKindShareOfCol:   false,
-	OverlayKindShareOfRow:     false,
-	OverlayKindShareOfTotal:   false,
+	OverlayKindShareOfRow:   false,
+	// OVERLAY_SHARE_OF_TOTAL is streamable via its SERIES-host dispatch
+	// (E3-S3) — sibling kind to OVERLAY_INDEX_VS_TOTAL, same grand-total
+	// accumulator (computeSeriesGrandTotal in
+	// processing/overlay_series.go), different scaling (raw share, no
+	// ×100). The MATRIX-host dispatch (E2-S3) remains inherently buffered
+	// (the host crosstab path always recomputes margins from raw rows),
+	// but the MATRIX path is already gated through `canFuseCrosstab`'s
+	// "overlays force buffered" arm, so this flag describes the kind's
+	// INTRINSIC streaming capability — the streamable SERIES handler
+	// exists, and the MATRIX route falls back to buffered through the
+	// host gate, not this flag.
+	OverlayKindShareOfTotal:   true,
 	OverlayKindZScoreVsMargin: false,
 }
 

@@ -341,19 +341,36 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 		return OverlayCapability{
 			Kind: types.OverlayKindShareOfTotal,
 			Shapes: []types.OverlayShape{
+				// MATRIX (E2-S3): per-cell ratio cell / grand_total
+				// against a crosstab host.
 				types.OverlayShapeMatrix,
+				// SERIES (E3-S3): per-group ratio group_val /
+				// grand_total against a grouped Process host.
+				types.OverlayShapeSeries,
 			},
 			Scopes: []types.OverlayScope{
+				// CELL: paired with the MATRIX shape on a crosstab host.
 				types.OverlayScopeCell,
+				// GROUP: paired with the SERIES shape on a grouped
+				// Process host (E3-S3).
+				types.OverlayScopeGroup,
 			},
 			RefKinds: []string{"Margin"},
 			Fields:   []string{"level", "within"},
-			Description: "Per-cell share-of-grand-total ratio: cell / grand_total. CELL scope over a MATRIX " +
-				"(crosstab) host. The entire matrix sums to 1.0 in the absence of missing cells; renderers " +
-				"can present the layer as a single-population share projection. Completes the share triad " +
-				"(row / col / total). Declares the level / within fields for renderer-facing parity with " +
-				"the rest of the share family; the grand-axis denominator makes both slots inert at runtime " +
-				"(E2-S11).",
+			Description: "Share-of-grand-total ratio. Dual-shape overload: MATRIX dispatch (E2-S3) emits per-cell " +
+				"cell / grand_total against a CELL-scoped crosstab host, completing the matrix share triad " +
+				"(row / col / total) — the spec must populate Ref.Margin (grand-axis-locked even though the " +
+				"handler ignores the axis value) and declares the level / within fields for renderer-facing parity " +
+				"with the rest of the share family (the grand-axis denominator makes both slots inert at runtime, " +
+				"E2-S11). SERIES dispatch (E3-S3) emits per-group group_val / grand_total against a GROUP-scoped " +
+				"grouped Process host with scale 1.0 (no ×100 — sibling to INDEX_VS_TOTAL but with the SHARE " +
+				"scaling so cells over a complete partition sum to 1.0 within ULP) — Ref MUST be empty " +
+				"(implicit-grand-total). Sibling SERIES kind to OVERLAY_INDEX_VS_TOTAL — shares the same " +
+				"computeSeriesGrandTotal accumulator so a request carrying both overlays folds the grand-total " +
+				"only once in the streaming pass. Zero grand_total emits PULSE_OVERLAY_REF_ZERO with NaN " +
+				"statistics on every present entry; absent host groups surface a present SeriesEntry whose " +
+				"Summary leaves Statistic unset. Streamable via the SERIES dispatch (the MATRIX route is forced " +
+				"buffered through canFuseCrosstab's overlays-force-buffered arm).",
 		}
 	case types.OverlayKindZScoreVsMargin:
 		return OverlayCapability{

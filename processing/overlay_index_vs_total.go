@@ -110,26 +110,17 @@ func applyIndexVsTotal(spec *types.OverlaySpec, host *SeriesHostView) (types.Ove
 
 	groupCount := host.GroupCount()
 
-	// Pass 1: running grand-total accumulator. Absent host values
-	// (resolver reports (0, false)) skip the addition — this is the
-	// AGG_SUM semantics the story acceptance calls out (POST-FILTER
-	// only, never reads pre-filter row count). The streaming-Process
-	// orchestrator (E3-S6) maintains the SAME f64 accumulator inline
-	// with the per-group fold so the post-finalize value is byte-
-	// identical to the value this pass computes against the materialised
-	// host.
-	var grandTotal float64
-	presentMask := make([]bool, groupCount)
-	values := make([]float64, groupCount)
-	for i := 0; i < groupCount; i++ {
-		v, ok := host.ValueAt(i)
-		if !ok {
-			continue
-		}
-		presentMask[i] = true
-		values[i] = v
-		grandTotal += v
-	}
+	// Pass 1: running grand-total accumulator via the shared SERIES
+	// helper. Absent host values (resolver reports (0, false)) skip the
+	// addition — this is the AGG_SUM semantics the story acceptance
+	// calls out (POST-FILTER only, never reads pre-filter row count).
+	// The streaming-Process orchestrator (E3-S6) maintains the SAME f64
+	// accumulator inline with the per-group fold so the post-finalize
+	// value is byte-identical to the value this pass computes against
+	// the materialised host. Sibling kind OVERLAY_SHARE_OF_TOTAL (E3-S3)
+	// shares the same helper so a request carrying BOTH overlays folds
+	// the grand-total ONCE at the streaming layer.
+	grandTotal, presentMask, values := computeSeriesGrandTotal(host)
 
 	// Zero-grand-total path: emit one PULSE_OVERLAY_REF_ZERO warning
 	// and surface NaN per the OverlayPayload convention. The entries

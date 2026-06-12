@@ -514,10 +514,12 @@ func TestApplyOverlaysSeries_UnknownKind(t *testing.T) {
 // production state; this test runs without installing the stub so the
 // assertion reflects the production baseline.
 func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
-	// As of E3-S2: OVERLAY_INDEX_VS_TOTAL is the only registered SERIES
-	// kind. Each subsequent E3 handler story extends this list.
+	// As of E3-S3: OVERLAY_INDEX_VS_TOTAL (E3-S2) + OVERLAY_SHARE_OF_TOTAL
+	// SERIES dispatch (E3-S3) are the registered SERIES kinds. Each
+	// subsequent E3 handler story extends this list.
 	expected := map[types.OverlayKind]bool{
 		types.OverlayKindIndexVsTotal: true,
+		types.OverlayKindShareOfTotal: true,
 	}
 	for kind := range expected {
 		if _, ok := seriesOverlayHandlers[kind]; !ok {

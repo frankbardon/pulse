@@ -205,6 +205,57 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// handler in the catalog. Handler: applyIndexVsTotal in
 	// processing/overlay_index_vs_total.go.
 	types.OverlayKindIndexVsTotal: applyIndexVsTotal,
+	// OVERLAY_SHARE_OF_TOTAL (E3-S3): per-group share of the host series'
+	// grand total (`group_val / grand_total`, scale 1.0). Sibling handler
+	// to INDEX_VS_TOTAL — same grand-total accumulator, different
+	// scaling. Handler: applyShareOfTotalSeries in
+	// processing/overlay_share_of_total_series.go.
+	types.OverlayKindShareOfTotal: applyShareOfTotalSeries,
+}
+
+// computeSeriesGrandTotal folds a running grand-total accumulator over
+// every present host value in the SERIES host. Returns the accumulator
+// plus the parallel presentMask + values slices the per-group emission
+// pass consumes (so callers walk the host once at this entry point and
+// keep the per-group accumulators they already need without a second
+// resolver dispatch).
+//
+// Shared between OVERLAY_INDEX_VS_TOTAL (E3-S2) and OVERLAY_SHARE_OF_TOTAL
+// (E3-S3) — both kinds fold the same grand-total accumulator over a
+// SERIES host and only differ in the scaling step at per-group emission.
+// Keeping the accumulator in one helper lines up with the story note for
+// E3-S3 (`"do NOT duplicate the running-sum carrier"`) and matches the
+// streaming-Process orchestrator's shape: the streaming pass keeps ONE
+// f64 grand-total accumulator alongside the per-group accumulators
+// regardless of how many SHARE / INDEX / etc. overlays the request
+// carries.
+//
+// Absent groups (the resolver reports `(0, false)`) are skipped — they
+// do NOT contribute to the grand total. AGG_SUM semantics over post-
+// filter rows, matching the SeriesHostView resolver contract documented
+// alongside `ValueAt`.
+//
+// Returns (0, empty mask, empty values) when host is nil. The
+// per-handler caller treats `grandTotal == 0 || math.IsNaN(grandTotal)`
+// as the zero-denominator path (one PULSE_OVERLAY_REF_ZERO warning + NaN
+// statistics on every present entry).
+func computeSeriesGrandTotal(host *SeriesHostView) (grandTotal float64, presentMask []bool, values []float64) {
+	if host == nil {
+		return 0, nil, nil
+	}
+	groupCount := host.GroupCount()
+	presentMask = make([]bool, groupCount)
+	values = make([]float64, groupCount)
+	for i := 0; i < groupCount; i++ {
+		v, ok := host.ValueAt(i)
+		if !ok {
+			continue
+		}
+		presentMask[i] = true
+		values[i] = v
+		grandTotal += v
+	}
+	return grandTotal, presentMask, values
 }
 
 // ApplyOverlaysSeries executes every spec in specs against the SERIES

@@ -123,12 +123,28 @@ var shareOfColSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
-// shareOfTotalSupportedScopes is the E2-supported scope set for
-// OVERLAY_SHARE_OF_TOTAL. SHARE_OF_TOTAL is a CELL-scoped layer by
-// construction — every cell divides by the grand total. ROW /
-// COLUMN / TOTAL projections are not meaningful for this kind.
+// shareOfTotalSupportedScopes is the supported scope set for the
+// MATRIX-host dispatch of OVERLAY_SHARE_OF_TOTAL (E2-S3). The MATRIX
+// dispatch is a CELL-scoped layer by construction — every cell divides
+// by the grand total. ROW / COLUMN / TOTAL projections are not
+// meaningful for the MATRIX dispatch.
+//
+// The SERIES-host dispatch (E3-S3) accepts GROUP scope and routes through
+// `shareOfTotalSeriesSupportedScopes`. The host-shape pre-check in
+// `validateOverlayShareOfTotal` selects between the two scope sets so
+// each dispatch's rejection set is exhaustive for its own host.
 var shareOfTotalSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
+}
+
+// shareOfTotalSeriesSupportedScopes is the supported scope set for the
+// SERIES-host dispatch of OVERLAY_SHARE_OF_TOTAL (E3-S3). The SERIES
+// dispatch emits one per-group share against the host series' grand
+// total — Scope=GROUP is the only sensible footprint and any other
+// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
+// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors `indexVsTotalSupportedScopes`.
+var shareOfTotalSeriesSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeGroup: true,
 }
 
 // zscoreVsMarginSupportedScopes is the E2-supported scope set for
@@ -226,6 +242,28 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 					"kind":   string(spec.Kind),
 					"level":  spec.Level,
 					"within": spec.Within,
+				})
+		}
+		return
+	}
+	// SHARE_OF_TOTAL SERIES dispatch (E3-S3) honours the same implicit-
+	// grand-total contract as INDEX_VS_TOTAL — Level / Within must both
+	// be zero. The MATRIX dispatch (E2-S3) falls through to the
+	// crosstab-axis-depth check below where the kind's row+col depths
+	// are accepted (the existing E2-S11 rule), preserving the byte-
+	// identity contract with pre-E3 SHARE_OF_TOTAL MATRIX requests.
+	// Host-shape disambiguation matches `validateOverlayShareOfTotal`'s
+	// dispatch policy.
+	if spec.Kind == types.OverlayKindShareOfTotal && req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
+		if spec.Level != 0 || spec.Within != 0 {
+			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+				"overlay "+string(spec.Kind)+" SERIES dispatch does not support Level / Within (implicit-grand-total contract)",
+				map[string]any{
+					"index":  index,
+					"kind":   string(spec.Kind),
+					"level":  spec.Level,
+					"within": spec.Within,
+					"host":   "series",
 				})
 		}
 		return
@@ -951,15 +989,49 @@ func validateOverlayShareOfCol(env *Envelope, req *types.Request, spec *types.Ov
 }
 
 // validateOverlayShareOfTotal enforces the per-kind contract for
-// OVERLAY_SHARE_OF_TOTAL: Ref must populate Margin (the grand-total
-// reference family), Margin.Axis must be a known MarginAxis (the
-// runtime handler is grand-axis-locked, but the validator accepts any
-// known axis at predict time so a misconfigured caller fails closed
-// with a single shape-mismatch code rather than a stricter "must be
-// grand" code — matches the SHARE_OF_ROW / SHARE_OF_COL followup
-// policy), the host result must be MATRIX-shaped (i.e. Request.Crosstab
-// is non-nil), and Scope must be CELL.
+// OVERLAY_SHARE_OF_TOTAL. The kind is dual-shape — the dispatch chooses
+// between the MATRIX-host validator (E2-S3) and the SERIES-host
+// validator (E3-S3) based on the request's host shape:
+//
+//   - Request.Crosstab non-nil ⇒ MATRIX dispatch: Ref must populate
+//     Margin (the grand-total reference family), Margin.Axis must be a
+//     known MarginAxis, host must be MATRIX-shaped, Scope must be CELL.
+//   - Request.Crosstab nil + Request.Groups non-empty ⇒ SERIES
+//     dispatch: Ref must be empty (implicit-grand-total — sibling rule
+//     to OVERLAY_INDEX_VS_TOTAL), Scope must be GROUP.
+//   - Neither host shape present ⇒ MATRIX-style rejection so the
+//     existing failure mode is preserved (callers without a host get
+//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE the same way they did
+//     before E3-S3 landed).
+//
+// Host-shape disambiguation by inspecting `req.Crosstab` / `req.Groups`
+// matches `validateOverlayIndexVsTotal`'s policy and the runtime
+// dispatch in `processing/overlay_series.go` (ApplyOverlaysSeries) vs
+// `processing/overlay.go` (ApplyOverlays) — each runtime path consumes
+// its own dispatch table, so the predict-time validator has to make the
+// same routing decision.
 func validateOverlayShareOfTotal(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// SERIES-host dispatch path — Request.Crosstab nil AND
+	// Request.Groups non-empty. The SERIES dispatch is implicit-grand-
+	// total so the Ref union MUST be empty (mirrors the INDEX_VS_TOTAL
+	// rule). Falls through to MATRIX-style validation otherwise.
+	if req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
+		validateOverlayShareOfTotalSeries(env, req, spec, index)
+		return
+	}
+	validateOverlayShareOfTotalMatrix(env, req, spec, index)
+}
+
+// validateOverlayShareOfTotalMatrix enforces the MATRIX-host dispatch
+// (E2-S3): Ref must populate Margin (the grand-total reference family),
+// Margin.Axis must be a known MarginAxis (the runtime handler is grand-
+// axis-locked, but the validator accepts any known axis at predict time
+// so a misconfigured caller fails closed with a single shape-mismatch
+// code rather than a stricter "must be grand" code — matches the
+// SHARE_OF_ROW / SHARE_OF_COL followup policy), the host result must be
+// MATRIX-shaped (i.e. Request.Crosstab is non-nil), and Scope must be
+// CELL.
+func validateOverlayShareOfTotalMatrix(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
 	// Ref family must be Margin. SHARE_OF_TOTAL shares the same ref
 	// shape contract as INDEX_VS_MARGIN / SHARE_OF_ROW / SHARE_OF_COL
 	// — the denominator is an axis-margin slot (the grand axis).
@@ -1010,6 +1082,68 @@ func validateOverlayShareOfTotal(env *Envelope, req *types.Request, spec *types.
 				"index": index,
 				"kind":  string(spec.Kind),
 				"scope": string(spec.Scope),
+			})
+		return
+	}
+}
+
+// validateOverlayShareOfTotalSeries enforces the SERIES-host dispatch
+// (E3-S3): the Ref union must be EMPTY (implicit-grand-total — the host
+// series' own grand total is the denominator), the host result must be
+// SERIES-shaped (Request.Crosstab nil AND Request.Groups non-empty —
+// the caller-side dispatcher already verified the host shape before
+// routing here, so we re-assert in case a future caller calls into this
+// branch directly), and Scope must be GROUP.
+//
+// Sibling rule to validateOverlayIndexVsTotal — the two SERIES SHARE /
+// INDEX kinds share the implicit-grand-total contract verbatim.
+func validateOverlayShareOfTotalSeries(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref must be empty — SERIES SHARE_OF_TOTAL is implicit-grand-total
+	// (mirrors INDEX_VS_TOTAL). A caller supplying any family pointer
+	// (Margin / Sibling / BaselineIndex / Population / Stage / Slot) is
+	// using the MATRIX dispatch's spec shape against a SERIES host.
+	if spec.Ref.Margin != nil ||
+		spec.Ref.Sibling != nil ||
+		spec.Ref.BaselineIndex != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" against a SERIES host must leave Ref empty (implicit-grand-total: the host series' own grand total is the denominator)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"host":  "series",
+			})
+		return
+	}
+
+	// Belt-and-suspenders host check — the caller already asserted this,
+	// but re-check so a direct call into this branch from a future
+	// validator-aware caller still gets the right rejection shape.
+	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" SERIES dispatch requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"host":  "series",
+			})
+		return
+	}
+
+	// Scope must be GROUP. SERIES SHARE_OF_TOTAL emits one entry per
+	// host group key — CELL / ROW / COLUMN / MATRIX / TOTAL scopes are
+	// not meaningful for the per-group statistic the SERIES dispatch
+	// emits.
+	if !shareOfTotalSeriesSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" SERIES dispatch does not support scope "+string(spec.Scope)+" (supports: group)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+				"host":  "series",
 			})
 		return
 	}

@@ -1531,6 +1531,154 @@ func TestValidateOverlay_IndexVsTotal_LevelWithinRejected(t *testing.T) {
 	}
 }
 
+// TestValidateOverlay_ShareOfTotal_Series_HappyPath asserts a well-
+// formed OVERLAY_SHARE_OF_TOTAL overlay riding on a grouped Process
+// request (SERIES host — E3-S3 sibling dispatch to INDEX_VS_TOTAL)
+// passes the predict gate without surfacing any overlay-specific
+// errors. SERIES SHARE_OF_TOTAL is implicit-grand-total: Scope=GROUP,
+// Ref=empty. Mirrors TestValidateOverlay_IndexVsTotal_HappyPath.
+func TestValidateOverlay_ShareOfTotal_Series_HappyPath(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := indexVsTotalSeriesHostReq()
+	req.Overlays = []types.OverlaySpec{
+		{
+			Name:  "share_total",
+			Kind:  types.OverlayKindShareOfTotal,
+			Scope: types.OverlayScopeGroup,
+			Ref:   types.OverlayRef{},
+		},
+	}
+
+	env := PredictFromBytes(data, req, nil)
+
+	for _, code := range []errors.Code{
+		errors.PULSE_OVERLAY_KIND_UNKNOWN,
+		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
+		errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
+	} {
+		if hasErrorCode(env, code) {
+			t.Errorf("unexpected overlay error %s on SERIES SHARE_OF_TOTAL happy-path request", code)
+		}
+	}
+}
+
+// TestValidateOverlay_ShareOfTotal_Series_ScopeUnsupported asserts the
+// per-kind scope gate rejects every non-GROUP scope on a SERIES
+// SHARE_OF_TOTAL spec. The SERIES dispatch emits one statistic per
+// group tuple — CELL / ROW / COLUMN / MATRIX / TOTAL scopes are all
+// rejected with PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
+// TestValidateOverlay_IndexVsTotal_ScopeUnsupported.
+func TestValidateOverlay_ShareOfTotal_Series_ScopeUnsupported(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	for _, scope := range []types.OverlayScope{
+		types.OverlayScopeCell,
+		types.OverlayScopeRow,
+		types.OverlayScopeColumn,
+		types.OverlayScopeMatrix,
+		types.OverlayScopeTotal,
+	} {
+		t.Run(string(scope), func(t *testing.T) {
+			req := indexVsTotalSeriesHostReq()
+			req.Overlays = []types.OverlaySpec{
+				{
+					Kind:  types.OverlayKindShareOfTotal,
+					Scope: scope,
+					Ref:   types.OverlayRef{},
+				},
+			}
+			env := PredictFromBytes(data, req, nil)
+			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
+				codes := make([]string, 0, len(env.Errors))
+				for _, e := range env.Errors {
+					codes = append(codes, e.Code)
+				}
+				t.Fatalf("scope=%s: expected PULSE_OVERLAY_SCOPE_UNSUPPORTED; got %v",
+					scope, codes)
+			}
+		})
+	}
+}
+
+// TestValidateOverlay_ShareOfTotal_Series_RefRejected asserts the
+// validator rejects a SERIES SHARE_OF_TOTAL spec that populates any
+// Ref-family pointer. SERIES SHARE_OF_TOTAL is implicit-grand-total
+// (mirrors INDEX_VS_TOTAL) — any Ref pointer is a shape mismatch and
+// must fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+func TestValidateOverlay_ShareOfTotal_Series_RefRejected(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := indexVsTotalSeriesHostReq()
+	req.Overlays = []types.OverlaySpec{
+		{
+			Kind:  types.OverlayKindShareOfTotal,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisGrand},
+			},
+		},
+	}
+
+	env := PredictFromBytes(data, req, nil)
+	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+		codes := make([]string, 0, len(env.Errors))
+		for _, e := range env.Errors {
+			codes = append(codes, e.Code)
+		}
+		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when SERIES SHARE_OF_TOTAL populates Ref.Margin; got %v",
+			codes)
+	}
+}
+
+// TestValidateOverlay_ShareOfTotal_Series_LevelWithinRejected asserts
+// the validator rejects a SERIES SHARE_OF_TOTAL spec that sets Level or
+// Within to non-zero. SERIES SHARE_OF_TOTAL is implicit-grand-total:
+// the host series' grand total is a single scalar that does not
+// partition by any axis prefix, so Level / Within would alter the
+// implicit-grand-total contract. Mirrors
+// TestValidateOverlay_IndexVsTotal_LevelWithinRejected.
+func TestValidateOverlay_ShareOfTotal_Series_LevelWithinRejected(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	cases := []struct {
+		name   string
+		level  int
+		within int
+	}{
+		{name: "level=1", level: 1},
+		{name: "within=1", within: 1},
+		{name: "both", level: 1, within: 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := indexVsTotalSeriesHostReq()
+			req.Overlays = []types.OverlaySpec{
+				{
+					Kind:   types.OverlayKindShareOfTotal,
+					Scope:  types.OverlayScopeGroup,
+					Level:  tc.level,
+					Within: tc.within,
+				},
+			}
+			env := PredictFromBytes(data, req, nil)
+			if !hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
+				codes := make([]string, 0, len(env.Errors))
+				for _, e := range env.Errors {
+					codes = append(codes, e.Code)
+				}
+				t.Fatalf("expected PULSE_OVERLAY_LEVEL_OUT_OF_RANGE on level=%d within=%d; got %v",
+					tc.level, tc.within, codes)
+			}
+		})
+	}
+}
+
 // TestValidateOverlay_EmptySliceNoop asserts the validator is a no-op
 // for requests without overlays — predict still runs every other gate
 // untouched.

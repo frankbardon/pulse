@@ -56,12 +56,16 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// row-margin denominator is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.
 		OverlayKindShareOfRow: false,
-		// SHARE_OF_TOTAL shares INDEX_VS_MARGIN's buffered footprint —
-		// its grand-total denominator is recomputed by the buffered
-		// crosstab orchestrator before ApplyOverlays runs. The
-		// streamable series-shape variant under Process context is
-		// deferred to E3.
-		OverlayKindShareOfTotal: false,
+		// SHARE_OF_TOTAL is streamable via its SERIES-host dispatch
+		// (E3-S3) — sibling kind to OVERLAY_INDEX_VS_TOTAL, same
+		// grand-total accumulator (computeSeriesGrandTotal in
+		// processing/overlay_series.go), different scaling (raw share,
+		// no ×100). The MATRIX-host dispatch (E2-S3) remains inherently
+		// buffered through the canFuseCrosstab "overlays force buffered"
+		// arm, so this flag describes the kind's INTRINSIC streaming
+		// capability via its SERIES handler — not the composed
+		// host-overlay routing decision.
+		OverlayKindShareOfTotal: true,
 		// ZSCORE_VS_MARGIN shares INDEX_VS_MARGIN's buffered footprint —
 		// both the per-slice Welford recurrence and the margin
 		// centerpoint require a fully-materialised matrix, so the host
