@@ -499,48 +499,73 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 		return OverlayCapability{
 			Kind: types.OverlayKindFormula,
 			Shapes: []types.OverlayShape{
-				// E8-S2 spine ships the MATRIX-host evaluator arm;
-				// SERIES + SCALAR arms land alongside the per-shape
-				// binder in E8-S3 and are added to this slice at that
-				// story.
+				// E8-S10 widens FORMULA to its full per-shape surface
+				// across MATRIX (E8-S2 evaluator spine + S3 per-shape
+				// binder), SERIES (S3 SERIES binder via grouped Process
+				// hosts), and SCALAR (S3 SCALAR binder via whole-matrix
+				// p-value / whole-chain SCALAR hosts). The runtime
+				// dispatch is still MATRIX-only at v1 via
+				// processing/overlay.go; the SERIES + SCALAR host glue
+				// lands in a follow-up story. Declaring the full shape
+				// surface here keeps the capability manifest aligned
+				// with the per-shape binders + the predict-time
+				// namespace tables FormulaNamespace serves.
 				types.OverlayShapeMatrix,
+				types.OverlayShapeScalar,
+				types.OverlayShapeSeries,
 			},
 			Scopes: []types.OverlayScope{
-				// CELL scope is exercised by the MATRIX-host arm; the
-				// per-shape binder in E8-S3 extends the supported
-				// scopes to row / column / group / total / matrix as
-				// each host shape comes online.
+				// Per the formula-namespace research note § 2:
+				//   - MATRIX hosts ⇒ CELL scope (one value per (row,col)).
+				//   - SERIES hosts ⇒ GROUP scope (one value per ordered
+				//     group key).
+				//   - SCALAR hosts ⇒ TOTAL scope (single grand value
+				//     covering the whole result).
+				// The predict gate (descriptor.validateFormulaOverlay)
+				// resolves the host shape via inferRequestHostShape and
+				// the per-shape variable table at types.FormulaNamespace
+				// routes the right namespace into the AST walker. The
+				// runtime dispatch (E8-S3 per-shape binder) emits the
+				// matching payload shape.
 				types.OverlayScopeCell,
+				types.OverlayScopeGroup,
+				types.OverlayScopeTotal,
 			},
 			// No Ref family — FORMULA sources its per-shape variable
-			// namespace (cell / margin_* / sd_* / etc.) directly from
-			// the materialised host payload. Compose-host FORMULA
-			// surfaces the dotted `slot.<label>.{cell|value}` namespace
-			// via the per-shape binder (E8-S3) and reuses the existing
+			// namespace (cell / margin_* / sd_* / value / total / prior
+			// / ref_cell / etc.) directly from the materialised host
+			// payload. Compose-host FORMULA surfaces the dotted
+			// `slot.<label>.{cell|value}` namespace via the per-shape
+			// binder (E8-S3) and reuses the existing
 			// ComposeOverlaySpec.Reference / Targets name-resolution
 			// machinery — no new ref family pointer is required (see
 			// research note .planning/result-overlay-system/research/formula-namespace.md
-			// § 1 "OverlayRef back-pressure status: NONE").
+			// § 1 "OverlayRef back-pressure status: NONE"). The locked
+			// Six (Margin / Sibling / BaselineIndex / Population /
+			// Stage / Slot) plus the per-shape host payload already
+			// covers every variable; FORMULA does not consume any
+			// OverlayRef pointer at predict or runtime.
 			RefKinds: []string{},
-			Description: "Caller-supplied expression-driven projection. The handler compiles " +
-				"`OverlaySpec.Params[\"formula\"]` ONCE per spec via expr-lang/expr (the same evaluator " +
-				"that backs ATTR_FORMULA and FILTER_EXPRESSION — embedder ExprFunctions registered at " +
-				"pulse.New time are reachable from FORMULA expressions with no additional registration) " +
-				"then runs the compiled program per cell against a per-host-shape variable namespace " +
-				"(MATRIX hosts: cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand; " +
-				"SERIES hosts: value, total, prior, baseline; SCALAR hosts: value; Compose hosts add the " +
-				"dotted `slot.<label>.{cell|value}` namespace tied to Request.Label). Compile-once / " +
-				"run-many: O(1) compile per overlay layer; O(cells) run cost per evaluation. " +
-				"Return-type coercion: float64 / float32 / int / int64 widen natively; bool widens to " +
-				"0.0 / 1.0; everything else fires PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict-time " +
-				"identifier validation (E8-S4) walks the parsed AST via expr-lang/expr/parser + " +
-				"expr-lang/expr/ast and rejects every identifier not in the per-shape variable table " +
-				"or the embedder ExprFunctions function set with PULSE_OVERLAY_FORMULA_INVALID_IDENT. " +
-				"INHERENTLY BUFFERED at v1 across every host shape — the variable namespace depends on " +
-				"post-fold state (margins / totals / SDs are not available mid-stream); a streamable " +
-				"variant under a distinct kind constant lands in a future story without re-opening " +
-				"this kind's contract. E8-S2 ships the MATRIX-host spine with a STUBBED per-cell env " +
-				"(only `cell` bound); E8-S3 lands the per-shape binder that fills the full namespace.",
+			Description: "Custom user-defined overlay via expr-lang formula; namespace varies by host shape; buffered-only. " +
+				"The handler compiles `OverlaySpec.Params[\"formula\"]` ONCE per spec via expr-lang/expr (the same " +
+				"evaluator that backs ATTR_FORMULA and FILTER_EXPRESSION — embedder ExprFunctions registered at " +
+				"pulse.New time are reachable from FORMULA expressions with no additional registration) then runs " +
+				"the compiled program per cell / entry / scalar against a per-host-shape variable namespace " +
+				"(MATRIX hosts: cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand; SERIES " +
+				"hosts: value, total, prior, baseline; SCALAR hosts: value; Compose hosts add the dotted " +
+				"`slot.<label>.{cell|value}` namespace tied to Request.Label). Compile-once / run-many: O(1) " +
+				"compile per overlay layer; O(cells) / O(entries) / O(1) run cost per evaluation. Return-type " +
+				"coercion: float64 / float32 / int / int64 widen natively; bool widens to 0.0 / 1.0; everything " +
+				"else fires PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict-time identifier validation (E8-S4) walks " +
+				"the parsed AST via expr-lang/expr/parser + expr-lang/expr/ast and rejects every identifier not " +
+				"in the per-shape variable table (types.FormulaNamespace) or the embedder ExprFunctions function " +
+				"set with PULSE_OVERLAY_FORMULA_INVALID_IDENT. INHERENTLY BUFFERED at v1 across every host shape " +
+				"— the variable namespace depends on post-fold state (margins / totals / SDs are not available " +
+				"mid-stream); a streamable variant under a distinct kind constant lands in a future story without " +
+				"re-opening this kind's contract. E8-S2 ships the MATRIX-host evaluator spine; E8-S3 lands the " +
+				"per-shape binder that fills the full namespace across MATRIX / SERIES / SCALAR hosts. SERIES + " +
+				"SCALAR runtime host glue lands in a follow-up story; this capability row declares the full " +
+				"per-shape surface for predict / manifest alignment.",
 		}
 	case types.OverlayKindIndexVsBaseline:
 		return OverlayCapability{
