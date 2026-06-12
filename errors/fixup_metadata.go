@@ -1272,8 +1272,14 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Groups", "0", "Params"},
-				Hint:     "Set the host GROUP_DATE grouper's Params to a JSON object carrying `\"frequency\": \"<freq>\"` where <freq> is one of `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly` and matches the GROUP_DATE `component` slot (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour). Alternatively populate the same key on `Overlays[*].Params[\"frequency\"]` to override per-overlay.",
+				Hint:     "Set the host GROUP_DATE grouper's Params to a JSON object carrying `\"frequency\": \"<freq>\"` where <freq> is one of `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly` and matches the GROUP_DATE `component` slot (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour). This is the canonical authoring slot — every OVERLAY_YOY spec sharing the same Request will pick the value up via the fallback read at processing.applyYoY.",
 				Examples: []any{map[string]any{"component": "month", "frequency": "monthly"}, map[string]any{"component": "year", "frequency": "annual"}, map[string]any{"component": "quarter", "frequency": "quarterly"}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params"},
+				Hint:     "Populate `OverlaySpec.Params[\"frequency\"]` directly on the YoY overlay if the host GROUP_DATE config is owned by other code (e.g. a shared chain stage). The handler reads this slot first and treats it as a per-overlay override of the grouper's `frequency` Param, so you can ship the YoY decoration without touching the request's grouper config. Allowed values: `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly` (must match the host's GROUP_DATE `component`: annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour).",
+				Examples: []any{map[string]any{"frequency": "monthly"}, map[string]any{"frequency": "annual"}, map[string]any{"frequency": "quarterly"}, map[string]any{"frequency": "weekly"}, map[string]any{"frequency": "daily"}, map[string]any{"frequency": "hourly"}},
 			},
 		},
 	},
@@ -1283,8 +1289,14 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params"},
-				Hint:     "Replace the OverlaySpec.Params[\"frequency\"] value with one of `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`. The frequency must match the host GROUP_DATE grouper's component (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour). Alternatively move the frequency slot onto `Groups[0].Params[\"frequency\"]` so the YoY handler reads it from the GROUP_DATE config.",
-				Examples: []any{map[string]any{"frequency": "monthly"}, map[string]any{"frequency": "annual"}, map[string]any{"frequency": "quarterly"}, map[string]any{"frequency": "weekly"}, map[string]any{"frequency": "daily"}, map[string]any{"frequency": "hourly"}},
+				Hint:     "Replace the OverlaySpec.Params[\"frequency\"] value with one of the six supported frequencies: `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`. The frequency must match the host GROUP_DATE grouper's component (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour). Alternatively move the frequency slot onto `Groups[0].Params[\"frequency\"]` so the YoY handler reads it from the canonical GROUP_DATE config.",
+				Examples: []any{map[string]any{"frequency": "annual"}, map[string]any{"frequency": "quarterly"}, map[string]any{"frequency": "monthly"}, map[string]any{"frequency": "weekly"}, map[string]any{"frequency": "daily"}, map[string]any{"frequency": "hourly"}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Groups", "0"},
+				Hint:     "If your data is at a finer granularity than the supported frequency set, switch the host GROUP_DATE grouper to a coarser component+frequency pair before the YoY overlay sees it. Worked example: hourly raw rows aggregated to a daily YoY trend ⇒ set `Groups[0]` to `{\"Type\": \"GROUP_DATE\", \"Field\": \"<date_field>\", \"Params\": {\"component\": \"day\", \"frequency\": \"daily\"}}` and drop the overlay-level frequency override. The same pattern lifts daily raw rows to monthly (`component: month, frequency: monthly`), monthly to quarterly, or quarterly to annual. GROUP_DATE will do the coarser bucketing; the YoY handler then computes prior-period diffs on the coarser key stride.",
+				Examples: []any{map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "day", "frequency": "daily"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "month", "frequency": "monthly"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "quarter", "frequency": "quarterly"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "year", "frequency": "annual"}}},
 			},
 		},
 	},
