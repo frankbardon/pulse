@@ -132,8 +132,14 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindZScoreVsRolling,
 			types.OverlayKindIndexVsBaseline,
 			types.OverlayKindDeltaVsBaseline,
-			types.OverlayKindYoY:
-			// SERIES-host: skipped from the MATRIX-host catalog gate.
+			types.OverlayKindYoY,
+			// OVERLAY_INDEX_VS_POP (E5-S2) is a FACET-host kind —
+			// neither MATRIX nor SERIES. The predict-side validator
+			// lands in E5-S6 / E5-S10; until then this MATRIX-host
+			// gate skips the kind so it does not collide with the
+			// crosstab-host fixture.
+			types.OverlayKindIndexVsPop:
+			// SERIES / FACET host: skipped from the MATRIX-host catalog gate.
 			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
 			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
 			// ZSCORE_VS_TOTAL; they are covered by their own per-kind
@@ -342,6 +348,22 @@ func TestPredict_OverlayCost_StreamableKindsLow(t *testing.T) {
 			Name:  "idx_prior",
 			Kind:  types.OverlayKindIndexVsPrior,
 			Scope: types.OverlayScopeGroup,
+		},
+		// INDEX_VS_POP (E5-S2): first streamable FACET-host kind. The
+		// predict-layer fixture exercises only the cost-dispatch surface
+		// — overlayCostForKind reads the streamability table and emits
+		// overlayCostStreamable for every streamable kind regardless of
+		// the host shape the request actually carries. The per-kind
+		// validator lands in E5-S6 / E5-S10 so this story leaves the
+		// validator silent for the FACET-host kind — the cost test
+		// still exercises the streamable bucket correctly.
+		types.OverlayKindIndexVsPop: {
+			Name:  "idx_pop",
+			Kind:  types.OverlayKindIndexVsPop,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Population: &types.OverlayPopulationRef{Cohort: "population"},
+			},
 		},
 	}
 
@@ -642,6 +664,14 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		types.OverlayKindDeltaVsBaseline:    true,
 		types.OverlayKindZScoreVsRolling:    true,
 		types.OverlayKindYoY:                true,
+		// OVERLAY_INDEX_VS_POP (E5-S2) is a FACET-host kind — neither
+		// MATRIX nor SERIES. The buffered MATRIX-host gate skips the
+		// kind here so it does not collide with the crosstab-host
+		// fixture; the kind is intentionally streamable (covered by
+		// TestPredict_OverlayCost_StreamableKindsLow), so it would not
+		// belong in this buffered-cost test even if the host shape
+		// matched.
+		types.OverlayKindIndexVsPop: true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

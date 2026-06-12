@@ -95,7 +95,23 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// accumulator advanced during the streaming pass once the orchestrator
 	// hits the baseline ordinal); when that lands the flag flips to true.
 	OverlayKindIndexVsBaseline: false,
-	OverlayKindIndexVsMargin:   false,
+	OverlayKindIndexVsMargin: false,
+	// OVERLAY_INDEX_VS_POP is streamable — first FACET-host overlay in
+	// the catalog (E5-S2). The handler runs as a post-finalize fold over
+	// the host's already-materialized per-value distribution
+	// (FacetField.Discrete.Values for categorical fields,
+	// FacetNumeric.Histogram for numeric fields) and the resolver's
+	// already-materialized FacetPopulationView. The host-side streaming
+	// Facet pass keeps its existing online accumulators (Welford / per-
+	// value count map) and the overlay does NOT widen the streaming
+	// carrier — it consumes finalized host state only. The streaming
+	// finalize hook IS the post-host-finalize entry: the streamable
+	// guarantee is that running this handler against a streaming Facet
+	// host vs a buffered one produces byte-identical SeriesPayload output
+	// because the input state is identical. Per kind-catalog-v1
+	// "Streaming-capable subset", OVERLAY_INDEX_VS_POP is explicitly
+	// listed as YES.
+	OverlayKindIndexVsPop: true,
 	// OVERLAY_INDEX_VS_PRIOR is streamable — first windowed-Process
 	// overlay (E4-S4) in the streamable subset. The single-state lag
 	// carrier is one f64 carried alongside the per-group accumulators

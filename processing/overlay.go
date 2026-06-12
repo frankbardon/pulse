@@ -2687,6 +2687,13 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
+	case types.OverlayKindIndexVsPop:
+		// INDEX_VS_POP is the FACET-host population-comparison kind
+		// (E5-S2); synthesised default surfaces the lower-case bare-kind
+		// string "index_vs_pop" matching the INDEX_VS_TOTAL / INDEX_VS_PRIOR /
+		// INDEX_VS_BASELINE / INDEX_VS_ROLLING_MEAN convention (no axis
+		// dispatch — the Facet field is fixed by the host shape).
+		return "index_vs_pop"
 	case types.OverlayKindIndexVsPrior:
 		// INDEX_VS_PRIOR is the windowed lag-1 kind; synthesised default
 		// surfaces the lower-case bare-kind string "index_vs_prior"

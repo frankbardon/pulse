@@ -60,6 +60,13 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// inherently buffered (see CLAUDE.md "Execution modes" →
 		// Crosstab).
 		OverlayKindIndexVsMargin: false,
+		// INDEX_VS_POP is the first streamable FACET-host overlay (E5-S2).
+		// The handler runs as a post-finalize fold over the host's already-
+		// materialised per-value distribution and the resolver's
+		// FacetPopulationView; no second pass over records and no
+		// widening of the host streaming carrier. Per kind-catalog-v1
+		// "Streaming-capable subset".
+		OverlayKindIndexVsPop: true,
 		// INDEX_VS_PRIOR is the first streamable windowed-Process overlay
 		// (E4-S4). The single-state lag carrier is one f64 carried
 		// alongside the per-group accumulators inside the streaming

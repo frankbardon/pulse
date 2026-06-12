@@ -381,6 +381,53 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Honours OverlaySpec Level / Within slots for nested-axis denominator truncation " +
 				"(E2-S11).",
 		}
+	case types.OverlayKindIndexVsPop:
+		return OverlayCapability{
+			Kind: types.OverlayKindIndexVsPop,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// Population is the FACET-host comparison-population ref family
+			// (E5-S1 foundation; E5-S2 first consumer). The capability row
+			// declares the consumed Ref-arm so MCP / manifest clients see
+			// the kind requires Ref.Population to be populated; the per-kind
+			// validator (descriptor.validateOverlayIndexVsPop) lands in E5-S6
+			// (this story is the runtime handler only).
+			RefKinds: []string{"Population"},
+			Description: "Per-value population-comparison index against a FACET host: subset_freq / pop_freq * 100. " +
+				"GROUP scope over a FACET (FacetSchema) host with SERIES payload — one SeriesEntry per host value in " +
+				"payload order, each carrying the index on Summary.Statistic. First FACET-host overlay in the catalog " +
+				"(E5-S2) and the first kind to consume the Ref.Population arm of the OverlayRef discriminated union " +
+				"(E5-S1 foundation — the resolver shape lives at processing.FacetPopulationView). Categorical fast " +
+				"path (host.Kind == \"discrete\"): walks host.Discrete.Values in payload order (descending by count, " +
+				"ties ascending by value-string — the canonical FacetSchema sort); each entry emits the per-value " +
+				"subset_freq / pop_freq * 100 against FacetPopulationView.DiscreteFrequency. Numeric path " +
+				"(host.Kind == \"numeric\"): walks host.Numeric.Histogram.Bins in bin-index order when the host " +
+				"requested a histogram and the population view also carries a histogram with matching shape; each " +
+				"entry emits per-bin subset_bin_freq / pop_bin_freq * 100. When the host carries no histogram the " +
+				"layer emits zero entries (the Welford summary carries no per-value buckets the index can compare " +
+				"against — percentile-bucket indexing is reserved for OVERLAY_KS_VS_POP / E5-S5). Streaming finalize " +
+				"hook: the handler runs as a post-finalize fold over the host's already-materialized per-value " +
+				"distribution and the resolver's already-materialized population view; no second pass over records " +
+				"and no widening of the host streaming carrier — the streamable guarantee is that running this " +
+				"handler against a streaming vs buffered host produces byte-identical SeriesPayload output because " +
+				"the input state is identical. Zero pop_freq path: when pop_freq == 0 (value never appeared in the " +
+				"population OR population has zero records altogether), the handler emits ONE " +
+				"PULSE_OVERLAY_REF_ZERO warning per affected entry carrying the kind + value and SKIPS the index " +
+				"entry (Statistic stays unset on that entry). Absent-population path (value missing from the " +
+				"population's discrete payload) routes through the same zero-pop_freq arm. Ref.Population MUST be " +
+				"populated (the cohort name lives on Ref.Population.Cohort); any other ref-family pointer (Margin / " +
+				"Sibling / BaselineIndex / Prior / RollingMean / YoY / Stage / Slot) fires " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E5-S6). " +
+				"Level / Within MUST be zero (population comparison is a single-value lookup, not an axis prefix); " +
+				"non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the implicit-ref family. Scope must " +
+				"be GROUP. Streamable — host streaming carriers are unchanged; the overlay reads finalized state " +
+				"only. Renderers centre diverging colour ramps on baseline=100 (mirrors OVERLAY_INDEX_VS_TOTAL / " +
+				"OVERLAY_INDEX_VS_MARGIN / OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE).",
+		}
 	case types.OverlayKindIndexVsPrior:
 		return OverlayCapability{
 			Kind: types.OverlayKindIndexVsPrior,

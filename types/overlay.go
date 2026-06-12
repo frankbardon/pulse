@@ -502,6 +502,103 @@ const (
 	// always recomputed from raw rows in the crosstab path.
 	OverlayKindIndexVsMargin OverlayKind = "OVERLAY_INDEX_VS_MARGIN"
 
+	// OverlayKindIndexVsPop emits a per-value population-comparison index
+	// against a Facet host. For each value of the host Facet field the layer
+	// surfaces `subset_freq / pop_freq * 100` where `subset_freq` is the
+	// host FacetResult's per-value frequency (one filtered cohort) and
+	// `pop_freq` is the resolver-supplied per-value frequency of the
+	// reference population (typically an unfiltered or alternately-filtered
+	// cohort). GROUP scope over a FACET host with SERIES payload — one
+	// `SeriesEntry` per host value in payload order, each carrying the
+	// index on `Summary.Statistic`. First FACET-host overlay in the
+	// catalog (E5-S2) and the first kind to consume the
+	// `Ref.Population` arm of the OverlayRef discriminated union (E5-S1
+	// foundation — the resolver shape lives at
+	// `processing.FacetPopulationView`).
+	//
+	// Math (per host value `v`):
+	//
+	//	subset_freq = host.Discrete.Values[v].Count / host.FilteredRecords
+	//	pop_freq    = population.DiscreteFrequency(v)
+	//	if pop_freq == 0 ⇒ NaN entry + PULSE_OVERLAY_REF_ZERO (skip)
+	//	otherwise        ⇒ subset_freq / pop_freq * 100
+	//
+	// Streaming finalize hook (per E5-S2 acceptance): the handler runs at
+	// the FacetSchema streaming finalize point — once the per-value
+	// `(value, count)` map is folded into the `FacetField.Discrete.Values`
+	// slice the overlay reads the already-finalized host distribution and
+	// the resolver's population view to emit the per-value index. No
+	// second pass over records. The streaming-vs-buffered byte-identity
+	// guarantee for the host Facet path holds because the handler depends
+	// ONLY on POST-FINALIZE state.
+	//
+	// Categorical host fast path (E5-S2 v1 scope): the handler walks the
+	// host's `FacetDiscrete.Values` slice in payload order (descending by
+	// count, ties ascending by value-string) and the resolver looks each
+	// value up in the population's discrete payload via
+	// `FacetPopulationView.DiscreteFrequency(value)`. One division per
+	// host value.
+	//
+	// Numeric host path (E5-S2 v1 scope): the handler walks the host's
+	// histogram bins (when `IncludeHistogram` was true on the host
+	// FacetRequest) and emits one index per bin via the resolver's
+	// `NumericHistogram()` surface — same `subset_bin_freq /
+	// pop_bin_freq * 100` math. When the host did not request a
+	// histogram the kind emits zero entries (the host shape carries
+	// only Welford summary stats, not per-value tallies — without a
+	// histogram there are no per-value buckets to index). The handler
+	// does NOT walk percentiles — percentile-bucket indexing is reserved
+	// for `OVERLAY_KS_VS_POP` (E5-S5).
+	//
+	// Zero pop_freq path: when `pop_freq == 0` for some value v (the
+	// value never appeared in the population, or the population has zero
+	// records altogether), the handler emits ONE
+	// `PULSE_OVERLAY_REF_ZERO` warning per affected entry carrying the
+	// kind + value and SKIPS the index entry (Statistic stays unset on
+	// that entry). The acceptance criterion is explicit: "on
+	// `pop_freq == 0` emit warning code `PULSE_OVERLAY_REF_ZERO` and
+	// skip the index entry". Subsequent entries continue to emit indices
+	// against the same population view.
+	//
+	// Absent-population path: when the resolver could not find any
+	// population entry for `value` (the value never appeared in the
+	// population dictionary), the handler treats it as the zero-pop_freq
+	// case and emits the same warning + skip behavior. Distinct from
+	// `PULSE_OVERLAY_REF_UNKNOWN` which fires at the predict / runtime
+	// boundary when the named population FIELD is unknown (the resolver
+	// itself returns that code from `ResolveFacetPopulation`).
+	//
+	// Ref handling: `Ref.Population` MUST be populated. The Population
+	// arm carries the comparison-population cohort name (resolver
+	// matches against a FacetResult derived from that cohort). Any other
+	// ref-family pointer (`Margin` / `Sibling` / `BaselineIndex` /
+	// `Prior` / `RollingMean` / `YoY` / `Stage` / `Slot`) fires
+	// `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` at predict time (the
+	// per-kind validator lands in E5-S6).
+	//
+	// Scope must be GROUP. `Level` / `Within` MUST be zero (population
+	// comparison is a single-value lookup, not an axis prefix); non-zero
+	// values fire `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` mirroring the other
+	// implicit-ref kinds.
+	//
+	// Streamable. Per `types/overlay_streamability.go`, the streamability
+	// row is `true` — the handler runs as a single post-finalize fold
+	// over the host's already-materialized per-value distribution and
+	// the resolver's already-materialized population view. The
+	// host-side streaming Facet pass keeps its existing online
+	// accumulators (Welford / per-value count map); the overlay does
+	// NOT widen the streaming carrier — it consumes finalized state.
+	// Streamable matches the kind-catalog-v1 "Streaming-capable subset"
+	// — `OVERLAY_INDEX_VS_POP` is explicitly listed as YES.
+	//
+	// Renderers centre diverging colour ramps on `baseline = 100`
+	// (mirrors `OVERLAY_INDEX_VS_MARGIN` / `OVERLAY_INDEX_VS_TOTAL` /
+	// `OVERLAY_INDEX_VS_SIBLING` / `OVERLAY_INDEX_VS_PRIOR` /
+	// `OVERLAY_INDEX_VS_BASELINE`). Per-entry Statistic carries the
+	// renderer-facing index value; layer-level Summary carries the
+	// baseline + Min/Max/Count summary over present entries.
+	OverlayKindIndexVsPop OverlayKind = "OVERLAY_INDEX_VS_POP"
+
 	// OverlayKindIndexVsPrior emits a per-point windowed index against the
 	// immediately preceding point of an ordered SERIES (grouped Process)
 	// host: `index_i = point_value_i / prior_value_{i-1} * 100`. GROUP
@@ -1196,6 +1293,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindFisherExactCell,
 		OverlayKindIndexVsBaseline,
 		OverlayKindIndexVsMargin,
+		OverlayKindIndexVsPop,
 		OverlayKindIndexVsPrior,
 		OverlayKindIndexVsRollingMean,
 		OverlayKindIndexVsSibling,
