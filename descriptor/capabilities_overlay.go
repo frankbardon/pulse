@@ -574,6 +574,54 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Summary leaves Statistic unset. Streamable via the SERIES dispatch (the MATRIX route is forced " +
 				"buffered through canFuseCrosstab's overlays-force-buffered arm).",
 		}
+	case types.OverlayKindYoY:
+		return OverlayCapability{
+			Kind: types.OverlayKindYoY,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// YoY is the windowed-axis ref family the kind consumes (E4-S7
+			// foundation; first consumer of the empty `Ref.YoY` marker). The
+			// empty marker struct tags the family — the v1 frequency value
+			// lives on OverlaySpec.Params["frequency"] (the YoY's own
+			// override) or falls back to req.Groups[0].Params["frequency"]
+			// (the canonical GROUP_DATE authoring slot) per the WIN_*
+			// operator convention.
+			RefKinds: []string{"YoY"},
+			Description: "Per-point year-over-year ratio against the same period one year prior in an ordered SERIES " +
+				"(grouped Process) host whose grouper is GROUP_DATE: point_value / prior_year_value * 100. " +
+				"GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host " +
+				"order, each carrying the YoY ratio on Summary.Statistic. Sixth windowed-Process overlay in the " +
+				"catalog (E4-S7; siblings: OVERLAY_INDEX_VS_PRIOR / E4-S4, OVERLAY_INDEX_VS_BASELINE / E4-S2, " +
+				"OVERLAY_DELTA_VS_BASELINE / E4-S3, OVERLAY_INDEX_VS_ROLLING_MEAN / E4-S5, " +
+				"OVERLAY_ZSCORE_VS_ROLLING / E4-S6) and the first consumer of the empty Ref.YoY marker arm of the " +
+				"OverlayRef discriminated union. The frequency value (annual | quarterly | monthly | weekly | daily | " +
+				"hourly) lives on OverlaySpec.Params[\"frequency\"] (the YoY's own override) or falls back to " +
+				"req.Groups[0].Params[\"frequency\"] (the canonical GROUP_DATE authoring slot). Per-frequency stride: " +
+				"annual ⇒ i-1, quarterly ⇒ i-4, monthly ⇒ i-12, weekly ⇒ i-52 (calendar-week aligned; no day-of-week " +
+				"realignment in v1), daily ⇒ exact-date 365-days-prior lookup against the host key index (Feb 29 in a " +
+				"non-leap prior year emits NaN — no exact-key match), hourly ⇒ exact-hour 365×24-hour-prior lookup. " +
+				"The host's first grouper MUST be GROUP_DATE; non-DATE hosts fire " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at both predict and runtime. Missing frequency Param fires " +
+				"PULSE_OVERLAY_YOY_FREQUENCY_MISSING; out-of-set frequency value fires " +
+				"PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY with {frequency, supported} Details. First-year ordinals " +
+				"(coarse-frequency arms whose prior-year index lands at <0; fine-frequency arms whose prior-year " +
+				"date does not match an exact host key) emit NaN without warning — \"no comparison available\" is " +
+				"structurally distinct from \"denominator was zero\". Zero prior-year value emits ONE " +
+				"PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entry. Absent host " +
+				"points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic " +
+				"unset. Ref.YoY MUST be populated (empty marker is fine); any other ref-family pointer (Margin / " +
+				"Sibling / Prior / BaselineIndex / RollingMean / Population / Stage / Slot) fires " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the " +
+				"year-over-year lookup folds across the ordered axis without a prefix-bucket denominator); non-zero " +
+				"values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_ROLLING_MEAN " +
+				"family. Buffered — the per-frequency prior-period lookup requires the materialised host series " +
+				"(coarse-frequency arms index into an arbitrary prior ordinal; fine-frequency arms walk an exact-key " +
+				"index built from the full host key list). Renderers centre diverging colour ramps on baseline=100.",
+		}
 	case types.OverlayKindZScoreVsMargin:
 		return OverlayCapability{
 			Kind: types.OverlayKindZScoreVsMargin,

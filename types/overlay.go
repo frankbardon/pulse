@@ -987,6 +987,119 @@ const (
 	// Welford recurrence rely on a fully-materialised matrix.
 	OverlayKindZScoreVsMargin OverlayKind = "OVERLAY_ZSCORE_VS_MARGIN"
 
+	// OverlayKindYoY emits a per-point year-over-year ratio against the
+	// same period one year prior in an ordered SERIES (grouped Process)
+	// host whose grouper is `GROUP_DATE`. GROUP scope over a SERIES host
+	// with SERIES payload — one `SeriesEntry` per host group key in host
+	// order, each carrying the YoY ratio on `Summary.Statistic`. Sixth
+	// windowed-Process overlay in the catalog (E4-S7; siblings:
+	// `OVERLAY_INDEX_VS_PRIOR` / E4-S4, `OVERLAY_INDEX_VS_BASELINE` /
+	// E4-S2, `OVERLAY_DELTA_VS_BASELINE` / E4-S3,
+	// `OVERLAY_INDEX_VS_ROLLING_MEAN` / E4-S5, `OVERLAY_ZSCORE_VS_ROLLING` /
+	// E4-S6) and the first consumer of the empty `Ref.YoY` marker arm of
+	// the OverlayRef discriminated union.
+	//
+	// Math (per host group ordinal `i`):
+	//
+	//	frequency = spec.Params["frequency"] OR req.Groups[0].Params["frequency"]
+	//	prior_i = lookup for the host series point at "i - <stride>" based on
+	//	          frequency:
+	//	            annual    ⇒ i - 1
+	//	            quarterly ⇒ i - 4
+	//	            monthly   ⇒ i - 12
+	//	            weekly    ⇒ i - 52
+	//	            daily     ⇒ exact-key lookup against host key index at
+	//	                        host.Key(i).AddDate(-1, 0, 0); Feb 29 in a
+	//	                        non-leap prior year emits NaN (no exact-key
+	//	                        match — explicit non-goal: no day-of-week or
+	//	                        leap-year realignment in v1).
+	//	            hourly    ⇒ exact-key lookup against host key index at
+	//	                        host.Key(i).Add(-365*24*time.Hour) with the
+	//	                        same exact-key rule.
+	//	if !present_at(prior_i)  ⇒ NaN (first year of data is legitimate —
+	//	                            "no comparison available" rather than
+	//	                            "denominator was zero"; no warning)
+	//	if prior_value == 0      ⇒ NaN + PULSE_OVERLAY_REF_ZERO warning
+	//	otherwise                ⇒ point_value / prior_value * 100
+	//
+	// Required GROUP_DATE host grouper: the kind only operates against a
+	// SERIES host whose single grouper is `GROUP_DATE`. Other grouper
+	// kinds (CATEGORY / RANGE / ROUNDED / QUANTILE / SET_VALUE) cannot
+	// resolve the "same period one year prior" semantics — predict
+	// (`descriptor.validateOverlayYoY`) and runtime (the handler's host
+	// introspection arm via `SeriesHostView.GrouperKind`) both reject
+	// non-DATE hosts with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+	//
+	// Required `frequency` Param: the kind cannot infer the correct prior-
+	// period stride from the GROUP_DATE `component` slot alone because
+	// the per-component stride for "one year prior" varies by component
+	// (annual ⇒ 1, quarterly ⇒ 4, monthly ⇒ 12, weekly ⇒ 52, daily ⇒
+	// 365-day calendar arithmetic, hourly ⇒ 365×24-hour arithmetic). The
+	// handler reads the explicit `frequency` value from
+	// `spec.Params["frequency"]` first (the YoY's own override) and falls
+	// back to `req.Groups[0].Params["frequency"]` (the canonical GROUP_DATE
+	// authoring slot). Missing both fires
+	// `PULSE_OVERLAY_YOY_FREQUENCY_MISSING` with `{kind, host_grouper}`
+	// Details at both predict and runtime. Outside the supported set
+	// (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`)
+	// fires `PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY` with
+	// `{frequency, supported}` Details.
+	//
+	// Calendar-week / day-of-week realignment is an explicit non-goal in
+	// v1: weekly frequency uses calendar-week-aligned `i - 52` arithmetic
+	// (no day-of-week realignment); daily frequency uses exact-key lookup
+	// against the host key index after subtracting one year via
+	// `time.Time.AddDate(-1, 0, 0)` (Feb 29 in a non-leap prior year
+	// emits NaN — no exact-key match). The runtime documents both rules
+	// explicitly so callers do not silently get realigned results.
+	//
+	// Absent-point policy: a host that did not produce a value for group
+	// `i` (the resolver returns `(0, false)`) surfaces a `SeriesEntry`
+	// whose `Summary` leaves `Statistic` unset — the canonical "present
+	// slot, empty summary" shape from the E3-S1 SERIES dispatch contract.
+	// Absent groups do NOT participate in the YoY computation. The first
+	// year of data (every ordinal whose prior-year index lands at < 0 OR
+	// whose daily/hourly prior-year date does not match an exact host
+	// key) emits NaN without warning — "no comparison available" is
+	// structurally distinct from "denominator was zero" (mirrors the
+	// `OVERLAY_INDEX_VS_PRIOR` first-point NaN rule).
+	//
+	// Zero-prior path: when the resolved prior value is `0` at the divide
+	// step (legitimate prior point with a zero post-filter sum) the
+	// handler emits ONE `PULSE_OVERLAY_REF_ZERO` warning per layer and
+	// surfaces NaN on the affected entry. Mirrors the share / index /
+	// zscore family's zero-denominator contract (one warning per layer,
+	// not per cell).
+	//
+	// Ref handling: `Ref.YoY` MUST be populated (empty marker is fine —
+	// the v1 frequency value lives on Params per the WIN_* operator
+	// convention). Any other ref-family pointer (`Margin` / `Sibling` /
+	// `BaselineIndex` / `Prior` / `RollingMean` / `Population` / `Stage` /
+	// `Slot`) fires `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+	//
+	// Scope must be GROUP. `Level` / `Within` MUST be zero (windowed
+	// kind — the prior-period lookup folds across the ordered axis
+	// without a prefix-bucket denominator); non-zero values fire
+	// `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` mirroring the
+	// `INDEX_VS_PRIOR` / `INDEX_VS_BASELINE` / `INDEX_VS_ROLLING_MEAN`
+	// family.
+	//
+	// Buffered. Per `types/overlay_streamability.go`, the streamability
+	// row is `false` — the prior-period lookup requires the materialised
+	// host series (daily / hourly arms walk an exact-key index over the
+	// full host key list; coarser frequencies index into an arbitrary
+	// prior ordinal). The handler runs at the buffered post-host-
+	// finalize exit via `ApplyOverlaysSeries`. Forward-compat: a future
+	// story may lift the per-frequency lookup into a streaming-aware
+	// shape when the streaming-Process orchestrator carries an exact-key
+	// host index inline.
+	//
+	// Renderers centre diverging colour ramps on `baseline = 100`
+	// (mirrors `OVERLAY_INDEX_VS_MARGIN` / `OVERLAY_INDEX_VS_TOTAL` /
+	// `OVERLAY_INDEX_VS_SIBLING` / `OVERLAY_INDEX_VS_PRIOR` /
+	// `OVERLAY_INDEX_VS_BASELINE` / `OVERLAY_INDEX_VS_ROLLING_MEAN`).
+	OverlayKindYoY OverlayKind = "OVERLAY_YOY"
+
 	// OverlayKindZScoreVsTotal emits a per-group standardized z-score
 	// against the host series' grand-total distribution: for each host
 	// group key the layer surfaces `(group_val - mean) / sd` where
@@ -1090,6 +1203,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
+		OverlayKindYoY,
 		OverlayKindZScoreVsMargin,
 		OverlayKindZScoreVsRolling,
 		OverlayKindZScoreVsTotal,
@@ -1277,6 +1391,37 @@ type OverlayPriorRef struct {
 	Lag int `json:"lag,omitempty"`
 }
 
+// OverlayYoYRef is the ref-arm that tags a spec as a year-over-year
+// windowed kind (E4 windowed catalog — see kind-catalog-v1 PRD §4
+// windowed family) against a SERIES host whose grouper is `GROUP_DATE`.
+//
+// E4-S7 (`OVERLAY_YOY`) is the first kind to consume this arm and the
+// empty marker is intentional — the v1 frequency value lives on
+// `OverlaySpec.Params["frequency"]` (the YoY's own override) or falls
+// back to the host's `GROUP_DATE` config at
+// `req.Groups[0].Params["frequency"]`. The supported frequencies are
+// `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`;
+// the handler picks the matching stride (annual ⇒ -1 ordinal,
+// quarterly ⇒ -4 ordinals, monthly ⇒ -12 ordinals, weekly ⇒ -52
+// ordinals, daily ⇒ -365-day exact-key lookup, hourly ⇒ -365×24-hour
+// exact-key lookup).
+//
+// Calendar-week / day-of-week realignment is an explicit non-goal in
+// v1: weekly frequency uses calendar-week-aligned `i - 52` arithmetic
+// (no day-of-week realignment); daily frequency uses exact-key lookup
+// against the host key index — Feb 29 in a non-leap prior year emits
+// NaN because no exact-key match exists, not an off-by-one realignment
+// to Feb 28 or Mar 1.
+//
+// The empty struct tags the ref family so the validator's "exactly one
+// ref arm populated per kind" contract stays uniform with the rest of
+// the catalog (every kind picks exactly one ref family, even when its
+// parameters live on `Params`). Forward-compat: future stories may
+// extend the struct with non-frequency knobs (e.g. fiscal-year
+// alignment, leap-year fill policies) without re-opening the parent
+// `OverlayRef`.
+type OverlayYoYRef struct{}
+
 // OverlayRollingMeanRef is the ref-arm that tags a spec as a windowed
 // rolling-mean kind (E4 windowed catalog — see kind-catalog-v1 PRD §4
 // windowed family) against a SERIES host whose group-key order is the
@@ -1356,6 +1501,14 @@ type OverlayRef struct {
 	// empty. E4-S5 (`OVERLAY_INDEX_VS_ROLLING_MEAN`) is the first
 	// consumer; E4-S6 (`OVERLAY_ZSCORE_VS_ROLLING`) reuses it.
 	RollingMean *OverlayRollingMeanRef `json:"rolling_mean,omitempty"`
+
+	// YoY tags the spec as a windowed year-over-year kind. The frequency
+	// (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`)
+	// lives on `OverlaySpec.Params["frequency"]` (the YoY's own override)
+	// or falls back to the host's `GROUP_DATE` config at
+	// `req.Groups[0].Params["frequency"]`; the marker struct is
+	// intentionally empty. E4-S7 (`OVERLAY_YOY`) is the first consumer.
+	YoY *OverlayYoYRef `json:"yoy,omitempty"`
 
 	// Population selects an alternate cohort / population. Reserved.
 	Population *OverlayPopulationRef `json:"population,omitempty"`

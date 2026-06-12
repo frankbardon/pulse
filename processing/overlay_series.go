@@ -112,6 +112,22 @@ type SeriesHostView struct {
 	// existing E3-S2 / E3-S3 / E3-S4 handlers (which do not consume
 	// the field list) keep working against the legacy constructor.
 	groupFields []string
+
+	// grouperKinds names the grouper Types (`GROUP_CATEGORY` /
+	// `GROUP_DATE` / `GROUP_RANGE` / `GROUP_ROUNDED` / `GROUP_QUANTILE` /
+	// `GROUP_SET_VALUE`) the host's AxisKey tuples are produced from,
+	// element-for-element with `groupFields`. The slot is consulted by
+	// host-shape-introspecting overlay handlers — the E4-S7
+	// `OVERLAY_YOY` handler reads `grouperKinds[0]` to enforce its
+	// "host grouper must be GROUP_DATE" requirement at runtime (the
+	// runtime mirror of the predict gate). When empty (the pre-E4-S7
+	// default constructor path, before the orchestrator threads the
+	// slot), the YoY handler treats the host as unknown and defers to
+	// the predict gate's earlier rejection; nil/empty means "host
+	// grouper kind not introspected". The slot is optional so the
+	// existing E3 / E4 handlers (which do not consult grouper kind)
+	// keep working against the legacy constructor.
+	grouperKinds []types.GroupType
 }
 
 // NewSeriesHostView wraps an ordered list of group keys plus a value
@@ -144,6 +160,31 @@ func NewSeriesHostView(groupKeys []types.AxisKey, resolver func(i int) (float64,
 // compiling against the simpler two-argument constructor.
 func NewSeriesHostViewWithFields(groupKeys []types.AxisKey, resolver func(i int) (float64, bool), groupFields []string) *SeriesHostView {
 	return &SeriesHostView{groupKeys: groupKeys, resolver: resolver, groupFields: groupFields}
+}
+
+// NewSeriesHostViewWithGrouper wraps an ordered list of group keys, a
+// resolver, the grouper-field list, and the grouper-kind list the
+// AxisKey tuples are produced from. The grouper-kind list is the
+// source-of-truth for host-shape-introspecting overlay handlers — the
+// E4-S7 `OVERLAY_YOY` handler reads `grouperKinds[0]` to enforce its
+// "host grouper must be GROUP_DATE" requirement at runtime.
+//
+// Length of `grouperKinds` SHOULD match `groupFields` (the orchestrator's
+// grouper list); a shorter list is tolerated and host-shape-introspecting
+// handlers simply cannot resolve kinds outside the declared range. Empty
+// `grouperKinds` keeps host-shape introspection in its pre-E4-S7
+// fallback (the handler defers to the predict gate's earlier
+// rejection). The helper exists alongside `NewSeriesHostView` and
+// `NewSeriesHostViewWithFields` so the legacy E3-S2 / E3-S3 / E3-S4 /
+// E4-S2..S6 handlers (which never consult the grouper-kind list) keep
+// compiling against the simpler constructors.
+func NewSeriesHostViewWithGrouper(groupKeys []types.AxisKey, resolver func(i int) (float64, bool), groupFields []string, grouperKinds []types.GroupType) *SeriesHostView {
+	return &SeriesHostView{
+		groupKeys:    groupKeys,
+		resolver:     resolver,
+		groupFields:  groupFields,
+		grouperKinds: grouperKinds,
+	}
 }
 
 // GroupCount returns the number of group tuples on the host. Zero when
@@ -193,6 +234,26 @@ func (h *SeriesHostView) GroupFields() []string {
 		return nil
 	}
 	return h.groupFields
+}
+
+// GrouperKinds returns the grouper Types the host's AxisKey tuples are
+// produced from, element-for-element with `GroupFields()`. Returns nil
+// when the view is nil OR when the view was built via
+// `NewSeriesHostView` / `NewSeriesHostViewWithFields` (the pre-E4-S7
+// default constructors — the slot is optional). The E4-S7
+// `OVERLAY_YOY` handler consults `GrouperKinds[0]` to enforce its
+// "host grouper must be GROUP_DATE" requirement at runtime. When the
+// slot is empty the YoY handler defers to the predict gate's earlier
+// rejection (predict already surfaces
+// `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` for non-DATE hosts via
+// `descriptor.validateOverlayYoY`). Callers consume the returned
+// slice read-only — the slice header points at the host's backing
+// array.
+func (h *SeriesHostView) GrouperKinds() []types.GroupType {
+	if h == nil {
+		return nil
+	}
+	return h.grouperKinds
 }
 
 // ValueAt returns the host's metric value for the group at index i plus
@@ -300,6 +361,14 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// scaling. Handler: applyShareOfTotalSeries in
 	// processing/overlay_share_of_total_series.go.
 	types.OverlayKindShareOfTotal: applyShareOfTotalSeries,
+	// OVERLAY_YOY (E4-S7): per-point year-over-year ratio against the
+	// same period one year prior in an ordered SERIES (grouped Process)
+	// host whose grouper is GROUP_DATE. Per-frequency prior-period
+	// lookup (annual / quarterly / monthly / weekly use ordinal-arithmetic;
+	// daily / hourly use exact-key lookup against the host key index).
+	// Sixth windowed-Process kind in the catalog. Buffered. Handler:
+	// applyYoY in processing/overlay_yoy.go.
+	types.OverlayKindYoY: applyYoY,
 	// OVERLAY_ZSCORE_VS_ROLLING (E4-S6): per-point windowed standardized
 	// z-score against the rolling-window mean + SAMPLE SD (n-1
 	// denominator) of the W immediately preceding present points.

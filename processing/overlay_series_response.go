@@ -1,6 +1,8 @@
 package processing
 
 import (
+	"encoding/json"
+
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -106,7 +108,15 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response) err
 	if host == nil {
 		return nil
 	}
-	layers, warnings, err := ApplyOverlaysSeries(req.Overlays, host)
+	// E4-S7 OVERLAY_YOY frequency promotion. The YoY handler reads
+	// the frequency value from spec.Params["frequency"] only; the
+	// orchestrator promotes req.Groups[0].Params["frequency"] (the
+	// canonical GROUP_DATE authoring slot) onto every YoY spec before
+	// dispatch so the per-handler surface stays consistent. When the
+	// spec already carries its own frequency Param (the override path),
+	// the orchestrator leaves it unchanged.
+	specs := promoteYoYFrequencyFromGroupParams(req)
+	layers, warnings, err := ApplyOverlaysSeries(specs, host)
 	if err != nil {
 		return err
 	}
@@ -163,11 +173,13 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 		return nil
 	}
 	groupFields := make([]string, 0, len(req.Groups))
+	grouperKinds := make([]types.GroupType, 0, len(req.Groups))
 	for _, g := range req.Groups {
 		if g == nil {
 			continue
 		}
 		groupFields = append(groupFields, g.Field)
+		grouperKinds = append(grouperKinds, g.Type)
 	}
 	primaryLabel := AggregationLabel(req.Aggregations[0])
 	data := resp.Data
@@ -191,7 +203,109 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 		}
 		return toFloat64(raw), true
 	}
-	return NewSeriesHostViewWithFields(keys, resolver, groupFields)
+	// E4-S7 OVERLAY_YOY consumes the grouper-kind list via
+	// SeriesHostView.GrouperKinds to enforce its "host grouper must be
+	// GROUP_DATE" requirement at runtime. The existing E3-S5 sibling
+	// resolver continues to consume the grouper-field list. Both lists
+	// are populated unconditionally here so handlers that consume them
+	// see the same view shape regardless of whether the request carries
+	// overlay specs that introspect kind.
+	return NewSeriesHostViewWithGrouper(keys, resolver, groupFields, grouperKinds)
+}
+
+// promoteYoYFrequencyFromGroupParams walks req.Overlays and promotes
+// the host GROUP_DATE grouper's `frequency` Param onto every
+// OVERLAY_YOY spec whose own `Params["frequency"]` slot is empty. The
+// YoY handler reads the frequency from spec.Params["frequency"] only
+// (the runtime surface is intentionally narrow — the handler does NOT
+// see req.Groups), so the orchestrator centralises the spec.Params /
+// req.Groups[0].Params fallback chain here. When the spec already
+// carries its own frequency Param (the override path), the slot is
+// left unchanged; when the host grouper does not carry a frequency
+// Param either, the spec is left unchanged and the runtime handler
+// fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING from its own surface
+// (defense in depth — predict and the orchestrator should catch the
+// missing-frequency case first).
+//
+// Returns a fresh slice when any spec was promoted; returns the
+// caller's req.Overlays slice header verbatim when no spec needed
+// promotion. The fresh-slice path copies every spec by value so the
+// original Request remains byte-identical after the call (the YoY
+// frequency promotion is purely a runtime adapter and must not mutate
+// the caller's request shape — Canonical hash byte-identity demands
+// it). When the request carries no OVERLAY_YOY specs the helper
+// returns the caller's slice unchanged.
+func promoteYoYFrequencyFromGroupParams(req *types.Request) []types.OverlaySpec {
+	if req == nil || len(req.Overlays) == 0 {
+		return nil
+	}
+	if len(req.Groups) == 0 {
+		return req.Overlays
+	}
+	// Read req.Groups[0].Params["frequency"] once up front. The grouper
+	// Params is a raw JSON blob; a missing / empty / non-object blob
+	// surfaces as ("", false) and the caller's slice is returned
+	// unchanged.
+	groupFrequency, hasGroupFrequency := readYoYFrequencyFromParams(req.Groups[0].Params)
+	if !hasGroupFrequency {
+		return req.Overlays
+	}
+	// Walk the overlay specs and identify YoY specs that need
+	// promotion. If none, return the caller's slice unchanged.
+	needsPromotion := false
+	for i := range req.Overlays {
+		if req.Overlays[i].Kind != types.OverlayKindYoY {
+			continue
+		}
+		if _, specHasFrequency := readYoYFrequencyFromParams(req.Overlays[i].Params); specHasFrequency {
+			continue
+		}
+		needsPromotion = true
+		break
+	}
+	if !needsPromotion {
+		return req.Overlays
+	}
+	// Build a fresh slice with the promoted Params blob on every YoY
+	// spec that needed it. Copy every spec by value so the caller's
+	// Request stays byte-identical.
+	out := make([]types.OverlaySpec, len(req.Overlays))
+	copy(out, req.Overlays)
+	for i := range out {
+		if out[i].Kind != types.OverlayKindYoY {
+			continue
+		}
+		if _, specHasFrequency := readYoYFrequencyFromParams(out[i].Params); specHasFrequency {
+			continue
+		}
+		out[i].Params = mergeYoYFrequencyParams(out[i].Params, groupFrequency)
+	}
+	return out
+}
+
+// mergeYoYFrequencyParams takes the original spec.Params blob (which
+// may be nil / empty / non-object / object-without-frequency) and
+// returns a fresh JSON blob carrying the original keys plus
+// `frequency = freq`. When the original blob is unparseable as an
+// object the helper returns a fresh `{"frequency": freq}` blob —
+// the caller treats the original blob as discarded (predict already
+// rejects malformed Params blobs upstream, so this branch is
+// defense in depth).
+func mergeYoYFrequencyParams(orig json.RawMessage, freq string) json.RawMessage {
+	out := map[string]any{}
+	if len(orig) > 0 {
+		_ = json.Unmarshal(orig, &out)
+	}
+	out["frequency"] = freq
+	encoded, err := json.Marshal(out)
+	if err != nil {
+		// Unreachable — out is a map[string]any with only string /
+		// scalar values; json.Marshal cannot fail. The defense matches
+		// the encoding/json safety pattern used elsewhere in the
+		// overlay surface.
+		return orig
+	}
+	return encoded
 }
 
 // canStreamOverlays reports whether every overlay kind on req.Overlays

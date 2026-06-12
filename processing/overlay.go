@@ -2750,6 +2750,15 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
+	case types.OverlayKindYoY:
+		// OVERLAY_YOY is the windowed year-over-year kind; synthesised
+		// default surfaces the lower-case bare-kind string "yoy" matching
+		// the INDEX_VS_ROLLING_MEAN / INDEX_VS_PRIOR / INDEX_VS_BASELINE
+		// convention (no axis dispatch — the ordered host axis is fixed).
+		// The synthesiser intentionally does NOT echo the frequency in
+		// the default name — renderers that need the disambiguation
+		// populate spec.Name explicitly.
+		return "yoy"
 	case types.OverlayKindZScoreVsRolling:
 		// ZSCORE_VS_ROLLING is the windowed rolling sample-SD z-score
 		// kind; synthesised default surfaces the lower-case bare-kind

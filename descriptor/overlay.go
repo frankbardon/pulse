@@ -152,6 +152,29 @@ var indexVsRollingMeanSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
+// yoySupportedScopes is the E4-supported scope set for OVERLAY_YOY.
+// The kind emits one entry per host group key (the ordered windowed
+// series) — Scope=GROUP is the only sensible footprint and any other
+// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
+// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
+// `indexVsRollingMeanSupportedScopes` / `zscoreVsRollingSupportedScopes`.
+var yoySupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeGroup: true,
+}
+
+// yoySupportedFrequencies enumerates the supported `frequency` Param
+// values for OVERLAY_YOY at predict time. Mirrors
+// processing.yoySupportedFrequencies (the runtime helper) so the gate
+// shapes stay in lock-step.
+var yoySupportedFrequencies = []string{
+	"annual",
+	"quarterly",
+	"monthly",
+	"weekly",
+	"daily",
+	"hourly",
+}
+
 // zscoreVsRollingSupportedScopes is the E4-supported scope set for
 // OVERLAY_ZSCORE_VS_ROLLING. The kind emits one entry per host group
 // key (the ordered windowed series) — Scope=GROUP is the only sensible
@@ -586,6 +609,25 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
+	// OVERLAY_YOY is the E4-S7 windowed-SERIES kind (req.Groups, no
+	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_PRIOR /
+	// INDEX_VS_ROLLING_MEAN because the year-over-year prior-period
+	// lookup folds across the ordered axis without a prefix-bucket
+	// denominator. Sixth windowed-Process kind — same implicit-margin /
+	// windowed family rule.
+	if spec.Kind == types.OverlayKindYoY {
+		if spec.Level != 0 || spec.Within != 0 {
+			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed year-over-year lookup folds across the ordered axis without a prefix-bucket denominator)",
+				map[string]any{
+					"index":  index,
+					"kind":   string(spec.Kind),
+					"level":  spec.Level,
+					"within": spec.Within,
+				})
+		}
+		return
+	}
 	// ZSCORE_VS_ROLLING is the E4-S6 windowed-SERIES kind (req.Groups, no
 	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_ROLLING_MEAN
 	// because the rolling-window carrier folds across the ordered axis
@@ -800,6 +842,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayShareOfRow(env, req, spec, index)
 	case types.OverlayKindShareOfTotal:
 		validateOverlayShareOfTotal(env, req, spec, index)
+	case types.OverlayKindYoY:
+		validateOverlayYoY(env, req, spec, index)
 	case types.OverlayKindZScoreVsMargin:
 		validateOverlayZScoreVsMargin(env, req, spec, index)
 	case types.OverlayKindZScoreVsRolling:
@@ -1226,6 +1270,232 @@ func validateOverlayZScoreVsRolling(env *Envelope, req *types.Request, spec *typ
 	// Reuses the shared rolling-family helper so the predict gate shape
 	// stays uniform across INDEX_VS_ROLLING_MEAN / ZSCORE_VS_ROLLING.
 	validateOverlayRollingWindowParam(env, spec, index)
+}
+
+// validateOverlayYoY enforces the per-kind contract for OVERLAY_YOY
+// (E4-S7, sixth windowed-Process kind in the catalog and first consumer
+// of the empty `Ref.YoY` marker arm of the OverlayRef discriminated
+// union):
+//
+//   - Ref.YoY MUST be populated (the empty marker tags the ref family;
+//     the v1 frequency value lives on Params per the WIN_* operator
+//     convention OR on the host GROUP_DATE grouper's Params). Empty Ref
+//     is rejected with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+//   - Any other ref-family pointer populated (Margin / Sibling / Prior /
+//     BaselineIndex / RollingMean / Population / Stage / Slot) → reject
+//     with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+//   - Host must be SERIES-shaped (Request.Crosstab nil AND
+//     Request.Groups non-empty — the kind targets a windowed
+//     ordered-axis SERIES host, not a MATRIX one).
+//   - Host first grouper MUST be GROUP_DATE. The YoY kind cannot
+//     resolve "same period one year prior" semantics against
+//     GROUP_CATEGORY / GROUP_RANGE / GROUP_ROUNDED / GROUP_QUANTILE /
+//     GROUP_SET_VALUE hosts. Non-DATE first grouper fires
+//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE with Details naming the
+//     actual grouper type.
+//   - Scope must be GROUP (mirrors INDEX_VS_PRIOR / INDEX_VS_BASELINE /
+//     INDEX_VS_ROLLING_MEAN / ZSCORE_VS_ROLLING).
+//   - Frequency Param MUST be present (either on the OverlaySpec.Params
+//     slot OR on the host GROUP_DATE grouper's Params). Missing both
+//     fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING with {kind, host_grouper}
+//     Details.
+//   - Frequency value MUST be in the supported set (annual | quarterly |
+//     monthly | weekly | daily | hourly). Out-of-set values fire
+//     PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY with {frequency,
+//     supported} Details.
+//
+// Level / Within rule lives in validateOverlayLevelWithinPredict — the
+// kind is in the implicit-margin / windowed family because the
+// year-over-year lookup folds across the ordered axis without a
+// prefix-bucket denominator, so non-zero Level / Within values fire
+// PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
+// (processing.validateOverlayLevelWithinRuntime) enforces the same
+// rule.
+func validateOverlayYoY(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref family: YoY must be populated; reject any other family pointer
+	// (mirrors the windowed-family rejection set used by INDEX_VS_PRIOR /
+	// INDEX_VS_ROLLING_MEAN / ZSCORE_VS_ROLLING).
+	if spec.Ref.Margin != nil ||
+		spec.Ref.Sibling != nil ||
+		spec.Ref.BaselineIndex != nil ||
+		spec.Ref.Prior != nil ||
+		spec.Ref.RollingMean != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.YoY only (no Margin / Sibling / BaselineIndex / Prior / RollingMean / Population / Stage / Slot)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Ref.YoY is required — the empty marker tags the ref family. The
+	// actual frequency value lives on Params["frequency"] per the WIN_*
+	// operator convention OR on req.Groups[0].Params["frequency"] per the
+	// canonical GROUP_DATE authoring slot.
+	if spec.Ref.YoY == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.YoY (windowed year-over-year reference; frequency lives on Params[\"frequency\"] or Groups[0].Params[\"frequency\"])",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Host must be SERIES-shaped. A SERIES host is a grouped Process
+	// result — Request.Groups is non-empty AND Request.Crosstab is nil
+	// (an active crosstab routes the request down the MATRIX-host path).
+	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// First grouper MUST be GROUP_DATE. The YoY kind cannot resolve
+	// "same period one year prior" semantics against non-DATE groupers.
+	if g := req.Groups[0]; g == nil || g.Type != types.GROUP_DATE {
+		actual := ""
+		if g != nil {
+			actual = string(g.Type)
+		}
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires the host's first grouper to be GROUP_DATE; got "+actual,
+			map[string]any{
+				"index":         index,
+				"kind":          string(spec.Kind),
+				"host_grouper":  actual,
+				"required":      string(types.GROUP_DATE),
+			})
+		return
+	}
+
+	// Scope must be GROUP. OVERLAY_YOY emits one entry per host group
+	// key (the ordered windowed series) — CELL / ROW / COLUMN / MATRIX /
+	// TOTAL scopes are not meaningful for the per-group statistic the
+	// kind emits.
+	if !yoySupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+
+	// Frequency resolution. The handler reads spec.Params["frequency"]
+	// first (the YoY's own override) and falls back to
+	// req.Groups[0].Params["frequency"] (the canonical GROUP_DATE
+	// authoring slot). The predict gate walks both surfaces. Missing
+	// both fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING; out-of-set value
+	// fires PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY.
+	validateOverlayYoYFrequency(env, req, spec, index)
+}
+
+// validateOverlayYoYFrequency validates the OVERLAY_YOY `frequency`
+// Param against the supported set. Reads spec.Params["frequency"]
+// first (the YoY's own override) and falls back to
+// req.Groups[0].Params["frequency"] (the canonical GROUP_DATE
+// authoring slot). Surfaces PULSE_OVERLAY_YOY_FREQUENCY_MISSING when
+// neither carries the slot and PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY
+// when the value is out-of-set. Mirrors the runtime gate in
+// processing.extractYoYFrequency — the predict gate surfaces the same
+// failure shapes so MCP / CLI envelopes carry the same structured
+// context the runtime would have emitted.
+func validateOverlayYoYFrequency(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	frequency, source := readYoYFrequencyForPredict(spec, req)
+	hostGrouper := string(types.GROUP_DATE)
+	if frequency == "" {
+		env.AddError(string(errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING),
+			"overlay "+string(spec.Kind)+" requires a `frequency` Param on either OverlaySpec.Params or the host GROUP_DATE grouper's Params (one of: annual | quarterly | monthly | weekly | daily | hourly)",
+			map[string]any{
+				"index":        index,
+				"kind":         string(spec.Kind),
+				"param":        "frequency",
+				"host_grouper": hostGrouper,
+			})
+		return
+	}
+	if !isYoYSupportedFrequencyPredict(frequency) {
+		env.AddError(string(errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY),
+			"overlay "+string(spec.Kind)+" `frequency` Param value is not in the supported set (annual | quarterly | monthly | weekly | daily | hourly): "+frequency,
+			map[string]any{
+				"index":     index,
+				"kind":      string(spec.Kind),
+				"frequency": frequency,
+				"source":    source,
+				"supported": append([]string(nil), yoySupportedFrequencies...),
+			})
+		return
+	}
+}
+
+// readYoYFrequencyForPredict reads the OVERLAY_YOY frequency Param from
+// the OverlaySpec.Params slot first (the YoY's own override) and falls
+// back to the host GROUP_DATE grouper's Params second. Returns
+// (frequency, source) where `source` names which slot the frequency
+// came from ("spec_params" | "group_params" | ""). When neither slot
+// carries a usable frequency the helper returns ("", "") and the
+// caller surfaces PULSE_OVERLAY_YOY_FREQUENCY_MISSING.
+func readYoYFrequencyForPredict(spec *types.OverlaySpec, req *types.Request) (string, string) {
+	if freq, ok := readYoYFrequencyJSON(spec.Params); ok {
+		return freq, "spec_params"
+	}
+	if req != nil && len(req.Groups) > 0 && req.Groups[0] != nil {
+		if freq, ok := readYoYFrequencyJSON(req.Groups[0].Params); ok {
+			return freq, "group_params"
+		}
+	}
+	return "", ""
+}
+
+// readYoYFrequencyJSON pulls the "frequency" key out of a raw JSON
+// Params blob. Returns (value, true) when the blob is a valid object
+// carrying a string-typed "frequency" entry; ("", false) when the
+// blob is absent / empty / non-object / missing the key / the value
+// is non-string. Mirrors processing.readYoYFrequencyFromParams (the
+// runtime helper); the two surfaces stay parity-true.
+func readYoYFrequencyJSON(params json.RawMessage) (string, bool) {
+	if len(params) == 0 {
+		return "", false
+	}
+	var m map[string]any
+	if err := json.Unmarshal(params, &m); err != nil {
+		return "", false
+	}
+	raw, present := m["frequency"]
+	if !present {
+		return "", false
+	}
+	s, ok := raw.(string)
+	if !ok {
+		return "", false
+	}
+	if s == "" {
+		return "", false
+	}
+	return s, true
+}
+
+// isYoYSupportedFrequencyPredict reports whether the given frequency
+// string is in the OVERLAY_YOY supported set. Linear scan over the
+// 6-element table; mirrors processing.isYoYSupportedFrequency.
+func isYoYSupportedFrequencyPredict(frequency string) bool {
+	for _, f := range yoySupportedFrequencies {
+		if frequency == f {
+			return true
+		}
+	}
+	return false
 }
 
 // validateOverlayRollingWindowParam validates the OverlaySpec.Params

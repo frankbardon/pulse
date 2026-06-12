@@ -712,6 +712,33 @@ const (
 	// the missing-window case).
 	PULSE_OVERLAY_PARAM_MISSING Code = "PULSE_OVERLAY_PARAM_MISSING"
 
+	// PULSE_OVERLAY_YOY_FREQUENCY_MISSING indicates an OVERLAY_YOY spec
+	// did not supply a `frequency` Param either on the OverlaySpec or on
+	// the host's GROUP_DATE grouper. The YoY kind cannot infer the
+	// correct prior-period stride from the GROUP_DATE `component` slot
+	// alone because the per-component stride for "one year prior" varies
+	// by component (annual ⇒ 1 ordinal, quarterly ⇒ 4 ordinals, monthly ⇒
+	// 12 ordinals, weekly ⇒ 52 ordinals, daily ⇒ 365-day calendar
+	// arithmetic, hourly ⇒ 365×24-hour arithmetic). The handler reads
+	// the explicit `frequency` value from `spec.Params["frequency"]`
+	// first (the YoY's own override) and falls back to
+	// `req.Groups[0].Params["frequency"]` (the canonical GROUP_DATE
+	// authoring slot). Surfaced at both predict
+	// (descriptor.validateOverlayYoY) and runtime (processing.applyYoY)
+	// with Details carrying the kind and the host grouper type.
+	PULSE_OVERLAY_YOY_FREQUENCY_MISSING Code = "PULSE_OVERLAY_YOY_FREQUENCY_MISSING"
+
+	// PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY indicates an OVERLAY_YOY
+	// spec named a `frequency` Param outside the supported set
+	// (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`).
+	// The supported set is the minimum frequency catalog needed to cover
+	// the GROUP_DATE component family — finer-than-hourly or coarser-
+	// than-annual frequencies are explicit non-goals in v1. Surfaced at
+	// both predict (descriptor.validateOverlayYoY) and runtime
+	// (processing.applyYoY) with Details carrying the offending
+	// `frequency` value plus the supported list.
+	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY Code = "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY"
+
 	// PULSE_OVERLAY_REF_UNKNOWN is a WARNING-class code emitted by the
 	// sibling-reference overlay family (OVERLAY_DELTA_VS_SIBLING /
 	// OVERLAY_INDEX_VS_SIBLING) when the OverlaySpec.Ref.Sibling
@@ -869,6 +896,8 @@ var allCodes = []Code{
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 	PULSE_OVERLAY_PARAM_MISSING,
 	PULSE_OVERLAY_REF_UNKNOWN,
+	PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
+	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

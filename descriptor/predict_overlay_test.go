@@ -131,7 +131,8 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindIndexVsRollingMean,
 			types.OverlayKindZScoreVsRolling,
 			types.OverlayKindIndexVsBaseline,
-			types.OverlayKindDeltaVsBaseline:
+			types.OverlayKindDeltaVsBaseline,
+			types.OverlayKindYoY:
 			// SERIES-host: skipped from the MATRIX-host catalog gate.
 			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
 			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
@@ -144,7 +145,9 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			// DELTA_VS_BASELINE (absolute-difference twin of
 			// INDEX_VS_BASELINE) — same SERIES-host predicate. E4-S6
 			// adds ZSCORE_VS_ROLLING (sibling windowed-rolling kind to
-			// INDEX_VS_ROLLING_MEAN) — same SERIES-host predicate.
+			// INDEX_VS_ROLLING_MEAN) — same SERIES-host predicate. E4-S7
+			// adds OVERLAY_YOY (windowed year-over-year against a
+			// GROUP_DATE host) — same SERIES-host predicate.
 			continue
 		}
 		matrixHostKinds[k] = true
@@ -482,6 +485,24 @@ func TestPredict_OverlayCost_BufferedKindsHigh(t *testing.T) {
 				Params: json.RawMessage(`{"window": 2}`),
 			},
 		},
+		{
+			// E4-S7 OVERLAY_YOY: SERIES-host windowed kind, year-over-year
+			// ratio against the same period one year prior. Requires a
+			// GROUP_DATE host (the standard siblingHostReq uses
+			// GROUP_CATEGORY, so this case uses its own yoyHostReq
+			// fixture). Buffered — the per-frequency prior-period
+			// lookup requires the materialised host series.
+			name: "YoY",
+			spec: types.OverlaySpec{
+				Name:  "yoy",
+				Kind:  types.OverlayKindYoY,
+				Scope: types.OverlayScopeGroup,
+				Ref: types.OverlayRef{
+					YoY: &types.OverlayYoYRef{},
+				},
+				Params: json.RawMessage(`{"frequency": "monthly"}`),
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -500,7 +521,14 @@ func TestPredict_OverlayCost_BufferedKindsHigh(t *testing.T) {
 					tc.spec.Kind)
 			}
 
-			req := siblingHostReq()
+			// E4-S7 YoY requires a GROUP_DATE host; other windowed kinds
+			// use the siblingHostReq GROUP_CATEGORY fixture.
+			var req *types.Request
+			if tc.spec.Kind == types.OverlayKindYoY {
+				req = yoyHostReq()
+			} else {
+				req = siblingHostReq()
+			}
 			req.Overlays = []types.OverlaySpec{tc.spec}
 
 			env := PredictFromBytes(data, req, nil)
@@ -613,6 +641,7 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		types.OverlayKindIndexVsBaseline:    true,
 		types.OverlayKindDeltaVsBaseline:    true,
 		types.OverlayKindZScoreVsRolling:    true,
+		types.OverlayKindYoY:                true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

@@ -103,6 +103,14 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// capability via its SERIES handler — not the composed
 		// host-overlay routing decision.
 		OverlayKindShareOfTotal: true,
+		// OVERLAY_YOY (E4-S7) is buffered — the per-frequency prior-period
+		// lookup requires the materialised host series. Coarse-frequency
+		// arms (annual / quarterly / monthly / weekly) index into an
+		// arbitrary prior ordinal `i - <stride>`; fine-frequency arms
+		// (daily / hourly) walk an exact-key index built from the full
+		// host key list. Neither shape rides inside the streaming Process
+		// fold today.
+		OverlayKindYoY: false,
 		// ZSCORE_VS_MARGIN shares INDEX_VS_MARGIN's buffered footprint —
 		// both the per-slice Welford recurrence and the margin
 		// centerpoint require a fully-materialised matrix, so the host

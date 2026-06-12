@@ -150,7 +150,21 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// INTRINSIC streaming capability — the streamable SERIES handler
 	// exists, and the MATRIX route falls back to buffered through the
 	// host gate, not this flag.
-	OverlayKindShareOfTotal:   true,
+	OverlayKindShareOfTotal: true,
+	// OVERLAY_YOY is buffered — the per-frequency prior-period lookup
+	// requires the materialised host series. Coarse-frequency arms
+	// (annual / quarterly / monthly / weekly) index into an arbitrary
+	// prior ordinal `i - <stride>`; fine-frequency arms (daily / hourly)
+	// walk an exact-key index built from the full host key list. Neither
+	// shape rides inside the streaming Process fold today (the streaming
+	// pass cannot resolve a backward lookup against per-group accumulators
+	// before finalize). The handler runs at the buffered post-host-
+	// finalize exit via ApplyOverlaysSeries (mirrors the
+	// INDEX_VS_BASELINE / INDEX_VS_ROLLING_MEAN buffered rationale).
+	// Forward-compat: a future story may lift the per-frequency lookup
+	// into a streaming-aware shape when the streaming-Process
+	// orchestrator carries an exact-key host index inline.
+	OverlayKindYoY:            false,
 	OverlayKindZScoreVsMargin: false,
 	// OVERLAY_ZSCORE_VS_ROLLING is buffered — sibling windowed-rolling kind
 	// to OVERLAY_INDEX_VS_ROLLING_MEAN (E4-S5). Both kinds share the per-
