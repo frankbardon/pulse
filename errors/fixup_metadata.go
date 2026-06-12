@@ -882,6 +882,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_COMPOSE_LABEL_COLLISION: {
+		Message: "Two slots in the ComposedRequest resolve to the same final Label after auto-default synthesis. Compose-only overlay kinds resolve sibling references by label, so names must be unique across slots.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests", "*", "Label"},
+				Hint:   "Rename one of the colliding slots, or clear a caller-supplied Label that matches the auto-default (`request_<index+1>`) of another slot. The error details carry the offending label string and the colliding slot indices.",
+			},
+		},
+	},
 	PULSE_JOIN_TYPE_MISMATCH: {
 		Message: "A join key pair pairs fields whose schema types differ. Hash join keys must compare equal byte-for-byte after normalisation; type mismatches block this.",
 		Fixups: []Fixup{

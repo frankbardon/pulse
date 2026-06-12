@@ -62,8 +62,16 @@ func (s *Service) ComposeParallel(
 			"composed request must contain at least one request")
 	}
 
+	// Synthesize Label auto-defaults + collision-check on a clone of the
+	// slot list before the worker pool starts; see applyComposeLabelDefaults
+	// for the contract. The caller's *Request pointers are never mutated.
+	requests, err := applyComposeLabelDefaults(composed)
+	if err != nil {
+		return nil, err
+	}
+
 	o := opts.resolved()
-	n := len(composed.Requests)
+	n := len(requests)
 
 	// Per-slot result and error storage; never shared across slots so no
 	// inter-slot synchronization is required beyond the slot itself.
@@ -87,7 +95,7 @@ func (s *Service) ComposeParallel(
 	sem := make(chan struct{}, o.MaxWorkers)
 	var wg sync.WaitGroup
 
-	for i, req := range composed.Requests {
+	for i, req := range requests {
 		// Bail before launching when ctx is already cancelled.
 		if runCtx.Err() != nil {
 			break

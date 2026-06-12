@@ -68,6 +68,16 @@ Results are returned as an array in the same order as the input requests. Each r
 ```
 </rule>
 
+<rule severity="should" topic="slot-labels">
+## Slot Labels
+
+Each `Request` carries an optional `label` field (`"label,omitempty"`) used by Compose-only overlay kinds to resolve sibling references across slots. The engine auto-fills empty labels with `request_<index+1>` (1-based: `request_1`, `request_2`, ...) before dispatching, against a clone of the slot so your `*Request` pointer is never mutated.
+
+Two slots resolving to the same final label (caller-supplied duplicates OR a caller-supplied value that collides with another slot's auto-default) are rejected with `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs. Set explicit labels when you intend to reference a slot by name from a Compose-only overlay; omit them otherwise and accept the auto-default.
+
+The slot is additive — omitting it leaves the JSON wire shape and `CanonicalHash` output byte-identical to pre-Label callers.
+</rule>
+
 <example name="invoke-compose">
 ## Calling pulse_compose
 

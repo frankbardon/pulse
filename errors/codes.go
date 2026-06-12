@@ -455,6 +455,17 @@ const (
 	// executor needs at least one stage with a real Request to run.
 	PULSE_CHAIN_EMPTY Code = "PULSE_CHAIN_EMPTY"
 
+	// PULSE_COMPOSE_LABEL_COLLISION indicates that two slots inside a
+	// ComposedRequest resolve to the same final Label after the
+	// auto-default pass (`request_<index+1>` for empty slots) and
+	// caller-supplied values are merged. Compose-only overlay kinds
+	// (E7) resolve their Reference / Targets by final Label, so
+	// duplicate names would make sibling lookups ambiguous. Details
+	// carry the offending label string plus the colliding slot
+	// indices so callers can rename one side or drop the colliding
+	// caller-supplied value.
+	PULSE_COMPOSE_LABEL_COLLISION Code = "PULSE_COMPOSE_LABEL_COLLISION"
+
 	// PULSE_JOIN_TYPE_MISMATCH indicates an equi-join key pair where
 	// the left field's schema type differs from the right field's
 	// (e.g. left is u32, right is categorical_u8). Hash join requires
@@ -909,6 +920,7 @@ var allCodes = []Code{
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_CHAIN_NOT_MERGEABLE,
 	PULSE_CHAIN_EMPTY,
+	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,
 	PULSE_JOIN_FIELD_UNKNOWN,

@@ -825,6 +825,26 @@ type Cohort struct {
 // Request is the primary processing request type.
 // It specifies a cohort, filters, aggregations, attributes, groups, and output config.
 type Request struct {
+	// Label is an optional caller-supplied alias used by Compose-only
+	// overlay kinds to resolve sibling references across slots in a
+	// ComposedRequest (e.g. ComposeOverlaySpec.Reference / Targets).
+	// Empty is the zero value and the additive contract holds — the
+	// `omitempty` tag keeps the JSON wire shape byte-identical to
+	// pre-Label callers, including the CanonicalHash output (see
+	// TestCanonicalHash_RequestLabelEmptyByteIdentical).
+	//
+	// Inside a Compose batch the engine synthesizes `request_<index+1>`
+	// (1-based) for every slot that arrives with Label empty, before
+	// dispatching the slot — the synthesis happens against an in-memory
+	// clone so the caller's *Request pointer is not mutated. Two slots
+	// resolving to the same final Label are rejected with
+	// PULSE_COMPOSE_LABEL_COLLISION at the same validate hook.
+	//
+	// Outside Compose (a standalone pulse.Process call) Label is
+	// retained verbatim but has no behavioural effect today; future
+	// stories may light it up for downstream reference resolution.
+	Label string `json:"label,omitempty"`
+
 	// Cohort identifies the .pulse file to process.
 	Cohort *Cohort `json:"cohort,omitempty"`
 

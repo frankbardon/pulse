@@ -243,6 +243,44 @@ func TestCanonicalHash_OverlaysIncluded(t *testing.T) {
 	}
 }
 
+// TestCanonicalHash_RequestLabelEmptyByteIdentical locks the additive
+// contract for the E7-S1 Label slot: adding Label string to Request must
+// NOT change the hash for any existing caller that leaves it empty. The
+// `omitempty` tag keeps `json.Marshal` from emitting the `label` key and
+// the canonical-hash pipeline therefore produces byte-identical output to
+// the pre-Label implementation.
+//
+// The captured constant below matches TestCanonicalHash_OverlayFreeByteIdentity
+// because the two tests share the same fixture Request — both lock the same
+// pre-Label / pre-Overlay byte form. If either constant drifts, the
+// additive extension broke byte-identity for callers that have already
+// pinned dedup keys against earlier Pulse versions; bump CanonicalHash with
+// a migration plan rather than silently re-hashing.
+//
+// CanonicalHash coverage for non-empty Label values lands in E7-S2.
+func TestCanonicalHash_RequestLabelEmptyByteIdentical(t *testing.T) {
+	const captured = "a4e259f7ed18dcbcb3e78b76066bcbee"
+	noLabel := &Request{
+		Cohort: &Cohort{Filename: "a.pulse"},
+		Aggregations: []*Aggregation{
+			{Type: AGG_SUM, Field: "x"},
+		},
+	}
+	emptyLabel := &Request{
+		Label:  "",
+		Cohort: &Cohort{Filename: "a.pulse"},
+		Aggregations: []*Aggregation{
+			{Type: AGG_SUM, Field: "x"},
+		},
+	}
+	if got := noLabel.Hash(); got != captured {
+		t.Fatalf("Request without Label drifted from captured baseline: got %q want %q", got, captured)
+	}
+	if got := emptyLabel.Hash(); got != captured {
+		t.Fatalf("Request with empty Label drifted from captured baseline: got %q want %q", got, captured)
+	}
+}
+
 // TestCanonicalHash_OverlayLevelDistinct verifies that overlay specs
 // differing only in Level produce distinct canonical hashes — and the
 // same for Within. Locks the E2-S11 contract that non-zero Level /
