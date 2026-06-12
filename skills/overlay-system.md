@@ -467,6 +467,169 @@ The `FacetResult.Overlays []OverlayLayer` slot uses `omitempty` so a request wit
 
 See `skills/facet-design.md` (FACET-host overlays section) for the full recipe and `service/facet_overlay.go` for the population-cohort cache + per-spec dispatch.
 
+## OVERLAY_FORMULA
+
+`OVERLAY_FORMULA` is the escape-hatch overlay kind: it lets callers compute an arbitrary per-cell / per-entry / per-scalar projection from an `expr-lang/expr` expression supplied at request time via `OverlaySpec.Params["formula"]`. The same evaluator backs `ATTR_FORMULA` and `FILTER_EXPRESSION`, so any expression that parses there parses here. FORMULA is **buffered-only across every host shape** — the variable namespace depends on post-fold state (margins, totals, SDs, prior values) so a streamable arm is not viable at v1; the evaluator runs at the same post-finalize hooks the rest of the buffered overlay family uses (`processing.ApplyOverlays` for matrix hosts, `processing.ApplyOverlaysSeries` for series hosts, `processing.ApplyOverlaysFacet` for FACET hosts, `processing.ApplyComposeOverlays` for COMPOSE hosts). The authoritative spec for the namespace is `.planning/result-overlay-system/research/formula-namespace.md` (the S1 research note).
+
+### Per-shape namespace
+
+Every FORMULA expression sees a variable namespace tied to the resolved host shape. The per-shape allowed identifier set lives at `types.FormulaNamespace(shape OverlayShape) []string` — the canonical leaf both `descriptor/overlay_formula.go` (predict) and `processing/overlay_formula.go` (runtime) read. An identifier not in the per-shape table (and not registered as an `ExprFunctions` function) fires `PULSE_OVERLAY_FORMULA_INVALID_IDENT` at predict time.
+
+| Host shape | Identifier | Type | Meaning | Availability |
+|---|---|---|---|---|
+| matrix | `cell` | float64 | Current cell's host value (`MatrixPayload.Cell(rowIdx, colIdx).Value`) | always |
+| matrix | `margin_row` | float64 | Current row's margin (`MatrixPayload.RowMargins[rowIdx].Value`) | always |
+| matrix | `margin_col` | float64 | Current column's margin (`MatrixPayload.ColumnMargins[colIdx].Value`) | always |
+| matrix | `margin_grand` | float64 | Grand total (`MatrixPayload.GrandTotal.Value`) | always |
+| matrix | `sd_row` | float64 | Welford-Pébaÿ population SD across columns in the current row | computed once per row when referenced (AST lex detects participation) |
+| matrix | `sd_col` | float64 | Welford-Pébaÿ population SD across rows in the current column | computed once per column when referenced |
+| matrix | `sd_grand` | float64 | Welford-Pébaÿ population SD across every present cell | computed once per overlay when referenced |
+| matrix | `ref_cell` | float64 | Reference slot's matching cell at `(rowIdx, colIdx)` | COMPOSE-host only (host is Compose-matrix and `Reference` resolves to a matrix-shaped slot) |
+| series | `value` | float64 | Current entry's host value (`SeriesPayload.Entries[i].Summary.Statistic`) | always |
+| series | `total` | float64 | Series grand total / sum across every present entry | always |
+| series | `prior` | float64 | Lag-1 value (preceding present entry); NaN at the first present entry | always (NaN at entry 0) |
+| series | `baseline` | float64 | Fixed positional baseline at `Params["baseline_position"]` | opt-in — referencing `baseline` without `Params["baseline_position"]` fires `PULSE_OVERLAY_FORMULA_INVALID_IDENT` |
+| series | `ref_value` | float64 | Reference slot's matching entry at the same axis key | COMPOSE-host only (host is Compose-series and `Reference` resolves to a series-shaped slot) |
+| scalar | `value` | float64 | The scalar host value | always |
+| scalar | `ref` | float64 | Reference slot's scalar value | COMPOSE-host only (host is Compose-scalar and `Reference` resolves to a scalar-shaped slot) |
+| COMPOSE-only (any shape) | `slot.<label>.cell` | float64 | Matrix-shaped slot's value at the iteration's `(rowIdx, colIdx)` | requires `Request.Label == "<label>"` on a matrix-shaped slot |
+| COMPOSE-only (any shape) | `slot.<label>.value` | float64 | Series-shaped slot's matched-by-key entry value, or scalar-shaped slot's constant value | requires `Request.Label == "<label>"` on a series- or scalar-shaped slot |
+
+The `slot.<label>` dotted namespace is the Compose-host superset — it stacks on top of whichever per-shape table the host iteration uses. Authoring a `slot.foo.cell` identifier on a Request-host (non-Compose) overlay fires `PULSE_OVERLAY_FORMULA_INVALID_IDENT` with `reason: "slot namespace is Compose-only"`. The label binds to `Request.Label` after the E7-S1 `request_<index+1>` auto-default fills empty labels, so even unnamed Compose slots get a stable handle (`slot.request_1.cell` resolves when the slot's `Label == ""` defaulted to `"request_1"`).
+
+**Absent-cell policy:** when a host cell / entry / scalar is structurally absent (`Present=false`) the handler emits an absent overlay cell — the expression is NOT evaluated. **First-entry `prior`:** the SERIES binder scans backwards from `i-1` for the first PRESENT entry and surfaces NaN at entry 0 (no lag available; mirrors `OVERLAY_INDEX_VS_PRIOR`). **SD precomputation:** `processing.detectFormulaSDIdentifiers` lexes the AST once at handler entry; only the referenced SD axes (`sd_row` / `sd_col` / `sd_grand`) drive the single-pass Welford-Pébaÿ recurrence, so the per-cell hot path stays O(1) when SDs are not referenced. **Return-type coercion:** `float64` / `float32` / `int` / `int64` widen natively; `bool` widens to `0.0 / 1.0`; every other type fires `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH` at runtime carrying `{returned_type, formula}` Details.
+
+### Predict-time validation
+
+`descriptor.validateFormulaOverlay` parses the formula via `expr-lang/expr/parser`, walks the AST via `expr-lang/expr/ast` (the same packages `processing.NeededFields` walks for `ATTR_FORMULA`), and rejects every identifier not in the per-shape variable table or the embedder `ExprFunctions` function set. The validator runs no-execute — predict reads only header + schema + extension snapshot, never records. Two passes over the AST: a pre-pass collects `IdentifierNode` pointers acting as `CallNode` callees (function references) and `MemberNode` chain roots (slot references) so the main pass can skip them when an `IdentifierNode` leaf would otherwise double-emit. Function calls (e.g. `pct_change(cell, ref_cell)`) succeed when the function is registered via `pulse.Options.Extensions.ExprFunctions`; an unregistered function name surfaces `PULSE_OVERLAY_FORMULA_INVALID_IDENT` at predict.
+
+Three predict-time / runtime error codes (E8-S6 catalog registrations):
+
+| Code | When | Details payload |
+|---|---|---|
+| `PULSE_OVERLAY_FORMULA_PARSE_ERROR` | `expr-lang/expr/parser.Parse` returns an error (typo, unbalanced parentheses, stray operator, unterminated string literal). Surfaced at both predict and runtime. | `{formula, parse_error, kind, index}` — parser's own position-aware error string is preserved verbatim. |
+| `PULSE_OVERLAY_FORMULA_INVALID_IDENT` | Predict AST walk encounters an identifier not in `types.FormulaNamespace(shape)` ∪ registered `ExprFunctions`. Also fires at predict on `slot.<label>.<field>` against a non-Compose host. | `{unknown_identifier, host_shape, allowed, formula, kind, index}`; Request-host slot misuse adds `reason: "slot namespace is Compose-only"`. |
+| `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH` | Runtime `expr.Run` returns a value whose Go type cannot be coerced to numeric (anything other than float64 / float32 / int / int64 / bool). | `{returned_type, formula, kind, index}`. |
+
+The full Message + Fixup prose lives at `errors/fixup_metadata.go` and is reachable via `pulse_errors_lookup` (MCP) / `pulse errors lookup CODE` (CLI). Fixup hints walk the caller back to the canonical fixes — swap the identifier for one in the per-shape table, register the missing function via `pulse.Options.Extensions.ExprFunctions`, or register a new kind via `pulse.Options.Extensions.OverlayKinds` if the FORMULA namespace genuinely needs a new variable family.
+
+### Worked examples
+
+The S7 conformance suite (`processing/overlay_formula_test.go`) pins the canonical authoring shapes. Each example below mirrors one test in that suite byte-for-byte.
+
+**Matrix: standardised deviation from the grand mean** — `(cell - margin_grand) / sd_grand`. Drives the MATRIX-host CELL-scope hot path. On a 2×3 matrix carrying `[[1,2,3], [4,5,6]]` (grand total 21, grand SD `sqrt(17.5/6)`), the layer emits the per-cell z-score against the matrix-wide mean. Pins `TestOverlay_Formula_Cell_Matrix`.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+    "cell":    {"type": "AGG_SUM", "field": "revenue"}
+  },
+  "overlays": [
+    {
+      "name":  "z_grand",
+      "kind":  "OVERLAY_FORMULA",
+      "scope": "cell",
+      "params": {"formula": "(cell - margin_grand) / sd_grand"}
+    }
+  ]
+}
+```
+
+**Series: period-over-period rate of change** — `(value - prior) / prior`. Drives the SERIES-host GROUP-scope path. On a 4-entry series carrying `[10, 20, 30, 40]`, entry 0 emits NaN (no prior), entries 1–3 emit the per-period growth fraction `{1.0, 0.5, 0.333...}`. Pins `TestOverlay_Formula_Series_Prior`.
+
+```json
+{
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "value"}],
+  "groups":       [{"type": "GROUP_DATE", "field": "order_date", "interval": "month"}],
+  "overlays": [
+    {
+      "name":  "pct_change",
+      "kind":  "OVERLAY_FORMULA",
+      "scope": "group",
+      "params": {"formula": "(value - prior) / prior"}
+    }
+  ]
+}
+```
+
+**Scalar: ratio against a fixed reference** — `value / ref`. Drives the SCALAR-host TOTAL-scope path, with `ref` populated via a Compose-scalar reference slot. The layer carries one scalar.
+
+```json
+{
+  "requests": [
+    {"label": "current", "cohort": {"filename": "q4.pulse"}, "aggregations": [{"type": "AGG_SUM", "field": "revenue"}]},
+    {"label": "prior",   "cohort": {"filename": "q3.pulse"}, "aggregations": [{"type": "AGG_SUM", "field": "revenue"}]}
+  ],
+  "overlays": [
+    {
+      "name":      "ratio",
+      "kind":      "OVERLAY_FORMULA",
+      "scope":     "total",
+      "reference": "prior",
+      "targets":   ["current"],
+      "params":    {"formula": "value / ref"}
+    }
+  ]
+}
+```
+
+**Compose: per-cell n-way slot algebra** — `slot.population.cell / slot.audience.cell`. Drives the Compose-host MATRIX-shape path with two labelled matrix-shaped slots. On a 2×2 grid with `population = [[200, 400], [600, 800]]` and `audience = [[100, 100], [200, 200]]`, the layer emits the per-cell ratio `[[2, 4], [3, 4]]`. Pins `TestOverlay_Formula_SlotAccess_Compose`. The dotted namespace is the FORMULA surface for what `OVERLAY_INDEX_VS_REF` accomplishes via the named `Reference` + `Targets` shape; FORMULA's value-add is per-cell expressions that mix multiple slots in one layer.
+
+```json
+{
+  "requests": [
+    {"label": "population", "cohort": {"filename": "all.pulse"},     "crosstab": {...}},
+    {"label": "audience",   "cohort": {"filename": "buyers.pulse"}, "crosstab": {...}}
+  ],
+  "overlays": [
+    {
+      "name":      "share_of_population",
+      "kind":      "OVERLAY_FORMULA",
+      "scope":     "cell",
+      "reference": "population",
+      "targets":   ["audience"],
+      "params":    {"formula": "slot.audience.cell / slot.population.cell"}
+    }
+  ]
+}
+```
+
+### Embedder extensibility — `ExprFunctions`
+
+Callers extend the FORMULA *function* surface — not the variable surface — via `pulse.Options.Extensions.ExprFunctions`. The same registration site that exposes a custom function to `ATTR_FORMULA` and `FILTER_EXPRESSION` exposes it to `OVERLAY_FORMULA`; one registration, three call sites.
+
+```go
+opts := pulse.Options{
+    Extensions: pulse.Extensions{
+        ExprFunctions: []pulse.ExprFunction{
+            {
+                Name:        "pct_change",
+                Description: "Percent change: (now - ref) / ref * 100",
+                Fn: func(now, ref float64) float64 {
+                    if ref == 0 { return math.NaN() }
+                    return (now - ref) / ref * 100.0
+                },
+            },
+        },
+    },
+}
+p, _ := pulse.New(opts)
+```
+
+A FORMULA overlay can now reference `pct_change(cell, 100.0)` and the per-cell hot path calls the registered function (pinned by `TestExtensions_OverlayKinds_FormulaExprFn`). Functions widen the function table only — they DO NOT widen the variable table. Embedders that need a new *variable* (e.g. `external_baseline`) MUST register a custom kind via `pulse.Options.Extensions.OverlayKinds` per the existing extension-points policy; FORMULA cannot widen its variable namespace from outside. See `skills/extension-points.md` ("Expression functions") for the full registration recipe — the FORMULA surface inherits the same naming and signature contract.
+
+**LookupTables also reachable.** When the embedder registers `pulse.Options.Extensions.LookupTables` the auto-injected `lookup(table, keys...)` builtin lands on the same `ExprOptions()` slice and becomes reachable from OVERLAY_FORMULA expressions (`processing.applyFormulaWithExtensions` consumes the shared slice). The same `PULSE_LOOKUP_TABLE_UNKNOWN` / `PULSE_LOOKUP_MISS` codes the attribute / filterer surfaces emit apply here too. See `skills/extension-points.md` ("Lookup tables") for the table shape.
+
+### See also
+
+- `.planning/result-overlay-system/research/formula-namespace.md` — authoritative per-shape namespace + predict algorithm + streamability rationale (S1 deliverable).
+- `skills/extension-points.md` — `ExprFunctions` + `LookupTables` registration recipes shared across `ATTR_FORMULA`, `FILTER_EXPRESSION`, and `OVERLAY_FORMULA`.
+- `processing/overlay_formula.go` — runtime evaluator + per-shape binders + SD precomputation.
+- `descriptor/overlay_formula.go` — predict-time AST walker + identifier validation.
+- `types/overlay.go` — `types.FormulaNamespace(shape)` canonical leaf (the per-shape allowed-identifier set both predict and runtime read).
+
 ## Adding a new overlay kind
 
 1. Declare the constant in `types/overlay.go` and append it to `AllOverlayKinds()`.
