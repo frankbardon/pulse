@@ -1,0 +1,101 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Compose batch of two crosstab slots (population, audience) over region x segment decorated with an OVERLAY_FORMULA matrix-shape compose overlay that computes the per-cell ratio `slot.population.cell / slot.audience.cell`. First FORMULA example to exercise the Compose-host `slot.<label>.<field>` dotted namespace (E8-S3 binder; E8-S7 canonical-name acceptance gate `TestOverlay_Formula_SlotAccess_Compose`). The FORMULA dotted namespace is the escape-hatch surface for what `OVERLAY_INDEX_VS_REF` accomplishes via the named `reference` + `targets` shape; FORMULA's value-add is per-cell expressions that mix multiple slots in one layer (e.g. `(slot.us.cell - slot.uk.cell) / slot.world.cell`). Slot labels resolve via Request.Label after the E7-S1 auto-default — Reference names the baseline slot (the unfiltered population crosstab), Targets names the slot whose cells the overlay decorates (the audience subset). Both crosstabs read the same experiment.pulse cohort but differ via the Filterers slot — Filterers can carve out the audience subset without changing the matrix shape, so the key sets align by construction. Compile-once / run-many via `expr-lang/expr`: `expr.Compile` runs ONCE per overlay spec at handler entry against the prototype env (which lays the prototype slot map as `map[string]any{\"population\": map[string]any{\"cell\": 0.0}, \"audience\": map[string]any{\"cell\": 0.0}}` so the expr-lang compile-time env validator accepts the dotted identifiers); `expr.Run` runs per cell with the per-iteration env overwriting the slot value slots in place. Return-type coercion mirrors `formulaAttribute.Row` byte-for-byte: float64 / float32 / int / int64 widen natively; bool widens to 0.0 / 1.0; every other type fires `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH`. Inherently buffered — FORMULA stays buffered across every host shape at v1 because the variable namespace depends on post-fold state. Predict-time identifier validation (E8-S4) runs the same AST walker over the formula and rejects unknown identifiers with `PULSE_OVERLAY_FORMULA_INVALID_IDENT`; a Request-host overlay referencing `slot.foo.cell` fires the same code with `reason: \"slot namespace is Compose-only\"` because the slot namespace is a Compose-host exclusive.",
+    "name": "compose-overlay-formula",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "composed",
+      "cross-tabulation",
+      "overlay"
+    ]
+  },
+  "requests": [
+    {
+      "label": "population",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "id",
+          "label": "n"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    },
+    {
+      "label": "audience",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["variant"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "id",
+          "label": "n"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "share_of_population",
+      "kind": "OVERLAY_FORMULA",
+      "scope": "cell",
+      "reference": "population",
+      "targets": ["audience"],
+      "params": {
+        "formula": "slot.audience.cell / slot.population.cell"
+      }
+    }
+  ]
+}

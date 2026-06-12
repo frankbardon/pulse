@@ -575,7 +575,7 @@ The S7 conformance suite (`processing/overlay_formula_test.go`) pins the canonic
 }
 ```
 
-**Compose: per-cell n-way slot algebra** — `slot.population.cell / slot.audience.cell`. Drives the Compose-host MATRIX-shape path with two labelled matrix-shaped slots. On a 2×2 grid with `population = [[200, 400], [600, 800]]` and `audience = [[100, 100], [200, 200]]`, the layer emits the per-cell ratio `[[2, 4], [3, 4]]`. Pins `TestOverlay_Formula_SlotAccess_Compose`. The dotted namespace is the FORMULA surface for what `OVERLAY_INDEX_VS_REF` accomplishes via the named `Reference` + `Targets` shape; FORMULA's value-add is per-cell expressions that mix multiple slots in one layer.
+**Compose: per-cell n-way slot algebra** — `slot.population.cell / slot.audience.cell`. Drives the Compose-host MATRIX-shape path with two labelled matrix-shaped slots. On a 2×2 grid with `population = [[200, 400], [600, 800]]` and `audience = [[100, 100], [200, 200]]`, the layer emits the per-cell ratio `[[2, 4], [3, 4]]`. Pins `TestOverlay_Formula_SlotAccess_Compose`. Runnable end-to-end at `examples/overlays/15_compose_overlay_formula.json` (CLI: `pulse api compose --request examples/overlays/15_compose_overlay_formula.json`). The dotted namespace is the FORMULA surface for what `OVERLAY_INDEX_VS_REF` accomplishes via the named `Reference` + `Targets` shape; FORMULA's value-add is per-cell expressions that mix multiple slots in one layer.
 
 ```json
 {
