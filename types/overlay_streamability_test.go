@@ -44,6 +44,11 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// which require the buffered host crosstab matrix. PRD § 4.C
 		// FR-C2 canonical low-count contingency overlay.
 		OverlayKindFisherExactCell: false,
+		// INDEX_VS_BASELINE is buffered — resolving a single positional
+		// baseline (Ref.BaselineIndex.Position) requires the materialised
+		// host series; the handler runs at the buffered post-host-finalize
+		// exit via ApplyOverlaysSeries (mirrors INDEX_VS_SIBLING).
+		OverlayKindIndexVsBaseline: false,
 		// INDEX_VS_MARGIN rides on the buffered crosstab path — margins
 		// are always recomputed from raw rows, so the host operator is
 		// inherently buffered (see CLAUDE.md "Execution modes" →

@@ -109,6 +109,16 @@ var indexVsMarginSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
+// indexVsBaselineSupportedScopes is the E4-supported scope set for
+// OVERLAY_INDEX_VS_BASELINE. The kind emits one entry per host group key
+// (the ordered windowed series) — Scope=GROUP is the only sensible
+// footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
+// fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
+// `indexVsPriorSupportedScopes` / `indexVsTotalSupportedScopes`.
+var indexVsBaselineSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeGroup: true,
+}
+
 // indexVsPriorSupportedScopes is the E4-supported scope set for
 // OVERLAY_INDEX_VS_PRIOR. The kind emits one entry per host group key
 // (the ordered windowed series) — Scope=GROUP is the only sensible
@@ -466,6 +476,25 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
+	// INDEX_VS_BASELINE is the E4-S2 windowed-SERIES kind (req.Groups, no
+	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_TOTAL /
+	// INDEX_VS_PRIOR because the baseline is a single fixed positional
+	// anchor (Ref.BaselineIndex.Position), not an axis prefix. Run the gate
+	// before the no-crosstab short-circuit so the rule still fires when
+	// Request.Crosstab is nil. Implicit-margin / windowed family rule.
+	if spec.Kind == types.OverlayKindIndexVsBaseline {
+		if spec.Level != 0 || spec.Within != 0 {
+			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed positional baseline is a single fixed anchor without a prefix-bucket denominator)",
+				map[string]any{
+					"index":  index,
+					"kind":   string(spec.Kind),
+					"level":  spec.Level,
+					"within": spec.Within,
+				})
+		}
+		return
+	}
 	// INDEX_VS_PRIOR is the E4-S4 windowed-SERIES kind (req.Groups, no
 	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_TOTAL
 	// because the single-state lag carrier folds across the ordered axis
@@ -661,6 +690,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayDeltaVsSibling(env, req, spec, index)
 	case types.OverlayKindFisherExactCell:
 		validateOverlayFisherExactCell(env, req, spec, index)
+	case types.OverlayKindIndexVsBaseline:
+		validateOverlayIndexVsBaseline(env, req, spec, index)
 	case types.OverlayKindIndexVsMargin:
 		validateOverlayIndexVsMargin(env, req, spec, index)
 	case types.OverlayKindIndexVsPrior:
@@ -900,6 +931,99 @@ func validateOverlayIndexVsPrior(env *Envelope, req *types.Request, spec *types.
 			})
 		return
 	}
+}
+
+// validateOverlayIndexVsBaseline enforces the per-kind contract for
+// OVERLAY_INDEX_VS_BASELINE (E4-S2, second windowed-Process kind in the
+// catalog and first consumer of the `Ref.BaselineIndex.Position` arm
+// landed at E4-S1):
+//
+//   - Ref.BaselineIndex MUST be populated (the resolver consumes Position
+//     as the windowed positional anchor). Empty Ref is rejected with
+//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+//   - Any other ref-family pointer populated (Margin / Sibling / Prior /
+//     Population / Stage / Slot) → reject with
+//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+//   - Host must be SERIES-shaped (Request.Crosstab nil AND Request.Groups
+//     non-empty — the kind targets a windowed ordered-axis SERIES host,
+//     not a MATRIX one).
+//   - Scope must be GROUP (mirrors INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES
+//     / ZSCORE_VS_TOTAL / INDEX_VS_PRIOR).
+//   - Ref.BaselineIndex.Position is range-checked downstream by
+//     validateOverlayBaselineIndexPredict (E4-S1) — negative or
+//     out-of-range values fire PULSE_OVERLAY_REF_UNKNOWN with the
+//     `{baseline_index, series_length}` Details map.
+//
+// Level / Within rule lives in validateOverlayLevelWithinPredict — the
+// kind is in the implicit-margin / windowed family because the baseline
+// is a single fixed positional anchor, not an axis prefix, so non-zero
+// Level / Within values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The
+// runtime mirror (processing.validateOverlayLevelWithinRuntime) enforces
+// the same rule.
+func validateOverlayIndexVsBaseline(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref family must be BaselineIndex only. Any other family pointer
+	// (Margin / Sibling / Prior / Population / Stage / Slot) is a shape
+	// mismatch (mirrors the INDEX_VS_PRIOR Prior-only / INDEX_VS_TOTAL
+	// implicit-default rejection set).
+	if spec.Ref.Margin != nil ||
+		spec.Ref.Sibling != nil ||
+		spec.Ref.Prior != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.BaselineIndex only (no Margin / Sibling / Prior / Population / Stage / Slot)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Ref.BaselineIndex is required — the windowed positional anchor lives
+	// on this slot.
+	if spec.Ref.BaselineIndex == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.BaselineIndex (windowed positional baseline reference)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Host must be SERIES-shaped. A SERIES host is a grouped Process
+	// result — Request.Groups is non-empty AND Request.Crosstab is nil (an
+	// active crosstab routes the request down the MATRIX-host path).
+	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Scope must be GROUP. INDEX_VS_BASELINE emits one entry per host
+	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
+	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
+	// the kind emits.
+	if !indexVsBaselineSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+
+	// Position range check is delegated to
+	// validateOverlayBaselineIndexPredict (E4-S1) which runs alongside
+	// this per-kind validator from ValidateOverlays. Negative or
+	// out-of-range values fire PULSE_OVERLAY_REF_UNKNOWN.
 }
 
 // validateOverlayChiSqMatrix enforces the per-kind contract for

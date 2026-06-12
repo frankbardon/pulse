@@ -4955,6 +4955,20 @@
         "description": "Per-cell Fisher's exact two-sided test against a 2×2 contingency table built from the host cell, its row margin, its column margin, and the grand total. CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the exact two-sided p-value as a float64. The Ref union is left empty (implicit-margin: row + col margins resolve from the buffered crosstab host view). Reuses the lgamma-backed hypergeometric primitive backing TEST_FISHER_EXACT (processing/test_fisher.go) via the shared fisherExactTwoSided helper. Canonical low-count contingency overlay (PRD § 4.C FR-C2) — emits PULSE_OVERLAY_EXPECTED_LOW per cell when the Cochran rule fires on the 2×2 (any expected \u003c 1 OR ≥ 20% of expected counts \u003c 5), flagging cells where the cheaper χ² approximation would be unreliable and Fisher's exact is structurally required."
       },
       {
+        "kind": "OVERLAY_INDEX_VS_BASELINE",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [
+          "BaselineIndex"
+        ],
+        "buffered": true,
+        "description": "Per-point ratio index against a single fixed positional baseline of an ordered SERIES (grouped Process) host: (point_value / baseline_value) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. Second windowed-Process overlay in the catalog (E4-S2; the first windowed kind was OVERLAY_INDEX_VS_PRIOR / E4-S4) and the first kind to consume the Ref.BaselineIndex.Position arm of the OverlayBaselineIndexRef union (E4-S1 foundation). The baseline is resolved ONCE up front via processing.ResolveBaselineIndex and every present point divides by it. The first present point at the baseline ordinal yields 100.0 (self-vs-self). Zero baseline (resolved baseline_value is 0 — includes the absent-baseline case where host.ValueAt returns (0, false) at the baseline ordinal) emits ONE PULSE_OVERLAY_REF_ZERO warning carrying the baseline ordinal and the host group count; every entry's Statistic is NaN. Negative or out-of-range Position values fire PULSE_OVERLAY_REF_UNKNOWN at both predict and runtime with {baseline_index, series_length} Details. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.BaselineIndex MUST be populated; any other ref-family pointer (Margin / Sibling / Prior / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (the baseline is a single fixed positional anchor, not an axis prefix); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — resolving a single positional baseline requires the materialised host series. Renderers centre diverging colour ramps on baseline=100."
+      },
+      {
         "kind": "OVERLAY_INDEX_VS_MARGIN",
         "shapes": [
           "matrix"
@@ -5103,4 +5117,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ec2ee2f9ed13689e35aae6bbfe7864c388600c30906bbeb987f489d81ab8ee7c
+// golden-hash: fac456969dc285678208d8e3ca1d342484085958d202fffa8bf4fbf767493b0f

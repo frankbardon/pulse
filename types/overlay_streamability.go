@@ -73,7 +73,17 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// is plumbed (PRD § 4.C FR-C2 — the canonical low-count contingency
 	// overlay closing the E2 inferential family).
 	OverlayKindFisherExactCell: false,
-	OverlayKindIndexVsMargin: false,
+	// OVERLAY_INDEX_VS_BASELINE is buffered — resolving a single positional
+	// baseline (Ref.BaselineIndex.Position) requires the materialised host
+	// series (`host.ValueAt(Position)` is consulted after finalize). The
+	// handler runs at the buffered post-host-finalize exit via
+	// ApplyOverlaysSeries (mirrors OVERLAY_INDEX_VS_SIBLING). Forward-compat:
+	// a future story may lift the baseline resolver into a streaming-aware
+	// shape (carrying the resolved baseline inline as a kind-specific
+	// accumulator advanced during the streaming pass once the orchestrator
+	// hits the baseline ordinal); when that lands the flag flips to true.
+	OverlayKindIndexVsBaseline: false,
+	OverlayKindIndexVsMargin:   false,
 	// OVERLAY_INDEX_VS_PRIOR is streamable — first windowed-Process
 	// overlay (E4-S4) in the streamable subset. The single-state lag
 	// carrier is one f64 carried alongside the per-group accumulators

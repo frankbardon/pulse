@@ -250,6 +250,14 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// Handler: applyDeltaVsSibling in
 	// processing/overlay_delta_vs_sibling.go.
 	types.OverlayKindDeltaVsSibling: applyDeltaVsSibling,
+	// OVERLAY_INDEX_VS_BASELINE (E4-S2): per-point ratio index against a
+	// single fixed positional baseline of the ordered host series — the
+	// baseline is resolved once via processing.ResolveBaselineIndex
+	// (E4-S1 foundation helper) and every present point divides by it.
+	// Buffered (baseline resolution requires the materialised host
+	// series). Handler: applyIndexVsBaseline in
+	// processing/overlay_index_vs_baseline.go.
+	types.OverlayKindIndexVsBaseline: applyIndexVsBaseline,
 	// OVERLAY_INDEX_VS_PRIOR (E4-S4): per-point windowed index against
 	// the immediately preceding ordered-axis point — single-state lag
 	// carrier (one f64 alongside the per-group accumulators in the

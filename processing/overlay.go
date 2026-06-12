@@ -2666,6 +2666,14 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// bare-kind shape so renderers can use it directly as a tab /
 		// legend label without uppercasing.
 		return "fisher_exact_cell"
+	case types.OverlayKindIndexVsBaseline:
+		// INDEX_VS_BASELINE is the windowed positional-baseline kind; the
+		// synthesised default surfaces the lower-case bare-kind string
+		// "index_vs_baseline" matching the INDEX_VS_TOTAL / SHARE_OF_TOTAL
+		// SERIES / INDEX_VS_PRIOR convention. The synthesiser intentionally
+		// does NOT echo the baseline ordinal in the default name — renderers
+		// that need the disambiguation populate spec.Name explicitly.
+		return "index_vs_baseline"
 	case types.OverlayKindIndexVsMargin:
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)

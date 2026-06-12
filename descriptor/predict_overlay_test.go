@@ -126,15 +126,17 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindZScoreVsTotal,
 			types.OverlayKindDeltaVsSibling,
 			types.OverlayKindIndexVsSibling,
-			types.OverlayKindIndexVsPrior:
+			types.OverlayKindIndexVsPrior,
+			types.OverlayKindIndexVsBaseline:
 			// SERIES-host: skipped from the MATRIX-host catalog gate.
 			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
 			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
 			// ZSCORE_VS_TOTAL; they are covered by their own per-kind
 			// happy-path tests against indexVsTotalSeriesHostReq()-style
 			// fixtures rather than this MATRIX-host fixture. E4-S4 adds
-			// INDEX_VS_PRIOR (windowed lag-1) which is also SERIES-host
-			// and rides on the same skip rule.
+			// INDEX_VS_PRIOR (windowed lag-1) and E4-S2 adds
+			// INDEX_VS_BASELINE (windowed positional anchor) which are
+			// also SERIES-host and ride on the same skip rule.
 			continue
 		}
 		matrixHostKinds[k] = true
@@ -400,6 +402,24 @@ func TestPredict_OverlayCost_BufferedKindsHigh(t *testing.T) {
 				},
 			},
 		},
+		{
+			// E4-S2 INDEX_VS_BASELINE: SERIES-host windowed kind anchored
+			// against a positional baseline (Ref.BaselineIndex.Position).
+			// Buffered because baseline resolution requires the
+			// materialised host series — mirrors the sibling-family
+			// buffered cost dispatch. The siblingHostReq fixture exposes a
+			// single GROUP_CATEGORY grouper over `region` (2 dict entries)
+			// so Position=0 stays in-range at predict time.
+			name: "IndexVsBaseline",
+			spec: types.OverlaySpec{
+				Name:  "idx_baseline",
+				Kind:  types.OverlayKindIndexVsBaseline,
+				Scope: types.OverlayScopeGroup,
+				Ref: types.OverlayRef{
+					BaselineIndex: &types.OverlayBaselineIndexRef{Position: 0},
+				},
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -517,15 +537,17 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 	}
 
 	// SERIES-host kinds (INDEX_VS_TOTAL, ZSCORE_VS_TOTAL, SHARE_OF_TOTAL
-	// SERIES dispatch, the SIBLING family) live in the streamable / sibling
-	// tests above and intentionally do NOT appear in this MATRIX-host gate.
+	// SERIES dispatch, the SIBLING family, the windowed kinds) live in
+	// the streamable / sibling / windowed tests above and intentionally
+	// do NOT appear in this MATRIX-host gate.
 	seriesHostKinds := map[types.OverlayKind]bool{
-		types.OverlayKindIndexVsTotal:   true,
-		types.OverlayKindZScoreVsTotal:  true,
-		types.OverlayKindShareOfTotal:   true,
-		types.OverlayKindDeltaVsSibling: true,
-		types.OverlayKindIndexVsSibling: true,
-		types.OverlayKindIndexVsPrior:   true,
+		types.OverlayKindIndexVsTotal:    true,
+		types.OverlayKindZScoreVsTotal:   true,
+		types.OverlayKindShareOfTotal:    true,
+		types.OverlayKindDeltaVsSibling:  true,
+		types.OverlayKindIndexVsSibling:  true,
+		types.OverlayKindIndexVsPrior:    true,
+		types.OverlayKindIndexVsBaseline: true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

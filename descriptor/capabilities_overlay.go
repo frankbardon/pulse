@@ -285,6 +285,44 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"expected < 1 OR ≥ 20% of expected counts < 5), flagging cells where the cheaper χ² " +
 				"approximation would be unreliable and Fisher's exact is structurally required.",
 		}
+	case types.OverlayKindIndexVsBaseline:
+		return OverlayCapability{
+			Kind: types.OverlayKindIndexVsBaseline,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// BaselineIndex is the windowed positional-anchor ref family
+			// (E4-S1 foundation; E4-S2 first consumer). The capability row
+			// declares the consumed Ref-arm so MCP / manifest clients see
+			// the kind requires Ref.BaselineIndex.Position to be populated;
+			// the per-kind validator
+			// (descriptor.validateOverlayIndexVsBaseline) gates the shape
+			// at predict time.
+			RefKinds: []string{"BaselineIndex"},
+			Description: "Per-point ratio index against a single fixed positional baseline of an ordered SERIES " +
+				"(grouped Process) host: (point_value / baseline_value) * 100. GROUP scope over a SERIES host with " +
+				"SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on " +
+				"Summary.Statistic. Second windowed-Process overlay in the catalog (E4-S2; the first windowed kind " +
+				"was OVERLAY_INDEX_VS_PRIOR / E4-S4) and the first kind to consume the Ref.BaselineIndex.Position " +
+				"arm of the OverlayBaselineIndexRef union (E4-S1 foundation). The baseline is resolved ONCE up " +
+				"front via processing.ResolveBaselineIndex and every present point divides by it. The first present " +
+				"point at the baseline ordinal yields 100.0 (self-vs-self). Zero baseline (resolved baseline_value " +
+				"is 0 — includes the absent-baseline case where host.ValueAt returns (0, false) at the baseline " +
+				"ordinal) emits ONE PULSE_OVERLAY_REF_ZERO warning carrying the baseline ordinal and the host " +
+				"group count; every entry's Statistic is NaN. Negative or out-of-range Position values fire " +
+				"PULSE_OVERLAY_REF_UNKNOWN at both predict and runtime with {baseline_index, series_length} " +
+				"Details. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose " +
+				"Summary leaves Statistic unset. Ref.BaselineIndex MUST be populated; any other ref-family " +
+				"pointer (Margin / Sibling / Prior / Population / Stage / Slot) fires " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (the baseline is a " +
+				"single fixed positional anchor, not an axis prefix); non-zero values fire " +
+				"PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. " +
+				"Buffered — resolving a single positional baseline requires the materialised host series. " +
+				"Renderers centre diverging colour ramps on baseline=100.",
+		}
 	case types.OverlayKindIndexVsMargin:
 		return OverlayCapability{
 			Kind: types.OverlayKindIndexVsMargin,
