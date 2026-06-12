@@ -846,6 +846,132 @@ const (
 	// confuse `share` with `index / 100` at the spec authoring surface.
 	OverlayKindShareOfTotal OverlayKind = "OVERLAY_SHARE_OF_TOTAL"
 
+	// OverlayKindZScoreVsRolling emits a per-point windowed z-score against
+	// the rolling-window mean + sample SD of the W immediately preceding
+	// points of an ordered SERIES (grouped Process) host:
+	// `zscore_i = (point_value_i - rolling_mean(W)) / rolling_sd(W)`
+	// where `rolling_sd = sqrt(M2 / (count - 1))` (SAMPLE SD, n-1
+	// denominator). GROUP scope over a SERIES host with SERIES payload —
+	// one `SeriesEntry` per host group key in host order, each carrying
+	// the z-score on `Summary.Statistic`. Fifth windowed-Process overlay
+	// in the catalog (E4-S6; siblings: `OVERLAY_INDEX_VS_PRIOR` / E4-S4,
+	// `OVERLAY_INDEX_VS_BASELINE` / E4-S2, `OVERLAY_DELTA_VS_BASELINE` /
+	// E4-S3, `OVERLAY_INDEX_VS_ROLLING_MEAN` / E4-S5) and the second
+	// consumer of the `Ref.RollingMean` arm of the OverlayRef
+	// discriminated union (sibling windowed-rolling family — both kinds
+	// carry the window width on `Params["window"]`).
+	//
+	// Window-via-Params convention: the rolling window width is supplied
+	// via `OverlaySpec.Params["window"]` as a positive integer (mirrors
+	// the `WIN_*` operator convention; see `skills/window-operations.md`).
+	// The `Ref.RollingMean` arm is an empty marker struct
+	// (`OverlayRollingMeanRef{}`) tagging the ref family — identical to
+	// the `OVERLAY_INDEX_VS_ROLLING_MEAN` shape so the validator's
+	// "exactly one ref arm populated per kind" contract stays uniform.
+	//
+	// Variance choice (SAMPLE, not population) — KEY CONTRAST with
+	// `OVERLAY_ZSCORE_VS_TOTAL`: the rolling z-score uses SAMPLE SD
+	// (divide by `count - 1`, NOT N). The rationale is structural: a
+	// rolling window of W observations IS a sample of the wider time
+	// series, so unbiased sample variance is the correct convention. By
+	// contrast `OVERLAY_ZSCORE_VS_TOTAL` uses POPULATION SD (`sqrt(M2 /
+	// N)`) because the per-group aggregation set IS the whole population
+	// being standardised against. The two surfaces are intentionally
+	// orthogonal: rolling = local sample; total = global population. The
+	// E4-S5 `OVERLAY_INDEX_VS_ROLLING_MEAN` carrier stores the Welford
+	// `(count, mean, M2)` trio precisely so this story can lift the
+	// rolling SD via `sqrt(M2 / (count - 1))` without re-folding.
+	//
+	// Math (per host group ordinal `i`):
+	//
+	//	W = Params["window"] (positive int)
+	//	if fewer than 2 PRESENT prior points in the window
+	//	                                                  ⇒ NaN (no warning)
+	//	if rolling_sd(W) == 0                             ⇒ NaN + PULSE_OVERLAY_REF_ZERO
+	//	otherwise                                         ⇒ (point - mean) / sd
+	//
+	// Carrier shape (shared with `OVERLAY_INDEX_VS_ROLLING_MEAN`): the
+	// handler maintains the same per-group ring buffer of the W most
+	// recently observed PRESENT values plus the Welford-Pébaÿ (count,
+	// mean, M2) trio updated alongside each push/evict. INDEX_VS_ROLLING_MEAN
+	// reads only `mean`; ZSCORE_VS_ROLLING reads BOTH `mean` and `M2`. The
+	// shared carrier keeps the per-group accumulator footprint flat as
+	// more rolling-family kinds land.
+	//
+	// Window-fill semantics: when the carrier `count < 2` (the Welford
+	// recurrence requires at least two observations to define a sample
+	// variance), the handler emits NaN without warning — "window not yet
+	// filled with at least 2 priors" is structurally distinct from
+	// "denominator was zero" (mirrors the `OVERLAY_INDEX_VS_ROLLING_MEAN`
+	// window-not-yet-filled rule). When the host series is shorter than W
+	// (no ordinal ever sees a full window) every entry's Statistic is NaN
+	// with no warning.
+	//
+	// Absent-point policy (ring buffer does not advance): an absent host
+	// ordinal (resolver reports `(0, false)`) emits a present
+	// `SeriesEntry` whose Summary leaves Statistic unset and DOES NOT
+	// advance the ring buffer. Mirrors the
+	// `OVERLAY_INDEX_VS_ROLLING_MEAN` / `OVERLAY_INDEX_VS_PRIOR` absent-
+	// point carrier rule — the next present ordinal will compare against
+	// the most recent W PRESENT values, not absent slots.
+	//
+	// Zero rolling-SD path: when the rolling SD is exactly `0` at the
+	// divide step (e.g. every prior point in the window has the same
+	// value — constant series), the handler emits ONE
+	// `PULSE_OVERLAY_REF_ZERO` warning per layer and surfaces NaN on the
+	// affected entry. Subsequent points may again hit the zero-SD path
+	// as the ring rolls; one warning per layer per zero-SD event
+	// occurrence. Mirrors the share / index / zscore family's zero-
+	// denominator contract.
+	//
+	// Window param validation: `Params["window"]` MUST be present and
+	// MUST be a positive integer (JSON numbers decoded as float64 are
+	// accepted when integral). Missing param fires
+	// `PULSE_OVERLAY_PARAM_MISSING` carrying `{kind, param}` Details at
+	// both predict (`descriptor.validateOverlayZScoreVsRolling`) and
+	// runtime (`processing.applyZScoreVsRolling`). Window `<= 0` fires
+	// `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` carrying `{window}` Details —
+	// the LEVEL_OUT_OF_RANGE code is reused for "value out of valid
+	// range" semantics so the new code surface stays narrow (mirrors the
+	// existing usage on Level / Within slots).
+	//
+	// Ref handling: `Ref.RollingMean` MUST be populated (empty struct is
+	// fine; the marker tags the ref family). Any other ref-family
+	// pointer (`Margin` / `Sibling` / `BaselineIndex` / `Prior` /
+	// `Population` / `Stage` / `Slot`) fires
+	// `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` at predict time.
+	//
+	// Scope must be GROUP. `Level` / `Within` MUST be zero (windowed
+	// kind — the rolling-window carrier folds across the ordered axis
+	// without a prefix-bucket denominator; non-zero values fire
+	// `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` mirroring the
+	// `INDEX_VS_ROLLING_MEAN` / `INDEX_VS_PRIOR` / `INDEX_VS_BASELINE` /
+	// `INDEX_VS_TOTAL` implicit-margin / windowed family).
+	//
+	// Buffered. Per `types/overlay_streamability.go`, the streamability
+	// row is `false` — the ring buffer carries the full window of present
+	// values plus the Welford trio per group, which the streaming Process
+	// pass cannot maintain inline with the per-record fold today (matches
+	// the `OVERLAY_INDEX_VS_ROLLING_MEAN` buffered rationale verbatim).
+	// Forward-compat: a future story may lift the rolling carrier into a
+	// streaming-aware shape; when that lands the streamability flag flips
+	// to true.
+	//
+	// Chan-Welford merge documentation (per CLAUDE.md § Execution modes
+	// → Parallel buffered Process): the Welford triple combines under
+	// Chan-Welford with the standard `delta = mean_B - mean_A;
+	// mean = mean_A + delta * n_B/n;
+	// M2 = M2_A + M2_B + delta² * n_A*n_B/n` recurrence. v1 ships
+	// serial-per-group execution so the merge path is not exercised
+	// today, but the carrier shape stays parallel-safe so a future story
+	// that lifts the rolling fold into the parallel buffered Process
+	// pipeline can reuse the existing merge plumbing.
+	//
+	// Renderers centre diverging colour ramps on `baseline = 0` (mirrors
+	// `OVERLAY_ZSCORE_VS_TOTAL` / `OVERLAY_ZSCORE_VS_MARGIN` — every
+	// z-score family produces a centred distribution, not a ratio).
+	OverlayKindZScoreVsRolling OverlayKind = "OVERLAY_ZSCORE_VS_ROLLING"
+
 	// OverlayKindZScoreVsMargin emits a per-cell standardized-margin
 	// z-score: (cell - margin) / sd where margin is the matching axis
 	// margin slot and sd is the population standard deviation of the
@@ -965,6 +1091,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
 		OverlayKindZScoreVsMargin,
+		OverlayKindZScoreVsRolling,
 		OverlayKindZScoreVsTotal,
 	}
 }
@@ -1168,10 +1295,10 @@ type OverlayPriorRef struct {
 // Forward-compat: future stories may extend the struct with non-Window
 // knobs (e.g. weighting modes for exponentially-weighted means, edge-
 // fill policies for the warmup window) without re-opening the parent
-// `OverlayRef`. The E4-S6 `OVERLAY_ZSCORE_VS_ROLLING` handler will
-// REUSE this same ref-arm (sibling windowed-rolling family — both
-// kinds carry the window width on `Params["window"]`) so a single ref
-// family tag suffices for the rolling-window catalog.
+// `OverlayRef`. The E4-S6 `OVERLAY_ZSCORE_VS_ROLLING` handler REUSES
+// this same ref-arm (sibling windowed-rolling family — both kinds
+// carry the window width on `Params["window"]`) so a single ref family
+// tag suffices for the rolling-window catalog.
 type OverlayRollingMeanRef struct{}
 
 // OverlayPopulationRef is reserved for "vs population" comparisons that
@@ -1227,7 +1354,7 @@ type OverlayRef struct {
 	// window width lives on `OverlaySpec.Params["window"]` per the
 	// `WIN_*` operator convention; the marker struct is intentionally
 	// empty. E4-S5 (`OVERLAY_INDEX_VS_ROLLING_MEAN`) is the first
-	// consumer; E4-S6 (`OVERLAY_ZSCORE_VS_ROLLING`) will reuse it.
+	// consumer; E4-S6 (`OVERLAY_ZSCORE_VS_ROLLING`) reuses it.
 	RollingMean *OverlayRollingMeanRef `json:"rolling_mean,omitempty"`
 
 	// Population selects an alternate cohort / population. Reserved.

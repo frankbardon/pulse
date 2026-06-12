@@ -129,6 +129,7 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindIndexVsSibling,
 			types.OverlayKindIndexVsPrior,
 			types.OverlayKindIndexVsRollingMean,
+			types.OverlayKindZScoreVsRolling,
 			types.OverlayKindIndexVsBaseline,
 			types.OverlayKindDeltaVsBaseline:
 			// SERIES-host: skipped from the MATRIX-host catalog gate.
@@ -141,7 +142,9 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			// INDEX_VS_BASELINE (windowed positional anchor) which are
 			// also SERIES-host and ride on the same skip rule. E4-S3 adds
 			// DELTA_VS_BASELINE (absolute-difference twin of
-			// INDEX_VS_BASELINE) — same SERIES-host predicate.
+			// INDEX_VS_BASELINE) — same SERIES-host predicate. E4-S6
+			// adds ZSCORE_VS_ROLLING (sibling windowed-rolling kind to
+			// INDEX_VS_ROLLING_MEAN) — same SERIES-host predicate.
 			continue
 		}
 		matrixHostKinds[k] = true
@@ -460,6 +463,25 @@ func TestPredict_OverlayCost_BufferedKindsHigh(t *testing.T) {
 				Params: json.RawMessage(`{"window": 2}`),
 			},
 		},
+		{
+			// E4-S6 ZSCORE_VS_ROLLING: SERIES-host windowed kind, sibling
+			// to INDEX_VS_ROLLING_MEAN (E4-S5) — shares the same ring-
+			// buffer rolling-window carrier (buffered for the same reason
+			// the sibling kind is buffered: the ring is W f64s plus a
+			// Welford trio). Window=2 keeps the spec well-formed for the
+			// predict gate; the Params blob uses encoding/json so the
+			// predict gate sees a parseable shape.
+			name: "ZScoreVsRolling",
+			spec: types.OverlaySpec{
+				Name:  "zscore_rolling",
+				Kind:  types.OverlayKindZScoreVsRolling,
+				Scope: types.OverlayScopeGroup,
+				Ref: types.OverlayRef{
+					RollingMean: &types.OverlayRollingMeanRef{},
+				},
+				Params: json.RawMessage(`{"window": 2}`),
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -590,6 +612,7 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		types.OverlayKindIndexVsRollingMean: true,
 		types.OverlayKindIndexVsBaseline:    true,
 		types.OverlayKindDeltaVsBaseline:    true,
+		types.OverlayKindZScoreVsRolling:    true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

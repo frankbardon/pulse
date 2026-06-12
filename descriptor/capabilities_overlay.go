@@ -594,6 +594,61 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Level / Within slots for nested-axis denominator truncation; the SD denominator " +
 				"continues to fold over the full per-axis slice (E2-S11).",
 		}
+	case types.OverlayKindZScoreVsRolling:
+		return OverlayCapability{
+			Kind: types.OverlayKindZScoreVsRolling,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// RollingMean is the windowed-axis ref family the kind consumes
+			// (sibling to E4-S5 INDEX_VS_ROLLING_MEAN — both kinds share the
+			// same ref-arm). The empty marker struct tags the family — the
+			// v1 window value lives on OverlaySpec.Params["window"] per the
+			// WIN_* operator convention.
+			RefKinds: []string{"RollingMean"},
+			Description: "Per-point windowed standardized z-score against the rolling-window mean + SAMPLE standard deviation " +
+				"(sqrt(M2 / (count - 1)), n-1 denominator) of the W immediately preceding points of an ordered SERIES " +
+				"(grouped Process) host: zscore = (point_value - rolling_mean(W)) / rolling_sd(W). GROUP scope over a " +
+				"SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the " +
+				"z-score on Summary.Statistic. Fifth windowed-Process overlay in the catalog (E4-S6; siblings: " +
+				"OVERLAY_INDEX_VS_PRIOR / E4-S4, OVERLAY_INDEX_VS_BASELINE / E4-S2, OVERLAY_DELTA_VS_BASELINE / E4-S3, " +
+				"OVERLAY_INDEX_VS_ROLLING_MEAN / E4-S5) and the second consumer of the Ref.RollingMean arm of the " +
+				"OverlayRef discriminated union (sibling windowed-rolling kind to INDEX_VS_ROLLING_MEAN — both kinds " +
+				"carry the window width on Params[\"window\"]). " +
+				"Variance choice (SAMPLE, NOT population) — KEY CONTRAST with OVERLAY_ZSCORE_VS_TOTAL: the rolling z-score " +
+				"uses SAMPLE SD (divide by count - 1) because a rolling window of W observations IS a sample of the wider " +
+				"time series; OVERLAY_ZSCORE_VS_TOTAL uses POPULATION SD (sqrt(M2 / N)) because the per-group aggregation " +
+				"set IS the whole population. The two surfaces are intentionally orthogonal. " +
+				"Window-via-Params convention: OverlaySpec.Params[\"window\"] supplies a positive integer (mirrors the " +
+				"WIN_* operator convention; see skills/window-operations.md). Carrier shape (shared with INDEX_VS_ROLLING_MEAN): " +
+				"per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio. " +
+				"The sibling kind reads only mean; this kind reads BOTH mean and M2. " +
+				"Window-fill semantics: when the carrier count < 2 (sample variance requires at least 2 observations) the " +
+				"handler emits NaN without warning — \"window not yet filled\" is structurally distinct from \"denominator " +
+				"was zero\". When the host series is shorter than W (no ordinal ever sees a full window) every entry's " +
+				"Statistic is NaN with no warning. " +
+				"Absent-point policy (ring does not advance): an absent host ordinal (resolver reports (0, false)) emits a " +
+				"present SeriesEntry whose Summary leaves Statistic unset and DOES NOT advance the ring buffer — the next " +
+				"present ordinal compares against the most recent W PRESENT values, not absent slots (mirrors " +
+				"OVERLAY_INDEX_VS_ROLLING_MEAN). " +
+				"Zero rolling-SD path: when the rolling SD is exactly 0 at the divide step (e.g. every prior point in the " +
+				"window has the same value — constant series) the handler emits ONE PULSE_OVERLAY_REF_ZERO warning per " +
+				"layer and surfaces NaN on the affected entries. " +
+				"Window param validation: missing Params[\"window\"] fires PULSE_OVERLAY_PARAM_MISSING; non-positive or " +
+				"non-integer window fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for " +
+				"\"value out of valid range\" semantics so the new code surface stays narrow). " +
+				"Ref.RollingMean MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / " +
+				"Prior / BaselineIndex / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. " +
+				"Level / Within MUST be zero (windowed kind — the rolling carrier folds across the ordered axis without a " +
+				"prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the " +
+				"INDEX_VS_ROLLING_MEAN / INDEX_VS_PRIOR family. Buffered — the ring buffer carries the full window of " +
+				"present values (W f64s per group plus the Welford trio), larger than the streamable INDEX_VS_PRIOR " +
+				"single-state lag accumulator. Renderers centre diverging colour ramps on baseline=0 (mirrors " +
+				"OVERLAY_ZSCORE_VS_TOTAL / OVERLAY_ZSCORE_VS_MARGIN — every z-score family produces a centred distribution).",
+		}
 	case types.OverlayKindZScoreVsTotal:
 		return OverlayCapability{
 			Kind: types.OverlayKindZScoreVsTotal,

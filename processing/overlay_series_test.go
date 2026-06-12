@@ -514,17 +514,22 @@ func TestApplyOverlaysSeries_UnknownKind(t *testing.T) {
 // production state; this test runs without installing the stub so the
 // assertion reflects the production baseline.
 func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
-	// As of E4-S3: OVERLAY_INDEX_VS_TOTAL (E3-S2) + OVERLAY_SHARE_OF_TOTAL
+	// As of E4-S6: OVERLAY_INDEX_VS_TOTAL (E3-S2) + OVERLAY_SHARE_OF_TOTAL
 	// SERIES dispatch (E3-S3) + OVERLAY_ZSCORE_VS_TOTAL (E3-S4) +
 	// OVERLAY_DELTA_VS_SIBLING (E3-S5) + OVERLAY_INDEX_VS_SIBLING (E3-S5) +
 	// OVERLAY_INDEX_VS_PRIOR (E4-S4) + OVERLAY_INDEX_VS_BASELINE (E4-S2) +
-	// OVERLAY_DELTA_VS_BASELINE (E4-S3) are the registered SERIES kinds.
+	// OVERLAY_DELTA_VS_BASELINE (E4-S3) + OVERLAY_INDEX_VS_ROLLING_MEAN (E4-S5)
+	// + OVERLAY_ZSCORE_VS_ROLLING (E4-S6) are the registered SERIES kinds.
 	// The three streamable SERIES kinds from the E3-S2..S4 subset, the two
 	// buffered sibling-reference kinds the E3-S5 story adds, the streamable
 	// windowed-Process lag-1 kind the E4-S4 story adds, the buffered
-	// windowed-Process positional-baseline kind the E4-S2 story adds, and
-	// the absolute-difference twin of the baseline family the E4-S3 story
-	// adds. Each subsequent handler story extends this list.
+	// windowed-Process positional-baseline kind the E4-S2 story adds, the
+	// absolute-difference twin of the baseline family the E4-S3 story
+	// adds, the buffered windowed rolling-mean kind the E4-S5 story adds,
+	// and the buffered windowed rolling sample-SD z-score kind the E4-S6
+	// story adds (sibling to INDEX_VS_ROLLING_MEAN — shares the same ring-
+	// buffer + Welford carrier). Each subsequent handler story extends
+	// this list.
 	expected := map[types.OverlayKind]bool{
 		types.OverlayKindIndexVsTotal:       true,
 		types.OverlayKindShareOfTotal:       true,
@@ -535,6 +540,7 @@ func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
 		types.OverlayKindIndexVsRollingMean: true,
 		types.OverlayKindIndexVsBaseline:    true,
 		types.OverlayKindDeltaVsBaseline:    true,
+		types.OverlayKindZScoreVsRolling:    true,
 	}
 	for kind := range expected {
 		if _, ok := seriesOverlayHandlers[kind]; !ok {

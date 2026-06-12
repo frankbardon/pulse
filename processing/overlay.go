@@ -2750,6 +2750,15 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
+	case types.OverlayKindZScoreVsRolling:
+		// ZSCORE_VS_ROLLING is the windowed rolling sample-SD z-score
+		// kind; synthesised default surfaces the lower-case bare-kind
+		// string "zscore_vs_rolling" matching the INDEX_VS_ROLLING_MEAN /
+		// INDEX_VS_PRIOR / ZSCORE_VS_TOTAL convention (no axis dispatch —
+		// the ordered host axis is fixed). The synthesiser intentionally
+		// does NOT echo the window width in the default name — renderers
+		// that need the disambiguation populate spec.Name explicitly.
+		return "zscore_vs_rolling"
 	case types.OverlayKindZScoreVsTotal:
 		// ZSCORE_VS_TOTAL is implicit-grand-total (no Ref family); the
 		// synthesised default is the bare kind string in lower-case so

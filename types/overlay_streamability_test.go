@@ -108,6 +108,15 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// centerpoint require a fully-materialised matrix, so the host
 		// crosstab path stays buffered.
 		OverlayKindZScoreVsMargin: false,
+		// ZSCORE_VS_ROLLING is buffered (E4-S6) — sibling windowed-rolling
+		// kind to INDEX_VS_ROLLING_MEAN (E4-S5). Both kinds share the
+		// per-group ring buffer + Welford (count, mean, M2) trio carrier;
+		// the ring is W f64s and grows the streaming-fold state past v1's
+		// single-state lag accumulator the same way the sibling kind does.
+		// The handler reads BOTH mean and M2 (sample SD via
+		// sqrt(M2/(count-1))); the sibling reads only mean. Buffered
+		// rationale matches the INDEX_VS_ROLLING_MEAN row verbatim.
+		OverlayKindZScoreVsRolling: false,
 		// ZSCORE_VS_TOTAL is streamable — third streamable SERIES-host
 		// overlay in the E3 grouped-Process subset. The Welford
 		// accumulator (count + mean + M2) is three f64s alongside the

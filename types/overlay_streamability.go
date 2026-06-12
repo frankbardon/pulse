@@ -152,6 +152,19 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// host gate, not this flag.
 	OverlayKindShareOfTotal:   true,
 	OverlayKindZScoreVsMargin: false,
+	// OVERLAY_ZSCORE_VS_ROLLING is buffered — sibling windowed-rolling kind
+	// to OVERLAY_INDEX_VS_ROLLING_MEAN (E4-S5). Both kinds share the per-
+	// group ring buffer + Welford (count, mean, M2) trio carrier; the
+	// ring is W f64s and grows the streaming-fold state past v1's single-
+	// state lag accumulator the same way the sibling kind does. The
+	// handler runs at the buffered post-host-finalize exit via
+	// ApplyOverlaysSeries. Forward-compat: when the sibling
+	// OVERLAY_INDEX_VS_ROLLING_MEAN flips streamable (a future story
+	// lifts the rolling carrier into the streaming-Process orchestrator's
+	// per-group accumulator surface), this kind flips with it — the two
+	// kinds share the same carrier and the streaming finalize is one
+	// divide step per group for each variant.
+	OverlayKindZScoreVsRolling: false,
 	// OVERLAY_ZSCORE_VS_TOTAL is streamable — third and final streamable
 	// SERIES-host overlay in the E3 grouped-Process subset (sibling to
 	// OVERLAY_INDEX_VS_TOTAL and the SERIES dispatch of

@@ -300,6 +300,19 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// scaling. Handler: applyShareOfTotalSeries in
 	// processing/overlay_share_of_total_series.go.
 	types.OverlayKindShareOfTotal: applyShareOfTotalSeries,
+	// OVERLAY_ZSCORE_VS_ROLLING (E4-S6): per-point windowed standardized
+	// z-score against the rolling-window mean + SAMPLE SD (n-1
+	// denominator) of the W immediately preceding present points.
+	// Sibling windowed-rolling kind to INDEX_VS_ROLLING_MEAN (E4-S5) —
+	// reuses the same per-group ring buffer + Welford (count, mean, M2)
+	// trio carrier (rollingCarrier in
+	// processing/overlay_index_vs_rolling_mean.go); this handler reads
+	// BOTH mean and M2 (`sqrt(M2 / (count - 1))` sample SD), the
+	// sibling reads only mean. Variance choice is SAMPLE (not
+	// population) — distinct from ZSCORE_VS_TOTAL which uses
+	// POPULATION SD. Buffered. Handler: applyZScoreVsRolling in
+	// processing/overlay_zscore_vs_rolling.go.
+	types.OverlayKindZScoreVsRolling: applyZScoreVsRolling,
 	// OVERLAY_ZSCORE_VS_TOTAL (E3-S4): per-group standardized z-score
 	// against the host series' grand-total distribution
 	// (`(group_val - mean) / sd`, population variance). Third and final

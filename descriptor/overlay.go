@@ -152,6 +152,16 @@ var indexVsRollingMeanSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
+// zscoreVsRollingSupportedScopes is the E4-supported scope set for
+// OVERLAY_ZSCORE_VS_ROLLING. The kind emits one entry per host group
+// key (the ordered windowed series) — Scope=GROUP is the only sensible
+// footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
+// fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
+// `indexVsRollingMeanSupportedScopes` — sibling windowed-rolling kind.
+var zscoreVsRollingSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeGroup: true,
+}
+
 // indexVsSiblingSupportedScopes is the E3-supported scope set for
 // OVERLAY_INDEX_VS_SIBLING. The kind emits one entry per host group
 // key — Scope=GROUP is the only sensible footprint and any other
@@ -576,6 +586,24 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
+	// ZSCORE_VS_ROLLING is the E4-S6 windowed-SERIES kind (req.Groups, no
+	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_ROLLING_MEAN
+	// because the rolling-window carrier folds across the ordered axis
+	// without a prefix-bucket denominator. Sibling windowed-rolling kind
+	// — same implicit-margin / windowed family rule.
+	if spec.Kind == types.OverlayKindZScoreVsRolling {
+		if spec.Level != 0 || spec.Within != 0 {
+			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed rolling sample-SD carrier folds across the ordered axis without a prefix-bucket denominator)",
+				map[string]any{
+					"index":  index,
+					"kind":   string(spec.Kind),
+					"level":  spec.Level,
+					"within": spec.Within,
+				})
+		}
+		return
+	}
 	// ZSCORE_VS_TOTAL is a SERIES-host kind (req.Groups, no req.Crosstab);
 	// its Level / Within gate mirrors INDEX_VS_TOTAL because the
 	// implicit-grand-total mean + SD do not partition by any axis prefix.
@@ -774,6 +802,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayShareOfTotal(env, req, spec, index)
 	case types.OverlayKindZScoreVsMargin:
 		validateOverlayZScoreVsMargin(env, req, spec, index)
+	case types.OverlayKindZScoreVsRolling:
+		validateOverlayZScoreVsRolling(env, req, spec, index)
 	case types.OverlayKindZScoreVsTotal:
 		validateOverlayZScoreVsTotal(env, req, spec, index)
 	}
@@ -1093,11 +1123,119 @@ func validateOverlayIndexVsRollingMean(env *Envelope, req *types.Request, spec *
 	validateOverlayRollingWindowParam(env, spec, index)
 }
 
+// validateOverlayZScoreVsRolling enforces the per-kind contract for
+// OVERLAY_ZSCORE_VS_ROLLING (E4-S6, fifth windowed-Process kind in the
+// catalog and second consumer of the `Ref.RollingMean` arm of the
+// OverlayRef discriminated union — sibling windowed-rolling kind to
+// INDEX_VS_ROLLING_MEAN / E4-S5):
+//
+//   - Ref.RollingMean MUST be populated (the empty marker struct tags the
+//     ref family; the v1 window value lives on Params per the WIN_*
+//     operator convention — identical contract to INDEX_VS_ROLLING_MEAN).
+//     Empty Ref is rejected with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+//   - Any other ref-family pointer populated (Margin / Sibling / Prior /
+//     BaselineIndex / Population / Stage / Slot) → reject with
+//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+//   - Host must be SERIES-shaped (Request.Crosstab nil AND Request.Groups
+//     non-empty — the kind targets a windowed ordered-axis SERIES host,
+//     not a MATRIX one).
+//   - Scope must be GROUP (mirrors INDEX_VS_ROLLING_MEAN / INDEX_VS_PRIOR /
+//     INDEX_VS_BASELINE / INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES /
+//     ZSCORE_VS_TOTAL).
+//   - Params["window"] MUST be present and MUST be a positive integer.
+//     Missing → PULSE_OVERLAY_PARAM_MISSING with {kind, param} Details.
+//     Non-integer / non-positive → PULSE_OVERLAY_LEVEL_OUT_OF_RANGE
+//     with {kind, window} Details. Routes through the shared
+//     `validateOverlayRollingWindowParam` helper so the rolling family
+//     stays parity-true at predict time.
+//
+// Mirrors `validateOverlayIndexVsRollingMean` shape verbatim — the two
+// kinds share the same Ref-family / host-shape / scope / Params
+// contract; only the runtime per-point math differs (z-score vs
+// ratio). Level / Within rule lives in
+// validateOverlayLevelWithinPredict — the kind is in the implicit-
+// margin / windowed family because the rolling-window carrier folds
+// across the ordered axis without a prefix-bucket denominator, so
+// non-zero Level / Within values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE.
+// The runtime mirror (processing.validateOverlayLevelWithinRuntime)
+// enforces the same rule.
+func validateOverlayZScoreVsRolling(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref family: RollingMean must be populated; reject any other family
+	// pointer (mirrors the windowed-family rejection set used by
+	// INDEX_VS_ROLLING_MEAN — identical contract because the two kinds
+	// share the same ref-arm).
+	if spec.Ref.Margin != nil ||
+		spec.Ref.Sibling != nil ||
+		spec.Ref.BaselineIndex != nil ||
+		spec.Ref.Prior != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.RollingMean only (no Margin / Sibling / BaselineIndex / Prior / Population / Stage / Slot)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Ref.RollingMean is required — the empty marker tags the ref family.
+	// The actual window width lives on Params["window"] per the WIN_*
+	// operator convention.
+	if spec.Ref.RollingMean == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.RollingMean (windowed rolling-window reference; window width lives on Params[\"window\"])",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Host must be SERIES-shaped. A SERIES host is a grouped Process
+	// result — Request.Groups is non-empty AND Request.Crosstab is nil
+	// (an active crosstab routes the request down the MATRIX-host path).
+	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Scope must be GROUP. ZSCORE_VS_ROLLING emits one entry per host
+	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
+	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
+	// the kind emits.
+	if !zscoreVsRollingSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+
+	// Params["window"] validation. The window width lives on Params per
+	// the WIN_* operator convention; the kind cannot run without it.
+	// Reuses the shared rolling-family helper so the predict gate shape
+	// stays uniform across INDEX_VS_ROLLING_MEAN / ZSCORE_VS_ROLLING.
+	validateOverlayRollingWindowParam(env, spec, index)
+}
+
 // validateOverlayRollingWindowParam validates the OverlaySpec.Params
 // "window" key for the windowed rolling-* family (E4-S5
-// OVERLAY_INDEX_VS_ROLLING_MEAN; E4-S6 OVERLAY_ZSCORE_VS_ROLLING will
-// reuse). Surfaces PULSE_OVERLAY_PARAM_MISSING when the slot is absent
-// and PULSE_OVERLAY_LEVEL_OUT_OF_RANGE when the value is non-integer or
+// OVERLAY_INDEX_VS_ROLLING_MEAN; E4-S6 OVERLAY_ZSCORE_VS_ROLLING).
+// Both kinds carry the window width on Params["window"] per the WIN_*
+// operator convention; the helper centralises the parse + range check
+// so the rolling family stays parity-true at predict time. Surfaces
+// PULSE_OVERLAY_PARAM_MISSING when the slot is absent and
+// PULSE_OVERLAY_LEVEL_OUT_OF_RANGE when the value is non-integer or
 // non-positive. Mirrors the runtime gate in
 // processing.extractWindowParam — the predict gate surfaces the same
 // failure shape so MCP / CLI envelopes carry the same structured
