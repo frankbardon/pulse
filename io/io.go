@@ -152,6 +152,49 @@ type ExportJob struct {
 	// satisfying implementation (typically wrapping
 	// processing.BuildLabelResolver). Nil means no label translation.
 	LabelResolver LabelResolver
+	// IncludeOverlays controls whether Response.Overlays land in the
+	// exported artefact for adapters that can carry them. The slot is
+	// a tri-state pointer:
+	//
+	//   - nil   ⇒ DEFAULT EMIT — when the host Response carries any
+	//             overlay layers the adapter embeds them in the
+	//             format-native sidecar (additive-by-default, per PRD
+	//             §6 FR-L5). Output for an overlay-free Response is
+	//             byte-identical to a pre-overlay ExportJob.
+	//   - true  ⇒ explicit emit — same behaviour as nil for downstream
+	//             adapters, but the explicit toggle distinguishes the
+	//             intent in canonical-hash composition so cache keys
+	//             differ between "default" and "explicit yes".
+	//   - false ⇒ opt out — overlays are dropped on export even when
+	//             the host Response carries layers. Output is byte-
+	//             identical to a pre-overlay ExportJob against the
+	//             same host result.
+	//
+	// Per-format semantics (research/export-embedding-shape.md):
+	//
+	//   - Arrow / Parquet — overlays ride as a top-level
+	//     LIST<STRUCT> "overlays" field group emitted once in the
+	//     first record-batch / row-group; the host record stream is
+	//     byte-identical to the opt-out shape.
+	//   - Excel — one sheet per layer named "__overlay_<layer_name>";
+	//     the host workbook sheet is unchanged from the opt-out shape.
+	//   - NDJSON — single trailing line {"_overlays": [...]} after the
+	//     last host-record line; the host stream is byte-identical
+	//     until the trailer.
+	//   - CSV / TSV — warn-and-skip. The dispatcher emits one
+	//     PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED warning and writes the
+	//     host CSV verbatim; no overlay output lands. Setting
+	//     IncludeOverlays=false suppresses the warning while keeping
+	//     the same CSV body.
+	//
+	// The pointer shape mirrors the Includes-slot precedent (a nil
+	// slice means "default": include every field) — nil here means
+	// "default: emit overlays when present" rather than "explicit no"
+	// because Go bool zero is false. Marshalling via encoding/json
+	// honours `omitempty` so nil pointers do not appear in canonical
+	// JSON; explicit *true and *false both serialise as booleans and
+	// produce distinct canonical-hash keys via ExportJob.Hash().
+	IncludeOverlays *bool
 }
 
 // NewExportJob creates an ExportJob.
@@ -184,6 +227,16 @@ type ConvertJob struct {
 	// LabelResolver carries the runtime resolver. See
 	// ExportJob.LabelResolver.
 	LabelResolver LabelResolver
+	// IncludeOverlays controls whether the export half embeds
+	// Response.Overlays in the format-native sidecar. Identical
+	// tri-state semantics to ExportJob.IncludeOverlays — nil defaults
+	// to emit, *true forces emit, *false drops overlays. The
+	// intermediate .pulse file (when KeepPulseAt is set) is byte-
+	// identical regardless of this flag because overlays are an
+	// export-side concern only; the .pulse byte format never carries
+	// overlay payloads. See ExportJob.IncludeOverlays for the per-
+	// format wire shape.
+	IncludeOverlays *bool
 }
 
 // NewConvertJob creates a ConvertJob with default settings.
