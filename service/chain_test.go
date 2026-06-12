@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/fs"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -645,6 +646,337 @@ func TestOverlay_ChainPerStage_Piggyback(t *testing.T) {
 		if baseline.Stages[i].Overlays != nil {
 			t.Errorf("baseline Stages[%d].Overlays should be nil; got %+v",
 				i, baseline.Stages[i].Overlays)
+		}
+	}
+}
+
+// expectedIndex is the hand-computed kernel for OVERLAY_INDEX_VS_STAGE.
+// Mirrors processing.indexKernel — `target / ref * 100`. A zero
+// reference returns NaN (the runtime substitutes NaN and fires
+// PULSE_OVERLAY_REF_ZERO). Tests use this to assert byte-equal indices.
+func expectedIndex(target, ref float64) float64 {
+	if ref == 0 {
+		return math.NaN()
+	}
+	return target / ref * 100.0
+}
+
+// expectedDelta is the hand-computed kernel for OVERLAY_DELTA_VS_STAGE.
+// Mirrors processing.deltaKernel — `target - ref`. Zero reference is a
+// number (delta is well-defined), so no special-casing here.
+func expectedDelta(target, ref float64) float64 {
+	return target - ref
+}
+
+// build3StageSeriesChain returns a 3-stage ChainRequest whose stages
+// all preserve SERIES shape (grouper + aggregator) so the whole-chain
+// shape gate accepts and a per-key INDEX / DELTA can be hand-computed.
+//
+// Layout (chosen so each stage emits arithmetically distinct values per
+// region, exercising the SERIES handler's per-row fold rather than
+// degenerating into "identical numerators and denominators"):
+//
+//   Stage 0 (sum): GROUP region, AGG_SUM score → "v" — picks up the
+//                  raw cohort's 2 rows per region (sums to 6 / 30 / 150).
+//   Stage 1 (sum): GROUP region, AGG_SUM v → "w" — only 1 row per
+//                  region in stage 0 output, so w == v (6 / 30 / 150).
+//   Stage 2 (count): GROUP region, AGG_COUNT w → "c" — returns 1 per
+//                    region (one row per region in stage 1 output).
+//
+// Per-row INDEX(stage 2 / stage 0) = 1/v * 100 (≈ 16.67, 3.33, 0.67).
+// Per-row DELTA(stage 2 - stage 0) = 1 - v (-5, -29, -149).
+//
+// Both targets/refs are wired via StageRef.Index so the resolver path is
+// exercised end-to-end through service.ProcessChain (the per-stage hook
+// landed in E6-S3 + the real handlers landed in E6-S4 / E6-S5).
+func build3StageSeriesChain(specs []*types.ChainOverlaySpec) *types.ChainRequest {
+	return &types.ChainRequest{
+		Cohort: &types.Cohort{Filename: "test.pulse"},
+		Stages: []*types.ChainStage{
+			{Name: "stage_a", Request: &types.Request{
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "v"}},
+			}},
+			{Name: "stage_b", Request: &types.Request{
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Label: "w"}},
+			}},
+			{Name: "stage_c", Request: &types.Request{
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "w", Label: "c"}},
+			}},
+		},
+		Overlays: specs,
+	}
+}
+
+// build3StageCohort writes a 6-row hermetic cohort (region × score)
+// shared by both whole-chain integration tests. 2 rows per region with
+// distinct values so each region's stage 0 sum is unique
+// (region 1 ⇒ 6, region 2 ⇒ 30, region 3 ⇒ 150) — keeps the
+// hand-computed indices / deltas in the test body easy to read.
+func build3StageCohort(t *testing.T) *fs.Config {
+	t.Helper()
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "region", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 1, CsvColumnIdx: 1},
+		},
+	}
+	records := [][]uint64{
+		{1, math.Float64bits(2.0)},
+		{1, math.Float64bits(4.0)},
+		{2, math.Float64bits(10.0)},
+		{2, math.Float64bits(20.0)},
+		{3, math.Float64bits(50.0)},
+		{3, math.Float64bits(100.0)},
+	}
+	return setupTestFS(t, "test.pulse", schema, records)
+}
+
+// seriesLayerValuesByKey walks an OverlayLayer's SeriesPayload and
+// returns the per-entry { row-key-string → statistic } map. Used by
+// the whole-chain integration tests below to compare layer output
+// against hand-computed expected values keyed by region.
+//
+// The runtime encodes row keys as 1-element AxisKey values
+// ({keyStr}) per applyIndexVsStageSeries / applyDeltaVsStageSeries
+// (see processing/overlay_index_vs_stage.go), so the helper indexes
+// by the first element of each Entry.Key.
+func seriesLayerValuesByKey(t *testing.T, layer *types.OverlayLayer) map[string]float64 {
+	t.Helper()
+	if layer == nil {
+		t.Fatalf("layer is nil")
+	}
+	if layer.Payload.Shape != types.OverlayShapeSeries {
+		t.Fatalf("layer shape = %q, want %q", layer.Payload.Shape, types.OverlayShapeSeries)
+	}
+	if layer.Payload.Series == nil {
+		t.Fatalf("layer Series payload nil")
+	}
+	out := make(map[string]float64, len(layer.Payload.Series.Entries))
+	for i, entry := range layer.Payload.Series.Entries {
+		if len(entry.Key) == 0 {
+			t.Fatalf("entry %d has empty Key", i)
+		}
+		keyStr, ok := entry.Key[0].(string)
+		if !ok {
+			t.Fatalf("entry %d Key[0] = %T %v, want string", i, entry.Key[0], entry.Key[0])
+		}
+		if entry.Summary.Statistic == nil {
+			t.Fatalf("entry %d Summary.Statistic = nil", i)
+		}
+		out[keyStr] = *entry.Summary.Statistic
+	}
+	return out
+}
+
+// TestOverlay_ChainWholeChain_IndexVsStage drives a 3-stage chain
+// end-to-end through service.ProcessChain with one whole-chain
+// OVERLAY_INDEX_VS_STAGE spec attached (Target=stage 2, Ref=stage 0).
+// Asserts the resulting ChainResponse.Overlays[0] SERIES payload is
+// byte-equal to the hand-computed indices for each region.
+//
+// E6-S8 acceptance: "3-stage chain, byte-equal hand-computed indices".
+//
+// Builds confidence in the dual-slot design's whole-chain half:
+// service.ProcessChain runs every stage to completion, the post-stage
+// barrier (service.applyChainOverlays) dispatches the whole-chain spec
+// against the finalised stage responses, and the per-row index is
+// folded by processing.applyIndexVsStageSeries — the exact runtime
+// path a caller would take in production with no test-only stubs.
+func TestOverlay_ChainWholeChain_IndexVsStage(t *testing.T) {
+	cfg := build3StageCohort(t)
+	ctx := context.Background()
+
+	zero := 0
+	two := 2
+	req := build3StageSeriesChain([]*types.ChainOverlaySpec{
+		{
+			Name:   "stage2_vs_stage0_index",
+			Kind:   types.OverlayKindIndexVsStage,
+			Scope:  types.OverlayScopeGroup,
+			Ref:    types.StageRef{Index: &zero},
+			Target: types.StageRef{Index: &two},
+		},
+	})
+
+	svc := New(cfg)
+	resp, err := svc.ProcessChain(ctx, req)
+	if err != nil {
+		t.Fatalf("ProcessChain: %v", err)
+	}
+	if got := len(resp.Stages); got != 3 {
+		t.Fatalf("Stages length = %d, want 3 (all stages must finalise)", got)
+	}
+	if got := len(resp.Overlays); got != 1 {
+		t.Fatalf("ChainResponse.Overlays length = %d, want 1 (one spec → one layer)", got)
+	}
+	layer := resp.Overlays[0]
+	if got, want := layer.Kind, types.OverlayKindIndexVsStage; got != want {
+		t.Errorf("layer.Kind = %q, want %q", got, want)
+	}
+	if got, want := layer.Name, "stage2_vs_stage0_index"; got != want {
+		t.Errorf("layer.Name = %q, want %q", got, want)
+	}
+
+	// Hand-compute the expected indices by walking both stages' Data
+	// rows. Stage 0 (ref) and Stage 2 (target) both carry one row per
+	// region with the same row-key encoding heuristic the SERIES handler
+	// uses (region as the lone non-numeric column, aggregator output as
+	// the lone numeric column — `encodeSeriesRow` picks the numeric one
+	// as the value and turns the rest into a "region=<key>" string).
+	target := resp.Stages[2]
+	ref := resp.Stages[0]
+	if len(target.Data) != 3 || len(ref.Data) != 3 {
+		t.Fatalf("target/ref Data length = %d / %d, want 3 / 3 (both stages must keep 3 region rows)",
+			len(target.Data), len(ref.Data))
+	}
+
+	// Mirror encodeSeriesRow's key construction by collapsing each row
+	// to (region-key-string, value-float) — keeps the hand-computation
+	// faithful to the runtime fold without re-using the runtime helper.
+	collect := func(rows []map[string]any, valueCol string) map[string]float64 {
+		out := make(map[string]float64, len(rows))
+		for _, row := range rows {
+			region, _ := row["region"].(string)
+			v, _ := row[valueCol].(float64)
+			out["region="+region] = v
+		}
+		return out
+	}
+	targetByRegion := collect(target.Data, "c") // stage 2 aggregator
+	refByRegion := collect(ref.Data, "v")        // stage 0 aggregator
+
+	wantIndex := make(map[string]float64, len(targetByRegion))
+	for keyStr, tv := range targetByRegion {
+		rv, ok := refByRegion[keyStr]
+		if !ok {
+			t.Fatalf("ref missing key %q (test setup violated SERIES shape parity)", keyStr)
+		}
+		wantIndex[keyStr] = expectedIndex(tv, rv)
+	}
+
+	gotIndex := seriesLayerValuesByKey(t, layer)
+	if len(gotIndex) != len(wantIndex) {
+		t.Fatalf("layer entries count = %d, want %d", len(gotIndex), len(wantIndex))
+	}
+	for keyStr, want := range wantIndex {
+		got, ok := gotIndex[keyStr]
+		if !ok {
+			t.Errorf("layer missing entry for key %q", keyStr)
+			continue
+		}
+		if math.Abs(got-want) > 1e-9 {
+			t.Errorf("entry %q: got %g, want %g", keyStr, got, want)
+		}
+	}
+
+	// Defence in depth: per-stage Stages[i].Overlays must stay nil —
+	// the whole-chain barrier never touches the per-stage slot (the
+	// dual-slot design's per-stage half rides Request.Overlays only).
+	for i, st := range resp.Stages {
+		if st.Overlays != nil {
+			t.Errorf("Stages[%d].Overlays = %+v, want nil (whole-chain barrier must not mutate per-stage slot)",
+				i, st.Overlays)
+		}
+	}
+}
+
+// TestOverlay_ChainWholeChain_DeltaVsStage drives the same 3-stage
+// SERIES chain through service.ProcessChain but attaches a whole-chain
+// OVERLAY_DELTA_VS_STAGE spec. Asserts the resulting layer carries
+// per-row `target - ref` differences byte-equal to hand-computed
+// values per region.
+//
+// E6-S8 acceptance: "3-stage chain, byte-equal hand-computed deltas".
+//
+// Sibling to TestOverlay_ChainWholeChain_IndexVsStage. The DELTA handler
+// shares the same SERIES dispatch + row-key encoding as INDEX (see
+// processing/overlay_delta_vs_stage.go reusing the E6-S4 helpers), so
+// the two tests collectively exercise the whole CHAIN-host series fold
+// surface: shape inference, row-key parity, per-key kernel arithmetic,
+// summary baseline (DELTA centres on zero, INDEX on 100).
+func TestOverlay_ChainWholeChain_DeltaVsStage(t *testing.T) {
+	cfg := build3StageCohort(t)
+	ctx := context.Background()
+
+	zero := 0
+	two := 2
+	req := build3StageSeriesChain([]*types.ChainOverlaySpec{
+		{
+			Name:   "stage2_vs_stage0_delta",
+			Kind:   types.OverlayKindDeltaVsStage,
+			Scope:  types.OverlayScopeGroup,
+			Ref:    types.StageRef{Index: &zero},
+			Target: types.StageRef{Index: &two},
+		},
+	})
+
+	svc := New(cfg)
+	resp, err := svc.ProcessChain(ctx, req)
+	if err != nil {
+		t.Fatalf("ProcessChain: %v", err)
+	}
+	if got := len(resp.Overlays); got != 1 {
+		t.Fatalf("ChainResponse.Overlays length = %d, want 1", got)
+	}
+	layer := resp.Overlays[0]
+	if got, want := layer.Kind, types.OverlayKindDeltaVsStage; got != want {
+		t.Errorf("layer.Kind = %q, want %q", got, want)
+	}
+	if got, want := layer.Name, "stage2_vs_stage0_delta"; got != want {
+		t.Errorf("layer.Name = %q, want %q", got, want)
+	}
+
+	target := resp.Stages[2]
+	ref := resp.Stages[0]
+	collect := func(rows []map[string]any, valueCol string) map[string]float64 {
+		out := make(map[string]float64, len(rows))
+		for _, row := range rows {
+			region, _ := row["region"].(string)
+			v, _ := row[valueCol].(float64)
+			out["region="+region] = v
+		}
+		return out
+	}
+	targetByRegion := collect(target.Data, "c")
+	refByRegion := collect(ref.Data, "v")
+
+	wantDelta := make(map[string]float64, len(targetByRegion))
+	for keyStr, tv := range targetByRegion {
+		rv := refByRegion[keyStr]
+		wantDelta[keyStr] = expectedDelta(tv, rv)
+	}
+
+	gotDelta := seriesLayerValuesByKey(t, layer)
+	if len(gotDelta) != len(wantDelta) {
+		t.Fatalf("layer entries count = %d, want %d", len(gotDelta), len(wantDelta))
+	}
+	for keyStr, want := range wantDelta {
+		got, ok := gotDelta[keyStr]
+		if !ok {
+			t.Errorf("layer missing entry for key %q", keyStr)
+			continue
+		}
+		if math.Abs(got-want) > 1e-9 {
+			t.Errorf("entry %q: got %g, want %g", keyStr, got, want)
+		}
+	}
+
+	// DELTA family summary baseline must centre on 0.0 (renderers
+	// diverge colour ramps off zero for DELTA, off 100 for INDEX).
+	if layer.Summary == nil || layer.Summary.Baseline == nil {
+		t.Fatalf("layer.Summary.Baseline = nil, want non-nil pointer at 0.0")
+	}
+	if got := *layer.Summary.Baseline; math.Abs(got-0.0) > 1e-9 {
+		t.Errorf("layer.Summary.Baseline = %g, want 0.0 (DELTA centres on zero)", got)
+	}
+
+	// Defence in depth: per-stage slot stays nil.
+	for i, st := range resp.Stages {
+		if st.Overlays != nil {
+			t.Errorf("Stages[%d].Overlays = %+v, want nil", i, st.Overlays)
 		}
 	}
 }

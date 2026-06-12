@@ -394,6 +394,50 @@ func TestValidateChain_OverlayTargetDefaultsToLatestStage(t *testing.T) {
 	}
 }
 
+// TestValidateOverlay_ChainStageShapeDivergent is the E6-S8 acceptance-list
+// alias for the predict-time MATRIX-vs-SERIES gate. The underlying
+// coverage rides TestValidateChain_OverlayShapeDivergent (above); this
+// wrapper just re-executes the same assertion under the exact name the
+// E6-S8 acceptance list demands so the gate is discoverable via the
+// promised test identifier.
+//
+// Drives a 2-stage chain where stage 0 is MATRIX (Crosstab spec) and
+// stage 1 is SERIES (grouper + aggregator). The whole-chain
+// OVERLAY_INDEX_VS_STAGE spec points Ref to stage 0 and Target to
+// stage 1, forcing the shape gate to fire
+// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT.
+func TestValidateOverlay_ChainStageShapeDivergent(t *testing.T) {
+	data := buildSimplePulseBytes(t)
+	req := twoStageMatrixVsSeriesChainRequest([]*types.ChainOverlaySpec{
+		{
+			Kind:   types.OverlayKindIndexVsStage,
+			Ref:    types.StageRef{Index: intPtr(0)},
+			Target: types.StageRef{Index: intPtr(1)},
+			Scope:  types.OverlayScopeTotal,
+		},
+	})
+	env := ValidateChainFromBytes(data, req)
+	if !hasErrorCode(env, errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
+		t.Fatalf("expected PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT; got %+v", env.Errors)
+	}
+	// FR-I3 echo: divergence pair must also surface on the structured
+	// result so LLM planners can budget reshapes without re-parsing
+	// envelope details.
+	res, ok := env.Data.(*ChainValidationResult)
+	if !ok || res == nil {
+		t.Fatalf("expected ChainValidationResult; got %T", env.Data)
+	}
+	if len(res.OverlaysSchemaDivergence) != 1 {
+		t.Fatalf("expected 1 divergence entry; got %d (%+v)",
+			len(res.OverlaysSchemaDivergence), res.OverlaysSchemaDivergence)
+	}
+	d := res.OverlaysSchemaDivergence[0]
+	if d.RefShape != types.OverlayShapeMatrix || d.TargetShape != types.OverlayShapeSeries {
+		t.Errorf("divergence shapes = (%q, %q), want (%q, %q)",
+			d.RefShape, d.TargetShape, types.OverlayShapeMatrix, types.OverlayShapeSeries)
+	}
+}
+
 // TestValidateChain_OverlayRefMustBeExplicit confirms the runtime rule:
 // an empty Ref (both slots nil/empty) is rejected — only Target carries
 // a "latest stage" default.

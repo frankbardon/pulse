@@ -239,6 +239,71 @@ func TestChainCanonicalHash_OverlaysIncluded(t *testing.T) {
 	}
 }
 
+// TestCanonicalHash_ChainOverlaysIncluded is the E6-S8 acceptance-list
+// alias for the chain canonical-hash gate. The underlying coverage rides
+// TestChainCanonicalHash_OverlaysIncluded (above); this wrapper
+// re-executes the two load-bearing assertions under the exact name the
+// E6-S8 acceptance list demands so the gate is discoverable via the
+// promised test identifier.
+//
+// Asserts:
+//   - nil-vs-spec hash differs (overlay-bearing ChainRequest does NOT
+//     collide with the overlay-free baseline — overlays participate in
+//     the canonical hash so dedup keys see overlay slots as load-bearing).
+//   - identical-spec hash equality (two ChainRequests with byte-equal
+//     overlay slots produce identical canonical hashes — the hash is
+//     deterministic).
+func TestCanonicalHash_ChainOverlaysIncluded(t *testing.T) {
+	zero := 0
+	two := 2
+	build := func() *ChainRequest {
+		return &ChainRequest{
+			Cohort: &Cohort{Filename: "a.pulse"},
+			Stages: []*ChainStage{
+				{Name: "stage_zero", Request: &Request{
+					Aggregations: []*Aggregation{{Type: AGG_SUM, Field: "x"}},
+				}},
+				{Name: "stage_one", Request: &Request{
+					Aggregations: []*Aggregation{{Type: AGG_SUM, Field: "x"}},
+				}},
+				{Name: "stage_two", Request: &Request{
+					Aggregations: []*Aggregation{{Type: AGG_SUM, Field: "x"}},
+				}},
+			},
+			Overlays: []*ChainOverlaySpec{
+				{
+					Name:   "stage2_vs_stage0",
+					Kind:   OverlayKind("OVERLAY_INDEX_VS_STAGE"),
+					Ref:    StageRef{Index: &zero},
+					Target: StageRef{Index: &two},
+					Scope:  OverlayScopeCell,
+				},
+			},
+		}
+	}
+
+	// nil-vs-spec hash diff: an overlay-bearing ChainRequest must NOT
+	// share a hash with the same ChainRequest minus Overlays. This is
+	// the load-bearing assertion the dual-slot design depends on — if
+	// overlays did not participate in the hash, two requests that
+	// differ only on the whole-chain layer slot would dedup to the
+	// same cache key, silently swapping overlay output.
+	withSpec := build()
+	bare := build()
+	bare.Overlays = nil
+	if withSpec.Hash() == bare.Hash() {
+		t.Fatalf("nil-vs-spec ChainRequest hashes must differ; both produced %q", withSpec.Hash())
+	}
+
+	// identical-spec hash equality: two independently-built ChainRequests
+	// with byte-equal overlay slots must produce identical hashes — the
+	// canonical-hash routine is deterministic over equivalent inputs.
+	again := build()
+	if got, want := again.Hash(), withSpec.Hash(); got != want {
+		t.Fatalf("identical overlay specs must share a hash: got %q vs %q", got, want)
+	}
+}
+
 // TestStageRef_IndexNamedXOR confirms StageRef's two arms round-trip
 // through JSON cleanly and that the canonical hash treats the two
 // arms as semantically distinct. The XOR validation (exactly one of
