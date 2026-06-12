@@ -98,6 +98,15 @@ var indexVsMarginSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
+// indexVsTotalSupportedScopes is the E3-supported scope set for
+// OVERLAY_INDEX_VS_TOTAL. INDEX_VS_TOTAL emits one per-group index
+// score against the host series' grand total — Scope=GROUP is the
+// only sensible footprint and any other scope (CELL / ROW / COLUMN /
+// MATRIX / TOTAL) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED.
+var indexVsTotalSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeGroup: true,
+}
+
 // shareOfRowSupportedScopes is the E2-supported scope set for
 // OVERLAY_SHARE_OF_ROW. SHARE_OF_ROW is a CELL-scoped layer by
 // construction — every cell divides by its row margin. ROW / COLUMN /
@@ -201,6 +210,24 @@ func ValidateOverlays(env *Envelope, req *types.Request, schema *encoding.Schema
 // the E1 / E2-S1..S9 byte-identity contract.
 func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
 	if spec == nil {
+		return
+	}
+	// INDEX_VS_TOTAL is a SERIES-host kind (req.Groups, no req.Crosstab);
+	// its Level / Within gate is independent of the crosstab axis depths
+	// since the implicit-grand-total denominator does not partition by
+	// any axis prefix. Run the gate before the no-crosstab short-circuit
+	// so the rule still fires when Request.Crosstab is nil.
+	if spec.Kind == types.OverlayKindIndexVsTotal {
+		if spec.Level != 0 || spec.Within != 0 {
+			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-grand-total kind)",
+				map[string]any{
+					"index":  index,
+					"kind":   string(spec.Kind),
+					"level":  spec.Level,
+					"within": spec.Within,
+				})
+		}
 		return
 	}
 	if req == nil || req.Crosstab == nil {
@@ -338,6 +365,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayFisherExactCell(env, req, spec, index)
 	case types.OverlayKindIndexVsMargin:
 		validateOverlayIndexVsMargin(env, req, spec, index)
+	case types.OverlayKindIndexVsTotal:
+		validateOverlayIndexVsTotal(env, req, spec, index)
 	case types.OverlayKindShareOfCol:
 		validateOverlayShareOfCol(env, req, spec, index)
 	case types.OverlayKindShareOfRow:
@@ -408,6 +437,69 @@ func validateOverlayIndexVsMargin(env *Envelope, req *types.Request, spec *types
 	if !indexVsMarginSupportedScopes[spec.Scope] {
 		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (E1 supports: cell)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+}
+
+// validateOverlayIndexVsTotal enforces the per-kind contract for
+// OVERLAY_INDEX_VS_TOTAL: the Ref union must be EMPTY (implicit-
+// grand-total — the host series' own grand total is the denominator),
+// the host result must be SERIES-shaped (i.e. Request.Groups is non-
+// empty and Request.Crosstab is nil), and Scope must be GROUP.
+//
+// Errors emitted (in order, first hit short-circuits the spec):
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
+//     pointer is populated.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when Request.Crosstab
+//     is non-nil (the kind targets a SERIES host, not a MATRIX one) OR
+//     when Request.Groups is empty (no host series to compute against).
+//   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
+//     than GROUP.
+func validateOverlayIndexVsTotal(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref must be empty — INDEX_VS_TOTAL is implicit-grand-total. A
+	// caller supplying any family pointer (Margin / Sibling /
+	// BaselineIndex / Population / Stage / Slot) is using the wrong
+	// overlay shape.
+	if spec.Ref.Margin != nil ||
+		spec.Ref.Sibling != nil ||
+		spec.Ref.BaselineIndex != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-grand-total: the host series' own grand total is the denominator)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Host must be SERIES-shaped. A SERIES host is a grouped Process
+	// result — Request.Groups is non-empty AND Request.Crosstab is nil
+	// (an active crosstab routes the request down the MATRIX-host path).
+	// A request with no groupers has no series to compute against.
+	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Scope must be GROUP. INDEX_VS_TOTAL emits one entry per host
+	// group key — CELL / ROW / COLUMN / MATRIX / TOTAL scopes are not
+	// meaningful for the per-group statistic the kind emits.
+	if !indexVsTotalSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),

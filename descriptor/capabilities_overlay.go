@@ -279,6 +279,32 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Honours OverlaySpec Level / Within slots for nested-axis denominator truncation " +
 				"(E2-S11).",
 		}
+	case types.OverlayKindIndexVsTotal:
+		return OverlayCapability{
+			Kind: types.OverlayKindIndexVsTotal,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// No Ref family — INDEX_VS_TOTAL is implicit-grand-total (the
+			// denominator is the host series' own grand total). Callers
+			// supplying any Ref family pointer (Margin / Sibling /
+			// BaselineIndex / Population / Stage / Slot) fail
+			// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time —
+			// mirrors the CHISQ_* implicit-margin contract.
+			RefKinds: []string{},
+			Description: "Per-group index score against the grand total of a SERIES (grouped Process) host: " +
+				"(group_val / grand_total) * 100.0 per host group key. GROUP scope over a SERIES host " +
+				"with SERIES payload — one SeriesEntry per host group key in host order, each carrying " +
+				"the index on Summary.Statistic. First streamable overlay in the catalog — the grand-total " +
+				"accumulator is one f64 carried alongside the per-group accumulators inside the streaming " +
+				"Process fold (no second pass over records); the post-host finalize divides each group " +
+				"value by the running grand total. The Ref union is left empty (implicit-grand-total); " +
+				"zero grand_total emits PULSE_OVERLAY_REF_ZERO with NaN statistics. Absent host groups " +
+				"surface a present SeriesEntry whose Summary leaves Statistic unset.",
+		}
 	case types.OverlayKindShareOfCol:
 		return OverlayCapability{
 			Kind: types.OverlayKindShareOfCol,

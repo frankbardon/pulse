@@ -2660,6 +2660,12 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
+	case types.OverlayKindIndexVsTotal:
+		// INDEX_VS_TOTAL is implicit-grand-total (no Ref family); the
+		// synthesised default is the bare kind string in lower-case so
+		// renderers can use it directly as a tab / legend label without
+		// uppercasing (mirrors the CHISQ_* / FISHER_EXACT_CELL family).
+		return "index_vs_total"
 	case types.OverlayKindShareOfRow:
 		// SHARE_OF_ROW is row-axis-locked; the synthesised default
 		// reflects that even if the spec's Ref.Margin.Axis happens to

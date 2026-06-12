@@ -105,13 +105,30 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 		},
 	}
 
-	// Acceptance criterion 1 of the story explicitly names every kind
-	// in types.AllOverlayKinds(); guard against catalog drift by
-	// asserting one spec per known kind before the predict call so a
-	// future kind addition (E3+) is forced through this gate.
-	if len(specs) != len(types.AllOverlayKinds()) {
-		t.Fatalf("test fixture out of date: %d specs vs %d known kinds — add the new kind to the spec slice",
-			len(specs), len(types.AllOverlayKinds()))
+	// Acceptance criterion 1 of the story explicitly names every E2
+	// MATRIX-host kind in types.AllOverlayKinds(); guard against catalog
+	// drift by asserting one spec per known MATRIX-host kind before the
+	// predict call. E3 SERIES-host kinds (e.g. OVERLAY_INDEX_VS_TOTAL)
+	// target a grouped Process result, not a crosstab — they are covered
+	// by their own per-kind happy-path tests (TestValidateOverlay_<Kind>_HappyPath)
+	// against indexVsTotalSeriesHostReq()-style fixtures rather than the
+	// MATRIX-host fixture this test pins.
+	matrixHostKinds := map[types.OverlayKind]bool{}
+	for _, k := range types.AllOverlayKinds() {
+		if k == types.OverlayKindIndexVsTotal {
+			// SERIES-host: skipped from the MATRIX-host catalog gate.
+			continue
+		}
+		matrixHostKinds[k] = true
+	}
+	if len(specs) != len(matrixHostKinds) {
+		t.Fatalf("test fixture out of date: %d specs vs %d known MATRIX-host kinds — add the new MATRIX-host kind to the spec slice",
+			len(specs), len(matrixHostKinds))
+	}
+	for _, spec := range specs {
+		if !matrixHostKinds[spec.Kind] {
+			t.Errorf("test fixture out of date: spec kind %q is not a MATRIX-host kind", spec.Kind)
+		}
 	}
 
 	req := &types.Request{

@@ -1314,6 +1314,223 @@ func TestValidateOverlay_ExpectedLowWarn(t *testing.T) {
 	}
 }
 
+// indexVsTotalSeriesHostReq returns a minimal grouped Process request
+// (the SERIES-host predicate INDEX_VS_TOTAL targets — Groups non-empty,
+// Crosstab nil) that the per-test fixtures consume.
+func indexVsTotalSeriesHostReq() *types.Request {
+	return &types.Request{
+		Groups: []*types.Group{
+			{Type: types.GROUP_CATEGORY, Field: "region"},
+		},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "value"},
+		},
+	}
+}
+
+// TestValidateOverlay_IndexVsTotal_HappyPath asserts a well-formed
+// OVERLAY_INDEX_VS_TOTAL overlay riding on a grouped Process request
+// (SERIES host) passes the predict gate without surfacing any overlay-
+// specific errors. INDEX_VS_TOTAL is implicit-grand-total: Scope=GROUP,
+// Ref=empty.
+func TestValidateOverlay_IndexVsTotal_HappyPath(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := indexVsTotalSeriesHostReq()
+	req.Overlays = []types.OverlaySpec{
+		{
+			Name:  "idx_total",
+			Kind:  types.OverlayKindIndexVsTotal,
+			Scope: types.OverlayScopeGroup,
+			Ref:   types.OverlayRef{},
+		},
+	}
+
+	env := PredictFromBytes(data, req, nil)
+
+	for _, code := range []errors.Code{
+		errors.PULSE_OVERLAY_KIND_UNKNOWN,
+		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
+		errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
+	} {
+		if hasErrorCode(env, code) {
+			t.Errorf("unexpected overlay error %s on INDEX_VS_TOTAL happy-path request", code)
+		}
+	}
+}
+
+// TestValidateOverlay_IndexVsTotal_ScopeUnsupported asserts the per-
+// kind scope gate rejects every non-GROUP scope on INDEX_VS_TOTAL. The
+// kind emits one statistic per group tuple — CELL / ROW / COLUMN /
+// MATRIX / TOTAL scopes are all rejected with
+// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
+func TestValidateOverlay_IndexVsTotal_ScopeUnsupported(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	for _, scope := range []types.OverlayScope{
+		types.OverlayScopeCell,
+		types.OverlayScopeRow,
+		types.OverlayScopeColumn,
+		types.OverlayScopeMatrix,
+		types.OverlayScopeTotal,
+	} {
+		t.Run(string(scope), func(t *testing.T) {
+			req := indexVsTotalSeriesHostReq()
+			req.Overlays = []types.OverlaySpec{
+				{
+					Kind:  types.OverlayKindIndexVsTotal,
+					Scope: scope,
+					Ref:   types.OverlayRef{},
+				},
+			}
+			env := PredictFromBytes(data, req, nil)
+			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
+				codes := make([]string, 0, len(env.Errors))
+				for _, e := range env.Errors {
+					codes = append(codes, e.Code)
+				}
+				t.Fatalf("scope=%s: expected PULSE_OVERLAY_SCOPE_UNSUPPORTED; got %v",
+					scope, codes)
+			}
+		})
+	}
+}
+
+// TestValidateOverlay_IndexVsTotal_RefRejected asserts the validator
+// rejects an INDEX_VS_TOTAL spec that populates any Ref-family
+// pointer. INDEX_VS_TOTAL is implicit-grand-total (the host series'
+// own grand total is the denominator) — any Ref pointer is a shape
+// mismatch and must fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+// (mirrors the CHISQ_* / FISHER_EXACT_CELL implicit-margin contract).
+func TestValidateOverlay_IndexVsTotal_RefRejected(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := indexVsTotalSeriesHostReq()
+	req.Overlays = []types.OverlaySpec{
+		{
+			Kind:  types.OverlayKindIndexVsTotal,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisGrand},
+			},
+		},
+	}
+
+	env := PredictFromBytes(data, req, nil)
+	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+		codes := make([]string, 0, len(env.Errors))
+		for _, e := range env.Errors {
+			codes = append(codes, e.Code)
+		}
+		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when INDEX_VS_TOTAL populates Ref.Margin; got %v",
+			codes)
+	}
+}
+
+// TestValidateOverlay_IndexVsTotal_NoSeriesHostRejected asserts the
+// validator rejects an INDEX_VS_TOTAL overlay when the request has no
+// SERIES host — INDEX_VS_TOTAL needs a grouped Process result
+// (Request.Groups non-empty AND Request.Crosstab nil). Both halves of
+// that predicate are exercised: no groupers, and the crosstab-active
+// case.
+func TestValidateOverlay_IndexVsTotal_NoSeriesHostRejected(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	cases := []struct {
+		name string
+		req  *types.Request
+	}{
+		{
+			name: "no groupers (ungrouped)",
+			req: &types.Request{
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_COUNT, Field: "value"},
+				},
+				Overlays: []types.OverlaySpec{
+					{
+						Kind:  types.OverlayKindIndexVsTotal,
+						Scope: types.OverlayScopeGroup,
+					},
+				},
+			},
+		},
+		{
+			name: "crosstab host (MATRIX, not SERIES)",
+			req: &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{
+					{
+						Kind:  types.OverlayKindIndexVsTotal,
+						Scope: types.OverlayScopeGroup,
+					},
+				},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := PredictFromBytes(data, tc.req, nil)
+			if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+				codes := make([]string, 0, len(env.Errors))
+				for _, e := range env.Errors {
+					codes = append(codes, e.Code)
+				}
+				t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when INDEX_VS_TOTAL is missing SERIES host; got %v",
+					codes)
+			}
+		})
+	}
+}
+
+// TestValidateOverlay_IndexVsTotal_LevelWithinRejected asserts the
+// validator rejects an INDEX_VS_TOTAL spec that sets Level or Within
+// to non-zero. INDEX_VS_TOTAL is implicit-grand-total: the host
+// series' grand total is a single scalar that does not partition by
+// any axis prefix, so Level / Within would alter the implicit-grand-
+// total contract (mirrors the χ² / Fisher inferential family's
+// non-zero rejection).
+func TestValidateOverlay_IndexVsTotal_LevelWithinRejected(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	cases := []struct {
+		name        string
+		level       int
+		within      int
+	}{
+		{name: "level=1", level: 1},
+		{name: "within=1", within: 1},
+		{name: "both", level: 1, within: 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := indexVsTotalSeriesHostReq()
+			req.Overlays = []types.OverlaySpec{
+				{
+					Kind:   types.OverlayKindIndexVsTotal,
+					Scope:  types.OverlayScopeGroup,
+					Level:  tc.level,
+					Within: tc.within,
+				},
+			}
+			env := PredictFromBytes(data, req, nil)
+			if !hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
+				codes := make([]string, 0, len(env.Errors))
+				for _, e := range env.Errors {
+					codes = append(codes, e.Code)
+				}
+				t.Fatalf("expected PULSE_OVERLAY_LEVEL_OUT_OF_RANGE on level=%d within=%d; got %v",
+					tc.level, tc.within, codes)
+			}
+		})
+	}
+}
+
 // TestValidateOverlay_EmptySliceNoop asserts the validator is a no-op
 // for requests without overlays — predict still runs every other gate
 // untouched.

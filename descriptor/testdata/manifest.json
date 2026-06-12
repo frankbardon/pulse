@@ -4958,6 +4958,18 @@
         "description": "Per-cell index score against the matching axis margin: 100 * cell / margin. E1 supports CELL scope over a MATRIX (crosstab) host with a Margin reference. Honours OverlaySpec Level / Within slots for nested-axis denominator truncation (E2-S11)."
       },
       {
+        "kind": "OVERLAY_INDEX_VS_TOTAL",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [],
+        "buffered": false,
+        "description": "Per-group index score against the grand total of a SERIES (grouped Process) host: (group_val / grand_total) * 100.0 per host group key. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. First streamable overlay in the catalog — the grand-total accumulator is one f64 carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize divides each group value by the running grand total. The Ref union is left empty (implicit-grand-total); zero grand_total emits PULSE_OVERLAY_REF_ZERO with NaN statistics. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset."
+      },
+      {
         "kind": "OVERLAY_SHARE_OF_COL",
         "shapes": [
           "matrix"
@@ -5034,4 +5046,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 355e3be13277cd6bdef9025c065905b81ec67c8ee4a4cd668a0f86929aa7457e
+// golden-hash: 8a53712b608d7a74ef2a5746545cbd9f446f15cc1775d4a17960d0301aa2e252

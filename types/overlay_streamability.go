@@ -63,7 +63,15 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// overlay closing the E2 inferential family).
 	OverlayKindFisherExactCell: false,
 	OverlayKindIndexVsMargin:   false,
-	OverlayKindShareOfCol:     false,
+	// OVERLAY_INDEX_VS_TOTAL is streamable — first SERIES-host overlay
+	// in the catalog with a streaming finalize hook. The grand-total
+	// accumulator is one f64 carried alongside the per-group
+	// accumulators inside the streaming Process fold (no second pass
+	// over records); the post-host finalize divides each group value by
+	// the running grand total. Per kind-catalog-v1
+	// "Streaming-capable subset".
+	OverlayKindIndexVsTotal: true,
+	OverlayKindShareOfCol:   false,
 	OverlayKindShareOfRow:     false,
 	OverlayKindShareOfTotal:   false,
 	OverlayKindZScoreVsMargin: false,

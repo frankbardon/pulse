@@ -43,6 +43,11 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// inherently buffered (see CLAUDE.md "Execution modes" →
 		// Crosstab).
 		OverlayKindIndexVsMargin: false,
+		// INDEX_VS_TOTAL is the first streamable overlay — the
+		// grand-total accumulator is one f64 alongside the per-group
+		// accumulators inside the streaming Process fold; no second pass
+		// over records.
+		OverlayKindIndexVsTotal: true,
 		// SHARE_OF_COL shares INDEX_VS_MARGIN's buffered footprint — its
 		// column-margin denominator is recomputed by the buffered
 		// crosstab orchestrator before ApplyOverlays runs.

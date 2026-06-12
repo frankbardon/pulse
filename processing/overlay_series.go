@@ -185,8 +185,7 @@ func (h *SeriesHostView) ValueAt(i int) (float64, bool) {
 type seriesOverlayHandler func(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error)
 
 // seriesOverlayHandlers is the per-kind dispatch table for the SERIES
-// host path. Initialised empty in production — no SERIES kinds exist
-// as of E3-S1. Stories E3-S2 / E3-S3 / E3-S4 / E3-S5 register the real
+// host path. Stories E3-S2 / E3-S3 / E3-S4 / E3-S5 register the real
 // handlers (and add the matching kind constants + capability rows +
 // skill mentions per the CLAUDE.md Update Demand row for overlays).
 //
@@ -200,7 +199,13 @@ type seriesOverlayHandler func(spec *types.OverlaySpec, host *SeriesHostView) (t
 // Adding a new SERIES OverlayKind: declare the constant + streamability
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
-var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{}
+var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
+	// OVERLAY_INDEX_VS_TOTAL (E3-S2): per-group index score against the
+	// grand total of the host series — first streamable SERIES-host
+	// handler in the catalog. Handler: applyIndexVsTotal in
+	// processing/overlay_index_vs_total.go.
+	types.OverlayKindIndexVsTotal: applyIndexVsTotal,
+}
 
 // ApplyOverlaysSeries executes every spec in specs against the SERIES
 // host view and returns one OverlayLayer per spec in matching order

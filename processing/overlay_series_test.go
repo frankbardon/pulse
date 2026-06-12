@@ -500,20 +500,41 @@ func TestApplyOverlaysSeries_UnknownKind(t *testing.T) {
 	}
 }
 
-// TestApplyOverlaysSeries_ProductionDispatchTableEmpty verifies the
-// E3-S1 invariant: no SERIES kinds are registered in production. The
-// stories E3-S2..S5 land the real handlers; until then the table must
-// stay empty so this test fails fast if a future change accidentally
-// adds an entry without the matching kind constant + capability row
-// + skill mention.
+// TestApplyOverlaysSeries_ProductionDispatchTableRegistered verifies
+// the E3-S2+ invariant: every SERIES OverlayKind registered in
+// production has a real dispatch entry. As of E3-S2 the dispatch
+// carries OVERLAY_INDEX_VS_TOTAL; later stories (E3-S3..S5) add the
+// remaining SERIES-host kinds. The assertion guards against an
+// accidental drop of a real entry — a SERIES kind whose handler is
+// missing from the dispatch would otherwise reach
+// ApplyOverlaysSeries's defense-in-depth unknown-kind branch and surface
+// as PULSE_OVERLAY_KIND_UNKNOWN at runtime instead of computing.
 //
-// The stub-installation tests above use t.Cleanup to restore the empty
-// state; this test runs without installing the stub so the assertion
-// reflects the production baseline.
-func TestApplyOverlaysSeries_ProductionDispatchTableEmpty(t *testing.T) {
-	if got := len(seriesOverlayHandlers); got != 0 {
-		t.Fatalf("seriesOverlayHandlers has %d entries; want 0 (E3-S1 lands no real handlers)",
-			got)
+// The stub-installation tests above use t.Cleanup to restore the
+// production state; this test runs without installing the stub so the
+// assertion reflects the production baseline.
+func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
+	// As of E3-S2: OVERLAY_INDEX_VS_TOTAL is the only registered SERIES
+	// kind. Each subsequent E3 handler story extends this list.
+	expected := map[types.OverlayKind]bool{
+		types.OverlayKindIndexVsTotal: true,
+	}
+	for kind := range expected {
+		if _, ok := seriesOverlayHandlers[kind]; !ok {
+			t.Errorf("seriesOverlayHandlers missing real handler for %s", kind)
+		}
+	}
+	// The test stub kind is NOT registered in production — it lives only
+	// under t.Cleanup-scoped installSeriesStubHandler. Walk the dispatch
+	// to flag any entries that landed without a matching expected row
+	// (defense against an accidental real handler landing without a
+	// catalog row).
+	for kind := range seriesOverlayHandlers {
+		if !expected[kind] {
+			t.Errorf("seriesOverlayHandlers carries unexpected entry %s; "+
+				"register it in this test's expected map alongside the "+
+				"matching streamability + capability + skill rows", kind)
+		}
 	}
 }
 

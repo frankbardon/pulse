@@ -285,6 +285,62 @@ const (
 	// always recomputed from raw rows in the crosstab path.
 	OverlayKindIndexVsMargin OverlayKind = "OVERLAY_INDEX_VS_MARGIN"
 
+	// OverlayKindIndexVsTotal emits a per-group index score against the
+	// grand total of a SERIES host (grouped Process result): for each
+	// host group key the layer surfaces `(group_val / grand_total) *
+	// 100.0`. GROUP scope over a SERIES (grouped Process) host with
+	// SERIES payload — one SeriesEntry per host group key in host order,
+	// each carrying the index score on `Summary.Statistic`. First
+	// streamable overlay in the catalog (per kind-catalog-v1 §
+	// "Streaming-capable subset"): the handler folds at the end of the
+	// existing streaming Process pass via a running grand-total
+	// accumulator that runs alongside the per-group accumulators — no
+	// second pass over records, the post-host finalize divides each
+	// group value by the running grand total.
+	//
+	// Math (per host group i):
+	//
+	//	grand_total = Σ_j group_val[j]   (post-filter rows, AGG_SUM
+	//	                                   semantics — never reads pre-
+	//	                                   filter row count)
+	//	index_i     = (group_val[i] / grand_total) * 100.0
+	//
+	// Zero-grand-total path: when grand_total == 0 (every group's
+	// post-filter value sums to zero, including the degenerate "no
+	// groups survived the filter" case) the handler emits ONE
+	// PULSE_OVERLAY_REF_ZERO warning and populates every entry's
+	// Summary.Statistic with NaN. Mirrors the existing
+	// PULSE_OVERLAY_REF_ZERO contract used by the share / index family
+	// against a missing axis margin on the MATRIX host.
+	//
+	// Absent-group policy: a host that did not produce a record for
+	// group i (the resolver returns (0, false)) surfaces a SeriesEntry
+	// whose Summary leaves Statistic unset — the canonical "present
+	// slot, empty summary" shape established by the E3-S1 SERIES
+	// dispatch contract. Absent groups do NOT contribute to the grand
+	// total (the resolver gates the accumulator the same way it gates
+	// per-group emission).
+	//
+	// Ref handling: implicit-grand-total. The Ref union is left EMPTY
+	// — the kind's denominator is the host series' own grand total, so
+	// callers supplying any Ref family pointer (Margin / Sibling /
+	// BaselineIndex / Population / Stage / Slot) fail
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time
+	// (mirrors the CHISQ_* implicit-margin contract).
+	//
+	// Scope is GROUP (not CELL or ROW): the kind decorates each grouper
+	// level the host emits. The validator rejects any other scope.
+	//
+	// Streamable. Per types/overlay_streamability.go, the streamability
+	// row is `true` — the grand-total accumulator is one f64 carried
+	// alongside the per-group accumulators inside the streaming Process
+	// fold, and the division step happens at host finalize. The E3-S6
+	// streaming-Process orchestrator wiring lands the inner per-record
+	// hook; this kind ships with a SERIES-host post-finalize entry
+	// (ApplyOverlaysSeries route) so the streaming-vs-buffered byte-
+	// identity test holds at the entry-point level today.
+	OverlayKindIndexVsTotal OverlayKind = "OVERLAY_INDEX_VS_TOTAL"
+
 	// OverlayKindShareOfCol emits a per-cell share-of-column ratio: cell
 	// / col_margin. CELL-scoped over a MATRIX (crosstab) host. Cells
 	// along a single column sum to 1.0 in the absence of missing cells;
@@ -349,6 +405,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindDeltaVsMargin,
 		OverlayKindFisherExactCell,
 		OverlayKindIndexVsMargin,
+		OverlayKindIndexVsTotal,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
