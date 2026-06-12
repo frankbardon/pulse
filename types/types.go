@@ -1031,6 +1031,30 @@ type FileResponse struct {
 type ComposedRequest struct {
 	// Requests is the list of individual requests to execute.
 	Requests []*Request `json:"requests"`
+
+	// Overlays is the optional list of Compose-only overlay layer
+	// specifications. Each spec is a cross-Request overlay that
+	// decorates one slot's result with a comparison against another
+	// slot's result inside the same ComposedRequest — the slots are
+	// addressed by their per-Request Label field (with empty Labels
+	// auto-defaulted to `request_<index+1>` before reference lookup,
+	// per E7-S1). Produces one OverlayLayer in ComposedResponse.
+	// Overlays in matching index order.
+	//
+	// Forward-compat: every ComposedRequest authored before E7-S2
+	// landed produces byte-identical JSON to the same request with
+	// `Overlays: nil` because the slot is `omitempty` — nil / empty
+	// slices marshal to no key at all. The canonical-hash routine
+	// inherits that contract via the data-driven JSON walk in
+	// types/hash.go (see
+	// TestComposedRequest_OverlayFreeByteIdentity in
+	// types/hash_test.go).
+	//
+	// E7-S2 lands the slot + the canonical-hash extension only; E7-S3
+	// polishes the JSON round-trip surface and adds the user-facing
+	// validation tests; the per-kind handler dispatch lands in the
+	// subsequent E7 stories.
+	Overlays []ComposeOverlaySpec `json:"overlays,omitempty"`
 }
 
 // VersionResponse provides build and version information.
