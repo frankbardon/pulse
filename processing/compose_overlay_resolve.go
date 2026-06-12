@@ -270,6 +270,19 @@ func LookupTarget(byLabel map[string]*types.Response, label string, specIdx, tar
 // recursion-free decimal walk — small alloc, no format-string parsing
 // cost on every resolver entry.
 func composeDefaultLabel(index int) string {
+	return ComposeDefaultLabel(index)
+}
+
+// ComposeDefaultLabel is the exported sibling of the package-internal
+// composeDefaultLabel helper. The descriptor-side compose validator
+// (descriptor.ValidateCompose, E7-S14) re-derives the same default
+// slot label rule (`request_<i+1>`, 1-based) so a predict-time
+// reference / target lookup matches the runtime's view of the slot
+// labels; the per-helper sync test in descriptor/compose_test.go
+// (TestComposeDescriptorDefaultLabel_MatchesProcessingHelper) pins
+// the two implementations in lockstep so a future tweak on either
+// side fails loud.
+func ComposeDefaultLabel(index int) string {
 	// index is the zero-based slot index; the default label is
 	// `request_<index+1>` for human-friendly 1-based display.
 	return "request_" + composeItoa(index+1)

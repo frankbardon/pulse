@@ -95,6 +95,8 @@ The response is the standard envelope. Each request's result is one entry in `da
 
 Call `pulse_predict` on each `Request` inside the batch (or run them as a sequence through `pulse_predict` calls) to check field references, type compatibility, and aggregator-categorical interactions before paying for `pulse_compose`. Predict has no batch mode in v1; loop per element.
 
+For Compose-only overlay validation (`ComposedRequest.Overlays`), the no-execute companion is `descriptor.ValidateCompose(req *types.ComposedRequest)`. It walks every overlay spec against the per-slot request shapes (MATRIX / SERIES / SCALAR) and surfaces the six structural failures the runtime would otherwise raise — unknown kind, unknown reference, unknown target, slot-shape divergence, slot-not-crosstab (matrix-required kinds against a non-MATRIX slot), schema-divergence (per-axis grouper-kind tuple mismatch), and panel-target-cap violation (`OVERLAY_PROP_Z_PANEL` / `OVERLAY_PANEL_INDEX_VS_REF` over 16 targets, or over `OverlayOptions.MaxPanelTargets` when set). Each failure populates `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` with the rejected `(ReferenceLabel, TargetLabel, Reason)` tuple alongside the envelope error so renderers can read every offending pair in one round-trip. Key-set alignment and dictionary-prefix drift are runtime-only (record-level visibility) and stay out of the no-execute surface.
+
 For parallel execution and fail-fast control (CLI-side flags), see https://frankbardon.github.io/pulse/cli/api-compose.html.
 </reference>
 

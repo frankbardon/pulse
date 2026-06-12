@@ -216,19 +216,42 @@ type OverlayAppliedDescriptor struct {
 	Streamable bool `json:"streamable"`
 }
 
-// SlotPair is a generic left-right slot reference placeholder used by
-// PredictResult.OverlaysSchemaDivergence. The shape is intentionally
-// minimal — two string-typed slot references, deferring the richer
-// (path, kind, message) detail to E7-S14 when Compose-driven
-// divergence lands. Empty in E1.
+// SlotPair carries one rejected (Reference, Target) Compose-overlay
+// slot pair from descriptor.ValidateCompose's overlay walk. Mirrors
+// ChainOverlaySchemaDivergence in spirit but flattens to a string-typed
+// (ref label, target label, machine-readable reason) tuple so the
+// PredictResult.OverlaysSchemaDivergence slot and the
+// ComposeValidationResult.OverlaysSchemaDivergence slot can share one
+// renderer-side shape.
+//
+// PRD §I-FR-I3: the predict surface for Compose overlays is
+// `OverlaysApplied + OverlaysSchemaDivergence + OverlayCost`. The
+// divergence slot carries the per-spec failure reason alongside the
+// envelope error entry so LLM planners can budget reshapes without
+// stitching envelope details together.
+//
+// Reason values are stable identifiers the renderer can branch on:
+//
+//   - "kind-unknown"          — spec.Kind absent from the overlay catalog.
+//   - "reference-unknown"     — Reference label does not resolve to a slot.
+//   - "target-unknown"        — Targets[j] does not resolve to a slot.
+//   - "slot-shape-divergent"  — ref and target host shapes differ.
+//   - "slot-not-crosstab"     — kind requires MATRIX but a slot isn't.
+//   - "schema-divergent"      — per-axis grouper-kind tuples disagree.
+//   - "panel-targets-over-cap" — multi-ref target count exceeds the cap.
 type SlotPair struct {
-	// Left names the first overlay-spec slot in the divergent pair
-	// (e.g. "overlays[0]").
-	Left string `json:"left"`
+	// ReferenceLabel is the slot label the spec's Reference field
+	// resolves to. May be empty when the failure is the reference
+	// itself being unknown / unresolvable.
+	ReferenceLabel string `json:"reference_label"`
 
-	// Right names the second overlay-spec slot in the divergent pair
-	// (e.g. "overlays[1]").
-	Right string `json:"right"`
+	// TargetLabel is the slot label the spec's Targets[j] resolves
+	// to. May be empty when the failure is on the Reference arm.
+	TargetLabel string `json:"target_label"`
+
+	// Reason is a stable, machine-readable identifier for the failure
+	// class. See the SlotPair doc for the enum.
+	Reason string `json:"reason"`
 }
 
 // Suggestion is a structured next-action attached to PredictResult.

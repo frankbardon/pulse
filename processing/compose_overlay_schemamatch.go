@@ -236,6 +236,22 @@ func extractSeriesAxisFields(rows []map[string]any) []string {
 // general PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path (still ensures
 // reference + target slots share the same host shape).
 func kindRequiresMatrix(kind types.OverlayKind) bool {
+	return KindRequiresMatrix(kind)
+}
+
+// KindRequiresMatrix is the exported sibling of the package-internal
+// kindRequiresMatrix predicate. The descriptor-side compose validator
+// (descriptor.ValidateCompose, E7-S14) needs to read the catalog
+// without dragging in processing's full overlay machinery, but the
+// per-helper sync test (TestKindRequiresMatrixCompose_MatchesProcessing
+// in descriptor/compose_test.go) pins the two surfaces in lockstep so
+// a new matrix-required kind cannot land here without an accompanying
+// descriptor-side row.
+//
+// Body intentionally duplicated against the internal predicate so the
+// exported surface can be lifted in isolation when the catalog grows;
+// the package-internal call sites continue to read the lowercase form.
+func KindRequiresMatrix(kind types.OverlayKind) bool {
 	switch kind {
 	case types.OverlayKindPropZCell,
 		types.OverlayKindPropZPanel,
