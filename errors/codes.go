@@ -818,6 +818,29 @@ const (
 	// verbatim). Surfaced at both predict (descriptor.ValidateChain) and
 	// runtime (processing.ApplyChainOverlays + per-kind handlers).
 	PULSE_OVERLAY_REFERENCE_UNKNOWN Code = "PULSE_OVERLAY_REFERENCE_UNKNOWN"
+
+	// PULSE_OVERLAY_KEY_SET_DIVERGENT indicates a Compose overlay spec
+	// where the resolved reference slot and one or more target slots
+	// produce different per-coordinate key sets — matrix
+	// (row × column) tuples that exist on one slot but not the other,
+	// or series group-keys present on one slot's Data rows but absent
+	// on another's. Compose-only overlays require strict cross-Request
+	// key alignment so the renderer can fold target values against the
+	// reference at byte-equal coordinates; tolerant alignment is an
+	// explicit non-goal for v1 (callers needing it pre-align their
+	// inputs or fall back to a multi-reference kind). Details carry the
+	// `reference` slot label, the offending `target` slot label, the
+	// `missing` key-set (keys present on the reference but absent from
+	// the target), and the `extra` key-set (keys present on the target
+	// but absent from the reference) — all four are populated via
+	// encoding/json-friendly types so the envelope serializer renders
+	// them verbatim. The check runs once per overlay spec at the
+	// post-slot-barrier inside processing.ApplyComposeOverlays, BEFORE
+	// schema-match (E7-S7) and dict-drift (E7-S8) gates fire — key-set
+	// divergence is the cheapest signal so it fails fast. Surfaced at
+	// runtime today (E7-S6); the descriptor.ValidateComposedRequest
+	// predict-time companion lands with E7-S14.
+	PULSE_OVERLAY_KEY_SET_DIVERGENT Code = "PULSE_OVERLAY_KEY_SET_DIVERGENT"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -962,6 +985,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT,
 	PULSE_OVERLAY_TARGET_UNKNOWN,
 	PULSE_OVERLAY_REFERENCE_UNKNOWN,
+	PULSE_OVERLAY_KEY_SET_DIVERGENT,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

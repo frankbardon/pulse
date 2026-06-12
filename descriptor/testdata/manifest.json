@@ -3425,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 133,
+    "error_codes_count": 134,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3522,6 +3522,7 @@
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
       "PULSE_OVERLAY_EXPECTED_LOW",
+      "PULSE_OVERLAY_KEY_SET_DIVERGENT",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
       "PULSE_OVERLAY_PARAM_MISSING",
@@ -5313,4 +5314,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c37c5181e827a939d26a1746fa28ea91b82354112e19c2275a2523e1fb97ce22
+// golden-hash: 622b505b6834111689f6c8487290576bcec488d77b74231cdc5581d4d0586816

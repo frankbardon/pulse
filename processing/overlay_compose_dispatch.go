@@ -199,6 +199,16 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 			targetIdxs = append(targetIdxs, byIndex[label])
 			targetResps = append(targetResps, tResp)
 		}
+		// Strict cross-Request key-set alignment (E7-S6). Runs AFTER
+		// reference + targets have resolved to concrete *Response
+		// objects but BEFORE the per-kind handler dispatches — key-set
+		// divergence is the cheapest signal to fail on so we surface it
+		// before any per-kind handler walks the matrix / series payload
+		// a second time. Schema-match (E7-S7) and dict-drift (E7-S8)
+		// gates fire AFTER this one.
+		if err := checkKeySetAlignment(refResp, targetResps, *spec, i); err != nil {
+			return nil, nil, err
+		}
 		handler, ok := composeOverlayHandlers[spec.Kind]
 		if !ok {
 			// E7-S4 chassis fallback: no per-kind handler registered
