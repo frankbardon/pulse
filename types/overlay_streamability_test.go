@@ -43,6 +43,11 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// streamable FACET-host kinds are INDEX_VS_POP / ZSCORE_VS_POP,
 		// both descriptive).
 		OverlayKindChiSqVsPop: false,
+		// CHISQ_VS_REF is inferential COMPOSE-only kind (E7-S9) — runs at
+		// the post-slot-barrier fold once every slot has produced a
+		// finalised *Response. Per PRD §2 Non-Goals every inferential
+		// overlay stays buffered regardless of host streamability.
+		OverlayKindChiSqVsRef: false,
 		// DELTA_VS_BASELINE is buffered — absolute-difference twin of
 		// INDEX_VS_BASELINE. Resolving a single positional baseline
 		// (Ref.BaselineIndex.Position) requires the materialised host
@@ -53,6 +58,10 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// its margin centerpoint is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.
 		OverlayKindDeltaVsMargin: false,
+		// DELTA_VS_REF is buffered — COMPOSE-only kind (E7-S9), subtractive
+		// sibling of OVERLAY_INDEX_VS_REF. Runs at the post-slot-barrier
+		// fold; the COMPOSE host is buffered by construction.
+		OverlayKindDeltaVsRef: false,
 		// DELTA_VS_SIBLING is buffered — sibling resolution against a
 		// (Field, Value) pair requires the full materialised
 		// SeriesPayload; the streaming Process pass cannot resolve the
@@ -93,6 +102,12 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// alongside the per-group accumulators inside the streaming
 		// Process fold; the post-host finalize is the divide step.
 		OverlayKindIndexVsPrior: true,
+		// INDEX_VS_REF is buffered — first COMPOSE-only kind in the
+		// catalog (E7-S9), ratio sibling of OVERLAY_DELTA_VS_REF. Runs
+		// at the post-slot-barrier fold once every slot has produced a
+		// finalised *Response. The COMPOSE host is buffered by the slot
+		// barrier even if individual slots are streamable.
+		OverlayKindIndexVsRef: false,
 		// INDEX_VS_ROLLING_MEAN is buffered (E4-S5) — the per-group ring
 		// buffer carries the full window of present values (W f64s plus a
 		// Welford trio reserved for the E4-S6 ZSCORE_VS_ROLLING sibling
@@ -131,6 +146,16 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// fallback) and reuses kolmogorovSurvival (the same helper backing
 		// TEST_KS). The buffered flag stays false as a matter of policy.
 		OverlayKindKSVsPop: false,
+		// PROP_Z_CELL is inferential COMPOSE-only kind (E7-S9). Reuses
+		// the standardNormalCDF helper backing TEST_PROP_Z. Per PRD §2
+		// Non-Goals every inferential overlay stays buffered regardless
+		// of host streamability.
+		OverlayKindPropZCell: false,
+		// RANK is buffered — COMPOSE-only kind (E7-S9), per-cell
+		// rank-within-population (row / column / matrix). The COMPOSE
+		// host is buffered by the slot barrier; ranking within the
+		// target matrix requires the full materialised matrix anyway.
+		OverlayKindRank: false,
 		// SHARE_OF_COL shares INDEX_VS_MARGIN's buffered footprint — its
 		// column-margin denominator is recomputed by the buffered
 		// crosstab orchestrator before ApplyOverlays runs.
@@ -149,6 +174,11 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// capability via its SERIES handler — not the composed
 		// host-overlay routing decision.
 		OverlayKindShareOfTotal: true,
+		// T_CELL is inferential COMPOSE-only kind (E7-S9). Reuses the
+		// studentTTwoSidedP helper backing TEST_T. Per PRD §2 Non-Goals
+		// every inferential overlay stays buffered regardless of host
+		// streamability.
+		OverlayKindTCell: false,
 		// OVERLAY_YOY (E4-S7) is buffered — the per-frequency prior-period
 		// lookup requires the materialised host series. Coarse-frequency
 		// arms (annual / quarterly / monthly / weekly) index into an

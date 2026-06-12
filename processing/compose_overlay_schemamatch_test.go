@@ -264,20 +264,58 @@ func TestValidateOverlay_SlotShapeDivergent_MatrixVsScalar(t *testing.T) {
 }
 
 // TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget
-// is the placeholder for the SLOT_NOT_CROSSTAB gate. Today
-// kindRequiresMatrix returns false for every kind so the gate is
-// unreachable from runtime — the test skips with a t.Skip and
-// documents the future-wiring contract. E7-S9 lands the populated
-// catalog; flipping kindRequiresMatrix for the matrix-required
-// Compose kinds will make this test exercise real arithmetic.
+// exercises the SLOT_NOT_CROSSTAB gate against a real matrix-required
+// COMPOSE kind. The E7-S9 matrix-required catalog flipped
+// `kindRequiresMatrix(OverlayKindIndexVsRef)` to `true`; the gate now
+// fires PULSE_OVERLAY_SLOT_NOT_CROSSTAB when a MATRIX-required kind
+// is paired with a non-MATRIX slot. The error carries
+// {target_label, required_shape="MATRIX", observed_shape}.
 func TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget(t *testing.T) {
-	// E7-S7 stub policy: kindRequiresMatrix returns false for every
-	// kind so this gate is unreachable. The check skips so the
-	// regression surface stays green when E7-S9+ flips the catalog.
-	if kindRequiresMatrix(types.OverlayKindIndexVsStage) {
-		t.Fatal("E7-S7 invariant violated: kindRequiresMatrix returned true for an unregistered kind; this test must be rewritten when the matrix-required catalog lands")
+	if !kindRequiresMatrix(types.OverlayKindIndexVsRef) {
+		t.Fatal("E7-S9 invariant violated: kindRequiresMatrix(OverlayKindIndexVsRef) must return true after the matrix-required catalog flip")
 	}
-	t.Skip("kindRequiresMatrix is a stub returning false at E7-S7; matrix-required catalog registers in E7-S9+")
+	// MATRIX reference + SERIES target → the gate fires on the
+	// shape-divergent gate FIRST (gate 1). The SLOT_NOT_CROSSTAB gate
+	// runs against the reference arm first; both slots MATRIX
+	// satisfies it, then the per-target loop catches a non-MATRIX
+	// target via gate 1 (shape divergent) before gate 2 fires. To
+	// exercise gate 2 directly we use a SERIES reference + SERIES
+	// target so the shape-divergent gate is a no-op and the
+	// matrix-required gate fires against the reference.
+	ref := &types.Response{Data: []map[string]any{
+		{"region": "us", "sum": 1.0},
+	}}
+	target := &types.Response{Data: []map[string]any{
+		{"region": "us", "sum": 2.0},
+	}}
+	spec := types.ComposeOverlaySpec{
+		Kind:      types.OverlayKindIndexVsRef,
+		Reference: "baseline",
+		Targets:   []string{"treatment"},
+	}
+	err := checkSlotShapeAndSchema(ref, []*types.Response{target}, spec, 0)
+	if err == nil {
+		t.Fatal("checkSlotShapeAndSchema: want SLOT_NOT_CROSSTAB error against series reference, got nil")
+	}
+	var coded *pulseerrors.CodedError
+	if !stderrors.As(err, &coded) {
+		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
+	}
+	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB) {
+		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB)
+	}
+	if got, _ := coded.Details["kind"].(string); got != string(types.OverlayKindIndexVsRef) {
+		t.Errorf("Details[kind] = %q, want %q", got, types.OverlayKindIndexVsRef)
+	}
+	if got, _ := coded.Details["required_shape"].(string); got != "MATRIX" {
+		t.Errorf("Details[required_shape] = %q, want %q", got, "MATRIX")
+	}
+	if got, _ := coded.Details["target_label"].(string); got != "reference" {
+		t.Errorf("Details[target_label] = %q, want %q (reference arm)", got, "reference")
+	}
+	if got, _ := coded.Details["observed_shape"].(string); got != string(types.OverlayShapeSeries) {
+		t.Errorf("Details[observed_shape] = %q, want %q", got, types.OverlayShapeSeries)
+	}
 }
 
 // TestValidateOverlay_SchemaMatch_HappyPath exercises the positive
@@ -439,15 +477,27 @@ func TestExtractSchemaShape_Canonical_Scalar(t *testing.T) {
 	}
 }
 
-// TestKindRequiresMatrix_StubAtE7S7 locks the E7-S7 stub policy:
-// every OverlayKind reports false. The matrix-required catalog
-// lands kind-by-kind in E7-S9..S12 — flipping any entry to true
-// will fail this test and the test author MUST re-evaluate the
-// SLOT_NOT_CROSSTAB gate's runtime reachability at the same time.
-func TestKindRequiresMatrix_StubAtE7S7(t *testing.T) {
+// TestKindRequiresMatrix_E7S9Registry locks the E7-S9 matrix-required
+// catalog: the six crosstab-shape Compose kinds (INDEX_VS_REF,
+// DELTA_VS_REF, PROP_Z_CELL, T_CELL, CHISQ_VS_REF, RANK) all return
+// true; every other kind returns false. Series-shape and panel-shape
+// Compose kinds (E7-S10..S12) stay false here; their per-slot shape
+// gating fires through the more general
+// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path.
+func TestKindRequiresMatrix_E7S9Registry(t *testing.T) {
+	matrixRequired := map[types.OverlayKind]bool{
+		types.OverlayKindIndexVsRef: true,
+		types.OverlayKindDeltaVsRef: true,
+		types.OverlayKindPropZCell:  true,
+		types.OverlayKindTCell:      true,
+		types.OverlayKindChiSqVsRef: true,
+		types.OverlayKindRank:       true,
+	}
 	for _, kind := range types.AllOverlayKinds() {
-		if kindRequiresMatrix(kind) {
-			t.Errorf("kindRequiresMatrix(%s) = true, want false at E7-S7 (stub catalog)", kind)
+		want := matrixRequired[kind]
+		got := kindRequiresMatrix(kind)
+		if got != want {
+			t.Errorf("kindRequiresMatrix(%s) = %v, want %v", kind, got, want)
 		}
 	}
 }

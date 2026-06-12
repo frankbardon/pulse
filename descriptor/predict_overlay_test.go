@@ -172,7 +172,19 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			// OVERLAY_DELTA_VS_STAGE (E6-S2 declares; E6-S5 lands the
 			// handler) is the sibling subtractive twin of
 			// INDEX_VS_STAGE — same CHAIN-host skip rule applies.
-			types.OverlayKindDeltaVsStage:
+			types.OverlayKindDeltaVsStage,
+			// COMPOSE-host kinds (E7-S9) — the six crosstab-shape
+			// Compose-only kinds run at the post-slot-barrier fold
+			// inside `service.Compose` / `service.ComposeParallel`,
+			// not at the per-Request Crosstab overlay path tested
+			// here. Skip from the MATRIX-host fixture; per-kind
+			// validator lands in E7-S14.
+			types.OverlayKindIndexVsRef,
+			types.OverlayKindDeltaVsRef,
+			types.OverlayKindPropZCell,
+			types.OverlayKindTCell,
+			types.OverlayKindChiSqVsRef,
+			types.OverlayKindRank:
 			// SERIES / FACET host: skipped from the MATRIX-host catalog gate.
 			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
 			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
@@ -764,6 +776,22 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		// runtime handler) is the sibling subtractive twin of
 		// INDEX_VS_STAGE — same CHAIN-host skip rule applies.
 		types.OverlayKindDeltaVsStage: true,
+		// COMPOSE-host kinds (E7-S9) — the six crosstab-shape
+		// Compose-only kinds run at the post-slot-barrier fold inside
+		// `service.Compose` / `service.ComposeParallel` against
+		// already-materialised per-slot *Response objects, not at the
+		// per-Request Crosstab overlay path tested here. The MATRIX-
+		// host gate skips them so they do not collide with the
+		// crosstab-host fixture; the cost-dispatch surface is a pure
+		// function of the streamability table and every COMPOSE kind
+		// is buffered by construction. The per-kind validator lands
+		// in E7-S14 (descriptor.ValidateComposedRequest).
+		types.OverlayKindIndexVsRef: true,
+		types.OverlayKindDeltaVsRef: true,
+		types.OverlayKindPropZCell:  true,
+		types.OverlayKindTCell:      true,
+		types.OverlayKindChiSqVsRef: true,
+		types.OverlayKindRank:       true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

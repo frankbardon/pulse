@@ -70,6 +70,18 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// kinds; sibling streamable FACET-host kinds are OVERLAY_INDEX_VS_POP
 	// / E5-S2 and OVERLAY_ZSCORE_VS_POP / E5-S3, both descriptive).
 	OverlayKindChiSqVsPop: false,
+	// OVERLAY_CHISQ_VS_REF is inherently buffered — COMPOSE-only kind
+	// (E7-S9) that runs at the post-slot-barrier fold once every slot
+	// has produced a finalised *Response. Inferential kind in the COMPOSE
+	// catalog (sibling to OVERLAY_PROP_Z_CELL / OVERLAY_T_CELL); per PRD
+	// §2 Non-Goals ("Streaming overlay path for inferential kinds") every
+	// inferential overlay stays buffered regardless of host streamability.
+	// Reuses the chiSquareSurvival helper backing TEST_CHISQ and the
+	// MATRIX-host CHISQ family. The COMPOSE host is always buffered by
+	// construction — the slot barrier requires every slot's Response to
+	// be finalised before the fold can run, so the streamable subset is
+	// empty across the entire E7 catalog.
+	OverlayKindChiSqVsRef: false,
 	// OVERLAY_DELTA_VS_BASELINE is buffered — resolving a single positional
 	// baseline (Ref.BaselineIndex.Position) requires the materialised host
 	// series (`host.ValueAt(Position)` is consulted after finalize). The
@@ -83,6 +95,12 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// lands the flag flips to true.
 	OverlayKindDeltaVsBaseline: false,
 	OverlayKindDeltaVsMargin:   false,
+	// OVERLAY_DELTA_VS_REF is inherently buffered — COMPOSE-only kind
+	// (E7-S9), subtractive sibling of OVERLAY_INDEX_VS_REF. Runs at the
+	// post-slot-barrier fold once every slot has produced a finalised
+	// *Response. The streamable subset stays empty across the E7
+	// catalog by construction.
+	OverlayKindDeltaVsRef: false,
 	// OVERLAY_DELTA_VS_SIBLING is buffered — the SERIES sibling-reference
 	// family resolves its comparison anchor via a (Field, Value) lookup
 	// against the materialised per-group accumulators, which the streaming
@@ -122,6 +140,13 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// hits the baseline ordinal); when that lands the flag flips to true.
 	OverlayKindIndexVsBaseline: false,
 	OverlayKindIndexVsMargin: false,
+	// OVERLAY_INDEX_VS_REF is inherently buffered — first COMPOSE-only
+	// kind in the catalog (E7-S9), ratio sibling of OVERLAY_DELTA_VS_REF.
+	// Runs at the post-slot-barrier fold once every slot has produced a
+	// finalised *Response. The streamable subset stays empty across the
+	// E7 catalog by construction — the COMPOSE host is buffered by the
+	// slot barrier even if individual slots are streamable.
+	OverlayKindIndexVsRef: false,
 	// OVERLAY_INDEX_VS_POP is streamable — first FACET-host overlay in
 	// the catalog (E5-S2). The handler runs as a post-finalize fold over
 	// the host's already-materialized per-value distribution
@@ -203,7 +228,19 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime (per-kind validator lands
 	// in E5-S10). A future story may lift KS into a streaming carrier by
 	// retaining a heap or finer histogram per group; v1 stays buffered.
-	OverlayKindKSVsPop:    false,
+	OverlayKindKSVsPop: false,
+	// OVERLAY_PROP_Z_CELL is inherently buffered — COMPOSE-only kind
+	// (E7-S9), per-cell two-proportion z-test against the reference slot's
+	// matching cell. Reuses the standardNormalCDF helper backing
+	// TEST_PROP_Z. Inferential kind — per PRD §2 Non-Goals every
+	// inferential overlay stays buffered regardless of host streamability.
+	OverlayKindPropZCell: false,
+	// OVERLAY_RANK is inherently buffered — COMPOSE-only kind (E7-S9),
+	// per-cell rank of each target cell within a configurable population
+	// (`Params["population"]` = "row" / "column" / "matrix"). The
+	// COMPOSE host is buffered by the slot barrier; ranking within the
+	// target matrix requires the full materialised matrix anyway.
+	OverlayKindRank:       false,
 	OverlayKindShareOfCol: false,
 	OverlayKindShareOfRow:   false,
 	// OVERLAY_SHARE_OF_TOTAL is streamable via its SERIES-host dispatch
@@ -218,6 +255,12 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// exists, and the MATRIX route falls back to buffered through the
 	// host gate, not this flag.
 	OverlayKindShareOfTotal: true,
+	// OVERLAY_T_CELL is inherently buffered — COMPOSE-only kind (E7-S9),
+	// per-cell Welch t-test against the reference slot's matching cell.
+	// Reuses the studentTTwoSidedP helper backing TEST_T. Inferential
+	// kind — per PRD §2 Non-Goals every inferential overlay stays
+	// buffered regardless of host streamability.
+	OverlayKindTCell: false,
 	// OVERLAY_YOY is buffered — the per-frequency prior-period lookup
 	// requires the materialised host series. Coarse-frequency arms
 	// (annual / quarterly / monthly / weekly) index into an arbitrary

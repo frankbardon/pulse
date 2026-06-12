@@ -214,24 +214,30 @@ func extractSeriesAxisFields(rows []map[string]any) []string {
 
 // kindRequiresMatrix reports whether the given OverlayKind requires
 // a MATRIX-shape host. The Compose-only matrix-required catalog
-// lands kind-by-kind with the per-kind handlers in E7-S9..S12 — at
-// E7-S7 time no entry has registered yet, so the helper is a stub
-// returning false. The PULSE_OVERLAY_SLOT_NOT_CROSSTAB gate is
-// effectively unreachable from runtime today; the catalog row + the
-// code + the gate wiring are all in place so the per-kind handlers
-// can flip a single boolean here as each kind lands without
-// touching the dispatch site again.
+// lands kind-by-kind with the per-kind handlers. E7-S9 registers
+// the first six entries: every crosstab-shape Compose kind
+// (OVERLAY_INDEX_VS_REF, OVERLAY_DELTA_VS_REF, OVERLAY_PROP_Z_CELL,
+// OVERLAY_T_CELL, OVERLAY_CHISQ_VS_REF, OVERLAY_RANK) is matrix-
+// required because the per-cell / whole-matrix arithmetic the
+// handlers run is undefined against a SERIES or SCALAR slot.
 //
-// The matrix-required catalog (per the E7 PRD §3 Compose kind list)
-// will register the following kinds when E7-S9..S12 ships:
-//
-//   - OVERLAY_RANK (E7-S9) — matrix-only
-//   - The E7-S9 crosstab-shape Compose family — matrix-only
-//
+// When this returns true the PULSE_OVERLAY_SLOT_NOT_CROSSTAB gate
+// fires loud at runtime against a non-MATRIX reference OR a
+// non-MATRIX target; the canonical-code dispatch carries
+// {target_label, required_shape="MATRIX", observed_shape} Details.
 // Series-shape and panel-shape Compose kinds (E7-S10..S12) stay
 // false here; their per-slot shape gating fires through the more
 // general PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path.
-func kindRequiresMatrix(_ types.OverlayKind) bool {
+func kindRequiresMatrix(kind types.OverlayKind) bool {
+	switch kind {
+	case types.OverlayKindIndexVsRef,
+		types.OverlayKindDeltaVsRef,
+		types.OverlayKindPropZCell,
+		types.OverlayKindTCell,
+		types.OverlayKindChiSqVsRef,
+		types.OverlayKindRank:
+		return true
+	}
 	return false
 }
 

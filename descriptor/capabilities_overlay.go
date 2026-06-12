@@ -271,6 +271,35 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"for the (statistic, df, p-value) triple — small p-value flags \"the subset distribution diverges from the " +
 				"population\". The layer-level Baseline stays unset (inferential overlays do not surface a ratio centerpoint).",
 		}
+	case types.OverlayKindChiSqVsRef:
+		return OverlayCapability{
+			Kind: types.OverlayKindChiSqVsRef,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeScalar,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeMatrix,
+				types.OverlayScopeTotal,
+			},
+			// COMPOSE-only kind — Reference + Targets resolve via the
+			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
+			// discriminated union. RefKinds is empty because the on-wire
+			// shape uses slot labels rather than an OverlayRef pointer.
+			RefKinds: []string{},
+			Description: "COMPOSE-host whole-matrix χ² test against the reference slot's matrix (E7-S9). The two matrices are " +
+				"treated as two independent contingency tables and the test answers \"do the target and reference distributions " +
+				"differ?\" by scaling the reference distribution to the target's grand total: expected[i,j] = ref_cell * " +
+				"(target_N / ref_N); chisq = Σ (target_cell - expected)² / expected; df = (cells with expected > 0) - 1; " +
+				"p_value = chiSquareSurvival(chisq, df). SCALAR payload — the layer carries the p-value on " +
+				"OverlayPayload.Scalar plus OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. Reuses the chiSquareSurvival " +
+				"helper backing TEST_CHISQ and the MATRIX-host CHISQ family so the overlay surface produces identical p-values " +
+				"for the same contingency. Degenerate inputs (target_N == 0, ref_N == 0, every expected = 0) emit NaN + NaN " +
+				"with one PULSE_OVERLAY_REF_ZERO warning. Low-expected-cell warning follows the canonical χ² rule (any " +
+				"expected < 5 → one PULSE_OVERLAY_EXPECTED_LOW warning per layer). Inherently buffered — inferential overlays " +
+				"as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key " +
+				"alignment + schema match + dict drift all run BEFORE the handler dispatches (E7-S5..S8) so the handler " +
+				"receives finalised *Response objects for both slots with identical structure.",
+		}
 	case types.OverlayKindDeltaVsBaseline:
 		return OverlayCapability{
 			Kind: types.OverlayKindDeltaVsBaseline,
@@ -331,6 +360,32 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"no Welford recurrence, so PULSE_OVERLAY_REF_ZERO is never emitted; renderers " +
 				"centre diverging colour ramps on baseline=0. Honours OverlaySpec Level / " +
 				"Within slots for nested-axis denominator truncation (E2-S11).",
+		}
+	case types.OverlayKindDeltaVsRef:
+		return OverlayCapability{
+			Kind: types.OverlayKindDeltaVsRef,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			// COMPOSE-only kind — Reference + Targets resolve via the
+			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
+			// discriminated union. RefKinds is empty because the on-wire
+			// shape uses slot labels rather than an OverlayRef pointer.
+			RefKinds: []string{},
+			Description: "COMPOSE-host per-cell additive delta of each target slot's matrix value against the matching reference " +
+				"slot cell at the same (rowKey, colKey) coordinate: target_cell - ref_cell. CELL scope over a MATRIX (crosstab) " +
+				"host with MATRIX payload. Subtractive sibling of OVERLAY_INDEX_VS_REF (E7-S9). Output preserves the target " +
+				"slot's units — a $-valued AGG_SUM target cell minus a $-valued reference cell yields a $-valued deviation in " +
+				"the same currency (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_SIBLING). " +
+				"Unlike the OVERLAY_INDEX_VS_REF sibling (which divides by the reference cell and emits PULSE_OVERLAY_REF_ZERO " +
+				"against a zero denominator), DELTA_VS_REF performs subtraction and is mathematically defined for every finite " +
+				"reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO. Renderers centre diverging " +
+				"colour ramps on baseline=0. Resolution + key alignment + schema match + dict drift all run BEFORE the handler " +
+				"dispatches (E7-S5..S8). Inherently buffered — the COMPOSE host is buffered by the slot barrier even if " +
+				"individual slots are streamable.",
 		}
 	case types.OverlayKindDeltaVsSibling:
 		return OverlayCapability{
@@ -566,6 +621,32 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on " +
 				"baseline=100.",
 		}
+	case types.OverlayKindIndexVsRef:
+		return OverlayCapability{
+			Kind: types.OverlayKindIndexVsRef,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			// COMPOSE-only kind — Reference + Targets resolve via the
+			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
+			// discriminated union. RefKinds is empty because the on-wire
+			// shape uses slot labels rather than an OverlayRef pointer.
+			RefKinds: []string{},
+			Description: "COMPOSE-host per-cell ratio index of each target slot's matrix value against the matching reference " +
+				"slot cell at the same (rowKey, colKey) coordinate: (target_cell / ref_cell) * scale where scale defaults to " +
+				"100 (set Params[\"scale\"] = 1 for a raw ratio). CELL scope over a MATRIX (crosstab) host with MATRIX payload. " +
+				"First COMPOSE-only crosstab-shape overlay kind in the catalog (E7-S9). Ratio sibling of OVERLAY_DELTA_VS_REF " +
+				"(subtractive twin landed in the same story). Resolution + key alignment + schema match + dict drift all run " +
+				"BEFORE the handler dispatches (E7-S5..S8) — the handler receives finalised *Response objects for both slots " +
+				"with byte-aligned key sets and identical structural schemas. Zero reference cell emits PULSE_OVERLAY_REF_ZERO " +
+				"per affected cell with NaN substitution; missing reference cells (target carries a cell whose key pair the " +
+				"reference matrix did not surface) emit the same code with a ref_missing=true Detail flag. Inherently buffered " +
+				"— the COMPOSE host is buffered by the slot barrier even if individual slots are streamable. Renderers centre " +
+				"diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family).",
+		}
 	case types.OverlayKindIndexVsRollingMean:
 		return OverlayCapability{
 			Kind: types.OverlayKindIndexVsRollingMean,
@@ -770,6 +851,57 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"pair — large D and small p-value flag \"the subset distribution shape diverges from the population\". The " +
 				"layer-level Baseline stays unset (inferential overlays do not surface a ratio centerpoint; mirrors CHISQ_VS_POP).",
 		}
+	case types.OverlayKindPropZCell:
+		return OverlayCapability{
+			Kind: types.OverlayKindPropZCell,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			// COMPOSE-only kind — Reference + Targets resolve via the
+			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
+			// discriminated union.
+			RefKinds: []string{},
+			Description: "COMPOSE-host per-cell two-proportion z-test against the reference slot's matching cell (E7-S9). CELL " +
+				"scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the two-sided p-value as a " +
+				"float64. Cells are treated as success counts; each cell's matching row margin is treated as its sample size " +
+				"(target_n on the target side, ref_n on the reference side). Math: p_target = target_cell / target_row_margin; " +
+				"p_ref = ref_cell / ref_row_margin; pooled = (target_cell + ref_cell) / (target_row_margin + ref_row_margin); " +
+				"se = sqrt(pooled * (1 - pooled) * (1/n_target + 1/n_ref)); z = (p_target - p_ref) / se; p_value = 2 * (1 - " +
+				"Φ(|z|)). Reuses the standardNormalCDF helper backing TEST_PROP_Z so the overlay and the row-test surface " +
+				"produce identical p-values for the same (success, n) pair. Degenerate inputs (pooled ∈ {0, 1}, missing row " +
+				"margin, etc.) produce NaN p-values with one PULSE_OVERLAY_REF_ZERO warning per affected cell. Inherently " +
+				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
+				"Non-Goals).",
+		}
+	case types.OverlayKindRank:
+		return OverlayCapability{
+			Kind: types.OverlayKindRank,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			// COMPOSE-only kind. Population param is on Params["population"]
+			// per the WIN_* operator convention.
+			RefKinds: []string{},
+			Fields:   []string{},
+			Description: "COMPOSE-host per-cell rank of each target cell within a configurable population per Params[\"population\"] " +
+				"(\"row\" | \"column\" | \"matrix\"; defaults to \"matrix\"). CELL scope over a MATRIX (crosstab) host with MATRIX " +
+				"payload — each cell's value is the 1-based average-tie rank (1 = largest) computed against the population the " +
+				"spec selected. Population modes: \"row\" ranks within the cell's own row across all columns; \"column\" ranks " +
+				"within the cell's own column across all rows; \"matrix\" ranks across every present cell of the target matrix. " +
+				"Ties take the average of their would-be ranks (canonical \"average\" tie-breaking; matches " +
+				"scipy.stats.rankdata default convention). Absent cells stay absent on the overlay; they do NOT participate in " +
+				"the population's denominator. The reference slot is required to anchor the resolution + key-set gates (E7-S6 " +
+				"/ E7-S7) but the rank computation reads only the target cells — RANK is orthogonal to the ref-vs-target " +
+				"comparison family while still reusing the same resolution + alignment pipeline. Inherently buffered — the " +
+				"COMPOSE host is buffered by the slot barrier; ranking within the target matrix requires the full materialised " +
+				"matrix anyway.",
+		}
 	case types.OverlayKindShareOfCol:
 		return OverlayCapability{
 			Kind: types.OverlayKindShareOfCol,
@@ -836,6 +968,35 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"statistics on every present entry; absent host groups surface a present SeriesEntry whose " +
 				"Summary leaves Statistic unset. Streamable via the SERIES dispatch (the MATRIX route is forced " +
 				"buffered through canFuseCrosstab's overlays-force-buffered arm).",
+		}
+	case types.OverlayKindTCell:
+		return OverlayCapability{
+			Kind: types.OverlayKindTCell,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			// COMPOSE-only kind — Reference + Targets resolve via the
+			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
+			// discriminated union.
+			RefKinds: []string{},
+			Description: "COMPOSE-host per-cell Welch t-test against the reference slot's matching cell (E7-S9). CELL scope " +
+				"over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the two-sided p-value as a float64. " +
+				"Each cell is treated as a sample mean; the variance defaults to 1.0 and the sample size defaults to 2 " +
+				"(`Params[\"sample_size\"]` accepts an integer override; `Params[\"variance_target\"]` / " +
+				"`Params[\"variance_ref\"]` / `Params[\"sample_size_target\"]` / `Params[\"sample_size_ref\"]` give finer " +
+				"per-side control). Math reuses the same Welch-Satterthwaite degrees-of-freedom recurrence that backs " +
+				"TEST_T two-sample: se = sqrt(var_target/n_target + var_ref/n_ref); t = (target_cell - ref_cell) / se; " +
+				"df = (var_target/n_target + var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + " +
+				"(var_ref/n_ref)²/(n_ref-1)); p_value = studentTTwoSidedP(t, df). Reuses the studentTTwoSidedP helper backing " +
+				"TEST_T so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) " +
+				"triple. Default-variance and default-sample-size policy: v1 ships well-defined defaults so the per-cell " +
+				"handler stays usable against a minimal Compose authoring surface; a future story may lift the per-cell " +
+				"(mean, variance, n) triple into a richer Compose authoring surface (the crosstab cell carrier could grow " +
+				"to carry sample statistics alongside the scalar mean). Inherently buffered — inferential overlays as a " +
+				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals).",
 		}
 	case types.OverlayKindYoY:
 		return OverlayCapability{

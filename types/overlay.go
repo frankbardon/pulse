@@ -1670,6 +1670,202 @@ const (
 	// N groups, not N records, distinct from `ATTR_ZSCORE`'s record-
 	// level semantics.
 	OverlayKindZScoreVsTotal OverlayKind = "OVERLAY_ZSCORE_VS_TOTAL"
+
+	// OverlayKindIndexVsRef is the COMPOSE-host per-cell ratio index of
+	// each target slot's matrix value against the matching reference slot
+	// cell at the same `(rowKey, colKey)` coordinate: `(target_cell /
+	// ref_cell) * scale` where `scale` defaults to `100` (set
+	// `Params["scale"] = 1` for a raw ratio). CELL scope over a MATRIX
+	// (crosstab) host. First COMPOSE-only crosstab-shape overlay kind in
+	// the catalog (E7-S9) and the first kind to consume the
+	// `ComposeOverlaySpec.Reference` / `Targets` slot-label pair against
+	// MATRIX-required slots. Sibling kind to `OVERLAY_DELTA_VS_REF`
+	// (subtractive twin landed in the same story).
+	//
+	// Math (per host coordinate `(i, j)`):
+	//
+	//	target_val = target_slot.Matrix[i,j]
+	//	ref_val    = ref_slot.Matrix[i,j]
+	//	scale      = Params["scale"] (default 100, accepts 1 for raw ratio)
+	//	if ref_val == 0 ⇒ NaN + PULSE_OVERLAY_REF_ZERO warning
+	//	otherwise       ⇒ (target / ref) * scale
+	//
+	// Buffered. Per `types/overlay_streamability.go` the row is `false`
+	// — every COMPOSE-host kind runs at the post-slot-barrier fold once
+	// every slot has produced a finalised `*Response`. There is no
+	// streamable arm for COMPOSE kinds today; the streamable subset
+	// stays empty across the E7 catalog. Renderers centre diverging
+	// colour ramps on `baseline = scale` (default `100` mirrors the
+	// per-Request `INDEX_VS_*` family).
+	OverlayKindIndexVsRef OverlayKind = "OVERLAY_INDEX_VS_REF"
+
+	// OverlayKindDeltaVsRef is the COMPOSE-host per-cell additive delta
+	// of each target slot's matrix value against the matching reference
+	// slot cell at the same `(rowKey, colKey)` coordinate: `target_cell
+	// - ref_cell`. CELL scope over a MATRIX (crosstab) host. Subtractive
+	// twin of `OVERLAY_INDEX_VS_REF` (E7-S9 sibling); shares the same
+	// E7-S5 reference / target resolution pipeline and the same E7-S6
+	// key-alignment / E7-S7 schema-match / E7-S8 dict-prefix gates.
+	//
+	// Math (per host coordinate `(i, j)`):
+	//
+	//	target_val = target_slot.Matrix[i,j]
+	//	ref_val    = ref_slot.Matrix[i,j]
+	//	delta      = target_val - ref_val
+	//
+	// Unlike the `OVERLAY_INDEX_VS_REF` sibling (which divides by the
+	// reference cell and emits `PULSE_OVERLAY_REF_ZERO` against a zero
+	// denominator), `OVERLAY_DELTA_VS_REF` performs subtraction and is
+	// mathematically defined for every finite reference value including
+	// zero — the handler does NOT emit `PULSE_OVERLAY_REF_ZERO`. Mirrors
+	// the per-Request DELTA family rule (`OVERLAY_DELTA_VS_MARGIN` /
+	// `OVERLAY_DELTA_VS_BASELINE` / `OVERLAY_DELTA_VS_SIBLING`).
+	//
+	// Output preserves the target slot's units — a $-valued AGG_SUM
+	// target cell minus a $-valued reference cell yields a $-valued
+	// deviation in the same currency. Renderers centre diverging colour
+	// ramps on `baseline = 0` (mirrors the rest of the DELTA family on
+	// other host shapes).
+	//
+	// Buffered. Same rationale as `OVERLAY_INDEX_VS_REF`.
+	OverlayKindDeltaVsRef OverlayKind = "OVERLAY_DELTA_VS_REF"
+
+	// OverlayKindPropZCell is the COMPOSE-host per-cell two-proportion
+	// z-test against the reference slot's matching cell. CELL scope over
+	// a MATRIX (crosstab) host with MATRIX payload — each cell's value
+	// is the two-sided p-value as a float64. Cells are treated as
+	// success counts; the reference cell's matching row margin is
+	// treated as the sample size on the reference side, and the target
+	// cell's matching row margin is treated as the sample size on the
+	// target side. The two-proportion z-test reuses the same pooled-
+	// standard-error formula that backs `TEST_PROP_Z` (see
+	// `processing/test_propz.go`):
+	//
+	//	p_target = target_cell / target_row_margin
+	//	p_ref    = ref_cell    / ref_row_margin
+	//	pooled   = (target_cell + ref_cell) / (target_row_margin + ref_row_margin)
+	//	se       = sqrt(pooled * (1 - pooled) * (1/n_target + 1/n_ref))
+	//	z        = (p_target - p_ref) / se
+	//	p_value  = 2 * (1 - Φ(|z|))
+	//
+	// Reuses the `standardNormalCDF` helper backing `TEST_PROP_Z` so the
+	// overlay and the row-test surface produce identical p-values for
+	// the same (success, n) pair.
+	//
+	// Degenerate inputs (pooled = 0 or 1, missing row margin, etc.)
+	// produce NaN p-values with a `PULSE_OVERLAY_REF_ZERO` warning per
+	// affected cell carrying the offending diagnostic. Mirrors the
+	// `OVERLAY_FISHER_EXACT_CELL` cell-level warning emission shape.
+	//
+	// Buffered. Inferential overlays as a family stay buffered until a
+	// streamable-test path is plumbed (PRD §2 Non-Goals "Streaming
+	// overlay path for inferential kinds").
+	OverlayKindPropZCell OverlayKind = "OVERLAY_PROP_Z_CELL"
+
+	// OverlayKindTCell is the COMPOSE-host per-cell Welch t-test
+	// against the reference slot's matching cell. CELL scope over a
+	// MATRIX (crosstab) host with MATRIX payload — each cell's value is
+	// the two-sided p-value as a float64. Each cell is treated as a
+	// sample mean; the variance defaults to `1.0` and the sample size
+	// defaults to `Params["sample_size"]` (or `2` when not supplied).
+	// The Welch t-test reuses the same Welch-Satterthwaite degrees-of-
+	// freedom recurrence that backs `TEST_T` two-sample (see
+	// `processing/test_t.go`):
+	//
+	//	se      = sqrt(var_target/n_target + var_ref/n_ref)
+	//	t       = (target_cell - ref_cell) / se
+	//	df      = (var_target/n_target + var_ref/n_ref)^2 /
+	//	          ( (var_target/n_target)^2 / (n_target-1)
+	//	          + (var_ref/n_ref)^2     / (n_ref-1)     )
+	//	p_value = studentTTwoSidedP(t, df)
+	//
+	// Reuses the `studentTTwoSidedP` helper backing `TEST_T` so the
+	// overlay and the row-test surface produce identical p-values for
+	// the same (mean, variance, n) triple.
+	//
+	// Default-variance and default-sample-size policy: v1 ships with
+	// `var = 1.0` and `n = 2` defaults so the per-cell handler stays
+	// well-defined against a minimal Compose authoring surface. Callers
+	// who want a real Welch test should supply
+	// `Params["variance_target"]`, `Params["variance_ref"]`,
+	// `Params["sample_size_target"]`, `Params["sample_size_ref"]`.
+	// Forward-compat: a future story may lift the per-cell `(mean,
+	// variance, n)` triple into a richer Compose authoring surface (the
+	// crosstab cell carrier could grow to carry sample statistics
+	// alongside the scalar mean); when that lands the defaults become
+	// opt-in fallbacks rather than universal defaults.
+	//
+	// Buffered. Same rationale as `OVERLAY_PROP_Z_CELL`.
+	OverlayKindTCell OverlayKind = "OVERLAY_T_CELL"
+
+	// OverlayKindChiSqVsRef is the COMPOSE-host whole-matrix χ² test
+	// against the reference slot's matrix. The two matrices are treated
+	// as two independent contingency tables and the test answers "do
+	// the target and reference distributions differ?" via the standard
+	// two-sample χ² approach: target cells are observed; reference
+	// cells (scaled to target N) are expected. SCALAR payload — the
+	// layer carries a single p-value on `OverlayPayload.Scalar` plus an
+	// `OverlaySummary{Statistic, PValue, Parameters{"df"}}` summary.
+	//
+	// Math:
+	//
+	//	target_N  = sum(target_cells)
+	//	ref_N     = sum(ref_cells)
+	//	expected  = ref_cell * (target_N / ref_N)  // ref distribution scaled to target N
+	//	chisq     = Σ (target_cell - expected)² / expected
+	//	df        = (target cells with expected > 0) - 1
+	//	p_value   = chiSquareSurvival(chisq, df)
+	//
+	// Reuses the `chiSquareSurvival` helper backing `TEST_CHISQ` and the
+	// MATRIX-host CHISQ family so the overlay and the row-test surface
+	// produce identical p-values for the same contingency.
+	//
+	// Degenerate inputs (`target_N == 0`, `ref_N == 0`, every expected
+	// = 0) emit a NaN statistic + NaN p-value with one
+	// `PULSE_OVERLAY_REF_ZERO` warning. Low-expected-cell warning
+	// follows the canonical χ² rule the rest of the CHISQ family uses
+	// (any `expected < 5` → one `PULSE_OVERLAY_EXPECTED_LOW` warning).
+	//
+	// Buffered. Inferential overlays as a family stay buffered until a
+	// streamable-test path is plumbed.
+	OverlayKindChiSqVsRef OverlayKind = "OVERLAY_CHISQ_VS_REF"
+
+	// OverlayKindRank is the COMPOSE-host per-cell rank of each target
+	// cell within a configurable population per `Params["population"]`
+	// (`"row" | "column" | "matrix"`; defaults to `"matrix"`). CELL
+	// scope over a MATRIX (crosstab) host with MATRIX payload — each
+	// cell's value is the 1-based rank (1 = largest) computed against
+	// the population the spec selected.
+	//
+	// Population modes:
+	//
+	//   - `"row"`: rank within the cell's own row across all columns.
+	//     Ties take the average rank.
+	//   - `"column"`: rank within the cell's own column across all rows.
+	//   - `"matrix"` (default): rank across every present cell of the
+	//     target matrix.
+	//
+	// The reference slot is required to anchor the resolution + key-set
+	// gates (E7-S6 / E7-S7) but the rank computation itself reads only
+	// the target cells — the reference matrix's structural schema is
+	// the alignment constraint; its values are not consumed by the rank
+	// math. This intentional asymmetry keeps RANK orthogonal to the
+	// ref-vs-target comparison family (INDEX / DELTA / PROP_Z / T /
+	// CHISQ) while still reusing the same resolution + alignment
+	// pipeline.
+	//
+	// Ties: equal cell values receive the average of their would-be
+	// ranks (canonical "average" tie-breaking; matches the convention
+	// scipy.stats.rankdata uses by default).
+	//
+	// Absent cells: a structurally absent target cell stays absent on
+	// the overlay; it does NOT participate in the population's
+	// denominator (mirrors the absent-cell policy of the rest of the
+	// MATRIX-host overlay family). Ranks are computed over PRESENT
+	// cells only.
+	//
+	// Buffered. Same rationale as the rest of the COMPOSE-host kinds.
+	OverlayKindRank OverlayKind = "OVERLAY_RANK"
 )
 
 // AllOverlayKinds returns every defined overlay kind in alphabetical
@@ -1685,8 +1881,10 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindChiSqMatrix,
 		OverlayKindChiSqRow,
 		OverlayKindChiSqVsPop,
+		OverlayKindChiSqVsRef,
 		OverlayKindDeltaVsBaseline,
 		OverlayKindDeltaVsMargin,
+		OverlayKindDeltaVsRef,
 		OverlayKindDeltaVsSibling,
 		OverlayKindDeltaVsStage,
 		OverlayKindFisherExactCell,
@@ -1694,14 +1892,18 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindIndexVsMargin,
 		OverlayKindIndexVsPop,
 		OverlayKindIndexVsPrior,
+		OverlayKindIndexVsRef,
 		OverlayKindIndexVsRollingMean,
 		OverlayKindIndexVsSibling,
 		OverlayKindIndexVsStage,
 		OverlayKindIndexVsTotal,
 		OverlayKindKSVsPop,
+		OverlayKindPropZCell,
+		OverlayKindRank,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
+		OverlayKindTCell,
 		OverlayKindYoY,
 		OverlayKindZScoreVsMargin,
 		OverlayKindZScoreVsPop,

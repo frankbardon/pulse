@@ -108,5 +108,15 @@ func SlimManifest(m *Manifest) *Manifest {
 	}
 	out.Commands = slimCmds
 
+	// Overlays carry long per-kind descriptions that dominate the
+	// manifest payload as the catalog grows; blank them in the slim
+	// variant so size-sensitive clients pay only structural metadata.
+	slimOverlays := make([]OverlayCapability, len(m.Overlays))
+	for i, o := range m.Overlays {
+		o.Description = ""
+		slimOverlays[i] = o
+	}
+	out.Overlays = slimOverlays
+
 	return &out
 }

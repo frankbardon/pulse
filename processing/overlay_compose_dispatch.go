@@ -109,7 +109,14 @@ type composeOverlayHandler func(spec *types.ComposeOverlaySpec, reference *types
 // Adding a new COMPOSE OverlayKind: declare the constant + streamability
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
-var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{}
+var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
+	types.OverlayKindIndexVsRef: applyIndexVsRef,
+	types.OverlayKindDeltaVsRef: applyDeltaVsRef,
+	types.OverlayKindPropZCell:  applyPropZCell,
+	types.OverlayKindTCell:      applyTCell,
+	types.OverlayKindChiSqVsRef: applyChiSqVsRef,
+	types.OverlayKindRank:       applyRank,
+}
 
 // ApplyComposeOverlays executes every spec in specs against the
 // already-finalised per-slot responses and returns one OverlayLayer
