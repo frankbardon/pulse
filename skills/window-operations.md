@@ -193,3 +193,179 @@ When you order by a derived date component, mind which producer you use:
 - Sort is `O(n log n)` over the post-aggregate row set. For a million-row aggregate, expect millisecond costs; for tens of millions, push the partition into the import or split the cohort.
 - Use `WIN_ROW_NUMBER` over `WIN_RANK` when ties are not meaningful — both costs are dominated by the sort, but rank also touches the order-key fields per row to detect ties.
 </rule>
+
+## Windowed-Process overlays
+
+These six overlay kinds attach to a grouped Process result where the host axis is ordered (typically `GROUP_DATE`). They sit alongside `WIN_*` operators conceptually but live in `Request.Overlays`, not in `Request.Windows` — overlays are additive post-result decorations whereas `WIN_*` operators rewrite attributes per record. Use overlays when you want renderer-visible comparison values without affecting the base aggregate; use `WIN_*` when you want the comparison rolled into a per-record value.
+
+All six kinds are GROUP-scoped over a SERIES-host (grouped Process) result and produce a SERIES payload — one `SeriesEntry` per host group key in host order, each carrying the overlay value on `Summary.Statistic`. The full catalog (per-kind shape, ref family, error code matrix) lives at `skills/overlay-system.md`; these subsections layer the windowed-specific recipe and gotchas on top.
+
+`Level` and `Within` MUST be zero across this entire family — windowed kinds fold across the ordered axis without a prefix-bucket denominator. Non-zero values fire `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` at both predict and runtime.
+
+### `OVERLAY_DELTA_VS_BASELINE`
+
+Per-point additive delta `point[i] - baseline` against a fixed positional anchor of the host series. Requires `Ref.BaselineIndex.Position` (zero-based ordinal into the host's group key list). The anchored ordinal emits exactly `0.0` (self-vs-self under subtraction). **No `PULSE_OVERLAY_REF_ZERO` arm** — subtraction by zero is well-defined (a zero baseline yields the raw host value verbatim, distinct from the `OVERLAY_INDEX_VS_BASELINE` twin which divides and rejects zero). Output preserves the host cell's units — a `$`-valued `AGG_SUM` point minus a `$`-valued baseline yields a `$`-valued deviation in the same currency.
+
+```json
+{
+  "cohort": {"filename": "sales.pulse"},
+  "groups":       [{"type": "GROUP_DATE", "field": "order_date", "params": {"frequency": "month"}}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "monthly_revenue"}],
+  "overlays": [
+    {
+      "name": "delta_vs_jan",
+      "kind": "OVERLAY_DELTA_VS_BASELINE",
+      "scope": "group",
+      "ref": {"baseline_index": {"position": 0}}
+    }
+  ]
+}
+```
+
+**Errors:** `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (missing `Ref.BaselineIndex`, any other ref-family pointer, or non-SERIES host), `PULSE_OVERLAY_REF_UNKNOWN` (negative or out-of-range `Position`), `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` (non-zero `Level` / `Within`).
+
+### `OVERLAY_INDEX_VS_BASELINE`
+
+Per-point ratio index `point[i] / baseline * 100` against a fixed positional anchor. Requires `Ref.BaselineIndex.Position`. The anchored ordinal emits exactly `100.0`. **Zero-baseline path:** when the resolved baseline value is `0` the handler emits ONE `PULSE_OVERLAY_REF_ZERO` warning per layer and surfaces NaN across every emitted entry. An absent host ordinal at the baseline position (resolver reports `(0, false)`) is treated as `baseline_value = 0` and triggers the same warning.
+
+```json
+{
+  "cohort": {"filename": "sales.pulse"},
+  "groups":       [{"type": "GROUP_DATE", "field": "order_date", "params": {"frequency": "month"}}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "monthly_revenue"}],
+  "overlays": [
+    {
+      "name": "index_vs_jan",
+      "kind": "OVERLAY_INDEX_VS_BASELINE",
+      "scope": "group",
+      "ref": {"baseline_index": {"position": 0}}
+    }
+  ]
+}
+```
+
+**Errors:** `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (missing `Ref.BaselineIndex`, any other ref-family pointer, or non-SERIES host), `PULSE_OVERLAY_REF_UNKNOWN` (negative or out-of-range `Position`), `PULSE_OVERLAY_REF_ZERO` (warning — zero baseline), `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` (non-zero `Level` / `Within`).
+
+### `OVERLAY_INDEX_VS_PRIOR`
+
+Per-point windowed index `point[i] / point[i-1] * 100` against the immediately preceding present point. **Streamable — the only streamable kind in the windowed family.** The single-state lag carrier is one `f64` per group, advanced on every emit during the streaming Process fold; the post-host finalize is the divide step. The streaming-Process hot path stays untouched — see `skills/streaming-and-watching.md` for the full streamable-vs-buffered cross-reference and the mixed-mode downgrade rule.
+
+The `Ref` accepts either `Ref.Prior` (empty marker — v1 ships lag-1 only; non-zero `Lag` is reserved) OR an entirely empty `Ref` (the implicit-default authoring shape — both spell "lag-1 prior").
+
+**First-present-point semantics:** the first present ordinal emits NaN because no prior is available — this is "no comparison available" and does NOT raise `PULSE_OVERLAY_REF_ZERO`. **Zero-prior path:** when the lag carrier is `0` at the divide step (the most recent present point had a value of zero) the handler emits ONE `PULSE_OVERLAY_REF_ZERO` warning per layer and surfaces NaN on the affected entry. **Absent-point policy:** an absent host ordinal does NOT advance the carrier — the next present ordinal compares against the most recent PRESENT value, not the absent slot.
+
+```json
+{
+  "cohort": {"filename": "sales.pulse"},
+  "groups":       [{"type": "GROUP_DATE", "field": "order_date", "params": {"frequency": "month"}}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "monthly_revenue"}],
+  "overlays": [
+    {
+      "name": "mom_index",
+      "kind": "OVERLAY_INDEX_VS_PRIOR",
+      "scope": "group"
+    }
+  ]
+}
+```
+
+**Errors:** `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (non-`Ref.Prior` ref family or non-SERIES host), `PULSE_OVERLAY_REF_ZERO` (warning — zero prior value), `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` (non-zero `Level` / `Within`).
+
+### `OVERLAY_INDEX_VS_ROLLING_MEAN`
+
+Per-point windowed index `point[i] / mean(point[i-W:i]) * 100` against the arithmetic mean of the W immediately preceding present points. The point itself is EXCLUDED from the window — `mean()` is computed over the W priors only. Window width on `Params["window"]` (positive integer). Ref family is `Ref.RollingMean` (empty marker — the v1 window value lives entirely on `Params`).
+
+**Shared Welford carrier with `OVERLAY_ZSCORE_VS_ROLLING`:** the handler maintains a per-group ring buffer of the W most recently observed PRESENT values plus a Welford-Pébaÿ (count, mean, M2) trio. `OVERLAY_INDEX_VS_ROLLING_MEAN` reads only `mean`; the sibling `OVERLAY_ZSCORE_VS_ROLLING` reads both `mean` and `M2`. The carrier was sized for this reuse at E4-S5 precisely so a Request carrying BOTH kinds folds the trio ONCE per group.
+
+**Window-fill semantics:** the first W present ordinals emit NaN without warning — "window not yet filled" is distinct from "denominator was zero". **Absent-point policy:** absent ordinals do NOT advance the ring buffer (mirrors `OVERLAY_INDEX_VS_PRIOR`). **Zero rolling-mean path:** when the window mean is exactly `0` (every prior in the window was zero) the handler emits ONE `PULSE_OVERLAY_REF_ZERO` warning per layer and surfaces NaN on the affected entries.
+
+```json
+{
+  "cohort": {"filename": "sales.pulse"},
+  "groups":       [{"type": "GROUP_DATE", "field": "order_date", "params": {"frequency": "month"}}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "monthly_revenue"}],
+  "overlays": [
+    {
+      "name": "vs_rolling_3",
+      "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN",
+      "scope": "group",
+      "ref": {"rolling_mean": {}},
+      "params": {"window": 3}
+    }
+  ]
+}
+```
+
+**Errors:** `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (non-`Ref.RollingMean` ref family or non-SERIES host), `PULSE_OVERLAY_PARAM_MISSING` (missing `Params["window"]`), `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` (non-integer or non-positive `window`; non-zero `Level` / `Within`), `PULSE_OVERLAY_REF_ZERO` (warning — zero rolling mean).
+
+### `OVERLAY_ZSCORE_VS_ROLLING`
+
+Per-point windowed standardized z-score `(point[i] - rolling_mean) / rolling_sample_sd` against the rolling-window mean + **SAMPLE** standard deviation (`sqrt(M2 / (count - 1))`, n-1 denominator) of the W immediately preceding present points. Window width on `Params["window"]`. Ref family is `Ref.RollingMean` (the same empty marker arm as `OVERLAY_INDEX_VS_ROLLING_MEAN`).
+
+**Variance choice (SAMPLE, NOT population) — key contrast with `OVERLAY_ZSCORE_VS_TOTAL`:** the rolling z-score uses sample SD (divide by `count - 1`) because a rolling window of W observations IS a sample of the wider time series. By contrast `OVERLAY_ZSCORE_VS_TOTAL` uses population SD (`sqrt(M2 / N)`) because the per-group aggregation set IS the whole population being standardised. The two surfaces are intentionally orthogonal: rolling = local sample; total = global population.
+
+**Shared Welford carrier with `OVERLAY_INDEX_VS_ROLLING_MEAN`:** the per-group ring buffer + Welford trio is shared with the sibling kind (see the `OVERLAY_INDEX_VS_ROLLING_MEAN` subsection). `ZSCORE_VS_ROLLING` reads BOTH `mean` and `M2`.
+
+**Window-fill semantics:** when the carrier `count < 2` (the Welford recurrence requires at least two observations to define a sample variance) the handler emits NaN without warning. **Zero rolling-SD path:** when the rolling SD is exactly `0` (every prior in the window has the same value — constant series) the handler emits ONE `PULSE_OVERLAY_REF_ZERO` warning per layer and surfaces NaN on the affected entries.
+
+```json
+{
+  "cohort": {"filename": "sales.pulse"},
+  "groups":       [{"type": "GROUP_DATE", "field": "order_date", "params": {"frequency": "month"}}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "monthly_revenue"}],
+  "overlays": [
+    {
+      "name": "z_rolling_3",
+      "kind": "OVERLAY_ZSCORE_VS_ROLLING",
+      "scope": "group",
+      "ref": {"rolling_mean": {}},
+      "params": {"window": 3}
+    }
+  ]
+}
+```
+
+**Errors:** `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (non-`Ref.RollingMean` ref family or non-SERIES host), `PULSE_OVERLAY_PARAM_MISSING` (missing `Params["window"]`), `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` (non-integer or non-positive `window`; non-zero `Level` / `Within`), `PULSE_OVERLAY_REF_ZERO` (warning — zero rolling SD).
+
+### `OVERLAY_YOY`
+
+Per-point year-over-year ratio `point[i] / prior_year_value * 100`. **Required `GROUP_DATE` host grouper** — other grouper kinds cannot resolve "same period one year prior" semantics. Frequency resolution order:
+
+1. `spec.Params["frequency"]` (the YoY's own override).
+2. `req.Groups[0].Params["frequency"]` (the canonical `GROUP_DATE` authoring slot — orchestrator-promoted onto the spec before handler dispatch).
+3. Missing both fires `PULSE_OVERLAY_YOY_FREQUENCY_MISSING`.
+
+**Six supported frequencies — per-frequency lag:**
+
+| Frequency | Prior index | Semantics |
+|---|---|---|
+| `annual` | `i - 1` | one ordinal back |
+| `quarterly` | `i - 4` | four ordinals back |
+| `monthly` | `i - 12` | twelve ordinals back |
+| `weekly` | `i - 52` | calendar-week aligned, **no day-of-week realignment in v1** |
+| `daily` | exact-key match for `host.Key(i).AddDate(-1, 0, 0)` | 365-day exact-key lookup — Feb 29 in a non-leap prior year emits NaN with no warning |
+| `hourly` | exact-key match for `host.Key(i).Add(-365*24*time.Hour)` | 8760-hour exact-key lookup — same exact-key rule |
+
+**v1 non-goals (explicit):** calendar-week / day-of-week realignment is NOT performed — weekly uses pure `i - 52` arithmetic (no day-of-week shift); daily uses exact-key lookup (no leap-year fill or Feb 28 / Mar 1 realignment for Feb 29). Documented explicitly so callers do not silently receive realigned results.
+
+**First-year-no-comparison:** every ordinal whose prior-year index lands at `< 0` (coarse-frequency arms) OR whose daily / hourly prior-year date does not match an exact host key emits NaN without warning. **Zero-prior path:** when the resolved prior value is `0` the handler emits ONE `PULSE_OVERLAY_REF_ZERO` warning per layer and surfaces NaN on the affected entry.
+
+```json
+{
+  "cohort": {"filename": "sales.pulse"},
+  "groups":       [{"type": "GROUP_DATE", "field": "order_date", "params": {"frequency": "monthly"}}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "monthly_revenue"}],
+  "overlays": [
+    {
+      "name": "yoy",
+      "kind": "OVERLAY_YOY",
+      "scope": "group",
+      "ref": {"yoy": {}}
+    }
+  ]
+}
+```
+
+The handler reads `frequency` from the host's `GROUP_DATE.Params["frequency"]` slot (`monthly`) — no `Params` override needed on the overlay spec. Supply `Params["frequency"]` on the overlay only when you want to override the host's frequency (rare).
+
+**Errors:** `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (non-`Ref.YoY` ref family, non-SERIES host, or non-`GROUP_DATE` first grouper), `PULSE_OVERLAY_YOY_FREQUENCY_MISSING` (no frequency on spec or host grouper), `PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY` (frequency value outside the six-element supported set), `PULSE_OVERLAY_REF_ZERO` (warning — zero prior value), `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` (non-zero `Level` / `Within`).

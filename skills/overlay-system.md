@@ -249,6 +249,12 @@ Multiple specs ride the same `Request.Overlays` slice. Each produces one layer i
 
 For per-kind JSON recipes against a Crosstab host — the share triad, the margin-comparison family, and the χ² / Fisher inferential family — see `skills/crosstab-guide.md` ("Overlays" section).
 
+## Windowed family
+
+Six overlay kinds attach to a SERIES (grouped Process) host whose first grouper is ordered (typically `GROUP_DATE`) and consume that ordering to compute point-relative comparisons: `OVERLAY_DELTA_VS_BASELINE`, `OVERLAY_INDEX_VS_BASELINE`, `OVERLAY_INDEX_VS_PRIOR`, `OVERLAY_INDEX_VS_ROLLING_MEAN`, `OVERLAY_YOY`, `OVERLAY_ZSCORE_VS_ROLLING`. They are catalogued in the table at the top of this skill (per-kind shape, ref family, streamability, error matrix); the per-kind JSON recipes — worked authoring shapes, gotchas, error code enumerations, and the streamable-vs-buffered rationale per kind — live in `skills/window-operations.md` ("Windowed-Process overlays" section).
+
+`OVERLAY_INDEX_VS_PRIOR` is the only streamable kind in the windowed family — it carries a single-state lag accumulator alongside the per-group accumulators in the streaming Process fold. The other five are buffered because they require materialised host state (positional baseline lookup, ring buffer + Welford trio, exact-key prior-year lookup). The mixed-mode downgrade rule from `skills/streaming-and-watching.md` applies: a Request mixing the streamable kind with any buffered windowed kind runs entirely buffered.
+
 ## Level / Within nested-axis denominators
 
 `OverlaySpec.Level` and `OverlaySpec.Within` are two integer slots (default zero, `omitempty` on the wire) that drive nested-axis prefix-denominator dispatch on the share / index / delta / zscore family. Both mirror the `CrosstabSpec.NormalizeLevel` / `CrosstabSpec.NormalizeWithin` semantics from `skills/crosstab-guide.md` so an overlay with `(Level=L, Within=W)` produces byte-equivalent denominators to a crosstab `normalize=row, normalize_level=L, normalize_within=W` against the same host matrix (with the caveat that the equivalence holds for summable cell aggregators — recompute-class aggregators like `AGG_MEDIAN` still recompute their margins from raw rows on the crosstab side).
