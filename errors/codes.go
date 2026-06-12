@@ -730,9 +730,10 @@ const (
 	// (`descriptor.validateOverlayFormula`) and runtime
 	// (`processing.applyFormula` family) with Details carrying
 	// `{formula, parse_error}` so the renderer can surface both the
-	// offending input and the underlying parser message. E8-S2 lands
-	// the runtime emission path; E8-S6 will refine the message + fixup
-	// catalogue against final author guidance.
+	// offending input and the underlying parser message. E8-S2 landed
+	// the runtime emission path; E8-S6 refined the message + fixup
+	// catalogue (errors/fixup_metadata.go) against the per-shape
+	// namespace tables in skills/overlay-system.md.
 	PULSE_OVERLAY_FORMULA_PARSE_ERROR Code = "PULSE_OVERLAY_FORMULA_PARSE_ERROR"
 
 	// PULSE_OVERLAY_FORMULA_TYPE_MISMATCH indicates an OVERLAY_FORMULA
@@ -742,8 +743,8 @@ const (
 	// 1.0`, and rejects everything else (strings, maps, nil, etc.).
 	// Surfaced at runtime by `processing.applyFormula` after
 	// `expr.Run` returns; Details carry `{returned_type, formula}`.
-	// E8-S2 lands the runtime emission path; E8-S6 will refine the
-	// message + fixup catalogue.
+	// E8-S2 landed the runtime emission path; E8-S6 refined the
+	// message + fixup catalogue (errors/fixup_metadata.go).
 	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH Code = "PULSE_OVERLAY_FORMULA_TYPE_MISMATCH"
 
 	// PULSE_OVERLAY_FORMULA_INVALID_IDENT indicates an OVERLAY_FORMULA
@@ -755,10 +756,12 @@ const (
 	// carrying `{ident, host_shape, available_vars}`. Embedders that
 	// need new variables MUST register a custom kind via
 	// `pulse.Options.Extensions.OverlayKinds` — FORMULA cannot widen
-	// its variable namespace from outside. E8-S2 reserves the code
-	// for the predict validator (lands in E8-S4) and the runtime
-	// defense-in-depth path; E8-S6 will refine the message + fixup
-	// catalogue.
+	// its variable namespace from outside. E8-S2 reserved the code
+	// for the predict validator (landed in E8-S4) and the runtime
+	// defense-in-depth path; E8-S6 refined the message + fixup
+	// catalogue (errors/fixup_metadata.go) — the fixup hint walks
+	// authors through the per-shape namespace table in
+	// skills/overlay-system.md FORMULA section.
 	PULSE_OVERLAY_FORMULA_INVALID_IDENT Code = "PULSE_OVERLAY_FORMULA_INVALID_IDENT"
 
 	// PULSE_OVERLAY_YOY_FREQUENCY_MISSING indicates an OVERLAY_YOY spec

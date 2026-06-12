@@ -1267,35 +1267,35 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_FORMULA_PARSE_ERROR: {
-		Message: "An OVERLAY_FORMULA spec's Params[\"formula\"] string failed to parse via expr-lang/expr. The formula was syntactically invalid — typically unbalanced parentheses, a stray operator, an unterminated string literal, or a typo on a keyword. Details carry {formula, parse_error} so callers can surface both the offending input and the underlying parser message. E8-S2 lands the runtime emission path with the minimal message + fixup below; E8-S6 will refine prose against author guidance.",
+		Message: "An OVERLAY_FORMULA spec's Params[\"formula\"] string failed to parse as an expr-lang expression. The formula was syntactically invalid — typically unbalanced parentheses, a stray operator, an unterminated string literal, or a typo on a keyword. Surfaced at both predict (descriptor.validateFormulaOverlay) and runtime (processing.compileFormulaProgram) so authors catch the failure before evaluation begins. Details carry {formula, parse_error, kind, index} — the parser's own position-aware error string is preserved verbatim under Details.parse_error so renderers can surface the offending column / token alongside the offending input.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params"},
-				Hint:     "Check the formula string for typos, unbalanced parentheses, or stray punctuation. Verify operators are valid expr-lang operators (+, -, *, /, %, **, ==, !=, <, <=, >, >=, &&, ||, !). The parser's error message is surfaced in Details.parse_error.",
-				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}},
+				Path:     []string{"Overlays", "*", "Params", "formula"},
+				Hint:     "Re-read the formula string with the parser message in mind (Details.parse_error names the offending position or token). Common fixes: balance every '(' with a matching ')', terminate every '\"' string literal, and confirm operators are valid expr-lang operators (+, -, *, /, %, **, ==, !=, <, <=, >, >=, &&, ||, !). The expr-lang grammar is documented under skills/extension-points.md (the same evaluator backs ATTR_FORMULA and FILTER_EXPRESSION, so any expression that parses there parses here).",
+				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}},
 			},
 		},
 	},
 	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH: {
-		Message: "An OVERLAY_FORMULA expression returned a value whose type cannot be coerced to a numeric Statistic (float64). The coercion accepts float64 / float32 / int / int64 natively, widens bool to 0.0 / 1.0, and rejects everything else (strings, maps, nil, etc.). Details carry {returned_type, formula}. E8-S2 lands the runtime emission path with the minimal message + fixup below; E8-S6 will refine prose against author guidance.",
+		Message: "An OVERLAY_FORMULA expression returned a value whose Go type cannot be coerced to a numeric Statistic (float64). The runtime accepts float64 / float32 / int / int64 natively, widens bool to 0.0 / 1.0, and rejects everything else (strings, maps, slices, nil, etc.) — overlays must emit numeric statistics so the renderer can plot them. Surfaced at runtime by processing.applyFormula after expr.Run returns. Details carry {returned_type, formula, kind, index} so the renderer can surface both the offending Go type and the offending input.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params"},
-				Hint:     "Ensure the formula's top-level expression evaluates to a numeric value (float64, float32, int, int64) or bool (which coerces to 0.0 / 1.0). If the formula uses a custom function via pulse.Options.Extensions.ExprFunctions, verify the function returns a numeric value rather than a string or composite type.",
-				Examples: []any{map[string]any{"formula": "cell / margin_row"}},
+				Path:     []string{"Overlays", "*", "Params", "formula"},
+				Hint:     "Ensure the formula's top-level expression evaluates to a numeric value (float64 / float32 / int / int64) or a bool (bool widens to 0.0 / 1.0). If the formula uses a custom function registered via pulse.Options.Extensions.ExprFunctions, verify the function returns a numeric Go type rather than a string, slice, or composite type — see skills/extension-points.md for the ExprFunctions contract. If the formula uses lookup() against a LookupTables registration, verify the row value column is numeric.",
+				Examples: []any{map[string]any{"formula": "cell / margin_row"}, map[string]any{"formula": "(value - prior) / prior"}},
 			},
 		},
 	},
 	PULSE_OVERLAY_FORMULA_INVALID_IDENT: {
-		Message: "An OVERLAY_FORMULA expression references an identifier (variable or function) not in the per-host-shape variable table or the function set built from pulse.Options.Extensions.ExprFunctions plus the expr-lang stdlib. Details carry {ident, host_shape, available_vars}. Embedders that need new variables MUST register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. E8-S2 reserves the code for the predict validator (lands in E8-S4) and the runtime defense-in-depth path; E8-S6 will refine prose against author guidance.",
+		Message: "An OVERLAY_FORMULA expression references an identifier (variable or function) that is not allowed for the resolved host shape. The per-shape variable namespace is fixed: MATRIX hosts expose `cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand` (plus `ref_cell` and the dotted `slot.<label>.cell` namespace on Compose hosts); SERIES hosts expose `value, total, prior` (plus opt-in `baseline` when Params[\"baseline_position\"] is set, plus `ref_value` on Compose hosts); SCALAR hosts expose `value` (plus `ref` on Compose hosts). The function namespace is the expr-lang stdlib plus every pulse.Options.Extensions.ExprFunctions registration and (when LookupTables are registered) the auto-injected lookup() builtin. Surfaced at predict (descriptor.validateFormulaOverlay) by walking the parsed AST. Details carry {unknown_identifier, host_shape, allowed | allowed_funcs, formula, kind, index}; Compose-only `slot.<label>.<field>` identifiers on a Request host additionally carry {reason: \"slot namespace is Compose-only\"}.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params"},
-				Hint:     "Replace the offending identifier with one of the available variables for this host shape (Details.available_vars enumerates them). If the identifier was meant to be a function, register it via pulse.Options.Extensions.ExprFunctions. If you need a new variable family, register a custom kind via pulse.Options.Extensions.OverlayKinds (FORMULA cannot widen its variable namespace from outside).",
-				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}},
+				Path:     []string{"Overlays", "*", "Params", "formula"},
+				Hint:     "Check the allowed identifier set for shape Details.host_shape against Details.allowed (variables) or Details.allowed_funcs (functions) — the per-shape namespace table lives in the FORMULA section of skills/overlay-system.md. If the identifier was meant to be a custom function, register it via pulse.Options.Extensions.ExprFunctions before calling pulse.New (see skills/extension-points.md for the registration recipe — naming policy ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_*$ applies to operators, not to expr functions; expr function names are free-form). If the identifier was meant to be a variable not in the per-shape table, register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. Compose `slot.<label>.<field>` identifiers only resolve on Compose-host overlays (FacetRequest.Overlays / ComposedRequest.Overlays), not on Request.Overlays.",
+				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}, map[string]any{"formula": "(slot.us.cell - slot.uk.cell) / slot.world.cell"}},
 			},
 		},
 	},
