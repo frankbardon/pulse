@@ -114,6 +114,16 @@ var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
 	// catalog. Handler: applyIndexVsPop in
 	// processing/overlay_index_vs_pop.go.
 	types.OverlayKindIndexVsPop: applyIndexVsPop,
+	// OVERLAY_KS_VS_POP (E5-S5): single scalar Kolmogorov-Smirnov
+	// distance + asymptotic p-value against a FACET host. Fourth and
+	// final FACET-host kind in the catalog — second inferential FACET
+	// kind (sibling to OVERLAY_CHISQ_VS_POP). KS is the numeric-arm
+	// distributional-shift indicator (CHISQ_VS_POP is the discrete-arm
+	// equivalent — the two kinds partition the inferential FACET surface
+	// by host arm). Buffered per PRD §2 Non-Goals ("Streaming overlay
+	// path for inferential kinds"). Handler: applyKSVsPop in
+	// processing/overlay_ks_vs_pop.go.
+	types.OverlayKindKSVsPop: applyKSVsPop,
 	// OVERLAY_ZSCORE_VS_POP (E5-S3): per-value population-comparison
 	// z-score against a FACET host. Sibling streamable FACET-host kind
 	// to OVERLAY_INDEX_VS_POP — pairs as the two streamable Facet

@@ -608,6 +608,66 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"zero grand_total emits PULSE_OVERLAY_REF_ZERO with NaN statistics. Absent host groups " +
 				"surface a present SeriesEntry whose Summary leaves Statistic unset.",
 		}
+	case types.OverlayKindKSVsPop:
+		return OverlayCapability{
+			Kind: types.OverlayKindKSVsPop,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeScalar,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// Population is the FACET-host comparison-population ref family
+			// (E5-S1 foundation; E5-S2 INDEX_VS_POP first consumer; E5-S3
+			// ZSCORE_VS_POP second consumer; E5-S4 CHISQ_VS_POP third
+			// consumer; E5-S5 KS_VS_POP fourth consumer). The capability row
+			// declares the consumed Ref-arm so MCP / manifest clients see
+			// the kind requires Ref.Population to be populated; the per-kind
+			// validator (descriptor.validateOverlayKSVsPop) lands in E5-S10
+			// (this story is the runtime handler only).
+			RefKinds: []string{"Population"},
+			Description: "Single scalar Kolmogorov-Smirnov distance D = sup_x |F_subset(x) - F_pop(x)| plus an asymptotic p-value " +
+				"comparing the host Facet subset NUMERIC distribution against the resolved population NUMERIC distribution. " +
+				"GROUP scope over a FACET (FacetSchema) host with SCALAR payload — the layer carries the KS statistic plus the " +
+				"asymptotic p-value via OverlaySummary{Statistic, PValue, Parameters{\"n_subset\", \"n_pop\"}}. Fourth and final " +
+				"FACET-host overlay in the catalog (E5-S5; siblings: OVERLAY_INDEX_VS_POP / E5-S2 descriptive, " +
+				"OVERLAY_ZSCORE_VS_POP / E5-S3 descriptive, OVERLAY_CHISQ_VS_POP / E5-S4 inferential discrete-arm only). KS is the " +
+				"canonical NUMERIC-arm distributional-shift indicator — it pairs with CHISQ_VS_POP as the two inferential FACET-host " +
+				"kinds, partitioning the inferential FACET surface by host arm (CHISQ for categorical, KS for numeric). The viz " +
+				"developer renders the SCALAR statistic as a distributional-shift indicator near the facet header. Math: " +
+				"D = sup_x |F_subset(x) - F_pop(x)|; en = sqrt(n_subset * n_pop / (n_subset + n_pop)); " +
+				"p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D) — the same Kolmogorov-survival helper backing TEST_KS " +
+				"(processing/test_stat.go), so the overlay and the row-test surface produce identical p-values for the same D + N. " +
+				"NUMERIC ARM ONLY: KS is undefined on categorical distributions (no continuous CDF to compare). A categorical host " +
+				"(no numeric payload) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime; the per-kind validator (lands in E5-S10) " +
+				"rejects categorical hosts at predict time so the runtime arm is belt-and-braces. Distinct from CHISQ_VS_POP which " +
+				"is DISCRETE-arm only and rejects numeric hosts with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Population-sample " +
+				"availability: the S1 resolver exposes only summary state for numeric fields (Welford mean/stdev/count, optional " +
+				"percentile map, optional histogram) — raw population values were folded into Welford state and discarded. The " +
+				"handler picks the highest-precision reconstruction available: (1) HISTOGRAM PATH (preferred) when host AND " +
+				"population each surface a histogram with matching Min/Max/bucket count — aligns bucket edges and computes " +
+				"sup-CDF-difference over the bucket-fraction CDF on both sides; (2) PERCENTILE FALLBACK when both arms surface a " +
+				"percentile map but histograms are absent or mismatched — turns each percentile entry into a CDF sample point and " +
+				"computes sup-CDF-difference over the common percentile labels (lower precision than histograms but well-defined); " +
+				"(3) WELFORD-ONLY DEGENERATE when neither histograms nor percentiles are available — emits NaN + NaN with one " +
+				"PULSE_OVERLAY_REF_ZERO warning whose Details document which knobs were missing on the FacetRequest. KS precision " +
+				"is bounded by histogram bucket width (path 1) or percentile-label resolution (path 2) because the population view " +
+				"does not retain raw values; a future story may lift the resolver to retain raw sorted population values when a KS " +
+				"overlay is requested, at which point the handler can call ksTwoSampleD on raw arms directly (additive change). " +
+				"INHERENTLY BUFFERED per PRD §2 Non-Goals (\"Streaming overlay path for inferential kinds\") — the empirical-CDF " +
+				"construction requires sorted values on both sides; an online folded shape would widen the streaming carrier " +
+				"beyond v1's single-state lag accumulator. Degenerate inputs: empty host (n_subset == 0) OR empty population " +
+				"(n_pop == 0) emits NaN + NaN with PULSE_OVERLAY_REF_ZERO; histogram arms with mismatched edges (different " +
+				"Min/Max/bucket count) fall through to the percentile fallback if available, else emit PULSE_OVERLAY_REF_ZERO " +
+				"carrying the mismatching shape Details. Ref.Population MUST be populated (the cohort name lives on " +
+				"Ref.Population.Cohort); any other ref-family pointer (Margin / Sibling / BaselineIndex / Prior / RollingMean / " +
+				"YoY / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Level / Within MUST be zero " +
+				"(population comparison is a single-statistic lookup, not an axis prefix); non-zero values fire " +
+				"PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the implicit-ref family. Scope must be GROUP. Renderer-facing shape: " +
+				"viz developer reads OverlayPayload.Scalar for the KS distance D and OverlaySummary for the (statistic, p-value) " +
+				"pair — large D and small p-value flag \"the subset distribution shape diverges from the population\". The " +
+				"layer-level Baseline stays unset (inferential overlays do not surface a ratio centerpoint; mirrors CHISQ_VS_POP).",
+		}
 	case types.OverlayKindShareOfCol:
 		return OverlayCapability{
 			Kind: types.OverlayKindShareOfCol,

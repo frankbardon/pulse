@@ -170,7 +170,22 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// the running grand total. Per kind-catalog-v1
 	// "Streaming-capable subset".
 	OverlayKindIndexVsTotal: true,
-	OverlayKindShareOfCol:   false,
+	// OVERLAY_KS_VS_POP is inherently buffered — fourth and final FACET-host
+	// kind (E5-S5) and second inferential FACET-host kind (sibling to
+	// OVERLAY_CHISQ_VS_POP). Per PRD §2 Non-Goals ("Streaming overlay path
+	// for inferential kinds"), every inferential overlay stays buffered
+	// regardless of host streamability. KS requires two empirical CDFs —
+	// the handler reconstructs them post-finalize from the host and
+	// population's already-folded numeric summary state (histogram
+	// preferred, percentile-map fallback). The streamable subset is
+	// reserved for descriptive kinds; sibling descriptive FACET-host kinds
+	// are OVERLAY_INDEX_VS_POP / E5-S2 and OVERLAY_ZSCORE_VS_POP / E5-S3.
+	// KS is NUMERIC-arm only — categorical hosts fire
+	// PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime (per-kind validator lands
+	// in E5-S10). A future story may lift KS into a streaming carrier by
+	// retaining a heap or finer histogram per group; v1 stays buffered.
+	OverlayKindKSVsPop:    false,
+	OverlayKindShareOfCol: false,
 	OverlayKindShareOfRow:   false,
 	// OVERLAY_SHARE_OF_TOTAL is streamable via its SERIES-host dispatch
 	// (E3-S3) — sibling kind to OVERLAY_INDEX_VS_TOTAL, same grand-total

@@ -106,6 +106,17 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// accumulators inside the streaming Process fold; no second pass
 		// over records.
 		OverlayKindIndexVsTotal: true,
+		// KS_VS_POP is inferential (E5-S5) — fourth FACET-host kind and
+		// second inferential FACET-host kind (sibling to CHISQ_VS_POP).
+		// NUMERIC-arm only — categorical hosts fire
+		// PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime. Per PRD §2 Non-Goals
+		// ("Streaming overlay path for inferential kinds"), inferential
+		// overlays as a family stay buffered regardless of host
+		// streamability. The handler reconstructs empirical CDFs from
+		// post-finalize summary state (histogram preferred, percentile-map
+		// fallback) and reuses kolmogorovSurvival (the same helper backing
+		// TEST_KS). The buffered flag stays false as a matter of policy.
+		OverlayKindKSVsPop: false,
 		// SHARE_OF_COL shares INDEX_VS_MARGIN's buffered footprint — its
 		// column-margin denominator is recomputed by the buffered
 		// crosstab orchestrator before ApplyOverlays runs.

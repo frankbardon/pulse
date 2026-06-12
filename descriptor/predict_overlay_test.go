@@ -151,7 +151,15 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			// host-shape skip still applies because the kind does not
 			// belong on the MATRIX-host fixture. The per-kind validator
 			// lands in E5-S6 / E5-S7.
-			types.OverlayKindChiSqVsPop:
+			types.OverlayKindChiSqVsPop,
+			// OVERLAY_KS_VS_POP (E5-S5) is the fourth and final FACET-host
+			// kind — second inferential FACET-host kind (sibling to
+			// CHISQ_VS_POP). NUMERIC-arm only (CHISQ_VS_POP is the
+			// discrete-arm equivalent). BUFFERED per PRD §2 Non-Goals
+			// "Streaming overlay path for inferential kinds". Host-shape
+			// skip applies because the kind does not belong on the
+			// MATRIX-host fixture. The per-kind validator lands in E5-S10.
+			types.OverlayKindKSVsPop:
 			// SERIES / FACET host: skipped from the MATRIX-host catalog gate.
 			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
 			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
@@ -717,6 +725,17 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		// is needed and the per-kind predict-side validator lands in
 		// E5-S6 / E5-S7.
 		types.OverlayKindChiSqVsPop: true,
+		// OVERLAY_KS_VS_POP (E5-S5) is the fourth and final FACET-host
+		// kind — second inferential FACET-host kind (sibling to
+		// CHISQ_VS_POP). NUMERIC-arm only and BUFFERED per PRD §2 Non-
+		// Goals. The buffered MATRIX-host gate skips the kind here
+		// because it does not belong on the crosstab-host fixture
+		// (FACET host, not MATRIX host); the cost-dispatch surface
+		// (overlayCostForKind) is a pure function of the streamability
+		// table so it is exercised mechanically — no per-kind fixture
+		// is needed and the per-kind predict-side validator lands in
+		// E5-S10.
+		types.OverlayKindKSVsPop: true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

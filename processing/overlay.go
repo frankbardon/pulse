@@ -2723,6 +2723,13 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// renderers can use it directly as a tab / legend label without
 		// uppercasing (mirrors the CHISQ_* / FISHER_EXACT_CELL family).
 		return "index_vs_total"
+	case types.OverlayKindKSVsPop:
+		// KS_VS_POP (E5-S5) is the FACET-host inferential numeric-arm
+		// kind; synthesised default surfaces the lower-case bare-kind
+		// string "ks_vs_pop" matching the INDEX_VS_POP / ZSCORE_VS_POP /
+		// CHISQ_VS_POP convention (no axis dispatch — the Facet field is
+		// fixed by the host shape).
+		return "ks_vs_pop"
 	case types.OverlayKindShareOfRow:
 		// SHARE_OF_ROW is row-axis-locked; the synthesised default
 		// reflects that even if the spec's Ref.Margin.Axis happens to
