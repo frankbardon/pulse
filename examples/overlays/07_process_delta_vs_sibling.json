@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process aggregating revenue by region decorated with an OVERLAY_DELTA_VS_SIBLING group overlay that subtracts the north region's revenue from every group (group_val - sibling_val). Buffered: sibling resolution requires the full materialised SeriesPayload before the (Field, Value) lookup runs.",
+    "name": "process-delta-vs-sibling",
+    "operators": [
+      "AGG_SUM",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "comparison",
+      "overlay"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "overlays": [
+    {
+      "name": "d_sibling",
+      "kind": "OVERLAY_DELTA_VS_SIBLING",
+      "scope": "group",
+      "ref": {
+        "sibling": {
+          "field": "region",
+          "value": "north"
+        }
+      }
+    }
+  ]
+}

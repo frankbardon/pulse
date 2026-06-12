@@ -242,3 +242,28 @@ operations:
 
 `Manifest.Commands` covers CLI leaves; `Manifest.Operations` covers library-only entry points (`filter_to_file`, `process_stream`, `synth_stream`, `watch`). Embedders read both at startup to wire caching policy uniformly.
 </reference>
+
+<reference>
+## Overlay streamability cross-reference
+
+`types.OverlayStreamability` is the single source of truth for whether an overlay kind can ride the streaming Process path or forces the orchestrator down a buffered route. `descriptor.OverlayCapabilities()` reflects it as `Buffered = !streamable` on the manifest's `Overlays` block.
+
+| Kind | Host | Streamable | Accumulator | Notes |
+|---|---|---|---|---|
+| `OVERLAY_INDEX_VS_TOTAL` | grouped Process (SERIES) | yes | one `f64` grand total | E3-S2. Implicit-grand-total; folds in the streaming pass alongside the per-group accumulators. |
+| `OVERLAY_SHARE_OF_TOTAL` | grouped Process (SERIES) | yes | shared `f64` grand total | E3-S3. Sibling of `OVERLAY_INDEX_VS_TOTAL`; a Request carrying BOTH folds the grand total ONCE. MATRIX dispatch against a crosstab host is buffered — see `skills/crosstab-guide.md`. |
+| `OVERLAY_ZSCORE_VS_TOTAL` | grouped Process (SERIES) | yes | three `f64`s (Welford count + mean + M2) | E3-S5. Population variance over N present groups (divide by N, not N-1). Folds Welford over GROUPS, not raw records. |
+| `OVERLAY_DELTA_VS_SIBLING` | grouped Process (SERIES) | no (buffered) | — | E3-S7. Sibling resolution needs the finalised SeriesPayload before the `(Field, Value)` lookup runs. |
+| `OVERLAY_INDEX_VS_SIBLING` | grouped Process (SERIES) | no (buffered) | — | E3-S7. Same buffered constraint as `OVERLAY_DELTA_VS_SIBLING`. |
+| Every Crosstab-host overlay (`OVERLAY_INDEX_VS_MARGIN`, share triad, margin-comparison family, χ² / Fisher) | crosstab (MATRIX) | no (buffered) | — | The host crosstab path is always buffered — margins are recomputed from raw rows. The fused crosstab path falls back to buffered when `Request.Overlays` is non-empty. |
+
+`OverlayStreamability` is map-driven — unknown kinds fall through to `false` so a missed table edit cannot accidentally let an unknown kind stream. `TestStreamability_OverlaysKnown` and `TestSkillsCoverAllOverlayKinds` enforce that every catalog entry carries a streamability row and a skill mention.
+
+### Mixed-mode downgrade rule
+
+When a single Request carries one streamable overlay and one buffered overlay, the WHOLE Request runs buffered. `processing.CanStreamRequest` short-circuits to `false` when any spec in `Request.Overlays` is non-streamable, mirroring how `AGG_MEDIAN` forces the whole streaming pass into the buffered orchestrator (see `skills/aggregation-guide.md` → "Aggregator quirks"). This keeps the runtime equivalence test surface byte-stable — a Request never partially-streams.
+
+The implication for caching: a Request whose hash carries any buffered overlay should be priced as buffered for caching policy regardless of which streamable overlays accompany it. `Manifest.Operations["process_stream"].annotations.streamable = true` describes the entry-point capability, not the per-request decision — call `pulse predict --json` to confirm the streamability classification before pricing the call.
+
+For per-kind recipes against a grouped Process host see `skills/aggregation-guide.md` ("Overlays" section); for Crosstab-host recipes see `skills/crosstab-guide.md` ("Overlays" section); for the general overlay framework see `skills/overlay-system.md`.
+</reference>

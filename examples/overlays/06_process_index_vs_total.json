@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process aggregating revenue by region decorated with an OVERLAY_INDEX_VS_TOTAL group overlay that scores each region against the grand total (100 * group_val / grand_total). Streamable: the grand-total accumulator rides alongside the per-group accumulators inside the streaming Process fold.",
+    "name": "process-index-vs-total",
+    "operators": [
+      "AGG_SUM",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "overlay",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "overlays": [
+    {
+      "name": "i_total",
+      "kind": "OVERLAY_INDEX_VS_TOTAL",
+      "scope": "group"
+    }
+  ]
+}

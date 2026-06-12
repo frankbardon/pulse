@@ -267,8 +267,199 @@ Pass labels through `Filterer.Values` exactly as they appear in the schema dicti
 
 </section>
 
+<section title="Overlays — group-scoped decorations on a grouped Process result">
+
+A grouped Process result (`Request.Groups + Request.Aggregations`) can be decorated with one or more **overlays** — additive, read-only `SeriesPayload`s attached to `Response.Overlays` in matching `Request.Overlays[i]` ↔ `Response.Overlays[i]` slot order. Overlays never mutate the base aggregation rows; they ride alongside carrying derived projections (index score against the grand total, share of grand, standardised z-score, additive delta vs a sibling group, ratio index vs a sibling group) so renderers paint a single host series with one or more decoration layers without re-deriving the math on the client.
+
+Five overlay kinds target the SERIES host (grouped Process). Three stream — they fold a tiny accumulator (one `f64` grand-total or three `f64`s for Welford count+mean+M2) alongside the per-group accumulators inside the streaming Process pass with no second pass over records. Two are buffered — sibling resolution needs the finalised SeriesPayload before the `(Field, Value)` lookup can run, so the handler runs at the post-finalize exit.
+
+Mixed-mode downgrade rule (E3-S6): when a single Request carries one streamable overlay and one buffered overlay, the WHOLE Request runs buffered — `processing.CanStreamRequest` short-circuits to `false` when any spec is non-streamable, mirroring how `AGG_MEDIAN` forces the whole streaming pass into the buffered orchestrator.
+
+For the general overlay framework — the three-shape model (scalar / series / matrix), the parallel-slice contract for series payloads (entry `i` aligns with host axis-key `i`), the validation rules, the manifest capability block, the `OverlaySummary` shape, and the recipe for adding a new kind — see `skills/overlay-system.md`. For Crosstab-host overlays (share triad + margin-comparison family + χ² / Fisher inferential family) see `skills/crosstab-guide.md` ("Overlays" section).
+
+#### Quick reference table — grouped Process overlays (E3)
+
+| Kind | Scope | Shape | Streamable | Ref family | Math |
+|---|---|---|---|---|---|
+| `OVERLAY_INDEX_VS_TOTAL` | `group` | `series` | yes | — (implicit-grand-total) | `(group_val / grand_total) * 100.0` |
+| `OVERLAY_SHARE_OF_TOTAL` | `group` | `series` | yes | — (implicit-grand-total) | `group_val / grand_total` (raw share — no ×100) |
+| `OVERLAY_ZSCORE_VS_TOTAL` | `group` | `series` | yes | — (implicit-grand-total) | `(group_val - mean) / sd` where `mean`/`sd` are population stats over the N present groups (Welford-Pébaÿ) |
+| `OVERLAY_DELTA_VS_SIBLING` | `group` | `series` | no (buffered) | `Sibling` (`Field` + `Value`) | `group_val - sibling_val` against `Ref.Sibling.{Field, Value}` |
+| `OVERLAY_INDEX_VS_SIBLING` | `group` | `series` | no (buffered) | `Sibling` (`Field` + `Value`) | `(group_val / sibling_val) * 100.0` against `Ref.Sibling.{Field, Value}` |
+
+Every layer produces a `SeriesPayload.Entries` slice with one `SeriesEntry` per host group key in host order. Each entry carries its score on `Summary.Statistic`. Absent host groups (the resolver reports `(0, false)`) surface a present `SeriesEntry` whose Summary leaves `Statistic` unset and do NOT contribute to the grand total / Welford / sibling accumulators.
+
+Use `pulse predict --json` to confirm the streamability classification before an expensive overlay against a large cohort.
+
+#### Recipes — streamable (implicit-grand-total)
+
+The three streamable kinds share one denominator surface — the host's grand total over post-filter rows. `Ref` MUST be empty; supplying any ref-family pointer fires `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` MUST be zero; non-zero values fire `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`. Zero grand total emits ONE `PULSE_OVERLAY_REF_ZERO` warning and populates every entry's `Summary.Statistic` with NaN.
+
+##### `OVERLAY_INDEX_VS_TOTAL`
+
+One-liner: per-group index against the grand total. Baseline is 100. Renderers centre diverging colour ramps on `baseline = 100`. Mirrors the runnable example `examples/overlays/06_process_index_vs_total.json`.
+
+Request:
+
+```json
+{
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "groups":       [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "revenue"}],
+  "overlays": [
+    {"name": "i_total", "kind": "OVERLAY_INDEX_VS_TOTAL", "scope": "group"}
+  ]
+}
+```
+
+Expected `Response.Overlays[0]` shape — given regions north / south / east / west with revenues `400 / 600 / 300 / 700` (grand total `2000`):
+
+```json
+{
+  "name":  "i_total",
+  "kind":  "OVERLAY_INDEX_VS_TOTAL",
+  "scope": "group",
+  "payload": {
+    "shape": "series",
+    "series": {
+      "entries": [
+        {"key": ["north"], "summary": {"statistic": 20.0}},
+        {"key": ["south"], "summary": {"statistic": 30.0}},
+        {"key": ["east"],  "summary": {"statistic": 15.0}},
+        {"key": ["west"],  "summary": {"statistic": 35.0}}
+      ]
+    }
+  },
+  "summary": {"baseline": 100.0}
+}
+```
+
+##### `OVERLAY_SHARE_OF_TOTAL` (SERIES dispatch)
+
+One-liner: per-group raw share of grand total. Entries over a complete partition sum to 1.0 within ULP. Baseline is 1.0. Note this kind is dual-shape — the SERIES dispatch is the streamable one; the MATRIX dispatch against a crosstab host is buffered (see `skills/crosstab-guide.md`).
+
+```json
+{
+  "groups":       [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "revenue"}],
+  "overlays": [
+    {"name": "s_total", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}
+  ]
+}
+```
+
+Sibling of `OVERLAY_INDEX_VS_TOTAL`. A Request carrying BOTH overlays folds the grand total ONCE — the streaming Process orchestrator shares the `computeSeriesGrandTotal` accumulator between layers.
+
+##### `OVERLAY_ZSCORE_VS_TOTAL`
+
+One-liner: per-group standardised z-score against the population distribution of N present groups. `mean = Σ group_val / N`, `sd = sqrt(M2 / N)` (population variance — divide by N, not N-1). Baseline is 0 — positive groups are above mean, negative groups are below. The streaming pass folds Welford over GROUPS, not raw records — variance is across N groups (distinct from `ATTR_ZSCORE`'s record-level semantics).
+
+```json
+{
+  "groups":       [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "revenue"}],
+  "overlays": [
+    {"name": "z_total", "kind": "OVERLAY_ZSCORE_VS_TOTAL", "scope": "group"}
+  ]
+}
+```
+
+Zero variance (every present group equal, single-present-group, or every-group-zero) emits one `PULSE_OVERLAY_REF_ZERO` warning and populates every present entry's `Summary.Statistic` with NaN.
+
+#### Recipes — buffered (sibling reference)
+
+The two SIBLING kinds compare every group against ONE fixed reference group named by `Ref.Sibling.{Field, Value}`. The caller authors a valid `(Field, Value)` pair — `Field` MUST be a grouper Field on the host, `Value` MUST match an observed axis-key value (the sibling resolver runs a single `(field, value)` lookup against the host's group-key list at `processing/overlay_sibling_resolver.go`). Unknown sibling emits ONE `PULSE_OVERLAY_REF_UNKNOWN` warning and surfaces NaN statistics across every present entry. `Level` / `Within` MUST be zero (the sibling reference is a single fixed group, not an axis prefix); non-zero values fire `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`. Both kinds are buffered today — sibling resolution requires the finalised SeriesPayload.
+
+##### `OVERLAY_DELTA_VS_SIBLING`
+
+One-liner: per-group additive delta against a sibling group. The sibling group itself emits `0` (self-vs-self under additive subtraction). Output preserves the host cell's units. Baseline is 0. Does NOT raise `PULSE_OVERLAY_REF_ZERO` when sibling resolves to zero — subtraction by zero recovers the host's raw value (distinct from the INDEX_VS_SIBLING twin which divides). Mirrors the runnable example `examples/overlays/07_process_delta_vs_sibling.json`.
+
+Request:
+
+```json
+{
+  "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+  "groups":       [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "revenue"}],
+  "overlays": [
+    {
+      "name":  "d_sibling",
+      "kind":  "OVERLAY_DELTA_VS_SIBLING",
+      "scope": "group",
+      "ref":   {"sibling": {"field": "region", "value": "north"}}
+    }
+  ]
+}
+```
+
+Expected `Response.Overlays[0]` shape — given the same `400 / 600 / 300 / 700` setup with `north = 400` as the sibling:
+
+```json
+{
+  "name":  "d_sibling",
+  "kind":  "OVERLAY_DELTA_VS_SIBLING",
+  "scope": "group",
+  "payload": {
+    "shape": "series",
+    "series": {
+      "entries": [
+        {"key": ["north"], "summary": {"statistic":    0.0}},
+        {"key": ["south"], "summary": {"statistic":  200.0}},
+        {"key": ["east"],  "summary": {"statistic": -100.0}},
+        {"key": ["west"],  "summary": {"statistic":  300.0}}
+      ]
+    }
+  },
+  "summary": {"baseline": 0.0}
+}
+```
+
+##### `OVERLAY_INDEX_VS_SIBLING`
+
+One-liner: per-group ratio index against a sibling group. The sibling group itself emits `100.0` (self-vs-self under the ratio scaling: `sibling / sibling * 100 = 100`). Baseline is 100. Emits ONE `PULSE_OVERLAY_REF_ZERO` warning and surfaces NaN when sibling resolves to zero — division by zero is mathematically undefined.
+
+```json
+{
+  "groups":       [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "revenue"}],
+  "overlays": [
+    {
+      "name":  "i_sibling",
+      "kind":  "OVERLAY_INDEX_VS_SIBLING",
+      "scope": "group",
+      "ref":   {"sibling": {"field": "region", "value": "north"}}
+    }
+  ]
+}
+```
+
+#### Combining multiple overlays
+
+Multiple specs ride the same `Request.Overlays` slice — each produces one layer in matching index order. A Request carrying every E3 kind streams the three implicit-grand-total layers and falls back to the buffered orchestrator for the two SIBLING layers under the mixed-mode downgrade rule (the whole Request runs buffered when any spec is non-streamable):
+
+```json
+{
+  "overlays": [
+    {"name": "i_total",   "kind": "OVERLAY_INDEX_VS_TOTAL",   "scope": "group"},
+    {"name": "s_total",   "kind": "OVERLAY_SHARE_OF_TOTAL",   "scope": "group"},
+    {"name": "z_total",   "kind": "OVERLAY_ZSCORE_VS_TOTAL",  "scope": "group"},
+    {"name": "d_sibling", "kind": "OVERLAY_DELTA_VS_SIBLING", "scope": "group",
+     "ref": {"sibling": {"field": "region", "value": "north"}}},
+    {"name": "i_sibling", "kind": "OVERLAY_INDEX_VS_SIBLING", "scope": "group",
+     "ref": {"sibling": {"field": "region", "value": "north"}}}
+  ]
+}
+```
+
+`Response.Overlays` carries five layers, indices 0 / 1 / 2 / 3 / 4, in spec order. Renderers can offer the user a "switch denominator" dropdown without re-issuing the request.
+
+</section>
+
 <see_also>
 - attribute-composition — per-record attributes (including ATTR_ZSCORE).
 - grouper-design — how groupers partition data before aggregation runs.
 - cohort-schema-design — set_u8/u16/u32/u64 field type semantics.
+- overlay-system — the general overlay framework (kinds × shapes × scopes × refs taxonomy).
+- crosstab-guide — Crosstab-host overlay catalogue (share triad, margin-comparison, χ² / Fisher).
+- streaming-and-watching — per-kind streamability cross-reference and the mixed-mode downgrade rule.
 </see_also>
