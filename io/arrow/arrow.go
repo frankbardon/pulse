@@ -13,6 +13,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/types"
 )
 
 // ---------- Reader ----------
@@ -92,6 +93,13 @@ func (r *Reader) init() error {
 }
 
 // ReadHeader returns column names from the Arrow schema.
+//
+// A top-level "overlays" field (the overlay column-family sidecar
+// emitted by SetOverlays per research/export-embedding-shape.md § 3.1)
+// is filtered out of the returned header — host-data consumers that
+// were written before overlay embedding existed still see the original
+// column list. Callers that want the embedded overlays read them via
+// ReadOverlays.
 func (r *Reader) ReadHeader() ([]string, error) {
 	if err := r.init(); err != nil {
 		return nil, err
@@ -101,9 +109,13 @@ func (r *Reader) ReadHeader() ([]string, error) {
 	}
 
 	numFields := r.arrowSc.NumFields()
-	r.header = make([]string, numFields)
+	r.header = make([]string, 0, numFields)
 	for i := 0; i < numFields; i++ {
-		r.header[i] = r.arrowSc.Field(i).Name
+		name := r.arrowSc.Field(i).Name
+		if name == OverlaysFieldName {
+			continue
+		}
+		r.header = append(r.header, name)
 	}
 	r.started = true
 	return r.header, nil
@@ -111,6 +123,10 @@ func (r *Reader) ReadHeader() ([]string, error) {
 
 // ReadRows iterates rows across all materialized record batches, calling fn
 // for each row. Null cells produce empty strings.
+//
+// The top-level "overlays" sidecar column (when present) is filtered
+// from the row tuple — host-data row consumers see only the host
+// columns. Use ReadOverlays to extract the embedded overlay layers.
 func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) error {
 	if err := r.init(); err != nil {
 		return err
@@ -121,7 +137,18 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 	}
 
-	numCols := r.arrowSc.NumFields()
+	numFields := r.arrowSc.NumFields()
+	// Map output column index → batch column index, skipping the
+	// overlays sidecar field. The mapped slice keeps the per-row write
+	// loop free of per-row name comparisons.
+	hostColIdx := make([]int, 0, numFields)
+	for c := 0; c < numFields; c++ {
+		if r.arrowSc.Field(c).Name == OverlaysFieldName {
+			continue
+		}
+		hostColIdx = append(hostColIdx, c)
+	}
+	numCols := len(hostColIdx)
 	row := make([]string, numCols)
 
 	for _, batch := range r.batches {
@@ -129,8 +156,8 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		// Snapshot the column arrays for this batch up front to avoid
 		// re-fetching on every row.
 		cols := make([]arrow.Array, numCols)
-		for c := 0; c < numCols; c++ {
-			cols[c] = batch.Column(c)
+		for out, src := range hostColIdx {
+			cols[out] = batch.Column(src)
 		}
 
 		for i := 0; i < nRows; i++ {
@@ -158,6 +185,43 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	}
 
 	return nil
+}
+
+// ReadOverlays extracts the embedded overlay layers from the top-level
+// "overlays" sidecar column emitted by a SetOverlays-enabled Writer.
+// Returns nil when the Arrow file carries no overlays sidecar (the
+// "overlays" field is absent from the schema) or when every list
+// element is empty.
+//
+// Per research/export-embedding-shape.md § 3.3 the reader walks the
+// first non-empty list element across the first record-batch; the
+// canonical writer emits the populated list in row 0 of batch 0 (§ 3.2
+// "emit once" optimisation), so this scan terminates on the first row.
+func (r *Reader) ReadOverlays() ([]*types.OverlayLayer, error) {
+	if err := r.init(); err != nil {
+		return nil, err
+	}
+	overlayFieldIdx := -1
+	for c := 0; c < r.arrowSc.NumFields(); c++ {
+		if r.arrowSc.Field(c).Name == OverlaysFieldName {
+			overlayFieldIdx = c
+			break
+		}
+	}
+	if overlayFieldIdx < 0 {
+		return nil, nil
+	}
+	for _, batch := range r.batches {
+		col := batch.Column(overlayFieldIdx)
+		layers, err := readOverlaysFromArray(col)
+		if err != nil {
+			return nil, err
+		}
+		if layers != nil {
+			return layers, nil
+		}
+	}
+	return nil, nil
 }
 
 // Close releases all materialized record batches and the underlying file
@@ -246,6 +310,22 @@ type Writer struct {
 	// decimal128. nil falls back to the legacy all-string column layout.
 	pulseSchema *encoding.Schema
 
+	// overlays carries the Response.Overlays layers the export pipeline
+	// hands to the writer via SetOverlays before WriteHeader. When
+	// non-nil + non-empty, the writer adds a top-level "overlays" field
+	// (LIST<STRUCT>) to the Arrow schema and emits the layers ONCE in
+	// the first record-batch per research/export-embedding-shape.md
+	// § 3.1 / § 3.2. nil OR empty produces byte-identical Arrow output
+	// to a pre-overlay export (the field is OMITTED from the schema, not
+	// present-with-empty-list).
+	overlays []*types.OverlayLayer
+
+	// overlaysEmitted tracks whether the writer has flushed the
+	// populated overlays list in the first record-batch. Subsequent
+	// batches emit an empty list per the "emit once, empty thereafter"
+	// rule (§ 3.2).
+	overlaysEmitted bool
+
 	// Lazily-initialized arrow writer state. Built on first WriteRow once
 	// the schema (column names) is known. Reused across all batches.
 	alloc   memory.Allocator
@@ -262,6 +342,23 @@ type Writer struct {
 // pio.SchemaAwareWriter.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
+}
+
+// SetOverlays records the Response.Overlays layers the export pipeline
+// wants the writer to embed in the Arrow file. The layers ride as a
+// top-level "overlays" LIST<STRUCT> column whose populated value lands
+// in the first record-batch and whose subsequent record-batches carry
+// an empty list — per research/export-embedding-shape.md § 3.1 / § 3.2.
+// nil or empty layers leaves the Arrow output byte-identical to a
+// pre-overlay export (the "overlays" field is OMITTED from the schema
+// rather than emitted with empty lists). Implements
+// pio.OverlayAwareWriter.
+//
+// Must be called BEFORE WriteHeader so the lazily-built Arrow schema
+// includes the overlay field. Calling after the writer has been
+// initialised has no effect on the schema.
+func (w *Writer) SetOverlays(layers []*types.OverlayLayer) {
+	w.overlays = layers
 }
 
 // NewWriter creates an Arrow IPC writer targeting a filesystem path. The
@@ -289,6 +386,12 @@ func (w *Writer) WriteHeader(columns []string) error {
 // demand. When a Pulse schema was provided via SetPulseSchema, columns
 // use native Arrow types per FieldFromPulse (Decimal128(p,s)). Otherwise
 // every column falls back to arrow.String, the legacy all-string layout.
+//
+// When SetOverlays handed the writer a non-empty []*OverlayLayer, the
+// schema gains one trailing field "overlays" of type LIST<STRUCT> per
+// research/export-embedding-shape.md § 3.1. The "overlays" field is
+// OMITTED entirely when overlays is nil / empty so the byte layout of
+// an overlay-free export stays identical to the pre-overlay path.
 func (w *Writer) initWriter() error {
 	if w.fw != nil {
 		return nil
@@ -296,7 +399,14 @@ func (w *Writer) initWriter() error {
 
 	w.alloc = memory.NewGoAllocator()
 
-	arrowFields := make([]arrow.Field, len(w.columns))
+	hostFieldCount := len(w.columns)
+	hasOverlays := len(w.overlays) > 0
+
+	totalFields := hostFieldCount
+	if hasOverlays {
+		totalFields++
+	}
+	arrowFields := make([]arrow.Field, totalFields)
 	if w.pulseSchema != nil && len(w.pulseSchema.Fields) == len(w.columns) {
 		for i, pf := range w.pulseSchema.Fields {
 			arrowFields[i] = FieldFromPulse(pf)
@@ -307,11 +417,14 @@ func (w *Writer) initWriter() error {
 			arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
 		}
 	}
+	if hasOverlays {
+		arrowFields[hostFieldCount] = overlaysArrowField()
+	}
 	w.sc = arrow.NewSchema(arrowFields, nil)
 
 	w.bldr = array.NewRecordBuilder(w.alloc, w.sc)
-	w.strBs = make([]*array.StringBuilder, len(w.columns))
-	for i := range w.columns {
+	w.strBs = make([]*array.StringBuilder, hostFieldCount)
+	for i := 0; i < hostFieldCount; i++ {
 		if sb, ok := w.bldr.Field(i).(*array.StringBuilder); ok {
 			w.strBs[i] = sb
 		}
@@ -351,6 +464,13 @@ func (w *Writer) flushBatch() error {
 // column's Pulse type. Without a schema every value is stringified via
 // fmt.Sprintf and appended to a StringBuilder. Buffered rows flush in
 // defaultRecordBatchSize chunks; batch boundaries fall between rows.
+//
+// When SetOverlays handed the writer non-empty layers, the row also
+// appends to the trailing overlays LIST<STRUCT> column. Row 0 of the
+// first record-batch carries the populated layer list; every
+// subsequent row (including subsequent record-batches) carries an
+// empty list per research/export-embedding-shape.md § 3.2 "emit once"
+// optimisation.
 func (w *Writer) WriteRow(values []any) error {
 	if w.columns == nil {
 		return fmt.Errorf("arrow.Writer: WriteRow called before WriteHeader")
@@ -368,10 +488,83 @@ func (w *Writer) WriteRow(values []any) error {
 			return err
 		}
 	}
+	if err := w.appendOverlayCell(); err != nil {
+		return err
+	}
 	w.pending++
 
 	if w.pending >= defaultRecordBatchSize {
 		return w.flushBatch()
+	}
+	return nil
+}
+
+// appendOverlayCell appends one cell to the trailing overlays
+// LIST<STRUCT> column. No-op when the writer has no overlays
+// configured (the schema does not include the overlays field).
+//
+// The first appended cell (row 0 of the first record-batch) carries
+// the populated layer list; every subsequent cell carries an empty
+// list per § 3.2. The flag flips on the first emission so subsequent
+// record-batches see overlaysEmitted=true and append empty lists.
+func (w *Writer) appendOverlayCell() error {
+	if len(w.overlays) == 0 {
+		return nil
+	}
+	overlayFieldIdx := len(w.columns)
+	listBldr, ok := w.bldr.Field(overlayFieldIdx).(*array.ListBuilder)
+	if !ok {
+		return fmt.Errorf("arrow.Writer: overlays field is not a list builder (got %T)", w.bldr.Field(overlayFieldIdx))
+	}
+	listBldr.Append(true)
+	structBldr := listBldr.ValueBuilder().(*array.StructBuilder)
+
+	if w.overlaysEmitted {
+		// Empty list — no struct elements appended.
+		return nil
+	}
+
+	for _, layer := range w.overlays {
+		if err := appendOverlayLayerStruct(structBldr, layer); err != nil {
+			return err
+		}
+	}
+	w.overlaysEmitted = true
+	return nil
+}
+
+// appendOverlayLayerStruct appends one struct entry to the overlay
+// list's value builder. Field order matches overlaysFieldType.
+func appendOverlayLayerStruct(structBldr *array.StructBuilder, layer *types.OverlayLayer) error {
+	if layer == nil {
+		structBldr.AppendNull()
+		return nil
+	}
+	structBldr.Append(true)
+
+	refJSON, err := jsonMarshalOverlay(layer.Ref)
+	if err != nil {
+		return fmt.Errorf("arrow.Writer: marshal overlay ref: %w", err)
+	}
+	payloadJSON, err := jsonMarshalOverlay(layer.Payload)
+	if err != nil {
+		return fmt.Errorf("arrow.Writer: marshal overlay payload: %w", err)
+	}
+
+	structBldr.FieldBuilder(0).(*array.StringBuilder).Append(layer.Name)
+	structBldr.FieldBuilder(1).(*array.StringBuilder).Append(string(layer.Kind))
+	structBldr.FieldBuilder(2).(*array.StringBuilder).Append(string(layer.Scope))
+	structBldr.FieldBuilder(3).(*array.StringBuilder).Append(string(refJSON))
+	structBldr.FieldBuilder(4).(*array.StringBuilder).Append(string(layer.Payload.Shape))
+	structBldr.FieldBuilder(5).(*array.StringBuilder).Append(string(payloadJSON))
+	if layer.Summary == nil {
+		structBldr.FieldBuilder(6).(*array.StringBuilder).AppendNull()
+	} else {
+		summaryJSON, err := jsonMarshalOverlay(layer.Summary)
+		if err != nil {
+			return fmt.Errorf("arrow.Writer: marshal overlay summary: %w", err)
+		}
+		structBldr.FieldBuilder(6).(*array.StringBuilder).Append(string(summaryJSON))
 	}
 	return nil
 }
@@ -466,3 +659,5 @@ func (w *Writer) Bytes() []byte {
 var _ pio.Reader = (*Reader)(nil)
 var _ pio.ResetReader = (*Reader)(nil)
 var _ pio.Writer = (*Writer)(nil)
+var _ pio.SchemaAwareWriter = (*Writer)(nil)
+var _ pio.OverlayAwareWriter = (*Writer)(nil)

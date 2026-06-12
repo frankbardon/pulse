@@ -53,6 +53,21 @@ type SchemaAwareWriter interface {
 	SetPulseSchema(s *encoding.Schema)
 }
 
+// OverlayAwareWriter is an optional extension of Writer for targets that
+// can embed Response.Overlays in the exported artefact (Arrow / Parquet /
+// Excel / NDJSON per research/export-embedding-shape.md). The ExportJob
+// dispatch wiring (future story) calls SetOverlays before WriteHeader on
+// writers that implement this interface when ExportJob.IncludeOverlays
+// resolves to true; the writer then emits the layers in its format-
+// native sidecar shape at Close time (or earlier where the format
+// allows). Writers that do not implement this interface receive no
+// overlay slice — the layers are dropped, which is the correct behaviour
+// for the CSV / TSV warn-and-skip family.
+type OverlayAwareWriter interface {
+	Writer
+	SetOverlays(layers []*types.OverlayLayer)
+}
+
 // ImportReport summarizes the result of an import operation.
 type ImportReport struct {
 	RowsImported int
