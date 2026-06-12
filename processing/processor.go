@@ -259,6 +259,19 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if len(req.Windows) > 0 {
 		return false
 	}
+	// Mixed-mode overlay downgrade (E3-S6, per PRD §6 "Performance /
+	// scale"): if any spec on req.Overlays is non-streamable (E3-S5
+	// sibling kinds today), force the buffered path so the post-
+	// finalize hook (applyOverlaysSeriesToResponse) sees a fully
+	// materialised SeriesHostView. Unknown overlay kinds also force
+	// buffered so ApplyOverlaysSeries can surface the canonical
+	// PULSE_OVERLAY_KIND_UNKNOWN error from the buffered exit. The
+	// gate stays central — every other canStream branch already runs
+	// in O(req-slot-count); one extra slice walk here keeps the
+	// streaming-eligibility decision single-pass.
+	if !canStreamOverlays(req) {
+		return false
+	}
 	// Regression slots stream only when every spec opts in via
 	// RegressionSpec.Streamable() (today: unpenalized REG_OLS without
 	// Resample/Selection modifiers). The streaming path does not yet
@@ -787,14 +800,27 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 
 	_ = ctx
-	return &types.Response{
+	resp := &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,
 		},
 		PostTests: postResults,
-	}, nil
+	}
+
+	// SERIES-host overlay hook (E3-S6). Streaming grouped exit calls
+	// into the same post-finalize wiring as the buffered processRecords
+	// path. Streamable overlay kinds (E3-S2/S3/S4 — INDEX_VS_TOTAL /
+	// SHARE_OF_TOTAL / ZSCORE_VS_TOTAL) fold against the already-
+	// materialised per-group SeriesPayload at this exit; mixed-mode
+	// requests carrying a non-streamable kind never reach here because
+	// canStream's canStreamOverlays gate forces them to the buffered
+	// path (see processor.go canStream above).
+	if err := applyOverlaysSeriesToResponse(req, resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // twoPassAttrEntry pairs an attribute spec with its constructed
@@ -1174,7 +1200,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		return nil, err
 	}
 
-	return &types.Response{
+	resp := &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
@@ -1183,7 +1209,23 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		Tests:       testResults,
 		PostTests:   postResults,
 		Regressions: regressionResults,
-	}, nil
+	}
+
+	// SERIES-host overlay hook (E3-S6). Wraps the finalized per-group
+	// Response.Data as a SeriesHostView and dispatches each
+	// req.Overlays spec through the SERIES handler registry
+	// (overlay_series.go). The hook short-circuits unless the request
+	// is grouped (req.Groups non-empty) AND carries a primary
+	// aggregator AND req.Overlays is non-empty — matching the E3 scope
+	// (grouped Process only). Crosstab requests are NOT routed through
+	// processRecords (Service.Process dispatches them to
+	// processCrosstab), so the SERIES hook never collides with the
+	// MATRIX hook in processing/crosstab.go.
+	if err := applyOverlaysSeriesToResponse(req, resp); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 // recordsAsRegressionRecords adapts a []*Record into the
