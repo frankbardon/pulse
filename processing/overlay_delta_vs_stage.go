@@ -31,18 +31,16 @@ import (
 //     existing OVERLAY_DELTA_VS_BASELINE / _MARGIN / _SIBLING family).
 //   - Missing reference key when the target key is present: treat the
 //     reference as 0 (so delta == target) and emit
-//     PULSE_OVERLAY_REF_UNKNOWN warning (canonical
-//     PULSE_OVERLAY_REFERENCE_UNKNOWN reservation per E6 catalog; the
-//     fallback rides PULSE_OVERLAY_REF_UNKNOWN per the S3/S4 chassis
-//     convention).
+//     PULSE_OVERLAY_REFERENCE_UNKNOWN warning (canonical chain-overlay
+//     missing-reference code, landed with E6-S6).
 //   - Summary baseline is 0 (renderers centre diverging colour ramps on
 //     zero for the DELTA family) rather than 100 (INDEX family).
 //
-// Shape divergence defence: same fallback rule as applyIndexVsStage —
-// when target / ref host shapes disagree the handler emits ONE warning
-// per spec under PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (E6-S6 promotes
-// to PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) and surfaces an empty
-// payload that inherits the target's shape.
+// Shape divergence defence: same rule as applyIndexVsStage — when
+// target / ref host shapes disagree the handler emits ONE warning per
+// spec under PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (the canonical
+// code landed with E6-S6) and surfaces an empty payload that inherits
+// the target's shape.
 //
 // Per the story's "No re-traversal of source cohort" acceptance: this
 // handler reads only the two *Response objects' top-level slots
@@ -83,9 +81,7 @@ func applyDeltaVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response
 			},
 		}
 		warnings := []OverlayWarning{{
-			// FIXME E6-S6: promote to PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
-			// once the canonical code lands in errors/codes.go.
-			Code:    string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			Code:    string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
 			Message: "overlay " + string(spec.Kind) + " target and reference stages disagree on host shape; surfacing empty payload",
 			Details: map[string]any{
 				"kind":         string(spec.Kind),
@@ -130,7 +126,7 @@ func deltaKernel(target, reference float64) float64 {
 //
 // Missing reference cells (target carries a cell with row + col keys
 // the reference matrix did not surface) emit
-// PULSE_OVERLAY_REF_UNKNOWN with a "ref_missing" Detail flag AND
+// PULSE_OVERLAY_REFERENCE_UNKNOWN with a "ref_missing" Detail flag AND
 // surface the delta computed against an implicit zero reference (so the
 // overlay cell value equals the target cell value verbatim per the
 // E6-S5 acceptance "Missing reference key → delta defined as
@@ -184,7 +180,7 @@ func applyDeltaVsStageMatrix(spec *types.ChainOverlaySpec, target, ref *types.Re
 				// Per the E6-S5 acceptance: missing reference key →
 				// delta defined as `target - 0` AND warning emitted.
 				warnings = append(warnings, OverlayWarning{
-					Code:    string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+					Code:    string(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN),
 					Message: "overlay " + string(spec.Kind) + " reference cell missing for target (row, col) key pair; using zero as implicit reference",
 					Details: map[string]any{
 						"kind":         string(spec.Kind),
@@ -259,9 +255,9 @@ func applyDeltaVsStageMatrix(spec *types.ChainOverlaySpec, target, ref *types.Re
 // through deltaKernel.
 //
 // Missing reference rows (target row key not present in the reference
-// table) emit PULSE_OVERLAY_REF_UNKNOWN with a "ref_missing" detail
-// flag AND surface a SeriesEntry whose Statistic equals the target
-// value (delta computed against implicit zero reference per
+// table) emit PULSE_OVERLAY_REFERENCE_UNKNOWN with a "ref_missing"
+// detail flag AND surface a SeriesEntry whose Statistic equals the
+// target value (delta computed against implicit zero reference per
 // acceptance). Zero reference values fold silently.
 func applyDeltaVsStageSeries(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []OverlayWarning, error) {
 	refIndex, refValueCol := buildSeriesRowLookup(ref.Data)
@@ -286,7 +282,7 @@ func applyDeltaVsStageSeries(spec *types.ChainOverlaySpec, target, ref *types.Re
 		refVal, refPresent := refIndex[keyStr]
 		if !refPresent {
 			warnings = append(warnings, OverlayWarning{
-				Code:    string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+				Code:    string(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN),
 				Message: "overlay " + string(spec.Kind) + " reference row missing for target row key; using zero as implicit reference",
 				Details: map[string]any{
 					"kind":         string(spec.Kind),
@@ -356,12 +352,12 @@ func applyDeltaVsStageSeries(spec *types.ChainOverlaySpec, target, ref *types.Re
 // Edge cases:
 //
 //   - Both stages have empty Data: emit an empty SCALAR layer with
-//     a single PULSE_OVERLAY_REF_UNKNOWN warning ("no scalar value
+//     a single PULSE_OVERLAY_REFERENCE_UNKNOWN warning ("no scalar value
 //     to fold") and surface NaN in Payload.Scalar — there is nothing
 //     meaningful to subtract.
 //   - Target has Data but reference doesn't: emit
-//     PULSE_OVERLAY_REF_UNKNOWN, treat ref as 0 (per acceptance), and
-//     surface the target value as the delta.
+//     PULSE_OVERLAY_REFERENCE_UNKNOWN, treat ref as 0 (per acceptance),
+//     and surface the target value as the delta.
 //   - Reference value zero: no warning, delta equals target verbatim.
 func applyDeltaVsStageScalar(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []OverlayWarning, error) {
 	targetVal, targetHas := singleScalarFromResponse(target)
@@ -383,7 +379,7 @@ func applyDeltaVsStageScalar(spec *types.ChainOverlaySpec, target, ref *types.Re
 		// No target scalar to fold — there is no meaningful delta to
 		// emit. Surface the warning and NaN payload.
 		warnings = append(warnings, OverlayWarning{
-			Code:    string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+			Code:    string(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN),
 			Message: "overlay " + string(spec.Kind) + " missing scalar value on target stage",
 			Details: map[string]any{
 				"kind":         string(spec.Kind),
@@ -403,7 +399,7 @@ func applyDeltaVsStageScalar(spec *types.ChainOverlaySpec, target, ref *types.Re
 		// `target - 0`". Emit the warning so the renderer sees the
 		// diagnostic.
 		warnings = append(warnings, OverlayWarning{
-			Code:    string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+			Code:    string(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN),
 			Message: "overlay " + string(spec.Kind) + " missing scalar value on reference stage; using zero as implicit reference",
 			Details: map[string]any{
 				"kind":         string(spec.Kind),

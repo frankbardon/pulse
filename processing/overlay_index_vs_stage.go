@@ -44,11 +44,9 @@ import (
 // defence if it sees divergence at runtime"): when the target and
 // reference stages disagree on host shape (target matrix, ref series;
 // target series, ref scalar; etc) the handler emits ONE warning per
-// spec and falls back to the most permissive shape-shared subset. The
-// canonical PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT code lands with
-// E6-S6 — until then the warning rides PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
-// per the story's fallback rule and the followups list documents the
-// switch-over.
+// spec under PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (the canonical
+// code landed with E6-S6) and falls back to an empty payload that
+// inherits the target stage's shape.
 //
 // Zero / missing-reference policy: zero or missing reference values
 // emit PULSE_OVERLAY_REF_ZERO (matrix per-cell, series per-entry,
@@ -101,9 +99,7 @@ func applyIndexVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response
 			},
 		}
 		warnings := []OverlayWarning{{
-			// FIXME E6-S6: promote to PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
-			// once the canonical code lands in errors/codes.go.
-			Code:    string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			Code:    string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
 			Message: "overlay " + string(spec.Kind) + " target and reference stages disagree on host shape; surfacing empty payload",
 			Details: map[string]any{
 				"kind":         string(spec.Kind),

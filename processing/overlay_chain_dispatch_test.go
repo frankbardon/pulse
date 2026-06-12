@@ -203,9 +203,9 @@ func TestApplyChainOverlays_TargetDefaultsToLatest(t *testing.T) {
 
 // TestApplyChainOverlays_StageRefOutOfRange_CodedError asserts an
 // Index that lands outside [0, len(stages)) fires a coded error. The
-// canonical PULSE_OVERLAY_TARGET_UNKNOWN / PULSE_OVERLAY_REFERENCE_UNKNOWN
-// codes are deferred (E1 was supposed to add them but did not); the
-// chassis falls back to PULSE_OVERLAY_REF_UNKNOWN for both arms.
+// canonical PULSE_OVERLAY_TARGET_UNKNOWN code (Target arm) landed with
+// E6-S6 along with PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm); arms are
+// distinguished by the `which` Detail.
 func TestApplyChainOverlays_StageRefOutOfRange_CodedError(t *testing.T) {
 	stages := []*types.Response{chainStageOf(types.OverlayShapeSeries)}
 	specs := []*types.ChainOverlaySpec{
@@ -228,10 +228,10 @@ func TestApplyChainOverlays_StageRefOutOfRange_CodedError(t *testing.T) {
 	if got, want := ce.Code, pulseerrors.PROCESSING_INTERNAL; got != want {
 		t.Errorf("err.Code = %q, want %q", got, want)
 	}
-	// Details carry the canonical-code fallback + which arm fired.
-	if got := ce.Details["code"]; got != string(pulseerrors.PULSE_OVERLAY_REF_UNKNOWN) {
-		t.Errorf("Details.code = %v, want %q (fallback until PULSE_OVERLAY_TARGET_UNKNOWN lands)",
-			got, pulseerrors.PULSE_OVERLAY_REF_UNKNOWN)
+	// Details carry the canonical Target-arm code + which arm fired.
+	if got := ce.Details["code"]; got != string(pulseerrors.PULSE_OVERLAY_TARGET_UNKNOWN) {
+		t.Errorf("Details.code = %v, want %q",
+			got, pulseerrors.PULSE_OVERLAY_TARGET_UNKNOWN)
 	}
 	if got := ce.Details["which"]; got != "target" {
 		t.Errorf("Details.which = %v, want \"target\"", got)
@@ -241,7 +241,8 @@ func TestApplyChainOverlays_StageRefOutOfRange_CodedError(t *testing.T) {
 // TestApplyChainOverlays_StageRefUnknownName_CodedError asserts that
 // a Name that does not match any ChainStage.Name fires the same
 // coded error shape. Ref arm vs Target arm is distinguished via the
-// `which` Detail.
+// `which` Detail; the Ref arm carries PULSE_OVERLAY_REFERENCE_UNKNOWN
+// (canonical chain-overlay missing-reference code, landed with E6-S6).
 func TestApplyChainOverlays_StageRefUnknownName_CodedError(t *testing.T) {
 	stages := []*types.Response{chainStageOf(types.OverlayShapeSeries)}
 	specs := []*types.ChainOverlaySpec{
@@ -263,6 +264,10 @@ func TestApplyChainOverlays_StageRefUnknownName_CodedError(t *testing.T) {
 	}
 	if got := ce.Details["which"]; got != "ref" {
 		t.Errorf("Details.which = %v, want \"ref\"", got)
+	}
+	if got := ce.Details["code"]; got != string(pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN) {
+		t.Errorf("Details.code = %v, want %q",
+			got, pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN)
 	}
 	if got := ce.Details["stage_name"]; got != "does_not_exist" {
 		t.Errorf("Details.stage_name = %v, want \"does_not_exist\"", got)

@@ -758,6 +758,55 @@ const (
 	// zero — only meaningful for the INDEX_VS_SIBLING dispatch where
 	// division by zero is undefined).
 	PULSE_OVERLAY_REF_UNKNOWN Code = "PULSE_OVERLAY_REF_UNKNOWN"
+
+	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT indicates a whole-chain
+	// overlay spec (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE)
+	// where the resolved target stage and reference stage produce
+	// different host result shapes (one is MATRIX, the other SERIES, or
+	// one is SCALAR while the other is SERIES, etc). The handler cannot
+	// fold per-coordinate arithmetic when target and reference do not
+	// agree on a shared coordinate grid; the layer surfaces an empty
+	// payload that inherits the target stage's shape and the warning
+	// carries the offending pair of shapes plus the originating
+	// (target_index, stage_index, stage_name) for the
+	// MCP fix-up surface. The canonical chain-overlay companion of
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (structural shape
+	// mismatch caught at predict time, but for CHAIN-host kinds the
+	// divergence is between two stages, not between a single Ref and
+	// the host). Surfaced at both predict (descriptor.ValidateChain
+	// shape-divergence gate landing in E6-S7) and runtime
+	// (processing.applyIndexVsStage / processing.applyDeltaVsStage
+	// shape-divergence defence). Warning-class — surfaced as a
+	// Response.Warning, never as an envelope error.
+	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
+
+	// PULSE_OVERLAY_TARGET_UNKNOWN indicates a whole-chain
+	// ChainOverlaySpec named a Target StageRef that does not resolve
+	// to a known stage on the chain. Two failure modes share the code:
+	// (1) StageRef.Index is non-nil but lands outside
+	// [0, len(stages)), or (2) StageRef.Name is non-empty but does not
+	// match any ChainStage.Name. The handler returns the coded error
+	// without producing any overlay layer; Details carry the offending
+	// stage_index / stage_name and the overlay spec index so callers
+	// can fix-up the reference. Sibling of
+	// PULSE_OVERLAY_REFERENCE_UNKNOWN — the Target arm is distinguished
+	// by the `which: "target"` Detail.
+	PULSE_OVERLAY_TARGET_UNKNOWN Code = "PULSE_OVERLAY_TARGET_UNKNOWN"
+
+	// PULSE_OVERLAY_REFERENCE_UNKNOWN indicates a whole-chain
+	// ChainOverlaySpec named a Ref StageRef that does not resolve to a
+	// known stage on the chain (Index out of range OR Name unmatched),
+	// or the spec did not populate Ref at all. Sibling of
+	// PULSE_OVERLAY_TARGET_UNKNOWN distinguished by `which: "ref"`. The
+	// code also covers the missing-reference-cell / missing-reference-
+	// row surface on the CHAIN-host DELTA family
+	// (OVERLAY_DELTA_VS_STAGE): when a target cell or row keys a
+	// reference coordinate that does not exist, the warning rides this
+	// code with `ref_missing: true` and the handler folds against an
+	// implicit zero reference (so the delta equals the target value
+	// verbatim). Surfaced at both predict (descriptor.ValidateChain) and
+	// runtime (processing.ApplyChainOverlays + per-kind handlers).
+	PULSE_OVERLAY_REFERENCE_UNKNOWN Code = "PULSE_OVERLAY_REFERENCE_UNKNOWN"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -898,6 +947,9 @@ var allCodes = []Code{
 	PULSE_OVERLAY_REF_UNKNOWN,
 	PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,
+	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT,
+	PULSE_OVERLAY_TARGET_UNKNOWN,
+	PULSE_OVERLAY_REFERENCE_UNKNOWN,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

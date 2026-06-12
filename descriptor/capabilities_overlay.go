@@ -389,11 +389,11 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil " +
 				"AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage " +
 				"explicitly. Unknown stage path: Index out of range OR Name unmatched fires " +
-				"PULSE_OVERLAY_TARGET_UNKNOWN / PULSE_OVERLAY_REFERENCE_UNKNOWN (E6 catalog " +
-				"reservations — the E6-S3 dispatcher chassis falls back to PULSE_OVERLAY_REF_UNKNOWN " +
-				"for both arms until those codes land). Shape-divergence rule (PRD §6 FR-F2): when " +
+				"PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref " +
+				"arm) — both canonical chain-overlay missing-stage codes landed with E6-S6. " +
+				"Shape-divergence rule (PRD §6 FR-F2): when " +
 				"the target stage's host shape differs from the reference stage's host shape the " +
-				"handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (E6-S6 lands the code) and " +
+				"handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (landed with E6-S6) and " +
 				"surfaces NaN across every coordinate. Unlike OVERLAY_INDEX_VS_STAGE (divides by the " +
 				"reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined " +
 				"for every finite reference value including zero — the handler does NOT emit " +
@@ -669,12 +669,12 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"against already-materialised *Response objects for each Stages[i]. No record " +
 				"re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); " +
 				"Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage " +
-				"path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN / " +
-				"PULSE_OVERLAY_REFERENCE_UNKNOWN (E6 catalog reservations — the E6-S3 dispatcher " +
-				"chassis falls back to PULSE_OVERLAY_REF_UNKNOWN for both arms until those codes land). " +
+				"path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target " +
+				"arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay " +
+				"missing-stage codes landed with E6-S6. " +
 				"Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from " +
 				"the reference stage's host shape the handler emits " +
-				"PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (E6-S6 lands the code) and surfaces NaN " +
+				"PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (landed with E6-S6) and surfaces NaN " +
 				"across every coordinate. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN " +
 				"on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST " +
 				"populate Ref.Stage (StageRef); any other ref-family pointer fires " +

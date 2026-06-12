@@ -1298,6 +1298,58 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT: {
+		Message: "A whole-chain overlay spec (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE) resolved a Target stage and a Ref stage whose host result shapes disagree (one is matrix, the other series; one is scalar, the other series; etc.). The handler cannot fold per-coordinate arithmetic when target and reference do not share a coordinate grid; the layer surfaces an empty payload that inherits the target stage's shape and the warning carries the offending pair of shapes plus the originating (target_index, ref_index) so callers can audit the chain and collapse one stage so both produce the same shape, or remove the overlay.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Stages"},
+				Hint:   "Collapse one stage so both Target and Ref produce the same host shape — switch the Crosstab stage to a Process stage with the same Groups + Aggregations (matrix → series) OR drop the Groups slot from the series-producing stage to fold to a scalar (series → scalar). Both stages must produce matrix-shaped OR both series-shaped OR both scalar-shaped Response objects for the per-coordinate arithmetic to align.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Target"},
+				Hint:   "Repoint the OverlaySpec's Target StageRef at a stage whose shape matches the Ref stage. Run pulse predict --json on the chain request to confirm each stage's predicted output shape; ChainResponse.NormalizedRequest echoes the per-stage normalized form for the same purpose.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref"},
+				Hint:   "Repoint the OverlaySpec's Ref StageRef at a stage whose shape matches the Target stage. Same fix as the Target arm; pick whichever stage is the more authoritative baseline for the renderer's framing.",
+			},
+		},
+	},
+	PULSE_OVERLAY_TARGET_UNKNOWN: {
+		Message: "A whole-chain ChainOverlaySpec named a Target StageRef that does not resolve to a known stage on the chain. Either StageRef.Index is non-nil but lands outside [0, len(stages)), or StageRef.Name is non-empty but does not match any ChainStage.Name. The handler returns the coded error without producing any overlay layer; Details carry the offending stage_index / stage_name plus the overlay spec index. Sibling of PULSE_OVERLAY_REFERENCE_UNKNOWN — the Target arm is distinguished by the `which: \"target\"` Detail.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Target", "Index"},
+				Hint:     "Set Target.Index to a 0-based ordinal in [0, len(Stages)). Run pulse predict --json on the chain request to confirm the stage count; omit Target entirely to default to the latest stage (len(Stages) - 1).",
+				Examples: []any{0, 1, 2},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Target", "Name"},
+				Hint:   "Set Target.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
+			},
+		},
+	},
+	PULSE_OVERLAY_REFERENCE_UNKNOWN: {
+		Message: "A whole-chain ChainOverlaySpec named a Ref StageRef that does not resolve to a known stage on the chain (Index out of range OR Name unmatched), or the spec did not populate Ref at all. Sibling of PULSE_OVERLAY_TARGET_UNKNOWN distinguished by `which: \"ref\"`. Also covers the missing-reference-cell / missing-reference-row warning surface on the CHAIN-host DELTA family (OVERLAY_DELTA_VS_STAGE): when a target coordinate keys a reference coordinate that does not exist, the warning rides this code with `ref_missing: true` and the handler folds against an implicit zero reference (so the delta equals the target value verbatim).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Ref", "Index"},
+				Hint:     "Set Ref.Index to a 0-based ordinal in [0, len(Stages)). Every whole-chain ChainOverlaySpec MUST name a baseline — Ref has no default (unlike Target which defaults to the latest stage). Run pulse predict --json on the chain request to confirm the stage count.",
+				Examples: []any{0, 1, 2},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref", "Name"},
+				Hint:   "Set Ref.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
+			},
+		},
+	},
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY: {
 		Message: "An OVERLAY_YOY spec named a `frequency` Param outside the supported set (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`). The supported set is the minimum frequency catalog needed to cover the GROUP_DATE component family — finer-than-hourly or coarser-than-annual frequencies are explicit non-goals in v1. Calendar-week / day-of-week realignment is also an explicit non-goal: weekly frequency uses calendar-week-aligned `i - 52` arithmetic and daily frequency uses exact-key lookup against the host key index (Feb 29 in a non-leap prior year emits NaN). Surfaced at both predict (descriptor.validateOverlayYoY) and runtime (processing.applyYoY) with Details carrying the offending `frequency` value plus the supported list.",
 		Fixups: []Fixup{

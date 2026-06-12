@@ -112,14 +112,12 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 	// byte-equivalent to INDEX_VS_STAGE. Zero-reference values do NOT
 	// emit any warning (zero is a number, not a divisor — DELTA is
 	// well-defined for every finite reference); missing reference keys
-	// fire PULSE_OVERLAY_REF_UNKNOWN (canonical
-	// PULSE_OVERLAY_REFERENCE_UNKNOWN reservation per E6 catalog;
-	// fallback rides REF_UNKNOWN until the canonical code lands) and
-	// fold against an implicit zero reference per the E6-S5 acceptance
-	// "missing reference key → delta defined as `target - 0`". Shape
-	// divergence rides the same PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
-	// fallback as INDEX_VS_STAGE; canonical
-	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT lands with E6-S6.
+	// fire PULSE_OVERLAY_REFERENCE_UNKNOWN (canonical chain-overlay
+	// missing-reference code landed with E6-S6) and fold against an
+	// implicit zero reference per the E6-S5 acceptance "missing
+	// reference key → delta defined as `target - 0`". Shape divergence
+	// emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (landed with E6-S6)
+	// and surfaces an empty payload that inherits the target's shape.
 	types.OverlayKindDeltaVsStage: applyDeltaVsStage,
 	// OVERLAY_INDEX_VS_STAGE (E6-S4 lands the real handler):
 	// applyIndexVsStage replaces the chassis stub with per-coordinate
@@ -129,11 +127,9 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 	// (indexKernel), and emits PULSE_OVERLAY_REF_ZERO per affected
 	// coordinate on missing / zero reference values. Shape-divergence
 	// defence (target vs ref host shape mismatch) emits a single
-	// warning per spec and surfaces an empty payload that inherits the
-	// target shape — the canonical PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
-	// code lands with E6-S6; until then the warning rides
-	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE per the E6-S4 story
-	// fallback rule.
+	// warning per spec under PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
+	// (landed with E6-S6) and surfaces an empty payload that inherits
+	// the target shape.
 	types.OverlayKindIndexVsStage: applyIndexVsStage,
 }
 
@@ -156,8 +152,9 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 // Resolution policy:
 //
 //   - StageRef.Index (non-nil) resolves directly; out-of-range fires a
-//     coded error (PULSE_OVERLAY_REF_UNKNOWN until the E6 catalog adds
-//     PULSE_OVERLAY_TARGET_UNKNOWN / PULSE_OVERLAY_REFERENCE_UNKNOWN).
+//     coded error (PULSE_OVERLAY_TARGET_UNKNOWN for the Target arm,
+//     PULSE_OVERLAY_REFERENCE_UNKNOWN for the Ref arm — both landed
+//     with E6-S6).
 //   - StageRef.Name (non-empty) resolves against the namedIndex
 //     lookup; absent name fires the same coded error.
 //   - Target with both slots empty defaults to `len(stages) - 1` (the
@@ -171,11 +168,13 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 // details carry errors.PULSE_OVERLAY_KIND_UNKNOWN so the orchestrator
 // surfaces the same failure mode predict would have flagged.
 //
-// FIXME E6-S6: surface PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT here
+// Shape divergence: the per-kind CHAIN handlers (applyIndexVsStage /
+// applyDeltaVsStage) emit PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
 // when the resolved target stage and reference stage host shapes
-// diverge. Until the error code lands the stub handler skips the
-// divergence check (no warning emitted; the layer inherits the target
-// stage's shape).
+// disagree. The dispatcher itself does not gate on shape — the per-kind
+// handlers own the shape-divergence defence so each kind picks its own
+// fallback payload (the canonical rule today is "empty payload that
+// inherits the target stage's shape").
 func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string) ([]*types.OverlayLayer, []OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
@@ -249,17 +248,19 @@ func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Respons
 // reference defaults to the latest stage (`len(stages) - 1`), a Ref
 // reference is rejected.
 //
-// FIXME E6-S3: the canonical codes for this surface are
+// The canonical codes for this surface are
 // `PULSE_OVERLAY_TARGET_UNKNOWN` (Target arm) and
-// `PULSE_OVERLAY_REFERENCE_UNKNOWN` (Ref arm). Neither code is
-// declared yet (E1 was supposed to add them); the chassis falls back
-// to `PULSE_OVERLAY_REF_UNKNOWN` for both arms with a `which` Detail
-// distinguishing the arm so callers can still branch. The fallback
-// will flip when the canonical codes land in a follow-up.
+// `PULSE_OVERLAY_REFERENCE_UNKNOWN` (Ref arm). The arm is selected via
+// `targetDefault` AND echoed in the `which` Detail so the MCP fix-up
+// surface can branch on either signal. (Both codes landed with E6-S6;
+// pre-E6-S6 the chassis fell back to `PULSE_OVERLAY_REF_UNKNOWN` with
+// the same `which` Detail.)
 func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedIndex map[string]int, targetDefault bool, specIdx int) (int, error) {
 	whichArm := "ref"
+	armCode := errors.PULSE_OVERLAY_REFERENCE_UNKNOWN
 	if targetDefault {
 		whichArm = "target"
+		armCode = errors.PULSE_OVERLAY_TARGET_UNKNOWN
 	}
 	// Empty Target defaults to the latest stage; empty Ref is an error.
 	if ref.Index == nil && ref.Name == "" {
@@ -269,7 +270,7 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 					errors.PROCESSING_INTERNAL,
 					"chain overlay has no stages to resolve default Target against",
 					map[string]any{
-						"code":  string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+						"code":  string(armCode),
 						"index": specIdx,
 						"which": whichArm,
 					})
@@ -280,7 +281,7 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 			errors.PROCESSING_INTERNAL,
 			"chain overlay Ref must populate exactly one of Index / Name",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+				"code":  string(armCode),
 				"index": specIdx,
 				"which": whichArm,
 			})
@@ -296,7 +297,7 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 				errors.PROCESSING_INTERNAL,
 				"chain overlay stage Index out of range",
 				map[string]any{
-					"code":         string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+					"code":         string(armCode),
 					"index":        specIdx,
 					"which":        whichArm,
 					"stage_index":  idx,
@@ -312,7 +313,7 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 			errors.PROCESSING_INTERNAL,
 			"chain overlay stage Name not found",
 			map[string]any{
-				"code":       string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+				"code":       string(armCode),
 				"index":      specIdx,
 				"which":      whichArm,
 				"stage_name": ref.Name,

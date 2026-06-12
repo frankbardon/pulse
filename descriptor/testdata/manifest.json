@@ -3425,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 129,
+    "error_codes_count": 132,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3519,14 +3519,17 @@
       "PULSE_LABEL_TABLE_UNKNOWN",
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
       "PULSE_OVERLAY_EXPECTED_LOW",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
       "PULSE_OVERLAY_PARAM_MISSING",
+      "PULSE_OVERLAY_REFERENCE_UNKNOWN",
       "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE",
       "PULSE_OVERLAY_REF_UNKNOWN",
       "PULSE_OVERLAY_REF_ZERO",
       "PULSE_OVERLAY_SCOPE_UNSUPPORTED",
+      "PULSE_OVERLAY_TARGET_UNKNOWN",
       "PULSE_OVERLAY_YOY_FREQUENCY_MISSING",
       "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
@@ -4994,7 +4997,7 @@
           "Stage"
         ],
         "buffered": true,
-        "description": "Whole-chain additive-delta overlay against another ProcessChain stage's result: target_val - ref_val per host coordinate. Second whole-chain overlay in the catalog (E6-S2 declares the kind; E6-S5 lands the runtime handler). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). Sibling subtractive twin of OVERLAY_INDEX_VS_STAGE — the runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN / PULSE_OVERLAY_REFERENCE_UNKNOWN (E6 catalog reservations — the E6-S3 dispatcher chassis falls back to PULSE_OVERLAY_REF_UNKNOWN for both arms until those codes land). Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (E6-S6 lands the code) and surfaces NaN across every coordinate. Unlike OVERLAY_INDEX_VS_STAGE (divides by the reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined for every finite reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING family rule. Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E6-S5). Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=0 (mirrors the rest of the DELTA family on other host shapes)."
+        "description": "Whole-chain additive-delta overlay against another ProcessChain stage's result: target_val - ref_val per host coordinate. Second whole-chain overlay in the catalog (E6-S2 declares the kind; E6-S5 lands the runtime handler). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). Sibling subtractive twin of OVERLAY_INDEX_VS_STAGE — the runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay missing-stage codes landed with E6-S6. Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (landed with E6-S6) and surfaces NaN across every coordinate. Unlike OVERLAY_INDEX_VS_STAGE (divides by the reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined for every finite reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING family rule. Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E6-S5). Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=0 (mirrors the rest of the DELTA family on other host shapes)."
       },
       {
         "kind": "OVERLAY_FISHER_EXACT_CELL",
@@ -5110,7 +5113,7 @@
           "Stage"
         ],
         "buffered": true,
-        "description": "Whole-chain ratio overlay against another ProcessChain stage's result: (target_val / ref_val) * 100 per host coordinate. First whole-chain overlay in the catalog (E6-S2 declares the kind; E6-S4 lands the runtime handler) and the first consumer of the StageRef discriminated reference family (Ref + Target on ChainOverlaySpec — each populates exactly one of Index / Name per StageRef value). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). The runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN / PULSE_OVERLAY_REFERENCE_UNKNOWN (E6 catalog reservations — the E6-S3 dispatcher chassis falls back to PULSE_OVERLAY_REF_UNKNOWN for both arms until those codes land). Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (E6-S6 lands the code) and surfaces NaN across every coordinate. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E6-S4). Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=100 (mirrors the rest of the INDEX_VS_* family on other host shapes)."
+        "description": "Whole-chain ratio overlay against another ProcessChain stage's result: (target_val / ref_val) * 100 per host coordinate. First whole-chain overlay in the catalog (E6-S2 declares the kind; E6-S4 lands the runtime handler) and the first consumer of the StageRef discriminated reference family (Ref + Target on ChainOverlaySpec — each populates exactly one of Index / Name per StageRef value). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). The runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay missing-stage codes landed with E6-S6. Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (landed with E6-S6) and surfaces NaN across every coordinate. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E6-S4). Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=100 (mirrors the rest of the INDEX_VS_* family on other host shapes)."
       },
       {
         "kind": "OVERLAY_INDEX_VS_TOTAL",
@@ -5271,4 +5274,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fca3b5cfd4774c5383e77cde255e41b11d8bc15f359d32862b38e422a27bafa6
+// golden-hash: ec7b9b53ad57ec58dfa9b1c71255354c06b4a64501878a25b02e975a46c3204d

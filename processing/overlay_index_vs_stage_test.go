@@ -303,10 +303,9 @@ func TestApplyIndexVsStage_ScalarZeroRefNaN(t *testing.T) {
 // TestApplyIndexVsStage_ShapeDivergenceWarning covers the shape-
 // divergence defence: target carries matrix shape, reference carries
 // series shape. The handler emits a single warning under the canonical
-// fallback code (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE per E6-S4
-// fallback rule; PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT lands with
-// E6-S6) and surfaces an empty payload that inherits the target's
-// shape (matrix).
+// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT code (landed with E6-S6)
+// and surfaces an empty payload that inherits the target's shape
+// (matrix).
 func TestApplyIndexVsStage_ShapeDivergenceWarning(t *testing.T) {
 	target := matrixResponse(
 		[]types.AxisKey{{"r0"}},
@@ -323,9 +322,9 @@ func TestApplyIndexVsStage_ShapeDivergenceWarning(t *testing.T) {
 	if len(warnings) != 1 {
 		t.Fatalf("warnings = %+v, want one divergence warning", warnings)
 	}
-	if warnings[0].Code != string(pulseerrors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
-		t.Errorf("warning Code = %q, want %q (canonical PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT lands in E6-S6)",
-			warnings[0].Code, pulseerrors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)
+	if warnings[0].Code != string(pulseerrors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
+		t.Errorf("warning Code = %q, want %q",
+			warnings[0].Code, pulseerrors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT)
 	}
 	if got := warnings[0].Details["target_shape"]; got != string(types.OverlayShapeMatrix) {
 		t.Errorf("warning Details.target_shape = %v, want %q", got, types.OverlayShapeMatrix)

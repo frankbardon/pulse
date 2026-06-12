@@ -106,8 +106,8 @@ func TestApplyDeltaVsStage_MatrixZeroRefNoNaN(t *testing.T) {
 
 // TestApplyDeltaVsStage_MatrixMissingRefCellWarns covers the missing-
 // reference defence — a target cell whose (rowKey, colKey) pair has
-// no matching reference cell emits PULSE_OVERLAY_REF_UNKNOWN with a
-// "ref_missing" Detail AND folds against an implicit zero reference
+// no matching reference cell emits PULSE_OVERLAY_REFERENCE_UNKNOWN with
+// a "ref_missing" Detail AND folds against an implicit zero reference
 // so the overlay cell value equals the target verbatim (per the E6-S5
 // acceptance "Missing reference key → delta defined as `target - 0`").
 func TestApplyDeltaVsStage_MatrixMissingRefCellWarns(t *testing.T) {
@@ -125,8 +125,8 @@ func TestApplyDeltaVsStage_MatrixMissingRefCellWarns(t *testing.T) {
 	if len(warnings) != 1 {
 		t.Fatalf("warnings = %+v, want one missing-ref warning", warnings)
 	}
-	if warnings[0].Code != string(pulseerrors.PULSE_OVERLAY_REF_UNKNOWN) {
-		t.Errorf("warning Code = %q, want %q", warnings[0].Code, pulseerrors.PULSE_OVERLAY_REF_UNKNOWN)
+	if warnings[0].Code != string(pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN) {
+		t.Errorf("warning Code = %q, want %q", warnings[0].Code, pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN)
 	}
 	if got := warnings[0].Details["ref_missing"]; got != true {
 		t.Errorf("warning Details.ref_missing = %v, want true", got)
@@ -205,7 +205,7 @@ func TestApplyDeltaVsStage_SeriesHappyPath(t *testing.T) {
 // TestApplyDeltaVsStage_SeriesMissingRefKeyWarns covers the missing-
 // reference-row case on the series arm. A target row whose row key
 // is not present in the reference table fires
-// PULSE_OVERLAY_REF_UNKNOWN with ref_missing=true AND surfaces a
+// PULSE_OVERLAY_REFERENCE_UNKNOWN with ref_missing=true AND surfaces a
 // SeriesEntry whose Statistic equals the target value (delta against
 // implicit zero reference per acceptance).
 func TestApplyDeltaVsStage_SeriesMissingRefKeyWarns(t *testing.T) {
@@ -225,8 +225,8 @@ func TestApplyDeltaVsStage_SeriesMissingRefKeyWarns(t *testing.T) {
 	if len(warnings) != 1 {
 		t.Fatalf("warnings = %+v, want one missing-ref warning", warnings)
 	}
-	if warnings[0].Code != string(pulseerrors.PULSE_OVERLAY_REF_UNKNOWN) {
-		t.Errorf("warning Code = %q, want %q", warnings[0].Code, pulseerrors.PULSE_OVERLAY_REF_UNKNOWN)
+	if warnings[0].Code != string(pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN) {
+		t.Errorf("warning Code = %q, want %q", warnings[0].Code, pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN)
 	}
 	if got := warnings[0].Details["ref_missing"]; got != true {
 		t.Errorf("warning Details.ref_missing = %v, want true", got)
@@ -311,10 +311,9 @@ func TestApplyDeltaVsStage_ScalarZeroRefNoNaN(t *testing.T) {
 // TestApplyDeltaVsStage_ShapeDivergenceWarning covers the shape-
 // divergence defence: target carries matrix shape, reference carries
 // series shape. The handler emits a single warning under the canonical
-// fallback code (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE per E6-S5
-// fallback rule; PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT lands with
-// E6-S6) and surfaces an empty payload that inherits the target's
-// shape (matrix).
+// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT code (landed with E6-S6)
+// and surfaces an empty payload that inherits the target's shape
+// (matrix).
 func TestApplyDeltaVsStage_ShapeDivergenceWarning(t *testing.T) {
 	target := matrixResponse(
 		[]types.AxisKey{{"r0"}},
@@ -331,9 +330,9 @@ func TestApplyDeltaVsStage_ShapeDivergenceWarning(t *testing.T) {
 	if len(warnings) != 1 {
 		t.Fatalf("warnings = %+v, want one divergence warning", warnings)
 	}
-	if warnings[0].Code != string(pulseerrors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
-		t.Errorf("warning Code = %q, want %q (canonical PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT lands in E6-S6)",
-			warnings[0].Code, pulseerrors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)
+	if warnings[0].Code != string(pulseerrors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
+		t.Errorf("warning Code = %q, want %q",
+			warnings[0].Code, pulseerrors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT)
 	}
 	if got := warnings[0].Details["target_shape"]; got != string(types.OverlayShapeMatrix) {
 		t.Errorf("warning Details.target_shape = %v, want %q", got, types.OverlayShapeMatrix)
