@@ -348,6 +348,23 @@ The descriptor validator (`descriptor.ValidateOverlays`) runs alongside the cros
 
 LLM clients use this block to discover the overlay catalog without inspecting the source. Sorted alphabetically by `kind` for golden stability.
 
+## FACET-host wiring (E5-S6)
+
+The four FACET-host kinds (`OVERLAY_INDEX_VS_POP`, `OVERLAY_ZSCORE_VS_POP`, `OVERLAY_CHISQ_VS_POP`, `OVERLAY_KS_VS_POP`) attach to `FacetRequest.Overlays`, NOT `Request.Overlays`. The dispatch lives at the FacetSchema buffered exit (`service/facet_overlay.go` calls `processing.ApplyOverlaysFacet` after `service.FacetSchema` finalises the host FacetResult).
+
+Per-kind shape:
+
+- `Ref.Population` REQUIRED — `Ref.Population.Cohort` names the comparison-cohort `.pulse` file. The service-layer wiring recurses `FacetSchema` against that cohort to materialise the population FacetResult; `NumericPercentiles` / `IncludeHistogram` are forwarded from the host request so per-kind handlers see the expected payload shape.
+- `Scope=GROUP`, `Level=0`, `Within=0`.
+- Host-field selection: `OverlaySpec.Params["field"]` selects which FacetRequest.Fields entry the spec decorates. Single-field FacetRequests may omit the slot.
+- `OVERLAY_CHISQ_VS_POP` rejects numeric hosts; `OVERLAY_KS_VS_POP` rejects categorical hosts. The descriptor validator (`descriptor.ValidateFacetOverlays`) catches the predict-time mismatch; the runtime handler defends in depth.
+
+The Request-host validator rejects FACET kinds with a `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` redirect message ("attach it to FacetRequest.Overlays, not Request.Overlays") so a misconfigured caller gets a clear pointer rather than a silent pass.
+
+The `FacetResult.Overlays []OverlayLayer` slot uses `omitempty` so a request without overlays produces a JSON payload byte-identical to the pre-E5 FacetResult — the additive contract mirrors the Crosstab / SERIES paths.
+
+See `skills/facet-design.md` (FACET-host overlays section) for the full recipe and `service/facet_overlay.go` for the population-cohort cache + per-spec dispatch.
+
 ## Adding a new overlay kind
 
 1. Declare the constant in `types/overlay.go` and append it to `AllOverlayKinds()`.

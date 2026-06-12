@@ -816,6 +816,22 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayChiSqMatrix(env, req, spec, index)
 	case types.OverlayKindChiSqRow:
 		validateOverlayChiSqRow(env, req, spec, index)
+	case types.OverlayKindChiSqVsPop,
+		types.OverlayKindIndexVsPop,
+		types.OverlayKindKSVsPop,
+		types.OverlayKindZScoreVsPop:
+		// FACET-host kinds (E5) — wrong host on Request.Overlays. The
+		// correct surface is FacetRequest.Overlays validated via
+		// ValidateFacetOverlays in descriptor/overlay_facet.go. Fail
+		// closed with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE so the
+		// caller redirects rather than silently passing.
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" is a FACET-host kind; attach it to FacetRequest.Overlays, not Request.Overlays",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"host":  "request",
+			})
 	case types.OverlayKindDeltaVsBaseline:
 		validateOverlayDeltaVsBaseline(env, req, spec, index)
 	case types.OverlayKindDeltaVsMargin:

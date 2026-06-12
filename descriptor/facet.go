@@ -176,6 +176,12 @@ func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest
 	// schema namespace.
 	ValidateLabels(env, req.Labels, schema, snap, nil)
 
+	// Validate FACET-host overlay specs (E5-S6). Per-kind contracts live
+	// in descriptor/overlay_facet.go; the validator is no-op when
+	// req.Overlays is empty so the no-overlay envelope shape stays
+	// byte-identical to the pre-E5 path.
+	ValidateFacetOverlays(env, req, schema)
+
 	if len(env.Errors) > 0 {
 		result.Valid = false
 	}

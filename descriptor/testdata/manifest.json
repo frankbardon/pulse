@@ -4749,6 +4749,13 @@
       "supports_percentiles": true,
       "supports_histogram": true,
       "supports_additive": true,
+      "supports_overlays": true,
+      "supported_overlay_kinds": [
+        "OVERLAY_CHISQ_VS_POP",
+        "OVERLAY_INDEX_VS_POP",
+        "OVERLAY_KS_VS_POP",
+        "OVERLAY_ZSCORE_VS_POP"
+      ],
       "streamable_conditions": [
         "NumericPercentiles is empty (percentiles force a buffered per-field value slice + sort)",
         "IncludeHistogram=false OR HistogramRange supplies caller-known [min, max] bounds",
@@ -5232,4 +5239,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ac87bf58524b2d24b5986bbba8503815a91ce9c9f6696b4cb76a1b530d83110a
+// golden-hash: ead9534519b68cd3aacf9592adc7e7010877ca47be6d883333ffe86de05ccd41

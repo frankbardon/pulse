@@ -157,6 +157,78 @@ pipeline as `Process` — `FILTER_INCLUDE`, `FILTER_EXCLUDE`,
 only; additive accumulators see the per-field scope filter described
 above.
 
+## FACET-host overlays
+
+`FacetRequest.Overlays` is the additive decoration surface for
+population-comparison statistics. Each `OverlaySpec` produces one
+`OverlayLayer` in `FacetResult.Overlays` in matching order; an empty
+slot keeps the JSON output byte-identical to the pre-overlay shape
+(`omitempty`). Four kinds ship with the catalog (E5):
+
+| Kind | Streamable | Host arm | Math |
+|---|---|---|---|
+| `OVERLAY_INDEX_VS_POP` | yes | discrete or numeric | `(subset_freq / pop_freq) * 100` per value / bin |
+| `OVERLAY_ZSCORE_VS_POP` | yes | discrete or numeric | `(subset_freq - pop_mean) / pop_sd` per value |
+| `OVERLAY_CHISQ_VS_POP` | buffered | discrete only | scalar χ² goodness-of-fit |
+| `OVERLAY_KS_VS_POP` | buffered | numeric only | scalar Kolmogorov-Smirnov distance + p-value |
+
+Every kind shares the same contract:
+
+- `Ref.Population` REQUIRED — `Ref.Population.Cohort` names the
+  comparison-cohort `.pulse` file. Any other ref-family pointer fires
+  `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- `Scope=GROUP` only.
+- `Level=0`, `Within=0` — population comparison is a single-value
+  lookup, not an axis prefix; non-zero values fire
+  `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
+- Host-field selection via `OverlaySpec.Params["field"]`. When the
+  FacetRequest declares exactly one Field that slot may be omitted;
+  multi-field FacetRequests require it. Unknown field names fire
+  `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` with the
+  `{field, available_fields}` detail map.
+- `OVERLAY_CHISQ_VS_POP` rejects numeric hosts;
+  `OVERLAY_KS_VS_POP` rejects categorical hosts. The runtime resolves
+  the population FacetResult by recursing `FacetSchema` against
+  `Ref.Population.Cohort` with `NumericPercentiles` / `IncludeHistogram`
+  forwarded from the host request so the per-kind handlers see the
+  expected payload shape.
+
+The service-layer wiring lives at `service/facet_overlay.go`; per-kind
+handlers live alongside the rest of the overlay catalog in
+`processing/overlay_*.go`. The predict-time validator is
+`descriptor.ValidateFacetOverlays` (`descriptor/overlay_facet.go`),
+invoked automatically from `descriptor.ValidateFacet`.
+
+Recipe — discover a filtered cohort's divergence from the unfiltered
+population on one categorical:
+
+```json
+{
+  "cohort": {"filename": "filtered.pulse"},
+  "fields": ["category"],
+  "filterers": [{"type": "FILTER_INCLUDE", "field": "region", "values": ["west"]}],
+  "overlays": [
+    {
+      "kind": "OVERLAY_INDEX_VS_POP",
+      "scope": "group",
+      "ref": {"population": {"cohort": "unfiltered.pulse"}}
+    },
+    {
+      "kind": "OVERLAY_CHISQ_VS_POP",
+      "scope": "group",
+      "ref": {"population": {"cohort": "unfiltered.pulse"}}
+    }
+  ]
+}
+```
+
+`FacetResult.Overlays[0]` carries the per-value index series;
+`FacetResult.Overlays[1]` carries the scalar χ² statistic with df and
+p-value in `Summary.Parameters` / `Summary.PValue`. The same
+`.pulse` cohort may serve as both host and population (`pop.pulse ==
+filtered.pulse`) — the recursion produces the unfiltered baseline since
+the population FacetRequest strips `Filterers`.
+
 ## When to prefer FacetSchema over a Process request
 
 | Want | Use |
