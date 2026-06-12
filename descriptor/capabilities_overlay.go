@@ -866,6 +866,50 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"pair — large D and small p-value flag \"the subset distribution shape diverges from the population\". The " +
 				"layer-level Baseline stays unset (inferential overlays do not surface a ratio centerpoint; mirrors CHISQ_VS_POP).",
 		}
+	case types.OverlayKindPanelIndexVsRef:
+		return OverlayCapability{
+			Kind: types.OverlayKindPanelIndexVsRef,
+			Shapes: []types.OverlayShape{
+				// Dual-shape: every emitted layer mirrors its (reference,
+				// target[i]) pair's INDEX_VS_REF output, which is itself
+				// dual-shape — MATRIX host emits MATRIX payload, SERIES
+				// host emits SERIES payload. The kind inherits both shape
+				// arms from the single-target sibling.
+				types.OverlayShapeMatrix,
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				// Mirrors OVERLAY_INDEX_VS_REF — MATRIX host carries CELL
+				// scope, SERIES host carries GROUP scope.
+				types.OverlayScopeCell,
+				types.OverlayScopeGroup,
+			},
+			// COMPOSE-only multi-ref kind — Reference + Targets resolve
+			// via the ComposeOverlaySpec slot-label pair. RefKinds stays
+			// empty: every target is indexed against the SHARED reference
+			// slot; no OverlayRef family pointer applies.
+			RefKinds: []string{},
+			Description: "COMPOSE-host MULTI-REFERENCE dual-shape ratio index of each target slot against the SHARED reference slot " +
+				"(E7-S12). Emits ONE OverlayLayer per target — the chassis dispatches a multi-layer return surface so a single " +
+				"ComposeOverlaySpec produces len(spec.Targets) entries in the parent ComposedResponse.Overlays slice. Layer naming " +
+				"convention: \"<spec.Name>__<target_label>\" so renderers can address every panel target by a stable handle (spec.Name " +
+				"empty falls back to the kind string per the chassis composeOverlayLayerName precedent — degenerate naming becomes " +
+				"\"OVERLAY_PANEL_INDEX_VS_REF__<target_label>\"). Shared coord space guarantee: the schema-match (E7-S7) and " +
+				"key-alignment (E7-S6) gates enforce coord-space identity across every (reference, target) pair BEFORE the handler " +
+				"dispatches, so every emitted layer's row/col axis descriptors are byte-identical (matrix host) or share the same " +
+				"group key set (series host). Each emitted layer is mathematically equivalent to OVERLAY_INDEX_VS_REF for that single " +
+				"(reference, target[i]) pair — the handler reuses applyIndexVsRef verbatim per target, then renames the resulting " +
+				"layer per the template above. Per-target byte-identity with the single-pair OVERLAY_INDEX_VS_REF output for the " +
+				"same slots holds. Cap enforcement — OverlayOptions.MaxPanelTargets: default 16 when Options is nil OR " +
+				"Options.MaxPanelTargets == 0 (mirrors OVERLAY_PROP_Z_PANEL — the catalog standardises on one cap surface so " +
+				"renderers can budget panel-layout state against a single knob). len(spec.Targets) > MaxPanelTargets fires " +
+				"PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry with {kind, observed, cap} Details. Layer slice order: spec " +
+				"order then target order — layers[i] corresponds to spec.Targets[i] so renderers can address the emitted panel by " +
+				"target offset. Streamable via per-target SERIES emission (the MATRIX route is forced buffered through the slot " +
+				"barrier in service.Compose / service.ComposeParallel — the same dual-shape convention OVERLAY_INDEX_VS_REF / " +
+				"OVERLAY_DELTA_VS_REF use). Renderers centre diverging colour ramps on baseline=scale (default 100 mirrors the " +
+				"per-Request INDEX_VS_* family).",
+		}
 	case types.OverlayKindPropZCell:
 		return OverlayCapability{
 			Kind: types.OverlayKindPropZCell,

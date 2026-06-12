@@ -185,6 +185,11 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			// PROP_Z_PANEL (E7-S11) is the multi-ref pairwise-Sig sibling
 			// of PROP_Z_CELL — same COMPOSE-host skip rule applies.
 			types.OverlayKindPropZPanel,
+			// PANEL_INDEX_VS_REF (E7-S12) is the multi-ref descriptive
+			// sibling of OVERLAY_INDEX_VS_REF — same COMPOSE-host skip
+			// rule applies. Emits one layer per target sharing the
+			// reference slot's coord space.
+			types.OverlayKindPanelIndexVsRef,
 			types.OverlayKindTCell,
 			// T_VS_REF (E7-S10) is the series-shape COMPOSE-only sibling
 			// of T_CELL — same COMPOSE-host skip rule.
@@ -454,6 +459,17 @@ func TestPredict_OverlayCost_StreamableKindsLow(t *testing.T) {
 		types.OverlayKindDeltaVsRef: {
 			Name:  "delta_ref",
 			Kind:  types.OverlayKindDeltaVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		// PANEL_INDEX_VS_REF (E7-S12): multi-reference dual-shape
+		// COMPOSE-only kind, descriptive twin of OVERLAY_PROP_Z_PANEL.
+		// Streamable flag describes the kind's INTRINSIC streaming
+		// capability via its per-target SERIES emission — each emitted
+		// layer reuses OVERLAY_INDEX_VS_REF for one (reference,
+		// target[i]) pair. Same cost-dispatch rationale as INDEX_VS_REF.
+		types.OverlayKindPanelIndexVsRef: {
+			Name:  "panel_idx_ref",
+			Kind:  types.OverlayKindPanelIndexVsRef,
 			Scope: types.OverlayScopeGroup,
 		},
 	}
@@ -821,6 +837,11 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		// PROP_Z_CELL — same COMPOSE-host skip rule applies. Buffered
 		// (inferential family).
 		types.OverlayKindPropZPanel: true,
+		// PANEL_INDEX_VS_REF (E7-S12) is the multi-ref descriptive sibling
+		// of OVERLAY_INDEX_VS_REF — same COMPOSE-host skip rule applies.
+		// Streamable via per-target SERIES emission (the kind inherits
+		// OVERLAY_INDEX_VS_REF's dual-shape streamability convention).
+		types.OverlayKindPanelIndexVsRef: true,
 		types.OverlayKindTCell:      true,
 		// T_VS_REF (E7-S10) is the series-shape sibling of T_CELL — same
 		// COMPOSE-host skip rule applies. Buffered (inferential family).

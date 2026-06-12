@@ -246,6 +246,20 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// in E5-S10). A future story may lift KS into a streaming carrier by
 	// retaining a heap or finer histogram per group; v1 stays buffered.
 	OverlayKindKSVsPop: false,
+	// OVERLAY_PANEL_INDEX_VS_REF is streamable via its per-target SERIES
+	// emission — second multi-reference COMPOSE-only kind in the catalog
+	// (E7-S12; sibling to OVERLAY_PROP_Z_PANEL which is inferential and
+	// stays buffered). Each emitted OverlayLayer reuses the
+	// OVERLAY_INDEX_VS_REF math for one (reference, target[i]) pair, so
+	// the per-target SERIES arm is fold-only (single accumulator per
+	// group; no peer-cell lookup) and the MATRIX arm rides through the
+	// slot barrier identically to its single-target sibling. Mirrors the
+	// OVERLAY_INDEX_VS_REF dual-shape streamability convention — this
+	// flag describes the kind's INTRINSIC streaming capability via its
+	// SERIES handler. The MATRIX route is forced buffered by the slot
+	// barrier in service.Compose / service.ComposeParallel (the same
+	// chassis precedent every COMPOSE kind uses).
+	OverlayKindPanelIndexVsRef: true,
 	// OVERLAY_PROP_Z_CELL is inherently buffered — COMPOSE-only kind
 	// (E7-S9), per-cell two-proportion z-test against the reference slot's
 	// matching cell. Reuses the standardNormalCDF helper backing

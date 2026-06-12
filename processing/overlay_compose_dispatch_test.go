@@ -64,6 +64,75 @@ func TestApplyComposeOverlays_EmptySpecsShortCircuits(t *testing.T) {
 	}
 }
 
+// TestApplyComposeOverlays_MultiLayerDispatch_PanelIndexVsRef pins the
+// E7-S12 multi-layer chassis wiring: a single PANEL_INDEX_VS_REF spec
+// with N targets surfaces N OverlayLayer entries in the parent
+// `layers` slice in spec order then target order. Asserts the
+// `composeOverlayMultiLayerHandlers` dispatch table is checked BEFORE
+// the single-layer table — every emitted layer carries the parent kind
+// (OVERLAY_PANEL_INDEX_VS_REF) and the `<spec.Name>__<target_label>`
+// naming convention.
+func TestApplyComposeOverlays_MultiLayerDispatch_PanelIndexVsRef(t *testing.T) {
+	// Three slots: baseline (reference) + t0 + t1 + t2 (3 targets).
+	// Every slot carries the same canonical 3×3 matrix shape so the
+	// chassis schema-match + key-alignment gates accept; the per-target
+	// math is target / ref * 100 = 200 across the grid.
+	ref := makeMatrixFromValues([3][3]float64{
+		{10, 20, 30},
+		{40, 50, 60},
+		{70, 80, 90},
+	})
+	t0 := makeMatrixFromValues([3][3]float64{
+		{20, 40, 60},
+		{80, 100, 120},
+		{140, 160, 180},
+	})
+	t1 := makeMatrixFromValues([3][3]float64{
+		{20, 40, 60},
+		{80, 100, 120},
+		{140, 160, 180},
+	})
+	t2 := makeMatrixFromValues([3][3]float64{
+		{20, 40, 60},
+		{80, 100, 120},
+		{140, 160, 180},
+	})
+	responses := []*types.Response{ref, t0, t1, t2}
+	labels := []string{"baseline", "t0", "t1", "t2"}
+	specs := []types.ComposeOverlaySpec{{
+		Name:      "panel",
+		Kind:      types.OverlayKindPanelIndexVsRef,
+		Scope:     types.OverlayScopeCell,
+		Reference: "baseline",
+		Targets:   []string{"t0", "t1", "t2"},
+	}}
+	layers, warnings, err := ApplyComposeOverlays(specs, responses, labels)
+	if err != nil {
+		t.Fatalf("ApplyComposeOverlays: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %+v, want none", warnings)
+	}
+	// One spec, three targets ⇒ three layers in the parent layers slice.
+	if got, want := len(layers), 3; got != want {
+		t.Fatalf("len(layers) = %d, want %d (multi-layer chassis dispatch)", got, want)
+	}
+	// Every emitted layer carries the parent kind, not the underlying
+	// single-target sibling (INDEX_VS_REF).
+	for i, layer := range layers {
+		if layer.Kind != types.OverlayKindPanelIndexVsRef {
+			t.Errorf("layers[%d].Kind = %q, want %q", i, layer.Kind, types.OverlayKindPanelIndexVsRef)
+		}
+	}
+	// Naming convention.
+	wantNames := []string{"panel__t0", "panel__t1", "panel__t2"}
+	for i, want := range wantNames {
+		if layers[i].Name != want {
+			t.Errorf("layers[%d].Name = %q, want %q", i, layers[i].Name, want)
+		}
+	}
+}
+
 // TestApplyComposeOverlays_StubLayerOrderPreserved asserts two specs
 // in order produce two layers in matching index order with the right
 // Kind echoed verbatim. The chassis stub handler emits exactly one

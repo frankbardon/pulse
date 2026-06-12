@@ -149,6 +149,13 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// fallback) and reuses kolmogorovSurvival (the same helper backing
 		// TEST_KS). The buffered flag stays false as a matter of policy.
 		OverlayKindKSVsPop: false,
+		// PANEL_INDEX_VS_REF is the multi-ref descriptive COMPOSE-only
+		// kind (E7-S12). Sibling to OVERLAY_PROP_Z_PANEL (inferential,
+		// buffered) but DESCRIPTIVE — each emitted layer reuses the
+		// OVERLAY_INDEX_VS_REF math for one (reference, target[i]) pair,
+		// so the per-target SERIES arm is fold-only and the kind inherits
+		// the OVERLAY_INDEX_VS_REF dual-shape streamability convention.
+		OverlayKindPanelIndexVsRef: true,
 		// PROP_Z_CELL is inferential COMPOSE-only kind (E7-S9). Reuses
 		// the standardNormalCDF helper backing TEST_PROP_Z. Per PRD §2
 		// Non-Goals every inferential overlay stays buffered regardless

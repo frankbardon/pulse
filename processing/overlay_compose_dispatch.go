@@ -93,6 +93,32 @@ import (
 // the same on every host.
 type composeOverlayHandler func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error)
 
+// composeOverlayMultiLayerHandler is the per-kind execution signature
+// for COMPOSE-only kinds that emit MULTIPLE OverlayLayer entries per
+// ComposeOverlaySpec. Parallel surface to composeOverlayHandler — same
+// resolution / gates / dispatch contract, but the return slot widens
+// to `[]types.OverlayLayer` so a single spec can produce N layers in
+// the parent ComposedResponse.Overlays slice.
+//
+// First consumer: OVERLAY_PANEL_INDEX_VS_REF (E7-S12) — the
+// multi-reference descriptive twin of OVERLAY_PROP_Z_PANEL. The
+// PANEL_INDEX_VS_REF authoring shape names N target slots against one
+// shared reference slot and the chassis emits one OverlayLayer per
+// target. Renderers consume the returned slice as a panel: every
+// emitted layer shares the reference slot's coord space (matrix host)
+// or group key set (series host) so the panel lays on one canvas.
+//
+// Dispatch precedence: the chassis checks the multi-layer table FIRST,
+// then the single-layer table, then the stub fallback. Adding a kind
+// to the multi-layer table opts that kind out of the single-layer
+// path; the two tables are mutually exclusive per kind.
+//
+// Signature parity with composeOverlayHandler is intentional — every
+// COMPOSE-only kind sees the same (spec, refResp, targetResps,
+// refIdx, targetIdxs) input shape regardless of how many layers it
+// emits. The chassis is the only place that branches on the table.
+type composeOverlayMultiLayerHandler func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) ([]types.OverlayLayer, []OverlayWarning, error)
+
 // composeOverlayHandlers is the per-kind dispatch table for the
 // COMPOSE host path. E7-S4 lands an EMPTY table — the chassis falls
 // through to `applyComposeStub` for every kind so end-to-end wiring
@@ -118,6 +144,22 @@ var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
 	types.OverlayKindTVsRef:      applyTVsRef,
 	types.OverlayKindChiSqVsRef:  applyChiSqVsRef,
 	types.OverlayKindRank:        applyRank,
+}
+
+// composeOverlayMultiLayerHandlers is the per-kind dispatch table for
+// COMPOSE-only kinds that emit MULTIPLE OverlayLayer entries per spec.
+// Mutually exclusive with composeOverlayHandlers — a kind appears in
+// exactly one table. The chassis checks this table FIRST in the
+// per-spec dispatch loop; on a hit it appends every emitted layer to
+// the parent layers slice in spec order then target order.
+//
+// First entry: OVERLAY_PANEL_INDEX_VS_REF (E7-S12). The handler emits
+// `len(spec.Targets)` layers, each one mathematically equivalent to
+// the single-target OVERLAY_INDEX_VS_REF output for that
+// (reference, target[i]) pair. Layer naming convention:
+// `<spec.Name>__<target_label>` per the kind's catalog entry.
+var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMultiLayerHandler{
+	types.OverlayKindPanelIndexVsRef: applyPanelIndexVsRef,
 }
 
 // ApplyComposeOverlays executes every spec in specs against the
@@ -246,6 +288,21 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 			if err := checkDictPrefixEquality(refResp, targetResps, *spec, i); err != nil {
 				return nil, nil, err
 			}
+		}
+		// Multi-layer dispatch (E7-S12) runs FIRST — kinds in this table
+		// emit N layers per spec (one per target). The single-layer
+		// dispatch below is the historical default; the two tables are
+		// mutually exclusive per kind.
+		if mhandler, ok := composeOverlayMultiLayerHandlers[spec.Kind]; ok {
+			multi, ws, err := mhandler(spec, refResp, targetResps, refIdx, targetIdxs)
+			if err != nil {
+				return nil, nil, err
+			}
+			layers = append(layers, multi...)
+			if len(ws) > 0 {
+				warnings = append(warnings, ws...)
+			}
+			continue
 		}
 		handler, ok := composeOverlayHandlers[spec.Kind]
 		if !ok {

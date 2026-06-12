@@ -1864,6 +1864,79 @@ const (
 	// streamable-test path is plumbed (PRD §2 Non-Goals).
 	OverlayKindPropZPanel OverlayKind = "OVERLAY_PROP_Z_PANEL"
 
+	// OverlayKindPanelIndexVsRef is the COMPOSE-host multi-reference
+	// dual-shape ratio index — indexes EVERY target slot against the
+	// SHARED reference slot and emits ONE OverlayLayer per target. The
+	// chassis treats the spec as a panel container: every emitted layer
+	// shares the reference slot's row/col coord space (matrix host) or
+	// group key set (series host) so renderers can lay the panel on a
+	// single co-ordinate canvas. Second multi-reference COMPOSE-only kind
+	// in the catalog (E7-S12; siblings: OVERLAY_PROP_Z_PANEL / E7-S11)
+	// and the first kind to emit MULTIPLE OverlayLayer entries from a
+	// single ComposeOverlaySpec — the chassis dispatch widens to
+	// `[]types.OverlayLayer` per spec via the multi-layer handler
+	// surface added alongside this kind.
+	//
+	// Output layout (one layer per target):
+	//
+	//	layers[i].Name  = "<spec.Name>__<spec.Targets[i]>"
+	//	layers[i].Kind  = OVERLAY_PANEL_INDEX_VS_REF
+	//	layers[i].Scope = spec.Scope
+	//	layers[i].Payload mirrors the reference slot's host shape
+	//	  - MATRIX host: RowKeys / ColumnKeys cloned from the reference
+	//	    matrix (the schema-match + key-alignment gates guarantee every
+	//	    target shares the same coord space, so the reference is the
+	//	    canonical anchor — mirrors the single-target INDEX_VS_REF /
+	//	    PROP_Z_PANEL precedent).
+	//	  - SERIES host: SeriesPayload whose Entries match the target's
+	//	    Response.Data row order element-for-element (modulo missing-
+	//	    ref drops).
+	//
+	// Spec.Name fallback: when `spec.Name == ""` the layer name template
+	// degenerates to `"OVERLAY_PANEL_INDEX_VS_REF__<target_label>"` so
+	// renderers can address every panel target by a stable handle even
+	// against an unnamed authoring shape (mirrors the
+	// `composeOverlayLayerName` fallback rule on the rest of the
+	// COMPOSE catalog).
+	//
+	// Math: each emitted layer's per-coordinate value is mathematically
+	// equivalent to OVERLAY_INDEX_VS_REF for the same (reference,
+	// target[i]) pair — the handler reuses the single-target
+	// `applyIndexVsRef` math arm verbatim, then renames the resulting
+	// layer per the template above. This guarantees per-target byte-
+	// identity with the single-pair OVERLAY_INDEX_VS_REF output for the
+	// same slots.
+	//
+	// Cap enforcement — `OverlayOptions.MaxPanelTargets`: panel
+	// combinatorics scale O(N) per cell (one independent ratio per
+	// target) so the cap is informational rather than asymptotic — but
+	// the catalog standardises on the same cap surface
+	// OVERLAY_PROP_Z_PANEL uses so renderers can budget panel-layout
+	// state against a single knob. Default 16 when `Options` is nil or
+	// `Options.MaxPanelTargets == 0`. `len(spec.Targets) >
+	// MaxPanelTargets` fires `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP` at
+	// handler entry with `{kind, observed, cap}` Details.
+	//
+	// Layer slice order: spec order then target order — layers[i]
+	// corresponds to spec.Targets[i], so renderers can address the
+	// emitted panel by target offset without any auxiliary index map.
+	// Stable across re-runs of the same spec.
+	//
+	// Shared coord space: the schema-match (E7-S7) and key-alignment
+	// (E7-S6) gates already enforce coord-space identity across every
+	// (reference, target) pair; the handler relies on that invariant
+	// rather than re-validating per emission. A divergence at any pair
+	// fails the chassis-side gate BEFORE the handler dispatches so the
+	// emitted panel always shares one coord space.
+	//
+	// Streamable. Per `types/overlay_streamability.go` the row is `true`
+	// — each emitted layer reuses the INDEX_VS_REF arithmetic (a
+	// fold-only handler) so the per-target SERIES emission is fold-only
+	// and the MATRIX emission rides through the slot barrier identically
+	// to its single-target sibling. Mirrors the
+	// `OVERLAY_INDEX_VS_REF` dual-shape streamability convention.
+	OverlayKindPanelIndexVsRef OverlayKind = "OVERLAY_PANEL_INDEX_VS_REF"
+
 	// OverlayKindTCell is the COMPOSE-host per-cell Welch t-test
 	// against the reference slot's matching cell. CELL scope over a
 	// MATRIX (crosstab) host with MATRIX payload — each cell's value is
@@ -2047,6 +2120,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindIndexVsStage,
 		OverlayKindIndexVsTotal,
 		OverlayKindKSVsPop,
+		OverlayKindPanelIndexVsRef,
 		OverlayKindPropZCell,
 		OverlayKindPropZPanel,
 		OverlayKindRank,
