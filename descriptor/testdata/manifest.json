@@ -4796,6 +4796,10 @@
         "chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
         "chain rejects decimal128 aggregation targets",
         "chain rejects extension aggregators (custom MergeOnline surface deferred)"
+      ],
+      "overlay_kinds": [
+        "OVERLAY_DELTA_VS_STAGE",
+        "OVERLAY_INDEX_VS_STAGE"
       ]
     },
     "join": {
@@ -5274,4 +5278,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ec7b9b53ad57ec58dfa9b1c71255354c06b4a64501878a25b02e975a46c3204d
+// golden-hash: 83d385b5ff5c2603de0f33e60ed4600a061a4435953d503217524c38db6166fa

@@ -31,6 +31,14 @@ type ProcessChainCapability struct {
 	// rejects today. Intended for LLM-side reasoning and fallback
 	// routing; not a strict schema.
 	RejectionRules []string `json:"rejection_rules"`
+
+	// OverlayKinds lists the whole-chain overlay catalog entries
+	// accepted on ChainRequest.Overlays today. Alphabetically sorted.
+	// Minimal additive surface — E6-S7 wires the predict-time validator
+	// so this hint stays aligned with the runtime dispatch table at
+	// processing/overlay_chain_dispatch.go. The full capability surface
+	// (per-kind ref/scope contract, streamability echo) lands in E6-S11.
+	OverlayKinds []string `json:"overlay_kinds"`
 }
 
 // processChainCapability returns the canonical ProcessChainCapability
@@ -60,6 +68,10 @@ func processChainCapability() ProcessChainCapability {
 			"chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
 			"chain rejects decimal128 aggregation targets",
 			"chain rejects extension aggregators (custom MergeOnline surface deferred)",
+		},
+		OverlayKinds: []string{
+			"OVERLAY_DELTA_VS_STAGE",
+			"OVERLAY_INDEX_VS_STAGE",
 		},
 	}
 }
