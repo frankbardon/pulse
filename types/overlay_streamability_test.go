@@ -71,6 +71,15 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// centerpoint require a fully-materialised matrix, so the host
 		// crosstab path stays buffered.
 		OverlayKindZScoreVsMargin: false,
+		// ZSCORE_VS_TOTAL is streamable — third streamable SERIES-host
+		// overlay in the E3 grouped-Process subset. The Welford
+		// accumulator (count + mean + M2) is three f64s alongside the
+		// per-group accumulators inside the streaming Process fold; no
+		// second pass over records. Population SD (sqrt(M2/N)) matches
+		// the same numerical convention as the parallel buffered
+		// Process path so cross-mode equivalence stays byte-equal
+		// within ULP.
+		OverlayKindZScoreVsTotal: true,
 	}
 
 	for _, k := range AllOverlayKinds() {

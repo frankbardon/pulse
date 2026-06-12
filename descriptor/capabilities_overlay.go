@@ -392,6 +392,41 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Level / Within slots for nested-axis denominator truncation; the SD denominator " +
 				"continues to fold over the full per-axis slice (E2-S11).",
 		}
+	case types.OverlayKindZScoreVsTotal:
+		return OverlayCapability{
+			Kind: types.OverlayKindZScoreVsTotal,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// No Ref family — ZSCORE_VS_TOTAL is implicit-grand-total (the
+			// centerpoint is the host series' own grand-total mean).
+			// Callers supplying any Ref family pointer (Margin / Sibling /
+			// BaselineIndex / Population / Stage / Slot) fail
+			// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time —
+			// mirrors the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES contract.
+			RefKinds: []string{},
+			Description: "Per-group standardized z-score against the host series' grand-total distribution: " +
+				"(group_val - mean) / sd per host group key, where mean = Σ group_val / N and " +
+				"sd = sqrt(M2 / N) (population variance) folded across the N present per-group " +
+				"aggregated values. GROUP scope over a SERIES (grouped Process) host with SERIES " +
+				"payload — one SeriesEntry per host group key in host order, each carrying the " +
+				"z-score on Summary.Statistic. Third and final streamable overlay in the E3 " +
+				"grouped-Process subset (sibling to OVERLAY_INDEX_VS_TOTAL and the SERIES dispatch " +
+				"of OVERLAY_SHARE_OF_TOTAL) — the Welford accumulator (count + mean + M2) is three " +
+				"f64s carried alongside the per-group accumulators inside the streaming Process " +
+				"fold (no second pass over records); the post-host finalize emits " +
+				"(group_val - mean) / sd per group. Population variance (not sample) because " +
+				"_VS_TOTAL implies the host's per-group aggregation set IS the whole population " +
+				"being standardised. The Ref union is left empty (implicit-grand-total); " +
+				"zero variance (every present group equal, or only a single present group) emits " +
+				"PULSE_OVERLAY_REF_ZERO with NaN statistics on every present entry. Absent host " +
+				"groups surface a present SeriesEntry whose Summary leaves Statistic unset and do " +
+				"NOT contribute to the Welford accumulator. Renderers centre diverging colour " +
+				"ramps on baseline=0.",
+		}
 	}
 	return OverlayCapability{Kind: kind}
 }

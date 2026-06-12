@@ -108,14 +108,19 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 	// Acceptance criterion 1 of the story explicitly names every E2
 	// MATRIX-host kind in types.AllOverlayKinds(); guard against catalog
 	// drift by asserting one spec per known MATRIX-host kind before the
-	// predict call. E3 SERIES-host kinds (e.g. OVERLAY_INDEX_VS_TOTAL)
-	// target a grouped Process result, not a crosstab — they are covered
-	// by their own per-kind happy-path tests (TestValidateOverlay_<Kind>_HappyPath)
-	// against indexVsTotalSeriesHostReq()-style fixtures rather than the
-	// MATRIX-host fixture this test pins.
+	// predict call. E3 SERIES-host kinds (OVERLAY_INDEX_VS_TOTAL,
+	// OVERLAY_ZSCORE_VS_TOTAL) target a grouped Process result, not a
+	// crosstab — they are covered by their own per-kind happy-path tests
+	// (TestValidateOverlay_<Kind>_HappyPath) against
+	// indexVsTotalSeriesHostReq()-style fixtures rather than the MATRIX-
+	// host fixture this test pins. OVERLAY_SHARE_OF_TOTAL is dual-shape
+	// (E2-S3 MATRIX dispatch + E3-S3 SERIES dispatch) and rides on the
+	// MATRIX-host catalog gate via the same Ref.Margin shape the rest of
+	// the matrix triad uses.
 	matrixHostKinds := map[types.OverlayKind]bool{}
 	for _, k := range types.AllOverlayKinds() {
-		if k == types.OverlayKindIndexVsTotal {
+		switch k {
+		case types.OverlayKindIndexVsTotal, types.OverlayKindZScoreVsTotal:
 			// SERIES-host: skipped from the MATRIX-host catalog gate.
 			continue
 		}

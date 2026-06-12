@@ -420,6 +420,83 @@ const (
 	// INDEX_VS_MARGIN — both the host crosstab path and the per-slice
 	// Welford recurrence rely on a fully-materialised matrix.
 	OverlayKindZScoreVsMargin OverlayKind = "OVERLAY_ZSCORE_VS_MARGIN"
+
+	// OverlayKindZScoreVsTotal emits a per-group standardized z-score
+	// against the host series' grand-total distribution: for each host
+	// group key the layer surfaces `(group_val - mean) / sd` where
+	// `mean = Σ_j group_val[j] / N` and `sd = sqrt(M2 / N)` (population
+	// variance) folded across the N present per-group aggregated values.
+	// GROUP scope over a SERIES (grouped Process) host with SERIES
+	// payload — one SeriesEntry per host group key in host order, each
+	// carrying the z-score on `Summary.Statistic`. Third and final
+	// streamable overlay in the E3 grouped-Process subset (sibling to
+	// OVERLAY_INDEX_VS_TOTAL and the SERIES dispatch of
+	// OVERLAY_SHARE_OF_TOTAL): the Welford accumulator is one (count,
+	// mean, M2) triple carried alongside the per-group accumulators
+	// inside the streaming Process fold — no second pass over records,
+	// the post-host finalize emits `(group_val - mean) / sd` per group.
+	//
+	// Math (per host group i):
+	//
+	//	count       = number of present per-group values
+	//	mean        = Σ_j group_val[j] / count       (Welford recurrence,
+	//	                                              single-pass)
+	//	M2          = Σ_j (group_val[j] - mean)²    (Welford accumulator)
+	//	sd          = sqrt(M2 / count)               (population SD)
+	//	zscore_i    = (group_val[i] - mean) / sd
+	//
+	// Variance choice (population, not sample): the kind name says
+	// `_VS_TOTAL` which implies the host's per-group aggregation set IS
+	// the whole population we are standardising against — we are not
+	// inferring a wider population from a sample of groups, we are
+	// standardising every present group against the entire observed
+	// distribution. Population variance (divide by N, not N-1) is the
+	// correct convention; the sibling buffered `ATTR_ZSCORE` attribute
+	// reuses the same convention against raw records. Reuses the same
+	// numerical convention (single-pass Welford-Pébaÿ) as the parallel
+	// buffered Process path and the crosstab ZSCORE_VS_MARGIN handler so
+	// cross-mode equivalence tests stay byte-equal within ULP.
+	//
+	// Zero-variance path: when `sd == 0` (every present group value is
+	// equal, including the every-group-zero degenerate case and the
+	// single-present-group case) the handler emits ONE
+	// PULSE_OVERLAY_REF_ZERO warning and populates every entry's
+	// `Summary.Statistic` with NaN. Mirrors the existing
+	// PULSE_OVERLAY_REF_ZERO contract used by the share / index family
+	// against a missing axis margin on the MATRIX host AND the sibling
+	// SERIES kinds against a zero grand total.
+	//
+	// Absent-group policy: a host that did not produce a record for
+	// group i (the resolver returns (0, false)) surfaces a SeriesEntry
+	// whose Summary leaves Statistic unset — the canonical "present
+	// slot, empty summary" shape established by the E3-S1 SERIES
+	// dispatch contract. Absent groups do NOT contribute to the
+	// Welford accumulator (the resolver gates the fold the same way it
+	// gates per-group emission, identical to INDEX_VS_TOTAL).
+	//
+	// Ref handling: implicit-grand-total. The Ref union is left EMPTY —
+	// the kind's centerpoint is the host series' own grand-total
+	// distribution (mean), so callers supplying any Ref family pointer
+	// (Margin / Sibling / BaselineIndex / Population / Stage / Slot)
+	// fail PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time
+	// (mirrors INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES contract).
+	//
+	// Scope is GROUP (not CELL or ROW): the kind decorates each grouper
+	// level the host emits. The validator rejects any other scope.
+	//
+	// Streamable. Per types/overlay_streamability.go, the streamability
+	// row is `true` — the Welford accumulator (count + mean + M2) is
+	// three f64s carried alongside the per-group accumulators inside
+	// the streaming Process fold, and the standardisation step happens
+	// at host finalize. The E3-S6 streaming-Process orchestrator wiring
+	// lands the inner per-record hook; this kind ships with a SERIES-
+	// host post-finalize entry (ApplyOverlaysSeries route) so the
+	// streaming-vs-buffered byte-identity test holds at the entry-point
+	// level today. Gotcha (per the story note): the streaming pass
+	// folds Welford over GROUPS, not raw records — variance is across
+	// N groups, not N records, distinct from `ATTR_ZSCORE`'s record-
+	// level semantics.
+	OverlayKindZScoreVsTotal OverlayKind = "OVERLAY_ZSCORE_VS_TOTAL"
 )
 
 // AllOverlayKinds returns every defined overlay kind in alphabetical
@@ -442,6 +519,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
 		OverlayKindZScoreVsMargin,
+		OverlayKindZScoreVsTotal,
 	}
 }
 

@@ -2700,6 +2700,13 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
+	case types.OverlayKindZScoreVsTotal:
+		// ZSCORE_VS_TOTAL is implicit-grand-total (no Ref family); the
+		// synthesised default is the bare kind string in lower-case so
+		// renderers can use it directly as a tab / legend label without
+		// uppercasing (mirrors the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES
+		// dispatch convention).
+		return "zscore_vs_total"
 	}
 	return string(spec.Kind)
 }

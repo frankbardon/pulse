@@ -211,6 +211,15 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// scaling. Handler: applyShareOfTotalSeries in
 	// processing/overlay_share_of_total_series.go.
 	types.OverlayKindShareOfTotal: applyShareOfTotalSeries,
+	// OVERLAY_ZSCORE_VS_TOTAL (E3-S4): per-group standardized z-score
+	// against the host series' grand-total distribution
+	// (`(group_val - mean) / sd`, population variance). Third and final
+	// streamable SERIES-host handler in the E3 grouped-Process subset.
+	// Welford accumulator (count + mean + M2) is sibling to the
+	// grand-total accumulator INDEX_VS_TOTAL / SHARE_OF_TOTAL share —
+	// see computeSeriesWelfordPopulation in
+	// processing/overlay_zscore_vs_total.go.
+	types.OverlayKindZScoreVsTotal: applyZScoreVsTotal,
 }
 
 // computeSeriesGrandTotal folds a running grand-total accumulator over

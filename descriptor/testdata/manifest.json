@@ -5042,10 +5042,22 @@
           "within"
         ],
         "description": "Per-cell standardized-margin z-score: (cell - margin) / sd where sd is the population standard deviation of cell values within the same margin slice (per-row cells for axis=row, per-column cells for axis=column, every matrix cell for axis=grand). CELL scope over a MATRIX (crosstab) host. Supports all three margin axes (row / column / grand). Output is unitless deviation; renderers centre diverging colour ramps on baseline=0. The margin centroid honours OverlaySpec Level / Within slots for nested-axis denominator truncation; the SD denominator continues to fold over the full per-axis slice (E2-S11)."
+      },
+      {
+        "kind": "OVERLAY_ZSCORE_VS_TOTAL",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [],
+        "buffered": false,
+        "description": "Per-group standardized z-score against the host series' grand-total distribution: (group_val - mean) / sd per host group key, where mean = Σ group_val / N and sd = sqrt(M2 / N) (population variance) folded across the N present per-group aggregated values. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the z-score on Summary.Statistic. Third and final streamable overlay in the E3 grouped-Process subset (sibling to OVERLAY_INDEX_VS_TOTAL and the SERIES dispatch of OVERLAY_SHARE_OF_TOTAL) — the Welford accumulator (count + mean + M2) is three f64s carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize emits (group_val - mean) / sd per group. Population variance (not sample) because _VS_TOTAL implies the host's per-group aggregation set IS the whole population being standardised. The Ref union is left empty (implicit-grand-total); zero variance (every present group equal, or only a single present group) emits PULSE_OVERLAY_REF_ZERO with NaN statistics on every present entry. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT contribute to the Welford accumulator. Renderers centre diverging colour ramps on baseline=0."
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3a5b4f1b788b549d198508645a278654bd83372783f54cb7434a75b51386b3ce
+// golden-hash: 8c310017705004db2aaef6c7c0388ae2379f343410b22b8e00a7d23a0f52037c

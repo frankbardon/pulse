@@ -86,6 +86,19 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// host gate, not this flag.
 	OverlayKindShareOfTotal:   true,
 	OverlayKindZScoreVsMargin: false,
+	// OVERLAY_ZSCORE_VS_TOTAL is streamable — third and final streamable
+	// SERIES-host overlay in the E3 grouped-Process subset (sibling to
+	// OVERLAY_INDEX_VS_TOTAL and the SERIES dispatch of
+	// OVERLAY_SHARE_OF_TOTAL). The Welford accumulator (count + mean +
+	// M2) is three f64s carried alongside the per-group accumulators
+	// inside the streaming Process fold; no second pass over records.
+	// The post-host finalize emits `(group_val - mean) / sd` per group
+	// using the population SD (`sqrt(M2 / N)`) — matches the same
+	// numerical convention (single-pass Welford-Pébaÿ) used by the
+	// parallel buffered Process path and the crosstab ZSCORE_VS_MARGIN
+	// handler so cross-mode equivalence tests stay byte-equal within
+	// ULP.
+	OverlayKindZScoreVsTotal: true,
 }
 
 // OverlayStreamable reports whether the given overlay kind streams and
