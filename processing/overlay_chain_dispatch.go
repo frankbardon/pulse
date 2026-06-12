@@ -108,14 +108,20 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 	// the per-layer envelope level; the underlying arithmetic ships
 	// with the E6-S5 follow-up.
 	types.OverlayKindDeltaVsStage: applyChainStub,
-	// OVERLAY_INDEX_VS_STAGE (E6-S4 will land the real handler): same
-	// stub shape as DELTA_VS_STAGE. The chassis verifies the dispatcher
-	// resolves Target + Ref via the StageRef resolver, dispatches
-	// through the handler table, and surfaces one OverlayLayer per
-	// spec in matching order. The stub is byte-equivalent at the
-	// per-layer envelope level; the underlying arithmetic ships with
-	// the E6-S4 follow-up.
-	types.OverlayKindIndexVsStage: applyChainStub,
+	// OVERLAY_INDEX_VS_STAGE (E6-S4 lands the real handler):
+	// applyIndexVsStage replaces the chassis stub with per-coordinate
+	// `target / reference * 100.0` arithmetic. The handler dispatches
+	// internally by target-stage host shape (matrix / series /
+	// scalar), reuses the shared E4 INDEX_VS_MARGIN arithmetic kernel
+	// (indexKernel), and emits PULSE_OVERLAY_REF_ZERO per affected
+	// coordinate on missing / zero reference values. Shape-divergence
+	// defence (target vs ref host shape mismatch) emits a single
+	// warning per spec and surfaces an empty payload that inherits the
+	// target shape — the canonical PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
+	// code lands with E6-S6; until then the warning rides
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE per the E6-S4 story
+	// fallback rule.
+	types.OverlayKindIndexVsStage: applyIndexVsStage,
 }
 
 // ApplyChainOverlays executes every spec in specs against the chain
