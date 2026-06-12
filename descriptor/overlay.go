@@ -225,13 +225,166 @@ func ValidateOverlays(env *Envelope, req *types.Request, schema *encoding.Schema
 	if req == nil || len(req.Overlays) == 0 {
 		return
 	}
-	_ = schema
 	_ = opts
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
 		validateOverlaySpec(env, req, spec, i)
 		validateOverlayLevelWithinPredict(env, req, spec, i)
+		validateOverlayBaselineIndexPredict(env, req, spec, schema, i)
 	}
+}
+
+// validateOverlayBaselineIndexPredict is the no-execute predict mirror of
+// `processing.ResolveBaselineIndex`. It walks the Ref.BaselineIndex arm
+// and surfaces `PULSE_OVERLAY_REF_UNKNOWN` for negative or out-of-range
+// `Position` values. Mirrors the runtime resolver's
+// `{baseline_index, series_length}` Details map shape so MCP / CLI
+// envelopes carry the same structured context the runtime would have
+// emitted.
+//
+// Foundation gate (E4-S1) — the spec is intentionally tolerant of the
+// existing E1..E3 overlay kinds because every shipping kind already
+// rejects a populated `BaselineIndex` slot via its own per-kind validator
+// (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE). When `BaselineIndex` is
+// absent the gate is a no-op. When present:
+//
+//   - Negative `Position` always fires PULSE_OVERLAY_REF_UNKNOWN with
+//     `series_length` derived from the predict-time schema upper bound
+//     where computable, zero otherwise (the runtime resolver carries the
+//     actual host length when the gate skipped predict).
+//
+//   - `Position >= predictedLength` fires PULSE_OVERLAY_REF_UNKNOWN ONLY
+//     when the upper bound is derivable from the schema. Today the
+//     only derivable case is a single-grouper SERIES host whose grouper
+//     is `GROUP_CATEGORY` over a `categorical_u8 / u16 / u32` field —
+//     the dict cardinality is the upper bound for the host's group-key
+//     count. `GROUP_DATE` / `GROUP_RANGE` / `GROUP_ROUNDED` /
+//     `GROUP_QUANTILE` upper bounds depend on bin width or runtime
+//     content and cannot be predicted from the schema alone, so the
+//     gate defers to runtime for those cases (the runtime resolver
+//     still catches the out-of-range slot).
+//
+//   - Multi-grouper SERIES hosts: the cartesian product of dict
+//     cardinalities is the upper bound, but only when every grouper
+//     resolves to a categorical-dict-backed grouper. If any grouper is
+//     non-categorical the predict gate defers to runtime (the cartesian
+//     bound is not computable). When every grouper IS categorical the
+//     gate multiplies dict counts; product is still an upper bound (the
+//     actual host may emit fewer keys because of empty buckets, but the
+//     resolver only fails when `Position` is strictly outside the
+//     cartesian, which is always also outside the actual host length).
+//
+//   - Crosstab hosts: BaselineIndex.Position is the SERIES-host arm of
+//     the OverlayBaselineIndexRef union — it has no meaning against a
+//     MATRIX host (the Row + Column arms are the MATRIX-host slot, and
+//     no shipping kind consumes those). The gate skips when
+//     `req.Crosstab` is set so a future MATRIX-host kind landing on a
+//     different Ref arm does not collide with the SERIES check.
+func validateOverlayBaselineIndexPredict(env *Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, index int) {
+	if spec == nil || spec.Ref.BaselineIndex == nil {
+		return
+	}
+	if req != nil && req.Crosstab != nil {
+		// MATRIX host arm — the Position slot has no SERIES context. The
+		// per-kind validator already rejects any populated BaselineIndex
+		// pointer on the shipping MATRIX kinds; nothing further to gate
+		// here.
+		return
+	}
+	ref := spec.Ref.BaselineIndex
+	// Compute the predicted series length upper bound. -1 means "not
+	// derivable from schema; defer the range check to runtime".
+	predictedLength := overlayBaselineIndexPredictedSeriesLength(req, schema)
+	if ref.Position < 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+			"overlay "+string(spec.Kind)+" baseline-index position must be non-negative",
+			map[string]any{
+				"index":          index,
+				"kind":           string(spec.Kind),
+				"baseline_index": ref.Position,
+				"series_length":  baselineIndexSeriesLengthDetail(predictedLength),
+			})
+		return
+	}
+	if predictedLength < 0 {
+		// Schema cannot bound the host series length (non-categorical
+		// grouper or other runtime-derivable surface). Defer to the
+		// runtime resolver.
+		return
+	}
+	if ref.Position >= predictedLength {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_UNKNOWN),
+			"overlay "+string(spec.Kind)+" baseline-index position exceeds the predicted host series length",
+			map[string]any{
+				"index":          index,
+				"kind":           string(spec.Kind),
+				"baseline_index": ref.Position,
+				"series_length":  predictedLength,
+			})
+		return
+	}
+}
+
+// overlayBaselineIndexPredictedSeriesLength returns the upper-bound
+// predicted series length for the SERIES host implied by req, computed
+// purely from schema state (dict cardinalities). Returns -1 when the
+// schema cannot bound the host length (any grouper is non-categorical,
+// schema is nil, or the host is not a SERIES host).
+//
+// Today the schema-derivable surface is GROUP_CATEGORY over a
+// categorical_* field — the dict count is the upper bound for that
+// axis. GROUP_DATE / GROUP_RANGE / GROUP_ROUNDED / GROUP_QUANTILE all
+// produce bin counts that depend on the cohort content or
+// caller-supplied bin width, so the gate defers to runtime for those.
+// Multi-grouper hosts multiply per-axis dict counts (cartesian upper
+// bound); a single non-categorical grouper anywhere in the list yields
+// -1 (the cartesian is non-computable).
+func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encoding.Schema) int {
+	if req == nil || schema == nil {
+		return -1
+	}
+	if len(req.Groups) == 0 {
+		return -1
+	}
+	product := 1
+	for _, g := range req.Groups {
+		if g == nil {
+			return -1
+		}
+		if g.Type != types.GROUP_CATEGORY {
+			return -1
+		}
+		f := schema.Field(g.Field)
+		if f == nil || !f.Type.IsCategorical() || f.Dictionary == nil {
+			return -1
+		}
+		count := f.Dictionary.Count()
+		if count <= 0 {
+			return -1
+		}
+		product *= count
+		if product <= 0 {
+			// Defensive guard against overflow on pathologically wide
+			// multi-axis hosts (a 32-bit overflow lands non-positive on
+			// most platforms). Treat as non-derivable so the runtime
+			// resolver owns the range check.
+			return -1
+		}
+	}
+	return product
+}
+
+// baselineIndexSeriesLengthDetail returns a JSON-friendly representation
+// of the predicted series length for the negative-Position error
+// Details map. Negative `predictedLength` (the "not derivable from
+// schema" sentinel) surfaces as 0 so the wire detail map carries an
+// integer rather than a Go-internal sentinel; the runtime mirror's
+// `series_length` slot is always the actual host length.
+func baselineIndexSeriesLengthDetail(predictedLength int) int {
+	if predictedLength < 0 {
+		return 0
+	}
+	return predictedLength
 }
 
 // validateOverlayLevelWithinPredict mirrors the runtime

@@ -731,17 +731,62 @@ type OverlaySiblingRef struct {
 	Value string `json:"value,omitempty"`
 }
 
-// OverlayBaselineIndexRef is reserved for "vs baseline" comparison
-// overlays — every cell is divided by the cell at a designated
-// baseline coordinate. Not populated in E1.
+// OverlayBaselineIndexRef discriminates two overlapping baseline-
+// reference shapes:
+//
+//   - MATRIX-host crosstab-cell coordinate (Row + Column, reserved for
+//     E1 PRD §4 follow-ups). Each slot names a baseline coordinate as
+//     a sorted, axis-ordered list of dictionary keys. Empty lists mean
+//     "use the grand total". Not populated by any shipping kind today
+//     and consumed only by the future "vs designated cell" Crosstab
+//     overlay family.
+//
+//   - SERIES-host ordered-axis positional baseline (Position, the
+//     E4-S1 windowed-Process arm). Position pins a 0-based ordinal
+//     against the host's ordered series — typically a GROUP_DATE-keyed
+//     grouped Process result whose key order is the chronological
+//     ordering the orchestrator baked in at finalize time. The
+//     `OVERLAY_INDEX_VS_BASELINE` (E4-S2), `OVERLAY_DELTA_VS_BASELINE`
+//     (E4-S3), `OVERLAY_INDEX_VS_ROLLING_MEAN` (E4-S5), and
+//     `OVERLAY_YOY` (E4-S7) handlers resolve a single host value at
+//     this ordinal via `processing.ResolveBaselineIndex` and compare
+//     every other ordered-axis point against it. Negative or
+//     out-of-range values are rejected at predict time
+//     (`descriptor.ValidateOverlays`) and at runtime
+//     (`processing.ResolveBaselineIndex`) with
+//     `PULSE_OVERLAY_REF_UNKNOWN` plus a `{baseline_index,
+//     series_length}` Details map.
+//
+// Exactly one of (Row + Column) or Position is meaningfully populated
+// per spec — the union is host-shape-disambiguated rather than
+// pointer-discriminated. The two arms never collide in practice (Row
+// + Column resolve on a MATRIX host; Position resolves on a SERIES
+// host) so a single struct cleanly carries both reservations until
+// the future MATRIX baseline-cell family ships.
 type OverlayBaselineIndexRef struct {
 	// Row names the baseline row-axis tuple as a sorted, axis-ordered
-	// list of dictionary keys. Empty list means "use the grand total".
+	// list of dictionary keys for the MATRIX-host arm. Empty list
+	// means "use the grand total". Reserved for the future "vs
+	// designated cell" Crosstab overlay family — not consumed by any
+	// shipping handler today.
 	Row []string `json:"row,omitempty"`
 
-	// Column names the baseline column-axis tuple. Empty list means
-	// "use the grand total".
+	// Column names the baseline column-axis tuple for the MATRIX-host
+	// arm. Empty list means "use the grand total". Reserved.
 	Column []string `json:"column,omitempty"`
+
+	// Position pins a 0-based ordinal on the host's ordered axis for
+	// the SERIES-host arm — typically a `GROUP_DATE`-keyed grouped
+	// Process result whose key order is the chronological ordering the
+	// orchestrator baked in at finalize. Resolved at runtime via
+	// `processing.ResolveBaselineIndex(host, ref)`; negative values
+	// and values `>= len(series keys)` fail at predict time
+	// (`descriptor.ValidateOverlays`) and runtime with
+	// `PULSE_OVERLAY_REF_UNKNOWN` carrying `{baseline_index,
+	// series_length}` Details. Consumed by E4-S2 (INDEX_VS_BASELINE),
+	// E4-S3 (DELTA_VS_BASELINE), E4-S5 (INDEX_VS_ROLLING_MEAN), and
+	// E4-S7 (YOY).
+	Position int `json:"position,omitempty"`
 }
 
 // OverlayPopulationRef is reserved for "vs population" comparisons that
