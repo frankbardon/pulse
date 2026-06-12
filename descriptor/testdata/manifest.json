@@ -4981,6 +4981,22 @@
         "description": "Per-group additive delta against a sibling group named in Ref.Sibling: group_val - sibling_val per host group key. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on Summary.Statistic. The sibling is identified by (Field, Value): Field names a grouper Field on the host, Value names the specific axis-key value to compare against. The sibling group itself emits 0 (self-vs-self under additive subtraction). Buffered (sibling resolution requires the full materialised SeriesPayload — the streaming Process pass cannot resolve a (Field, Value) lookup against the per-group accumulators until they are finalised). Output preserves the host cell's units — a $-valued AGG_SUM group minus a $-valued sibling AGG_SUM group yields a $-valued deviation in the same currency. Unknown sibling (Field not on host OR Value not observed) emits PULSE_OVERLAY_REF_UNKNOWN with NaN statistics across every present entry. DELTA does NOT emit PULSE_OVERLAY_REF_ZERO when sibling resolves to a zero value — subtraction by zero is well-defined and just recovers the host's raw value. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT participate in the delta computation. Renderers centre diverging colour ramps on baseline=0."
       },
       {
+        "kind": "OVERLAY_DELTA_VS_STAGE",
+        "shapes": [
+          "matrix",
+          "scalar",
+          "series"
+        ],
+        "scopes": [
+          "total"
+        ],
+        "ref_kinds": [
+          "Stage"
+        ],
+        "buffered": true,
+        "description": "Whole-chain additive-delta overlay against another ProcessChain stage's result: target_val - ref_val per host coordinate. Second whole-chain overlay in the catalog (E6-S2 declares the kind; E6-S5 lands the runtime handler). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). Sibling subtractive twin of OVERLAY_INDEX_VS_STAGE — the runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN / PULSE_OVERLAY_REFERENCE_UNKNOWN (E6 catalog reservations — the E6-S3 dispatcher chassis falls back to PULSE_OVERLAY_REF_UNKNOWN for both arms until those codes land). Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (E6-S6 lands the code) and surfaces NaN across every coordinate. Unlike OVERLAY_INDEX_VS_STAGE (divides by the reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined for every finite reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING family rule. Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E6-S5). Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=0 (mirrors the rest of the DELTA family on other host shapes)."
+      },
+      {
         "kind": "OVERLAY_FISHER_EXACT_CELL",
         "shapes": [
           "matrix"
@@ -5079,6 +5095,22 @@
         ],
         "buffered": true,
         "description": "Per-group ratio index against a sibling group named in Ref.Sibling: (group_val / sibling_val) * 100.0 per host group key. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. The sibling is identified by (Field, Value): Field names a grouper Field on the host, Value names the specific axis-key value to compare against. The sibling group itself emits 100.0 (self-vs-self under the ratio scaling). Buffered (sibling resolution requires the full materialised SeriesPayload — the streaming Process pass cannot resolve a (Field, Value) lookup against the per-group accumulators until they are finalised). Unknown sibling (Field not on host OR Value not observed) emits PULSE_OVERLAY_REF_UNKNOWN with NaN statistics across every present entry. Zero sibling value (legitimate group with a zero post-filter sum) emits PULSE_OVERLAY_REF_ZERO with NaN statistics — division by zero is undefined and the same PULSE_OVERLAY_REF_ZERO contract used by the SERIES INDEX_VS_TOTAL / SHARE_OF_TOTAL kinds applies. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT participate in the index computation. Renderers centre diverging colour ramps on baseline=100."
+      },
+      {
+        "kind": "OVERLAY_INDEX_VS_STAGE",
+        "shapes": [
+          "matrix",
+          "scalar",
+          "series"
+        ],
+        "scopes": [
+          "total"
+        ],
+        "ref_kinds": [
+          "Stage"
+        ],
+        "buffered": true,
+        "description": "Whole-chain ratio overlay against another ProcessChain stage's result: (target_val / ref_val) * 100 per host coordinate. First whole-chain overlay in the catalog (E6-S2 declares the kind; E6-S4 lands the runtime handler) and the first consumer of the StageRef discriminated reference family (Ref + Target on ChainOverlaySpec — each populates exactly one of Index / Name per StageRef value). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). The runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN / PULSE_OVERLAY_REFERENCE_UNKNOWN (E6 catalog reservations — the E6-S3 dispatcher chassis falls back to PULSE_OVERLAY_REF_UNKNOWN for both arms until those codes land). Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (E6-S6 lands the code) and surfaces NaN across every coordinate. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E6-S4). Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=100 (mirrors the rest of the INDEX_VS_* family on other host shapes)."
       },
       {
         "kind": "OVERLAY_INDEX_VS_TOTAL",
@@ -5239,4 +5271,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 045af0f33e11bb0b1605cf29fc21a3fb5274819da328ea86ac3331e7a9ebb514
+// golden-hash: fca3b5cfd4774c5383e77cde255e41b11d8bc15f359d32862b38e422a27bafa6

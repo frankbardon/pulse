@@ -59,6 +59,13 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// reference until the per-group accumulators finalise. Mirrors
 		// INDEX_VS_SIBLING.
 		OverlayKindDeltaVsSibling: false,
+		// DELTA_VS_STAGE is buffered — second whole-chain (E6) kind,
+		// sibling subtractive twin of INDEX_VS_STAGE. Whole-chain
+		// overlays run at the post-stage-loop barrier inside
+		// `service.ProcessChain` against already-materialised
+		// `*Response` objects; the whole-chain kind family has no
+		// streamable arm by construction.
+		OverlayKindDeltaVsStage: false,
 		// FISHER_EXACT_CELL is inferential — per-cell 2×2 contingency
 		// reads each cell value AND its row + column margins, all of
 		// which require the buffered host crosstab matrix. PRD § 4.C
@@ -101,6 +108,13 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// reference until the per-group accumulators finalise. Mirrors
 		// DELTA_VS_SIBLING.
 		OverlayKindIndexVsSibling: false,
+		// INDEX_VS_STAGE is buffered — first whole-chain (E6) kind,
+		// first consumer of the StageRef discriminated reference family.
+		// Whole-chain overlays run at the post-stage-loop barrier inside
+		// `service.ProcessChain` against already-materialised
+		// `*Response` objects; the whole-chain kind family has no
+		// streamable arm by construction.
+		OverlayKindIndexVsStage: false,
 		// INDEX_VS_TOTAL is the first streamable overlay — the
 		// grand-total accumulator is one f64 alongside the per-group
 		// accumulators inside the streaming Process fold; no second pass

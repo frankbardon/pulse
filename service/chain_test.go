@@ -335,6 +335,149 @@ func TestProcessChain_FiveStageScalarPipeline(t *testing.T) {
 	}
 }
 
+// TestProcessChain_NoOverlaysByteIdentical asserts the post-stage-loop
+// whole-chain overlay barrier is a no-op when ChainRequest.Overlays is
+// nil — the response's `Overlays` slot stays nil (omitempty rule) and
+// the marshalled JSON is byte-identical to a pre-E6-S3 ChainResponse.
+//
+// Story E6-S3 acceptance: "When ChainRequest.Overlays is empty/nil, no
+// barrier work; ChainResponse.Overlays stays nil (no allocation,
+// byte-identical JSON vs pre-S3)".
+func TestProcessChain_NoOverlaysByteIdentical(t *testing.T) {
+	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
+	ctx := context.Background()
+
+	makeChain := func() *types.ChainRequest {
+		return &types.ChainRequest{
+			Cohort: &types.Cohort{Filename: "test.pulse"},
+			Stages: []*types.ChainStage{
+				{
+					Name: "stage_0",
+					Request: &types.Request{
+						Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "id"}},
+						Aggregations: []*types.Aggregation{
+							{Type: types.AGG_SUM, Field: "score", Label: "s"},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	svc := New(cfg)
+	resp, err := svc.ProcessChain(ctx, makeChain())
+	if err != nil {
+		t.Fatalf("ProcessChain: %v", err)
+	}
+
+	// The Overlays slot must stay nil — the barrier short-circuited.
+	if resp.Overlays != nil {
+		t.Errorf("ChainResponse.Overlays = %+v, want nil (barrier must short-circuit on empty req.Overlays)", resp.Overlays)
+	}
+
+	// Defense in depth: marshal the response and confirm no "overlays"
+	// key landed in the JSON. The omitempty rule on the slot is what
+	// drives byte-identity vs pre-E6-S3 callers.
+	js, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if got := string(js); containsKey(got, `"overlays":`) {
+		t.Errorf("marshalled JSON carries overlays key when none requested: %s", got)
+	}
+}
+
+// containsKey returns true when needle appears in haystack. Used by
+// the byte-identity guard above to confirm the omitempty rule fires.
+func containsKey(haystack, needle string) bool {
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		if haystack[i:i+len(needle)] == needle {
+			return true
+		}
+	}
+	return false
+}
+
+// TestProcessChain_StubOverlayRoundTrip asserts the post-stage-loop
+// whole-chain overlay barrier populates ChainResponse.Overlays with
+// one stub layer per request spec in matching index order. The stub
+// handler in processing/overlay_chain_dispatch.go emits a
+// zero-payload OverlayLayer whose Kind echoes the spec.Kind; the
+// chassis exercises the resolver + dispatch round-trip without S4/S5
+// arithmetic.
+//
+// Story E6-S3 acceptance: "ChainResponse.Overlays populated after the
+// stage loop finishes and BEFORE the response is returned to the
+// caller" + "Handler dispatch table keyed by OverlayKind".
+func TestProcessChain_StubOverlayRoundTrip(t *testing.T) {
+	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
+	ctx := context.Background()
+
+	zero := 0
+	req := &types.ChainRequest{
+		Cohort: &types.Cohort{Filename: "test.pulse"},
+		Stages: []*types.ChainStage{
+			{
+				Name: "stage_0",
+				Request: &types.Request{
+					Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+					Aggregations: []*types.Aggregation{
+						{Type: types.AGG_SUM, Field: "score", Label: "s"},
+					},
+				},
+			},
+		},
+		// Two specs — the dispatcher must surface two layers in order.
+		Overlays: []*types.ChainOverlaySpec{
+			{
+				Name:   "whole_chain_index",
+				Kind:   types.OverlayKindIndexVsStage,
+				Scope:  types.OverlayScopeTotal,
+				Ref:    types.StageRef{Index: &zero},
+				Target: types.StageRef{Index: &zero},
+			},
+			{
+				Name:   "whole_chain_delta",
+				Kind:   types.OverlayKindDeltaVsStage,
+				Scope:  types.OverlayScopeTotal,
+				Ref:    types.StageRef{Index: &zero},
+				Target: types.StageRef{Index: &zero},
+			},
+		},
+	}
+
+	svc := New(cfg)
+	resp, err := svc.ProcessChain(ctx, req)
+	if err != nil {
+		t.Fatalf("ProcessChain: %v", err)
+	}
+
+	if got, want := len(resp.Overlays), 2; got != want {
+		t.Fatalf("ChainResponse.Overlays length = %d, want %d (one stub layer per spec)", got, want)
+	}
+	if got, want := resp.Overlays[0].Kind, types.OverlayKindIndexVsStage; got != want {
+		t.Errorf("Overlays[0].Kind = %q, want %q", got, want)
+	}
+	if got, want := resp.Overlays[1].Kind, types.OverlayKindDeltaVsStage; got != want {
+		t.Errorf("Overlays[1].Kind = %q, want %q", got, want)
+	}
+	if got, want := resp.Overlays[0].Name, "whole_chain_index"; got != want {
+		t.Errorf("Overlays[0].Name = %q, want %q", got, want)
+	}
+	if got, want := resp.Overlays[1].Name, "whole_chain_delta"; got != want {
+		t.Errorf("Overlays[1].Name = %q, want %q", got, want)
+	}
+
+	// Per-stage Stages[i].Overlays MUST be untouched by the whole-chain
+	// barrier — the per-stage half of the dual-slot design rides on
+	// the Request.Overlays slot, NOT the ChainRequest.Overlays slot.
+	for i, st := range resp.Stages {
+		if st.Overlays != nil {
+			t.Errorf("Stages[%d].Overlays = %+v, want nil (whole-chain barrier must not mutate per-stage overlays)", i, st.Overlays)
+		}
+	}
+}
+
 // TestOverlay_ChainPerStage_Piggyback is the E6-S1 dual-slot per-stage
 // conformance test. Per-stage overlays must surface on
 // ChainResponse.Stages[i].Overlays exactly as if each stage's Request
@@ -426,14 +569,17 @@ func TestOverlay_ChainPerStage_Piggyback(t *testing.T) {
 		t.Fatalf("ProcessChain (with per-stage overlays): %v", err)
 	}
 
-	// Whole-chain Overlays slot is not yet declared on ChainResponse —
-	// that surface lands with E6-S2 (ChainRequest.Overlays). The
-	// per-stage half of the dual-slot design tested here piggybacks
-	// the universal Request.Overlays slot landed in E1/E3, so the
-	// "no whole-chain overlays requested" half of the acceptance is
-	// vacuously satisfied today (the slot does not exist). When E6-S2
-	// adds ChainResponse.Overlays, extend this test to assert it stays
-	// nil for the per-stage-only chain.
+	// Per E6-S3, ChainResponse.Overlays MUST stay nil when the
+	// originating ChainRequest carried no whole-chain overlays — the
+	// whole-chain barrier in service.applyChainOverlays short-circuits
+	// on empty / nil req.Overlays without allocating. This piggyback
+	// test exercises only the per-stage half of the dual-slot design,
+	// so the slot stays nil end-to-end (E6-S2 introduced the slot;
+	// E6-S3 introduced the populating hook; with no whole-chain spec
+	// the response shape is byte-identical to a pre-E6-S2 ChainResponse).
+	if resp.Overlays != nil {
+		t.Errorf("ChainResponse.Overlays = %+v, want nil (per-stage-only chain — no whole-chain barrier work)", resp.Overlays)
+	}
 
 	if got := len(resp.Stages); got != 2 {
 		t.Fatalf("expected 2 stages, got %d", got)

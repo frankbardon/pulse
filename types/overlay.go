@@ -865,6 +865,106 @@ const (
 	// the streamability flag flips to true.
 	OverlayKindIndexVsRollingMean OverlayKind = "OVERLAY_INDEX_VS_ROLLING_MEAN"
 
+	// OverlayKindIndexVsStage is the whole-chain ratio overlay against
+	// another ProcessChain stage's result. CHAIN scope over a CHAIN
+	// (ProcessChain) host with a shape inherited from the target stage
+	// (scalar / series / matrix depending on the target stage's host
+	// result shape). The first whole-chain overlay in the catalog
+	// (E6-S2 declares the kind, E6-S4 lands the runtime handler) and the
+	// first kind to consume the StageRef discriminated reference family
+	// (Ref + Target slots on `ChainOverlaySpec` — both populate exactly
+	// one of Index / Name per StageRef value).
+	//
+	// Math (per host coordinate `k`):
+	//
+	//	target_val_k = target_stage.ValueAt(k)
+	//	ref_val_k    = ref_stage.ValueAt(k)
+	//	if ref_val_k == 0 ⇒ NaN + warning (PULSE_OVERLAY_REF_ZERO)
+	//	otherwise         ⇒ target_val_k / ref_val_k * 100
+	//
+	// Whole-chain barrier semantics: the handler runs at the
+	// post-stage-loop barrier inside `service.ProcessChain` (see
+	// `service/chain.go`'s `applyChainOverlays` hook). Per-stage overlays
+	// (`Stages[i].Overlays` on the request half of the dual-slot design)
+	// land on each stage's individual `Response.Overlays` as a side
+	// effect of the per-stage Process call; whole-chain overlays land on
+	// `ChainResponse.Overlays` AFTER every stage has finalised. The
+	// whole-chain fold operates exclusively on already-materialised
+	// `*Response` objects — no record re-traversal.
+	//
+	// Default Target: when both `Target.Index` is nil AND `Target.Name`
+	// is empty, the resolver defaults to the latest stage
+	// (`len(Stages) - 1`). The default makes the typical "anchor against
+	// the chain's final result" authoring shape concise. Setting either
+	// slot explicitly overrides the default. `Ref` has no default —
+	// every spec MUST name a baseline stage explicitly.
+	//
+	// Shape-divergence rule (PRD §6 FR-F2): when the target stage's host
+	// shape (matrix vs series vs scalar) differs from the reference
+	// stage's host shape the handler emits
+	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` (E6-S6) and surfaces
+	// NaN values across every coordinate. The shape-divergence check
+	// runs at the whole-chain barrier — predict cannot catch it because
+	// the stage shapes are not known until the chain has executed.
+	//
+	// Unknown stage path: when `Target` or `Ref` names a stage that does
+	// not exist (Index out of range OR Name does not match any
+	// `ChainStage.Name`), the resolver fires
+	// `PULSE_OVERLAY_TARGET_UNKNOWN` / `PULSE_OVERLAY_REFERENCE_UNKNOWN`
+	// respectively (E6 catalog reservations — until those codes land,
+	// the E6-S3 dispatcher chassis falls back to
+	// `PULSE_OVERLAY_REF_UNKNOWN` for both arms).
+	//
+	// Scope must be CHAIN. `Level` / `Within` MUST be zero (the
+	// reference is a single named stage, not an axis prefix); non-zero
+	// values fire `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` mirroring the
+	// implicit-ref family.
+	//
+	// Buffered. Per `types/overlay_streamability.go`, the streamability
+	// row is `false` — the whole-chain barrier runs after every stage
+	// has produced a `*Response`, so there is no streamable arm for the
+	// whole-chain kind family by construction. Renderers centre
+	// diverging colour ramps on `baseline = 100` (mirrors the
+	// INDEX_VS_* family on other host shapes).
+	OverlayKindIndexVsStage OverlayKind = "OVERLAY_INDEX_VS_STAGE"
+
+	// OverlayKindDeltaVsStage is the whole-chain additive-delta sibling
+	// of `OVERLAY_INDEX_VS_STAGE`. CHAIN scope over a CHAIN (ProcessChain)
+	// host with a shape inherited from the target stage (scalar / series
+	// / matrix depending on the target stage's host result shape).
+	// Second whole-chain overlay in the catalog (E6-S2 declares the kind,
+	// E6-S5 lands the runtime handler).
+	//
+	// Math (per host coordinate `k`):
+	//
+	//	target_val_k = target_stage.ValueAt(k)
+	//	ref_val_k    = ref_stage.ValueAt(k)
+	//	delta_k      = target_val_k - ref_val_k
+	//
+	// Unlike the `OVERLAY_INDEX_VS_STAGE` twin (which divides by the
+	// reference value and emits `PULSE_OVERLAY_REF_ZERO` against a zero
+	// denominator), `OVERLAY_DELTA_VS_STAGE` performs subtraction and is
+	// mathematically defined for every finite reference value including
+	// zero — the handler does NOT emit `PULSE_OVERLAY_REF_ZERO`. Mirrors
+	// the `OVERLAY_DELTA_VS_BASELINE` / `OVERLAY_DELTA_VS_MARGIN` /
+	// `OVERLAY_DELTA_VS_SIBLING` family rule.
+	//
+	// Output preserves the target stage's units — a $-valued aggregator
+	// in the target stage minus a $-valued aggregator in the reference
+	// stage yields a $-valued deviation in the same currency. Renderers
+	// centre diverging colour ramps on `baseline = 0` (mirrors the rest
+	// of the DELTA family on other host shapes).
+	//
+	// Shape-divergence rule (PRD §6 FR-F2): same as
+	// `OVERLAY_INDEX_VS_STAGE` — when the target stage's host shape
+	// differs from the reference stage's host shape the handler emits
+	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` (E6-S6) and surfaces
+	// NaN values across every coordinate.
+	//
+	// Default Target / Unknown-stage / Scope / Level / Within / Buffered
+	// rules: identical to `OVERLAY_INDEX_VS_STAGE`.
+	OverlayKindDeltaVsStage OverlayKind = "OVERLAY_DELTA_VS_STAGE"
+
 	// OverlayKindIndexVsSibling emits a per-group index score against a
 	// sibling group named in `Ref.Sibling`: `(group_val / sibling_val) *
 	// 100.0` per host group key. GROUP scope over a SERIES (grouped
@@ -1588,6 +1688,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindDeltaVsBaseline,
 		OverlayKindDeltaVsMargin,
 		OverlayKindDeltaVsSibling,
+		OverlayKindDeltaVsStage,
 		OverlayKindFisherExactCell,
 		OverlayKindIndexVsBaseline,
 		OverlayKindIndexVsMargin,
@@ -1595,6 +1696,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindIndexVsPrior,
 		OverlayKindIndexVsRollingMean,
 		OverlayKindIndexVsSibling,
+		OverlayKindIndexVsStage,
 		OverlayKindIndexVsTotal,
 		OverlayKindKSVsPop,
 		OverlayKindShareOfCol,

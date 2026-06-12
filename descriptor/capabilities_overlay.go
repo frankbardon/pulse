@@ -354,6 +354,57 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"defined and just recovers the host's raw value. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic " +
 				"unset and do NOT participate in the delta computation. Renderers centre diverging colour ramps on baseline=0.",
 		}
+	case types.OverlayKindDeltaVsStage:
+		return OverlayCapability{
+			Kind: types.OverlayKindDeltaVsStage,
+			Shapes: []types.OverlayShape{
+				// Whole-chain kinds inherit the target stage's host shape;
+				// the catalog declares every shape the kind may emit so
+				// MCP / manifest clients see the full surface.
+				types.OverlayShapeMatrix,
+				types.OverlayShapeScalar,
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				// Whole-chain kinds decorate the entire chain result;
+				// `total` is the canonical whole-result scope (the
+				// renderer surfaces the overlay as a single badge near
+				// the chain's final result).
+				types.OverlayScopeTotal,
+			},
+			// Stage is the StageRef-bearing ref family — Ref + Target slots
+			// on ChainOverlaySpec each populate exactly one of Index / Name
+			// per StageRef value. The capability row declares the consumed
+			// Ref-arm so MCP / manifest clients see the kind addresses
+			// ChainRequest.Stages directly. Per-kind validator + runtime
+			// handler land in E6-S5 (this story is the dispatcher chassis).
+			RefKinds: []string{"Stage"},
+			Description: "Whole-chain additive-delta overlay against another ProcessChain stage's result: " +
+				"target_val - ref_val per host coordinate. Second whole-chain overlay in the catalog " +
+				"(E6-S2 declares the kind; E6-S5 lands the runtime handler). CHAIN scope over a CHAIN " +
+				"(ProcessChain) host with a shape inherited from the target stage (scalar / series / " +
+				"matrix). Sibling subtractive twin of OVERLAY_INDEX_VS_STAGE — the runtime handler " +
+				"runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays " +
+				"hook on service/chain.go) against already-materialised *Response objects for each " +
+				"Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil " +
+				"AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage " +
+				"explicitly. Unknown stage path: Index out of range OR Name unmatched fires " +
+				"PULSE_OVERLAY_TARGET_UNKNOWN / PULSE_OVERLAY_REFERENCE_UNKNOWN (E6 catalog " +
+				"reservations — the E6-S3 dispatcher chassis falls back to PULSE_OVERLAY_REF_UNKNOWN " +
+				"for both arms until those codes land). Shape-divergence rule (PRD §6 FR-F2): when " +
+				"the target stage's host shape differs from the reference stage's host shape the " +
+				"handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (E6-S6 lands the code) and " +
+				"surfaces NaN across every coordinate. Unlike OVERLAY_INDEX_VS_STAGE (divides by the " +
+				"reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined " +
+				"for every finite reference value including zero — the handler does NOT emit " +
+				"PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN " +
+				"/ OVERLAY_DELTA_VS_SIBLING family rule. Ref MUST populate Ref.Stage (StageRef); any " +
+				"other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict " +
+				"time (per-kind validator lands in E6-S5). Scope must be `total`. Level / Within MUST " +
+				"be zero. Buffered — whole-chain kinds always run after every stage has finalised. " +
+				"Renderers centre diverging colour ramps on baseline=0 (mirrors the rest of the DELTA " +
+				"family on other host shapes).",
+		}
 	case types.OverlayKindFisherExactCell:
 		return OverlayCapability{
 			Kind: types.OverlayKindFisherExactCell,
@@ -581,6 +632,57 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"PULSE_OVERLAY_REF_ZERO contract used by the SERIES INDEX_VS_TOTAL / SHARE_OF_TOTAL kinds applies. Absent host groups surface a " +
 				"present SeriesEntry whose Summary leaves Statistic unset and do NOT participate in the index computation. Renderers centre " +
 				"diverging colour ramps on baseline=100.",
+		}
+	case types.OverlayKindIndexVsStage:
+		return OverlayCapability{
+			Kind: types.OverlayKindIndexVsStage,
+			Shapes: []types.OverlayShape{
+				// Whole-chain kinds inherit the target stage's host shape;
+				// the catalog declares every shape the kind may emit so
+				// MCP / manifest clients see the full surface.
+				types.OverlayShapeMatrix,
+				types.OverlayShapeScalar,
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				// Whole-chain kinds decorate the entire chain result;
+				// `total` is the canonical whole-result scope (the
+				// renderer surfaces the overlay as a single badge near
+				// the chain's final result).
+				types.OverlayScopeTotal,
+			},
+			// Stage is the StageRef-bearing ref family — Ref + Target slots
+			// on ChainOverlaySpec each populate exactly one of Index / Name
+			// per StageRef value. The capability row declares the consumed
+			// Ref-arm so MCP / manifest clients see the kind addresses
+			// ChainRequest.Stages directly. Per-kind validator + runtime
+			// handler land in E6-S4 (this story is the dispatcher chassis).
+			RefKinds: []string{"Stage"},
+			Description: "Whole-chain ratio overlay against another ProcessChain stage's result: " +
+				"(target_val / ref_val) * 100 per host coordinate. First whole-chain overlay in the " +
+				"catalog (E6-S2 declares the kind; E6-S4 lands the runtime handler) and the first " +
+				"consumer of the StageRef discriminated reference family (Ref + Target on " +
+				"ChainOverlaySpec — each populates exactly one of Index / Name per StageRef value). " +
+				"CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target " +
+				"stage (scalar / series / matrix). The runtime handler runs at the post-stage-loop " +
+				"barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) " +
+				"against already-materialised *Response objects for each Stages[i]. No record " +
+				"re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); " +
+				"Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage " +
+				"path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN / " +
+				"PULSE_OVERLAY_REFERENCE_UNKNOWN (E6 catalog reservations — the E6-S3 dispatcher " +
+				"chassis falls back to PULSE_OVERLAY_REF_UNKNOWN for both arms until those codes land). " +
+				"Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from " +
+				"the reference stage's host shape the handler emits " +
+				"PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (E6-S6 lands the code) and surfaces NaN " +
+				"across every coordinate. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN " +
+				"on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST " +
+				"populate Ref.Stage (StageRef); any other ref-family pointer fires " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands " +
+				"in E6-S4). Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain " +
+				"kinds always run after every stage has finalised. Renderers centre diverging colour " +
+				"ramps on baseline=100 (mirrors the rest of the INDEX_VS_* family on other host " +
+				"shapes).",
 		}
 	case types.OverlayKindIndexVsTotal:
 		return OverlayCapability{

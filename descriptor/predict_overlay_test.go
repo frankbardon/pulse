@@ -159,7 +159,20 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			// "Streaming overlay path for inferential kinds". Host-shape
 			// skip applies because the kind does not belong on the
 			// MATRIX-host fixture. The per-kind validator lands in E5-S10.
-			types.OverlayKindKSVsPop:
+			types.OverlayKindKSVsPop,
+			// OVERLAY_INDEX_VS_STAGE (E6-S2 declares; E6-S4 lands the
+			// handler) is a whole-chain (CHAIN-host) kind — neither
+			// MATRIX nor SERIES nor FACET. The chain barrier runs at
+			// the post-stage-loop hook inside `service.ProcessChain`
+			// against already-materialised stage responses, not at the
+			// per-stage Crosstab overlay path tested here. Skip from
+			// the MATRIX-host fixture; per-kind validator lands in
+			// E6-S7.
+			types.OverlayKindIndexVsStage,
+			// OVERLAY_DELTA_VS_STAGE (E6-S2 declares; E6-S5 lands the
+			// handler) is the sibling subtractive twin of
+			// INDEX_VS_STAGE — same CHAIN-host skip rule applies.
+			types.OverlayKindDeltaVsStage:
 			// SERIES / FACET host: skipped from the MATRIX-host catalog gate.
 			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
 			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
@@ -736,6 +749,21 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		// is needed and the per-kind predict-side validator lands in
 		// E5-S10.
 		types.OverlayKindKSVsPop: true,
+		// OVERLAY_INDEX_VS_STAGE (E6-S2 declares; E6-S4 lands the
+		// runtime handler) is a whole-chain (CHAIN-host) kind — the
+		// barrier runs at the post-stage-loop hook inside
+		// `service.ProcessChain` against already-materialised stage
+		// responses, not at the per-stage Crosstab overlay path tested
+		// here. The MATRIX-host gate skips the kind so it does not
+		// collide with the crosstab-host fixture; the cost-dispatch
+		// surface is a pure function of the streamability table and
+		// `OverlayStreamability[OverlayKindIndexVsStage] == false`
+		// (whole-chain kinds are buffered by construction).
+		types.OverlayKindIndexVsStage: true,
+		// OVERLAY_DELTA_VS_STAGE (E6-S2 declares; E6-S5 lands the
+		// runtime handler) is the sibling subtractive twin of
+		// INDEX_VS_STAGE — same CHAIN-host skip rule applies.
+		types.OverlayKindDeltaVsStage: true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

@@ -94,6 +94,15 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// kind-specific accumulator), the streamability flag will flip to true
 	// for both kinds.
 	OverlayKindDeltaVsSibling: false,
+	// OVERLAY_DELTA_VS_STAGE is buffered — second whole-chain (E6) kind,
+	// sibling subtractive twin of OVERLAY_INDEX_VS_STAGE. Whole-chain
+	// overlays run AFTER every stage has finalised by construction:
+	// `service.ProcessChain` invokes `applyChainOverlays` at the
+	// post-stage-loop barrier with already-materialised `*Response`
+	// objects for each `Stages[i]`. There is no streamable arm for the
+	// whole-chain kind family — the streamability flag stays `false`
+	// for every whole-chain kind regardless of host shape.
+	OverlayKindDeltaVsStage: false,
 	// OVERLAY_FISHER_EXACT_CELL is inherently buffered — the per-cell 2×2
 	// Fisher's exact test reads each cell value AND its row + column
 	// margins to build the 2×2 contingency, all of which the buffered
@@ -162,6 +171,16 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// kind-specific accumulator), the streamability flag will flip to true
 	// for both kinds.
 	OverlayKindIndexVsSibling: false,
+	// OVERLAY_INDEX_VS_STAGE is buffered — first whole-chain (E6) kind,
+	// first consumer of the StageRef discriminated reference family.
+	// Whole-chain overlays run AFTER every stage has finalised by
+	// construction: `service.ProcessChain` invokes `applyChainOverlays`
+	// at the post-stage-loop barrier with already-materialised
+	// `*Response` objects for each `Stages[i]`. There is no streamable
+	// arm for the whole-chain kind family — the streamability flag
+	// stays `false` for every whole-chain kind regardless of host
+	// shape.
+	OverlayKindIndexVsStage: false,
 	// OVERLAY_INDEX_VS_TOTAL is streamable — first SERIES-host overlay
 	// in the catalog with a streaming finalize hook. The grand-total
 	// accumulator is one f64 carried alongside the per-group
