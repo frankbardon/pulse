@@ -29,6 +29,20 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// margin to drive the expected-count recurrence, all of which
 		// require the buffered host crosstab matrix.
 		OverlayKindChiSqRow: false,
+		// CHISQ_VS_POP is inferential (E5-S4) — first inferential
+		// FACET-host kind. Per PRD §2 Non-Goals ("Streaming overlay
+		// path for inferential kinds"), inferential overlays as a
+		// family stay buffered regardless of host streamability. The
+		// handler computes a single χ² goodness-of-fit statistic
+		// against the resolved population distribution, walks the host's
+		// already-finalised discrete payload to build the observed ×
+		// expected contingency, and reuses chiSquareSurvival (the same
+		// helper backing TEST_CHISQ + the MATRIX-host CHISQ family).
+		// The buffered flag stays false as a matter of policy — the
+		// streamable subset is reserved for descriptive kinds (sibling
+		// streamable FACET-host kinds are INDEX_VS_POP / ZSCORE_VS_POP,
+		// both descriptive).
+		OverlayKindChiSqVsPop: false,
 		// DELTA_VS_BASELINE is buffered — absolute-difference twin of
 		// INDEX_VS_BASELINE. Resolving a single positional baseline
 		// (Ref.BaselineIndex.Position) requires the materialised host

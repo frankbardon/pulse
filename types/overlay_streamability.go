@@ -53,6 +53,23 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// Inferential overlays as a family stay buffered until a streamable-
 	// test path is plumbed.
 	OverlayKindChiSqRow: false,
+	// OVERLAY_CHISQ_VS_POP is inherently buffered — first inferential
+	// FACET-host kind (E5-S4). Per PRD §2 Non-Goals ("Streaming overlay
+	// path for inferential kinds"), every inferential overlay stays
+	// buffered regardless of host streamability. The handler computes a
+	// single χ² goodness-of-fit statistic against the resolved population
+	// distribution, walks the host's already-finalised discrete payload
+	// (FacetField.Discrete.Values) in one pass to build the observed ×
+	// expected contingency, and reuses the chiSquareSurvival helper that
+	// backs TEST_CHISQ + the MATRIX-host CHISQ family. The handler reads
+	// only POST-FINALIZE state — running it against a streaming Facet
+	// host vs a buffered one produces byte-identical SCALAR output
+	// because the input state is identical — but the streamability flag
+	// stays false because the inferential family is buffered as a
+	// matter of policy (the streamable subset is reserved for descriptive
+	// kinds; sibling streamable FACET-host kinds are OVERLAY_INDEX_VS_POP
+	// / E5-S2 and OVERLAY_ZSCORE_VS_POP / E5-S3, both descriptive).
+	OverlayKindChiSqVsPop: false,
 	// OVERLAY_DELTA_VS_BASELINE is buffered — resolving a single positional
 	// baseline (Ref.BaselineIndex.Position) requires the materialised host
 	// series (`host.ValueAt(Position)` is consulted after finalize). The

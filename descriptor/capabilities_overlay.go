@@ -217,6 +217,60 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"PULSE_OVERLAY_EXPECTED_LOW once per offending row when any expected cell value in the row " +
 				"is below 5.",
 		}
+	case types.OverlayKindChiSqVsPop:
+		return OverlayCapability{
+			Kind: types.OverlayKindChiSqVsPop,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeScalar,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// Population is the FACET-host comparison-population ref family
+			// (E5-S1 foundation; E5-S2 INDEX_VS_POP first consumer; E5-S3
+			// ZSCORE_VS_POP second consumer; E5-S4 CHISQ_VS_POP third
+			// consumer). The capability row declares the consumed Ref-arm
+			// so MCP / manifest clients see the kind requires Ref.Population
+			// to be populated; the per-kind validator
+			// (descriptor.validateOverlayChiSqVsPop) lands in E5-S6 / E5-S7
+			// (this story is the runtime handler only).
+			RefKinds: []string{"Population"},
+			Description: "Single scalar χ² goodness-of-fit statistic + p-value comparing the host Facet subset distribution " +
+				"against the resolved population distribution. GROUP scope over a FACET (FacetSchema) host with SCALAR " +
+				"payload — the layer carries the chi-square statistic plus degrees of freedom and the corresponding p-value " +
+				"via OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. Third FACET-host overlay in the catalog (E5-S4; " +
+				"siblings: OVERLAY_INDEX_VS_POP / E5-S2, OVERLAY_ZSCORE_VS_POP / E5-S3) and the first inferential FACET-host " +
+				"kind. Pairs with the MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ² " +
+				"family — the viz developer renders the SCALAR statistic as a goodness-of-fit badge near the facet header. " +
+				"Math: subset_N = sum(host counts); expected[v] = pop_freq[v] * subset_N (population frequencies scaled to " +
+				"subset N); chisq = Σ (observed - expected)² / expected; df = len(observed) - 1; p_value = " +
+				"chiSquareSurvival(chisq, df) — the same χ² survival helper backing TEST_CHISQ and the MATRIX-host CHISQ " +
+				"family, so the overlay surface produces identical p-values for the same contingency. Discrete arm only " +
+				"(χ² goodness-of-fit requires categorical buckets — numeric hosts fire " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at runtime; the per-kind validator lands in E5-S6 / E5-S7 to " +
+				"reject numeric hosts at predict time). Streaming finalize hook: the handler runs at the FacetSchema " +
+				"post-host-finalize entry — once the per-value (value, count) map is folded into the FacetField.Discrete.Values " +
+				"slice the overlay reads the already-finalized host distribution and the resolver's population view to emit " +
+				"the SCALAR statistic. No second pass over records. INHERENTLY BUFFERED per PRD §2 Non-Goals (\"Streaming " +
+				"overlay path for inferential kinds\") — inferential overlays as a family stay buffered regardless of host " +
+				"streamability; the streamable subset is reserved for descriptive kinds (sibling streamable FACET-host kinds " +
+				"are INDEX_VS_POP / ZSCORE_VS_POP, both descriptive). Low-expected-cell warning: when any expected count is " +
+				"below 5 the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning (canonical χ² low-count heuristic; the same " +
+				"warning code the MATRIX-host CHISQ family and FISHER_EXACT_CELL emit — PRD FR-J1 shares the code with the " +
+				"crosstab Fisher exact path). Absent-population value (host value missing from the population's discrete " +
+				"payload) yields expected = 0; the goodness-of-fit term drops (matches TEST_CHISQ's expected > 0 guard) but " +
+				"the low-expected warning still fires. Empty host distribution OR subset_N == 0 (every observed count is zero) " +
+				"OR population is empty: NaN statistic + NaN p-value with one PULSE_OVERLAY_REF_ZERO warning — no χ² test can " +
+				"be computed without observed counts. Single category (df = 0): NaN p-value alongside the statistic — " +
+				"descriptive only. Ref.Population MUST be populated (the cohort name lives on Ref.Population.Cohort); any " +
+				"other ref-family pointer (Margin / Sibling / BaselineIndex / Prior / RollingMean / YoY / Stage / Slot) fires " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E5-S6 / E5-S7). " +
+				"Level / Within MUST be zero (population comparison is a single-value lookup, not an axis prefix); non-zero " +
+				"values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the implicit-ref family. Scope must be GROUP. " +
+				"Renderer-facing shape: viz developer reads OverlayPayload.Scalar for the χ² statistic and OverlaySummary " +
+				"for the (statistic, df, p-value) triple — small p-value flags \"the subset distribution diverges from the " +
+				"population\". The layer-level Baseline stays unset (inferential overlays do not surface a ratio centerpoint).",
+		}
 	case types.OverlayKindDeltaVsBaseline:
 		return OverlayCapability{
 			Kind: types.OverlayKindDeltaVsBaseline,

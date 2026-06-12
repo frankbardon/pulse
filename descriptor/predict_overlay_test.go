@@ -143,7 +143,15 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			// sibling streamable kind to INDEX_VS_POP. Same MATRIX-host
 			// gate skip rule (the predict-side validator lands in
 			// E5-S6 / E5-S7).
-			types.OverlayKindZScoreVsPop:
+			types.OverlayKindZScoreVsPop,
+			// OVERLAY_CHISQ_VS_POP (E5-S4) is a FACET-host kind too —
+			// first inferential FACET-host kind. Unlike INDEX_VS_POP /
+			// ZSCORE_VS_POP it is BUFFERED (per PRD §2 Non-Goals
+			// "Streaming overlay path for inferential kinds"), but the
+			// host-shape skip still applies because the kind does not
+			// belong on the MATRIX-host fixture. The per-kind validator
+			// lands in E5-S6 / E5-S7.
+			types.OverlayKindChiSqVsPop:
 			// SERIES / FACET host: skipped from the MATRIX-host catalog gate.
 			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
 			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
@@ -698,6 +706,17 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		// sibling streamable kind to INDEX_VS_POP. Same skip rule
 		// (covered by TestPredict_OverlayCost_StreamableKindsLow).
 		types.OverlayKindZScoreVsPop: true,
+		// OVERLAY_CHISQ_VS_POP (E5-S4) is a FACET-host kind too —
+		// first inferential FACET-host kind (buffered per PRD §2 Non-
+		// Goals "Streaming overlay path for inferential kinds"). The
+		// buffered MATRIX-host gate skips the kind here because it
+		// does not belong on the crosstab-host fixture (FACET host,
+		// not MATRIX host); the cost-dispatch surface
+		// (overlayCostForKind) is a pure function of the streamability
+		// table so it is exercised mechanically — no per-kind fixture
+		// is needed and the per-kind predict-side validator lands in
+		// E5-S6 / E5-S7.
+		types.OverlayKindChiSqVsPop: true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

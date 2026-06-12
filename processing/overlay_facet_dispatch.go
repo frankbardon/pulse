@@ -99,6 +99,15 @@ type facetOverlayHandler func(spec *types.OverlaySpec, host *types.FacetField, p
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
+	// OVERLAY_CHISQ_VS_POP (E5-S4): single scalar χ² goodness-of-fit
+	// statistic against a FACET host. First inferential FACET-host
+	// kind — buffered per PRD §2 Non-Goals ("Streaming overlay path
+	// for inferential kinds"). Pairs with the MATRIX-host CHISQ family
+	// (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ²
+	// family — viz developer renders the SCALAR statistic as a
+	// goodness-of-fit badge near the facet header. Handler:
+	// applyChiSqVsPop in processing/overlay_chisq_vs_pop.go.
+	types.OverlayKindChiSqVsPop: applyChiSqVsPop,
 	// OVERLAY_INDEX_VS_POP (E5-S2): per-value population-comparison
 	// index against a FACET host (categorical fast path or numeric
 	// histogram path). First streamable FACET-host kind in the

@@ -176,6 +176,105 @@ const (
 	// buffered (margins recomputed from raw rows).
 	OverlayKindChiSqCol OverlayKind = "OVERLAY_CHISQ_COL"
 
+	// OverlayKindChiSqVsPop emits a single scalar χ² goodness-of-fit
+	// statistic + p-value comparing the host Facet subset distribution
+	// against the resolved population distribution. GROUP scope over a
+	// FACET (FacetSchema) host with SCALAR payload — the layer carries
+	// the chi-square statistic plus degrees of freedom and the
+	// corresponding p-value via OverlaySummary{Statistic, PValue,
+	// Parameters{"df"}}. Third FACET-host overlay in the catalog
+	// (E5-S4; siblings: OVERLAY_INDEX_VS_POP / E5-S2, OVERLAY_ZSCORE_VS_POP
+	// / E5-S3) and the first inferential FACET-host kind. Pairs with the
+	// MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as
+	// the canonical χ² family — the viz developer renders the SCALAR
+	// statistic as a goodness-of-fit badge near the facet header.
+	//
+	// Math:
+	//
+	//	subset_N      = sum(host counts)              // discrete arm only
+	//	pop_freq[v]   = FacetPopulationView.DiscreteFrequency(v)
+	//	expected[v]   = pop_freq[v] * subset_N        // expected scaled to subset N
+	//	observed[v]   = host.Discrete.Values[v].Count
+	//	chisq         = Σ_v (observed[v] - expected[v])² / expected[v]
+	//	df            = len(observed) - 1
+	//	p_value       = chiSquareSurvival(chisq, df)  // = 1 - chi2_cdf
+	//
+	// Discrete arm only: χ² goodness-of-fit requires categorical buckets
+	// to form the observed × expected contingency. A numeric host (no
+	// discrete payload) emits zero entries and surfaces a coded
+	// PROCESSING_INTERNAL error carrying
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — the validator (lands in
+	// E5-S6 / E5-S7) will reject numeric hosts at predict time so this
+	// runtime arm is defense in depth.
+	//
+	// Reuses the χ² survival helper backing TEST_CHISQ and the
+	// MATRIX-host CHISQ family (chiSquareSurvival in
+	// processing/test_stat.go) so the overlay and the row-test surface
+	// produce identical p-values for the same contingency.
+	//
+	// Streaming finalize hook: the handler runs at the FacetSchema
+	// post-host-finalize entry — once the per-value `(value, count)` map
+	// is folded into the FacetField.Discrete.Values slice the overlay
+	// reads the already-finalized host distribution + the resolver's
+	// population view to emit the SCALAR statistic. The handler depends
+	// only on POST-FINALIZE state so running it against a streaming
+	// Facet host vs a buffered one produces byte-identical output.
+	//
+	// Inferential — ALWAYS BUFFERED (per PRD §2 Non-Goals "Streaming
+	// overlay path for inferential kinds"). The streamability row is
+	// `false` regardless of host streamability — inferential overlays as
+	// a family stay buffered until a streamable-test path is plumbed.
+	// Distinct from the streamable INDEX_VS_POP / ZSCORE_VS_POP siblings
+	// which emit per-value descriptive statistics.
+	//
+	// Absent-population path: when a host value is missing from the
+	// population's discrete payload, pop_freq = 0 and expected = 0.
+	// Goodness-of-fit math drops the term (mirrors TEST_CHISQ's "expected
+	// > 0" guard) but the low-expected warning still fires.
+	//
+	// Low-expected-cell warning: when any expected count is below 5 the
+	// handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning carrying the
+	// count of low-expected categories and the offending minimum.
+	// Canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant — the same
+	// warning shape the MATRIX-host CHISQ family + FISHER_EXACT_CELL
+	// use (PRD FR-J1 — the warning code is shared with the crosstab
+	// Fisher exact path).
+	//
+	// Degenerate inputs:
+	//   - Empty host distribution (no values): the layer emits a SCALAR
+	//     payload with NaN statistic + NaN p-value and a layer-level
+	//     warning carrying PULSE_OVERLAY_REF_ZERO. No χ² test can be
+	//     computed without observed counts.
+	//   - subset_N == 0 (every observed count is zero): same as above —
+	//     PULSE_OVERLAY_REF_ZERO + NaN statistic.
+	//   - pop_freq[v] == 0 for every host value (population is empty):
+	//     every expected count is zero, every term drops, statistic
+	//     stays at 0 and df = 0. The handler emits NaN statistic + NaN
+	//     p-value with PULSE_OVERLAY_REF_ZERO.
+	//   - Single category (df = 0): chi-square is undefined; the handler
+	//     emits NaN p-value alongside the statistic — descriptive only.
+	//
+	// Ref handling: `Ref.Population` MUST be populated (the cohort name
+	// lives on `Ref.Population.Cohort`); any other ref-family pointer
+	// (Margin / Sibling / BaselineIndex / Prior / RollingMean / YoY /
+	// Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at
+	// predict time (per-kind validator lands in E5-S6 / E5-S7). Mirrors
+	// the INDEX_VS_POP / ZSCORE_VS_POP sibling-kind ref contract.
+	//
+	// Scope must be GROUP. `Level` / `Within` MUST be zero (population
+	// comparison is a single-value lookup, not an axis prefix); non-zero
+	// values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the
+	// implicit-ref family.
+	//
+	// Renderer-facing shape: the viz developer reads `OverlayPayload.Scalar`
+	// for the χ² statistic and `OverlaySummary` for the renderer
+	// metadata. The recommended rendering is a goodness-of-fit badge
+	// near the facet header carrying the (statistic, df, p-value) triple
+	// — small p-value flags "the subset distribution diverges from the
+	// population". The layer-level Baseline stays unset (inferential
+	// overlays do not surface a ratio centerpoint).
+	OverlayKindChiSqVsPop OverlayKind = "OVERLAY_CHISQ_VS_POP"
+
 	// OverlayKindDeltaVsMargin emits a per-cell additive delta against
 	// the matching axis margin: cell - margin. CELL-scoped over a MATRIX
 	// (crosstab) host. Unlike INDEX_VS_MARGIN (a ratio) and the SHARE_OF_*
@@ -1356,6 +1455,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindChiSqCol,
 		OverlayKindChiSqMatrix,
 		OverlayKindChiSqRow,
+		OverlayKindChiSqVsPop,
 		OverlayKindDeltaVsBaseline,
 		OverlayKindDeltaVsMargin,
 		OverlayKindDeltaVsSibling,
