@@ -926,6 +926,20 @@ const (
 	// post-slot-barrier inside processing.ApplyComposeOverlays. E7-S13
 	// polishes the Message + Fixup catalogue.
 	PULSE_OVERLAY_SLOT_NOT_CROSSTAB Code = "PULSE_OVERLAY_SLOT_NOT_CROSSTAB"
+
+	// PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP indicates a multi-reference
+	// COMPOSE-host overlay spec (today: OVERLAY_PROP_Z_PANEL) named more
+	// target slots than the per-spec `OverlayOptions.MaxPanelTargets`
+	// cap allows. Per the interview risk paragraph "Multi-reference
+	// combinatorics", the default cap is 16 — bumping the default
+	// requires an interview update; the per-request override surface
+	// lives on `ComposeOverlaySpec.Options.MaxPanelTargets` so callers
+	// who need a larger panel today can opt in explicitly. Surfaced at
+	// runtime by `processing.applyPropZPanel` at handler entry (E7-S11);
+	// the descriptor.ValidateComposedRequest predict-time companion
+	// lands with E7-S14. Details carry `{kind, observed, cap}` so the
+	// renderer can surface both the offending size and the cap.
+	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1075,6 +1089,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT,
 	PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 	PULSE_OVERLAY_DICT_PREFIX_DRIFT,
+	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

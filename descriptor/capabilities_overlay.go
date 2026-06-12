@@ -891,6 +891,38 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
 				"Non-Goals).",
 		}
+	case types.OverlayKindPropZPanel:
+		return OverlayCapability{
+			Kind: types.OverlayKindPropZPanel,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			// COMPOSE-only multi-ref kind — Reference + Targets resolve
+			// via the ComposeOverlaySpec slot-label pair. RefKinds stays
+			// empty: the panel walks {reference, targets...} as the
+			// pairwise universe, no OverlayRef family pointer applies.
+			RefKinds: []string{},
+			Description: "COMPOSE-host MULTI-REFERENCE per-cell pairwise two-proportion z-test across the reference slot plus " +
+				"every target slot (E7-S11). CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's Value " +
+				"is the flattened upper-triangular slice of pairwise two-sided p-values across the panel's N + 1 slots " +
+				"(reference at index 0; Targets[i] at index i + 1). Slot ordering: {reference, targets[0], targets[1], ..., " +
+				"targets[N-1]}. Output shape — row-major upper triangle, NO diagonal: [(0,1), (0,2), ..., (0,M-1), (1,2), ..., " +
+				"(M-2,M-1)] for M = N + 1 slots. Slice length is M*(M-1)/2. The diagonal is implicit (every diagonal entry " +
+				"is 1.0) and the lower triangular is implicit (p[j,i] == p[i,j] — symmetric matrix). Math per pair: reuses " +
+				"the same pooled-SE two-proportion z-test formula and standardNormalCDF helper backing OVERLAY_PROP_Z_CELL " +
+				"and TEST_PROP_Z, so every pairwise p-value matches its corresponding single-pair output byte-for-byte. " +
+				"Cap enforcement: ComposeOverlaySpec.Options.MaxPanelTargets defaults to 16 — len(spec.Targets) > cap " +
+				"fires PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry with {observed, cap} Details. Per the interview " +
+				"risk paragraph \"Multi-reference combinatorics\", bumping the default 16 requires an interview update; " +
+				"Options.MaxPanelTargets is the per-request override surface. Degenerate inputs (pooled ∈ {0, 1}, missing row " +
+				"margin) produce NaN at the affected pair position with one PULSE_OVERLAY_REF_ZERO warning per (cell, pair) " +
+				"tuple. Cells where any slot is absent surface an empty per-cell vector with one PULSE_OVERLAY_REF_ZERO " +
+				"warning carrying ref_missing: true. Inherently buffered — inferential overlays stay buffered as a family " +
+				"per PRD §2 Non-Goals.",
+		}
 	case types.OverlayKindRank:
 		return OverlayCapability{
 			Kind: types.OverlayKindRank,

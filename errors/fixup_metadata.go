@@ -1433,6 +1433,23 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP: {
+		// Minimal entry — full polish (richer Message, predict-time
+		// surfacing) lands with E7-S13 / E7-S14.
+		Message: "A multi-reference COMPOSE-host overlay spec (today: OVERLAY_PROP_Z_PANEL) named more target slots than the per-spec OverlayOptions.MaxPanelTargets cap allows. The default cap is 16 — per the interview risk paragraph \"Multi-reference combinatorics\", bumping the default requires an interview update; the per-request override surface is ComposeOverlaySpec.Options.MaxPanelTargets. Details carry the offending kind, the observed target count, and the active cap.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Options", "MaxPanelTargets"},
+				Hint:   "Set ComposeOverlaySpec.Options.MaxPanelTargets to a value at least as large as the observed target count if your environment can absorb the O(N²) per-cell pairwise z-test cost. Per the interview risk paragraph, the default 16 is the explicit upper bound — raising it past that without an interview update is a deliberate caller-attested decision.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Targets"},
+				Hint:   "Drop targets from the spec until the slot count fits the active cap (default 16). If the panel exists to compare a small reference cohort against many treatment arms, consider splitting the panel into batches of MaxPanelTargets-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer.",
+			},
+		},
+	},
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY: {
 		Message: "An OVERLAY_YOY spec named a `frequency` Param outside the supported set (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`). The supported set is the minimum frequency catalog needed to cover the GROUP_DATE component family — finer-than-hourly or coarser-than-annual frequencies are explicit non-goals in v1. Calendar-week / day-of-week realignment is also an explicit non-goal: weekly frequency uses calendar-week-aligned `i - 52` arithmetic and daily frequency uses exact-key lookup against the host key index (Feb 29 in a non-leap prior year emits NaN). Surfaced at both predict (descriptor.validateOverlayYoY) and runtime (processing.applyYoY) with Details carrying the offending `frequency` value plus the supported list.",
 		Fixups: []Fixup{

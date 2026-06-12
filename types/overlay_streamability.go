@@ -252,6 +252,17 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// TEST_PROP_Z. Inferential kind — per PRD §2 Non-Goals every
 	// inferential overlay stays buffered regardless of host streamability.
 	OverlayKindPropZCell: false,
+	// OVERLAY_PROP_Z_PANEL is inherently buffered — COMPOSE-only kind
+	// (E7-S11), multi-reference per-cell pairwise two-proportion z-test
+	// across the panel's reference + N target slots. Emits a per-cell
+	// flattened upper-triangular slice of pairwise p-values via
+	// MatrixCell.Value carrying a []float64. Reuses the same
+	// twoProportionZ + standardNormalCDF helpers backing OVERLAY_PROP_Z_CELL
+	// and TEST_PROP_Z so every pairwise p-value matches the
+	// corresponding single-pair output byte-for-byte. Per PRD §2
+	// Non-Goals every inferential overlay stays buffered regardless of
+	// host streamability.
+	OverlayKindPropZPanel: false,
 	// OVERLAY_RANK is inherently buffered — COMPOSE-only kind (E7-S9),
 	// per-cell rank of each target cell within a configurable population
 	// (`Params["population"]` = "row" / "column" / "matrix"). The

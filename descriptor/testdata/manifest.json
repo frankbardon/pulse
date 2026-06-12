@@ -3425,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 138,
+    "error_codes_count": 139,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3526,6 +3526,7 @@
       "PULSE_OVERLAY_KEY_SET_DIVERGENT",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
+      "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP",
       "PULSE_OVERLAY_PARAM_MISSING",
       "PULSE_OVERLAY_REFERENCE_UNKNOWN",
       "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE",
@@ -5239,6 +5240,18 @@
         "description": "COMPOSE-host per-cell two-proportion z-test against the reference slot's matching cell (E7-S9). CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the two-sided p-value as a float64. Cells are treated as success counts; each cell's matching row margin is treated as its sample size (target_n on the target side, ref_n on the reference side). Math: p_target = target_cell / target_row_margin; p_ref = ref_cell / ref_row_margin; pooled = (target_cell + ref_cell) / (target_row_margin + ref_row_margin); se = sqrt(pooled * (1 - pooled) * (1/n_target + 1/n_ref)); z = (p_target - p_ref) / se; p_value = 2 * (1 - Φ(|z|)). Reuses the standardNormalCDF helper backing TEST_PROP_Z so the overlay and the row-test surface produce identical p-values for the same (success, n) pair. Degenerate inputs (pooled ∈ {0, 1}, missing row margin, etc.) produce NaN p-values with one PULSE_OVERLAY_REF_ZERO warning per affected cell. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals)."
       },
       {
+        "kind": "OVERLAY_PROP_Z_PANEL",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "COMPOSE-host MULTI-REFERENCE per-cell pairwise two-proportion z-test across the reference slot plus every target slot (E7-S11). CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's Value is the flattened upper-triangular slice of pairwise two-sided p-values across the panel's N + 1 slots (reference at index 0; Targets[i] at index i + 1). Slot ordering: {reference, targets[0], targets[1], ..., targets[N-1]}. Output shape — row-major upper triangle, NO diagonal: [(0,1), (0,2), ..., (0,M-1), (1,2), ..., (M-2,M-1)] for M = N + 1 slots. Slice length is M*(M-1)/2. The diagonal is implicit (every diagonal entry is 1.0) and the lower triangular is implicit (p[j,i] == p[i,j] — symmetric matrix). Math per pair: reuses the same pooled-SE two-proportion z-test formula and standardNormalCDF helper backing OVERLAY_PROP_Z_CELL and TEST_PROP_Z, so every pairwise p-value matches its corresponding single-pair output byte-for-byte. Cap enforcement: ComposeOverlaySpec.Options.MaxPanelTargets defaults to 16 — len(spec.Targets) \u003e cap fires PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry with {observed, cap} Details. Per the interview risk paragraph \"Multi-reference combinatorics\", bumping the default 16 requires an interview update; Options.MaxPanelTargets is the per-request override surface. Degenerate inputs (pooled ∈ {0, 1}, missing row margin) produce NaN at the affected pair position with one PULSE_OVERLAY_REF_ZERO warning per (cell, pair) tuple. Cells where any slot is absent surface an empty per-cell vector with one PULSE_OVERLAY_REF_ZERO warning carrying ref_missing: true. Inherently buffered — inferential overlays stay buffered as a family per PRD §2 Non-Goals."
+      },
+      {
         "kind": "OVERLAY_RANK",
         "shapes": [
           "matrix"
@@ -5407,4 +5420,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7fd0aa557df4307d7ec0e95ba95ac502e8fc1a5f67032b3ee3fab4ed97226e8b
+// golden-hash: e58e510acb56b5684ba15a88a68942e0f04fa6f82d18b7e2da80f11f9f68d52f

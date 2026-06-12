@@ -492,6 +492,7 @@ func TestExtractSchemaShape_Canonical_Scalar(t *testing.T) {
 func TestKindRequiresMatrix_E7S10Registry(t *testing.T) {
 	matrixRequired := map[types.OverlayKind]bool{
 		types.OverlayKindPropZCell:  true,
+		types.OverlayKindPropZPanel: true,
 		types.OverlayKindTCell:      true,
 		types.OverlayKindChiSqVsRef: true,
 		types.OverlayKindRank:       true,

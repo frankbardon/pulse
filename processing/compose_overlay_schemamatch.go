@@ -222,9 +222,9 @@ func extractSeriesAxisFields(rows []map[string]any) []string {
 // SERIES-shape sibling of OVERLAY_T_CELL and stays matrix-NOT-required.
 //
 // Matrix-required today:
-//   - OVERLAY_PROP_Z_CELL, OVERLAY_T_CELL, OVERLAY_CHISQ_VS_REF,
-//     OVERLAY_RANK — per-cell / whole-matrix arithmetic is undefined
-//     against SERIES or SCALAR slots.
+//   - OVERLAY_PROP_Z_CELL, OVERLAY_PROP_Z_PANEL, OVERLAY_T_CELL,
+//     OVERLAY_CHISQ_VS_REF, OVERLAY_RANK — per-cell / whole-matrix
+//     arithmetic is undefined against SERIES or SCALAR slots.
 //
 // When this returns true the PULSE_OVERLAY_SLOT_NOT_CROSSTAB gate
 // fires loud at runtime against a non-MATRIX reference OR a
@@ -238,6 +238,7 @@ func extractSeriesAxisFields(rows []map[string]any) []string {
 func kindRequiresMatrix(kind types.OverlayKind) bool {
 	switch kind {
 	case types.OverlayKindPropZCell,
+		types.OverlayKindPropZPanel,
 		types.OverlayKindTCell,
 		types.OverlayKindChiSqVsRef,
 		types.OverlayKindRank:

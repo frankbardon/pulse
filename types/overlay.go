@@ -1796,6 +1796,74 @@ const (
 	// overlay path for inferential kinds").
 	OverlayKindPropZCell OverlayKind = "OVERLAY_PROP_Z_CELL"
 
+	// OverlayKindPropZPanel is the COMPOSE-host multi-reference per-cell
+	// pairwise two-proportion z-test across N + 1 slots (the reference
+	// slot plus every target slot). CELL scope over a MATRIX (crosstab)
+	// host with MATRIX payload — each cell's `Value` is NOT a scalar
+	// p-value but the flattened upper-triangular slice of pairwise
+	// two-sided p-values across the panel's N + 1 slots. First multi-ref
+	// COMPOSE-only kind in the catalog (E7-S11) and the first kind to
+	// emit a per-cell vector payload via `MatrixCell.Value` carrying a
+	// `[]float64` (the scalar `MatrixCell.Value any` slot accepts the
+	// vector shape verbatim — same precedent the RichAggregator family
+	// uses for map / slice cell values).
+	//
+	// Slot ordering: the panel ordering is `{reference, targets[0],
+	// targets[1], ..., targets[N-1]}` — index 0 is the reference, every
+	// subsequent index is one target slot in `ComposeOverlaySpec.Targets`
+	// order. The handler reads each slot's matching cell at `(rowKey,
+	// colKey)` and folds N + 1 (count, total) pairs into the pairwise
+	// matrix.
+	//
+	// Output shape — flattened upper-triangular slice (row-major, NO
+	// diagonal): for an `M = N + 1` slot panel, the per-cell `[]float64`
+	// carries the pairs in canonical `(i, j)` order with `i < j`:
+	//
+	//	[(0,1), (0,2), ..., (0,M-1), (1,2), ..., (1,M-1), ..., (M-2,M-1)]
+	//
+	// The slice length is `M * (M - 1) / 2`. Index helper:
+	//
+	//	pairIndex(i, j, M) = i * (2*M - i - 1) / 2 + (j - i - 1)
+	//
+	// The diagonal is implicit (every diagonal entry is `1.0` —
+	// self-vs-self) and the lower triangular is implicit (`p[j, i] ==
+	// p[i, j]` — symmetric matrix). Renderers reconstruct the dense
+	// matrix from the flattened slice via the pair index helper.
+	// Documented in `skills/overlay-system.md` (E7-S16).
+	//
+	// Math (per pair `(i, j)`): the same pooled-SE two-proportion z-test
+	// formula `OVERLAY_PROP_Z_CELL` uses via the shared
+	// `twoProportionZ` helper. Each slot's matching row margin is its
+	// sample size; the helper accepts `(success_i, n_i, success_j, n_j)`
+	// and returns the two-sided p-value. Reuses the same
+	// `standardNormalCDF` helper backing `TEST_PROP_Z` so every pairwise
+	// p-value matches the corresponding `OVERLAY_PROP_Z_CELL` output
+	// byte-for-byte.
+	//
+	// Cap enforcement — `OverlayOptions.MaxPanelTargets`: panel
+	// combinatorics scale O(N²) per cell, so the handler enforces a
+	// caller-attested cap on the number of target slots. The cap
+	// defaults to `16` when `ComposeOverlaySpec.Options` is nil OR
+	// `Options.MaxPanelTargets == 0`. `len(spec.Targets) >
+	// MaxPanelTargets` fires `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP` at
+	// handler entry with `{observed, cap}` Details. Per the interview
+	// risk paragraph "Multi-reference combinatorics", bumping the
+	// default 16 requires explicit interview update — `Options` is the
+	// per-request override surface for callers who need a larger panel
+	// today.
+	//
+	// Degenerate inputs: missing row margins fall back to the cell value
+	// as the sample size (mirrors `OVERLAY_PROP_Z_CELL`); pairwise
+	// `(pooled ∈ {0, 1}, se == 0)` produces NaN at the affected pair
+	// position with one `PULSE_OVERLAY_REF_ZERO` warning per (cell,
+	// pair) tuple. Cells where the reference value is absent on any
+	// slot surface an empty (nil) per-cell vector with one
+	// `PULSE_OVERLAY_REF_ZERO` warning carrying `ref_missing: true`.
+	//
+	// Buffered. Inferential overlays as a family stay buffered until a
+	// streamable-test path is plumbed (PRD §2 Non-Goals).
+	OverlayKindPropZPanel OverlayKind = "OVERLAY_PROP_Z_PANEL"
+
 	// OverlayKindTCell is the COMPOSE-host per-cell Welch t-test
 	// against the reference slot's matching cell. CELL scope over a
 	// MATRIX (crosstab) host with MATRIX payload — each cell's value is
@@ -1980,6 +2048,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindIndexVsTotal,
 		OverlayKindKSVsPop,
 		OverlayKindPropZCell,
+		OverlayKindPropZPanel,
 		OverlayKindRank,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
@@ -2408,6 +2477,21 @@ type OverlayOptions struct {
 	// and every target dictionary; mismatched prefixes fire
 	// PULSE_OVERLAY_DICT_PREFIX_DRIFT and the spec is rejected.
 	DictPrefixFast bool `json:"dict_prefix_fast,omitempty"`
+
+	// MaxPanelTargets caps the number of target slots a multi-reference
+	// COMPOSE-host overlay (today: OVERLAY_PROP_Z_PANEL) will fold into
+	// a pairwise output. Default 16 when the slot is zero — per the
+	// interview risk paragraph "Multi-reference combinatorics" the
+	// default 16 is the explicit upper bound on per-cell pairwise
+	// p-value computation; bumping the default requires an interview
+	// update. Setting a non-zero value here is the per-request override
+	// surface for callers who need a larger panel (or a stricter cap)
+	// today. `len(spec.Targets) > MaxPanelTargets` fires
+	// PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry (and the
+	// equivalent predict-time check in descriptor.ValidateComposedRequest
+	// per E7-S14). E7-S11 lands this knob alongside the
+	// OVERLAY_PROP_Z_PANEL handler; non-panel kinds ignore it.
+	MaxPanelTargets int `json:"max_panel_targets,omitempty"`
 }
 
 // SeriesPayload is the canonical strip used by series-shaped overlay

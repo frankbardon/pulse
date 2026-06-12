@@ -182,6 +182,9 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindIndexVsRef,
 			types.OverlayKindDeltaVsRef,
 			types.OverlayKindPropZCell,
+			// PROP_Z_PANEL (E7-S11) is the multi-ref pairwise-Sig sibling
+			// of PROP_Z_CELL — same COMPOSE-host skip rule applies.
+			types.OverlayKindPropZPanel,
 			types.OverlayKindTCell,
 			// T_VS_REF (E7-S10) is the series-shape COMPOSE-only sibling
 			// of T_CELL — same COMPOSE-host skip rule.
@@ -814,6 +817,10 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		types.OverlayKindIndexVsRef: true,
 		types.OverlayKindDeltaVsRef: true,
 		types.OverlayKindPropZCell:  true,
+		// PROP_Z_PANEL (E7-S11) is the multi-ref pairwise-Sig sibling of
+		// PROP_Z_CELL — same COMPOSE-host skip rule applies. Buffered
+		// (inferential family).
+		types.OverlayKindPropZPanel: true,
 		types.OverlayKindTCell:      true,
 		// T_VS_REF (E7-S10) is the series-shape sibling of T_CELL — same
 		// COMPOSE-host skip rule applies. Buffered (inferential family).

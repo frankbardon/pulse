@@ -110,13 +110,14 @@ type composeOverlayHandler func(spec *types.ComposeOverlaySpec, reference *types
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
-	types.OverlayKindIndexVsRef: applyIndexVsRef,
-	types.OverlayKindDeltaVsRef: applyDeltaVsRef,
-	types.OverlayKindPropZCell:  applyPropZCell,
-	types.OverlayKindTCell:      applyTCell,
-	types.OverlayKindTVsRef:     applyTVsRef,
-	types.OverlayKindChiSqVsRef: applyChiSqVsRef,
-	types.OverlayKindRank:       applyRank,
+	types.OverlayKindIndexVsRef:  applyIndexVsRef,
+	types.OverlayKindDeltaVsRef:  applyDeltaVsRef,
+	types.OverlayKindPropZCell:   applyPropZCell,
+	types.OverlayKindPropZPanel:  applyPropZPanel,
+	types.OverlayKindTCell:       applyTCell,
+	types.OverlayKindTVsRef:      applyTVsRef,
+	types.OverlayKindChiSqVsRef:  applyChiSqVsRef,
+	types.OverlayKindRank:        applyRank,
 }
 
 // ApplyComposeOverlays executes every spec in specs against the

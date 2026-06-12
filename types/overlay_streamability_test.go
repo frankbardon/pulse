@@ -154,6 +154,12 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// Non-Goals every inferential overlay stays buffered regardless
 		// of host streamability.
 		OverlayKindPropZCell: false,
+		// PROP_Z_PANEL is the multi-ref inferential COMPOSE-only kind
+		// (E7-S11). Emits a per-cell flattened upper-triangular slice of
+		// pairwise two-proportion p-values across N + 1 slots. Reuses
+		// the twoProportionZ helper that backs OVERLAY_PROP_Z_CELL.
+		// Inferential family stays buffered per PRD §2 Non-Goals.
+		OverlayKindPropZPanel: false,
 		// RANK is buffered — COMPOSE-only kind (E7-S9), per-cell
 		// rank-within-population (row / column / matrix). The COMPOSE
 		// host is buffered by the slot barrier; ranking within the
