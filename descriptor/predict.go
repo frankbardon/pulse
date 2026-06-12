@@ -881,11 +881,33 @@ func populateOverlayDescriptors(result *PredictResult, req *types.Request) {
 	if result == nil || req == nil || len(req.Overlays) == 0 {
 		return
 	}
-	for i := range req.Overlays {
-		spec := &req.Overlays[i]
+	result.OverlaysApplied, result.OverlayCost = appendOverlayDescriptors(
+		result.OverlaysApplied, result.OverlayCost, req.Overlays,
+	)
+}
+
+// appendOverlayDescriptors is the shared per-spec emitter used by both
+// the Request-host predict surface (PredictResult) and the FACET-host
+// predict surface (FacetValidationResult). Each spec produces one
+// OverlayAppliedDescriptor entry plus one entry in the cost map keyed by
+// the spec's renderer-facing name (or a synthesised default when empty).
+// Streamability + cost both consult types.OverlayStreamable(kind) so the
+// static streamability table stays the single source of truth.
+//
+// Returns the (possibly grown) descriptor slice and cost map. The cost
+// map is mutated in place when non-nil; callers must seed an empty map
+// on the destination struct before invoking this helper so the JSON
+// output stays empty-but-not-nil (matching the PredictResult contract).
+func appendOverlayDescriptors(
+	descriptors []OverlayAppliedDescriptor,
+	costs map[string]float64,
+	specs []types.OverlaySpec,
+) ([]OverlayAppliedDescriptor, map[string]float64) {
+	for i := range specs {
+		spec := &specs[i]
 		name := overlayDescriptorName(spec)
 		streamable, _ := types.OverlayStreamable(spec.Kind)
-		result.OverlaysApplied = append(result.OverlaysApplied, OverlayAppliedDescriptor{
+		descriptors = append(descriptors, OverlayAppliedDescriptor{
 			Name:       name,
 			Kind:       spec.Kind,
 			Scope:      spec.Scope,
@@ -897,8 +919,34 @@ func populateOverlayDescriptors(result *PredictResult, req *types.Request) {
 		// overlayCostBuffered (~one extra payload traversal) because
 		// they re-walk the materialised host structure at the post-
 		// host exit.
-		result.OverlayCost[name] = overlayCostForKind(spec.Kind)
+		if costs != nil {
+			costs[name] = overlayCostForKind(spec.Kind)
+		}
 	}
+	return descriptors, costs
+}
+
+// populateFacetOverlayDescriptors fills FacetValidationResult.OverlaysApplied
+// and FacetValidationResult.OverlayCost from req.Overlays. Sibling to
+// populateOverlayDescriptors — the FACET-host predict surface mirrors the
+// Request-host predict surface (kind-catalog-v1 PRD §I-FR-I3) so LLM
+// callers see the same per-spec descriptor shape (Name + Kind + Scope +
+// Streamable) and the same per-kind cost map regardless of host shape.
+//
+// Per-kind cost dispatch: all four FACET-host kinds route through the
+// same overlayCostForKind helper. The streamability table at
+// types/overlay_streamability.go declares OVERLAY_INDEX_VS_POP and
+// OVERLAY_ZSCORE_VS_POP as streamable (cost ~0.05) and OVERLAY_CHISQ_VS_POP
+// and OVERLAY_KS_VS_POP as buffered (cost ~1.0) per PRD §2 Non-Goals
+// ("Streaming overlay path for inferential kinds"). Cost flips
+// automatically when a kind's streamability flag flips.
+func populateFacetOverlayDescriptors(result *FacetValidationResult, req *types.FacetRequest) {
+	if result == nil || req == nil || len(req.Overlays) == 0 {
+		return
+	}
+	result.OverlaysApplied, result.OverlayCost = appendOverlayDescriptors(
+		result.OverlaysApplied, result.OverlayCost, req.Overlays,
+	)
 }
 
 // overlayDescriptorName returns the renderer-facing label for an
