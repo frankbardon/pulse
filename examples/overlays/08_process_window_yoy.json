@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process aggregating revenue by month decorated with an OVERLAY_YOY group overlay that scores each month against the same month one year prior (current_month / month-12-prior * 100). The orders.pulse cohort spans the 2025 calendar year only, so all 12 monthly ordinals emit NaN (no prior-year value available — the canonical first-year-no-comparison case). The example demonstrates the YoY request shape (GROUP_DATE host with frequency-via-Params promotion) — the orchestrator reads the host's `frequency` Param (monthly) and promotes it onto the empty `Ref.YoY` marker before handler dispatch. Buffered: the per-frequency prior-period lookup requires the materialised host series.",
+    "name": "process-window-yoy",
+    "operators": [
+      "AGG_SUM",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "overlay",
+      "time-series"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "monthly_revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "order_date",
+      "params": {
+        "component": "month",
+        "frequency": "monthly"
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "yoy",
+      "kind": "OVERLAY_YOY",
+      "scope": "group",
+      "ref": {
+        "yoy": {}
+      }
+    }
+  ]
+}

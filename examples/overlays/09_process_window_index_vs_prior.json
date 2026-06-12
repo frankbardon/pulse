@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process aggregating revenue by month decorated with an OVERLAY_INDEX_VS_PRIOR group overlay that scores each month against the immediately preceding month (current_month / previous_month * 100) — a month-over-month index. Streamable: the single-state lag carrier is one f64 per group, carried alongside the per-group accumulators inside the streaming Process fold. First-present-point semantics: January emits NaN (no prior available — distinct from divide-by-zero); February onward each emits feb/jan*100, mar/feb*100, and so on against orders.pulse's 2025 calendar-year span.",
+    "name": "process-window-index-vs-prior",
+    "operators": [
+      "AGG_SUM",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "overlay",
+      "streaming-friendly",
+      "time-series"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "monthly_revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "order_date",
+      "params": {
+        "component": "month"
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "mom_index",
+      "kind": "OVERLAY_INDEX_VS_PRIOR",
+      "scope": "group"
+    }
+  ]
+}
