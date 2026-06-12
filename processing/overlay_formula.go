@@ -411,7 +411,46 @@ func computeMatrixWelfordSDs(host *CrosstabHostView, needRow, needCol, needGrand
 // Output shape: MATRIX payload mirroring the host's RowKeys /
 // ColumnKeys / headers so renderers can lay the overlay on top of the
 // base matrix with the same header machinery as INDEX_VS_MARGIN.
+//
+// Extension visibility: this entry point routes through
+// `applyFormulaWithExtensions` with a nil `*ExtensionRegistry`. The
+// expression environment carries only the per-shape variable namespace
+// + the expr-lang stdlib; embedder ExprFunctions are NOT visible.
+// Callers that need embedder functions in scope (Process / Crosstab
+// orchestrators) use `applyFormulaWithExtensions` directly via
+// `ApplyOverlaysWithExtensions` (E8-S5).
 func applyFormula(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+	return applyFormulaWithExtensions(spec, host, nil)
+}
+
+// applyFormulaWithExtensions is the registry-aware sibling of
+// applyFormula. Identical contract except that the supplied
+// `*ExtensionRegistry` (when non-nil) participates in the
+// `compileFormulaProgram` step — embedder-registered ExprFunctions are
+// reachable from the formula via the same `ExprOptions()` merge that
+// ATTR_FORMULA / FILTER_EXPRESSION already consume.
+//
+// E8-S5: the registry's `ExprFunctions` are appended to the
+// `[]expr.Option` slice via `exts.ExprOptions()`; collision with the
+// per-shape variable namespace (`cell` / `margin_*` / `sd_*` /
+// `ref_cell` / etc.) is impossible because variables and functions
+// live in disjoint expr-lang namespaces (the function namespace is the
+// callable site only — `cell(...)` is a syntax error when `cell` is
+// declared as a value, and a custom `pct_change` function does not
+// shadow a value binding). Built-in function collision is rejected at
+// `pulse.New()` via `extensions_validate.go` (the registration validator
+// runs before any overlay handler ever sees the registry).
+//
+// LookupTables: when `exts.LookupTables` is non-empty the registered
+// `lookup(table, keys...)` built-in is reachable from FORMULA
+// expressions — same shape ATTR_FORMULA / FILTER_EXPRESSION expose.
+// Research note § 4.3 contemplated keeping LookupTables out of scope
+// at v1; this story respects the unified expression-environment
+// contract — `ExprOptions()` registers both ExprFunctions and the
+// lookup builtin in one slice and the FORMULA surface inherits both.
+// FORMULA authors who do not want lookup access simply do not call
+// it.
+func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView, exts *ExtensionRegistry) (types.OverlayLayer, []OverlayWarning, error) {
 	formula, err := extractFormulaParam(spec)
 	if err != nil {
 		return types.OverlayLayer{}, nil, err
@@ -435,7 +474,7 @@ func applyFormula(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overla
 		GrandSD:    grandSD,
 	}
 
-	program, err := compileFormulaProgram(spec, formula, buildFormulaPrototypeEnvMatrix(ctx))
+	program, err := compileFormulaProgramWithExtensions(spec, formula, buildFormulaPrototypeEnvMatrix(ctx), exts)
 	if err != nil {
 		return types.OverlayLayer{}, nil, err
 	}
@@ -619,30 +658,51 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 // carrying the compiled bytecode + the source formula string for
 // later runtime error wrapping.
 //
-// E8-S2: compiled against the static prototype env only. The
-// embedder ExprFunctions hook is reserved as a TODO — when E8-S5
-// widens the overlay-handler dispatch signature to thread the
-// ExtensionRegistry through, the registry's `ExprOptions()` slice
-// will be appended to the `[]expr.Option` here so embedder-registered
-// functions become reachable from FORMULA expressions (mirrors
-// `formulaAttribute.Row` which already calls `a.exts.ExprOptions()`
-// at compile time — see `processing/attribute.go`). LookupTables are
-// intentionally NOT registered (research note § 4.3); embedders who
-// need lookup-driven overlays register the lookup as a custom
-// `ExprFunctions` entry instead.
+// E8-S2: compiled against the static prototype env only — the no-
+// extension entry point that older callers and isolated tests use.
+// Registry-aware callers (the buffered Crosstab orchestrator and any
+// future Process-wide overlay dispatch) go through
+// `compileFormulaProgramWithExtensions` directly to thread embedder
+// ExprFunctions / LookupTables into the compile-time
+// `[]expr.Option` slice.
 //
 // Failure mode: a non-nil error from `expr.Compile` propagates as a
 // `PULSE_OVERLAY_FORMULA_PARSE_ERROR` CodedError carrying both the
 // source formula and the parser's error message in Details.
 func compileFormulaProgram(spec *types.OverlaySpec, formula string, protoEnv map[string]any) (*formulaProgram, error) {
+	return compileFormulaProgramWithExtensions(spec, formula, protoEnv, nil)
+}
+
+// compileFormulaProgramWithExtensions is the registry-aware sibling of
+// `compileFormulaProgram`. When `exts` is non-nil its `ExprOptions()`
+// slice is appended to the `[]expr.Option` passed to `expr.Compile`,
+// making embedder-registered ExprFunctions and the auto-injected
+// `lookup(table, keys...)` builtin reachable from FORMULA expressions.
+// Mirrors `formulaAttribute.Row` (`processing/attribute.go` line 281)
+// which already merges `a.exts.ExprOptions()` at compile time for
+// ATTR_FORMULA — the OVERLAY_FORMULA surface inherits the same merge
+// so a single ExprFunction registered via
+// `pulse.Options.Extensions.ExprFunctions` is reachable from both
+// surfaces with one registration site.
+//
+// Collisions: function-name collisions with built-in expr-lang stdlib
+// helpers (or with the per-shape variable namespace) are rejected at
+// `pulse.New()` time via `extensions_validate.go`; the runtime never
+// sees a registry whose ExprFunctions shadow a reserved identifier.
+//
+// Failure mode: identical to `compileFormulaProgram` — a non-nil error
+// from `expr.Compile` propagates as a
+// `PULSE_OVERLAY_FORMULA_PARSE_ERROR` CodedError. An expression
+// referencing an embedder function that the registry did NOT supply
+// surfaces as a parse-time undefined-identifier error from expr-lang
+// (no separate `PULSE_OVERLAY_FORMULA_INVALID_IDENT` code at v1; the
+// existing `PULSE_OVERLAY_FORMULA_PARSE_ERROR` carries the offending
+// identifier in the parser's error message).
+func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string, protoEnv map[string]any, exts *ExtensionRegistry) (*formulaProgram, error) {
 	opts := []expr.Option{expr.Env(protoEnv)}
-	// TODO(E8-S5): when the overlay-handler dispatch signature widens
-	// to thread the ExtensionRegistry through, append
-	// `exts.ExprOptions()` to opts so embedder-registered ExprFunctions
-	// are reachable from FORMULA expressions. Until then the FORMULA
-	// surface is limited to the expr-lang stdlib + the per-host-shape
-	// variable namespace. LookupTables stay out of scope at v1 per
-	// research note § 4.3.
+	if exts != nil {
+		opts = append(opts, exts.ExprOptions()...)
+	}
 	program, err := expr.Compile(formula, opts...)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(

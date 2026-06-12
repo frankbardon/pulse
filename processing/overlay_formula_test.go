@@ -782,3 +782,158 @@ func TestOverlay_Formula_BoolCoercesToFloat(t *testing.T) {
 		}
 	}
 }
+
+// TestExtensions_OverlayKinds_FormulaExprFn verifies the E8-S5 wiring
+// — an embedder ExprFunction registered via the runtime ExtensionRegistry
+// becomes reachable from an `OVERLAY_FORMULA` Params["formula"]
+// expression when the buffered crosstab exit threads the registry into
+// `ApplyOverlaysWithExtensions`.
+//
+// The test stubs a registry with a single function `pct_change(now,
+// ref) → (now - ref) / ref * 100`, builds a 2x2 host matrix, runs
+// `applyFormulaWithExtensions` with a formula calling the function,
+// and asserts every present cell carries the expected percent-change
+// value relative to a reference column constant.
+//
+// The matching control case (nil registry, same formula) is
+// expected to fail at compile time with the canonical
+// PULSE_OVERLAY_FORMULA_PARSE_ERROR — expr-lang surfaces an undefined
+// identifier when the function is not registered. The control arm
+// pins the failure mode the AC names: function unavailability surfaces
+// as a parse-time CodedError (PULSE_OVERLAY_FORMULA_PARSE_ERROR; the
+// FORMULA-specific INVALID_IDENT code is reserved for the E8-S4
+// predict path).
+func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
+	// Embedder function: classic percent-change between two values.
+	// Mirrors the AC example pct_change(cell, ref_cell) * 1 — the
+	// embedder hands the FORMULA author a typed helper that lives in
+	// the function namespace, not the variable namespace.
+	pctChange := func(now, ref float64) float64 {
+		if ref == 0 {
+			return math.NaN()
+		}
+		return (now - ref) / ref * 100.0
+	}
+
+	exts := &ExtensionRegistry{
+		ExprFunctions: []ExprFunction{
+			{Name: "pct_change", Fn: pctChange},
+		},
+	}
+
+	host := newFormulaHost(2, 2, func(r, c int) float64 {
+		// Cells: (0,0)=110, (0,1)=120, (1,0)=130, (1,1)=140 so the
+		// percent change versus a fixed reference of 100 is monotonic
+		// and easy to read.
+		return float64(110 + r*20 + c*10)
+	})
+
+	// Reference of 100.0 lets us assert exact percent-change values.
+	spec := newFormulaSpec("pct_change_layer", "pct_change(cell, 100.0)")
+
+	layer, warnings, err := applyFormulaWithExtensions(&spec, host, exts)
+	if err != nil {
+		t.Fatalf("applyFormulaWithExtensions: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("unexpected warnings: %v", warnings)
+	}
+
+	if layer.Payload.Shape != types.OverlayShapeMatrix {
+		t.Fatalf("layer.Payload.Shape = %v, want matrix", layer.Payload.Shape)
+	}
+	if layer.Payload.Matrix == nil {
+		t.Fatalf("layer.Payload.Matrix nil; want populated")
+	}
+
+	want := [][]float64{
+		// row 0: cells 110, 120 → pct vs 100 = 10.0, 20.0
+		{10.0, 20.0},
+		// row 1: cells 130, 140 → pct vs 100 = 30.0, 40.0
+		{30.0, 40.0},
+	}
+	cells := layer.Payload.Matrix.Cells
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 2; j++ {
+			cell := cells[i][j]
+			if !cell.Present {
+				t.Fatalf("Cells[%d][%d] absent; want present", i, j)
+			}
+			got, _ := cell.Value.(float64)
+			if got != want[i][j] {
+				t.Errorf("Cells[%d][%d].Value = %v, want %v", i, j, got, want[i][j])
+			}
+		}
+	}
+
+	// Negative arm: nil registry. The same formula refers to the
+	// unknown identifier `pct_change` so expr-lang surfaces a parse
+	// error wrapped as PULSE_OVERLAY_FORMULA_PARSE_ERROR. The
+	// FORMULA-specific INVALID_IDENT code (PULSE_OVERLAY_FORMULA_INVALID_IDENT)
+	// is reserved for the E8-S4 predict path; the runtime arm relies
+	// on the parser to flag the missing identifier.
+	_, _, err = applyFormulaWithExtensions(&spec, host, nil)
+	if err == nil {
+		t.Fatalf("applyFormulaWithExtensions(nil exts): want PULSE_OVERLAY_FORMULA_PARSE_ERROR, got nil")
+	}
+	requireFormulaCoded(t, err, errors.PULSE_OVERLAY_FORMULA_PARSE_ERROR)
+
+	// Belt-and-suspenders: the public ApplyOverlaysWithExtensions
+	// entry routes the same spec through the FORMULA dispatch arm and
+	// produces a byte-equal layer when the registry is supplied.
+	layers, _, err := ApplyOverlaysWithExtensions([]types.OverlaySpec{spec}, host, exts)
+	if err != nil {
+		t.Fatalf("ApplyOverlaysWithExtensions: %v", err)
+	}
+	if len(layers) != 1 {
+		t.Fatalf("len(layers) = %d, want 1", len(layers))
+	}
+	dispatchedCells := layers[0].Payload.Matrix.Cells
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 2; j++ {
+			got, _ := dispatchedCells[i][j].Value.(float64)
+			if got != want[i][j] {
+				t.Errorf("ApplyOverlaysWithExtensions Cells[%d][%d].Value = %v, want %v", i, j, got, want[i][j])
+			}
+		}
+	}
+}
+
+// TestExtensions_OverlayKinds_FormulaLookupTable verifies that an
+// embedder's LookupTables registration becomes reachable from a
+// FORMULA expression via the auto-injected `lookup(table, key)` builtin
+// — the same lookup surface ATTR_FORMULA / FILTER_EXPRESSION expose.
+//
+// The test registers a single-key LookupTable, builds a host matrix,
+// and asserts the lookup result lands in every present cell. The
+// registration mirrors `pulse.Options.Extensions.LookupTables` (the
+// runtime LookupTable mirrors the public one — see processing/extensions.go).
+func TestExtensions_OverlayKinds_FormulaLookupTable(t *testing.T) {
+	exts := &ExtensionRegistry{
+		LookupTables: map[string]LookupTable{
+			"weights": {
+				Rows: map[string]float64{
+					"k1": 2.0,
+				},
+			},
+		},
+	}
+
+	host := newFormulaHost(1, 1, func(r, c int) float64 {
+		return 5.0
+	})
+	spec := newFormulaSpec("lookup_layer", `cell * lookup("weights", "k1")`)
+
+	layer, _, err := applyFormulaWithExtensions(&spec, host, exts)
+	if err != nil {
+		t.Fatalf("applyFormulaWithExtensions: %v", err)
+	}
+	cell := layer.Payload.Matrix.Cells[0][0]
+	if !cell.Present {
+		t.Fatalf("Cells[0][0] absent; want present")
+	}
+	got, _ := cell.Value.(float64)
+	if got != 10.0 {
+		t.Errorf("Cells[0][0].Value = %v, want 10.0", got)
+	}
+}

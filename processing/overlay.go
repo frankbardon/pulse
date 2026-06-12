@@ -264,17 +264,17 @@ type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types
 // (types/overlay.go + types/overlay_streamability.go), add the runtime
 // handler in this package, and add the dispatch entry here.
 var overlayHandlers = map[types.OverlayKind]overlayHandler{
-	types.OverlayKindChiSqCol:       applyChiSqCol,
-	types.OverlayKindChiSqMatrix:    applyChiSqMatrix,
-	types.OverlayKindChiSqRow:       applyChiSqRow,
-	types.OverlayKindDeltaVsMargin:  applyDeltaVsMargin,
+	types.OverlayKindChiSqCol:        applyChiSqCol,
+	types.OverlayKindChiSqMatrix:     applyChiSqMatrix,
+	types.OverlayKindChiSqRow:        applyChiSqRow,
+	types.OverlayKindDeltaVsMargin:   applyDeltaVsMargin,
 	types.OverlayKindFisherExactCell: applyFisherExactCell,
-	types.OverlayKindFormula:        applyFormula,
-	types.OverlayKindIndexVsMargin:  applyIndexVsMargin,
-	types.OverlayKindShareOfCol:     applyShareOfCol,
-	types.OverlayKindShareOfRow:     applyShareOfRow,
-	types.OverlayKindShareOfTotal:   applyShareOfTotal,
-	types.OverlayKindZScoreVsMargin: applyZScoreVsMargin,
+	types.OverlayKindFormula:         applyFormula,
+	types.OverlayKindIndexVsMargin:   applyIndexVsMargin,
+	types.OverlayKindShareOfCol:      applyShareOfCol,
+	types.OverlayKindShareOfRow:      applyShareOfRow,
+	types.OverlayKindShareOfTotal:    applyShareOfTotal,
+	types.OverlayKindZScoreVsMargin:  applyZScoreVsMargin,
 }
 
 // ApplyOverlays executes every spec in specs against the host view
@@ -303,7 +303,34 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 // The same condition is caught at predict time
 // (descriptor.ValidateOverlays); the runtime gate is defensive in case
 // the predict step was bypassed (programmatic Process callers).
+//
+// Extension visibility: callers that need embedder-registered
+// ExprFunctions (OVERLAY_FORMULA) to participate in the per-cell
+// expression environment should use `ApplyOverlaysWithExtensions`
+// instead — this no-extension entry point preserves backward
+// compatibility for in-package tests + non-FORMULA call sites.
 func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.OverlayLayer, []OverlayWarning, error) {
+	return ApplyOverlaysWithExtensions(specs, host, nil)
+}
+
+// ApplyOverlaysWithExtensions is the registry-aware sibling of
+// ApplyOverlays. Identical contract to ApplyOverlays except that the
+// supplied `*ExtensionRegistry` (when non-nil) participates in the
+// per-spec FORMULA compile step — embedder-registered ExprFunctions
+// become reachable from `OVERLAY_FORMULA` Params["formula"] expressions
+// via the same `ExprOptions()` slice that ATTR_FORMULA / FILTER_EXPRESSION
+// already consume. Non-FORMULA kinds ignore the registry; the per-kind
+// runtime handler signature is intentionally NOT widened so the existing
+// 11 handlers stay byte-identical to their pre-E8 implementations.
+//
+// E8-S5: the buffered crosstab exit (`applyOverlaysToResponse`) routes
+// every Request-host overlay fold through this entry point and forwards
+// the Processor's live `*ExtensionRegistry` so a request that lists
+// `OVERLAY_FORMULA` alongside any other kind picks up the registry's
+// custom functions at compile time. The nil-registry no-extension
+// behaviour is preserved when the caller does not have a registry on
+// hand (tests, isolated handler exercises).
+func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostView, exts *ExtensionRegistry) ([]types.OverlayLayer, []OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -317,6 +344,23 @@ func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 		spec := &specs[i]
 		if err := validateOverlayLevelWithinRuntime(spec, host, i); err != nil {
 			return nil, nil, err
+		}
+		// FORMULA dispatch bypasses the static handler table when the
+		// caller supplied a registry — the registry-aware variant
+		// threads embedder ExprFunctions into the compile-time
+		// `[]expr.Option` slice. Every other kind (and FORMULA with a
+		// nil registry) routes through the static dispatch table where
+		// every handler shares the (spec, host) signature.
+		if spec.Kind == types.OverlayKindFormula {
+			layer, ws, err := applyFormulaWithExtensions(spec, host, exts)
+			if err != nil {
+				return nil, nil, err
+			}
+			layers = append(layers, layer)
+			if len(ws) > 0 {
+				warnings = append(warnings, ws...)
+			}
+			continue
 		}
 		handler, ok := overlayHandlers[spec.Kind]
 		if !ok {
@@ -545,10 +589,10 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 			errors.PROCESSING_INTERNAL,
 			"overlay "+string(spec.Kind)+" requires a host contingency of at least 2 rows × 2 columns",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-				"kind":  string(spec.Kind),
-				"rows":  rowCount,
-				"cols":  colCount,
+				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+				"kind": string(spec.Kind),
+				"rows": rowCount,
+				"cols": colCount,
 			})
 	}
 
@@ -801,9 +845,9 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 		// the entry slot so the parallel-slice contract holds. Equally
 		// when grand == 0 every expected cell is undefined.
 		var (
-			stat            float64
-			rowLowExpected  int
-			rowExpectedMin  = math.Inf(1)
+			stat           float64
+			rowLowExpected int
+			rowExpectedMin = math.Inf(1)
 		)
 		degenerate := false
 		if grand <= 0 || rowTotals[i] <= 0 {
@@ -1252,10 +1296,10 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 //
 // 2×2 layout (for cell at (i, j)):
 //
-//	             col=j               col≠j
-//	  row=i      a = cell            b = row_margin - cell
-//	  row≠i      c = col_margin -    d = grand - row_margin
-//	                cell                 - col_margin + cell
+//	           col=j               col≠j
+//	row=i      a = cell            b = row_margin - cell
+//	row≠i      c = col_margin -    d = grand - row_margin
+//	              cell                 - col_margin + cell
 //
 // The 2×2 cells are non-negative because the buffered crosstab
 // orchestrator computes every margin from the same filter-passing row
@@ -1371,9 +1415,9 @@ func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (type
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " requires a positive grand total; got " + formatFloatForWarning(grandTotal),
 			Details: map[string]any{
-				"kind":         string(spec.Kind),
-				"grand_total":  grandTotal,
-				"margin_set":   grandPresent,
+				"kind":        string(spec.Kind),
+				"grand_total": grandTotal,
+				"margin_set":  grandPresent,
 			},
 		}}
 		return layer, warnings, nil
@@ -1789,7 +1833,7 @@ func buildOverlayDenominators(
 	// No additional filtering required.
 	return buckets, cellKeys
 }
-//
+
 // Output shape: MATRIX payload mirroring the host's RowKeys /
 // ColumnKeys / headers so renderers can lay the overlay on top of the
 // base matrix with the same header machinery. Missing host cells

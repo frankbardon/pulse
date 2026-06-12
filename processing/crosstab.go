@@ -566,7 +566,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	//     byte-identity preserved against the pre-overlay baseline.
 	//   - The fused crosstab path (crosstab_fused.go) is intentionally
 	//     deferred per the E1 scope notes.
-	if err := applyOverlaysToResponse(req, resp); err != nil {
+	if err := applyOverlaysToResponse(req, resp, p.exts); err != nil {
 		return nil, err
 	}
 
@@ -587,7 +587,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // On unknown overlay kind, ApplyOverlays returns a PROCESSING_INTERNAL
 // CodedError whose details carry the canonical
 // errors.PULSE_OVERLAY_KIND_UNKNOWN code.
-func applyOverlaysToResponse(req *types.Request, resp *types.Response) error {
+func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry) error {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil
 	}
@@ -598,7 +598,14 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response) error {
 		return nil
 	}
 	host := NewCrosstabHostView(resp.Crosstab.Matrix)
-	layers, warnings, err := ApplyOverlays(req.Overlays, host)
+	// E8-S5: when the Processor carries a live ExtensionRegistry the
+	// FORMULA dispatch arm of ApplyOverlaysWithExtensions threads the
+	// registry's ExprFunctions into the compile-time `[]expr.Option`
+	// slice so embedder-registered helpers (`pct_change`, lookup
+	// builtins, etc.) are reachable from OVERLAY_FORMULA expressions.
+	// Non-FORMULA kinds ignore the registry — their handlers continue
+	// to use the (spec, host) signature unchanged.
+	layers, warnings, err := ApplyOverlaysWithExtensions(req.Overlays, host, exts)
 	if err != nil {
 		return err
 	}
