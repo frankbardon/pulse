@@ -835,6 +835,23 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 		responses[i] = resp
 	}
 
+	// Compose-only overlay barrier (E7-S4). Runs AFTER every slot has
+	// produced a finalised *Response and BEFORE the response is
+	// returned to the caller. The serial path has no FailFast knob
+	// (a slot error returned early above), so when we reach this
+	// barrier every slot succeeded — the hook is unconditional.
+	// Empty / nil req.Overlays short-circuits with no allocation
+	// (byte-identical JSON vs pre-E7-S4 output).
+	//
+	// Facade rewire deferred to E7-S15: the layers + warnings are
+	// computed (so the hook surface is exercised end-to-end) but the
+	// facade still returns []*Response, so the values are discarded.
+	// E7-S15 lifts the return type to *ComposedResponse{Responses,
+	// Overlays} and persists both slots.
+	if _, _, err := s.applyComposeOverlays(ctx, composed, requests, responses); err != nil {
+		return nil, err
+	}
+
 	return responses, nil
 }
 

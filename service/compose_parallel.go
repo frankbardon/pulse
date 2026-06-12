@@ -140,12 +140,40 @@ func (s *Service) ComposeParallel(
 	}
 	if firstErr != nil {
 		if o.FailFast {
+			// FailFast=true + any-slot-failed: SKIP the overlay
+			// barrier entirely (per E7-S4 acceptance "when
+			// ComposeOptions.FailFast = true [...] and any slot
+			// fails, overlays are skipped entirely — no
+			// applyComposeOverlays call, no partial emission"). The
+			// failing call returns immediately with the first
+			// observed error.
 			return nil, fmt.Errorf("compose parallel: request %d: %w", failed[0], firstErr)
 		}
 		details := map[string]any{"failed_indices": failed, "first_error": firstErr.Error()}
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_INTERNAL,
 			fmt.Sprintf("compose parallel: %d/%d requests failed", len(failed), n),
 			details)
+	}
+
+	// Compose-only overlay barrier (E7-S4). Runs AFTER the worker
+	// pool drains and all per-slot results are gathered into the
+	// order-preserved `responses` slice. The parallel path here only
+	// reaches this barrier when EITHER every slot succeeded (FailFast
+	// = true or false; firstErr is nil) OR FailFast=false collected
+	// some slot failures and the orchestrator chose to surface them
+	// as aggregated details (the early-return branch above caught
+	// the FailFast=true case). The order of layer emission matches
+	// `req.Overlays` spec order regardless of slot dispatch order
+	// because `responses` is keyed by slot index, not completion
+	// order.
+	//
+	// Facade rewire deferred to E7-S15: the layers + warnings are
+	// computed (so the hook surface is exercised end-to-end) but the
+	// facade still returns []*Response, so the values are discarded.
+	// E7-S15 lifts the return type to *ComposedResponse{Responses,
+	// Overlays} and persists both slots.
+	if _, _, err := s.applyComposeOverlays(ctx, composed, requests, responses); err != nil {
+		return nil, err
 	}
 
 	return responses, nil
