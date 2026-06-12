@@ -72,16 +72,21 @@ func TestSkillsManifestConsistent(t *testing.T) {
 		t.Fatalf("index.json is not valid JSON: %v", err)
 	}
 
-	// Valid CLI leaves from the manifest
+	// Valid CLI leaves from the manifest. Must stay in sync with
+	// coverage_test.go's TestSkillsCoverAllCliLeaves leaves list and
+	// descriptor/manifest.go commands(). `process-chain` is the ProcessChain
+	// leaf (E6-S9) — streaming-and-watching's chain-overlay recipe routes
+	// off it.
 	validLeaves := map[string]bool{
-		"process":  true,
-		"compose":  true,
-		"sample":   true,
-		"facet":    true,
-		"inspect":  true,
-		"predict":  true,
-		"manifest": true,
-		"mcp":      true,
+		"process":       true,
+		"process-chain": true,
+		"compose":       true,
+		"sample":        true,
+		"facet":         true,
+		"inspect":       true,
+		"predict":       true,
+		"manifest":      true,
+		"mcp":           true,
 	}
 
 	items := List()

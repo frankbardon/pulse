@@ -4646,7 +4646,7 @@
       },
       {
         "name": "streaming-and-watching",
-        "description": "Build reactive consumers on top of Pulse — Request.Hash() for cache keys, StreamResult[T] for incremental output (ProcessStreamResult / SynthStream), Watch/WatchDir for file-change observation, FilterToFileWithRequest for deterministic derived cohorts, and manifest CommandAnnotations for caching policy. Use when wiring Pulse into long-running services, building materialization caches, or reacting to .pulse file mutations."
+        "description": "Build reactive consumers on top of Pulse — Request.Hash() for cache keys, StreamResult[T] for incremental output (ProcessStreamResult / SynthStream), Watch/WatchDir for file-change observation, FilterToFileWithRequest for deterministic derived cohorts, manifest CommandAnnotations for caching policy, and ChainRequest dual-slot overlays for per-stage + whole-chain decoration. Use when wiring Pulse into long-running services, building materialization caches, reacting to .pulse file mutations, or stacking overlays across a ProcessChain pipeline."
       },
       {
         "name": "synthetic-data",
@@ -5278,4 +5278,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 83d385b5ff5c2603de0f33e60ed4600a061a4435953d503217524c38db6166fa
+// golden-hash: 5b0a8b3384910419326eb3d322490f53600eec40314d5f00cd4d588ae9d8aa13

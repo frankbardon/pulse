@@ -1,8 +1,8 @@
 ---
 name: streaming-and-watching
-description: Build reactive consumers on top of Pulse — Request.Hash() for cache keys, StreamResult[T] for incremental output, Watch/WatchDir for file-change observation, FilterToFileWithRequest for deterministic derived cohorts, and manifest CommandAnnotations for caching policy. Use when wiring Pulse into long-running services, building materialization caches, or reacting to .pulse file mutations.
+description: Build reactive consumers on top of Pulse — Request.Hash() for cache keys, StreamResult[T] for incremental output, Watch/WatchDir for file-change observation, FilterToFileWithRequest for deterministic derived cohorts, manifest CommandAnnotations for caching policy, and ChainRequest dual-slot overlays for per-stage + whole-chain decoration. Use when wiring Pulse into long-running services, building materialization caches, reacting to .pulse file mutations, or stacking overlays across a ProcessChain pipeline.
 type: guide
-applies_to: process, compose, predict, manifest
+applies_to: process, compose, predict, manifest, process-chain
 ---
 
 # Streaming & Watching
@@ -273,4 +273,81 @@ A practical implication for the windowed family: a Request that pairs `OVERLAY_I
 The implication for caching: a Request whose hash carries any buffered overlay should be priced as buffered for caching policy regardless of which streamable overlays accompany it. `Manifest.Operations["process_stream"].annotations.streamable = true` describes the entry-point capability, not the per-request decision.
 
 For per-kind recipes against a grouped Process host see `skills/aggregation-guide.md` ("Overlays" section); for the windowed-Process family (`OVERLAY_INDEX_VS_PRIOR` + the five buffered siblings) see `skills/window-operations.md` ("Windowed-Process overlays" section); for Crosstab-host recipes see `skills/crosstab-guide.md` ("Overlays" section); for the general overlay framework see `skills/overlay-system.md`.
+</reference>
+
+<reference>
+## Chain overlays
+
+`ChainRequest` carries **two** overlay slots — one per stage on `Stages[i].Request.Overlays`, one whole-chain on `ChainRequest.Overlays`. Both slots run independently and land in different places on `ChainResponse`. Per-stage overlays fall out of E3's generic `Request.Overlays` path — no chain-specific code, the stage's own overlay handlers run at the per-stage exit before the next stage receives its synthesised cohort. Whole-chain overlays run AFTER every stage finalises (`service.ProcessChain`'s post-stage-loop barrier) and decorate any stage's already-materialised result.
+
+### Per-stage recipe
+
+Per-stage overlays piggyback on the existing `Request.Overlays` slot — the chain layer is transparent. Layer lands on `ChainResponse.Stages[0].Overlays`; no chain-specific code.
+
+```json
+{
+  "cohort": {"path": "sales-2025.pulse"},
+  "stages": [
+    {
+      "name": "by_region",
+      "request": {
+        "aggregations": [{"type": "AGG_SUM", "field": "revenue"}],
+        "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
+        "overlays": [
+          {"kind": "OVERLAY_INDEX_VS_TOTAL", "scope": "group"}
+        ]
+      }
+    },
+    {
+      "name": "top3",
+      "request": {"sort": {"field": "revenue", "limit": 3}}
+    }
+  ]
+}
+```
+
+### Whole-chain recipe
+
+Whole-chain overlays use `ChainRequest.Overlays` with `StageRef`-shaped `Ref` (baseline) + `Target` (decorated stage). Layers land on `ChainResponse.Overlays` in matching index order, NOT on any individual `Stages[i].Overlays`. Two whole-chain kinds today: `OVERLAY_INDEX_VS_STAGE` (ratio `target/ref * 100`) and `OVERLAY_DELTA_VS_STAGE` (subtraction `target - ref`). When `Target` is omitted entirely (both `Index: nil` and `Name: ""`), the resolver defaults to the latest stage (`len(Stages) - 1`); `Ref` has no default — every spec MUST name a baseline stage explicitly.
+
+```json
+{
+  "cohort": {"path": "sales-2025.pulse"},
+  "stages": [
+    {"name": "raw",   "request": {"aggregations": [{"type": "AGG_SUM", "field": "revenue"}], "groups": [{"type": "GROUP_CATEGORY", "field": "region"}]}},
+    {"name": "filter","request": {"filterers": [{"type": "FILTER_INCLUDE", "field": "active", "values": ["true"]}]}},
+    {"name": "final", "request": {"sort": {"field": "revenue"}}}
+  ],
+  "overlays": [
+    {"kind": "OVERLAY_INDEX_VS_STAGE", "ref": {"index": 0}, "target": {"index": 2}, "scope": "total"},
+    {"kind": "OVERLAY_DELTA_VS_STAGE", "ref": {"name": "raw"}, "target": {"name": "final"}, "scope": "total"}
+  ]
+}
+```
+
+### StageRef forms
+
+Both `Ref` and `Target` accept exactly one of `Index` (zero-based pointer into `Stages`) or `Name` (matches `ChainStage.Name` verbatim). The XOR is enforced by the E6-S7 predict-time validator — populating both AND populating neither both reject with the same `PULSE_OVERLAY_*` configuration error. Index form is the canonical resolution path; Name form exists for human-authored chain JSON where positional indexing would be brittle across stage reordering.
+
+```json
+{"ref": {"index": 0},   "target": {"index": 2}}    // index form
+{"ref": {"name": "raw"},"target": {"name": "final"}} // name form
+```
+
+`Index` uses a pointer (`*int`) so the zero value `Index: 0` (meaningfully "stage 0") is distinguishable from "no index supplied". When marshalling Go-side, set `Index: &zero` for stage 0; leaving the field nil is the omitted shape.
+
+### Gotcha: shape divergence across stages
+
+Stages typically reshape data across boundaries — stage 0 emits a grouped table, stage 1 filters it, stage 2 might collapse it to a scalar. `_VS_STAGE` overlays only fire when the target stage's host shape MATCHES the reference stage's host shape. When they diverge (e.g. `Ref` is a series stage, `Target` is a matrix stage) the runtime handler emits a SINGLE `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` warning per spec and surfaces an empty payload inheriting the target stage's shape — the overlay is effectively a no-op, NOT a fatal error.
+
+> **Callout — shape-divergence warning**
+> `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` fires when `Ref` stage's host shape (scalar / series / matrix) differs from `Target` stage's host shape. Predict-time gate (E6-S7) surfaces it as an envelope warning so the caller can fix the chain before paying the runtime cost; the runtime handler (E6-S4 / E6-S5) also emits it defensively at the post-stage-loop barrier. Warning Details carry `{target_shape, ref_shape, target_index, ref_index}` so callers can distinguish a shape mismatch from a genuine `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` configuration error.
+
+Pre-flight every chain-overlay-bearing `ChainRequest` through `pulse predict --json` (or `descriptor.ValidateChain`) before pricing it — the shape-divergence gate runs without re-executing the chain. For per-code prose: `pulse errors lookup PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`.
+
+### Cross-references
+
+- `skills/overlay-system.md` — `OVERLAY_INDEX_VS_STAGE` / `OVERLAY_DELTA_VS_STAGE` catalog rows, shared `indexKernel` / `deltaKernel` semantics, shape-inheritance rules.
+- CLAUDE.md "Execution modes" → ProcessChain — source-rooted linear chain mechanics, `CanChainRequest` mergeable gate, `PULSE_CHAIN_NOT_MERGEABLE` fallback path.
+- `skills/contributor-workflow.md` — `pulse api process-chain` CLI surface; the `--echo-request` per-stage normalised echo on `envelope.request`.
 </reference>
