@@ -2649,6 +2649,16 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
+	case types.OverlayKindDeltaVsSibling:
+		// DELTA_VS_SIBLING resolves a sibling via Ref.Sibling.{Field,
+		// Value}; the synthesised default surfaces the bare lower-case
+		// kind string "delta_vs_sibling" so renderers can use it
+		// directly as a tab / legend label without uppercasing
+		// (mirrors INDEX_VS_TOTAL / ZSCORE_VS_TOTAL — the sibling-
+		// reference kinds intentionally do NOT echo the specific
+		// (field, value) pair in the default name; renderers that
+		// need the disambiguation populate spec.Name explicitly).
+		return "delta_vs_sibling"
 	case types.OverlayKindFisherExactCell:
 		// FISHER_EXACT_CELL is implicit-margin (no axis dispatch — the
 		// per-cell 2×2 always reads row + col margins from the host);
@@ -2660,6 +2670,13 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		if spec.Ref.Margin != nil {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
+	case types.OverlayKindIndexVsSibling:
+		// INDEX_VS_SIBLING resolves a sibling via Ref.Sibling.{Field,
+		// Value}; the synthesised default surfaces the bare lower-case
+		// kind string "index_vs_sibling" so renderers can use it
+		// directly as a tab / legend label without uppercasing
+		// (mirrors DELTA_VS_SIBLING).
+		return "index_vs_sibling"
 	case types.OverlayKindIndexVsTotal:
 		// INDEX_VS_TOTAL is implicit-grand-total (no Ref family); the
 		// synthesised default is the bare kind string in lower-case so

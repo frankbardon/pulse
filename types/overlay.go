@@ -275,6 +275,59 @@ const (
 	// contingency overlay closing the E2 inferential family.
 	OverlayKindFisherExactCell OverlayKind = "OVERLAY_FISHER_EXACT_CELL"
 
+	// OverlayKindDeltaVsSibling emits a per-group additive delta against a
+	// sibling group named in `Ref.Sibling`. GROUP scope over a SERIES
+	// (grouped Process) host with SERIES payload — one SeriesEntry per
+	// host group key in host order, each carrying `group_val - sibling_val`
+	// on `Summary.Statistic`. The sibling is identified by `(Field, Value)`
+	// — `Field` names a grouper Field present on the SERIES host, `Value`
+	// names the specific axis-key value to compare against. The sibling
+	// reference resolves to a single host group via the sibling resolver
+	// (`processing/overlay_sibling_resolver.go`); every present group
+	// emits a delta against that fixed reference point. The sibling
+	// group itself emits `0` (self-vs-self under additive subtraction).
+	//
+	// Buffered (per kind-catalog-v1 "Streaming-capable subset"): sibling
+	// resolution requires the full materialised SeriesPayload — the
+	// streaming Process pass cannot resolve a `(Field, Value)` lookup
+	// against the per-group accumulators until they are finalised, so the
+	// handler runs at the buffered post-host-finalize exit. The
+	// `OverlayStreamability[OverlayKindDeltaVsSibling]` row is `false`
+	// (mirrors `OverlayKindIndexVsSibling`).
+	//
+	// Math (per host group i):
+	//
+	//	sibling_val = host[Ref.Sibling.Field, Ref.Sibling.Value]   // resolver lookup
+	//	delta_i     = group_val[i] - sibling_val
+	//
+	// Absent-group policy: a host that did not produce a value for group
+	// i (resolver returns `(0, false)`) surfaces a SeriesEntry whose
+	// Summary leaves Statistic unset — canonical "present slot, empty
+	// summary" shape from the E3-S1 SERIES dispatch contract. Absent
+	// groups do NOT participate in the delta computation (and DO NOT
+	// surface zero — they carry no Statistic).
+	//
+	// Unknown sibling path: when `Ref.Sibling.Field` is not a grouper
+	// field on the host OR `Ref.Sibling.Value` does not match any
+	// observed axis-key value, the handler emits ONE
+	// PULSE_OVERLAY_REF_UNKNOWN warning carrying the offending
+	// `(field, value)` pair and surfaces NaN statistics across every
+	// present entry. Mirrors the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES
+	// PULSE_OVERLAY_REF_ZERO emission shape (one warning per layer, not
+	// per cell). DELTA is mathematically defined even when sibling is
+	// resolved AND sibling_val is zero — the delta is simply
+	// `group_val[i] - 0 = group_val[i]`, so the zero-sibling-value case
+	// does NOT raise PULSE_OVERLAY_REF_ZERO on this kind (unlike the
+	// INDEX_VS_SIBLING twin which divides by sibling and rejects zero).
+	//
+	// Ref handling: `Ref.Sibling` is REQUIRED — both `Field` and `Value`
+	// must be non-empty strings. Any other ref-family pointer (Margin /
+	// BaselineIndex / Population / Stage / Slot) fails
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time.
+	//
+	// Scope must be GROUP. The validator rejects any other scope.
+	OverlayKindDeltaVsSibling OverlayKind = "OVERLAY_DELTA_VS_SIBLING"
+
 	// OverlayKindIndexVsMargin produces an index score per cell (or per
 	// row/column, depending on Scope) by comparing the cell value against
 	// the matching axis margin: 100 * cell / margin. Scope=CELL emits one
@@ -284,6 +337,62 @@ const (
 	// margin is the denominator. Inherently buffered because margins are
 	// always recomputed from raw rows in the crosstab path.
 	OverlayKindIndexVsMargin OverlayKind = "OVERLAY_INDEX_VS_MARGIN"
+
+	// OverlayKindIndexVsSibling emits a per-group index score against a
+	// sibling group named in `Ref.Sibling`: `(group_val / sibling_val) *
+	// 100.0` per host group key. GROUP scope over a SERIES (grouped
+	// Process) host with SERIES payload — one SeriesEntry per host group
+	// key in host order, each carrying the index on `Summary.Statistic`.
+	// The sibling is identified by `(Field, Value)` — `Field` names a
+	// grouper Field present on the SERIES host, `Value` names the
+	// specific axis-key value to compare against. The sibling reference
+	// resolves to a single host group via the sibling resolver
+	// (`processing/overlay_sibling_resolver.go`); every present group
+	// emits an index against that fixed reference point. The sibling
+	// group itself emits `100.0` (self-vs-self under the ratio scaling).
+	//
+	// Buffered (per kind-catalog-v1 "Streaming-capable subset"): sibling
+	// resolution requires the full materialised SeriesPayload — the
+	// streaming Process pass cannot resolve a `(Field, Value)` lookup
+	// against the per-group accumulators until they are finalised, so the
+	// handler runs at the buffered post-host-finalize exit. The
+	// `OverlayStreamability[OverlayKindIndexVsSibling]` row is `false`
+	// (mirrors `OverlayKindDeltaVsSibling`).
+	//
+	// Math (per host group i):
+	//
+	//	sibling_val = host[Ref.Sibling.Field, Ref.Sibling.Value]   // resolver lookup
+	//	index_i     = (group_val[i] / sibling_val) * 100.0
+	//
+	// Absent-group policy: a host that did not produce a value for group
+	// i (resolver returns `(0, false)`) surfaces a SeriesEntry whose
+	// Summary leaves Statistic unset — canonical "present slot, empty
+	// summary" shape from the E3-S1 SERIES dispatch contract. Absent
+	// groups do NOT participate in the index computation.
+	//
+	// Unknown sibling path: when `Ref.Sibling.Field` is not a grouper
+	// field on the host OR `Ref.Sibling.Value` does not match any
+	// observed axis-key value, the handler emits ONE
+	// PULSE_OVERLAY_REF_UNKNOWN warning carrying the offending
+	// `(field, value)` pair and surfaces NaN statistics across every
+	// present entry. Mirrors DELTA_VS_SIBLING's unknown-sibling
+	// emission shape.
+	//
+	// Zero-sibling path: when the sibling resolves but its value is zero
+	// (legitimate group with a zero post-filter sum), the handler emits
+	// ONE PULSE_OVERLAY_REF_ZERO warning and surfaces NaN across every
+	// present entry — division by zero is mathematically undefined and
+	// the same PULSE_OVERLAY_REF_ZERO contract the SERIES INDEX_VS_TOTAL
+	// / SHARE_OF_TOTAL kinds use applies here. DELTA_VS_SIBLING does NOT
+	// emit this warning (subtraction by zero is well-defined).
+	//
+	// Ref handling: `Ref.Sibling` is REQUIRED — both `Field` and `Value`
+	// must be non-empty strings. Any other ref-family pointer (Margin /
+	// BaselineIndex / Population / Stage / Slot) fails
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time.
+	//
+	// Scope must be GROUP. The validator rejects any other scope.
+	OverlayKindIndexVsSibling OverlayKind = "OVERLAY_INDEX_VS_SIBLING"
 
 	// OverlayKindIndexVsTotal emits a per-group index score against the
 	// grand total of a SERIES host (grouped Process result): for each
@@ -512,8 +621,10 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindChiSqMatrix,
 		OverlayKindChiSqRow,
 		OverlayKindDeltaVsMargin,
+		OverlayKindDeltaVsSibling,
 		OverlayKindFisherExactCell,
 		OverlayKindIndexVsMargin,
+		OverlayKindIndexVsSibling,
 		OverlayKindIndexVsTotal,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,

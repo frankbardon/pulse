@@ -54,6 +54,17 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// test path is plumbed.
 	OverlayKindChiSqRow:      false,
 	OverlayKindDeltaVsMargin: false,
+	// OVERLAY_DELTA_VS_SIBLING is buffered — the SERIES sibling-reference
+	// family resolves its comparison anchor via a (Field, Value) lookup
+	// against the materialised per-group accumulators, which the streaming
+	// Process pass cannot satisfy until finalize time. The handler runs at
+	// the post-host-finalize exit (ApplyOverlaysSeries route) once the
+	// host series is fully materialised. Mirrors OverlayKindIndexVsSibling.
+	// Forward-compat: when E3-S7 / E3-S8 lift the sibling resolver into a
+	// streaming-aware shape (carrying the resolved sibling key inline as a
+	// kind-specific accumulator), the streamability flag will flip to true
+	// for both kinds.
+	OverlayKindDeltaVsSibling: false,
 	// OVERLAY_FISHER_EXACT_CELL is inherently buffered — the per-cell 2×2
 	// Fisher's exact test reads each cell value AND its row + column
 	// margins to build the 2×2 contingency, all of which the buffered
@@ -62,7 +73,18 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// is plumbed (PRD § 4.C FR-C2 — the canonical low-count contingency
 	// overlay closing the E2 inferential family).
 	OverlayKindFisherExactCell: false,
-	OverlayKindIndexVsMargin:   false,
+	OverlayKindIndexVsMargin: false,
+	// OVERLAY_INDEX_VS_SIBLING is buffered — the SERIES sibling-reference
+	// family resolves its comparison anchor via a (Field, Value) lookup
+	// against the materialised per-group accumulators, which the streaming
+	// Process pass cannot satisfy until finalize time. The handler runs at
+	// the post-host-finalize exit (ApplyOverlaysSeries route) once the
+	// host series is fully materialised. Mirrors OverlayKindDeltaVsSibling.
+	// Forward-compat: when E3-S7 / E3-S8 lift the sibling resolver into a
+	// streaming-aware shape (carrying the resolved sibling key inline as a
+	// kind-specific accumulator), the streamability flag will flip to true
+	// for both kinds.
+	OverlayKindIndexVsSibling: false,
 	// OVERLAY_INDEX_VS_TOTAL is streamable — first SERIES-host overlay
 	// in the catalog with a streaming finalize hook. The grand-total
 	// accumulator is one f64 carried alongside the per-group

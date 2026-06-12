@@ -33,6 +33,12 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// its margin centerpoint is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.
 		OverlayKindDeltaVsMargin: false,
+		// DELTA_VS_SIBLING is buffered — sibling resolution against a
+		// (Field, Value) pair requires the full materialised
+		// SeriesPayload; the streaming Process pass cannot resolve the
+		// reference until the per-group accumulators finalise. Mirrors
+		// INDEX_VS_SIBLING.
+		OverlayKindDeltaVsSibling: false,
 		// FISHER_EXACT_CELL is inferential — per-cell 2×2 contingency
 		// reads each cell value AND its row + column margins, all of
 		// which require the buffered host crosstab matrix. PRD § 4.C
@@ -43,6 +49,12 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// inherently buffered (see CLAUDE.md "Execution modes" →
 		// Crosstab).
 		OverlayKindIndexVsMargin: false,
+		// INDEX_VS_SIBLING is buffered — sibling resolution against a
+		// (Field, Value) pair requires the full materialised
+		// SeriesPayload; the streaming Process pass cannot resolve the
+		// reference until the per-group accumulators finalise. Mirrors
+		// DELTA_VS_SIBLING.
+		OverlayKindIndexVsSibling: false,
 		// INDEX_VS_TOTAL is the first streamable overlay — the
 		// grand-total accumulator is one f64 alongside the per-group
 		// accumulators inside the streaming Process fold; no second pass

@@ -698,6 +698,26 @@ const (
 	// slot today, so this code is unreachable from runtime until that
 	// story wires the slot through.
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE Code = "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE"
+
+	// PULSE_OVERLAY_REF_UNKNOWN is a WARNING-class code emitted by the
+	// sibling-reference overlay family (OVERLAY_DELTA_VS_SIBLING /
+	// OVERLAY_INDEX_VS_SIBLING) when the OverlaySpec.Ref.Sibling
+	// (Field, Value) pair does not resolve to a known group on the
+	// SERIES host. Two failure modes share the code: (1) the named
+	// `Sibling.Field` is not a grouper field on the host's grouper
+	// list, or (2) the named `Sibling.Value` is not present among the
+	// observed axis-key values for that field. The affected layer
+	// surfaces NaN statistics across every present entry; the warning
+	// carries the offending `(field, value)` pair plus the kind so
+	// callers can audit the failing reference. Surfaced as a
+	// Response.Warning, never as an envelope error — analogous to
+	// PULSE_OVERLAY_REF_ZERO's "denominator absent" emission shape.
+	// Distinct from PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+	// (structural shape mismatch caught at predict time) and from
+	// PULSE_OVERLAY_REF_ZERO (the sibling resolved but its value is
+	// zero — only meaningful for the INDEX_VS_SIBLING dispatch where
+	// division by zero is undefined).
+	PULSE_OVERLAY_REF_UNKNOWN Code = "PULSE_OVERLAY_REF_UNKNOWN"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -834,6 +854,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_REF_ZERO,
 	PULSE_OVERLAY_EXPECTED_LOW,
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
+	PULSE_OVERLAY_REF_UNKNOWN,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

@@ -3425,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 125,
+    "error_codes_count": 126,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3523,6 +3523,7 @@
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
       "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE",
+      "PULSE_OVERLAY_REF_UNKNOWN",
       "PULSE_OVERLAY_REF_ZERO",
       "PULSE_OVERLAY_SCOPE_UNSUPPORTED",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
@@ -4928,6 +4929,20 @@
         "description": "Per-cell additive delta against the matching axis margin: cell - margin. CELL scope over a MATRIX (crosstab) host. Supports all three margin axes (row / column / grand). Output preserves the host cell's units — a $-valued cell minus a $-valued margin yields a $-valued deviation. No division and no Welford recurrence, so PULSE_OVERLAY_REF_ZERO is never emitted; renderers centre diverging colour ramps on baseline=0. Honours OverlaySpec Level / Within slots for nested-axis denominator truncation (E2-S11)."
       },
       {
+        "kind": "OVERLAY_DELTA_VS_SIBLING",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [
+          "Sibling"
+        ],
+        "buffered": true,
+        "description": "Per-group additive delta against a sibling group named in Ref.Sibling: group_val - sibling_val per host group key. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on Summary.Statistic. The sibling is identified by (Field, Value): Field names a grouper Field on the host, Value names the specific axis-key value to compare against. The sibling group itself emits 0 (self-vs-self under additive subtraction). Buffered (sibling resolution requires the full materialised SeriesPayload — the streaming Process pass cannot resolve a (Field, Value) lookup against the per-group accumulators until they are finalised). Output preserves the host cell's units — a $-valued AGG_SUM group minus a $-valued sibling AGG_SUM group yields a $-valued deviation in the same currency. Unknown sibling (Field not on host OR Value not observed) emits PULSE_OVERLAY_REF_UNKNOWN with NaN statistics across every present entry. DELTA does NOT emit PULSE_OVERLAY_REF_ZERO when sibling resolves to a zero value — subtraction by zero is well-defined and just recovers the host's raw value. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT participate in the delta computation. Renderers centre diverging colour ramps on baseline=0."
+      },
+      {
         "kind": "OVERLAY_FISHER_EXACT_CELL",
         "shapes": [
           "matrix"
@@ -4956,6 +4971,20 @@
           "within"
         ],
         "description": "Per-cell index score against the matching axis margin: 100 * cell / margin. E1 supports CELL scope over a MATRIX (crosstab) host with a Margin reference. Honours OverlaySpec Level / Within slots for nested-axis denominator truncation (E2-S11)."
+      },
+      {
+        "kind": "OVERLAY_INDEX_VS_SIBLING",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [
+          "Sibling"
+        ],
+        "buffered": true,
+        "description": "Per-group ratio index against a sibling group named in Ref.Sibling: (group_val / sibling_val) * 100.0 per host group key. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. The sibling is identified by (Field, Value): Field names a grouper Field on the host, Value names the specific axis-key value to compare against. The sibling group itself emits 100.0 (self-vs-self under the ratio scaling). Buffered (sibling resolution requires the full materialised SeriesPayload — the streaming Process pass cannot resolve a (Field, Value) lookup against the per-group accumulators until they are finalised). Unknown sibling (Field not on host OR Value not observed) emits PULSE_OVERLAY_REF_UNKNOWN with NaN statistics across every present entry. Zero sibling value (legitimate group with a zero post-filter sum) emits PULSE_OVERLAY_REF_ZERO with NaN statistics — division by zero is undefined and the same PULSE_OVERLAY_REF_ZERO contract used by the SERIES INDEX_VS_TOTAL / SHARE_OF_TOTAL kinds applies. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT participate in the index computation. Renderers centre diverging colour ramps on baseline=100."
       },
       {
         "kind": "OVERLAY_INDEX_VS_TOTAL",
@@ -5060,4 +5089,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8c310017705004db2aaef6c7c0388ae2379f343410b22b8e00a7d23a0f52037c
+// golden-hash: 03b9b13086a11b7ff864227bf8577da98cc9f5bd72ceec4c50a4e0a8e23be779

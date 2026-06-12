@@ -236,6 +236,28 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"centre diverging colour ramps on baseline=0. Honours OverlaySpec Level / " +
 				"Within slots for nested-axis denominator truncation (E2-S11).",
 		}
+	case types.OverlayKindDeltaVsSibling:
+		return OverlayCapability{
+			Kind: types.OverlayKindDeltaVsSibling,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			RefKinds: []string{"Sibling"},
+			Description: "Per-group additive delta against a sibling group named in Ref.Sibling: group_val - sibling_val per host group key. " +
+				"GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each " +
+				"carrying the delta on Summary.Statistic. The sibling is identified by (Field, Value): Field names a grouper Field on the host, " +
+				"Value names the specific axis-key value to compare against. The sibling group itself emits 0 (self-vs-self under additive " +
+				"subtraction). Buffered (sibling resolution requires the full materialised SeriesPayload — the streaming Process pass cannot " +
+				"resolve a (Field, Value) lookup against the per-group accumulators until they are finalised). Output preserves the host cell's " +
+				"units — a $-valued AGG_SUM group minus a $-valued sibling AGG_SUM group yields a $-valued deviation in the same currency. " +
+				"Unknown sibling (Field not on host OR Value not observed) emits PULSE_OVERLAY_REF_UNKNOWN with NaN statistics across every " +
+				"present entry. DELTA does NOT emit PULSE_OVERLAY_REF_ZERO when sibling resolves to a zero value — subtraction by zero is well-" +
+				"defined and just recovers the host's raw value. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic " +
+				"unset and do NOT participate in the delta computation. Renderers centre diverging colour ramps on baseline=0.",
+		}
 	case types.OverlayKindFisherExactCell:
 		return OverlayCapability{
 			Kind: types.OverlayKindFisherExactCell,
@@ -278,6 +300,28 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"E1 supports CELL scope over a MATRIX (crosstab) host with a Margin reference. " +
 				"Honours OverlaySpec Level / Within slots for nested-axis denominator truncation " +
 				"(E2-S11).",
+		}
+	case types.OverlayKindIndexVsSibling:
+		return OverlayCapability{
+			Kind: types.OverlayKindIndexVsSibling,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			RefKinds: []string{"Sibling"},
+			Description: "Per-group ratio index against a sibling group named in Ref.Sibling: (group_val / sibling_val) * 100.0 per host group key. " +
+				"GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each " +
+				"carrying the index on Summary.Statistic. The sibling is identified by (Field, Value): Field names a grouper Field on the host, " +
+				"Value names the specific axis-key value to compare against. The sibling group itself emits 100.0 (self-vs-self under the ratio " +
+				"scaling). Buffered (sibling resolution requires the full materialised SeriesPayload — the streaming Process pass cannot resolve " +
+				"a (Field, Value) lookup against the per-group accumulators until they are finalised). Unknown sibling (Field not on host OR " +
+				"Value not observed) emits PULSE_OVERLAY_REF_UNKNOWN with NaN statistics across every present entry. Zero sibling value (legitimate " +
+				"group with a zero post-filter sum) emits PULSE_OVERLAY_REF_ZERO with NaN statistics — division by zero is undefined and the same " +
+				"PULSE_OVERLAY_REF_ZERO contract used by the SERIES INDEX_VS_TOTAL / SHARE_OF_TOTAL kinds applies. Absent host groups surface a " +
+				"present SeriesEntry whose Summary leaves Statistic unset and do NOT participate in the index computation. Renderers centre " +
+				"diverging colour ramps on baseline=100.",
 		}
 	case types.OverlayKindIndexVsTotal:
 		return OverlayCapability{

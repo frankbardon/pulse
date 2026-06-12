@@ -78,6 +78,17 @@ var deltaVsMarginSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
+// deltaVsSiblingSupportedScopes is the E3-supported scope set for
+// OVERLAY_DELTA_VS_SIBLING. The kind emits one entry per host group
+// key — Scope=GROUP is the only sensible footprint and any other
+// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
+// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
+// `indexVsSiblingSupportedScopes` — both sibling-reference kinds
+// share the GROUP-only scope contract.
+var deltaVsSiblingSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeGroup: true,
+}
+
 // fisherExactCellSupportedScopes is the E2-supported scope set for
 // OVERLAY_FISHER_EXACT_CELL. The per-cell Fisher's exact 2×2 test is
 // a CELL-scoped inferential overlay (canonical low-count χ² backstop;
@@ -96,6 +107,16 @@ var fisherExactCellSupportedScopes = map[types.OverlayScope]bool{
 // are wired through processing.
 var indexVsMarginSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
+}
+
+// indexVsSiblingSupportedScopes is the E3-supported scope set for
+// OVERLAY_INDEX_VS_SIBLING. The kind emits one entry per host group
+// key — Scope=GROUP is the only sensible footprint and any other
+// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
+// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
+// `deltaVsSiblingSupportedScopes`.
+var indexVsSiblingSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeGroup: true,
 }
 
 // indexVsTotalSupportedScopes is the E3-supported scope set for
@@ -249,6 +270,30 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-grand-total kind)",
+				map[string]any{
+					"index":  index,
+					"kind":   string(spec.Kind),
+					"level":  spec.Level,
+					"within": spec.Within,
+				})
+		}
+		return
+	}
+	// DELTA_VS_SIBLING / INDEX_VS_SIBLING are SERIES-host kinds
+	// (req.Groups, no req.Crosstab) whose Level / Within gate mirrors
+	// INDEX_VS_TOTAL because the sibling reference is a SINGLE FIXED
+	// group identified by Ref.Sibling.{Field, Value}, NOT an axis-
+	// prefix denominator. Level / Within would alter the implicit
+	// sibling-reference contract (the resolver would have to descend
+	// into a prefix-bucket rather than match a single group), which
+	// is out of scope for v1 of the sibling family. Non-zero values
+	// fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Run the gate before the
+	// no-crosstab short-circuit so the rule still fires when
+	// Request.Crosstab is nil.
+	if spec.Kind == types.OverlayKindDeltaVsSibling || spec.Kind == types.OverlayKindIndexVsSibling {
+		if spec.Level != 0 || spec.Within != 0 {
+			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+				"overlay "+string(spec.Kind)+" does not support Level / Within (sibling reference is a single fixed group)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -430,10 +475,14 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayChiSqRow(env, req, spec, index)
 	case types.OverlayKindDeltaVsMargin:
 		validateOverlayDeltaVsMargin(env, req, spec, index)
+	case types.OverlayKindDeltaVsSibling:
+		validateOverlayDeltaVsSibling(env, req, spec, index)
 	case types.OverlayKindFisherExactCell:
 		validateOverlayFisherExactCell(env, req, spec, index)
 	case types.OverlayKindIndexVsMargin:
 		validateOverlayIndexVsMargin(env, req, spec, index)
+	case types.OverlayKindIndexVsSibling:
+		validateOverlayIndexVsSibling(env, req, spec, index)
 	case types.OverlayKindIndexVsTotal:
 		validateOverlayIndexVsTotal(env, req, spec, index)
 	case types.OverlayKindShareOfCol:
@@ -1304,6 +1353,134 @@ func validateOverlayZScoreVsTotal(env *Envelope, req *types.Request, spec *types
 	if !zscoreVsTotalSupportedScopes[spec.Scope] {
 		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+}
+
+// validateOverlayDeltaVsSibling enforces the per-kind contract for
+// OVERLAY_DELTA_VS_SIBLING: the Ref family must be Sibling (not
+// Margin / BaselineIndex / Population / Stage / Slot), Sibling.Field
+// and Sibling.Value must both be non-empty, the host result must be
+// SERIES-shaped (i.e. Request.Groups is non-empty and Request.Crosstab
+// is nil), and Scope must be GROUP. Sibling validator to
+// `validateOverlayIndexVsSibling`.
+//
+// Errors emitted (in order, first hit short-circuits the spec):
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any non-Sibling
+//     family pointer is populated.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when Ref.Sibling is
+//     nil OR when its Field / Value are empty (the sibling pair is the
+//     denominator anchor and both halves are required).
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when Request.Crosstab
+//     is non-nil (the kind targets a SERIES host) OR when
+//     Request.Groups is empty (no host series to compute against).
+//   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
+//     than GROUP.
+func validateOverlayDeltaVsSibling(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	validateOverlaySiblingKind(env, req, spec, index, deltaVsSiblingSupportedScopes, "group")
+}
+
+// validateOverlayIndexVsSibling enforces the per-kind contract for
+// OVERLAY_INDEX_VS_SIBLING. Twin validator to
+// `validateOverlayDeltaVsSibling` — the two sibling-reference kinds
+// share an identical predict-time contract; only the runtime math
+// differs (subtraction vs ratio scaling). Routes through the same
+// `validateOverlaySiblingKind` helper so a future schema/runtime
+// rule that fires on one kind automatically extends to the other.
+func validateOverlayIndexVsSibling(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	validateOverlaySiblingKind(env, req, spec, index, indexVsSiblingSupportedScopes, "group")
+}
+
+// validateOverlaySiblingKind is the shared predict-time validator for
+// the sibling-reference SERIES-host family (DELTA_VS_SIBLING +
+// INDEX_VS_SIBLING). The two kinds carry identical structural
+// contracts — only the runtime math differs (subtraction vs ratio
+// scaling) — so the validator collapses both into a single helper
+// keyed by the kind's supported-scope set.
+//
+// Contract enforced (in order, first hit short-circuits):
+//
+//   - Ref family must be Sibling. Any other ref-family pointer
+//     (Margin / BaselineIndex / Population / Stage / Slot) is a
+//     shape mismatch (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE).
+//   - Ref.Sibling MUST be non-nil; Sibling.Field and Sibling.Value
+//     MUST both be non-empty strings. The sibling reference is the
+//     denominator anchor and both halves are required.
+//   - Host MUST be SERIES-shaped (Request.Crosstab nil AND
+//     Request.Groups non-empty). A request with no groupers has no
+//     series to compute against; an active crosstab routes down the
+//     MATRIX-host path which the sibling family does not target in
+//     v1.
+//   - Scope MUST be in the supported set (GROUP today).
+func validateOverlaySiblingKind(
+	env *Envelope, req *types.Request, spec *types.OverlaySpec, index int,
+	supportedScopes map[types.OverlayScope]bool, supportedScopeLabel string,
+) {
+	// Ref family must be Sibling — reject any other family pointer.
+	if spec.Ref.Margin != nil ||
+		spec.Ref.BaselineIndex != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.Sibling only (no Margin / BaselineIndex / Population / Stage / Slot)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Ref.Sibling is required — both Field and Value must be populated.
+	if spec.Ref.Sibling == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.Sibling (sibling-group reference)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+	if spec.Ref.Sibling.Field == "" {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" Ref.Sibling.Field is empty (sibling reference requires a grouper Field name)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+	if spec.Ref.Sibling.Value == "" {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" Ref.Sibling.Value is empty (sibling reference requires a specific axis-key value)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"field": spec.Ref.Sibling.Field,
+			})
+		return
+	}
+
+	// Host must be SERIES-shaped — grouped Process result.
+	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Scope must be in the supported set.
+	if !supportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: "+supportedScopeLabel+")",
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),

@@ -120,8 +120,16 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 	matrixHostKinds := map[types.OverlayKind]bool{}
 	for _, k := range types.AllOverlayKinds() {
 		switch k {
-		case types.OverlayKindIndexVsTotal, types.OverlayKindZScoreVsTotal:
+		case types.OverlayKindIndexVsTotal,
+			types.OverlayKindZScoreVsTotal,
+			types.OverlayKindDeltaVsSibling,
+			types.OverlayKindIndexVsSibling:
 			// SERIES-host: skipped from the MATRIX-host catalog gate.
+			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
+			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
+			// ZSCORE_VS_TOTAL; they are covered by their own per-kind
+			// happy-path tests against indexVsTotalSeriesHostReq()-style
+			// fixtures rather than this MATRIX-host fixture.
 			continue
 		}
 		matrixHostKinds[k] = true

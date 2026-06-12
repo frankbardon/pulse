@@ -1240,4 +1240,19 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_REF_UNKNOWN: {
+		Message: "A sibling-reference overlay (OVERLAY_DELTA_VS_SIBLING / OVERLAY_INDEX_VS_SIBLING) named a Sibling (Field, Value) pair that does not resolve to a known group on the SERIES host — either the named Field is not a grouper Field on the host, or the named Value does not match any observed axis-key value for that field. The affected layer surfaces NaN statistics across every present entry. Warning-class — surfaced as a Response.Warning, never as an envelope error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref", "Sibling", "Field"},
+				Hint:   "Set Ref.Sibling.Field to one of the Request.Groups[*].Field names. Run pulse predict --json on the request to confirm the grouper fields the request lowers to; categorical grouper Fields are the typical match.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref", "Sibling", "Value"},
+				Hint:   "Set Ref.Sibling.Value to an observed axis-key value for the named Field. Run pulse inspect --json on the cohort to enumerate the field's dictionary values, or pulse facet --field <name> to confirm the post-filter observed set.",
+			},
+		},
+	},
 }

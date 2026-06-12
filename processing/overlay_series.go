@@ -100,6 +100,18 @@ type SeriesHostView struct {
 	// distinguishing "0 because the host omitted the group" from "0
 	// because the metric is genuinely zero".
 	resolver func(i int) (float64, bool)
+
+	// groupFields names the grouper Fields the host's AxisKey tuples
+	// align to element-for-element. When populated (E3-S6 orchestrator
+	// wiring), the sibling resolver (E3-S5) maps a
+	// `Ref.Sibling.Field` to the matching axis-key element index via
+	// this slot — index `i` of every AxisKey corresponds to
+	// groupFields[i]. When empty (the E3-S5 default, before the
+	// orchestrator wires the slot), the sibling resolver falls back to
+	// scanning every axis-key element. The slot is optional so the
+	// existing E3-S2 / E3-S3 / E3-S4 handlers (which do not consume
+	// the field list) keep working against the legacy constructor.
+	groupFields []string
 }
 
 // NewSeriesHostView wraps an ordered list of group keys plus a value
@@ -116,6 +128,22 @@ type SeriesHostView struct {
 // the host build and ApplyOverlaysSeries return.
 func NewSeriesHostView(groupKeys []types.AxisKey, resolver func(i int) (float64, bool)) *SeriesHostView {
 	return &SeriesHostView{groupKeys: groupKeys, resolver: resolver}
+}
+
+// NewSeriesHostViewWithFields wraps an ordered list of group keys, a
+// resolver, and the grouper-field list the AxisKey tuples align to.
+// The grouper-field list is the source-of-truth for the sibling
+// resolver (E3-S5) — `groupFields[i]` names the field index `i` of
+// every AxisKey corresponds to. Length of groupFields SHOULD match the
+// width of every AxisKey tuple (the orchestrator's grouper list); a
+// shorter list is tolerated and the resolver simply cannot resolve
+// fields outside the declared range. Empty groupFields keeps the
+// resolver in its E3-S5 fallback (scan every axis-key element). The
+// helper exists alongside NewSeriesHostView so the legacy E3-S2 /
+// E3-S3 / E3-S4 handlers (which never consult the field list) keep
+// compiling against the simpler two-argument constructor.
+func NewSeriesHostViewWithFields(groupKeys []types.AxisKey, resolver func(i int) (float64, bool), groupFields []string) *SeriesHostView {
+	return &SeriesHostView{groupKeys: groupKeys, resolver: resolver, groupFields: groupFields}
 }
 
 // GroupCount returns the number of group tuples on the host. Zero when
@@ -149,6 +177,22 @@ func (h *SeriesHostView) GroupKeys() []types.AxisKey {
 		return nil
 	}
 	return h.groupKeys
+}
+
+// GroupFields returns the grouper Fields the host's AxisKey tuples
+// align to element-for-element. Returns nil when the view is nil OR
+// when the view was built via NewSeriesHostView (E3-S5 default — the
+// field list is optional). The sibling resolver consults this slot to
+// map a `Ref.Sibling.Field` to the matching axis-key element index;
+// when the slot is empty the resolver falls back to scanning every
+// axis-key element for a value match. Callers consume the returned
+// slice read-only — the slice header points at the host's backing
+// array.
+func (h *SeriesHostView) GroupFields() []string {
+	if h == nil {
+		return nil
+	}
+	return h.groupFields
 }
 
 // ValueAt returns the host's metric value for the group at index i plus
@@ -200,6 +244,18 @@ type seriesOverlayHandler func(spec *types.OverlaySpec, host *SeriesHostView) (t
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
+	// OVERLAY_DELTA_VS_SIBLING (E3-S5): per-group additive delta
+	// against a sibling group named in Ref.Sibling. Buffered (sibling
+	// resolution requires the full materialised SeriesPayload).
+	// Handler: applyDeltaVsSibling in
+	// processing/overlay_delta_vs_sibling.go.
+	types.OverlayKindDeltaVsSibling: applyDeltaVsSibling,
+	// OVERLAY_INDEX_VS_SIBLING (E3-S5): per-group ratio index against a
+	// sibling group named in Ref.Sibling, scaled to ×100. Buffered
+	// (sibling resolution requires the full materialised SeriesPayload).
+	// Handler: applyIndexVsSibling in
+	// processing/overlay_index_vs_sibling.go.
+	types.OverlayKindIndexVsSibling: applyIndexVsSibling,
 	// OVERLAY_INDEX_VS_TOTAL (E3-S2): per-group index score against the
 	// grand total of the host series — first streamable SERIES-host
 	// handler in the catalog. Handler: applyIndexVsTotal in
