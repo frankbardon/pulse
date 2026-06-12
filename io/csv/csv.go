@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -149,6 +150,14 @@ type Writer struct {
 	path string
 	buf  bytes.Buffer
 	cw   *csv.Writer
+
+	// overlays carries the Response.Overlays layers the export pipeline
+	// hands to the writer via SetOverlays before WriteHeader. CSV cannot
+	// embed nested overlay payloads (research/export-embedding-shape.md
+	// § 7), so the layers are RECORDED for the warn-and-skip emission
+	// surface (OverlayWarnings) but NEVER written into the CSV body.
+	// nil or empty leaves the writer in the pre-overlay baseline state.
+	overlays []*types.OverlayLayer
 }
 
 // NewWriter creates a CSV writer targeting a filesystem path.

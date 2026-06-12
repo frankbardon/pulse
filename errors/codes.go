@@ -981,6 +981,26 @@ const (
 	// lands with E7-S14. Details carry `{kind, observed, cap}` so the
 	// renderer can surface both the offending size and the cap.
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
+
+	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED is a WARNING-class code
+	// emitted by the CSV (and TSV) export adapter when an overlay-bearing
+	// Response is exported to a flat tabular format that cannot encode
+	// nested overlay payloads. Per
+	// research/export-embedding-shape.md § 7 the adapter implements
+	// warn-and-skip: the host CSV body is written verbatim (byte-
+	// identical to a pre-overlay export) and the overlay layers are
+	// dropped on the floor. The warning carries `layer_count`,
+	// `layer_names`, and `layer_kinds` so callers can audit which
+	// layers were dropped. Surfaced as a Response.Warning / envelope
+	// warnings entry, never as an envelope error — the host export
+	// proceeds successfully. The TSV adapter shares the CSV writer
+	// surface and inherits the warn-and-skip behaviour; the code name
+	// stays CSV-flavoured because CSV is the canonical name in the
+	// warning text. Fixups call out the Arrow / Parquet / Excel /
+	// NDJSON alternatives that DO carry overlays and the
+	// IncludeOverlays=false opt-out that suppresses the warning while
+	// keeping CSV output.
+	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED Code = "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1134,6 +1154,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 	PULSE_OVERLAY_DICT_PREFIX_DRIFT,
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
+	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.
