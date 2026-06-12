@@ -473,7 +473,7 @@ func TestFacetPopulationResolver_Deterministic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first call err = %v", err)
 	}
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		view, err := ResolveFacetPopulation(result, "color")
 		if err != nil {
 			t.Fatalf("repeat call %d err = %v", i, err)
