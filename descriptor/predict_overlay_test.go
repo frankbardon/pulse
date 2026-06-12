@@ -23,8 +23,10 @@ import (
 //   - OverlaysApplied: 10 entries in matching order.
 //   - OverlaysSchemaDivergence: empty (Compose-driven divergence
 //     detection lands later in the effort).
-//   - OverlayCost: flat 1.0 per kind (per-kind heuristics land in
-//     E10-S3).
+//   - OverlayCost: per-kind multiplier — streamable kinds carry the
+//     low score (~0.05); buffered kinds carry the high score (~1.0).
+//     E3-S11 replaced the E2 flat-1.0 stub with the streamability-
+//     derived dispatch.
 func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
@@ -186,7 +188,16 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 		}
 	}
 
-	// OverlayCost: flat 1.0 per spec keyed by the renderer-facing name.
+	// OverlayCost: per-kind multiplier keyed by the renderer-facing
+	// name. E3-S11 replaced the E2 flat-1.0 stub with the streamability-
+	// derived dispatch (overlayCostForKind) — streamable kinds carry
+	// overlayCostStreamable, buffered kinds carry overlayCostBuffered.
+	// The MATRIX-host catalog gate this test exercises is intrinsically
+	// streamable=false for every kind it hits today (SHARE_OF_TOTAL's
+	// MATRIX dispatch piggybacks on the SERIES streamable flag, so the
+	// cost map still reads the streamable score for that single spec —
+	// the host-gate buffered fallback is separate and lives in
+	// canFuseCrosstab).
 	if got, want := len(result.OverlayCost), len(specs); got != want {
 		t.Errorf("OverlayCost length = %d, want %d", got, want)
 	}
@@ -196,8 +207,10 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			t.Errorf("OverlayCost missing key %q (spec index %d)", spec.Name, i)
 			continue
 		}
-		if cost != 1.0 {
-			t.Errorf("OverlayCost[%q] = %v, want 1.0 (E1 stub; refined in E10-S3)", spec.Name, cost)
+		wantCost := overlayCostForKind(spec.Kind)
+		if cost != wantCost {
+			t.Errorf("OverlayCost[%q] = %v, want %v (overlayCostForKind dispatch on kind %q)",
+				spec.Name, cost, wantCost, spec.Kind)
 		}
 	}
 
@@ -270,4 +283,267 @@ func costKeys(m map[string]float64) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestPredict_OverlayCost_StreamableKindsLow is the E3-S11 close-out
+// gate for the streamable subset of the OverlayCost map: every
+// streamable overlay kind (per types.OverlayStreamable) must surface
+// the low cost multiplier (overlayCostStreamable) in
+// PredictResult.OverlayCost. The streamable trio shipped by E3 —
+// OVERLAY_INDEX_VS_TOTAL, OVERLAY_SHARE_OF_TOTAL (SERIES dispatch),
+// OVERLAY_ZSCORE_VS_TOTAL — folds inside the streaming Process pass
+// via a kind-specific accumulator, so the marginal record-count
+// multiplier should be near-zero (5% per PRD §I-FR-I3). Anchored
+// against types.AllOverlayKinds() so any future kind that flips
+// streamable is automatically covered without a fixture edit.
+func TestPredict_OverlayCost_StreamableKindsLow(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	// Per-kind well-formed spec table — every SERIES-host streamable
+	// kind currently lands here. Add an entry when a future kind flips
+	// streamable in types/overlay_streamability.go.
+	specsByKind := map[types.OverlayKind]types.OverlaySpec{
+		types.OverlayKindIndexVsTotal: {
+			Name:  "idx_total",
+			Kind:  types.OverlayKindIndexVsTotal,
+			Scope: types.OverlayScopeGroup,
+		},
+		types.OverlayKindZScoreVsTotal: {
+			Name:  "z_total",
+			Kind:  types.OverlayKindZScoreVsTotal,
+			Scope: types.OverlayScopeGroup,
+		},
+		types.OverlayKindShareOfTotal: {
+			Name:  "share_total_series",
+			Kind:  types.OverlayKindShareOfTotal,
+			Scope: types.OverlayScopeGroup,
+		},
+	}
+
+	for _, kind := range types.AllOverlayKinds() {
+		streamable, known := types.OverlayStreamable(kind)
+		if !known || !streamable {
+			continue
+		}
+		spec, ok := specsByKind[kind]
+		if !ok {
+			t.Errorf("test fixture out of date: streamable kind %q missing a per-kind spec — add one to specsByKind", kind)
+			continue
+		}
+		t.Run(string(kind), func(t *testing.T) {
+			req := indexVsTotalSeriesHostReq()
+			req.Overlays = []types.OverlaySpec{spec}
+
+			env := PredictFromBytes(data, req, nil)
+			result, ok := env.Data.(*PredictResult)
+			if !ok {
+				t.Fatalf("envelope Data is not *PredictResult: %T", env.Data)
+			}
+			cost, ok := result.OverlayCost[spec.Name]
+			if !ok {
+				t.Fatalf("OverlayCost missing key %q; keys: %v", spec.Name, costKeys(result.OverlayCost))
+			}
+			if cost != overlayCostStreamable {
+				t.Errorf("OverlayCost[%q] = %v, want %v (streamable kind %q must map to overlayCostStreamable)",
+					spec.Name, cost, overlayCostStreamable, kind)
+			}
+		})
+	}
+}
+
+// TestPredict_OverlayCost_BufferedKindsHigh is the E3-S11 close-out
+// gate for the buffered subset of the OverlayCost map. Specifically
+// targets the SIBLING family (OVERLAY_DELTA_VS_SIBLING /
+// OVERLAY_INDEX_VS_SIBLING) — both shipped by E3-S5 and both buffered
+// because sibling resolution requires the finalized per-group
+// accumulators. Each kind must surface the buffered cost multiplier
+// (overlayCostBuffered) in PredictResult.OverlayCost.
+func TestPredict_OverlayCost_BufferedKindsHigh(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	cases := []struct {
+		name string
+		spec types.OverlaySpec
+	}{
+		{
+			name: "DeltaVsSibling",
+			spec: types.OverlaySpec{
+				Name:  "delta_sib",
+				Kind:  types.OverlayKindDeltaVsSibling,
+				Scope: types.OverlayScopeGroup,
+				Ref: types.OverlayRef{
+					Sibling: &types.OverlaySiblingRef{Field: "region", Value: "north"},
+				},
+			},
+		},
+		{
+			name: "IndexVsSibling",
+			spec: types.OverlaySpec{
+				Name:  "idx_sib",
+				Kind:  types.OverlayKindIndexVsSibling,
+				Scope: types.OverlayScopeGroup,
+				Ref: types.OverlayRef{
+					Sibling: &types.OverlaySiblingRef{Field: "region", Value: "north"},
+				},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Sanity-check the streamability table: SIBLING kinds must
+			// stay buffered. A future epic that streams the family
+			// (E3-S7 / E3-S8 forward-compat note in
+			// types/overlay_streamability.go) will trip this guard —
+			// move the spec to the streamable test above when that
+			// lands.
+			streamable, known := types.OverlayStreamable(tc.spec.Kind)
+			if !known {
+				t.Fatalf("kind %q absent from streamability table", tc.spec.Kind)
+			}
+			if streamable {
+				t.Fatalf("kind %q flipped streamable; move to TestPredict_OverlayCost_StreamableKindsLow",
+					tc.spec.Kind)
+			}
+
+			req := siblingHostReq()
+			req.Overlays = []types.OverlaySpec{tc.spec}
+
+			env := PredictFromBytes(data, req, nil)
+			result, ok := env.Data.(*PredictResult)
+			if !ok {
+				t.Fatalf("envelope Data is not *PredictResult: %T", env.Data)
+			}
+			cost, ok := result.OverlayCost[tc.spec.Name]
+			if !ok {
+				t.Fatalf("OverlayCost missing key %q; keys: %v", tc.spec.Name, costKeys(result.OverlayCost))
+			}
+			if cost != overlayCostBuffered {
+				t.Errorf("OverlayCost[%q] = %v, want %v (buffered SIBLING kind %q must map to overlayCostBuffered)",
+					tc.spec.Name, cost, overlayCostBuffered, tc.spec.Kind)
+			}
+		})
+	}
+}
+
+// TestPredict_OverlayCost_E2KindsBufferedDefault sanity-checks that
+// the E2 buffered MATRIX-host kinds (CHISQ family, FISHER_EXACT_CELL,
+// DELTA_VS_MARGIN, INDEX_VS_MARGIN, SHARE_OF_ROW / SHARE_OF_COL,
+// ZSCORE_VS_MARGIN) continue to map to overlayCostBuffered after the
+// E3-S11 dispatch flip. Pre-E3 the populator emitted a flat 1.0 stub
+// for every kind; the new streamability-derived dispatch must preserve
+// that value for every kind whose streamability flag is false. Anchored
+// against types.AllOverlayKinds() so any future MATRIX-host kind is
+// automatically covered without a fixture edit.
+func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	// Per-kind well-formed spec table — every MATRIX-host buffered kind
+	// shipped by E2 (and INDEX_VS_MARGIN from E1) lands here.
+	specsByKind := map[types.OverlayKind]types.OverlaySpec{
+		types.OverlayKindChiSqCol: {
+			Name:  "chisq_col",
+			Kind:  types.OverlayKindChiSqCol,
+			Scope: types.OverlayScopeColumn,
+		},
+		types.OverlayKindChiSqMatrix: {
+			Name:  "chisq_matrix",
+			Kind:  types.OverlayKindChiSqMatrix,
+			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindChiSqRow: {
+			Name:  "chisq_row",
+			Kind:  types.OverlayKindChiSqRow,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindDeltaVsMargin: {
+			Name:  "delta_row",
+			Kind:  types.OverlayKindDeltaVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		types.OverlayKindFisherExactCell: {
+			Name:  "fisher",
+			Kind:  types.OverlayKindFisherExactCell,
+			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindIndexVsMargin: {
+			Name:  "index_row",
+			Kind:  types.OverlayKindIndexVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		types.OverlayKindShareOfCol: {
+			Name:  "share_col",
+			Kind:  types.OverlayKindShareOfCol,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisColumn},
+			},
+		},
+		types.OverlayKindShareOfRow: {
+			Name:  "share_row",
+			Kind:  types.OverlayKindShareOfRow,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		types.OverlayKindZScoreVsMargin: {
+			Name:  "zscore_row",
+			Kind:  types.OverlayKindZScoreVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+	}
+
+	// SERIES-host kinds (INDEX_VS_TOTAL, ZSCORE_VS_TOTAL, SHARE_OF_TOTAL
+	// SERIES dispatch, the SIBLING family) live in the streamable / sibling
+	// tests above and intentionally do NOT appear in this MATRIX-host gate.
+	seriesHostKinds := map[types.OverlayKind]bool{
+		types.OverlayKindIndexVsTotal:   true,
+		types.OverlayKindZScoreVsTotal:  true,
+		types.OverlayKindShareOfTotal:   true,
+		types.OverlayKindDeltaVsSibling: true,
+		types.OverlayKindIndexVsSibling: true,
+	}
+
+	for _, kind := range types.AllOverlayKinds() {
+		if seriesHostKinds[kind] {
+			continue
+		}
+		spec, ok := specsByKind[kind]
+		if !ok {
+			t.Errorf("test fixture out of date: MATRIX-host kind %q missing a per-kind spec — add one to specsByKind", kind)
+			continue
+		}
+		t.Run(string(kind), func(t *testing.T) {
+			req := &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{spec},
+			}
+
+			env := PredictFromBytes(data, req, nil)
+			result, ok := env.Data.(*PredictResult)
+			if !ok {
+				t.Fatalf("envelope Data is not *PredictResult: %T", env.Data)
+			}
+			cost, ok := result.OverlayCost[spec.Name]
+			if !ok {
+				t.Fatalf("OverlayCost missing key %q; keys: %v", spec.Name, costKeys(result.OverlayCost))
+			}
+			if cost != overlayCostBuffered {
+				t.Errorf("OverlayCost[%q] = %v, want %v (buffered E2 kind %q must map to overlayCostBuffered)",
+					spec.Name, cost, overlayCostBuffered, kind)
+			}
+		})
+	}
 }

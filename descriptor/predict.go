@@ -170,13 +170,19 @@ type PredictResult struct {
 	OverlaysSchemaDivergence []SlotPair `json:"overlays_schema_divergence"`
 
 	// OverlayCost maps each overlay-spec Name to a coarse cost score
-	// the routing layer can consult before execution. E1 emits a flat
-	// 1.0 per registered overlay; later epics replace the stub with
-	// per-kind heuristics that fold scope size + host shape size into
-	// the score. The map key is the overlay spec's Name when set, and
-	// the synthesised default (Kind + Scope + Ref) when empty —
-	// matching the Name field on OverlayAppliedDescriptor below.
-	// Empty when req.Overlays is empty; never nil in JSON output.
+	// the routing layer can consult before execution. The score is a
+	// rough record-count multiplier per overlay slot — streamable kinds
+	// fold inside the existing streaming pass (one extra accumulator per
+	// record) and carry overlayCostStreamable; buffered kinds force a
+	// post-host re-traversal of the materialised payload and carry
+	// overlayCostBuffered. Per kind-catalog-v1 PRD §I-FR-I3 the value is
+	// intentionally coarse — callers budgeting cost across slots sum the
+	// map values; renderers showing a "this overlay will buffer the
+	// host" warning branch on >= overlayCostBuffered. The map key is
+	// the overlay spec's Name when set, and the synthesised default
+	// (Kind + Scope + Ref) when empty — matching the Name field on
+	// OverlayAppliedDescriptor below. Empty when req.Overlays is empty;
+	// never nil in JSON output.
 	OverlayCost map[string]float64 `json:"overlay_cost"`
 }
 
@@ -355,10 +361,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	ValidateOverlays(env, req, schema, opts)
 
 	// Populate the predict surface from req.Overlays. One descriptor per
-	// spec in matching order; OverlayCost is a flat 1.0 stub keyed by
-	// the spec's renderer-facing name (or a synthesised default when
-	// empty). OverlaysSchemaDivergence stays empty in E1 — Compose
-	// wiring lands later.
+	// spec in matching order; OverlayCost is a per-kind multiplier keyed
+	// by the spec's renderer-facing name (or a synthesised default when
+	// empty) — streamable kinds carry overlayCostStreamable, buffered
+	// kinds carry overlayCostBuffered. OverlaysSchemaDivergence stays
+	// empty in E1 — Compose wiring lands later.
 	populateOverlayDescriptors(result, req)
 
 	// Validate label bindings (display-time categorical translation). Snapshot
@@ -819,17 +826,57 @@ func isLowQualityDescription(desc string) bool {
 	return slices.Contains(unhelpful, lower)
 }
 
+// overlayCostStreamable is the OverlayCost score assigned to overlay
+// kinds whose streamability flag is true — the kind folds inside the
+// existing streaming Process pass via a kind-specific accumulator
+// carried alongside the per-group reducers, so the marginal cost is
+// effectively a few f64 adds per record. The value is a rough record-
+// count multiplier per PRD §I-FR-I3; 0.05 ≈ "5% extra work" relative
+// to a fresh pass over the source records. The streamable E3 trio
+// (INDEX_VS_TOTAL, ZSCORE_VS_TOTAL, the SERIES dispatch of
+// SHARE_OF_TOTAL) lands at this value today.
+const overlayCostStreamable = 0.05
+
+// overlayCostBuffered is the OverlayCost score assigned to overlay
+// kinds whose streamability flag is false — the kind requires the
+// fully materialised host payload (the buffered crosstab matrix, the
+// finalized per-group SeriesPayload for the sibling family, etc.) and
+// folds at the post-host exit, traversing the payload a second time.
+// The value is a rough record-count multiplier per PRD §I-FR-I3; 1.0
+// ≈ "one extra pass" over the materialised host structure. Every E1 /
+// E2 kind plus the SIBLING family (DELTA_VS_SIBLING, INDEX_VS_SIBLING)
+// lands at this value today.
+const overlayCostBuffered = 1.0
+
+// overlayCostForKind returns the OverlayCost multiplier for a given
+// overlay kind. The dispatch reads types.OverlayStreamable(kind) —
+// streamable kinds get overlayCostStreamable, buffered kinds get
+// overlayCostBuffered. The static streamability table in
+// types/overlay_streamability.go is the single source of truth, so a
+// kind that flips streamable automatically flips its cost here.
+// Unknown kinds (absent from the table) fall through to the buffered
+// score — the validator already surfaces PULSE_OVERLAY_KIND_UNKNOWN
+// for the same condition; the cost score stays maximally conservative.
+func overlayCostForKind(kind types.OverlayKind) float64 {
+	streamable, known := types.OverlayStreamable(kind)
+	if !known || !streamable {
+		return overlayCostBuffered
+	}
+	return overlayCostStreamable
+}
+
 // populateOverlayDescriptors fills PredictResult.OverlaysApplied and
 // PredictResult.OverlayCost from req.Overlays. Per kind-catalog-v1 PRD
 // §I-FR-I3 the predict surface is `OverlaysApplied +
 // OverlaysSchemaDivergence + OverlayCost`; E1 emits one
 // OverlayAppliedDescriptor per spec (Name + Kind + Scope + Streamable)
-// and a flat 1.0 OverlayCost stub keyed by the spec name. The
+// and a per-kind OverlayCost multiplier keyed by the spec name. The
 // divergence slot stays empty in E1.
 //
-// The streamability echo consults types.OverlayStreamable(kind) — the
-// static table in types/overlay_streamability.go is the single source
-// of truth, so a kind that flips streamable automatically flips here.
+// The streamability echo and the cost score both consult
+// types.OverlayStreamable(kind) — the static table in
+// types/overlay_streamability.go is the single source of truth, so a
+// kind that flips streamable automatically flips here.
 func populateOverlayDescriptors(result *PredictResult, req *types.Request) {
 	if result == nil || req == nil || len(req.Overlays) == 0 {
 		return
@@ -844,10 +891,13 @@ func populateOverlayDescriptors(result *PredictResult, req *types.Request) {
 			Scope:      spec.Scope,
 			Streamable: streamable,
 		})
-		// E1 cost stub — flat 1.0 per overlay. Later epics replace
-		// this with per-kind heuristics folding scope size + host
-		// shape size into the score.
-		result.OverlayCost[name] = 1.0
+		// Per-kind cost multiplier — streamable kinds carry
+		// overlayCostStreamable (~5% extra work) because they fold
+		// inside the streaming Process pass; buffered kinds carry
+		// overlayCostBuffered (~one extra payload traversal) because
+		// they re-walk the materialised host structure at the post-
+		// host exit.
+		result.OverlayCost[name] = overlayCostForKind(spec.Kind)
 	}
 }
 
