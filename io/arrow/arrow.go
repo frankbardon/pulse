@@ -213,7 +213,7 @@ func (r *Reader) ReadOverlays() ([]*types.OverlayLayer, error) {
 	}
 	for _, batch := range r.batches {
 		col := batch.Column(overlayFieldIdx)
-		layers, err := readOverlaysFromArray(col)
+		layers, err := ReadOverlaysFromArray(col)
 		if err != nil {
 			return nil, err
 		}
@@ -418,7 +418,7 @@ func (w *Writer) initWriter() error {
 		}
 	}
 	if hasOverlays {
-		arrowFields[hostFieldCount] = overlaysArrowField()
+		arrowFields[hostFieldCount] = OverlaysArrowField()
 	}
 	w.sc = arrow.NewSchema(arrowFields, nil)
 
@@ -525,7 +525,7 @@ func (w *Writer) appendOverlayCell() error {
 	}
 
 	for _, layer := range w.overlays {
-		if err := appendOverlayLayerStruct(structBldr, layer); err != nil {
+		if err := AppendOverlayLayerStruct(structBldr, layer); err != nil {
 			return err
 		}
 	}
@@ -533,22 +533,26 @@ func (w *Writer) appendOverlayCell() error {
 	return nil
 }
 
-// appendOverlayLayerStruct appends one struct entry to the overlay
-// list's value builder. Field order matches overlaysFieldType.
-func appendOverlayLayerStruct(structBldr *array.StructBuilder, layer *types.OverlayLayer) error {
+// AppendOverlayLayerStruct appends one struct entry to the overlay
+// list's value builder. Field order matches OverlaysFieldType.
+//
+// Exported so io/parquet can populate the same struct schema through
+// its own pqarrow-fed RecordBuilder (research/export-embedding-shape.md
+// § 4.4).
+func AppendOverlayLayerStruct(structBldr *array.StructBuilder, layer *types.OverlayLayer) error {
 	if layer == nil {
 		structBldr.AppendNull()
 		return nil
 	}
 	structBldr.Append(true)
 
-	refJSON, err := jsonMarshalOverlay(layer.Ref)
+	refJSON, err := JSONMarshalOverlay(layer.Ref)
 	if err != nil {
-		return fmt.Errorf("arrow.Writer: marshal overlay ref: %w", err)
+		return fmt.Errorf("arrow.overlay: marshal overlay ref: %w", err)
 	}
-	payloadJSON, err := jsonMarshalOverlay(layer.Payload)
+	payloadJSON, err := JSONMarshalOverlay(layer.Payload)
 	if err != nil {
-		return fmt.Errorf("arrow.Writer: marshal overlay payload: %w", err)
+		return fmt.Errorf("arrow.overlay: marshal overlay payload: %w", err)
 	}
 
 	structBldr.FieldBuilder(0).(*array.StringBuilder).Append(layer.Name)
@@ -560,9 +564,9 @@ func appendOverlayLayerStruct(structBldr *array.StructBuilder, layer *types.Over
 	if layer.Summary == nil {
 		structBldr.FieldBuilder(6).(*array.StringBuilder).AppendNull()
 	} else {
-		summaryJSON, err := jsonMarshalOverlay(layer.Summary)
+		summaryJSON, err := JSONMarshalOverlay(layer.Summary)
 		if err != nil {
-			return fmt.Errorf("arrow.Writer: marshal overlay summary: %w", err)
+			return fmt.Errorf("arrow.overlay: marshal overlay summary: %w", err)
 		}
 		structBldr.FieldBuilder(6).(*array.StringBuilder).Append(string(summaryJSON))
 	}

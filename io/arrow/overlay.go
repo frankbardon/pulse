@@ -10,12 +10,17 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// jsonMarshalOverlay centralises encoding/json marshalling of overlay
+// JSONMarshalOverlay centralises encoding/json marshalling of overlay
 // sub-payloads (Ref / Payload / Summary) so the Writer path and the
 // helper builders share one error surface. All overlay JSON in the
 // Arrow embedding goes through encoding/json per CLAUDE.md "Structural
 // defense bans".
-func jsonMarshalOverlay(v any) ([]byte, error) {
+//
+// Exported so io/parquet (which rides the same Arrow LIST<STRUCT>
+// schema through the pqarrow bridge per
+// research/export-embedding-shape.md § 4.4) can share the marshaller
+// without duplicating it.
+func JSONMarshalOverlay(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
@@ -32,7 +37,7 @@ func jsonMarshalOverlay(v any) ([]byte, error) {
 // Response.Overlays is empty.
 const OverlaysFieldName = "overlays"
 
-// overlaysFieldType returns the fixed Arrow `LIST<STRUCT>` shape used
+// OverlaysFieldType returns the fixed Arrow `LIST<STRUCT>` shape used
 // for every overlay column family per research/export-embedding-shape.md
 // § 3.1. The struct schema is FIXED — every Arrow writer emits the SAME
 // nested struct schema regardless of which overlay kinds were produced
@@ -43,7 +48,11 @@ const OverlaysFieldName = "overlays"
 // struct with NULL cells for absent arms — exactly one arm is populated
 // per layer per the OverlayPayload.Shape discriminator. The dispatch is
 // inline on `shape` (UTF8).
-func overlaysFieldType() *arrow.StructType {
+//
+// Exported so io/parquet can ride the SAME schema through the pqarrow
+// bridge (research/export-embedding-shape.md § 4.4 "Why Parquet shares
+// the Arrow schema").
+func OverlaysFieldType() *arrow.StructType {
 	return arrow.StructOf(
 		arrow.Field{Name: "name", Type: arrow.BinaryTypes.String, Nullable: false},
 		arrow.Field{Name: "kind", Type: arrow.BinaryTypes.String, Nullable: false},
@@ -67,25 +76,33 @@ func overlaysFieldType() *arrow.StructType {
 	)
 }
 
-// overlaysArrowField returns the top-level Arrow Field carrying the
+// OverlaysArrowField returns the top-level Arrow Field carrying the
 // overlay column family. Caller appends this to the schema when
 // overlays should be embedded.
-func overlaysArrowField() arrow.Field {
+//
+// Exported so io/parquet can append the same field to the Arrow schema
+// it hands the pqarrow FileWriter (research/export-embedding-shape.md
+// § 4.4).
+func OverlaysArrowField() arrow.Field {
 	return arrow.Field{
 		Name:     OverlaysFieldName,
-		Type:     arrow.ListOf(overlaysFieldType()),
+		Type:     arrow.ListOf(OverlaysFieldType()),
 		Nullable: true,
 	}
 }
 
-// readOverlaysFromArray walks the LIST<STRUCT> overlay array and
+// ReadOverlaysFromArray walks the LIST<STRUCT> overlay array and
 // reconstructs []*types.OverlayLayer. The reader scans every non-empty
 // list element across every record-batch and returns the first non-
 // empty list (the canonical writer emits the populated list in row 0 of
 // batch 0; reading any earlier row is sufficient). Returns nil when
 // the array is structurally absent or every list element is empty —
 // nil signals "no overlays present" to callers.
-func readOverlaysFromArray(listArr arrow.Array) ([]*types.OverlayLayer, error) {
+//
+// Exported so io/parquet can rebuild []*OverlayLayer from the pqarrow-
+// materialised Arrow array (research/export-embedding-shape.md § 4.3
+// "Round-trip rule").
+func ReadOverlaysFromArray(listArr arrow.Array) ([]*types.OverlayLayer, error) {
 	if listArr == nil {
 		return nil, nil
 	}
@@ -132,7 +149,7 @@ func readOverlaysFromArray(listArr arrow.Array) ([]*types.OverlayLayer, error) {
 }
 
 // decodeOverlayStruct rebuilds one OverlayLayer from row i of the
-// overlay struct array. Mirrors the field order in overlaysFieldType.
+// overlay struct array. Mirrors the field order in OverlaysFieldType.
 func decodeOverlayStruct(s *array.Struct, i int) (*types.OverlayLayer, error) {
 	nameCol := s.Field(0).(*array.String)
 	kindCol := s.Field(1).(*array.String)
