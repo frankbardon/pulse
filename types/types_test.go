@@ -1012,3 +1012,170 @@ func TestGroupWithRoundedInterval(t *testing.T) {
 		t.Errorf("Interval = %f, want 10", got.Interval)
 	}
 }
+
+// TestComposeOverlaySpec_RoundTrip locks the JSON round-trip surface for
+// the E7-S3 ComposeOverlaySpec — marshal, unmarshal, and struct-equal.
+// Every populated field round-trips identically and the unmarshalled
+// shape matches the source slot-for-slot.
+//
+// The test uses a string-literal cast for OverlayKind because the
+// Compose-only catalog constants (OVERLAY_INDEX_VS_REF and friends) are
+// declared in a subsequent story (E7-S9); the E7-S3 round-trip surface
+// validates the struct shape itself, not the kind catalog. This matches
+// the casting pattern already used by E7-S2's canonical-hash tests
+// (types/hash_test.go).
+func TestComposeOverlaySpec_RoundTrip(t *testing.T) {
+	src := types.ComposeOverlaySpec{
+		Name:      "audience_a_vs_pop",
+		Kind:      types.OverlayKind("OVERLAY_INDEX_VS_REF"),
+		Scope:     types.OverlayScopeCell,
+		Reference: "total_pop",
+		Targets:   []string{"audience_a"},
+		Level:     1,
+		Within:    2,
+		Params:    map[string]any{"scale": 100.0},
+	}
+
+	data, err := json.Marshal(src)
+	if err != nil {
+		t.Fatalf("marshal ComposeOverlaySpec: %v", err)
+	}
+
+	var got types.ComposeOverlaySpec
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal ComposeOverlaySpec: %v", err)
+	}
+
+	if got.Name != src.Name {
+		t.Errorf("Name round-trip: got %q want %q", got.Name, src.Name)
+	}
+	if got.Kind != src.Kind {
+		t.Errorf("Kind round-trip: got %q want %q", got.Kind, src.Kind)
+	}
+	if got.Scope != src.Scope {
+		t.Errorf("Scope round-trip: got %q want %q", got.Scope, src.Scope)
+	}
+	if got.Reference != src.Reference {
+		t.Errorf("Reference round-trip: got %q want %q", got.Reference, src.Reference)
+	}
+	if len(got.Targets) != len(src.Targets) || got.Targets[0] != src.Targets[0] {
+		t.Errorf("Targets round-trip: got %v want %v", got.Targets, src.Targets)
+	}
+	if got.Level != src.Level {
+		t.Errorf("Level round-trip: got %d want %d", got.Level, src.Level)
+	}
+	if got.Within != src.Within {
+		t.Errorf("Within round-trip: got %d want %d", got.Within, src.Within)
+	}
+	if got.Params == nil {
+		t.Fatalf("Params round-trip: got nil want non-nil map")
+	}
+	if v, ok := got.Params["scale"].(float64); !ok || v != 100.0 {
+		t.Errorf("Params[scale] round-trip: got %v want 100.0", got.Params["scale"])
+	}
+}
+
+// TestComposeOverlaySpec_OmitemptyShape locks the JSON tag contract from
+// the E7-S3 acceptance list: every field is `omitempty` except Kind and
+// Reference. A spec carrying only those two fields must marshal to a
+// JSON object with exactly two keys.
+func TestComposeOverlaySpec_OmitemptyShape(t *testing.T) {
+	minimal := types.ComposeOverlaySpec{
+		Kind:      types.OverlayKind("OVERLAY_INDEX_VS_REF"),
+		Reference: "total_pop",
+	}
+
+	data, err := json.Marshal(minimal)
+	if err != nil {
+		t.Fatalf("marshal minimal ComposeOverlaySpec: %v", err)
+	}
+
+	got := string(data)
+	want := `{"kind":"OVERLAY_INDEX_VS_REF","reference":"total_pop"}`
+	if got != want {
+		t.Fatalf("minimal ComposeOverlaySpec marshal mismatch:\n got: %s\nwant: %s", got, want)
+	}
+}
+
+// TestComposedResponse_OverlayFreeByteIdentical locks the additive
+// contract for the Compose-level ComposedResponse.Overlays slot: a
+// ComposedResponse with no Overlays populated marshals to byte-identical
+// JSON to the same shape with `Overlays: nil` (the slot is omitempty).
+// Authoring shapes from before the Overlays slot existed therefore stay
+// wire-stable.
+func TestComposedResponse_OverlayFreeByteIdentical(t *testing.T) {
+	base := types.ComposedResponse{
+		Responses: []*types.Response{
+			{Data: []map[string]any{{"x": 1.0}}},
+		},
+	}
+	implicit, err := json.Marshal(base)
+	if err != nil {
+		t.Fatalf("marshal implicit ComposedResponse: %v", err)
+	}
+
+	explicitNil := base
+	explicitNil.Overlays = nil
+	gotNil, err := json.Marshal(explicitNil)
+	if err != nil {
+		t.Fatalf("marshal explicit-nil Overlays ComposedResponse: %v", err)
+	}
+	if string(gotNil) != string(implicit) {
+		t.Fatalf("explicit-nil Overlays diverged from implicit:\n got: %s\nwant: %s", gotNil, implicit)
+	}
+
+	emptySlice := base
+	emptySlice.Overlays = []types.OverlayLayer{}
+	gotEmpty, err := json.Marshal(emptySlice)
+	if err != nil {
+		t.Fatalf("marshal empty-slice Overlays ComposedResponse: %v", err)
+	}
+	if string(gotEmpty) != string(implicit) {
+		t.Fatalf("empty-slice Overlays diverged from implicit:\n got: %s\nwant: %s", gotEmpty, implicit)
+	}
+}
+
+// TestComposedResponse_RoundTrip locks the JSON round-trip surface for
+// the ComposedResponse wrapper: per-slot Responses and Compose-level
+// OverlayLayer entries both deserialize back to slot-equal shapes.
+func TestComposedResponse_RoundTrip(t *testing.T) {
+	src := types.ComposedResponse{
+		Responses: []*types.Response{
+			{Data: []map[string]any{{"x": 1.0}}},
+			{Data: []map[string]any{{"y": 2.0}}},
+		},
+		Overlays: []types.OverlayLayer{
+			{
+				Name:  "a_vs_pop",
+				Kind:  types.OverlayKind("OVERLAY_INDEX_VS_REF"),
+				Scope: types.OverlayScopeCell,
+			},
+		},
+	}
+
+	data, err := json.Marshal(src)
+	if err != nil {
+		t.Fatalf("marshal ComposedResponse: %v", err)
+	}
+
+	var got types.ComposedResponse
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal ComposedResponse: %v", err)
+	}
+
+	if len(got.Responses) != 2 {
+		t.Fatalf("Responses length = %d, want 2", len(got.Responses))
+	}
+	if len(got.Overlays) != 1 {
+		t.Fatalf("Overlays length = %d, want 1", len(got.Overlays))
+	}
+	if got.Overlays[0].Name != "a_vs_pop" {
+		t.Errorf("Overlays[0].Name = %q, want a_vs_pop", got.Overlays[0].Name)
+	}
+	if got.Overlays[0].Kind != types.OverlayKind("OVERLAY_INDEX_VS_REF") {
+		t.Errorf("Overlays[0].Kind = %q, want OVERLAY_INDEX_VS_REF", got.Overlays[0].Kind)
+	}
+	if got.Overlays[0].Scope != types.OverlayScopeCell {
+		t.Errorf("Overlays[0].Scope = %q, want cell", got.Overlays[0].Scope)
+	}
+}
