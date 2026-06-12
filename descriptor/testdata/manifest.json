@@ -3425,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 139,
+    "error_codes_count": 142,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3523,6 +3523,9 @@
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
       "PULSE_OVERLAY_DICT_PREFIX_DRIFT",
       "PULSE_OVERLAY_EXPECTED_LOW",
+      "PULSE_OVERLAY_FORMULA_INVALID_IDENT",
+      "PULSE_OVERLAY_FORMULA_PARSE_ERROR",
+      "PULSE_OVERLAY_FORMULA_TYPE_MISMATCH",
       "PULSE_OVERLAY_KEY_SET_DIVERGENT",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
@@ -5084,6 +5087,18 @@
         "description": "Per-cell Fisher's exact two-sided test against a 2×2 contingency table built from the host cell, its row margin, its column margin, and the grand total. CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the exact two-sided p-value as a float64. The Ref union is left empty (implicit-margin: row + col margins resolve from the buffered crosstab host view). Reuses the lgamma-backed hypergeometric primitive backing TEST_FISHER_EXACT (processing/test_fisher.go) via the shared fisherExactTwoSided helper. Canonical low-count contingency overlay (PRD § 4.C FR-C2) — emits PULSE_OVERLAY_EXPECTED_LOW per cell when the Cochran rule fires on the 2×2 (any expected \u003c 1 OR ≥ 20% of expected counts \u003c 5), flagging cells where the cheaper χ² approximation would be unreliable and Fisher's exact is structurally required."
       },
       {
+        "kind": "OVERLAY_FORMULA",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Caller-supplied expression-driven projection. The handler compiles `OverlaySpec.Params[\"formula\"]` ONCE per spec via expr-lang/expr (the same evaluator that backs ATTR_FORMULA and FILTER_EXPRESSION — embedder ExprFunctions registered at pulse.New time are reachable from FORMULA expressions with no additional registration) then runs the compiled program per cell against a per-host-shape variable namespace (MATRIX hosts: cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand; SERIES hosts: value, total, prior, baseline; SCALAR hosts: value; Compose hosts add the dotted `slot.\u003clabel\u003e.{cell|value}` namespace tied to Request.Label). Compile-once / run-many: O(1) compile per overlay layer; O(cells) run cost per evaluation. Return-type coercion: float64 / float32 / int / int64 widen natively; bool widens to 0.0 / 1.0; everything else fires PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict-time identifier validation (E8-S4) walks the parsed AST via expr-lang/expr/parser + expr-lang/expr/ast and rejects every identifier not in the per-shape variable table or the embedder ExprFunctions function set with PULSE_OVERLAY_FORMULA_INVALID_IDENT. INHERENTLY BUFFERED at v1 across every host shape — the variable namespace depends on post-fold state (margins / totals / SDs are not available mid-stream); a streamable variant under a distinct kind constant lands in a future story without re-opening this kind's contract. E8-S2 ships the MATRIX-host spine with a STUBBED per-cell env (only `cell` bound); E8-S3 lands the per-shape binder that fills the full namespace."
+      },
+      {
         "kind": "OVERLAY_INDEX_VS_BASELINE",
         "shapes": [
           "series"
@@ -5434,4 +5449,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 789d8d91bc7b409eb48272925de00c566f640dd0d7fc164a0b609263975171e6
+// golden-hash: 1e687a512dd5ee6914902babcc803b6ce380a9fcde5bc0f18a09c6dcb6805f27

@@ -723,6 +723,44 @@ const (
 	// the missing-window case).
 	PULSE_OVERLAY_PARAM_MISSING Code = "PULSE_OVERLAY_PARAM_MISSING"
 
+	// PULSE_OVERLAY_FORMULA_PARSE_ERROR indicates an OVERLAY_FORMULA spec's
+	// `Params["formula"]` string failed to parse via `expr-lang/expr` —
+	// e.g. unbalanced parentheses, a stray operator, or a typo on a
+	// keyword. Surfaced at both predict
+	// (`descriptor.validateOverlayFormula`) and runtime
+	// (`processing.applyFormula` family) with Details carrying
+	// `{formula, parse_error}` so the renderer can surface both the
+	// offending input and the underlying parser message. E8-S2 lands
+	// the runtime emission path; E8-S6 will refine the message + fixup
+	// catalogue against final author guidance.
+	PULSE_OVERLAY_FORMULA_PARSE_ERROR Code = "PULSE_OVERLAY_FORMULA_PARSE_ERROR"
+
+	// PULSE_OVERLAY_FORMULA_TYPE_MISMATCH indicates an OVERLAY_FORMULA
+	// expression returned a value whose type cannot be coerced to a
+	// numeric Statistic (float64). The coercion accepts `float64` /
+	// `float32` / `int` / `int64` natively, widens `bool` to `0.0 /
+	// 1.0`, and rejects everything else (strings, maps, nil, etc.).
+	// Surfaced at runtime by `processing.applyFormula` after
+	// `expr.Run` returns; Details carry `{returned_type, formula}`.
+	// E8-S2 lands the runtime emission path; E8-S6 will refine the
+	// message + fixup catalogue.
+	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH Code = "PULSE_OVERLAY_FORMULA_TYPE_MISMATCH"
+
+	// PULSE_OVERLAY_FORMULA_INVALID_IDENT indicates an OVERLAY_FORMULA
+	// expression references an identifier (variable or function) not
+	// in the per-host-shape variable table or the function set built
+	// from `pulse.Options.Extensions.ExprFunctions` plus the
+	// expr-lang stdlib. Surfaced at predict
+	// (`descriptor.validateOverlayFormula` AST walk) with Details
+	// carrying `{ident, host_shape, available_vars}`. Embedders that
+	// need new variables MUST register a custom kind via
+	// `pulse.Options.Extensions.OverlayKinds` — FORMULA cannot widen
+	// its variable namespace from outside. E8-S2 reserves the code
+	// for the predict validator (lands in E8-S4) and the runtime
+	// defense-in-depth path; E8-S6 will refine the message + fixup
+	// catalogue.
+	PULSE_OVERLAY_FORMULA_INVALID_IDENT Code = "PULSE_OVERLAY_FORMULA_INVALID_IDENT"
+
 	// PULSE_OVERLAY_YOY_FREQUENCY_MISSING indicates an OVERLAY_YOY spec
 	// did not supply a `frequency` Param either on the OverlaySpec or on
 	// the host's GROUP_DATE grouper. The YoY kind cannot infer the
@@ -1078,6 +1116,9 @@ var allCodes = []Code{
 	PULSE_OVERLAY_EXPECTED_LOW,
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 	PULSE_OVERLAY_PARAM_MISSING,
+	PULSE_OVERLAY_FORMULA_PARSE_ERROR,
+	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH,
+	PULSE_OVERLAY_FORMULA_INVALID_IDENT,
 	PULSE_OVERLAY_REF_UNKNOWN,
 	PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,

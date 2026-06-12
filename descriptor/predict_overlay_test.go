@@ -67,6 +67,12 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			Scope: types.OverlayScopeCell,
 		},
 		{
+			Name:   "formula",
+			Kind:   types.OverlayKindFormula,
+			Scope:  types.OverlayScopeCell,
+			Params: json.RawMessage(`{"formula":"cell"}`),
+		},
+		{
 			Name:  "index_row",
 			Kind:  types.OverlayKindIndexVsMargin,
 			Scope: types.OverlayScopeCell,
@@ -720,6 +726,12 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 			Name:  "fisher",
 			Kind:  types.OverlayKindFisherExactCell,
 			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindFormula: {
+			Name:   "formula",
+			Kind:   types.OverlayKindFormula,
+			Scope:  types.OverlayScopeCell,
+			Params: json.RawMessage(`{"formula":"cell"}`),
 		},
 		types.OverlayKindIndexVsMargin: {
 			Name:  "index_row",

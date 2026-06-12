@@ -82,6 +82,19 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// which require the buffered host crosstab matrix. PRD § 4.C
 		// FR-C2 canonical low-count contingency overlay.
 		OverlayKindFisherExactCell: false,
+		// OVERLAY_FORMULA is buffered-only at v1 across every host shape
+		// (E8-S2). The per-host-shape variable namespace depends on
+		// post-fold state — `margin_*` (MATRIX), `total` (SERIES),
+		// `sd_*` (MATRIX) all require margins / totals / Welford SDs
+		// not available mid-stream. A streamable FORMULA arm would
+		// either need to defer evaluation to post-finalize (which
+		// buffered already does) or restrict the variable table to a
+		// subset excluding margin / total / SD variables, splitting
+		// FORMULA into two kinds; authoring clarity argues against the
+		// split. Forward-compat: a future story may carve out a
+		// streamable variant under a distinct kind constant (e.g.
+		// OVERLAY_FORMULA_STREAMING) with a restricted variable table.
+		OverlayKindFormula: false,
 		// INDEX_VS_BASELINE is buffered — resolving a single positional
 		// baseline (Ref.BaselineIndex.Position) requires the materialised
 		// host series; the handler runs at the buffered post-host-finalize

@@ -495,6 +495,53 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"expected < 1 OR ≥ 20% of expected counts < 5), flagging cells where the cheaper χ² " +
 				"approximation would be unreliable and Fisher's exact is structurally required.",
 		}
+	case types.OverlayKindFormula:
+		return OverlayCapability{
+			Kind: types.OverlayKindFormula,
+			Shapes: []types.OverlayShape{
+				// E8-S2 spine ships the MATRIX-host evaluator arm;
+				// SERIES + SCALAR arms land alongside the per-shape
+				// binder in E8-S3 and are added to this slice at that
+				// story.
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				// CELL scope is exercised by the MATRIX-host arm; the
+				// per-shape binder in E8-S3 extends the supported
+				// scopes to row / column / group / total / matrix as
+				// each host shape comes online.
+				types.OverlayScopeCell,
+			},
+			// No Ref family — FORMULA sources its per-shape variable
+			// namespace (cell / margin_* / sd_* / etc.) directly from
+			// the materialised host payload. Compose-host FORMULA
+			// surfaces the dotted `slot.<label>.{cell|value}` namespace
+			// via the per-shape binder (E8-S3) and reuses the existing
+			// ComposeOverlaySpec.Reference / Targets name-resolution
+			// machinery — no new ref family pointer is required (see
+			// research note .planning/result-overlay-system/research/formula-namespace.md
+			// § 1 "OverlayRef back-pressure status: NONE").
+			RefKinds: []string{},
+			Description: "Caller-supplied expression-driven projection. The handler compiles " +
+				"`OverlaySpec.Params[\"formula\"]` ONCE per spec via expr-lang/expr (the same evaluator " +
+				"that backs ATTR_FORMULA and FILTER_EXPRESSION — embedder ExprFunctions registered at " +
+				"pulse.New time are reachable from FORMULA expressions with no additional registration) " +
+				"then runs the compiled program per cell against a per-host-shape variable namespace " +
+				"(MATRIX hosts: cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand; " +
+				"SERIES hosts: value, total, prior, baseline; SCALAR hosts: value; Compose hosts add the " +
+				"dotted `slot.<label>.{cell|value}` namespace tied to Request.Label). Compile-once / " +
+				"run-many: O(1) compile per overlay layer; O(cells) run cost per evaluation. " +
+				"Return-type coercion: float64 / float32 / int / int64 widen natively; bool widens to " +
+				"0.0 / 1.0; everything else fires PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict-time " +
+				"identifier validation (E8-S4) walks the parsed AST via expr-lang/expr/parser + " +
+				"expr-lang/expr/ast and rejects every identifier not in the per-shape variable table " +
+				"or the embedder ExprFunctions function set with PULSE_OVERLAY_FORMULA_INVALID_IDENT. " +
+				"INHERENTLY BUFFERED at v1 across every host shape — the variable namespace depends on " +
+				"post-fold state (margins / totals / SDs are not available mid-stream); a streamable " +
+				"variant under a distinct kind constant lands in a future story without re-opening " +
+				"this kind's contract. E8-S2 ships the MATRIX-host spine with a STUBBED per-cell env " +
+				"(only `cell` bound); E8-S3 lands the per-shape binder that fills the full namespace.",
+		}
 	case types.OverlayKindIndexVsBaseline:
 		return OverlayCapability{
 			Kind: types.OverlayKindIndexVsBaseline,

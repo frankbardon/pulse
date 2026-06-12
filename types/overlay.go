@@ -374,6 +374,109 @@ const (
 	// contingency overlay closing the E2 inferential family.
 	OverlayKindFisherExactCell OverlayKind = "OVERLAY_FISHER_EXACT_CELL"
 
+	// OverlayKindFormula emits a per-cell / per-entry / per-scalar
+	// expression-driven projection computed from a caller-supplied
+	// formula string evaluated against a per-host-shape variable
+	// namespace. The expression syntax + evaluator is `expr-lang/expr`
+	// — the same evaluator that backs `ATTR_FORMULA` and
+	// `FILTER_EXPRESSION` so embedder `ExprFunctions` registered at
+	// `pulse.New` time are reachable from FORMULA expressions with no
+	// additional registration (the function surface widens; the
+	// variable surface stays fixed per-host-shape).
+	//
+	// Authoring shape (E8 spine; namespace lands in E8-S3):
+	//
+	//	{
+	//	  "kind":  "OVERLAY_FORMULA",
+	//	  "scope": "cell",                                   // matrix host
+	//	  "params": { "formula": "(cell - margin_grand) / sd_grand" }
+	//	}
+	//
+	// Per-host-shape variable namespace (resolved in research note
+	// `.planning/result-overlay-system/research/formula-namespace.md`
+	// § 2 and bound by the per-shape binder landing in E8-S3):
+	//
+	//   - MATRIX host (Crosstab): `cell`, `margin_row`, `margin_col`,
+	//     `margin_grand`, `sd_row`, `sd_col`, `sd_grand` (+ `ref_cell`
+	//     when COMPOSE).
+	//   - SERIES host (grouped Process / windowed Process / Facet
+	//     discrete): `value`, `total`, `prior` (+ `baseline` opt-in via
+	//     `Params["baseline_position"]`, + `ref_value` when COMPOSE).
+	//   - SCALAR host (whole-matrix p-values, whole-chain SCALAR
+	//     overlays, Compose-scalar): `value` (+ `ref` when COMPOSE).
+	//   - Compose hosts add the dotted `slot.<label>.{cell|value}`
+	//     namespace tied to `Request.Label`.
+	//
+	// Evaluator: compile-once / run-many — the handler compiles the
+	// formula via `expr.Compile` ONCE per overlay spec (at handler
+	// entry) against a prototype env carrying zeroed slots for the
+	// per-shape variable namespace, then runs the program via
+	// `expr.Run` per cell / entry / scalar with the per-iteration env
+	// overwriting the prototype's value slots. Mirrors the
+	// `processing.formulaAttribute.Row` compile / run pattern (single
+	// allocation per overlay layer; O(1) writes per iteration).
+	//
+	// Predict-time identifier validation (lands in E8-S4): predict
+	// parses the formula via `expr-lang/expr/parser`, walks the AST
+	// via `expr-lang/expr/ast` (the same packages
+	// `processing.NeededFields` walks for `ATTR_FORMULA`), and rejects
+	// every identifier not in the per-host-shape variable table or the
+	// embedder `ExprFunctions` function set. Unknown identifiers fire
+	// `PULSE_OVERLAY_FORMULA_INVALID_IDENT` carrying the offending
+	// identifier + the per-shape variable enumerate-set.
+	//
+	// Failure modes (codes registered in E8-S6):
+	//
+	//   - `PULSE_OVERLAY_FORMULA_PARSE_ERROR` — `expr.Compile` returned
+	//     a parse error (syntax error in the formula string). Carries
+	//     `{formula, parse_error}` Details. Surfaced at both predict
+	//     and runtime — the runtime path defends in case the predict
+	//     step was bypassed.
+	//   - `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH` — `expr.Run` returned a
+	//     value whose type cannot be coerced to float64. The coercion
+	//     accepts `float64` / `float32` / `int` / `int64` natively,
+	//     widens `bool` to `0.0 / 1.0`, and rejects everything else.
+	//     Carries `{returned_type, formula}` Details.
+	//   - `PULSE_OVERLAY_FORMULA_INVALID_IDENT` — predict-time AST
+	//     walk found an identifier not in the per-host-shape variable
+	//     table or the function set. Carries `{ident, host_shape,
+	//     available_vars}` Details.
+	//
+	// Buffered-only at v1 across every host shape — the variable
+	// namespace depends on post-fold state (margins / totals / SDs are
+	// not available mid-stream). The streamability row in
+	// `types/overlay_streamability.go` stays `false` regardless of
+	// host streamability. A future story may carve out a streamable
+	// variant under a distinct kind constant without re-opening this
+	// kind's contract; see research note § 6 for the rationale.
+	//
+	// Scope / Ref handling: the resolved host shape determines which
+	// scope values are accepted (MATRIX hosts accept `cell`; SERIES
+	// hosts accept `group`; SCALAR hosts accept `total`). Ref family
+	// pointers are NOT required — the `ref_cell` / `ref_value` / `ref`
+	// COMPOSE variables source from the slot's reference shape (the
+	// per-shape binder in E8-S3 resolves them). E8 ships in-Request
+	// (`Request.Overlays`) and Compose (`ComposedRequest.Overlays`)
+	// FORMULA surfaces only; whole-chain FORMULA is deferred from v1
+	// (the `stage.<id>.<var>` namespace is documented in the research
+	// note for forward-compat).
+	//
+	// Embedder extensibility: `pulse.Options.Extensions.ExprFunctions`
+	// merges into the FORMULA env. Functions widen the function
+	// surface only — they do NOT widen the variable identifier surface.
+	// Embedders that need new variables MUST register a custom kind
+	// via `pulse.Options.Extensions.OverlayKinds` per the existing
+	// extension-points policy (CLAUDE.md "Extension Points → Naming
+	// policy"); FORMULA cannot widen its variable namespace from
+	// outside.
+	//
+	// LookupTables are OUT of scope at v1 — `lookup(...)` is NOT
+	// registered into the FORMULA env. Embedders who need a
+	// lookup-driven overlay register the lookup as a custom
+	// `ExprFunctions` entry instead (full control over the function
+	// signature and predict treatment).
+	OverlayKindFormula OverlayKind = "OVERLAY_FORMULA"
+
 	// OverlayKindDeltaVsBaseline emits a per-point additive delta against a
 	// single fixed positional baseline of an ordered SERIES (grouped
 	// Process) host: `delta_i = point_value_i - baseline_value` where
@@ -2110,6 +2213,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindDeltaVsSibling,
 		OverlayKindDeltaVsStage,
 		OverlayKindFisherExactCell,
+		OverlayKindFormula,
 		OverlayKindIndexVsBaseline,
 		OverlayKindIndexVsMargin,
 		OverlayKindIndexVsPop,

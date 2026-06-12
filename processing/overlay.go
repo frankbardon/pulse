@@ -269,6 +269,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindChiSqRow:       applyChiSqRow,
 	types.OverlayKindDeltaVsMargin:  applyDeltaVsMargin,
 	types.OverlayKindFisherExactCell: applyFisherExactCell,
+	types.OverlayKindFormula:        applyFormula,
 	types.OverlayKindIndexVsMargin:  applyIndexVsMargin,
 	types.OverlayKindShareOfCol:     applyShareOfCol,
 	types.OverlayKindShareOfRow:     applyShareOfRow,

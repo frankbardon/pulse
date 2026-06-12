@@ -1266,6 +1266,39 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_FORMULA_PARSE_ERROR: {
+		Message: "An OVERLAY_FORMULA spec's Params[\"formula\"] string failed to parse via expr-lang/expr. The formula was syntactically invalid — typically unbalanced parentheses, a stray operator, an unterminated string literal, or a typo on a keyword. Details carry {formula, parse_error} so callers can surface both the offending input and the underlying parser message. E8-S2 lands the runtime emission path with the minimal message + fixup below; E8-S6 will refine prose against author guidance.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params"},
+				Hint:     "Check the formula string for typos, unbalanced parentheses, or stray punctuation. Verify operators are valid expr-lang operators (+, -, *, /, %, **, ==, !=, <, <=, >, >=, &&, ||, !). The parser's error message is surfaced in Details.parse_error.",
+				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}},
+			},
+		},
+	},
+	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH: {
+		Message: "An OVERLAY_FORMULA expression returned a value whose type cannot be coerced to a numeric Statistic (float64). The coercion accepts float64 / float32 / int / int64 natively, widens bool to 0.0 / 1.0, and rejects everything else (strings, maps, nil, etc.). Details carry {returned_type, formula}. E8-S2 lands the runtime emission path with the minimal message + fixup below; E8-S6 will refine prose against author guidance.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params"},
+				Hint:     "Ensure the formula's top-level expression evaluates to a numeric value (float64, float32, int, int64) or bool (which coerces to 0.0 / 1.0). If the formula uses a custom function via pulse.Options.Extensions.ExprFunctions, verify the function returns a numeric value rather than a string or composite type.",
+				Examples: []any{map[string]any{"formula": "cell / margin_row"}},
+			},
+		},
+	},
+	PULSE_OVERLAY_FORMULA_INVALID_IDENT: {
+		Message: "An OVERLAY_FORMULA expression references an identifier (variable or function) not in the per-host-shape variable table or the function set built from pulse.Options.Extensions.ExprFunctions plus the expr-lang stdlib. Details carry {ident, host_shape, available_vars}. Embedders that need new variables MUST register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. E8-S2 reserves the code for the predict validator (lands in E8-S4) and the runtime defense-in-depth path; E8-S6 will refine prose against author guidance.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params"},
+				Hint:     "Replace the offending identifier with one of the available variables for this host shape (Details.available_vars enumerates them). If the identifier was meant to be a function, register it via pulse.Options.Extensions.ExprFunctions. If you need a new variable family, register a custom kind via pulse.Options.Extensions.OverlayKinds (FORMULA cannot widen its variable namespace from outside).",
+				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}},
+			},
+		},
+	},
 	PULSE_OVERLAY_REF_UNKNOWN: {
 		Message: "An overlay handler named a reference that does not resolve to a known slot on the host. Three arms today: (1) sibling-reference overlays (OVERLAY_DELTA_VS_SIBLING / OVERLAY_INDEX_VS_SIBLING) name a Sibling (Field, Value) pair that does not match any observed axis-key value on the SERIES host; (2) baseline-index overlays (OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_YOY) name a Position ordinal outside [0, host.GroupCount()) — Details carry {baseline_index, series_length}; (3) Facet-host population overlays (OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP) name a population field absent from the host FacetResult — Details carry {field, available_fields}. The affected layer surfaces NaN statistics across every present entry (arms 1–2) or fails fast (arm 3). Warning-class for arms 1–2, runtime error for arm 3 — surfaced as a Response.Warning or envelope error depending on arm.",
 		Fixups: []Fixup{

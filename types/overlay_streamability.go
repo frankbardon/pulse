@@ -138,6 +138,23 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// is plumbed (PRD § 4.C FR-C2 — the canonical low-count contingency
 	// overlay closing the E2 inferential family).
 	OverlayKindFisherExactCell: false,
+	// OVERLAY_FORMULA is buffered-only at v1 for every host shape (E8-S2).
+	// The per-host-shape variable namespace (research note
+	// `.planning/result-overlay-system/research/formula-namespace.md` § 2)
+	// depends on post-fold state — `margin_row` / `margin_col` /
+	// `margin_grand` (MATRIX), `total` (SERIES), `sd_*` (MATRIX) all
+	// require margins / totals / Welford SDs that are not available
+	// mid-stream. A streamable FORMULA arm would either need to defer
+	// evaluation to post-finalize (which is what buffered already does) or
+	// restrict the variable table to a subset that excludes margin / total
+	// / SD variables, splitting FORMULA into two kinds. Authoring clarity
+	// argues against the split — better to keep one kind with a clear
+	// "buffered" contract. Forward-compat: a future story may carve out a
+	// streamable variant under a distinct kind constant (e.g.
+	// `OVERLAY_FORMULA_STREAMING`) with a restricted variable table
+	// without re-opening this kind's contract; see research note § 6 for
+	// the rationale.
+	OverlayKindFormula: false,
 	// OVERLAY_INDEX_VS_BASELINE is buffered — resolving a single positional
 	// baseline (Ref.BaselineIndex.Position) requires the materialised host
 	// series (`host.ValueAt(Position)` is consulted after finalize). The
