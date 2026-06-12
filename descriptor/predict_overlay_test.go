@@ -127,7 +127,8 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindDeltaVsSibling,
 			types.OverlayKindIndexVsSibling,
 			types.OverlayKindIndexVsPrior,
-			types.OverlayKindIndexVsBaseline:
+			types.OverlayKindIndexVsBaseline,
+			types.OverlayKindDeltaVsBaseline:
 			// SERIES-host: skipped from the MATRIX-host catalog gate.
 			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
 			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
@@ -136,7 +137,9 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			// fixtures rather than this MATRIX-host fixture. E4-S4 adds
 			// INDEX_VS_PRIOR (windowed lag-1) and E4-S2 adds
 			// INDEX_VS_BASELINE (windowed positional anchor) which are
-			// also SERIES-host and ride on the same skip rule.
+			// also SERIES-host and ride on the same skip rule. E4-S3 adds
+			// DELTA_VS_BASELINE (absolute-difference twin of
+			// INDEX_VS_BASELINE) — same SERIES-host predicate.
 			continue
 		}
 		matrixHostKinds[k] = true
@@ -420,6 +423,22 @@ func TestPredict_OverlayCost_BufferedKindsHigh(t *testing.T) {
 				},
 			},
 		},
+		{
+			// E4-S3 DELTA_VS_BASELINE: SERIES-host windowed kind, absolute-
+			// difference twin of INDEX_VS_BASELINE. Same buffered cost
+			// dispatch — baseline resolution requires the materialised host
+			// series. Same Position=0 in-range trick against the
+			// siblingHostReq region-grouper fixture (2 dict entries).
+			name: "DeltaVsBaseline",
+			spec: types.OverlaySpec{
+				Name:  "delta_baseline",
+				Kind:  types.OverlayKindDeltaVsBaseline,
+				Scope: types.OverlayScopeGroup,
+				Ref: types.OverlayRef{
+					BaselineIndex: &types.OverlayBaselineIndexRef{Position: 0},
+				},
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -548,6 +567,7 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		types.OverlayKindIndexVsSibling:  true,
 		types.OverlayKindIndexVsPrior:    true,
 		types.OverlayKindIndexVsBaseline: true,
+		types.OverlayKindDeltaVsBaseline: true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

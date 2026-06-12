@@ -244,6 +244,15 @@ type seriesOverlayHandler func(spec *types.OverlaySpec, host *SeriesHostView) (t
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
+	// OVERLAY_DELTA_VS_BASELINE (E4-S3): per-point absolute additive delta
+	// against a single fixed positional baseline of the ordered host series —
+	// the baseline is resolved once via processing.ResolveBaselineIndex (E4-S1
+	// foundation helper) and every present point subtracts it. Buffered
+	// (baseline resolution requires the materialised host series). Absolute-
+	// difference sibling of applyIndexVsBaseline (E4-S2); does NOT emit
+	// PULSE_OVERLAY_REF_ZERO because subtraction is total. Handler:
+	// applyDeltaVsBaseline in processing/overlay_delta_vs_baseline.go.
+	types.OverlayKindDeltaVsBaseline: applyDeltaVsBaseline,
 	// OVERLAY_DELTA_VS_SIBLING (E3-S5): per-group additive delta
 	// against a sibling group named in Ref.Sibling. Buffered (sibling
 	// resolution requires the full materialised SeriesPayload).

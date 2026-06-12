@@ -52,8 +52,20 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// which the buffered host crosstab orchestrator already materialised.
 	// Inferential overlays as a family stay buffered until a streamable-
 	// test path is plumbed.
-	OverlayKindChiSqRow:      false,
-	OverlayKindDeltaVsMargin: false,
+	OverlayKindChiSqRow: false,
+	// OVERLAY_DELTA_VS_BASELINE is buffered — resolving a single positional
+	// baseline (Ref.BaselineIndex.Position) requires the materialised host
+	// series (`host.ValueAt(Position)` is consulted after finalize). The
+	// handler runs at the buffered post-host-finalize exit via
+	// ApplyOverlaysSeries (mirrors OverlayKindIndexVsBaseline — the
+	// absolute-difference twin of the same windowed positional-baseline
+	// family). Forward-compat: a future story may lift the baseline
+	// resolver into a streaming-aware shape (carrying the resolved baseline
+	// inline as a kind-specific accumulator advanced during the streaming
+	// pass once the orchestrator hits the baseline ordinal); when that
+	// lands the flag flips to true.
+	OverlayKindDeltaVsBaseline: false,
+	OverlayKindDeltaVsMargin:   false,
 	// OVERLAY_DELTA_VS_SIBLING is buffered — the SERIES sibling-reference
 	// family resolves its comparison anchor via a (Field, Value) lookup
 	// against the materialised per-group accumulators, which the streaming

@@ -275,6 +275,88 @@ const (
 	// contingency overlay closing the E2 inferential family.
 	OverlayKindFisherExactCell OverlayKind = "OVERLAY_FISHER_EXACT_CELL"
 
+	// OverlayKindDeltaVsBaseline emits a per-point additive delta against a
+	// single fixed positional baseline of an ordered SERIES (grouped
+	// Process) host: `delta_i = point_value_i - baseline_value` where
+	// `baseline_value = host.ValueAt(Ref.BaselineIndex.Position)`. GROUP
+	// scope over a SERIES host with SERIES payload — one `SeriesEntry` per
+	// host group key in host order, each carrying the delta on
+	// `Summary.Statistic`. Absolute-difference sibling of
+	// `OVERLAY_INDEX_VS_BASELINE` (E4-S2) and third windowed-Process kind
+	// in the catalog (E4-S3). Like its sibling it consumes the
+	// `Ref.BaselineIndex.Position` arm of the OverlayBaselineIndexRef
+	// discriminated union landed at E4-S1.
+	//
+	// Math (per host group ordinal `i`):
+	//
+	//	baseline_value = host.ValueAt(Ref.BaselineIndex.Position)
+	//	if present[i]  ⇒ point - baseline
+	//	if !present[i] ⇒ absent passthrough (no Statistic)
+	//
+	// Baseline resolution: the handler resolves the baseline value ONCE
+	// up front via `processing.ResolveBaselineIndex(host,
+	// Ref.BaselineIndex)` (the E4-S1 foundation helper). Negative or
+	// out-of-range `Position` values fail at predict time
+	// (`descriptor.validateOverlayBaselineIndexPredict`) and at runtime
+	// (`processing.ResolveBaselineIndex`) with
+	// `PULSE_OVERLAY_REF_UNKNOWN` carrying `{baseline_index,
+	// series_length}` Details. The handler propagates the resolver's
+	// CodedError verbatim — the runtime resolver's coded shape IS the
+	// kind's runtime range-check surface (same contract as the
+	// `OVERLAY_INDEX_VS_BASELINE` twin).
+	//
+	// Baseline-at-self semantics: when the host's first present point IS
+	// at `Position` (typical "anchor against first point" authoring), that
+	// ordinal's delta is exactly `0.0` (self-vs-self under additive
+	// subtraction). Renderers centre diverging colour ramps on
+	// `baseline = 0` (mirrors `OVERLAY_DELTA_VS_MARGIN` /
+	// `OVERLAY_DELTA_VS_SIBLING` / `OVERLAY_ZSCORE_VS_*`).
+	//
+	// Zero-baseline semantics: unlike the `OVERLAY_INDEX_VS_BASELINE` twin
+	// (which divides by the baseline and rejects zero with
+	// `PULSE_OVERLAY_REF_ZERO`), DELTA_VS_BASELINE performs subtraction
+	// and is mathematically defined for every finite baseline value
+	// including zero. The handler does NOT emit
+	// `PULSE_OVERLAY_REF_ZERO`; a zero baseline simply yields
+	// `delta_i = point_value_i - 0 = point_value_i` (the raw host value
+	// passes through). Mirrors the existing `OVERLAY_DELTA_VS_SIBLING`
+	// rule against zero sibling values.
+	//
+	// Absent-point policy: a host that did not produce a value for group
+	// `i` (the resolver returns `(0, false)`) surfaces a `SeriesEntry`
+	// whose `Summary` leaves `Statistic` unset — the canonical "present
+	// slot, empty summary" shape from the E3-S1 SERIES dispatch contract.
+	// Absent groups do NOT participate in the delta computation. The
+	// baseline ordinal itself MAY be absent — `ResolveBaselineIndex` calls
+	// `host.ValueAt` and the host's own resolver decides whether the
+	// requested ordinal surfaces a present value or reports absent. An
+	// absent baseline (`present=false` at the baseline ordinal) yields a
+	// baseline value of `0.0` from the host; subsequent points subtract
+	// that zero and the layer carries the raw host values verbatim (no
+	// warning — distinct from the `OVERLAY_INDEX_VS_BASELINE` zero-
+	// baseline `PULSE_OVERLAY_REF_ZERO` arm).
+	//
+	// Ref handling: `Ref.BaselineIndex` (with `Position >= 0`) is
+	// REQUIRED. Empty `Ref` is rejected at predict time
+	// (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`). Any other ref-family
+	// pointer (`Margin` / `Sibling` / `Prior` / `Population` / `Stage` /
+	// `Slot`) is rejected with the same code.
+	//
+	// Scope must be GROUP. `Level` / `Within` MUST be zero (the baseline
+	// is a single fixed positional anchor, not an axis prefix; non-zero
+	// values fire `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` mirroring the
+	// `INDEX_VS_BASELINE` / `INDEX_VS_TOTAL` / `INDEX_VS_PRIOR`
+	// implicit-margin / windowed family rule).
+	//
+	// Buffered. Per `types/overlay_streamability.go`, the streamability
+	// row is `false` — resolving a single positional baseline requires
+	// the materialised host series (`host.ValueAt(Position)` reads after
+	// finalize). The handler runs at the buffered post-host-finalize exit
+	// via `ApplyOverlaysSeries`. Forward-compat: a future story may lift
+	// the baseline resolver into a streaming-aware shape; when that lands
+	// the streamability flag flips to true.
+	OverlayKindDeltaVsBaseline OverlayKind = "OVERLAY_DELTA_VS_BASELINE"
+
 	// OverlayKindDeltaVsSibling emits a per-group additive delta against a
 	// sibling group named in `Ref.Sibling`. GROUP scope over a SERIES
 	// (grouped Process) host with SERIES payload — one SeriesEntry per
@@ -774,6 +856,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindChiSqCol,
 		OverlayKindChiSqMatrix,
 		OverlayKindChiSqRow,
+		OverlayKindDeltaVsBaseline,
 		OverlayKindDeltaVsMargin,
 		OverlayKindDeltaVsSibling,
 		OverlayKindFisherExactCell,

@@ -29,6 +29,12 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// margin to drive the expected-count recurrence, all of which
 		// require the buffered host crosstab matrix.
 		OverlayKindChiSqRow: false,
+		// DELTA_VS_BASELINE is buffered — absolute-difference twin of
+		// INDEX_VS_BASELINE. Resolving a single positional baseline
+		// (Ref.BaselineIndex.Position) requires the materialised host
+		// series; the handler runs at the buffered post-host-finalize exit
+		// via ApplyOverlaysSeries.
+		OverlayKindDeltaVsBaseline: false,
 		// DELTA_VS_MARGIN shares INDEX_VS_MARGIN's buffered footprint —
 		// its margin centerpoint is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.

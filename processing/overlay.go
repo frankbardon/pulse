@@ -2639,6 +2639,15 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// row axis is structurally fixed); synthesised default mirrors
 		// CHISQ_MATRIX's lower-case bare-kind shape.
 		return "chisq_row"
+	case types.OverlayKindDeltaVsBaseline:
+		// DELTA_VS_BASELINE is the windowed positional-baseline absolute-
+		// difference kind; the synthesised default surfaces the lower-case
+		// bare-kind string "delta_vs_baseline" matching the INDEX_VS_BASELINE
+		// / INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES / INDEX_VS_PRIOR
+		// convention. The synthesiser intentionally does NOT echo the
+		// baseline ordinal in the default name — renderers that need the
+		// disambiguation populate spec.Name explicitly.
+		return "delta_vs_baseline"
 	case types.OverlayKindDeltaVsMargin:
 		// DELTA_VS_MARGIN dispatches all three axes; the synthesised
 		// default surfaces whichever axis the caller asked for. Falls

@@ -217,6 +217,48 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"PULSE_OVERLAY_EXPECTED_LOW once per offending row when any expected cell value in the row " +
 				"is below 5.",
 		}
+	case types.OverlayKindDeltaVsBaseline:
+		return OverlayCapability{
+			Kind: types.OverlayKindDeltaVsBaseline,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// BaselineIndex is the windowed positional-anchor ref family
+			// (E4-S1 foundation; E4-S3 consumer, sibling to E4-S2
+			// INDEX_VS_BASELINE). The capability row declares the consumed
+			// Ref-arm so MCP / manifest clients see the kind requires
+			// Ref.BaselineIndex.Position to be populated; the per-kind
+			// validator (descriptor.validateOverlayDeltaVsBaseline) gates
+			// the shape at predict time.
+			RefKinds: []string{"BaselineIndex"},
+			Description: "Per-point additive delta against a single fixed positional baseline of an ordered SERIES " +
+				"(grouped Process) host: point_value - baseline_value. GROUP scope over a SERIES host with " +
+				"SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on " +
+				"Summary.Statistic. Absolute-difference sibling of OVERLAY_INDEX_VS_BASELINE (E4-S2) and third " +
+				"windowed-Process kind in the catalog (E4-S3). Like its sibling it consumes the " +
+				"Ref.BaselineIndex.Position arm of the OverlayBaselineIndexRef union (E4-S1 foundation). The " +
+				"baseline is resolved ONCE up front via processing.ResolveBaselineIndex and every present point " +
+				"subtracts it. The first present point at the baseline ordinal yields 0.0 (self-vs-self). Output " +
+				"preserves the host cell's units — a $-valued AGG_SUM point minus a $-valued baseline yields a " +
+				"$-valued deviation in the same currency (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING). " +
+				"Unlike the OVERLAY_INDEX_VS_BASELINE twin (which divides by the baseline and rejects zero with " +
+				"PULSE_OVERLAY_REF_ZERO), DELTA_VS_BASELINE performs subtraction and is mathematically defined for " +
+				"every finite baseline value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO; a " +
+				"zero baseline simply yields delta = point - 0 = point (the raw host value passes through). " +
+				"Negative or out-of-range Position values fire PULSE_OVERLAY_REF_UNKNOWN at both predict and " +
+				"runtime with {baseline_index, series_length} Details. Absent host points (resolver reports " +
+				"(0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.BaselineIndex " +
+				"MUST be populated; any other ref-family pointer (Margin / Sibling / Prior / Population / Stage / " +
+				"Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (the baseline " +
+				"is a single fixed positional anchor, not an axis prefix); non-zero values fire " +
+				"PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_BASELINE / INDEX_VS_PRIOR / INDEX_VS_TOTAL " +
+				"family. Buffered — resolving a single positional baseline requires the materialised host series. " +
+				"Renderers centre diverging colour ramps on baseline=0 (mirrors OVERLAY_DELTA_VS_MARGIN / " +
+				"OVERLAY_DELTA_VS_SIBLING / OVERLAY_ZSCORE_VS_*).",
+		}
 	case types.OverlayKindDeltaVsMargin:
 		return OverlayCapability{
 			Kind: types.OverlayKindDeltaVsMargin,
