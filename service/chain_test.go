@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"testing"
 
@@ -331,5 +332,173 @@ func TestProcessChain_FiveStageScalarPipeline(t *testing.T) {
 	// stage5 sum(1) = 1
 	if got := resp.Final.Data[0]["total"].(float64); !floatClose(got, 1.0, 0.001) {
 		t.Errorf("final total = %v, want 1.0", got)
+	}
+}
+
+// TestOverlay_ChainPerStage_Piggyback is the E6-S1 dual-slot per-stage
+// conformance test. Per-stage overlays must surface on
+// ChainResponse.Stages[i].Overlays exactly as if each stage's Request
+// were run standalone through E3 — there is no chain-specific overlay
+// code path; the per-stage half of the dual-slot design is a pure
+// consequence of the universal Request.Overlays slot landed in E1/E3.
+//
+// Acceptance:
+//
+//   - Stage 0 carries one OVERLAY_INDEX_VS_TOTAL spec; Stage 1 carries
+//     one OVERLAY_SHARE_OF_TOTAL spec.
+//   - ChainResponse.Stages[0].Overlays has length 1 with
+//     Kind=OVERLAY_INDEX_VS_TOTAL.
+//   - ChainResponse.Stages[1].Overlays has length 1 with
+//     Kind=OVERLAY_SHARE_OF_TOTAL.
+//   - ChainResponse.Overlays stays nil (no whole-chain overlay slot is
+//     exercised here — that surface lands in E6-S2..S5).
+//   - Stripping Stages[i].Overlays from the response JSON yields the
+//     same Stages[i] host data as a chain run with empty per-stage
+//     Overlays (additive byte-identity contract).
+//
+// The chain stays mergeable end-to-end (AGG_SUM + GROUP_CATEGORY only)
+// so CanChainRequest accepts every stage.
+func TestOverlay_ChainPerStage_Piggyback(t *testing.T) {
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "region", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 1, CsvColumnIdx: 1},
+		},
+	}
+	// 6 records across 3 regions — region totals are arithmetically
+	// clean: region=1 -> 30, region=2 -> 70, region=3 -> 150.
+	records := [][]uint64{
+		{1, math.Float64bits(10.0)},
+		{1, math.Float64bits(20.0)},
+		{2, math.Float64bits(30.0)},
+		{2, math.Float64bits(40.0)},
+		{3, math.Float64bits(70.0)},
+		{3, math.Float64bits(80.0)},
+	}
+	cfg := setupTestFS(t, "test.pulse", schema, records)
+	ctx := context.Background()
+
+	// makeChain returns the 2-stage chain; withOverlays toggles the
+	// per-stage Overlays slots so the same factory drives both the
+	// overlay-carrying run AND the no-overlay baseline used by the
+	// byte-identity guard below.
+	makeChain := func(withOverlays bool) *types.ChainRequest {
+		stage0 := &types.Request{
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_SUM, Field: "score", Label: "s"},
+			},
+		}
+		stage1 := &types.Request{
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_SUM, Field: "s", Label: "ss"},
+			},
+		}
+		if withOverlays {
+			stage0.Overlays = []types.OverlaySpec{
+				{
+					Name:  "stage0_index_vs_total",
+					Kind:  types.OverlayKindIndexVsTotal,
+					Scope: types.OverlayScopeGroup,
+				},
+			}
+			stage1.Overlays = []types.OverlaySpec{
+				{
+					Name:  "stage1_share_of_total",
+					Kind:  types.OverlayKindShareOfTotal,
+					Scope: types.OverlayScopeGroup,
+				},
+			}
+		}
+		return &types.ChainRequest{
+			Cohort: &types.Cohort{Filename: "test.pulse"},
+			Stages: []*types.ChainStage{
+				{Name: "group_sum", Request: stage0},
+				{Name: "regroup_sum", Request: stage1},
+			},
+		}
+	}
+
+	svc := New(cfg)
+	resp, err := svc.ProcessChain(ctx, makeChain(true))
+	if err != nil {
+		t.Fatalf("ProcessChain (with per-stage overlays): %v", err)
+	}
+
+	// Whole-chain Overlays slot is not yet declared on ChainResponse —
+	// that surface lands with E6-S2 (ChainRequest.Overlays). The
+	// per-stage half of the dual-slot design tested here piggybacks
+	// the universal Request.Overlays slot landed in E1/E3, so the
+	// "no whole-chain overlays requested" half of the acceptance is
+	// vacuously satisfied today (the slot does not exist). When E6-S2
+	// adds ChainResponse.Overlays, extend this test to assert it stays
+	// nil for the per-stage-only chain.
+
+	if got := len(resp.Stages); got != 2 {
+		t.Fatalf("expected 2 stages, got %d", got)
+	}
+
+	// Stage 0: one INDEX_VS_TOTAL layer in spec order with stable Name.
+	stage0Overlays := resp.Stages[0].Overlays
+	if len(stage0Overlays) != 1 {
+		t.Fatalf("Stages[0].Overlays length = %d, want 1", len(stage0Overlays))
+	}
+	if got, want := stage0Overlays[0].Kind, types.OverlayKindIndexVsTotal; got != want {
+		t.Errorf("Stages[0].Overlays[0].Kind = %q, want %q", got, want)
+	}
+	if got, want := stage0Overlays[0].Name, "stage0_index_vs_total"; got != want {
+		t.Errorf("Stages[0].Overlays[0].Name = %q, want %q (stable spec-order name echo)", got, want)
+	}
+
+	// Stage 1: one SHARE_OF_TOTAL layer in spec order with stable Name.
+	stage1Overlays := resp.Stages[1].Overlays
+	if len(stage1Overlays) != 1 {
+		t.Fatalf("Stages[1].Overlays length = %d, want 1", len(stage1Overlays))
+	}
+	if got, want := stage1Overlays[0].Kind, types.OverlayKindShareOfTotal; got != want {
+		t.Errorf("Stages[1].Overlays[0].Kind = %q, want %q", got, want)
+	}
+	if got, want := stage1Overlays[0].Name, "stage1_share_of_total"; got != want {
+		t.Errorf("Stages[1].Overlays[0].Name = %q, want %q (stable spec-order name echo)", got, want)
+	}
+
+	// Byte-identity guard: a no-overlay baseline chain must produce
+	// the same per-stage host Data as the overlay-carrying run after
+	// the overlay layers are stripped. The Overlays slot is additive —
+	// it must never mutate the base payload.
+	baselineSvc := New(cfg)
+	baseline, err := baselineSvc.ProcessChain(ctx, makeChain(false))
+	if err != nil {
+		t.Fatalf("ProcessChain (baseline, no overlays): %v", err)
+	}
+	if got := len(baseline.Stages); got != 2 {
+		t.Fatalf("baseline expected 2 stages, got %d", got)
+	}
+
+	// Strip Overlays from the overlay-carrying run and JSON-compare
+	// each stage's host payload (Data + Warnings + everything else
+	// except Overlays) against the baseline. We mutate copies so the
+	// resp object stays intact for any later assertions.
+	for i, st := range resp.Stages {
+		stripped := *st
+		stripped.Overlays = nil
+		strippedJSON, err := json.Marshal(stripped)
+		if err != nil {
+			t.Fatalf("marshal stripped stage %d: %v", i, err)
+		}
+		baselineJSON, err := json.Marshal(baseline.Stages[i])
+		if err != nil {
+			t.Fatalf("marshal baseline stage %d: %v", i, err)
+		}
+		if string(strippedJSON) != string(baselineJSON) {
+			t.Fatalf("byte-identity violated for stage %d after stripping Overlays:\nwith-overlays-stripped: %s\nbaseline:               %s",
+				i, strippedJSON, baselineJSON)
+		}
+		// Defense in depth: the baseline stage must NOT carry overlays.
+		if baseline.Stages[i].Overlays != nil {
+			t.Errorf("baseline Stages[%d].Overlays should be nil; got %+v",
+				i, baseline.Stages[i].Overlays)
+		}
 	}
 }
