@@ -2766,6 +2766,13 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// the default name — renderers that need the disambiguation
 		// populate spec.Name explicitly.
 		return "yoy"
+	case types.OverlayKindZScoreVsPop:
+		// ZSCORE_VS_POP (E5-S3) is the FACET-host population-comparison
+		// z-score kind; synthesised default surfaces the lower-case bare-
+		// kind string "zscore_vs_pop" matching the INDEX_VS_POP / INDEX_VS_TOTAL /
+		// ZSCORE_VS_TOTAL convention (no axis dispatch — the Facet field is
+		// fixed by the host shape).
+		return "zscore_vs_pop"
 	case types.OverlayKindZScoreVsRolling:
 		// ZSCORE_VS_ROLLING is the windowed rolling sample-SD z-score
 		// kind; synthesised default surfaces the lower-case bare-kind

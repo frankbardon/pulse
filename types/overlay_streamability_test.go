@@ -123,6 +123,16 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// centerpoint require a fully-materialised matrix, so the host
 		// crosstab path stays buffered.
 		OverlayKindZScoreVsMargin: false,
+		// ZSCORE_VS_POP is the second streamable FACET-host overlay (E5-S3).
+		// Pairs with INDEX_VS_POP as the two streamable Facet overlay kinds —
+		// the handler runs as a post-finalize fold over the host's already-
+		// materialised per-value distribution and the resolver's
+		// FacetPopulationView (the sd_pop value is sourced from the
+		// population's already-folded Welford state on the categorical fast
+		// path via DiscreteFrequencyStdev() and from FacetNumeric.StdDev on
+		// the numeric path). No second pass over records and no widening of
+		// the host streaming carrier.
+		OverlayKindZScoreVsPop: true,
 		// ZSCORE_VS_ROLLING is buffered (E4-S6) — sibling windowed-rolling
 		// kind to INDEX_VS_ROLLING_MEAN (E4-S5). Both kinds share the
 		// per-group ring buffer + Welford (count, mean, M2) trio carrier;

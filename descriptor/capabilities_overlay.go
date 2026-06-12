@@ -689,6 +689,59 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Level / Within slots for nested-axis denominator truncation; the SD denominator " +
 				"continues to fold over the full per-axis slice (E2-S11).",
 		}
+	case types.OverlayKindZScoreVsPop:
+		return OverlayCapability{
+			Kind: types.OverlayKindZScoreVsPop,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// Population is the FACET-host comparison-population ref family
+			// (E5-S1 foundation; E5-S2 INDEX_VS_POP first consumer; E5-S3
+			// ZSCORE_VS_POP second consumer). The capability row declares
+			// the consumed Ref-arm so MCP / manifest clients see the kind
+			// requires Ref.Population to be populated; the per-kind
+			// validator (descriptor.validateOverlayZScoreVsPop) lands in
+			// E5-S6 / E5-S7 (this story is the runtime handler only).
+			RefKinds: []string{"Population"},
+			Description: "Per-value population-comparison z-score against a FACET host: (subset_freq - pop_freq) / sd_pop. " +
+				"GROUP scope over a FACET (FacetSchema) host with SERIES payload — one SeriesEntry per host value in " +
+				"payload order, each carrying the z-score on Summary.Statistic. Sibling streamable FACET-host kind to " +
+				"OVERLAY_INDEX_VS_POP (E5-S2); pairs with INDEX_VS_POP as the two streamable Facet overlay kinds — the viz " +
+				"developer requesting both together gets two parallel series layers from a single Facet pass. " +
+				"Categorical fast path (host.Kind == \"discrete\"): walks host.Discrete.Values in payload order " +
+				"(descending by count, ties ascending by value-string — the canonical FacetSchema sort); each entry emits " +
+				"(subset_freq - pop_freq) / sd_pop where sd_pop is the population standard deviation across the " +
+				"population's per-category frequencies (sourced from FacetPopulationView.DiscreteFrequencyStdev — the S1 " +
+				"resolver's additive accessor reading the Welford-Pébaÿ accumulator that FacetSchema already folded; " +
+				"single-pass, allocation-free, byte-equal to the WelfordStdDev recurrence). Numeric path (host.Kind == " +
+				"\"numeric\"): walks host.Numeric.Histogram.Bins when the host requested a histogram AND the population " +
+				"view carries a Welford summary; each entry emits (bin_center - pop_mean) / pop_sd against the " +
+				"population's FacetNumeric.Mean / StdDev (no per-bin histogram alignment required on the population side). " +
+				"Streaming finalize hook: the handler runs as a post-finalize fold over the host's already-materialized " +
+				"per-value distribution + the resolver's already-materialized Welford state for the population cohort; no " +
+				"second pass over records and no widening of the host streaming carrier — the streamable guarantee is " +
+				"that running this handler against a streaming vs buffered host produces byte-identical SeriesPayload " +
+				"output because the input state is identical. Zero sd_pop path: when the population SD is zero (single-" +
+				"entry population OR every category has equal frequency on the discrete arm; constant population on the " +
+				"numeric arm), the handler emits ONE PULSE_OVERLAY_REF_ZERO warning per affected entry (discrete arm — " +
+				"value-level granularity) OR one layer-level warning (numeric arm — sd_pop is a single layer-scoped " +
+				"denominator) and SKIPS the z-score (Statistic stays unset on affected entries). Absent-population value " +
+				"on the discrete arm (value missing from the population's discrete payload) yields pop_freq=0 and the " +
+				"z-score (subset_freq - 0) / sd_pop is well-defined — emitted without warning (distinct from " +
+				"INDEX_VS_POP's zero-denominator arm because subtraction by zero is well-defined). Ref.Population MUST be " +
+				"populated (the cohort name lives on Ref.Population.Cohort); any other ref-family pointer (Margin / " +
+				"Sibling / BaselineIndex / Prior / RollingMean / YoY / Stage / Slot) fires " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E5-S6 / E5-S7). " +
+				"Level / Within MUST be zero (population comparison is a single-value lookup, not an axis prefix); " +
+				"non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the implicit-ref family. Scope must be " +
+				"GROUP. Streamable — host streaming carriers are unchanged; the overlay reads finalized state only. " +
+				"Renderers centre diverging colour ramps on baseline=0 (mirrors OVERLAY_ZSCORE_VS_TOTAL / " +
+				"OVERLAY_ZSCORE_VS_MARGIN / OVERLAY_ZSCORE_VS_ROLLING — every z-score family produces a centred " +
+				"distribution, not a ratio).",
+		}
 	case types.OverlayKindZScoreVsRolling:
 		return OverlayCapability{
 			Kind: types.OverlayKindZScoreVsRolling,

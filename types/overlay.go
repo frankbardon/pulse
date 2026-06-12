@@ -1069,6 +1069,75 @@ const (
 	// z-score family produces a centred distribution, not a ratio).
 	OverlayKindZScoreVsRolling OverlayKind = "OVERLAY_ZSCORE_VS_ROLLING"
 
+	// OverlayKindZScoreVsPop emits a per-value population-comparison
+	// z-score against a FACET host: `z = (subset_freq - pop_freq) / sd_pop`
+	// for each value of the host Facet field. GROUP scope over a FACET
+	// host with SERIES payload — one `SeriesEntry` per host value in
+	// payload order, each carrying the z-score on `Summary.Statistic`.
+	// Sibling streamable FACET-host kind to `OVERLAY_INDEX_VS_POP`
+	// (E5-S2); pairs with that kind as the two streamable Facet overlay
+	// kinds — a viz developer requesting both together gets two parallel
+	// series layers from a single Facet pass.
+	//
+	// Math:
+	//
+	//   Discrete host: subset_freq = host.Discrete.Values[v].Count /
+	//     sum(host.Discrete.Values[*].Count); pop_freq =
+	//     FacetPopulationView.DiscreteFrequency(v); sd_pop =
+	//     FacetPopulationView.DiscreteFrequencyStdev() (population SD
+	//     across the population's per-category frequencies — Welford-
+	//     Pébaÿ accumulator already used by FacetSchema, surfaced by the
+	//     S1 resolver via DiscreteCounts() walk).
+	//
+	//   Numeric host: subset_val and pop_mean / pop_sd come from the
+	//     respective FacetNumeric.Mean / StdDev slots. The per-bin path
+	//     would require a histogram on both host and pop and matches the
+	//     INDEX_VS_POP numeric shape — but unlike INDEX_VS_POP which
+	//     reads bin frequencies, ZSCORE_VS_POP operates on the values
+	//     themselves so the numeric path reads the Welford summary
+	//     directly. Each bin's center value standardised against the
+	//     population's Welford (mean, sd) producing the per-bin z-score.
+	//
+	// On `sd_pop == 0`: emit ONE warning code `PULSE_OVERLAY_REF_ZERO`
+	// per affected entry and SKIP the z-score entry (Statistic stays
+	// unset on that entry — "present slot, empty summary" shape).
+	// Mirrors the INDEX_VS_POP zero-pop_freq contract.
+	//
+	// Absent-population path: when the resolver could not find any
+	// population entry for `value` (the value never appeared in the
+	// population dictionary), the handler treats it as the zero-pop_freq
+	// case and emits the same warning + skip behavior (mirrors
+	// INDEX_VS_POP).
+	//
+	// Ref handling: `Ref.Population` MUST be populated (mirrors
+	// INDEX_VS_POP). Any other ref-family pointer (`Margin` / `Sibling` /
+	// `BaselineIndex` / `Prior` / `RollingMean` / `YoY` / `Stage` /
+	// `Slot`) fires `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` at
+	// predict time (per-kind validator lands in E5-S6 / E5-S7).
+	//
+	// Scope must be GROUP. `Level` / `Within` MUST be zero (population
+	// comparison is a single-value lookup, not an axis prefix); non-zero
+	// values fire `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` mirroring the
+	// implicit-ref family.
+	//
+	// Streamable. Per `types/overlay_streamability.go`, the streamability
+	// row is `true` — the handler runs as a post-finalize fold over the
+	// host's already-materialized per-value distribution + the resolver's
+	// already-materialized population view (sd_pop derives from the
+	// Welford accumulator FacetSchema already folded for the population
+	// cohort). The host-side streaming Facet pass keeps its existing
+	// online accumulators (Welford trio / per-value count map); the
+	// overlay does NOT widen the streaming carrier — it consumes
+	// finalized state only. Streamable matches the kind-catalog-v1
+	// "Streaming-capable subset" — pairs with `OVERLAY_INDEX_VS_POP` as
+	// the two streamable Facet kinds.
+	//
+	// Renderers centre diverging colour ramps on `baseline = 0` (mirrors
+	// `OVERLAY_ZSCORE_VS_MARGIN` / `OVERLAY_ZSCORE_VS_TOTAL` /
+	// `OVERLAY_ZSCORE_VS_ROLLING` — every z-score family produces a
+	// centred distribution, not a ratio).
+	OverlayKindZScoreVsPop OverlayKind = "OVERLAY_ZSCORE_VS_POP"
+
 	// OverlayKindZScoreVsMargin emits a per-cell standardized-margin
 	// z-score: (cell - margin) / sd where margin is the matching axis
 	// margin slot and sd is the population standard deviation of the
@@ -1303,6 +1372,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindShareOfTotal,
 		OverlayKindYoY,
 		OverlayKindZScoreVsMargin,
+		OverlayKindZScoreVsPop,
 		OverlayKindZScoreVsRolling,
 		OverlayKindZScoreVsTotal,
 	}

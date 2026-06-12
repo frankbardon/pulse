@@ -138,7 +138,12 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			// lands in E5-S6 / E5-S10; until then this MATRIX-host
 			// gate skips the kind so it does not collide with the
 			// crosstab-host fixture.
-			types.OverlayKindIndexVsPop:
+			types.OverlayKindIndexVsPop,
+			// OVERLAY_ZSCORE_VS_POP (E5-S3) is a FACET-host kind too —
+			// sibling streamable kind to INDEX_VS_POP. Same MATRIX-host
+			// gate skip rule (the predict-side validator lands in
+			// E5-S6 / E5-S7).
+			types.OverlayKindZScoreVsPop:
 			// SERIES / FACET host: skipped from the MATRIX-host catalog gate.
 			// E3-S5 adds DELTA_VS_SIBLING + INDEX_VS_SIBLING — both ride
 			// on the same SERIES-host predicate as INDEX_VS_TOTAL /
@@ -360,6 +365,23 @@ func TestPredict_OverlayCost_StreamableKindsLow(t *testing.T) {
 		types.OverlayKindIndexVsPop: {
 			Name:  "idx_pop",
 			Kind:  types.OverlayKindIndexVsPop,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Population: &types.OverlayPopulationRef{Cohort: "population"},
+			},
+		},
+		// ZSCORE_VS_POP (E5-S3): second streamable FACET-host kind.
+		// Pairs with INDEX_VS_POP as the two streamable Facet overlay
+		// kinds — the cost-dispatch surface reads the streamability
+		// table and emits overlayCostStreamable for every streamable
+		// kind regardless of the host shape the request actually
+		// carries. The per-kind validator lands in E5-S6 / E5-S7 so
+		// this story leaves the validator silent for the FACET-host
+		// kind — the cost test still exercises the streamable bucket
+		// correctly.
+		types.OverlayKindZScoreVsPop: {
+			Name:  "z_pop",
+			Kind:  types.OverlayKindZScoreVsPop,
 			Scope: types.OverlayScopeGroup,
 			Ref: types.OverlayRef{
 				Population: &types.OverlayPopulationRef{Cohort: "population"},
@@ -672,6 +694,10 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		// belong in this buffered-cost test even if the host shape
 		// matched.
 		types.OverlayKindIndexVsPop: true,
+		// OVERLAY_ZSCORE_VS_POP (E5-S3) is a FACET-host kind too —
+		// sibling streamable kind to INDEX_VS_POP. Same skip rule
+		// (covered by TestPredict_OverlayCost_StreamableKindsLow).
+		types.OverlayKindZScoreVsPop: true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

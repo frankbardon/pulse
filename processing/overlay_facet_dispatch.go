@@ -105,6 +105,12 @@ var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
 	// catalog. Handler: applyIndexVsPop in
 	// processing/overlay_index_vs_pop.go.
 	types.OverlayKindIndexVsPop: applyIndexVsPop,
+	// OVERLAY_ZSCORE_VS_POP (E5-S3): per-value population-comparison
+	// z-score against a FACET host. Sibling streamable FACET-host kind
+	// to OVERLAY_INDEX_VS_POP — pairs as the two streamable Facet
+	// overlay kinds. Handler: applyZScoreVsPop in
+	// processing/overlay_zscore_vs_pop.go.
+	types.OverlayKindZScoreVsPop: applyZScoreVsPop,
 }
 
 // ApplyOverlaysFacet executes every spec in specs against the FACET

@@ -182,6 +182,23 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// orchestrator carries an exact-key host index inline.
 	OverlayKindYoY:            false,
 	OverlayKindZScoreVsMargin: false,
+	// OVERLAY_ZSCORE_VS_POP is streamable — sibling FACET-host kind to
+	// OVERLAY_INDEX_VS_POP (E5-S3). Pairs with INDEX_VS_POP as the two
+	// streamable Facet overlay kinds — the viz developer requesting both
+	// together gets two parallel series layers from a single Facet pass.
+	// The handler runs as a post-finalize fold over the host's already-
+	// materialised per-value distribution + the resolver's already-
+	// materialised population view (sd_pop comes from the Welford
+	// accumulator FacetSchema already folded for the population cohort).
+	// The host-side streaming Facet pass keeps its existing online
+	// accumulators (Welford trio / per-value count map); the overlay does
+	// NOT widen the streaming carrier — it consumes finalized host state
+	// only. The streamable guarantee is that running this handler against
+	// a streaming Facet host vs a buffered one produces byte-identical
+	// SeriesPayload output because the input state is identical. Per
+	// kind-catalog-v1 "Streaming-capable subset", OVERLAY_ZSCORE_VS_POP
+	// is listed as YES.
+	OverlayKindZScoreVsPop: true,
 	// OVERLAY_ZSCORE_VS_ROLLING is buffered — sibling windowed-rolling kind
 	// to OVERLAY_INDEX_VS_ROLLING_MEAN (E4-S5). Both kinds share the per-
 	// group ring buffer + Welford (count, mean, M2) trio carrier; the

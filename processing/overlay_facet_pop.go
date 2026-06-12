@@ -1,6 +1,8 @@
 package processing
 
 import (
+	"math"
+
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -263,6 +265,87 @@ func (v *FacetPopulationView) DiscreteFrequency(value string) (float64, bool) {
 		}
 	}
 	return 0, false
+}
+
+// DiscreteFrequencyStdev returns the population standard deviation of
+// the per-category frequencies (count / TotalRecords) over the
+// resolved discrete payload. Returns `(sd, true)` when the resolved
+// field is discrete and the denominator is non-zero; `(0, false)`
+// otherwise (view is nil, non-discrete, missing payload, or empty
+// counts slice).
+//
+// This is the per-category frequency-SD that the Facet-host z-score
+// overlay (OVERLAY_ZSCORE_VS_POP / E5-S3) reads as `sd_pop`. The
+// implementation walks the already-resolved `DiscreteCounts()` slice
+// (the per-value (value, count) tuples FacetSchema folded into the
+// payload) and uses the canonical Welford-Pébaÿ recurrence over those
+// frequencies — one pass, allocation-free, byte-equal to the
+// recurrence used by `WelfordStdDev` (`processing/welford.go`) for any
+// other population-SD computation. POPULATION SD (divide by N, not
+// N-1) is the correct convention because the per-category frequency
+// set IS the whole population being summarised — mirrors the
+// `OVERLAY_ZSCORE_VS_TOTAL` variance-choice rationale.
+//
+// Single-entry payload (N=1): the recurrence is well-defined and
+// returns `(0, true)` — every frequency equals the single observed
+// value's frequency so the variance is exactly zero. Callers (the
+// E5-S3 handler) then route every entry through the
+// PULSE_OVERLAY_REF_ZERO arm. Distinct from the unknown-shape case
+// `(0, false)` which means the view itself is not discrete-enabled.
+//
+// Read-only: the function does not mutate the underlying payload.
+// O(n) over the discrete payload; n is the truncated top-K slice
+// length (capped per FacetRequest.DiscreteTopK or by the dictionary
+// cardinality otherwise — typically small).
+//
+// Added at E5-S3 as an additive accessor on the S1 resolver — keeps
+// the "no second pass over records" contract intact by reading only
+// already-folded population state. E5-S4 / E5-S5 will reuse the same
+// shape when they need population-frequency variance.
+func (v *FacetPopulationView) DiscreteFrequencyStdev() (float64, bool) {
+	counts, ok := v.DiscreteCounts()
+	if !ok {
+		return 0, false
+	}
+	total := v.TotalRecords()
+	if total <= 0 {
+		return 0, false
+	}
+	if len(counts) == 0 {
+		return 0, false
+	}
+	// Single-pass Welford-Pébaÿ over per-category frequencies. n is the
+	// number of categories (one frequency per discrete value); mean +
+	// M2 fold into the population variance `M2 / n`. Matches the same
+	// numerical convention (single-pass Welford-Pébaÿ) used by the
+	// `WelfordStdDev` helper so cross-mode equivalence tests stay
+	// byte-equal within ULP.
+	var (
+		n    int64
+		mean float64
+		m2   float64
+	)
+	denom := float64(total)
+	for _, vc := range counts {
+		n++
+		freq := float64(vc.Count) / denom
+		delta := freq - mean
+		mean += delta / float64(n)
+		delta2 := freq - mean
+		m2 += delta * delta2
+	}
+	if n == 0 {
+		return 0, false
+	}
+	// Population SD: sqrt(M2 / n).
+	variance := m2 / float64(n)
+	if variance <= 0 {
+		// Defense in depth: floating-point rounding may produce a tiny
+		// negative variance for constant inputs. Clamp to zero so the
+		// downstream sqrt never returns NaN.
+		return 0, true
+	}
+	return math.Sqrt(variance), true
 }
 
 // DiscreteCount returns the per-value count for a single value in the
