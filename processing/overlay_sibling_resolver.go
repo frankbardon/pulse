@@ -75,6 +75,13 @@ package processing
 // Distinct from `SeriesHostView.ValueAt(i)` — that helper indexes by
 // host ordinal; resolveSibling indexes by `(field, value)` semantics
 // and walks the host's group-key list to find the matching ordinal.
+//
+// Forward-compat (E4+ ordered-axis kinds): the windowed Process catalog
+// (Baseline / Prior / RollingMean per research/kind-catalog-v1.md) wants
+// resolution against an ordered axis index, not a `(field, value)` pair.
+// No new resolver helper is needed — those kinds call `host.ValueAt(i)`
+// directly with the desired index ordinal; this resolver stays scoped to
+// the `(field, value)` sibling shape.
 func resolveSibling(host *SeriesHostView, field, value string) (float64, bool) {
 	if host == nil || field == "" || value == "" {
 		return 0, false

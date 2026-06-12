@@ -102,6 +102,52 @@ func TestResolveSibling_HostAbsentValueReturnsPresentFalse(t *testing.T) {
 	}
 }
 
+// TestResolveSibling_EmptySeriesReturnsAbsent pins the S7 acceptance
+// matrix "empty series" arm: a host with zero group keys returns
+// (0, false) for any `(field, value)` pair without panicking. The
+// resolver's groupCount==0 short-circuit covers this branch — verified
+// here as a top-level test so the S7 unit-coverage matrix (hit / miss /
+// empty / single-entry) reads explicitly in the file.
+func TestResolveSibling_EmptySeriesReturnsAbsent(t *testing.T) {
+	host := newStubSeriesHostWithField(nil, nil, "region")
+	got, present := resolveSibling(host, "region", "US")
+	if present {
+		t.Errorf("resolveSibling on empty series returned present=true; want false")
+	}
+	if got != 0 {
+		t.Errorf("resolveSibling on empty series value = %v, want 0", got)
+	}
+}
+
+// TestResolveSibling_SingleEntrySeriesHits pins the S7 acceptance
+// matrix "single-entry series" arm: a one-group host whose key matches
+// returns the host's value with present=true; a non-matching value on
+// the same one-group host returns (0, false). Exercises both branches
+// of the single-entry case in one test so the failure mode is obvious
+// when one regresses without the other.
+func TestResolveSibling_SingleEntrySeriesHits(t *testing.T) {
+	keys := []types.AxisKey{{"US"}}
+	host := newStubSeriesHostWithField(keys, []float64{42.0}, "region")
+
+	// Matching path.
+	got, present := resolveSibling(host, "region", "US")
+	if !present {
+		t.Fatalf("single-entry hit returned present=false; want true")
+	}
+	if got != 42.0 {
+		t.Errorf("single-entry hit value = %v, want 42.0", got)
+	}
+
+	// Non-matching value on the same one-group host.
+	got, present = resolveSibling(host, "region", "CA")
+	if present {
+		t.Errorf("single-entry non-match returned present=true; want false")
+	}
+	if got != 0 {
+		t.Errorf("single-entry non-match value = %v, want 0", got)
+	}
+}
+
 // TestResolveSibling_NilOrEmptyArgsReturnAbsent pins the defensive
 // returns: nil host, empty field, empty value all return (0, false)
 // without panicking.
