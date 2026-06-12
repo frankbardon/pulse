@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 	"github.com/xuri/excelize/v2"
 )
@@ -252,6 +253,16 @@ type Writer struct {
 	// computed lazily on first write of a decimal column. The slice is
 	// indexed by column position; -1 means no cached style yet.
 	decimalStyleIDs []int
+
+	// overlays carries the Response.Overlays layers the export pipeline
+	// hands to the writer via SetOverlays before WriteHeader. When
+	// non-nil + non-empty, the writer adds one sheet per layer named
+	// "__overlay_<layer_name>" (truncated + disambiguated per
+	// research/export-embedding-shape.md § 5) alongside the host data
+	// sheet at Close time. nil OR empty produces byte-identical Excel
+	// output to a pre-overlay export — no overlay sheets land on the
+	// workbook (the host sheet is unchanged).
+	overlays []*types.OverlayLayer
 }
 
 // SetPulseSchema records the source .pulse schema. Implements
@@ -259,6 +270,21 @@ type Writer struct {
 // for decimal128 columns.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
+}
+
+// SetOverlays records the Response.Overlays layers the export pipeline
+// wants the writer to embed in the workbook. Each layer lands on a
+// dedicated sheet named "__overlay_<layer_name>" alongside the host
+// data sheet per research/export-embedding-shape.md § 5 (one sheet per
+// layer; the double-underscore prefix reserves the namespace). nil or
+// empty layers leave the workbook byte-identical to a pre-overlay
+// export (no overlay sheets land). Implements pio.OverlayAwareWriter.
+//
+// Sheet emission happens at Close() time so the host sheet's stream
+// writer can finish writing before the overlay sheets are appended.
+// Must be called BEFORE Close.
+func (w *Writer) SetOverlays(layers []*types.OverlayLayer) {
+	w.overlays = layers
 }
 
 // NewWriter creates an Excel writer targeting a filesystem path.
@@ -422,7 +448,11 @@ func decimalNumberFormat(scale uint8) string {
 	return "0." + strings.Repeat("0", int(scale))
 }
 
-// Close flushes and writes the workbook to the target path.
+// Close flushes and writes the workbook to the target path. When
+// SetOverlays handed the writer a non-empty layer slice the writer
+// appends one "__overlay_<layer_name>" sheet per layer after the host
+// sheet's stream writer is flushed and before WriteToBuffer; see
+// writeOverlaySheets in overlay.go for the layout rules.
 func (w *Writer) Close() error {
 	if w.sw != nil {
 		if err := w.sw.Flush(); err != nil {
@@ -431,6 +461,14 @@ func (w *Writer) Close() error {
 	}
 	if w.file == nil {
 		return nil
+	}
+
+	// Emit overlay sheets AFTER the host stream writer has flushed but
+	// BEFORE the workbook is serialised to disk. nil / empty overlays
+	// short-circuits inside writeOverlaySheets so the workbook stays
+	// byte-identical to a pre-overlay export.
+	if err := w.writeOverlaySheets(); err != nil {
+		return err
 	}
 
 	if w.fs != nil && w.path != "" {
@@ -445,3 +483,10 @@ func (w *Writer) Close() error {
 
 	return w.file.Close()
 }
+
+// Ensure interfaces are satisfied at compile time.
+var _ pio.Reader = (*Reader)(nil)
+var _ pio.ResetReader = (*Reader)(nil)
+var _ pio.Writer = (*Writer)(nil)
+var _ pio.SchemaAwareWriter = (*Writer)(nil)
+var _ pio.OverlayAwareWriter = (*Writer)(nil)
