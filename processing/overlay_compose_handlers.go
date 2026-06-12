@@ -309,28 +309,35 @@ func summaryWithBaseline(baseline float64, seen int, minV, maxV float64) *types.
 }
 
 // applyIndexVsRef is the COMPOSE-host runtime handler for
-// OVERLAY_INDEX_VS_REF. Walks the target matrix row-major, looks up
-// each cell's matching `(rowKey, colKey)` in the reference matrix via
-// a precomputed lookup, and emits one overlay cell per present target
-// cell: `(target / ref) * scale` where scale defaults to 100.
+// OVERLAY_INDEX_VS_REF. Dual-shape dispatcher (E7-S10) — detects the
+// host shape from the reference + first target slots and routes into
+// either the MATRIX arm (per-cell lookup + emit) or the SERIES arm
+// (per-row lookup + emit). The chassis schema-match gate (E7-S7)
+// guarantees the reference and target slots share the same shape
+// before this handler is dispatched.
 //
-// Math (per host coordinate):
+// Math (per host coordinate `(i, j)` for MATRIX or `i` for SERIES):
 //
 //	scale = Params["scale"] (default 100)
 //	if ref_val == 0 ⇒ NaN + PULSE_OVERLAY_REF_ZERO warning
 //	otherwise       ⇒ (target / ref) * scale
 //
-// Missing reference cells (target carries a cell with row + col keys
-// the reference matrix did not surface) emit
-// PULSE_OVERLAY_REF_ZERO with a "ref_missing" Detail flag.
+// Missing reference rows / cells (target carries a key the reference
+// did not surface) emit PULSE_OVERLAY_REF_ZERO with a `ref_missing`
+// Detail flag.
 //
-// Output payload mirrors the target matrix's RowKeys / ColumnKeys /
-// headers so renderers can lay the overlay on top of the target base
-// matrix with the same header machinery as MATRIX-host
-// INDEX_VS_MARGIN.
+// MATRIX arm output payload mirrors the target matrix's RowKeys /
+// ColumnKeys / headers so renderers can lay the overlay on top of the
+// target base matrix with the same header machinery as MATRIX-host
+// INDEX_VS_MARGIN. SERIES arm output payload is a SeriesPayload whose
+// entries match the target's Response.Data row order element-for-
+// element (modulo missing-ref drops).
 func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
-	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
+	if composeHostIsSeries(reference, target) {
+		return applyIndexVsRefSeries(spec, reference, target, refIdx, targetIdx)
+	}
+	refMx := readMatrix(reference)
 	targetMx := readMatrix(target)
 	if refMx == nil || targetMx == nil {
 		// Defense in depth — the chassis schema-match gate already
@@ -339,7 +346,7 @@ func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 		// observable.
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
-			"overlay "+string(spec.Kind)+" requires MATRIX-shape slots for reference and target",
+			"overlay "+string(spec.Kind)+" requires MATRIX-shape or SERIES-shape slots for reference and target",
 			map[string]any{
 				"code":         string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"kind":         string(spec.Kind),
@@ -433,19 +440,25 @@ func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 }
 
 // applyDeltaVsRef is the COMPOSE-host runtime handler for
-// OVERLAY_DELTA_VS_REF. Per-cell additive `target - ref`. Subtraction
-// is total over the reals so there is no zero-denominator hazard —
-// the handler never emits PULSE_OVERLAY_REF_ZERO for a zero
-// reference. Missing reference cells still emit a warning per the
-// PRD §4 missing-key contract (the cell stays absent on the overlay).
+// OVERLAY_DELTA_VS_REF. Dual-shape dispatcher (E7-S10) — detects the
+// host shape from the reference + first target slots and routes into
+// either the MATRIX arm (per-cell subtract + emit) or the SERIES arm
+// (per-row subtract + emit). Per-coordinate additive `target - ref`.
+// Subtraction is total over the reals so there is no zero-denominator
+// hazard — the handler never emits PULSE_OVERLAY_REF_ZERO for a zero
+// reference. Missing reference rows / cells still emit a warning per
+// the PRD §4 missing-key contract.
 func applyDeltaVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
-	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
+	if composeHostIsSeries(reference, target) {
+		return applyDeltaVsRefSeries(spec, reference, target, refIdx, targetIdx)
+	}
+	refMx := readMatrix(reference)
 	targetMx := readMatrix(target)
 	if refMx == nil || targetMx == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
-			"overlay "+string(spec.Kind)+" requires MATRIX-shape slots for reference and target",
+			"overlay "+string(spec.Kind)+" requires MATRIX-shape or SERIES-shape slots for reference and target",
 			map[string]any{
 				"code":         string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"kind":         string(spec.Kind),

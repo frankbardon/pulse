@@ -95,12 +95,21 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// lands the flag flips to true.
 	OverlayKindDeltaVsBaseline: false,
 	OverlayKindDeltaVsMargin:   false,
-	// OVERLAY_DELTA_VS_REF is inherently buffered — COMPOSE-only kind
-	// (E7-S9), subtractive sibling of OVERLAY_INDEX_VS_REF. Runs at the
-	// post-slot-barrier fold once every slot has produced a finalised
-	// *Response. The streamable subset stays empty across the E7
-	// catalog by construction.
-	OverlayKindDeltaVsRef: false,
+	// OVERLAY_DELTA_VS_REF is streamable via its SERIES-host dispatch
+	// (E7-S10) — sibling COMPOSE-only kind to OVERLAY_INDEX_VS_REF,
+	// subtractive twin. The SERIES handler is fold-only (single
+	// accumulator per group; no peer-cell lookup) and the kind-catalog-v1
+	// "Streaming-capable subset" lists DELTA_VS_REF among the fold-only
+	// streamable COMPOSE kinds. The MATRIX-host dispatch (E7-S9) remains
+	// forced buffered by the slot barrier in `service.Compose` /
+	// `service.ComposeParallel`; this flag describes the kind's
+	// INTRINSIC streaming capability via its SERIES handler — not the
+	// composed host-overlay routing decision (mirrors OverlayKindShareOfTotal's
+	// dual-shape convention; MATRIX-arm forces buffered through the
+	// slot barrier, SERIES-arm fold-streamable). Cost dispatcher
+	// (overlayCostForKind) reads this flag to surface the streamable
+	// cost multiplier for SERIES-host calls.
+	OverlayKindDeltaVsRef: true,
 	// OVERLAY_DELTA_VS_SIBLING is buffered — the SERIES sibling-reference
 	// family resolves its comparison anchor via a (Field, Value) lookup
 	// against the materialised per-group accumulators, which the streaming
@@ -140,13 +149,21 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// hits the baseline ordinal); when that lands the flag flips to true.
 	OverlayKindIndexVsBaseline: false,
 	OverlayKindIndexVsMargin: false,
-	// OVERLAY_INDEX_VS_REF is inherently buffered — first COMPOSE-only
-	// kind in the catalog (E7-S9), ratio sibling of OVERLAY_DELTA_VS_REF.
-	// Runs at the post-slot-barrier fold once every slot has produced a
-	// finalised *Response. The streamable subset stays empty across the
-	// E7 catalog by construction — the COMPOSE host is buffered by the
-	// slot barrier even if individual slots are streamable.
-	OverlayKindIndexVsRef: false,
+	// OVERLAY_INDEX_VS_REF is streamable via its SERIES-host dispatch
+	// (E7-S10) — first COMPOSE-only kind in the catalog (E7-S9), ratio
+	// sibling of OVERLAY_DELTA_VS_REF. The SERIES handler is fold-only
+	// (single accumulator per group; no peer-cell lookup) and the
+	// kind-catalog-v1 "Streaming-capable subset" lists INDEX_VS_REF
+	// among the fold-only streamable COMPOSE kinds. The MATRIX-host
+	// dispatch (E7-S9) remains forced buffered by the slot barrier in
+	// `service.Compose` / `service.ComposeParallel`; this flag describes
+	// the kind's INTRINSIC streaming capability via its SERIES handler
+	// — not the composed host-overlay routing decision (mirrors
+	// OverlayKindShareOfTotal's dual-shape convention; MATRIX-arm forces
+	// buffered through the slot barrier, SERIES-arm fold-streamable).
+	// Cost dispatcher (overlayCostForKind) reads this flag to surface
+	// the streamable cost multiplier for SERIES-host calls.
+	OverlayKindIndexVsRef: true,
 	// OVERLAY_INDEX_VS_POP is streamable — first FACET-host overlay in
 	// the catalog (E5-S2). The handler runs as a post-finalize fold over
 	// the host's already-materialized per-value distribution
@@ -261,6 +278,16 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// kind — per PRD §2 Non-Goals every inferential overlay stays
 	// buffered regardless of host streamability.
 	OverlayKindTCell: false,
+	// OVERLAY_T_VS_REF is inherently buffered — COMPOSE-only kind
+	// (E7-S10), per-group Welch t-test against the reference slot's
+	// matching group, against a SERIES host. Series-shape sibling of
+	// OVERLAY_T_CELL; reuses the same studentTTwoSidedP helper backing
+	// TEST_T. Inferential kind — per PRD §2 Non-Goals every inferential
+	// overlay stays buffered regardless of host streamability. Distinct
+	// from the streamable SERIES-arm of OVERLAY_INDEX_VS_REF /
+	// OVERLAY_DELTA_VS_REF (which are descriptive fold-only kinds);
+	// inferential kinds carry the family-buffered policy.
+	OverlayKindTVsRef: false,
 	// OVERLAY_YOY is buffered — the per-frequency prior-period lookup
 	// requires the materialised host series. Coarse-frequency arms
 	// (annual / quarterly / monthly / weekly) index into an arbitrary

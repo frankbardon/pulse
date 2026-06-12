@@ -183,6 +183,9 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindDeltaVsRef,
 			types.OverlayKindPropZCell,
 			types.OverlayKindTCell,
+			// T_VS_REF (E7-S10) is the series-shape COMPOSE-only sibling
+			// of T_CELL — same COMPOSE-host skip rule.
+			types.OverlayKindTVsRef,
 			types.OverlayKindChiSqVsRef,
 			types.OverlayKindRank:
 			// SERIES / FACET host: skipped from the MATRIX-host catalog gate.
@@ -427,6 +430,28 @@ func TestPredict_OverlayCost_StreamableKindsLow(t *testing.T) {
 			Ref: types.OverlayRef{
 				Population: &types.OverlayPopulationRef{Cohort: "population"},
 			},
+		},
+		// INDEX_VS_REF (E7-S9 MATRIX arm + E7-S10 SERIES arm): dual-shape
+		// COMPOSE-only kind. Streamable flag describes the kind's
+		// INTRINSIC streaming capability via its SERIES handler; the
+		// MATRIX arm is forced buffered through the Compose slot barrier.
+		// The cost-dispatch surface (overlayCostForKind) is a pure
+		// function of the streamability table so it is exercised
+		// mechanically — no per-kind COMPOSE fixture is needed and the
+		// per-kind validator for COMPOSE-only kinds lands in E7-S14
+		// (descriptor.ValidateComposedRequest).
+		types.OverlayKindIndexVsRef: {
+			Name:  "idx_ref",
+			Kind:  types.OverlayKindIndexVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		// DELTA_VS_REF (E7-S9 MATRIX arm + E7-S10 SERIES arm): dual-shape
+		// COMPOSE-only kind, subtractive sibling of INDEX_VS_REF. Same
+		// cost-dispatch rationale as INDEX_VS_REF.
+		types.OverlayKindDeltaVsRef: {
+			Name:  "delta_ref",
+			Kind:  types.OverlayKindDeltaVsRef,
+			Scope: types.OverlayScopeGroup,
 		},
 	}
 
@@ -790,6 +815,9 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		types.OverlayKindDeltaVsRef: true,
 		types.OverlayKindPropZCell:  true,
 		types.OverlayKindTCell:      true,
+		// T_VS_REF (E7-S10) is the series-shape sibling of T_CELL — same
+		// COMPOSE-host skip rule applies. Buffered (inferential family).
+		types.OverlayKindTVsRef:     true,
 		types.OverlayKindChiSqVsRef: true,
 		types.OverlayKindRank:       true,
 	}

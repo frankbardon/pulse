@@ -366,26 +366,34 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Kind: types.OverlayKindDeltaVsRef,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeMatrix,
+				types.OverlayShapeSeries,
 			},
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeCell,
+				types.OverlayScopeGroup,
 			},
 			// COMPOSE-only kind — Reference + Targets resolve via the
 			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
 			// discriminated union. RefKinds is empty because the on-wire
 			// shape uses slot labels rather than an OverlayRef pointer.
 			RefKinds: []string{},
-			Description: "COMPOSE-host per-cell additive delta of each target slot's matrix value against the matching reference " +
-				"slot cell at the same (rowKey, colKey) coordinate: target_cell - ref_cell. CELL scope over a MATRIX (crosstab) " +
-				"host with MATRIX payload. Subtractive sibling of OVERLAY_INDEX_VS_REF (E7-S9). Output preserves the target " +
-				"slot's units — a $-valued AGG_SUM target cell minus a $-valued reference cell yields a $-valued deviation in " +
-				"the same currency (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_SIBLING). " +
-				"Unlike the OVERLAY_INDEX_VS_REF sibling (which divides by the reference cell and emits PULSE_OVERLAY_REF_ZERO " +
-				"against a zero denominator), DELTA_VS_REF performs subtraction and is mathematically defined for every finite " +
-				"reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO. Renderers centre diverging " +
-				"colour ramps on baseline=0. Resolution + key alignment + schema match + dict drift all run BEFORE the handler " +
-				"dispatches (E7-S5..S8). Inherently buffered — the COMPOSE host is buffered by the slot barrier even if " +
-				"individual slots are streamable.",
+			Description: "COMPOSE-host dual-shape additive delta of each target slot's value against the matching reference " +
+				"slot value: target - ref. Dual-shape overload — the host-shape disambiguator (matrix vs series) routes the " +
+				"per-coordinate / per-group dispatch: MATRIX host (E7-S9) emits per-cell deltas at (rowKey, colKey) with CELL " +
+				"scope; SERIES host (E7-S10) emits per-group deltas at the host's group key with GROUP scope. Subtractive " +
+				"sibling of OVERLAY_INDEX_VS_REF (E7-S9; gains the SERIES arm in the same E7-S10 batch). Output preserves the " +
+				"target slot's units — a $-valued AGG_SUM target value minus a $-valued reference value yields a $-valued " +
+				"deviation in the same currency (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_BASELINE / " +
+				"OVERLAY_DELTA_VS_SIBLING). Unlike the OVERLAY_INDEX_VS_REF sibling (which divides by the reference value " +
+				"and emits PULSE_OVERLAY_REF_ZERO against a zero denominator), DELTA_VS_REF performs subtraction and is " +
+				"mathematically defined for every finite reference value including zero — the handler does NOT emit " +
+				"PULSE_OVERLAY_REF_ZERO on a zero reference. Missing reference rows / cells (target carries a key the " +
+				"reference did not surface) still emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag. Renderers " +
+				"centre diverging colour ramps on baseline=0. Resolution + key alignment + schema match + dict drift all run " +
+				"BEFORE the handler dispatches (E7-S5..S8). Streamable via the SERIES dispatch (the MATRIX route is forced " +
+				"buffered through the slot barrier in service.Compose / service.ComposeParallel; the flag describes the " +
+				"kind's INTRINSIC streaming capability via its SERIES handler, mirroring OVERLAY_INDEX_VS_REF's dual-shape " +
+				"convention).",
 		}
 	case types.OverlayKindDeltaVsSibling:
 		return OverlayCapability{
@@ -626,26 +634,33 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Kind: types.OverlayKindIndexVsRef,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeMatrix,
+				types.OverlayShapeSeries,
 			},
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeCell,
+				types.OverlayScopeGroup,
 			},
 			// COMPOSE-only kind — Reference + Targets resolve via the
 			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
 			// discriminated union. RefKinds is empty because the on-wire
 			// shape uses slot labels rather than an OverlayRef pointer.
 			RefKinds: []string{},
-			Description: "COMPOSE-host per-cell ratio index of each target slot's matrix value against the matching reference " +
-				"slot cell at the same (rowKey, colKey) coordinate: (target_cell / ref_cell) * scale where scale defaults to " +
-				"100 (set Params[\"scale\"] = 1 for a raw ratio). CELL scope over a MATRIX (crosstab) host with MATRIX payload. " +
-				"First COMPOSE-only crosstab-shape overlay kind in the catalog (E7-S9). Ratio sibling of OVERLAY_DELTA_VS_REF " +
-				"(subtractive twin landed in the same story). Resolution + key alignment + schema match + dict drift all run " +
-				"BEFORE the handler dispatches (E7-S5..S8) — the handler receives finalised *Response objects for both slots " +
-				"with byte-aligned key sets and identical structural schemas. Zero reference cell emits PULSE_OVERLAY_REF_ZERO " +
-				"per affected cell with NaN substitution; missing reference cells (target carries a cell whose key pair the " +
-				"reference matrix did not surface) emit the same code with a ref_missing=true Detail flag. Inherently buffered " +
-				"— the COMPOSE host is buffered by the slot barrier even if individual slots are streamable. Renderers centre " +
-				"diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family).",
+			Description: "COMPOSE-host dual-shape ratio index of each target slot's value against the matching reference " +
+				"slot value: (target / ref) * scale where scale defaults to 100 (set Params[\"scale\"] = 1 for a raw " +
+				"ratio). Dual-shape overload — the host-shape disambiguator (matrix vs series) routes the per-coordinate / " +
+				"per-group dispatch: MATRIX host (E7-S9) emits per-cell ratios at (rowKey, colKey) with CELL scope; SERIES " +
+				"host (E7-S10) emits per-group ratios at the host's group key with GROUP scope. First COMPOSE-only crosstab-" +
+				"shape overlay kind in the catalog (E7-S9; SERIES arm in E7-S10) and the first kind to consume the " +
+				"ComposeOverlaySpec.Reference / Targets slot-label pair across both MATRIX and SERIES slots. Ratio sibling " +
+				"of OVERLAY_DELTA_VS_REF (subtractive twin; gains the SERIES arm in the same E7-S10 batch). Resolution + " +
+				"key alignment + schema match + dict drift all run BEFORE the handler dispatches (E7-S5..S8) — the handler " +
+				"receives finalised *Response objects for both slots with byte-aligned key sets and identical structural " +
+				"schemas. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN substitution; missing reference rows / " +
+				"cells (target carries a key the reference did not surface) emit the same code with a ref_missing=true " +
+				"Detail flag. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through the slot " +
+				"barrier in service.Compose / service.ComposeParallel; the flag describes the kind's INTRINSIC streaming " +
+				"capability via its SERIES handler, mirroring OVERLAY_SHARE_OF_TOTAL's dual-shape convention). Renderers " +
+				"centre diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family).",
 		}
 	case types.OverlayKindIndexVsRollingMean:
 		return OverlayCapability{
@@ -997,6 +1012,37 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"(mean, variance, n) triple into a richer Compose authoring surface (the crosstab cell carrier could grow " +
 				"to carry sample statistics alongside the scalar mean). Inherently buffered — inferential overlays as a " +
 				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals).",
+		}
+	case types.OverlayKindTVsRef:
+		return OverlayCapability{
+			Kind: types.OverlayKindTVsRef,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// COMPOSE-only kind — Reference + Targets resolve via the
+			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
+			// discriminated union.
+			RefKinds: []string{},
+			Description: "COMPOSE-host per-group Welch t-test against the reference slot's matching group, against a SERIES " +
+				"(grouped Process) host (E7-S10). GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per " +
+				"host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling " +
+				"of OVERLAY_T_CELL (the per-cell MATRIX-host Welch t-test) and twin to the SERIES arm of OVERLAY_INDEX_VS_REF " +
+				"/ OVERLAY_DELTA_VS_REF (descriptive series-shape Compose-only kinds). Each per-group target / reference value " +
+				"is treated as a sample mean; variance defaults to 1.0 and sample size defaults to 2 (Params[\"variance_target\"] " +
+				"/ Params[\"variance_ref\"] / Params[\"sample_size_target\"] / Params[\"sample_size_ref\"] override). Math " +
+				"reuses the Welch-Satterthwaite recurrence backing TEST_T (and OVERLAY_T_CELL): se = " +
+				"sqrt(var_target/n_target + var_ref/n_ref); t = (target - ref) / se; df = (var_target/n_target + " +
+				"var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + (var_ref/n_ref)²/(n_ref-1)); p_value = " +
+				"studentTTwoSidedP(t, df). Reuses studentTTwoSidedP so the overlay and the row-test surface produce identical " +
+				"p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the " +
+				"reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's " +
+				"Statistic is NaN. Degenerate inputs (se == 0, n < 2) produce NaN p-values with the same warning. Inherently " +
+				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
+				"Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches " +
+				"(E7-S5..S8).",
 		}
 	case types.OverlayKindYoY:
 		return OverlayCapability{

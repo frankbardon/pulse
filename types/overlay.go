@@ -1671,55 +1671,82 @@ const (
 	// level semantics.
 	OverlayKindZScoreVsTotal OverlayKind = "OVERLAY_ZSCORE_VS_TOTAL"
 
-	// OverlayKindIndexVsRef is the COMPOSE-host per-cell ratio index of
-	// each target slot's matrix value against the matching reference slot
-	// cell at the same `(rowKey, colKey)` coordinate: `(target_cell /
-	// ref_cell) * scale` where `scale` defaults to `100` (set
-	// `Params["scale"] = 1` for a raw ratio). CELL scope over a MATRIX
-	// (crosstab) host. First COMPOSE-only crosstab-shape overlay kind in
-	// the catalog (E7-S9) and the first kind to consume the
-	// `ComposeOverlaySpec.Reference` / `Targets` slot-label pair against
-	// MATRIX-required slots. Sibling kind to `OVERLAY_DELTA_VS_REF`
-	// (subtractive twin landed in the same story).
+	// OverlayKindIndexVsRef is the COMPOSE-host dual-shape ratio index
+	// of each target slot's value against the matching reference slot
+	// value: `(target / ref) * scale` where `scale` defaults to `100`
+	// (set `Params["scale"] = 1` for a raw ratio). Dual-shape catalog
+	// row — the host-shape disambiguator (matrix vs series) routes the
+	// per-coordinate / per-group dispatch:
 	//
-	// Math (per host coordinate `(i, j)`):
+	//   - MATRIX host (E7-S9): CELL scope over a MATRIX (crosstab) host
+	//     with MATRIX payload. Per-cell ratio at `(rowKey, colKey)`.
+	//   - SERIES host (E7-S10): GROUP scope over a SERIES (grouped
+	//     Process) host with SERIES payload. Per-group ratio at the
+	//     host's group key.
 	//
-	//	target_val = target_slot.Matrix[i,j]
-	//	ref_val    = ref_slot.Matrix[i,j]
+	// First COMPOSE-only crosstab-shape overlay kind in the catalog
+	// (E7-S9) and the first kind to consume the
+	// `ComposeOverlaySpec.Reference` / `Targets` slot-label pair across
+	// both MATRIX and SERIES slots. Sibling kind to
+	// `OVERLAY_DELTA_VS_REF` (subtractive twin landed in the same
+	// story; gains the SERIES arm in the same E7-S10 batch).
+	//
+	// Math (per host coordinate `(i, j)` for MATRIX, `i` for SERIES):
+	//
+	//	target_val = target_slot.<MatrixCell|SeriesValue>(i, j)
+	//	ref_val    = ref_slot.<MatrixCell|SeriesValue>(i, j)
 	//	scale      = Params["scale"] (default 100, accepts 1 for raw ratio)
 	//	if ref_val == 0 ⇒ NaN + PULSE_OVERLAY_REF_ZERO warning
 	//	otherwise       ⇒ (target / ref) * scale
 	//
-	// Buffered. Per `types/overlay_streamability.go` the row is `false`
-	// — every COMPOSE-host kind runs at the post-slot-barrier fold once
-	// every slot has produced a finalised `*Response`. There is no
-	// streamable arm for COMPOSE kinds today; the streamable subset
-	// stays empty across the E7 catalog. Renderers centre diverging
-	// colour ramps on `baseline = scale` (default `100` mirrors the
-	// per-Request `INDEX_VS_*` family).
+	// Streamable. Per `types/overlay_streamability.go` the row is
+	// `true` — the SERIES dispatch is fold-only (single accumulator per
+	// group; no peer-cell lookup) and matches the kind-catalog-v1
+	// "Streaming-capable subset". The MATRIX dispatch remains forced
+	// buffered by the slot barrier in `service.Compose` /
+	// `service.ComposeParallel`; the flag describes the kind's
+	// INTRINSIC streaming capability (mirrors the
+	// `OVERLAY_SHARE_OF_TOTAL` dual-shape convention — MATRIX-arm
+	// routes through `canFuseCrosstab`'s overlays-force-buffered arm,
+	// SERIES-arm rides the streaming Process pass). Renderers centre
+	// diverging colour ramps on `baseline = scale` (default `100`
+	// mirrors the per-Request `INDEX_VS_*` family).
 	OverlayKindIndexVsRef OverlayKind = "OVERLAY_INDEX_VS_REF"
 
-	// OverlayKindDeltaVsRef is the COMPOSE-host per-cell additive delta
-	// of each target slot's matrix value against the matching reference
-	// slot cell at the same `(rowKey, colKey)` coordinate: `target_cell
-	// - ref_cell`. CELL scope over a MATRIX (crosstab) host. Subtractive
-	// twin of `OVERLAY_INDEX_VS_REF` (E7-S9 sibling); shares the same
-	// E7-S5 reference / target resolution pipeline and the same E7-S6
+	// OverlayKindDeltaVsRef is the COMPOSE-host dual-shape additive
+	// delta of each target slot's value against the matching reference
+	// slot value: `target - ref`. Dual-shape catalog row — the
+	// host-shape disambiguator (matrix vs series) routes the
+	// per-coordinate / per-group dispatch:
+	//
+	//   - MATRIX host (E7-S9): CELL scope over a MATRIX (crosstab) host
+	//     with MATRIX payload. Per-cell delta at `(rowKey, colKey)`.
+	//   - SERIES host (E7-S10): GROUP scope over a SERIES (grouped
+	//     Process) host with SERIES payload. Per-group delta at the
+	//     host's group key.
+	//
+	// Subtractive twin of `OVERLAY_INDEX_VS_REF` (E7-S9 sibling; gains
+	// the SERIES arm in the same E7-S10 batch); shares the same E7-S5
+	// reference / target resolution pipeline and the same E7-S6
 	// key-alignment / E7-S7 schema-match / E7-S8 dict-prefix gates.
 	//
-	// Math (per host coordinate `(i, j)`):
+	// Math (per host coordinate `(i, j)` for MATRIX, `i` for SERIES):
 	//
-	//	target_val = target_slot.Matrix[i,j]
-	//	ref_val    = ref_slot.Matrix[i,j]
+	//	target_val = target_slot.<MatrixCell|SeriesValue>(i, j)
+	//	ref_val    = ref_slot.<MatrixCell|SeriesValue>(i, j)
 	//	delta      = target_val - ref_val
 	//
 	// Unlike the `OVERLAY_INDEX_VS_REF` sibling (which divides by the
-	// reference cell and emits `PULSE_OVERLAY_REF_ZERO` against a zero
+	// reference value and emits `PULSE_OVERLAY_REF_ZERO` against a zero
 	// denominator), `OVERLAY_DELTA_VS_REF` performs subtraction and is
 	// mathematically defined for every finite reference value including
-	// zero — the handler does NOT emit `PULSE_OVERLAY_REF_ZERO`. Mirrors
-	// the per-Request DELTA family rule (`OVERLAY_DELTA_VS_MARGIN` /
-	// `OVERLAY_DELTA_VS_BASELINE` / `OVERLAY_DELTA_VS_SIBLING`).
+	// zero — the handler does NOT emit `PULSE_OVERLAY_REF_ZERO` on zero
+	// references. Mirrors the per-Request DELTA family rule
+	// (`OVERLAY_DELTA_VS_MARGIN` / `OVERLAY_DELTA_VS_BASELINE` /
+	// `OVERLAY_DELTA_VS_SIBLING`). Missing reference values (target
+	// carries a key the reference did not surface) still emit a
+	// `PULSE_OVERLAY_REF_ZERO` with a `ref_missing=true` Detail flag —
+	// the same missing-key warning shape the MATRIX arm uses.
 	//
 	// Output preserves the target slot's units — a $-valued AGG_SUM
 	// target cell minus a $-valued reference cell yields a $-valued
@@ -1727,7 +1754,14 @@ const (
 	// ramps on `baseline = 0` (mirrors the rest of the DELTA family on
 	// other host shapes).
 	//
-	// Buffered. Same rationale as `OVERLAY_INDEX_VS_REF`.
+	// Streamable. Per `types/overlay_streamability.go` the row is
+	// `true` — the SERIES dispatch is fold-only (single accumulator
+	// per group; no peer-cell lookup) and matches the kind-catalog-v1
+	// "Streaming-capable subset". The MATRIX dispatch remains forced
+	// buffered by the slot barrier in `service.Compose` /
+	// `service.ComposeParallel`; the flag describes the kind's
+	// INTRINSIC streaming capability (mirrors the
+	// `OVERLAY_INDEX_VS_REF` dual-shape convention).
 	OverlayKindDeltaVsRef OverlayKind = "OVERLAY_DELTA_VS_REF"
 
 	// OverlayKindPropZCell is the COMPOSE-host per-cell two-proportion
@@ -1830,6 +1864,53 @@ const (
 	// streamable-test path is plumbed.
 	OverlayKindChiSqVsRef OverlayKind = "OVERLAY_CHISQ_VS_REF"
 
+	// OverlayKindTVsRef is the COMPOSE-host per-group Welch t-test
+	// against the reference slot's matching group, against a SERIES host
+	// (grouped Process result). GROUP scope over a SERIES host with
+	// SERIES payload — one `SeriesEntry` per host group key in host
+	// order, each carrying the p-value on `Summary.Statistic`. Series-
+	// shape sibling of `OVERLAY_T_CELL` (E7-S10) and twin to the SERIES
+	// arm of `OVERLAY_INDEX_VS_REF` / `OVERLAY_DELTA_VS_REF`. Distinct
+	// kind from `OVERLAY_T_CELL` because the host shape disambiguator
+	// (series vs matrix) and the per-group dispatch differ — the
+	// renderer surfaces this kind as a per-group inferential strip,
+	// not a per-cell badge.
+	//
+	// Math (per host group `i`):
+	//
+	//	target_val = target_slot.SeriesValue(i)
+	//	ref_val    = ref_slot.SeriesValue(i)
+	//	var_target = Params["variance_target"] (default 1.0)
+	//	var_ref    = Params["variance_ref"]    (default 1.0)
+	//	n_target   = Params["sample_size_target"] (default 2)
+	//	n_ref      = Params["sample_size_ref"]    (default 2)
+	//	se         = sqrt(var_target/n_target + var_ref/n_ref)
+	//	t          = (target_val - ref_val) / se
+	//	df         = (var_target/n_target + var_ref/n_ref)^2 /
+	//	             ((var_target/n_target)^2/(n_target-1) +
+	//	              (var_ref/n_ref)^2/(n_ref-1))
+	//	p_value    = studentTTwoSidedP(t, df)
+	//
+	// Reuses the `studentTTwoSidedP` helper backing `TEST_T` so the
+	// overlay and the row-test surface produce identical p-values for
+	// the same (mean, variance, n) triple. Mirrors `OVERLAY_T_CELL`'s
+	// default-variance and default-sample-size policy verbatim — v1
+	// ships well-defined defaults so the per-group handler stays usable
+	// against minimal Compose authoring surfaces.
+	//
+	// Missing reference rows (target row key not present in the
+	// reference series) emit `PULSE_OVERLAY_REF_ZERO` with a
+	// `ref_missing=true` Detail flag; the affected entry's Statistic is
+	// NaN. Degenerate inputs (`se == 0`, n < 2) produce NaN p-values
+	// with the same warning.
+	//
+	// Buffered. Inferential overlays as a family stay buffered until a
+	// streamable-test path is plumbed (PRD §2 Non-Goals "Streaming
+	// overlay path for inferential kinds"). Even though the SERIES
+	// host carrying the Welch t arms may individually stream, the
+	// inferential family is buffered as a matter of policy.
+	OverlayKindTVsRef OverlayKind = "OVERLAY_T_VS_REF"
+
 	// OverlayKindRank is the COMPOSE-host per-cell rank of each target
 	// cell within a configurable population per `Params["population"]`
 	// (`"row" | "column" | "matrix"`; defaults to `"matrix"`). CELL
@@ -1904,6 +1985,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
 		OverlayKindTCell,
+		OverlayKindTVsRef,
 		OverlayKindYoY,
 		OverlayKindZScoreVsMargin,
 		OverlayKindZScoreVsPop,

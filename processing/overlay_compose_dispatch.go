@@ -114,6 +114,7 @@ var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
 	types.OverlayKindDeltaVsRef: applyDeltaVsRef,
 	types.OverlayKindPropZCell:  applyPropZCell,
 	types.OverlayKindTCell:      applyTCell,
+	types.OverlayKindTVsRef:     applyTVsRef,
 	types.OverlayKindChiSqVsRef: applyChiSqVsRef,
 	types.OverlayKindRank:       applyRank,
 }

@@ -58,10 +58,12 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// its margin centerpoint is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.
 		OverlayKindDeltaVsMargin: false,
-		// DELTA_VS_REF is buffered — COMPOSE-only kind (E7-S9), subtractive
-		// sibling of OVERLAY_INDEX_VS_REF. Runs at the post-slot-barrier
-		// fold; the COMPOSE host is buffered by construction.
-		OverlayKindDeltaVsRef: false,
+		// DELTA_VS_REF is streamable via its SERIES-host dispatch
+		// (E7-S10) — sibling COMPOSE-only kind to OVERLAY_INDEX_VS_REF,
+		// subtractive twin. Fold-only series handler; MATRIX-arm forced
+		// buffered through the slot barrier. The flag describes the
+		// kind's INTRINSIC streaming capability via its SERIES handler.
+		OverlayKindDeltaVsRef: true,
 		// DELTA_VS_SIBLING is buffered — sibling resolution against a
 		// (Field, Value) pair requires the full materialised
 		// SeriesPayload; the streaming Process pass cannot resolve the
@@ -102,12 +104,13 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// alongside the per-group accumulators inside the streaming
 		// Process fold; the post-host finalize is the divide step.
 		OverlayKindIndexVsPrior: true,
-		// INDEX_VS_REF is buffered — first COMPOSE-only kind in the
-		// catalog (E7-S9), ratio sibling of OVERLAY_DELTA_VS_REF. Runs
-		// at the post-slot-barrier fold once every slot has produced a
-		// finalised *Response. The COMPOSE host is buffered by the slot
-		// barrier even if individual slots are streamable.
-		OverlayKindIndexVsRef: false,
+		// INDEX_VS_REF is streamable via its SERIES-host dispatch
+		// (E7-S10) — first COMPOSE-only kind in the catalog (E7-S9),
+		// ratio sibling of OVERLAY_DELTA_VS_REF. Fold-only series
+		// handler; MATRIX-arm forced buffered through the slot barrier.
+		// The flag describes the kind's INTRINSIC streaming capability
+		// via its SERIES handler.
+		OverlayKindIndexVsRef: true,
 		// INDEX_VS_ROLLING_MEAN is buffered (E4-S5) — the per-group ring
 		// buffer carries the full window of present values (W f64s plus a
 		// Welford trio reserved for the E4-S6 ZSCORE_VS_ROLLING sibling
@@ -179,6 +182,12 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// every inferential overlay stays buffered regardless of host
 		// streamability.
 		OverlayKindTCell: false,
+		// T_VS_REF is inferential COMPOSE-only kind (E7-S10) — series-shape
+		// sibling of T_CELL, per-group Welch t-test against the reference
+		// slot's matching group. Reuses studentTTwoSidedP. Per PRD §2
+		// Non-Goals every inferential overlay stays buffered regardless
+		// of host streamability.
+		OverlayKindTVsRef: false,
 		// OVERLAY_YOY (E4-S7) is buffered — the per-frequency prior-period
 		// lookup requires the materialised host series. Coarse-frequency
 		// arms (annual / quarterly / monthly / weekly) index into an

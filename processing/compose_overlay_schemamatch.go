@@ -214,25 +214,30 @@ func extractSeriesAxisFields(rows []map[string]any) []string {
 
 // kindRequiresMatrix reports whether the given OverlayKind requires
 // a MATRIX-shape host. The Compose-only matrix-required catalog
-// lands kind-by-kind with the per-kind handlers. E7-S9 registers
-// the first six entries: every crosstab-shape Compose kind
-// (OVERLAY_INDEX_VS_REF, OVERLAY_DELTA_VS_REF, OVERLAY_PROP_Z_CELL,
-// OVERLAY_T_CELL, OVERLAY_CHISQ_VS_REF, OVERLAY_RANK) is matrix-
-// required because the per-cell / whole-matrix arithmetic the
-// handlers run is undefined against a SERIES or SCALAR slot.
+// lands kind-by-kind with the per-kind handlers. E7-S9 registered
+// the first six entries; E7-S10 lifts OVERLAY_INDEX_VS_REF and
+// OVERLAY_DELTA_VS_REF out of the matrix-required set because they
+// now accept dual-shape (MATRIX or SERIES) hosts — the per-handler
+// shape dispatch routes the in-kind arm. OVERLAY_T_VS_REF is the
+// SERIES-shape sibling of OVERLAY_T_CELL and stays matrix-NOT-required.
+//
+// Matrix-required today:
+//   - OVERLAY_PROP_Z_CELL, OVERLAY_T_CELL, OVERLAY_CHISQ_VS_REF,
+//     OVERLAY_RANK — per-cell / whole-matrix arithmetic is undefined
+//     against SERIES or SCALAR slots.
 //
 // When this returns true the PULSE_OVERLAY_SLOT_NOT_CROSSTAB gate
 // fires loud at runtime against a non-MATRIX reference OR a
 // non-MATRIX target; the canonical-code dispatch carries
 // {target_label, required_shape="MATRIX", observed_shape} Details.
-// Series-shape and panel-shape Compose kinds (E7-S10..S12) stay
+// Dual-shape kinds (OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF) and
+// series-shape kinds (OVERLAY_T_VS_REF, future E7-S11..S12) stay
 // false here; their per-slot shape gating fires through the more
-// general PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path.
+// general PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path (still ensures
+// reference + target slots share the same host shape).
 func kindRequiresMatrix(kind types.OverlayKind) bool {
 	switch kind {
-	case types.OverlayKindIndexVsRef,
-		types.OverlayKindDeltaVsRef,
-		types.OverlayKindPropZCell,
+	case types.OverlayKindPropZCell,
 		types.OverlayKindTCell,
 		types.OverlayKindChiSqVsRef,
 		types.OverlayKindRank:

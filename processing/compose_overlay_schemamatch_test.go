@@ -265,14 +265,16 @@ func TestValidateOverlay_SlotShapeDivergent_MatrixVsScalar(t *testing.T) {
 
 // TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget
 // exercises the SLOT_NOT_CROSSTAB gate against a real matrix-required
-// COMPOSE kind. The E7-S9 matrix-required catalog flipped
-// `kindRequiresMatrix(OverlayKindIndexVsRef)` to `true`; the gate now
-// fires PULSE_OVERLAY_SLOT_NOT_CROSSTAB when a MATRIX-required kind
-// is paired with a non-MATRIX slot. The error carries
+// COMPOSE kind. The E7-S9 matrix-required catalog flipped the six
+// crosstab-shape kinds to require MATRIX; E7-S10 lifted INDEX_VS_REF
+// and DELTA_VS_REF out of the matrix-required set (they now accept
+// dual-shape hosts). The remaining matrix-required kinds (T_CELL /
+// PROP_Z_CELL / CHISQ_VS_REF / RANK) still fire PULSE_OVERLAY_SLOT_
+// NOT_CROSSTAB when paired with a non-MATRIX slot. The error carries
 // {target_label, required_shape="MATRIX", observed_shape}.
 func TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget(t *testing.T) {
-	if !kindRequiresMatrix(types.OverlayKindIndexVsRef) {
-		t.Fatal("E7-S9 invariant violated: kindRequiresMatrix(OverlayKindIndexVsRef) must return true after the matrix-required catalog flip")
+	if !kindRequiresMatrix(types.OverlayKindTCell) {
+		t.Fatal("E7-S9 invariant violated: kindRequiresMatrix(OverlayKindTCell) must return true after the matrix-required catalog flip")
 	}
 	// MATRIX reference + SERIES target → the gate fires on the
 	// shape-divergent gate FIRST (gate 1). The SLOT_NOT_CROSSTAB gate
@@ -289,7 +291,7 @@ func TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget(t
 		{"region": "us", "sum": 2.0},
 	}}
 	spec := types.ComposeOverlaySpec{
-		Kind:      types.OverlayKindIndexVsRef,
+		Kind:      types.OverlayKindTCell,
 		Reference: "baseline",
 		Targets:   []string{"treatment"},
 	}
@@ -304,8 +306,8 @@ func TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget(t
 	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB) {
 		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB)
 	}
-	if got, _ := coded.Details["kind"].(string); got != string(types.OverlayKindIndexVsRef) {
-		t.Errorf("Details[kind] = %q, want %q", got, types.OverlayKindIndexVsRef)
+	if got, _ := coded.Details["kind"].(string); got != string(types.OverlayKindTCell) {
+		t.Errorf("Details[kind] = %q, want %q", got, types.OverlayKindTCell)
 	}
 	if got, _ := coded.Details["required_shape"].(string); got != "MATRIX" {
 		t.Errorf("Details[required_shape] = %q, want %q", got, "MATRIX")
@@ -477,17 +479,18 @@ func TestExtractSchemaShape_Canonical_Scalar(t *testing.T) {
 	}
 }
 
-// TestKindRequiresMatrix_E7S9Registry locks the E7-S9 matrix-required
-// catalog: the six crosstab-shape Compose kinds (INDEX_VS_REF,
-// DELTA_VS_REF, PROP_Z_CELL, T_CELL, CHISQ_VS_REF, RANK) all return
-// true; every other kind returns false. Series-shape and panel-shape
-// Compose kinds (E7-S10..S12) stay false here; their per-slot shape
-// gating fires through the more general
-// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path.
-func TestKindRequiresMatrix_E7S9Registry(t *testing.T) {
+// TestKindRequiresMatrix_E7S10Registry locks the E7-S10 matrix-required
+// catalog: the remaining four matrix-only crosstab-shape Compose kinds
+// (PROP_Z_CELL, T_CELL, CHISQ_VS_REF, RANK) all return true; every
+// other kind returns false. E7-S9 originally registered six entries;
+// E7-S10 lifted INDEX_VS_REF and DELTA_VS_REF out of the matrix-
+// required set because they now accept dual-shape hosts (MATRIX or
+// SERIES). T_VS_REF (E7-S10 series-shape sibling of T_CELL) stays
+// false here — series-shape and panel-shape Compose kinds use the
+// more general PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path for cross-slot
+// shape gating.
+func TestKindRequiresMatrix_E7S10Registry(t *testing.T) {
 	matrixRequired := map[types.OverlayKind]bool{
-		types.OverlayKindIndexVsRef: true,
-		types.OverlayKindDeltaVsRef: true,
 		types.OverlayKindPropZCell:  true,
 		types.OverlayKindTCell:      true,
 		types.OverlayKindChiSqVsRef: true,
