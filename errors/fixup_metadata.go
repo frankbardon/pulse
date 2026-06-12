@@ -1329,34 +1329,44 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_TARGET_UNKNOWN: {
-		Message: "A whole-chain ChainOverlaySpec named a Target StageRef that does not resolve to a known stage on the chain. Either StageRef.Index is non-nil but lands outside [0, len(stages)), or StageRef.Name is non-empty but does not match any ChainStage.Name. The handler returns the coded error without producing any overlay layer; Details carry the offending stage_index / stage_name plus the overlay spec index. Sibling of PULSE_OVERLAY_REFERENCE_UNKNOWN — the Target arm is distinguished by the `which: \"target\"` Detail.",
+		Message: "An overlay spec named a Target that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"target\"` Detail: (1) Compose overlay spec — a `ComposeOverlaySpec.Targets[j]` entry names a slot label that does not appear in `ComposedRequest.Requests[].Label` (or the slot resolved to nil because that slot failed under FailFast=false); Details carry `slot_label`, the spec `index`, and the offending `target_index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Target` StageRef whose `Index` lands outside `[0, len(Stages))` or whose `Name` does not match any `ChainStage.Name`; Details carry the offending `stage_index` / `stage_name`. In both arms the handler returns the coded error without producing an overlay layer. Sibling of PULSE_OVERLAY_REFERENCE_UNKNOWN.",
 		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Targets"},
+				Hint:   "Set `Targets` entries to labels declared in `ComposedRequest.Requests[].Label`. The resolver decodes each Targets[j] string against the slot-label map built once per Compose call; unknown labels (or labels naming a slot that failed under FailFast=false) fail loud. Run pulse predict --json on the ComposedRequest to confirm the resolved slot label set.",
+			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Target", "Index"},
-				Hint:     "Set Target.Index to a 0-based ordinal in [0, len(Stages)). Run pulse predict --json on the chain request to confirm the stage count; omit Target entirely to default to the latest stage (len(Stages) - 1).",
+				Hint:     "Chain-overlay arm: set Target.Index to a 0-based ordinal in [0, len(Stages)). Run pulse predict --json on the chain request to confirm the stage count; omit Target entirely to default to the latest stage (len(Stages) - 1).",
 				Examples: []any{0, 1, 2},
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Target", "Name"},
-				Hint:   "Set Target.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
+				Hint:   "Chain-overlay arm: set Target.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
 			},
 		},
 	},
 	PULSE_OVERLAY_REFERENCE_UNKNOWN: {
-		Message: "A whole-chain ChainOverlaySpec named a Ref StageRef that does not resolve to a known stage on the chain (Index out of range OR Name unmatched), or the spec did not populate Ref at all. Sibling of PULSE_OVERLAY_TARGET_UNKNOWN distinguished by `which: \"ref\"`. Also covers the missing-reference-cell / missing-reference-row warning surface on the CHAIN-host DELTA family (OVERLAY_DELTA_VS_STAGE): when a target coordinate keys a reference coordinate that does not exist, the warning rides this code with `ref_missing: true` and the handler folds against an implicit zero reference (so the delta equals the target value verbatim).",
+		Message: "An overlay spec named a Reference that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"reference\"` Detail: (1) Compose overlay spec — `ComposeOverlaySpec.Reference` is empty, names a slot label absent from `ComposedRequest.Requests[].Label`, or resolved to nil because that slot failed under FailFast=false; Details carry `slot_label` and the spec `index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Ref` StageRef whose `Index` is out of range OR `Name` is unmatched, or the spec did not populate Ref at all (Ref has no default unlike Target). The code also covers the missing-reference-cell / missing-reference-row warning on the CHAIN-host DELTA family (OVERLAY_DELTA_VS_STAGE) with `ref_missing: true` (handler folds against an implicit zero reference).",
 		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Reference"},
+				Hint:   "Set `Reference` to one of the labels in `ComposedRequest.Requests[].Label`. The resolver decodes the Reference string against the slot-label map built once per Compose call; empty, unknown, or failed-slot labels fail loud. Run pulse predict --json on the ComposedRequest to confirm the resolved slot label set.",
+			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Ref", "Index"},
-				Hint:     "Set Ref.Index to a 0-based ordinal in [0, len(Stages)). Every whole-chain ChainOverlaySpec MUST name a baseline — Ref has no default (unlike Target which defaults to the latest stage). Run pulse predict --json on the chain request to confirm the stage count.",
+				Hint:     "Chain-overlay arm: set Ref.Index to a 0-based ordinal in [0, len(Stages)). Every whole-chain ChainOverlaySpec MUST name a baseline — Ref has no default (unlike Target which defaults to the latest stage). Run pulse predict --json on the chain request to confirm the stage count.",
 				Examples: []any{0, 1, 2},
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Ref", "Name"},
-				Hint:   "Set Ref.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
+				Hint:   "Chain-overlay arm: set Ref.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
 			},
 		},
 	},
@@ -1434,19 +1444,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP: {
-		// Minimal entry — full polish (richer Message, predict-time
-		// surfacing) lands with E7-S13 / E7-S14.
-		Message: "A multi-reference COMPOSE-host overlay spec (today: OVERLAY_PROP_Z_PANEL) named more target slots than the per-spec OverlayOptions.MaxPanelTargets cap allows. The default cap is 16 — per the interview risk paragraph \"Multi-reference combinatorics\", bumping the default requires an interview update; the per-request override surface is ComposeOverlaySpec.Options.MaxPanelTargets. Details carry the offending kind, the observed target count, and the active cap.",
+		Message: "A multi-reference COMPOSE-host overlay spec (today: OVERLAY_PROP_Z_PANEL) named more target slots than `OverlayOptions.MaxPanelTargets` allows. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so the cap is the explicit knob. Per the interview risk paragraph \"Multi-reference combinatorics\", the default cap is 16 and bumping the default requires an interview update; per-request override lives on `ComposeOverlaySpec.Options.MaxPanelTargets`. Details carry the offending `kind`, the `observed` target count, and the active `cap`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Options", "MaxPanelTargets"},
-				Hint:   "Set ComposeOverlaySpec.Options.MaxPanelTargets to a value at least as large as the observed target count if your environment can absorb the O(N²) per-cell pairwise z-test cost. Per the interview risk paragraph, the default 16 is the explicit upper bound — raising it past that without an interview update is a deliberate caller-attested decision.",
+				Path:   []string{"Overlays", "*", "Targets"},
+				Hint:   "Reduce `Targets` to ≤ `OverlayOptions.MaxPanelTargets` (currently the active cap reported in Details, default 16) or raise the cap via Options. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so dropping targets is the cheapest fix. If the panel exists to compare a reference cohort against many treatment arms, split it into batches of cap-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Targets"},
-				Hint:   "Drop targets from the spec until the slot count fits the active cap (default 16). If the panel exists to compare a small reference cohort against many treatment arms, consider splitting the panel into batches of MaxPanelTargets-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer.",
+				Path:   []string{"Overlays", "*", "Options", "MaxPanelTargets"},
+				Hint:   "Raise `ComposeOverlaySpec.Options.MaxPanelTargets` to a value ≥ the observed target count if your environment can absorb the O(N²) per-cell pairwise z-test cost. Per the interview risk paragraph the default 16 is the explicit upper bound; raising it without an interview update is a deliberate caller-attested decision.",
 			},
 		},
 	},
