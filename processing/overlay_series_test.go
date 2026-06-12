@@ -526,14 +526,15 @@ func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
 	// the absolute-difference twin of the baseline family the E4-S3 story
 	// adds. Each subsequent handler story extends this list.
 	expected := map[types.OverlayKind]bool{
-		types.OverlayKindIndexVsTotal:    true,
-		types.OverlayKindShareOfTotal:    true,
-		types.OverlayKindZScoreVsTotal:   true,
-		types.OverlayKindDeltaVsSibling:  true,
-		types.OverlayKindIndexVsSibling:  true,
-		types.OverlayKindIndexVsPrior:    true,
-		types.OverlayKindIndexVsBaseline: true,
-		types.OverlayKindDeltaVsBaseline: true,
+		types.OverlayKindIndexVsTotal:       true,
+		types.OverlayKindShareOfTotal:       true,
+		types.OverlayKindZScoreVsTotal:      true,
+		types.OverlayKindDeltaVsSibling:     true,
+		types.OverlayKindIndexVsSibling:     true,
+		types.OverlayKindIndexVsPrior:       true,
+		types.OverlayKindIndexVsRollingMean: true,
+		types.OverlayKindIndexVsBaseline:    true,
+		types.OverlayKindDeltaVsBaseline:    true,
 	}
 	for kind := range expected {
 		if _, ok := seriesOverlayHandlers[kind]; !ok {

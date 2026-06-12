@@ -274,6 +274,15 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// catalog. Handler: applyIndexVsPrior in
 	// processing/overlay_index_vs_prior.go.
 	types.OverlayKindIndexVsPrior: applyIndexVsPrior,
+	// OVERLAY_INDEX_VS_ROLLING_MEAN (E4-S5): per-point windowed index
+	// against the arithmetic mean of the W immediately preceding
+	// present points — rolling-window carrier (ring buffer of W f64s
+	// plus a Welford (count, mean, M2) trio reserved for E4-S6
+	// ZSCORE_VS_ROLLING). Buffered (the ring carrier is larger than the
+	// single-state lag accumulator and cannot fold inline with the
+	// streaming pass in v1). Handler: applyIndexVsRollingMean in
+	// processing/overlay_index_vs_rolling_mean.go.
+	types.OverlayKindIndexVsRollingMean: applyIndexVsRollingMean,
 	// OVERLAY_INDEX_VS_SIBLING (E3-S5): per-group ratio index against a
 	// sibling group named in Ref.Sibling, scaled to ×100. Buffered
 	// (sibling resolution requires the full materialised SeriesPayload).

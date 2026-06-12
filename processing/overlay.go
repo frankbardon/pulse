@@ -2693,6 +2693,16 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// matching the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES dispatch
 		// convention (no axis dispatch — the ordered host axis is fixed).
 		return "index_vs_prior"
+	case types.OverlayKindIndexVsRollingMean:
+		// INDEX_VS_ROLLING_MEAN is the windowed rolling-mean kind; the
+		// synthesised default surfaces the lower-case bare-kind string
+		// "index_vs_rolling_mean" matching the INDEX_VS_PRIOR /
+		// INDEX_VS_BASELINE / INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES
+		// convention (no axis dispatch — the ordered host axis is fixed).
+		// The synthesiser intentionally does NOT echo the window width
+		// in the default name — renderers that need the disambiguation
+		// populate spec.Name explicitly.
+		return "index_vs_rolling_mean"
 	case types.OverlayKindIndexVsSibling:
 		// INDEX_VS_SIBLING resolves a sibling via Ref.Sibling.{Field,
 		// Value}; the synthesised default surfaces the bare lower-case

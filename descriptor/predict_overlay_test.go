@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/frankbardon/pulse/types"
@@ -127,6 +128,7 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindDeltaVsSibling,
 			types.OverlayKindIndexVsSibling,
 			types.OverlayKindIndexVsPrior,
+			types.OverlayKindIndexVsRollingMean,
 			types.OverlayKindIndexVsBaseline,
 			types.OverlayKindDeltaVsBaseline:
 			// SERIES-host: skipped from the MATRIX-host catalog gate.
@@ -439,6 +441,25 @@ func TestPredict_OverlayCost_BufferedKindsHigh(t *testing.T) {
 				},
 			},
 		},
+		{
+			// E4-S5 INDEX_VS_ROLLING_MEAN: SERIES-host windowed kind, ring-
+			// buffer rolling-window carrier (buffered because the ring is
+			// W f64s — larger than the streamable INDEX_VS_PRIOR single-
+			// state lag accumulator). Window=2 (positive integer per
+			// PULSE_OVERLAY_LEVEL_OUT_OF_RANGE guard) keeps the spec
+			// well-formed; the Params blob uses encoding/json so the
+			// predict gate sees a parseable shape.
+			name: "IndexVsRollingMean",
+			spec: types.OverlaySpec{
+				Name:  "idx_rolling_mean",
+				Kind:  types.OverlayKindIndexVsRollingMean,
+				Scope: types.OverlayScopeGroup,
+				Ref: types.OverlayRef{
+					RollingMean: &types.OverlayRollingMeanRef{},
+				},
+				Params: json.RawMessage(`{"window": 2}`),
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -560,14 +581,15 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 	// the streamable / sibling / windowed tests above and intentionally
 	// do NOT appear in this MATRIX-host gate.
 	seriesHostKinds := map[types.OverlayKind]bool{
-		types.OverlayKindIndexVsTotal:    true,
-		types.OverlayKindZScoreVsTotal:   true,
-		types.OverlayKindShareOfTotal:    true,
-		types.OverlayKindDeltaVsSibling:  true,
-		types.OverlayKindIndexVsSibling:  true,
-		types.OverlayKindIndexVsPrior:    true,
-		types.OverlayKindIndexVsBaseline: true,
-		types.OverlayKindDeltaVsBaseline: true,
+		types.OverlayKindIndexVsTotal:       true,
+		types.OverlayKindZScoreVsTotal:      true,
+		types.OverlayKindShareOfTotal:       true,
+		types.OverlayKindDeltaVsSibling:     true,
+		types.OverlayKindIndexVsSibling:     true,
+		types.OverlayKindIndexVsPrior:       true,
+		types.OverlayKindIndexVsRollingMean: true,
+		types.OverlayKindIndexVsBaseline:    true,
+		types.OverlayKindDeltaVsBaseline:    true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {

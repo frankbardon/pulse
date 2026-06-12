@@ -699,6 +699,19 @@ const (
 	// story wires the slot through.
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE Code = "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE"
 
+	// PULSE_OVERLAY_PARAM_MISSING indicates an OverlaySpec did not supply
+	// a Params entry that the chosen Kind requires. E4-S5
+	// (OVERLAY_INDEX_VS_ROLLING_MEAN) is the first kind to require a
+	// Params entry — the window width lives on Params["window"] per the
+	// WIN_* operator convention. Missing Params["window"] fires this
+	// code at both predict
+	// (descriptor.validateOverlayIndexVsRollingMean) and runtime
+	// (processing.applyIndexVsRollingMean) with Details carrying the
+	// kind and the missing param name. Reserved for future windowed
+	// kinds (E4-S6 OVERLAY_ZSCORE_VS_ROLLING reuses the same code for
+	// the missing-window case).
+	PULSE_OVERLAY_PARAM_MISSING Code = "PULSE_OVERLAY_PARAM_MISSING"
+
 	// PULSE_OVERLAY_REF_UNKNOWN is a WARNING-class code emitted by the
 	// sibling-reference overlay family (OVERLAY_DELTA_VS_SIBLING /
 	// OVERLAY_INDEX_VS_SIBLING) when the OverlaySpec.Ref.Sibling
@@ -854,6 +867,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_REF_ZERO,
 	PULSE_OVERLAY_EXPECTED_LOW,
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
+	PULSE_OVERLAY_PARAM_MISSING,
 	PULSE_OVERLAY_REF_UNKNOWN,
 }
 

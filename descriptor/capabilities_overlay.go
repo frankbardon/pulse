@@ -414,6 +414,51 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on " +
 				"baseline=100.",
 		}
+	case types.OverlayKindIndexVsRollingMean:
+		return OverlayCapability{
+			Kind: types.OverlayKindIndexVsRollingMean,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// RollingMean is the windowed-axis ref family the kind consumes
+			// (E4-S5; E4-S6 ZSCORE_VS_ROLLING will reuse). The empty marker
+			// struct tags the family — the v1 window value lives on
+			// OverlaySpec.Params["window"] per the WIN_* operator convention.
+			RefKinds: []string{"RollingMean"},
+			Description: "Per-point windowed index against the arithmetic mean of the W immediately preceding points of " +
+				"an ordered SERIES (grouped Process) host: point_value / mean(point[i-W] .. point[i-1]) * 100. GROUP " +
+				"scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, " +
+				"each carrying the index on Summary.Statistic. Fourth windowed-Process overlay in the catalog (E4-S5; " +
+				"siblings: OVERLAY_INDEX_VS_PRIOR / E4-S4, OVERLAY_INDEX_VS_BASELINE / E4-S2, " +
+				"OVERLAY_DELTA_VS_BASELINE / E4-S3) and the first kind to consume the Ref.RollingMean arm of the " +
+				"OverlayRef discriminated union. Window-via-Params convention: the rolling window width is supplied via " +
+				"OverlaySpec.Params[\"window\"] as a positive integer (mirrors the WIN_* operator convention; see " +
+				"skills/window-operations.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family " +
+				"— the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W " +
+				"most recently observed PRESENT values plus a Welford (count, mean, M2) trio reserved for the E4-S6 " +
+				"OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). " +
+				"Window-fill semantics: the first W present ordinals all emit NaN without warning — \"window not yet " +
+				"filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports " +
+				"(0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset and DO NOT advance the ring " +
+				"buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots. " +
+				"Zero rolling-mean value (every prior point in the window was zero) emits ONE PULSE_OVERLAY_REF_ZERO " +
+				"warning per layer and surfaces NaN on the affected entries. Missing Params[\"window\"] fires " +
+				"PULSE_OVERLAY_PARAM_MISSING; non-positive or non-integer window fires " +
+				"PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for \"value out of valid " +
+				"range\" semantics so the new code surface stays narrow). Ref.RollingMean MUST be populated (empty " +
+				"marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / Population " +
+				"/ Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed " +
+				"kind — the rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator); " +
+				"non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL " +
+				"family. Buffered — the ring buffer carries the full window of present values, larger than the " +
+				"single-state lag accumulator INDEX_VS_PRIOR uses, so the streaming Process pass cannot maintain it " +
+				"inline with the per-record fold today. Renderers centre diverging colour ramps on baseline=100 " +
+				"(mirrors OVERLAY_INDEX_VS_MARGIN / OVERLAY_INDEX_VS_TOTAL / OVERLAY_INDEX_VS_SIBLING / " +
+				"OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE).",
+		}
 	case types.OverlayKindIndexVsSibling:
 		return OverlayCapability{
 			Kind: types.OverlayKindIndexVsSibling,

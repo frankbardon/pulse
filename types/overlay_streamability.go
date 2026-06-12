@@ -105,6 +105,19 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// PRESENT value). The post-host finalize step is the divide. v1
 	// ships lag-1 only via the implicit-default `Ref.Prior` arm.
 	OverlayKindIndexVsPrior: true,
+	// OVERLAY_INDEX_VS_ROLLING_MEAN is buffered — the per-group ring buffer
+	// carries the full window of present values, which the streaming
+	// Process pass cannot maintain inline with the per-record fold today
+	// (the carrier widens beyond a single f64 — OVERLAY_INDEX_VS_PRIOR's
+	// streamable lag carrier is one f64; rolling-mean's ring is W f64s and
+	// grows the streaming-fold state past v1's single-state lag
+	// accumulator). The handler runs at the buffered post-host-finalize
+	// exit via ApplyOverlaysSeries. Forward-compat: a future story may lift
+	// the rolling-mean ring into a streaming-aware shape (the streaming
+	// orchestrator's per-group accumulator carries the ring inline
+	// alongside the per-group online aggregator); when that lands the flag
+	// flips to true.
+	OverlayKindIndexVsRollingMean: false,
 	// OVERLAY_INDEX_VS_SIBLING is buffered — the SERIES sibling-reference
 	// family resolves its comparison anchor via a (Field, Value) lookup
 	// against the materialised per-group accumulators, which the streaming

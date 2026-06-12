@@ -3425,7 +3425,7 @@
         ]
       }
     ],
-    "error_codes_count": 126,
+    "error_codes_count": 127,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3522,6 +3522,7 @@
       "PULSE_OVERLAY_EXPECTED_LOW",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
+      "PULSE_OVERLAY_PARAM_MISSING",
       "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE",
       "PULSE_OVERLAY_REF_UNKNOWN",
       "PULSE_OVERLAY_REF_ZERO",
@@ -5015,6 +5016,20 @@
         "description": "Per-point windowed index against the immediately preceding point of an ordered SERIES (grouped Process) host: (point_value / prior_value) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. First streamable windowed-Process overlay in the catalog (E4-S4) and the first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize is the divide step. First present point emits NaN (no prior available — not a zero-denominator path, so no warning). Zero prior value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected entry. Absent host points emit a present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier — the next present point compares against the most recent PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1; non-zero Lag is reserved for future window-N priors) or an entirely empty Ref (the implicit-default authoring shape); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the lag carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on baseline=100."
       },
       {
+        "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [
+          "RollingMean"
+        ],
+        "buffered": true,
+        "description": "Per-point windowed index against the arithmetic mean of the W immediately preceding points of an ordered SERIES (grouped Process) host: point_value / mean(point[i-W] .. point[i-1]) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. Fourth windowed-Process overlay in the catalog (E4-S5; siblings: OVERLAY_INDEX_VS_PRIOR / E4-S4, OVERLAY_INDEX_VS_BASELINE / E4-S2, OVERLAY_DELTA_VS_BASELINE / E4-S3) and the first kind to consume the Ref.RollingMean arm of the OverlayRef discriminated union. Window-via-Params convention: the rolling window width is supplied via OverlaySpec.Params[\"window\"] as a positive integer (mirrors the WIN_* operator convention; see skills/window-operations.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family — the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio reserved for the E4-S6 OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). Window-fill semantics: the first W present ordinals all emit NaN without warning — \"window not yet filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset and DO NOT advance the ring buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots. Zero rolling-mean value (every prior point in the window was zero) emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entries. Missing Params[\"window\"] fires PULSE_OVERLAY_PARAM_MISSING; non-positive or non-integer window fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for \"value out of valid range\" semantics so the new code surface stays narrow). Ref.RollingMean MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — the ring buffer carries the full window of present values, larger than the single-state lag accumulator INDEX_VS_PRIOR uses, so the streaming Process pass cannot maintain it inline with the per-record fold today. Renderers centre diverging colour ramps on baseline=100 (mirrors OVERLAY_INDEX_VS_MARGIN / OVERLAY_INDEX_VS_TOTAL / OVERLAY_INDEX_VS_SIBLING / OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE)."
+      },
+      {
         "kind": "OVERLAY_INDEX_VS_SIBLING",
         "shapes": [
           "series"
@@ -5131,4 +5146,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 068748d9ec52f7fa76d1d184a860278e580cd6125bd4e72f483f08893d39b32e
+// golden-hash: 0c7194361090febd21ac11c1340980adc3a9d4678ea6dc1e916749d50609f524

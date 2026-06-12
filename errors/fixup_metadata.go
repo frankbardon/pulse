@@ -1240,6 +1240,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_PARAM_MISSING: {
+		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. OVERLAY_INDEX_VS_ROLLING_MEAN requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params"},
+				Hint:     "Set Params on the OverlaySpec to a JSON object containing the required keys for the chosen Kind. For OVERLAY_INDEX_VS_ROLLING_MEAN populate `{\"window\": N}` where N is a positive integer naming the rolling-window width (e.g. {\"window\": 3} for a 3-point rolling mean). Per the WIN_* operator convention, the window width is the only required param today.",
+				Examples: []any{map[string]any{"window": 3}, map[string]any{"window": 7}, map[string]any{"window": 12}},
+			},
+		},
+	},
 	PULSE_OVERLAY_REF_UNKNOWN: {
 		Message: "A sibling-reference overlay (OVERLAY_DELTA_VS_SIBLING / OVERLAY_INDEX_VS_SIBLING) named a Sibling (Field, Value) pair that does not resolve to a known group on the SERIES host — either the named Field is not a grouper Field on the host, or the named Value does not match any observed axis-key value for that field. The affected layer surfaces NaN statistics across every present entry. Warning-class — surfaced as a Response.Warning, never as an envelope error.",
 		Fixups: []Fixup{

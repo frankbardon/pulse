@@ -574,6 +574,101 @@ const (
 	// `OVERLAY_INDEX_VS_MARGIN` / `OVERLAY_INDEX_VS_TOTAL`).
 	OverlayKindIndexVsPrior OverlayKind = "OVERLAY_INDEX_VS_PRIOR"
 
+	// OverlayKindIndexVsRollingMean emits a per-point windowed index against
+	// the arithmetic mean of the W immediately preceding points of an ordered
+	// SERIES (grouped Process) host: `index_i = point_value_i / mean(point_{i-W} .. point_{i-1}) * 100`.
+	// GROUP scope over a SERIES host with SERIES payload — one `SeriesEntry`
+	// per host group key in host order, each carrying the index on
+	// `Summary.Statistic`. Fourth windowed-Process overlay in the catalog
+	// (E4-S5; siblings: `OVERLAY_INDEX_VS_PRIOR` / E4-S4, `OVERLAY_INDEX_VS_BASELINE`
+	// / E4-S2, `OVERLAY_DELTA_VS_BASELINE` / E4-S3) and the first kind to
+	// consume the `Ref.RollingMean` arm of the OverlayRef discriminated union.
+	//
+	// Window-via-Params convention: the rolling window width is supplied via
+	// `OverlaySpec.Params["window"]` as a positive integer (mirrors the
+	// `WIN_*` operator convention; see `skills/window-operations.md` for the
+	// pattern). The `Ref.RollingMean` arm is an empty marker struct
+	// (`OverlayRollingMeanRef{}`) tagging the ref family — the v1 window
+	// value lives entirely on `Params`. Forward-compat: `OverlayRollingMeanRef`
+	// may grow non-Window knobs (e.g. weighting modes) without re-opening
+	// the parent `OverlayRef`.
+	//
+	// Math (per host group ordinal `i`):
+	//
+	//	W = Params["window"] (positive int)
+	//	if fewer than W present prior points have been seen ⇒ NaN (no warning)
+	//	if mean(prior W points) == 0                       ⇒ NaN + PULSE_OVERLAY_REF_ZERO
+	//	otherwise                                          ⇒ point / mean * 100
+	//
+	// Carrier shape (rolling window, buffered): the handler maintains a ring
+	// buffer of the W most recently observed PRESENT values. For E4-S5 the
+	// stored shape is the (count, mean, M2) Welford triple — only the mean
+	// is read by INDEX_VS_ROLLING_MEAN, but the M2 slot is reserved so the
+	// E4-S6 `OVERLAY_ZSCORE_VS_ROLLING` handler can lift `sqrt(M2 / (count-1))`
+	// from the same carrier (the per-group accumulator cost is +1 f64 per
+	// layer per group — trivial relative to the overlay grand-budget; the
+	// reuse keeps the windowed family's accumulator footprint flat as more
+	// kinds land).
+	//
+	// Absent-point policy (ring buffer does not advance): an absent host
+	// ordinal (resolver reports `(0, false)`) emits a present `SeriesEntry`
+	// whose Summary leaves Statistic unset and DOES NOT advance the ring
+	// buffer. Mirrors the `OVERLAY_INDEX_VS_PRIOR` absent-point lag carrier
+	// rule — the next present ordinal will compare against the most recent
+	// W PRESENT values, not absent slots.
+	//
+	// Window-fill semantics: the first W present ordinals all emit NaN
+	// without warning — "window not yet filled" is structurally distinct
+	// from "denominator was zero" (mirrors the `OVERLAY_INDEX_VS_PRIOR`
+	// first-point NaN rule). When the host series is shorter than W (no
+	// ordinal ever sees a full window) every entry's Statistic is NaN with
+	// no warning.
+	//
+	// Zero-rolling-mean path: when the window mean is exactly `0` at the
+	// divide step (e.g. every prior point in the window was zero) the
+	// handler emits ONE `PULSE_OVERLAY_REF_ZERO` warning and surfaces NaN
+	// on the affected entry. Subsequent points may again hit the zero-mean
+	// path as the ring rolls; one warning per layer per zero-mean event
+	// occurrence. Mirrors the share / index / zscore family's
+	// zero-denominator contract.
+	//
+	// Window param validation: `Params["window"]` MUST be present and
+	// MUST be a positive integer (JSON numbers decoded as float64 are
+	// accepted when integral). Missing param fires
+	// `PULSE_OVERLAY_PARAM_MISSING` carrying `{kind, param}` Details at
+	// both predict (`descriptor.validateOverlayIndexVsRollingMean`) and
+	// runtime (`processing.applyIndexVsRollingMean`). Window `<= 0` fires
+	// `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` carrying `{window}` Details — the
+	// LEVEL_OUT_OF_RANGE code is reused for "value out of valid range"
+	// semantics so the new code surface stays narrow (mirrors the existing
+	// usage on Level / Within slots).
+	//
+	// Ref handling: `Ref.RollingMean` MUST be populated (empty struct is
+	// fine; the marker tags the ref family). Any other ref-family pointer
+	// (`Margin` / `Sibling` / `BaselineIndex` / `Prior` / `Population` /
+	// `Stage` / `Slot`) fires `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`
+	// at predict time.
+	//
+	// Scope must be GROUP. `Level` / `Within` MUST be zero (windowed kind —
+	// the rolling-mean carrier folds across the ordered axis without a
+	// prefix-bucket denominator; non-zero values fire
+	// `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` mirroring the
+	// `INDEX_VS_PRIOR` / `INDEX_VS_BASELINE` / `INDEX_VS_TOTAL`
+	// implicit-margin / windowed family).
+	//
+	// Buffered. Per `types/overlay_streamability.go`, the streamability row
+	// is `false` — the ring buffer carries the full window of present values
+	// per group, which the streaming Process pass cannot maintain inline
+	// with the per-record fold today (the carrier widens beyond a single
+	// f64 — `OVERLAY_INDEX_VS_PRIOR`'s streamable lag carrier is one f64;
+	// rolling-mean's ring is `W` f64s and grows the streaming-fold state
+	// past v1's single-state lag accumulator). Forward-compat: a future
+	// story may lift the rolling-mean ring into a streaming-aware shape
+	// (the streaming orchestrator's per-group accumulator carries the ring
+	// inline alongside the per-group online aggregator); when that lands
+	// the streamability flag flips to true.
+	OverlayKindIndexVsRollingMean OverlayKind = "OVERLAY_INDEX_VS_ROLLING_MEAN"
+
 	// OverlayKindIndexVsSibling emits a per-group index score against a
 	// sibling group named in `Ref.Sibling`: `(group_val / sibling_val) *
 	// 100.0` per host group key. GROUP scope over a SERIES (grouped
@@ -863,6 +958,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindIndexVsBaseline,
 		OverlayKindIndexVsMargin,
 		OverlayKindIndexVsPrior,
+		OverlayKindIndexVsRollingMean,
 		OverlayKindIndexVsSibling,
 		OverlayKindIndexVsTotal,
 		OverlayKindShareOfCol,
@@ -1054,6 +1150,30 @@ type OverlayPriorRef struct {
 	Lag int `json:"lag,omitempty"`
 }
 
+// OverlayRollingMeanRef is the ref-arm that tags a spec as a windowed
+// rolling-mean kind (E4 windowed catalog — see kind-catalog-v1 PRD §4
+// windowed family) against a SERIES host whose group-key order is the
+// chronological ordering the orchestrator baked in at finalize time
+// (typically a `GROUP_DATE`-keyed grouped Process result).
+//
+// E4-S5 (`OVERLAY_INDEX_VS_ROLLING_MEAN`) is the first kind to consume
+// this arm and the empty marker is intentional — the v1 window width
+// lives on `OverlaySpec.Params["window"]` per the `WIN_*` operator
+// convention (see `skills/window-operations.md`). The empty struct tags
+// the ref family so the validator's "exactly one ref arm populated per
+// kind" contract stays uniform with the rest of the catalog (every kind
+// picks exactly one ref family, even when its parameters live on
+// `Params`).
+//
+// Forward-compat: future stories may extend the struct with non-Window
+// knobs (e.g. weighting modes for exponentially-weighted means, edge-
+// fill policies for the warmup window) without re-opening the parent
+// `OverlayRef`. The E4-S6 `OVERLAY_ZSCORE_VS_ROLLING` handler will
+// REUSE this same ref-arm (sibling windowed-rolling family — both
+// kinds carry the window width on `Params["window"]`) so a single ref
+// family tag suffices for the rolling-window catalog.
+type OverlayRollingMeanRef struct{}
+
 // OverlayPopulationRef is reserved for "vs population" comparisons that
 // compare a filtered cohort against an unfiltered (or differently-
 // filtered) population. Not populated in E1.
@@ -1102,6 +1222,13 @@ type OverlayRef struct {
 	// (windowed-SERIES family — E4). E4-S4 (`OVERLAY_INDEX_VS_PRIOR`) is
 	// the first consumer and ships with lag-1 only.
 	Prior *OverlayPriorRef `json:"prior,omitempty"`
+
+	// RollingMean tags the spec as a windowed rolling-mean kind. The
+	// window width lives on `OverlaySpec.Params["window"]` per the
+	// `WIN_*` operator convention; the marker struct is intentionally
+	// empty. E4-S5 (`OVERLAY_INDEX_VS_ROLLING_MEAN`) is the first
+	// consumer; E4-S6 (`OVERLAY_ZSCORE_VS_ROLLING`) will reuse it.
+	RollingMean *OverlayRollingMeanRef `json:"rolling_mean,omitempty"`
 
 	// Population selects an alternate cohort / population. Reserved.
 	Population *OverlayPopulationRef `json:"population,omitempty"`

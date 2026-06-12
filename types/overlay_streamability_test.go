@@ -65,6 +65,15 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// alongside the per-group accumulators inside the streaming
 		// Process fold; the post-host finalize is the divide step.
 		OverlayKindIndexVsPrior: true,
+		// INDEX_VS_ROLLING_MEAN is buffered (E4-S5) — the per-group ring
+		// buffer carries the full window of present values (W f64s plus a
+		// Welford trio reserved for the E4-S6 ZSCORE_VS_ROLLING sibling
+		// kind), larger than the single-state lag accumulator
+		// INDEX_VS_PRIOR uses, so the streaming Process pass cannot
+		// maintain it inline with the per-record fold today. The handler
+		// runs at the buffered post-host-finalize exit via
+		// ApplyOverlaysSeries.
+		OverlayKindIndexVsRollingMean: false,
 		// INDEX_VS_SIBLING is buffered — sibling resolution against a
 		// (Field, Value) pair requires the full materialised
 		// SeriesPayload; the streaming Process pass cannot resolve the
