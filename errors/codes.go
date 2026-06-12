@@ -841,6 +841,65 @@ const (
 	// runtime today (E7-S6); the descriptor.ValidateComposedRequest
 	// predict-time companion lands with E7-S14.
 	PULSE_OVERLAY_KEY_SET_DIVERGENT Code = "PULSE_OVERLAY_KEY_SET_DIVERGENT"
+
+	// PULSE_OVERLAY_SCHEMA_DIVERGENT indicates a Compose overlay spec
+	// where the resolved reference slot and one or more target slots
+	// produce structurally divergent schemas across the row / column
+	// axes. The structural match is over grouper kinds + types + nested
+	// depth — field names are explicitly allowed to differ. Two slots
+	// can rename the same categorical_u32 column ("brand" vs "label")
+	// and still align; two slots whose row axis differs in grouper kind
+	// (GROUP_CATEGORY vs GROUP_RANGE) or in depth (one nested grouper
+	// vs two) cannot. Details carry the `reference` slot label, the
+	// `target` slot label, and the canonical-string `reference_schema`
+	// / `target_schema` (kind tuples joined "|" per axis, axes joined
+	// "/") so renderers can diff the two structures verbatim. The
+	// check runs once per overlay spec at the post-slot-barrier inside
+	// processing.ApplyComposeOverlays AFTER PULSE_OVERLAY_KEY_SET_DIVERGENT
+	// and shape gates have passed. Surfaced at runtime today (E7-S7);
+	// the descriptor.ValidateComposedRequest predict-time companion
+	// lands with E7-S14.
+	PULSE_OVERLAY_SCHEMA_DIVERGENT Code = "PULSE_OVERLAY_SCHEMA_DIVERGENT"
+
+	// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT indicates a Compose overlay
+	// spec where the reference slot and one or more target slots
+	// disagree on host result shape (one is MATRIX while the other is
+	// SERIES, or one is SCALAR while the other is non-SCALAR). Compose
+	// overlays compare across slots cell-for-cell at byte-equal
+	// coordinates; without a shared shape there is no coordinate grid
+	// to fold. Details carry the offending `target_label`, the
+	// `reference_shape`, and the `target_shape`. Sibling of
+	// PULSE_OVERLAY_SLOT_NOT_CROSSTAB — both surface shape-level
+	// rejections at the same gate, distinguished by whether the
+	// rejection is "shapes disagree" (this code) or "the chosen kind
+	// requires a specific shape and a target violates it" (the other
+	// code). The check runs once per overlay spec at the post-slot-
+	// barrier inside processing.ApplyComposeOverlays AFTER
+	// PULSE_OVERLAY_KEY_SET_DIVERGENT and BEFORE
+	// PULSE_OVERLAY_SCHEMA_DIVERGENT. Surfaced at runtime today
+	// (E7-S7); the descriptor.ValidateComposedRequest predict-time
+	// companion lands with E7-S14.
+	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
+
+	// PULSE_OVERLAY_SLOT_NOT_CROSSTAB indicates a Compose overlay spec
+	// whose Kind requires a MATRIX-shaped (crosstab) host but at least
+	// one resolved slot — reference or target — is not a crosstab
+	// result. The matrix-required Compose kinds land with E7-S9+
+	// (OVERLAY_RANK and the matrix-shape Compose family); until those
+	// stories register their per-kind shape requirements the helper
+	// table `kindRequiresMatrix` is a stub and this code stays
+	// unreachable at runtime. The catalog row is in place so E7-S9..S12
+	// can wire shape gating without touching this file again. Details
+	// carry the `required_shape: "MATRIX"`, the offending `target_label`
+	// (or "reference" when the reference itself is the offender), and
+	// the `observed_shape` ("series" / "scalar"). Sibling of
+	// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT — both fire at the same gate;
+	// this one fires when the kind dictates MATRIX and a target is
+	// non-MATRIX, the other when target / reference shapes disagree
+	// regardless of kind. The check runs once per overlay spec at the
+	// post-slot-barrier inside processing.ApplyComposeOverlays. E7-S13
+	// polishes the Message + Fixup catalogue.
+	PULSE_OVERLAY_SLOT_NOT_CROSSTAB Code = "PULSE_OVERLAY_SLOT_NOT_CROSSTAB"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -986,6 +1045,9 @@ var allCodes = []Code{
 	PULSE_OVERLAY_TARGET_UNKNOWN,
 	PULSE_OVERLAY_REFERENCE_UNKNOWN,
 	PULSE_OVERLAY_KEY_SET_DIVERGENT,
+	PULSE_OVERLAY_SCHEMA_DIVERGENT,
+	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT,
+	PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

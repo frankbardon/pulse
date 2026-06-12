@@ -125,6 +125,15 @@ func TestApplyComposeOverlays_StubLayerOrderPreserved(t *testing.T) {
 // series when it carries grouped Process Data, scalar otherwise. The
 // reference (not the target) is the canonical anchor for Compose-only
 // kinds.
+//
+// E7-S7 ordering note: the SHAPE_DIVERGENT gate now intercepts
+// mismatched ref/target shapes BEFORE the stub fallback, so the
+// reference/target pair must agree on host shape for this test to
+// reach the stub. The original pre-E7-S7 variant used a SCALAR
+// target against a matrix/series reference to confirm the stub read
+// from the reference; today that pairing fails the SHAPE_DIVERGENT
+// gate. We instead use matching ref/target shapes so the stub runs
+// and the shape-inheritance contract stays asserted.
 func TestApplyComposeOverlays_StubShapeInheritsReference(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -139,7 +148,11 @@ func TestApplyComposeOverlays_StubShapeInheritsReference(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			responses := []*types.Response{
 				composeSlotOf(tc.refShape),
-				composeSlotOf(types.OverlayShapeScalar), // target shape varies; the chassis must read REFERENCE
+				// Target matches reference shape so the E7-S7
+				// SHAPE_DIVERGENT gate accepts and the stub fallback
+				// runs. The stub still reads its OverlayShape from
+				// the REFERENCE slot — the contract under test.
+				composeSlotOf(tc.refShape),
 			}
 			labels := []string{"ref_slot", "target_slot"}
 			specs := []types.ComposeOverlaySpec{{

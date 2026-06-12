@@ -209,6 +209,19 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 		if err := checkKeySetAlignment(refResp, targetResps, *spec, i); err != nil {
 			return nil, nil, err
 		}
+		// Strict structural schema match across slots (E7-S7). Runs
+		// AFTER key-set alignment and BEFORE the per-kind handler
+		// dispatches. Three orthogonal gates fire from the same entry
+		// point: PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT (reference vs
+		// target host shape disagrees), PULSE_OVERLAY_SLOT_NOT_CROSSTAB
+		// (spec.Kind requires MATRIX but a slot is non-MATRIX — gated
+		// by `kindRequiresMatrix`, stub-false today), and
+		// PULSE_OVERLAY_SCHEMA_DIVERGENT (per-axis grouper-kind tuples
+		// disagree across slots). Dict-drift (E7-S8) fires AFTER this
+		// one.
+		if err := checkSlotShapeAndSchema(refResp, targetResps, *spec, i); err != nil {
+			return nil, nil, err
+		}
 		handler, ok := composeOverlayHandlers[spec.Kind]
 		if !ok {
 			// E7-S4 chassis fallback: no per-kind handler registered

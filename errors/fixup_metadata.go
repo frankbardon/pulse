@@ -1373,6 +1373,48 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_SCHEMA_DIVERGENT: {
+		// Minimal entry — full polish (richer Message + per-axis Fixup
+		// hints) lands with E7-S13. This row keeps TestCodesHaveFixups
+		// green at E7-S7.
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. Details carry the `reference` slot label, the offending `target_label`, and canonical `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests", "*", "Crosstab", "Rows"},
+				Hint:   "Re-issue the diverging slot Request with the same row-axis Groups slot (kind + type + depth) as the reference slot. Field names may differ across slots; grouper kinds + types + nested depth must match.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests", "*", "Crosstab", "Columns"},
+				Hint:   "Re-issue the diverging slot Request with the same column-axis Groups slot (kind + type + depth) as the reference slot. Field names may differ across slots; grouper kinds + types + nested depth must match.",
+			},
+		},
+	},
+	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT: {
+		// Minimal entry — full polish lands with E7-S13.
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose host result shapes disagree (one is MATRIX while the other is SERIES, or one is SCALAR while the other is non-SCALAR). Compose overlays fold target values against the reference at byte-equal coordinates; without a shared shape there is no coordinate grid. Details carry the offending `target_label`, the `reference_shape`, and the `target_shape`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests"},
+				Hint:   "Re-issue the diverging slot Request so its host result shape matches the reference slot's — either both crosstabs (set Crosstab on both) or both grouped Process results (set Groups + Aggregations on both, no Crosstab on either).",
+			},
+		},
+	},
+	PULSE_OVERLAY_SLOT_NOT_CROSSTAB: {
+		// Minimal entry — full polish (kind-aware Fixup catalogue)
+		// lands with E7-S13 alongside the per-kind matrix-required
+		// catalog finalisation in E7-S9..S12.
+		Message: "A Compose overlay spec whose Kind requires a MATRIX-shaped (crosstab) host resolved at least one slot — reference or target — that is not a crosstab result. The matrix-required Compose kinds land with E7-S9+; until those stories register their per-kind shape requirements this code is unreachable at runtime. Details carry the `required_shape: \"MATRIX\"`, the offending `target_label`, and the `observed_shape` (`series` / `scalar`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests", "*", "Crosstab"},
+				Hint:   "Set Crosstab (Rows + Columns + Cell) on the offending slot Request so it produces a MATRIX host result. Alternatively switch the Overlay Kind to one that supports the slot's current host shape (SERIES / SCALAR) — check the manifest Overlays capability block for the supported shapes per kind.",
+			},
+		},
+	},
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY: {
 		Message: "An OVERLAY_YOY spec named a `frequency` Param outside the supported set (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`). The supported set is the minimum frequency catalog needed to cover the GROUP_DATE component family — finer-than-hourly or coarser-than-annual frequencies are explicit non-goals in v1. Calendar-week / day-of-week realignment is also an explicit non-goal: weekly frequency uses calendar-week-aligned `i - 52` arithmetic and daily frequency uses exact-key lookup against the host key index (Feb 29 in a non-leap prior year emits NaN). Surfaced at both predict (descriptor.validateOverlayYoY) and runtime (processing.applyYoY) with Details carrying the offending `frequency` value plus the supported list.",
 		Fixups: []Fixup{

@@ -1,0 +1,391 @@
+package processing
+
+import (
+	"sort"
+
+	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/types"
+)
+
+// Strict structural schema match for the COMPOSE-host overlay
+// dispatch. Runs AFTER the key-set alignment gate (E7-S6) and BEFORE
+// the per-kind handler dispatch. Three orthogonal gates fire from
+// the same entry point so the canonical-code dispatch stays
+// orthogonal:
+//
+//  1. PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT — reference and target slot
+//     disagree on host result shape (MATRIX vs SERIES, MATRIX vs
+//     SCALAR, etc.). Compose overlays compare cell-for-cell at
+//     byte-equal coordinates; without a shared shape there is no
+//     coordinate grid.
+//
+//  2. PULSE_OVERLAY_SLOT_NOT_CROSSTAB — the spec's Kind requires a
+//     MATRIX-shape host (per the per-kind shape-required catalog) but
+//     a resolved slot is not a crosstab result. The matrix-required
+//     catalog lands with the per-kind handlers in E7-S9..S12; the
+//     `kindRequiresMatrix` helper is a stub returning false at S7
+//     time so this gate is currently unreachable from runtime. The
+//     catalog row is in place so subsequent E7 stories can wire shape
+//     gating without touching this file again.
+//
+//  3. PULSE_OVERLAY_SCHEMA_DIVERGENT — row / column axis schemas
+//     disagree across slots. The match is structural over grouper
+//     kinds + types + nested depth; field names may differ across
+//     slots (two slots can rename the same categorical_u32 column
+//     and still align). Semantic mismatches (different cell
+//     aggregators, different normalization modes) are explicit
+//     non-goals for v1 — the structural match is the cheapest signal
+//     downstream renderer compatibility needs.
+//
+// Predicate ordering inside checkSlotShapeAndSchema (cheap-to-
+// expensive):
+//
+//   1. Shape disagreement (single-string comparison per target).
+//   2. Matrix-required shape violation (single-string comparison per
+//      target plus a per-kind lookup).
+//   3. Schema structural divergence (per-axis kind tuple build +
+//      string comparison).
+//
+// Structural invariants:
+//
+//   - Pure function. No I/O. No goroutines. No global state. No
+//     mutation of `refResp` / `targetResps` / `spec`. Same inputs →
+//     same outputs.
+//   - MUST NOT import service/ or descriptor/. The check stays inside
+//     processing/ alongside the rest of the overlay machinery.
+//   - No fmt.Sprintf in any JSON-bearing path. Detail keys are plain
+//     map[string]any populated with encoding/json-friendly types
+//     (string only at this gate) so the envelope serializer renders
+//     them verbatim — no hand-built JSON shaping in the error
+//     payload (CLAUDE.md "Structural defense bans").
+//
+// Where this fits in the canonical-code matrix:
+//
+//   - PULSE_OVERLAY_KEY_SET_DIVERGENT (E7-S6) runs FIRST. If keys
+//     agree, structure can still diverge in axis grouper kind.
+//   - PULSE_OVERLAY_SCHEMA_DIVERGENT / SLOT_SHAPE_DIVERGENT /
+//     SLOT_NOT_CROSSTAB (this file, E7-S7).
+//   - Dict-drift / field semantic gates land in E7-S8.
+//   - Per-kind handler executes AFTER all three gates pass.
+//
+// codeMetadata for all three codes lands in errors/fixup_metadata.go
+// at minimal-row quality today; E7-S13 polishes the Message + Fixup
+// catalog.
+
+// composeOverlaySchemaShape captures the structural schema for one
+// slot — the host shape plus the per-axis grouper-kind tuples. The
+// per-axis tuples drop field names by design (field names are
+// allowed to differ across slots per the E7-S7 acceptance
+// "Field names allowed to differ; only kinds + types + depth
+// compared"). For MATRIX shape both rowAxis and colAxis are
+// populated; for SERIES shape rowAxis carries the series group-key
+// columns (sorted) and colAxis is empty; for SCALAR shape both are
+// empty.
+type composeOverlaySchemaShape struct {
+	shape    types.OverlayShape
+	rowAxis  []string
+	colAxis  []string
+}
+
+// canonical renders the schema shape as a deterministic string for
+// the Details payload. Format: "<rowKinds>/<colKinds>" where each
+// half is the per-axis kind tuple joined "|". Empty axis halves
+// render as "" so the slash is always present, making the two-axis
+// nature of the canonical form unambiguous regardless of how many
+// axes are populated.
+//
+// Examples:
+//   MATRIX, rows=[GROUP_CATEGORY, GROUP_DATE], cols=[GROUP_RANGE]
+//     → "GROUP_CATEGORY|GROUP_DATE/GROUP_RANGE"
+//   SERIES, rows=[region, segment], cols=[]
+//     → "region|segment/"
+//   SCALAR
+//     → "/"
+//
+// The empty-axis-trailing-slash form is intentional — the slash
+// makes the row/column axis split visually obvious in MCP error
+// payloads and in golden-file diff output.
+func (s composeOverlaySchemaShape) canonical() string {
+	return joinKindTuple(s.rowAxis) + "/" + joinKindTuple(s.colAxis)
+}
+
+func joinKindTuple(parts []string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	out := parts[0]
+	for i := 1; i < len(parts); i++ {
+		out += "|" + parts[i]
+	}
+	return out
+}
+
+// extractSchemaShape builds the per-slot structural schema. The
+// shape is inferred via the same precedence rule the stub handler
+// uses (inferComposeStubShape): MATRIX when the response carries a
+// non-nil Crosstab.Matrix, SERIES when it carries non-empty Data,
+// SCALAR otherwise.
+//
+// Matrix arm: reads Matrix.RowHeader.Types and ColumnHeader.Types
+// verbatim — the grouper-kind strings are what the matrix payload
+// declares for downstream renderers, so reusing them keeps the
+// schema-match check byte-equivalent to whatever the renderer would
+// have seen for axis-kind annotation purposes.
+//
+// Series arm: the row axis is the sorted list of non-value column
+// names from the first Data row. The value column is the FIRST
+// sorted numeric column (encodeSeriesRow's contract), so the row
+// axis drops exactly one entry per row. Multi-aggregator series
+// rows fold subsequent numeric columns into the axis (consistent
+// with the key-set encoding contract — they participate in the
+// key, so they're part of the structural axis). When Data is
+// empty or has no non-value columns, the row axis is empty —
+// degenerate but well-defined.
+//
+// Scalar arm: both axes empty.
+//
+// Returns a SCALAR shape with empty axes for nil *Response —
+// defensive guard so callers that reach this helper without going
+// through the slot resolver (descriptor predict at E7-S14) still
+// get a well-formed short-circuit.
+func extractSchemaShape(resp *types.Response) composeOverlaySchemaShape {
+	if resp == nil {
+		return composeOverlaySchemaShape{shape: types.OverlayShapeScalar}
+	}
+	if resp.Crosstab != nil && resp.Crosstab.Matrix != nil {
+		return composeOverlaySchemaShape{
+			shape:   types.OverlayShapeMatrix,
+			rowAxis: append([]string(nil), resp.Crosstab.Matrix.RowHeader.Types...),
+			colAxis: append([]string(nil), resp.Crosstab.Matrix.ColumnHeader.Types...),
+		}
+	}
+	if len(resp.Data) > 0 {
+		return composeOverlaySchemaShape{
+			shape:   types.OverlayShapeSeries,
+			rowAxis: extractSeriesAxisFields(resp.Data),
+		}
+	}
+	return composeOverlaySchemaShape{shape: types.OverlayShapeScalar}
+}
+
+// extractSeriesAxisFields returns the sorted list of non-value
+// column names from a series Response.Data. Mirrors the
+// encodeSeriesRow value-column rule (E7-S6): the FIRST sorted
+// numeric column is the value, subsequent numeric columns
+// participate in the structural axis alongside non-numeric columns.
+//
+// Returns nil when the rows are empty OR when the first row has no
+// columns. The structural-match gate treats nil as the empty axis
+// — a degenerate series slot still has a well-defined zero-length
+// axis tuple and the comparator treats two nil-axes slots as
+// schema-equivalent.
+func extractSeriesAxisFields(rows []map[string]any) []string {
+	if len(rows) == 0 {
+		return nil
+	}
+	first := rows[0]
+	if len(first) == 0 {
+		return nil
+	}
+	cols := make([]string, 0, len(first))
+	for k := range first {
+		cols = append(cols, k)
+	}
+	sort.Strings(cols)
+	// Drop the first numeric column — that's the value column per
+	// encodeSeriesRow. Subsequent numeric columns stay (they
+	// participate in the canonical key as multi-aggregator
+	// distinguishers).
+	out := make([]string, 0, len(cols))
+	droppedValue := false
+	for _, col := range cols {
+		v := first[col]
+		if _, ok := coerceNumericValue(v); ok && !droppedValue {
+			droppedValue = true
+			continue
+		}
+		out = append(out, col)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// kindRequiresMatrix reports whether the given OverlayKind requires
+// a MATRIX-shape host. The Compose-only matrix-required catalog
+// lands kind-by-kind with the per-kind handlers in E7-S9..S12 — at
+// E7-S7 time no entry has registered yet, so the helper is a stub
+// returning false. The PULSE_OVERLAY_SLOT_NOT_CROSSTAB gate is
+// effectively unreachable from runtime today; the catalog row + the
+// code + the gate wiring are all in place so the per-kind handlers
+// can flip a single boolean here as each kind lands without
+// touching the dispatch site again.
+//
+// The matrix-required catalog (per the E7 PRD §3 Compose kind list)
+// will register the following kinds when E7-S9..S12 ships:
+//
+//   - OVERLAY_RANK (E7-S9) — matrix-only
+//   - The E7-S9 crosstab-shape Compose family — matrix-only
+//
+// Series-shape and panel-shape Compose kinds (E7-S10..S12) stay
+// false here; their per-slot shape gating fires through the more
+// general PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path.
+func kindRequiresMatrix(_ types.OverlayKind) bool {
+	return false
+}
+
+// checkSlotShapeAndSchema is the entry point the compose dispatch
+// calls per spec. Walks `targetResps` against `refResp` once,
+// firing the three gates in cheap-to-expensive order. Returns the
+// first failing target as a coded error; nil when all gates pass.
+//
+// Order of failure modes (per target):
+//
+//   1. Reference vs target host shape disagrees ⇒
+//      PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT.
+//   2. Spec.Kind requires MATRIX but target is non-MATRIX (or
+//      reference is non-MATRIX) ⇒ PULSE_OVERLAY_SLOT_NOT_CROSSTAB.
+//   3. Per-axis grouper-kind tuples differ ⇒
+//      PULSE_OVERLAY_SCHEMA_DIVERGENT.
+//
+// Details payload (encoding/json-friendly, no fmt.Sprintf):
+//
+//   SHAPE_DIVERGENT:
+//     - "code": "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
+//     - "index": spec index
+//     - "reference": reference slot label
+//     - "target_label": target slot label
+//     - "reference_shape": "matrix" / "series" / "scalar"
+//     - "target_shape": same enum
+//
+//   SLOT_NOT_CROSSTAB:
+//     - "code": "PULSE_OVERLAY_SLOT_NOT_CROSSTAB"
+//     - "index": spec index
+//     - "kind": spec Kind (so the renderer can surface the kind that
+//       requires MATRIX)
+//     - "required_shape": "MATRIX" (uppercase per acceptance)
+//     - "target_label": offending slot label (or "" for the
+//       reference)
+//     - "observed_shape": "series" / "scalar"
+//
+//   SCHEMA_DIVERGENT:
+//     - "code": "PULSE_OVERLAY_SCHEMA_DIVERGENT"
+//     - "index": spec index
+//     - "reference": reference slot label
+//     - "target_label": target slot label
+//     - "reference_schema": canonical kind-tuple string
+//       ("<rowKinds>/<colKinds>") from extractSchemaShape.canonical
+//     - "target_schema": same form for the target slot
+func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Response, spec types.ComposeOverlaySpec, specIdx int) error {
+	refSchema := extractSchemaShape(refResp)
+
+	// SLOT_NOT_CROSSTAB applies to the reference slot too — when the
+	// spec.Kind requires MATRIX and the reference is non-MATRIX we
+	// fail loud rather than letting the per-kind handler explode
+	// later. The reference's own "target_label" entry is the literal
+	// "reference" string so the MCP fix-up surface can render the
+	// matrix-required failure regardless of whether the reference or
+	// a target violated the contract.
+	if kindRequiresMatrix(spec.Kind) && refSchema.shape != types.OverlayShapeMatrix {
+		return errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_INTERNAL,
+			"compose overlay kind requires a MATRIX-shape host but the reference slot is not a crosstab",
+			map[string]any{
+				"code":           string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
+				"index":          specIdx,
+				"kind":           string(spec.Kind),
+				"required_shape": "MATRIX",
+				"target_label":   "reference",
+				"observed_shape": string(refSchema.shape),
+			})
+	}
+
+	for i, tResp := range targetResps {
+		tSchema := extractSchemaShape(tResp)
+		targetLabel := ""
+		if i < len(spec.Targets) {
+			targetLabel = spec.Targets[i]
+		}
+
+		// Gate 1: SLOT_SHAPE_DIVERGENT.
+		if refSchema.shape != tSchema.shape {
+			return errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_INTERNAL,
+				"compose overlay slot shape divergent: reference and target produce different host result shapes",
+				map[string]any{
+					"code":            string(errors.PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT),
+					"index":           specIdx,
+					"reference":       spec.Reference,
+					"target_label":    targetLabel,
+					"reference_shape": string(refSchema.shape),
+					"target_shape":    string(tSchema.shape),
+				})
+		}
+
+		// Gate 2: SLOT_NOT_CROSSTAB. Only fires when the kind catalog
+		// declares MATRIX-required AND the target is non-MATRIX. The
+		// reference arm above caught the symmetric case; this one
+		// catches a non-MATRIX target paired with a MATRIX reference.
+		// Today kindRequiresMatrix returns false everywhere so this
+		// branch is unreachable at runtime; E7-S9..S12 flip the bit.
+		if kindRequiresMatrix(spec.Kind) && tSchema.shape != types.OverlayShapeMatrix {
+			return errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_INTERNAL,
+				"compose overlay kind requires a MATRIX-shape host but a target slot is not a crosstab",
+				map[string]any{
+					"code":           string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
+					"index":          specIdx,
+					"kind":           string(spec.Kind),
+					"required_shape": "MATRIX",
+					"target_label":   targetLabel,
+					"observed_shape": string(tSchema.shape),
+				})
+		}
+
+		// Gate 3: SCHEMA_DIVERGENT. Compare per-axis kind tuples.
+		// Field names allowed to differ — extractSchemaShape returns
+		// kind tuples only for the matrix arm and column-name tuples
+		// for the series arm. The series-arm comparison is
+		// intentionally over column names because the response side
+		// has no grouper-kind annotation for series rows — the row
+		// axis schema "match" is structural over the same column
+		// names a renderer would key off.
+		if !axisKindsEqual(refSchema.rowAxis, tSchema.rowAxis) ||
+			!axisKindsEqual(refSchema.colAxis, tSchema.colAxis) {
+			return errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_INTERNAL,
+				"compose overlay schema divergent: reference and target produce structurally different axis schemas",
+				map[string]any{
+					"code":             string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT),
+					"index":            specIdx,
+					"reference":        spec.Reference,
+					"target_label":     targetLabel,
+					"reference_schema": refSchema.canonical(),
+					"target_schema":    tSchema.canonical(),
+				})
+		}
+	}
+	return nil
+}
+
+// axisKindsEqual reports whether two per-axis kind tuples are
+// structurally identical. Length must match AND every position
+// must compare equal byte-for-byte. Nil and empty slices compare
+// equal — both are the "no axis" shape and the gate treats them
+// uniformly. The compare is intentionally NOT order-insensitive:
+// nested grouper depth is part of the structural schema, and a
+// (GROUP_CATEGORY, GROUP_DATE) row axis is structurally distinct
+// from a (GROUP_DATE, GROUP_CATEGORY) row axis even though both
+// share the same kind set.
+func axisKindsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
