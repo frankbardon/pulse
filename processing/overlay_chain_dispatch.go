@@ -101,13 +101,26 @@ type chainOverlayHandler func(spec *types.ChainOverlaySpec, target, ref *types.R
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
-	// OVERLAY_DELTA_VS_STAGE (E6-S5 will land the real handler): stub
-	// emits a zero-payload OverlayLayer whose shape inherits from the
-	// target stage's host so the round-trip test sees a one-to-one
-	// mapping between specs and layers. The stub is byte-equivalent at
-	// the per-layer envelope level; the underlying arithmetic ships
-	// with the E6-S5 follow-up.
-	types.OverlayKindDeltaVsStage: applyChainStub,
+	// OVERLAY_DELTA_VS_STAGE (E6-S5 lands the real handler):
+	// applyDeltaVsStage replaces the chassis stub with per-coordinate
+	// `target - reference` arithmetic. Same shape-inheritance logic as
+	// OVERLAY_INDEX_VS_STAGE (matrix from crosstab target, series from
+	// grouped Process target, scalar from scalar target — chainStageShape
+	// drives dispatch). Reuses the shared E6-S4 lookup helpers
+	// (buildMatrixCellLookup, buildSeriesRowLookup, axisKeyToString,
+	// singleScalarFromResponse) so per-coordinate key encoding stays
+	// byte-equivalent to INDEX_VS_STAGE. Zero-reference values do NOT
+	// emit any warning (zero is a number, not a divisor — DELTA is
+	// well-defined for every finite reference); missing reference keys
+	// fire PULSE_OVERLAY_REF_UNKNOWN (canonical
+	// PULSE_OVERLAY_REFERENCE_UNKNOWN reservation per E6 catalog;
+	// fallback rides REF_UNKNOWN until the canonical code lands) and
+	// fold against an implicit zero reference per the E6-S5 acceptance
+	// "missing reference key → delta defined as `target - 0`". Shape
+	// divergence rides the same PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+	// fallback as INDEX_VS_STAGE; canonical
+	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT lands with E6-S6.
+	types.OverlayKindDeltaVsStage: applyDeltaVsStage,
 	// OVERLAY_INDEX_VS_STAGE (E6-S4 lands the real handler):
 	// applyIndexVsStage replaces the chassis stub with per-coordinate
 	// `target / reference * 100.0` arithmetic. The handler dispatches

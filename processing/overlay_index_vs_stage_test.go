@@ -363,9 +363,12 @@ func TestApplyIndexVsStage_DispatchReplacesStub(t *testing.T) {
 // TestApplyIndexVsStage_SpecOrderPreserved is the cross-cutting
 // regression covering the S3-S4 contract: a two-spec
 // ChainRequest.Overlays (one INDEX_VS_STAGE, one DELTA_VS_STAGE
-// stub) walked through ApplyChainOverlays must produce two layers
-// in matching index order, the first carrying real INDEX arithmetic
-// and the second still surfacing the chassis stub.
+// — both now backed by real handlers as of E6-S5) walked through
+// ApplyChainOverlays must produce two layers in matching index
+// order with the first carrying real INDEX arithmetic. The DELTA
+// layer's payload shape is asserted in overlay_delta_vs_stage_test.go's
+// SpecOrderPreserved test; this test only enforces the INDEX side and
+// the spec-order contract so it stays focused on E6-S4's scope.
 func TestApplyIndexVsStage_SpecOrderPreserved(t *testing.T) {
 	target := seriesResponse([]map[string]any{{"group": "us", "sum": 120.0}})
 	ref := seriesResponse([]map[string]any{{"group": "us", "sum": 100.0}})
