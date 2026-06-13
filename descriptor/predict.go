@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -142,6 +143,159 @@ type PredictResult struct {
 	// have been filled in. Empty when no defaults fire; never nil in
 	// JSON output.
 	DefaultsApplied []DefaultApplied `json:"defaults_applied"`
+
+	// OverlaysApplied lists every overlay spec the engine accepted, in
+	// req.Overlays order. Each entry echoes the catalog identity (Name,
+	// Kind, Scope) plus the streamability flag harvested from
+	// types.OverlayStreamable(kind) so the caller can reason about the
+	// buffered/streaming routing decision without re-parsing the spec.
+	// Empty when req.Overlays is empty; never nil in JSON output.
+	//
+	// Per kind-catalog-v1 PRD §I-FR-I3 the predict surface is
+	// `OverlaysApplied + OverlaysSchemaDivergence + OverlayCost`.
+	// Predict emits one descriptor per spec in matching order across
+	// the full overlay catalog (E2 ships 10 kinds; future epics
+	// append entries to types.AllOverlayKinds() and inherit the same
+	// per-spec emission without re-opening this slot).
+	// OverlaysSchemaDivergence: Compose-driven divergence detection lands
+	// in E7-S14; CHAIN-driven detection in E10-S2. OverlayCost: the
+	// streamability-derived dispatch landed in E3-S11 (streamable kinds
+	// emit overlayCostStreamable; buffered kinds emit overlayCostBuffered)
+	// and the E10-S3 audit + multi-ref scaling closed the catalog
+	// (every kind in types.AllOverlayKinds() carries a multiplier; the
+	// multi-ref scaling rule lives on the COMPOSE-host equivalent at
+	// ComposeValidationResult.OverlayCost since Targets / MaxPanelTargets
+	// only exist on ComposeOverlaySpec).
+	OverlaysApplied []OverlayAppliedDescriptor `json:"overlays_applied"`
+
+	// OverlaysSchemaDivergence lists every (left, right) overlay-spec
+	// slot pair that produced incompatible result-schema shapes. Empty
+	// in E1 — divergence detection lands with Compose wiring in a later
+	// epic — but the field is present so consumers can rely on the
+	// shape today. Per PRD §I-FR-I3 the placeholder is honoured as
+	// "this slot is reserved and shipped empty".
+	OverlaysSchemaDivergence []SlotPair `json:"overlays_schema_divergence"`
+
+	// OverlayCost maps each overlay-spec Name to a coarse cost score
+	// the routing layer can consult before execution. The score is a
+	// rough record-count multiplier per overlay slot — streamable kinds
+	// fold inside the existing streaming pass (one extra accumulator per
+	// record) and carry overlayCostStreamable; buffered kinds force a
+	// post-host re-traversal of the materialised payload and carry
+	// overlayCostBuffered. Per kind-catalog-v1 PRD §I-FR-I3 the value is
+	// intentionally coarse — callers budgeting cost across slots sum the
+	// map values; renderers showing a "this overlay will buffer the
+	// host" warning branch on >= overlayCostBuffered. The map key is
+	// the overlay spec's Name when set, and the synthesised default
+	// (Kind + Scope + Ref) when empty — matching the Name field on
+	// OverlayAppliedDescriptor below. Empty when req.Overlays is empty;
+	// never nil in JSON output.
+	OverlayCost map[string]float64 `json:"overlay_cost"`
+}
+
+// OverlayAppliedDescriptor describes one accepted overlay spec the
+// predict path observed. Mirrors DefaultApplied / Suggestion in shape:
+// JSON-serialisable, omitempty-free for slice-friendly emit, populated
+// from the catalog entry rather than the raw spec so the caller cannot
+// confuse the surface with the raw OverlaySpec it submitted.
+//
+// Streamable echoes types.OverlayStreamable(kind). Note that a kind
+// can be streamable in isolation but force buffered when its host
+// (today: crosstab) is itself buffered — predict reports the kind's
+// own streamability, not the composed host-overlay decision. Callers
+// that need the composed decision should consult
+// PredictResult.Streamable + StreamableReasons.
+type OverlayAppliedDescriptor struct {
+	// Name echoes the renderer-facing label — either the spec's own
+	// Name or a synthesised default (Kind + Scope + Ref) when empty.
+	Name string `json:"name"`
+
+	// Kind is the on-wire SCREAMING_SNAKE OverlayKind value.
+	Kind types.OverlayKind `json:"kind"`
+
+	// Scope echoes the spec's scope.
+	Scope types.OverlayScope `json:"scope"`
+
+	// Shape echoes the resolved OverlayShape the layer will carry —
+	// derived from (Kind, Scope) via the capability catalog
+	// (descriptor.overlayCapabilityFor). For single-shape kinds the
+	// shape is unambiguous; for dual-shape kinds (OVERLAY_INDEX_VS_REF
+	// / OVERLAY_DELTA_VS_REF / OVERLAY_PANEL_INDEX_VS_REF) the resolver
+	// picks the shape matching the spec's scope (CELL ⇒ matrix, GROUP
+	// ⇒ series); for whole-chain kinds (OVERLAY_INDEX_VS_STAGE /
+	// OVERLAY_DELTA_VS_STAGE) the catalog declares every shape the
+	// kind may emit (scalar / series / matrix) and the descriptor
+	// leaves Shape empty — the realised shape depends on the target
+	// stage's host shape, which Predict cannot determine without
+	// inspecting the chain. Empty when the kind is unknown (the
+	// validator surfaces PULSE_OVERLAY_KIND_UNKNOWN for the same
+	// condition) or when no single shape can be resolved from the
+	// spec at predict time.
+	Shape types.OverlayShape `json:"shape,omitempty"`
+
+	// Ref echoes the resolved OverlayRef discriminated union variant
+	// as a renderer-friendly string. Format: "<family>:<discriminator>"
+	// when the family carries an on-wire discriminator, "<family>" for
+	// marker-only families, and "" for implicit-margin kinds (every
+	// CHISQ_* / FISHER_EXACT_CELL / INDEX_VS_TOTAL / FORMULA) and the
+	// COMPOSE-only catalog (Reference / Targets resolve via slot
+	// labels, not via the OverlayRef discriminated union). Concrete
+	// shapes:
+	//
+	//   - "margin:row" / "margin:column" / "margin:grand" — Ref.Margin
+	//   - "sibling:<field>=<value>"                        — Ref.Sibling
+	//   - "baseline_index:<position>"                      — Ref.BaselineIndex
+	//   - "prior:<lag>"                                    — Ref.Prior
+	//   - "rolling_mean"                                   — Ref.RollingMean (marker)
+	//   - "yoy"                                            — Ref.YoY (marker)
+	//   - "population:<cohort>"                            — Ref.Population
+	//   - "stage:index:<index>" / "stage:name:<name>"      — Ref.Stage
+	//   - "slot:<label>"                                   — Ref.Slot
+	Ref string `json:"ref,omitempty"`
+
+	// Streamable mirrors types.OverlayStreamable(kind). False for
+	// every E2 kind today (the whole crosstab catalog is buffered);
+	// later epics flip kinds to streamable kind-by-kind and the field
+	// surfaces the per-kind decision uniformly.
+	Streamable bool `json:"streamable"`
+}
+
+// SlotPair carries one rejected (Reference, Target) Compose-overlay
+// slot pair from descriptor.ValidateCompose's overlay walk. Mirrors
+// ChainOverlaySchemaDivergence in spirit but flattens to a string-typed
+// (ref label, target label, machine-readable reason) tuple so the
+// PredictResult.OverlaysSchemaDivergence slot and the
+// ComposeValidationResult.OverlaysSchemaDivergence slot can share one
+// renderer-side shape.
+//
+// PRD §I-FR-I3: the predict surface for Compose overlays is
+// `OverlaysApplied + OverlaysSchemaDivergence + OverlayCost`. The
+// divergence slot carries the per-spec failure reason alongside the
+// envelope error entry so LLM planners can budget reshapes without
+// stitching envelope details together.
+//
+// Reason values are stable identifiers the renderer can branch on:
+//
+//   - "kind-unknown"          — spec.Kind absent from the overlay catalog.
+//   - "reference-unknown"     — Reference label does not resolve to a slot.
+//   - "target-unknown"        — Targets[j] does not resolve to a slot.
+//   - "slot-shape-divergent"  — ref and target host shapes differ.
+//   - "slot-not-crosstab"     — kind requires MATRIX but a slot isn't.
+//   - "schema-divergent"      — per-axis grouper-kind tuples disagree.
+//   - "panel-targets-over-cap" — multi-ref target count exceeds the cap.
+type SlotPair struct {
+	// ReferenceLabel is the slot label the spec's Reference field
+	// resolves to. May be empty when the failure is the reference
+	// itself being unknown / unresolvable.
+	ReferenceLabel string `json:"reference_label"`
+
+	// TargetLabel is the slot label the spec's Targets[j] resolves
+	// to. May be empty when the failure is on the Reference arm.
+	TargetLabel string `json:"target_label"`
+
+	// Reason is a stable, machine-readable identifier for the failure
+	// class. See the SlotPair doc for the enum.
+	Reason string `json:"reason"`
 }
 
 // Suggestion is a structured next-action attached to PredictResult.
@@ -185,10 +339,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	}
 
 	result := &PredictResult{
-		Valid:           true,
-		Request:         req,
-		Shards:          []ShardInfo{},
-		DefaultsApplied: []DefaultApplied{},
+		Valid:                    true,
+		Request:                  req,
+		Shards:                   []ShardInfo{},
+		DefaultsApplied:          []DefaultApplied{},
+		OverlaysApplied:          []OverlayAppliedDescriptor{},
+		OverlaysSchemaDivergence: []SlotPair{},
+		OverlayCost:              map[string]float64{},
 	}
 	env := NewEnvelope(result)
 
@@ -262,6 +419,21 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// normalization gates). Streamability reasons land via
 	// computeStreamable below.
 	validateCrosstab(env, req, schema, opts)
+
+	// Validate overlay specs (Request.Overlays). E1 covers OVERLAY_INDEX_VS_MARGIN
+	// only — unknown kind, ref-shape compatibility against the MATRIX host,
+	// and the per-kind supported scope set. Streamability is gated on the
+	// host operator (today: always-buffered crosstab); overlay streamability
+	// surfaces via types.OverlayStreamable in later epics.
+	ValidateOverlays(env, req, schema, opts)
+
+	// Populate the predict surface from req.Overlays. One descriptor per
+	// spec in matching order; OverlayCost is a per-kind multiplier keyed
+	// by the spec's renderer-facing name (or a synthesised default when
+	// empty) — streamable kinds carry overlayCostStreamable, buffered
+	// kinds carry overlayCostBuffered. OverlaysSchemaDivergence stays
+	// empty in E1 — Compose wiring lands later.
+	populateOverlayDescriptors(result, req)
 
 	// Validate label bindings (display-time categorical translation). Snapshot
 	// carries the registered label tables; augment-mode collisions are
@@ -421,11 +593,14 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 	arch, err := encoding.OpenArchive(reader, int64(len(data)))
 	if err != nil {
 		result := &PredictResult{
-			Valid:           false,
-			Request:         req,
-			Shards:          []ShardInfo{},
-			DefaultsApplied: []DefaultApplied{},
-			Suggestions:     []Suggestion{},
+			Valid:                    false,
+			Request:                  req,
+			Shards:                   []ShardInfo{},
+			DefaultsApplied:          []DefaultApplied{},
+			Suggestions:              []Suggestion{},
+			OverlaysApplied:          []OverlayAppliedDescriptor{},
+			OverlaysSchemaDivergence: []SlotPair{},
+			OverlayCost:              map[string]float64{},
 		}
 		env := NewEnvelope(result)
 		env.AddError(string(errors.PULSE_ARCHIVE_CORRUPT), "invalid pulse shard archive: "+err.Error(), nil)
@@ -435,11 +610,14 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 	rc, oerr := arch.Open(encoding.ReservedSchemaName)
 	if oerr != nil {
 		result := &PredictResult{
-			Valid:           false,
-			Request:         req,
-			Shards:          []ShardInfo{},
-			DefaultsApplied: []DefaultApplied{},
-			Suggestions:     []Suggestion{},
+			Valid:                    false,
+			Request:                  req,
+			Shards:                   []ShardInfo{},
+			DefaultsApplied:          []DefaultApplied{},
+			Suggestions:              []Suggestion{},
+			OverlaysApplied:          []OverlayAppliedDescriptor{},
+			OverlaysSchemaDivergence: []SlotPair{},
+			OverlayCost:              map[string]float64{},
 		}
 		env := NewEnvelope(result)
 		env.AddError(string(errors.PULSE_SHARD_MISSING),
@@ -457,11 +635,14 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 	_ = rc.Close()
 	if rerr != nil {
 		result := &PredictResult{
-			Valid:           false,
-			Request:         req,
-			Shards:          []ShardInfo{},
-			DefaultsApplied: []DefaultApplied{},
-			Suggestions:     []Suggestion{},
+			Valid:                    false,
+			Request:                  req,
+			Shards:                   []ShardInfo{},
+			DefaultsApplied:          []DefaultApplied{},
+			Suggestions:              []Suggestion{},
+			OverlaysApplied:          []OverlayAppliedDescriptor{},
+			OverlaysSchemaDivergence: []SlotPair{},
+			OverlayCost:              map[string]float64{},
 		}
 		env := NewEnvelope(result)
 		env.AddError(string(errors.ENCODING_INVALID),
@@ -710,4 +891,276 @@ func isLowQualityDescription(desc string) bool {
 	lower := strings.ToLower(trimmed)
 	unhelpful := []string{"n/a", "na", "none", "tbd", "todo", "unknown", "field", "data", "value", "column"}
 	return slices.Contains(unhelpful, lower)
+}
+
+// overlayCostStreamable is the OverlayCost score assigned to overlay
+// kinds whose streamability flag is true — the kind folds inside the
+// existing streaming Process pass via a kind-specific accumulator
+// carried alongside the per-group reducers, so the marginal cost is
+// effectively a few f64 adds per record. The value is a rough record-
+// count multiplier per PRD §I-FR-I3; 0.05 ≈ "5% extra work" relative
+// to a fresh pass over the source records. The streamable E3 trio
+// (INDEX_VS_TOTAL, ZSCORE_VS_TOTAL, the SERIES dispatch of
+// SHARE_OF_TOTAL) lands at this value today.
+const overlayCostStreamable = 0.05
+
+// overlayCostBuffered is the OverlayCost score assigned to overlay
+// kinds whose streamability flag is false — the kind requires the
+// fully materialised host payload (the buffered crosstab matrix, the
+// finalized per-group SeriesPayload for the sibling family, etc.) and
+// folds at the post-host exit, traversing the payload a second time.
+// The value is a rough record-count multiplier per PRD §I-FR-I3; 1.0
+// ≈ "one extra pass" over the materialised host structure. Every E1 /
+// E2 kind plus the SIBLING family (DELTA_VS_SIBLING, INDEX_VS_SIBLING)
+// lands at this value today.
+const overlayCostBuffered = 1.0
+
+// overlayCostForKind returns the OverlayCost multiplier for a given
+// overlay kind. The dispatch reads types.OverlayStreamable(kind) —
+// streamable kinds get overlayCostStreamable, buffered kinds get
+// overlayCostBuffered. The static streamability table in
+// types/overlay_streamability.go is the single source of truth, so a
+// kind that flips streamable automatically flips its cost here.
+// Unknown kinds (absent from the table) fall through to the buffered
+// score — the validator already surfaces PULSE_OVERLAY_KIND_UNKNOWN
+// for the same condition; the cost score stays maximally conservative.
+func overlayCostForKind(kind types.OverlayKind) float64 {
+	streamable, known := types.OverlayStreamable(kind)
+	if !known || !streamable {
+		return overlayCostBuffered
+	}
+	return overlayCostStreamable
+}
+
+// populateOverlayDescriptors fills PredictResult.OverlaysApplied and
+// PredictResult.OverlayCost from req.Overlays. Per kind-catalog-v1 PRD
+// §I-FR-I3 the predict surface is `OverlaysApplied +
+// OverlaysSchemaDivergence + OverlayCost`; E1 emits one
+// OverlayAppliedDescriptor per spec (Name + Kind + Scope + Streamable)
+// and a per-kind OverlayCost multiplier keyed by the spec name. The
+// divergence slot stays empty in E1.
+//
+// The streamability echo and the cost score both consult
+// types.OverlayStreamable(kind) — the static table in
+// types/overlay_streamability.go is the single source of truth, so a
+// kind that flips streamable automatically flips here.
+func populateOverlayDescriptors(result *PredictResult, req *types.Request) {
+	if result == nil || req == nil || len(req.Overlays) == 0 {
+		return
+	}
+	result.OverlaysApplied, result.OverlayCost = appendOverlayDescriptors(
+		result.OverlaysApplied, result.OverlayCost, req.Overlays,
+	)
+}
+
+// appendOverlayDescriptors is the shared per-spec emitter used by both
+// the Request-host predict surface (PredictResult) and the FACET-host
+// predict surface (FacetValidationResult). Each spec produces one
+// OverlayAppliedDescriptor entry plus one entry in the cost map keyed by
+// the spec's renderer-facing name (or a synthesised default when empty).
+// Streamability + cost both consult types.OverlayStreamable(kind) so the
+// static streamability table stays the single source of truth.
+//
+// Returns the (possibly grown) descriptor slice and cost map. The cost
+// map is mutated in place when non-nil; callers must seed an empty map
+// on the destination struct before invoking this helper so the JSON
+// output stays empty-but-not-nil (matching the PredictResult contract).
+func appendOverlayDescriptors(
+	descriptors []OverlayAppliedDescriptor,
+	costs map[string]float64,
+	specs []types.OverlaySpec,
+) ([]OverlayAppliedDescriptor, map[string]float64) {
+	for i := range specs {
+		spec := &specs[i]
+		name := overlayDescriptorName(spec)
+		streamable, _ := types.OverlayStreamable(spec.Kind)
+		descriptors = append(descriptors, OverlayAppliedDescriptor{
+			Name:       name,
+			Kind:       spec.Kind,
+			Scope:      spec.Scope,
+			Shape:      resolveOverlayShape(spec.Kind, spec.Scope),
+			Ref:        resolveOverlayRef(spec),
+			Streamable: streamable,
+		})
+		// Per-kind cost multiplier — streamable kinds carry
+		// overlayCostStreamable (~5% extra work) because they fold
+		// inside the streaming Process pass; buffered kinds carry
+		// overlayCostBuffered (~one extra payload traversal) because
+		// they re-walk the materialised host structure at the post-
+		// host exit.
+		if costs != nil {
+			costs[name] = overlayCostForKind(spec.Kind)
+		}
+	}
+	return descriptors, costs
+}
+
+// resolveOverlayShape returns the OverlayShape the layer will carry
+// for the given (Kind, Scope) pair. Reads the per-kind capability
+// table (overlayCapabilityFor) as the single source of truth.
+//
+// Resolution rules:
+//
+//   - Single-shape kinds (the bulk of the catalog) return the kind's
+//     only declared shape directly.
+//   - Dual-shape kinds (OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF /
+//     OVERLAY_PANEL_INDEX_VS_REF on Compose hosts) disambiguate via
+//     Scope: OverlayScopeCell ⇒ matrix, OverlayScopeGroup ⇒ series,
+//     OverlayScopeTotal ⇒ scalar.
+//   - OVERLAY_FORMULA is a tri-shape kind whose shape is selected by
+//     Scope (cell ⇒ matrix, group ⇒ series, total ⇒ scalar) per the
+//     per-shape FORMULA binder.
+//   - Whole-chain kinds (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE)
+//     inherit the target stage's host shape at runtime — Predict cannot
+//     resolve a single shape without inspecting the chain, so the
+//     resolver returns "" (the descriptor surfaces an empty Shape
+//     field via the omitempty rule).
+//   - Unknown kinds (absent from the catalog) return "" — the
+//     validator surfaces PULSE_OVERLAY_KIND_UNKNOWN for the same
+//     condition.
+func resolveOverlayShape(kind types.OverlayKind, scope types.OverlayScope) types.OverlayShape {
+	cap := overlayCapabilityFor(kind)
+	if len(cap.Shapes) == 0 {
+		return ""
+	}
+	if len(cap.Shapes) == 1 {
+		return cap.Shapes[0]
+	}
+	// Multi-shape kind — disambiguate via Scope. The capability
+	// table declares every shape the kind may emit; the scope-to-
+	// shape mapping is uniform across the catalog:
+	//   cell  ⇒ matrix
+	//   group ⇒ series
+	//   total ⇒ scalar
+	//   row   ⇒ series
+	//   column⇒ series
+	//   matrix⇒ matrix
+	scopeShape := scopeToShape(scope)
+	if scopeShape == "" {
+		return ""
+	}
+	for _, s := range cap.Shapes {
+		if s == scopeShape {
+			return s
+		}
+	}
+	// Scope incompatible with any declared shape — the per-kind
+	// validator (PULSE_OVERLAY_SCOPE_UNSUPPORTED) catches this; the
+	// descriptor surfaces "" so renderers can branch on the gap.
+	return ""
+}
+
+// scopeToShape maps an OverlayScope to its canonical OverlayShape per
+// the catalog convention. Returns "" for unknown scopes.
+func scopeToShape(scope types.OverlayScope) types.OverlayShape {
+	switch scope {
+	case types.OverlayScopeCell:
+		return types.OverlayShapeMatrix
+	case types.OverlayScopeMatrix:
+		return types.OverlayShapeMatrix
+	case types.OverlayScopeRow, types.OverlayScopeColumn, types.OverlayScopeGroup:
+		return types.OverlayShapeSeries
+	case types.OverlayScopeTotal:
+		return types.OverlayShapeScalar
+	}
+	return ""
+}
+
+// resolveOverlayRef returns a renderer-friendly string describing the
+// resolved OverlayRef discriminated union variant. Format follows the
+// per-family conventions documented on OverlayAppliedDescriptor.Ref.
+//
+// Returns "" for:
+//   - Implicit-margin kinds (CHISQ_*, FISHER_EXACT_CELL, INDEX_VS_TOTAL,
+//     ZSCORE_VS_TOTAL, SHARE_OF_TOTAL, FORMULA) that leave Ref empty.
+//   - COMPOSE-only kinds (OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF /
+//     OVERLAY_PROP_Z_CELL / OVERLAY_PROP_Z_PANEL / OVERLAY_PANEL_INDEX_VS_REF
+//     / OVERLAY_T_CELL / OVERLAY_T_VS_REF / OVERLAY_CHISQ_VS_REF /
+//     OVERLAY_RANK) whose reference + target slots ride on the
+//     ComposeOverlaySpec slot-label pair, not on Ref.
+func resolveOverlayRef(spec *types.OverlaySpec) string {
+	if spec == nil {
+		return ""
+	}
+	ref := spec.Ref
+	switch {
+	case ref.Margin != nil:
+		return "margin:" + string(ref.Margin.Axis)
+	case ref.Sibling != nil:
+		return "sibling:" + ref.Sibling.Field + "=" + ref.Sibling.Value
+	case ref.BaselineIndex != nil:
+		return "baseline_index:" + itoa(ref.BaselineIndex.Position)
+	case ref.Prior != nil:
+		return "prior:" + itoa(ref.Prior.Lag)
+	case ref.RollingMean != nil:
+		return "rolling_mean"
+	case ref.YoY != nil:
+		return "yoy"
+	case ref.Population != nil:
+		return "population:" + ref.Population.Cohort
+	case ref.Stage != nil:
+		if ref.Stage.Index != nil {
+			return "stage:index:" + itoa(*ref.Stage.Index)
+		}
+		return "stage:name:" + ref.Stage.Name
+	case ref.Slot != nil:
+		return "slot:" + ref.Slot.Name
+	}
+	return ""
+}
+
+// itoa renders an integer for the Ref string surface. Uses
+// strconv.Itoa via the small wrapper to keep the call site readable
+// (the surrounding function reads cleanly as a switch on the union).
+func itoa(n int) string {
+	return strconv.Itoa(n)
+}
+
+// populateFacetOverlayDescriptors fills FacetValidationResult.OverlaysApplied
+// and FacetValidationResult.OverlayCost from req.Overlays. Sibling to
+// populateOverlayDescriptors — the FACET-host predict surface mirrors the
+// Request-host predict surface (kind-catalog-v1 PRD §I-FR-I3) so LLM
+// callers see the same per-spec descriptor shape (Name + Kind + Scope +
+// Streamable) and the same per-kind cost map regardless of host shape.
+//
+// Per-kind cost dispatch: all four FACET-host kinds route through the
+// same overlayCostForKind helper. The streamability table at
+// types/overlay_streamability.go declares OVERLAY_INDEX_VS_POP and
+// OVERLAY_ZSCORE_VS_POP as streamable (cost ~0.05) and OVERLAY_CHISQ_VS_POP
+// and OVERLAY_KS_VS_POP as buffered (cost ~1.0) per PRD §2 Non-Goals
+// ("Streaming overlay path for inferential kinds"). Cost flips
+// automatically when a kind's streamability flag flips.
+func populateFacetOverlayDescriptors(result *FacetValidationResult, req *types.FacetRequest) {
+	if result == nil || req == nil || len(req.Overlays) == 0 {
+		return
+	}
+	result.OverlaysApplied, result.OverlayCost = appendOverlayDescriptors(
+		result.OverlaysApplied, result.OverlayCost, req.Overlays,
+	)
+}
+
+// overlayDescriptorName returns the renderer-facing label for an
+// overlay spec. When the caller set OverlaySpec.Name explicitly that
+// string wins; otherwise we synthesise a deterministic default from
+// Kind + Scope + the populated Ref family pointer so the cost map and
+// descriptor stay keyed consistently.
+//
+// The processing layer synthesises its own default at execution time
+// (see types/overlay.go's OverlaySpec doc). Predict's synthesis must
+// stay aligned with that runtime default for the cost-map key to
+// match the response-side OverlayLayer.Name. Until the processing
+// helper is exported the synthesis here mirrors the documented
+// "Kind|Scope|Ref" recipe.
+func overlayDescriptorName(spec *types.OverlaySpec) string {
+	if spec == nil {
+		return ""
+	}
+	if spec.Name != "" {
+		return spec.Name
+	}
+	name := string(spec.Kind) + "|" + string(spec.Scope)
+	if spec.Ref.Margin != nil {
+		name += "|margin:" + string(spec.Ref.Margin.Axis)
+	}
+	return name
 }

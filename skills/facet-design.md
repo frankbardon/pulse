@@ -157,6 +157,213 @@ pipeline as `Process` — `FILTER_INCLUDE`, `FILTER_EXCLUDE`,
 only; additive accumulators see the per-field scope filter described
 above.
 
+## Facet overlays
+
+`FacetRequest.Overlays` is the additive decoration surface for
+population-comparison statistics. Each `OverlaySpec` produces one
+`OverlayLayer` in `FacetResult.Overlays` in matching order; an empty
+slot keeps the JSON output byte-identical to the pre-overlay shape
+(`omitempty`). Four kinds ship with the catalog (E5), each one against
+a `Ref.Population` reference family:
+
+| Kind | Shape | Streamable | Ref family | Host arm | What it computes |
+|---|---|---|---|---|---|
+| `OVERLAY_INDEX_VS_POP` | per-value series | yes | `Population` | discrete or numeric | `(subset_freq / pop_freq) * 100` per value / bin |
+| `OVERLAY_ZSCORE_VS_POP` | per-value series | yes | `Population` | discrete or numeric | `(subset_freq - pop_mean) / pop_sd` per value |
+| `OVERLAY_CHISQ_VS_POP` | scalar statistic | buffered | `Population` | discrete only | χ² goodness-of-fit + df + p-value |
+| `OVERLAY_KS_VS_POP` | scalar statistic | buffered | `Population` | numeric only | Kolmogorov-Smirnov D-statistic + asymptotic p-value |
+
+The streamability split — descriptive kinds (INDEX, ZSCORE) stream;
+inferential kinds (CHISQ, KS) buffer — is the same one declared by
+`types.OverlayStreamability` and surfaced through
+`Manifest.Overlays[kind].Streamable`. PRD §2 "Non-Goals" pins the
+inferential kinds to buffered: even though both finalize handlers
+consume only post-finalize host state, mixing them into a streamable
+FacetRequest forces the entire request to the buffered path through
+`processing.canStreamOverlays`. INDEX_VS_POP and ZSCORE_VS_POP keep
+streaming alongside the per-value Welford / count accumulators.
+
+Every kind shares the same contract:
+
+- `Ref.Population` REQUIRED — `Ref.Population.Cohort` names the
+  comparison-cohort `.pulse` file. Any other ref-family pointer fires
+  `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- `Scope=GROUP` only.
+- `Level=0`, `Within=0` — population comparison is a single-value
+  lookup, not an axis prefix; non-zero values fire
+  `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
+- Host-field selection via `OverlaySpec.Params["field"]`. When the
+  FacetRequest declares exactly one Field that slot may be omitted;
+  multi-field FacetRequests require it. Unknown field names fire
+  `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` with the
+  `{field, available_fields}` detail map.
+- Host-arm mismatch fires at predict time:
+  - `OVERLAY_CHISQ_VS_POP` against a numeric host →
+    `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (χ² goodness-of-fit
+    needs categorical buckets to form the observed × expected
+    contingency).
+  - `OVERLAY_KS_VS_POP` against a categorical host →
+    `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (KS is defined on a CDF, which
+    is meaningless on unordered categories).
+- The runtime resolves the population FacetResult by recursing
+  `FacetSchema` against `Ref.Population.Cohort` with
+  `NumericPercentiles` / `IncludeHistogram` forwarded from the host
+  request so the per-kind handlers see the expected payload shape.
+
+The service-layer wiring lives at `service/facet_overlay.go`; per-kind
+handlers live alongside the rest of the overlay catalog in
+`processing/overlay_*.go`. The predict-time validator is
+`descriptor.ValidateFacetOverlays` (`descriptor/overlay_facet.go`),
+invoked automatically from `descriptor.ValidateFacet`.
+
+### Warning codes
+
+Two warning-class codes fire from the four Facet kinds at runtime
+(never errors — the overlay layer is still emitted with NaN where the
+math is undefined):
+
+- `PULSE_OVERLAY_REF_ZERO` — the population reference resolved cleanly
+  but the denominator is zero. Emitted by INDEX_VS_POP / ZSCORE_VS_POP
+  per affected entry, and by CHISQ_VS_POP / KS_VS_POP once per layer
+  when the entire population is degenerate. The Details map carries
+  `{kind, value}` (per-value variants) or `{kind, reason}` (scalar
+  variants).
+- `PULSE_OVERLAY_EXPECTED_LOW` — emitted by `OVERLAY_CHISQ_VS_POP`
+  when any expected cell count drops below 5 (the χ² asymptotic
+  approximation degrades). The Details map identifies the offending
+  values. The p-value is still emitted; the warning is advisory, not
+  fatal.
+
+### Recipes
+
+One Request fragment per kind. Each is a minimal `FacetRequest` body
+that targets `cohort.pulse` against an unfiltered `population.pulse`
+baseline. The full request includes the standard envelope; only the
+slot-specific bits are shown.
+
+**`OVERLAY_INDEX_VS_POP` — per-value subset-vs-population ratio.**
+
+```json
+{
+  "cohort": {"filename": "cohort.pulse"},
+  "fields": ["category"],
+  "filterers": [{"type": "FILTER_INCLUDE", "field": "region", "values": ["west"]}],
+  "overlays": [
+    {
+      "kind": "OVERLAY_INDEX_VS_POP",
+      "scope": "group",
+      "ref": {"population": {"cohort": "population.pulse"}}
+    }
+  ]
+}
+```
+
+`FacetResult.Overlays[0].Discrete[v].Value == 100` ⇒ subset proportion
+equals population proportion; `>100` over-represented; `<100`
+under-represented.
+
+**`OVERLAY_ZSCORE_VS_POP` — per-value z-score against population mean
++ sd.**
+
+```json
+{
+  "cohort": {"filename": "cohort.pulse"},
+  "fields": ["amount"],
+  "filterers": [{"type": "FILTER_RANGE", "field": "year", "min": 2024, "max": 2024}],
+  "overlays": [
+    {
+      "kind": "OVERLAY_ZSCORE_VS_POP",
+      "scope": "group",
+      "ref": {"population": {"cohort": "population.pulse"}}
+    }
+  ]
+}
+```
+
+Numeric or discrete host. Each entry's z-score expresses how many
+population standard deviations away from the population mean the
+subset frequency / mean sits.
+
+**`OVERLAY_CHISQ_VS_POP` — scalar χ² goodness-of-fit (discrete host
+only).**
+
+```json
+{
+  "cohort": {"filename": "cohort.pulse"},
+  "fields": ["category"],
+  "filterers": [{"type": "FILTER_INCLUDE", "field": "region", "values": ["west"]}],
+  "overlays": [
+    {
+      "kind": "OVERLAY_CHISQ_VS_POP",
+      "scope": "group",
+      "ref": {"population": {"cohort": "population.pulse"}}
+    }
+  ]
+}
+```
+
+`FacetResult.Overlays[0].Summary` carries `Statistic`, `PValue`, and
+`Parameters{"df", "n_subset"}`. Same regularised-gamma helper as
+`TEST_CHISQ` — byte-identical p-values for the same contingency. Watch
+for `PULSE_OVERLAY_EXPECTED_LOW` warnings; below ~5-per-cell the
+asymptotic approximation is unreliable. Use it as a goodness-of-fit
+badge rather than a publication-grade test in those regimes.
+
+**`OVERLAY_KS_VS_POP` — scalar Kolmogorov-Smirnov distance (numeric
+host only).**
+
+```json
+{
+  "cohort": {"filename": "cohort.pulse"},
+  "fields": ["amount"],
+  "filterers": [{"type": "FILTER_RANGE", "field": "year", "min": 2024, "max": 2024}],
+  "include_histogram": true,
+  "histogram_bins": 50,
+  "histogram_range": [0.0, 1000.0],
+  "overlays": [
+    {
+      "kind": "OVERLAY_KS_VS_POP",
+      "scope": "group",
+      "ref": {"population": {"cohort": "population.pulse"}}
+    }
+  ]
+}
+```
+
+`Summary` carries `Statistic` (D = max CDF gap), `PValue` (asymptotic
+two-sample KS), and `Parameters{"n_subset", "n_pop"}`. Categorical
+fields fire `PULSE_OVERLAY_SCOPE_UNSUPPORTED` at predict time — KS is
+undefined on unordered categories.
+
+### Combining kinds
+
+Slot order in `Overlays` matches slot order in `Overlays` on the
+response. A common pairing — descriptive per-value index alongside an
+inferential goodness-of-fit badge — is one Request, two overlay slots:
+
+```json
+{
+  "cohort": {"filename": "cohort.pulse"},
+  "fields": ["category"],
+  "filterers": [{"type": "FILTER_INCLUDE", "field": "region", "values": ["west"]}],
+  "overlays": [
+    {"kind": "OVERLAY_INDEX_VS_POP", "scope": "group",
+     "ref": {"population": {"cohort": "population.pulse"}}},
+    {"kind": "OVERLAY_CHISQ_VS_POP", "scope": "group",
+     "ref": {"population": {"cohort": "population.pulse"}}}
+  ]
+}
+```
+
+`FacetResult.Overlays[0]` carries the per-value index series;
+`FacetResult.Overlays[1]` carries the scalar χ² statistic. Mixing
+streamable + buffered kinds forces the whole request to the buffered
+path; the descriptive layer is still byte-equivalent — the gate is on
+the orchestrator, not the math. The same `.pulse` cohort may serve as
+both host and population (`population.pulse == cohort.pulse`) — the
+recursion produces the unfiltered baseline since the population
+FacetRequest strips `Filterers`.
+
 ## When to prefer FacetSchema over a Process request
 
 | Want | Use |

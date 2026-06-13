@@ -882,6 +882,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_COMPOSE_LABEL_COLLISION: {
+		Message: "Two slots in the ComposedRequest resolve to the same final Label after auto-default synthesis. Compose-only overlay kinds resolve sibling references by label, so names must be unique across slots.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests", "*", "Label"},
+				Hint:   "Rename one of the colliding slots, or clear a caller-supplied Label that matches the auto-default (`request_<index+1>`) of another slot. The error details carry the offending label string and the colliding slot indices.",
+			},
+		},
+	},
 	PULSE_JOIN_TYPE_MISMATCH: {
 		Message: "A join key pair pairs fields whose schema types differ. Hash join keys must compare equal byte-for-byte after normalisation; type mismatches block this.",
 		Fixups: []Fixup{
@@ -1167,6 +1177,356 @@ var codeMetadata = map[Code]Metadata{
 				Action:   FixupReplaceField,
 				Hint:     "Rename the offending key to its canonical request slot (the error details carry the nearest valid key). Request slots are: cohort, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, regressions, joins, labels, outputs. The manifest's \"groupers\"/\"aggregators\" name the available OPERATORS; the request slots that hold them are \"groups\"/\"aggregations\".",
 				Examples: []any{"groupers -> groups", "aggregators -> aggregations"},
+			},
+		},
+	},
+	// ---------- PULSE — OVERLAYS ----------
+	PULSE_OVERLAY_KIND_UNKNOWN: {
+		Message: "A Request.Overlays entry references an OverlayKind that is not in the catalog (types.AllOverlayKinds()). The validator rejects unknown kinds at predict time; reaching this code at runtime means the request bypassed validation.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Kind"},
+				Hint:     "Pick a registered OverlayKind. Check the overlay catalog via pulse manifest --json (overlay-kinds section); spelling and casing must match exactly.",
+				Examples: []any{"OVERLAY_INDEX_VS_MARGIN"},
+			},
+		},
+	},
+	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE: {
+		Message: "An OverlaySpec's Ref does not match the host shape required by the chosen Kind. OVERLAY_INDEX_VS_MARGIN requires a Ref.Margin pointer with a known MarginAxis (row / column / grand) AND a MATRIX-shaped host (Request.Crosstab non-nil).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Ref", "Margin"},
+				Hint:     "Set Ref.Margin = {Axis: \"row\" | \"column\" | \"grand\"} for OVERLAY_INDEX_VS_MARGIN; add Request.Crosstab to provide a MATRIX host so the margin slot has a denominator.",
+				Examples: []any{"row", "column", "grand"},
+			},
+		},
+	},
+	PULSE_OVERLAY_SCOPE_UNSUPPORTED: {
+		Message: "An OverlaySpec named a Scope that is not supported for the chosen Kind. E1 ships OVERLAY_INDEX_VS_MARGIN with Scope=cell only; row / column / total / matrix / group land in later epics alongside the matching payload shapes.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Scope"},
+				Hint:     "Set Scope to \"cell\" for OVERLAY_INDEX_VS_MARGIN; the wider projection scopes land in later releases.",
+				Examples: []any{"cell"},
+			},
+		},
+	},
+	PULSE_OVERLAY_REF_ZERO: {
+		Message: "An overlay handler observed a zero, missing, or non-finite margin denominator. The affected cell stays absent on the overlay payload; the warning carries the row / column index and margin axis so callers can audit the failing cells. Warning-class — surfaced as a Response.Warning, never as an envelope error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Filterers"},
+				Hint:   "Pre-filter rows that contribute zero margin sums (e.g. FILTER_EXCLUDE on the empty / null axis), or pick a cell aggregator whose denominator is bounded away from zero (AGG_COUNT margins are non-negative integers; AGG_SUM on signed numeric fields may legitimately produce zero).",
+			},
+		},
+	},
+	PULSE_OVERLAY_EXPECTED_LOW: {
+		Message: "An inferential overlay (OVERLAY_CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL / FISHER_EXACT_CELL / CHISQ_VS_POP) observed an expected count below the χ² approximation's reliability threshold (canonical rule: any expected cell below 5; Fisher's 2×2 rule: any cell < 1 OR ≥ 20% cells < 5). The statistic is still emitted alongside; the warning flags rows / columns / cells / categories where the approximation may be unreliable. Warning-class — surfaced as a Response.Warning, never as an envelope error. PRD FR-J1 shares the code across the χ² / Fisher overlay surfaces — Crosstab MATRIX-host kinds and Facet GROUP-host CHISQ_VS_POP emit the same warning shape so renderers can lift it into a single \"approximation may be unreliable\" surface regardless of host shape.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Crosstab", "Rows"},
+				Hint:   "Lower the nested-axis Level (collapse a finer grouper) or widen the cells (raise observed counts) so the contingency margins reach the χ² reliability threshold — coarsen GROUP_DATE buckets, widen GROUP_RANGE intervals, or drop a deep grouper on the row axis. Alternatively, switch to OVERLAY_FISHER_EXACT_CELL (exact 2×2 p-values) which stays exact in the low-count regime.",
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Crosstab", "Columns"},
+				Hint:   "Same as the row-axis fix — coarsen or drop a column-axis grouper so the contingency cells aggregate enough observations to drive expected counts past the reliability threshold.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"FacetRequest", "DiscreteTopK"},
+				Hint:   "OVERLAY_CHISQ_VS_POP fix: raise the subset record count by widening the FacetRequest filter (drop a restrictive Filterer) OR coarsen the facet's discrete dictionary (the host's DiscreteTopK ceiling) so categories merge and observed counts rise. Population frequency is fixed at the population cohort level; only subset_N (sum of host counts) and the number of categories scale the expected counts.",
+			},
+		},
+	},
+	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE: {
+		Message: "An OverlaySpec's Level selector exceeds the nested-axis depth of the relevant host axis. Valid depths are zero-indexed from the top of the axis: Row axis depth = len(Crosstab.Rows), Column axis depth = len(Crosstab.Columns). Mirrors PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab normalize_level surface.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Level"},
+				Hint:     "Pick a depth in [0, len(axis)-1] where axis = Crosstab.Rows for row-axis overlays and Crosstab.Columns for column-axis overlays. Omit the field entirely to default to the leaf (the deepest grouper on the axis).",
+				Examples: []any{0, 1, 2},
+			},
+		},
+	},
+	PULSE_OVERLAY_PARAM_MISSING: {
+		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. OVERLAY_INDEX_VS_ROLLING_MEAN requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params"},
+				Hint:     "Set Params on the OverlaySpec to a JSON object containing the required keys for the chosen Kind. For OVERLAY_INDEX_VS_ROLLING_MEAN populate `{\"window\": N}` where N is a positive integer naming the rolling-window width (e.g. {\"window\": 3} for a 3-point rolling mean). Per the WIN_* operator convention, the window width is the only required param today.",
+				Examples: []any{map[string]any{"window": 3}, map[string]any{"window": 7}, map[string]any{"window": 12}},
+			},
+		},
+	},
+	PULSE_OVERLAY_FORMULA_PARSE_ERROR: {
+		Message: "An OVERLAY_FORMULA spec's Params[\"formula\"] string failed to parse as an expr-lang expression. The formula was syntactically invalid — typically unbalanced parentheses, a stray operator, an unterminated string literal, or a typo on a keyword. Surfaced at both predict (descriptor.validateFormulaOverlay) and runtime (processing.compileFormulaProgram) so authors catch the failure before evaluation begins. Details carry {formula, parse_error, kind, index} — the parser's own position-aware error string is preserved verbatim under Details.parse_error so renderers can surface the offending column / token alongside the offending input.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "formula"},
+				Hint:     "Re-read the formula string with the parser message in mind (Details.parse_error names the offending position or token). Common fixes: balance every '(' with a matching ')', terminate every '\"' string literal, and confirm operators are valid expr-lang operators (+, -, *, /, %, **, ==, !=, <, <=, >, >=, &&, ||, !). The expr-lang grammar is documented under skills/extension-points.md (the same evaluator backs ATTR_FORMULA and FILTER_EXPRESSION, so any expression that parses there parses here).",
+				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}},
+			},
+		},
+	},
+	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH: {
+		Message: "An OVERLAY_FORMULA expression returned a value whose Go type cannot be coerced to a numeric Statistic (float64). The runtime accepts float64 / float32 / int / int64 natively, widens bool to 0.0 / 1.0, and rejects everything else (strings, maps, slices, nil, etc.) — overlays must emit numeric statistics so the renderer can plot them. Surfaced at runtime by processing.applyFormula after expr.Run returns. Details carry {returned_type, formula, kind, index} so the renderer can surface both the offending Go type and the offending input.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "formula"},
+				Hint:     "Ensure the formula's top-level expression evaluates to a numeric value (float64 / float32 / int / int64) or a bool (bool widens to 0.0 / 1.0). If the formula uses a custom function registered via pulse.Options.Extensions.ExprFunctions, verify the function returns a numeric Go type rather than a string, slice, or composite type — see skills/extension-points.md for the ExprFunctions contract. If the formula uses lookup() against a LookupTables registration, verify the row value column is numeric.",
+				Examples: []any{map[string]any{"formula": "cell / margin_row"}, map[string]any{"formula": "(value - prior) / prior"}},
+			},
+		},
+	},
+	PULSE_OVERLAY_FORMULA_INVALID_IDENT: {
+		Message: "An OVERLAY_FORMULA expression references an identifier (variable or function) that is not allowed for the resolved host shape. The per-shape variable namespace is fixed: MATRIX hosts expose `cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand` (plus `ref_cell` and the dotted `slot.<label>.cell` namespace on Compose hosts); SERIES hosts expose `value, total, prior` (plus opt-in `baseline` when Params[\"baseline_position\"] is set, plus `ref_value` on Compose hosts); SCALAR hosts expose `value` (plus `ref` on Compose hosts). The function namespace is the expr-lang stdlib plus every pulse.Options.Extensions.ExprFunctions registration and (when LookupTables are registered) the auto-injected lookup() builtin. Surfaced at predict (descriptor.validateFormulaOverlay) by walking the parsed AST. Details carry {unknown_identifier, host_shape, allowed | allowed_funcs, formula, kind, index}; Compose-only `slot.<label>.<field>` identifiers on a Request host additionally carry {reason: \"slot namespace is Compose-only\"}.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "formula"},
+				Hint:     "Check the allowed identifier set for shape Details.host_shape against Details.allowed (variables) or Details.allowed_funcs (functions) — the per-shape namespace table lives in the FORMULA section of skills/overlay-system.md. If the identifier was meant to be a custom function, register it via pulse.Options.Extensions.ExprFunctions before calling pulse.New (see skills/extension-points.md for the registration recipe — naming policy ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_*$ applies to operators, not to expr functions; expr function names are free-form). If the identifier was meant to be a variable not in the per-shape table, register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. Compose `slot.<label>.<field>` identifiers only resolve on Compose-host overlays (FacetRequest.Overlays / ComposedRequest.Overlays), not on Request.Overlays.",
+				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}, map[string]any{"formula": "(slot.us.cell - slot.uk.cell) / slot.world.cell"}},
+			},
+		},
+	},
+	PULSE_OVERLAY_REF_UNKNOWN: {
+		Message: "An overlay handler named a reference that does not resolve to a known slot on the host. Three arms today: (1) sibling-reference overlays (OVERLAY_DELTA_VS_SIBLING / OVERLAY_INDEX_VS_SIBLING) name a Sibling (Field, Value) pair that does not match any observed axis-key value on the SERIES host; (2) baseline-index overlays (OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_YOY) name a Position ordinal outside [0, host.GroupCount()) — Details carry {baseline_index, series_length}; (3) Facet-host population overlays (OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP) name a population field absent from the host FacetResult — Details carry {field, available_fields}. The affected layer surfaces NaN statistics across every present entry (arms 1–2) or fails fast (arm 3). Warning-class for arms 1–2, runtime error for arm 3 — surfaced as a Response.Warning or envelope error depending on arm.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref", "Sibling", "Field"},
+				Hint:   "Set Ref.Sibling.Field to one of the Request.Groups[*].Field names. Run pulse predict --json on the request to confirm the grouper fields the request lowers to; categorical grouper Fields are the typical match.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref", "Sibling", "Value"},
+				Hint:   "Set Ref.Sibling.Value to an observed axis-key value for the named Field. Run pulse inspect --json on the cohort to enumerate the field's dictionary values, or pulse facet --field <name> to confirm the post-filter observed set.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref", "BaselineIndex", "Position"},
+				Hint:   "Set Ref.BaselineIndex.Position to a 0-based ordinal in [0, host series length). Run pulse predict --json or process --json with no overlay to confirm the series length the host produces (or process the host first and count Response.Data groups).",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref", "Population", "Cohort"},
+				Hint:   "Population overlays resolve against a FacetResult — ensure the named field is present in FacetRequest.Fields so the host pass computes per-value counts / Welford state for it. The error Details carry available_fields enumerating the host's resolved slots; pick one of those, or extend FacetRequest.Fields with the missing field name.",
+			},
+		},
+	},
+	PULSE_OVERLAY_YOY_FREQUENCY_MISSING: {
+		Message: "An OVERLAY_YOY spec did not supply a `frequency` Param either on the OverlaySpec or on the host's GROUP_DATE grouper. The YoY kind cannot infer the correct prior-period stride from the GROUP_DATE `component` slot alone because the per-component stride for 'one year prior' varies by component (annual ⇒ 1 ordinal, quarterly ⇒ 4 ordinals, monthly ⇒ 12 ordinals, weekly ⇒ 52 ordinals, daily ⇒ 365-day calendar arithmetic, hourly ⇒ 365×24-hour arithmetic). The handler reads the explicit `frequency` value from `spec.Params[\"frequency\"]` first (the YoY's own override) and falls back to `req.Groups[0].Params[\"frequency\"]` (the canonical GROUP_DATE authoring slot). Surfaced at both predict (descriptor.validateOverlayYoY) and runtime (processing.applyYoY).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Groups", "0", "Params"},
+				Hint:     "Set the host GROUP_DATE grouper's Params to a JSON object carrying `\"frequency\": \"<freq>\"` where <freq> is one of `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly` and matches the GROUP_DATE `component` slot (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour). This is the canonical authoring slot — every OVERLAY_YOY spec sharing the same Request will pick the value up via the fallback read at processing.applyYoY.",
+				Examples: []any{map[string]any{"component": "month", "frequency": "monthly"}, map[string]any{"component": "year", "frequency": "annual"}, map[string]any{"component": "quarter", "frequency": "quarterly"}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params"},
+				Hint:     "Populate `OverlaySpec.Params[\"frequency\"]` directly on the YoY overlay if the host GROUP_DATE config is owned by other code (e.g. a shared chain stage). The handler reads this slot first and treats it as a per-overlay override of the grouper's `frequency` Param, so you can ship the YoY decoration without touching the request's grouper config. Allowed values: `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly` (must match the host's GROUP_DATE `component`: annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour).",
+				Examples: []any{map[string]any{"frequency": "monthly"}, map[string]any{"frequency": "annual"}, map[string]any{"frequency": "quarterly"}, map[string]any{"frequency": "weekly"}, map[string]any{"frequency": "daily"}, map[string]any{"frequency": "hourly"}},
+			},
+		},
+	},
+	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT: {
+		Message: "A whole-chain overlay spec (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE) resolved a Target stage and a Ref stage whose host result shapes disagree (one is matrix, the other series; one is scalar, the other series; etc.). The handler cannot fold per-coordinate arithmetic when target and reference do not share a coordinate grid; the layer surfaces an empty payload that inherits the target stage's shape and the warning carries the offending pair of shapes plus the originating (target_index, ref_index) so callers can audit the chain and collapse one stage so both produce the same shape, or remove the overlay.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Stages"},
+				Hint:   "Collapse one stage so both Target and Ref produce the same host shape — switch the Crosstab stage to a Process stage with the same Groups + Aggregations (matrix → series) OR drop the Groups slot from the series-producing stage to fold to a scalar (series → scalar). Both stages must produce matrix-shaped OR both series-shaped OR both scalar-shaped Response objects for the per-coordinate arithmetic to align.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Target"},
+				Hint:   "Repoint the OverlaySpec's Target StageRef at a stage whose shape matches the Ref stage. Run pulse predict --json on the chain request to confirm each stage's predicted output shape; ChainResponse.NormalizedRequest echoes the per-stage normalized form for the same purpose.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref"},
+				Hint:   "Repoint the OverlaySpec's Ref StageRef at a stage whose shape matches the Target stage. Same fix as the Target arm; pick whichever stage is the more authoritative baseline for the renderer's framing.",
+			},
+		},
+	},
+	PULSE_OVERLAY_TARGET_UNKNOWN: {
+		Message: "An overlay spec named a Target that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"target\"` Detail: (1) Compose overlay spec — a `ComposeOverlaySpec.Targets[j]` entry names a slot label that does not appear in `ComposedRequest.Requests[].Label` (or the slot resolved to nil because that slot failed under FailFast=false); Details carry `slot_label`, the spec `index`, and the offending `target_index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Target` StageRef whose `Index` lands outside `[0, len(Stages))` or whose `Name` does not match any `ChainStage.Name`; Details carry the offending `stage_index` / `stage_name`. In both arms the handler returns the coded error without producing an overlay layer. Sibling of PULSE_OVERLAY_REFERENCE_UNKNOWN.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Targets"},
+				Hint:   "Set `Targets` entries to labels declared in `ComposedRequest.Requests[].Label`. The resolver decodes each Targets[j] string against the slot-label map built once per Compose call; unknown labels (or labels naming a slot that failed under FailFast=false) fail loud. Run pulse predict --json on the ComposedRequest to confirm the resolved slot label set.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Target", "Index"},
+				Hint:     "Chain-overlay arm: set Target.Index to a 0-based ordinal in [0, len(Stages)). Run pulse predict --json on the chain request to confirm the stage count; omit Target entirely to default to the latest stage (len(Stages) - 1).",
+				Examples: []any{0, 1, 2},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Target", "Name"},
+				Hint:   "Chain-overlay arm: set Target.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
+			},
+		},
+	},
+	PULSE_OVERLAY_REFERENCE_UNKNOWN: {
+		Message: "An overlay spec named a Reference that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"reference\"` Detail: (1) Compose overlay spec — `ComposeOverlaySpec.Reference` is empty, names a slot label absent from `ComposedRequest.Requests[].Label`, or resolved to nil because that slot failed under FailFast=false; Details carry `slot_label` and the spec `index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Ref` StageRef whose `Index` is out of range OR `Name` is unmatched, or the spec did not populate Ref at all (Ref has no default unlike Target). The code also covers the missing-reference-cell / missing-reference-row warning on the CHAIN-host DELTA family (OVERLAY_DELTA_VS_STAGE) with `ref_missing: true` (handler folds against an implicit zero reference).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Reference"},
+				Hint:   "Set `Reference` to one of the labels in `ComposedRequest.Requests[].Label`. The resolver decodes the Reference string against the slot-label map built once per Compose call; empty, unknown, or failed-slot labels fail loud. Run pulse predict --json on the ComposedRequest to confirm the resolved slot label set.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Ref", "Index"},
+				Hint:     "Chain-overlay arm: set Ref.Index to a 0-based ordinal in [0, len(Stages)). Every whole-chain ChainOverlaySpec MUST name a baseline — Ref has no default (unlike Target which defaults to the latest stage). Run pulse predict --json on the chain request to confirm the stage count.",
+				Examples: []any{0, 1, 2},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Ref", "Name"},
+				Hint:   "Chain-overlay arm: set Ref.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
+			},
+		},
+	},
+	PULSE_OVERLAY_KEY_SET_DIVERGENT: {
+		// Minimal entry — full polish (richer Message + per-shape Fixup
+		// hints) lands with E7-S13. This row keeps TestCodesHaveFixups
+		// green at E7-S6.
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose per-coordinate key sets disagree — matrix (row × column) tuples present on one slot but absent on another, or series group-keys diverging across slots. Compose-only overlays require strict cross-Request key alignment so the renderer can fold target values against the reference at byte-equal coordinates; tolerant alignment is an explicit non-goal for v1. Details carry the reference slot label, the offending target slot label, and the symmetric difference of the two key sets (`missing` keys present on reference but absent from target; `extra` keys present on target but absent from reference).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests"},
+				Hint:   "Re-issue the diverging slot Requests against pre-aligned cohorts so every slot produces the same per-coordinate key set — same Groups slot, same FILTER_* pipeline, same shape-affecting parameters. Compose-only overlays compare slots cell-for-cell at matching coordinates; divergent key sets cannot be folded byte-equal.",
+			},
+		},
+	},
+	PULSE_OVERLAY_SCHEMA_DIVERGENT: {
+		// E7-S7 lit the gate; E10-S2 polished the prose to point at the
+		// predict-side SlotPair surface so MCP planners can fan the per-
+		// divergence repair without parsing envelope Details.
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. Runtime Details carry the `reference` slot label, the offending `target_label`, and canonical `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`); the no-execute predict surface (`descriptor.ValidateCompose`) mirrors the same information via `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` (one entry per offending (reference, target) pair, Reason = `schema-divergent`). Predict consumers should branch on `Reason` for the divergence class and read `ReferenceLabel` / `TargetLabel` for the offending slots without re-parsing envelope details.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests", "*", "Crosstab", "Rows"},
+				Hint:   "Re-issue the diverging slot Request with the same row-axis Groups slot (kind + type + depth) as the reference slot. Field names may differ across slots; grouper kinds + types + nested depth must match.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests", "*", "Crosstab", "Columns"},
+				Hint:   "Re-issue the diverging slot Request with the same column-axis Groups slot (kind + type + depth) as the reference slot. Field names may differ across slots; grouper kinds + types + nested depth must match.",
+			},
+		},
+	},
+	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT: {
+		// Minimal entry — full polish lands with E7-S13.
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose host result shapes disagree (one is MATRIX while the other is SERIES, or one is SCALAR while the other is non-SCALAR). Compose overlays fold target values against the reference at byte-equal coordinates; without a shared shape there is no coordinate grid. Details carry the offending `target_label`, the `reference_shape`, and the `target_shape`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests"},
+				Hint:   "Re-issue the diverging slot Request so its host result shape matches the reference slot's — either both crosstabs (set Crosstab on both) or both grouped Process results (set Groups + Aggregations on both, no Crosstab on either).",
+			},
+		},
+	},
+	PULSE_OVERLAY_DICT_PREFIX_DRIFT: {
+		// Minimal entry — full polish (richer Message + per-field Fixup
+		// hints) lands with E7-S13. This row keeps TestCodesHaveFixups
+		// green at E7-S8.
+		Message: "A Compose overlay spec opted into ComposeOverlaySpec.Options.DictPrefixFast but the reference slot and one or more target slots carry categorical dictionaries that do not share a byte-equal common prefix. The fast path engages direct-index comparison across slots; divergent dictionaries silently produce incorrect cell alignment under that mode so the runtime fails loud. Default behaviour is the safe by-label join (decode each key via the slot dictionary before comparison) and tolerates arbitrary dict reordering. Details carry the offending `reference` slot label, the `target_label`, the `field` whose dictionaries disagree, and the canonical `reference_dict_prefix` / `target_dict_prefix` strings (entries joined `|`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Options"},
+				Hint:   "Drop ComposeOverlaySpec.Options.DictPrefixFast (or set it to false) to fall back to the safe by-label join, which tolerates arbitrary dictionary reordering across slots. The fast path is an opt-in optimization for cohorts whose per-slot dictionaries are known to share a byte-equal prefix.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests"},
+				Hint:   "Re-issue the diverging slot Requests against cohorts whose categorical dictionaries share a byte-equal common prefix on the overlay's keying field — typically by importing both cohorts from the same canonical source or by aligning dictionaries upstream via the sharding append-only prefix rule (see encoding.ValidateDictPrefixRule).",
+			},
+		},
+	},
+	PULSE_OVERLAY_SLOT_NOT_CROSSTAB: {
+		// Minimal entry — full polish (kind-aware Fixup catalogue)
+		// lands with E7-S13 alongside the per-kind matrix-required
+		// catalog finalisation in E7-S9..S12.
+		Message: "A Compose overlay spec whose Kind requires a MATRIX-shaped (crosstab) host resolved at least one slot — reference or target — that is not a crosstab result. The matrix-required Compose kinds land with E7-S9+; until those stories register their per-kind shape requirements this code is unreachable at runtime. Details carry the `required_shape: \"MATRIX\"`, the offending `target_label`, and the `observed_shape` (`series` / `scalar`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Requests", "*", "Crosstab"},
+				Hint:   "Set Crosstab (Rows + Columns + Cell) on the offending slot Request so it produces a MATRIX host result. Alternatively switch the Overlay Kind to one that supports the slot's current host shape (SERIES / SCALAR) — check the manifest Overlays capability block for the supported shapes per kind.",
+			},
+		},
+	},
+	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP: {
+		Message: "A multi-reference COMPOSE-host overlay spec (today: OVERLAY_PROP_Z_PANEL) named more target slots than `OverlayOptions.MaxPanelTargets` allows. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so the cap is the explicit knob. Per the interview risk paragraph \"Multi-reference combinatorics\", the default cap is 16 and bumping the default requires an interview update; per-request override lives on `ComposeOverlaySpec.Options.MaxPanelTargets`. Details carry the offending `kind`, the `observed` target count, and the active `cap`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Targets"},
+				Hint:   "Reduce `Targets` to ≤ `OverlayOptions.MaxPanelTargets` (currently the active cap reported in Details, default 16) or raise the cap via Options. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so dropping targets is the cheapest fix. If the panel exists to compare a reference cohort against many treatment arms, split it into batches of cap-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "*", "Options", "MaxPanelTargets"},
+				Hint:   "Raise `ComposeOverlaySpec.Options.MaxPanelTargets` to a value ≥ the observed target count if your environment can absorb the O(N²) per-cell pairwise z-test cost. Per the interview risk paragraph the default 16 is the explicit upper bound; raising it without an interview update is a deliberate caller-attested decision.",
+			},
+		},
+	},
+	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED: {
+		Message: "CSV export does not support overlay embedding; %d overlay layer(s) dropped. Warning-class — the host CSV body is written verbatim (byte-identical to a pre-overlay export) and the dropped overlay layers are reported via this warning so callers can audit which layers fell off. CSV is the LCD of tabular formats and consumer tools (Excel, R, pandas, awk) cannot uniformly parse any overlay convention — research/export-embedding-shape.md § 7 locks the warn-and-skip semantic. The TSV adapter shares the CSV writer surface and inherits the same warn-and-skip behaviour; the warning code stays CSV-flavoured. Details carry `layer_count`, `layer_names`, and `layer_kinds` so a renderer can surface the dropped layer slate without re-reading the source Response.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"ExportJob", "Target"},
+				Hint:     "To preserve overlays in cross-format export, target an overlay-aware writer instead of CSV / TSV. Arrow (--format arrow) carries overlays as a top-level LIST<STRUCT> column family; Parquet (--format parquet) rides the same Arrow schema through the pqarrow bridge; Excel (--format excel) emits one sheet per layer named `__overlay_<layer_name>`; NDJSON (--format ndjson) appends a single trailing line `{\"_overlays\": [...]}` after the last record. All four formats carry the full layer slate without dropping any payload.",
+				Examples: []any{"arrow", "parquet", "excel", "ndjson"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"ExportJob", "IncludeOverlays"},
+				Hint:   "To suppress this warning while keeping CSV output, set ExportJob.IncludeOverlays=false (or --include-overlays=false on the CLI). The CSV body is byte-identical with or without the opt-out — the toggle only controls whether the warning fires. Same applies to ConvertJob.IncludeOverlays when the CSV target is the export half of a convert chain.",
+				Examples: []any{false},
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Request"},
+				Hint:   "To inspect overlay results without exporting, use `pulse api process` with --echo-request and read the JSON envelope's `data.overlays` slot. The envelope renders the full OverlayLayer slate inline so callers can audit the payload before deciding which export format preserves the layers they care about.",
+			},
+		},
+	},
+	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY: {
+		Message: "An OVERLAY_YOY spec named a `frequency` Param outside the supported set (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`). The supported set is the minimum frequency catalog needed to cover the GROUP_DATE component family — finer-than-hourly or coarser-than-annual frequencies are explicit non-goals in v1. Calendar-week / day-of-week realignment is also an explicit non-goal: weekly frequency uses calendar-week-aligned `i - 52` arithmetic and daily frequency uses exact-key lookup against the host key index (Feb 29 in a non-leap prior year emits NaN). Surfaced at both predict (descriptor.validateOverlayYoY) and runtime (processing.applyYoY) with Details carrying the offending `frequency` value plus the supported list.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params"},
+				Hint:     "Replace the OverlaySpec.Params[\"frequency\"] value with one of the six supported frequencies: `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`. The frequency must match the host GROUP_DATE grouper's component (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour). Alternatively move the frequency slot onto `Groups[0].Params[\"frequency\"]` so the YoY handler reads it from the canonical GROUP_DATE config.",
+				Examples: []any{map[string]any{"frequency": "annual"}, map[string]any{"frequency": "quarterly"}, map[string]any{"frequency": "monthly"}, map[string]any{"frequency": "weekly"}, map[string]any{"frequency": "daily"}, map[string]any{"frequency": "hourly"}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Groups", "0"},
+				Hint:     "If your data is at a finer granularity than the supported frequency set, switch the host GROUP_DATE grouper to a coarser component+frequency pair before the YoY overlay sees it. Worked example: hourly raw rows aggregated to a daily YoY trend ⇒ set `Groups[0]` to `{\"Type\": \"GROUP_DATE\", \"Field\": \"<date_field>\", \"Params\": {\"component\": \"day\", \"frequency\": \"daily\"}}` and drop the overlay-level frequency override. The same pattern lifts daily raw rows to monthly (`component: month, frequency: monthly`), monthly to quarterly, or quarterly to annual. GROUP_DATE will do the coarser bucketing; the YoY handler then computes prior-period diffs on the coarser key stride.",
+				Examples: []any{map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "day", "frequency": "daily"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "month", "frequency": "monthly"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "quarter", "frequency": "quarterly"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "year", "frequency": "annual"}}},
 			},
 		},
 	},

@@ -455,6 +455,17 @@ const (
 	// executor needs at least one stage with a real Request to run.
 	PULSE_CHAIN_EMPTY Code = "PULSE_CHAIN_EMPTY"
 
+	// PULSE_COMPOSE_LABEL_COLLISION indicates that two slots inside a
+	// ComposedRequest resolve to the same final Label after the
+	// auto-default pass (`request_<index+1>` for empty slots) and
+	// caller-supplied values are merged. Compose-only overlay kinds
+	// (E7) resolve their Reference / Targets by final Label, so
+	// duplicate names would make sibling lookups ambiguous. Details
+	// carry the offending label string plus the colliding slot
+	// indices so callers can rename one side or drop the colliding
+	// caller-supplied value.
+	PULSE_COMPOSE_LABEL_COLLISION Code = "PULSE_COMPOSE_LABEL_COLLISION"
+
 	// PULSE_JOIN_TYPE_MISMATCH indicates an equi-join key pair where
 	// the left field's schema type differs from the right field's
 	// (e.g. left is u32, right is categorical_u8). Hash join requires
@@ -645,6 +656,351 @@ const (
 	// execution; details carry the offending key(s), the nearest
 	// valid slot, and the full valid-key list.
 	PULSE_REQUEST_UNKNOWN_FIELD Code = "PULSE_REQUEST_UNKNOWN_FIELD"
+
+	// PULSE_OVERLAY_KIND_UNKNOWN indicates a Request.Overlays entry
+	// referenced an OverlayKind not present in
+	// types.AllOverlayKinds(). Surfaced by descriptor.ValidateOverlays
+	// at predict time and as a defense-in-depth guard inside
+	// processing.ApplyOverlays.
+	PULSE_OVERLAY_KIND_UNKNOWN Code = "PULSE_OVERLAY_KIND_UNKNOWN"
+
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE indicates an
+	// OverlaySpec's Ref does not match the host shape required by the
+	// chosen Kind. E1 fires this in three cases for
+	// OVERLAY_INDEX_VS_MARGIN: missing Ref.Margin pointer, unknown
+	// Ref.Margin.Axis, or non-MATRIX host (Request.Crosstab is nil).
+	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
+
+	// PULSE_OVERLAY_SCOPE_UNSUPPORTED indicates an OverlaySpec named a
+	// scope that is not yet supported for the chosen Kind. E1 ships
+	// OVERLAY_INDEX_VS_MARGIN with Scope=CELL only; ROW / COLUMN /
+	// TOTAL / MATRIX / GROUP land in later epics alongside the matching
+	// payload shapes.
+	PULSE_OVERLAY_SCOPE_UNSUPPORTED Code = "PULSE_OVERLAY_SCOPE_UNSUPPORTED"
+
+	// PULSE_OVERLAY_REF_ZERO is a WARNING-class code emitted by an
+	// overlay handler when the referenced margin denominator is zero,
+	// absent, or yields a non-finite value (e.g. cell / 0 in
+	// OVERLAY_INDEX_VS_MARGIN). The affected cell stays absent on the
+	// overlay payload; the warning carries the row / column index and
+	// margin axis so callers can audit the failing cells. Surfaced as
+	// a Response.Warning, never as an envelope error.
+	PULSE_OVERLAY_REF_ZERO Code = "PULSE_OVERLAY_REF_ZERO"
+
+	// PULSE_OVERLAY_EXPECTED_LOW is a WARNING-class code emitted by the
+	// inferential overlay family (OVERLAY_CHISQ_MATRIX / CHISQ_ROW /
+	// CHISQ_COL / FISHER_EXACT_CELL) when the canonical "expected count
+	// is too low for the χ² approximation" heuristic fires. Mirrors
+	// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ surface — the
+	// statistic is still emitted alongside but the approximation is
+	// flagged as potentially unreliable so renderers can highlight the
+	// affected rows / columns / cells. Surfaced as a Response.Warning,
+	// never as an envelope error.
+	PULSE_OVERLAY_EXPECTED_LOW Code = "PULSE_OVERLAY_EXPECTED_LOW"
+
+	// PULSE_OVERLAY_LEVEL_OUT_OF_RANGE indicates an OverlaySpec's Level
+	// selector exceeds the nested-axis depth of the relevant host axis
+	// (Row axis depth = len(req.Crosstab.Rows), Column axis depth =
+	// len(req.Crosstab.Columns)). Mirrors
+	// PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab
+	// normalize_level surface. Forward-compat: E2-S10 registers the
+	// code + fixup so the catalog is in place for the deferred level /
+	// within overlay family in E2-S11; OverlaySpec carries no Level
+	// slot today, so this code is unreachable from runtime until that
+	// story wires the slot through.
+	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE Code = "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE"
+
+	// PULSE_OVERLAY_PARAM_MISSING indicates an OverlaySpec did not supply
+	// a Params entry that the chosen Kind requires. E4-S5
+	// (OVERLAY_INDEX_VS_ROLLING_MEAN) is the first kind to require a
+	// Params entry — the window width lives on Params["window"] per the
+	// WIN_* operator convention. Missing Params["window"] fires this
+	// code at both predict
+	// (descriptor.validateOverlayIndexVsRollingMean) and runtime
+	// (processing.applyIndexVsRollingMean) with Details carrying the
+	// kind and the missing param name. Reserved for future windowed
+	// kinds (E4-S6 OVERLAY_ZSCORE_VS_ROLLING reuses the same code for
+	// the missing-window case).
+	PULSE_OVERLAY_PARAM_MISSING Code = "PULSE_OVERLAY_PARAM_MISSING"
+
+	// PULSE_OVERLAY_FORMULA_PARSE_ERROR indicates an OVERLAY_FORMULA spec's
+	// `Params["formula"]` string failed to parse via `expr-lang/expr` —
+	// e.g. unbalanced parentheses, a stray operator, or a typo on a
+	// keyword. Surfaced at both predict
+	// (`descriptor.validateOverlayFormula`) and runtime
+	// (`processing.applyFormula` family) with Details carrying
+	// `{formula, parse_error}` so the renderer can surface both the
+	// offending input and the underlying parser message. E8-S2 landed
+	// the runtime emission path; E8-S6 refined the message + fixup
+	// catalogue (errors/fixup_metadata.go) against the per-shape
+	// namespace tables in skills/overlay-system.md.
+	PULSE_OVERLAY_FORMULA_PARSE_ERROR Code = "PULSE_OVERLAY_FORMULA_PARSE_ERROR"
+
+	// PULSE_OVERLAY_FORMULA_TYPE_MISMATCH indicates an OVERLAY_FORMULA
+	// expression returned a value whose type cannot be coerced to a
+	// numeric Statistic (float64). The coercion accepts `float64` /
+	// `float32` / `int` / `int64` natively, widens `bool` to `0.0 /
+	// 1.0`, and rejects everything else (strings, maps, nil, etc.).
+	// Surfaced at runtime by `processing.applyFormula` after
+	// `expr.Run` returns; Details carry `{returned_type, formula}`.
+	// E8-S2 landed the runtime emission path; E8-S6 refined the
+	// message + fixup catalogue (errors/fixup_metadata.go).
+	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH Code = "PULSE_OVERLAY_FORMULA_TYPE_MISMATCH"
+
+	// PULSE_OVERLAY_FORMULA_INVALID_IDENT indicates an OVERLAY_FORMULA
+	// expression references an identifier (variable or function) not
+	// in the per-host-shape variable table or the function set built
+	// from `pulse.Options.Extensions.ExprFunctions` plus the
+	// expr-lang stdlib. Surfaced at predict
+	// (`descriptor.validateOverlayFormula` AST walk) with Details
+	// carrying `{ident, host_shape, available_vars}`. Embedders that
+	// need new variables MUST register a custom kind via
+	// `pulse.Options.Extensions.OverlayKinds` — FORMULA cannot widen
+	// its variable namespace from outside. E8-S2 reserved the code
+	// for the predict validator (landed in E8-S4) and the runtime
+	// defense-in-depth path; E8-S6 refined the message + fixup
+	// catalogue (errors/fixup_metadata.go) — the fixup hint walks
+	// authors through the per-shape namespace table in
+	// skills/overlay-system.md FORMULA section.
+	PULSE_OVERLAY_FORMULA_INVALID_IDENT Code = "PULSE_OVERLAY_FORMULA_INVALID_IDENT"
+
+	// PULSE_OVERLAY_YOY_FREQUENCY_MISSING indicates an OVERLAY_YOY spec
+	// did not supply a `frequency` Param either on the OverlaySpec or on
+	// the host's GROUP_DATE grouper. The YoY kind cannot infer the
+	// correct prior-period stride from the GROUP_DATE `component` slot
+	// alone because the per-component stride for "one year prior" varies
+	// by component (annual ⇒ 1 ordinal, quarterly ⇒ 4 ordinals, monthly ⇒
+	// 12 ordinals, weekly ⇒ 52 ordinals, daily ⇒ 365-day calendar
+	// arithmetic, hourly ⇒ 365×24-hour arithmetic). The handler reads
+	// the explicit `frequency` value from `spec.Params["frequency"]`
+	// first (the YoY's own override) and falls back to
+	// `req.Groups[0].Params["frequency"]` (the canonical GROUP_DATE
+	// authoring slot). Surfaced at both predict
+	// (descriptor.validateOverlayYoY) and runtime (processing.applyYoY)
+	// with Details carrying the kind and the host grouper type.
+	PULSE_OVERLAY_YOY_FREQUENCY_MISSING Code = "PULSE_OVERLAY_YOY_FREQUENCY_MISSING"
+
+	// PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY indicates an OVERLAY_YOY
+	// spec named a `frequency` Param outside the supported set
+	// (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`).
+	// The supported set is the minimum frequency catalog needed to cover
+	// the GROUP_DATE component family — finer-than-hourly or coarser-
+	// than-annual frequencies are explicit non-goals in v1. Surfaced at
+	// both predict (descriptor.validateOverlayYoY) and runtime
+	// (processing.applyYoY) with Details carrying the offending
+	// `frequency` value plus the supported list.
+	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY Code = "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY"
+
+	// PULSE_OVERLAY_REF_UNKNOWN is a WARNING-class code emitted by the
+	// sibling-reference overlay family (OVERLAY_DELTA_VS_SIBLING /
+	// OVERLAY_INDEX_VS_SIBLING) when the OverlaySpec.Ref.Sibling
+	// (Field, Value) pair does not resolve to a known group on the
+	// SERIES host. Two failure modes share the code: (1) the named
+	// `Sibling.Field` is not a grouper field on the host's grouper
+	// list, or (2) the named `Sibling.Value` is not present among the
+	// observed axis-key values for that field. The affected layer
+	// surfaces NaN statistics across every present entry; the warning
+	// carries the offending `(field, value)` pair plus the kind so
+	// callers can audit the failing reference. Surfaced as a
+	// Response.Warning, never as an envelope error — analogous to
+	// PULSE_OVERLAY_REF_ZERO's "denominator absent" emission shape.
+	// Distinct from PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+	// (structural shape mismatch caught at predict time) and from
+	// PULSE_OVERLAY_REF_ZERO (the sibling resolved but its value is
+	// zero — only meaningful for the INDEX_VS_SIBLING dispatch where
+	// division by zero is undefined).
+	PULSE_OVERLAY_REF_UNKNOWN Code = "PULSE_OVERLAY_REF_UNKNOWN"
+
+	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT indicates a whole-chain
+	// overlay spec (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE)
+	// where the resolved target stage and reference stage produce
+	// different host result shapes (one is MATRIX, the other SERIES, or
+	// one is SCALAR while the other is SERIES, etc). The handler cannot
+	// fold per-coordinate arithmetic when target and reference do not
+	// agree on a shared coordinate grid; the layer surfaces an empty
+	// payload that inherits the target stage's shape and the warning
+	// carries the offending pair of shapes plus the originating
+	// (target_index, stage_index, stage_name) for the
+	// MCP fix-up surface. The canonical chain-overlay companion of
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (structural shape
+	// mismatch caught at predict time, but for CHAIN-host kinds the
+	// divergence is between two stages, not between a single Ref and
+	// the host). Surfaced at both predict (descriptor.ValidateChain
+	// shape-divergence gate landing in E6-S7) and runtime
+	// (processing.applyIndexVsStage / processing.applyDeltaVsStage
+	// shape-divergence defence). Warning-class — surfaced as a
+	// Response.Warning, never as an envelope error.
+	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
+
+	// PULSE_OVERLAY_TARGET_UNKNOWN indicates a whole-chain
+	// ChainOverlaySpec named a Target StageRef that does not resolve
+	// to a known stage on the chain. Two failure modes share the code:
+	// (1) StageRef.Index is non-nil but lands outside
+	// [0, len(stages)), or (2) StageRef.Name is non-empty but does not
+	// match any ChainStage.Name. The handler returns the coded error
+	// without producing any overlay layer; Details carry the offending
+	// stage_index / stage_name and the overlay spec index so callers
+	// can fix-up the reference. Sibling of
+	// PULSE_OVERLAY_REFERENCE_UNKNOWN — the Target arm is distinguished
+	// by the `which: "target"` Detail.
+	PULSE_OVERLAY_TARGET_UNKNOWN Code = "PULSE_OVERLAY_TARGET_UNKNOWN"
+
+	// PULSE_OVERLAY_REFERENCE_UNKNOWN indicates a whole-chain
+	// ChainOverlaySpec named a Ref StageRef that does not resolve to a
+	// known stage on the chain (Index out of range OR Name unmatched),
+	// or the spec did not populate Ref at all. Sibling of
+	// PULSE_OVERLAY_TARGET_UNKNOWN distinguished by `which: "ref"`. The
+	// code also covers the missing-reference-cell / missing-reference-
+	// row surface on the CHAIN-host DELTA family
+	// (OVERLAY_DELTA_VS_STAGE): when a target cell or row keys a
+	// reference coordinate that does not exist, the warning rides this
+	// code with `ref_missing: true` and the handler folds against an
+	// implicit zero reference (so the delta equals the target value
+	// verbatim). Surfaced at both predict (descriptor.ValidateChain) and
+	// runtime (processing.ApplyChainOverlays + per-kind handlers).
+	PULSE_OVERLAY_REFERENCE_UNKNOWN Code = "PULSE_OVERLAY_REFERENCE_UNKNOWN"
+
+	// PULSE_OVERLAY_KEY_SET_DIVERGENT indicates a Compose overlay spec
+	// where the resolved reference slot and one or more target slots
+	// produce different per-coordinate key sets — matrix
+	// (row × column) tuples that exist on one slot but not the other,
+	// or series group-keys present on one slot's Data rows but absent
+	// on another's. Compose-only overlays require strict cross-Request
+	// key alignment so the renderer can fold target values against the
+	// reference at byte-equal coordinates; tolerant alignment is an
+	// explicit non-goal for v1 (callers needing it pre-align their
+	// inputs or fall back to a multi-reference kind). Details carry the
+	// `reference` slot label, the offending `target` slot label, the
+	// `missing` key-set (keys present on the reference but absent from
+	// the target), and the `extra` key-set (keys present on the target
+	// but absent from the reference) — all four are populated via
+	// encoding/json-friendly types so the envelope serializer renders
+	// them verbatim. The check runs once per overlay spec at the
+	// post-slot-barrier inside processing.ApplyComposeOverlays, BEFORE
+	// schema-match (E7-S7) and dict-drift (E7-S8) gates fire — key-set
+	// divergence is the cheapest signal so it fails fast. Surfaced at
+	// runtime today (E7-S6); the descriptor.ValidateComposedRequest
+	// predict-time companion lands with E7-S14.
+	PULSE_OVERLAY_KEY_SET_DIVERGENT Code = "PULSE_OVERLAY_KEY_SET_DIVERGENT"
+
+	// PULSE_OVERLAY_SCHEMA_DIVERGENT indicates a Compose overlay spec
+	// where the resolved reference slot and one or more target slots
+	// produce structurally divergent schemas across the row / column
+	// axes. The structural match is over grouper kinds + types + nested
+	// depth — field names are explicitly allowed to differ. Two slots
+	// can rename the same categorical_u32 column ("brand" vs "label")
+	// and still align; two slots whose row axis differs in grouper kind
+	// (GROUP_CATEGORY vs GROUP_RANGE) or in depth (one nested grouper
+	// vs two) cannot. Details carry the `reference` slot label, the
+	// `target` slot label, and the canonical-string `reference_schema`
+	// / `target_schema` (kind tuples joined "|" per axis, axes joined
+	// "/") so renderers can diff the two structures verbatim. The
+	// check runs once per overlay spec at the post-slot-barrier inside
+	// processing.ApplyComposeOverlays AFTER PULSE_OVERLAY_KEY_SET_DIVERGENT
+	// and shape gates have passed. Surfaced at runtime today (E7-S7);
+	// the descriptor.ValidateComposedRequest predict-time companion
+	// lands with E7-S14.
+	PULSE_OVERLAY_SCHEMA_DIVERGENT Code = "PULSE_OVERLAY_SCHEMA_DIVERGENT"
+
+	// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT indicates a Compose overlay
+	// spec where the reference slot and one or more target slots
+	// disagree on host result shape (one is MATRIX while the other is
+	// SERIES, or one is SCALAR while the other is non-SCALAR). Compose
+	// overlays compare across slots cell-for-cell at byte-equal
+	// coordinates; without a shared shape there is no coordinate grid
+	// to fold. Details carry the offending `target_label`, the
+	// `reference_shape`, and the `target_shape`. Sibling of
+	// PULSE_OVERLAY_SLOT_NOT_CROSSTAB — both surface shape-level
+	// rejections at the same gate, distinguished by whether the
+	// rejection is "shapes disagree" (this code) or "the chosen kind
+	// requires a specific shape and a target violates it" (the other
+	// code). The check runs once per overlay spec at the post-slot-
+	// barrier inside processing.ApplyComposeOverlays AFTER
+	// PULSE_OVERLAY_KEY_SET_DIVERGENT and BEFORE
+	// PULSE_OVERLAY_SCHEMA_DIVERGENT. Surfaced at runtime today
+	// (E7-S7); the descriptor.ValidateComposedRequest predict-time
+	// companion lands with E7-S14.
+	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
+
+	// PULSE_OVERLAY_DICT_PREFIX_DRIFT indicates a Compose overlay spec
+	// where ComposeOverlaySpec.Options.DictPrefixFast was opted into on a
+	// pair of slots whose categorical dictionaries do NOT share a
+	// byte-equal common prefix. The fast-path engages direct-index
+	// comparison across slots (skipping the by-label decode the default
+	// path performs); divergent dictionaries silently produce incorrect
+	// cell alignment under that mode so the runtime fails loud rather
+	// than degrading silently. Default behaviour is the SAFE by-label
+	// join — every cell / group key is decoded via the slot's dictionary
+	// before comparison and tolerates arbitrary dict reordering — so
+	// this code only fires for callers that explicitly opted into the
+	// fast path. Details carry the offending `reference` slot label, the
+	// `target_label`, the `field` whose dictionaries disagree, and the
+	// shorter `reference_dict_prefix` / `target_dict_prefix` strings
+	// joined with "|" so renderers can diff the two dictionaries
+	// verbatim. The check runs once per overlay spec at the post-slot
+	// barrier inside processing.ApplyComposeOverlays AFTER the key-set,
+	// shape, and schema gates have passed and BEFORE the per-kind
+	// handler dispatches. Probe-validation at registration time is an
+	// E7-S8 scoping non-goal: cohort pairing is a per-request decision
+	// rather than a registration-time one, so the probe runs per
+	// ApplyComposeOverlays invocation instead. Surfaced at runtime today
+	// (E7-S8); the descriptor.ValidateComposedRequest predict-time
+	// companion lands with E7-S14.
+	PULSE_OVERLAY_DICT_PREFIX_DRIFT Code = "PULSE_OVERLAY_DICT_PREFIX_DRIFT"
+
+	// PULSE_OVERLAY_SLOT_NOT_CROSSTAB indicates a Compose overlay spec
+	// whose Kind requires a MATRIX-shaped (crosstab) host but at least
+	// one resolved slot — reference or target — is not a crosstab
+	// result. The matrix-required Compose kinds land with E7-S9+
+	// (OVERLAY_RANK and the matrix-shape Compose family); until those
+	// stories register their per-kind shape requirements the helper
+	// table `kindRequiresMatrix` is a stub and this code stays
+	// unreachable at runtime. The catalog row is in place so E7-S9..S12
+	// can wire shape gating without touching this file again. Details
+	// carry the `required_shape: "MATRIX"`, the offending `target_label`
+	// (or "reference" when the reference itself is the offender), and
+	// the `observed_shape` ("series" / "scalar"). Sibling of
+	// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT — both fire at the same gate;
+	// this one fires when the kind dictates MATRIX and a target is
+	// non-MATRIX, the other when target / reference shapes disagree
+	// regardless of kind. The check runs once per overlay spec at the
+	// post-slot-barrier inside processing.ApplyComposeOverlays. E7-S13
+	// polishes the Message + Fixup catalogue.
+	PULSE_OVERLAY_SLOT_NOT_CROSSTAB Code = "PULSE_OVERLAY_SLOT_NOT_CROSSTAB"
+
+	// PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP indicates a multi-reference
+	// COMPOSE-host overlay spec (today: OVERLAY_PROP_Z_PANEL) named more
+	// target slots than the per-spec `OverlayOptions.MaxPanelTargets`
+	// cap allows. Per the interview risk paragraph "Multi-reference
+	// combinatorics", the default cap is 16 — bumping the default
+	// requires an interview update; the per-request override surface
+	// lives on `ComposeOverlaySpec.Options.MaxPanelTargets` so callers
+	// who need a larger panel today can opt in explicitly. Surfaced at
+	// runtime by `processing.applyPropZPanel` at handler entry (E7-S11);
+	// the descriptor.ValidateComposedRequest predict-time companion
+	// lands with E7-S14. Details carry `{kind, observed, cap}` so the
+	// renderer can surface both the offending size and the cap.
+	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
+
+	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED is a WARNING-class code
+	// emitted by the CSV (and TSV) export adapter when an overlay-bearing
+	// Response is exported to a flat tabular format that cannot encode
+	// nested overlay payloads. Per
+	// research/export-embedding-shape.md § 7 the adapter implements
+	// warn-and-skip: the host CSV body is written verbatim (byte-
+	// identical to a pre-overlay export) and the overlay layers are
+	// dropped on the floor. The warning carries `layer_count`,
+	// `layer_names`, and `layer_kinds` so callers can audit which
+	// layers were dropped. Surfaced as a Response.Warning / envelope
+	// warnings entry, never as an envelope error — the host export
+	// proceeds successfully. The TSV adapter shares the CSV writer
+	// surface and inherits the warn-and-skip behaviour; the code name
+	// stays CSV-flavoured because CSV is the canonical name in the
+	// warning text. Fixups call out the Arrow / Parquet / Excel /
+	// NDJSON alternatives that DO carry overlays and the
+	// IncludeOverlays=false opt-out that suppresses the warning while
+	// keeping CSV output.
+	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED Code = "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -747,6 +1103,7 @@ var allCodes = []Code{
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_CHAIN_NOT_MERGEABLE,
 	PULSE_CHAIN_EMPTY,
+	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,
 	PULSE_JOIN_FIELD_UNKNOWN,
@@ -775,6 +1132,29 @@ var allCodes = []Code{
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS,
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE,
 	PULSE_REQUEST_UNKNOWN_FIELD,
+	PULSE_OVERLAY_KIND_UNKNOWN,
+	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+	PULSE_OVERLAY_SCOPE_UNSUPPORTED,
+	PULSE_OVERLAY_REF_ZERO,
+	PULSE_OVERLAY_EXPECTED_LOW,
+	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
+	PULSE_OVERLAY_PARAM_MISSING,
+	PULSE_OVERLAY_FORMULA_PARSE_ERROR,
+	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH,
+	PULSE_OVERLAY_FORMULA_INVALID_IDENT,
+	PULSE_OVERLAY_REF_UNKNOWN,
+	PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
+	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,
+	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT,
+	PULSE_OVERLAY_TARGET_UNKNOWN,
+	PULSE_OVERLAY_REFERENCE_UNKNOWN,
+	PULSE_OVERLAY_KEY_SET_DIVERGENT,
+	PULSE_OVERLAY_SCHEMA_DIVERGENT,
+	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT,
+	PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
+	PULSE_OVERLAY_DICT_PREFIX_DRIFT,
+	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
+	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

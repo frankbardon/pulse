@@ -165,6 +165,15 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		return nil, err
 	}
 
+	// FACET-host overlays (E5-S6). When req.Overlays is non-empty, run
+	// the per-kind handlers against the finalised result and attach the
+	// resulting layers in spec order. The hook is a no-op when
+	// req.Overlays is empty so the no-overlay shape stays byte-identical
+	// to the pre-E5 path (additive byte-identity contract).
+	if err := s.applyFacetOverlays(ctx, req, result); err != nil {
+		return nil, err
+	}
+
 	return result, nil
 }
 

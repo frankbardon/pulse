@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -53,6 +54,33 @@ type SchemaAwareWriter interface {
 	SetPulseSchema(s *encoding.Schema)
 }
 
+// OverlayAwareWriter is an optional extension of Writer for targets that
+// can embed Response.Overlays in the exported artefact (Arrow / Parquet /
+// Excel / NDJSON per research/export-embedding-shape.md). The ExportJob
+// dispatch wiring calls SetOverlays before WriteHeader on writers that
+// implement this interface when ExportJob.IncludeOverlays resolves to
+// true; the writer then emits the layers in its format-native sidecar
+// shape at Close time (or earlier where the format allows). Writers that
+// do not implement this interface receive no overlay slice — the layers
+// are dropped, which is the correct behaviour for the CSV / TSV warn-
+// and-skip family.
+type OverlayAwareWriter interface {
+	Writer
+	SetOverlays(layers []*types.OverlayLayer)
+}
+
+// OverlayWarningEmitter is an optional extension a Writer can implement
+// to surface per-format overlay warnings the dispatcher should lift onto
+// the ExportReport / ConvertReport. The canonical user is the CSV / TSV
+// adapter which emits PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED via this
+// surface whenever the dispatcher hands it a non-empty overlay slate.
+// Writers that embed overlays natively (Arrow / Parquet / Excel /
+// NDJSON) do not implement this interface; their overlay output rides
+// in the format-native sidecar instead.
+type OverlayWarningEmitter interface {
+	OverlayWarnings() []*errors.CodedError
+}
+
 // ImportReport summarizes the result of an import operation.
 type ImportReport struct {
 	RowsImported int
@@ -61,18 +89,30 @@ type ImportReport struct {
 }
 
 // ExportReport summarizes the result of an export operation.
+//
+// OverlayWarnings carries the warn-and-skip codes the target Writer
+// surfaced through the optional OverlayWarningEmitter contract (currently
+// the CSV / TSV adapters via PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED).
+// Empty / nil when the target adapter embedded the overlays natively
+// (Arrow / Parquet / Excel / NDJSON), when no overlays were supplied,
+// or when IncludeOverlays explicitly opted out.
 type ExportReport struct {
-	RowsExported  int
-	RowErrors     []RowError
-	LabelWarnings []LabelWarning
+	RowsExported    int
+	RowErrors       []RowError
+	LabelWarnings   []LabelWarning
+	OverlayWarnings []*errors.CodedError
 }
 
 // ConvertReport summarizes the result of a convert operation.
+//
+// OverlayWarnings carries the warn-and-skip codes the target Writer
+// surfaced through OverlayWarningEmitter — see ExportReport.OverlayWarnings.
 type ConvertReport struct {
-	RowsConverted int
-	Schema        *encoding.Schema
-	RowErrors     []RowError
-	LabelWarnings []LabelWarning
+	RowsConverted   int
+	Schema          *encoding.Schema
+	RowErrors       []RowError
+	LabelWarnings   []LabelWarning
+	OverlayWarnings []*errors.CodedError
 }
 
 // RowError records a per-row error during import or export.
@@ -152,6 +192,65 @@ type ExportJob struct {
 	// satisfying implementation (typically wrapping
 	// processing.BuildLabelResolver). Nil means no label translation.
 	LabelResolver LabelResolver
+	// IncludeOverlays controls whether Response.Overlays land in the
+	// exported artefact for adapters that can carry them. The slot is
+	// a tri-state pointer:
+	//
+	//   - nil   ⇒ DEFAULT EMIT — when the host Response carries any
+	//             overlay layers the adapter embeds them in the
+	//             format-native sidecar (additive-by-default, per PRD
+	//             §6 FR-L5). Output for an overlay-free Response is
+	//             byte-identical to a pre-overlay ExportJob.
+	//   - true  ⇒ explicit emit — same behaviour as nil for downstream
+	//             adapters, but the explicit toggle distinguishes the
+	//             intent in canonical-hash composition so cache keys
+	//             differ between "default" and "explicit yes".
+	//   - false ⇒ opt out — overlays are dropped on export even when
+	//             the host Response carries layers. Output is byte-
+	//             identical to a pre-overlay ExportJob against the
+	//             same host result.
+	//
+	// Per-format semantics (research/export-embedding-shape.md):
+	//
+	//   - Arrow / Parquet — overlays ride as a top-level
+	//     LIST<STRUCT> "overlays" field group emitted once in the
+	//     first record-batch / row-group; the host record stream is
+	//     byte-identical to the opt-out shape.
+	//   - Excel — one sheet per layer named "__overlay_<layer_name>";
+	//     the host workbook sheet is unchanged from the opt-out shape.
+	//   - NDJSON — single trailing line {"_overlays": [...]} after the
+	//     last host-record line; the host stream is byte-identical
+	//     until the trailer.
+	//   - CSV / TSV — warn-and-skip. The dispatcher emits one
+	//     PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED warning and writes the
+	//     host CSV verbatim; no overlay output lands. Setting
+	//     IncludeOverlays=false suppresses the warning while keeping
+	//     the same CSV body.
+	//
+	// The pointer shape mirrors the Includes-slot precedent (a nil
+	// slice means "default": include every field) — nil here means
+	// "default: emit overlays when present" rather than "explicit no"
+	// because Go bool zero is false. Marshalling via encoding/json
+	// honours `omitempty` so nil pointers do not appear in canonical
+	// JSON; explicit *true and *false both serialise as booleans and
+	// produce distinct canonical-hash keys via ExportJob.Hash().
+	IncludeOverlays *bool
+	// Overlays carries the Response.Overlays layers the export should
+	// embed in the target adapter's format-native sidecar (Arrow /
+	// Parquet column family, Excel sheets, NDJSON trailer) per
+	// research/export-embedding-shape.md. ExportJob.Run dispatches the
+	// slice to writers satisfying OverlayAwareWriter when IncludeOverlays
+	// does not explicitly opt out. The CSV / TSV warn-and-skip family
+	// also accepts the slice through SetOverlays but emits a
+	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED warning (surfaced on
+	// ExportReport.OverlayWarnings) instead of writing the layers into
+	// the CSV body. nil / empty leaves the export byte-identical to a
+	// pre-overlay job. The slot is intentionally NOT part of the
+	// canonical-hash composition — two jobs sharing IncludeOverlays /
+	// Source / Includes / Labels but differing in the overlay payload
+	// resolve through the SAME cache key because the cache identity is
+	// the export REQUEST, not the response.
+	Overlays []*types.OverlayLayer
 }
 
 // NewExportJob creates an ExportJob.
@@ -184,6 +283,24 @@ type ConvertJob struct {
 	// LabelResolver carries the runtime resolver. See
 	// ExportJob.LabelResolver.
 	LabelResolver LabelResolver
+	// IncludeOverlays controls whether the export half embeds
+	// Response.Overlays in the format-native sidecar. Identical
+	// tri-state semantics to ExportJob.IncludeOverlays — nil defaults
+	// to emit, *true forces emit, *false drops overlays. The
+	// intermediate .pulse file (when KeepPulseAt is set) is byte-
+	// identical regardless of this flag because overlays are an
+	// export-side concern only; the .pulse byte format never carries
+	// overlay payloads. See ExportJob.IncludeOverlays for the per-
+	// format wire shape.
+	IncludeOverlays *bool
+	// Overlays carries the Response.Overlays layers the convert should
+	// embed in the target adapter. Identical semantics to
+	// ExportJob.Overlays — the export half of the convert dispatches the
+	// slice via SetOverlays on writers satisfying OverlayAwareWriter
+	// when IncludeOverlays does not explicitly opt out. The intermediate
+	// .pulse file (when KeepPulseAt is set) never carries overlay
+	// payloads.
+	Overlays []*types.OverlayLayer
 }
 
 // NewConvertJob creates a ConvertJob with default settings.

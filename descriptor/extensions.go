@@ -96,6 +96,28 @@ type ExtensionsSnapshot struct {
 	ExprFunctions      []ExprFunctionMeta
 	LookupTables       []LookupTableMeta
 	LabelTables        []LabelTableMeta
+
+	// OverlayKinds is the forward-compat reservation slot for
+	// embedder-registered overlay catalog entries. The runtime
+	// pulse.Options.Extensions.OverlayKinds registration surface
+	// (referenced in types/overlay.go) is not yet implemented; this
+	// snapshot slot exists so the MCP per-facade schema binders
+	// (internal/mcp/schema_bind.go) can merge custom kind names
+	// into the per-facade overlay_kind enum the moment the
+	// registration surface lands — no churn on the binder when the
+	// runtime catches up. Today the slot is populated by tests
+	// only; production code paths leave it nil and the per-facade
+	// enums fall back to the built-in catalog drawn from
+	// types.AllOverlayKinds() via descriptor.OverlayCapabilities().
+	// Each entry carries Name (SCREAMING_SNAKE OVERLAY_* constant)
+	// alongside the standard OperatorMeta knobs so the per-facade
+	// classifier can route an extension kind onto the right tool's
+	// enum once the registration surface declares which facade(s)
+	// the custom kind targets. v1 lacks the per-kind facade tag —
+	// the binder treats every snapshot entry as Request-facade
+	// only (the lowest-risk fallback) until the registration
+	// surface lands the tag.
+	OverlayKinds []OperatorMeta
 }
 
 // emptyExtensionsManifest returns a fully-populated ExtensionsManifest

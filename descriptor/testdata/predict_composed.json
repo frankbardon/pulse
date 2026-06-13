@@ -49,7 +49,10 @@
         "confidence": 0.6
       }
     ],
-    "defaults_applied": []
+    "defaults_applied": [],
+    "overlays_applied": [],
+    "overlays_schema_divergence": [],
+    "overlay_cost": {}
   },
   "errors": [],
   "warnings": [
@@ -63,4 +66,4 @@
     }
   ]
 }
-// golden-hash: c3a095c483f9eafdcac4dc53924b5a05e621277375edaf3edaa7c8c49d45e1ba
+// golden-hash: 6418c1de3a5d381ca392a7788ee20f53a776117b18c196dc82527c5c291ffcf7

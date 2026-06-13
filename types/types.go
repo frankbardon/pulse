@@ -825,6 +825,26 @@ type Cohort struct {
 // Request is the primary processing request type.
 // It specifies a cohort, filters, aggregations, attributes, groups, and output config.
 type Request struct {
+	// Label is an optional caller-supplied alias used by Compose-only
+	// overlay kinds to resolve sibling references across slots in a
+	// ComposedRequest (e.g. ComposeOverlaySpec.Reference / Targets).
+	// Empty is the zero value and the additive contract holds — the
+	// `omitempty` tag keeps the JSON wire shape byte-identical to
+	// pre-Label callers, including the CanonicalHash output (see
+	// TestCanonicalHash_RequestLabelEmptyByteIdentical).
+	//
+	// Inside a Compose batch the engine synthesizes `request_<index+1>`
+	// (1-based) for every slot that arrives with Label empty, before
+	// dispatching the slot — the synthesis happens against an in-memory
+	// clone so the caller's *Request pointer is not mutated. Two slots
+	// resolving to the same final Label are rejected with
+	// PULSE_COMPOSE_LABEL_COLLISION at the same validate hook.
+	//
+	// Outside Compose (a standalone pulse.Process call) Label is
+	// retained verbatim but has no behavioural effect today; future
+	// stories may light it up for downstream reference resolution.
+	Label string `json:"label,omitempty"`
+
 	// Cohort identifies the .pulse file to process.
 	Cohort *Cohort `json:"cohort,omitempty"`
 
@@ -907,6 +927,17 @@ type Request struct {
 	// (shape=long). Mutually exclusive with top-level Groups /
 	// Aggregations — see PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS.
 	Crosstab *CrosstabSpec `json:"crosstab,omitempty"`
+
+	// Overlays is the list of overlay-layer specifications that
+	// decorate the primary result with derived projections — index-
+	// vs-margin scores, sibling comparisons, baseline lifts, etc.
+	// Each spec produces one OverlayLayer in Response.Overlays in
+	// matching order. Per-kind semantics, required Ref fields, and
+	// scope compatibility live in the overlay catalog (see
+	// types/overlay.go). E1 ships OVERLAY_INDEX_VS_MARGIN over
+	// crosstab results; later epics extend the catalog to
+	// regressions, group results, and ProcessChain stages.
+	Overlays []OverlaySpec `json:"overlays,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
@@ -966,6 +997,13 @@ type Response struct {
 	// grouped-tuple format — so any consumer of long-form rows keeps
 	// working unchanged.
 	Crosstab *CrosstabResult `json:"crosstab,omitempty"`
+
+	// Overlays carries the executed overlay layers, one entry per
+	// Request.Overlays spec in matching order. Each layer holds its
+	// derived payload (scalar / series / matrix) plus optional
+	// renderer-friendly summary metadata. Omitted entirely when the
+	// originating Request had no overlays.
+	Overlays []OverlayLayer `json:"overlays,omitempty"`
 }
 
 // FileRequest identifies a file for operations like inspect.
@@ -993,6 +1031,66 @@ type FileResponse struct {
 type ComposedRequest struct {
 	// Requests is the list of individual requests to execute.
 	Requests []*Request `json:"requests"`
+
+	// Overlays is the optional list of Compose-only overlay layer
+	// specifications. Each spec is a cross-Request overlay that
+	// decorates one slot's result with a comparison against another
+	// slot's result inside the same ComposedRequest — the slots are
+	// addressed by their per-Request Label field (with empty Labels
+	// auto-defaulted to `request_<index+1>` before reference lookup,
+	// per E7-S1). Produces one OverlayLayer in ComposedResponse.
+	// Overlays in matching index order.
+	//
+	// Forward-compat: every ComposedRequest authored before E7-S2
+	// landed produces byte-identical JSON to the same request with
+	// `Overlays: nil` because the slot is `omitempty` — nil / empty
+	// slices marshal to no key at all. The canonical-hash routine
+	// inherits that contract via the data-driven JSON walk in
+	// types/hash.go (see
+	// TestComposedRequest_OverlayFreeByteIdentity in
+	// types/hash_test.go).
+	//
+	// E7-S2 lands the slot + the canonical-hash extension only; E7-S3
+	// polishes the JSON round-trip surface and adds the user-facing
+	// validation tests; the per-kind handler dispatch lands in the
+	// subsequent E7 stories.
+	Overlays []ComposeOverlaySpec `json:"overlays,omitempty"`
+}
+
+// ComposedResponse is the structured response shape for ComposedRequest
+// execution. It carries the per-slot Response objects emitted by
+// service.Compose / service.ComposeParallel alongside the
+// Compose-level Overlays slice — one OverlayLayer per
+// ComposedRequest.Overlays spec in matching index order.
+//
+// Scope note (E7-S3): the type lands here so the request-side
+// ComposeOverlaySpec catalog has a typed response sibling to write
+// against during the E7 catalog rollout (E7-S4 through E7-S15 land the
+// per-kind handlers). The pulse.Pulse.Compose facade still returns
+// []*Response today — facade-level rewiring is intentionally deferred to
+// a downstream story so the type-layer contract (this file) can land
+// without rippling through service/, mcp/, and cli/api.go. Once the
+// facade lifts to *ComposedResponse the Overlays slot here is the slot
+// the runtime fills.
+//
+// Forward-compat: every ComposedResponse marshalled before any overlay
+// landed produces byte-identical JSON to the same shape with
+// `Overlays: nil` because the slot is `omitempty` — nil / empty slices
+// marshal to no key at all. See TestComposedResponse_OverlayFreeByteIdentical
+// in types/types_test.go for the lock.
+type ComposedResponse struct {
+	// Responses is the per-slot list of Response objects, one entry per
+	// ComposedRequest.Requests slot in matching order.
+	Responses []*Response `json:"responses"`
+
+	// Overlays carries the executed Compose-level overlay layers, one
+	// entry per ComposedRequest.Overlays spec in matching order. Each
+	// layer holds its derived payload (scalar / series / matrix) plus
+	// optional renderer-friendly summary metadata — reuses the E1
+	// OverlayLayer shape so renderers handle Compose layers and
+	// per-Request layers with the same machinery. Omitted entirely when
+	// the originating ComposedRequest had no Overlays.
+	Overlays []OverlayLayer `json:"overlays,omitempty"`
 }
 
 // VersionResponse provides build and version information.

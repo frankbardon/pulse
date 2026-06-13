@@ -25,6 +25,31 @@ type FacetValidationResult struct {
 
 	// SchemaInfo summarises the cohort schema used for validation.
 	SchemaInfo *PredictSchemaInfo `json:"schema_info,omitempty"`
+
+	// OverlaysApplied lists every FACET-host overlay spec the validator
+	// accepted, in req.Overlays order. Each entry echoes the catalog
+	// identity (Name, Kind, Scope) plus the streamability flag harvested
+	// from types.OverlayStreamable(kind) so the caller can reason about
+	// the buffered/streaming routing decision without re-parsing the
+	// spec. Empty when req.Overlays is empty; never nil in JSON output.
+	//
+	// Per kind-catalog-v1 PRD §I-FR-I3 the FACET-host predict surface
+	// mirrors the Request-host predict surface so LLM callers see the
+	// same per-spec descriptor shape regardless of host. E5-S10 wires
+	// the four FACET-host kinds (OVERLAY_INDEX_VS_POP /
+	// OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP)
+	// onto this surface; sibling to PredictResult.OverlaysApplied.
+	OverlaysApplied []OverlayAppliedDescriptor `json:"overlays_applied"`
+
+	// OverlayCost maps each FACET-host overlay-spec Name to a coarse
+	// cost score the routing layer can consult before execution. Sibling
+	// to PredictResult.OverlayCost — streamable kinds carry
+	// overlayCostStreamable (~5% extra work) and buffered kinds carry
+	// overlayCostBuffered (~one extra payload traversal). Per kind-
+	// catalog-v1 PRD §I-FR-I3 the value is intentionally coarse — callers
+	// budgeting cost across slots sum the map values. Empty when
+	// req.Overlays is empty; never nil in JSON output.
+	OverlayCost map[string]float64 `json:"overlay_cost"`
 }
 
 // ValidateFacet validates a FacetRequest against a .pulse cohort header
@@ -44,7 +69,12 @@ func ValidateFacet(fileData io.ReadSeeker, req *types.FacetRequest) *Envelope {
 // embedder-registered extension snapshot so label-table references
 // can be resolved. Pass nil to opt out (same behavior as ValidateFacet).
 func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest, snap *ExtensionsSnapshot) *Envelope {
-	result := &FacetValidationResult{Valid: true, Request: req}
+	result := &FacetValidationResult{
+		Valid:           true,
+		Request:         req,
+		OverlaysApplied: []OverlayAppliedDescriptor{},
+		OverlayCost:     map[string]float64{},
+	}
 	env := NewEnvelope(result)
 
 	if req == nil {
@@ -175,6 +205,20 @@ func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest
 	// set is empty — augment-mode collision detection only checks the
 	// schema namespace.
 	ValidateLabels(env, req.Labels, schema, snap, nil)
+
+	// Validate FACET-host overlay specs (E5-S6). Per-kind contracts live
+	// in descriptor/overlay_facet.go; the validator is no-op when
+	// req.Overlays is empty so the no-overlay envelope shape stays
+	// byte-identical to the pre-E5 path.
+	ValidateFacetOverlays(env, req, schema)
+
+	// Populate the FACET-host predict surface (OverlaysApplied + OverlayCost)
+	// per kind-catalog-v1 PRD §I-FR-I3. E5-S10 wires the four FACET-host
+	// kinds onto the FacetValidationResult — sibling to the Request-host
+	// PredictResult emission. The populator walks every spec regardless of
+	// whether ValidateFacetOverlays surfaced errors so LLM callers see the
+	// catalog identity of the spec the engine would attempt to dispatch.
+	populateFacetOverlayDescriptors(result, req)
 
 	if len(env.Errors) > 0 {
 		result.Valid = false

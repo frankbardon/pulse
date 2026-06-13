@@ -264,6 +264,83 @@ func TestMCPSchemaBinding_CrosstabNormalizeWithin(t *testing.T) {
 	}
 }
 
+// TestMCPSchemaBinding_OverlayKindEnum verifies the bound pulse_process
+// schema exposes Request.Overlays[].kind with the Request-facade-narrowed
+// enum drawn from descriptor.OverlayCapabilities() minus the kinds whose
+// Ref family is exclusively addressed on another facade (Compose slot
+// labels, Chain StageRefs, Facet population cohorts). E10-S5 split the
+// global overlay enum into per-facade enums; the process tool surfaces
+// the Request-facade subset.
+func TestMCPSchemaBinding_OverlayKindEnum(t *testing.T) {
+	schemas, err := Bind(makeSchema())
+	if err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+	raw, ok := schemas[mcptools.ToolProcess]
+	if !ok {
+		t.Fatal("missing process schema")
+	}
+	req := decodeRequestSchema(t, raw)
+	props, _ := req["properties"].(map[string]any)
+	overlays, _ := props["overlays"].(map[string]any)
+	if overlays == nil {
+		t.Fatal("request.overlays property missing")
+	}
+	if typ, _ := overlays["type"].(string); typ != "array" {
+		t.Errorf("overlays.type = %q, want array", typ)
+	}
+	items, _ := overlays["items"].(map[string]any)
+	if items == nil {
+		t.Fatal("overlays.items missing")
+	}
+	itemProps, _ := items["properties"].(map[string]any)
+	if itemProps == nil {
+		t.Fatal("overlays.items.properties missing")
+	}
+	kind, _ := itemProps["kind"].(map[string]any)
+	if kind == nil {
+		t.Fatal("overlays.items.properties.kind missing")
+	}
+	if typ, _ := kind["type"].(string); typ != "string" {
+		t.Errorf("overlays.items.properties.kind.type = %q, want string", typ)
+	}
+	enumAny, ok := kind["enum"].([]any)
+	if !ok {
+		t.Fatal("overlays.items.properties.kind.enum missing or wrong shape")
+	}
+	got := make([]string, 0, len(enumAny))
+	for _, v := range enumAny {
+		s, _ := v.(string)
+		got = append(got, s)
+	}
+
+	// Source of truth: overlayKindEnumForFacade(overlayFacadeRequest, nil).
+	// Per-facade narrowing excludes Compose-only, Chain-only, and
+	// Facet-only kinds — those surface on their own MCP tools.
+	want := overlayKindEnumForFacade(overlayFacadeRequest, nil)
+	if !slices.Equal(got, want) {
+		t.Errorf("overlay_kind enum = %v, want %v", got, want)
+	}
+	// Catalog ground-truth: OVERLAY_INDEX_VS_MARGIN is always present
+	// on the Request facade.
+	if !slices.Contains(got, "OVERLAY_INDEX_VS_MARGIN") {
+		t.Errorf("overlay_kind enum missing OVERLAY_INDEX_VS_MARGIN: %v", got)
+	}
+	// Facade isolation invariants: per-facade kinds must NOT leak onto
+	// the Request enum.
+	for _, leak := range []string{
+		"OVERLAY_INDEX_VS_POP",     // FACET-only
+		"OVERLAY_INDEX_VS_STAGE",   // CHAIN-only
+		"OVERLAY_INDEX_VS_REF",     // COMPOSE-only
+		"OVERLAY_PROP_Z_PANEL",     // COMPOSE-only multi-ref
+		"OVERLAY_PANEL_INDEX_VS_REF", // COMPOSE-only multi-ref
+	} {
+		if slices.Contains(got, leak) {
+			t.Errorf("Request facade overlay_kind enum leaks %q (belongs to another facade): %v", leak, got)
+		}
+	}
+}
+
 // fakeSessionWithTools implements server.SessionWithTools so we can drive
 // AddSessionTools end-to-end without depending on transport-specific
 // session implementations (stdio and in-process sessions don't implement

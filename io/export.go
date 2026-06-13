@@ -63,6 +63,20 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		saw.SetPulseSchema(schema)
 	}
 
+	// Hand Response.Overlays to overlay-aware writers so the format-
+	// native sidecar (Arrow / Parquet LIST<STRUCT>, Excel sheets,
+	// NDJSON trailer, CSV warn-and-skip) lands before WriteHeader.
+	// IncludeOverlays==*false explicitly opts out — the writer never
+	// sees the slice, the warning never fires, and the output is byte-
+	// identical to a pre-overlay export. nil OR *true emits when the
+	// Response carries layers; nil / empty Overlays short-circuits so
+	// the byte-identity contract holds.
+	if shouldEmitOverlays(j.IncludeOverlays) && len(j.Overlays) > 0 {
+		if oaw, ok := j.Target.(OverlayAwareWriter); ok {
+			oaw.SetOverlays(j.Overlays)
+		}
+	}
+
 	// Compute the augmented column layout when label-augment bindings
 	// add sibling "<field>_label" columns. augmentInsertAfter records,
 	// for each source field index, whether a sibling cell should be
@@ -171,7 +185,33 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	if j.LabelResolver != nil {
 		report.LabelWarnings = j.LabelResolver.Warnings()
 	}
+	// Lift per-format overlay warnings (CSV/TSV warn-and-skip surface)
+	// onto the report so callers can see the dropped layers without
+	// re-querying the writer. Writers that embed overlays natively do
+	// not implement OverlayWarningEmitter; the slice stays nil.
+	if owe, ok := j.Target.(OverlayWarningEmitter); ok {
+		if warns := owe.OverlayWarnings(); len(warns) > 0 {
+			report.OverlayWarnings = warns
+		}
+	}
 	return report, nil
+}
+
+// shouldEmitOverlays maps the tri-state IncludeOverlays pointer onto
+// the emit / drop decision the dispatcher uses. Mirrors the
+// ExportJob.IncludeOverlays doc:
+//
+//	nil    ⇒ default emit
+//	*true  ⇒ explicit emit
+//	*false ⇒ explicit drop
+//
+// Exported as a package-private helper so ConvertJob.Run shares the
+// same arm without duplicating the pointer dereference.
+func shouldEmitOverlays(p *bool) bool {
+	if p == nil {
+		return true
+	}
+	return *p
 }
 
 // planLabelColumns inspects the resolver-bound fields against the

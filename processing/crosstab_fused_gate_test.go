@@ -246,6 +246,32 @@ func TestCanFuseCrosstab_PostTestsForceBuffered(t *testing.T) {
 	}
 }
 
+// TestCanFuseCrosstab_OverlaysForceBuffered locks in the E1-S9 gate
+// addition: any Request.Overlays entry disqualifies the fused crosstab
+// path so the dispatcher falls back to buffered RunCrosstab, which is
+// the only path that wires Response.Overlays today (processing/
+// crosstab.go applyOverlaysToResponse). Mirrors the
+// TestCanFuseCrosstab_TestsForceBuffered shape — single positive
+// disqualifier on top of a happy-path request, reason-substring
+// assertion.
+func TestCanFuseCrosstab_OverlaysForceBuffered(t *testing.T) {
+	req := happyPathCrosstabRequest()
+	req.Overlays = []types.OverlaySpec{
+		{
+			Kind:  types.OverlayKindIndexVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
+		},
+	}
+	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
+	if ok {
+		t.Fatalf("expected ineligible with overlays present")
+	}
+	if !strings.Contains(reason, "overlays force buffered") {
+		t.Fatalf("unexpected reason %q", reason)
+	}
+}
+
 func TestCanFuseCrosstab_AttrFormulaBail(t *testing.T) {
 	req := happyPathCrosstabRequest()
 	req.Attributes = []*types.Attribute{

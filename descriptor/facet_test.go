@@ -24,6 +24,29 @@ func TestManifestFacetCapability(t *testing.T) {
 	if len(m.Facet.StreamableConditions) == 0 {
 		t.Fatal("FacetCapability.StreamableConditions must be non-empty")
 	}
+	// E5-S6: FACET-host overlay kinds wired into FacetSchema. Capability
+	// must declare both the boolean flag AND the canonical kind set so
+	// LLM clients discover the dispatch surface without inspecting the
+	// source. The kind list must be sorted alphabetically for golden
+	// stability.
+	if !m.Facet.SupportsOverlays {
+		t.Errorf("FacetCapability.SupportsOverlays must be true after E5-S6")
+	}
+	expected := []string{
+		"OVERLAY_CHISQ_VS_POP",
+		"OVERLAY_INDEX_VS_POP",
+		"OVERLAY_KS_VS_POP",
+		"OVERLAY_ZSCORE_VS_POP",
+	}
+	if len(m.Facet.SupportedOverlayKinds) != len(expected) {
+		t.Errorf("FacetCapability.SupportedOverlayKinds length = %d, want %d", len(m.Facet.SupportedOverlayKinds), len(expected))
+	} else {
+		for i, want := range expected {
+			if m.Facet.SupportedOverlayKinds[i] != want {
+				t.Errorf("FacetCapability.SupportedOverlayKinds[%d] = %q, want %q (alphabetical order required)", i, m.Facet.SupportedOverlayKinds[i], want)
+			}
+		}
+	}
 }
 
 // buildSimplePulseBytes returns a minimal .pulse file with one u16

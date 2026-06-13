@@ -808,18 +808,48 @@ func (s *Service) installProjection(iter scanIterator, req *types.Request, schem
 }
 
 // Compose executes multiple requests, returning a response for each.
+//
+// Before dispatching any slot, the validate phase synthesizes a default
+// Label of `request_<index+1>` (1-based) on every slot whose caller-
+// supplied Label is empty, against an in-memory clone of each *Request
+// so the caller's pointer is not mutated. Two slots resolving to the
+// same final Label are rejected with PULSE_COMPOSE_LABEL_COLLISION.
+// Future Compose-only overlay kinds (E7) resolve sibling references by
+// final Label so the names must be unique across the batch.
 func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) ([]*types.Response, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
 	}
 
-	responses := make([]*types.Response, len(composed.Requests))
-	for i, req := range composed.Requests {
+	requests, err := applyComposeLabelDefaults(composed)
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]*types.Response, len(requests))
+	for i, req := range requests {
 		resp, err := s.Process(ctx, req)
 		if err != nil {
 			return nil, fmt.Errorf("request %d: %w", i, err)
 		}
 		responses[i] = resp
+	}
+
+	// Compose-only overlay barrier (E7-S4). Runs AFTER every slot has
+	// produced a finalised *Response and BEFORE the response is
+	// returned to the caller. The serial path has no FailFast knob
+	// (a slot error returned early above), so when we reach this
+	// barrier every slot succeeded — the hook is unconditional.
+	// Empty / nil req.Overlays short-circuits with no allocation
+	// (byte-identical JSON vs pre-E7-S4 output).
+	//
+	// Facade rewire deferred to E7-S15: the layers + warnings are
+	// computed (so the hook surface is exercised end-to-end) but the
+	// facade still returns []*Response, so the values are discarded.
+	// E7-S15 lifts the return type to *ComposedResponse{Responses,
+	// Overlays} and persists both slots.
+	if _, _, err := s.applyComposeOverlays(ctx, composed, requests, responses); err != nil {
+		return nil, err
 	}
 
 	return responses, nil

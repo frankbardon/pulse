@@ -29,6 +29,20 @@ type FacetCapability struct {
 	// counts are computed.
 	SupportsAdditive bool `json:"supports_additive"`
 
+	// SupportsOverlays reports whether FacetRequest.Overlays is
+	// honoured. When true, the SupportedOverlayKinds slice enumerates
+	// the FACET-host overlay catalog kinds the endpoint dispatches.
+	// Bumped at E5-S6 when the four FACET-host kinds wired into
+	// FacetSchema's buffered exit (OVERLAY_INDEX_VS_POP /
+	// OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP).
+	SupportsOverlays bool `json:"supports_overlays,omitempty"`
+
+	// SupportedOverlayKinds enumerates the FACET-host overlay kinds the
+	// endpoint dispatches. Populated only when SupportsOverlays is true;
+	// each entry is a canonical OverlayKind constant string. Stable
+	// alphabetical order so LLM clients see a deterministic enum.
+	SupportedOverlayKinds []string `json:"supported_overlay_kinds,omitempty"`
+
 	// StreamableConditions lists the human-readable rules that govern
 	// which requests run in a single pass vs. force the buffered
 	// secondary sort. The order is stable and intended for LLM-side
@@ -46,6 +60,15 @@ func facetCapability() FacetCapability {
 		SupportsPercentiles: true,
 		SupportsHistogram:   true,
 		SupportsAdditive:    true,
+		SupportsOverlays:    true,
+		// Sorted alphabetically by canonical OverlayKind constant so
+		// MCP / CLI surfaces see a deterministic enum.
+		SupportedOverlayKinds: []string{
+			"OVERLAY_CHISQ_VS_POP",
+			"OVERLAY_INDEX_VS_POP",
+			"OVERLAY_KS_VS_POP",
+			"OVERLAY_ZSCORE_VS_POP",
+		},
 		StreamableConditions: []string{
 			"NumericPercentiles is empty (percentiles force a buffered per-field value slice + sort)",
 			"IncludeHistogram=false OR HistogramRange supplies caller-known [min, max] bounds",

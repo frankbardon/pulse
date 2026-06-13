@@ -130,6 +130,22 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 		return false, "stat tests force buffered"
 	}
 
+	// Overlays (E1-S9): the overlay fold runs against the finalised
+	// MatrixPayload from the buffered RunCrosstab path
+	// (processing/crosstab.go applyOverlaysToResponse). The fused exit
+	// (crosstab_fused_run.go RunCrosstabFused → FusedCrosstabState.
+	// Finalize) intentionally does NOT invoke that hook — E1 ships the
+	// buffered overlay surface only, with the fused mirror deferred per
+	// the E1 scope notes. Reject any request carrying Overlays here so
+	// the dispatch in service/crosstab.go falls back to the buffered
+	// path and Response.Overlays is populated end-to-end. Every
+	// registered OverlayKind today (OVERLAY_INDEX_VS_MARGIN) is also
+	// non-streamable per types.OverlayStreamability, so this gate
+	// matches the predict-level streamability surface.
+	if len(req.Overlays) > 0 {
+		return false, "overlays force buffered"
+	}
+
 	// ATTR_FORMULA with a non-empty expression bails the projection
 	// extractor when the expression is malformed; even when it parses,
 	// the fused path can't keep its decode bound tight under

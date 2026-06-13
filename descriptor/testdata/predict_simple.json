@@ -22,9 +22,12 @@
     "shards": [],
     "streamable": true,
     "suggestions": [],
-    "defaults_applied": []
+    "defaults_applied": [],
+    "overlays_applied": [],
+    "overlays_schema_divergence": [],
+    "overlay_cost": {}
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 24e35649d6eb4de5fe8c96cccb3263283cad3ab15e3cfe2ff373890726cecd1e
+// golden-hash: 1907aba5bdff99fd4278bf6f73c93c70c0e9ed526b7a0c7c06ff8303d91d2258

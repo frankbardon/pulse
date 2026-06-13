@@ -151,7 +151,83 @@ func BindWithExtensions(schema *encoding.Schema, snap *descriptor.ExtensionsSnap
 	}
 	out[mcptools.ToolFacetSchema] = facetSchemaBody
 
+	chainBody, err := buildProcessChainSchemaWithExtensions(c, snap)
+	if err != nil {
+		return nil, err
+	}
+	out[mcptools.ToolProcessChain] = chainBody
+
 	return out, nil
+}
+
+// buildProcessChainSchemaWithExtensions describes the pulse_process_chain
+// tool with the per-cohort enum constraints applied to every stage's
+// inner Request shape. ChainRequest.Stages[].Request inherits the same
+// Request schema the pulse_process facade emits — stage 0's request
+// supplies the source cohort, later stages ignore their inner cohort
+// field and consume the prior stage's synthesised in-memory cohort.
+// The outer ChainRequest.Overlays slot carries the whole-chain overlay
+// catalog (CHAIN-host kinds bound by StageRef pointers).
+func buildProcessChainSchemaWithExtensions(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
+	// Reuse the per-stage Request body the pulse_process facade emits
+	// so per-cohort field enums + extension-merged operator enums
+	// flow into every stage automatically.
+	inner, err := buildRequestSchemaWithExtensions(c, snap)
+	if err != nil {
+		return nil, err
+	}
+	var innerOuter map[string]any
+	if err := json.Unmarshal(inner, &innerOuter); err != nil {
+		return nil, err
+	}
+	props, _ := innerOuter["properties"].(map[string]any)
+	reqSchema := props["request"]
+
+	stageItem := map[string]any{
+		"type":        "object",
+		"description": "One stage in the source-rooted linear chain. Stage 0's request supplies the source cohort; later stages consume the prior stage's synthesised output.",
+		"properties": map[string]any{
+			"name":    map[string]any{"type": "string", "description": "Optional stage label used in PULSE_CHAIN_NOT_MERGEABLE error details."},
+			"request": reqSchema,
+		},
+		"required":             []string{"request"},
+		"additionalProperties": true,
+	}
+
+	requestObject := map[string]any{
+		"type":        "object",
+		"description": "pulse.ChainRequest — source-rooted linear chain. See types.ChainRequest.",
+		"properties": map[string]any{
+			"cohort": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"filename": map[string]any{"type": "string"},
+					"data_dir": map[string]any{"type": "string"},
+				},
+				"required":             []string{"filename"},
+				"additionalProperties": true,
+			},
+			"stages": map[string]any{
+				"type":        "array",
+				"description": "Ordered list of chain stages. Mergeable-only at v1; see Manifest.ProcessChain for the per-stage catalog gate.",
+				"items":       stageItem,
+			},
+			// ChainRequest.Overlays carries the whole-chain catalog.
+			"overlays": overlaysSchemaForFacade(overlayFacadeChain, snap),
+		},
+		"required":             []string{"stages"},
+		"additionalProperties": true,
+	}
+
+	outer := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"request": requestObject,
+		},
+		"required":             []string{"request"},
+		"additionalProperties": true,
+	}
+	return json.Marshal(outer)
 }
 
 // buildFacetSchemaRequestSchema describes the pulse_facet_schema tool
@@ -212,6 +288,11 @@ func buildFacetSchemaRequestSchema(c fieldClassification, snap *descriptor.Exten
 				"maxItems":    2,
 				"description": "[min, max] bounds for fixed-width histogram binning. Required when include_histogram=true.",
 			},
+			// FacetRequest.Overlays accepts the four population-comparison
+			// FACET-host kinds (Ref.Population resolves to a separate
+			// cohort). Other kinds are routed onto their respective
+			// facades.
+			"overlays": overlaysSchemaForFacade(overlayFacadeFacet, snap),
 		},
 		"required":             []string{"fields"},
 		"additionalProperties": true,
@@ -253,6 +334,8 @@ func extensionNames(snap *descriptor.ExtensionsSnapshot, category string) []stri
 		metas = snap.Features
 	case "test":
 		metas = snap.Tests
+	case "overlay":
+		metas = snap.OverlayKinds
 	default:
 		return nil
 	}
@@ -442,6 +525,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 			"tests":      testsArraySchema(c, testTypes),
 			"post_tests": testsArraySchema(c, testTypes),
 			"crosstab":   crosstabSchema(c, aggTypes, groupTypes),
+			"overlays":   overlaysSchemaForFacade(overlayFacadeRequest, snap),
 			"outputs": map[string]any{
 				"type": "array",
 				"items": map[string]any{
@@ -550,6 +634,305 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 	}
 }
 
+// overlayFacade identifies which MCP tool surface a per-facade
+// overlay_kind enum belongs to. Each facade carries a constrained slice
+// of the universal overlay catalog so LLM authors see only the kinds
+// that are addressable on the bound tool's request shape:
+//
+//   - overlayFacadeRequest  — pulse_process / pulse_predict.
+//                             Request.Overlays accepts the in-Request
+//                             catalog: MATRIX-host kinds layered on a
+//                             crosstab (`Request.Crosstab`) plus
+//                             SERIES-host kinds layered on a grouped
+//                             Process / Window result (`Request.Groups`).
+//                             Excludes COMPOSE-only (slot-label-bound)
+//                             / CHAIN-only (StageRef-bound) / FACET-only
+//                             (population-bound) kinds — those address
+//                             a different request shape and surface on
+//                             their own facade.
+//   - overlayFacadeCompose  — pulse_compose. ComposedRequest.Overlays
+//                             accepts COMPOSE-only kinds whose Ref +
+//                             Targets resolve to slot labels in the
+//                             parent ComposedRequest (`ComposeOverlaySpec`).
+//                             FORMULA crosses over (in-Request AND
+//                             Compose surfaces per the kind's catalog
+//                             row); RANK rides the same slot-label
+//                             plumbing as the comparison family even
+//                             though the rank computation reads only
+//                             the target matrix.
+//   - overlayFacadeFacet    — pulse_facet / pulse_facet_schema.
+//                             FacetRequest.Overlays accepts only the
+//                             four population-comparison kinds whose
+//                             Ref.Population resolves to a separate
+//                             cohort cohort.
+//   - overlayFacadeChain    — pulse_process_chain. ChainRequest.Overlays
+//                             accepts the two whole-chain kinds whose
+//                             Ref + Target are StageRef values pointing
+//                             at stages of the parent ChainRequest.
+type overlayFacade int
+
+const (
+	overlayFacadeRequest overlayFacade = iota
+	overlayFacadeCompose
+	overlayFacadeFacet
+	overlayFacadeChain
+)
+
+// composeOnlyOverlayKinds enumerates the overlay kinds that resolve
+// their Reference / Targets via ComposeOverlaySpec slot labels rather
+// than the in-Request OverlayRef discriminated union. The list is the
+// authoritative source the per-facade classifier consults; each entry's
+// capability row at descriptor.overlayCapabilityFor carries a matching
+// "COMPOSE-only kind" comment so the catalog audit stays grep-clean.
+// Sorted alphabetically by constant so the slice itself is golden
+// across edits — but the per-facade enum surfaces the names through
+// sortedDedupe, so list order is not load-bearing for the enum output.
+func composeOnlyOverlayKinds() []string {
+	return []string{
+		string(types.OverlayKindChiSqVsRef),
+		string(types.OverlayKindDeltaVsRef),
+		string(types.OverlayKindIndexVsRef),
+		string(types.OverlayKindPanelIndexVsRef),
+		string(types.OverlayKindPropZCell),
+		string(types.OverlayKindPropZPanel),
+		string(types.OverlayKindRank),
+		string(types.OverlayKindTCell),
+		string(types.OverlayKindTVsRef),
+	}
+}
+
+// chainOnlyOverlayKinds enumerates the overlay kinds whose Ref +
+// Target are StageRef values pointing at stages of a ChainRequest.
+// Mirrors descriptor.processChainCapability().OverlayKinds — single
+// source of truth for the whole-chain catalog membership.
+func chainOnlyOverlayKinds() []string {
+	return []string{
+		string(types.OverlayKindDeltaVsStage),
+		string(types.OverlayKindIndexVsStage),
+	}
+}
+
+// facetOnlyOverlayKinds enumerates the overlay kinds whose Ref.Population
+// resolves to a separate cohort. Mirrors
+// descriptor.facetCapability().SupportedOverlayKinds — single source of
+// truth for the FACET-host catalog membership.
+func facetOnlyOverlayKinds() []string {
+	return []string{
+		string(types.OverlayKindChiSqVsPop),
+		string(types.OverlayKindIndexVsPop),
+		string(types.OverlayKindKSVsPop),
+		string(types.OverlayKindZScoreVsPop),
+	}
+}
+
+// overlayKindEnumForFacade returns the per-facade overlay_kind enum
+// drawn from descriptor.OverlayCapabilities() filtered by facade
+// membership, with embedder-registered kinds (snap.OverlayKinds)
+// merged in via the same dedupe + alphabetise convention the operator
+// enums use.
+//
+// Classification rules (per acceptance criteria):
+//
+//   - Request facade   — every kind NOT in the compose / facet / chain
+//                        lists. Includes the MATRIX-host crosstab kinds
+//                        (INDEX_VS_MARGIN, SHARE_OF_ROW/COL/TOTAL,
+//                        DELTA_VS_MARGIN, ZSCORE_VS_MARGIN, CHISQ_MATRIX,
+//                        CHISQ_ROW, CHISQ_COL, FISHER_EXACT_CELL) plus
+//                        the SERIES-host grouped / windowed kinds
+//                        (INDEX_VS_TOTAL, INDEX_VS_SIBLING,
+//                        DELTA_VS_SIBLING, ZSCORE_VS_TOTAL, SHARE_OF_TOTAL
+//                        series arm, INDEX_VS_PRIOR, INDEX_VS_BASELINE,
+//                        DELTA_VS_BASELINE, INDEX_VS_ROLLING_MEAN,
+//                        ZSCORE_VS_ROLLING, YOY) and FORMULA (cross-shape).
+//   - Compose facade   — the compose-only catalog plus FORMULA. The kind
+//                        catalog rows note FORMULA's Compose surface
+//                        directly; it stays on the Request enum too
+//                        because its in-Request surface also ships.
+//   - Facet facade     — exactly the four FACET-host kinds.
+//   - Chain facade     — exactly the two CHAIN-host kinds.
+//
+// Extension-registered kinds (snap.OverlayKinds) appear on the Request
+// facade enum today (lowest-risk fallback). The registration surface
+// is not yet implemented and the per-kind facade tag does not exist
+// yet — when it lands a future story routes extension kinds through
+// the matching arm. snapshot-less paths return the built-in catalog
+// only.
+func overlayKindEnumForFacade(facade overlayFacade, snap *descriptor.ExtensionsSnapshot) []string {
+	composeSet := stringSetFrom(composeOnlyOverlayKinds())
+	chainSet := stringSetFrom(chainOnlyOverlayKinds())
+	facetSet := stringSetFrom(facetOnlyOverlayKinds())
+
+	caps := descriptor.OverlayCapabilities()
+	out := make([]string, 0, len(caps))
+	for _, c := range caps {
+		name := string(c.Kind)
+		switch facade {
+		case overlayFacadeRequest:
+			// Request facade carries every kind that is NOT
+			// exclusively addressed via a slot-label /
+			// stage-index / population-cohort ref family — i.e.
+			// every in-Request kind. FORMULA stays here too
+			// (Request.Overlays is a documented FORMULA surface).
+			if composeSet[name] || chainSet[name] || facetSet[name] {
+				continue
+			}
+		case overlayFacadeCompose:
+			// Compose facade carries the compose-only catalog
+			// plus FORMULA (cross-facade surface per the kind's
+			// catalog row).
+			if !(composeSet[name] || c.Kind == types.OverlayKindFormula) {
+				continue
+			}
+		case overlayFacadeFacet:
+			if !facetSet[name] {
+				continue
+			}
+		case overlayFacadeChain:
+			if !chainSet[name] {
+				continue
+			}
+		}
+		out = append(out, name)
+	}
+	// Extension-registered kinds — today every extension kind lands on
+	// the Request-facade enum (the lowest-risk fallback while the
+	// registration surface evolves). A future story may route by a
+	// per-kind facade tag once registrations carry one.
+	if facade == overlayFacadeRequest {
+		out = append(out, extensionNames(snap, "overlay")...)
+	}
+	return sortedDedupe(out)
+}
+
+// stringSetFrom builds a membership set from a slice. Helper kept tight
+// because the per-facade classifier reads from three of these tables
+// every call.
+func stringSetFrom(in []string) map[string]bool {
+	out := make(map[string]bool, len(in))
+	for _, s := range in {
+		out[s] = true
+	}
+	return out
+}
+
+// sortedDedupe alphabetises and deduplicates a slice in place-free
+// fashion, returning a new slice. Per-facade enums consume this so the
+// emitted JSON Schema is byte-stable across calls — the per-call enum
+// MUST be deterministic so the schema-bound MCP cache key remains
+// stable.
+func sortedDedupe(in []string) []string {
+	if len(in) == 0 {
+		return in
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if _, dup := seen[s]; dup {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// overlaysSchemaForFacade returns the JSON Schema fragment describing
+// the Overlays array on the named facade's request shape. Each entry
+// is an OverlaySpec (Request / Facet) or a ComposeOverlaySpec /
+// ChainOverlaySpec (Compose / Chain); the `kind` enum is the per-
+// facade catalog returned by overlayKindEnumForFacade. scope and ref
+// (or reference / targets / stage) carry the on-wire union
+// discriminator one level deeper — the per-kind validation surface
+// lives in predict, not in the schema.
+//
+// Scaffolding only: this surface mirrors the per-facade Spec shape
+// but does NOT attempt per-kind correlation in JSON Schema (the same
+// limitation noted at the top of this file for operator-type /
+// field-type pairs). The enum on `kind` is the load-bearing addition.
+func overlaysSchemaForFacade(facade overlayFacade, snap *descriptor.ExtensionsSnapshot) map[string]any {
+	kinds := overlayKindEnumForFacade(facade, snap)
+	kindField := map[string]any{
+		"type":        "string",
+		"description": "Overlay catalog kind. Enum is constrained to the kinds the bound facade's request shape accepts (Request / Compose / Facet / Chain). Drawn from descriptor.OverlayCapabilities() filtered by facade membership; new kinds in the same facade flow through automatically. See Manifest.Overlays for the per-kind shape / scope / ref-kind matrix.",
+	}
+	if len(kinds) > 0 {
+		kindField["enum"] = kinds
+	}
+	switch facade {
+	case overlayFacadeCompose:
+		return map[string]any{
+			"type":        "array",
+			"description": "Compose-only overlay layer specifications. Each entry produces one OverlayLayer in ComposedResponse.Overlays in matching order. Reference + Targets resolve against per-Request Label fields (empty Labels auto-default to request_<i+1>). See types.ComposeOverlaySpec.",
+			"items": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name":      map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Reference+Targets."},
+					"kind":      kindField,
+					"scope":     map[string]any{"type": "string", "description": "Where the overlay lands relative to the target slot's result."},
+					"reference": map[string]any{"type": "string", "description": "Baseline slot's per-Request Label (after auto-default substitution)."},
+					"targets":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "One-or-more slot labels whose results this overlay decorates."},
+					"level":     map[string]any{"type": "integer", "minimum": 0, "description": "Matrix-shape Compose: same-axis prefix depth. Ignored on non-matrix kinds."},
+					"within":    map[string]any{"type": "integer", "minimum": 0, "description": "Matrix-shape Compose: opposite-axis prefix depth. Ignored on non-matrix kinds."},
+					"params":    map[string]any{"description": "Kind-specific configuration. Per-kind schema lives alongside the kind's processor."},
+					"options":   map[string]any{"type": "object", "description": "Per-spec optimization knobs (e.g. MaxPanelTargets for multi-reference kinds)."},
+				},
+				"required":             []string{"kind", "reference"},
+				"additionalProperties": true,
+			},
+		}
+	case overlayFacadeChain:
+		stageRef := map[string]any{
+			"type":        "object",
+			"description": "Discriminated stage reference — populate exactly one of index / name.",
+			"properties": map[string]any{
+				"index": map[string]any{"type": "integer", "minimum": 0, "description": "Zero-based stage index into ChainRequest.Stages."},
+				"name":  map[string]any{"type": "string", "description": "Matches against ChainStage.Name verbatim."},
+			},
+			"additionalProperties": false,
+		}
+		return map[string]any{
+			"type":        "array",
+			"description": "Whole-chain overlay layer specifications. Each entry produces one OverlayLayer in ChainResponse.Overlays in matching order. Ref + Target are StageRef values pointing at stages of the parent ChainRequest. See types.ChainOverlaySpec.",
+			"items": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name":   map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Ref+Target."},
+					"kind":   kindField,
+					"scope":  map[string]any{"type": "string", "description": "Where the overlay lands relative to the target stage's result. Whole-chain kinds use scope=total."},
+					"ref":    stageRef,
+					"target": stageRef,
+					"params": map[string]any{"description": "Kind-specific configuration."},
+				},
+				"required":             []string{"kind", "ref", "target"},
+				"additionalProperties": true,
+			},
+		}
+	default:
+		// Request + Facet facades reuse the canonical OverlaySpec
+		// shape (types/overlay.go) — Ref is the discriminated union
+		// pointer family rather than a slot label.
+		return map[string]any{
+			"type":        "array",
+			"description": "Overlay layer specifications. Each entry produces one OverlayLayer in the response's matching Overlays slot. See types.OverlaySpec.",
+			"items": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name":   map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Scope+Ref."},
+					"kind":   kindField,
+					"scope":  map[string]any{"type": "string", "description": "Where the overlay lands relative to the base result."},
+					"ref":    map[string]any{"type": "object", "description": "Discriminated reference family pointer; per-kind contract documented in Manifest.Overlays."},
+					"level":  map[string]any{"type": "integer", "minimum": 0, "description": "Same-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
+					"within": map[string]any{"type": "integer", "minimum": 0, "description": "Opposite-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
+					"params": map[string]any{"description": "Operator-specific configuration. Per-kind schema lives alongside the kind's processor."},
+				},
+				"required":             []string{"kind", "scope"},
+				"additionalProperties": true,
+			},
+		}
+	}
+}
+
 // testsArraySchema returns the JSON Schema for a tests/post_tests array
 // with field references constrained by classification.
 func testsArraySchema(c fieldClassification, testTypes []string) map[string]any {
@@ -607,6 +990,12 @@ func buildComposeSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 						"type":  "array",
 						"items": reqSchema,
 					},
+					// ComposedRequest.Overlays carries the Compose-only
+					// catalog (slot-label-bound kinds + FORMULA). The
+					// per-Request inherited Overlays slot lives inside
+					// `requests[].request.overlays` via the inlined
+					// request schema and stays Request-facade-scoped.
+					"overlays": overlaysSchemaForFacade(overlayFacadeCompose, snap),
 				},
 				"required":             []string{"requests"},
 				"additionalProperties": true,
@@ -768,6 +1157,7 @@ func BindSessionToolsWithExtensions(s *server.MCPServer, sessionID string, schem
 		{mcptools.ToolSample, mcptools.DescSample + " (schema-bound)", handlers.sample},
 		{mcptools.ToolFacet, mcptools.DescFacet + " (schema-bound)", handlers.facet},
 		{mcptools.ToolFacetSchema, mcptools.DescFacetSchema + " (schema-bound)", handlers.facetSchema},
+		{mcptools.ToolProcessChain, mcptools.DescProcessChain + " (schema-bound)", handlers.processChain},
 	} {
 		raw, ok := schemas[entry.name]
 		if !ok {
@@ -787,10 +1177,11 @@ func BindSessionToolsWithExtensions(s *server.MCPServer, sessionID string, schem
 // handlers verbatim — the wire-shape stays identical; only the input
 // schema changes.
 type boundHandlers struct {
-	process     server.ToolHandlerFunc
-	predict     server.ToolHandlerFunc
-	compose     server.ToolHandlerFunc
-	sample      server.ToolHandlerFunc
-	facet       server.ToolHandlerFunc
-	facetSchema server.ToolHandlerFunc
+	process      server.ToolHandlerFunc
+	predict      server.ToolHandlerFunc
+	compose      server.ToolHandlerFunc
+	sample       server.ToolHandlerFunc
+	facet        server.ToolHandlerFunc
+	facetSchema  server.ToolHandlerFunc
+	processChain server.ToolHandlerFunc
 }

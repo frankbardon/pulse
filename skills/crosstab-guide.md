@@ -216,6 +216,7 @@ Eligibility (all must hold):
 - **No `ATTR_FORMULA` with a non-empty expression and no `FILTER_EXPRESSION`.** The expression runtime widens the projection extractor to "every field"; the fused path's tight decode bound depends on a precise projection.
 - **No decimal128 cell field.** The decimal aggregation path is buffered today.
 - **No extension operator registered without a `FieldInputs` hook.** An opaque extension widens the projection set, defeating the fused path's decode-cost advantage.
+- **No `Request.Overlays`.** The overlay fold runs against the finalised buffered `RunCrosstab` exit (`processing/crosstab.go applyOverlaysToResponse`). The fused finalize does not invoke that hook in E1 — overlay-bearing requests therefore fall back to the buffered path so `Response.Overlays` is populated end-to-end. Every registered overlay kind is also non-streamable per `types.OverlayStreamability`, so the gate composes with the predict-level streamability surface.
 
 Everything else (margins, normalize, normalize_level, normalize_within, nested axes on either side, the shape selector) composes with the fused path identically to the buffered path. **Margins still recompute from raw rows in the fused case** — each margin slot runs its own dedicated online aggregator over the records that touch it, so the median-on-margin correctness rule from the buffered section above carries over unchanged. **Cross-axis null handling (E4-S4Q):** axis composite keys are interned per axis the moment they resolve. A record whose row key is non-null but column key is null still updates the row margin (and the grand margin); cells land only at intersections where both axes resolved. The fused path tracks row keys and column keys independently — symmetric with the buffered path's `PartitionByAxis(rows, ...)` and `PartitionByAxis(columns, ...)` calls, which build the two partitions over the full filtered slice regardless of partner-axis nullity. `normalize_level` and `normalize_within` semantics are unchanged from the buffered section: same-axis truncation for `normalize_level`, opposite-axis prefix for `normalize_within`, both gates compose.
 
@@ -573,6 +574,413 @@ When the cell is a proportion (row- or column-normalized count crosstab on a bin
 | Any | Series trend over time | `TEST_TREND` (tier-2) | Run as `post_tests` over windowed cells. |
 
 The full list lives at `skills/statistical-testing.md`.
+
+## Overlays
+
+A Crosstab result can be decorated with one or more **overlays** — additive, read-only number grids attached to the response in matching `Request.Overlays[i]` ↔ `Response.Overlays[i]` slot order. Overlays never mutate the base matrix; they ride alongside it carrying derived projections (share ratios, index scores, deltas, z-scores, χ² statistics, Fisher's exact p-values) so renderers paint a single host grid with one or more decoration layers without re-deriving the math on the client.
+
+Crosstab is the v1 overlay host. Ten overlay kinds target the Crosstab matrix today, organised into three families:
+
+- **Share triad (descriptive ratios).** Per-cell `cell / margin` against a structurally fixed axis. Cells in a single row / column / matrix sum to 1.0 in the absence of missing cells.
+- **Margin-comparison family (descriptive deviation).** Per-cell index / delta / z-score against a caller-chosen axis margin (row / column / grand).
+- **Inferential family (statistical tests).** χ² independence over the whole matrix, χ² goodness-of-fit per row / per column, and per-cell Fisher's exact against a 2×2 contingency built from the row + column margins.
+
+Every Crosstab overlay is buffered today — they ride the buffered `RunCrosstab` exit (`processing/crosstab.go applyOverlaysToResponse`). The fused crosstab path (see "Fused mergeable path" above) automatically falls back to the buffered path when `Request.Overlays` is non-empty so `Response.Overlays` is populated end-to-end.
+
+For the general overlay framework — kinds × shapes × scopes × refs taxonomy, the three-shape model (scalar / series / matrix), the renderer-facing parallel-slice contract for series payloads, the streamable vs buffered contract, validation rules, the manifest capability block, and the recipe for adding a new kind — see `skills/overlay-system.md`. This section keeps the focus on the **Crosstab-host application**: per-kind JSON recipes you can drop into a request body alongside an existing `crosstab` section.
+
+### Quick reference table
+
+| Kind | Scope | Shape | Ref family | Implicit-margin | Math |
+|---|---|---|---|---|---|
+| `OVERLAY_INDEX_VS_MARGIN` | `cell` | `matrix` | `Margin` (row / column / grand) | no (caller picks axis) | `100 * cell / margin` |
+| `OVERLAY_SHARE_OF_ROW` | `cell` | `matrix` | `Margin` (axis fixed to row) | no | `cell / row_margin` |
+| `OVERLAY_SHARE_OF_COL` | `cell` | `matrix` | `Margin` (axis fixed to column) | no | `cell / col_margin` |
+| `OVERLAY_SHARE_OF_TOTAL` | `cell` | `matrix` | `Margin` (axis fixed to grand) | no | `cell / grand_total` |
+| `OVERLAY_DELTA_VS_MARGIN` | `cell` | `matrix` | `Margin` (row / column / grand) | no | `cell - margin` |
+| `OVERLAY_ZSCORE_VS_MARGIN` | `cell` | `matrix` | `Margin` (row / column / grand) | no | `(cell - margin) / sd` |
+| `OVERLAY_CHISQ_MATRIX` | `matrix` | `scalar` | — | **yes** (no `ref`) | `Σ (observed - expected)² / expected`; `df = (rows - 1) * (cols - 1)` |
+| `OVERLAY_CHISQ_ROW` | `row` | `series` | — | **yes** (no `ref`) | Per row `r`: `Σ_c (observed[c] - expected[c])² / expected[c]`; `df = cols - 1` |
+| `OVERLAY_CHISQ_COL` | `column` | `series` | — | **yes** (no `ref`) | Per column `c`: `Σ_r (observed[r] - expected[r])² / expected[r]`; `df = rows - 1` |
+| `OVERLAY_FISHER_EXACT_CELL` | `cell` | `matrix` | — | **yes** (no `ref`) | Per cell `(i, j)`: two-sided exact p-value over the 2×2 `{a=cell, b=row-cell; c=col-cell, d=grand-row-col+cell}` |
+
+`expected[r, c] = row_margin[r] * col_margin[c] / grand_total` for every χ² / Fisher kind. The implicit-margin family must NOT populate `ref` — supplying any ref-family pointer (`margin`, `sibling`, `baseline_index`, `population`, `stage`, `slot`) fires `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. The descriptive families MUST populate `ref.margin`; the share triad's axis is structurally fixed (the runtime reads the locked axis regardless of what the caller wrote) and the index / delta / zscore family dispatches off `ref.margin.axis`.
+
+Every kind is buffered today (`streamable: false` in `types.OverlayStreamability` and `manifest.overlays[*].buffered = true`). Run `pulse predict --json` to confirm the streamability classification before an expensive matrix overlay.
+
+### Recipes — descriptive ratios (the share triad)
+
+The three share kinds are structurally axis-locked. Each cell becomes a ratio against the matching margin slot, so a single row (or column, or matrix) sums to 1.0 in the absence of missing cells. Use the share triad for "what fraction of the row / column / grand total lives in this cell?"
+
+#### `OVERLAY_SHARE_OF_ROW`
+
+One-liner: per-cell share of row margin. Cells in each row sum to 1.0. Renderers can present the layer as a 100%-stacked horizontal projection.
+
+```json
+{
+  "cohort": {"filename": "sales.pulse"},
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"}
+  },
+  "overlays": [
+    {
+      "name":  "s_row",
+      "kind":  "OVERLAY_SHARE_OF_ROW",
+      "scope": "cell",
+      "ref":   {"margin": {"axis": "row"}}
+    }
+  ]
+}
+```
+
+#### `OVERLAY_SHARE_OF_COL`
+
+One-liner: per-cell share of column margin. Cells in each column sum to 1.0. Renders cleanly as a 100%-stacked vertical projection.
+
+```json
+{
+  "overlays": [
+    {
+      "name":  "s_col",
+      "kind":  "OVERLAY_SHARE_OF_COL",
+      "scope": "cell",
+      "ref":   {"margin": {"axis": "column"}}
+    }
+  ]
+}
+```
+
+#### `OVERLAY_SHARE_OF_TOTAL`
+
+One-liner: per-cell share of grand total. The whole matrix sums to 1.0. Renders as a single-population share projection.
+
+```json
+{
+  "overlays": [
+    {
+      "name":  "s_total",
+      "kind":  "OVERLAY_SHARE_OF_TOTAL",
+      "scope": "cell",
+      "ref":   {"margin": {"axis": "grand"}}
+    }
+  ]
+}
+```
+
+### Recipes — margin-comparison family (index, delta, z-score)
+
+All three kinds dispatch off `ref.margin.axis` — pick `row`, `column`, or `grand`. Unlike the share triad's structural axis lock, you can layer multiple specs of the same kind side-by-side with different axes to give renderers a "switch denominator" dropdown.
+
+#### `OVERLAY_INDEX_VS_MARGIN`
+
+One-liner: per-cell index score `100 * cell / margin`. Baseline is 100 — cells above index over-perform the margin, cells below under-perform. The worked example with North / South × Enterprise / SMB cells lives in `skills/overlay-system.md` ("Worked example: `OVERLAY_INDEX_VS_MARGIN` against a 2-axis crosstab").
+
+```json
+{
+  "overlays": [
+    {
+      "name":  "i_row",
+      "kind":  "OVERLAY_INDEX_VS_MARGIN",
+      "scope": "cell",
+      "ref":   {"margin": {"axis": "row"}}
+    }
+  ]
+}
+```
+
+#### `OVERLAY_DELTA_VS_MARGIN`
+
+One-liner: per-cell additive delta `cell - margin`. Preserves the host's units (a $-valued AGG_SUM cell minus a $-valued row margin yields a $-valued deviation in the same currency). Baseline is 0 — no division, no zero-denominator warning. Renderers centre diverging colour ramps on zero.
+
+```json
+{
+  "overlays": [
+    {
+      "name":  "d_col",
+      "kind":  "OVERLAY_DELTA_VS_MARGIN",
+      "scope": "cell",
+      "ref":   {"margin": {"axis": "column"}}
+    }
+  ]
+}
+```
+
+#### `OVERLAY_ZSCORE_VS_MARGIN`
+
+One-liner: per-cell standardised deviation `(cell - margin) / sd`. The `sd` is the population standard deviation of cell values within the matching margin slice (per-row cells for `axis: row`, per-column cells for `axis: column`, every matrix cell for `axis: grand`), computed via the shared Welford-Pébaÿ recurrence. Baseline is 0 — output is unitless deviation. Degenerate slices (every cell equal, `sd == 0`) emit absent overlay cells plus `PULSE_OVERLAY_REF_ZERO` warnings.
+
+```json
+{
+  "overlays": [
+    {
+      "name":  "z_grand",
+      "kind":  "OVERLAY_ZSCORE_VS_MARGIN",
+      "scope": "cell",
+      "ref":   {"margin": {"axis": "grand"}}
+    }
+  ]
+}
+```
+
+### Recipes — inferential family (χ² + Fisher's exact)
+
+The four inferential kinds are **implicit-margin**: they compute the contingency from the host's row + column margins inline, so the spec must NOT populate `ref`. Supplying any ref-family pointer fires `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. Every kind reuses the same statistical primitives as the matching `TEST_*` operator (`chiSquareSurvival` for χ², `fisherExactTwoSided` for Fisher), so the overlay and row-test surfaces produce identical p-values for the same contingency.
+
+#### `OVERLAY_CHISQ_MATRIX`
+
+One-liner: whole-matrix χ² independence test. Scalar payload carries the χ² statistic; `summary.statistic`, `summary.p_value`, and `summary.parameters.df` carry the test result. Use for "is the row × column relationship meaningful at all?" Read `warnings[]` for `PULSE_OVERLAY_EXPECTED_LOW` when any expected cell falls below 5 — that is your signal to switch to Fisher's exact.
+
+```json
+{
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "treatment"}],
+    "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+    "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    "margins": {"rows": true, "columns": true, "grand": true}
+  },
+  "overlays": [
+    {
+      "name":  "chi2_indep",
+      "kind":  "OVERLAY_CHISQ_MATRIX",
+      "scope": "matrix"
+    }
+  ]
+}
+```
+
+Math: `chisq = Σ (observed - expected)² / expected`; `df = (rows - 1) * (cols - 1)`; `p = 1 - chi2_cdf(chisq, df)`.
+
+#### `OVERLAY_CHISQ_ROW`
+
+One-liner: per-row χ² goodness-of-fit across the column distribution. Series payload — one `SeriesEntry` per row tuple, `entries[i].key` matches host `row_keys[i]` element-for-element (the parallel-slice contract). Each entry carries `summary.statistic` / `summary.p_value` / `summary.parameters.df`.
+
+```json
+{
+  "overlays": [
+    {
+      "name":  "chi2_per_row",
+      "kind":  "OVERLAY_CHISQ_ROW",
+      "scope": "row"
+    }
+  ]
+}
+```
+
+Math (per row `r`): `observed[c] = host.Cell(r, c)`; `expected[c] = row_margin[r] * col_margin[c] / grand_total`; `chisq_r = Σ_c (observed[c] - expected[c])² / expected[c]`; `df = cols - 1`. The handler emits ONE `PULSE_OVERLAY_EXPECTED_LOW` warning per offending row (the row, not the cell, is the diagnostic unit for goodness-of-fit).
+
+#### `OVERLAY_CHISQ_COL`
+
+One-liner: per-column χ² goodness-of-fit across the row distribution. Mechanical column-axis twin of `OVERLAY_CHISQ_ROW`. Series entries align element-for-element with host `column_keys[i]`.
+
+```json
+{
+  "overlays": [
+    {
+      "name":  "chi2_per_col",
+      "kind":  "OVERLAY_CHISQ_COL",
+      "scope": "column"
+    }
+  ]
+}
+```
+
+Math (per column `c`): `observed[r] = host.Cell(r, c)`; `expected[r] = row_margin[r] * col_margin[c] / grand_total`; `chisq_c = Σ_r (observed[r] - expected[r])² / expected[r]`; `df = rows - 1`. One `PULSE_OVERLAY_EXPECTED_LOW` warning per offending column.
+
+#### `OVERLAY_FISHER_EXACT_CELL`
+
+One-liner: per-cell Fisher's exact two-sided test against a 2×2 contingency built from the cell, its row margin, its column margin, and the grand total. Matrix payload — each cell's value is the exact two-sided p-value as a `float64`. The canonical low-count contingency overlay; closes the inferential family as the structural backstop when `OVERLAY_CHISQ_MATRIX` would emit `PULSE_OVERLAY_EXPECTED_LOW`.
+
+```json
+{
+  "overlays": [
+    {
+      "name":  "fisher_per_cell",
+      "kind":  "OVERLAY_FISHER_EXACT_CELL",
+      "scope": "cell"
+    }
+  ]
+}
+```
+
+Math (per cell at `(i, j)`): build the 2×2 `{a = cell, b = row_margin - cell; c = col_margin - cell, d = grand - row_margin - col_margin + cell}`, then sum hypergeometric probabilities for every feasible `a` whose log-probability is `≤` the observed (two-sided convention). Reuses the same `lgamma`-backed hypergeometric primitive as `TEST_FISHER_EXACT`. Fisher's exact is structurally robust to low expected counts — the handler still emits `PULSE_OVERLAY_EXPECTED_LOW` per offending cell as a renderer-facing hint to flag cells where the cheaper χ² approximation would be unreliable and Fisher's exact is structurally required.
+
+### Low-expected-count warnings (χ² / Fisher)
+
+The χ² / Fisher inferential family surfaces `PULSE_OVERLAY_EXPECTED_LOW` as a **warning-class code** through the response envelope — the layer still renders, the warning flags the cells / rows / columns / matrices where the χ² approximation would be unreliable. **Callers must read `warnings[]`** to catch the flag — the layer payload itself does not encode it.
+
+The trigger is the canonical Cochran rule applied per kind:
+
+| Kind | Trigger | Granularity |
+|---|---|---|
+| `OVERLAY_CHISQ_MATRIX` | any expected cell `< 5` in the whole matrix | one warning per layer |
+| `OVERLAY_CHISQ_ROW` | any expected cell `< 5` in a given row | one warning per offending row |
+| `OVERLAY_CHISQ_COL` | any expected cell `< 5` in a given column | one warning per offending column |
+| `OVERLAY_FISHER_EXACT_CELL` | any expected count of the 2×2 `< 1` OR `≥ 20%` of expected counts `< 5` (1 of 4 cells with four-cell 2×2) | one warning per offending cell |
+
+`PULSE_OVERLAY_EXPECTED_LOW`'s details carry the structured context — `low_expected_cells` count and `expected_min` for the χ² family, `row_index` / `col_index` for the per-row / per-column / per-cell families. Reach the per-code prose via `pulse_errors_lookup` (MCP) or `pulse errors lookup PULSE_OVERLAY_EXPECTED_LOW` (CLI). The χ² family mirrors `PULSE_TEST_EXPECTED_COUNT_TOO_LOW` on the `TEST_CHISQ` surface — the warning fires identically against the same contingency.
+
+For Fisher's exact, the warning is advisory: Fisher's exact stays exact in the low-count regime by construction. The warning flags the cells where χ² would be unreliable and Fisher's exact is the structurally correct choice — renderers can use it to highlight low-count cells whose p-value is exact-but-conservative.
+
+### Level / Within nested-axis denominators
+
+When a Crosstab axis has nested groupers (e.g. `rows: [region, brand]` or `columns: [wave_date, response]`), the descriptive overlay kinds (share triad + index / delta / zscore) honour two integer slots on `OverlaySpec` — `level` and `within` — that mirror the `CrosstabSpec.normalize_level` / `CrosstabSpec.normalize_within` semantics from the "Partial-depth normalization" and "Cross-axis partitioned denominator (`normalize_within`)" sections above. The overlay-side numbers compose with the crosstab-side numbers cleanly: an overlay with `(level=L, within=W)` produces byte-equivalent denominators to a crosstab `normalize=<axis>, normalize_level=L, normalize_within=W` against the same host matrix (for summable cell aggregators; recompute-class aggregators like `AGG_MEDIAN` still recompute their margins from raw rows on the crosstab side).
+
+`level` truncates the **same axis** the overlay is centerpoint-locked to. Counting from the leaf:
+
+- `level: 0` (default) — no truncation. The denominator is the leaf-axis margin, byte-identical to the no-`level` handler output.
+- `level: N > 0` — drop `N` groupers from the right; the denominator folds across all cells whose axis tuple shares the first `(axisDepth - N)` groupers.
+- `level >= axisDepth` — fires `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
+
+`within` fixes a prefix of the **opposite axis** at the same counting model:
+
+- `within: 0` (default) — no opposite-axis fixing. The denominator folds across every cell in the opposite axis.
+- `within: N > 0` — fix the opposite-axis prefix to the first `(oppositeDepth - N)` groupers; the denominator partitions by `(samePrefix, oppositePrefix)`.
+- `within >= oppositeDepth` — fires `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
+
+Both slots compose independently. `OVERLAY_SHARE_OF_ROW` with `level=1` on a 2-deep row axis and `within=1` on a 2-deep column axis produces cells whose shares sum to 1.0 within each `(rowParentPrefix, colParentPrefix)` bucket — the same denominator a crosstab `normalize=row, normalize_level=1, normalize_within=1` would compute.
+
+```json
+{
+  "crosstab": {
+    "rows": [
+      {"type": "GROUP_CATEGORY", "field": "region"},
+      {"type": "GROUP_CATEGORY", "field": "brand"}
+    ],
+    "columns": [
+      {"type": "GROUP_DATE",     "field": "wave_date", "interval": "month"},
+      {"type": "GROUP_CATEGORY", "field": "response"}
+    ],
+    "cell": {"type": "AGG_SUM", "field": "weight", "label": "share"}
+  },
+  "overlays": [
+    {
+      "name":  "row_share_parent",
+      "kind":  "OVERLAY_SHARE_OF_ROW",
+      "scope": "cell",
+      "ref":   {"margin": {"axis": "row"}},
+      "level": 1,
+      "within": 1
+    }
+  ]
+}
+```
+
+Per-kind matrix:
+
+| Kind | Honours `level` / `within` | Notes |
+|---|---|---|
+| `OVERLAY_SHARE_OF_ROW` | yes | `level` on row axis, `within` on column axis. |
+| `OVERLAY_SHARE_OF_COL` | yes | `level` on column axis, `within` on row axis. |
+| `OVERLAY_SHARE_OF_TOTAL` | declared but inert | The grand-axis denominator does not partition by prefix. Predict accepts in-range values; runtime ignores them. |
+| `OVERLAY_INDEX_VS_MARGIN` | yes | Axis driven by `ref.margin.axis`. `level` truncates same axis; `within` fixes opposite. |
+| `OVERLAY_DELTA_VS_MARGIN` | yes | Same axis dispatch as `OVERLAY_INDEX_VS_MARGIN`. |
+| `OVERLAY_ZSCORE_VS_MARGIN` | margin centroid only | The `(cell - margin)` numerator honours `level` / `within`; the `sd` denominator stays full-slice (a stable z-score requires a stable variance reference). |
+| `OVERLAY_CHISQ_MATRIX` / `OVERLAY_CHISQ_ROW` / `OVERLAY_CHISQ_COL` / `OVERLAY_FISHER_EXACT_CELL` | no | Implicit-margin inferential family. Non-zero `level` / `within` fire `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` — the contingency math assumes the host's row + col + grand margins inline and `level` / `within` would alter that contract. |
+
+The math reuses the same prefix-key helpers (`processing.SameAxisPrefixDepth`, `processing.OppositeAxisPrefixDepth`, `processing.AxisKeyPrefix`) the buffered crosstab `normalize_level` / `normalize_within` path consults — the overlay slot composition lands without re-implementing the partial-depth or cross-axis-partition denominator math (per PRD § 4.C FR-C3 "Reuse existing helpers; do not duplicate math").
+
+### Tests + overlays compose
+
+An overlay decorates the matrix; a `TEST_*` slot rides on raw rows. Both surfaces compose cleanly in a single Request — the inferential overlay family complements (and in the `OVERLAY_CHISQ_*` / `OVERLAY_FISHER_EXACT_CELL` case mirrors) the existing `TEST_CHISQ` / `TEST_FISHER_EXACT` row-test surfaces. Use the row test for the canonical "is what I see statistically significant?" answer; use the overlay when the renderer wants the per-cell / per-row / per-column statistic surfaced alongside the matrix without a second request.
+
+For the framework-level rules (shapes / scopes / refs taxonomy, validation rules, manifest visibility, adding a new overlay kind), see `skills/overlay-system.md`.
+
+### Compose-overlay recipes
+
+Crosstab is also the v1 host for the **Compose-only** overlay catalog — cross-Request comparisons that decorate one slot's matrix with a reference against another slot's matrix in the same `ComposedRequest`. The Compose surface adds a `(Reference, Targets)` slot-label pair on top of the per-Request `OverlayRef` discriminated union; every Compose-only kind passes through the slot-label resolution + key-alignment + schema-match + dict-prefix-drift gates BEFORE the per-kind handler dispatches. The dict-drift warning lives at `skills/overlay-system.md` ("Compose overlays" → "Gate order") — the by-label safe path is correct but slow, `OverlayOptions.DictPrefixFast` opts into byte-equal-prefix comparison with a per-invocation probe.
+
+The three recipes below cover the canonical matrix-host Compose kinds. Pair them with a `compose --json` request or `pulse_compose` MCP call.
+
+#### `OVERLAY_INDEX_VS_REF` — quarter-over-quarter index
+
+Compare Q4 sales against Q3 sales as a per-cell index `100 * Q4 / Q3`. Both slots share the same `region × segment` crosstab shape; the resolver locks key alignment on `(rows, columns)` before computing the ratio. Layer naming follows `spec.Name` ("qoq"); the matrix arm is forced buffered through the Compose slot barrier.
+
+```json
+{
+  "requests": [
+    {"label": "q3", "cohort": {"filename": "q3.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+       "cell":    {"type": "AGG_SUM", "field": "revenue", "label": "rev"}
+     }},
+    {"label": "q4", "cohort": {"filename": "q4.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+       "cell":    {"type": "AGG_SUM", "field": "revenue", "label": "rev"}
+     }}
+  ],
+  "overlays": [
+    {"name": "qoq", "kind": "OVERLAY_INDEX_VS_REF", "scope": "cell",
+     "reference": "q3", "targets": ["q4"]}
+  ]
+}
+```
+
+Each cell of the emitted overlay layer is `100 * (q4_cell / q3_cell)`. Index above `100` flags over-performing cells; below `100` flags under-performing. A zero reference cell fires `PULSE_OVERLAY_REF_ZERO` with NaN substitution; a missing reference cell (target carries a key the reference did not surface) emits the same code with `ref_missing=true` Details and the affected overlay cell stays absent. Set `Params["scale"] = 1` to read raw ratios instead of percentages.
+
+#### `OVERLAY_PROP_Z_CELL` — A/B conversion-rate significance
+
+Test whether the per-cell conversion rate in the treatment cohort differs significantly from the control cohort. Each cell is treated as a success count; its row margin is treated as the sample size on each side. The overlay cell carries the two-sided pooled-SE z-test p-value, computed via the same `standardNormalCDF` helper backing `TEST_PROP_Z`.
+
+```json
+{
+  "requests": [
+    {"label": "control", "cohort": {"filename": "control.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+       "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+       "margins": {"rows": true}
+     }},
+    {"label": "treatment", "cohort": {"filename": "treatment.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "converted"}],
+       "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+       "margins": {"rows": true}
+     }}
+  ],
+  "overlays": [
+    {"name": "ab_signif", "kind": "OVERLAY_PROP_Z_CELL", "scope": "cell",
+     "reference": "control", "targets": ["treatment"]}
+  ]
+}
+```
+
+Each overlay cell carries the two-sided p-value as a `float64`. Renderers can colour cells with `p < 0.05` to flag significant lift / drop in conversion rate per `(region, converted=yes)` bucket. The row-margin `n` floor is canonical — missing row margins fall back to the cell value as the sample size, surfacing NaN via the pooled-SE gate rather than silently producing meaningless statistics. Degenerate `pooled ∈ {0, 1}` emits NaN + `PULSE_OVERLAY_REF_ZERO`.
+
+#### `OVERLAY_CHISQ_VS_REF` — distribution-shift goodness-of-fit
+
+Whole-matrix χ² test answering "does the target slot's distribution differ from the reference slot's distribution?" Scalar payload — the layer carries the χ² statistic on `OverlayPayload.Scalar` plus `OverlaySummary{Statistic, PValue, Parameters{"df"}}`. Reuses `chiSquareSurvival` so the overlay surface produces identical p-values to `TEST_CHISQ` for the same contingency.
+
+```json
+{
+  "requests": [
+    {"label": "expected", "cohort": {"filename": "baseline.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+       "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"}
+     }},
+    {"label": "observed", "cohort": {"filename": "current.pulse"},
+     "crosstab": {
+       "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
+       "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+       "cell":    {"type": "AGG_COUNT", "field": "id", "label": "n"}
+     }}
+  ],
+  "overlays": [
+    {"name": "shift_test", "kind": "OVERLAY_CHISQ_VS_REF", "scope": "matrix",
+     "reference": "expected", "targets": ["observed"]}
+  ]
+}
+```
+
+The reference distribution is scaled to the target's grand total before computing per-cell expected counts: `expected[i,j] = ref_cell * (target_N / ref_N)`. `df = (cells with expected > 0) - 1`. Small p-value flags a meaningful distribution shift between the two cohorts. The canonical χ² low-count rule applies — any `expected < 5` fires one `PULSE_OVERLAY_EXPECTED_LOW` warning per layer; switch to a per-cell Fisher's-exact-style backstop on small samples. Degenerate `target_N == 0` or `ref_N == 0` emits NaN + NaN with one `PULSE_OVERLAY_REF_ZERO` warning.
 
 ## Conflicts and rejections
 

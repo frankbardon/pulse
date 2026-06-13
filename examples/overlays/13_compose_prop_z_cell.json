@@ -1,0 +1,107 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Compose batch of two crosstab slots (control and variant arms of an experiment) over region x segment decorated with an OVERLAY_PROP_Z_CELL matrix overlay that runs a per-cell two-proportion z-test against the matching control cell. Each cell's value becomes the two-sided p-value as a float64. Cells are treated as success counts; the matching row margin on each slot is the sample size (n_target on the variant side, n_ref on the control side). Reuses the standardNormalCDF helper backing TEST_PROP_Z so the overlay p-value matches the row-test surface byte-for-byte for the same (success, n) pair. Math: p_t = variant_cell / variant_row_margin; p_r = control_cell / control_row_margin; pooled = (variant + control) / (n_t + n_r); se = sqrt(pooled * (1 - pooled) * (1/n_t + 1/n_r)); z = (p_t - p_r) / se; p = 2 * (1 - Phi(|z|)). Degenerate inputs (pooled in {0, 1}, missing row margin) produce NaN p-values with one PULSE_OVERLAY_REF_ZERO warning per affected cell. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD Non-Goals).",
+    "name": "compose-prop-z-cell",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "composed",
+      "cross-tabulation",
+      "hypothesis-test",
+      "overlay",
+      "proportion-analysis"
+    ]
+  },
+  "requests": [
+    {
+      "label": "control",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["control"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "converted",
+          "label": "successes"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    },
+    {
+      "label": "variant",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["variant"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "converted",
+          "label": "successes"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "prop_z",
+      "kind": "OVERLAY_PROP_Z_CELL",
+      "scope": "cell",
+      "reference": "control",
+      "targets": ["variant"]
+    }
+  ]
+}

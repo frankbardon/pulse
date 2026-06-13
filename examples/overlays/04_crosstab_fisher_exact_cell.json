@@ -1,0 +1,54 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of region x segment decorated with an OVERLAY_FISHER_EXACT_CELL cell-scope overlay computing per-cell Fisher exact two-sided p-values from the implicit 2x2 contingency assembled off the host cell, row margin, column margin, and grand total (implicit-margin contract; no ref pointer).",
+    "name": "crosstab-fisher-exact-cell",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay",
+      "hypothesis-test",
+      "exact-test",
+      "small-sample"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "fisher_p",
+      "kind": "OVERLAY_FISHER_EXACT_CELL",
+      "scope": "cell"
+    }
+  ]
+}

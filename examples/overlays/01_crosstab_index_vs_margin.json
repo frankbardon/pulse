@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of region x segment decorated with an OVERLAY_INDEX_VS_MARGIN cell overlay that scores each cell against its row margin (100 * cell / row_margin).",
+    "name": "crosstab-index-vs-margin",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "i_row",
+      "kind": "OVERLAY_INDEX_VS_MARGIN",
+      "scope": "cell",
+      "ref": {
+        "margin": {
+          "axis": "row"
+        }
+      }
+    }
+  ]
+}

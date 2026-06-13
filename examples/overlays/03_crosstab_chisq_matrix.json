@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of region x segment decorated with an OVERLAY_CHISQ_MATRIX matrix-scope overlay computing the whole-table chi-square independence statistic, df, and two-sided p-value from the host margins (implicit-margin contract; no ref pointer).",
+    "name": "crosstab-chisq-matrix",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay",
+      "hypothesis-test",
+      "nonparametric"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "chisq_table",
+      "kind": "OVERLAY_CHISQ_MATRIX",
+      "scope": "matrix"
+    }
+  ]
+}

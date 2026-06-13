@@ -55,6 +55,21 @@ type FacetRequest struct {
 	// numeric fields ignore labels. See types.LabelBinding for
 	// semantics.
 	Labels []*LabelBinding `json:"labels,omitempty"`
+
+	// Overlays is the list of FACET-host overlay-layer specifications
+	// that decorate the primary FacetResult with derived projections —
+	// per-value population-comparison indices (OVERLAY_INDEX_VS_POP),
+	// z-scores (OVERLAY_ZSCORE_VS_POP), goodness-of-fit χ² statistics
+	// (OVERLAY_CHISQ_VS_POP), and Kolmogorov-Smirnov distances
+	// (OVERLAY_KS_VS_POP). Each spec produces one OverlayLayer in
+	// FacetResult.Overlays in matching order. Per-kind semantics,
+	// required Ref fields, and host-field selection live in the
+	// overlay catalog (see types/overlay.go) and skills/overlay-system.md.
+	// E5 ships the four FACET-host kinds; the host-field the overlay
+	// decorates is read from OverlaySpec.Params["field"] (which MUST
+	// reference one of FacetRequest.Fields) — when the FacetRequest
+	// declares exactly one Field the slot may be omitted.
+	Overlays []OverlaySpec `json:"overlays,omitempty"`
 }
 
 // FacetResult is the response shape returned by pulse.FacetSchema.
@@ -75,6 +90,14 @@ type FacetResult struct {
 
 	// Warnings carry per-field diagnostics (top-K truncation, etc.).
 	Warnings []string `json:"warnings,omitempty"`
+
+	// Overlays carries the executed FACET-host overlay layers, one
+	// entry per FacetRequest.Overlays spec in matching order. Each
+	// layer holds its derived payload (scalar / series) plus optional
+	// renderer-friendly summary metadata. Omitted entirely when the
+	// originating FacetRequest had no overlays — the no-overlay shape
+	// is byte-identical to the pre-E5 FacetResult JSON output.
+	Overlays []OverlayLayer `json:"overlays,omitempty"`
 }
 
 // FacetField wraps either a discrete or numeric summary.

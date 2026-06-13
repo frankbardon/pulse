@@ -1,5 +1,11 @@
 package descriptor
 
+import (
+	"sort"
+
+	"github.com/frankbardon/pulse/types"
+)
+
 // ProcessChainCapability describes the source-rooted linear chain
 // endpoint surfaced by pulse.ProcessChain / pulse_process_chain. The
 // manifest carries one ProcessChainCapability entry under
@@ -31,6 +37,38 @@ type ProcessChainCapability struct {
 	// rejects today. Intended for LLM-side reasoning and fallback
 	// routing; not a strict schema.
 	RejectionRules []string `json:"rejection_rules"`
+
+	// OverlayKinds lists the whole-chain overlay catalog entries
+	// accepted on ChainRequest.Overlays today. Alphabetically sorted.
+	// Minimal additive surface kept for backward compatibility — E6-S7
+	// added the allowlist when the predict-time validator landed; the
+	// richer per-kind sub-block at Overlays carries the full surface
+	// (shapes / scopes / ref kinds / buffered / description).
+	OverlayKinds []string `json:"overlay_kinds"`
+
+	// Overlays enumerates the per-kind capability rows for every
+	// whole-chain overlay the catalog declares. Sourced from
+	// descriptor.overlayCapabilityFor() so the chain capability stays
+	// byte-equal with the corresponding entries on Manifest.Overlays —
+	// single source of truth for kind metadata. Sorted alphabetically by
+	// Kind for golden stability. Each row carries:
+	//
+	//   - Kind        — the OverlayKind constant (SCREAMING_SNAKE).
+	//   - Shapes      — every OverlayShape the kind may emit; whole-chain
+	//                   kinds inherit the target stage's host shape so
+	//                   the catalog declares MATRIX + SCALAR + SERIES.
+	//   - Scopes      — the OverlayScope values the kind supports;
+	//                   whole-chain kinds decorate the entire chain
+	//                   result so Scopes == [total].
+	//   - RefKinds    — the OverlayRef union pointer-field names the kind
+	//                   consumes; the chain family consumes Stage.
+	//   - Buffered    — !types.OverlayStreamable(kind); whole-chain kinds
+	//                   stay buffered for E6 (the streamability flag is
+	//                   the inverse of the table in
+	//                   types/overlay_streamability.go).
+	//   - Description — short human-readable summary; mirrors the prose
+	//                   in skills/overlay-system.md.
+	Overlays []OverlayCapability `json:"overlays"`
 }
 
 // processChainCapability returns the canonical ProcessChainCapability
@@ -61,5 +99,50 @@ func processChainCapability() ProcessChainCapability {
 			"chain rejects decimal128 aggregation targets",
 			"chain rejects extension aggregators (custom MergeOnline surface deferred)",
 		},
+		OverlayKinds: []string{
+			"OVERLAY_DELTA_VS_STAGE",
+			"OVERLAY_INDEX_VS_STAGE",
+		},
+		Overlays: chainOverlayCapabilities(),
 	}
+}
+
+// chainOverlayCapabilities returns the per-kind capability rows for
+// every whole-chain overlay kind. Pulls each row from the shared
+// overlayCapabilityFor() catalog so the chain capability stays in lock-
+// step with the corresponding entry on Manifest.Overlays — single source
+// of truth for kind metadata.
+//
+// Buffered is filled from types.OverlayStreamable(kind) just like
+// OverlayCapabilities() does for the top-level Manifest.Overlays surface
+// so a future kind that flips to streamable automatically flips Buffered
+// here too. The slice is sorted alphabetically by Kind for golden
+// stability.
+//
+// The list of whole-chain kinds is intentionally local to this file —
+// the chain family is a closed set (E6 ships OVERLAY_INDEX_VS_STAGE +
+// OVERLAY_DELTA_VS_STAGE; no further whole-chain kinds are planned in
+// the E6 scope). Future chain kinds extend this slice and the matching
+// switch arm in overlayCapabilityFor().
+func chainOverlayCapabilities() []OverlayCapability {
+	kinds := []types.OverlayKind{
+		types.OverlayKindDeltaVsStage,
+		types.OverlayKindIndexVsStage,
+	}
+	caps := make([]OverlayCapability, 0, len(kinds))
+	for _, k := range kinds {
+		streamable, _ := types.OverlayStreamable(k)
+		entry := overlayCapabilityFor(k)
+		entry.Buffered = !streamable
+		sort.Slice(entry.Shapes, func(i, j int) bool {
+			return string(entry.Shapes[i]) < string(entry.Shapes[j])
+		})
+		sort.Slice(entry.Scopes, func(i, j int) bool {
+			return string(entry.Scopes[i]) < string(entry.Scopes[j])
+		})
+		sort.Strings(entry.RefKinds)
+		sort.Strings(entry.Fields)
+		caps = append(caps, entry)
+	}
+	return caps
 }

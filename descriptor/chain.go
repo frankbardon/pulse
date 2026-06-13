@@ -28,6 +28,44 @@ type ChainValidationResult struct {
 	// stage i (input to stage i+1). Useful for debugging chain breaks
 	// when stage N+1 cannot find a field stage N was expected to emit.
 	StageSchemas [][]string `json:"stage_schemas,omitempty"`
+
+	// OverlaysSchemaDivergence lists every rejected (Ref, Target)
+	// chain-overlay pair from the ValidateChain overlay walk per
+	// kind-catalog-v1 PRD §I-FR-I3. Populated alongside the matching
+	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT envelope error so LLM
+	// planners can budget reshapes without re-parsing envelope details.
+	// Empty (and omitted on the wire) when every chain-overlay spec
+	// passes the shape-match gate.
+	OverlaysSchemaDivergence []ChainOverlaySchemaDivergence `json:"overlays_schema_divergence,omitempty"`
+}
+
+// ChainOverlaySchemaDivergence carries one rejected (Ref, Target)
+// chain-overlay pair from ValidateChain's overlay walk. Mirrors the
+// per-spec envelope-error Details shape so wire consumers can read the
+// list directly instead of stitching envelope entries together.
+type ChainOverlaySchemaDivergence struct {
+	// Index is the position of the offending spec in
+	// ChainRequest.Overlays.
+	Index int `json:"index"`
+
+	// Kind echoes the spec's whole-chain overlay kind.
+	Kind types.OverlayKind `json:"kind"`
+
+	// RefIndex is the resolved stage index of the spec's Ref.
+	RefIndex int `json:"ref_index"`
+
+	// RefShape is the inferred OverlayShape of the Ref stage's
+	// Request slot.
+	RefShape types.OverlayShape `json:"ref_shape"`
+
+	// TargetIndex is the resolved stage index of the spec's Target
+	// (defaulting to the latest stage when both Target slots were
+	// empty per the runtime resolver contract).
+	TargetIndex int `json:"target_index"`
+
+	// TargetShape is the inferred OverlayShape of the Target stage's
+	// Request slot.
+	TargetShape types.OverlayShape `json:"target_shape"`
 }
 
 // ValidateChain validates a ChainRequest against a .pulse cohort
@@ -90,6 +128,11 @@ func ValidateChain(fileData io.ReadSeeker, req *types.ChainRequest) *Envelope {
 		result.StageSchemas = append(result.StageSchemas, next)
 		current = synthChainSchema(stage.Request)
 	}
+
+	// Whole-chain overlay walk (E6-S7). Runs after the per-stage gate so
+	// stage-level errors and overlay-level errors land in the same
+	// envelope; the walk is a no-op when req.Overlays is empty.
+	validateChainOverlays(env, result, req)
 
 	if len(env.Errors) > 0 {
 		result.Valid = false

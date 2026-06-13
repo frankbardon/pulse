@@ -169,6 +169,18 @@ func writeCanonicalJSON(buf *bytes.Buffer, v any) error {
 // request → same hash, across processes and Pulse versions where the
 // request's semantic meaning is unchanged. See CanonicalHash for the
 // algorithm.
+//
+// Slot coverage is data-driven: every JSON-tagged field on Request
+// participates in the hash via the json.Marshal → canonicalize →
+// sha256 pipeline. The Overlays slot (E1-S1) is covered automatically
+// — each OverlaySpec contributes its Name/Kind/Scope/Ref to the
+// canonical bytes in declared spec order (slices preserve order), and
+// the discriminated OverlayRef union hashes only the populated arm
+// because every family pointer carries `json:",omitempty"`. An
+// overlay-free Request (nil or empty Overlays slice) omits the
+// `overlays` key entirely via the slot's own `omitempty` tag, so its
+// hash is byte-identical to the pre-Overlays canonical form — see
+// TestCanonicalHash_OverlayFreeByteIdentity.
 func (r *Request) Hash() string {
 	if r == nil {
 		return CanonicalHash("request", (*Request)(nil))
@@ -177,11 +189,105 @@ func (r *Request) Hash() string {
 }
 
 // Hash returns the canonical content hash of the ComposedRequest.
+//
+// Slot coverage is data-driven: every JSON-tagged field on
+// ComposedRequest participates in the hash via the json.Marshal →
+// canonicalize → sha256 pipeline. The per-Request Label slot (E7-S1)
+// folds in through the json walk of each *Request — empty Labels are
+// `omitempty` and stay byte-identical to the pre-Label form. Before
+// hashing, the helper applies the E7-S1 auto-default rule that
+// service/compose_label.go uses at validate time: every slot whose
+// Label arrives empty is rewritten to `request_<index+1>` (1-based)
+// against a shallow clone, so two ComposedRequests differing only in
+// empty-vs-auto-defaulted Labels hash identically. Callers that
+// already filled the Label explicitly are unaffected — the auto-
+// default only fires when Label is empty. This mirrors the validate-
+// time normalizer in service/compose_label.go so hash equality lines
+// up with execution-time slot identity.
+//
+// The Compose-level Overlays slot (E7-S2) is covered automatically —
+// each ComposeOverlaySpec contributes its Name / Kind / Scope /
+// Reference / Targets / Level / Within / Params to the canonical
+// bytes in declared spec order (slices preserve order). An overlay-
+// free ComposedRequest (nil or empty Overlays slice) omits the
+// `overlays` key entirely via the slot's own `omitempty` tag, so its
+// hash is byte-identical to the pre-Overlays canonical form — see
+// TestComposedRequest_OverlayFreeByteIdentity.
 func (r *ComposedRequest) Hash() string {
 	if r == nil {
 		return CanonicalHash("composed", (*ComposedRequest)(nil))
 	}
-	return CanonicalHash("composed", r)
+	return CanonicalHash("composed", normalizeComposedRequestForHash(r))
+}
+
+// normalizeComposedRequestForHash returns a shallow-clone projection of
+// the ComposedRequest whose per-slot Requests carry the
+// service/compose_label.go auto-defaulted Label values. The clone is
+// hash-only: the caller's *ComposedRequest pointer is never mutated,
+// and every other slot (Cohort, Aggregations, Overlays, etc.) shares
+// the underlying slices because canonical-hash only needs to walk the
+// JSON projection. Mirrors service/compose_label.go's
+// applyComposeLabelDefaults — the two normalizers are intentionally
+// kept in lockstep so hash equality matches validate-time slot
+// identity. We deliberately do NOT import the service package from
+// types (types stays at the bottom of the import graph); the helper
+// duplicates the one-line auto-default rule and the unit tests assert
+// the rule stays in lockstep.
+func normalizeComposedRequestForHash(r *ComposedRequest) *ComposedRequest {
+	if r == nil {
+		return nil
+	}
+	if len(r.Requests) == 0 {
+		// Nothing to normalize — the slot list is the only carrier of
+		// Label. Returning r directly keeps the pre-E7-S2 byte form
+		// for callers that authored an empty Requests slice.
+		return r
+	}
+	clone := *r
+	requests := make([]*Request, len(r.Requests))
+	for i, src := range r.Requests {
+		if src == nil {
+			requests[i] = nil
+			continue
+		}
+		if src.Label != "" {
+			// Caller-supplied Label passes through verbatim — no
+			// clone, no allocation. Matches the validate-time
+			// normalizer's "explicit value wins" rule.
+			requests[i] = src
+			continue
+		}
+		// Shallow-clone the Request so the synthesised Label does
+		// not leak into the caller's pointer. Every other slot on
+		// the *Request shares the underlying slice / pointer with
+		// the caller's value — the hash walker is read-only over
+		// the JSON projection.
+		clone := *src
+		clone.Label = composeLabelDefault(i)
+		requests[i] = &clone
+	}
+	clone.Requests = requests
+	return &clone
+}
+
+// composeLabelDefault is the canonical compose auto-default rule:
+// every slot whose Label arrives empty resolves to `request_<index+1>`
+// (1-based). Kept as a separate helper so the rule has one source of
+// truth across the canonical-hash normalizer (above) and any future
+// types-layer consumer. The service-layer validator
+// (service/compose_label.go) carries the same one-liner — the two
+// must stay in lockstep so hash equality lines up with execution-time
+// slot identity. We deliberately do NOT use fmt.Sprintf here: the
+// canonical-hash codepath bans fmt-built strings (the structural-
+// defense rationale in CLAUDE.md "Output Format Contract" applies to
+// JSON envelope construction, but we keep the discipline here too
+// because the helper is called per Compose slot during dedup-cache
+// lookups and the byte-buffer pattern is cheaper).
+func composeLabelDefault(i int) string {
+	var buf [32]byte
+	out := append(buf[:0], "request_"...)
+	out = strconv.AppendInt(out, int64(i+1), 10)
+	return string(out)
 }
 
 // Hash returns the canonical content hash of the FacetRequest.
@@ -193,6 +299,19 @@ func (r *FacetRequest) Hash() string {
 }
 
 // Hash returns the canonical content hash of the ChainRequest.
+//
+// Slot coverage is data-driven: every JSON-tagged field on
+// ChainRequest participates via the json.Marshal → canonicalize →
+// sha256 pipeline. The whole-chain Overlays slot (E6-S2) is covered
+// automatically — each ChainOverlaySpec contributes its Name / Kind /
+// Ref{Index,Name} / Target{Index,Name} / Scope / Params to the
+// canonical bytes in declared spec order (slices preserve order),
+// and the StageRef discriminated reference hashes only the populated
+// arm because every field carries `json:",omitempty"`. An
+// overlay-free ChainRequest (nil or empty Overlays slice) omits the
+// `overlays` key entirely via the slot's own `omitempty` tag, so its
+// hash is byte-identical to the pre-Overlays canonical form — see
+// TestChainCanonicalHash_OverlayFreeByteIdentity.
 func (r *ChainRequest) Hash() string {
 	if r == nil {
 		return CanonicalHash("chain", (*ChainRequest)(nil))

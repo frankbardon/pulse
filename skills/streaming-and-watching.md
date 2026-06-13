@@ -1,8 +1,8 @@
 ---
 name: streaming-and-watching
-description: Build reactive consumers on top of Pulse — Request.Hash() for cache keys, StreamResult[T] for incremental output, Watch/WatchDir for file-change observation, FilterToFileWithRequest for deterministic derived cohorts, and manifest CommandAnnotations for caching policy. Use when wiring Pulse into long-running services, building materialization caches, or reacting to .pulse file mutations.
+description: Build reactive consumers on top of Pulse — Request.Hash() for cache keys, StreamResult[T] for incremental output, Watch/WatchDir for file-change observation, FilterToFileWithRequest for deterministic derived cohorts, manifest CommandAnnotations for caching policy, and ChainRequest dual-slot overlays for per-stage + whole-chain decoration. Use when wiring Pulse into long-running services, building materialization caches, reacting to .pulse file mutations, or stacking overlays across a ProcessChain pipeline.
 type: guide
-applies_to: process, compose, predict, manifest
+applies_to: process, compose, predict, manifest, process-chain
 ---
 
 # Streaming & Watching
@@ -241,4 +241,113 @@ operations:
 - **`expensive`** — worth caching aggressively. Cheap entries may not justify the cache machinery; expensive ones (regression, filter_to_file, profile) typically do. Hint, not a hard constraint.
 
 `Manifest.Commands` covers CLI leaves; `Manifest.Operations` covers library-only entry points (`filter_to_file`, `process_stream`, `synth_stream`, `watch`). Embedders read both at startup to wire caching policy uniformly.
+</reference>
+
+<reference>
+## Overlay streamability cross-reference
+
+`types.OverlayStreamability` is the single source of truth for whether an overlay kind can ride the streaming Process path or forces the orchestrator down a buffered route. `descriptor.OverlayCapabilities()` reflects it as `Buffered = !streamable` on the manifest's `Overlays` block.
+
+| Kind | Host | Streamable | Accumulator | Notes |
+|---|---|---|---|---|
+| `OVERLAY_INDEX_VS_TOTAL` | grouped Process (SERIES) | yes | one `f64` grand total | E3-S2. Implicit-grand-total; folds in the streaming pass alongside the per-group accumulators. |
+| `OVERLAY_SHARE_OF_TOTAL` | grouped Process (SERIES) | yes | shared `f64` grand total | E3-S3. Sibling of `OVERLAY_INDEX_VS_TOTAL`; a Request carrying BOTH folds the grand total ONCE. MATRIX dispatch against a crosstab host is buffered — see `skills/crosstab-guide.md`. |
+| `OVERLAY_ZSCORE_VS_TOTAL` | grouped Process (SERIES) | yes | three `f64`s (Welford count + mean + M2) | E3-S5. Population variance over N present groups (divide by N, not N-1). Folds Welford over GROUPS, not raw records. |
+| `OVERLAY_INDEX_VS_PRIOR` | grouped Process (SERIES) | yes | one `f64` lag carrier per group | E4-S4. Only streamable kind in the windowed-Process family — see `skills/window-operations.md` for the full windowed catalog (`OVERLAY_DELTA_VS_BASELINE`, `OVERLAY_INDEX_VS_BASELINE`, `OVERLAY_INDEX_VS_ROLLING_MEAN`, `OVERLAY_YOY`, `OVERLAY_ZSCORE_VS_ROLLING` are buffered today). |
+| `OVERLAY_DELTA_VS_SIBLING` | grouped Process (SERIES) | no (buffered) | — | E3-S7. Sibling resolution needs the finalised SeriesPayload before the `(Field, Value)` lookup runs. |
+| `OVERLAY_INDEX_VS_SIBLING` | grouped Process (SERIES) | no (buffered) | — | E3-S7. Same buffered constraint as `OVERLAY_DELTA_VS_SIBLING`. |
+| Every Crosstab-host overlay (`OVERLAY_INDEX_VS_MARGIN`, share triad, margin-comparison family, χ² / Fisher) | crosstab (MATRIX) | no (buffered) | — | The host crosstab path is always buffered — margins are recomputed from raw rows. The fused crosstab path falls back to buffered when `Request.Overlays` is non-empty. |
+
+`OverlayStreamability` is map-driven — unknown kinds fall through to `false` so a missed table edit cannot accidentally let an unknown kind stream. `TestStreamability_OverlaysKnown` and `TestSkillsCoverAllOverlayKinds` enforce that every catalog entry carries a streamability row and a skill mention.
+
+### Windowed-Process overlays
+
+`OVERLAY_INDEX_VS_PRIOR` (E4-S4) is the only streamable kind that landed in the E4 windowed-Process family. Its single-state lag carrier is one `f64` per group, advanced on every emit during the streaming Process fold so the streaming-Process hot path stays untouched — the post-host finalize is a single divide per group. The five remaining windowed kinds (`OVERLAY_DELTA_VS_BASELINE`, `OVERLAY_INDEX_VS_BASELINE`, `OVERLAY_INDEX_VS_ROLLING_MEAN`, `OVERLAY_YOY`, `OVERLAY_ZSCORE_VS_ROLLING`) require materialised host state (positional baseline lookup, ring buffer + Welford trio, exact-key prior-year lookup) and run buffered today. See `skills/window-operations.md` for the per-kind windowed recipes and the buffered-vs-streamable rationale per kind.
+
+### Mixed-mode downgrade rule
+
+When a single Request carries one streamable overlay and one buffered overlay, the WHOLE Request runs buffered. `processing.canStreamOverlays` (consulted inside `Processor.canStream`) short-circuits to `false` when any spec in `Request.Overlays` is non-streamable, mirroring how `AGG_MEDIAN` forces the whole streaming pass into the buffered orchestrator (see `skills/aggregation-guide.md` → "Aggregator quirks"). Unknown overlay kinds force buffered too so the runtime surfaces `PULSE_OVERLAY_KIND_UNKNOWN` from the buffered exit. This keeps the runtime equivalence test surface byte-stable — a Request never partially-streams.
+
+A practical implication for the windowed family: a Request that pairs `OVERLAY_INDEX_VS_PRIOR` (streamable) with `OVERLAY_INDEX_VS_ROLLING_MEAN` or `OVERLAY_YOY` (buffered) downgrades the whole Request to buffered — call `pulse predict --json` to confirm the streamability classification before pricing the call. The same rule applies to mixing the E3 streamable trio (`OVERLAY_INDEX_VS_TOTAL`, `OVERLAY_SHARE_OF_TOTAL` SERIES dispatch, `OVERLAY_ZSCORE_VS_TOTAL`) with any buffered overlay.
+
+The implication for caching: a Request whose hash carries any buffered overlay should be priced as buffered for caching policy regardless of which streamable overlays accompany it. `Manifest.Operations["process_stream"].annotations.streamable = true` describes the entry-point capability, not the per-request decision.
+
+For per-kind recipes against a grouped Process host see `skills/aggregation-guide.md` ("Overlays" section); for the windowed-Process family (`OVERLAY_INDEX_VS_PRIOR` + the five buffered siblings) see `skills/window-operations.md` ("Windowed-Process overlays" section); for Crosstab-host recipes see `skills/crosstab-guide.md` ("Overlays" section); for the general overlay framework see `skills/overlay-system.md`.
+</reference>
+
+<reference>
+## Chain overlays
+
+`ChainRequest` carries **two** overlay slots — one per stage on `Stages[i].Request.Overlays`, one whole-chain on `ChainRequest.Overlays`. Both slots run independently and land in different places on `ChainResponse`. Per-stage overlays fall out of E3's generic `Request.Overlays` path — no chain-specific code, the stage's own overlay handlers run at the per-stage exit before the next stage receives its synthesised cohort. Whole-chain overlays run AFTER every stage finalises (`service.ProcessChain`'s post-stage-loop barrier) and decorate any stage's already-materialised result.
+
+### Per-stage recipe
+
+Per-stage overlays piggyback on the existing `Request.Overlays` slot — the chain layer is transparent. Layer lands on `ChainResponse.Stages[0].Overlays`; no chain-specific code.
+
+```json
+{
+  "cohort": {"path": "sales-2025.pulse"},
+  "stages": [
+    {
+      "name": "by_region",
+      "request": {
+        "aggregations": [{"type": "AGG_SUM", "field": "revenue"}],
+        "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
+        "overlays": [
+          {"kind": "OVERLAY_INDEX_VS_TOTAL", "scope": "group"}
+        ]
+      }
+    },
+    {
+      "name": "top3",
+      "request": {"sort": {"field": "revenue", "limit": 3}}
+    }
+  ]
+}
+```
+
+### Whole-chain recipe
+
+Whole-chain overlays use `ChainRequest.Overlays` with `StageRef`-shaped `Ref` (baseline) + `Target` (decorated stage). Layers land on `ChainResponse.Overlays` in matching index order, NOT on any individual `Stages[i].Overlays`. Two whole-chain kinds today: `OVERLAY_INDEX_VS_STAGE` (ratio `target/ref * 100`) and `OVERLAY_DELTA_VS_STAGE` (subtraction `target - ref`). When `Target` is omitted entirely (both `Index: nil` and `Name: ""`), the resolver defaults to the latest stage (`len(Stages) - 1`); `Ref` has no default — every spec MUST name a baseline stage explicitly.
+
+```json
+{
+  "cohort": {"path": "sales-2025.pulse"},
+  "stages": [
+    {"name": "raw",   "request": {"aggregations": [{"type": "AGG_SUM", "field": "revenue"}], "groups": [{"type": "GROUP_CATEGORY", "field": "region"}]}},
+    {"name": "filter","request": {"filterers": [{"type": "FILTER_INCLUDE", "field": "active", "values": ["true"]}]}},
+    {"name": "final", "request": {"sort": {"field": "revenue"}}}
+  ],
+  "overlays": [
+    {"kind": "OVERLAY_INDEX_VS_STAGE", "ref": {"index": 0}, "target": {"index": 2}, "scope": "total"},
+    {"kind": "OVERLAY_DELTA_VS_STAGE", "ref": {"name": "raw"}, "target": {"name": "final"}, "scope": "total"}
+  ]
+}
+```
+
+### StageRef forms
+
+Both `Ref` and `Target` accept exactly one of `Index` (zero-based pointer into `Stages`) or `Name` (matches `ChainStage.Name` verbatim). The XOR is enforced by the E6-S7 predict-time validator — populating both AND populating neither both reject with the same `PULSE_OVERLAY_*` configuration error. Index form is the canonical resolution path; Name form exists for human-authored chain JSON where positional indexing would be brittle across stage reordering.
+
+```json
+{"ref": {"index": 0},   "target": {"index": 2}}    // index form
+{"ref": {"name": "raw"},"target": {"name": "final"}} // name form
+```
+
+`Index` uses a pointer (`*int`) so the zero value `Index: 0` (meaningfully "stage 0") is distinguishable from "no index supplied". When marshalling Go-side, set `Index: &zero` for stage 0; leaving the field nil is the omitted shape.
+
+### Gotcha: shape divergence across stages
+
+Stages typically reshape data across boundaries — stage 0 emits a grouped table, stage 1 filters it, stage 2 might collapse it to a scalar. `_VS_STAGE` overlays only fire when the target stage's host shape MATCHES the reference stage's host shape. When they diverge (e.g. `Ref` is a series stage, `Target` is a matrix stage) the runtime handler emits a SINGLE `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` warning per spec and surfaces an empty payload inheriting the target stage's shape — the overlay is effectively a no-op, NOT a fatal error.
+
+> **Callout — shape-divergence warning**
+> `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` fires when `Ref` stage's host shape (scalar / series / matrix) differs from `Target` stage's host shape. Predict-time gate (E6-S7) surfaces it as an envelope warning so the caller can fix the chain before paying the runtime cost; the runtime handler (E6-S4 / E6-S5) also emits it defensively at the post-stage-loop barrier. Warning Details carry `{target_shape, ref_shape, target_index, ref_index}` so callers can distinguish a shape mismatch from a genuine `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` configuration error.
+
+Pre-flight every chain-overlay-bearing `ChainRequest` through `pulse predict --json` (or `descriptor.ValidateChain`) before pricing it — the shape-divergence gate runs without re-executing the chain. For per-code prose: `pulse errors lookup PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`.
+
+### Cross-references
+
+- `skills/overlay-system.md` — `OVERLAY_INDEX_VS_STAGE` / `OVERLAY_DELTA_VS_STAGE` catalog rows, shared `indexKernel` / `deltaKernel` semantics, shape-inheritance rules.
+- CLAUDE.md "Execution modes" → ProcessChain — source-rooted linear chain mechanics, `CanChainRequest` mergeable gate, `PULSE_CHAIN_NOT_MERGEABLE` fallback path.
+- `skills/contributor-workflow.md` — `pulse api process-chain` CLI surface; the `--echo-request` per-stage normalised echo on `envelope.request`.
 </reference>

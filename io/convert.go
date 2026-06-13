@@ -53,6 +53,17 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 
 	augmentInsertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
 
+	// Hand Response.Overlays to overlay-aware writers so the export
+	// half embeds the layers in the format-native sidecar. Same tri-
+	// state semantics as ExportJob.Run — *false opts out, nil / *true
+	// emits when Overlays carry layers. Must happen BEFORE WriteHeader
+	// so the writer's lazily-built schema includes the overlay column.
+	if shouldEmitOverlays(j.IncludeOverlays) && len(j.Overlays) > 0 {
+		if oaw, ok := j.Target.(OverlayAwareWriter); ok {
+			oaw.SetOverlays(j.Overlays)
+		}
+	}
+
 	// Write header to target. Projection drops excluded fields from
 	// the output header; the intermediate .pulse file (when
 	// KeepPulseAt is set) still carries the full schema below.
@@ -166,6 +177,13 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	}
 	if j.LabelResolver != nil {
 		report.LabelWarnings = j.LabelResolver.Warnings()
+	}
+	// Lift overlay warn-and-skip codes (CSV / TSV) onto the report so
+	// callers see the dropped layers without re-querying the writer.
+	if owe, ok := j.Target.(OverlayWarningEmitter); ok {
+		if warns := owe.OverlayWarnings(); len(warns) > 0 {
+			report.OverlayWarnings = warns
+		}
 	}
 	return report, nil
 }

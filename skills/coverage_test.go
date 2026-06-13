@@ -175,6 +175,27 @@ func TestSkillsCoverAllWindowTypes(t *testing.T) {
 	}
 }
 
+// TestSkillsCoverAllOverlayKinds verifies that every constant in
+// types.AllOverlayKinds() appears in overlay-system.md. Mirrors the
+// gate pattern used by TestSkillsCoverAllWindowTypes / Regressions /
+// SynthDistributions: as new overlay kinds land (later epics), the
+// kind catalog and the skill body stay in lock-step.
+//
+// E1-S12 lands the gate. The matching skills/overlay-system.md body
+// lands in E1-S13, which flips the lookup from t.Skip to t.Fatal so a
+// missing skill becomes a hard failure rather than a silent skip.
+func TestSkillsCoverAllOverlayKinds(t *testing.T) {
+	content, ok := Get("overlay-system")
+	if !ok {
+		t.Fatal("skills/overlay-system.md not found")
+	}
+	for _, k := range types.AllOverlayKinds() {
+		if !strings.Contains(content, string(k)) {
+			t.Errorf("overlay-system.md does not mention overlay kind %s", k)
+		}
+	}
+}
+
 // collectAllSkillContent returns the concatenated content of all skills.
 func collectAllSkillContent(t *testing.T) string {
 	t.Helper()

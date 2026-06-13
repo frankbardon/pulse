@@ -153,6 +153,25 @@ type Manifest struct {
 	// classification so LLM clients can decide which cell aggregator
 	// will recompute its margin and which is summable.
 	Crosstab CrosstabCapability `json:"crosstab"`
+
+	// Export is the cross-format export envelope. Carries one
+	// ExportFormatCapability entry per format the export dispatcher
+	// supports, declaring the per-format overlay-embedding shape
+	// (sidecar / sheets / trailing_block / warn_and_skip) so LLM
+	// planners can route Response.Overlays through ExportJob without
+	// inspecting the io/ packages. Wired by E9-S11 once the per-
+	// format adapters (E9-S2..S6) landed.
+	Export ExportCapability `json:"export"`
+
+	// Overlays enumerates the registered overlay catalog — one
+	// OverlayCapability per types.AllOverlayKinds() entry. Each entry
+	// declares the supported OverlayShape × OverlayScope × OverlayRef
+	// kinds the kind accepts plus its Buffered flag (the inverse of
+	// types.OverlayStreamable). LLM clients route between overlay
+	// catalog lookup and per-spec validation without crawling the
+	// type system. Sorted alphabetically by Kind via
+	// OverlayCapabilities() so the golden manifest stays stable.
+	Overlays []OverlayCapability `json:"overlays"`
 }
 
 // operations returns the library-only entry points that do not back a
@@ -353,6 +372,8 @@ func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *Manifest {
 		ProcessChain:       processChainCapability(),
 		Join:               joinCapability(),
 		Crosstab:           crosstabCapability(),
+		Export:             exportCapability(),
+		Overlays:           OverlayCapabilities(),
 	}
 }
 

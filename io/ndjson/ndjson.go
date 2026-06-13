@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/io/jsonshared"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -246,6 +247,19 @@ type Writer struct {
 	path    string
 	buf     bytes.Buffer
 	columns []string
+
+	// overlays carries the Response.Overlays layers the export pipeline
+	// hands to the writer via SetOverlays before WriteHeader. When non-
+	// nil + non-empty the writer appends ONE trailing line
+	// `{"_overlays": [...]}` after the last host-record line per
+	// research/export-embedding-shape.md § 6. nil OR empty leaves the
+	// NDJSON output byte-identical to a pre-overlay export (no trailer
+	// lands). The trailer is emitted at Close() time so the host record
+	// stream stays untouched until the file is finalised.
+	overlays []*types.OverlayLayer
+	// overlaysWritten guards against double-flush of the trailer when
+	// Close() is invoked more than once (idempotent contract).
+	overlaysWritten bool
 }
 
 // NewWriter creates an NDJSON writer targeting a filesystem path.
@@ -305,8 +319,16 @@ func (w *Writer) WriteRow(values []any) error {
 	return nil
 }
 
-// Close flushes and writes to the target path if configured.
+// Close flushes and writes to the target path if configured. When
+// SetOverlays handed the writer a non-empty []*OverlayLayer slice the
+// trailing `{"_overlays": [...]}` block is appended to the internal
+// buffer BEFORE the buffer is flushed to fs — so both Bytes() and the
+// on-disk artefact carry the trailer. Idempotent: a second Close()
+// re-flushes the same buffer without appending the trailer twice.
 func (w *Writer) Close() error {
+	if err := w.flushOverlayTrailer(); err != nil {
+		return err
+	}
 	if w.fs != nil && w.path != "" {
 		return afero.WriteFile(w.fs, w.path, w.buf.Bytes(), 0644)
 	}
@@ -317,3 +339,7 @@ func (w *Writer) Close() error {
 func (w *Writer) Bytes() []byte {
 	return w.buf.Bytes()
 }
+
+// Ensure interfaces are satisfied at compile time.
+var _ pio.Writer = (*Writer)(nil)
+var _ pio.OverlayAwareWriter = (*Writer)(nil)

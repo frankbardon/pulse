@@ -68,6 +68,16 @@ Results are returned as an array in the same order as the input requests. Each r
 ```
 </rule>
 
+<rule severity="should" topic="slot-labels">
+## Slot Labels
+
+Each `Request` carries an optional `label` field (`"label,omitempty"`) used by Compose-only overlay kinds to resolve sibling references across slots. The engine auto-fills empty labels with `request_<index+1>` (1-based: `request_1`, `request_2`, ...) before dispatching, against a clone of the slot so your `*Request` pointer is never mutated.
+
+Two slots resolving to the same final label (caller-supplied duplicates OR a caller-supplied value that collides with another slot's auto-default) are rejected with `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs. Set explicit labels when you intend to reference a slot by name from a Compose-only overlay; omit them otherwise and accept the auto-default.
+
+The slot is additive — omitting it leaves the JSON wire shape and `CanonicalHash` output byte-identical to pre-Label callers.
+</rule>
+
 <example name="invoke-compose">
 ## Calling pulse_compose
 
@@ -84,6 +94,8 @@ The response is the standard envelope. Each request's result is one entry in `da
 ## Validate before executing
 
 Call `pulse_predict` on each `Request` inside the batch (or run them as a sequence through `pulse_predict` calls) to check field references, type compatibility, and aggregator-categorical interactions before paying for `pulse_compose`. Predict has no batch mode in v1; loop per element.
+
+For Compose-only overlay validation (`ComposedRequest.Overlays`), the no-execute companion is `descriptor.ValidateCompose(req *types.ComposedRequest)`. It walks every overlay spec against the per-slot request shapes (MATRIX / SERIES / SCALAR) and surfaces the six structural failures the runtime would otherwise raise — unknown kind, unknown reference, unknown target, slot-shape divergence, slot-not-crosstab (matrix-required kinds against a non-MATRIX slot), schema-divergence (per-axis grouper-kind tuple mismatch), and panel-target-cap violation (`OVERLAY_PROP_Z_PANEL` / `OVERLAY_PANEL_INDEX_VS_REF` over 16 targets, or over `OverlayOptions.MaxPanelTargets` when set). Each failure populates `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` with the rejected `(ReferenceLabel, TargetLabel, Reason)` tuple alongside the envelope error so renderers can read every offending pair in one round-trip. Key-set alignment and dictionary-prefix drift are runtime-only (record-level visibility) and stay out of the no-execute surface.
 
 For parallel execution and fail-fast control (CLI-side flags), see https://frankbardon.github.io/pulse/cli/api-compose.html.
 </reference>
