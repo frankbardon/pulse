@@ -333,8 +333,14 @@ var CanonicalTags = []string{
 	// Cohort shape (2)
 	"sharded", "anchor",
 
-	// Result decoration (1)
+	// Result decoration (6)
 	"overlay",
+	"byte-equal-test",
+	"compose",
+	"crosstab",
+	"welch",
+	"welford-triple",
+	"z",
 }
 
 // IsCanonicalTag reports whether tag belongs to the curated taxonomy.
