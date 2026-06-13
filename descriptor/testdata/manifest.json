@@ -4935,6 +4935,38 @@
         "AGG_SET_FREQUENCY"
       ]
     },
+    "export": {
+      "formats": [
+        {
+          "name": "arrow",
+          "overlay_support": "sidecar"
+        },
+        {
+          "name": "csv",
+          "overlay_support": "warn_and_skip"
+        },
+        {
+          "name": "excel",
+          "overlay_support": "sheets"
+        },
+        {
+          "name": "jsonarray",
+          "overlay_support": "warn_and_skip"
+        },
+        {
+          "name": "ndjson",
+          "overlay_support": "trailing_block"
+        },
+        {
+          "name": "parquet",
+          "overlay_support": "sidecar"
+        },
+        {
+          "name": "tsv",
+          "overlay_support": "warn_and_skip"
+        }
+      ]
+    },
     "overlays": [
       {
         "kind": "OVERLAY_CHISQ_COL",
@@ -5454,4 +5486,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3439490d77a2b20a49c953868aa08906eab337bac26a40c64fca5381d0558579
+// golden-hash: 5a1c66aaf291b0f3deb387022b04feb82d3f5644041fd26a8f1c5eccdc7983b5
