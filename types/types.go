@@ -747,6 +747,24 @@ type Group struct {
 	// Params holds type-specific configuration as raw JSON.
 	// Used by group types that require additional parameters (e.g., GROUP_DATE).
 	Params json.RawMessage `json:"params,omitempty"`
+
+	// Include optionally restricts the grouper to a fixed set of bucket
+	// keys. Rows whose computed key (or, for per-element groupers, each
+	// individual key produced by a single row) is not present in this
+	// list are skipped — identical to the null-key handling path, no
+	// bucket is created for the rejected key. Supported by:
+	//
+	//   - GROUP_CATEGORY        — matches the categorical label string.
+	//   - GROUP_SET_VALUE       — matches the sorted, pipe-joined
+	//                             composite bucket key (e.g. "MC|VISA").
+	//   - GROUP_SET_PER_ELEMENT — matches each fan-out label
+	//                             independently; the row contributes
+	//                             only to surviving labels.
+	//
+	// Empty / nil Include means "no inclusion filter" (preserves the
+	// pre-Include byte-identical bucket set). Other grouper types
+	// ignore Include — predict / runtime gates flag misuse.
+	Include []string `json:"include,omitempty"`
 }
 
 // Attribute defines a derived attribute computation.

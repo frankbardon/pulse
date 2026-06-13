@@ -305,6 +305,169 @@ func TestProcess_WithGroup(t *testing.T) {
 	}
 }
 
+// TestProcess_WithGroupInclude_FiltersBucketsEndToEnd verifies the
+// Group.Include inclusion-list contract through the public pulse.Process
+// facade:
+//
+//   (a) Include populated  → Response.Data contains ONLY rows whose group
+//       key is in the Include list. Other keys are skipped exactly as
+//       null-key rows would be — no bucket emitted.
+//   (b) Include empty/nil  → Response.Data contains EVERY group key, byte-
+//       identical to the pre-Include behaviour (baseline parity).
+//
+// Drives GROUP_CATEGORY across three distinct keys so the test fails fast
+// if Include either over-filters (drops kept keys) or under-filters
+// (admits rejected keys).
+func TestProcess_WithGroupInclude_FiltersBucketsEndToEnd(t *testing.T) {
+	memFs := afero.NewMemMapFs()
+	createTestPulseFile(t, memFs, "include.pulse", []string{"region", "amount"}, [][]string{
+		{"north", "10"},
+		{"south", "20"},
+		{"east", "30"},
+		{"north", "40"},
+		{"south", "50"},
+		{"east", "60"},
+		{"north", "70"},
+	})
+
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+	cohort := &types.Cohort{Filename: "include.pulse"}
+
+	baselineReq := &Request{
+		Cohort: cohort,
+		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "amount"},
+		},
+	}
+	baseline, err := p.Process(ctx, baselineReq)
+	if err != nil {
+		t.Fatalf("baseline Process: %v", err)
+	}
+	if got := bucketKeys(baseline.Data, "region"); !containsAll(got, []string{"north", "south", "east"}) || len(got) != 3 {
+		t.Fatalf("baseline buckets = %v, want exactly [north south east]", got)
+	}
+
+	includedReq := &Request{
+		Cohort: cohort,
+		Groups: []*types.Group{{
+			Type:    types.GROUP_CATEGORY,
+			Field:   "region",
+			Include: []string{"north", "east"},
+		}},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "amount"},
+		},
+	}
+	included, err := p.Process(ctx, includedReq)
+	if err != nil {
+		t.Fatalf("included Process: %v", err)
+	}
+	got := bucketKeys(included.Data, "region")
+	if !containsAll(got, []string{"north", "east"}) || len(got) != 2 {
+		t.Fatalf("included buckets = %v, want exactly [north east]", got)
+	}
+	if containsAny(got, []string{"south"}) {
+		t.Fatalf("included buckets = %v, must NOT contain south", got)
+	}
+
+	countByRegion := map[string]float64{}
+	for _, row := range included.Data {
+		region, _ := row["region"].(string)
+		for k, v := range row {
+			if k == "region" {
+				continue
+			}
+			if n, ok := numericVal(v); ok {
+				countByRegion[region] = n
+			}
+		}
+	}
+	if countByRegion["north"] != 3 {
+		t.Errorf("north count = %v, want 3 (rows=%v)", countByRegion["north"], included.Data)
+	}
+	if countByRegion["east"] != 2 {
+		t.Errorf("east count = %v, want 2 (rows=%v)", countByRegion["east"], included.Data)
+	}
+	if _, present := countByRegion["south"]; present {
+		t.Errorf("south present in Include result, must be excluded; rows=%v", included.Data)
+	}
+
+	emptyIncludeReq := &Request{
+		Cohort: cohort,
+		Groups: []*types.Group{{
+			Type:    types.GROUP_CATEGORY,
+			Field:   "region",
+			Include: nil,
+		}},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "amount"},
+		},
+	}
+	emptyResp, err := p.Process(ctx, emptyIncludeReq)
+	if err != nil {
+		t.Fatalf("empty-Include Process: %v", err)
+	}
+	if got := bucketKeys(emptyResp.Data, "region"); !containsAll(got, []string{"north", "south", "east"}) || len(got) != 3 {
+		t.Fatalf("nil-Include buckets = %v, want exactly [north south east] (baseline parity)", got)
+	}
+}
+
+func bucketKeys(rows []map[string]any, field string) []string {
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if v, ok := r[field].(string); ok {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func containsAll(haystack, needles []string) bool {
+	for _, n := range needles {
+		found := false
+		for _, h := range haystack {
+			if h == n {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func containsAny(haystack, needles []string) bool {
+	for _, n := range needles {
+		for _, h := range haystack {
+			if h == n {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func numericVal(v any) (float64, bool) {
+	switch x := v.(type) {
+	case float64:
+		return x, true
+	case int:
+		return float64(x), true
+	case int64:
+		return float64(x), true
+	case uint64:
+		return float64(x), true
+	}
+	return 0, false
+}
+
 // TestProcess_WithWindow exercises the windowed pipeline through the public
 // pulse.Process facade. It verifies the WIN_LAG output column lands on the
 // response with one row per record.

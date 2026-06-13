@@ -218,6 +218,34 @@ Empty-mask rows contribute to zero buckets in PER_ELEMENT (no labels selected = 
 
 </section>
 
+<section title="Group.Include — inclusion list (crosstab subsetting)">
+
+`Group.Include []string` optionally restricts a grouper to a fixed allow-list of bucket keys. Rows whose computed key (or, for per-element groupers, each individual key produced by a single row) is not present in `Include` are skipped — identical to the null-key handling path, no bucket is created for the rejected key. Empty / nil `Include` means "no filter" and is byte-identical to the pre-`Include` partition.
+
+Supported groupers:
+
+| Grouper | Include matches against |
+|---|---|
+| `GROUP_CATEGORY` | The categorical label string (or the value-direct numeric key when the field is non-categorical). |
+| `GROUP_SET_VALUE` | The sorted, pipe-joined composite bucket key (e.g. `"MC\|VISA"`). |
+| `GROUP_SET_PER_ELEMENT` | Each fan-out label independently; the row contributes only to surviving labels. A row with no surviving labels is skipped. |
+
+Other grouper types (`GROUP_RANGE`, `GROUP_ROUNDED`, `GROUP_QUANTILE`, `GROUP_DATE`) ignore `Include` today — derived bucket strings are awkward to allow-list cleanly. Use `FILTER_INCLUDE` on the underlying field before grouping for the same effect.
+
+Typical use case: subset a crosstab axis to a specific set of categories without an upstream `FILTER_INCLUDE`. Example — restrict a per-element survey grouper to two response options:
+
+```json
+{
+  "type": "GROUP_SET_PER_ELEMENT",
+  "field": "payment_methods",
+  "include": ["VISA", "MC"]
+}
+```
+
+Streamability is preserved — `Include` membership is a per-key O(1) lookup that runs inside `KeyFor` / `KeysForRow`, so the fused crosstab path still accepts an axis grouper that carries an `Include` slate. Rejected keys surface as `ErrGrouperKeyNull` from `KeyFor` (skipped by both the buffered and fused paths).
+
+</section>
+
 <section title="StreamableGrouper interface (fused crosstab axis groupers)">
 
 Built-in groupers expose an optional `StreamableGrouper` interface defined in `processing/interfaces.go`. It is the field-bound sibling of `StreamingGrouper` used by the fused crosstab path (`skills/crosstab-guide.md` — Fused mergeable path) to derive a per-record axis bucket key without an explicit field argument:
