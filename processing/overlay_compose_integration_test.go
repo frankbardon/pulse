@@ -905,3 +905,98 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 	}
 }
 
+// TestComposeOverlayDispatch_ZKinds_RouteToHandlers is the E1-S19
+// integration smoke test: assert that the two Z-overlay dispatch rows
+// (OverlayKindZCell → applyZCell, OverlayKindZVsRef → applyZVsRef)
+// actually route through ApplyComposeOverlays end-to-end. Without this
+// wiring the kinds register at the type / streamability / capability
+// layer but never execute — the chassis silently falls through to the
+// applyComposeStub handler and emits a zero-payload layer.
+//
+// The matrix arm (Z_CELL) and series arm (Z_VS_REF) each get one row.
+// Each row exercises a deterministic two-sample input pair (mean_target
+// = 10, mean_ref = 9, default variance = 1.0, default n = 2) so the
+// computed z-statistic is z = 1.0 and the two-sided p-value through
+// standardNormalCDF(|z|) ≈ 0.3173. The arithmetic is parity with the
+// per-handler unit tests in overlay_z_cell_test.go +
+// overlay_z_vs_ref_test.go — the integration goal here is the dispatch
+// routing, not the math.
+func TestComposeOverlayDispatch_ZKinds_RouteToHandlers(t *testing.T) {
+	t.Run("z_cell_matrix_dispatches", func(t *testing.T) {
+		ref := makeMatrixFromValues([3][3]float64{
+			{9, 9, 9},
+			{9, 9, 9},
+			{9, 9, 9},
+		})
+		target := makeMatrixFromValues([3][3]float64{
+			{10, 10, 10},
+			{10, 10, 10},
+			{10, 10, 10},
+		})
+		runComposeOverlayCase(t, composeOverlayCase{
+			Name:       "z_cell_3x3",
+			Kind:       types.OverlayKindZCell,
+			Scope:      types.OverlayScopeCell,
+			Reference:  "baseline",
+			Targets:    []string{"treatment"},
+			BuildSlots: twoSlotMatrix3x3(ref, target),
+			Expect: func(t *testing.T, layers []types.OverlayLayer, warnings []OverlayWarning) {
+				t.Helper()
+				if len(layers) != 1 {
+					t.Fatalf("len(layers) = %d, want 1 — chassis did not dispatch ZCell", len(layers))
+				}
+				layer := layers[0]
+				if layer.Kind != types.OverlayKindZCell {
+					t.Errorf("layer.Kind = %q, want %q", layer.Kind, types.OverlayKindZCell)
+				}
+				if layer.Payload.Shape != types.OverlayShapeMatrix {
+					t.Fatalf("layer.Payload.Shape = %q, want MATRIX — stub fallback would inherit reference shape but not populate per-cell math", layer.Payload.Shape)
+				}
+				if layer.Payload.Matrix == nil {
+					t.Fatal("layer.Payload.Matrix is nil — stub fallback would leave matrix zero-shaped")
+				}
+				// z = (10 - 9) / sqrt(1/2 + 1/2) = 1.0
+				// p = 2 * (1 - Φ(1.0)) ≈ 0.3173
+				approxEqual(t, "z_cell p (0,0)", cellAt(t, layer, 0, 0), 0.3173, 0.005)
+				if len(warnings) != 0 {
+					t.Errorf("warnings = %+v, want none", warnings)
+				}
+			},
+		})
+	})
+	t.Run("z_vs_ref_series_dispatches", func(t *testing.T) {
+		ref := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{9, 9, 9, 9})
+		target := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{10, 10, 10, 10})
+		runComposeOverlayCase(t, composeOverlayCase{
+			Name:      "z_vs_ref_4groups",
+			Kind:      types.OverlayKindZVsRef,
+			Scope:     types.OverlayScopeGroup,
+			Reference: "baseline",
+			Targets:   []string{"treatment"},
+			BuildSlots: func() ([]*types.Response, []string) {
+				return []*types.Response{ref, target}, []string{"baseline", "treatment"}
+			},
+			Expect: func(t *testing.T, layers []types.OverlayLayer, warnings []OverlayWarning) {
+				t.Helper()
+				if len(layers) != 1 {
+					t.Fatalf("len(layers) = %d, want 1 — chassis did not dispatch ZVsRef", len(layers))
+				}
+				layer := layers[0]
+				if layer.Kind != types.OverlayKindZVsRef {
+					t.Errorf("layer.Kind = %q, want %q", layer.Kind, types.OverlayKindZVsRef)
+				}
+				if layer.Payload.Shape != types.OverlayShapeSeries {
+					t.Fatalf("layer.Payload.Shape = %q, want SERIES — stub fallback would inherit reference shape but not populate per-group math", layer.Payload.Shape)
+				}
+				if layer.Payload.Series == nil {
+					t.Fatal("layer.Payload.Series is nil — stub fallback would leave series zero-shaped")
+				}
+				// Same z = 1.0, p ≈ 0.3173 for every group.
+				approxEqual(t, "z_vs_ref entry[0] p", entryStat(t, layer, 0), 0.3173, 0.005)
+				if len(warnings) != 0 {
+					t.Errorf("warnings = %+v, want none", warnings)
+				}
+			},
+		})
+	})
+}
