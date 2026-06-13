@@ -698,6 +698,8 @@ func composeOnlyOverlayKinds() []string {
 		string(types.OverlayKindRank),
 		string(types.OverlayKindTCell),
 		string(types.OverlayKindTVsRef),
+		string(types.OverlayKindZCell),
+		string(types.OverlayKindZVsRef),
 	}
 }
 
