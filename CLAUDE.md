@@ -171,7 +171,7 @@ Heavy detail lives in `.claude/reference/execution-modes.md` and the named skill
 - **Crosstab** (`Request.Crosstab`, `Response.Crosstab`) — composed row×column grid; margins recompute from raw rows; `normalize_level` / `normalize_within` compose. See `skills/crosstab-guide.md`.
 - **Fused crosstab** (`processing.CanFuseCrosstab`, `processing.StreamableGrouper.KeyFor`) — in-decode streaming alternative; ~30–47% faster on benches. See `skills/crosstab-guide.md` (Fused mergeable path) + `skills/grouper-design.md`.
 - **Facet endpoints** — simple (`pulse.Facet`) + rich (`pulse.FacetSchema`); four FACET-host overlay kinds (`OVERLAY_INDEX_VS_POP` / `OVERLAY_ZSCORE_VS_POP` / `OVERLAY_CHISQ_VS_POP` / `OVERLAY_KS_VS_POP`) ride `FacetRequest.Overlays`. FACET-host wiring is the FacetSchema-buffered-exit hook at `service.applyFacetOverlays`. See `skills/facet-design.md`.
-- **Overlays** (`Request.Overlays`, `Response.Overlays`) — additive post-result decorations keyed to host coordinates; never mutate base payload. Level / Within prefix composition, SERIES-host fold (E3-S6), FACET-host wiring (E5-S6), CHAIN-host barrier (E6-S3), FORMULA kind (E8-S2). See `skills/overlay-system.md`.
+- **Overlays** (`Request.Overlays`, `Response.Overlays`) — additive post-result decorations keyed to host coordinates; never mutate base payload. Level / Within prefix composition, SERIES-host fold (E3-S6), FACET-host wiring (E5-S6), CHAIN-host barrier (E6-S3), FORMULA kind (E8-S2). Stat-test parity family (`OVERLAY_T_CELL` / `OVERLAY_T_VS_REF` Welch upgrade + `OVERLAY_Z_CELL` / `OVERLAY_Z_VS_REF`) consumes a `processing.WelfordTriple{Mean, Variance, N}` cell payload flowing through `MatrixCell.Value` (emitted by the `AGG_WELFORD` aggregator's `RichAggregator` path); when the triple is present the handler bypasses `Params` defaults and computes p-values byte-equal to the standalone `TEST_WELCH` / `TEST_Z_TWO_SAMPLE` row tests over the same inputs. Additive contract preserved — scalar cell + `Params`-supplied mean/variance/N still works when no triple is attached. See `skills/overlay-system.md`.
 
 ## Non-Skippable CI Gates
 
@@ -278,7 +278,7 @@ applies_to: process, compose, predict
 | Extension API surface | `skills/extension-points.md` |
 | Request hashing / StreamResult / Watch / FilterToFileWithRequest / manifest annotations | `skills/streaming-and-watching.md` |
 
-Current registered counts: 27 aggregators, 11 attributes, 11 filterers, 7 groupers, 10 windows, 9 features, 20 tests, 12 synth distributions, 3 regressions.
+Current registered counts: 28 aggregators, 11 attributes, 11 filterers, 7 groupers, 10 windows, 9 features, 20 tests, 12 synth distributions, 3 regressions.
 
 Adding a skill: create `skills/<name>.md` with frontmatter, add entry to `skills/index.json`, bump count in `TestSkillsList_ReturnsAll` and `TestSkillsNames`. Run `go test ./skills/...`.
 
