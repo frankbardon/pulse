@@ -20,6 +20,7 @@ func (t AggregationType) Streamable() bool {
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
+		AGG_WELFORD,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES:
@@ -113,6 +114,10 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		AGG_MEDIAN, AGG_PERCENTILE, AGG_MODE,
 		AGG_ZSCORE, AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_CI_LOWER, AGG_CI_UPPER,
+		// Welford emits a running (mean, sample-variance, n) triple.
+		// Sample variance does not pool by addition across cells — the
+		// margin must re-walk raw rows. Mirrors AGG_VARIANCE / AGG_STDDEV.
+		AGG_WELFORD,
 		// AND across cells ≠ AND across all rows in general — recompute
 		// from raw rows.
 		AGG_SET_INTERSECTION:
@@ -121,17 +126,18 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 	return MarginRecompute
 }
 
-// MapValued reports whether the aggregator emits a map-valued
-// (per-bit / per-key) rich payload via the RichAggregator interface.
-// Used by Crosstab to gate normalize compatibility (dividing one map by
-// another is undefined) and by predict to surface the constraint up
-// front. Aggregators that emit []string rich payloads (AGG_SET_UNION,
-// AGG_SET_INTERSECTION) still expose a meaningful scalar fallback
-// (popcount) so they remain scalar-compatible and are NOT classified as
-// map-valued.
+// MapValued reports whether the aggregator emits a non-scalar rich
+// payload via the RichAggregator interface — a per-bit / per-key map
+// (AGG_SET_FREQUENCY) or a structured moment triple (AGG_WELFORD).
+// Used by Crosstab to gate normalize compatibility (dividing one rich
+// payload by another is undefined) and by predict to surface the
+// constraint up front. Aggregators that emit []string rich payloads
+// (AGG_SET_UNION, AGG_SET_INTERSECTION) still expose a meaningful
+// scalar fallback (popcount) so they remain scalar-compatible and are
+// NOT classified as map-valued.
 func (t AggregationType) MapValued() bool {
 	switch t {
-	case AGG_SET_FREQUENCY:
+	case AGG_SET_FREQUENCY, AGG_WELFORD:
 		return true
 	}
 	return false

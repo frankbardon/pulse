@@ -29,6 +29,8 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_CI_LOWER:       true,
 		AGG_CI_UPPER:       true,
 
+		AGG_WELFORD: true,
+
 		AGG_SET_UNION:           true,
 		AGG_SET_INTERSECTION:    true,
 		AGG_SET_FREQUENCY:       true,
@@ -47,6 +49,25 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 	}
 	if len(expected) != len(AllAggregationTypes()) {
 		t.Fatalf("streamability table size mismatch: %d entries, %d types", len(expected), len(AllAggregationTypes()))
+	}
+}
+
+// TestAggregationClassification_Welford asserts the AGG_WELFORD
+// classification triple: streamable (online algorithm), MarginRecompute
+// (sample variance does not pool by addition across cells — margin must
+// re-walk raw rows), and MapValued (Rich payload is the structured
+// (mean, sample-variance, n) WelfordTriple, not a scalar). Mirrors the
+// AGG_MEDIAN / AGG_SET_FREQUENCY parametric rows for the variance-class
+// and rich-payload-class checks respectively.
+func TestAggregationClassification_Welford(t *testing.T) {
+	if !AGG_WELFORD.Streamable() {
+		t.Errorf("AGG_WELFORD.Streamable() = false, want true (online Welford-Pébaÿ algorithm)")
+	}
+	if got, want := AGG_WELFORD.MarginReducibility(), MarginRecompute; got != want {
+		t.Errorf("AGG_WELFORD.MarginReducibility() = %q, want %q (sample variance is not summable across cells)", got, want)
+	}
+	if !AGG_WELFORD.MapValued() {
+		t.Errorf("AGG_WELFORD.MapValued() = false, want true (Rich payload is WelfordTriple, not a scalar)")
 	}
 }
 
