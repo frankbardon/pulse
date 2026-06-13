@@ -2076,6 +2076,40 @@ const (
 	// Buffered. Same rationale as `OVERLAY_PROP_Z_CELL`.
 	OverlayKindTCell OverlayKind = "OVERLAY_T_CELL"
 
+	// OverlayKindZCell is the COMPOSE-host per-cell two-sample z-test on
+	// the means against the reference slot's matching cell. CELL scope
+	// over a MATRIX (crosstab) host with MATRIX payload — each cell's
+	// value is the two-sided p-value as a float64. Each cell is treated
+	// as a sample mean; the variance defaults to `1.0` and the sample
+	// size defaults to `Params["sample_size"]` (or `2` when not supplied).
+	// The z-test reuses the same Welch-style standard-error recurrence
+	// that backs `OVERLAY_T_CELL` and finalises against the standard
+	// normal survival helper that backs `TEST_Z_TWO_SAMPLE` (see
+	// `processing/test_z.go`):
+	//
+	//	se      = sqrt(var_target/n_target + var_ref/n_ref)
+	//	z       = (target_cell - ref_cell) / se
+	//	p_value = 2 * (1 - Φ(|z|))
+	//
+	// Reuses the `standardNormalCDF` helper backing `TEST_Z_TWO_SAMPLE` so
+	// the overlay and the row-test surface produce identical p-values for
+	// the same (mean, variance, n) triple.
+	//
+	// Default-variance and default-sample-size policy: v1 ships with
+	// `var = 1.0` and `n = 2` defaults so the per-cell handler stays
+	// well-defined against a minimal Compose authoring surface. Callers
+	// who want a real z-test should supply
+	// `Params["variance_target"]`, `Params["variance_ref"]`,
+	// `Params["sample_size_target"]`, `Params["sample_size_ref"]`.
+	// Forward-compat: a future story may lift the per-cell `(mean,
+	// variance, n)` triple into a richer Compose authoring surface (the
+	// crosstab cell carrier could grow to carry sample statistics
+	// alongside the scalar mean); when that lands the defaults become
+	// opt-in fallbacks rather than universal defaults.
+	//
+	// Buffered. Same rationale as `OVERLAY_PROP_Z_CELL`.
+	OverlayKindZCell OverlayKind = "OVERLAY_Z_CELL"
+
 	// OverlayKindChiSqVsRef is the COMPOSE-host whole-matrix χ² test
 	// against the reference slot's matrix. The two matrices are treated
 	// as two independent contingency tables and the test answers "do
@@ -2234,6 +2268,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindTCell,
 		OverlayKindTVsRef,
 		OverlayKindYoY,
+		OverlayKindZCell,
 		OverlayKindZScoreVsMargin,
 		OverlayKindZScoreVsPop,
 		OverlayKindZScoreVsRolling,

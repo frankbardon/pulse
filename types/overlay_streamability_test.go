@@ -222,6 +222,11 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// host key list. Neither shape rides inside the streaming Process
 		// fold today.
 		OverlayKindYoY: false,
+		// Z_CELL is inferential COMPOSE-only kind (E1-S14). Reuses the
+		// standardNormalCDF helper backing TEST_Z_TWO_SAMPLE. Per PRD §2
+		// Non-Goals every inferential overlay stays buffered regardless of
+		// host streamability.
+		OverlayKindZCell: false,
 		// ZSCORE_VS_MARGIN shares INDEX_VS_MARGIN's buffered footprint —
 		// both the per-slice Welford recurrence and the margin
 		// centerpoint require a fully-materialised matrix, so the host
