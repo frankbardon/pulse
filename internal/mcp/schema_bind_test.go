@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/mcp/mcptools"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
@@ -266,15 +265,12 @@ func TestMCPSchemaBinding_CrosstabNormalizeWithin(t *testing.T) {
 }
 
 // TestMCPSchemaBinding_OverlayKindEnum verifies the bound pulse_process
-// schema exposes Request.Overlays[].kind with an enum drawn from
-// descriptor.OverlayCapabilities(). For E1 the enum lists exactly
-// OVERLAY_INDEX_VS_MARGIN; later epics extend the catalog and the enum
-// picks up new kinds automatically via OverlayCapabilities().
-//
-// Per-facade scaffolding rule: only pulse_process consumes the enum at
-// E1 because Request.Overlays is the only surface; compose / facet /
-// chain pick up the same pattern as their request shapes grow overlay
-// slots in later epics.
+// schema exposes Request.Overlays[].kind with the Request-facade-narrowed
+// enum drawn from descriptor.OverlayCapabilities() minus the kinds whose
+// Ref family is exclusively addressed on another facade (Compose slot
+// labels, Chain StageRefs, Facet population cohorts). E10-S5 split the
+// global overlay enum into per-facade enums; the process tool surfaces
+// the Request-facade subset.
 func TestMCPSchemaBinding_OverlayKindEnum(t *testing.T) {
 	schemas, err := Bind(makeSchema())
 	if err != nil {
@@ -318,24 +314,30 @@ func TestMCPSchemaBinding_OverlayKindEnum(t *testing.T) {
 		got = append(got, s)
 	}
 
-	// Source of truth: descriptor.OverlayCapabilities(). E1 emits
-	// exactly OVERLAY_INDEX_VS_MARGIN; assert the slice matches what
-	// the descriptor catalog produces so future kinds flow through.
-	caps := descriptor.OverlayCapabilities()
-	want := make([]string, 0, len(caps))
-	for _, c := range caps {
-		want = append(want, string(c.Kind))
-	}
+	// Source of truth: overlayKindEnumForFacade(overlayFacadeRequest, nil).
+	// Per-facade narrowing excludes Compose-only, Chain-only, and
+	// Facet-only kinds — those surface on their own MCP tools.
+	want := overlayKindEnumForFacade(overlayFacadeRequest, nil)
 	if !slices.Equal(got, want) {
 		t.Errorf("overlay_kind enum = %v, want %v", got, want)
 	}
-	// E1 ground-truth: at least OVERLAY_INDEX_VS_MARGIN must be present
-	// and at index 0 (alphabetised; sole entry today).
+	// Catalog ground-truth: OVERLAY_INDEX_VS_MARGIN is always present
+	// on the Request facade.
 	if !slices.Contains(got, "OVERLAY_INDEX_VS_MARGIN") {
 		t.Errorf("overlay_kind enum missing OVERLAY_INDEX_VS_MARGIN: %v", got)
 	}
-	if len(got) == 1 && got[0] != "OVERLAY_INDEX_VS_MARGIN" {
-		t.Errorf("E1 expects sole entry OVERLAY_INDEX_VS_MARGIN, got %v", got)
+	// Facade isolation invariants: per-facade kinds must NOT leak onto
+	// the Request enum.
+	for _, leak := range []string{
+		"OVERLAY_INDEX_VS_POP",     // FACET-only
+		"OVERLAY_INDEX_VS_STAGE",   // CHAIN-only
+		"OVERLAY_INDEX_VS_REF",     // COMPOSE-only
+		"OVERLAY_PROP_Z_PANEL",     // COMPOSE-only multi-ref
+		"OVERLAY_PANEL_INDEX_VS_REF", // COMPOSE-only multi-ref
+	} {
+		if slices.Contains(got, leak) {
+			t.Errorf("Request facade overlay_kind enum leaks %q (belongs to another facade): %v", leak, got)
+		}
 	}
 }
 

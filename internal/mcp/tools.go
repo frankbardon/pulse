@@ -85,14 +85,16 @@ func registerTools(s *server.MCPServer, p *pulse.Pulse, bindOnOpen bool) {
 	sample := handleSample(p)
 	facet := handleFacet(p)
 	facetSchema := handleFacetSchema(p)
+	processChain := handleProcessChain(p)
 
 	handlers := boundHandlers{
-		process:     process,
-		predict:     predict,
-		compose:     compose,
-		sample:      sample,
-		facet:       facet,
-		facetSchema: facetSchema,
+		process:      process,
+		predict:      predict,
+		compose:      compose,
+		sample:       sample,
+		facet:        facet,
+		facetSchema:  facetSchema,
+		processChain: processChain,
 	}
 
 	s.AddTool(
