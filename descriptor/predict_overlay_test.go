@@ -200,6 +200,14 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			// T_VS_REF (E7-S10) is the series-shape COMPOSE-only sibling
 			// of T_CELL — same COMPOSE-host skip rule.
 			types.OverlayKindTVsRef,
+			// Z_CELL (E1-S14) is the standard-normal sibling of T_CELL —
+			// same COMPOSE-host skip rule. Reuses the Welch-style standard-
+			// error recurrence backing T_CELL and finalises against
+			// standardNormalCDF instead of studentTTwoSidedP.
+			types.OverlayKindZCell,
+			// Z_VS_REF (E1-S15) is the standard-normal sibling of T_VS_REF —
+			// same COMPOSE-host skip rule.
+			types.OverlayKindZVsRef,
 			types.OverlayKindChiSqVsRef,
 			types.OverlayKindRank:
 			// SERIES / FACET host: skipped from the MATRIX-host catalog gate.
@@ -858,6 +866,13 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		// T_VS_REF (E7-S10) is the series-shape sibling of T_CELL — same
 		// COMPOSE-host skip rule applies. Buffered (inferential family).
 		types.OverlayKindTVsRef:     true,
+		// Z_CELL (E1-S14) is the standard-normal sibling of T_CELL — same
+		// COMPOSE-host skip rule applies. Buffered (inferential family).
+		types.OverlayKindZCell:      true,
+		// Z_VS_REF (E1-S15) is the standard-normal sibling of T_VS_REF —
+		// same COMPOSE-host skip rule applies. Buffered (inferential
+		// family).
+		types.OverlayKindZVsRef:     true,
 		types.OverlayKindChiSqVsRef: true,
 		types.OverlayKindRank:       true,
 	}
@@ -1161,6 +1176,18 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 		types.OverlayKindTVsRef: {
 			Name:  "t_vs_ref",
 			Kind:  types.OverlayKindTVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		// COMPOSE-only inferential (E1-S20) — slot-label-driven, no Ref family.
+		types.OverlayKindZCell: {
+			Name:  "z_cell",
+			Kind:  types.OverlayKindZCell,
+			Scope: types.OverlayScopeCell,
+		},
+		// COMPOSE-only inferential series-shape (E1-S20) — slot-label-driven, no Ref family.
+		types.OverlayKindZVsRef: {
+			Name:  "z_vs_ref",
+			Kind:  types.OverlayKindZVsRef,
 			Scope: types.OverlayScopeGroup,
 		},
 		// SERIES windowed YoY — Ref.YoY marker required.
@@ -1591,6 +1618,16 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 		types.OverlayKindTVsRef: {
 			Name:  "t_vs_ref",
 			Kind:  types.OverlayKindTVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		types.OverlayKindZCell: {
+			Name:  "z_cell",
+			Kind:  types.OverlayKindZCell,
+			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindZVsRef: {
+			Name:  "z_vs_ref",
+			Kind:  types.OverlayKindZVsRef,
 			Scope: types.OverlayScopeGroup,
 		},
 		types.OverlayKindYoY: {

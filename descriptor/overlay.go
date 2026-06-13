@@ -836,6 +836,14 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 				"kind":  string(spec.Kind),
 				"host":  "request",
 			})
+	case types.OverlayKindTCell:
+		validateOverlayTCell(env, req, spec, index)
+	case types.OverlayKindTVsRef:
+		validateOverlayTVsRef(env, req, spec, index)
+	case types.OverlayKindZCell:
+		validateOverlayZCell(env, req, spec, index)
+	case types.OverlayKindZVsRef:
+		validateOverlayZVsRef(env, req, spec, index)
 	case types.OverlayKindDeltaVsBaseline:
 		validateOverlayDeltaVsBaseline(env, req, spec, index)
 	case types.OverlayKindDeltaVsMargin:
@@ -2667,5 +2675,279 @@ func validateOverlaySiblingKind(
 				"scope": string(spec.Scope),
 			})
 		return
+	}
+}
+
+// tCellSupportedScopes is the supported scope set for OVERLAY_T_CELL.
+// CELL is the only sensible scope — the per-cell Welch t-test decorates
+// every cell in the matrix host.
+var tCellSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeCell: true,
+}
+
+// tVsRefSupportedScopes is the supported scope set for OVERLAY_T_VS_REF.
+// GROUP is the only sensible scope — the per-group Welch t-test decorates
+// every entry in the series host.
+var tVsRefSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeGroup: true,
+}
+
+// zCellSupportedScopes is the supported scope set for OVERLAY_Z_CELL.
+// CELL is the only sensible scope — the per-cell two-sample z-test
+// decorates every cell in the matrix host.
+var zCellSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeCell: true,
+}
+
+// zVsRefSupportedScopes is the supported scope set for OVERLAY_Z_VS_REF.
+// GROUP is the only sensible scope — the per-group two-sample z-test
+// decorates every entry in the series host.
+var zVsRefSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeGroup: true,
+}
+
+// twoSampleStatParamKeys enumerates the four per-side Params keys the
+// pairwise two-sample stat-test overlays (OVERLAY_T_CELL, OVERLAY_T_VS_REF,
+// OVERLAY_Z_CELL, OVERLAY_Z_VS_REF) consume when the cell aggregator is a
+// scalar mean: each side carries an explicit variance + sample-size
+// override so the Welch-style standard-error recurrence produces a defined
+// p-value. When the cell aggregator is map-valued (the AGG_WELFORD triple
+// carrier — `AggregationType.MapValued() == true`) the handlers consume
+// the triple's (mean, variance, n) directly and the Params slot is
+// optional — predict accepts a Params-less spec in that case (E1-S11 + S20).
+var twoSampleStatParamKeys = []string{
+	"variance_target",
+	"variance_ref",
+	"sample_size_target",
+	"sample_size_ref",
+}
+
+// validateOverlayTCell enforces the per-kind contract for
+// OVERLAY_T_CELL (E1-S11): MATRIX host (Request.Crosstab is non-nil),
+// Scope=CELL only, and Params consumption that mirrors the runtime
+// handler's triple-aware behaviour (E1-S9). When the crosstab's cell
+// aggregator is map-valued (`AGG_WELFORD` today via
+// `AggregationType.MapValued()`) the handler reads (mean, variance, n)
+// from the Welford triple directly, so Params are OPTIONAL at predict
+// time. When the cell aggregator is scalar the handler falls back to
+// the per-side Params defaults (variance_target / variance_ref /
+// sample_size_target / sample_size_ref); predict requires all four keys
+// in that case so callers cannot silently accept the runtime's
+// 1.0-variance, 2-sample defaults.
+func validateOverlayTCell(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	validateOverlayTwoSampleStatCell(env, req, spec, index, tCellSupportedScopes, "cell")
+}
+
+// validateOverlayZCell mirrors validateOverlayTCell for OVERLAY_Z_CELL
+// (E1-S20). The two kinds share the same host-shape / scope / Params
+// contract — only the runtime finaliser differs (standardNormalCDF vs
+// studentTTwoSidedP).
+func validateOverlayZCell(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	validateOverlayTwoSampleStatCell(env, req, spec, index, zCellSupportedScopes, "cell")
+}
+
+// validateOverlayTVsRef enforces the per-kind contract for
+// OVERLAY_T_VS_REF (E1-S11): SERIES host (Request.Crosstab nil AND
+// Request.Groups non-empty), Scope=GROUP only, and the same triple-aware
+// Params behaviour as OVERLAY_T_CELL — the SERIES-host cell aggregator
+// lives on Request.Aggregations; if any of them is map-valued
+// (`AggregationType.MapValued() == true`) Params are optional, otherwise
+// the four per-side Params keys are required.
+func validateOverlayTVsRef(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	validateOverlayTwoSampleStatVsRef(env, req, spec, index, tVsRefSupportedScopes, "group")
+}
+
+// validateOverlayZVsRef mirrors validateOverlayTVsRef for OVERLAY_Z_VS_REF
+// (E1-S20). Same SERIES-host / Params contract as OVERLAY_T_VS_REF; only
+// the runtime finaliser differs (standardNormalCDF vs studentTTwoSidedP).
+func validateOverlayZVsRef(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	validateOverlayTwoSampleStatVsRef(env, req, spec, index, zVsRefSupportedScopes, "group")
+}
+
+// validateOverlayTwoSampleStatCell is the shared MATRIX-host predict-time
+// validator for the two-sample stat-test cell overlays (OVERLAY_T_CELL +
+// OVERLAY_Z_CELL). Both kinds share the same host-shape / scope / cell-
+// aggregator / Params contract — only the runtime distribution differs
+// (Welch t vs standard normal) — so the validator collapses both into a
+// single helper keyed by the kind's supported-scope set.
+//
+// Contract enforced (in order, first hit short-circuits):
+//
+//   - Host MUST be MATRIX-shaped (Request.Crosstab non-nil). The
+//     handler decorates every cell in the matrix; without a crosstab
+//     there is no cell grid to compute against.
+//   - Scope MUST be in the supported set (CELL today).
+//   - When the crosstab's cell aggregator is map-valued
+//     (`AggregationType.MapValued() == true`, today AGG_WELFORD) the
+//     handler reads (mean, variance, n) from the Welford triple
+//     directly and Params are OPTIONAL — the validator accepts a
+//     Params-less spec.
+//   - When the cell aggregator is scalar the handler falls back to the
+//     per-side Params defaults; predict requires all four keys
+//     (`variance_target`, `variance_ref`, `sample_size_target`,
+//     `sample_size_ref`) so callers cannot silently accept the
+//     runtime's 1.0-variance, 2-sample defaults. Missing keys fire
+//     PULSE_OVERLAY_PARAM_MISSING with `{kind, param}` Details — one
+//     error per missing key so a caller surfacing multiple gaps sees
+//     them all in one pass.
+func validateOverlayTwoSampleStatCell(
+	env *Envelope, req *types.Request, spec *types.OverlaySpec, index int,
+	supportedScopes map[types.OverlayScope]bool, supportedScopeLabel string,
+) {
+	// Host must be MATRIX-shaped — the per-cell stat-test decorates
+	// every cell in the matrix host.
+	if req == nil || req.Crosstab == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Scope must be in the supported set (CELL today).
+	if !supportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: "+supportedScopeLabel+")",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+
+	// Params requirement: optional when the cell aggregator is map-
+	// valued (AGG_WELFORD triple), required otherwise.
+	if req.Crosstab.Cell != nil && req.Crosstab.Cell.Type.MapValued() {
+		return
+	}
+	validateOverlayTwoSampleStatParams(env, spec, index)
+}
+
+// validateOverlayTwoSampleStatVsRef is the shared SERIES-host predict-
+// time validator for the two-sample stat-test vs-ref overlays
+// (OVERLAY_T_VS_REF + OVERLAY_Z_VS_REF). Sibling helper to
+// validateOverlayTwoSampleStatCell — same Params-optional-when-triple
+// rule, different host shape (SERIES instead of MATRIX) and Aggregations
+// lookup (Request.Aggregations[*].Type instead of Request.Crosstab.Cell.Type).
+//
+// Contract enforced (in order, first hit short-circuits):
+//
+//   - Host MUST be SERIES-shaped (Request.Crosstab nil AND
+//     Request.Groups non-empty). The handler decorates every entry in
+//     the series host; without groupers there is no series.
+//   - Scope MUST be in the supported set (GROUP today).
+//   - When ANY aggregator on Request.Aggregations is map-valued
+//     (`AggregationType.MapValued() == true`, today AGG_WELFORD) the
+//     handler reads (mean, variance, n) from the Welford triple
+//     directly and Params are OPTIONAL — the validator accepts a
+//     Params-less spec. The check is OR across the slice because a
+//     SERIES host may aggregate multiple fields; one map-valued
+//     aggregator is sufficient to provide the triple carrier the
+//     handler consumes.
+//   - When every aggregator is scalar the handler falls back to the
+//     per-side Params defaults; predict requires all four keys
+//     (mirrors validateOverlayTwoSampleStatCell).
+func validateOverlayTwoSampleStatVsRef(
+	env *Envelope, req *types.Request, spec *types.OverlaySpec, index int,
+	supportedScopes map[types.OverlayScope]bool, supportedScopeLabel string,
+) {
+	// Host must be SERIES-shaped — grouped Process result.
+	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Scope must be in the supported set (GROUP today).
+	if !supportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: "+supportedScopeLabel+")",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+
+	// Params requirement: optional when ANY aggregator is map-valued
+	// (AGG_WELFORD triple), required when every aggregator is scalar.
+	for _, agg := range req.Aggregations {
+		if agg == nil {
+			continue
+		}
+		if agg.Type.MapValued() {
+			return
+		}
+	}
+	validateOverlayTwoSampleStatParams(env, spec, index)
+}
+
+// validateOverlayTwoSampleStatParams enforces the per-side Params
+// requirement for the two-sample stat-test overlays (T_CELL / T_VS_REF /
+// Z_CELL / Z_VS_REF) when the cell aggregator is scalar. Surfaces one
+// PULSE_OVERLAY_PARAM_MISSING per missing key so a caller surfacing
+// multiple gaps sees them all in one pass; matches the existing
+// validateOverlayRollingWindowParam single-key emission shape.
+//
+// Missing-Params arms:
+//   - spec.Params is empty (no JSON at all) → emit one error per key
+//     so the envelope is structurally complete.
+//   - spec.Params is a malformed object → emit one error per key with
+//     the parse-error message; the runtime handler's per-key
+//     `varianceFromParams` / `sampleSizeFromParams` helpers tolerate
+//     malformed objects by silently falling back to defaults, but
+//     predict surfaces them as missing.
+//   - spec.Params is a valid object but any of the four keys is absent
+//     → emit one error per missing key.
+//
+// The runtime handlers (processing/overlay_compose_handlers.go's
+// `applyTCell` + `applyZCell` + the VS_REF siblings) tolerate every
+// missing key by falling back to var=1.0, n=2 defaults — the predict
+// gate surfaces the requirement up front so callers cannot silently
+// accept the runtime defaults on a scalar cell aggregator.
+func validateOverlayTwoSampleStatParams(env *Envelope, spec *types.OverlaySpec, index int) {
+	if len(spec.Params) == 0 {
+		for _, key := range twoSampleStatParamKeys {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+				"overlay "+string(spec.Kind)+" requires Params[\""+key+"\"] when the cell aggregator is a scalar mean (the AGG_WELFORD triple aggregator carries the (mean, variance, n) tuple directly and makes Params optional)",
+				map[string]any{
+					"index": index,
+					"kind":  string(spec.Kind),
+					"param": key,
+				})
+		}
+		return
+	}
+	var m map[string]any
+	if err := json.Unmarshal(spec.Params, &m); err != nil {
+		for _, key := range twoSampleStatParamKeys {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+				"overlay "+string(spec.Kind)+" Params must be a JSON object carrying \""+key+"\" when the cell aggregator is a scalar mean",
+				map[string]any{
+					"index": index,
+					"kind":  string(spec.Kind),
+					"param": key,
+				})
+		}
+		return
+	}
+	for _, key := range twoSampleStatParamKeys {
+		if _, present := m[key]; !present {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+				"overlay "+string(spec.Kind)+" requires Params[\""+key+"\"] when the cell aggregator is a scalar mean (the AGG_WELFORD triple aggregator carries the (mean, variance, n) tuple directly and makes Params optional)",
+				map[string]any{
+					"index": index,
+					"kind":  string(spec.Kind),
+					"param": key,
+				})
+		}
 	}
 }
