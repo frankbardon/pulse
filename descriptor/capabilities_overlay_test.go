@@ -155,6 +155,95 @@ func TestOverlayCapabilities_FieldsSorted(t *testing.T) {
 	}
 }
 
+// TestOverlayCapabilities_TupleComplete is the E10-S4 audit gate —
+// every entry returned by OverlayCapabilities() must carry a fully-
+// populated tuple per PRD §I-FR-I2: non-empty Shapes, non-empty
+// Scopes, and a non-empty Description. Empty Kind is rejected
+// upstream by TestOverlayCapabilities_CoversAllKinds; this gate
+// guards the remaining tuple slots so a new kind landing in
+// types.AllOverlayKinds() without a per-kind switch arm in
+// overlayCapabilityFor cannot silently emit an empty entry (the
+// fallback `OverlayCapability{Kind: kind}` at the bottom of
+// overlayCapabilityFor would otherwise produce one).
+//
+// RefKinds is intentionally NOT checked — implicit-margin kinds
+// (CHISQ_*, FISHER_EXACT_CELL, INDEX_VS_TOTAL, ZSCORE_VS_TOTAL,
+// SHARE_OF_TOTAL series dispatch) legitimately carry an empty
+// RefKinds slice; the on-wire validator rejects any Ref family
+// pointer with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+// Buffered is checked by TestOverlayCapabilities_BufferedMatchesStreamability
+// via inverse-of-streamability; Fields is checked by the sort gate
+// (legitimately empty for kinds outside the share / index / delta /
+// zscore family).
+func TestOverlayCapabilities_TupleComplete(t *testing.T) {
+	for _, c := range OverlayCapabilities() {
+		if len(c.Shapes) == 0 {
+			t.Errorf("entry %q: Shapes is empty; every catalog entry MUST declare at least one OverlayShape", c.Kind)
+		}
+		if len(c.Scopes) == 0 {
+			t.Errorf("entry %q: Scopes is empty; every catalog entry MUST declare at least one OverlayScope", c.Kind)
+		}
+		if c.Description == "" {
+			t.Errorf("entry %q: Description is empty; every catalog entry MUST carry a short human-readable summary", c.Kind)
+		}
+	}
+}
+
+// TestManifestOverlayCapability_FullCoverage is the E10-S4 audit gate
+// for the root manifest — every kind in types.AllOverlayKinds() must
+// appear in Manifest.Overlays with a fully-populated tuple. The
+// per-kind test TestManifestOverlayCapability spot-checks
+// OVERLAY_INDEX_VS_MARGIN; this gate walks the full catalog so a new
+// kind that lands without a manifest entry cannot pass CI.
+//
+// Mirrors TestOverlayCapabilities_TupleComplete but operates against
+// the materialised Manifest payload BuildManifest() emits (the path
+// downstream LLM clients consume), guarding against any future
+// regression where BuildManifest stops threading OverlayCapabilities
+// into Manifest.Overlays.
+func TestManifestOverlayCapability_FullCoverage(t *testing.T) {
+	m := BuildManifest()
+
+	seen := make(map[types.OverlayKind]bool, len(m.Overlays))
+	for i, entry := range m.Overlays {
+		if entry.Kind == "" {
+			t.Errorf("Manifest.Overlays[%d] has empty Kind", i)
+			continue
+		}
+		seen[entry.Kind] = true
+		if len(entry.Shapes) == 0 {
+			t.Errorf("Manifest.Overlays entry %q: Shapes is empty", entry.Kind)
+		}
+		if len(entry.Scopes) == 0 {
+			t.Errorf("Manifest.Overlays entry %q: Scopes is empty", entry.Kind)
+		}
+		if entry.Description == "" {
+			t.Errorf("Manifest.Overlays entry %q: Description is empty", entry.Kind)
+		}
+	}
+	for _, k := range types.AllOverlayKinds() {
+		if !seen[k] {
+			t.Errorf("Manifest.Overlays missing entry for kind %q (declared in types.AllOverlayKinds)", k)
+		}
+	}
+}
+
+// TestManifestOverlayCapability_FormatVersionStable is the E10-S4
+// audit gate confirming the manifest's format_version stays "1.0"
+// regardless of the Overlays catalog. Overlay catalog additions are
+// additive — new kinds extend Manifest.Overlays without bumping
+// format_version (additive-only rule, CLAUDE.md "Output Format
+// Contract"). A bump here would force every downstream client to
+// re-handshake; this gate prevents accidental version drift via
+// the Overlays surface.
+func TestManifestOverlayCapability_FormatVersionStable(t *testing.T) {
+	m := BuildManifest()
+	if m.FormatVersion != "1.0" {
+		t.Errorf("Manifest.FormatVersion = %q, want %q (overlay catalog additions are additive)",
+			m.FormatVersion, "1.0")
+	}
+}
+
 // equalShapes compares two OverlayShape slices for order-sensitive
 // equality. Tiny helper local to the test file.
 func equalShapes(a, b []types.OverlayShape) bool {
