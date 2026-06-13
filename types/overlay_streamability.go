@@ -343,13 +343,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// Forward-compat: a future story may lift the per-frequency lookup
 	// into a streaming-aware shape when the streaming-Process
 	// orchestrator carries an exact-key host index inline.
-	OverlayKindYoY: false,
-	// OVERLAY_Z_CELL is inherently buffered — COMPOSE-only kind (E1-S14),
-	// per-cell two-sample z-test on the means against the reference slot's
-	// matching cell. Reuses the standardNormalCDF helper backing
-	// TEST_Z_TWO_SAMPLE. Inferential kind — per PRD §2 Non-Goals every
-	// inferential overlay stays buffered regardless of host streamability.
-	OverlayKindZCell:          false,
+	OverlayKindYoY:            false,
 	OverlayKindZScoreVsMargin: false,
 	// OVERLAY_ZSCORE_VS_POP is streamable — sibling FACET-host kind to
 	// OVERLAY_INDEX_VS_POP (E5-S3). Pairs with INDEX_VS_POP as the two
@@ -394,6 +388,12 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// handler so cross-mode equivalence tests stay byte-equal within
 	// ULP.
 	OverlayKindZScoreVsTotal: true,
+	// OVERLAY_Z_CELL is inherently buffered — COMPOSE-only kind (E1-S14),
+	// per-cell two-sample z-test on the means against the reference slot's
+	// matching cell. Reuses the standardNormalCDF helper backing
+	// TEST_Z_TWO_SAMPLE. Inferential kind — per PRD §2 Non-Goals every
+	// inferential overlay stays buffered regardless of host streamability.
+	OverlayKindZCell: false,
 	// OVERLAY_Z_VS_REF is inherently buffered — COMPOSE-only kind
 	// (E1-S15), per-group two-sample z-test on the means against the
 	// reference slot's matching group, against a SERIES host. Series-

@@ -2318,11 +2318,11 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindTCell,
 		OverlayKindTVsRef,
 		OverlayKindYoY,
-		OverlayKindZCell,
 		OverlayKindZScoreVsMargin,
 		OverlayKindZScoreVsPop,
 		OverlayKindZScoreVsRolling,
 		OverlayKindZScoreVsTotal,
+		OverlayKindZCell,
 		OverlayKindZVsRef,
 	}
 }

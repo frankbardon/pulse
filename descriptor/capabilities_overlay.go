@@ -1403,6 +1403,67 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"NOT contribute to the Welford accumulator. Renderers centre diverging colour " +
 				"ramps on baseline=0.",
 		}
+	case types.OverlayKindZCell:
+		return OverlayCapability{
+			Kind: types.OverlayKindZCell,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeMatrix,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeCell,
+			},
+			// COMPOSE-only kind — Reference + Targets resolve via the
+			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
+			// discriminated union.
+			RefKinds: []string{},
+			Description: "COMPOSE-host per-cell two-sample z-test on the means against the reference slot's matching cell " +
+				"(E1-S14). CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the " +
+				"two-sided p-value as a float64. Each cell is treated as a sample mean; the variance defaults to 1.0 " +
+				"and the sample size defaults to 2 (`Params[\"sample_size\"]` accepts an integer override; " +
+				"`Params[\"variance_target\"]` / `Params[\"variance_ref\"]` / `Params[\"sample_size_target\"]` / " +
+				"`Params[\"sample_size_ref\"]` give finer per-side control). Math reuses the same Welch-style " +
+				"standard-error recurrence that backs OVERLAY_T_CELL and finalises against the standard normal " +
+				"survival helper that backs TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); " +
+				"z = (target_cell - ref_cell) / se; p_value = 2 * (1 - Φ(|z|)). Reuses the standardNormalCDF helper " +
+				"backing TEST_Z_TWO_SAMPLE so the overlay and the row-test surface produce identical p-values for " +
+				"the same (mean, variance, n) triple. Default-variance and default-sample-size policy: v1 ships " +
+				"well-defined defaults so the per-cell handler stays usable against a minimal Compose authoring " +
+				"surface; a future story may lift the per-cell (mean, variance, n) triple into a richer Compose " +
+				"authoring surface (the crosstab cell carrier could grow to carry sample statistics alongside the " +
+				"scalar mean). Inherently buffered — inferential overlays as a family stay buffered until a " +
+				"streamable-test path is plumbed (PRD §2 Non-Goals).",
+		}
+	case types.OverlayKindZVsRef:
+		return OverlayCapability{
+			Kind: types.OverlayKindZVsRef,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// COMPOSE-only kind — Reference + Targets resolve via the
+			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
+			// discriminated union.
+			RefKinds: []string{},
+			Description: "COMPOSE-host per-group two-sample z-test on the means against the reference slot's matching group, " +
+				"against a SERIES (grouped Process) host (E1-S15). GROUP scope over a SERIES host with SERIES payload — " +
+				"one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. " +
+				"Series-shape sibling of OVERLAY_Z_CELL (the per-cell MATRIX-host z-test) and twin to the SERIES arm of " +
+				"OVERLAY_T_VS_REF (Welch t-test sibling on the same fold-and-finalise shape; different distribution — " +
+				"standard normal instead of Student's t). Each per-group target / reference value is treated as a sample " +
+				"mean; variance defaults to 1.0 and sample size defaults to 2 (Params[\"variance_target\"] / " +
+				"Params[\"variance_ref\"] / Params[\"sample_size_target\"] / Params[\"sample_size_ref\"] override). Math " +
+				"reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the " +
+				"standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); " +
+				"z = (target - ref) / se; p_value = 2 * (1 - Φ(|z|)). Reuses standardNormalCDF so the overlay and the " +
+				"row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference " +
+				"rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a " +
+				"ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n < 2) " +
+				"produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay " +
+				"buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + " +
+				"schema match + dict drift all run BEFORE the handler dispatches (E7-S5..S8).",
+		}
 	}
 	return OverlayCapability{Kind: kind}
 }
