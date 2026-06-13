@@ -48,6 +48,31 @@ func isGrouperKeyNull(err error) bool {
 	return err == ErrGrouperKeyNull
 }
 
+// buildIncludeFilter materialises Group.Include into a membership set.
+// Empty / nil Include returns nil — callers MUST treat nil as
+// "accept-all" to preserve byte-identity against the pre-Include
+// bucket set.
+func buildIncludeFilter(include []string) map[string]struct{} {
+	if len(include) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(include))
+	for _, v := range include {
+		out[v] = struct{}{}
+	}
+	return out
+}
+
+// includeAccepts reports whether key passes the include filter. nil
+// filter accepts every key; non-nil rejects keys outside the set.
+func includeAccepts(filter map[string]struct{}, key string) bool {
+	if filter == nil {
+		return true
+	}
+	_, ok := filter[key]
+	return ok
+}
+
 // streamableGroup is the shared Group() implementation for streamable
 // groupers — pass-1 computes per-record keys via KeyFor, pass-2 fills
 // pre-sized per-key slices. Lifted so categoryGrouper / roundedGrouper /
@@ -85,12 +110,17 @@ func streamableGroup(g StreamableGrouper, records []*Record) (map[string][]*Reco
 // --- Category Grouper ---
 
 type categoryGrouper struct {
-	schema *encoding.Schema
-	field  string
+	schema  *encoding.Schema
+	field   string
+	include map[string]struct{}
 }
 
 func newCategoryGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
-	return &categoryGrouper{schema: schema, field: grp.Field}, nil
+	return &categoryGrouper{
+		schema:  schema,
+		field:   grp.Field,
+		include: buildIncludeFilter(grp.Include),
+	}, nil
 }
 
 // KeyFor implements StreamableGrouper.KeyFor. Categorical fields resolve
@@ -102,16 +132,22 @@ func (g *categoryGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
+	var key string
 	if g.schema != nil {
 		if f := g.schema.Field(g.field); f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
-			key := f.Dictionary.Resolve(uint32(v))
+			key = f.Dictionary.Resolve(uint32(v))
 			if key == "" {
 				key = strconv.FormatUint(uint64(uint32(v)), 10)
 			}
-			return key, nil
 		}
 	}
-	return formatRoundedNumeric(v), nil
+	if key == "" {
+		key = formatRoundedNumeric(v)
+	}
+	if !includeAccepts(g.include, key) {
+		return "", ErrGrouperKeyNull
+	}
+	return key, nil
 }
 
 // KeyForRow delegates to KeyFor — single source of truth for the

@@ -48,8 +48,9 @@ func resolveSetGrouperDict(grp *types.Group, schema *encoding.Schema) (*encoding
 // stringify the zero value.
 
 type setValueGrouper struct {
-	field string
-	dict  *encoding.Dictionary
+	field   string
+	dict    *encoding.Dictionary
+	include map[string]struct{}
 }
 
 func newSetValueGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
@@ -57,7 +58,11 @@ func newSetValueGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, err
 	if err != nil {
 		return nil, err
 	}
-	return &setValueGrouper{field: grp.Field, dict: dict}, nil
+	return &setValueGrouper{
+		field:   grp.Field,
+		dict:    dict,
+		include: buildIncludeFilter(grp.Include),
+	}, nil
 }
 
 // KeyFor implements StreamableGrouper.KeyFor. The bound field's mask is
@@ -72,7 +77,11 @@ func (g *setValueGrouper) KeyFor(r *Record) (string, error) {
 	}
 	labels := resolveMaskLabels(m, g.dict)
 	sort.Strings(labels)
-	return strings.Join(labels, "|"), nil
+	key := strings.Join(labels, "|")
+	if !includeAccepts(g.include, key) {
+		return "", ErrGrouperKeyNull
+	}
+	return key, nil
 }
 
 func (g *setValueGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
@@ -104,7 +113,8 @@ func (g *setValueGrouper) Group(records []*Record, _ string) (map[string][]*Reco
 // resulting bucket.
 
 type setPerElementGrouper struct {
-	dict *encoding.Dictionary
+	dict    *encoding.Dictionary
+	include map[string]struct{}
 }
 
 func newSetPerElementGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
@@ -112,7 +122,10 @@ func newSetPerElementGrouper(grp *types.Group, schema *encoding.Schema) (Grouper
 	if err != nil {
 		return nil, err
 	}
-	return &setPerElementGrouper{dict: dict}, nil
+	return &setPerElementGrouper{
+		dict:    dict,
+		include: buildIncludeFilter(grp.Include),
+	}, nil
 }
 
 func (g *setPerElementGrouper) KeysForRow(r *Record, field string) ([]string, bool, error) {
@@ -121,6 +134,15 @@ func (g *setPerElementGrouper) KeysForRow(r *Record, field string) ([]string, bo
 		return nil, false, nil
 	}
 	labels := resolveMaskLabels(m, g.dict)
+	if g.include != nil {
+		kept := labels[:0]
+		for _, l := range labels {
+			if _, ok := g.include[l]; ok {
+				kept = append(kept, l)
+			}
+		}
+		labels = kept
+	}
 	if len(labels) == 0 {
 		return nil, false, nil
 	}
