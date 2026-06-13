@@ -4692,7 +4692,7 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 116,
+    "examples_count": 118,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -4711,12 +4711,15 @@
       "bayesian",
       "before-after",
       "buffered-pipeline",
+      "byte-equal-test",
       "cardinality-analysis",
       "cohort-analysis",
       "comparison",
+      "compose",
       "composed",
       "correlation-analysis",
       "cross-tabulation",
+      "crosstab",
       "data-quality",
       "distribution-shape",
       "ecological",
@@ -4765,7 +4768,10 @@
       "top-n",
       "trend-detection",
       "two-sample",
-      "window-operator"
+      "welch",
+      "welford-triple",
+      "window-operator",
+      "z"
     ],
     "extensions": {
       "aggregators": [],
@@ -5536,4 +5542,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6eee03a9bdeec7de7a07f831c0b6785e13ef03f4d732bf358ccb146f509066fd
+// golden-hash: ff49a2976e1faebd522015f71d764742d0e670a5f22fbad26077d8fdca99b7e9
