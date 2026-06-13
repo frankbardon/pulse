@@ -130,6 +130,17 @@ func (r *Reader) ReadHeader() ([]string, error) {
 	return r.header, nil
 }
 
+// SheetNames returns the list of sheet names on the workbook. Overlay
+// sheets ride alongside the host data sheet with the OverlaySheetPrefix
+// reserved namespace ("__overlay_*"); callers introspecting the overlay
+// layout filter by HasPrefix on the prefix constant.
+func (r *Reader) SheetNames() ([]string, error) {
+	if err := r.init(); err != nil {
+		return nil, err
+	}
+	return r.file.GetSheetList(), nil
+}
+
 // ReadRows streams rows to fn. ReadHeader must be called first.
 func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) error {
 	if r.file == nil {
