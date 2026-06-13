@@ -394,6 +394,17 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// handler so cross-mode equivalence tests stay byte-equal within
 	// ULP.
 	OverlayKindZScoreVsTotal: true,
+	// OVERLAY_Z_VS_REF is inherently buffered — COMPOSE-only kind
+	// (E1-S15), per-group two-sample z-test on the means against the
+	// reference slot's matching group, against a SERIES host. Series-
+	// shape sibling of OVERLAY_Z_CELL; reuses the same standardNormalCDF
+	// helper backing TEST_Z_TWO_SAMPLE. Inferential kind — per PRD §2
+	// Non-Goals every inferential overlay stays buffered regardless of
+	// host streamability. Distinct from the streamable SERIES-arm of
+	// OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF (which are descriptive
+	// fold-only kinds); inferential kinds carry the family-buffered
+	// policy.
+	OverlayKindZVsRef: false,
 }
 
 // OverlayStreamable reports whether the given overlay kind streams and

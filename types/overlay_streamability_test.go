@@ -260,6 +260,13 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// Process path so cross-mode equivalence stays byte-equal
 		// within ULP.
 		OverlayKindZScoreVsTotal: true,
+		// Z_VS_REF is inferential COMPOSE-only kind (E1-S15) — series-shape
+		// sibling of Z_CELL, per-group two-sample z-test on the means
+		// against the reference slot's matching group. Reuses
+		// standardNormalCDF (the same helper backing TEST_Z_TWO_SAMPLE).
+		// Per PRD §2 Non-Goals every inferential overlay stays buffered
+		// regardless of host streamability.
+		OverlayKindZVsRef: false,
 	}
 
 	for _, k := range AllOverlayKinds() {

@@ -2189,6 +2189,56 @@ const (
 	// inferential family is buffered as a matter of policy.
 	OverlayKindTVsRef OverlayKind = "OVERLAY_T_VS_REF"
 
+	// OverlayKindZVsRef is the COMPOSE-host per-group two-sample z-test on
+	// the means against the reference slot's matching group, against a
+	// SERIES host (grouped Process result). GROUP scope over a SERIES host
+	// with SERIES payload — one `SeriesEntry` per host group key in host
+	// order, each carrying the p-value on `Summary.Statistic`. Series-
+	// shape sibling of `OVERLAY_Z_CELL` (E1-S14) and twin to the SERIES
+	// arm of `OVERLAY_T_VS_REF` — same fold-and-finalise shape, different
+	// distribution (standard normal instead of Student's t). Distinct
+	// kind from `OVERLAY_Z_CELL` because the host shape disambiguator
+	// (series vs matrix) and the per-group dispatch differ — the
+	// renderer surfaces this kind as a per-group inferential strip,
+	// not a per-cell badge.
+	//
+	// Math (per host group `i`):
+	//
+	//	target_val = target_slot.SeriesValue(i)
+	//	ref_val    = ref_slot.SeriesValue(i)
+	//	var_target = Params["variance_target"] (default 1.0)
+	//	var_ref    = Params["variance_ref"]    (default 1.0)
+	//	n_target   = Params["sample_size_target"] (default 2)
+	//	n_ref      = Params["sample_size_ref"]    (default 2)
+	//	se         = sqrt(var_target/n_target + var_ref/n_ref)
+	//	z          = (target_val - ref_val) / se
+	//	p_value    = 2 * (1 - Φ(|z|))
+	//
+	// Reuses the `standardNormalCDF` helper backing `TEST_Z_TWO_SAMPLE` so
+	// the overlay and the row-test surface produce identical p-values for
+	// the same (mean, variance, n) triple. Mirrors `OVERLAY_Z_CELL`'s
+	// default-variance and default-sample-size policy verbatim — v1
+	// ships well-defined defaults (`var = 1.0`, `n = 2`) so the per-group
+	// handler stays usable against minimal Compose authoring surfaces.
+	// Forward-compat: a future story may lift the per-group `(mean,
+	// variance, n)` triple into a richer Compose authoring surface (the
+	// SERIES entry carrier could grow to carry sample statistics
+	// alongside the scalar mean); when that lands the defaults become
+	// opt-in fallbacks rather than universal defaults.
+	//
+	// Missing reference rows (target row key not present in the
+	// reference series) emit `PULSE_OVERLAY_REF_ZERO` with a
+	// `ref_missing=true` Detail flag; the affected entry's Statistic is
+	// NaN. Degenerate inputs (`se == 0`, n < 2) produce NaN p-values
+	// with the same warning.
+	//
+	// Buffered. Inferential overlays as a family stay buffered until a
+	// streamable-test path is plumbed (PRD §2 Non-Goals "Streaming
+	// overlay path for inferential kinds"). Even though the SERIES
+	// host carrying the z arms may individually stream, the
+	// inferential family is buffered as a matter of policy.
+	OverlayKindZVsRef OverlayKind = "OVERLAY_Z_VS_REF"
+
 	// OverlayKindRank is the COMPOSE-host per-cell rank of each target
 	// cell within a configurable population per `Params["population"]`
 	// (`"row" | "column" | "matrix"`; defaults to `"matrix"`). CELL
@@ -2273,6 +2323,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindZScoreVsPop,
 		OverlayKindZScoreVsRolling,
 		OverlayKindZScoreVsTotal,
+		OverlayKindZVsRef,
 	}
 }
 
