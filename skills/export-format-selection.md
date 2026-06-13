@@ -190,6 +190,7 @@ Setting `IncludeOverlays` to a pointer at `false` (e.g. `optOut := false; job.In
 ### Cross-references
 
 - `skills/overlay-system.md` — overlay-kind catalog (`OVERLAY_INDEX_VS_MARGIN`, `OVERLAY_CHISQ_MATRIX`, etc.), payload-shape contract (`scalar` / `series` / `matrix`), Request-time wire surface (`Request.Overlays` / `Response.Overlays`), and the host-shape rules every overlay obeys.
+- `examples/overlays/16_export_overlays_arrow.json` — runnable end-to-end example pairing a grouped Process Request (mixed streamable + buffered overlay slate: `OVERLAY_INDEX_VS_TOTAL` + `OVERLAY_DELTA_VS_SIBLING`) with a documenting `export_job` sibling that names the Arrow target plus `IncludeOverlays=true`. Hand-copyable into the `pulse api process --json | pulse api export --json` pipeline.
 - `PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED` — warning-class code with fixups pointing at Arrow / Parquet / Excel / NDJSON targets and the `IncludeOverlays=false` opt-out. Look up via `pulse errors lookup PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED` or the `pulse_errors_lookup` MCP tool.
 - `.planning/result-overlay-system/research/export-embedding-shape.md` — authoritative per-format wire shape (Arrow / Parquet schema, Excel per-sheet layouts, NDJSON trailer rules), round-trip equivalence rules, and the open-questions punt list for future stories.
 </reference>
