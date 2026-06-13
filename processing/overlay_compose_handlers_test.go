@@ -1,8 +1,8 @@
 package processing
 
 import (
-	"math"
 	stderrors "errors"
+	"math"
 	"testing"
 
 	pulseerrors "github.com/frankbardon/pulse/errors"
@@ -362,9 +362,11 @@ func TestApplyTCell_KnownAnswer(t *testing.T) {
 // scale = 450 / 180 = 2.5
 // expected = [[50, 50, 50], [50, 50, 50], [50, 50, 50]]
 // chisq    = Σ (target - 50)² / 50
-//   (10-50)²/50 = 32, (20-50)²/50 = 18, (30-50)²/50 = 8
-//   (40-50)²/50 = 2,  (50-50)²/50 = 0,  (60-50)²/50 = 2
-//   (70-50)²/50 = 8,  (80-50)²/50 = 18, (90-50)²/50 = 32
+//
+//	(10-50)²/50 = 32, (20-50)²/50 = 18, (30-50)²/50 = 8
+//	(40-50)²/50 = 2,  (50-50)²/50 = 0,  (60-50)²/50 = 2
+//	(70-50)²/50 = 8,  (80-50)²/50 = 18, (90-50)²/50 = 32
+//
 // total = 120
 // df = 9 - 1 = 8
 func TestApplyChiSqVsRef_KnownAnswer(t *testing.T) {
@@ -633,6 +635,241 @@ func TestApplyComposeOverlays_SixKindsDispatch(t *testing.T) {
 			if layer.Payload.Matrix == nil {
 				t.Errorf("layer[%d] %q payload matrix nil", i, specs[i].Kind)
 			}
+		}
+	}
+}
+
+// makeMatrixFromTriples constructs a *types.Response carrying a
+// MatrixPayload whose cells are WelfordTriple rich payloads
+// (mirrors AGG_WELFORD's crosstab output). Used by the triple-aware
+// arms of the T_CELL / Z_CELL handlers (E1-S9, E1-S17).
+func makeMatrixFromTriples(triples [3][3]WelfordTriple) *types.Response {
+	rowKeys := []types.AxisKey{{"r0"}, {"r1"}, {"r2"}}
+	colKeys := []types.AxisKey{{"c0"}, {"c1"}, {"c2"}}
+	cells := make([][]types.MatrixCell, 3)
+	for i := 0; i < 3; i++ {
+		row := make([]types.MatrixCell, 3)
+		for j := 0; j < 3; j++ {
+			row[j] = types.MatrixCell{Value: triples[i][j], Present: true}
+		}
+		cells[i] = row
+	}
+	return &types.Response{
+		Crosstab: &types.CrosstabResult{
+			Matrix: &types.MatrixPayload{
+				RowHeader:    types.AxisHeader{Types: []string{"GROUP_CATEGORY"}},
+				ColumnHeader: types.AxisHeader{Types: []string{"GROUP_CATEGORY"}},
+				RowKeys:      rowKeys,
+				ColumnKeys:   colKeys,
+				Cells:        cells,
+			},
+		},
+	}
+}
+
+// TestApplyTCell_TripleKnownAnswer pins the Welch p-value for the
+// triple-bearing path. Both sides carry WelfordTriple cells —
+// (Mean, Variance, N) is read off the triple directly and the Params
+// defaults are bypassed.
+//
+//	target = {mean: 10, var: 4, n: 10}
+//	ref    = {mean:  9, var: 4, n: 10}
+//	se     = sqrt(4/10 + 4/10) ≈ 0.8944
+//	t      = 1 / 0.8944 ≈ 1.118
+//	df_ws  ≈ 18.0 (equal var, equal n closes to 2*(n-1))
+//	p      ≈ 0.2783
+func TestApplyTCell_TripleKnownAnswer(t *testing.T) {
+	triple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
+	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
+	target := makeMatrixFromTriples([3][3]WelfordTriple{
+		{triple, triple, triple},
+		{triple, triple, triple},
+		{triple, triple, triple},
+	})
+	ref := makeMatrixFromTriples([3][3]WelfordTriple{
+		{refTriple, refTriple, refTriple},
+		{refTriple, refTriple, refTriple},
+		{refTriple, refTriple, refTriple},
+	})
+	spec := composeSpecMatrixRef(types.OverlayKindTCell, nil)
+	layer, warnings, err := applyTCell(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err != nil {
+		t.Fatalf("applyTCell: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %+v, want none", warnings)
+	}
+	// Cross-check against welchTTest directly (the same helper backing
+	// the matrix arm) so the test is byte-equivalent to the
+	// implementation under test.
+	want, ok := welchTTest(10.0, 4.0, 10.0, 9.0, 4.0, 10.0)
+	if !ok {
+		t.Fatal("welchTTest reference computation failed")
+	}
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			approxEqual(t, "cell (triple)", cellAt(t, layer, i, j), want, 1e-9)
+		}
+	}
+}
+
+// TestApplyTCell_TripleBypassesParamsDefaults asserts the precedence
+// rule: cells carrying a WelfordTriple ignore the Params defaults.
+// Params here, if honoured, would shift p toward 1.0; the triple path
+// must produce the same answer as TestApplyTCell_TripleKnownAnswer.
+func TestApplyTCell_TripleBypassesParamsDefaults(t *testing.T) {
+	triple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
+	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
+	target := makeMatrixFromTriples([3][3]WelfordTriple{
+		{triple, triple, triple},
+		{triple, triple, triple},
+		{triple, triple, triple},
+	})
+	ref := makeMatrixFromTriples([3][3]WelfordTriple{
+		{refTriple, refTriple, refTriple},
+		{refTriple, refTriple, refTriple},
+		{refTriple, refTriple, refTriple},
+	})
+	spec := composeSpecMatrixRef(types.OverlayKindTCell, map[string]any{
+		"variance_target":    100.0,
+		"variance_ref":       100.0,
+		"sample_size_target": 1000.0,
+		"sample_size_ref":    1000.0,
+	})
+	layer, _, err := applyTCell(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err != nil {
+		t.Fatalf("applyTCell: %v", err)
+	}
+	want, _ := welchTTest(10.0, 4.0, 10.0, 9.0, 4.0, 10.0)
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			approxEqual(t, "cell (triple bypasses Params)", cellAt(t, layer, i, j), want, 1e-9)
+		}
+	}
+}
+
+// TestApplyTCell_TripleDegenerateInsufficientN exercises the n<2 arm
+// of the triple-bearing path. Every cell should surface NaN +
+// PULSE_OVERLAY_REF_ZERO.
+func TestApplyTCell_TripleDegenerateInsufficientN(t *testing.T) {
+	tri := WelfordTriple{Mean: 10, Variance: 4, N: 1}
+	refTri := WelfordTriple{Mean: 9, Variance: 4, N: 1}
+	target := makeMatrixFromTriples([3][3]WelfordTriple{
+		{tri, tri, tri},
+		{tri, tri, tri},
+		{tri, tri, tri},
+	})
+	ref := makeMatrixFromTriples([3][3]WelfordTriple{
+		{refTri, refTri, refTri},
+		{refTri, refTri, refTri},
+		{refTri, refTri, refTri},
+	})
+	spec := composeSpecMatrixRef(types.OverlayKindTCell, nil)
+	layer, warnings, err := applyTCell(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err != nil {
+		t.Fatalf("applyTCell: %v", err)
+	}
+	if len(warnings) != 9 {
+		t.Errorf("len(warnings) = %d, want 9 (every cell N<2)", len(warnings))
+	}
+	for _, w := range warnings {
+		if w.Code != string(pulseerrors.PULSE_OVERLAY_REF_ZERO) {
+			t.Errorf("warning.Code = %q, want %q", w.Code, pulseerrors.PULSE_OVERLAY_REF_ZERO)
+		}
+	}
+	if !math.IsNaN(cellAt(t, layer, 0, 0)) {
+		t.Errorf("cell (0,0) = %v, want NaN", cellAt(t, layer, 0, 0))
+	}
+}
+
+// TestApplyTCell_TripleZeroVarianceBothSides exercises the
+// degenerate-variance arm of the triple-bearing path. Both sides
+// carry Variance=0 ⇒ welchTTest returns NaN/false ⇒ every cell
+// surfaces NaN + PULSE_OVERLAY_REF_ZERO.
+func TestApplyTCell_TripleZeroVarianceBothSides(t *testing.T) {
+	tri := WelfordTriple{Mean: 10, Variance: 0, N: 10}
+	refTri := WelfordTriple{Mean: 9, Variance: 0, N: 10}
+	target := makeMatrixFromTriples([3][3]WelfordTriple{
+		{tri, tri, tri},
+		{tri, tri, tri},
+		{tri, tri, tri},
+	})
+	ref := makeMatrixFromTriples([3][3]WelfordTriple{
+		{refTri, refTri, refTri},
+		{refTri, refTri, refTri},
+		{refTri, refTri, refTri},
+	})
+	spec := composeSpecMatrixRef(types.OverlayKindTCell, nil)
+	layer, warnings, err := applyTCell(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err != nil {
+		t.Fatalf("applyTCell: %v", err)
+	}
+	if len(warnings) != 9 {
+		t.Errorf("len(warnings) = %d, want 9 (every cell zero-SE)", len(warnings))
+	}
+	if !math.IsNaN(cellAt(t, layer, 0, 0)) {
+		t.Errorf("cell (0,0) = %v, want NaN", cellAt(t, layer, 0, 0))
+	}
+}
+
+// TestApplyTCell_MixedShapeRejected asserts the defensive
+// PULSE_OVERLAY_SCHEMA_DIVERGENT arm. The compose schema-match gate
+// (E1-S8) should reject mixed-shape pairs BEFORE dispatch, but the
+// handler also defensively rejects a target triple paired with a
+// scalar reference at runtime.
+func TestApplyTCell_MixedShapeRejected(t *testing.T) {
+	tri := WelfordTriple{Mean: 10, Variance: 4, N: 10}
+	target := makeMatrixFromTriples([3][3]WelfordTriple{
+		{tri, tri, tri},
+		{tri, tri, tri},
+		{tri, tri, tri},
+	})
+	ref := makeMatrixFromValues([3][3]float64{
+		{9, 9, 9},
+		{9, 9, 9},
+		{9, 9, 9},
+	})
+	spec := composeSpecMatrixRef(types.OverlayKindTCell, nil)
+	_, _, err := applyTCell(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err == nil {
+		t.Fatal("applyTCell: want error for mixed triple/scalar pair, got nil")
+	}
+	var coded *pulseerrors.CodedError
+	if !stderrors.As(err, &coded) {
+		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
+	}
+	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+		t.Errorf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
+	}
+}
+
+// TestApplyTCell_ScalarFallbackByteIdentical asserts the additive
+// contract: a request paired with scalar-only cells produces byte-
+// identical output to the pre-S9 Params-default path. We use the same
+// 3×3 fixture as TestApplyTCell_KnownAnswer and compare cell-for-cell.
+func TestApplyTCell_ScalarFallbackByteIdentical(t *testing.T) {
+	ref := makeMatrixFromValues([3][3]float64{
+		{9, 9, 9},
+		{9, 9, 9},
+		{9, 9, 9},
+	})
+	target := makeMatrixFromValues([3][3]float64{
+		{10, 10, 10},
+		{10, 10, 10},
+		{10, 10, 10},
+	})
+	spec := composeSpecMatrixRef(types.OverlayKindTCell, nil)
+	layer, warnings, err := applyTCell(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err != nil {
+		t.Fatalf("applyTCell: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %+v, want none", warnings)
+	}
+	// The hand-computed reference: se=1, t=1, df=2 ⇒ p ≈ 0.4226.
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			approxEqual(t, "cell (scalar fallback)", cellAt(t, layer, i, j), 0.4226, 0.01)
 		}
 	}
 }

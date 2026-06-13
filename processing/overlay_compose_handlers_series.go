@@ -256,14 +256,28 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 // variance / default-sample-size policy and the same studentTTwoSidedP
 // helper.
 //
+// Triple-aware (E1-S10): when both target and reference value
+// columns carry a WelfordTriple{Mean, Variance, N} the handler
+// consumes the triple directly — variance and n are read from the
+// triple instead of the Params defaults so the overlay's p-value
+// matches TEST_WELCH / TEST_T against the same (mean, variance, n)
+// inputs byte-equal. When both value columns are scalar numeric the
+// handler falls back to today's Params-default path (byte-identical
+// to the pre-S10 output).
+//
+// Mixed value-column shapes (one triple, one scalar) are blocked
+// upstream by the compose schema-match gate (E1-S8). The handler
+// still emits a defensive PULSE_OVERLAY_SCHEMA_DIVERGENT if a mixed
+// pair slips through.
+//
 // Math (per host group `i`):
 //
 //	target_val = target.Data[i].value
 //	ref_val    = ref.Data[i].value
-//	var_target = Params["variance_target"]    (default 1.0)
-//	var_ref    = Params["variance_ref"]       (default 1.0)
-//	n_target   = Params["sample_size_target"] (default 2)
-//	n_ref      = Params["sample_size_ref"]    (default 2)
+//	var_target = triple.Variance OR Params["variance_target"]    (default 1.0)
+//	var_ref    = triple.Variance OR Params["variance_ref"]       (default 1.0)
+//	n_target   = triple.N        OR Params["sample_size_target"] (default 2)
+//	n_ref      = triple.N        OR Params["sample_size_ref"]    (default 2)
 //	se         = sqrt(var_target/n_target + var_ref/n_ref)
 //	t          = (target_val - ref_val) / se
 //	df         = Welch-Satterthwaite recurrence (same as TEST_T)
@@ -289,12 +303,12 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			})
 	}
 
-	varTarget := varianceFromParams(spec.Params, "variance_target", 1.0)
-	varRef := varianceFromParams(spec.Params, "variance_ref", 1.0)
-	nTarget := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
-	nRef := sampleSizeFromParams(spec.Params, "sample_size_ref", 2.0)
+	varTargetDefault := varianceFromParams(spec.Params, "variance_target", 1.0)
+	varRefDefault := varianceFromParams(spec.Params, "variance_ref", 1.0)
+	nTargetDefault := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
+	nRefDefault := sampleSizeFromParams(spec.Params, "sample_size_ref", 2.0)
 
-	refIndex, _ := buildSeriesRowLookup(reference.Data)
+	refIndex := buildSeriesRowLookupAny(reference.Data)
 
 	entries := make([]types.SeriesEntry, 0, len(target.Data))
 	targetLabel := composeFirstTargetLabel(spec)
@@ -306,12 +320,27 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 	)
 
 	for i, row := range target.Data {
-		keyStr, _, value, hasValue := encodeSeriesRow(row)
-		if !hasValue {
+		keyStr, _, scalar, triple, hasScalar, hasTriple := encodeSeriesRowAny(row)
+		if !hasScalar && !hasTriple {
 			continue
 		}
-		refVal, refPresent := refIndex[keyStr]
+		var (
+			targetMean float64
+			targetVar  float64
+			targetN    float64
+		)
+		if hasTriple {
+			targetMean = triple.Mean
+			targetVar = triple.Variance
+			targetN = float64(triple.N)
+		} else {
+			targetMean = scalar
+			targetVar = varTargetDefault
+			targetN = nTargetDefault
+		}
+
 		entry := types.SeriesEntry{Key: types.AxisKey{keyStr}}
+		refEntry, refPresent := refIndex[keyStr]
 		if !refPresent {
 			warnings = append(warnings, OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
@@ -332,7 +361,40 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			entries = append(entries, entry)
 			continue
 		}
-		p, ok := welchTTest(value, varTarget, nTarget, refVal, varRef, nRef)
+
+		// Mixed value-column shapes — schema-match gate (E1-S8) should
+		// already reject this upstream; emit a defensive coded error
+		// if a mismatched pair slips through.
+		if hasTriple != refEntry.HasTriple {
+			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_INTERNAL,
+				"overlay "+string(spec.Kind)+" detected divergent value-column shapes (triple vs scalar) at runtime",
+				map[string]any{
+					"code":         string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT),
+					"kind":         string(spec.Kind),
+					"ref_index":    refIdx,
+					"target_index": targetIdx,
+					"row_index":    i,
+					"row_key":      keyStr,
+				})
+		}
+
+		var (
+			refMean float64
+			refVar  float64
+			refN    float64
+		)
+		if refEntry.HasTriple {
+			refMean = refEntry.Triple.Mean
+			refVar = refEntry.Triple.Variance
+			refN = float64(refEntry.Triple.N)
+		} else {
+			refMean = refEntry.Scalar
+			refVar = varRefDefault
+			refN = nRefDefault
+		}
+
+		p, ok := welchTTest(targetMean, targetVar, targetN, refMean, refVar, refN)
 		if !ok {
 			warnings = append(warnings, OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
@@ -345,8 +407,8 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 					"target_index": targetIdx,
 					"row_index":    i,
 					"row_key":      keyStr,
-					"target_value": value,
-					"ref_value":    refVal,
+					"target_value": targetMean,
+					"ref_value":    refMean,
 				},
 			})
 			nan := math.NaN()
