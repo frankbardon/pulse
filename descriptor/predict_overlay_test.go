@@ -893,3 +893,462 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		})
 	}
 }
+
+// TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage is the E10-S1
+// close-out gate. Audits PredictResult.OverlaysApplied descriptor
+// completeness across the FULL overlay catalog (types.AllOverlayKinds())
+// — for every registered kind, a well-formed spec must produce exactly
+// one OverlayAppliedDescriptor populated with Name + Kind + Scope +
+// Shape (when resolvable) + Ref (when applicable) + Streamable.
+//
+// Earlier per-host tests (TestPredict_OverlaysApplied_AllE2Kinds for
+// MATRIX hosts; TestPredict_FacetOverlaysApplied for FACET hosts;
+// per-kind happy-path tests in overlay_*_test.go for SERIES hosts)
+// pinned the Name + Kind + Scope + Streamable contract per-host. This
+// test extends the contract with the E10-S1 Shape + Ref additions and
+// asserts coverage across EVERY kind in one place — a new overlay
+// kind that doesn't add a fixture entry to per-kind-spec-table below
+// fails closed at the audit point rather than slipping through with
+// an empty descriptor surface.
+//
+// Implementation note: the audit drives the descriptor builder
+// (appendOverlayDescriptors) directly with a per-kind well-formed
+// spec rather than routing through PredictFromBytes against a host
+// fixture. The per-host integration is covered by the existing
+// dedicated tests; this test pins the per-spec descriptor surface
+// (Shape + Ref population) independent of host wiring.
+func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
+	// Per-kind spec table — every registered OverlayKind must carry a
+	// well-formed entry. The spec's Scope + Ref pair is chosen to
+	// match the kind's capability row (overlayCapabilityFor) so the
+	// resolver produces a non-empty Shape (when a single shape can be
+	// resolved at predict time — whole-chain kinds inherit the target
+	// stage's shape at runtime and intentionally leave Shape empty).
+	zero := 0
+	specs := map[types.OverlayKind]types.OverlaySpec{
+		// MATRIX-host inferential CHISQ family — implicit-margin, no Ref.
+		types.OverlayKindChiSqCol: {
+			Name:  "chisq_col",
+			Kind:  types.OverlayKindChiSqCol,
+			Scope: types.OverlayScopeColumn,
+		},
+		types.OverlayKindChiSqMatrix: {
+			Name:  "chisq_matrix",
+			Kind:  types.OverlayKindChiSqMatrix,
+			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindChiSqRow: {
+			Name:  "chisq_row",
+			Kind:  types.OverlayKindChiSqRow,
+			Scope: types.OverlayScopeRow,
+		},
+		// FACET-host inferential — Ref.Population required.
+		types.OverlayKindChiSqVsPop: {
+			Name:  "chisq_vs_pop",
+			Kind:  types.OverlayKindChiSqVsPop,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Population: &types.OverlayPopulationRef{Cohort: "population"},
+			},
+		},
+		// COMPOSE-only — slot-label-driven, no Ref family.
+		types.OverlayKindChiSqVsRef: {
+			Name:  "chisq_vs_ref",
+			Kind:  types.OverlayKindChiSqVsRef,
+			Scope: types.OverlayScopeMatrix,
+		},
+		// SERIES windowed family — Ref.BaselineIndex required.
+		types.OverlayKindDeltaVsBaseline: {
+			Name:  "delta_vs_baseline",
+			Kind:  types.OverlayKindDeltaVsBaseline,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				BaselineIndex: &types.OverlayBaselineIndexRef{Position: 0},
+			},
+		},
+		// MATRIX-host descriptive — Ref.Margin required.
+		types.OverlayKindDeltaVsMargin: {
+			Name:  "delta_vs_margin",
+			Kind:  types.OverlayKindDeltaVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		// COMPOSE-only dual-shape — slot-label-driven, no Ref family.
+		types.OverlayKindDeltaVsRef: {
+			Name:  "delta_vs_ref",
+			Kind:  types.OverlayKindDeltaVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		// SERIES sibling family — Ref.Sibling required.
+		types.OverlayKindDeltaVsSibling: {
+			Name:  "delta_vs_sibling",
+			Kind:  types.OverlayKindDeltaVsSibling,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Sibling: &types.OverlaySiblingRef{Field: "region", Value: "north"},
+			},
+		},
+		// CHAIN whole-chain — Ref.Stage required.
+		types.OverlayKindDeltaVsStage: {
+			Name:  "delta_vs_stage",
+			Kind:  types.OverlayKindDeltaVsStage,
+			Scope: types.OverlayScopeTotal,
+			Ref: types.OverlayRef{
+				Stage: &types.StageRef{Index: &zero},
+			},
+		},
+		// MATRIX-host inferential — implicit-margin, no Ref.
+		types.OverlayKindFisherExactCell: {
+			Name:  "fisher_exact_cell",
+			Kind:  types.OverlayKindFisherExactCell,
+			Scope: types.OverlayScopeCell,
+		},
+		// MATRIX-host descriptive — no Ref family (formula sources its
+		// per-shape namespace from the host payload).
+		types.OverlayKindFormula: {
+			Name:   "formula",
+			Kind:   types.OverlayKindFormula,
+			Scope:  types.OverlayScopeCell,
+			Params: json.RawMessage(`{"formula":"cell"}`),
+		},
+		// SERIES windowed — Ref.BaselineIndex required.
+		types.OverlayKindIndexVsBaseline: {
+			Name:  "index_vs_baseline",
+			Kind:  types.OverlayKindIndexVsBaseline,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				BaselineIndex: &types.OverlayBaselineIndexRef{Position: 0},
+			},
+		},
+		// MATRIX-host descriptive — Ref.Margin required.
+		types.OverlayKindIndexVsMargin: {
+			Name:  "index_vs_margin",
+			Kind:  types.OverlayKindIndexVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		// FACET-host descriptive — Ref.Population required.
+		types.OverlayKindIndexVsPop: {
+			Name:  "index_vs_pop",
+			Kind:  types.OverlayKindIndexVsPop,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Population: &types.OverlayPopulationRef{Cohort: "population"},
+			},
+		},
+		// SERIES windowed — Ref.Prior accepted (lag-1 implicit).
+		types.OverlayKindIndexVsPrior: {
+			Name:  "index_vs_prior",
+			Kind:  types.OverlayKindIndexVsPrior,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Prior: &types.OverlayPriorRef{},
+			},
+		},
+		// COMPOSE-only dual-shape — slot-label-driven, no Ref family.
+		types.OverlayKindIndexVsRef: {
+			Name:  "index_vs_ref",
+			Kind:  types.OverlayKindIndexVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		// SERIES windowed — Ref.RollingMean marker required.
+		types.OverlayKindIndexVsRollingMean: {
+			Name:  "index_vs_rolling_mean",
+			Kind:  types.OverlayKindIndexVsRollingMean,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				RollingMean: &types.OverlayRollingMeanRef{},
+			},
+			Params: json.RawMessage(`{"window": 2}`),
+		},
+		// SERIES sibling family — Ref.Sibling required.
+		types.OverlayKindIndexVsSibling: {
+			Name:  "index_vs_sibling",
+			Kind:  types.OverlayKindIndexVsSibling,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Sibling: &types.OverlaySiblingRef{Field: "region", Value: "north"},
+			},
+		},
+		// CHAIN whole-chain — Ref.Stage required.
+		types.OverlayKindIndexVsStage: {
+			Name:  "index_vs_stage",
+			Kind:  types.OverlayKindIndexVsStage,
+			Scope: types.OverlayScopeTotal,
+			Ref: types.OverlayRef{
+				Stage: &types.StageRef{Index: &zero},
+			},
+		},
+		// SERIES implicit-grand-total, no Ref.
+		types.OverlayKindIndexVsTotal: {
+			Name:  "index_vs_total",
+			Kind:  types.OverlayKindIndexVsTotal,
+			Scope: types.OverlayScopeGroup,
+		},
+		// FACET-host inferential — Ref.Population required.
+		types.OverlayKindKSVsPop: {
+			Name:  "ks_vs_pop",
+			Kind:  types.OverlayKindKSVsPop,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Population: &types.OverlayPopulationRef{Cohort: "population"},
+			},
+		},
+		// COMPOSE-only multi-ref — slot-label-driven, no Ref family.
+		types.OverlayKindPanelIndexVsRef: {
+			Name:  "panel_index_vs_ref",
+			Kind:  types.OverlayKindPanelIndexVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		// COMPOSE-only inferential — slot-label-driven, no Ref family.
+		types.OverlayKindPropZCell: {
+			Name:  "prop_z_cell",
+			Kind:  types.OverlayKindPropZCell,
+			Scope: types.OverlayScopeCell,
+		},
+		// COMPOSE-only inferential multi-ref — slot-label-driven, no Ref family.
+		types.OverlayKindPropZPanel: {
+			Name:  "prop_z_panel",
+			Kind:  types.OverlayKindPropZPanel,
+			Scope: types.OverlayScopeCell,
+		},
+		// COMPOSE-only descriptive — slot-label-driven, no Ref family.
+		types.OverlayKindRank: {
+			Name:  "rank",
+			Kind:  types.OverlayKindRank,
+			Scope: types.OverlayScopeCell,
+		},
+		// MATRIX-host descriptive — Ref.Margin required.
+		types.OverlayKindShareOfCol: {
+			Name:  "share_of_col",
+			Kind:  types.OverlayKindShareOfCol,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisColumn},
+			},
+		},
+		types.OverlayKindShareOfRow: {
+			Name:  "share_of_row",
+			Kind:  types.OverlayKindShareOfRow,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		// Dual-shape SHARE_OF_TOTAL — MATRIX arm via Ref.Margin grand;
+		// SERIES arm exercised by the SERIES handler. The descriptor
+		// builder is a pure function of (Kind, Scope, Ref) so either
+		// arm exercises Shape + Ref resolution correctly. Use MATRIX
+		// arm here to match the rest of the share family fixture.
+		types.OverlayKindShareOfTotal: {
+			Name:  "share_of_total",
+			Kind:  types.OverlayKindShareOfTotal,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisGrand},
+			},
+		},
+		// COMPOSE-only inferential — slot-label-driven, no Ref family.
+		types.OverlayKindTCell: {
+			Name:  "t_cell",
+			Kind:  types.OverlayKindTCell,
+			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindTVsRef: {
+			Name:  "t_vs_ref",
+			Kind:  types.OverlayKindTVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		// SERIES windowed YoY — Ref.YoY marker required.
+		types.OverlayKindYoY: {
+			Name:  "yoy",
+			Kind:  types.OverlayKindYoY,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				YoY: &types.OverlayYoYRef{},
+			},
+			Params: json.RawMessage(`{"frequency": "monthly"}`),
+		},
+		// MATRIX-host descriptive — Ref.Margin required.
+		types.OverlayKindZScoreVsMargin: {
+			Name:  "zscore_vs_margin",
+			Kind:  types.OverlayKindZScoreVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		// FACET-host descriptive — Ref.Population required.
+		types.OverlayKindZScoreVsPop: {
+			Name:  "zscore_vs_pop",
+			Kind:  types.OverlayKindZScoreVsPop,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Population: &types.OverlayPopulationRef{Cohort: "population"},
+			},
+		},
+		// SERIES windowed — Ref.RollingMean marker required.
+		types.OverlayKindZScoreVsRolling: {
+			Name:  "zscore_vs_rolling",
+			Kind:  types.OverlayKindZScoreVsRolling,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				RollingMean: &types.OverlayRollingMeanRef{},
+			},
+			Params: json.RawMessage(`{"window": 2}`),
+		},
+		// SERIES implicit-grand-total, no Ref.
+		types.OverlayKindZScoreVsTotal: {
+			Name:  "zscore_vs_total",
+			Kind:  types.OverlayKindZScoreVsTotal,
+			Scope: types.OverlayScopeGroup,
+		},
+	}
+
+	// Catalog completeness — every kind in types.AllOverlayKinds()
+	// MUST have a fixture entry. A new kind without one fails closed
+	// at this assertion.
+	for _, kind := range types.AllOverlayKinds() {
+		if _, ok := specs[kind]; !ok {
+			t.Errorf("test fixture out of date: overlay kind %q is missing a per-kind spec entry — add one to the specs map", kind)
+		}
+	}
+
+	// Spec-order preservation: iterate types.AllOverlayKinds() (which
+	// is alphabetised — see types.AllOverlayKinds doc) and build the
+	// spec slice in that order. The descriptor slice must come back
+	// in matching order — each Descriptors[i].Kind == specs[i].Kind.
+	kinds := types.AllOverlayKinds()
+	orderedSpecs := make([]types.OverlaySpec, 0, len(kinds))
+	for _, k := range kinds {
+		spec, ok := specs[k]
+		if !ok {
+			// Already reported above; skip so the rest of the test
+			// can run against the kinds that DID have fixtures.
+			continue
+		}
+		orderedSpecs = append(orderedSpecs, spec)
+	}
+
+	costs := map[string]float64{}
+	descriptors, _ := appendOverlayDescriptors(nil, costs, orderedSpecs)
+
+	if got, want := len(descriptors), len(orderedSpecs); got != want {
+		t.Fatalf("descriptors length = %d, want %d (one per spec)", got, want)
+	}
+
+	for i, spec := range orderedSpecs {
+		desc := descriptors[i]
+		// Name echoes spec.Name (every fixture sets a non-empty Name).
+		if desc.Name != spec.Name {
+			t.Errorf("descriptors[%d] (kind %q) Name = %q, want %q",
+				i, spec.Kind, desc.Name, spec.Name)
+		}
+		// Kind matches the spec's Kind.
+		if desc.Kind != spec.Kind {
+			t.Errorf("descriptors[%d] Kind = %q, want %q",
+				i, desc.Kind, spec.Kind)
+		}
+		// Scope reflects the spec's scope.
+		if desc.Scope != spec.Scope {
+			t.Errorf("descriptors[%d] (kind %q) Scope = %q, want %q",
+				i, spec.Kind, desc.Scope, spec.Scope)
+		}
+		// Shape resolves from the capability table. Whole-chain kinds
+		// (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE) and the
+		// few multi-shape FORMULA / DELTA_VS_REF / INDEX_VS_REF /
+		// PANEL_INDEX_VS_REF / CHISQ_VS_REF kinds disambiguate via
+		// scope. For whole-chain kinds the runtime shape depends on
+		// the target stage's host shape (which Predict cannot resolve
+		// without inspecting the chain), so an empty Shape is the
+		// documented fallback.
+		wantShape := resolveOverlayShape(spec.Kind, spec.Scope)
+		if desc.Shape != wantShape {
+			t.Errorf("descriptors[%d] (kind %q, scope %q) Shape = %q, want %q",
+				i, spec.Kind, spec.Scope, desc.Shape, wantShape)
+		}
+		// Ref echoes the resolved discriminated union variant for
+		// every kind whose catalog row consumes a Ref family pointer;
+		// implicit-margin kinds and COMPOSE-only kinds leave Ref
+		// empty by design.
+		wantRef := resolveOverlayRef(&spec)
+		if desc.Ref != wantRef {
+			t.Errorf("descriptors[%d] (kind %q) Ref = %q, want %q",
+				i, spec.Kind, desc.Ref, wantRef)
+		}
+		// Streamable mirrors the static streamability table.
+		wantStream, known := types.OverlayStreamable(spec.Kind)
+		if !known {
+			t.Errorf("descriptors[%d] (kind %q) absent from streamability table",
+				i, spec.Kind)
+			continue
+		}
+		if desc.Streamable != wantStream {
+			t.Errorf("descriptors[%d] (kind %q) Streamable = %v, want %v",
+				i, spec.Kind, desc.Streamable, wantStream)
+		}
+	}
+}
+
+// TestPredict_OverlaysApplied_ShapeAndRefPopulated_RequestHost pins the
+// E10-S1 Shape + Ref additions across the request-host predict path
+// against a MATRIX (crosstab) fixture so the new fields land on the
+// already-shipping predict surface. Sibling to
+// TestPredict_OverlaysApplied_AllE2Kinds (per-host integration); this
+// test guards the descriptor surface plumbing at the
+// PredictFromBytes(... )-against-MATRIX-host call site rather than the
+// pure descriptor builder.
+func TestPredict_OverlaysApplied_ShapeAndRefPopulated_RequestHost(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Crosstab: crosstabHostSpec(),
+		Overlays: []types.OverlaySpec{
+			{
+				Name:  "index_row",
+				Kind:  types.OverlayKindIndexVsMargin,
+				Scope: types.OverlayScopeCell,
+				Ref: types.OverlayRef{
+					Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+				},
+			},
+			{
+				Name:  "chisq_matrix",
+				Kind:  types.OverlayKindChiSqMatrix,
+				Scope: types.OverlayScopeMatrix,
+			},
+		},
+	}
+
+	env := PredictFromBytes(data, req, nil)
+	result, ok := env.Data.(*PredictResult)
+	if !ok {
+		t.Fatalf("envelope Data is not *PredictResult: %T", env.Data)
+	}
+	if got, want := len(result.OverlaysApplied), 2; got != want {
+		t.Fatalf("OverlaysApplied length = %d, want %d", got, want)
+	}
+
+	// INDEX_VS_MARGIN: matrix shape, margin:row ref.
+	d0 := result.OverlaysApplied[0]
+	if d0.Shape != types.OverlayShapeMatrix {
+		t.Errorf("descriptors[0].Shape = %q, want %q", d0.Shape, types.OverlayShapeMatrix)
+	}
+	if d0.Ref != "margin:row" {
+		t.Errorf("descriptors[0].Ref = %q, want %q", d0.Ref, "margin:row")
+	}
+
+	// CHISQ_MATRIX: scalar shape, no Ref (implicit-margin).
+	d1 := result.OverlaysApplied[1]
+	if d1.Shape != types.OverlayShapeScalar {
+		t.Errorf("descriptors[1].Shape = %q, want %q", d1.Shape, types.OverlayShapeScalar)
+	}
+	if d1.Ref != "" {
+		t.Errorf("descriptors[1].Ref = %q, want empty (CHISQ_MATRIX is implicit-margin)", d1.Ref)
+	}
+}

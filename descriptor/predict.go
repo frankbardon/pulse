@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -208,6 +209,43 @@ type OverlayAppliedDescriptor struct {
 
 	// Scope echoes the spec's scope.
 	Scope types.OverlayScope `json:"scope"`
+
+	// Shape echoes the resolved OverlayShape the layer will carry —
+	// derived from (Kind, Scope) via the capability catalog
+	// (descriptor.overlayCapabilityFor). For single-shape kinds the
+	// shape is unambiguous; for dual-shape kinds (OVERLAY_INDEX_VS_REF
+	// / OVERLAY_DELTA_VS_REF / OVERLAY_PANEL_INDEX_VS_REF) the resolver
+	// picks the shape matching the spec's scope (CELL ⇒ matrix, GROUP
+	// ⇒ series); for whole-chain kinds (OVERLAY_INDEX_VS_STAGE /
+	// OVERLAY_DELTA_VS_STAGE) the catalog declares every shape the
+	// kind may emit (scalar / series / matrix) and the descriptor
+	// leaves Shape empty — the realised shape depends on the target
+	// stage's host shape, which Predict cannot determine without
+	// inspecting the chain. Empty when the kind is unknown (the
+	// validator surfaces PULSE_OVERLAY_KIND_UNKNOWN for the same
+	// condition) or when no single shape can be resolved from the
+	// spec at predict time.
+	Shape types.OverlayShape `json:"shape,omitempty"`
+
+	// Ref echoes the resolved OverlayRef discriminated union variant
+	// as a renderer-friendly string. Format: "<family>:<discriminator>"
+	// when the family carries an on-wire discriminator, "<family>" for
+	// marker-only families, and "" for implicit-margin kinds (every
+	// CHISQ_* / FISHER_EXACT_CELL / INDEX_VS_TOTAL / FORMULA) and the
+	// COMPOSE-only catalog (Reference / Targets resolve via slot
+	// labels, not via the OverlayRef discriminated union). Concrete
+	// shapes:
+	//
+	//   - "margin:row" / "margin:column" / "margin:grand" — Ref.Margin
+	//   - "sibling:<field>=<value>"                        — Ref.Sibling
+	//   - "baseline_index:<position>"                      — Ref.BaselineIndex
+	//   - "prior:<lag>"                                    — Ref.Prior
+	//   - "rolling_mean"                                   — Ref.RollingMean (marker)
+	//   - "yoy"                                            — Ref.YoY (marker)
+	//   - "population:<cohort>"                            — Ref.Population
+	//   - "stage:index:<index>" / "stage:name:<name>"      — Ref.Stage
+	//   - "slot:<label>"                                   — Ref.Slot
+	Ref string `json:"ref,omitempty"`
 
 	// Streamable mirrors types.OverlayStreamable(kind). False for
 	// every E2 kind today (the whole crosstab catalog is buffered);
@@ -934,6 +972,8 @@ func appendOverlayDescriptors(
 			Name:       name,
 			Kind:       spec.Kind,
 			Scope:      spec.Scope,
+			Shape:      resolveOverlayShape(spec.Kind, spec.Scope),
+			Ref:        resolveOverlayRef(spec),
 			Streamable: streamable,
 		})
 		// Per-kind cost multiplier — streamable kinds carry
@@ -947,6 +987,127 @@ func appendOverlayDescriptors(
 		}
 	}
 	return descriptors, costs
+}
+
+// resolveOverlayShape returns the OverlayShape the layer will carry
+// for the given (Kind, Scope) pair. Reads the per-kind capability
+// table (overlayCapabilityFor) as the single source of truth.
+//
+// Resolution rules:
+//
+//   - Single-shape kinds (the bulk of the catalog) return the kind's
+//     only declared shape directly.
+//   - Dual-shape kinds (OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF /
+//     OVERLAY_PANEL_INDEX_VS_REF on Compose hosts) disambiguate via
+//     Scope: OverlayScopeCell ⇒ matrix, OverlayScopeGroup ⇒ series,
+//     OverlayScopeTotal ⇒ scalar.
+//   - OVERLAY_FORMULA is a tri-shape kind whose shape is selected by
+//     Scope (cell ⇒ matrix, group ⇒ series, total ⇒ scalar) per the
+//     per-shape FORMULA binder.
+//   - Whole-chain kinds (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE)
+//     inherit the target stage's host shape at runtime — Predict cannot
+//     resolve a single shape without inspecting the chain, so the
+//     resolver returns "" (the descriptor surfaces an empty Shape
+//     field via the omitempty rule).
+//   - Unknown kinds (absent from the catalog) return "" — the
+//     validator surfaces PULSE_OVERLAY_KIND_UNKNOWN for the same
+//     condition.
+func resolveOverlayShape(kind types.OverlayKind, scope types.OverlayScope) types.OverlayShape {
+	cap := overlayCapabilityFor(kind)
+	if len(cap.Shapes) == 0 {
+		return ""
+	}
+	if len(cap.Shapes) == 1 {
+		return cap.Shapes[0]
+	}
+	// Multi-shape kind — disambiguate via Scope. The capability
+	// table declares every shape the kind may emit; the scope-to-
+	// shape mapping is uniform across the catalog:
+	//   cell  ⇒ matrix
+	//   group ⇒ series
+	//   total ⇒ scalar
+	//   row   ⇒ series
+	//   column⇒ series
+	//   matrix⇒ matrix
+	scopeShape := scopeToShape(scope)
+	if scopeShape == "" {
+		return ""
+	}
+	for _, s := range cap.Shapes {
+		if s == scopeShape {
+			return s
+		}
+	}
+	// Scope incompatible with any declared shape — the per-kind
+	// validator (PULSE_OVERLAY_SCOPE_UNSUPPORTED) catches this; the
+	// descriptor surfaces "" so renderers can branch on the gap.
+	return ""
+}
+
+// scopeToShape maps an OverlayScope to its canonical OverlayShape per
+// the catalog convention. Returns "" for unknown scopes.
+func scopeToShape(scope types.OverlayScope) types.OverlayShape {
+	switch scope {
+	case types.OverlayScopeCell:
+		return types.OverlayShapeMatrix
+	case types.OverlayScopeMatrix:
+		return types.OverlayShapeMatrix
+	case types.OverlayScopeRow, types.OverlayScopeColumn, types.OverlayScopeGroup:
+		return types.OverlayShapeSeries
+	case types.OverlayScopeTotal:
+		return types.OverlayShapeScalar
+	}
+	return ""
+}
+
+// resolveOverlayRef returns a renderer-friendly string describing the
+// resolved OverlayRef discriminated union variant. Format follows the
+// per-family conventions documented on OverlayAppliedDescriptor.Ref.
+//
+// Returns "" for:
+//   - Implicit-margin kinds (CHISQ_*, FISHER_EXACT_CELL, INDEX_VS_TOTAL,
+//     ZSCORE_VS_TOTAL, SHARE_OF_TOTAL, FORMULA) that leave Ref empty.
+//   - COMPOSE-only kinds (OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF /
+//     OVERLAY_PROP_Z_CELL / OVERLAY_PROP_Z_PANEL / OVERLAY_PANEL_INDEX_VS_REF
+//     / OVERLAY_T_CELL / OVERLAY_T_VS_REF / OVERLAY_CHISQ_VS_REF /
+//     OVERLAY_RANK) whose reference + target slots ride on the
+//     ComposeOverlaySpec slot-label pair, not on Ref.
+func resolveOverlayRef(spec *types.OverlaySpec) string {
+	if spec == nil {
+		return ""
+	}
+	ref := spec.Ref
+	switch {
+	case ref.Margin != nil:
+		return "margin:" + string(ref.Margin.Axis)
+	case ref.Sibling != nil:
+		return "sibling:" + ref.Sibling.Field + "=" + ref.Sibling.Value
+	case ref.BaselineIndex != nil:
+		return "baseline_index:" + itoa(ref.BaselineIndex.Position)
+	case ref.Prior != nil:
+		return "prior:" + itoa(ref.Prior.Lag)
+	case ref.RollingMean != nil:
+		return "rolling_mean"
+	case ref.YoY != nil:
+		return "yoy"
+	case ref.Population != nil:
+		return "population:" + ref.Population.Cohort
+	case ref.Stage != nil:
+		if ref.Stage.Index != nil {
+			return "stage:index:" + itoa(*ref.Stage.Index)
+		}
+		return "stage:name:" + ref.Stage.Name
+	case ref.Slot != nil:
+		return "slot:" + ref.Slot.Name
+	}
+	return ""
+}
+
+// itoa renders an integer for the Ref string surface. Uses
+// strconv.Itoa via the small wrapper to keep the call site readable
+// (the surrounding function reads cleanly as a switch on the union).
+func itoa(n int) string {
+	return strconv.Itoa(n)
 }
 
 // populateFacetOverlayDescriptors fills FacetValidationResult.OverlaysApplied
