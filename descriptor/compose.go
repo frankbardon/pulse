@@ -65,6 +65,22 @@ type ComposeValidationResult struct {
 	// renderers see an empty array, matching PredictResult's
 	// contract.
 	OverlaysSchemaDivergence []SlotPair `json:"overlays_schema_divergence"`
+
+	// OverlayCost maps each COMPOSE-host overlay-spec Name to a coarse
+	// cost score the routing layer can consult before execution. Sibling
+	// to PredictResult.OverlayCost / FacetValidationResult.OverlayCost —
+	// streamable kinds carry overlayCostStreamable (~5% extra work) and
+	// buffered kinds carry overlayCostBuffered (~one extra payload
+	// traversal). E10-S3 lands this slot alongside multi-reference cost
+	// scaling: the two multi-ref kinds (OVERLAY_PROP_Z_PANEL,
+	// OVERLAY_PANEL_INDEX_VS_REF) scale the base cost by
+	// `min(len(spec.Targets), MaxPanelTargets)` so renderers can budget
+	// per-panel fan-out without re-deriving the cap. Single-target kinds
+	// ignore the Targets slice and surface the raw kind cost. Per
+	// kind-catalog-v1 PRD §I-FR-I3 the value is intentionally coarse —
+	// callers budgeting cost across slots sum the map values. Empty (but
+	// non-nil) when req.Overlays is empty; never nil in JSON output.
+	OverlayCost map[string]float64 `json:"overlay_cost"`
 }
 
 // ValidateCompose runs the no-execute COMPOSE-host overlay walk over
@@ -83,6 +99,7 @@ func ValidateCompose(req *types.ComposedRequest) *Envelope {
 		Valid:                    true,
 		Request:                  req,
 		OverlaysSchemaDivergence: []SlotPair{},
+		OverlayCost:              map[string]float64{},
 	}
 	env := NewEnvelope(result)
 
@@ -116,12 +133,80 @@ func ValidateCompose(req *types.ComposedRequest) *Envelope {
 
 	for i, spec := range req.Overlays {
 		validateComposeOverlaySpec(env, result, &spec, i, byLabel, req)
+		// Populate the per-spec cost score in matching order — even when
+		// the spec fails a downstream gate (the cost map is descriptive,
+		// not gated by validity). The cost dispatcher reads the spec's
+		// kind + Targets + Options so a rejected spec still surfaces its
+		// budget. Mirrors the per-spec cost emission rule on
+		// PredictResult.OverlayCost / FacetValidationResult.OverlayCost.
+		name := composeOverlayDescriptorName(&spec)
+		result.OverlayCost[name] = composeOverlayCostForSpec(&spec)
 	}
 
 	if len(env.Errors) > 0 {
 		result.Valid = false
 	}
 	return env
+}
+
+// composeOverlayDescriptorName resolves the renderer-facing label for one
+// ComposeOverlaySpec — spec.Name when set, otherwise the on-wire Kind
+// string. Mirrors `processing.composeOverlayLayerName` (the runtime
+// equivalent) under the no-execute structural ban so the descriptor
+// surface and the runtime surface use byte-identical Name resolution
+// for the OverlayCost / OverlayAppliedDescriptor key alignment.
+func composeOverlayDescriptorName(spec *types.ComposeOverlaySpec) string {
+	if spec == nil {
+		return ""
+	}
+	if spec.Name != "" {
+		return spec.Name
+	}
+	return string(spec.Kind)
+}
+
+// composeOverlayCostForSpec returns the per-spec cost score for one
+// ComposeOverlaySpec. Single-target kinds delegate to the streamability-
+// derived dispatch (overlayCostForKind) — streamable kinds report ~0.05x
+// and buffered kinds report ~1.0x. Multi-reference kinds
+// (OVERLAY_PROP_Z_PANEL, OVERLAY_PANEL_INDEX_VS_REF) scale the base cost
+// by `min(len(spec.Targets), cap)` where cap = spec.Options.MaxPanelTargets
+// when > 0, else composeDefaultPanelCap (16). The cap clamp is the same
+// rule descriptor.validateComposeOverlaySpec uses to reject
+// PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP — a spec that would be rejected
+// at validate time gets a cost score reflecting the cap (not the
+// over-cap actual), so renderers budgeting cost across slots see the
+// stable post-cap fan-out.
+//
+// Zero / empty Targets on a multi-ref kind yields a multiplier of 1
+// (single-target fallback) so the renderer sees a sensible baseline
+// when the caller has not yet populated the panel — the per-spec
+// validator surfaces PULSE_OVERLAY_TARGET_UNKNOWN separately for the
+// missing target arm.
+func composeOverlayCostForSpec(spec *types.ComposeOverlaySpec) float64 {
+	if spec == nil {
+		return 0
+	}
+	base := overlayCostForKind(spec.Kind)
+	if !composeKindIsPanel(spec.Kind) {
+		return base
+	}
+	targets := len(spec.Targets)
+	if targets <= 0 {
+		// No-target arm — the per-spec validator surfaces
+		// PULSE_OVERLAY_TARGET_UNKNOWN; the cost map stays sensible by
+		// reporting the single-target equivalent so renderers do not
+		// see a zero-cost panel.
+		return base
+	}
+	cap := composeDefaultPanelCap
+	if spec.Options != nil && spec.Options.MaxPanelTargets > 0 {
+		cap = spec.Options.MaxPanelTargets
+	}
+	if targets > cap {
+		targets = cap
+	}
+	return base * float64(targets)
 }
 
 // validateComposeOverlaySpec walks a single ComposeOverlaySpec against

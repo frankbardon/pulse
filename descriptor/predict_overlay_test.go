@@ -1352,3 +1352,361 @@ func TestPredict_OverlaysApplied_ShapeAndRefPopulated_RequestHost(t *testing.T) 
 		t.Errorf("descriptors[1].Ref = %q, want empty (CHISQ_MATRIX is implicit-margin)", d1.Ref)
 	}
 }
+
+// TestPredict_OverlayCost_AllKindsHaveMultiplier is the E10-S3 close-out
+// audit gate. Drives appendOverlayDescriptors directly with a well-formed
+// spec per kind in types.AllOverlayKinds() and asserts the OverlayCost
+// map carries one entry for every registered kind — no zero-value gaps,
+// no missing keys. A new overlay kind that does not add a fixture entry
+// fails closed at the catalog-completeness assertion below; a regression
+// in the cost dispatcher that silently drops a kind from the map fails
+// closed at the per-key lookup.
+//
+// The audit is deliberately a pure-descriptor exercise (no
+// PredictFromBytes round-trip): the cost dispatch is a pure function of
+// (spec.Kind, spec.Targets, spec.Options) and the per-host integration
+// is already covered by the streamable / buffered / E2-default tests
+// above. Routing every kind through a host fixture would conflate two
+// surfaces — this test focuses on the cost-map completeness contract
+// alone.
+//
+// Per kind-catalog-v1 PRD §I-FR-I3 the cost score is a coarse multi-
+// plier (~0.05 for streamable kinds folding inside the existing pass;
+// ~1.0 for buffered kinds requiring a re-traversal of the materialised
+// host structure). The streamability-derived dispatch (overlayCostForKind)
+// reads types.OverlayStreamable(kind) so a kind that flips streamable
+// automatically flips its cost score — the audit does NOT pin the
+// streamable / buffered split per kind (the dedicated streamable /
+// buffered tests above own that contract); this test only pins
+// "every kind has a multiplier".
+func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
+	zero := 0
+	// Per-kind spec table mirrors
+	// TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage's table —
+	// every registered OverlayKind must carry a well-formed entry. The
+	// fixture is duplicated here (vs. lifted into a shared helper) so
+	// the two coverage gates stay independently maintainable; a kind
+	// added to one without the other surfaces the gap explicitly.
+	specs := map[types.OverlayKind]types.OverlaySpec{
+		types.OverlayKindChiSqCol: {
+			Name:  "chisq_col",
+			Kind:  types.OverlayKindChiSqCol,
+			Scope: types.OverlayScopeColumn,
+		},
+		types.OverlayKindChiSqMatrix: {
+			Name:  "chisq_matrix",
+			Kind:  types.OverlayKindChiSqMatrix,
+			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindChiSqRow: {
+			Name:  "chisq_row",
+			Kind:  types.OverlayKindChiSqRow,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindChiSqVsPop: {
+			Name:  "chisq_vs_pop",
+			Kind:  types.OverlayKindChiSqVsPop,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Population: &types.OverlayPopulationRef{Cohort: "population"},
+			},
+		},
+		types.OverlayKindChiSqVsRef: {
+			Name:  "chisq_vs_ref",
+			Kind:  types.OverlayKindChiSqVsRef,
+			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindDeltaVsBaseline: {
+			Name:  "delta_vs_baseline",
+			Kind:  types.OverlayKindDeltaVsBaseline,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				BaselineIndex: &types.OverlayBaselineIndexRef{Position: 0},
+			},
+		},
+		types.OverlayKindDeltaVsMargin: {
+			Name:  "delta_vs_margin",
+			Kind:  types.OverlayKindDeltaVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		types.OverlayKindDeltaVsRef: {
+			Name:  "delta_vs_ref",
+			Kind:  types.OverlayKindDeltaVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		types.OverlayKindDeltaVsSibling: {
+			Name:  "delta_vs_sibling",
+			Kind:  types.OverlayKindDeltaVsSibling,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Sibling: &types.OverlaySiblingRef{Field: "region", Value: "north"},
+			},
+		},
+		types.OverlayKindDeltaVsStage: {
+			Name:  "delta_vs_stage",
+			Kind:  types.OverlayKindDeltaVsStage,
+			Scope: types.OverlayScopeTotal,
+			Ref: types.OverlayRef{
+				Stage: &types.StageRef{Index: &zero},
+			},
+		},
+		types.OverlayKindFisherExactCell: {
+			Name:  "fisher_exact_cell",
+			Kind:  types.OverlayKindFisherExactCell,
+			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindFormula: {
+			Name:   "formula",
+			Kind:   types.OverlayKindFormula,
+			Scope:  types.OverlayScopeCell,
+			Params: json.RawMessage(`{"formula":"cell"}`),
+		},
+		types.OverlayKindIndexVsBaseline: {
+			Name:  "index_vs_baseline",
+			Kind:  types.OverlayKindIndexVsBaseline,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				BaselineIndex: &types.OverlayBaselineIndexRef{Position: 0},
+			},
+		},
+		types.OverlayKindIndexVsMargin: {
+			Name:  "index_vs_margin",
+			Kind:  types.OverlayKindIndexVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		types.OverlayKindIndexVsPop: {
+			Name:  "index_vs_pop",
+			Kind:  types.OverlayKindIndexVsPop,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Population: &types.OverlayPopulationRef{Cohort: "population"},
+			},
+		},
+		types.OverlayKindIndexVsPrior: {
+			Name:  "index_vs_prior",
+			Kind:  types.OverlayKindIndexVsPrior,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Prior: &types.OverlayPriorRef{},
+			},
+		},
+		types.OverlayKindIndexVsRef: {
+			Name:  "index_vs_ref",
+			Kind:  types.OverlayKindIndexVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		types.OverlayKindIndexVsRollingMean: {
+			Name:  "index_vs_rolling_mean",
+			Kind:  types.OverlayKindIndexVsRollingMean,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				RollingMean: &types.OverlayRollingMeanRef{},
+			},
+			Params: json.RawMessage(`{"window": 2}`),
+		},
+		types.OverlayKindIndexVsSibling: {
+			Name:  "index_vs_sibling",
+			Kind:  types.OverlayKindIndexVsSibling,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Sibling: &types.OverlaySiblingRef{Field: "region", Value: "north"},
+			},
+		},
+		types.OverlayKindIndexVsStage: {
+			Name:  "index_vs_stage",
+			Kind:  types.OverlayKindIndexVsStage,
+			Scope: types.OverlayScopeTotal,
+			Ref: types.OverlayRef{
+				Stage: &types.StageRef{Index: &zero},
+			},
+		},
+		types.OverlayKindIndexVsTotal: {
+			Name:  "index_vs_total",
+			Kind:  types.OverlayKindIndexVsTotal,
+			Scope: types.OverlayScopeGroup,
+		},
+		types.OverlayKindKSVsPop: {
+			Name:  "ks_vs_pop",
+			Kind:  types.OverlayKindKSVsPop,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Population: &types.OverlayPopulationRef{Cohort: "population"},
+			},
+		},
+		types.OverlayKindPanelIndexVsRef: {
+			Name:  "panel_index_vs_ref",
+			Kind:  types.OverlayKindPanelIndexVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		types.OverlayKindPropZCell: {
+			Name:  "prop_z_cell",
+			Kind:  types.OverlayKindPropZCell,
+			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindPropZPanel: {
+			Name:  "prop_z_panel",
+			Kind:  types.OverlayKindPropZPanel,
+			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindRank: {
+			Name:  "rank",
+			Kind:  types.OverlayKindRank,
+			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindShareOfCol: {
+			Name:  "share_of_col",
+			Kind:  types.OverlayKindShareOfCol,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisColumn},
+			},
+		},
+		types.OverlayKindShareOfRow: {
+			Name:  "share_of_row",
+			Kind:  types.OverlayKindShareOfRow,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		types.OverlayKindShareOfTotal: {
+			Name:  "share_of_total",
+			Kind:  types.OverlayKindShareOfTotal,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisGrand},
+			},
+		},
+		types.OverlayKindTCell: {
+			Name:  "t_cell",
+			Kind:  types.OverlayKindTCell,
+			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindTVsRef: {
+			Name:  "t_vs_ref",
+			Kind:  types.OverlayKindTVsRef,
+			Scope: types.OverlayScopeGroup,
+		},
+		types.OverlayKindYoY: {
+			Name:  "yoy",
+			Kind:  types.OverlayKindYoY,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				YoY: &types.OverlayYoYRef{},
+			},
+			Params: json.RawMessage(`{"frequency": "monthly"}`),
+		},
+		types.OverlayKindZScoreVsMargin: {
+			Name:  "zscore_vs_margin",
+			Kind:  types.OverlayKindZScoreVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref: types.OverlayRef{
+				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+			},
+		},
+		types.OverlayKindZScoreVsPop: {
+			Name:  "zscore_vs_pop",
+			Kind:  types.OverlayKindZScoreVsPop,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Population: &types.OverlayPopulationRef{Cohort: "population"},
+			},
+		},
+		types.OverlayKindZScoreVsRolling: {
+			Name:  "zscore_vs_rolling",
+			Kind:  types.OverlayKindZScoreVsRolling,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				RollingMean: &types.OverlayRollingMeanRef{},
+			},
+			Params: json.RawMessage(`{"window": 2}`),
+		},
+		types.OverlayKindZScoreVsTotal: {
+			Name:  "zscore_vs_total",
+			Kind:  types.OverlayKindZScoreVsTotal,
+			Scope: types.OverlayScopeGroup,
+		},
+	}
+
+	// Catalog completeness — every kind in types.AllOverlayKinds() MUST
+	// have a fixture entry. A new kind without one fails closed at this
+	// assertion BEFORE the cost-map per-key checks below so the failure
+	// message points at the fixture, not at an absent map entry whose
+	// owner is harder to track down.
+	kinds := types.AllOverlayKinds()
+	for _, kind := range kinds {
+		if _, ok := specs[kind]; !ok {
+			t.Errorf("test fixture out of date: overlay kind %q is missing a per-kind spec entry — add one to the specs map", kind)
+		}
+	}
+
+	// Drive the descriptor builder directly. orderedSpecs walks
+	// AllOverlayKinds() (alphabetised) so the descriptor / cost emission
+	// order is deterministic.
+	orderedSpecs := make([]types.OverlaySpec, 0, len(kinds))
+	for _, k := range kinds {
+		spec, ok := specs[k]
+		if !ok {
+			continue
+		}
+		orderedSpecs = append(orderedSpecs, spec)
+	}
+
+	costs := map[string]float64{}
+	descriptors, costs := appendOverlayDescriptors(nil, costs, orderedSpecs)
+
+	if got, want := len(descriptors), len(orderedSpecs); got != want {
+		t.Fatalf("descriptors length = %d, want %d (one per spec)", got, want)
+	}
+	if got, want := len(costs), len(orderedSpecs); got != want {
+		t.Fatalf("OverlayCost length = %d, want %d (one entry per spec)", got, want)
+	}
+
+	// Per-kind multiplier presence: every spec.Name must appear as a
+	// key in the OverlayCost map AND carry the streamability-derived
+	// score for its kind. The per-key value assertion uses
+	// overlayCostForKind directly so a future streamability flip
+	// re-derives the expected score automatically; the test does NOT
+	// hard-code the streamable / buffered split per kind (the dedicated
+	// streamable / buffered tests above own that contract).
+	for i, spec := range orderedSpecs {
+		cost, ok := costs[spec.Name]
+		if !ok {
+			t.Errorf("OverlayCost missing key %q (spec index %d, kind %q)",
+				spec.Name, i, spec.Kind)
+			continue
+		}
+		want := overlayCostForKind(spec.Kind)
+		if cost != want {
+			t.Errorf("OverlayCost[%q] = %v, want %v (overlayCostForKind dispatch on kind %q)",
+				spec.Name, cost, want, spec.Kind)
+		}
+		// Zero-value guard: an unset multiplier is the failure shape
+		// callers see when a kind silently slips past the dispatcher.
+		// The == 0 check is belt-and-braces alongside the wantCost
+		// check above — every legitimate kind currently maps to either
+		// overlayCostStreamable (0.05) or overlayCostBuffered (1.0),
+		// neither of which is zero.
+		if cost == 0 {
+			t.Errorf("OverlayCost[%q] = 0; expected a non-zero multiplier (kind %q)",
+				spec.Name, spec.Kind)
+		}
+	}
+
+	// Empty map sanity-check: with zero specs the dispatcher should not
+	// emit any keys (the map stays empty-but-not-nil).
+	emptyCosts := map[string]float64{}
+	_, emptyCosts = appendOverlayDescriptors(nil, emptyCosts, nil)
+	if emptyCosts == nil {
+		t.Errorf("OverlayCost map = nil; expected empty (non-nil) map")
+	}
+	if len(emptyCosts) != 0 {
+		t.Errorf("OverlayCost map = %+v; expected empty", emptyCosts)
+	}
+}

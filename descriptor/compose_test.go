@@ -814,3 +814,278 @@ func TestValidateCompose_DefaultLabelResolution(t *testing.T) {
 		t.Errorf("expected no errors with auto-default labels, got %+v", env.Errors)
 	}
 }
+
+// TestValidateCompose_OverlayCost_SingleTargetBaseline pins the per-spec
+// OverlayCost emission for a single-target ComposeOverlaySpec — the cost
+// dispatcher must surface the bare kind cost (no multi-target scaling)
+// for every non-panel kind. E10-S3 establishes the cost map contract on
+// ComposeValidationResult sibling to PredictResult.OverlayCost /
+// FacetValidationResult.OverlayCost.
+func TestValidateCompose_OverlayCost_SingleTargetBaseline(t *testing.T) {
+	req := &types.ComposedRequest{
+		Requests: []*types.Request{
+			seriesGroupedSumRequest("a", "x", "tag"),
+			seriesGroupedSumRequest("b", "y", "tag"),
+		},
+		Overlays: []types.ComposeOverlaySpec{
+			{
+				Name:      "delta_single",
+				Kind:      types.OverlayKindDeltaVsRef,
+				Reference: "a",
+				Targets:   []string{"b"},
+			},
+		},
+	}
+	env := ValidateCompose(req)
+	result := env.Data.(*ComposeValidationResult)
+	if result.OverlayCost == nil {
+		t.Fatalf("OverlayCost = nil; expected non-nil map")
+	}
+	cost, ok := result.OverlayCost["delta_single"]
+	if !ok {
+		t.Fatalf("OverlayCost missing key %q; keys: %v", "delta_single", composeCostKeys(result.OverlayCost))
+	}
+	// DELTA_VS_REF is streamable via its SERIES handler.
+	want := overlayCostForKind(types.OverlayKindDeltaVsRef)
+	if cost != want {
+		t.Errorf("OverlayCost[delta_single] = %v, want %v (single-target DELTA_VS_REF, no panel scaling)",
+			cost, want)
+	}
+}
+
+// TestValidateCompose_OverlayCost_MultiRefScaling locks the multi-ref
+// cost-scaling rule. The two multi-reference COMPOSE kinds
+// (OVERLAY_PROP_Z_PANEL, OVERLAY_PANEL_INDEX_VS_REF) scale the per-spec
+// cost by len(Targets) so renderers see a per-panel fan-out budget that
+// reflects the actual emission shape (one OverlayLayer per target for
+// PANEL_INDEX_VS_REF; one pairwise-p value slice for PROP_Z_PANEL).
+// Single-target kinds ignore the slice and surface the raw kind cost.
+//
+// The test exercises both multi-ref kinds (catalog-driven so a future
+// multi-ref kind landing here without a matching cost-dispatch entry
+// fails closed) and includes the under-cap baseline, the at-cap edge,
+// and the over-cap clamp.
+func TestValidateCompose_OverlayCost_MultiRefScaling(t *testing.T) {
+	// Build a 5-slot fixture: 1 reference + 4 targets. PROP_Z_PANEL
+	// requires MATRIX hosts (kindRequiresMatrixCompose), PANEL_INDEX_VS_REF
+	// supports both MATRIX and SERIES hosts; both tests use MATRIX fixtures
+	// to land on the same fixture surface.
+	requests := []*types.Request{
+		matrixCrosstabRequest("ref", "row", "col"),
+		matrixCrosstabRequest("t1", "row", "col"),
+		matrixCrosstabRequest("t2", "row", "col"),
+		matrixCrosstabRequest("t3", "row", "col"),
+		matrixCrosstabRequest("t4", "row", "col"),
+	}
+
+	cases := []struct {
+		name        string
+		kind        types.OverlayKind
+		targets     []string
+		options     *types.OverlayOptions
+		wantTargets int
+	}{
+		{
+			name:        "PropZPanel_UnderCap_TwoTargets",
+			kind:        types.OverlayKindPropZPanel,
+			targets:     []string{"t1", "t2"},
+			wantTargets: 2,
+		},
+		{
+			name:        "PanelIndexVsRef_UnderCap_ThreeTargets",
+			kind:        types.OverlayKindPanelIndexVsRef,
+			targets:     []string{"t1", "t2", "t3"},
+			wantTargets: 3,
+		},
+		{
+			name:        "PropZPanel_AtCustomCap_FourTargets",
+			kind:        types.OverlayKindPropZPanel,
+			targets:     []string{"t1", "t2", "t3", "t4"},
+			options:     &types.OverlayOptions{MaxPanelTargets: 4},
+			wantTargets: 4,
+		},
+		{
+			name:    "PropZPanel_OverCustomCap_FourTargetsCapTwo",
+			kind:    types.OverlayKindPropZPanel,
+			targets: []string{"t1", "t2", "t3", "t4"},
+			options: &types.OverlayOptions{MaxPanelTargets: 2},
+			// Clamp at cap: 4 targets but cap is 2 → cost reflects 2.
+			wantTargets: 2,
+		},
+		{
+			name:    "PanelIndexVsRef_OverCustomCap_ThreeTargetsCapOne",
+			kind:    types.OverlayKindPanelIndexVsRef,
+			targets: []string{"t1", "t2", "t3"},
+			options: &types.OverlayOptions{MaxPanelTargets: 1},
+			// Clamp at cap: 3 targets but cap is 1 → cost reflects 1.
+			wantTargets: 1,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &types.ComposedRequest{
+				Requests: requests,
+				Overlays: []types.ComposeOverlaySpec{
+					{
+						Name:      "panel",
+						Kind:      tc.kind,
+						Reference: "ref",
+						Targets:   tc.targets,
+						Options:   tc.options,
+					},
+				},
+			}
+			env := ValidateCompose(req)
+			result := env.Data.(*ComposeValidationResult)
+			cost, ok := result.OverlayCost["panel"]
+			if !ok {
+				t.Fatalf("OverlayCost missing key %q; keys: %v", "panel", composeCostKeys(result.OverlayCost))
+			}
+			base := overlayCostForKind(tc.kind)
+			want := base * float64(tc.wantTargets)
+			if cost != want {
+				t.Errorf("OverlayCost[panel] = %v, want %v (kind %q, %d targets, capped at %d)",
+					cost, want, tc.kind, len(tc.targets), tc.wantTargets)
+			}
+		})
+	}
+}
+
+// TestValidateCompose_OverlayCost_DefaultCapApplies pins the
+// composeDefaultPanelCap (16) clamp when the caller omits
+// Options.MaxPanelTargets. A 20-target spec on PROP_Z_PANEL must surface
+// a cost reflecting cap=16, not the raw 20.
+func TestValidateCompose_OverlayCost_DefaultCapApplies(t *testing.T) {
+	// 21 slots: 1 reference + 20 targets. Over the default cap of 16.
+	requests := make([]*types.Request, 0, 21)
+	requests = append(requests, matrixCrosstabRequest("ref", "row", "col"))
+	targets := make([]string, 0, 20)
+	for i := 1; i <= 20; i++ {
+		label := "t" + composeDescriptorItoa(i)
+		requests = append(requests, matrixCrosstabRequest(label, "row", "col"))
+		targets = append(targets, label)
+	}
+	req := &types.ComposedRequest{
+		Requests: requests,
+		Overlays: []types.ComposeOverlaySpec{
+			{
+				Name:      "panel",
+				Kind:      types.OverlayKindPropZPanel,
+				Reference: "ref",
+				Targets:   targets,
+				// Options omitted — defaults to composeDefaultPanelCap (16).
+			},
+		},
+	}
+	env := ValidateCompose(req)
+	result := env.Data.(*ComposeValidationResult)
+	cost, ok := result.OverlayCost["panel"]
+	if !ok {
+		t.Fatalf("OverlayCost missing key %q; keys: %v", "panel", composeCostKeys(result.OverlayCost))
+	}
+	base := overlayCostForKind(types.OverlayKindPropZPanel)
+	want := base * float64(composeDefaultPanelCap)
+	if cost != want {
+		t.Errorf("OverlayCost[panel] = %v, want %v (20 targets clamped at default cap of %d)",
+			cost, want, composeDefaultPanelCap)
+	}
+}
+
+// TestValidateCompose_OverlayCost_EmptyWhenNoOverlays pins the empty-
+// not-nil contract. A ComposedRequest without Overlays must still emit
+// OverlayCost as an empty (non-nil) map so the JSON envelope output
+// stays byte-identical regardless of whether the caller asked for
+// overlays. Sibling contract to
+// TestPredict_FacetOverlaysApplied_EmptyWhenNoOverlays.
+func TestValidateCompose_OverlayCost_EmptyWhenNoOverlays(t *testing.T) {
+	req := &types.ComposedRequest{
+		Requests: []*types.Request{
+			scalarSumRequest("a", "x"),
+			scalarSumRequest("b", "y"),
+		},
+	}
+	env := ValidateCompose(req)
+	result := env.Data.(*ComposeValidationResult)
+	if result.OverlayCost == nil {
+		t.Errorf("OverlayCost = nil; expected empty (non-nil) map")
+	}
+	if len(result.OverlayCost) != 0 {
+		t.Errorf("OverlayCost = %+v; expected empty", result.OverlayCost)
+	}
+}
+
+// TestValidateCompose_OverlayCost_NoTargetsFallback pins the no-target
+// fallback rule on multi-ref kinds. A spec without Targets carries the
+// single-target equivalent cost — the per-spec validator surfaces the
+// missing-target failure separately. The cost map stays well-formed.
+func TestValidateCompose_OverlayCost_NoTargetsFallback(t *testing.T) {
+	req := &types.ComposedRequest{
+		Requests: []*types.Request{
+			matrixCrosstabRequest("ref", "row", "col"),
+		},
+		Overlays: []types.ComposeOverlaySpec{
+			{
+				Name:      "empty_panel",
+				Kind:      types.OverlayKindPropZPanel,
+				Reference: "ref",
+				// Targets intentionally omitted — multi-ref kind with
+				// no targets falls back to single-target cost.
+			},
+		},
+	}
+	env := ValidateCompose(req)
+	result := env.Data.(*ComposeValidationResult)
+	cost, ok := result.OverlayCost["empty_panel"]
+	if !ok {
+		t.Fatalf("OverlayCost missing key %q; keys: %v", "empty_panel", composeCostKeys(result.OverlayCost))
+	}
+	want := overlayCostForKind(types.OverlayKindPropZPanel)
+	if cost != want {
+		t.Errorf("OverlayCost[empty_panel] = %v, want %v (no-target multi-ref fallback to base cost)",
+			cost, want)
+	}
+}
+
+// TestValidateCompose_OverlayCost_NameFallbackToKind exercises the
+// composeOverlayDescriptorName synthesized-default fallback: an empty
+// Name resolves to the on-wire Kind string so the cost-map key matches
+// the runtime composeOverlayLayerName resolution. Mirrors the
+// PredictResult / FacetValidationResult name-synthesis contract.
+func TestValidateCompose_OverlayCost_NameFallbackToKind(t *testing.T) {
+	req := &types.ComposedRequest{
+		Requests: []*types.Request{
+			seriesGroupedSumRequest("a", "x", "tag"),
+			seriesGroupedSumRequest("b", "y", "tag"),
+		},
+		Overlays: []types.ComposeOverlaySpec{
+			{
+				// Name intentionally omitted.
+				Kind:      types.OverlayKindDeltaVsRef,
+				Reference: "a",
+				Targets:   []string{"b"},
+			},
+		},
+	}
+	env := ValidateCompose(req)
+	result := env.Data.(*ComposeValidationResult)
+	// The synthesized key matches the on-wire Kind string per the
+	// composeOverlayDescriptorName fallback rule.
+	want := string(types.OverlayKindDeltaVsRef)
+	if _, ok := result.OverlayCost[want]; !ok {
+		t.Errorf("OverlayCost missing synthesised key %q; keys: %v",
+			want, composeCostKeys(result.OverlayCost))
+	}
+}
+
+// composeCostKeys returns a stable-ordered slice of OverlayCost map
+// keys for failure messages. Sibling to costKeys in
+// predict_overlay_test.go but lives here to keep the compose test file
+// self-contained.
+func composeCostKeys(m map[string]float64) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}

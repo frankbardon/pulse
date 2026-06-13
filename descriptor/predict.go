@@ -157,9 +157,15 @@ type PredictResult struct {
 	// the full overlay catalog (E2 ships 10 kinds; future epics
 	// append entries to types.AllOverlayKinds() and inherit the same
 	// per-spec emission without re-opening this slot).
-	// OverlaysSchemaDivergence stays empty until Compose-driven
-	// divergence detection lands (E7-S14); OverlayCost is a flat 1.0
-	// per kind until per-kind heuristics land (E10-S3).
+	// OverlaysSchemaDivergence: Compose-driven divergence detection lands
+	// in E7-S14; CHAIN-driven detection in E10-S2. OverlayCost: the
+	// streamability-derived dispatch landed in E3-S11 (streamable kinds
+	// emit overlayCostStreamable; buffered kinds emit overlayCostBuffered)
+	// and the E10-S3 audit + multi-ref scaling closed the catalog
+	// (every kind in types.AllOverlayKinds() carries a multiplier; the
+	// multi-ref scaling rule lives on the COMPOSE-host equivalent at
+	// ComposeValidationResult.OverlayCost since Targets / MaxPanelTargets
+	// only exist on ComposeOverlaySpec).
 	OverlaysApplied []OverlayAppliedDescriptor `json:"overlays_applied"`
 
 	// OverlaysSchemaDivergence lists every (left, right) overlay-spec
