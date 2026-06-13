@@ -851,6 +851,24 @@
           "streamable": true
         },
         {
+          "name": "AGG_WELFORD",
+          "category": "aggregator",
+          "description": "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Returns the running mean as the scalar fallback; rich payload is a typed WelfordTriple for overlay handlers (OVERLAY_T_CELL / OVERLAY_Z_CELL) to consume without re-deriving variance from raw rows. Margin recompute (variance does not pool by addition).",
+          "params": null,
+          "accepts_types": [
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
+          "streamable": true
+        },
+        {
           "name": "AGG_ZSCORE",
           "category": "aggregator",
           "description": "Standardized z-score aggregate (mean-centered, stddev-scaled summary).",
@@ -3683,6 +3701,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3755,6 +3774,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3827,6 +3847,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3899,6 +3920,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3971,6 +3993,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -4043,6 +4066,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -4906,6 +4930,7 @@
         "AGG_SKEWNESS",
         "AGG_STDDEV",
         "AGG_VARIANCE",
+        "AGG_WELFORD",
         "AGG_ZSCORE"
       ],
       "streaming_exceptions": [
@@ -4932,7 +4957,8 @@
         "normalize_within cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE)"
       ],
       "map_valued_cell_aggregators": [
-        "AGG_SET_FREQUENCY"
+        "AGG_SET_FREQUENCY",
+        "AGG_WELFORD"
       ]
     },
     "export": {
@@ -5424,6 +5450,14 @@
         "description": "Per-point year-over-year ratio against the same period one year prior in an ordered SERIES (grouped Process) host whose grouper is GROUP_DATE: point_value / prior_year_value * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the YoY ratio on Summary.Statistic. Sixth windowed-Process overlay in the catalog (E4-S7; siblings: OVERLAY_INDEX_VS_PRIOR / E4-S4, OVERLAY_INDEX_VS_BASELINE / E4-S2, OVERLAY_DELTA_VS_BASELINE / E4-S3, OVERLAY_INDEX_VS_ROLLING_MEAN / E4-S5, OVERLAY_ZSCORE_VS_ROLLING / E4-S6) and the first consumer of the empty Ref.YoY marker arm of the OverlayRef discriminated union. The frequency value (annual | quarterly | monthly | weekly | daily | hourly) lives on OverlaySpec.Params[\"frequency\"] (the YoY's own override) or falls back to req.Groups[0].Params[\"frequency\"] (the canonical GROUP_DATE authoring slot). Per-frequency stride: annual ⇒ i-1, quarterly ⇒ i-4, monthly ⇒ i-12, weekly ⇒ i-52 (calendar-week aligned; no day-of-week realignment in v1), daily ⇒ exact-date 365-days-prior lookup against the host key index (Feb 29 in a non-leap prior year emits NaN — no exact-key match), hourly ⇒ exact-hour 365×24-hour-prior lookup. The host's first grouper MUST be GROUP_DATE; non-DATE hosts fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at both predict and runtime. Missing frequency Param fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING; out-of-set frequency value fires PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY with {frequency, supported} Details. First-year ordinals (coarse-frequency arms whose prior-year index lands at \u003c0; fine-frequency arms whose prior-year date does not match an exact host key) emit NaN without warning — \"no comparison available\" is structurally distinct from \"denominator was zero\". Zero prior-year value emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entry. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.YoY MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / RollingMean / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the year-over-year lookup folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_ROLLING_MEAN family. Buffered — the per-frequency prior-period lookup requires the materialised host series (coarse-frequency arms index into an arbitrary prior ordinal; fine-frequency arms walk an exact-key index built from the full host key list). Renderers centre diverging colour ramps on baseline=100."
       },
       {
+        "kind": "OVERLAY_Z_CELL",
+        "shapes": null,
+        "scopes": null,
+        "ref_kinds": null,
+        "buffered": true,
+        "description": ""
+      },
+      {
         "kind": "OVERLAY_ZSCORE_VS_MARGIN",
         "shapes": [
           "matrix"
@@ -5480,10 +5514,18 @@
         "ref_kinds": [],
         "buffered": false,
         "description": "Per-group standardized z-score against the host series' grand-total distribution: (group_val - mean) / sd per host group key, where mean = Σ group_val / N and sd = sqrt(M2 / N) (population variance) folded across the N present per-group aggregated values. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the z-score on Summary.Statistic. Third and final streamable overlay in the E3 grouped-Process subset (sibling to OVERLAY_INDEX_VS_TOTAL and the SERIES dispatch of OVERLAY_SHARE_OF_TOTAL) — the Welford accumulator (count + mean + M2) is three f64s carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize emits (group_val - mean) / sd per group. Population variance (not sample) because _VS_TOTAL implies the host's per-group aggregation set IS the whole population being standardised. The Ref union is left empty (implicit-grand-total); zero variance (every present group equal, or only a single present group) emits PULSE_OVERLAY_REF_ZERO with NaN statistics on every present entry. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT contribute to the Welford accumulator. Renderers centre diverging colour ramps on baseline=0."
+      },
+      {
+        "kind": "OVERLAY_Z_VS_REF",
+        "shapes": null,
+        "scopes": null,
+        "ref_kinds": null,
+        "buffered": true,
+        "description": ""
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2ffd51104ce52caa9409db28cf9fd53cc81706ffdb1be15867af7dfea8b9a16d
+// golden-hash: 215ff15e2192d2acb27dd356e90e774840d6bbc7e16ff2086f26d3b4beffcc90

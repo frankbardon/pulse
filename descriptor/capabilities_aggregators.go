@@ -75,6 +75,23 @@ var numericFieldTypesAnalyticsNoDecimal = []string{
 	"u8",
 }
 
+// numericFieldTypesStrictScalar is the strict scalar numeric family —
+// u8/u16/u32/u64/f32/f64 only. Excludes decimal128, date, and every
+// bit-packed encoding (nullable_u4, nullable_bool, packed_bool). Used by
+// aggregators that drive a single float64 hot path with no per-type
+// branch (AGG_WELFORD — see processing/aggregator_welford.go's factory
+// gate, which mirrors the TEST_WELCH field-type policy).
+var numericFieldTypesStrictScalar = []string{
+	"f32",
+	"f64",
+	"nullable_u16",
+	"nullable_u8",
+	"u16",
+	"u32",
+	"u64",
+	"u8",
+}
+
 // allCohortFieldTypes lists every field type without restriction (used by
 // COUNT, MODE, FREQUENCY, DISTINCT_COUNT which operate on any field).
 var allCohortFieldTypes = []string{
@@ -348,6 +365,14 @@ func aggregatorCapabilities() []Operator {
 			},
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64 (NaN when n < 2)",
+			Streamable:    true,
+		},
+		{
+			Name:          string(types.AGG_WELFORD),
+			Category:      "aggregator",
+			Description:   "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Returns the running mean as the scalar fallback; rich payload is a typed WelfordTriple for overlay handlers (OVERLAY_T_CELL / OVERLAY_Z_CELL) to consume without re-deriving variance from raw rows. Margin recompute (variance does not pool by addition).",
+			AcceptsTypes:  numericFieldTypesStrictScalar,
+			EmitsTypeNote: "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
 			Streamable:    true,
 		},
 		{
