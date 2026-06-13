@@ -100,7 +100,7 @@ The taxonomy spans four dimensions:
 | Pipeline machinery | `tier-1-test`, `tier-2-test`, `composed`, `pre-filter`, `feature-pipeline`, `window-operator`, `streaming-friendly`, `buffered-pipeline` |
 | Risk / edge | `leakage-safe`, `leakage-risk`, `small-sample` |
 | Cohort shape | `sharded`, `anchor` |
-| Result decoration | `overlay` |
+| Result decoration | `overlay`, `byte-equal-test`, `compose`, `crosstab`, `welch`, `welford-triple`, `z` |
 
 The category (directory name) is **not** repeated in the tags — `_meta.category`
 carries that.

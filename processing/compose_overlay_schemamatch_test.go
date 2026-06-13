@@ -544,10 +544,10 @@ func TestAxisKindsEqual_OrderSensitive(t *testing.T) {
 func TestExtractSeriesAxisFields_DropFirstNumeric(t *testing.T) {
 	rows := []map[string]any{
 		{
-			"alpha":  "x",       // non-numeric, stays
-			"value":  1.0,       // FIRST sorted numeric column → dropped
-			"weight": 2.0,       // numeric but not first → stays
-			"zeta":   "y",       // non-numeric, stays
+			"alpha":  "x", // non-numeric, stays
+			"value":  1.0, // FIRST sorted numeric column → dropped
+			"weight": 2.0, // numeric but not first → stays
+			"zeta":   "y", // non-numeric, stays
 		},
 	}
 	got := extractSeriesAxisFields(rows)
@@ -596,6 +596,326 @@ func TestApplyComposeOverlays_SchemaDivergenceFailsLoud(t *testing.T) {
 		t.Errorf("warnings = %+v, want nil under coded error", warnings)
 	}
 	requireDetailCode(t, err, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
+}
+
+// schemaMatrixSlotWithCellShape mirrors schemaMatrixSlot but
+// populates every present cell's Value with the supplied payload
+// rather than the default scalar 0.0. The helper is the E1-S8
+// hook for exercising the cell-shape arm of the SCHEMA_DIVERGENT
+// gate — pass a WelfordTriple{} to build a triple-bearing matrix
+// slot, pass a float64 to build a scalar slot. The axis
+// (rowKinds / colKinds) and the row × column key set are kept
+// byte-identical to schemaMatrixSlot's output so the upstream
+// key-set gate (E7-S6) and the axis-kind arm of the SCHEMA_
+// DIVERGENT gate both pass cleanly, leaving the cell-shape arm
+// as the only failure surface under test.
+func schemaMatrixSlotWithCellShape(rowKinds, colKinds []string, rowCount, colCount int, cellValue any) *types.Response {
+	rowKeys := make([]types.AxisKey, rowCount)
+	for i := range rowKeys {
+		rowKeys[i] = types.AxisKey{rowLabel(i)}
+	}
+	colKeys := make([]types.AxisKey, colCount)
+	for j := range colKeys {
+		colKeys[j] = types.AxisKey{colLabel(j)}
+	}
+	cells := make([][]types.MatrixCell, rowCount)
+	for i := range cells {
+		row := make([]types.MatrixCell, colCount)
+		for j := range row {
+			row[j] = types.MatrixCell{Present: true, Value: cellValue}
+		}
+		cells[i] = row
+	}
+	return &types.Response{
+		Crosstab: &types.CrosstabResult{
+			Matrix: &types.MatrixPayload{
+				RowHeader:    types.AxisHeader{Types: append([]string(nil), rowKinds...)},
+				ColumnHeader: types.AxisHeader{Types: append([]string(nil), colKinds...)},
+				RowKeys:      rowKeys,
+				ColumnKeys:   colKeys,
+				Cells:        cells,
+			},
+		},
+	}
+}
+
+// TestValidateOverlay_SchemaMatch_TripleOnBothPasses exercises
+// the positive arm of the E1-S8 cell-shape gate: both slots emit
+// processing.WelfordTriple-bearing cells. Axis kinds match. The
+// gate must accept (return nil) so triple-aware overlay handlers
+// (T_CELL, OVERLAY_Z_CELL) can proceed against the matched pair.
+func TestValidateOverlay_SchemaMatch_TripleOnBothPasses(t *testing.T) {
+	ref := schemaMatrixSlotWithCellShape(
+		[]string{"GROUP_CATEGORY"},
+		[]string{"GROUP_CATEGORY"},
+		2, 2,
+		WelfordTriple{Mean: 1.0, Variance: 0.5, N: 10},
+	)
+	target := schemaMatrixSlotWithCellShape(
+		[]string{"GROUP_CATEGORY"},
+		[]string{"GROUP_CATEGORY"},
+		2, 2,
+		WelfordTriple{Mean: 2.0, Variance: 0.6, N: 12},
+	)
+	spec := types.ComposeOverlaySpec{
+		Reference: "baseline",
+		Targets:   []string{"treatment"},
+	}
+	if err := checkSlotShapeAndSchema(ref, []*types.Response{target}, spec, 0); err != nil {
+		t.Fatalf("checkSlotShapeAndSchema(triple/triple match): want nil, got %v", err)
+	}
+}
+
+// TestValidateOverlay_SchemaMatch_ScalarOnBothPasses preserves
+// the pre-E1-S8 baseline: both slots emit scalar float64 cell
+// values. The gate must accept (return nil) — the cell-shape arm
+// must not introduce a regression against the existing scalar
+// matched-pair path.
+func TestValidateOverlay_SchemaMatch_ScalarOnBothPasses(t *testing.T) {
+	ref := schemaMatrixSlotWithCellShape(
+		[]string{"GROUP_CATEGORY"},
+		[]string{"GROUP_CATEGORY"},
+		2, 2,
+		float64(1.5),
+	)
+	target := schemaMatrixSlotWithCellShape(
+		[]string{"GROUP_CATEGORY"},
+		[]string{"GROUP_CATEGORY"},
+		2, 2,
+		float64(2.5),
+	)
+	spec := types.ComposeOverlaySpec{
+		Reference: "baseline",
+		Targets:   []string{"treatment"},
+	}
+	if err := checkSlotShapeAndSchema(ref, []*types.Response{target}, spec, 0); err != nil {
+		t.Fatalf("checkSlotShapeAndSchema(scalar/scalar match): want nil, got %v", err)
+	}
+}
+
+// TestValidateOverlay_SchemaDivergent_TripleVsScalar exercises
+// the negative arm of the E1-S8 cell-shape gate: reference is a
+// triple-bearing matrix; target is a scalar matrix. Axis kinds
+// match (axis-kind arm passes cleanly) so the cell-shape arm is
+// the only divergence the gate can fire on. The check must
+// reject with PULSE_OVERLAY_SCHEMA_DIVERGENT and surface the
+// canonical cell-shape tokens on reference_cell_shape /
+// target_cell_shape Details so a renderer can diff cell-shape
+// mismatches from axis-kind mismatches.
+func TestValidateOverlay_SchemaDivergent_TripleVsScalar(t *testing.T) {
+	ref := schemaMatrixSlotWithCellShape(
+		[]string{"GROUP_CATEGORY"},
+		[]string{"GROUP_CATEGORY"},
+		2, 2,
+		WelfordTriple{Mean: 1.0, Variance: 0.5, N: 10},
+	)
+	target := schemaMatrixSlotWithCellShape(
+		[]string{"GROUP_CATEGORY"},
+		[]string{"GROUP_CATEGORY"},
+		2, 2,
+		float64(2.0),
+	)
+	spec := types.ComposeOverlaySpec{
+		Reference: "baseline",
+		Targets:   []string{"treatment"},
+	}
+	err := checkSlotShapeAndSchema(ref, []*types.Response{target}, spec, 0)
+	if err == nil {
+		t.Fatal("checkSlotShapeAndSchema(triple/scalar mismatch): want error, got nil")
+	}
+	var coded *pulseerrors.CodedError
+	if !stderrors.As(err, &coded) {
+		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
+	}
+	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
+	}
+	if got, _ := coded.Details["reference_cell_shape"].(string); got != "welford_triple" {
+		t.Errorf("Details[reference_cell_shape] = %q, want %q", got, "welford_triple")
+	}
+	if got, _ := coded.Details["target_cell_shape"].(string); got != "scalar" {
+		t.Errorf("Details[target_cell_shape] = %q, want %q", got, "scalar")
+	}
+	if got, _ := coded.Details["reference"].(string); got != "baseline" {
+		t.Errorf("Details[reference] = %q, want %q", got, "baseline")
+	}
+	if got, _ := coded.Details["target_label"].(string); got != "treatment" {
+		t.Errorf("Details[target_label] = %q, want %q", got, "treatment")
+	}
+}
+
+// TestValidateOverlay_SchemaDivergent_ScalarVsTriple is the
+// reverse-direction companion of the triple/scalar mismatch.
+// Reference is a scalar matrix; target is a triple-bearing matrix.
+// The gate must surface PULSE_OVERLAY_SCHEMA_DIVERGENT with the
+// reversed cell-shape tokens — confirming the cell-shape arm is
+// symmetric (no implicit ordering bias toward whichever slot
+// happens to be the reference).
+func TestValidateOverlay_SchemaDivergent_ScalarVsTriple(t *testing.T) {
+	ref := schemaMatrixSlotWithCellShape(
+		[]string{"GROUP_CATEGORY"},
+		[]string{"GROUP_CATEGORY"},
+		2, 2,
+		float64(1.0),
+	)
+	target := schemaMatrixSlotWithCellShape(
+		[]string{"GROUP_CATEGORY"},
+		[]string{"GROUP_CATEGORY"},
+		2, 2,
+		WelfordTriple{Mean: 2.0, Variance: 0.7, N: 14},
+	)
+	spec := types.ComposeOverlaySpec{
+		Reference: "baseline",
+		Targets:   []string{"treatment"},
+	}
+	err := checkSlotShapeAndSchema(ref, []*types.Response{target}, spec, 0)
+	if err == nil {
+		t.Fatal("checkSlotShapeAndSchema(scalar/triple mismatch): want error, got nil")
+	}
+	var coded *pulseerrors.CodedError
+	if !stderrors.As(err, &coded) {
+		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
+	}
+	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
+	}
+	if got, _ := coded.Details["reference_cell_shape"].(string); got != "scalar" {
+		t.Errorf("Details[reference_cell_shape] = %q, want %q", got, "scalar")
+	}
+	if got, _ := coded.Details["target_cell_shape"].(string); got != "welford_triple" {
+		t.Errorf("Details[target_cell_shape] = %q, want %q", got, "welford_triple")
+	}
+}
+
+// TestValidateOverlay_SchemaDivergent_TripleVsForeignStruct
+// covers the "future-extended struct" arm called out in the
+// E1-S8 acceptance criteria: one slot carries WelfordTriple, the
+// other slot carries an unrelated Rich payload (here a
+// []string — the AGG_SET_UNION shape). The canonical tokens must
+// resolve to distinct strings ("welford_triple" vs "[]string")
+// so the gate fires with PULSE_OVERLAY_SCHEMA_DIVERGENT. Confirms
+// the Rich-family branches stay orthogonal — a WelfordTriple slot
+// cannot silently align with a set-aggregator slot just because
+// both axis kind tuples happen to match.
+func TestValidateOverlay_SchemaDivergent_TripleVsForeignStruct(t *testing.T) {
+	ref := schemaMatrixSlotWithCellShape(
+		[]string{"GROUP_CATEGORY"},
+		[]string{"GROUP_CATEGORY"},
+		2, 2,
+		WelfordTriple{Mean: 1.0, Variance: 0.5, N: 10},
+	)
+	target := schemaMatrixSlotWithCellShape(
+		[]string{"GROUP_CATEGORY"},
+		[]string{"GROUP_CATEGORY"},
+		2, 2,
+		[]string{"a", "b"},
+	)
+	spec := types.ComposeOverlaySpec{
+		Reference: "baseline",
+		Targets:   []string{"treatment"},
+	}
+	err := checkSlotShapeAndSchema(ref, []*types.Response{target}, spec, 0)
+	if err == nil {
+		t.Fatal("checkSlotShapeAndSchema(triple/foreign-struct mismatch): want error, got nil")
+	}
+	var coded *pulseerrors.CodedError
+	if !stderrors.As(err, &coded) {
+		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
+	}
+	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
+	}
+	if got, _ := coded.Details["reference_cell_shape"].(string); got != "welford_triple" {
+		t.Errorf("Details[reference_cell_shape] = %q, want %q", got, "welford_triple")
+	}
+	if got, _ := coded.Details["target_cell_shape"].(string); got != "[]string" {
+		t.Errorf("Details[target_cell_shape] = %q, want %q", got, "[]string")
+	}
+}
+
+// TestCanonicalCellShape_Tokens locks the canonical-token table
+// the E1-S8 cell-shape gate consults. Scalar numeric kinds (every
+// width) collapse to "scalar"; WelfordTriple emits "welford_triple";
+// unrelated Rich families (map[string]int, []string) emit distinct
+// type-name tokens; a nil cell.Value emits the empty-token short-
+// circuit so absent cells never trip the gate. The table is
+// load-bearing for the gate's correctness — adding a new Rich
+// family without an explicit token would route through the
+// "unknown" fallback, where two distinct Rich shapes could
+// accidentally compare equal.
+func TestCanonicalCellShape_Tokens(t *testing.T) {
+	cases := []struct {
+		name string
+		v    any
+		want string
+	}{
+		{"nil", nil, ""},
+		{"float64", float64(1.5), "scalar"},
+		{"float32", float32(1.5), "scalar"},
+		{"int", int(7), "scalar"},
+		{"int64", int64(7), "scalar"},
+		{"uint32", uint32(7), "scalar"},
+		{"uint64", uint64(7), "scalar"},
+		{"welford_triple", WelfordTriple{Mean: 0, Variance: 0, N: 0}, "welford_triple"},
+		{"map_string_int", map[string]int{"a": 1}, "map[string]int"},
+		{"slice_string", []string{"a"}, "[]string"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := canonicalCellShape(tc.v); got != tc.want {
+				t.Errorf("canonicalCellShape(%T) = %q, want %q", tc.v, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestProbeMatrixCellShape_EmptyMatrixReturnsEmpty asserts the
+// gate's empty-token short-circuit: a matrix with no cells (or
+// every cell absent) probes to "" so the cell-shape arm never
+// fires against a populated counterpart. Without the short-
+// circuit a degenerate empty-matrix slot would falsely trip the
+// gate against any populated triple / scalar slot it was paired
+// with.
+func TestProbeMatrixCellShape_EmptyMatrixReturnsEmpty(t *testing.T) {
+	empty := &types.MatrixPayload{}
+	if got := probeMatrixCellShape(empty); got != "" {
+		t.Errorf("probeMatrixCellShape(empty matrix) = %q, want %q", got, "")
+	}
+	allAbsent := &types.MatrixPayload{
+		Cells: [][]types.MatrixCell{
+			{{Present: false}, {Present: false}},
+			{{Present: false}, {Present: false}},
+		},
+	}
+	if got := probeMatrixCellShape(allAbsent); got != "" {
+		t.Errorf("probeMatrixCellShape(all-absent matrix) = %q, want %q", got, "")
+	}
+}
+
+// TestCellShapesEqual_EmptyTokenShortCircuits asserts the empty-
+// token short-circuit at the comparator: an empty token compares
+// equal against any other token in either argument position. A
+// non-empty mismatch (scalar vs welford_triple) returns false;
+// matching non-empty tokens return true.
+func TestCellShapesEqual_EmptyTokenShortCircuits(t *testing.T) {
+	if !cellShapesEqual("", "scalar") {
+		t.Error("cellShapesEqual(\"\", scalar) = false, want true (empty short-circuits)")
+	}
+	if !cellShapesEqual("welford_triple", "") {
+		t.Error("cellShapesEqual(welford_triple, \"\") = false, want true (empty short-circuits)")
+	}
+	if !cellShapesEqual("", "") {
+		t.Error("cellShapesEqual(\"\", \"\") = false, want true")
+	}
+	if cellShapesEqual("scalar", "welford_triple") {
+		t.Error("cellShapesEqual(scalar, welford_triple) = true, want false")
+	}
+	if !cellShapesEqual("scalar", "scalar") {
+		t.Error("cellShapesEqual(scalar, scalar) = false, want true")
+	}
+	if !cellShapesEqual("welford_triple", "welford_triple") {
+		t.Error("cellShapesEqual(welford_triple, welford_triple) = false, want true")
+	}
 }
 
 // TestApplyComposeOverlays_SlotShapeDivergenceFailsLoud is the

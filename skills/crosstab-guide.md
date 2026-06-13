@@ -77,6 +77,25 @@ case []string:
 
 `MatrixCell.Scalar()` is a convenience accessor that returns the `float64` form when present and zero otherwise — useful for downstream code that only needs scalar cells and can ignore rich payloads.
 
+#### Welford-triple cells (`AGG_WELFORD`)
+
+The `AGG_WELFORD` aggregator (see `skills/aggregation-guide.md` "Welford triple aggregator") widens `MatrixCell.Value` to a third Rich payload shape: `processing.WelfordTriple{Mean float64; Variance float64; N uint64}`. Each cell carries the streaming Welford-Pébaÿ `(mean, sample_variance, n)` triple for the records that landed in it; the scalar `MatrixCell.Scalar()` fallback returns the running mean (`NaN` when `N == 0`) so callers that only need a mean still see one. JSON shape is `{"mean": 72.4, "variance": 81.6, "n": 412}`.
+
+The Welford triple is the consumption surface for the four Compose-host parametric overlay kinds — `OVERLAY_T_CELL`, `OVERLAY_T_VS_REF`, `OVERLAY_Z_CELL`, `OVERLAY_Z_VS_REF`. Each handler auto-detects the Rich triple on either side of the test, reads `(mean, variance, n)` directly, and computes the per-cell Welch t / two-sample z statistic without consulting `Params["variance_*"]` / `Params["sample_size_*"]`. The resulting overlay p-value is byte-equal to the corresponding native row test (`TEST_T` two-sample / `TEST_Z_TWO_SAMPLE`) per group for the same input stream because the recurrence type (`processing/welford_bucket.go`) and the survival helpers (`studentTTwoSidedP` / `standardNormalCDF`) are shared across the overlay and row-test surfaces. Pairing `AGG_WELFORD` on the cell axis with one of the four overlay kinds is therefore the canonical "exact per-cell parametric test" pattern — see `skills/overlay-system.md` "Welch overlay upgrade (Rich-triple consumption)" for the full additive contract and the scalar-plus-Params fallback chain.
+
+```go
+switch v := cell.Value.(type) {
+case float64:
+    // scalar aggregator path (AGG_AVERAGE, AGG_SUM, ...)
+case map[string]int:
+    // AGG_SET_FREQUENCY path
+case processing.WelfordTriple:
+    // AGG_WELFORD path — v.Mean / v.Variance / v.N
+}
+```
+
+Margins for Welford-triple cells are recomputed against the row / column / grand buckets by re-folding the Welford recurrence over the raw rows in that margin — matches the `MarginRecompute` classification on `AGG_WELFORD` (`skills/aggregation-guide.md`). Pairing Welford cells with `normalize=row/column/total` raises `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED` for the same reason map-valued cells do — dividing one variance triple by another is undefined. To get a normalized rendering of Welford output, pair `AGG_WELFORD` with one of the overlay kinds above and read the per-cell p-value layer; that is the additive, statistically-correct projection.
+
 ## Margins are re-aggregations, NOT sums of cells
 
 This is the most important correctness invariant.

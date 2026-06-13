@@ -148,27 +148,154 @@ func TestCrosstab_SetFrequencyMarginEmitsMap(t *testing.T) {
 	}
 }
 
+// crosstabWelfordSchema builds a 2-field schema: a categorical "region"
+// (north / south) on both crosstab axes and a numeric float64 "value"
+// field for the Welford cell aggregator. Welford rejects categorical
+// and decimal field types at factory time, so the cell field must be
+// drawn from the strict scalar numeric family.
+func crosstabWelfordSchema(t *testing.T) *encoding.Schema {
+	t.Helper()
+	regionDict := encoding.NewDictionary()
+	for _, r := range []string{"north", "south"} {
+		if _, err := regionDict.Add(r); err != nil {
+			t.Fatalf("region dict.Add: %v", err)
+		}
+	}
+	return &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: regionDict},
+			{Name: "value", Type: encoding.FieldTypeF64},
+		},
+	}
+}
+
+// crosstabWelfordRecord builds a Record carrying the given region id
+// (categorical index 0=north, 1=south) and a float64 sample for the
+// Welford accumulator.
+func crosstabWelfordRecord(schema *encoding.Schema, region uint64, value float64) *Record {
+	return NewRecordWithNulls(schema,
+		map[string]float64{"region": float64(region), "value": value},
+		nil)
+}
+
+// runWelfordCellCrosstab wires a crosstab Request with AGG_WELFORD on
+// the numeric "value" field and the given normalize mode, then dispatches
+// through RunCrosstab. Used by the map-valued normalize-rejection rows
+// and the normalize=none Rich-payload happy path.
+func runWelfordCellCrosstab(t *testing.T, recs []*Record, normalize types.CrosstabNormalize) (*types.Response, error) {
+	t.Helper()
+	schema := crosstabWelfordSchema(t)
+	p := NewProcessor(schema)
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Cell:    &types.Aggregation{Type: types.AGG_WELFORD, Field: "value", Label: "welford"},
+			Shape:   types.CrosstabShapeMatrix,
+			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+		},
+	}
+	if normalize != "" {
+		req.Crosstab.Normalize = normalize
+	}
+	return p.RunCrosstab(context.Background(), req, recs)
+}
+
 // TestCrosstab_MapValuedCellRejectsNormalize verifies normalize × map
 // cell aggregator combo raises PULSE_CROSSTAB_NORMALIZE_MAP_VALUED. The
 // runtime gate runs before any bucket aggregation, so even minimal
 // fixtures must surface the error.
+//
+// Covered map-valued aggregators (one subtest tree each):
+//
+//   - AGG_SET_FREQUENCY (per-label row-count map)
+//   - AGG_WELFORD       (WelfordTriple — mean / variance / n)
+//
+// Both are classified MapValued()=true in types/streamability.go; the
+// runtime gate at processing/crosstab.go validateCrosstabSpec must reject
+// every normalize axis for either aggregator.
 func TestCrosstab_MapValuedCellRejectsNormalize(t *testing.T) {
-	schema := crosstabSetSchema(t)
-	recs := []*Record{crosstabSetRecord(schema, 0, 0b0001)}
-	for _, mode := range []types.CrosstabNormalize{
+	normalizeModes := []types.CrosstabNormalize{
 		types.CrosstabNormalizeRow,
 		types.CrosstabNormalizeColumn,
 		types.CrosstabNormalizeTotal,
-	} {
-		_, err := runMapCellCrosstab(t, recs, mode)
-		if err == nil {
-			t.Errorf("normalize=%s: expected PULSE_CROSSTAB_NORMALIZE_MAP_VALUED, got nil", mode)
-			continue
+	}
+
+	t.Run("AGG_SET_FREQUENCY", func(t *testing.T) {
+		schema := crosstabSetSchema(t)
+		recs := []*Record{crosstabSetRecord(schema, 0, 0b0001)}
+		for _, mode := range normalizeModes {
+			mode := mode
+			t.Run(string(mode), func(t *testing.T) {
+				_, err := runMapCellCrosstab(t, recs, mode)
+				if err == nil {
+					t.Fatalf("normalize=%s: expected PULSE_CROSSTAB_NORMALIZE_MAP_VALUED, got nil", mode)
+				}
+				if !strings.Contains(err.Error(), "PULSE_CROSSTAB_NORMALIZE_MAP_VALUED") &&
+					!strings.Contains(err.Error(), "map-valued") {
+					t.Fatalf("normalize=%s: error = %v, want PULSE_CROSSTAB_NORMALIZE_MAP_VALUED", mode, err)
+				}
+			})
 		}
-		if !strings.Contains(err.Error(), "PULSE_CROSSTAB_NORMALIZE_MAP_VALUED") &&
-			!strings.Contains(err.Error(), "map-valued") {
-			t.Errorf("normalize=%s: error = %v, want PULSE_CROSSTAB_NORMALIZE_MAP_VALUED", mode, err)
+	})
+
+	t.Run("AGG_WELFORD", func(t *testing.T) {
+		schema := crosstabWelfordSchema(t)
+		recs := []*Record{crosstabWelfordRecord(schema, 0, 1.0)}
+		for _, mode := range normalizeModes {
+			mode := mode
+			t.Run(string(mode), func(t *testing.T) {
+				_, err := runWelfordCellCrosstab(t, recs, mode)
+				if err == nil {
+					t.Fatalf("normalize=%s: expected PULSE_CROSSTAB_NORMALIZE_MAP_VALUED, got nil", mode)
+				}
+				if !strings.Contains(err.Error(), "PULSE_CROSSTAB_NORMALIZE_MAP_VALUED") &&
+					!strings.Contains(err.Error(), "map-valued") {
+					t.Fatalf("normalize=%s: error = %v, want PULSE_CROSSTAB_NORMALIZE_MAP_VALUED", mode, err)
+				}
+			})
 		}
+	})
+}
+
+// TestCrosstab_WelfordCellNormalizeNoneEmitsRich verifies the happy path:
+// AGG_WELFORD on a Crosstab cell with normalize=none (the default) must
+// succeed and surface the WelfordTriple Rich payload at MatrixCell.Value
+// — not a scalar fallback. Pairs with TestCrosstab_MapValuedCellRejectsNormalize
+// to bracket the runtime gate from both sides (normalize=none accepted,
+// normalize != none rejected).
+func TestCrosstab_WelfordCellNormalizeNoneEmitsRich(t *testing.T) {
+	schema := crosstabWelfordSchema(t)
+	// 3 north records on the (north,north) diagonal: samples {2, 4, 6}
+	// → mean = 4, sample variance = 4 (M2 = 8, n-1 = 2), n = 3.
+	recs := []*Record{
+		crosstabWelfordRecord(schema, 0, 2.0),
+		crosstabWelfordRecord(schema, 0, 4.0),
+		crosstabWelfordRecord(schema, 0, 6.0),
+	}
+	resp, err := runWelfordCellCrosstab(t, recs, types.CrosstabNormalizeNone)
+	if err != nil {
+		t.Fatalf("RunCrosstab: %v", err)
+	}
+	if resp.Crosstab == nil || resp.Crosstab.Matrix == nil {
+		t.Fatal("expected matrix payload")
+	}
+	cell := resp.Crosstab.Matrix.Cells[0][0]
+	if !cell.Present {
+		t.Fatal("(north,north) cell not present")
+	}
+	triple, ok := cell.Value.(WelfordTriple)
+	if !ok {
+		t.Fatalf("cell.Value = %T (%v), want WelfordTriple (Rich payload)", cell.Value, cell.Value)
+	}
+	if triple.Mean != 4.0 {
+		t.Errorf("triple.Mean = %v, want 4.0", triple.Mean)
+	}
+	if triple.Variance != 4.0 {
+		t.Errorf("triple.Variance = %v, want 4.0 (M2=8 / (n-1)=2)", triple.Variance)
+	}
+	if triple.N != 3 {
+		t.Errorf("triple.N = %d, want 3", triple.N)
 	}
 }
 

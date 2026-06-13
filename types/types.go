@@ -58,6 +58,18 @@ const (
 	AGG_CI_LOWER AggregationType = "AGG_CI_LOWER"
 	AGG_CI_UPPER AggregationType = "AGG_CI_UPPER"
 
+	// AGG_WELFORD emits the streaming Welford-Pébaÿ triple — running
+	// mean, running sample variance (n-1 denominator), and observed
+	// count — over a numeric field. Returns the running mean through
+	// the legacy float64 contract and the typed WelfordTriple via the
+	// RichAggregator interface so overlay handlers (OVERLAY_T_CELL /
+	// OVERLAY_Z_CELL — E1) can type-switch on the moment payload
+	// without re-deriving variance from raw rows. Streamable; mergeable
+	// via Chan-Welford. Margin reducibility is recompute (variance does
+	// not pool by addition). Field type restricted to the strict scalar
+	// numeric family (u8/u16/u32/u64/f32/f64); decimal128 deferred.
+	AGG_WELFORD AggregationType = "AGG_WELFORD"
+
 	// Set-typed aggregators. Each consumes a single set_* field whose
 	// per-row payload is a fixed-width bitmask over a shared dictionary;
 	// bit i ↔ dictionary entry i.
@@ -106,6 +118,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
+		AGG_WELFORD,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,

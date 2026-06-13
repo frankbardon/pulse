@@ -372,3 +372,166 @@ func TestApplyComposeOverlays_SeriesShapeDispatchesCorrectly(t *testing.T) {
 		t.Error("matrix dispatch: Matrix payload is nil")
 	}
 }
+
+// TestApplyTVsRef_TripleKnownAnswer pins the per-group Welch p-value
+// for the triple-bearing path (E1-S10). Both sides carry WelfordTriple
+// rows — (Mean, Variance, N) is read off the triple and the Params
+// defaults are bypassed.
+//
+//	target = {mean: 10, var: 4, n: 10}
+//	ref    = {mean:  9, var: 4, n: 10}
+//	se     = sqrt(4/10 + 4/10) ≈ 0.8944
+//	t      = 1 / 0.8944 ≈ 1.118
+//	df_ws  ≈ 18 (equal var, equal n)
+//	p      ≈ 0.2783
+func TestApplyTVsRef_TripleKnownAnswer(t *testing.T) {
+	targetTriples := []WelfordTriple{
+		{Mean: 10, Variance: 4, N: 10},
+		{Mean: 10, Variance: 4, N: 10},
+		{Mean: 10, Variance: 4, N: 10},
+		{Mean: 10, Variance: 4, N: 10},
+	}
+	refTriples := []WelfordTriple{
+		{Mean: 9, Variance: 4, N: 10},
+		{Mean: 9, Variance: 4, N: 10},
+		{Mean: 9, Variance: 4, N: 10},
+		{Mean: 9, Variance: 4, N: 10},
+	}
+	target := makeSeriesResponseTriples([]string{"north", "south", "east", "west"}, targetTriples)
+	ref := makeSeriesResponseTriples([]string{"north", "south", "east", "west"}, refTriples)
+	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, nil)
+	layer, warnings, err := applyTVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err != nil {
+		t.Fatalf("applyTVsRef: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %+v, want none", warnings)
+	}
+	want, ok := welchTTest(10.0, 4.0, 10.0, 9.0, 4.0, 10.0)
+	if !ok {
+		t.Fatal("welchTTest reference computation failed")
+	}
+	for i := 0; i < 4; i++ {
+		approxEqual(t, "entry (triple)", entryStat(t, layer, i), want, 1e-9)
+	}
+}
+
+// TestApplyTVsRef_TripleBypassesParamsDefaults asserts the precedence
+// rule: rows carrying a WelfordTriple ignore the Params defaults.
+// Params here, if honoured, would shift p toward 1.0; the triple path
+// must produce the same answer as TestApplyTVsRef_TripleKnownAnswer.
+func TestApplyTVsRef_TripleBypassesParamsDefaults(t *testing.T) {
+	targetTriples := []WelfordTriple{
+		{Mean: 10, Variance: 4, N: 10},
+		{Mean: 10, Variance: 4, N: 10},
+	}
+	refTriples := []WelfordTriple{
+		{Mean: 9, Variance: 4, N: 10},
+		{Mean: 9, Variance: 4, N: 10},
+	}
+	target := makeSeriesResponseTriples([]string{"north", "south"}, targetTriples)
+	ref := makeSeriesResponseTriples([]string{"north", "south"}, refTriples)
+	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, map[string]any{
+		"variance_target":    100.0,
+		"variance_ref":       100.0,
+		"sample_size_target": 1000.0,
+		"sample_size_ref":    1000.0,
+	})
+	layer, _, err := applyTVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err != nil {
+		t.Fatalf("applyTVsRef: %v", err)
+	}
+	want, _ := welchTTest(10.0, 4.0, 10.0, 9.0, 4.0, 10.0)
+	for i := 0; i < 2; i++ {
+		approxEqual(t, "entry (triple bypasses Params)", entryStat(t, layer, i), want, 1e-9)
+	}
+}
+
+// TestApplyTVsRef_TripleDegenerateInsufficientN exercises the n<2 arm
+// of the triple-bearing series path. Every group should surface NaN +
+// PULSE_OVERLAY_REF_ZERO.
+func TestApplyTVsRef_TripleDegenerateInsufficientN(t *testing.T) {
+	targetTriples := []WelfordTriple{
+		{Mean: 10, Variance: 4, N: 1},
+		{Mean: 10, Variance: 4, N: 1},
+	}
+	refTriples := []WelfordTriple{
+		{Mean: 9, Variance: 4, N: 1},
+		{Mean: 9, Variance: 4, N: 1},
+	}
+	target := makeSeriesResponseTriples([]string{"north", "south"}, targetTriples)
+	ref := makeSeriesResponseTriples([]string{"north", "south"}, refTriples)
+	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, nil)
+	layer, warnings, err := applyTVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err != nil {
+		t.Fatalf("applyTVsRef: %v", err)
+	}
+	if len(warnings) != 2 {
+		t.Errorf("len(warnings) = %d, want 2 (each group N<2)", len(warnings))
+	}
+	for _, w := range warnings {
+		if w.Code != string(pulseerrors.PULSE_OVERLAY_REF_ZERO) {
+			t.Errorf("warning.Code = %q, want %q", w.Code, pulseerrors.PULSE_OVERLAY_REF_ZERO)
+		}
+	}
+	for i := 0; i < 2; i++ {
+		if !math.IsNaN(entryStat(t, layer, i)) {
+			t.Errorf("entry(%d) = %v, want NaN", i, entryStat(t, layer, i))
+		}
+	}
+}
+
+// TestApplyTVsRef_TripleZeroVariance exercises the zero-variance arm
+// of the triple path. Both sides carry Variance=0 ⇒ welchTTest
+// surfaces NaN/false ⇒ every entry surfaces NaN + PULSE_OVERLAY_REF_ZERO.
+func TestApplyTVsRef_TripleZeroVariance(t *testing.T) {
+	targetTriples := []WelfordTriple{
+		{Mean: 10, Variance: 0, N: 10},
+		{Mean: 10, Variance: 0, N: 10},
+	}
+	refTriples := []WelfordTriple{
+		{Mean: 9, Variance: 0, N: 10},
+		{Mean: 9, Variance: 0, N: 10},
+	}
+	target := makeSeriesResponseTriples([]string{"north", "south"}, targetTriples)
+	ref := makeSeriesResponseTriples([]string{"north", "south"}, refTriples)
+	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, nil)
+	layer, warnings, err := applyTVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err != nil {
+		t.Fatalf("applyTVsRef: %v", err)
+	}
+	if len(warnings) != 2 {
+		t.Errorf("len(warnings) = %d, want 2 (both groups zero SE)", len(warnings))
+	}
+	for i := 0; i < 2; i++ {
+		if !math.IsNaN(entryStat(t, layer, i)) {
+			t.Errorf("entry(%d) = %v, want NaN", i, entryStat(t, layer, i))
+		}
+	}
+}
+
+// TestApplyTVsRef_MixedShapeRejected asserts the defensive
+// PULSE_OVERLAY_SCHEMA_DIVERGENT arm on the SERIES surface. The
+// compose schema-match gate (E1-S8) should reject mixed-shape pairs
+// BEFORE dispatch, but the handler still defensively rejects a target
+// triple row paired with a scalar reference row.
+func TestApplyTVsRef_MixedShapeRejected(t *testing.T) {
+	targetTriples := []WelfordTriple{
+		{Mean: 10, Variance: 4, N: 10},
+		{Mean: 10, Variance: 4, N: 10},
+	}
+	target := makeSeriesResponseTriples([]string{"north", "south"}, targetTriples)
+	ref := makeSeriesResponse([]string{"north", "south"}, []float64{9, 9})
+	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, nil)
+	_, _, err := applyTVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
+	if err == nil {
+		t.Fatal("applyTVsRef: want error for mixed triple/scalar pair, got nil")
+	}
+	coded, ok := err.(*pulseerrors.CodedError)
+	if !ok {
+		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
+	}
+	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+		t.Errorf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
+	}
+}

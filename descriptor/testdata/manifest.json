@@ -851,6 +851,24 @@
           "streamable": true
         },
         {
+          "name": "AGG_WELFORD",
+          "category": "aggregator",
+          "description": "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Returns the running mean as the scalar fallback; rich payload is a typed WelfordTriple for overlay handlers (OVERLAY_T_CELL / OVERLAY_Z_CELL) to consume without re-deriving variance from raw rows. Margin recompute (variance does not pool by addition).",
+          "params": null,
+          "accepts_types": [
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
+          "streamable": true
+        },
+        {
           "name": "AGG_ZSCORE",
           "category": "aggregator",
           "description": "Standardized z-score aggregate (mean-centered, stddev-scaled summary).",
@@ -3683,6 +3701,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3755,6 +3774,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3827,6 +3847,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3899,6 +3920,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -3971,6 +3993,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -4043,6 +4066,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_WEIGHTED_MEAN",
+          "AGG_WELFORD",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
@@ -4668,7 +4692,7 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 116,
+    "examples_count": 118,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -4687,12 +4711,15 @@
       "bayesian",
       "before-after",
       "buffered-pipeline",
+      "byte-equal-test",
       "cardinality-analysis",
       "cohort-analysis",
       "comparison",
+      "compose",
       "composed",
       "correlation-analysis",
       "cross-tabulation",
+      "crosstab",
       "data-quality",
       "distribution-shape",
       "ecological",
@@ -4741,7 +4768,10 @@
       "top-n",
       "trend-detection",
       "two-sample",
-      "window-operator"
+      "welch",
+      "welford-triple",
+      "window-operator",
+      "z"
     ],
     "extensions": {
       "aggregators": [],
@@ -4906,6 +4936,7 @@
         "AGG_SKEWNESS",
         "AGG_STDDEV",
         "AGG_VARIANCE",
+        "AGG_WELFORD",
         "AGG_ZSCORE"
       ],
       "streaming_exceptions": [
@@ -4932,7 +4963,8 @@
         "normalize_within cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE)"
       ],
       "map_valued_cell_aggregators": [
-        "AGG_SET_FREQUENCY"
+        "AGG_SET_FREQUENCY",
+        "AGG_WELFORD"
       ]
     },
     "export": {
@@ -5480,10 +5512,34 @@
         "ref_kinds": [],
         "buffered": false,
         "description": "Per-group standardized z-score against the host series' grand-total distribution: (group_val - mean) / sd per host group key, where mean = Σ group_val / N and sd = sqrt(M2 / N) (population variance) folded across the N present per-group aggregated values. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the z-score on Summary.Statistic. Third and final streamable overlay in the E3 grouped-Process subset (sibling to OVERLAY_INDEX_VS_TOTAL and the SERIES dispatch of OVERLAY_SHARE_OF_TOTAL) — the Welford accumulator (count + mean + M2) is three f64s carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize emits (group_val - mean) / sd per group. Population variance (not sample) because _VS_TOTAL implies the host's per-group aggregation set IS the whole population being standardised. The Ref union is left empty (implicit-grand-total); zero variance (every present group equal, or only a single present group) emits PULSE_OVERLAY_REF_ZERO with NaN statistics on every present entry. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT contribute to the Welford accumulator. Renderers centre diverging colour ramps on baseline=0."
+      },
+      {
+        "kind": "OVERLAY_Z_CELL",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "COMPOSE-host per-cell two-sample z-test on the means against the reference slot's matching cell (E1-S14). CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the two-sided p-value as a float64. Each cell is treated as a sample mean; the variance defaults to 1.0 and the sample size defaults to 2 (`Params[\"sample_size\"]` accepts an integer override; `Params[\"variance_target\"]` / `Params[\"variance_ref\"]` / `Params[\"sample_size_target\"]` / `Params[\"sample_size_ref\"]` give finer per-side control). Math reuses the same Welch-style standard-error recurrence that backs OVERLAY_T_CELL and finalises against the standard normal survival helper that backs TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); z = (target_cell - ref_cell) / se; p_value = 2 * (1 - Φ(|z|)). Reuses the standardNormalCDF helper backing TEST_Z_TWO_SAMPLE so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Default-variance and default-sample-size policy: v1 ships well-defined defaults so the per-cell handler stays usable against a minimal Compose authoring surface; a future story may lift the per-cell (mean, variance, n) triple into a richer Compose authoring surface (the crosstab cell carrier could grow to carry sample statistics alongside the scalar mean). Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals)."
+      },
+      {
+        "kind": "OVERLAY_Z_VS_REF",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "COMPOSE-host per-group two-sample z-test on the means against the reference slot's matching group, against a SERIES (grouped Process) host (E1-S15). GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling of OVERLAY_Z_CELL (the per-cell MATRIX-host z-test) and twin to the SERIES arm of OVERLAY_T_VS_REF (Welch t-test sibling on the same fold-and-finalise shape; different distribution — standard normal instead of Student's t). Each per-group target / reference value is treated as a sample mean; variance defaults to 1.0 and sample size defaults to 2 (Params[\"variance_target\"] / Params[\"variance_ref\"] / Params[\"sample_size_target\"] / Params[\"sample_size_ref\"] override). Math reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); z = (target - ref) / se; p_value = 2 * (1 - Φ(|z|)). Reuses standardNormalCDF so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n \u003c 2) produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches (E7-S5..S8)."
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2ffd51104ce52caa9409db28cf9fd53cc81706ffdb1be15867af7dfea8b9a16d
+// golden-hash: ff49a2976e1faebd522015f71d764742d0e670a5f22fbad26077d8fdca99b7e9

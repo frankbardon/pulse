@@ -1,0 +1,100 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Compose batch of two crosstab slots (control and variant arms of a consumer survey cohort) over region x segment decorated with an OVERLAY_Z_CELL matrix overlay that runs a per-cell two-sample z-test on the means against the matching control cell. Cell aggregator is AGG_WELFORD which emits the streaming Welford-Pebay triple {Mean, Variance, N} as the cell payload (RichAggregator interface). The OVERLAY_Z_CELL handler is triple-aware (E1-S17 / S18): when both target and reference cells carry a WelfordTriple the handler consumes the triple directly so variance and n are read from the streaming sample state instead of the Params defaults. Each cell's value becomes the two-sided z p-value as a float64. Reuses the standardNormalCDF helper backing TEST_Z_TWO_SAMPLE so the overlay p-value matches the row-test surface byte-for-byte for the same (mean, variance, n) inputs. Math: se = sqrt(var_target/n_target + var_ref/n_ref); z = (mean_target - mean_ref) / se; p = 2 * (1 - Phi(|z|)). Sibling kind to OVERLAY_T_CELL (Welch t) at the same MATRIX host shape - same Welch-style SE recurrence, different finalising distribution (standard normal vs Student's t). Degenerate inputs (n < 2, variance = 0, missing reference cell) produce NaN p-values with one PULSE_OVERLAY_REF_ZERO warning per affected cell. Inherently buffered - inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD Non-Goals).",
+    "name": "pairwise-z-matrix",
+    "operators": [
+      "AGG_WELFORD",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "byte-equal-test",
+      "compose",
+      "crosstab",
+      "hypothesis-test",
+      "overlay",
+      "parametric",
+      "two-sample",
+      "welford-triple",
+      "z"
+    ]
+  },
+  "requests": [
+    {
+      "label": "control",
+      "cohort": {
+        "filename": "survey.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "arm",
+          "values": ["control"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_WELFORD",
+          "field": "rating",
+          "label": "rating_triple"
+        }
+      }
+    },
+    {
+      "label": "variant",
+      "cohort": {
+        "filename": "survey.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "arm",
+          "values": ["variant"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_WELFORD",
+          "field": "rating",
+          "label": "rating_triple"
+        }
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "z_pairwise",
+      "kind": "OVERLAY_Z_CELL",
+      "scope": "cell",
+      "reference": "control",
+      "targets": ["variant"]
+    }
+  ]
+}

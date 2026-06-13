@@ -8,11 +8,11 @@ applies_to: process, compose, predict
 # Aggregation Guide
 
 <skill_overview>
-Pulse exposes 21 aggregators and 7 filterers that run during `process` and `compose`. Invoke this skill when choosing aggregators for a request, validating numeric-vs-categorical compatibility, or shaping filterers before grouping.
+Pulse exposes 22 scalar aggregators and 7 filterers that run during `process` and `compose` (plus the six set-typed aggregators documented in their own section below). Invoke this skill when choosing aggregators for a request, validating numeric-vs-categorical compatibility, or shaping filterers before grouping.
 </skill_overview>
 
 <reference>
-## Aggregators (21)
+## Aggregators (22)
 
 | Type | Meaning | Input |
 |------|---------|-------|
@@ -37,6 +37,7 @@ Pulse exposes 21 aggregators and 7 filterers that run during `process` and `comp
 | AGG_RATIO | `sum(numerator_field) / sum(denominator_field)`. Aggregation `Field` is ignored. | numeric (Params.`numerator_field` + Params.`denominator_field`) |
 | AGG_CI_LOWER | Lower bound of the mean's confidence interval, normal method (Welford + inverse-normal quantile). | numeric (Params.`confidence`, Params.`method`) |
 | AGG_CI_UPPER | Upper bound of the mean's confidence interval. Mirrors AGG_CI_LOWER. | numeric (Params.`confidence`, Params.`method`) |
+| AGG_WELFORD | Streaming Welford-Pébaÿ triple `(mean, sample_variance, n)` emitted via `RichAggregator`. Scalar fallback is the running mean. | numeric scalar (`u8`/`u16`/`u32`/`u64`/`f32`/`f64`) |
 </reference>
 
 <rule severity="caveat" topic="cohort-aggregators">
@@ -49,6 +50,35 @@ Four mergeable + streamable aggregators land first-class server-side computation
 - **`AGG_CI_LOWER` / `AGG_CI_UPPER`** — `Params.confidence` (default `0.95`, must lie in `(0, 1)`), `Params.method` (default `"normal"`). The `"normal"` method uses sample variance `M2 / (n-1)` and the Beasley-Springer-Moro inverse-normal quantile; `"bootstrap"` is reserved for a buffered follow-up and returns `PROCESSING_CONFIG` today. Both bounds return `NaN` when `n < 2`.
 
 All four pass the chain gate (`processing.CanChainRequest`) — they emit a single scalar per output row, so they compose with `pulse.ProcessChain` for source-rooted dashboards that materialise weighted/ratio aggregates over multi-shard cohorts. `AGG_LIFT` and `AGG_SHARE` (the two remaining cohort aggregates from the Prism upstream plan) are deferred to a follow-up that adds a global-context hook to the Aggregator interface.
+</rule>
+
+<rule severity="caveat" topic="welford-aggregator">
+## Welford triple aggregator
+
+`AGG_WELFORD` folds the streaming Welford-Pébaÿ recurrence over a numeric field and emits the per-cell triple `(mean, sample_variance, n)` via `RichAggregator`. The cell payload is a `processing.WelfordTriple{Mean, Variance float64; N uint64}` returned by value; the scalar `Value()` fallback is the running mean (`NaN` when `N == 0`) so consumers that do not type-assert the Rich path still see a defensible scalar.
+
+- **Variance denominator.** Sample variance `M2 / (n - 1)` — the same denominator `TEST_WELCH` consumes via `welfordBucket.sampleVariance()`. The shared recurrence type lives at `processing/welford_bucket.go` and is referenced by both `processing/aggregator_welford.go` and `processing/test_t.go`, so AGG_WELFORD output is byte-equal to a TEST_WELCH per-group variance for the same input stream. Single-row and empty cells yield `Variance = 0` (mirrors `welfordBucket`'s zero-on-`N<2` behaviour).
+- **Streamable.** Welford is online — one pass over records, fixed `(n, mean, M2)` state per cell. The aggregator participates in the streaming Process orchestrator without forcing the buffered fallback.
+- **MarginReducibility = MarginRecompute.** Variance does not pool by addition — the variance of a union is not the sum (or mean) of per-cell variances. Crosstab row / column / grand margins re-walk raw rows through a fresh `welfordBucket` rather than reducing across already-folded cells.
+- **Accepted field types.** Strict scalar numeric only: `u8`, `u16`, `u32`, `u64`, `f32`, `f64`. `decimal128`, `date`, `packed_bool`, `u4`, `categorical_*`, and `set_*` are rejected at factory time with `PROCESSING_CONFIG` — the per-record hot path stays branch-free.
+- **Null handling.** Skips nulls the same way the rest of the scalar family does; nulls do not advance `N`.
+
+Example request fragment — Welford triple of a numeric `score` field, grouped by cohort segment:
+
+```json
+{
+  "groups":       [{"type": "GROUP_CATEGORY", "field": "segment"}],
+  "aggregations": [{"type": "AGG_WELFORD", "field": "score", "label": "welford"}]
+}
+```
+
+Per-cell `Response.Data` rows carry the Rich payload directly:
+
+```json
+{"segment": "A", "welford": {"mean": 72.4, "variance": 81.6, "n": 412}}
+```
+
+Forward-link: the Rich triple is the consumption surface for the `OVERLAY_T_CELL` Welch t-test overlay and the `OVERLAY_Z_CELL` proportion-z overlay added in S25 — both overlays type-assert `MatrixCell.Value` to `processing.WelfordTriple` and reuse the stored `(mean, variance, n)` to compute the per-cell test statistic without re-walking raw rows. See `skills/overlay-system.md` (per-cell statistical overlays) once that section lands.
 </rule>
 
 <rule severity="caveat" topic="decimal-aggregators">
@@ -79,10 +109,12 @@ See `skills/financial-cohorts.md` for the SQL:2016 precision propagation rules a
 <rule severity="must" topic="numeric-on-categorical">
 ## Numeric vs categorical-meaningful
 
-Numeric-only (12) — applying to a categorical field emits `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`:
-`AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_RANGE`, `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_STDDEV`, `AGG_VARIANCE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_ZSCORE`.
+Numeric-only (13) — applying to a categorical field emits `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`:
+`AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_RANGE`, `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_STDDEV`, `AGG_VARIANCE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_ZSCORE`, `AGG_WELFORD`.
 
 The numeric set is the broader analytics-numeric family (`encoding.FieldType.IsNumericForAnalytics`): the integer / float / decimal types plus the bit-packed encodings `u4`, `packed_bool`, and `date`. `AGG_AVERAGE` on `packed_bool` returns the proportion of `true`; `AGG_AVERAGE` on `u4` returns the mean of the stored ordinals. Null cells (flagged via the per-record bitmap when a field is `Nullable: true`) are excluded from both numerator and denominator. No `ATTR_FORMULA float(field)` cast is needed — and skipping the cast keeps the request on the streaming path that the formula would have forced into the buffered orchestrator.
+
+`AGG_WELFORD` is the one exception to the broad analytics-numeric admission: it enforces the strict scalar numeric subset (`u8`/`u16`/`u32`/`u64`/`f32`/`f64`) — `u4`, `packed_bool`, `date`, and `decimal128` are rejected with `PROCESSING_CONFIG` so the per-record hot path stays branch-free. See the "Welford triple aggregator" caveat above.
 
 Categorical-safe (5):
 `AGG_COUNT`, `AGG_NULL_COUNT`, `AGG_DISTINCT_COUNT`, `AGG_FREQUENCY`, `AGG_MODE`.

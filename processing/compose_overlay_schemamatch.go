@@ -81,10 +81,22 @@ import (
 // populated; for SERIES shape rowAxis carries the series group-key
 // columns (sorted) and colAxis is empty; for SCALAR shape both are
 // empty.
+//
+// cellShape captures the per-cell payload contract — distinct
+// scalar / rich families are structurally different (a scalar
+// float64 cell and a WelfordTriple-bearing cell can NOT participate
+// in the same per-cell COMPOSE handler). E1-S8 extends the
+// structural match to reject mixed cell shapes ahead of the per-
+// kind dispatch so triple-aware handlers (T_CELL, OVERLAY_Z_CELL)
+// and scalar handlers stay distinct surfaces. Populated only for
+// the MATRIX shape; empty for SERIES / SCALAR (the cell-shape
+// probe is matrix-only — series rows carry value columns, scalars
+// have no cell grid).
 type composeOverlaySchemaShape struct {
-	shape    types.OverlayShape
-	rowAxis  []string
-	colAxis  []string
+	shape     types.OverlayShape
+	rowAxis   []string
+	colAxis   []string
+	cellShape string
 }
 
 // canonical renders the schema shape as a deterministic string for
@@ -95,12 +107,13 @@ type composeOverlaySchemaShape struct {
 // axes are populated.
 //
 // Examples:
-//   MATRIX, rows=[GROUP_CATEGORY, GROUP_DATE], cols=[GROUP_RANGE]
-//     → "GROUP_CATEGORY|GROUP_DATE/GROUP_RANGE"
-//   SERIES, rows=[region, segment], cols=[]
-//     → "region|segment/"
-//   SCALAR
-//     → "/"
+//
+//	MATRIX, rows=[GROUP_CATEGORY, GROUP_DATE], cols=[GROUP_RANGE]
+//	  → "GROUP_CATEGORY|GROUP_DATE/GROUP_RANGE"
+//	SERIES, rows=[region, segment], cols=[]
+//	  → "region|segment/"
+//	SCALAR
+//	  → "/"
 //
 // The empty-axis-trailing-slash form is intentional — the slash
 // makes the row/column axis split visually obvious in MCP error
@@ -154,9 +167,10 @@ func extractSchemaShape(resp *types.Response) composeOverlaySchemaShape {
 	}
 	if resp.Crosstab != nil && resp.Crosstab.Matrix != nil {
 		return composeOverlaySchemaShape{
-			shape:   types.OverlayShapeMatrix,
-			rowAxis: append([]string(nil), resp.Crosstab.Matrix.RowHeader.Types...),
-			colAxis: append([]string(nil), resp.Crosstab.Matrix.ColumnHeader.Types...),
+			shape:     types.OverlayShapeMatrix,
+			rowAxis:   append([]string(nil), resp.Crosstab.Matrix.RowHeader.Types...),
+			colAxis:   append([]string(nil), resp.Crosstab.Matrix.ColumnHeader.Types...),
+			cellShape: probeMatrixCellShape(resp.Crosstab.Matrix),
 		}
 	}
 	if len(resp.Data) > 0 {
@@ -210,6 +224,91 @@ func extractSeriesAxisFields(rows []map[string]any) []string {
 		return nil
 	}
 	return out
+}
+
+// probeMatrixCellShape returns the canonical cell-shape token for
+// a matrix-shape slot — "scalar" for numeric cell payloads,
+// "welford_triple" for AGG_WELFORD's Rich payload, and a Rich-
+// family type-name token for any other Rich shape so two slots
+// that happen to share a future-extended struct still compare
+// byte-equal while a scalar / triple mismatch (or any other rich
+// / scalar mismatch) trips the SCHEMA_DIVERGENT gate.
+//
+// Cell-shape probe walks the matrix in row-major order and returns
+// the canonical token derived from the first Present cell. Returns
+// "" when the matrix is empty / every cell is absent — the
+// downstream gate treats two empty-cell slots as cell-shape-
+// equivalent (degenerate match) so a zero-row matrix slot does
+// not trip the gate against another zero-row matrix slot.
+//
+// E1-S8 admits scalar (float64 / float32 / int / int64 / uint32
+// / uint64) and processing.WelfordTriple as the two canonical
+// cell shapes. Future Rich payloads (e.g. map[string]int for
+// AGG_SET_FREQUENCY, []string for AGG_SET_UNION) fall through to
+// the type-name branch so the canonical string stays orthogonal
+// between unrelated Rich families — two slots emitting the same
+// map[string]int cell still compare equal; one emitting
+// map[string]int + another emitting []string diverge.
+func probeMatrixCellShape(m *types.MatrixPayload) string {
+	if m == nil {
+		return ""
+	}
+	for _, row := range m.Cells {
+		for _, cell := range row {
+			if !cell.Present {
+				continue
+			}
+			return canonicalCellShape(cell.Value)
+		}
+	}
+	return ""
+}
+
+// canonicalCellShape maps a MatrixCell.Value to its canonical
+// cell-shape token. Scalar numeric kinds collapse to "scalar" so
+// the per-aggregator numeric width (float32 vs float64 vs int)
+// never trips the gate. WelfordTriple is the named carve-out for
+// the AGG_WELFORD rich payload — the E1 stat-test-overlay-parity
+// epic depends on triple-aware handlers binding to this token.
+// Unrelated Rich families fall through to type-name branches so
+// the gate stays orthogonal across them without dragging in
+// reflect.
+func canonicalCellShape(v any) string {
+	switch v.(type) {
+	case nil:
+		return ""
+	case float64, float32, int, int64, int32, uint32, uint64, uint, uint8, uint16:
+		return "scalar"
+	case WelfordTriple:
+		return "welford_triple"
+	case map[string]int:
+		return "map[string]int"
+	case map[string]int64:
+		return "map[string]int64"
+	case map[string]float64:
+		return "map[string]float64"
+	case []string:
+		return "[]string"
+	}
+	// Final fallback: a single unknown sentinel. Two slots both
+	// landing here are treated as cell-shape-equivalent (the gate
+	// stays permissive for unknown Rich shapes pending an extended
+	// canonical-token catalog). Future Rich families should be
+	// added to the switch above so they get distinct tokens.
+	return "unknown"
+}
+
+// cellShapesEqual reports whether two cell-shape tokens are
+// structurally identical. Empty-token (one slot is empty / all
+// cells absent) compares equal against any other token so a
+// zero-cell matrix slot does not trip the gate against a populated
+// slot of any shape — the gate has no rich/scalar evidence to act
+// on. Non-empty tokens must compare byte-for-byte.
+func cellShapesEqual(a, b string) bool {
+	if a == "" || b == "" {
+		return true
+	}
+	return a == b
 }
 
 // kindRequiresMatrix reports whether the given OverlayKind requires
@@ -270,41 +369,41 @@ func KindRequiresMatrix(kind types.OverlayKind) bool {
 //
 // Order of failure modes (per target):
 //
-//   1. Reference vs target host shape disagrees ⇒
-//      PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT.
-//   2. Spec.Kind requires MATRIX but target is non-MATRIX (or
-//      reference is non-MATRIX) ⇒ PULSE_OVERLAY_SLOT_NOT_CROSSTAB.
-//   3. Per-axis grouper-kind tuples differ ⇒
-//      PULSE_OVERLAY_SCHEMA_DIVERGENT.
+//  1. Reference vs target host shape disagrees ⇒
+//     PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT.
+//  2. Spec.Kind requires MATRIX but target is non-MATRIX (or
+//     reference is non-MATRIX) ⇒ PULSE_OVERLAY_SLOT_NOT_CROSSTAB.
+//  3. Per-axis grouper-kind tuples differ ⇒
+//     PULSE_OVERLAY_SCHEMA_DIVERGENT.
 //
 // Details payload (encoding/json-friendly, no fmt.Sprintf):
 //
-//   SHAPE_DIVERGENT:
-//     - "code": "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
-//     - "index": spec index
-//     - "reference": reference slot label
-//     - "target_label": target slot label
-//     - "reference_shape": "matrix" / "series" / "scalar"
-//     - "target_shape": same enum
+//	SHAPE_DIVERGENT:
+//	  - "code": "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
+//	  - "index": spec index
+//	  - "reference": reference slot label
+//	  - "target_label": target slot label
+//	  - "reference_shape": "matrix" / "series" / "scalar"
+//	  - "target_shape": same enum
 //
-//   SLOT_NOT_CROSSTAB:
-//     - "code": "PULSE_OVERLAY_SLOT_NOT_CROSSTAB"
-//     - "index": spec index
-//     - "kind": spec Kind (so the renderer can surface the kind that
-//       requires MATRIX)
-//     - "required_shape": "MATRIX" (uppercase per acceptance)
-//     - "target_label": offending slot label (or "" for the
-//       reference)
-//     - "observed_shape": "series" / "scalar"
+//	SLOT_NOT_CROSSTAB:
+//	  - "code": "PULSE_OVERLAY_SLOT_NOT_CROSSTAB"
+//	  - "index": spec index
+//	  - "kind": spec Kind (so the renderer can surface the kind that
+//	    requires MATRIX)
+//	  - "required_shape": "MATRIX" (uppercase per acceptance)
+//	  - "target_label": offending slot label (or "" for the
+//	    reference)
+//	  - "observed_shape": "series" / "scalar"
 //
-//   SCHEMA_DIVERGENT:
-//     - "code": "PULSE_OVERLAY_SCHEMA_DIVERGENT"
-//     - "index": spec index
-//     - "reference": reference slot label
-//     - "target_label": target slot label
-//     - "reference_schema": canonical kind-tuple string
-//       ("<rowKinds>/<colKinds>") from extractSchemaShape.canonical
-//     - "target_schema": same form for the target slot
+//	SCHEMA_DIVERGENT:
+//	  - "code": "PULSE_OVERLAY_SCHEMA_DIVERGENT"
+//	  - "index": spec index
+//	  - "reference": reference slot label
+//	  - "target_label": target slot label
+//	  - "reference_schema": canonical kind-tuple string
+//	    ("<rowKinds>/<colKinds>") from extractSchemaShape.canonical
+//	  - "target_schema": same form for the target slot
 func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Response, spec types.ComposeOverlaySpec, specIdx int) error {
 	refSchema := extractSchemaShape(refResp)
 
@@ -371,14 +470,14 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 				})
 		}
 
-		// Gate 3: SCHEMA_DIVERGENT. Compare per-axis kind tuples.
-		// Field names allowed to differ — extractSchemaShape returns
-		// kind tuples only for the matrix arm and column-name tuples
-		// for the series arm. The series-arm comparison is
-		// intentionally over column names because the response side
-		// has no grouper-kind annotation for series rows — the row
-		// axis schema "match" is structural over the same column
-		// names a renderer would key off.
+		// Gate 3: SCHEMA_DIVERGENT — axis-kind arm. Compare per-axis
+		// kind tuples. Field names allowed to differ —
+		// extractSchemaShape returns kind tuples only for the matrix
+		// arm and column-name tuples for the series arm. The series-
+		// arm comparison is intentionally over column names because
+		// the response side has no grouper-kind annotation for series
+		// rows — the row axis schema "match" is structural over the
+		// same column names a renderer would key off.
 		if !axisKindsEqual(refSchema.rowAxis, tSchema.rowAxis) ||
 			!axisKindsEqual(refSchema.colAxis, tSchema.colAxis) {
 			return errors.NewCodedErrorWithDetails(
@@ -391,6 +490,37 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 					"target_label":     targetLabel,
 					"reference_schema": refSchema.canonical(),
 					"target_schema":    tSchema.canonical(),
+				})
+		}
+
+		// Gate 3.5: SCHEMA_DIVERGENT — cell-shape arm (E1-S8).
+		// Reuses the canonical SCHEMA_DIVERGENT code; same coded-
+		// error envelope, distinct Details payload. Fires when the
+		// reference and a target slot carry structurally different
+		// per-cell payloads (e.g. one slot's cells are scalar float64
+		// while the other slot's cells are processing.WelfordTriple).
+		// Empty-token short-circuit (cellShapesEqual) keeps zero-cell
+		// matrix slots from tripping the gate against populated slots
+		// — the gate has no rich/scalar evidence to act on. Surfaces
+		// the canonical cell-shape tokens on dedicated reference_cell_
+		// shape / target_cell_shape Detail entries so the Details
+		// payload visibly distinguishes a cell-shape mismatch from an
+		// axis-kind mismatch; reference_schema / target_schema echo
+		// the axis canonical strings (guaranteed byte-equal here —
+		// the axis-kind arm already accepted).
+		if !cellShapesEqual(refSchema.cellShape, tSchema.cellShape) {
+			return errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_INTERNAL,
+				"compose overlay schema divergent: reference and target produce structurally different cell shapes",
+				map[string]any{
+					"code":                 string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT),
+					"index":                specIdx,
+					"reference":            spec.Reference,
+					"target_label":         targetLabel,
+					"reference_schema":     refSchema.canonical(),
+					"target_schema":        tSchema.canonical(),
+					"reference_cell_shape": refSchema.cellShape,
+					"target_cell_shape":    tSchema.cellShape,
 				})
 		}
 	}

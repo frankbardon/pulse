@@ -658,17 +658,17 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " z-statistic undefined (pooled ∈ {0, 1} OR zero SE)",
 					Details: map[string]any{
-						"kind":          string(spec.Kind),
-						"reference":     spec.Reference,
-						"target_label":  targetLabel,
-						"row_index":     i,
-						"col_index":     j,
-						"row_key":       rowKeyStr,
-						"col_key":       colKeyStr,
-						"target_value":  targetVal,
-						"target_n":      nTarget,
-						"ref_value":     refVal,
-						"ref_n":         nRef,
+						"kind":         string(spec.Kind),
+						"reference":    spec.Reference,
+						"target_label": targetLabel,
+						"row_index":    i,
+						"col_index":    j,
+						"row_key":      rowKeyStr,
+						"col_key":      colKeyStr,
+						"target_value": targetVal,
+						"target_n":     nTarget,
+						"ref_value":    refVal,
+						"ref_n":        nRef,
 					},
 				})
 				cells[i][j] = types.MatrixCell{Value: math.NaN(), Present: true}
@@ -758,10 +758,22 @@ func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 
 // applyTCell is the COMPOSE-host runtime handler for OVERLAY_T_CELL.
 // Per-cell Welch t-test against the reference slot's matching cell.
-// Cells are treated as sample means; variance defaults to 1.0 and
-// sample size defaults to 2 (callers override via
-// `Params["variance_target"]`, `Params["variance_ref"]`,
-// `Params["sample_size_target"]`, `Params["sample_size_ref"]`).
+//
+// Triple-aware (E1-S9): when both target and reference cells carry
+// a WelfordTriple{Mean, Variance, N} the handler consumes the triple
+// directly — variance and n are read from the triple instead of the
+// Params defaults so the overlay's p-value matches TEST_WELCH /
+// TEST_T against the same (mean, variance, n) inputs byte-equal.
+//
+// Scalar fallback: when both cells are scalar float64, the handler
+// falls back to today's Params-default path (`variance_target`,
+// `variance_ref`, `sample_size_target`, `sample_size_ref`) — additive
+// contract, byte-identical to the pre-S9 output.
+//
+// Mixed cell shapes (one triple, one scalar) are blocked upstream by
+// the compose schema-match gate (E1-S8). The handler still emits a
+// defensive PULSE_OVERLAY_SCHEMA_DIVERGENT if a mixed pair slips
+// through.
 func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
@@ -778,7 +790,7 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 			})
 	}
 
-	refLookup := buildMatrixCellLookup(refMx)
+	refCellLookup := buildMatrixCellRawLookup(refMx)
 	varTarget := varianceFromParams(spec.Params, "variance_target", 1.0)
 	varRef := varianceFromParams(spec.Params, "variance_ref", 1.0)
 	nTarget := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
@@ -806,12 +818,8 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 			if !cell.Present {
 				continue
 			}
-			targetVal, ok := scalarFromCell(cell)
-			if !ok {
-				continue
-			}
 			colKeyStr := axisKeyToString(targetMx.ColumnKeys[j])
-			refVal, refPresent := refLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
+			refCell, refPresent := refCellLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
 			if !refPresent {
 				warnings = append(warnings, OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
@@ -829,7 +837,61 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				})
 				continue
 			}
-			p, ok := welchTTest(targetVal, varTarget, nTarget, refVal, varRef, nRef)
+
+			tTriple, tHasTriple := welfordTripleFromCell(cell)
+			rTriple, rHasTriple := welfordTripleFromCell(refCell)
+			tScalar, tHasScalar := scalarFromCell(cell)
+			rScalar, rHasScalar := scalarFromCell(refCell)
+
+			// Mixed cell shapes — schema-match gate (E1-S8) should
+			// already reject this upstream; emit defensive coded
+			// error if a mismatched pair slips through.
+			if tHasTriple != rHasTriple {
+				return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+					errors.PROCESSING_INTERNAL,
+					"overlay "+string(spec.Kind)+" detected divergent cell shapes (triple vs scalar) at runtime",
+					map[string]any{
+						"code":         string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT),
+						"kind":         string(spec.Kind),
+						"ref_index":    refIdx,
+						"target_index": targetIdx,
+						"row_index":    i,
+						"col_index":    j,
+						"row_key":      rowKeyStr,
+						"col_key":      colKeyStr,
+					})
+			}
+
+			var (
+				meanT, vT, nT float64
+				meanR, vR, nR float64
+				targetVal     float64
+				refVal        float64
+			)
+			if tHasTriple {
+				meanT = tTriple.Mean
+				vT = tTriple.Variance
+				nT = float64(tTriple.N)
+				meanR = rTriple.Mean
+				vR = rTriple.Variance
+				nR = float64(rTriple.N)
+				targetVal = meanT
+				refVal = meanR
+			} else if tHasScalar && rHasScalar {
+				meanT = tScalar
+				vT = varTarget
+				nT = nTarget
+				meanR = rScalar
+				vR = varRef
+				nR = nRef
+				targetVal = tScalar
+				refVal = rScalar
+			} else {
+				// Neither triple nor scalar — non-addressable cell.
+				continue
+			}
+
+			p, ok := welchTTest(meanT, vT, nT, meanR, vR, nR)
 			if !ok {
 				warnings = append(warnings, OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
