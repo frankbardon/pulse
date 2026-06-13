@@ -1417,10 +1417,10 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_SCHEMA_DIVERGENT: {
-		// Minimal entry — full polish (richer Message + per-axis Fixup
-		// hints) lands with E7-S13. This row keeps TestCodesHaveFixups
-		// green at E7-S7.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. Details carry the `reference` slot label, the offending `target_label`, and canonical `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`).",
+		// E7-S7 lit the gate; E10-S2 polished the prose to point at the
+		// predict-side SlotPair surface so MCP planners can fan the per-
+		// divergence repair without parsing envelope Details.
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. Runtime Details carry the `reference` slot label, the offending `target_label`, and canonical `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`); the no-execute predict surface (`descriptor.ValidateCompose`) mirrors the same information via `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` (one entry per offending (reference, target) pair, Reason = `schema-divergent`). Predict consumers should branch on `Reason` for the divergence class and read `ReferenceLabel` / `TargetLabel` for the offending slots without re-parsing envelope details.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

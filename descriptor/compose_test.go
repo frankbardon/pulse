@@ -73,6 +73,72 @@ func matrixCrosstabRangeRowRequest(label, rowField, colField string) *types.Requ
 	}
 }
 
+// matrixCrosstabDateColRequest is a MATRIX variant whose column axis
+// uses GROUP_DATE instead of GROUP_CATEGORY. Paired with
+// matrixCrosstabRequest to exercise PULSE_OVERLAY_SCHEMA_DIVERGENT
+// on the COLUMN axis (E10-S2 col-grouper-kind divergence dimension).
+func matrixCrosstabDateColRequest(label, rowField, colField string) *types.Request {
+	return &types.Request{
+		Label: label,
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: rowField}},
+			Columns: []*types.Group{{Type: types.GROUP_DATE, Field: colField}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value"},
+		},
+	}
+}
+
+// matrixCrosstabNestedRowRequest is a MATRIX variant whose row axis
+// is nested two-deep (two row groupers). Paired with the standard
+// single-row matrixCrosstabRequest to exercise the nested-depth
+// dimension of PULSE_OVERLAY_SCHEMA_DIVERGENT (E10-S2).
+func matrixCrosstabNestedRowRequest(label, rowFieldA, rowFieldB, colField string) *types.Request {
+	return &types.Request{
+		Label: label,
+		Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: rowFieldA},
+				{Type: types.GROUP_CATEGORY, Field: rowFieldB},
+			},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: colField}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value"},
+		},
+	}
+}
+
+// matrixCrosstabRenamedFieldsRequest is a MATRIX variant whose row
+// and column groupers carry DIFFERENT Field names from the baseline
+// (matrixCrosstabRequest) but identical grouper-Type tuples. Used to
+// pin the E10-S2 "field-name divergence NOT reported" rule —
+// composeRequestAxisTuples MUST drop Field and key only on Type.
+func matrixCrosstabRenamedFieldsRequest(label, rowField, colField string) *types.Request {
+	return &types.Request{
+		Label: label,
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: rowField}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: colField}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value"},
+		},
+	}
+}
+
+// seriesRangeGroupedRequest is the SERIES fixture with GROUP_RANGE
+// instead of GROUP_CATEGORY. Paired with seriesGroupedSumRequest to
+// exercise the SERIES-arm grouper-Type divergence dimension
+// (E10-S2 "type divergence" — distinct grouper Type values on
+// otherwise-identical SERIES slots).
+func seriesRangeGroupedRequest(label, field, groupField string) *types.Request {
+	return &types.Request{
+		Label: label,
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: field, Label: "sum_" + field},
+		},
+		Groups: []*types.Group{
+			{Type: types.GROUP_RANGE, Field: groupField, Interval: 10},
+		},
+	}
+}
+
 // --- helper sync gates ---------------------------------------------
 
 // TestKindRequiresMatrixCompose_MatchesProcessing pins the descriptor
@@ -529,6 +595,197 @@ func TestValidateCompose_NilRequest_Coded(t *testing.T) {
 	env := ValidateCompose(nil)
 	if len(env.Errors) == 0 || env.Errors[0].Code != string(errors.SERVICE_VALIDATION) {
 		t.Errorf("expected SERVICE_VALIDATION on nil request, got %+v", env.Errors)
+	}
+}
+
+// TestValidateCompose_SchemaDivergent_ColGrouperMismatch is the
+// E10-S2 column-axis divergence dimension: both slots are MATRIX with
+// identical row-axis grouper-Type tuples, but the column axis kinds
+// disagree (GROUP_CATEGORY vs GROUP_DATE). PULSE_OVERLAY_SCHEMA_DIVERGENT
+// must fire and the SlotPair must echo (a, b) with Reason="schema-divergent".
+func TestValidateCompose_SchemaDivergent_ColGrouperMismatch(t *testing.T) {
+	req := &types.ComposedRequest{
+		Requests: []*types.Request{
+			matrixCrosstabRequest("a", "row", "col"),
+			matrixCrosstabDateColRequest("b", "row", "col"),
+		},
+		Overlays: []types.ComposeOverlaySpec{
+			{
+				Name:      "mixed_col_kind",
+				Kind:      types.OverlayKindIndexVsRef,
+				Reference: "a",
+				Targets:   []string{"b"},
+			},
+		},
+	}
+	env := ValidateCompose(req)
+	found := false
+	for _, e := range env.Errors {
+		if e.Code == string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected PULSE_OVERLAY_SCHEMA_DIVERGENT for col-grouper divergence, got %+v", env.Errors)
+	}
+	result := env.Data.(*ComposeValidationResult)
+	foundPair := false
+	for _, p := range result.OverlaysSchemaDivergence {
+		if p.Reason == "schema-divergent" && p.ReferenceLabel == "a" && p.TargetLabel == "b" {
+			foundPair = true
+			break
+		}
+	}
+	if !foundPair {
+		t.Errorf("expected schema-divergent SlotPair(a,b) for col-grouper divergence, got %+v", result.OverlaysSchemaDivergence)
+	}
+}
+
+// TestValidateCompose_SchemaDivergent_NestedDepthMismatch is the
+// E10-S2 nested-depth dimension: both slots are MATRIX with identical
+// per-grouper Types but the row axis is single-deep on the reference
+// and two-deep on the target. PULSE_OVERLAY_SCHEMA_DIVERGENT must
+// fire — the structural match treats grouper depth as part of the
+// schema (composeRequestAxisTuples returns different-length tuples).
+func TestValidateCompose_SchemaDivergent_NestedDepthMismatch(t *testing.T) {
+	req := &types.ComposedRequest{
+		Requests: []*types.Request{
+			matrixCrosstabRequest("a", "row", "col"),
+			matrixCrosstabNestedRowRequest("b", "row", "row2", "col"),
+		},
+		Overlays: []types.ComposeOverlaySpec{
+			{
+				Name:      "depth_mismatch",
+				Kind:      types.OverlayKindIndexVsRef,
+				Reference: "a",
+				Targets:   []string{"b"},
+			},
+		},
+	}
+	env := ValidateCompose(req)
+	found := false
+	for _, e := range env.Errors {
+		if e.Code == string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected PULSE_OVERLAY_SCHEMA_DIVERGENT for nested-depth divergence, got %+v", env.Errors)
+	}
+	result := env.Data.(*ComposeValidationResult)
+	foundPair := false
+	for _, p := range result.OverlaysSchemaDivergence {
+		if p.Reason == "schema-divergent" && p.ReferenceLabel == "a" && p.TargetLabel == "b" {
+			foundPair = true
+			break
+		}
+	}
+	if !foundPair {
+		t.Errorf("expected schema-divergent SlotPair(a,b) for nested-depth divergence, got %+v", result.OverlaysSchemaDivergence)
+	}
+}
+
+// TestValidateCompose_SchemaDivergent_SeriesTypeMismatch is the
+// E10-S2 SERIES-arm grouper-Type dimension: both slots are SERIES
+// with a single grouper each but the Types disagree (GROUP_CATEGORY
+// vs GROUP_RANGE). PULSE_OVERLAY_SCHEMA_DIVERGENT must fire —
+// composeRequestAxisTuples reads Group.Type for the series arm so
+// distinct grouper kinds produce distinct row tuples even with
+// matching Fields.
+func TestValidateCompose_SchemaDivergent_SeriesTypeMismatch(t *testing.T) {
+	req := &types.ComposedRequest{
+		Requests: []*types.Request{
+			seriesGroupedSumRequest("a", "x", "tag"),  // GROUP_CATEGORY
+			seriesRangeGroupedRequest("b", "y", "tag"), // GROUP_RANGE
+		},
+		Overlays: []types.ComposeOverlaySpec{
+			{
+				Name:      "series_type_mismatch",
+				Kind:      types.OverlayKindDeltaVsRef,
+				Reference: "a",
+				Targets:   []string{"b"},
+			},
+		},
+	}
+	env := ValidateCompose(req)
+	found := false
+	for _, e := range env.Errors {
+		if e.Code == string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected PULSE_OVERLAY_SCHEMA_DIVERGENT for series type divergence, got %+v", env.Errors)
+	}
+	result := env.Data.(*ComposeValidationResult)
+	foundPair := false
+	for _, p := range result.OverlaysSchemaDivergence {
+		if p.Reason == "schema-divergent" && p.ReferenceLabel == "a" && p.TargetLabel == "b" {
+			foundPair = true
+			break
+		}
+	}
+	if !foundPair {
+		t.Errorf("expected schema-divergent SlotPair(a,b) for series type divergence, got %+v", result.OverlaysSchemaDivergence)
+	}
+}
+
+// TestValidateCompose_FieldNameDivergence_NotReported pins the
+// E10-S2 "Field-name divergence NOT reported" rule: two MATRIX slots
+// with structurally identical grouper Types but DIFFERENT per-grouper
+// Field values must not surface PULSE_OVERLAY_SCHEMA_DIVERGENT.
+// composeRequestAxisTuples drops Field by design — only Type
+// participates in the structural match, so column renames are silent.
+func TestValidateCompose_FieldNameDivergence_NotReported(t *testing.T) {
+	req := &types.ComposedRequest{
+		Requests: []*types.Request{
+			matrixCrosstabRequest("a", "row_orig", "col_orig"),
+			matrixCrosstabRenamedFieldsRequest("b", "row_renamed", "col_renamed"),
+		},
+		Overlays: []types.ComposeOverlaySpec{
+			{
+				Name:      "field_rename_ok",
+				Kind:      types.OverlayKindIndexVsRef,
+				Reference: "a",
+				Targets:   []string{"b"},
+			},
+		},
+	}
+	env := ValidateCompose(req)
+	for _, e := range env.Errors {
+		if e.Code == string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+			t.Errorf("PULSE_OVERLAY_SCHEMA_DIVERGENT must NOT fire on field-name-only divergence; got %+v", e)
+		}
+	}
+	result := env.Data.(*ComposeValidationResult)
+	for _, p := range result.OverlaysSchemaDivergence {
+		if p.Reason == "schema-divergent" {
+			t.Errorf("schema-divergent SlotPair must NOT be emitted on field-name-only divergence; got %+v", p)
+		}
+	}
+}
+
+// TestValidateCompose_OverlaysSchemaDivergence_NeverNil pins the
+// PRD §I-FR-I3 invariant: ComposeValidationResult.OverlaysSchemaDivergence
+// is always a non-nil slice (empty array in JSON renderers when no
+// divergence fires). Mirrors the same contract on PredictResult.
+func TestValidateCompose_OverlaysSchemaDivergence_NeverNil(t *testing.T) {
+	// No overlays at all — early-return path.
+	req := &types.ComposedRequest{
+		Requests: []*types.Request{
+			seriesGroupedSumRequest("a", "x", "tag"),
+		},
+	}
+	env := ValidateCompose(req)
+	result := env.Data.(*ComposeValidationResult)
+	if result.OverlaysSchemaDivergence == nil {
+		t.Error("OverlaysSchemaDivergence is nil; must be non-nil empty slice for JSON contract")
+	}
+	if len(result.OverlaysSchemaDivergence) != 0 {
+		t.Errorf("expected empty slice, got %+v", result.OverlaysSchemaDivergence)
 	}
 }
 
