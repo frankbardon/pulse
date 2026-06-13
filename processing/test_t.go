@@ -46,29 +46,6 @@ type tTestRow struct {
 	order  []string
 }
 
-type welfordBucket struct {
-	n    int64
-	mean float64
-	m2   float64
-}
-
-func (b *welfordBucket) add(v float64) {
-	b.n++
-	delta := v - b.mean
-	b.mean += delta / float64(b.n)
-	delta2 := v - b.mean
-	b.m2 += delta * delta2
-}
-
-// sampleVariance returns the unbiased sample variance s² = M2 / (n - 1).
-// Returns zero for n < 2 so callers can detect degeneracy themselves.
-func (b *welfordBucket) sampleVariance() float64 {
-	if b.n < 2 {
-		return 0
-	}
-	return b.m2 / float64(b.n-1)
-}
-
 // tTestParams is the JSON payload for TEST_T.Params. Mu is honored only
 // for the one-sample variant. Variant is reserved for future tail
 // configuration ("two-sided" / "less" / "greater") and currently ignored.

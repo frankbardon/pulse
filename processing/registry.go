@@ -27,6 +27,7 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_RATIO:          newRatioAggregator,
 	types.AGG_CI_LOWER:       newCIAggregator(ciLower),
 	types.AGG_CI_UPPER:       newCIAggregator(ciUpper),
+	types.AGG_WELFORD:        newWelfordAggregator,
 
 	types.AGG_SET_UNION:           newSetUnionAggregator,
 	types.AGG_SET_INTERSECTION:    newSetIntersectionAggregator,
