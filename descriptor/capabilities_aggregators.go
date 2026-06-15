@@ -539,7 +539,10 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  setFieldTypes,
 			EmitsTypeNote: "rich map[string]int (label→row count); scalar fallback = max single-label frequency",
 			Streamable:    true,
-			ComponentSchema: aggSchema(Mergeable,
+			// Partial: per_label_count merges across chunks but the
+			// map allocation makes it more expensive than a pure
+			// fold; orchestrator may stage merge at terminal flush.
+			ComponentSchema: aggSchema(Partial,
 				ComponentKey{Name: "total_label_observations", Type: "int", Description: "Sum of popcounts across contributing rows (total label selections seen)."},
 				ComponentKey{Name: "distinct_labels", Type: "int", Description: "Number of distinct labels observed at least once."},
 				ComponentKey{Name: "per_label_count", Type: "map[string]int", Description: "Per-label row count: how many rows had each label selected."},

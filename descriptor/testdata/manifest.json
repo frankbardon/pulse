@@ -1231,7 +1231,7 @@
                 "description": "Per-label row count: how many rows had each label selected."
               }
             ],
-            "mergeability": "mergeable"
+            "mergeability": "partial"
           }
         },
         {
@@ -7022,7 +7022,7 @@
               "description": "Per-label row count: how many rows had each label selected."
             }
           ],
-          "mergeability": "mergeable"
+          "mergeability": "partial"
         },
         "AGG_SET_INTERSECTION": {
           "keys": [
@@ -7310,4 +7310,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: eb2dae28899fc6bea618fc8d457288ad93097f9c36e9c8e24b7e78f0e0c914ff
+// golden-hash: ad29ad4f21ffd89c991ab49d45da408128b6b54877dff6fe59ede04a9cb3a6de
