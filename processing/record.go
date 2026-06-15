@@ -97,6 +97,35 @@ func (r *Record) NumericValue(name string) (float64, bool) {
 	return v, ok
 }
 
+// IsNull reports whether the named field is null on this record. A field
+// is null when explicitly marked via SetNull / SetNullField (the on-wire
+// bitmap signal during decode), or when the field is absent from both
+// the values map and the wide map. Used by the orchestrator's filter
+// pass (E2-S9) to track the n_null_input universal-floor counter per
+// FiltererComponents slot without coupling each filterer to a particular
+// null-detection path.
+//
+// FILTER_EXPRESSION carries no Field and callers MUST skip the IsNull
+// check for that filterer kind — expression filters do not have a
+// single source field whose null state would be meaningful.
+func (r *Record) IsNull(name string) bool {
+	if name == "" {
+		return false
+	}
+	if r.nulls[name] {
+		return true
+	}
+	if _, ok := r.values[name]; ok {
+		return false
+	}
+	if r.wide != nil {
+		if _, ok := r.wide[name]; ok {
+			return false
+		}
+	}
+	return true
+}
+
 // SetValue returns the raw bitmask for a set-typed field. Bit i is set
 // when dictionary entry i is selected. Returns (0, false) when the field
 // is null, missing, or not a set type.

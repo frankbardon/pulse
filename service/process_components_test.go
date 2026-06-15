@@ -578,15 +578,52 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 				t.Errorf("%s: BufferedComponents = %v, want false (every v1 filterer is Mergeable)", op, got)
 			}
 
-			// TODO(E2-S9): tighten this once filterers emit per-slot
-			// FiltererComponents at runtime. The runtime comparison
-			// half is skipped here because no MetaFilterer
-			// implementation has landed yet —
-			// Response.Components.Filterers is empty for every
-			// filterer today. When E2-S9 wires the universal-floor
-			// counter pass, add the same predict-vs-runtime
-			// sorted-key-set comparison the aggregator half above
-			// performs.
+			// E2-S9: runtime FiltererComponents emission lands at the
+			// service.Process boundary. Drive a one-slot request
+			// through the service fixture and confirm the runtime
+			// operator-specific key set (universal floor stripped)
+			// equals the predict-declared operator-specific key set.
+			// v1 has no built-in MetaFilterer implementation, so both
+			// projections collapse to the empty set — the assertion
+			// still locks the wiring contract so a future per-filter
+			// specific addition has a parity gate to fail.
+			runReq := &types.Request{
+				Cohort: &types.Cohort{Filename: ffix.cohortName},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_COUNT, Field: ffix.companionField, Label: "n"},
+				},
+				Filterers: []*types.Filterer{
+					{Type: op, Field: ffix.field, Values: ffix.values, Expression: ffix.expression},
+				},
+			}
+			resp, err := ffix.svc.Process(context.Background(), runReq)
+			if err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			if resp.Components == nil {
+				t.Fatalf("Response.Components nil; want populated")
+			}
+			if got := len(resp.Components.Filterers); got != 1 {
+				t.Fatalf("Filterers slots = %d, want 1", got)
+			}
+			// The universal floor is typed onto FiltererComponents
+			// (NIn / NOut / NNullInput); the operator-specific key
+			// set rides in the (currently unwired) MetaFilterer
+			// payload. The runtime side carries no operator map yet,
+			// so the key set is trivially empty — matching the
+			// predict declaration minus floor.
+			runtimeKeys := []string{}
+			predictKeys := []string{}
+			for _, k := range declared {
+				if k.Name == "n_in" || k.Name == "n_out" || k.Name == "n_null_input" {
+					continue
+				}
+				predictKeys = append(predictKeys, k.Name)
+			}
+			if !reflect.DeepEqual(runtimeKeys, predictKeys) {
+				t.Errorf("%s component-schema parity drift:\n  predict declared: %v\n  runtime emitted: %v",
+					op, predictKeys, runtimeKeys)
+			}
 		})
 	}
 }

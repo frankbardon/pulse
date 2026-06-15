@@ -402,11 +402,17 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		iter.Reset()
 	}
 
-	// Build filter functions once.
+	// Build filter functions once. The per-slot universal-floor
+	// counter triple {n_in, n_out, n_null_input} lives in
+	// filterCounters and rides alongside filterFns through the
+	// per-record applyFilterPass walk (E2-S9). Empty filter chains
+	// keep the counter slice nil so the no-filter fast path stays
+	// allocation-free.
 	filterFns, err := p.buildFilterFuncs(req.Filterers)
 	if err != nil {
 		return nil, err
 	}
+	filterCounters := newFilterPassCounters(req.Filterers)
 
 	// Build aggregator instances and their online interfaces. Each
 	// factory call produces a fresh, zero-state instance; safe to use
@@ -483,16 +489,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			}
 		}
 
-		pass := true
-		for _, fn := range filterFns {
-			ok, err := fn(r)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				pass = false
-				break
-			}
+		pass, err := applyFilterPass(r, req.Filterers, filterFns, filterCounters)
+		if err != nil {
+			return nil, err
 		}
 		if !pass {
 			continue
@@ -620,6 +619,11 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		}
 		attachAggregationComponents(resp, entry)
 	}
+
+	// E2-S9: emit FiltererComponents per slot from the per-record
+	// counter walk. Empty filter chains stay nil so the omitempty
+	// wire shape is byte-identical against the pre-E2-S9 baseline.
+	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
 	return resp, nil
 }
 
@@ -697,6 +701,10 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	if err != nil {
 		return nil, err
 	}
+	// E2-S9: per-slot filter-pass counters ride alongside filterFns
+	// through the streaming grouped path; same applyFilterPass walk
+	// the ungrouped streaming path uses.
+	filterCounters := newFilterPassCounters(req.Filterers)
 	rowLocalAttrs, err := p.buildRowLocalAttributes(req.Attributes)
 	if err != nil {
 		return nil, err
@@ -729,16 +737,9 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			}
 		}
 
-		pass := true
-		for _, fn := range filterFns {
-			ok, err := fn(r)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				pass = false
-				break
-			}
+		pass, err := applyFilterPass(r, req.Filterers, filterFns, filterCounters)
+		if err != nil {
+			return nil, err
 		}
 		if !pass {
 			continue
@@ -866,6 +867,11 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 	attachGrouperComponents(resp, streamEntry)
 
+	// E2-S9: emit FiltererComponents per slot. Empty filter chains
+	// stay nil so the omitempty wire shape is byte-identical against
+	// the pre-E2-S9 baseline.
+	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
 	// SERIES-host overlay hook (E3-S6). Streaming grouped exit calls
 	// into the same post-finalize wiring as the buffered processRecords
 	// path. Streamable overlay kinds (E3-S2/S3/S4 — INDEX_VS_TOTAL /
@@ -943,6 +949,13 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	if err != nil {
 		return nil, err
 	}
+	// E2-S9: per-slot filter-pass counters track {n_in, n_out,
+	// n_null_input}. The two-pass path walks every filter-passing
+	// record twice (PrePass + Row); counters increment ONLY on pass 1
+	// so the values match the single-pass observed record set —
+	// per-slot n_in / n_out / n_null_input count distinct input rows,
+	// not pass-1+pass-2 doubled visits.
+	filterCounters := newFilterPassCounters(req.Filterers)
 	twoPassAttrs, rowLocalAttrs, err := p.buildTwoPassAttributes(req.Attributes)
 	if err != nil {
 		return nil, err
@@ -977,21 +990,16 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	// Pass 1: fold every filter-passing record into each two-pass
 	// attribute's PrePass. Filters apply here so attribute population
 	// stats match the buffered Compute path (which receives the already-
-	// filtered slice).
+	// filtered slice). Per-slot {n_in, n_out, n_null_input} counters
+	// increment only here so totals match the single-pass observed
+	// record set.
 	var totalRows, filteredRows int64
 	for iter.Next() {
 		totalRows++
 		r := iter.Record()
-		pass := true
-		for _, fn := range filterFns {
-			ok, err := fn(r)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				pass = false
-				break
-			}
+		pass, err := applyFilterPass(r, req.Filterers, filterFns, filterCounters)
+		if err != nil {
+			return nil, err
 		}
 		if !pass {
 			continue
@@ -1013,6 +1021,9 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	// Pass 2: re-scan, apply filters again, emit attribute values onto
 	// each filter-passing record (two-pass first so any row-local
 	// attribute referencing a two-pass label sees it), fold each agg.
+	// Counters were closed in pass 1; the per-record filter walk here
+	// re-runs each FilterFunc to gate the per-record work but skips
+	// the counter increment so values stay aligned with pass 1.
 	for iter.Next() {
 		r := iter.Record()
 		pass := true
@@ -1104,6 +1115,12 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 		attachAggregationComponents(resp, entry)
 	}
+
+	// E2-S9: emit FiltererComponents per slot. Counters were
+	// populated during pass 1 (pass 2 re-runs the filter funcs for
+	// gating but skips the counter increment so totals match the
+	// observed record set, not pass-1+pass-2 visits).
+	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
 	return resp, nil
 }
 
@@ -1204,8 +1221,12 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		return nil, err
 	}
 
-	// Step 1: Apply filters
-	filtered, err := p.applyFilters(req.Filterers, records)
+	// Step 1: Apply filters. The counter slice carries the per-slot
+	// {n_in, n_out, n_null_input} universal floor used by
+	// Response.Components.Filterers (E2-S9). Empty filter chains
+	// short-circuit to a nil counters slice so the omitempty wire
+	// shape stays byte-identical against the pre-E2-S9 baseline.
+	filtered, filterCounters, err := p.applyFiltersWithCounters(req.Filterers, records)
 	if err != nil {
 		return nil, err
 	}
@@ -1314,6 +1335,15 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		attachGrouperComponents(resp, entry)
 	}
 
+	// E2-S9: attach per-slot FiltererComponents. The buffered
+	// applyFiltersWithCounters returned one counter triple per
+	// declared filterer slot; build + attach mirrors the streaming
+	// exits in processStreaming / processStreamingGrouped /
+	// processStreamingTwoPass. Empty filter chains leave
+	// filterCounters nil so the omitempty wire shape stays byte-
+	// identical against the pre-E2-S9 baseline.
+	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
 	// SERIES-host overlay hook (E3-S6). Wraps the finalized per-group
 	// Response.Data as a SeriesHostView and dispatches each
 	// req.Overlays spec through the SERIES handler registry
@@ -1366,34 +1396,44 @@ func recordsToRows(records []*Record) []map[string]any {
 }
 
 func (p *Processor) applyFilters(filterers []*types.Filterer, records []*Record) ([]*Record, error) {
+	filtered, _, err := p.applyFiltersWithCounters(filterers, records)
+	return filtered, err
+}
+
+// applyFiltersWithCounters is the buffered-path companion to
+// applyFilterPass: it runs the per-record filter walk over a
+// materialised []*Record slice while tracking the per-slot
+// {n_in, n_out, n_null_input} universal-floor counters used by
+// Response.Components.Filterers (E2-S9). Returns the filter-passing
+// record subset plus one counter triple per filterer slot in
+// declared order. An empty filter chain returns the input slice
+// unchanged and nil counters so the no-filter fast path remains
+// allocation-free.
+func (p *Processor) applyFiltersWithCounters(filterers []*types.Filterer, records []*Record) ([]*Record, []filterPassCounters, error) {
 	if len(filterers) == 0 {
-		return records, nil
+		return records, nil, nil
 	}
 
 	filterFns, err := p.buildFilterFuncs(filterers)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	counters := newFilterPassCounters(filterers)
 
-	// Apply all filters (AND logic)
+	// Apply all filters (AND logic) via the shared applyFilterPass
+	// helper so the per-record counter semantics match the streaming
+	// paths byte-for-byte.
 	var result []*Record
 	for _, r := range records {
-		pass := true
-		for _, fn := range filterFns {
-			ok, err := fn(r)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				pass = false
-				break
-			}
+		pass, err := applyFilterPass(r, filterers, filterFns, counters)
+		if err != nil {
+			return nil, nil, err
 		}
 		if pass {
 			result = append(result, r)
 		}
 	}
-	return result, nil
+	return result, counters, nil
 }
 
 // applyFeatures runs pre-filter feature operators over the unfiltered
