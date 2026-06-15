@@ -72,9 +72,10 @@ type StreamHeader struct {
 }
 
 type StreamChunk[T any] struct {
-    Sequence int          // Monotonic 0-based
-    Data     T
-    Progress float64      // 0.0–1.0, or -1 if unknown
+    Sequence   int          // Monotonic 0-based
+    Data       T
+    Progress   float64      // 0.0–1.0, or -1 if unknown
+    Components *types.ResponseComponents `json:"components,omitempty"`
 }
 
 type StreamTerminator struct {
@@ -113,6 +114,31 @@ fmt.Printf("delivered %d rows in %s\n",
 - Cancelling `ctx` causes the producer to emit a `StreamTerminator{Status: StreamCancelled, Error: ctx.Err()}` and close both channels.
 - A mid-stream error closes `Chunks` early and delivers `StreamTerminator{Status: StreamErrored, Error: err}` on `Done`.
 - The non-streaming variants (`Process`, `Synth`) remain — they are convenience wrappers that drain the stream and return the full result.
+
+### Per-chunk `Components` — consumer-side merge contract
+
+Each `StreamChunk[Row]` returned by `ProcessStreamResult` carries a `Components *types.ResponseComponents` projection of the run's constituent-parts payload. The projection follows the per-operator `ComponentsMergeability` declared in the manifest (descriptor surface, source of truth):
+
+- **Mergeable** operators (`AGG_SUM`, `AGG_COUNT`, `AGG_AVERAGE`, `AGG_VARIANCE`, Welford-family, `AGG_RANGE`, `AGG_MIN`, `AGG_MAX`, `AGG_NULL_COUNT`, `AGG_WEIGHTED_MEAN`, `AGG_RATIO`, `AGG_CI_LOWER`, `AGG_CI_UPPER`, set-family aggregators) — the per-operator `Operator` map carries the running state on every chunk. Consumers may render mid-stream; the terminal chunk carries the authoritative final.
+- **Partial** operators (`AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_SET_FREQUENCY`) — fold like mergeable but at non-trivial allocation cost. The Operator map rides every chunk and merges client-side via the same union semantics the orchestrator uses.
+- **Non-mergeable** operators (`AGG_MEDIAN`, `AGG_PERCENTILE`) — chunks before the terminal omit the per-operator keys (Operator is `nil`) but preserve the universal floor (`N`, `NNull`, `Label`). The terminal chunk carries the buffered-only payload. Consumers MUST NOT attempt to merge non-terminal chunks for these slots.
+
+Identity: the terminal chunk's `Components` is byte-equal (DeepEqual) to the equivalent buffered `Process` call's `Response.Components`. Consumers needing a one-shot result can drain to the terminal and use that chunk's `Components` exclusively.
+
+```go
+res, _ := p.ProcessStreamResult(ctx, req)
+var terminal *types.ResponseComponents
+for chunk := range res.Chunks {
+    terminal = chunk.Components            // last assignment wins
+    if chunk.Components != nil {
+        renderRunning(chunk.Components)    // safe for mergeable / partial slots
+    }
+}
+<-res.Done
+finalise(terminal)                          // byte-equal to buffered Process
+```
+
+Allocation note: the per-chunk projection clones only the `Aggregations` slice (`O(slots)` per chunk) and shares `Groupers` / `Crosstab` / `Filterers` / `Run` with the buffered original. The mergeability vector is computed once per stream and reused across every chunk.
 </reference>
 
 <reference>
