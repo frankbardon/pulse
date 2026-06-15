@@ -39,11 +39,24 @@ type weightedMeanParams struct {
 //
 // MergeOnline combines two weighted partials via the same parallel
 // formula used by varianceAggregator, weighted by wSum instead of n.
+//
+// frozen{SumWeighted, SumWeights, WeightedMean, HasResult} mirror the
+// post-Aggregate / post-Finalize state so Components() works on both
+// buffered and streaming code paths — the streaming Finalize step
+// zeros out (wSum, mean, m2) before Components() runs, so the frozen
+// mirrors are the source of truth. sum_weighted is reconstructed as
+// mean * wSum at the freeze point (algebraically identical to the
+// running sum of (field * weight) for the Chan-Welford recurrence).
 type weightedMeanAggregator struct {
 	weightField string
 	wSum        float64
 	mean        float64
 	m2          float64
+
+	frozenSumWeighted  float64
+	frozenSumWeights   float64
+	frozenWeightedMean float64
+	frozenHasResult    bool
 }
 
 func newWeightedMeanAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -73,6 +86,7 @@ func (a *weightedMeanAggregator) Aggregate(records []*Record, field string) (flo
 		}
 		a.foldOne(v, w)
 	}
+	a.freeze()
 	if a.wSum == 0 {
 		return 0, nil
 	}
@@ -100,15 +114,67 @@ func (a *weightedMeanAggregator) foldOne(x, w float64) {
 }
 
 func (a *weightedMeanAggregator) Finalize() (float64, error) {
+	a.freeze()
 	if a.wSum == 0 {
-		out := 0.0
 		a.mean, a.wSum, a.m2 = 0, 0, 0
-		return out, nil
+		return 0, nil
 	}
 	out := a.mean
 	a.mean, a.wSum, a.m2 = 0, 0, 0
 	return out, nil
 }
+
+// freeze stamps the components mirrors from the live (wSum, mean)
+// state. Called from both Aggregate and Finalize so Components()
+// returns the same map on either path even after the streaming
+// Finalize-reset wipes the live moments. sum_weighted is reconstructed
+// as mean * wSum (algebraically identical to the running sum-of-
+// weighted-values for the Chan-Welford recurrence). Empty-input case
+// (wSum == 0) emits zero sums and a zero weighted_mean to mirror the
+// scalar return path's 0 fallback — callers can detect the zero-weight
+// case via the universal-floor n == 0 channel.
+func (a *weightedMeanAggregator) freeze() {
+	a.frozenHasResult = true
+	a.frozenSumWeights = a.wSum
+	if a.wSum == 0 {
+		a.frozenSumWeighted = 0
+		a.frozenWeightedMean = 0
+		return
+	}
+	a.frozenSumWeighted = a.mean * a.wSum
+	a.frozenWeightedMean = a.mean
+}
+
+// Components returns {sum_weighted, sum_weights, weighted_mean} —
+// the running weighted accumulators that feed the scalar return plus
+// the resolved weighted mean. Reads the frozen mirrors stamped by
+// Aggregate / Finalize so the streaming Finalize-reset on
+// (wSum, mean, m2) does not erase the values before Components() runs.
+//
+// Zero-weight rows: when every contributing row is filtered out
+// (no valid (value, weight) pair, or all weights == 0), the live
+// wSum collapses to 0 and the scalar return falls back to 0; the
+// emitted components reflect that raw state — sum_weighted == 0,
+// sum_weights == 0, weighted_mean == 0 — so callers can correlate
+// the zero floor with the absent denominator.
+func (a *weightedMeanAggregator) Components() (map[string]any, error) {
+	if !a.frozenHasResult {
+		return map[string]any{
+			"sum_weighted":  0.0,
+			"sum_weights":   0.0,
+			"weighted_mean": 0.0,
+		}, nil
+	}
+	return map[string]any{
+		"sum_weighted":  a.frozenSumWeighted,
+		"sum_weights":   a.frozenSumWeights,
+		"weighted_mean": a.frozenWeightedMean,
+	}, nil
+}
+
+// Compile-time interface lock — catches MetaAggregator drift at build
+// time for AGG_WEIGHTED_MEAN.
+var _ MetaAggregator = (*weightedMeanAggregator)(nil)
 
 func (a *weightedMeanAggregator) MergeOnline(other OnlineAggregator) error {
 	b, ok := other.(*weightedMeanAggregator)
@@ -144,9 +210,21 @@ type ratioParams struct {
 // field skips that row's contribution to BOTH sums to keep the ratio
 // honest. Denominator-zero at finalize emits NaN (consistent with
 // IEEE-754 0/0); callers can detect via math.IsNaN.
+//
+// frozen{Num, Den, Ratio, HasResult} mirror the post-Aggregate /
+// post-Finalize state so Components() works on both buffered and
+// streaming code paths — the streaming Finalize step zeros out
+// (num, den) before Components() runs, so the frozen mirrors are the
+// source of truth. The frozen ratio preserves NaN under zero-denom
+// to match the scalar return path byte-for-byte.
 type ratioAggregator struct {
 	numField, denField string
 	num, den           float64
+
+	frozenNum       float64
+	frozenDen       float64
+	frozenRatio     float64
+	frozenHasResult bool
 }
 
 func newRatioAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -177,7 +255,9 @@ func (a *ratioAggregator) Aggregate(records []*Record, field string) (float64, e
 		a.num += n
 		a.den += d
 	}
-	return a.divide()
+	out, err := a.divide()
+	a.freeze(out)
+	return out, err
 }
 
 func (a *ratioAggregator) UpdateRow(r *Record, field string) error {
@@ -196,6 +276,7 @@ func (a *ratioAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *ratioAggregator) Finalize() (float64, error) {
 	out, err := a.divide()
+	a.freeze(out)
 	a.num, a.den = 0, 0
 	return out, err
 }
@@ -206,6 +287,52 @@ func (a *ratioAggregator) divide() (float64, error) {
 	}
 	return a.num / a.den, nil
 }
+
+// freeze stamps the components mirrors from the live (num, den) state
+// and the just-computed scalar. Called from both Aggregate and Finalize
+// so Components() returns the same map on either path even after the
+// streaming Finalize-reset wipes (num, den). The frozen ratio preserves
+// NaN exactly when divide() emitted NaN, so consumers can detect the
+// degenerate case via math.IsNaN on the components value without
+// re-running the division.
+func (a *ratioAggregator) freeze(scalar float64) {
+	a.frozenHasResult = true
+	a.frozenNum = a.num
+	a.frozenDen = a.den
+	a.frozenRatio = scalar
+}
+
+// Components returns {numerator, denominator, ratio} — the running
+// sums of the numerator + denominator fields plus the resolved ratio.
+// Reads the frozen mirrors stamped by Aggregate / Finalize so the
+// streaming Finalize-reset on (num, den) does not erase the values
+// before Components() runs.
+//
+// Zero-denominator: when sum(den) collapses to zero (every input row
+// filtered out, or every row's den == 0), the scalar return is NaN
+// (consistent with IEEE-754 0/0) and the frozen ratio mirror preserves
+// that NaN. Numerator and denominator surface their raw running sums
+// (numerator may be > 0 with denominator == 0 when the den field is
+// null on contributing rows — in that case the row is skipped from
+// BOTH sums and neither moves, so frozen num + den both end at 0).
+func (a *ratioAggregator) Components() (map[string]any, error) {
+	if !a.frozenHasResult {
+		return map[string]any{
+			"numerator":   0.0,
+			"denominator": 0.0,
+			"ratio":       math.NaN(),
+		}, nil
+	}
+	return map[string]any{
+		"numerator":   a.frozenNum,
+		"denominator": a.frozenDen,
+		"ratio":       a.frozenRatio,
+	}, nil
+}
+
+// Compile-time interface lock — catches MetaAggregator drift at build
+// time for AGG_RATIO.
+var _ MetaAggregator = (*ratioAggregator)(nil)
 
 func (a *ratioAggregator) MergeOnline(other OnlineAggregator) error {
 	b, ok := other.(*ratioAggregator)
