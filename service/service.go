@@ -843,11 +843,13 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 	// Empty / nil req.Overlays short-circuits with no allocation
 	// (byte-identical JSON vs pre-E7-S4 output).
 	//
-	// Facade rewire deferred to E7-S15: the layers + warnings are
-	// computed (so the hook surface is exercised end-to-end) but the
-	// facade still returns []*Response, so the values are discarded.
-	// E7-S15 lifts the return type to *ComposedResponse{Responses,
-	// Overlays} and persists both slots.
+	// Facade rewire still owed: the layers + warnings are computed (so
+	// the hook surface is exercised end-to-end) but the facade still
+	// returns []*Response, so the values are discarded here. The follow-up
+	// lifts the return type to *ComposedResponse{Responses, Overlays} and
+	// persists both slots — no story is currently scheduled. Originally
+	// promised to E7-S15 of result-overlay-system; that story shipped as a
+	// test-tier helper (composeOverlayCase) with zero production change.
 	if _, _, err := s.applyComposeOverlays(ctx, composed, requests, responses); err != nil {
 		return nil, err
 	}

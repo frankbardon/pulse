@@ -1316,11 +1316,13 @@ type ComposedRequest struct {
 // ComposeOverlaySpec catalog has a typed response sibling to write
 // against during the E7 catalog rollout (E7-S4 through E7-S15 land the
 // per-kind handlers). The pulse.Pulse.Compose facade still returns
-// []*Response today — facade-level rewiring is intentionally deferred to
-// a downstream story so the type-layer contract (this file) can land
-// without rippling through service/, mcp/, and cli/api.go. Once the
-// facade lifts to *ComposedResponse the Overlays slot here is the slot
-// the runtime fills.
+// []*Response today — facade-level rewiring was intentionally deferred so
+// the type-layer contract (this file) could land without rippling through
+// service/, mcp/, and cli/api.go. Once the facade lifts to
+// *ComposedResponse the Overlays slot here is the slot the runtime fills.
+// No follow-up story is currently scheduled — the deferral was originally
+// pointed at E7-S15 of result-overlay-system, which shipped as a test-tier
+// helper only.
 //
 // Forward-compat: every ComposedResponse marshalled before any overlay
 // landed produces byte-identical JSON to the same shape with
