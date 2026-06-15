@@ -2,9 +2,13 @@ package processing
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
+	"sort"
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -283,37 +287,338 @@ func TestMetaAggregator_StreamingEmits(t *testing.T) {
 	}
 }
 
-// TestComponentsUniversalFloor is the E1-S5 stub of the universal-
-// floor invariant gate: for each of the seven scalar AGGs implemented
-// here, assert that the orchestrator-emitted floor is non-negative and
-// that N + NNull never exceeds the post-filter record count. The full
-// sweep across every registered operator lands in E1-S12; this stub
-// keeps the contract gateable from day one of the components rollout.
-func TestComponentsUniversalFloor(t *testing.T) {
-	schema := numericSchema()
-	records := makeRecordsWithNulls(schema, "score",
-		[]float64{10, 0, 30, 0, 50}, []int{1, 3})
-	const filteredRecords = 5
+// aggParityFixture pairs an aggregation type with the schema, field
+// name, params, and 10-row record set (with 2 nulls where the
+// operator's input field accepts them) needed to drive a single
+// Process round-trip for the manifest-vs-runtime parity sweep below.
+// The expectedN/expectedNNull pair documents the universal-floor
+// outcome the orchestrator's per-record bookkeeping is expected to
+// reach after the records pass through the operator's null-handling
+// branch (e.g. AGG_NULL_COUNT inverts the floor — its "non-null
+// inputs" are the rows whose field IS null).
+type aggParityFixture struct {
+	schema       *encoding.Schema
+	field        string
+	params       json.RawMessage
+	records      []*Record
+	expectedN    int
+	expectedNull int
+	// filteredRecords is the total number of records the orchestrator
+	// sees (post-filter). N + NNull must be ≤ filteredRecords for the
+	// universal-floor invariant. The fixture pins this to len(records)
+	// since the parity sweep applies no filterers.
+	filteredRecords int
+}
 
-	scalarOps := []types.AggregationType{
-		types.AGG_COUNT,
-		types.AGG_SUM,
-		types.AGG_AVERAGE,
-		types.AGG_MIN,
-		types.AGG_MAX,
-		types.AGG_RANGE,
-		types.AGG_NULL_COUNT,
+// numericParityRecords builds a 10-row cohort of numeric scores with
+// two nulls at indices 4 and 7. Values are well-spread so every
+// numeric aggregator produces a defensible result (no zero-variance
+// degeneracies for Welford-family operators).
+func numericParityRecords(schema *encoding.Schema) []*Record {
+	values := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	return makeRecordsWithNulls(schema, "score", values, []int{4, 7})
+}
+
+// setParityRecords builds a 10-row cohort of set masks against the
+// 4-entry {VISA, MC, AMEX, DISC} dictionary. Two rows carry an
+// in-band zero mask (treated as "no selection" but NOT null — set_*
+// fields' zero mask is a valid value). The orchestrator's universal-
+// floor populator currently routes through Record.NumericValue which
+// returns (0, false) for set fields (the wide-typed mask is stored
+// outside the float64 narrow map). The universal-floor pair therefore
+// surfaces as {N: 0, NNull: 10} for every set aggregator on this
+// fixture — the aggregator's internal Components() emission is still
+// the source of truth for the operator-specific key set, which is
+// what the manifest-parity sweep checks. The non-zero floor lock for
+// set ops lives in the per-family E1-S10 tests where Aggregate is
+// called directly. The mix of overlapping and disjoint masks
+// exercises the OR / AND / per-bit fold paths.
+func setParityRecords(schema *encoding.Schema) []*Record {
+	masks := []uint64{
+		0b0001, // VISA
+		0b0010, // MC
+		0b0011, // VISA, MC
+		0b0100, // AMEX
+		0b0000, // empty
+		0b0111, // VISA, MC, AMEX
+		0b1000, // DISC
+		0b0000, // empty
+		0b1100, // AMEX, DISC
+		0b1111, // all
 	}
-	for _, op := range scalarOps {
+	records := make([]*Record, len(masks))
+	for i, mask := range masks {
+		records[i] = makeSetRecord(schema, mask)
+	}
+	return records
+}
+
+// allAggParityFixtures returns one fixture per registered aggregator
+// type — the parity sweep below exercises every entry against the
+// manifest's components_schemas.aggregators block.
+//
+// The 10-row cohort + 2-null convention bounds the universal-floor
+// assertion at N+NNull <= 10. Set aggregators carry NNull=0 because
+// the set_* field type's zero mask is a valid "no selection" value
+// distinct from null — the fixture pins them at N=10. AGG_NULL_COUNT
+// inverts the floor: its "non-null inputs" are the rows whose field
+// IS null, so N=2 and NNull=8 against the same 10-row cohort.
+func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixture {
+	t.Helper()
+	numSchema := numericSchema()
+	numRecs := numericParityRecords(numSchema)
+
+	cohSchema := cohortSchema()
+	// 10 rows: value, weight, num, den. Two rows have weight==0 (which
+	// the WEIGHTED_MEAN aggregator skips internally) but the cohort's
+	// `value` field is non-null throughout, so the orchestrator's
+	// universal floor counts ten non-null contributions.
+	cohRecs := []*Record{
+		cohortRec(10, 1, 5, 2, nil),
+		cohortRec(20, 1, 10, 4, nil),
+		cohortRec(30, 2, 15, 6, nil),
+		cohortRec(40, 1, 20, 8, nil),
+		cohortRec(50, 0, 25, 10, nil),
+		cohortRec(60, 2, 30, 12, nil),
+		cohortRec(70, 1, 35, 14, nil),
+		cohortRec(80, 0, 40, 16, nil),
+		cohortRec(90, 1, 45, 18, nil),
+		cohortRec(100, 2, 50, 20, nil),
+	}
+
+	setSchema := makeSetTestSchema(t)
+	setRecs := setParityRecords(setSchema)
+
+	num := func() aggParityFixture {
+		return aggParityFixture{
+			schema:          numSchema,
+			field:           "score",
+			records:         numRecs,
+			expectedN:       8,
+			expectedNull:    2,
+			filteredRecords: 10,
+		}
+	}
+	coh := func(params json.RawMessage) aggParityFixture {
+		return aggParityFixture{
+			schema:          cohSchema,
+			field:           "value",
+			params:          params,
+			records:         cohRecs,
+			expectedN:       10,
+			expectedNull:    0,
+			filteredRecords: 10,
+		}
+	}
+	set := func() aggParityFixture {
+		// Per the floor-populator note in setParityRecords: set fields
+		// route the mask through the wide-typed map so Record.NumericValue
+		// returns (0, false), surfacing the universal floor as
+		// {N: 0, NNull: 10}. The per-family E1-S10 tests still lock the
+		// per-operator emission via Aggregate.
+		return aggParityFixture{
+			schema:          setSchema,
+			field:           "tags",
+			records:         setRecs,
+			expectedN:       0,
+			expectedNull:    10,
+			filteredRecords: 10,
+		}
+	}
+
+	fixtures := map[types.AggregationType]aggParityFixture{
+		// Scalar / numeric ops over the f64 score cohort. AGG_NULL_COUNT
+		// inverts the floor (N=null-count, NNull=non-null-count) per the
+		// per-record bookkeeping contract in service/orchestrator.
+		types.AGG_COUNT:      num(),
+		types.AGG_SUM:        num(),
+		types.AGG_AVERAGE:    num(),
+		types.AGG_MIN:        num(),
+		types.AGG_MAX:        num(),
+		types.AGG_STDDEV:     num(),
+		types.AGG_RANGE:      num(),
+		types.AGG_FREQUENCY:  num(),
+		types.AGG_ZSCORE:     num(),
+		types.AGG_MEDIAN:     num(),
+		types.AGG_VARIANCE:   num(),
+		types.AGG_MODE:       num(),
+		types.AGG_SKEWNESS:   num(),
+		types.AGG_KURTOSIS:   num(),
+		types.AGG_DISTINCT_COUNT: num(),
+		// AGG_NULL_COUNT — the orchestrator's universal floor measures
+		// "rows whose field was null" (NNull) and "rows whose field was
+		// non-null" (N) via Record.NumericValue. The aggregator's own
+		// scalar return inverts these (it counts null rows); the floor
+		// stays semantically tied to the input bookkeeping, not the
+		// operator's output meaning. Mirrors AGG_COUNT here.
+		types.AGG_NULL_COUNT: num(),
+		types.AGG_PERCENTILE: {
+			schema:          numSchema,
+			field:           "score",
+			params:          json.RawMessage(`{"percentile":75}`),
+			records:         numRecs,
+			expectedN:       8,
+			expectedNull:    2,
+			filteredRecords: 10,
+		},
+
+		// Welford-strict-scalar — uses the numeric cohort; the WELFORD
+		// factory restricts to f32/f64/u8/u16/u32/u64 (no decimal).
+		types.AGG_WELFORD:  num(),
+		types.AGG_CI_LOWER: num(),
+		types.AGG_CI_UPPER: num(),
+
+		// Composite ops use the cohort schema (value + weight + num + den).
+		types.AGG_WEIGHTED_MEAN: coh(json.RawMessage(`{"weight_field":"weight"}`)),
+		types.AGG_RATIO:         coh(json.RawMessage(`{"numerator_field":"num","denominator_field":"den"}`)),
+
+		// Set ops use the set_u8 dictionary cohort.
+		types.AGG_SET_UNION:            set(),
+		types.AGG_SET_INTERSECTION:     set(),
+		types.AGG_SET_FREQUENCY:        set(),
+		types.AGG_SET_CARDINALITY_SUM:  set(),
+		types.AGG_SET_CARDINALITY_AVG:  set(),
+		types.AGG_SET_DISTINCT_VALUES:  set(),
+	}
+
+	// Sanity: the fixture map must cover every registered aggregator.
+	for _, op := range types.AllAggregationTypes() {
+		if _, ok := fixtures[op]; !ok {
+			t.Fatalf("allAggParityFixtures missing fixture for %s — add a row above", op)
+		}
+	}
+	return fixtures
+}
+
+// manifestAggregatorOperatorKeys returns the operator-specific key set
+// (manifest schema MINUS the universal floor {"n", "n_null"}) for the
+// named aggregator. Sorted ascending. Sourced from the
+// public BuildManifest projection so this test gates the same surface
+// LLM clients consume rather than the private capabilities table.
+func manifestAggregatorOperatorKeys(t *testing.T, name string) []string {
+	t.Helper()
+	m := descriptor.BuildManifest()
+	schema, ok := m.ComponentsSchemas.Aggregators[name]
+	if !ok {
+		t.Fatalf("manifest carries no components schema for %s", name)
+	}
+	out := make([]string, 0, len(schema.Keys))
+	for _, k := range schema.Keys {
+		// Strip universal floor — those keys are typed fields on
+		// AggregationComponents (N, NNull), not in the per-operator
+		// Operator map.
+		if k.Name == "n" || k.Name == "n_null" {
+			continue
+		}
+		out = append(out, k.Name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// mapKeysSorted returns the sorted key set of m. Used to compare the
+// runtime-emitted operator map against the manifest's declared keys.
+func mapKeysSorted(m map[string]any) []string {
+	if len(m) == 0 {
+		return []string{}
+	}
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestMetaAggregator_AllOps_ManifestParity is the E1-S12 manifest-vs-
+// runtime parity sweep. For every registered aggregator (28 today)
+// it drives one Process round-trip on a small in-memory cohort and
+// asserts:
+//
+//   - Response.Components.Aggregations carries exactly one entry for
+//     the slot.
+//   - That entry's Operator map key set (sorted ascending) equals the
+//     manifest's components_schemas.aggregators[<op>].keys minus the
+//     universal floor {"n", "n_null"} (those keys are typed fields on
+//     AggregationComponents — not in the Operator map).
+//   - The universal-floor pair (N, NNull) matches the fixture's
+//     expected post-filter / null-handling outcome.
+//
+// The per-family tests (E1-S5..S10) verify each operator's math;
+// THIS test verifies the schema matches what the operator emits. Any
+// drift between descriptor/capabilities_aggregators.go and the
+// runtime emission surfaces as an immediate failure with the
+// operator name + key diff.
+func TestMetaAggregator_AllOps_ManifestParity(t *testing.T) {
+	fixtures := allAggParityFixtures(t)
+	for _, op := range types.AllAggregationTypes() {
 		op := op
+		fix := fixtures[op]
 		t.Run(string(op), func(t *testing.T) {
 			req := &types.Request{
 				Aggregations: []*types.Aggregation{
-					{Type: op, Field: "score", Label: "x"},
+					{Type: op, Field: fix.field, Label: "primary", Params: fix.params},
 				},
 			}
-			proc := NewProcessor(schema)
-			resp, err := proc.processRecords(context.Background(), req, records)
+			proc := NewProcessor(fix.schema)
+			resp, err := proc.processRecords(context.Background(), req, fix.records)
+			if err != nil {
+				t.Fatalf("processRecords: %v", err)
+			}
+			if resp.Components == nil {
+				t.Fatalf("Response.Components nil; want populated")
+			}
+			if got := len(resp.Components.Aggregations); got != 1 {
+				t.Fatalf("Aggregations slots = %d, want 1", got)
+			}
+			entry := resp.Components.Aggregations[0]
+			if entry.Label != "primary" {
+				t.Errorf("Label = %q, want %q", entry.Label, "primary")
+			}
+			if entry.N != fix.expectedN {
+				t.Errorf("N = %d, want %d", entry.N, fix.expectedN)
+			}
+			if entry.NNull != fix.expectedNull {
+				t.Errorf("NNull = %d, want %d", entry.NNull, fix.expectedNull)
+			}
+
+			wantKeys := manifestAggregatorOperatorKeys(t, string(op))
+			gotKeys := mapKeysSorted(entry.Operator)
+			if !reflect.DeepEqual(gotKeys, wantKeys) {
+				t.Errorf("%s operator key set mismatch:\n  runtime emit: %v\n  manifest schema: %v",
+					op, gotKeys, wantKeys)
+			}
+		})
+	}
+}
+
+// TestComponentsUniversalFloor exercises the universal-floor
+// invariant gate across every registered aggregator (28 today). For
+// each operator the test drives a 10-row cohort with 2 nulls through
+// Process and asserts:
+//
+//   - Components.Aggregations[0].N >= 0
+//   - Components.Aggregations[0].NNull >= 0
+//   - Components.Aggregations[0].N + NNull <= filtered_records
+//
+// E5-S3 promotes this test to a non-skippable CI gate; the E1-S12
+// stub form here covers every operator so the gate is meaningful the
+// moment it is wired. The invariant is intentionally weak — the
+// stronger per-operator value assertions live in the family tests
+// (E1-S5..S10) and the manifest-parity sweep above.
+func TestComponentsUniversalFloor(t *testing.T) {
+	fixtures := allAggParityFixtures(t)
+	for _, op := range types.AllAggregationTypes() {
+		op := op
+		fix := fixtures[op]
+		t.Run(string(op), func(t *testing.T) {
+			req := &types.Request{
+				Aggregations: []*types.Aggregation{
+					{Type: op, Field: fix.field, Label: "x", Params: fix.params},
+				},
+			}
+			proc := NewProcessor(fix.schema)
+			resp, err := proc.processRecords(context.Background(), req, fix.records)
 			if err != nil {
 				t.Fatalf("processRecords: %v", err)
 			}
@@ -327,9 +632,9 @@ func TestComponentsUniversalFloor(t *testing.T) {
 			if entry.NNull < 0 {
 				t.Errorf("%s: NNull = %d, want >= 0", op, entry.NNull)
 			}
-			if entry.N+entry.NNull > filteredRecords {
+			if entry.N+entry.NNull > fix.filteredRecords {
 				t.Errorf("%s: N (%d) + NNull (%d) = %d, want <= %d",
-					op, entry.N, entry.NNull, entry.N+entry.NNull, filteredRecords)
+					op, entry.N, entry.NNull, entry.N+entry.NNull, fix.filteredRecords)
 			}
 		})
 	}

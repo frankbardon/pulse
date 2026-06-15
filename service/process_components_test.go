@@ -1,0 +1,608 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"math"
+	"reflect"
+	"sort"
+	"testing"
+
+	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
+)
+
+// E1-S12 — End-to-end Response.Components population tests driven
+// through the service-layer Process orchestration. These tests
+// complement the per-aggregator unit tests in processing/ by
+// exercising the full pulse.Process pipeline: in-memory cohort
+// (via fs.NewMemMap) → svc.Process → Response.Components.Aggregations.
+//
+// One representative aggregator per family is covered so the wiring
+// (orchestrator → processor → MetaAggregator → AggregationComponents)
+// is locked at the service boundary. The processing-package tests
+// already verify the math; these service tests verify that the
+// orchestrator's universal-floor pass + per-slot Components emission
+// flow through to the public Response shape.
+
+// componentsScoreCohort writes a 5-row score cohort and returns a
+// service wired to the in-memory fs. The schema (u32 id + f64 score)
+// is shared with the existing service helper testSchema()/testRecords()
+// — duplicated here so a regression in those helpers does not silently
+// migrate the parity expectations.
+func componentsScoreCohort(t *testing.T) (*Service, *encoding.Schema) {
+	t.Helper()
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 4, CsvColumnIdx: 1},
+		},
+	}
+	records := [][]uint64{
+		{1, math.Float64bits(10.0)},
+		{2, math.Float64bits(20.0)},
+		{3, math.Float64bits(30.0)},
+		{4, math.Float64bits(40.0)},
+		{5, math.Float64bits(50.0)},
+	}
+	cfg := setupTestFS(t, "scores.pulse", schema, records)
+	return New(cfg), schema
+}
+
+// componentsRatioCohort writes a 5-row cohort with both numerator and
+// denominator columns so AGG_RATIO can exercise the composite-family
+// path end-to-end through service.Process.
+func componentsRatioCohort(t *testing.T) *Service {
+	t.Helper()
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "num", Type: encoding.FieldTypeF64, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "den", Type: encoding.FieldTypeF64, ByteOffset: 8, CsvColumnIdx: 1},
+		},
+	}
+	records := [][]uint64{
+		{math.Float64bits(10.0), math.Float64bits(2.0)},
+		{math.Float64bits(20.0), math.Float64bits(4.0)},
+		{math.Float64bits(30.0), math.Float64bits(6.0)},
+		{math.Float64bits(40.0), math.Float64bits(8.0)},
+		{math.Float64bits(50.0), math.Float64bits(10.0)},
+	}
+	cfg := setupTestFS(t, "ratio.pulse", schema, records)
+	return New(cfg)
+}
+
+// componentsSetCohort writes a 5-row cohort with a single set_u8 field
+// over a 4-entry {VISA, MC, AMEX, DISC} dictionary so AGG_SET_UNION
+// can exercise the set-family path end-to-end through service.Process.
+// Uses afero.WriteFile directly because the standard writePulseFile
+// path encodes via WriteFieldValue, which accepts the mask as the
+// raw uint64.
+func componentsSetCohort(t *testing.T) *Service {
+	t.Helper()
+	dict := encoding.NewDictionary()
+	for _, v := range []string{"VISA", "MC", "AMEX", "DISC"} {
+		if _, err := dict.Add(v); err != nil {
+			t.Fatalf("dict.Add: %v", err)
+		}
+	}
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "tags", Type: encoding.FieldTypeSetU8, ByteOffset: 0, CsvColumnIdx: 0, Dictionary: dict},
+		},
+	}
+	// 5 rows; union should be 0b1111 = {VISA, MC, AMEX, DISC}.
+	records := [][]uint64{
+		{0b0001}, // VISA
+		{0b0011}, // VISA, MC
+		{0b0100}, // AMEX
+		{0b1000}, // DISC
+		{0b0110}, // MC, AMEX
+	}
+	cfg := setupTestFS(t, "tags.pulse", schema, records)
+	return New(cfg)
+}
+
+// runProcessAndExpectOneAggSlot drives svc.Process for a one-slot
+// request and returns the AggregationComponents entry plus the
+// canonical Label that was assigned. Fails the test if Components
+// is unpopulated or the slot count is wrong — keeps the per-family
+// assertions below grep-discoverable.
+func runProcessAndExpectOneAggSlot(t *testing.T, svc *Service, req *types.Request) types.AggregationComponents {
+	t.Helper()
+	resp, err := svc.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if resp.Components == nil {
+		t.Fatalf("Response.Components nil; want populated")
+	}
+	if got := len(resp.Components.Aggregations); got != 1 {
+		t.Fatalf("Aggregations slots = %d, want 1", got)
+	}
+	return resp.Components.Aggregations[0]
+}
+
+// mapKeysSorted returns the sorted key set of m. Local copy of the
+// helper from processing/aggregator_components_test.go so this file
+// can stand alone in service/.
+func mapKeysSorted(m map[string]any) []string {
+	if len(m) == 0 {
+		return []string{}
+	}
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// manifestAggOperatorKeys returns the operator-specific key set
+// (manifest schema MINUS the universal floor {n, n_null}) for the
+// named aggregator. Sourced from the public BuildManifest projection
+// — the same surface LLM clients consume.
+func manifestAggOperatorKeys(t *testing.T, name string) []string {
+	t.Helper()
+	m := descriptor.BuildManifest()
+	schema, ok := m.ComponentsSchemas.Aggregators[name]
+	if !ok {
+		t.Fatalf("manifest carries no components schema for %s", name)
+	}
+	out := make([]string, 0, len(schema.Keys))
+	for _, k := range schema.Keys {
+		if k.Name == "n" || k.Name == "n_null" {
+			continue
+		}
+		out = append(out, k.Name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestService_Process_Components_Scalar_AGG_SUM covers the scalar
+// family. AGG_SUM emits {sum}. The 5-row cohort sums to 150.
+func TestService_Process_Components_Scalar_AGG_SUM(t *testing.T) {
+	svc, _ := componentsScoreCohort(t)
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "scores.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "score", Label: "total"},
+		},
+	}
+	entry := runProcessAndExpectOneAggSlot(t, svc, req)
+	if entry.Label != "total" {
+		t.Errorf("Label = %q, want %q", entry.Label, "total")
+	}
+	if entry.N != 5 {
+		t.Errorf("N = %d, want 5", entry.N)
+	}
+	if entry.NNull != 0 {
+		t.Errorf("NNull = %d, want 0", entry.NNull)
+	}
+	if got := mapKeysSorted(entry.Operator); !reflect.DeepEqual(got, []string{"sum"}) {
+		t.Errorf("operator keys = %v, want [sum]", got)
+	}
+	sum, _ := entry.Operator["sum"].(float64)
+	if sum != 150.0 {
+		t.Errorf("sum = %v, want 150", sum)
+	}
+}
+
+// TestService_Process_Components_Welford_AGG_VARIANCE covers the
+// Welford family. AGG_VARIANCE emits {mean, m2, variance}. The 5-row
+// score cohort {10,20,30,40,50} has population mean 30 and population
+// variance 200.
+func TestService_Process_Components_Welford_AGG_VARIANCE(t *testing.T) {
+	svc, _ := componentsScoreCohort(t)
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "scores.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_VARIANCE, Field: "score", Label: "v"},
+		},
+	}
+	entry := runProcessAndExpectOneAggSlot(t, svc, req)
+	if entry.Label != "v" {
+		t.Errorf("Label = %q, want %q", entry.Label, "v")
+	}
+	if entry.N != 5 {
+		t.Errorf("N = %d, want 5", entry.N)
+	}
+	want := manifestAggOperatorKeys(t, string(types.AGG_VARIANCE))
+	got := mapKeysSorted(entry.Operator)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("operator keys mismatch:\n  runtime: %v\n  manifest: %v", got, want)
+	}
+	mean, _ := entry.Operator["mean"].(float64)
+	variance, _ := entry.Operator["variance"].(float64)
+	if mean != 30.0 {
+		t.Errorf("mean = %v, want 30", mean)
+	}
+	if variance != 200.0 {
+		t.Errorf("variance = %v, want 200", variance)
+	}
+}
+
+// TestService_Process_Components_MapState_AGG_FREQUENCY covers the
+// map-state family. AGG_FREQUENCY emits {distinct_count, mode_value,
+// mode_count}. Every score is distinct so every value ties at count=1
+// — the smallest-value tie-break picks 10.
+func TestService_Process_Components_MapState_AGG_FREQUENCY(t *testing.T) {
+	svc, _ := componentsScoreCohort(t)
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "scores.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_FREQUENCY, Field: "score", Label: "freq"},
+		},
+	}
+	entry := runProcessAndExpectOneAggSlot(t, svc, req)
+	if entry.Label != "freq" {
+		t.Errorf("Label = %q, want %q", entry.Label, "freq")
+	}
+	if entry.N != 5 {
+		t.Errorf("N = %d, want 5", entry.N)
+	}
+	want := manifestAggOperatorKeys(t, string(types.AGG_FREQUENCY))
+	got := mapKeysSorted(entry.Operator)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("operator keys mismatch:\n  runtime: %v\n  manifest: %v", got, want)
+	}
+	if dc, _ := entry.Operator["distinct_count"].(int); dc != 5 {
+		t.Errorf("distinct_count = %v, want 5", dc)
+	}
+}
+
+// TestService_Process_Components_Composite_AGG_RATIO covers the
+// composite family. AGG_RATIO emits {numerator, denominator, ratio}.
+// num sums to 150; den sums to 30; ratio is 5.0.
+func TestService_Process_Components_Composite_AGG_RATIO(t *testing.T) {
+	svc := componentsRatioCohort(t)
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ratio.pulse"},
+		Aggregations: []*types.Aggregation{
+			{
+				Type:   types.AGG_RATIO,
+				Field:  "num",
+				Label:  "r",
+				Params: json.RawMessage(`{"numerator_field":"num","denominator_field":"den"}`),
+			},
+		},
+	}
+	entry := runProcessAndExpectOneAggSlot(t, svc, req)
+	if entry.Label != "r" {
+		t.Errorf("Label = %q, want %q", entry.Label, "r")
+	}
+	if entry.N != 5 {
+		t.Errorf("N = %d, want 5", entry.N)
+	}
+	want := manifestAggOperatorKeys(t, string(types.AGG_RATIO))
+	got := mapKeysSorted(entry.Operator)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("operator keys mismatch:\n  runtime: %v\n  manifest: %v", got, want)
+	}
+	num, _ := entry.Operator["numerator"].(float64)
+	den, _ := entry.Operator["denominator"].(float64)
+	ratio, _ := entry.Operator["ratio"].(float64)
+	if num != 150.0 {
+		t.Errorf("numerator = %v, want 150", num)
+	}
+	if den != 30.0 {
+		t.Errorf("denominator = %v, want 30", den)
+	}
+	if ratio != 5.0 {
+		t.Errorf("ratio = %v, want 5", ratio)
+	}
+}
+
+// TestService_Process_Components_OrderStat_AGG_MEDIAN covers the
+// order-stat family. AGG_MEDIAN emits {position_low, position_high,
+// median}. Five rows {10,20,30,40,50} → median 30 at sorted index 2.
+func TestService_Process_Components_OrderStat_AGG_MEDIAN(t *testing.T) {
+	svc, _ := componentsScoreCohort(t)
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "scores.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_MEDIAN, Field: "score", Label: "m"},
+		},
+	}
+	entry := runProcessAndExpectOneAggSlot(t, svc, req)
+	if entry.Label != "m" {
+		t.Errorf("Label = %q, want %q", entry.Label, "m")
+	}
+	if entry.N != 5 {
+		t.Errorf("N = %d, want 5", entry.N)
+	}
+	want := manifestAggOperatorKeys(t, string(types.AGG_MEDIAN))
+	got := mapKeysSorted(entry.Operator)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("operator keys mismatch:\n  runtime: %v\n  manifest: %v", got, want)
+	}
+	median, _ := entry.Operator["median"].(float64)
+	if median != 30.0 {
+		t.Errorf("median = %v, want 30", median)
+	}
+}
+
+// TestService_Process_Components_Set_AGG_SET_UNION covers the set
+// family. AGG_SET_UNION emits {mask_union, popcount, labels}. The 5
+// row masks OR to 0b1111 = {VISA, MC, AMEX, DISC}.
+func TestService_Process_Components_Set_AGG_SET_UNION(t *testing.T) {
+	svc := componentsSetCohort(t)
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "tags.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SET_UNION, Field: "tags", Label: "u"},
+		},
+	}
+	entry := runProcessAndExpectOneAggSlot(t, svc, req)
+	if entry.Label != "u" {
+		t.Errorf("Label = %q, want %q", entry.Label, "u")
+	}
+	want := manifestAggOperatorKeys(t, string(types.AGG_SET_UNION))
+	got := mapKeysSorted(entry.Operator)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("operator keys mismatch:\n  runtime: %v\n  manifest: %v", got, want)
+	}
+	mask, _ := entry.Operator["mask_union"].(uint64)
+	if mask != 0b1111 {
+		t.Errorf("mask_union = %b, want 1111", mask)
+	}
+	popcount, _ := entry.Operator["popcount"].(int)
+	if popcount != 4 {
+		t.Errorf("popcount = %d, want 4", popcount)
+	}
+	labels, _ := entry.Operator["labels"].([]string)
+	wantLabels := []string{"VISA", "MC", "AMEX", "DISC"}
+	if !reflect.DeepEqual(labels, wantLabels) {
+		t.Errorf("labels = %v, want %v", labels, wantLabels)
+	}
+}
+
+// TestPredict_ComponentSchemaMatchesRuntime is the E1-S12 manifest-
+// vs-runtime parity sweep over every registered aggregator (28
+// today). For each aggregator the test:
+//
+//   - Builds a one-slot Request with that aggregator over an
+//     in-memory cohort whose schema matches the aggregator's accepted
+//     field types.
+//   - Runs descriptor.PredictFromBytes(headerOnly, req) to capture
+//     the per-slot ComponentSchema declared by predict.
+//   - Runs svc.Process(req) on the same cohort to capture the runtime
+//     Operator key set.
+//   - Asserts the sorted key set of PredictResult.Aggregations[0]
+//     .ComponentSchema.Keys minus floor {n, n_null} equals the sorted
+//     key set of Response.Components.Aggregations[0].Operator.
+//
+// E5-S3 promotes this test to a non-skippable CI gate; this stub
+// covers every registered aggregator so the gate is meaningful at
+// promotion. The test deliberately lives in service/ (not
+// descriptor/) so the runtime side can call Process directly —
+// descriptor/predict.go itself stays free of service/processing
+// imports, satisfying TestPredictNoExecutionImports.
+func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
+	fixtures := allAggServiceFixtures(t)
+	for _, op := range types.AllAggregationTypes() {
+		op := op
+		fix, ok := fixtures[op]
+		if !ok {
+			t.Fatalf("no service fixture for %s — add one in allAggServiceFixtures", op)
+		}
+		t.Run(string(op), func(t *testing.T) {
+			req := &types.Request{
+				Cohort: &types.Cohort{Filename: fix.cohortName},
+				Aggregations: []*types.Aggregation{
+					{Type: op, Field: fix.field, Label: "primary", Params: fix.params},
+				},
+			}
+
+			// --- runtime side --------------------------------------
+			runtimeEntry := runProcessAndExpectOneAggSlot(t, fix.svc, req)
+			runtimeKeys := mapKeysSorted(runtimeEntry.Operator)
+
+			// --- predict side --------------------------------------
+			// Build a header-only .pulse bytes buffer the descriptor
+			// path can validate against. The in-memory fs already
+			// carries the schema; just re-marshal a header-only blob
+			// from the same schema so PredictFromBytes can parse it.
+			hdr := buildHeaderOnlyPulseBytes(t, fix.schema)
+			predictReq := &types.Request{
+				Aggregations: []*types.Aggregation{
+					{Type: op, Field: fix.field, Label: "primary", Params: fix.params},
+				},
+			}
+			env := descriptor.PredictFromBytes(hdr, predictReq, nil)
+			result, ok := env.Data.(*descriptor.PredictResult)
+			if !ok {
+				t.Fatalf("Predict.Data is %T, want *PredictResult (errors: %v)",
+					env.Data, env.Errors)
+			}
+			if len(result.Aggregations) != 1 {
+				t.Fatalf("predict Aggregations slots = %d, want 1", len(result.Aggregations))
+			}
+			declared := result.Aggregations[0].ComponentSchema.Keys
+			predictKeys := make([]string, 0, len(declared))
+			for _, k := range declared {
+				if k.Name == "n" || k.Name == "n_null" {
+					continue
+				}
+				predictKeys = append(predictKeys, k.Name)
+			}
+			sort.Strings(predictKeys)
+
+			if !reflect.DeepEqual(runtimeKeys, predictKeys) {
+				t.Errorf("%s component-schema parity drift:\n  predict declared: %v\n  runtime emitted: %v",
+					op, predictKeys, runtimeKeys)
+			}
+		})
+	}
+}
+
+// aggServiceFixture pairs an aggregation type with the schema, cohort
+// filename, field name, and optional params needed to drive one
+// svc.Process round-trip through the in-memory fs. The svc is reused
+// across slots that share a schema so the test set stays bounded.
+type aggServiceFixture struct {
+	svc        *Service
+	schema     *encoding.Schema
+	cohortName string
+	field      string
+	params     json.RawMessage
+}
+
+// allAggServiceFixtures builds one fixture per registered aggregator
+// type, sharing svc / cohort across operators that accept the same
+// field type. The function exists at the package level so the
+// per-family service tests above and the manifest-parity sweep below
+// agree on the same cohort shape — drift between them surfaces as
+// either a test failure or a missing fixture map entry.
+func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFixture {
+	t.Helper()
+
+	// Shared score cohort (u32 id + f64 score, 5 rows).
+	scoreSvc, scoreSchema := componentsScoreCohort(t)
+	scoreFix := func() aggServiceFixture {
+		return aggServiceFixture{
+			svc:        scoreSvc,
+			schema:     scoreSchema,
+			cohortName: "scores.pulse",
+			field:      "score",
+		}
+	}
+
+	// Ratio cohort: numerator + denominator on f64. Re-encoded here
+	// because composite aggregators need both fields adjacent.
+	ratioSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "num", Type: encoding.FieldTypeF64, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "den", Type: encoding.FieldTypeF64, ByteOffset: 8, CsvColumnIdx: 1},
+		},
+	}
+	ratioRecords := [][]uint64{
+		{math.Float64bits(10.0), math.Float64bits(2.0)},
+		{math.Float64bits(20.0), math.Float64bits(4.0)},
+		{math.Float64bits(30.0), math.Float64bits(6.0)},
+		{math.Float64bits(40.0), math.Float64bits(8.0)},
+		{math.Float64bits(50.0), math.Float64bits(10.0)},
+	}
+	ratioCfg := setupTestFS(t, "predict_ratio.pulse", ratioSchema, ratioRecords)
+	ratioSvc := New(ratioCfg)
+
+	// Weighted-mean cohort: value + weight columns on f64.
+	wmSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "value", Type: encoding.FieldTypeF64, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "weight", Type: encoding.FieldTypeF64, ByteOffset: 8, CsvColumnIdx: 1},
+		},
+	}
+	wmRecords := [][]uint64{
+		{math.Float64bits(10.0), math.Float64bits(1.0)},
+		{math.Float64bits(20.0), math.Float64bits(1.0)},
+		{math.Float64bits(30.0), math.Float64bits(2.0)},
+		{math.Float64bits(40.0), math.Float64bits(1.0)},
+		{math.Float64bits(50.0), math.Float64bits(2.0)},
+	}
+	wmCfg := setupTestFS(t, "predict_wm.pulse", wmSchema, wmRecords)
+	wmSvc := New(wmCfg)
+
+	// Set cohort: set_u8 with a 4-entry dictionary, 5 rows of masks.
+	setDict := encoding.NewDictionary()
+	for _, v := range []string{"VISA", "MC", "AMEX", "DISC"} {
+		if _, err := setDict.Add(v); err != nil {
+			t.Fatalf("dict.Add: %v", err)
+		}
+	}
+	setSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "tags", Type: encoding.FieldTypeSetU8, ByteOffset: 0, CsvColumnIdx: 0, Dictionary: setDict},
+		},
+	}
+	setRecords := [][]uint64{
+		{0b0001},
+		{0b0011},
+		{0b0100},
+		{0b1000},
+		{0b0110},
+	}
+	setCfg := setupTestFS(t, "predict_tags.pulse", setSchema, setRecords)
+	setSvc := New(setCfg)
+
+	fixtures := map[types.AggregationType]aggServiceFixture{
+		// Scalar / numeric ops over the f64 score cohort.
+		types.AGG_COUNT:          scoreFix(),
+		types.AGG_SUM:            scoreFix(),
+		types.AGG_AVERAGE:        scoreFix(),
+		types.AGG_MIN:            scoreFix(),
+		types.AGG_MAX:            scoreFix(),
+		types.AGG_STDDEV:         scoreFix(),
+		types.AGG_RANGE:          scoreFix(),
+		types.AGG_FREQUENCY:      scoreFix(),
+		types.AGG_ZSCORE:         scoreFix(),
+		types.AGG_MEDIAN:         scoreFix(),
+		types.AGG_VARIANCE:       scoreFix(),
+		types.AGG_MODE:           scoreFix(),
+		types.AGG_SKEWNESS:       scoreFix(),
+		types.AGG_KURTOSIS:       scoreFix(),
+		types.AGG_DISTINCT_COUNT: scoreFix(),
+		types.AGG_NULL_COUNT:     scoreFix(),
+		types.AGG_PERCENTILE: {
+			svc:        scoreSvc,
+			schema:     scoreSchema,
+			cohortName: "scores.pulse",
+			field:      "score",
+			params:     json.RawMessage(`{"percentile":75}`),
+		},
+		types.AGG_WELFORD:  scoreFix(),
+		types.AGG_CI_LOWER: scoreFix(),
+		types.AGG_CI_UPPER: scoreFix(),
+
+		// Composite ops use their own cohort.
+		types.AGG_WEIGHTED_MEAN: {
+			svc:        wmSvc,
+			schema:     wmSchema,
+			cohortName: "predict_wm.pulse",
+			field:      "value",
+			params:     json.RawMessage(`{"weight_field":"weight"}`),
+		},
+		types.AGG_RATIO: {
+			svc:        ratioSvc,
+			schema:     ratioSchema,
+			cohortName: "predict_ratio.pulse",
+			field:      "num",
+			params:     json.RawMessage(`{"numerator_field":"num","denominator_field":"den"}`),
+		},
+
+		// Set ops use the set_u8 dictionary cohort.
+		types.AGG_SET_UNION:           {svc: setSvc, schema: setSchema, cohortName: "predict_tags.pulse", field: "tags"},
+		types.AGG_SET_INTERSECTION:    {svc: setSvc, schema: setSchema, cohortName: "predict_tags.pulse", field: "tags"},
+		types.AGG_SET_FREQUENCY:       {svc: setSvc, schema: setSchema, cohortName: "predict_tags.pulse", field: "tags"},
+		types.AGG_SET_CARDINALITY_SUM: {svc: setSvc, schema: setSchema, cohortName: "predict_tags.pulse", field: "tags"},
+		types.AGG_SET_CARDINALITY_AVG: {svc: setSvc, schema: setSchema, cohortName: "predict_tags.pulse", field: "tags"},
+		types.AGG_SET_DISTINCT_VALUES: {svc: setSvc, schema: setSchema, cohortName: "predict_tags.pulse", field: "tags"},
+	}
+
+	// Sanity: the fixture map must cover every registered aggregator.
+	for _, op := range types.AllAggregationTypes() {
+		if _, ok := fixtures[op]; !ok {
+			t.Fatalf("allAggServiceFixtures missing fixture for %s", op)
+		}
+	}
+	return fixtures
+}
+
+// buildHeaderOnlyPulseBytes returns a complete header+schema (no
+// records) byte buffer suitable for descriptor.PredictFromBytes.
+// Mirrors descriptor/predict_test.go's buildTestPulseFile helper but
+// lives here so service tests do not reach into another package's
+// test file.
+func buildHeaderOnlyPulseBytes(t *testing.T, schema *encoding.Schema) []byte {
+	t.Helper()
+	// Use the in-memory fs to render bytes via writePulseFile (which
+	// already produces a header+schema blob followed by zero records).
+	cfg := setupTestFS(t, "_hdr.pulse", schema, nil)
+	data, err := afero.ReadFile(cfg.Fs(), "_hdr.pulse")
+	if err != nil {
+		t.Fatalf("ReadFile header: %v", err)
+	}
+	return data
+}
