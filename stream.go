@@ -143,11 +143,13 @@ func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamRe
 	done := make(chan StreamTerminator, 1)
 	started := time.Now()
 
-	// Pre-compute the per-aggregator mergeability vector once. The
-	// streaming loop reuses the same vector across every chunk —
-	// allocations stay bounded (one slice of ComponentsMergeability per
-	// stream, not per chunk). Empty when the request has no aggregations.
-	mergeability := aggMergeabilityVector(req)
+	// Pre-compute the per-aggregator + per-grouper mergeability vectors
+	// once. The streaming loop reuses the same vectors across every
+	// chunk — allocations stay bounded (one slice of
+	// ComponentsMergeability per axis per stream, not per chunk). Empty
+	// when the request has no aggregations / groups respectively.
+	aggMerge := aggMergeabilityVector(req)
+	grpMerge := grpMergeabilityVector(req)
 
 	go func() {
 		defer close(chunks)
@@ -172,7 +174,7 @@ func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamRe
 				Sequence:   seq,
 				Data:       row,
 				Progress:   streamProgress(rows+1, estimated),
-				Components: chunkComponents(iter.Components(), mergeability, terminal),
+				Components: chunkComponents(iter.Components(), aggMerge, grpMerge, terminal),
 			}
 			select {
 			case <-ctx.Done():
@@ -378,39 +380,74 @@ func aggMergeabilityVector(req *Request) []descriptor.ComponentsMergeability {
 	return out
 }
 
+// grpMergeabilityVector returns one ComponentsMergeability per
+// req.Groups slot, in matching declared order. Mirrors
+// aggMergeabilityVector for the grouper axis — looks up each slot's
+// Group.Type in the descriptor capability table. GROUP_QUANTILE is the
+// canonical None grouper (quantile cutoffs need the sorted full input);
+// every other registered grouper is Mergeable.
+//
+// Computed once per stream and reused across every chunk so the
+// allocation cost is O(slots) per stream, not O(slots * chunks). Slots
+// referencing an unknown grouper (extension without a registered
+// schema, mis-typed name) resolve to the empty mergeability string —
+// chunkComponents treats that as "preserve as-is".
+func grpMergeabilityVector(req *Request) []descriptor.ComponentsMergeability {
+	if req == nil || len(req.Groups) == 0 {
+		return nil
+	}
+	out := make([]descriptor.ComponentsMergeability, len(req.Groups))
+	for i, grp := range req.Groups {
+		if grp == nil {
+			continue
+		}
+		out[i] = descriptor.GroupMergeability(grp.Type)
+	}
+	return out
+}
+
 // chunkComponents projects the buffered Response.Components shell onto
-// a per-chunk view based on the per-slot mergeability vector. The
+// a per-chunk view based on the per-slot mergeability vectors. The
 // projection is:
 //
 //   - terminal=true: return the full buffered Components verbatim.
 //     The terminal chunk is byte-equal to the buffered Process call's
 //     Response.Components.
 //   - terminal=false: clone the shell and strip the Operator map (the
-//     per-operator schema-declared keys) from every slot whose
-//     mergeability is None. Mergeable / Partial slots keep their
-//     running state so consumers can render mid-stream. The universal
-//     floor (N, NNull, Label) is preserved on every slot regardless of
-//     mergeability — those keys carry no algorithmic dependence on a
-//     sorted full input and the buffered shim has them at hand.
+//     per-operator schema-declared keys) from every aggregation /
+//     grouper slot whose mergeability is None. Mergeable / Partial
+//     slots keep their running state so consumers can render
+//     mid-stream. The universal floor (N, NNull, Label / Field) is
+//     preserved on every slot regardless of mergeability — those keys
+//     carry no algorithmic dependence on a sorted full input and the
+//     buffered shim has them at hand.
+//
+// Today the only None-mergeability operators are AGG_MEDIAN,
+// AGG_PERCENTILE (aggregator axis) and GROUP_QUANTILE (grouper axis).
+// All three need a sorted view of the full input — the Operator key
+// map is meaningless mid-stream.
 //
 // Returns nil when the underlying buffered Components is nil — common
 // when the request has no aggregators / groupers / filterers and the
 // processor attached no shell.
 //
-// Allocations stay bounded: the shell clone is O(slots) once per chunk;
-// no per-row allocation accrues. The non-terminal clone shares the
-// Crosstab / Run pointers with the buffered original (those payloads
-// are read-only at this point in the pipeline).
-func chunkComponents(buffered *types.ResponseComponents, mergeability []descriptor.ComponentsMergeability, terminal bool) *types.ResponseComponents {
+// Allocations stay bounded: the shell clone is O(agg_slots +
+// grp_slots) once per chunk; no per-row allocation accrues. The non-
+// terminal clone shares the Crosstab / Filterers / Run pointers with
+// the buffered original (those payloads are read-only at this point
+// in the pipeline). When the grouper axis carries no None slots, the
+// Groupers slice is also shared by reference — the clone fires only
+// when at least one slot needs Operator-nil.
+func chunkComponents(buffered *types.ResponseComponents, aggMerge, grpMerge []descriptor.ComponentsMergeability, terminal bool) *types.ResponseComponents {
 	if buffered == nil {
 		return nil
 	}
 	if terminal {
 		return buffered
 	}
-	// Shallow-clone the shell + the Aggregations slice so the non-
-	// terminal mutation (Operator-nil for None slots) does not touch
-	// the buffered Response the iterator holds onto.
+	// Shallow-clone the shell so the non-terminal mutation
+	// (Operator-nil for None slots) does not touch the buffered
+	// Response the iterator holds onto.
 	out := &types.ResponseComponents{
 		Groupers:  buffered.Groupers,
 		Crosstab:  buffered.Crosstab,
@@ -421,15 +458,43 @@ func chunkComponents(buffered *types.ResponseComponents, mergeability []descript
 		clone := make([]types.AggregationComponents, len(buffered.Aggregations))
 		copy(clone, buffered.Aggregations)
 		for i := range clone {
-			if i < len(mergeability) && mergeability[i] == descriptor.None {
-				// Non-mergeable: strip the per-operator key map; keep
-				// the universal floor (N, NNull, Label) intact so
-				// consumers still see "this slot exists" plus the
-				// running-row counters.
+			if i < len(aggMerge) && aggMerge[i] == descriptor.None {
+				// Non-mergeable aggregator: strip the per-operator key
+				// map; keep the universal floor (N, NNull, Label)
+				// intact so consumers still see "this slot exists"
+				// plus the running-row counters.
 				clone[i].Operator = nil
 			}
 		}
 		out.Aggregations = clone
 	}
+	if len(buffered.Groupers) > 0 && grpHasNone(grpMerge) {
+		clone := make([]types.GrouperComponents, len(buffered.Groupers))
+		copy(clone, buffered.Groupers)
+		for i := range clone {
+			if i < len(grpMerge) && grpMerge[i] == descriptor.None {
+				// Non-mergeable grouper (GROUP_QUANTILE): strip the
+				// per-operator key map (bucket edges, dict mappings,
+				// per-bucket counts); keep the universal floor
+				// (TotalN, NNull, Field, Label) intact.
+				clone[i].Operator = nil
+			}
+		}
+		out.Groupers = clone
+	}
 	return out
+}
+
+// grpHasNone reports whether the grouper mergeability vector carries
+// at least one None entry. Used by chunkComponents to skip the
+// Groupers slice clone when every grouper is Mergeable / Partial —
+// the common case — and only allocate when a GROUP_QUANTILE (or
+// future None grouper) sits in the request.
+func grpHasNone(vec []descriptor.ComponentsMergeability) bool {
+	for _, m := range vec {
+		if m == descriptor.None {
+			return true
+		}
+	}
+	return false
 }

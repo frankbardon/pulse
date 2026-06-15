@@ -119,9 +119,9 @@ fmt.Printf("delivered %d rows in %s\n",
 
 Each `StreamChunk[Row]` returned by `ProcessStreamResult` carries a `Components *types.ResponseComponents` projection of the run's constituent-parts payload. The projection follows the per-operator `ComponentsMergeability` declared in the manifest (descriptor surface, source of truth):
 
-- **Mergeable** operators (`AGG_SUM`, `AGG_COUNT`, `AGG_AVERAGE`, `AGG_VARIANCE`, Welford-family, `AGG_RANGE`, `AGG_MIN`, `AGG_MAX`, `AGG_NULL_COUNT`, `AGG_WEIGHTED_MEAN`, `AGG_RATIO`, `AGG_CI_LOWER`, `AGG_CI_UPPER`, set-family aggregators) — the per-operator `Operator` map carries the running state on every chunk. Consumers may render mid-stream; the terminal chunk carries the authoritative final.
+- **Mergeable** operators (`AGG_SUM`, `AGG_COUNT`, `AGG_AVERAGE`, `AGG_VARIANCE`, Welford-family, `AGG_RANGE`, `AGG_MIN`, `AGG_MAX`, `AGG_NULL_COUNT`, `AGG_WEIGHTED_MEAN`, `AGG_RATIO`, `AGG_CI_LOWER`, `AGG_CI_UPPER`, set-family aggregators, every grouper EXCEPT `GROUP_QUANTILE`) — the per-operator `Operator` map carries the running state on every chunk. Consumers may render mid-stream; the terminal chunk carries the authoritative final.
 - **Partial** operators (`AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_SET_FREQUENCY`) — fold like mergeable but at non-trivial allocation cost. The Operator map rides every chunk and merges client-side via the same union semantics the orchestrator uses.
-- **Non-mergeable** operators (`AGG_MEDIAN`, `AGG_PERCENTILE`) — chunks before the terminal omit the per-operator keys (Operator is `nil`) but preserve the universal floor (`N`, `NNull`, `Label`). The terminal chunk carries the buffered-only payload. Consumers MUST NOT attempt to merge non-terminal chunks for these slots.
+- **Non-mergeable** operators — exactly three today: `AGG_MEDIAN`, `AGG_PERCENTILE` (aggregator axis) and `GROUP_QUANTILE` (grouper axis). All three need a sorted view of the full input, so chunks before the terminal omit the per-operator keys (Operator is `nil`) but preserve the universal floor (`N`, `NNull`, `Label` on the aggregator axis; `Field`, `Label`, `TotalN`, `NNull` on the grouper axis). The terminal chunk carries the buffered-only payload. Consumers MUST NOT attempt to merge non-terminal chunks for these slots. `descriptor.AggregationMergeability` / `descriptor.GroupMergeability` are the one-shot lookups; predict echoes the same hint as `AggregationPredict.BufferedComponents` / `GroupPredict.BufferedComponents`.
 
 Identity: the terminal chunk's `Components` is byte-equal (DeepEqual) to the equivalent buffered `Process` call's `Response.Components`. Consumers needing a one-shot result can drain to the terminal and use that chunk's `Components` exclusively.
 
@@ -138,7 +138,7 @@ for chunk := range res.Chunks {
 finalise(terminal)                          // byte-equal to buffered Process
 ```
 
-Allocation note: the per-chunk projection clones only the `Aggregations` slice (`O(slots)` per chunk) and shares `Groupers` / `Crosstab` / `Filterers` / `Run` with the buffered original. The mergeability vector is computed once per stream and reused across every chunk.
+Allocation note: the per-chunk projection clones the `Aggregations` slice (`O(slots)` per chunk) and shares `Crosstab` / `Filterers` / `Run` with the buffered original. The `Groupers` slice is shared by reference too in the common all-mergeable case; a clone fires only when at least one grouper slot is `GROUP_QUANTILE` (None-mergeable). The per-axis mergeability vectors are computed once per stream and reused across every chunk.
 </reference>
 
 <reference>
