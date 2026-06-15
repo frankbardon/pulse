@@ -983,3 +983,402 @@ func manifestAggOperatorKeysForCT(t *testing.T, name string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// --- E3-S4: margin counts + margin components emission ----------------
+//
+// Margins (row / column / grand) emit their record-count vector +
+// per-margin components map only when the matching display flag is set
+// on CrosstabSpec.Margins. The components map mirrors the per-cell
+// shape: universal floor {n, n_null} merged with the cell aggregator's
+// MetaAggregator.Components() output. When MatrixPayload.RowMargins is
+// nil (display flag off, even under normalize=row which computes the
+// margin internally), the corresponding Components.Crosstab fields stay
+// nil/empty (omitempty) so the additive byte-identity contract holds
+// against the pre-margin-emission baseline.
+
+// TestCrosstabComponents_MarginsPresent_AllSlotsPopulated checks the
+// happy path: a crosstab with row + column + grand display flags emits
+// non-nil RowMarginCounts / RowMarginComponents / ColumnMarginCounts /
+// ColumnMarginComponents / GrandTotalCount / GrandTotalComponents.
+// Drives the buffered path so the cell builder + recompute helpers are
+// exercised end-to-end.
+func TestCrosstabComponents_MarginsPresent_AllSlotsPopulated(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "total"},
+			Shape:   types.CrosstabShapeMatrix,
+			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	matrix := resp.Crosstab.Matrix
+	if matrix == nil {
+		t.Fatalf("Matrix nil")
+	}
+	if len(matrix.RowMargins) != len(matrix.RowKeys) {
+		t.Fatalf("RowMargins=%d, RowKeys=%d", len(matrix.RowMargins), len(matrix.RowKeys))
+	}
+	if len(ct.RowMarginCounts) != len(matrix.RowKeys) {
+		t.Errorf("RowMarginCounts=%d, want %d", len(ct.RowMarginCounts), len(matrix.RowKeys))
+	}
+	if len(ct.RowMarginComponents) != len(matrix.RowKeys) {
+		t.Errorf("RowMarginComponents=%d, want %d", len(ct.RowMarginComponents), len(matrix.RowKeys))
+	}
+	if len(ct.ColumnMarginCounts) != len(matrix.ColumnKeys) {
+		t.Errorf("ColumnMarginCounts=%d, want %d", len(ct.ColumnMarginCounts), len(matrix.ColumnKeys))
+	}
+	if len(ct.ColumnMarginComponents) != len(matrix.ColumnKeys) {
+		t.Errorf("ColumnMarginComponents=%d, want %d", len(ct.ColumnMarginComponents), len(matrix.ColumnKeys))
+	}
+	if ct.GrandTotalCount == 0 {
+		t.Errorf("GrandTotalCount = 0, want >0 (9 filtered rows on the fixture)")
+	}
+	if ct.GrandTotalComponents == nil {
+		t.Errorf("GrandTotalComponents = nil, want populated map")
+	}
+}
+
+// TestCrosstabComponents_MarginsAbsent_AllSlotsEmpty checks the gate:
+// without display flags, the margin slots on Components.Crosstab stay
+// nil even though the cell counts/components still emit. This is the
+// `omitempty` byte-identity contract — a crosstab request without
+// margins produces wire output indistinguishable from the pre-margin-
+// emission baseline.
+func TestCrosstabComponents_MarginsAbsent_AllSlotsEmpty(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "total"},
+			Shape:   types.CrosstabShapeMatrix,
+			// Margins display flags all false → no margin emission.
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	if ct.RowMarginCounts != nil {
+		t.Errorf("RowMarginCounts = %v, want nil", ct.RowMarginCounts)
+	}
+	if ct.RowMarginComponents != nil {
+		t.Errorf("RowMarginComponents = %v, want nil", ct.RowMarginComponents)
+	}
+	if ct.ColumnMarginCounts != nil {
+		t.Errorf("ColumnMarginCounts = %v, want nil", ct.ColumnMarginCounts)
+	}
+	if ct.ColumnMarginComponents != nil {
+		t.Errorf("ColumnMarginComponents = %v, want nil", ct.ColumnMarginComponents)
+	}
+	if ct.GrandTotalCount != 0 {
+		t.Errorf("GrandTotalCount = %d, want 0", ct.GrandTotalCount)
+	}
+	if ct.GrandTotalComponents != nil {
+		t.Errorf("GrandTotalComponents = %v, want nil", ct.GrandTotalComponents)
+	}
+}
+
+// TestCrosstabComponents_MarginSumInvariants verifies the sum-of-row and
+// sum-of-column invariants: sum(RowMarginCounts) == GrandTotalCount and
+// sum(ColumnMarginCounts) == GrandTotalCount when all three margins are
+// displayed. Locks the buffered path's recompute consistency against
+// the orchestrator-tracked grand-total counter.
+func TestCrosstabComponents_MarginSumInvariants(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	ctx := context.Background()
+
+	buildReq := func() *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: "ct.pulse"},
+			Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+				Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "total"},
+				Shape:   types.CrosstabShapeMatrix,
+				Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+			},
+		}
+	}
+
+	for _, tc := range []struct {
+		name        string
+		disableFuse bool
+	}{
+		{"buffered", true},
+		{"fused", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := New(cfg)
+			svc.SetDisableCrosstabFusion(tc.disableFuse)
+			resp, err := svc.Process(ctx, buildReq())
+			if err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			ct := crosstabCTOrFail(t, resp)
+			var rowSum int
+			for _, n := range ct.RowMarginCounts {
+				rowSum += n
+			}
+			if rowSum != ct.GrandTotalCount {
+				t.Errorf("sum(RowMarginCounts)=%d, GrandTotalCount=%d", rowSum, ct.GrandTotalCount)
+			}
+			var colSum int
+			for _, n := range ct.ColumnMarginCounts {
+				colSum += n
+			}
+			if colSum != ct.GrandTotalCount {
+				t.Errorf("sum(ColumnMarginCounts)=%d, GrandTotalCount=%d", colSum, ct.GrandTotalCount)
+			}
+			// The canonical fixture has no null axis rows, so the grand
+			// total counter equals FilteredRows.
+			if ct.GrandTotalCount != int(resp.Metadata.FilteredRows) {
+				t.Errorf("GrandTotalCount=%d, FilteredRows=%d", ct.GrandTotalCount, resp.Metadata.FilteredRows)
+			}
+		})
+	}
+}
+
+// TestCrosstabComponents_MarginComponents_WelfordFamily verifies the
+// Welford cell aggregator emits {n, n_null, mean, m2, variance} on row
+// + column + grand margins. The row margin for "north" aggregates all
+// four (region=north) records — values [10, 20, 30, 100] — so the
+// components map carries the orchestrator's universal floor (n=4,
+// n_null=0) plus the cell aggregator's Welford output.
+func TestCrosstabComponents_MarginComponents_WelfordFamily(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_VARIANCE, Field: "value", Label: "var"},
+			Shape:   types.CrosstabShapeMatrix,
+			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	matrix := resp.Crosstab.Matrix
+	rowByName, colByName := rowColIndex(matrix)
+
+	// north row margin: values [10, 20, 30, 100]
+	//   mean = 40
+	//   m2   = (10-40)^2 + (20-40)^2 + (30-40)^2 + (100-40)^2 = 5000
+	//   variance (population) = m2 / n = 5000/4 = 1250
+	nIdx := rowByName["north"]
+	rowMarg := ct.RowMarginComponents[nIdx]
+	if rowMarg == nil {
+		t.Fatalf("RowMarginComponents[north] = nil")
+	}
+	if got, want := rowMarg["n"], 4; got != want {
+		t.Errorf("row[north] n = %v, want %v", got, want)
+	}
+	if got, want := rowMarg["n_null"], 0; got != want {
+		t.Errorf("row[north] n_null = %v, want %v", got, want)
+	}
+	if got, want := rowMarg["mean"].(float64), 40.0; got != want {
+		t.Errorf("row[north] mean = %v, want %v", got, want)
+	}
+	if got, want := rowMarg["m2"].(float64), 5000.0; got != want {
+		t.Errorf("row[north] m2 = %v, want %v", got, want)
+	}
+	if got, want := rowMarg["variance"].(float64), 1250.0; math.Abs(got-want) > 1e-9 {
+		t.Errorf("row[north] variance = %v, want %v", got, want)
+	}
+	if got, want := mapKeys(rowMarg), []string{"m2", "mean", "n", "n_null", "variance"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("row[north] keys = %v, want %v", got, want)
+	}
+
+	// column margin for retail: values [10, 20, 30, 5, 15, 1] = 6 records
+	rIdx := colByName["retail"]
+	colMarg := ct.ColumnMarginComponents[rIdx]
+	if colMarg == nil {
+		t.Fatalf("ColumnMarginComponents[retail] = nil")
+	}
+	if got, want := colMarg["n"], 6; got != want {
+		t.Errorf("col[retail] n = %v, want %v", got, want)
+	}
+	keys := mapKeys(colMarg)
+	want := []string{"m2", "mean", "n", "n_null", "variance"}
+	if !reflect.DeepEqual(keys, want) {
+		t.Errorf("col[retail] keys = %v, want %v", keys, want)
+	}
+
+	// grand margin: 9 records total.
+	if ct.GrandTotalCount != 9 {
+		t.Errorf("GrandTotalCount=%d, want 9", ct.GrandTotalCount)
+	}
+	if ct.GrandTotalComponents == nil {
+		t.Fatalf("GrandTotalComponents = nil")
+	}
+	if got, want := ct.GrandTotalComponents["n"], 9; got != want {
+		t.Errorf("grand n = %v, want %v", got, want)
+	}
+	if got := mapKeys(ct.GrandTotalComponents); !reflect.DeepEqual(got, want) {
+		t.Errorf("grand keys = %v, want %v", got, want)
+	}
+}
+
+// TestCrosstabComponents_Normalized_MarginsConsistent verifies the
+// normalization recompute path: a normalize=row request still emits
+// margin counts + components consistent with the recomputed values when
+// row margins are also displayed. The recompute path lowers to the
+// same runCellAggregation walk the display path uses, so the
+// orchestrator's per-margin (n, n_null) floor matches the recomputed
+// margin's record count byte-for-byte.
+func TestCrosstabComponents_Normalized_MarginsConsistent(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:      []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:      &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Shape:     types.CrosstabShapeMatrix,
+			Margins:   types.CrosstabMargins{Rows: true},
+			Normalize: types.CrosstabNormalizeRow,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	matrix := resp.Crosstab.Matrix
+	if matrix.RowMargins == nil {
+		t.Fatalf("MatrixPayload.RowMargins nil — Rows=true should emit")
+	}
+	if ct.RowMarginCounts == nil {
+		t.Fatalf("RowMarginCounts nil — should mirror displayed RowMargins")
+	}
+	if ct.RowMarginComponents == nil {
+		t.Fatalf("RowMarginComponents nil — should mirror displayed RowMargins")
+	}
+	// Cross-check: sum of cell counts in each row equals the row margin
+	// count (single-grouper axes — no null axis records on the fixture).
+	for i, rowCounts := range ct.CellCounts {
+		var rowSum int
+		for _, n := range rowCounts {
+			rowSum += n
+		}
+		if rowSum != ct.RowMarginCounts[i] {
+			t.Errorf("row[%d] sum(CellCounts)=%d, RowMarginCounts=%d",
+				i, rowSum, ct.RowMarginCounts[i])
+		}
+	}
+	// Column / grand display flags off → corresponding slots stay nil/zero.
+	if ct.ColumnMarginCounts != nil {
+		t.Errorf("ColumnMarginCounts populated under Margins.Columns=false")
+	}
+	if ct.GrandTotalCount != 0 {
+		t.Errorf("GrandTotalCount=%d under Margins.Grand=false (normalize=row internal margin should not leak)",
+			ct.GrandTotalCount)
+	}
+}
+
+// TestCrosstabComponents_MarginCounts_BufferedVsFused_ParityByteEqual is
+// the byte-equal parity gate for margin counts + components: same input
+// must produce reflect-equal RowMarginCounts / RowMarginComponents /
+// ColumnMarginCounts / ColumnMarginComponents / GrandTotalCount /
+// GrandTotalComponents across the buffered and fused paths.
+func TestCrosstabComponents_MarginCounts_BufferedVsFused_ParityByteEqual(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	ctx := context.Background()
+
+	for _, cellAgg := range []types.AggregationType{
+		types.AGG_SUM,
+		types.AGG_AVERAGE,
+		types.AGG_VARIANCE,
+		types.AGG_COUNT,
+		types.AGG_MIN,
+		types.AGG_MAX,
+	} {
+		t.Run(string(cellAgg), func(t *testing.T) {
+			buildReq := func() *types.Request {
+				return &types.Request{
+					Cohort: &types.Cohort{Filename: "ct.pulse"},
+					Crosstab: &types.CrosstabSpec{
+						Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+						Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+						Cell:    &types.Aggregation{Type: cellAgg, Field: "value", Label: "cell"},
+						Shape:   types.CrosstabShapeMatrix,
+						Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+					},
+				}
+			}
+			svcBuf := New(cfg)
+			svcBuf.SetDisableCrosstabFusion(true)
+			bufResp, err := svcBuf.Process(ctx, buildReq())
+			if err != nil {
+				t.Fatalf("buffered Process: %v", err)
+			}
+			svcFused := New(cfg)
+			fusedResp, err := svcFused.Process(ctx, buildReq())
+			if err != nil {
+				t.Fatalf("fused Process: %v", err)
+			}
+			bufCT := crosstabCTOrFail(t, bufResp)
+			fusedCT := crosstabCTOrFail(t, fusedResp)
+			if !reflect.DeepEqual(bufCT.RowMarginCounts, fusedCT.RowMarginCounts) {
+				t.Errorf("RowMarginCounts differ for %s:\n buffered=%v\n fused   =%v",
+					cellAgg, bufCT.RowMarginCounts, fusedCT.RowMarginCounts)
+			}
+			if !reflect.DeepEqual(bufCT.RowMarginComponents, fusedCT.RowMarginComponents) {
+				t.Errorf("RowMarginComponents differ for %s:\n buffered=%v\n fused   =%v",
+					cellAgg, bufCT.RowMarginComponents, fusedCT.RowMarginComponents)
+			}
+			if !reflect.DeepEqual(bufCT.ColumnMarginCounts, fusedCT.ColumnMarginCounts) {
+				t.Errorf("ColumnMarginCounts differ for %s:\n buffered=%v\n fused   =%v",
+					cellAgg, bufCT.ColumnMarginCounts, fusedCT.ColumnMarginCounts)
+			}
+			if !reflect.DeepEqual(bufCT.ColumnMarginComponents, fusedCT.ColumnMarginComponents) {
+				t.Errorf("ColumnMarginComponents differ for %s:\n buffered=%v\n fused   =%v",
+					cellAgg, bufCT.ColumnMarginComponents, fusedCT.ColumnMarginComponents)
+			}
+			if bufCT.GrandTotalCount != fusedCT.GrandTotalCount {
+				t.Errorf("GrandTotalCount differ for %s: buffered=%d fused=%d",
+					cellAgg, bufCT.GrandTotalCount, fusedCT.GrandTotalCount)
+			}
+			if !reflect.DeepEqual(bufCT.GrandTotalComponents, fusedCT.GrandTotalComponents) {
+				t.Errorf("GrandTotalComponents differ for %s:\n buffered=%v\n fused   =%v",
+					cellAgg, bufCT.GrandTotalComponents, fusedCT.GrandTotalComponents)
+			}
+		})
+	}
+}

@@ -287,60 +287,100 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		}
 	}
 
+	// E3-S4: margin recompute now routes through runCellAggregation so
+	// the orchestrator captures the post-Finalize aggregator instance
+	// alongside the scalar/rich margin value. The instance feeds
+	// buildCellComponentMap which merges the universal floor {n, n_null}
+	// with the cell aggregator's MetaAggregator.Components() output for
+	// the row-margin / column-margin / grand-total components emission.
+	// Component maps are tracked unconditionally when the margin slot is
+	// computed (NeedsRowMargin / NeedsColumnMargin / NeedsGrandMargin),
+	// but only flow to Response.Components when the corresponding
+	// display flag is set — mirroring the MatrixPayload.RowMargins /
+	// ColumnMargins / GrandTotal emission rule (computed for
+	// normalization, surfaced only on explicit request).
 	var rowMargins map[string]any
 	var rowMarginPresent map[string]bool
+	var rowMarginCounts map[string]int
+	var rowMarginComponents map[string]map[string]any
 	if spec.NeedsRowMargin() {
 		rowMargins = make(map[string]any, len(rowPart.Keys))
 		rowMarginPresent = make(map[string]bool, len(rowPart.Keys))
+		rowMarginCounts = make(map[string]int, len(rowPart.Keys))
+		rowMarginComponents = make(map[string]map[string]any, len(rowPart.Keys))
 		for _, rkey := range rowPart.Keys {
 			bucket := rowPart.Records[rkey]
 			if len(bucket) == 0 {
 				continue
 			}
-			row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
+			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, bucket)
 			if err != nil {
 				return nil, err
 			}
-			if row == nil {
+			rowMarginCounts[rkey] = n + nNull
+			compMap, err := buildCellComponentMap(instance, n, nNull)
+			if err != nil {
+				return nil, err
+			}
+			rowMarginComponents[rkey] = compMap
+			if !val.present {
 				continue
 			}
-			rowMargins[rkey] = row[cellLabel]
+			rowMargins[rkey] = val.value
 			rowMarginPresent[rkey] = true
 		}
 	}
 
 	var colMargins map[string]any
 	var colMarginPresent map[string]bool
+	var colMarginCounts map[string]int
+	var colMarginComponents map[string]map[string]any
 	if spec.NeedsColumnMargin() {
 		colMargins = make(map[string]any, len(colPart.Keys))
 		colMarginPresent = make(map[string]bool, len(colPart.Keys))
+		colMarginCounts = make(map[string]int, len(colPart.Keys))
+		colMarginComponents = make(map[string]map[string]any, len(colPart.Keys))
 		for _, ckey := range colPart.Keys {
 			bucket := colPart.Records[ckey]
 			if len(bucket) == 0 {
 				continue
 			}
-			row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
+			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, bucket)
 			if err != nil {
 				return nil, err
 			}
-			if row == nil {
+			colMarginCounts[ckey] = n + nNull
+			compMap, err := buildCellComponentMap(instance, n, nNull)
+			if err != nil {
+				return nil, err
+			}
+			colMarginComponents[ckey] = compMap
+			if !val.present {
 				continue
 			}
-			colMargins[ckey] = row[cellLabel]
+			colMargins[ckey] = val.value
 			colMarginPresent[ckey] = true
 		}
 	}
 
 	var grandMargin any
 	grandPresent := false
+	var grandMarginCount int
+	var grandMarginComponents map[string]any
 	if spec.NeedsGrandMargin() {
 		if len(filtered) > 0 {
-			row, err := p.aggregate([]*types.Aggregation{cellAgg}, filtered)
+			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, filtered)
 			if err != nil {
 				return nil, err
 			}
-			if row != nil {
-				grandMargin = row[cellLabel]
+			grandMarginCount = n + nNull
+			compMap, err := buildCellComponentMap(instance, n, nNull)
+			if err != nil {
+				return nil, err
+			}
+			grandMarginComponents = compMap
+			if val.present {
+				grandMargin = val.value
 				grandPresent = true
 			}
 		}
@@ -580,7 +620,36 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		// than emit a negative count to the wire.
 		excludedRecords = 0
 	}
-	populateCrosstabComponents(resp, rowPart.Keys, colPart.Keys, cellCounts, cellComponents, includedRecords, excludedRecords)
+	// E3-S4: row / column / grand-total margin counts + components emit
+	// alongside the cell matrices. Display flags drive the emission gate —
+	// counts/components ride only when the corresponding MatrixPayload
+	// margin slot is populated (spec.Margins.Rows / Columns / Grand). The
+	// normalization-only path computes the margins internally but does
+	// not surface counts/components (mirrors the value emission rule).
+	var rowMarginCountsSlot map[string]int
+	var rowMarginComponentsSlot map[string]map[string]any
+	if spec.Margins.Rows {
+		rowMarginCountsSlot = rowMarginCounts
+		rowMarginComponentsSlot = rowMarginComponents
+	}
+	var colMarginCountsSlot map[string]int
+	var colMarginComponentsSlot map[string]map[string]any
+	if spec.Margins.Columns {
+		colMarginCountsSlot = colMarginCounts
+		colMarginComponentsSlot = colMarginComponents
+	}
+	var grandMarginCountSlot int
+	var grandMarginComponentsSlot map[string]any
+	if spec.Margins.Grand {
+		grandMarginCountSlot = grandMarginCount
+		grandMarginComponentsSlot = grandMarginComponents
+	}
+	populateCrosstabComponents(resp, rowPart.Keys, colPart.Keys,
+		cellCounts, cellComponents,
+		rowMarginCountsSlot, rowMarginComponentsSlot,
+		colMarginCountsSlot, colMarginComponentsSlot,
+		grandMarginCountSlot, grandMarginComponentsSlot, spec.Margins.Grand,
+		includedRecords, excludedRecords)
 
 	// Tier-2 post-tests run over the materialized cell rows. Margin rows
 	// are excluded — they are emission-time annotations, not statistical
@@ -932,10 +1001,27 @@ func buildLongRows(spec *types.CrosstabSpec,
 // (no empty cells in the map); a missing (r, c) yields a nil entry in
 // the emitted matrix so consumers can distinguish empty cells from
 // populated cells with an empty component map.
+//
+// E3-S4: rowMarginCounts / rowMarginComponents (and column / grand
+// analogues) are emitted only when the caller passes non-nil
+// maps — gated by the display flag on the buffered / fused path. The
+// emission rule mirrors MatrixPayload.RowMargins / ColumnMargins /
+// GrandTotal: margins computed for normalization but not displayed
+// stay off the wire. grandHasMargin distinguishes "grand margin
+// requested with zero count" from "grand margin not requested"; the
+// other margins use the nil-map sentinel because per-axis maps are
+// allocated only when display is on.
 func populateCrosstabComponents(resp *types.Response,
 	rowKeys, colKeys []string,
 	cellCounts map[crosstabCellKey]int,
 	cellComponents map[crosstabCellKey]map[string]any,
+	rowMarginCounts map[string]int,
+	rowMarginComponents map[string]map[string]any,
+	colMarginCounts map[string]int,
+	colMarginComponents map[string]map[string]any,
+	grandMarginCount int,
+	grandMarginComponents map[string]any,
+	grandHasMargin bool,
 	includedRecords, excludedRecords int,
 ) {
 	if resp == nil {
@@ -989,6 +1075,54 @@ func populateCrosstabComponents(resp *types.Response,
 			}
 			ct.CellComponents = compMatrix
 		}
+	}
+
+	// E3-S4: row-margin counts + components, indexed in rowKeys order.
+	// Emitted only when the caller passes a non-nil map (display flag
+	// gate). Per-axis vectors are sized to len(rowKeys) so consumers can
+	// dereference RowMarginCounts[r] / RowMarginComponents[r] by the
+	// same r index they use against MatrixPayload.RowKeys[r] and
+	// MatrixPayload.RowMargins[r]; missing entries (no records for the
+	// row key) emit 0 / nil in the parallel slot.
+	if rowMarginCounts != nil && len(rowKeys) > 0 {
+		counts := make([]int, len(rowKeys))
+		for i, rk := range rowKeys {
+			if n, ok := rowMarginCounts[rk]; ok {
+				counts[i] = n
+			}
+		}
+		ct.RowMarginCounts = counts
+	}
+	if rowMarginComponents != nil && len(rowKeys) > 0 {
+		comps := make([]map[string]any, len(rowKeys))
+		for i, rk := range rowKeys {
+			if m, ok := rowMarginComponents[rk]; ok {
+				comps[i] = m
+			}
+		}
+		ct.RowMarginComponents = comps
+	}
+	if colMarginCounts != nil && len(colKeys) > 0 {
+		counts := make([]int, len(colKeys))
+		for i, ck := range colKeys {
+			if n, ok := colMarginCounts[ck]; ok {
+				counts[i] = n
+			}
+		}
+		ct.ColumnMarginCounts = counts
+	}
+	if colMarginComponents != nil && len(colKeys) > 0 {
+		comps := make([]map[string]any, len(colKeys))
+		for i, ck := range colKeys {
+			if m, ok := colMarginComponents[ck]; ok {
+				comps[i] = m
+			}
+		}
+		ct.ColumnMarginComponents = comps
+	}
+	if grandHasMargin {
+		ct.GrandTotalCount = grandMarginCount
+		ct.GrandTotalComponents = grandMarginComponents
 	}
 	ct.IncludedRecords = includedRecords
 	ct.ExcludedRecords = excludedRecords

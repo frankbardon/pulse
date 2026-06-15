@@ -119,6 +119,26 @@ type FusedCrosstabState struct {
 	colMargins  []OnlineAggregator
 	grandMargin OnlineAggregator
 
+	// E3-S4: per-margin record-count + null-input bookkeeping. Tracked
+	// alongside each rowMargins / colMargins / grandMargin UpdateRow
+	// call so the Finalize-time CrosstabComponents.RowMarginCounts /
+	// ColumnMarginCounts / GrandTotalCount + RowMarginComponents /
+	// ColumnMarginComponents / GrandTotalComponents emission can build
+	// the universal floor {n, n_null} without re-scanning records. n =
+	// non-null inputs to the margin field; nNull = null inputs the
+	// margin aggregator skipped — together they tile the record count
+	// routed through each margin slot.
+	//
+	// Slices grow in lockstep with rowMargins / colMargins via the
+	// interner growth path. grandMarginCount / grandMarginNNull are
+	// scalar counters since the grand margin is a single accumulator.
+	rowMarginCount   []int
+	rowMarginNNull   []int
+	colMarginCount   []int
+	colMarginNNull   []int
+	grandMarginCount int
+	grandMarginNNull int
+
 	// Cross-axis margin map. Populated when spec.NormalizeWithin != nil
 	// and spec.NormalizeOrDefault() is row or column. The key is the
 	// (truncated rowPrefix, truncated colPrefix) pair per the depth rules
@@ -433,6 +453,11 @@ func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) in
 			s.rowMargins = make([]OnlineAggregator, 0, 16)
 		}
 		s.rowMargins = append(s.rowMargins, nil)
+		// E3-S4: per-row count + null bookkeeping in lockstep with the
+		// margin accumulator slice so Finalize can address every margin
+		// slot by rowIdx without re-scanning records.
+		s.rowMarginCount = append(s.rowMarginCount, 0)
+		s.rowMarginNNull = append(s.rowMarginNNull, 0)
 	}
 	return idx
 }
@@ -471,6 +496,9 @@ func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) in
 			s.colMargins = make([]OnlineAggregator, 0, 16)
 		}
 		s.colMargins = append(s.colMargins, nil)
+		// E3-S4: per-column count + null bookkeeping in lockstep.
+		s.colMarginCount = append(s.colMarginCount, 0)
+		s.colMarginNNull = append(s.colMarginNNull, 0)
 	}
 	return idx
 }
@@ -559,6 +587,13 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		if err := s.grandMargin.UpdateRow(rec, s.cellField); err != nil {
 			return err
 		}
+		// E3-S4: grand-margin universal-floor counters. Routed through
+		// the same NumericValue probe used by the cell + buffered paths
+		// so n_null is byte-equal across paths.
+		s.grandMarginCount++
+		if _, ok := rec.NumericValue(s.cellField); !ok {
+			s.grandMarginNNull++
+		}
 	}
 
 	// Row-axis updates (independent of column-axis nullity). A non-null
@@ -580,6 +615,14 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			}
 			if err := mar.UpdateRow(rec, s.cellField); err != nil {
 				return err
+			}
+			// E3-S4: row-margin universal-floor counters. NumericValue
+			// probe mirrors the cell-path null tracking so the buffered
+			// runCellAggregation walk and the fused Update loop emit
+			// byte-equal (n, n_null) on the row margin.
+			s.rowMarginCount[rowIdx]++
+			if _, ok := rec.NumericValue(s.cellField); !ok {
+				s.rowMarginNNull[rowIdx]++
 			}
 		}
 		if s.partialRowIndex != nil {
@@ -610,6 +653,12 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			}
 			if err := mar.UpdateRow(rec, s.cellField); err != nil {
 				return err
+			}
+			// E3-S4: column-margin universal-floor counters in lockstep
+			// with the margin accumulator update.
+			s.colMarginCount[colIdx]++
+			if _, ok := rec.NumericValue(s.cellField); !ok {
+				s.colMarginNNull[colIdx]++
 			}
 		}
 		if s.partialColIndex != nil {
@@ -841,16 +890,17 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	rowMargins, rowMarginPresent, err := s.finalizeRowMargins()
+	rowMargins, rowMarginPresent, rowMarginCountsMap, rowMarginComponentsMap, err := s.finalizeRowMargins()
 	if err != nil {
 		return nil, err
 	}
-	colMargins, colMarginPresent, err := s.finalizeColMargins()
+	colMargins, colMarginPresent, colMarginCountsMap, colMarginComponentsMap, err := s.finalizeColMargins()
 	if err != nil {
 		return nil, err
 	}
 	var grandValue any
 	var grandPresent bool
+	var grandComponentsMap map[string]any
 	if s.grandMargin != nil {
 		scalar, err := s.grandMargin.Finalize()
 		if err != nil {
@@ -862,6 +912,17 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		}
 		grandValue = v
 		grandPresent = true
+		// E3-S4: grand-total components — universal floor (n = non-null
+		// inputs to the cell field, n_null = null inputs) merged with the
+		// cell aggregator's MetaAggregator.Components() output. Mirrors
+		// the buffered grand-margin emission so the buffered/fused
+		// parity gate holds across the grand-total slot too.
+		n := s.grandMarginCount - s.grandMarginNNull
+		compMap, cerr := buildCellComponentMap(s.grandMargin, n, s.grandMarginNNull)
+		if cerr != nil {
+			return nil, cerr
+		}
+		grandComponentsMap = compMap
 	}
 
 	// Partial-depth (normalize_level) denominators. When the leaf was
@@ -1024,7 +1085,34 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	if excludedRecords < 0 {
 		excludedRecords = 0
 	}
-	populateCrosstabComponents(resp, rowKeys, colKeys, cellCountsMap, cellComponentsMap, s.includedRecords, excludedRecords)
+	// E3-S4: margin counts + components flow only when the display flag
+	// is set — the normalization-only path computed the accumulators but
+	// the consumer-facing emission is gated by the display flag (matches
+	// MatrixPayload.RowMargins / ColumnMargins / GrandTotal).
+	var rowMarginCountsSlot map[string]int
+	var rowMarginComponentsSlot map[string]map[string]any
+	if s.spec.Margins.Rows {
+		rowMarginCountsSlot = rowMarginCountsMap
+		rowMarginComponentsSlot = rowMarginComponentsMap
+	}
+	var colMarginCountsSlot map[string]int
+	var colMarginComponentsSlot map[string]map[string]any
+	if s.spec.Margins.Columns {
+		colMarginCountsSlot = colMarginCountsMap
+		colMarginComponentsSlot = colMarginComponentsMap
+	}
+	var grandMarginCountSlot int
+	var grandMarginComponentsSlot map[string]any
+	if s.spec.Margins.Grand {
+		grandMarginCountSlot = s.grandMarginCount
+		grandMarginComponentsSlot = grandComponentsMap
+	}
+	populateCrosstabComponents(resp, rowKeys, colKeys,
+		cellCountsMap, cellComponentsMap,
+		rowMarginCountsSlot, rowMarginComponentsSlot,
+		colMarginCountsSlot, colMarginComponentsSlot,
+		grandMarginCountSlot, grandMarginComponentsSlot, s.spec.Margins.Grand,
+		s.includedRecords, excludedRecords)
 
 	return resp, nil
 }
@@ -1089,55 +1177,87 @@ func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[cross
 // and builds the string-keyed result map the downstream renderers
 // consume. Nil entries (rows present in the interner but never reached
 // a row-margin update) are dropped.
-func (s *FusedCrosstabState) finalizeRowMargins() (map[string]any, map[string]bool, error) {
+//
+// E3-S4: also emits the per-row-margin counts + components maps. The
+// counts ride on the same {(rowKey) → count} shape populateCrosstab-
+// Components projects into RowMarginCounts; the components map carries
+// the universal floor merged with the MetaAggregator output via
+// buildCellComponentMap. Both keys mirror the value-map (rowKey → ...)
+// so a single per-key lookup at Finalize-time addresses all three.
+func (s *FusedCrosstabState) finalizeRowMargins() (map[string]any, map[string]bool, map[string]int, map[string]map[string]any, error) {
 	if s.rowMargins == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 	values := make(map[string]any, len(s.rowMargins))
 	present := make(map[string]bool, len(s.rowMargins))
+	counts := make(map[string]int, len(s.rowMargins))
+	components := make(map[string]map[string]any, len(s.rowMargins))
 	for i, agg := range s.rowMargins {
+		key := s.rowKeys[i]
+		// Always emit the count + components for the row key when any
+		// row-axis update landed (rowMarginCount[i] > 0), even when the
+		// aggregator instance is still nil. The cell builder only
+		// allocates the OnlineAggregator on first UpdateRow, so a row
+		// present in the interner but with zero updates stays nil and
+		// is dropped from both the value map and the count/component
+		// vectors.
 		if agg == nil {
 			continue
 		}
 		scalar, err := agg.Finalize()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		v, err := dispatchAggregatorResult(agg, scalar)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, nil, err
 		}
-		key := s.rowKeys[i]
 		values[key] = v
 		present[key] = true
+		counts[key] = s.rowMarginCount[i]
+		n := s.rowMarginCount[i] - s.rowMarginNNull[i]
+		compMap, cerr := buildCellComponentMap(agg, n, s.rowMarginNNull[i])
+		if cerr != nil {
+			return nil, nil, nil, nil, cerr
+		}
+		components[key] = compMap
 	}
-	return values, present, nil
+	return values, present, counts, components, nil
 }
 
 // finalizeColMargins is the column-axis sibling of finalizeRowMargins.
-func (s *FusedCrosstabState) finalizeColMargins() (map[string]any, map[string]bool, error) {
+func (s *FusedCrosstabState) finalizeColMargins() (map[string]any, map[string]bool, map[string]int, map[string]map[string]any, error) {
 	if s.colMargins == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 	values := make(map[string]any, len(s.colMargins))
 	present := make(map[string]bool, len(s.colMargins))
+	counts := make(map[string]int, len(s.colMargins))
+	components := make(map[string]map[string]any, len(s.colMargins))
 	for i, agg := range s.colMargins {
+		key := s.colKeys[i]
 		if agg == nil {
 			continue
 		}
 		scalar, err := agg.Finalize()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		v, err := dispatchAggregatorResult(agg, scalar)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, nil, err
 		}
-		key := s.colKeys[i]
 		values[key] = v
 		present[key] = true
+		counts[key] = s.colMarginCount[i]
+		n := s.colMarginCount[i] - s.colMarginNNull[i]
+		compMap, cerr := buildCellComponentMap(agg, n, s.colMarginNNull[i])
+		if cerr != nil {
+			return nil, nil, nil, nil, cerr
+		}
+		components[key] = compMap
 	}
-	return values, present, nil
+	return values, present, counts, components, nil
 }
 
 // finalizePartialRowMargins is the scalar-only variant for partial-
