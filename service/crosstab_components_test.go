@@ -1702,3 +1702,255 @@ func TestCrosstabComponents_RowKeyComponents_BufferedVsFused_ParityByteEqual(t *
 		})
 	}
 }
+
+// --- E3-S10: consolidated parity sweep -------------------------------
+//
+// TestCrosstabComponents_BufferedVsFused_SweepParity is the single
+// consolidated buffered-vs-fused parity gate. It exercises the matrix
+// of (cell aggregator family) × (axis grouper pairing) the earlier per-
+// slot parity tests left for the wrap-up story (E3-S10):
+//
+//   - Aggregator families on the cell:
+//       * scalar:        AGG_SUM
+//       * Welford:       AGG_VARIANCE
+//       * map-state:     AGG_FREQUENCY  (fused-eligible: mergeable +
+//                        scalar margin + non-MapValued)
+//       * order-stat:    AGG_MEDIAN     (non-mergeable → fused gate
+//                        rejects, both runs take the buffered path,
+//                        components emit only on terminal flush — this
+//                        locks the same-path invariant)
+//   - Axis pairings on the (rows × columns) crosstab:
+//       * GROUP_CATEGORY × GROUP_CATEGORY  (canonical)
+//       * GROUP_RANGE    × GROUP_CATEGORY  (numeric row binning)
+//       * GROUP_CATEGORY × GROUP_DATE      (date column binning)
+//
+// For every (aggregator, pairing) combination the test asserts:
+//
+//   - reflect.DeepEqual on every Components.Crosstab sub-slice
+//     (CellCounts, CellComponents, RowKeyComponents, ColumnKeyComponents,
+//     IncludedRecords, ExcludedRecords). Margin slots are off by default
+//     here — margins have their own dedicated parity tests (above) so
+//     this sweep stays focused on cell + axis-key shape parity.
+//
+// Empty / zero-row axes are guarded — every combo must produce at least
+// one populated cell on the fixture so the parity diff is meaningful.
+//
+// AGG_SET_UNION + GROUP_SET_VALUE are NOT swept here. The set-family
+// cell aggregator + set-axis grouper run on a distinct field type
+// (FieldTypeSetU8) that the canonical (region/segment/value/date)
+// fixture does not carry; their parity is covered by the dedicated
+// processing/crosstab_set_test.go suite which exercises the buffered
+// path directly via Processor.RunCrosstab.
+func TestCrosstabComponents_BufferedVsFused_SweepParity(t *testing.T) {
+	cfg := writeSweepCohort(t, "ct_sweep.pulse")
+	ctx := context.Background()
+
+	cellAggs := []struct {
+		name string
+		op   types.AggregationType
+	}{
+		{"scalar/AGG_SUM", types.AGG_SUM},
+		{"welford/AGG_VARIANCE", types.AGG_VARIANCE},
+		{"mapstate/AGG_FREQUENCY", types.AGG_FREQUENCY},
+		// AGG_MEDIAN is non-mergeable → fused gate rejects (both runs
+		// land on the buffered path, parity is trivially identical
+		// but emission must still produce the BufferedComponents=true
+		// per-cell map on terminal flush).
+		{"orderstat/AGG_MEDIAN", types.AGG_MEDIAN},
+	}
+
+	type axisCase struct {
+		name string
+		rows []*types.Group
+		cols []*types.Group
+	}
+	fiscalOffset := 0
+	axisCases := []axisCase{
+		{
+			name: "CATEGORY_x_CATEGORY",
+			rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			cols: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+		},
+		{
+			name: "RANGE_x_CATEGORY",
+			rows: []*types.Group{{Type: types.GROUP_RANGE, Field: "value", Interval: 25}},
+			cols: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+		},
+		{
+			name: "CATEGORY_x_DATE",
+			rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			cols: []*types.Group{{
+				Type:   types.GROUP_DATE,
+				Field:  "wave_date",
+				Params: dateParams("quarter", &fiscalOffset),
+			}},
+		},
+	}
+
+	for _, agg := range cellAggs {
+		agg := agg
+		for _, axes := range axisCases {
+			axes := axes
+			t.Run(agg.name+"/"+axes.name, func(t *testing.T) {
+				buildReq := func() *types.Request {
+					return &types.Request{
+						Cohort: &types.Cohort{Filename: "ct_sweep.pulse"},
+						Crosstab: &types.CrosstabSpec{
+							Rows:    axes.rows,
+							Columns: axes.cols,
+							Cell:    &types.Aggregation{Type: agg.op, Field: "value", Label: "cell"},
+							Shape:   types.CrosstabShapeMatrix,
+						},
+					}
+				}
+
+				svcBuf := New(cfg)
+				svcBuf.SetDisableCrosstabFusion(true)
+				bufResp, err := svcBuf.Process(ctx, buildReq())
+				if err != nil {
+					t.Fatalf("buffered Process: %v", err)
+				}
+
+				svcFused := New(cfg)
+				// Fusion enabled by default; the dispatch falls back
+				// to buffered internally if the gate rejects.
+				fusedResp, err := svcFused.Process(ctx, buildReq())
+				if err != nil {
+					t.Fatalf("fused Process: %v", err)
+				}
+
+				bufCT := crosstabCTOrFail(t, bufResp)
+				fusedCT := crosstabCTOrFail(t, fusedResp)
+
+				// Sanity: at least one populated cell on the fixture
+				// across every combo so the parity diff is meaningful.
+				bufMatrix := bufResp.Crosstab.Matrix
+				if bufMatrix == nil || len(bufMatrix.RowKeys) == 0 || len(bufMatrix.ColumnKeys) == 0 {
+					t.Fatalf("buffered matrix degenerate for %s/%s: rows=%d cols=%d",
+						agg.op, axes.name, len(bufMatrix.RowKeys), len(bufMatrix.ColumnKeys))
+				}
+				var populated int
+				for _, row := range bufCT.CellCounts {
+					for _, n := range row {
+						if n > 0 {
+							populated++
+						}
+					}
+				}
+				if populated == 0 {
+					t.Fatalf("no populated cells for %s/%s — fixture coverage gap", agg.op, axes.name)
+				}
+
+				if !reflect.DeepEqual(bufCT.CellCounts, fusedCT.CellCounts) {
+					t.Errorf("CellCounts differ:\n buffered=%v\n fused   =%v",
+						bufCT.CellCounts, fusedCT.CellCounts)
+				}
+				if !reflect.DeepEqual(bufCT.CellComponents, fusedCT.CellComponents) {
+					t.Errorf("CellComponents differ:\n buffered=%v\n fused   =%v",
+						bufCT.CellComponents, fusedCT.CellComponents)
+				}
+				if !reflect.DeepEqual(bufCT.RowKeyComponents, fusedCT.RowKeyComponents) {
+					t.Errorf("RowKeyComponents differ:\n buffered=%v\n fused   =%v",
+						bufCT.RowKeyComponents, fusedCT.RowKeyComponents)
+				}
+				if !reflect.DeepEqual(bufCT.ColumnKeyComponents, fusedCT.ColumnKeyComponents) {
+					t.Errorf("ColumnKeyComponents differ:\n buffered=%v\n fused   =%v",
+						bufCT.ColumnKeyComponents, fusedCT.ColumnKeyComponents)
+				}
+				if bufCT.IncludedRecords != fusedCT.IncludedRecords {
+					t.Errorf("IncludedRecords differ: buffered=%d fused=%d",
+						bufCT.IncludedRecords, fusedCT.IncludedRecords)
+				}
+				if bufCT.ExcludedRecords != fusedCT.ExcludedRecords {
+					t.Errorf("ExcludedRecords differ: buffered=%d fused=%d",
+						bufCT.ExcludedRecords, fusedCT.ExcludedRecords)
+				}
+			})
+		}
+	}
+}
+
+// sweepCrosstabSchema mirrors crosstabSchema() but adds a wave_date date
+// field so the parity sweep can pair CATEGORY × DATE without an extra
+// fixture file. Field layout: region (cat_u8), segment (cat_u8), value
+// (f64), wave_date (date).
+func sweepCrosstabSchema() *encoding.Schema {
+	regionDict := encoding.NewDictionary()
+	regionDict.Add("north")
+	regionDict.Add("south")
+	regionDict.Add("east")
+
+	segmentDict := encoding.NewDictionary()
+	segmentDict.Add("retail")
+	segmentDict.Add("wholesale")
+
+	return &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "region", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 0, CsvColumnIdx: 0, Dictionary: regionDict},
+			{Name: "segment", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 1, CsvColumnIdx: 1, Dictionary: segmentDict},
+			{Name: "value", Type: encoding.FieldTypeF64, ByteOffset: 2, CsvColumnIdx: 2},
+			{Name: "wave_date", Type: encoding.FieldTypeDate, ByteOffset: 10, CsvColumnIdx: 3},
+		},
+	}
+}
+
+// writeSweepCohort builds a 9-row cohort for the consolidated parity
+// sweep. Rows mirror crosstabRecords() (so the CATEGORY × CATEGORY
+// pairing produces the same shape the per-slot parity tests already
+// lock) with deterministic wave_date values spread across two quarters
+// of 2024 so the GROUP_DATE column axis produces ≥2 buckets.
+func writeSweepCohort(t *testing.T, path string) *fs.Config {
+	t.Helper()
+	schema := sweepCrosstabSchema()
+
+	// Date values: days since unix epoch (1970-01-01).
+	//   Q1 2024 anchor: 2024-01-15 → 19737 days
+	//   Q2 2024 anchor: 2024-05-15 → 19858 days
+	const q1Day, q2Day = uint64(19737), uint64(19858)
+
+	type rec struct {
+		region, segment uint64
+		value           float64
+		day             uint64
+	}
+	recs := []rec{
+		// (region, segment, value, day) — same shape as crosstabRecords()
+		// for value, with dates split half-and-half across two quarters.
+		{0, 0, 10, q1Day},  // north, retail, Q1
+		{0, 0, 20, q1Day},  // north, retail, Q1
+		{0, 0, 30, q2Day},  // north, retail, Q2
+		{0, 1, 100, q1Day}, // north, wholesale, Q1
+		{1, 0, 5, q1Day},   // south, retail, Q1
+		{1, 0, 15, q2Day},  // south, retail, Q2
+		{1, 1, 40, q2Day},  // south, wholesale, Q2
+		{1, 1, 50, q2Day},  // south, wholesale, Q2
+		{2, 0, 1, q1Day},   // east, retail, Q1
+	}
+
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		t.Fatalf("WriteSchema: %v", err)
+	}
+	for _, r := range recs {
+		if err := encoding.WriteFieldValue(&buf, encoding.FieldTypeCategoricalU8, r.region); err != nil {
+			t.Fatalf("WriteFieldValue region: %v", err)
+		}
+		if err := encoding.WriteFieldValue(&buf, encoding.FieldTypeCategoricalU8, r.segment); err != nil {
+			t.Fatalf("WriteFieldValue segment: %v", err)
+		}
+		if err := encoding.WriteFieldValue(&buf, encoding.FieldTypeF64, math.Float64bits(r.value)); err != nil {
+			t.Fatalf("WriteFieldValue value: %v", err)
+		}
+		if err := encoding.WriteFieldValue(&buf, encoding.FieldTypeDate, r.day); err != nil {
+			t.Fatalf("WriteFieldValue wave_date: %v", err)
+		}
+	}
+	cfg := fs.NewMemMap()
+	if err := afero.WriteFile(cfg.Fs(), path, buf.Bytes(), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	return cfg
+}
