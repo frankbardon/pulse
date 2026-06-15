@@ -1,11 +1,14 @@
 package processing
 
 import (
+	"context"
+	"encoding/json"
 	"reflect"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
@@ -1032,4 +1035,369 @@ func mapKeysSortedAny(m map[string]any) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// --- E2-S12 manifest-vs-runtime parity sweep ----------------------
+
+// manifestGroupOperatorKeys returns the operator-specific key set
+// (manifest schema MINUS the universal grouper floor {total_n, n_null})
+// for the named grouper. Sorted ascending. Sourced from the public
+// BuildManifest projection so this test gates the same surface LLM
+// clients consume rather than the private capabilities table.
+func manifestGroupOperatorKeys(t *testing.T, name string) []string {
+	t.Helper()
+	m := descriptor.BuildManifest()
+	schema, ok := m.ComponentsSchemas.Groupers[name]
+	if !ok {
+		t.Fatalf("manifest carries no components schema for %s", name)
+	}
+	out := make([]string, 0, len(schema.Keys))
+	for _, k := range schema.Keys {
+		// Strip universal floor — those keys are typed fields on
+		// GrouperComponents (TotalN, NNull), not in the per-operator
+		// Operator map.
+		if k.Name == "total_n" || k.Name == "n_null" {
+			continue
+		}
+		out = append(out, k.Name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// groupParityFixture pairs a grouper type with the schema, field, and
+// records needed to drive a single Process round-trip for the
+// manifest-vs-runtime parity sweep. interval is set on the request's
+// Group.Interval slot for groupers that consume it (RANGE / ROUNDED /
+// QUANTILE); params blobs ride for groupers that consume Group.Params
+// (DATE component).
+type groupParityFixture struct {
+	schema   *encoding.Schema
+	field    string
+	interval float64
+	params   json.RawMessage
+	records  []*Record
+}
+
+// allGroupParityFixtures returns one fixture per registered grouper
+// type. The fixture maps cover the four sub-cases the parity sweep
+// exercises (small / empty / null-heavy / multi-shard); multi-shard
+// is documented in TestMetaGrouper_AllOps_ManifestParity as a follow-
+// up because the in-package processing/ tests have no shard archive
+// fixture (those live in service/ where the orchestrator wires the
+// shard-parallel reducer).
+func allGroupParityFixtures(t *testing.T) map[types.GroupType]groupParityFixture {
+	t.Helper()
+
+	// Numeric cohort shared by RANGE / ROUNDED / QUANTILE / CATEGORY.
+	numSchema := numericSchema()
+	numRecs := []*Record{
+		NewRecord(numSchema, map[string]float64{"score": 5}),
+		NewRecord(numSchema, map[string]float64{"score": 12}),
+		NewRecord(numSchema, map[string]float64{"score": 18}),
+		NewRecord(numSchema, map[string]float64{"score": 25}),
+		NewRecord(numSchema, map[string]float64{"score": 33}),
+		NewRecord(numSchema, map[string]float64{"score": 47}),
+		NewRecord(numSchema, map[string]float64{"score": 55}),
+		NewRecord(numSchema, map[string]float64{"score": 62}),
+	}
+
+	// Categorical cohort: 3-entry dict, 5 rows over 3 buckets.
+	catSchema := categoricalSchema()
+	catRecs := []*Record{
+		NewRecord(catSchema, map[string]float64{"brand": 0, "score": 10}),
+		NewRecord(catSchema, map[string]float64{"brand": 1, "score": 20}),
+		NewRecord(catSchema, map[string]float64{"brand": 0, "score": 30}),
+		NewRecord(catSchema, map[string]float64{"brand": 2, "score": 40}),
+		NewRecord(catSchema, map[string]float64{"brand": 1, "score": 50}),
+	}
+
+	// Date cohort: 5 rows across two months.
+	dtSchema := dateSchema()
+	dtRecs := []*Record{
+		NewRecord(dtSchema, map[string]float64{"enrolled": daysSinceEpoch(t, "2024-03-15")}),
+		NewRecord(dtSchema, map[string]float64{"enrolled": daysSinceEpoch(t, "2024-03-22")}),
+		NewRecord(dtSchema, map[string]float64{"enrolled": daysSinceEpoch(t, "2024-04-01")}),
+		NewRecord(dtSchema, map[string]float64{"enrolled": daysSinceEpoch(t, "2024-04-15")}),
+		NewRecord(dtSchema, map[string]float64{"enrolled": daysSinceEpoch(t, "2024-04-30")}),
+	}
+
+	// Set cohort: set_u8 with 4-entry dict, 5 rows including one empty mask.
+	setSchema := makeSetTestSchema(t)
+	setRecs := []*Record{
+		makeSetRecord(setSchema, 0b0001), // VISA
+		makeSetRecord(setSchema, 0b0011), // VISA + MC
+		makeSetRecord(setSchema, 0b0100), // AMEX
+		makeSetRecord(setSchema, 0b1000), // DISC
+		makeSetRecord(setSchema, 0b0110), // MC + AMEX
+	}
+
+	return map[types.GroupType]groupParityFixture{
+		types.GROUP_CATEGORY: {schema: catSchema, field: "brand", records: catRecs},
+		types.GROUP_DATE: {
+			schema:  dtSchema,
+			field:   "enrolled",
+			params:  json.RawMessage(`{"component":"month"}`),
+			records: dtRecs,
+		},
+		types.GROUP_RANGE:           {schema: numSchema, field: "score", interval: 10, records: numRecs},
+		types.GROUP_ROUNDED:         {schema: numSchema, field: "score", interval: 10, records: numRecs},
+		types.GROUP_QUANTILE:        {schema: numSchema, field: "score", interval: 4, records: numRecs},
+		types.GROUP_SET_VALUE:       {schema: setSchema, field: "tags", records: setRecs},
+		types.GROUP_SET_PER_ELEMENT: {schema: setSchema, field: "tags", records: setRecs},
+	}
+}
+
+// allGroupParityFixturesEmpty returns the same fixture map but with
+// zero-row cohorts so the empty sub-case can exercise every grouper's
+// floor-only Components() return on a no-input run.
+func allGroupParityFixturesEmpty(t *testing.T) map[types.GroupType]groupParityFixture {
+	t.Helper()
+	base := allGroupParityFixtures(t)
+	out := make(map[types.GroupType]groupParityFixture, len(base))
+	for k, v := range base {
+		v.records = nil
+		out[k] = v
+	}
+	return out
+}
+
+// allGroupParityFixturesNullHeavy returns the fixture map with cohorts
+// whose grouper-input field is null on every row. Only categories
+// where the field-type supports nullable inputs (numeric, date) are
+// covered; the set-field cohorts share the small-case records since
+// set_* nullability is bitmap-only and the per-field-null heavy case
+// is exercised in the per-family E2-S6 unit tests.
+func allGroupParityFixturesNullHeavy(t *testing.T) map[types.GroupType]groupParityFixture {
+	t.Helper()
+
+	numSchema := numericSchema()
+	numNullRecs := make([]*Record, 5)
+	for i := range numNullRecs {
+		numNullRecs[i] = NewRecordWithNulls(numSchema,
+			map[string]float64{"score": 0},
+			map[string]bool{"score": true})
+	}
+
+	dtSchema := dateSchema()
+	dtNullRecs := make([]*Record, 5)
+	for i := range dtNullRecs {
+		dtNullRecs[i] = NewRecordWithNulls(dtSchema,
+			map[string]float64{"enrolled": 0},
+			map[string]bool{"enrolled": true})
+	}
+
+	catSchema := categoricalSchema()
+	catNullRecs := make([]*Record, 5)
+	for i := range catNullRecs {
+		catNullRecs[i] = NewRecordWithNulls(catSchema,
+			map[string]float64{"brand": 0},
+			map[string]bool{"brand": true})
+	}
+
+	// Set ops: null-heavy substitutes "empty mask" rows (the set_* zero
+	// mask is a valid distinct bucket from null per the field-type
+	// contract; the per-family E2-S6 tests cover the strict null path).
+	setSchema := makeSetTestSchema(t)
+	setEmptyRecs := []*Record{
+		makeSetRecord(setSchema, 0),
+		makeSetRecord(setSchema, 0),
+		makeSetRecord(setSchema, 0),
+	}
+
+	return map[types.GroupType]groupParityFixture{
+		types.GROUP_CATEGORY:        {schema: catSchema, field: "brand", records: catNullRecs},
+		types.GROUP_DATE:            {schema: dtSchema, field: "enrolled", params: json.RawMessage(`{"component":"month"}`), records: dtNullRecs},
+		types.GROUP_RANGE:           {schema: numSchema, field: "score", interval: 10, records: numNullRecs},
+		types.GROUP_ROUNDED:         {schema: numSchema, field: "score", interval: 10, records: numNullRecs},
+		types.GROUP_QUANTILE:        {schema: numSchema, field: "score", interval: 4, records: numNullRecs},
+		types.GROUP_SET_VALUE:       {schema: setSchema, field: "tags", records: setEmptyRecs},
+		types.GROUP_SET_PER_ELEMENT: {schema: setSchema, field: "tags", records: setEmptyRecs},
+	}
+}
+
+// TestMetaGrouper_AllOps_ManifestParity is the E2-S12 manifest-vs-
+// runtime parity sweep. For every registered grouper (7 today) it
+// drives one Process round-trip on a small in-memory cohort and
+// asserts:
+//
+//   - Response.Components.Groupers carries exactly one entry for the
+//     slot.
+//   - That entry's Operator map key set (sorted ascending) equals the
+//     manifest's components_schemas.groupers[<op>].keys minus the
+//     universal grouper floor {total_n, n_null} (those keys are typed
+//     fields on GrouperComponents — not in the Operator map).
+//
+// Three sub-cases per grouper:
+//   - small: a non-trivial input partitions across multiple buckets.
+//   - empty: zero input rows; floor-only Operator (still emits the
+//     schema-declared keys with empty payloads per the per-family
+//     E2-S4..S6 contract).
+//   - null-heavy: every input row's field is null; floor-only Operator
+//     with zero-bucket payloads.
+//
+// The per-family tests (E2-S4..S6) verify each grouper's bucket math;
+// THIS test verifies the schema matches what the grouper emits. Any
+// drift between descriptor/capabilities_groupers.go and the runtime
+// emission surfaces as an immediate failure with the operator name +
+// key diff.
+//
+// FOLLOWUP: multi-shard sub-case is covered end-to-end via the
+// service/process_run_components_test.go shard-archive case; in-
+// processing/ has no shard archive fixture (the orchestrator's
+// shard-parallel reducer lives in service/), so the multi-shard
+// parity surface is locked at the service boundary.
+func TestMetaGrouper_AllOps_ManifestParity(t *testing.T) {
+	// --- small (populated) cohort -----------------------------------
+	t.Run("small", func(t *testing.T) {
+		fixtures := allGroupParityFixtures(t)
+		for _, op := range types.AllGroupTypes() {
+			op := op
+			fix, ok := fixtures[op]
+			if !ok {
+				t.Fatalf("no group parity fixture for %s — add one in allGroupParityFixtures", op)
+			}
+			t.Run(string(op), func(t *testing.T) {
+				req := &types.Request{
+					Aggregations: []*types.Aggregation{
+						{Type: types.AGG_COUNT, Field: fix.field, Label: "n"},
+					},
+					Groups: []*types.Group{
+						{Type: op, Field: fix.field, Interval: fix.interval, Params: fix.params},
+					},
+				}
+				proc := NewProcessor(fix.schema)
+				resp, err := proc.processRecords(context.Background(), req, fix.records)
+				if err != nil {
+					t.Fatalf("processRecords: %v", err)
+				}
+				if resp.Components == nil {
+					t.Fatalf("Response.Components nil; want populated")
+				}
+				if got := len(resp.Components.Groupers); got != 1 {
+					t.Fatalf("Groupers slots = %d, want 1", got)
+				}
+				entry := resp.Components.Groupers[0]
+				if entry.Field != fix.field {
+					t.Errorf("Field = %q, want %q", entry.Field, fix.field)
+				}
+				if entry.TotalN < 0 {
+					t.Errorf("%s: TotalN = %d, want >= 0", op, entry.TotalN)
+				}
+				if entry.NNull < 0 {
+					t.Errorf("%s: NNull = %d, want >= 0", op, entry.NNull)
+				}
+				// Single-key groupers: TotalN + NNull ≤ input rows.
+				// Multi-key streaming groupers (GROUP_SET_PER_ELEMENT)
+				// fan one row into one bucket per selected label, so
+				// TotalN (= sum of bucket counts) can EXCEED input rows;
+				// the per-family E2-S6 test locks that invariant.
+				if op != types.GROUP_SET_PER_ELEMENT && entry.TotalN+entry.NNull > len(fix.records) {
+					t.Errorf("%s: TotalN (%d) + NNull (%d) > input rows (%d)",
+						op, entry.TotalN, entry.NNull, len(fix.records))
+				}
+				wantKeys := manifestGroupOperatorKeys(t, string(op))
+				gotKeys := mapKeysSortedAny(entry.Operator)
+				if !reflect.DeepEqual(gotKeys, wantKeys) {
+					t.Errorf("%s operator key set mismatch:\n  runtime emit:    %v\n  manifest schema: %v",
+						op, gotKeys, wantKeys)
+				}
+			})
+		}
+	})
+
+	// --- empty cohort -----------------------------------------------
+	// Empty inputs: every grouper still emits its schema-declared keys
+	// per the per-family contract (buckets/edges/etc. as empty slices).
+	// Floor (TotalN, NNull) collapses to 0/0. The Operator key set must
+	// still match the manifest declaration so consumers can branch on
+	// shape rather than presence.
+	t.Run("empty", func(t *testing.T) {
+		fixtures := allGroupParityFixturesEmpty(t)
+		for _, op := range types.AllGroupTypes() {
+			op := op
+			fix, ok := fixtures[op]
+			if !ok {
+				t.Fatalf("no group parity fixture for %s", op)
+			}
+			t.Run(string(op), func(t *testing.T) {
+				req := &types.Request{
+					Aggregations: []*types.Aggregation{
+						{Type: types.AGG_COUNT, Field: fix.field, Label: "n"},
+					},
+					Groups: []*types.Group{
+						{Type: op, Field: fix.field, Interval: fix.interval, Params: fix.params},
+					},
+				}
+				proc := NewProcessor(fix.schema)
+				resp, err := proc.processRecords(context.Background(), req, fix.records)
+				if err != nil {
+					t.Fatalf("processRecords: %v", err)
+				}
+				if resp.Components == nil || len(resp.Components.Groupers) != 1 {
+					t.Fatalf("Components shape wrong: %+v", resp.Components)
+				}
+				entry := resp.Components.Groupers[0]
+				if entry.TotalN != 0 {
+					t.Errorf("%s: TotalN = %d on empty cohort, want 0", op, entry.TotalN)
+				}
+				if entry.NNull != 0 {
+					t.Errorf("%s: NNull = %d on empty cohort, want 0", op, entry.NNull)
+				}
+				wantKeys := manifestGroupOperatorKeys(t, string(op))
+				gotKeys := mapKeysSortedAny(entry.Operator)
+				if !reflect.DeepEqual(gotKeys, wantKeys) {
+					t.Errorf("%s empty-cohort operator key set mismatch:\n  runtime emit:    %v\n  manifest schema: %v",
+						op, gotKeys, wantKeys)
+				}
+			})
+		}
+	})
+
+	// --- null-heavy cohort ------------------------------------------
+	// Every input row is null on the grouper input field (or for the
+	// set ops, every row carries an empty mask — the set_* zero-mask
+	// surface is a distinct "no selection" bucket the per-family E2-S6
+	// tests already lock). The operator-specific key set must remain
+	// the manifest-declared set; counts collapse onto NNull (numeric /
+	// date / categorical) or to the n_empty_mask bucket-side count
+	// (set ops).
+	t.Run("null_heavy", func(t *testing.T) {
+		fixtures := allGroupParityFixturesNullHeavy(t)
+		for _, op := range types.AllGroupTypes() {
+			op := op
+			fix, ok := fixtures[op]
+			if !ok {
+				t.Fatalf("no group parity fixture for %s", op)
+			}
+			t.Run(string(op), func(t *testing.T) {
+				req := &types.Request{
+					Aggregations: []*types.Aggregation{
+						{Type: types.AGG_COUNT, Field: fix.field, Label: "n"},
+					},
+					Groups: []*types.Group{
+						{Type: op, Field: fix.field, Interval: fix.interval, Params: fix.params},
+					},
+				}
+				proc := NewProcessor(fix.schema)
+				resp, err := proc.processRecords(context.Background(), req, fix.records)
+				if err != nil {
+					t.Fatalf("processRecords: %v", err)
+				}
+				if resp.Components == nil || len(resp.Components.Groupers) != 1 {
+					t.Fatalf("Components shape wrong: %+v", resp.Components)
+				}
+				entry := resp.Components.Groupers[0]
+				if entry.TotalN < 0 || entry.NNull < 0 {
+					t.Errorf("%s: TotalN/NNull negative: %d / %d", op, entry.TotalN, entry.NNull)
+				}
+				wantKeys := manifestGroupOperatorKeys(t, string(op))
+				gotKeys := mapKeysSortedAny(entry.Operator)
+				if !reflect.DeepEqual(gotKeys, wantKeys) {
+					t.Errorf("%s null-heavy operator key set mismatch:\n  runtime emit:    %v\n  manifest schema: %v",
+						op, gotKeys, wantKeys)
+				}
+			})
+		}
+	})
 }

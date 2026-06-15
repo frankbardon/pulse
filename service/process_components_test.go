@@ -359,13 +359,25 @@ func TestService_Process_Components_Set_AGG_SET_UNION(t *testing.T) {
 	}
 }
 
-// TestPredict_ComponentSchemaMatchesRuntime is the E1-S12 / E2-S3
-// manifest-vs-runtime parity sweep. The aggregator half covers every
-// registered aggregator (28 today) end-to-end through Predict +
-// Process; the grouper half covers every registered grouper (7 today)
-// on the predict side only — per-grouper Components emission lands in
-// E2-S4..S6, so the runtime comparison is gated behind a TODO until
-// MetaGrouper implementations populate Response.Components.Groupers.
+// TestPredict_ComponentSchemaMatchesRuntime is the E1-S12 / E2-S3 /
+// E2-S12 manifest-vs-runtime parity sweep. All three halves are now
+// active (E2-S12 lights up the grouper + filterer runtime-comparison
+// halves that E2-S3 / E2-S8 staged behind TODO guards):
+//
+//   - Aggregator half: every registered aggregator (28 today) end-to-
+//     end through Predict + Process.
+//   - Grouper half: every registered grouper (7 today) end-to-end
+//     through Predict + Process. MetaGrouper implementations landed
+//     in E2-S4..S6, so the runtime side now carries an Operator map
+//     for every grouper; the sorted key set must match the predict
+//     declaration minus the universal grouper floor {total_n, n_null}.
+//   - Filterer half: every registered filterer (11 today) end-to-end
+//     through Predict + Process. The orchestrator's universal-floor
+//     pass (E2-S9) emits the {n_in, n_out, n_null_input} triple onto
+//     FiltererComponents for every slot; v1 has no built-in
+//     MetaFilterer implementation, so the operator-specific key set
+//     collapses to the empty slice on both sides. The assertion locks
+//     the contract for embedder-supplied MetaFilterer registrations.
 //
 // For each aggregator the test:
 //
@@ -392,10 +404,9 @@ func TestService_Process_Components_Set_AGG_SET_UNION(t *testing.T) {
 //   - Asserts BufferedComponents=true for GROUP_QUANTILE (the only
 //     None-mergeability grouper today) and =false for every other
 //     grouper.
-//   - TODO(E2-S4..S6): tighten this to compare the predict declared
-//     key set against Response.Components.Groupers[0].Operator once
-//     MetaGrouper implementations land. Until then the runtime
-//     comparison half is skipped — runtime emission is missing.
+//   - Runs svc.Process(req) and asserts the runtime Operator key set
+//     (universal floor stripped) equals the predict declared key set
+//     (universal floor stripped).
 //
 // E5-S3 promotes this test to a non-skippable CI gate; this stub
 // covers every registered aggregator and grouper so the gate is
@@ -460,7 +471,23 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 		})
 	}
 
-	// --- grouper half (E2-S3) ---------------------------------------
+	// --- grouper half (E2-S3 static; E2-S12 runtime-comparison
+	// activation) -------------------------------------------------
+	// E2-S4..S6 landed MetaGrouper for all 7 built-in groupers, so the
+	// runtime-comparison half of the gate (skipped at E2-S3) is now
+	// active. For every registered grouper the test:
+	//   - Asserts predict's declared ComponentSchema carries the
+	//     universal grouper floor {total_n, n_null} as the first two
+	//     entries.
+	//   - Asserts BufferedComponents parity with the static capability
+	//     table (GROUP_QUANTILE = true, everyone else = false).
+	//   - Drives svc.Process on the same fixture and compares the
+	//     runtime-emitted Components.Groupers[0].Operator key set
+	//     (sorted, universal floor stripped) against predict's
+	//     declared key set (sorted, universal floor stripped). Any
+	//     drift between descriptor/capabilities_groupers.go and the
+	//     runtime emission surfaces here as an immediate failure with
+	//     the operator name + key diff.
 	groupFixtures := allGroupServiceFixtures(t)
 	for _, op := range types.AllGroupTypes() {
 		op := op
@@ -508,24 +535,55 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 				t.Errorf("%s: BufferedComponents = %v, want %v", op, got, wantBuffered)
 			}
 
-			// TODO(E2-S4..S6): tighten this once groupers emit per-
-			// slot GrouperComponents at runtime. The runtime comparison
-			// half is skipped here because no MetaGrouper implementation
-			// has landed yet — Response.Components.Groupers is empty
-			// for every grouper today. When E2-S4..S6 wires per-grouper
-			// emission, add the same predict-vs-runtime sorted-key-set
-			// comparison the aggregator half above performs.
+			// Runtime-comparison half: drive svc.Process on the same
+			// fixture and assert the runtime-emitted operator-specific
+			// key set equals the predict-declared key set with the
+			// universal floor stripped from both sides.
+			runReq := &types.Request{
+				Cohort: &types.Cohort{Filename: gfix.cohortName},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_COUNT, Field: gfix.companionField, Label: "n"},
+				},
+				Groups: []*types.Group{
+					{Type: op, Field: gfix.field, Interval: gfix.interval, Params: gfix.params},
+				},
+			}
+			resp, err := gfix.svc.Process(context.Background(), runReq)
+			if err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			if resp.Components == nil {
+				t.Fatalf("Response.Components nil; want populated")
+			}
+			if got := len(resp.Components.Groupers); got != 1 {
+				t.Fatalf("Groupers slots = %d, want 1", got)
+			}
+			runtimeKeys := mapKeysSorted(resp.Components.Groupers[0].Operator)
+			predictKeys := []string{}
+			for _, k := range declared {
+				if k.Name == "total_n" || k.Name == "n_null" {
+					continue
+				}
+				predictKeys = append(predictKeys, k.Name)
+			}
+			sort.Strings(predictKeys)
+			if !reflect.DeepEqual(runtimeKeys, predictKeys) {
+				t.Errorf("%s component-schema parity drift:\n  predict declared: %v\n  runtime emitted: %v",
+					op, predictKeys, runtimeKeys)
+			}
 		})
 	}
 
-	// --- filterer half (E2-S8) -----------------------------------------
-	// Sweep every registered filterer (11 today) on the predict side
-	// only — per-filterer Components emission lands in E2-S9, so the
-	// runtime comparison half follows the same skip-with-TODO pattern
-	// used for groupers above. The static schema check asserts every
-	// FiltererPredict slot carries the universal floor {n_in, n_out,
-	// n_null_input} and Mergeable mergeability so the static parity
-	// half of the gate is meaningful at promotion (E5-S3).
+	// --- filterer half (E2-S8 static; E2-S9 runtime universal-floor
+	// emission; E2-S12 runtime-comparison activation) ----------------
+	// Sweep every registered filterer (11 today). The runtime-
+	// comparison half is now active per E2-S12: v1 has no built-in
+	// MetaFilterer implementation, so the operator-specific key set
+	// collapses to the empty slice on both sides (every filterer's
+	// universal floor is the whole payload). The assertion still
+	// locks the wiring contract so a future per-filter specific
+	// addition (e.g. FILTER_RANGE n_below / n_above) has an immediate
+	// parity gate to fail.
 	filFixtures := allFilterServiceFixtures(t)
 	for _, op := range types.AllFiltererTypes() {
 		op := op
@@ -578,8 +636,9 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 				t.Errorf("%s: BufferedComponents = %v, want false (every v1 filterer is Mergeable)", op, got)
 			}
 
-			// E2-S9: runtime FiltererComponents emission lands at the
-			// service.Process boundary. Drive a one-slot request
+			// E2-S9 / E2-S12: runtime FiltererComponents emission
+			// lands at the service.Process boundary and the runtime-
+			// comparison half is now active. Drive a one-slot request
 			// through the service fixture and confirm the runtime
 			// operator-specific key set (universal floor stripped)
 			// equals the predict-declared operator-specific key set.
@@ -608,10 +667,11 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 			}
 			// The universal floor is typed onto FiltererComponents
 			// (NIn / NOut / NNullInput); the operator-specific key
-			// set rides in the (currently unwired) MetaFilterer
-			// payload. The runtime side carries no operator map yet,
-			// so the key set is trivially empty — matching the
-			// predict declaration minus floor.
+			// set rides in the MetaFilterer payload, which v1 leaves
+			// unimplemented for every built-in. The runtime side
+			// therefore carries no operator map, so the key set is
+			// trivially empty — matching the predict declaration
+			// minus floor.
 			runtimeKeys := []string{}
 			predictKeys := []string{}
 			for _, k := range declared {
