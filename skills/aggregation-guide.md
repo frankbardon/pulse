@@ -369,6 +369,60 @@ Keep records that match an expr-lang predicate.
 ```
 </example>
 
+<rule severity="must" topic="filterer-components-contract">
+## Filterer components — uniform counter contract
+
+Every filterer pass that runs during a Process / Compose request lands in `Response.Components.Filterers[i]` carrying the same three-integer floor regardless of operator. The orchestrator's counter pass (E2-S9) populates the slice in spec order so consumers see one entry per `Request.Filterers[i]` in matching index order.
+
+### Universal floor — `{n_in, n_out, n_null_input}`
+
+- `n_in` — records entering this filter pass.
+- `n_out` — records exiting (passing the filter).
+- `n_null_input` — records where the filter input field was null (regardless of pass / fail decision).
+
+All 11 registered filterers emit the same shape:
+`FILTER_INCLUDE`, `FILTER_EXCLUDE`, `FILTER_RANGE`, `FILTER_EXPRESSION`, `FILTER_NULL`, `FILTER_TRUE`, `FILTER_FALSE`, `FILTER_SET_CONTAINS_ANY`, `FILTER_SET_CONTAINS_ALL`, `FILTER_SET_CONTAINS_NONE`, `FILTER_SET_EQUALS`.
+
+### `n_in` invariant — chained filterers compose
+
+For the filterer at index `i`:
+
+- `n_in_i == n_out_{i-1}` — the prior filterer's exit count is this filterer's entry count.
+- `n_in_0 == TotalRecordsAfterDecode` — the first filterer sees every decoded record from the cohort.
+
+Consumers can therefore reconstruct the filter funnel (records dropped per stage, cumulative pass rate, null-input share per stage) directly from `Response.Components.Filterers` without re-reading the request.
+
+### `MetaFilterer` sibling interface
+
+`MetaFilterer` is the filterer-side sibling of `MetaAggregator` and `MetaGrouper`:
+
+```go
+type MetaFilterer interface {
+    Components() (map[string]any, error)
+}
+```
+
+- In v1 no built-in filterer overrides the floor — the orchestrator's universal-floor pass fills `{n_in, n_out, n_null_input}` uniformly across all 11 operators.
+- Extensions MAY implement `Components() (map[string]any, error)` to add operator-specific keys (for example, a custom range filterer could expose `n_below_min` / `n_above_max`). This extension surface is deferred for v1; see `skills/extension-points.md` for the planned schema-declaration path.
+- Returning `(nil, nil)` is the no-op signal — the floor still applies.
+
+### Mergeability
+
+The filterer counters are **`Mergeable`** — `{n_in, n_out, n_null_input}` fold trivially across shards by per-index addition. Parallel-shard and parallel-buffered Process collapse partial counters at terminal flush with no precision concerns (all three are exact integer counts).
+
+### Go access pattern
+
+```go
+resp, err := pulse.Process(ctx, req)
+if err != nil { return err }
+for _, f := range resp.Components.Filterers {
+    fmt.Printf("%s: %d→%d (null=%d)\n", f.Label, f.NIn, f.NOut, f.NNullInput)
+}
+```
+
+The cross-cutting `Response.Components` shape — including the `Aggregations`, `Groupers`, `Crosstab`, and `Run` siblings — is documented in the [response components contract](response-components.md).
+</rule>
+
 <rule severity="caveat" topic="sharded-buffered-memory">
 ## Shard archives and forced-buffered ops
 
