@@ -107,13 +107,7 @@ Zero-value `Extensions` is the no-op case — pulse.New behaves exactly as the p
 
 When `Streamable=true`, the probe at `pulse.New` time asserts the factory's returned value implements `processing.OnlineAggregator`. Mismatch returns `PULSE_EXTENSION_STREAMABLE_MISMATCH`.
 
-**ComponentSchema + ComponentsFunc** is the embedder-facing path for the per-operator `Response.Components` contract. Three valid shapes:
-
-- **Floor-only** — leave `ComponentSchema` zero and `ComponentsFunc` nil. The orchestrator emits the universal floor (`{"n", "n_null"}`) and no extra keys.
-- **Schema + emitter** — declare a non-empty `ComponentSchema` with `Mergeability` set and supply `ComponentsFunc`. The runtime wraps the factory so `instance.(processing.MetaAggregator)` succeeds; the orchestrator routes the emitted map onto `Response.Components.Aggregations[i].Operator` after Aggregate / Finalize. Emitted keys MUST be a subset of `ComponentSchema.Keys` — probe-validation rejects extras at `pulse.New` time.
-- **Emitter without schema** OR **schema without emitter** — rejected (the schema would never be satisfied, or the emitter would never be validated). E4-S6 introduces the formal `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` / `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` error codes; until then both surface as `PULSE_EXTENSION_PARAM_INVALID`.
-
-Universal-floor keys are filled by the orchestrator unconditionally — do NOT re-emit `n` / `n_null` from `ComponentsFunc`. Return `(nil, nil)` to signal "no operator-specific keys; universal floor IS the entire payload" (the canonical AGG_COUNT shape).
+`ComponentSchema` + `ComponentsFunc` are the embedder-facing surface for the `Response.Components` contract. See the dedicated **Component schemas** section below for the full contract (declaration shape, universal-floor responsibility, mergeability axis, the `MetaAggregator` interface alternative, and error-code cross-links).
 
 ### Attribute
 
@@ -137,12 +131,7 @@ Mode drives streaming-tier validation:
 
 All four follow the same envelope shape: name, description, factory, accepted types, params metadata. Filterers and windows currently have no streamable toggle — filterers are always row-local streamable, windows always run buffered.
 
-`FiltererRegistration` and `GrouperRegistration` also carry `ComponentSchema` + `ComponentsFunc` on the same contract as `AggregatorRegistration`. The runtime wraps the factory so the orchestrator's `instance.(processing.MetaFilterer)` / `.MetaGrouper` assertion succeeds; the emitted map routes onto `Response.Components.Filterers[i].Operator` / `.Groupers[i].Operator`. Universal floors differ by category:
-
-- **Grouper** floor: `{total_n, n_null}` — record counts post-filter; `ComponentsFunc` returns the operator-specific extras (bucket arrays, edges, dictionary mappings).
-- **Filterer** floor: `{n_in, n_out, n_null_input}` — three-counter triple from the filter pass. v1 ships every built-in filterer as floor-only; embedders may opt in by declaring a schema + emitter for operator-specific extras (e.g. per-value `n` for FILTER_INCLUDE).
-
-Floor-only registrations (no `ComponentSchema`, no `ComponentsFunc`) stay valid — the orchestrator emits just the universal floor.
+`FiltererRegistration` and `GrouperRegistration` also carry `ComponentSchema` + `ComponentsFunc` on the same contract as `AggregatorRegistration` — see the **Component schemas** section below for the full contract. Floors differ by category (groupers: `{total_n, n_null}`; filterers: `{n_in, n_out, n_null_input}`); floor-only registrations are valid.
 
 ### Test (tier-1 / tier-2)
 
@@ -168,6 +157,183 @@ Exactly one of `RowFactory` / `PostFactory` must be non-nil, matching `Tier`. Ti
 ### Synth distribution
 
 Reserved for embedders shipping bespoke samplers. The factory shape finalises alongside the synth distribution overlay phase; until then the registration validates name + duplicates and reserves the namespace.
+
+## Component schemas
+
+`Response.Components` is the operator-keyed sibling payload that runs alongside `Response.Data` — every aggregator, grouper, and filterer in a request lands a typed map under `Response.Components.Aggregations[i].Operator`, `.Groupers[i].Operator`, `.Filterers[i].Operator`. Embedder-registered operators participate via two coupled fields on `AggregatorRegistration` / `GrouperRegistration` / `FiltererRegistration`:
+
+```go
+pulse.AggregatorRegistration{
+    // ... Name, Factory, etc.
+    ComponentSchema descriptor.ComponentSchema
+    ComponentsFunc  func(instance processing.Aggregator) (map[string]any, error)
+}
+```
+
+`ComponentSchema` declares — at registration time, no execution — the operator-specific component keys that the orchestrator will route into the response. `ComponentsFunc` is the runtime emitter the orchestrator calls once per operator after `Aggregate` / `Finalize`. The pair is validated at `pulse.New` by the probe (see "Probe-validation" below).
+
+### Declaration shape
+
+`descriptor.ComponentSchema` carries three things:
+
+```go
+type ComponentSchema struct {
+    Keys         []ComponentKey
+    Mergeability ComponentsMergeability   // Mergeable | Partial | None
+}
+
+type ComponentKey struct {
+    Name        string  // snake_case, matches the runtime emission key
+    Type        string  // "int" | "float64" | "string" | "map" | "array" | "object"
+    Description string  // surfaces in manifest + MCP schema
+}
+```
+
+- **`Keys`** is the canonical declared set. Names use snake_case (matches every other Pulse JSON key — `n_null`, `mode_count`, `range_min`). `Type` is a JSON-shape declaration that flows through to the manifest and schema-bound MCP tools; `Description` is the one-liner shown in LLM-bootstrap output.
+- **`Mergeability`** declares how the components state composes across chunks / shards. See "Mergeability axis" below.
+
+### Universal-floor responsibility
+
+The orchestrator owns the universal floor keys — embedder `ComponentsFunc` returns ONLY operator-specific keys.
+
+| Category | Universal floor keys | Owner |
+|---|---|---|
+| Aggregator | `n`, `n_null` | orchestrator |
+| Grouper | `total_n`, `n_null` | orchestrator |
+| Filterer | `n_in`, `n_out`, `n_null_input` | orchestrator |
+
+Two valid conventions for `ComponentSchema.Keys`:
+
+- **Floor in declared, not in emitted.** The E1-S3 convention treats the manifest as self-contained — `ComponentSchema.Keys` lists the floor keys *and* the operator-specific keys so a manifest reader sees every key the operator's payload will carry. The probe tolerates this: floor keys may appear in `Keys` but MUST NOT be returned from `ComponentsFunc`. The orchestrator unconditionally fills floor keys; an emitter that re-emits them is rejected via `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` (the emitter is fighting the orchestrator).
+- **Operator-only in declared.** Equally valid — `Keys` lists only the operator-specific names; manifest consumers compose with the per-category floor table to get the full payload shape. Internal built-ins use this shape.
+
+Pick whichever fits your manifest-consumer story. The probe accepts both as long as `ComponentsFunc` returns only operator-specific keys.
+
+### Mergeability axis
+
+`ComponentsMergeability` declares how the runtime composes the components state when multiple chunks (streaming) or shards (parallel) flow into a single aggregator:
+
+| Value | Meaning | Examples |
+|---|---|---|
+| `Mergeable` | State composes through the same `MergeOnline` path as the scalar value. Streaming chunks carry `ComponentsDelta`; consumers reconcile. | Welford-family (sums, sums-of-squares), running counts, set masks, weighted accumulators. |
+| `Partial` | Map / set merges that work but cost allocation; the orchestrator may stage merge at terminal flush. | `AGG_FREQUENCY` (key/count map), `AGG_MODE`, `AGG_DISTINCT_COUNT`. |
+| `None` | Needs sorted full input. Streaming chunks omit components entirely; only the terminal buffered flush emits. Predict declares the slot buffered-components-only. | `AGG_MEDIAN`, `AGG_PERCENTILE`. |
+
+Choose the axis that matches the math, not the convenience of the registration site. Declaring `Mergeable` on an operator whose state can't actually fold via `MergeOnline` will produce silently-wrong components in parallel shard processing — there's no runtime gate for the math, only the streaming-tier wiring.
+
+### Sample registration walkthrough
+
+End-to-end example showing a streaming-aggregator registration that emits two operator-specific keys plus the orchestrator-owned floor:
+
+```go
+opts := pulse.Options{
+    Extensions: pulse.Extensions{
+        Aggregators: []pulse.AggregatorRegistration{{
+            Name:       "AGG_RANGECOUNT_X",
+            Factory:    func(field types.Field, params types.Params) (processing.Aggregator, error) {
+                return &rangeCountAgg{ /* ... */ }, nil
+            },
+            Streamable: true,
+            Accepts:    []encoding.FieldType{encoding.FieldTypeF64},
+
+            ComponentSchema: descriptor.ComponentSchema{
+                Keys: []descriptor.ComponentKey{
+                    {Name: "low_count",  Type: "int", Description: "Rows below the range."},
+                    {Name: "high_count", Type: "int", Description: "Rows above the range."},
+                },
+                Mergeability: descriptor.Mergeable,
+            },
+            ComponentsFunc: func(instance processing.Aggregator) (map[string]any, error) {
+                agg := instance.(*rangeCountAgg)
+                return map[string]any{
+                    "low_count":  agg.lowCount,
+                    "high_count": agg.highCount,
+                }, nil
+            },
+        }},
+    },
+}
+
+p, err := pulse.New(ctx, opts)
+```
+
+Resulting `Response.Components.Aggregations[i].Operator` for one run:
+
+```json
+{
+    "n": 12345,
+    "n_null": 7,
+    "low_count": 412,
+    "high_count": 38
+}
+```
+
+The `n` / `n_null` keys are orchestrator-supplied; `low_count` / `high_count` come straight from `ComponentsFunc`.
+
+### `MetaAggregator` interface alternative
+
+`ComponentsFunc` is the wrapping path — the runtime wraps the factory return value so `instance.(processing.MetaAggregator)` succeeds. Operators that prefer can implement the sibling interface directly:
+
+```go
+type MetaAggregator interface {
+    Aggregator
+    Components() (map[string]any, error)
+}
+```
+
+When the factory's return value already satisfies `MetaAggregator`, leave `ComponentsFunc` nil — the runtime detects the interface and skips the wrapping shim. Probe-validation still asserts emitted keys against `ComponentSchema.Keys`. Parallel sibling interfaces:
+
+- `processing.MetaGrouper` — `Components() (map[string]any, error)` for groupers, paired with `GrouperRegistration.ComponentSchema` + optional `ComponentsFunc`.
+- `processing.MetaFilterer` — `Components() (map[string]any, error)` for filterers, paired with `FiltererRegistration.ComponentSchema` + optional `ComponentsFunc`.
+
+Pick the shape that matches your code:
+
+- Already have a Go struct doing the bookkeeping? Implement `MetaAggregator` on it directly.
+- Factory returns a third-party type you can't extend? Use `ComponentsFunc` to project state out without touching the type.
+
+### Probe-validation and error codes
+
+The probe at `pulse.New` exercises each factory once against a minimal synthetic schema, then asserts the components contract:
+
+| Condition | Error code |
+|---|---|
+| `ComponentsFunc` set (or `MetaAggregator`/`MetaGrouper`/`MetaFilterer` implemented) but `ComponentSchema.Keys` empty | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` |
+| `ComponentsFunc` returns a key NOT in `ComponentSchema.Keys` (after the floor-tolerance carve-out) | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
+| `ComponentsFunc` returns a floor key the orchestrator owns | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
+
+Fetch the Message + Fixup template via:
+
+```text
+pulse errors lookup PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA
+pulse errors lookup PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH
+```
+
+Or call `pulse_errors_lookup` from an MCP session for the same payload.
+
+### Floor-only extensions
+
+If both `ComponentSchema.Keys` is empty and `ComponentsFunc` is nil (and the factory's return value does NOT implement `MetaAggregator` / `MetaGrouper` / `MetaFilterer`), the registration is **floor-only**: the orchestrator emits the universal floor keys for that category and nothing else. This is a valid, supported path for simple counter-style extensions — the most common shape for ported domain aggregators that don't need to surface internal state.
+
+```go
+pulse.AggregatorRegistration{
+    Name:    "AGG_ACME_COUNT_NONNEG",
+    Factory: newNonNegCountAgg,
+    // No ComponentSchema, no ComponentsFunc — Response.Components carries
+    // only {"n": ..., "n_null": ...}.
+}
+```
+
+The probe does NOT reject this shape. Add a schema + emitter only when you want operator-specific keys to flow through to the response.
+
+### CLAUDE.md Update Demand row
+
+Every change to an extension registration's `ComponentSchema` (adding a registration, renaming a key, changing mergeability) MUST update this skill and the CLAUDE.md Update Demand table in the same PR. The trigger row destined for CLAUDE.md (CLAUDE.md edit lands in E5-S2):
+
+```
+| Extension registration `ComponentSchema` | `skills/extension-points.md` + Update Demand table | per-extension parity test (probe) |
+```
+
+Per-extension parity is enforced at runtime by the probe-validation step at `pulse.New` — no separate file-grep gate is wired today. The skill update keeps the LLM surface and embedder docs aligned with the actual contract.
 
 ## Expression functions
 
@@ -352,6 +518,8 @@ Benefits: the manifest advertises `adjustments`, the schema-bound MCP tool surfa
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier ≠ factory interface |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked / returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad ParamMeta, missing Mode/Tier, lookup table with neither Rows nor Lookup, etc. |
+| `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | `ComponentsFunc` (or `MetaAggregator`/`MetaGrouper`/`MetaFilterer`) is wired but `ComponentSchema.Keys` is empty |
+| `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | `ComponentsFunc` returned a key not present in `ComponentSchema.Keys`, or re-emitted a universal-floor key the orchestrator owns |
 | `PULSE_LOOKUP_TABLE_UNKNOWN` | expression referenced an unregistered table |
 | `PULSE_LOOKUP_MISS` | lookup key not present |
 
