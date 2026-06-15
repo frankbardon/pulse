@@ -237,3 +237,60 @@ type RichAggregator interface {
 	Aggregator
 	Rich() (any, error)
 }
+
+// MetaAggregator is the optional sibling of Aggregator for aggregators
+// that emit a per-operator "components" map alongside their scalar (or
+// rich) value. The map carries the named constituent-parts metadata
+// declared in the aggregator's descriptor.ComponentSchema — Welford
+// triples (mean, variance, sum_squares, m2), frequency tables,
+// percentile sort sizes, distinct-mask popcounts, and so on.
+//
+// Components is called exactly once after Aggregate or Finalize. The
+// orchestrator routes the result into Response.Components.Aggregations
+// (or the Crosstab cell-components matrix when the aggregator runs
+// inside a crosstab cell). Implementations MUST be safe to call
+// Components once per result; calling it multiple times or before the
+// terminating Aggregate / Finalize is a programming error and may
+// return stale state.
+//
+// Universal floor contract: the orchestrator ALWAYS populates the
+// universal floor keys ({"n", "n_null"}) on Response.Components from
+// per-record bookkeeping. Components() returns ONLY the operator-
+// specific keys (mean, variance, mode, range_min, dict_size, …) — do
+// NOT re-emit n / n_null from the operator. Returning (nil, nil) is
+// the canonical signal for "no operator-specific keys; caller still
+// fills the universal floor unconditionally" (e.g. AGG_COUNT, where
+// the universal floor IS the entire component payload).
+//
+// Streaming semantics follow the descriptor.ComponentsMergeability
+// declared at registration time:
+//
+//   - Mergeable: components fold across chunks via the same
+//     MergeOnline path as the scalar value (Welford, sums, counts).
+//   - Partial: map / set merges that work but cost allocation
+//     (frequency tables, distinct masks); orchestrator may stage the
+//     merge at terminal flush.
+//   - None: components emitted only on terminal buffered flush
+//     (median / percentile — need a sorted view of the full input);
+//     streaming chunks omit them and predict declares the slot as
+//     buffered-components-only.
+//
+// Subsequent stories add the per-aggregator implementations under
+// compile-time assertions of the form:
+//
+//	var _ processing.MetaAggregator = (*welfordAgg)(nil)
+//
+// which keep the wiring grep-discoverable and catch interface drift
+// at build time. No runtime wiring is added by the interface itself —
+// the descriptor.ComponentSchema declared in capabilities_*.go is the
+// matching half consumed by predict / manifest.
+type MetaAggregator interface {
+	Aggregator
+	// Components returns the per-operator components map keyed by the
+	// snake_case names declared in the aggregator's
+	// descriptor.ComponentSchema. Returning (nil, nil) means "no
+	// operator-specific keys; caller fills the universal floor
+	// unconditionally". A non-nil error aborts the request with the
+	// same error-routing contract as Aggregate / Finalize.
+	Components() (map[string]any, error)
+}
