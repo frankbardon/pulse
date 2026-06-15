@@ -188,15 +188,21 @@ func TestManifestExamplesPopulated(t *testing.T) {
 }
 
 // TestManifestComponentSchemasComplete asserts that every registered
-// aggregator (types.AllAggregationTypes()) has a populated
-// ComponentSchema on its capability entry AND a corresponding entry in
-// Manifest.ComponentsSchemas.Aggregators. The universal floor of
-// {"n", "n_null"} is declared on every entry so the Keys slice is
-// always non-empty; mergeability is required (no zero-value default).
+// aggregator (types.AllAggregationTypes()) and every registered grouper
+// (types.AllGroupTypes()) has a populated ComponentSchema on its
+// capability entry AND a corresponding entry in
+// Manifest.ComponentsSchemas.{Aggregators,Groupers}. The universal floor
+// is declared on every entry so the Keys slice is always non-empty;
+// mergeability is required (no zero-value default).
 //
-// Stub gate for E1-S3 — the finalize pass (E5-S3) tightens this to
-// also assert byte-equal parity with the runtime MetaAggregator
-// emission. Groupers + Filterers gain peer gates in E2-S2 / E2-S8.
+// Aggregator floor is {"n", "n_null"}; grouper floor is {"total_n",
+// "n_null"} (groupers partition all post-filter records, not just
+// non-null inputs).
+//
+// Stub gate for E1-S3 / E2-S2 — the finalize pass (E5-S3) tightens
+// this to also assert byte-equal parity with the runtime
+// MetaAggregator / MetaGrouper emission. Filterers gain a peer gate in
+// E2-S8 (TODO: assert ComponentsSchemas.Filterers once populated).
 func TestManifestComponentSchemasComplete(t *testing.T) {
 	m := BuildManifest()
 
@@ -246,6 +252,58 @@ func TestManifestComponentSchemasComplete(t *testing.T) {
 			t.Errorf("aggregator %q ComponentsSchemas entry Keys[1].Name missing or wrong, want \"n_null\" (universal floor)", name)
 		}
 	}
+
+	// Per-Operator surface: every grouper capability entry carries a
+	// populated ComponentSchema with the universal floor plus the
+	// operator-specific keys.
+	grpSet := nameSet(m.Components.Groupers)
+	for _, gt := range types.AllGroupTypes() {
+		name := string(gt)
+		op, ok := grpSet[name]
+		if !ok {
+			t.Fatalf("grouper %q missing from manifest.components.groupers", name)
+		}
+		if len(op.ComponentSchema.Keys) == 0 {
+			t.Fatalf("grouper %q has empty ComponentSchema.Keys (universal floor must be declared)", name)
+		}
+		if op.ComponentSchema.Mergeability == "" {
+			t.Fatalf("grouper %q has empty ComponentSchema.Mergeability (must be Mergeable, Partial, or None)", name)
+		}
+	}
+
+	// Top-level projection: ComponentsSchemas.Groupers mirrors the
+	// per-Operator entries.
+	if m.ComponentsSchemas.Groupers == nil {
+		t.Fatalf("ComponentsSchemas.Groupers is nil; manifest projection not populated")
+	}
+	if got, want := len(m.ComponentsSchemas.Groupers), len(types.AllGroupTypes()); got != want {
+		t.Errorf("ComponentsSchemas.Groupers length = %d, want %d", got, want)
+	}
+	for _, gt := range types.AllGroupTypes() {
+		name := string(gt)
+		sch, ok := m.ComponentsSchemas.Groupers[name]
+		if !ok {
+			t.Fatalf("grouper %q missing from ComponentsSchemas.Groupers", name)
+		}
+		if len(sch.Keys) == 0 {
+			t.Errorf("grouper %q ComponentsSchemas entry has empty Keys", name)
+		}
+		if sch.Mergeability == "" {
+			t.Errorf("grouper %q ComponentsSchemas entry has empty Mergeability", name)
+		}
+		// Universal grouper floor — every entry begins with
+		// {total_n, n_null}.
+		if sch.Keys[0].Name != "total_n" {
+			t.Errorf("grouper %q ComponentsSchemas entry Keys[0].Name = %q, want \"total_n\" (universal floor)", name, sch.Keys[0].Name)
+		}
+		if len(sch.Keys) < 2 || sch.Keys[1].Name != "n_null" {
+			t.Errorf("grouper %q ComponentsSchemas entry Keys[1].Name missing or wrong, want \"n_null\" (universal floor)", name)
+		}
+	}
+
+	// TODO(E2-S8): once filterers are wired, assert every entry in
+	// types.AllFiltererTypes() carries a non-empty
+	// ComponentsSchemas.Filterers row with its universal floor.
 }
 
 func TestRootManifestGolden(t *testing.T) {

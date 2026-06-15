@@ -2312,7 +2312,29 @@
           "emits_type_note": "string group key per row",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "dict_size",
+                "type": "int",
+                "description": "Number of distinct values observed across all buckets (cardinality of the partition key)."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, label, count}."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2350,7 +2372,44 @@
           "streamable": false,
           "streamable_hint": "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.",
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "granularity",
+                "type": "string",
+                "description": "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."
+              },
+              {
+                "name": "range_start",
+                "type": "string",
+                "description": "ISO date string of the earliest period observed."
+              },
+              {
+                "name": "range_end",
+                "type": "string",
+                "description": "ISO date string of the latest period observed."
+              },
+              {
+                "name": "n_buckets",
+                "type": "int",
+                "description": "Number of distinct calendar buckets observed."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, period_start, period_end, count}."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2382,7 +2441,39 @@
           "streamable": false,
           "streamable_hint": "Quantile cutoffs need the sorted value set; use GROUP_RANGE or GROUP_ROUNDED with known bounds for streaming.",
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "n_quantiles",
+                "type": "int",
+                "description": "Number of equal-population quantile buckets requested (Group.Interval)."
+              },
+              {
+                "name": "method",
+                "type": "string",
+                "description": "Quantile interpolation method (e.g. \"linear\")."
+              },
+              {
+                "name": "edges",
+                "type": "[]float64",
+                "description": "Sorted cutpoints separating adjacent quantile buckets."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+              }
+            ],
+            "mergeability": "none"
           }
         },
         {
@@ -2412,7 +2503,59 @@
           "emits_type_note": "string bucket label per row (e.g. \"[10, 20)\")",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "interval",
+                "type": "float64",
+                "description": "Bucket width on the value axis (Group.Interval)."
+              },
+              {
+                "name": "range_min",
+                "type": "float64",
+                "description": "Smallest non-null value observed across all buckets."
+              },
+              {
+                "name": "range_max",
+                "type": "float64",
+                "description": "Largest non-null value observed across all buckets."
+              },
+              {
+                "name": "n_buckets",
+                "type": "int",
+                "description": "Number of half-open range buckets emitted."
+              },
+              {
+                "name": "edges",
+                "type": "[]float64",
+                "description": "Sorted cutpoints separating adjacent range buckets."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+              },
+              {
+                "name": "underflow_count",
+                "type": "int",
+                "description": "Records below the lowest configured bucket edge."
+              },
+              {
+                "name": "overflow_count",
+                "type": "int",
+                "description": "Records at or above the highest configured bucket edge."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2442,7 +2585,34 @@
           "emits_type_note": "rounded numeric key per row",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "precision",
+                "type": "float64",
+                "description": "Rounding increment used as the bucket scalar (Group.Interval)."
+              },
+              {
+                "name": "edges",
+                "type": "[]float64",
+                "description": "Sorted rounded scalars separating adjacent buckets."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2459,7 +2629,29 @@
           "emits_type_note": "string bucket key per selected label per row",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "total_label_observations",
+                "type": "int",
+                "description": "Sum of buckets[].count across the partition; may exceed total_n because each row fans into one bucket per selected label."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-label records, ordered by emission; each entry carries {key, label, count, dict_index}."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2476,7 +2668,29 @@
           "emits_type_note": "string bucket key per row (e.g. \"AMEX|VISA\")",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "n_empty_mask",
+                "type": "int",
+                "description": "Records whose set mask was the empty selection (zero-bit mask is a valid distinct bucket from null)."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, mask, count, labels}."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         }
       ],
@@ -7304,10 +7518,247 @@
           ],
           "mergeability": "mergeable"
         }
+      },
+      "groupers": {
+        "GROUP_CATEGORY": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "dict_size",
+              "type": "int",
+              "description": "Number of distinct values observed across all buckets (cardinality of the partition key)."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, label, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_DATE": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "granularity",
+              "type": "string",
+              "description": "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."
+            },
+            {
+              "name": "range_start",
+              "type": "string",
+              "description": "ISO date string of the earliest period observed."
+            },
+            {
+              "name": "range_end",
+              "type": "string",
+              "description": "ISO date string of the latest period observed."
+            },
+            {
+              "name": "n_buckets",
+              "type": "int",
+              "description": "Number of distinct calendar buckets observed."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, period_start, period_end, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_QUANTILE": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "n_quantiles",
+              "type": "int",
+              "description": "Number of equal-population quantile buckets requested (Group.Interval)."
+            },
+            {
+              "name": "method",
+              "type": "string",
+              "description": "Quantile interpolation method (e.g. \"linear\")."
+            },
+            {
+              "name": "edges",
+              "type": "[]float64",
+              "description": "Sorted cutpoints separating adjacent quantile buckets."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+            }
+          ],
+          "mergeability": "none"
+        },
+        "GROUP_RANGE": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "interval",
+              "type": "float64",
+              "description": "Bucket width on the value axis (Group.Interval)."
+            },
+            {
+              "name": "range_min",
+              "type": "float64",
+              "description": "Smallest non-null value observed across all buckets."
+            },
+            {
+              "name": "range_max",
+              "type": "float64",
+              "description": "Largest non-null value observed across all buckets."
+            },
+            {
+              "name": "n_buckets",
+              "type": "int",
+              "description": "Number of half-open range buckets emitted."
+            },
+            {
+              "name": "edges",
+              "type": "[]float64",
+              "description": "Sorted cutpoints separating adjacent range buckets."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+            },
+            {
+              "name": "underflow_count",
+              "type": "int",
+              "description": "Records below the lowest configured bucket edge."
+            },
+            {
+              "name": "overflow_count",
+              "type": "int",
+              "description": "Records at or above the highest configured bucket edge."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_ROUNDED": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "precision",
+              "type": "float64",
+              "description": "Rounding increment used as the bucket scalar (Group.Interval)."
+            },
+            {
+              "name": "edges",
+              "type": "[]float64",
+              "description": "Sorted rounded scalars separating adjacent buckets."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_SET_PER_ELEMENT": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "total_label_observations",
+              "type": "int",
+              "description": "Sum of buckets[].count across the partition; may exceed total_n because each row fans into one bucket per selected label."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-label records, ordered by emission; each entry carries {key, label, count, dict_index}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_SET_VALUE": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "n_empty_mask",
+              "type": "int",
+              "description": "Records whose set mask was the empty selection (zero-bit mask is a valid distinct bucket from null)."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, mask, count, labels}."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
       }
     }
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: ad29ad4f21ffd89c991ab49d45da408128b6b54877dff6fe59ede04a9cb3a6de
+// golden-hash: 87720f8f3e7d572f4a42cb9699953dfe42cb59cec21cfab28e7ab721ee9db283

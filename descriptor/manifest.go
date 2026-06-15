@@ -353,14 +353,13 @@ func sortRegressions(rs []RegressionMeta) []RegressionMeta {
 // the per-category capability tables into the top-level
 // ComponentsSchemasBlock projection. Map serialization is sorted by
 // encoding/json since Go 1.12, so the golden manifest stays
-// deterministic without a wrapping sort step. Groupers + Filterers
-// remain empty until E2-S2 / E2-S8 populate their ComponentSchema
-// surfaces; an empty map for those categories elides under
+// deterministic without a wrapping sort step. Groupers are wired in
+// E2-S2; Filterers remain empty until E2-S8 populates their
+// ComponentSchema surface; an empty map for that category elides under
 // `omitempty`.
 func componentsSchemasBlock() ComponentsSchemasBlock {
-	aggs := aggregatorCapabilities()
 	out := ComponentsSchemasBlock{}
-	if len(aggs) > 0 {
+	if aggs := aggregatorCapabilities(); len(aggs) > 0 {
 		m := make(map[string]ComponentSchema, len(aggs))
 		for _, op := range aggs {
 			if len(op.ComponentSchema.Keys) == 0 && op.ComponentSchema.Mergeability == "" {
@@ -370,6 +369,18 @@ func componentsSchemasBlock() ComponentsSchemasBlock {
 		}
 		if len(m) > 0 {
 			out.Aggregators = m
+		}
+	}
+	if grps := grouperCapabilities(); len(grps) > 0 {
+		m := make(map[string]ComponentSchema, len(grps))
+		for _, op := range grps {
+			if len(op.ComponentSchema.Keys) == 0 && op.ComponentSchema.Mergeability == "" {
+				continue
+			}
+			m[op.Name] = op.ComponentSchema
+		}
+		if len(m) > 0 {
+			out.Groupers = m
 		}
 	}
 	return out
