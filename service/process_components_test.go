@@ -359,9 +359,15 @@ func TestService_Process_Components_Set_AGG_SET_UNION(t *testing.T) {
 	}
 }
 
-// TestPredict_ComponentSchemaMatchesRuntime is the E1-S12 manifest-
-// vs-runtime parity sweep over every registered aggregator (28
-// today). For each aggregator the test:
+// TestPredict_ComponentSchemaMatchesRuntime is the E1-S12 / E2-S3
+// manifest-vs-runtime parity sweep. The aggregator half covers every
+// registered aggregator (28 today) end-to-end through Predict +
+// Process; the grouper half covers every registered grouper (7 today)
+// on the predict side only — per-grouper Components emission lands in
+// E2-S4..S6, so the runtime comparison is gated behind a TODO until
+// MetaGrouper implementations populate Response.Components.Groupers.
+//
+// For each aggregator the test:
 //
 //   - Builds a one-slot Request with that aggregator over an
 //     in-memory cohort whose schema matches the aggregator's accepted
@@ -374,10 +380,27 @@ func TestService_Process_Components_Set_AGG_SET_UNION(t *testing.T) {
 //     .ComponentSchema.Keys minus floor {n, n_null} equals the sorted
 //     key set of Response.Components.Aggregations[0].Operator.
 //
+// For each grouper the test:
+//
+//   - Builds a Request with that grouper plus a minimal AGG_COUNT
+//     companion (every aggregation request needs at least one
+//     aggregation slot) over an in-memory cohort whose schema matches
+//     the grouper's accepted field types.
+//   - Runs descriptor.PredictFromBytes(headerOnly, req) and asserts
+//     the per-slot GroupPredict carries a non-empty ComponentSchema
+//     with the universal grouper floor {total_n, n_null} present.
+//   - Asserts BufferedComponents=true for GROUP_QUANTILE (the only
+//     None-mergeability grouper today) and =false for every other
+//     grouper.
+//   - TODO(E2-S4..S6): tighten this to compare the predict declared
+//     key set against Response.Components.Groupers[0].Operator once
+//     MetaGrouper implementations land. Until then the runtime
+//     comparison half is skipped — runtime emission is missing.
+//
 // E5-S3 promotes this test to a non-skippable CI gate; this stub
-// covers every registered aggregator so the gate is meaningful at
-// promotion. The test deliberately lives in service/ (not
-// descriptor/) so the runtime side can call Process directly —
+// covers every registered aggregator and grouper so the gate is
+// meaningful at promotion. The test deliberately lives in service/
+// (not descriptor/) so the runtime side can call Process directly —
 // descriptor/predict.go itself stays free of service/processing
 // imports, satisfying TestPredictNoExecutionImports.
 func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
@@ -435,6 +458,195 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 					op, predictKeys, runtimeKeys)
 			}
 		})
+	}
+
+	// --- grouper half (E2-S3) ---------------------------------------
+	groupFixtures := allGroupServiceFixtures(t)
+	for _, op := range types.AllGroupTypes() {
+		op := op
+		gfix, ok := groupFixtures[op]
+		if !ok {
+			t.Fatalf("no service fixture for %s — add one in allGroupServiceFixtures", op)
+		}
+		t.Run(string(op), func(t *testing.T) {
+			// Header-only blob for the descriptor path.
+			hdr := buildHeaderOnlyPulseBytes(t, gfix.schema)
+			predictReq := &types.Request{
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_COUNT, Field: gfix.companionField, Label: "n"},
+				},
+				Groups: []*types.Group{
+					{Type: op, Field: gfix.field, Interval: gfix.interval, Params: gfix.params},
+				},
+			}
+			env := descriptor.PredictFromBytes(hdr, predictReq, nil)
+			result, ok := env.Data.(*descriptor.PredictResult)
+			if !ok {
+				t.Fatalf("Predict.Data is %T, want *PredictResult (errors: %v)",
+					env.Data, env.Errors)
+			}
+			if len(result.Groups) != 1 {
+				t.Fatalf("predict Groups slots = %d, want 1", len(result.Groups))
+			}
+			declared := result.Groups[0].ComponentSchema.Keys
+			if len(declared) == 0 {
+				t.Fatalf("%s: predict GroupPredict.ComponentSchema.Keys empty; want at least the universal floor {total_n, n_null}", op)
+			}
+			// Universal floor must lead the schema (groupSchema prepends it).
+			if got := declared[0].Name; got != "total_n" {
+				t.Errorf("%s: ComponentSchema.Keys[0].Name = %q, want %q (universal floor)", op, got, "total_n")
+			}
+			if len(declared) < 2 || declared[1].Name != "n_null" {
+				t.Errorf("%s: ComponentSchema.Keys[1].Name missing or wrong, want %q (universal floor)", op, "n_null")
+			}
+
+			// BufferedComponents parity with the static capability
+			// table: GROUP_QUANTILE is the only None-mergeability
+			// grouper today; everything else is Mergeable.
+			wantBuffered := op == types.GROUP_QUANTILE
+			if got := result.Groups[0].BufferedComponents; got != wantBuffered {
+				t.Errorf("%s: BufferedComponents = %v, want %v", op, got, wantBuffered)
+			}
+
+			// TODO(E2-S4..S6): tighten this once groupers emit per-
+			// slot GrouperComponents at runtime. The runtime comparison
+			// half is skipped here because no MetaGrouper implementation
+			// has landed yet — Response.Components.Groupers is empty
+			// for every grouper today. When E2-S4..S6 wires per-grouper
+			// emission, add the same predict-vs-runtime sorted-key-set
+			// comparison the aggregator half above performs.
+		})
+	}
+}
+
+// groupServiceFixture pairs a grouper type with the schema, cohort
+// filename, field name, optional Interval / Params, and a companion
+// numeric field that the AGG_COUNT slot can reference. Mirrors
+// aggServiceFixture for the grouper half of TestPredict_ComponentSchemaMatchesRuntime.
+type groupServiceFixture struct {
+	svc            *Service
+	schema         *encoding.Schema
+	cohortName     string
+	field          string
+	companionField string
+	interval       float64
+	params         json.RawMessage
+}
+
+// allGroupServiceFixtures builds one fixture per registered grouper
+// type, sharing svc / cohort across operators that accept the same
+// field type. Schema choice matches the capability table's
+// AcceptsTypes: GROUP_DATE needs a date field, GROUP_RANGE / ROUNDED /
+// QUANTILE need numeric, GROUP_SET_VALUE / GROUP_SET_PER_ELEMENT need
+// set_u8, GROUP_CATEGORY accepts any cohort field type.
+//
+// Today the function only powers the predict half of the sweep — no
+// runtime comparison is performed because MetaGrouper implementations
+// land in E2-S4..S6. The svc + schema + companion field are still
+// carried on every fixture so the runtime half can be wired in place
+// when emission lands without restructuring the fixture map.
+func allGroupServiceFixtures(t *testing.T) map[types.GroupType]groupServiceFixture {
+	t.Helper()
+
+	// Shared score cohort (u32 id + f64 score, 5 rows) — used by every
+	// numeric grouper plus GROUP_CATEGORY over the u32 id column.
+	scoreSvc, scoreSchema := componentsScoreCohort(t)
+
+	// Date cohort: f64 score + date waveDate, 5 rows.
+	dateSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "waveDate", Type: encoding.FieldTypeDate, ByteOffset: 8, CsvColumnIdx: 1},
+		},
+	}
+	dateRecords := [][]uint64{
+		{math.Float64bits(10.0), 19000}, // 2022-01-08
+		{math.Float64bits(20.0), 19031}, // 2022-02-08
+		{math.Float64bits(30.0), 19059}, // 2022-03-08
+		{math.Float64bits(40.0), 19090}, // 2022-04-08
+		{math.Float64bits(50.0), 19120}, // 2022-05-08
+	}
+	dateCfg := setupTestFS(t, "predict_dates.pulse", dateSchema, dateRecords)
+	dateSvc := New(dateCfg)
+
+	// Set cohort: set_u8 with a 4-entry dictionary, 5 rows of masks.
+	// Companion AGG_COUNT slot rides on the tags field too (AGG_COUNT
+	// is field-agnostic).
+	setDict := encoding.NewDictionary()
+	for _, v := range []string{"VISA", "MC", "AMEX", "DISC"} {
+		if _, err := setDict.Add(v); err != nil {
+			t.Fatalf("dict.Add: %v", err)
+		}
+	}
+	setSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "tags", Type: encoding.FieldTypeSetU8, ByteOffset: 0, CsvColumnIdx: 0, Dictionary: setDict},
+		},
+	}
+	setRecords := [][]uint64{
+		{0b0001},
+		{0b0011},
+		{0b0100},
+		{0b1000},
+		{0b0110},
+	}
+	setCfg := setupTestFS(t, "predict_grp_tags.pulse", setSchema, setRecords)
+	setSvc := New(setCfg)
+
+	return map[types.GroupType]groupServiceFixture{
+		types.GROUP_CATEGORY: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "id",
+			companionField: "score",
+		},
+		types.GROUP_DATE: {
+			svc:            dateSvc,
+			schema:         dateSchema,
+			cohortName:     "predict_dates.pulse",
+			field:          "waveDate",
+			companionField: "score",
+			params:         json.RawMessage(`{"component":"month"}`),
+		},
+		types.GROUP_QUANTILE: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "score",
+			companionField: "score",
+			interval:       4,
+		},
+		types.GROUP_RANGE: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "score",
+			companionField: "score",
+			interval:       10,
+		},
+		types.GROUP_ROUNDED: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "score",
+			companionField: "score",
+			interval:       10,
+		},
+		types.GROUP_SET_VALUE: {
+			svc:            setSvc,
+			schema:         setSchema,
+			cohortName:     "predict_grp_tags.pulse",
+			field:          "tags",
+			companionField: "tags",
+		},
+		types.GROUP_SET_PER_ELEMENT: {
+			svc:            setSvc,
+			schema:         setSchema,
+			cohortName:     "predict_grp_tags.pulse",
+			field:          "tags",
+			companionField: "tags",
+		},
 	}
 }
 

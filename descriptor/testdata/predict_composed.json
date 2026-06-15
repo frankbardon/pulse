@@ -102,6 +102,37 @@
         }
       }
     ],
+    "groups": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "grade",
+        "component_schema": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "dict_size",
+              "type": "int",
+              "description": "Number of distinct values observed across all buckets (cardinality of the partition key)."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, label, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      }
+    ],
     "overlays_applied": [],
     "overlays_schema_divergence": [],
     "overlay_cost": {}
@@ -118,4 +149,4 @@
     }
   ]
 }
-// golden-hash: af90308bb3b18cc7f9bd340a94e5f95f6ea3caa79f861172c867d86d1c0d59e8
+// golden-hash: 53f238871c3556011d9952a40222578f48f33c7eceeef8cba93aa8a7b58a5725
