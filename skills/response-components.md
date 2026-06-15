@@ -377,6 +377,40 @@ go test -bench=BenchmarkCrosstabWideCohort_Fused    -run=^$ -count=3 -benchmem .
 go test -bench=BenchmarkCrosstabWideCohort_Buffered -run=^$ -count=3 -benchmem ./service/
 ```
 
+## Runnable examples
+
+Two runnable Request examples ship with the embedded `examples/` library and
+demonstrate Components consumption end-to-end against built fixtures. Both
+are registered through the same `//go:embed` manifest as every other
+example, so they show up under `pulse_examples_search` / `pulse_examples_get`
+and round-trip through `TestExamples_*` meta-validation:
+
+- [`examples/aggregations/08_welford_components.json`](../examples/aggregations/08_welford_components.json)
+  — process example. `AGG_WELFORD` against `experiment.pulse#revenue` emits
+  the streaming triple `{Mean, Variance, N}` as the aggregator value and
+  surfaces the full operator projection `{n, n_null, mean, m2, variance,
+  stddev}` under `Response.Components.Aggregations[0].Operator`. Canonical
+  illustration of operator-specific Component keys riding alongside the
+  universal floor `{n, n_null}`.
+
+- [`examples/crosstab/16_welford_components_revenue_by_region_treatment.json`](../examples/crosstab/16_welford_components_revenue_by_region_treatment.json)
+  — crosstab example. `AGG_WELFORD` cell aggregator over `region` x
+  `treatment` (`GROUP_CATEGORY` on both axes) with row, column, and grand
+  margins enabled. `Response.Components.Crosstab` is fully populated:
+  `CellCounts[r][c]` per-cell counts, `CellComponents[r][c]` per-cell triples
+  + floor, `MarginRowComponents` / `MarginColumnComponents` per-axis
+  recompute-from-raw triples, `GrandTotalComponents` all-records triple, plus
+  axis-key components in `RowKeyComponents` / `ColumnKeyComponents`. Indexes
+  byte-identically with `MatrixPayload` so consumers traverse Cells and
+  CellComponents with the same `(r, c)` tuple.
+
+Run them after building the fixture cohorts once via `./examples/fixtures/build.sh`:
+
+```sh
+bin/pulse api process --request examples/aggregations/08_welford_components.json --json
+bin/pulse api process --request examples/crosstab/16_welford_components_revenue_by_region_treatment.json --json
+```
+
 ## Cross-links
 
 - [aggregation-guide](aggregation-guide.md) — per-AGG component keys + the
