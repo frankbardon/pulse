@@ -361,6 +361,33 @@ const (
 	// unknown JSONType, Required=true with a non-nil Default).
 	PULSE_EXTENSION_PARAM_INVALID Code = "PULSE_EXTENSION_PARAM_INVALID"
 
+	// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH indicates an extension
+	// operator's ComponentsFunc emitted keys that are not a subset of
+	// the registration's declared ComponentSchema.Keys (modulo the
+	// universal-floor keys the orchestrator owns: n, n_null, total_n,
+	// n_in, n_out, n_null_input). The probe rejects the registration at
+	// pulse.New() time so the runtime never sees a half-declared
+	// components contract. Details carry the offending category, name,
+	// the undeclared emitted keys, and the declared key list so callers
+	// can either widen the schema or trim the emission. E4-S6 wires this
+	// code into extensions_probe.verifyComponentKeysSubset, replacing
+	// the temporary PULSE_EXTENSION_PARAM_INVALID stub.
+	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH Code = "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH"
+
+	// PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA indicates an extension
+	// operator registration declared a ComponentsFunc emitter without a
+	// matching ComponentSchema (Schema.Keys is empty), or declared a
+	// non-empty ComponentSchema without a ComponentsFunc emitter. Both
+	// halves of the contract MUST be present together so the probe can
+	// validate the emitter's output against the declared schema; the
+	// floor-only path (zero ComponentSchema AND nil ComponentsFunc)
+	// remains a valid shape and is NOT subject to this code. Surfaced at
+	// pulse.New() time during probe-validation; details carry the
+	// category and name of the offending registration. E4-S6 wires this
+	// code into extensions_probe alongside
+	// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH.
+	PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA Code = "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA"
+
 	// PULSE_LOOKUP_TABLE_UNKNOWN indicates a runtime expression
 	// referenced a lookup table that is not registered on the
 	// Service.
@@ -1089,6 +1116,8 @@ var allCodes = []Code{
 	PULSE_EXTENSION_STREAMABLE_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
+	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,
+	PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
 	PULSE_LOOKUP_TABLE_UNKNOWN,
 	PULSE_LOOKUP_MISS,
 	PULSE_ARCHIVE_MAGIC_INVALID,
