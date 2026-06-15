@@ -6033,6 +6033,10 @@
         "description": "Fit OLS (with optional l1/l2/elasticnet penalty), GLM (logistic, poisson, gamma), and Bayesian linear regression. Use when a request needs coefficient estimates, R²/deviance, std errors, or per-row residuals; covers the 13 textbook regression names (Simple/Multiple/Linear/Logistic/Ridge/Lasso/Polynomial/Bayesian/Jackknife/ElasticNet/Ecological/Stepwise) via 3 operators + 2 modifiers + FEAT_POLY composition."
       },
       {
+        "name": "response-components",
+        "description": "Universal contract for Response.Components — the constituent-parts metadata behind every aggregator scalar, grouper bucket, filterer N-in/N-out, and crosstab cell. Covers the typed shell + per-family shape (Aggregations / Groupers / Crosstab / Filterers / Run), the universal {n, n_null} floor filled by the orchestrator, the per-operator ComponentSchema declaration in the manifest, the Mergeable / Partial / None mergeability axis, streaming-chunk emission semantics, the four parity-overlay reads against CellComponents (replacing the legacy WelfordTriple smuggle in MatrixCell.Value), and the extension probe-validation contract."
+      },
+      {
         "name": "statistical-testing",
         "description": "Run tier-1 row tests (TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F, TEST_ANOVA_WELCH, TEST_ANOVA_RM, TEST_KS, TEST_PAIRED_T, TEST_PROP_Z, TEST_PEARSON_R, TEST_SPEARMAN_R, TEST_KENDALL_TAU, TEST_MANN_WHITNEY_U, TEST_WILCOXON_SR, TEST_KRUSKAL_WALLIS, TEST_BROWN_FORSYTHE, TEST_FISHER_EXACT, TEST_SHAPIRO_WILK) and tier-2 post-tests (TEST_TUKEY_HSD, TEST_TREND, variants). Use when a request mentions hypothesis testing, p-values, ANOVA, t-tests, correlations, normality, or post-hoc comparisons."
       },
@@ -8172,4 +8176,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 794826c76185be87261dfed295ce1540e52974cd020e71df68d02ff73bf2126f
+// golden-hash: 4a0106dd1000477487a6c46e6ca5d3b6ec06805c88c699e30093dbd426a32a7d
