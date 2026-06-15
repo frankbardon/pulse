@@ -692,3 +692,72 @@ func TestCanonicalHash_OverlayLevelDistinct(t *testing.T) {
 		t.Fatalf("Level=1+Within=1 must hash distinctly from Within=1 alone")
 	}
 }
+
+// TestCanonicalHash_ResponseComponentsByteIdentity locks the additive
+// contract for the Response.Components slot (E1-S1) when fed through
+// CanonicalHash. A Response with the slot nil must hash identically to
+// the implicit pre-Components form — the JSON walker drops the absent
+// `components` key, so the canonical bytes are byte-identical to the
+// pre-E1-S1 baseline. This is the hash-routine companion to
+// TestResponse_ComponentsByteIdentityWhenNil in types_test.go.
+func TestCanonicalHash_ResponseComponentsByteIdentity(t *testing.T) {
+	implicit := Response{}
+	explicit := Response{Components: nil}
+
+	if a, b := CanonicalHash("response", implicit), CanonicalHash("response", explicit); a != b {
+		t.Fatalf("nil Components diverged from implicit form: implicit=%q explicit=%q", a, b)
+	}
+}
+
+// TestCanonicalHash_ResponseComponentsOperatorKeyOrderInvariant verifies
+// the canonical-hash routine walks the per-aggregator Operator map in
+// sorted-key order. Two AggregationComponents differing only in the
+// runtime insertion order of their Operator map MUST hash identically;
+// otherwise the data-driven dedup-cache contract breaks for
+// service-layer emitters that populate the map in their own iteration
+// order.
+func TestCanonicalHash_ResponseComponentsOperatorKeyOrderInvariant(t *testing.T) {
+	a := Response{
+		Components: &ResponseComponents{
+			Aggregations: []AggregationComponents{
+				{
+					Label: "avg_score",
+					N:     100,
+					NNull: 3,
+					Operator: map[string]any{
+						"mean":     42.5,
+						"variance": 7.25,
+					},
+				},
+			},
+		},
+	}
+	b := Response{
+		Components: &ResponseComponents{
+			Aggregations: []AggregationComponents{
+				{
+					Label: "avg_score",
+					N:     100,
+					NNull: 3,
+					Operator: map[string]any{
+						// Same keys, deliberately added in alternate
+						// runtime order; map iteration order is
+						// undefined but canonical-hash sorts keys.
+						"variance": 7.25,
+						"mean":     42.5,
+					},
+				},
+			},
+		},
+	}
+	if ha, hb := CanonicalHash("response", a), CanonicalHash("response", b); ha != hb {
+		t.Fatalf("Operator map key-order broke hash equality: %q vs %q", ha, hb)
+	}
+
+	// And populated vs nil Components must differ — slot presence is
+	// hash-meaningful.
+	bare := Response{}
+	if ha, hb := CanonicalHash("response", a), CanonicalHash("response", bare); ha == hb {
+		t.Fatalf("populated Components must hash distinctly from nil Components")
+	}
+}

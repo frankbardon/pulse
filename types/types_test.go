@@ -1179,3 +1179,218 @@ func TestComposedResponse_RoundTrip(t *testing.T) {
 		t.Errorf("Overlays[0].Scope = %q, want cell", got.Overlays[0].Scope)
 	}
 }
+
+// TestResponse_ComponentsByteIdentityWhenNil locks the additive
+// omitempty contract for the new Response.Components slot (E1-S1). A
+// Response with the slot left nil — the implicit form — must marshal
+// byte-identically to a Response{} authored without ever touching
+// Components, AND to a Response with the slot explicitly set to nil.
+// This is the test that gates format_version staying at "1.0": as long
+// as the slot is omitempty and the nil case yields no `components` key,
+// the wire shape for every pre-Components caller is preserved.
+func TestResponse_ComponentsByteIdentityWhenNil(t *testing.T) {
+	implicit := types.Response{}
+	explicit := types.Response{Components: nil}
+
+	implicitBytes, err := json.Marshal(implicit)
+	if err != nil {
+		t.Fatalf("marshal implicit Response{}: %v", err)
+	}
+	explicitBytes, err := json.Marshal(explicit)
+	if err != nil {
+		t.Fatalf("marshal explicit Response{Components: nil}: %v", err)
+	}
+
+	if string(implicitBytes) != string(explicitBytes) {
+		t.Fatalf("byte-identity broken: implicit=%q explicit=%q",
+			implicitBytes, explicitBytes)
+	}
+
+	// Sanity check: neither form may contain the `components` key.
+	if strings.Contains(string(implicitBytes), "components") {
+		t.Fatalf("implicit Response{} leaked components key: %q", implicitBytes)
+	}
+	if strings.Contains(string(explicitBytes), "components") {
+		t.Fatalf("explicit Response{Components: nil} leaked components key: %q", explicitBytes)
+	}
+}
+
+// TestResponse_ComponentsRoundTripJSON exercises a Response with the
+// Components slot populated across every typed sub-struct shell:
+// AggregationComponents, GrouperComponents, CrosstabComponents,
+// FiltererComponents, RunComponents. The round-trip must preserve
+// every field on every nested struct, including the deterministically
+// keyed Operator map[string]any payloads on Aggregations and Groupers
+// (the per-operator schema-declared keys land in E1-S5+ but the carrier
+// map exists today).
+func TestResponse_ComponentsRoundTripJSON(t *testing.T) {
+	src := types.Response{
+		Components: &types.ResponseComponents{
+			Aggregations: []types.AggregationComponents{
+				{
+					Label: "avg_score",
+					N:     100,
+					NNull: 3,
+					Operator: map[string]any{
+						"mean":     float64(42.5),
+						"variance": float64(7.25),
+					},
+				},
+				{
+					Label: "count_records",
+					N:     100,
+					NNull: 0,
+				},
+			},
+			Groupers: []types.GrouperComponents{
+				{
+					Field: "region",
+					Operator: map[string]any{
+						"bucket_count": float64(5),
+					},
+				},
+			},
+			Crosstab: &types.CrosstabComponents{},
+			Filterers: []types.FiltererComponents{
+				{
+					Label:      "drop_test_accounts",
+					NIn:        1000,
+					NOut:       950,
+					NNullInput: 2,
+				},
+			},
+			Run: &types.RunComponents{
+				TotalRecords:        1000,
+				FilteredRecords:     950,
+				NullRecords:         5,
+				ShardCount:          4,
+				PartialCohortReason: "shard_03 unreadable",
+			},
+		},
+	}
+
+	data, err := json.Marshal(src)
+	if err != nil {
+		t.Fatalf("marshal Response with Components: %v", err)
+	}
+
+	var got types.Response
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal Response with Components: %v", err)
+	}
+
+	if got.Components == nil {
+		t.Fatalf("Components slot missing after round-trip")
+	}
+	if len(got.Components.Aggregations) != 2 {
+		t.Fatalf("Aggregations length = %d, want 2",
+			len(got.Components.Aggregations))
+	}
+	a0 := got.Components.Aggregations[0]
+	if a0.Label != "avg_score" || a0.N != 100 || a0.NNull != 3 {
+		t.Errorf("Aggregations[0] = %+v, want label=avg_score N=100 NNull=3", a0)
+	}
+	if a0.Operator["mean"] != float64(42.5) {
+		t.Errorf("Aggregations[0].Operator[mean] = %v, want 42.5",
+			a0.Operator["mean"])
+	}
+	if a0.Operator["variance"] != float64(7.25) {
+		t.Errorf("Aggregations[0].Operator[variance] = %v, want 7.25",
+			a0.Operator["variance"])
+	}
+	a1 := got.Components.Aggregations[1]
+	if a1.Label != "count_records" || a1.N != 100 || a1.NNull != 0 {
+		t.Errorf("Aggregations[1] = %+v, want label=count_records N=100 NNull=0", a1)
+	}
+	if a1.Operator != nil {
+		t.Errorf("Aggregations[1].Operator = %v, want nil (omitempty)",
+			a1.Operator)
+	}
+
+	if len(got.Components.Groupers) != 1 {
+		t.Fatalf("Groupers length = %d, want 1", len(got.Components.Groupers))
+	}
+	g0 := got.Components.Groupers[0]
+	if g0.Field != "region" {
+		t.Errorf("Groupers[0].Field = %q, want region", g0.Field)
+	}
+	if g0.Operator["bucket_count"] != float64(5) {
+		t.Errorf("Groupers[0].Operator[bucket_count] = %v, want 5",
+			g0.Operator["bucket_count"])
+	}
+
+	if got.Components.Crosstab == nil {
+		t.Errorf("Crosstab shell lost after round-trip")
+	}
+
+	if len(got.Components.Filterers) != 1 {
+		t.Fatalf("Filterers length = %d, want 1", len(got.Components.Filterers))
+	}
+	f0 := got.Components.Filterers[0]
+	if f0.Label != "drop_test_accounts" || f0.NIn != 1000 ||
+		f0.NOut != 950 || f0.NNullInput != 2 {
+		t.Errorf("Filterers[0] = %+v, want label=drop_test_accounts NIn=1000 NOut=950 NNullInput=2", f0)
+	}
+
+	if got.Components.Run == nil {
+		t.Fatalf("Run slot lost after round-trip")
+	}
+	if got.Components.Run.TotalRecords != 1000 {
+		t.Errorf("Run.TotalRecords = %d, want 1000", got.Components.Run.TotalRecords)
+	}
+	if got.Components.Run.FilteredRecords != 950 {
+		t.Errorf("Run.FilteredRecords = %d, want 950",
+			got.Components.Run.FilteredRecords)
+	}
+	if got.Components.Run.NullRecords != 5 {
+		t.Errorf("Run.NullRecords = %d, want 5", got.Components.Run.NullRecords)
+	}
+	if got.Components.Run.ShardCount != 4 {
+		t.Errorf("Run.ShardCount = %d, want 4", got.Components.Run.ShardCount)
+	}
+	if got.Components.Run.PartialCohortReason != "shard_03 unreadable" {
+		t.Errorf("Run.PartialCohortReason = %q, want %q",
+			got.Components.Run.PartialCohortReason, "shard_03 unreadable")
+	}
+}
+
+// TestResponse_ComponentsEmptyNestedFieldsOmitted verifies the
+// omitempty contract recursively — a *ResponseComponents with every
+// nested slice / pointer left nil marshals to `{"components":{}}` (no
+// inner keys), and zero-valued sub-structs respect their own omitempty
+// tags. This pins the contract that an operator emitting only the
+// universal-floor keys does NOT leak empty `operator` maps onto the
+// wire.
+func TestResponse_ComponentsEmptyNestedFieldsOmitted(t *testing.T) {
+	resp := types.Response{
+		Components: &types.ResponseComponents{},
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal Response{Components:&ResponseComponents{}}: %v", err)
+	}
+	want := `{"components":{}}`
+	if string(data) != want {
+		t.Fatalf("empty ResponseComponents marshal = %q, want %q",
+			data, want)
+	}
+
+	// Single AggregationComponents with universal floor only — no
+	// Label, no Operator. JSON tags `n`/`n_null` are NOT omitempty
+	// (universal floor) so they appear with zero values; label /
+	// operator must stay absent.
+	resp2 := types.Response{
+		Components: &types.ResponseComponents{
+			Aggregations: []types.AggregationComponents{{N: 0, NNull: 0}},
+		},
+	}
+	data2, err := json.Marshal(resp2)
+	if err != nil {
+		t.Fatalf("marshal Response with floor-only AggregationComponents: %v", err)
+	}
+	want2 := `{"components":{"aggregations":[{"n":0,"n_null":0}]}}`
+	if string(data2) != want2 {
+		t.Fatalf("floor-only AggregationComponents marshal = %q, want %q",
+			data2, want2)
+	}
+}
