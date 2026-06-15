@@ -11,15 +11,6 @@ import (
 //go:embed *.md
 var content embed.FS
 
-// indexJSON is a deprecated stub kept only so skills_test.go (which still
-// references it as part of the legacy index.json checks) compiles during the
-// E2-S2 → E2-S3 window. E2-S3 removes the test references; once that lands
-// this symbol disappears. Do not use in new code — the loader walks `content`
-// directly via List().
-//
-// Deprecated: removed in E2-S3. See .planning/skill-pack-overhaul/.
-var indexJSON = []byte("[]")
-
 // Metadata describes a bundled skill.
 type Metadata struct {
 	Name        string   `json:"name"`
