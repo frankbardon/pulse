@@ -87,10 +87,33 @@ Zero-value `Extensions` is the no-op case — pulse.New behaves exactly as the p
     Streamable:  true,                            // factory MUST return OnlineAggregator
     Accepts:     []encoding.FieldType{encoding.FieldTypeF64},
     Params:      []pulse.ParamMeta{{Name: "weights", JSONType: "array"}},
+
+    // Components contract (E4-S5) — optional sibling-interface emitter:
+    ComponentSchema: descriptor.ComponentSchema{
+        Keys: []descriptor.ComponentKey{
+            {Name: "n", Type: "int", Description: "Records aggregated (universal floor)."},
+            {Name: "n_null", Type: "int", Description: "Null inputs (universal floor)."},
+            {Name: "sum", Type: "float64", Description: "Running sum of scores."},
+            {Name: "weights_applied", Type: "int", Description: "Weight multipliers fired."},
+        },
+        Mergeability: descriptor.Mergeable,
+    },
+    ComponentsFunc: func(instance processing.Aggregator) (map[string]any, error) {
+        a := instance.(*brandScoreAggregator)
+        return map[string]any{"sum": a.Sum(), "weights_applied": a.WeightsApplied()}, nil
+    },
 }
 ```
 
 When `Streamable=true`, the probe at `pulse.New` time asserts the factory's returned value implements `processing.OnlineAggregator`. Mismatch returns `PULSE_EXTENSION_STREAMABLE_MISMATCH`.
+
+**ComponentSchema + ComponentsFunc** is the embedder-facing path for the per-operator `Response.Components` contract. Three valid shapes:
+
+- **Floor-only** — leave `ComponentSchema` zero and `ComponentsFunc` nil. The orchestrator emits the universal floor (`{"n", "n_null"}`) and no extra keys.
+- **Schema + emitter** — declare a non-empty `ComponentSchema` with `Mergeability` set and supply `ComponentsFunc`. The runtime wraps the factory so `instance.(processing.MetaAggregator)` succeeds; the orchestrator routes the emitted map onto `Response.Components.Aggregations[i].Operator` after Aggregate / Finalize. Emitted keys MUST be a subset of `ComponentSchema.Keys` — probe-validation rejects extras at `pulse.New` time.
+- **Emitter without schema** OR **schema without emitter** — rejected (the schema would never be satisfied, or the emitter would never be validated). E4-S6 introduces the formal `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` / `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` error codes; until then both surface as `PULSE_EXTENSION_PARAM_INVALID`.
+
+Universal-floor keys are filled by the orchestrator unconditionally — do NOT re-emit `n` / `n_null` from `ComponentsFunc`. Return `(nil, nil)` to signal "no operator-specific keys; universal floor IS the entire payload" (the canonical AGG_COUNT shape).
 
 ### Attribute
 
@@ -113,6 +136,13 @@ Mode drives streaming-tier validation:
 ### Filterer / Grouper / Window / Feature
 
 All four follow the same envelope shape: name, description, factory, accepted types, params metadata. Filterers and windows currently have no streamable toggle — filterers are always row-local streamable, windows always run buffered.
+
+`FiltererRegistration` and `GrouperRegistration` also carry `ComponentSchema` + `ComponentsFunc` on the same contract as `AggregatorRegistration`. The runtime wraps the factory so the orchestrator's `instance.(processing.MetaFilterer)` / `.MetaGrouper` assertion succeeds; the emitted map routes onto `Response.Components.Filterers[i].Operator` / `.Groupers[i].Operator`. Universal floors differ by category:
+
+- **Grouper** floor: `{total_n, n_null}` — record counts post-filter; `ComponentsFunc` returns the operator-specific extras (bucket arrays, edges, dictionary mappings).
+- **Filterer** floor: `{n_in, n_out, n_null_input}` — three-counter triple from the filter pass. v1 ships every built-in filterer as floor-only; embedders may opt in by declaring a schema + emitter for operator-specific extras (e.g. per-value `n` for FILTER_INCLUDE).
+
+Floor-only registrations (no `ComponentSchema`, no `ComponentsFunc`) stay valid — the orchestrator emits just the universal floor.
 
 ### Test (tier-1 / tier-2)
 

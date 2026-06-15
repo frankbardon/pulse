@@ -3,12 +3,49 @@ package pulse
 import (
 	"encoding/json"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/processing/feature"
 	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
+
+// AggregatorComponentsFunc is the optional emitter an embedder may
+// supply alongside an AggregatorRegistration to make the operator
+// participate in the per-operator components contract (E1-S2 / E1-S3).
+// The orchestrator invokes the func ONCE after Aggregate / Finalize and
+// routes the result onto Response.Components.Aggregations[i].Operator;
+// the universal floor ({"n", "n_null"}) is filled unconditionally by
+// the orchestrator. Returning (nil, nil) is the canonical signal for
+// "no operator-specific keys; orchestrator's universal floor is the
+// entire payload" (floor-only operators).
+//
+// The instance passed in is the value the registration's Factory
+// returned (after Aggregate / Finalize); the func should not call
+// Aggregate / UpdateRow / Finalize on it. The returned map's keys must
+// be a SUBSET of the registration's ComponentSchema.Keys (universal-
+// floor keys allowed but not required) — probe-validation enforces
+// this contract at pulse.New time and runtime mismatches surface as
+// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH (formal code lands in
+// E4-S6).
+type AggregatorComponentsFunc func(instance processing.Aggregator) (map[string]any, error)
+
+// GrouperComponentsFunc is the grouper-shape sibling of
+// AggregatorComponentsFunc. The orchestrator invokes the func ONCE
+// after the grouper's terminal partition pass and routes the result
+// onto Response.Components.Groupers[i].Operator. The universal floor
+// ({total_n, n_null}) is filled unconditionally by the orchestrator.
+// Returning (nil, nil) is the canonical signal for "no operator-
+// specific keys".
+type GrouperComponentsFunc func(instance processing.Grouper) (map[string]any, error)
+
+// FiltererComponentsFunc is the filterer-shape sibling. In v1 every
+// built-in filterer leaves its operator-specific payload empty
+// (uniform floor of {n_in, n_out, n_null_input}); extensions may opt
+// in by supplying a ComponentSchema + this emitter. The instance passed
+// in is the FiltererBuilder the registration's Factory returned.
+type FiltererComponentsFunc func(instance processing.FiltererBuilder) (map[string]any, error)
 
 // FieldInputsFunc is the optional introspection callback an extension
 // registration may supply so the buffered-projection extractor can
@@ -96,6 +133,23 @@ type AggregatorRegistration struct {
 	// projection (runtime widens the field set when this operator
 	// appears in a request).
 	FieldInputs FieldInputsFunc
+	// ComponentSchema declares the per-operator components contract
+	// surfaced through Response.Components.Aggregations[i].Operator
+	// (E1-S3 / E4-S5). Leaving the schema empty (zero-value Keys plus
+	// empty Mergeability) makes the operator floor-only — the
+	// orchestrator emits the universal floor ({"n", "n_null"}) and no
+	// extra keys. When ComponentSchema.Keys is non-empty, the
+	// ComponentsFunc emitter MUST be supplied and its returned map
+	// keys MUST be a subset of the declared key set; probe-validation
+	// enforces both at pulse.New time.
+	ComponentSchema descriptor.ComponentSchema
+	// ComponentsFunc is the optional sibling-interface emitter. When
+	// set, the orchestrator routes the returned map onto
+	// Response.Components.Aggregations[i].Operator after the
+	// aggregator's Aggregate / Finalize call terminates. Nil is the
+	// floor-only path (universal floor fills the entire payload).
+	// Mirrors processing.MetaAggregator.Components() in shape.
+	ComponentsFunc AggregatorComponentsFunc
 }
 
 // AttributeMode declares which streaming tier an attribute factory
@@ -156,6 +210,21 @@ type FiltererRegistration struct {
 	// return the static set of extra fields the filterer reads
 	// beyond Filterer.Field.
 	FieldInputs FieldInputsFunc
+	// ComponentSchema declares the per-operator components contract
+	// surfaced through Response.Components.Filterers[i].Operator
+	// (E2-S8 / E4-S5). v1 ships every built-in filterer as floor-only
+	// (uniform {n_in, n_out, n_null_input}); extensions may opt in by
+	// declaring a non-empty ComponentSchema alongside a ComponentsFunc.
+	// Mismatch between declared schema and emitted keys is rejected at
+	// pulse.New time.
+	ComponentSchema descriptor.ComponentSchema
+	// ComponentsFunc is the optional sibling-interface emitter. When
+	// set, the orchestrator routes the returned map onto
+	// Response.Components.Filterers[i].Operator after the filter pass
+	// terminates. Nil is the floor-only path (the orchestrator's
+	// universal floor is the entire payload). Mirrors
+	// processing.MetaFilterer.Components() in shape.
+	ComponentsFunc FiltererComponentsFunc
 }
 
 // GrouperRegistration installs a custom GROUP_* operator. Set
@@ -171,6 +240,20 @@ type GrouperRegistration struct {
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
+	// ComponentSchema declares the per-operator components contract
+	// surfaced through Response.Components.Groupers[i].Operator
+	// (E2-S2 / E4-S5). Leaving the schema empty makes the operator
+	// floor-only — the orchestrator emits the universal floor
+	// ({total_n, n_null}) without operator-specific extras. When
+	// ComponentSchema.Keys is non-empty, the ComponentsFunc emitter
+	// MUST be supplied and its keys MUST match the declared schema.
+	ComponentSchema descriptor.ComponentSchema
+	// ComponentsFunc is the optional sibling-interface emitter. When
+	// set, the orchestrator routes the returned map onto
+	// Response.Components.Groupers[i].Operator after the grouper's
+	// terminal partitioning pass. Nil is the floor-only path. Mirrors
+	// processing.MetaGrouper.Components() in shape.
+	ComponentsFunc GrouperComponentsFunc
 }
 
 // WindowRegistration installs a custom WIN_* operator. Window

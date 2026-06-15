@@ -356,7 +356,16 @@ func sortRegressions(rs []RegressionMeta) []RegressionMeta {
 // deterministic without a wrapping sort step. Aggregators wired in
 // E1-S3; Groupers wired in E2-S2; Filterers wired in E2-S8 — every
 // registered category populates its sub-map today.
-func componentsSchemasBlock() ComponentsSchemasBlock {
+//
+// When snap is non-nil, every entry in snap.ComponentSchemas is merged
+// into the appropriate sub-map after the built-in capability table is
+// projected. Extension operators are partitioned by snapshot category
+// (Aggregators / Groupers / Filterers slices); a name appearing in
+// snap.Aggregators routes onto out.Aggregators, etc. Names not
+// matching any snapshot category are dropped (defensive — the
+// registration surface only populates ComponentSchemas alongside one
+// of the three category slices).
+func componentsSchemasBlock(snap *ExtensionsSnapshot) ComponentsSchemasBlock {
 	out := ComponentsSchemasBlock{}
 	if aggs := aggregatorCapabilities(); len(aggs) > 0 {
 		m := make(map[string]ComponentSchema, len(aggs))
@@ -393,6 +402,26 @@ func componentsSchemasBlock() ComponentsSchemasBlock {
 		if len(m) > 0 {
 			out.Filterers = m
 		}
+	}
+	if snap != nil && len(snap.ComponentSchemas) > 0 {
+		mergeExtensionSchemas := func(target *map[string]ComponentSchema, metas []OperatorMeta) {
+			for _, m := range metas {
+				schema, ok := snap.ComponentSchemas[m.Name]
+				if !ok {
+					continue
+				}
+				if len(schema.Keys) == 0 && schema.Mergeability == "" {
+					continue
+				}
+				if *target == nil {
+					*target = make(map[string]ComponentSchema)
+				}
+				(*target)[m.Name] = schema
+			}
+		}
+		mergeExtensionSchemas(&out.Aggregators, snap.Aggregators)
+		mergeExtensionSchemas(&out.Groupers, snap.Groupers)
+		mergeExtensionSchemas(&out.Filterers, snap.Filterers)
 	}
 	return out
 }
@@ -448,7 +477,7 @@ func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *Manifest {
 		Crosstab:           crosstabCapability(),
 		Export:             exportCapability(),
 		Overlays:           OverlayCapabilities(),
-		ComponentsSchemas:  componentsSchemasBlock(),
+		ComponentsSchemas:  componentsSchemasBlock(snap),
 	}
 }
 

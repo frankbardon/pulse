@@ -644,7 +644,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// block arrives only on terminal flush. Predict stays no-execute
 	// — the schema is looked up via aggregatorComponentSchemaIndex,
 	// never via constructed operators.
-	populateAggregationPredicts(result, req)
+	populateAggregationPredicts(result, req, opts)
 
 	// Populate the per-grouper predict surface (E2-S3): one
 	// GroupPredict descriptor per req.Groups slot in matching order.
@@ -653,7 +653,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// (GROUP_QUANTILE today). Predict stays no-execute — the schema is
 	// looked up via grouperComponentSchemaIndex, never via constructed
 	// operators.
-	populateGroupPredicts(result, req)
+	populateGroupPredicts(result, req, opts)
 
 	// Populate the per-filterer predict surface (E2-S8): one
 	// FiltererPredict descriptor per req.Filterers slot in matching
@@ -665,7 +665,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// that may downgrade individual entries. Predict stays no-execute
 	// — the schema is looked up via filtererComponentSchemaIndex,
 	// never via constructed operators.
-	populateFiltererPredicts(result, req)
+	populateFiltererPredicts(result, req, opts)
 
 	// Validate label bindings (display-time categorical translation). Snapshot
 	// carries the registered label tables; augment-mode collisions are
@@ -1200,11 +1200,30 @@ func populateOverlayDescriptors(result *PredictResult, req *types.Request) {
 // — the universal-floor keys are already prepended inside aggSchema, so
 // every entry mirrors the same shape the manifest projects under
 // Manifest.ComponentsSchemas.Aggregators.
-func aggregatorComponentSchemaIndex() map[string]ComponentSchema {
+//
+// When opts carries an ExtensionsSnapshot, extension aggregator entries
+// from snap.ComponentSchemas are merged in afterwards so a slot that
+// references an extension operator sees the embedder-declared schema
+// instead of the empty default. Built-ins are not overwritten — the
+// built-in capability table wins on collision (which should never
+// happen because extension names cannot collide with built-ins, per
+// validateExtensions).
+func aggregatorComponentSchemaIndex(opts *PredictOptions) map[string]ComponentSchema {
 	caps := aggregatorCapabilities()
 	out := make(map[string]ComponentSchema, len(caps))
 	for _, op := range caps {
 		out[op.Name] = op.ComponentSchema
+	}
+	snap := extensionsFromOpts(opts)
+	if snap != nil && len(snap.ComponentSchemas) > 0 {
+		for _, m := range snap.Aggregators {
+			if _, dup := out[m.Name]; dup {
+				continue
+			}
+			if schema, ok := snap.ComponentSchemas[m.Name]; ok {
+				out[m.Name] = schema
+			}
+		}
 	}
 	return out
 }
@@ -1215,11 +1234,25 @@ func aggregatorComponentSchemaIndex() map[string]ComponentSchema {
 // — the universal-floor keys ({total_n, n_null}) are already prepended
 // inside groupSchema, so every entry mirrors the same shape the manifest
 // projects under Manifest.ComponentsSchemas.Groupers.
-func grouperComponentSchemaIndex() map[string]ComponentSchema {
+//
+// Extension groupers from opts.Extensions.ComponentSchemas are merged
+// in afterwards on the same contract as aggregatorComponentSchemaIndex.
+func grouperComponentSchemaIndex(opts *PredictOptions) map[string]ComponentSchema {
 	caps := grouperCapabilities()
 	out := make(map[string]ComponentSchema, len(caps))
 	for _, op := range caps {
 		out[op.Name] = op.ComponentSchema
+	}
+	snap := extensionsFromOpts(opts)
+	if snap != nil && len(snap.ComponentSchemas) > 0 {
+		for _, m := range snap.Groupers {
+			if _, dup := out[m.Name]; dup {
+				continue
+			}
+			if schema, ok := snap.ComponentSchemas[m.Name]; ok {
+				out[m.Name] = schema
+			}
+		}
 	}
 	return out
 }
@@ -1241,7 +1274,7 @@ func grouperComponentSchemaIndex() map[string]ComponentSchema {
 //
 // Predict stays no-execute: this helper reads only the static
 // capabilities table — no `service/` or `processing/` imports.
-func populateGroupPredicts(result *PredictResult, req *types.Request) {
+func populateGroupPredicts(result *PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return
 	}
@@ -1250,7 +1283,7 @@ func populateGroupPredicts(result *PredictResult, req *types.Request) {
 		result.Groups = []GroupPredict{}
 		return
 	}
-	idx := grouperComponentSchemaIndex()
+	idx := grouperComponentSchemaIndex(opts)
 	out := make([]GroupPredict, 0, len(req.Groups))
 	for _, grp := range req.Groups {
 		if grp == nil {
@@ -1286,7 +1319,7 @@ func populateGroupPredicts(result *PredictResult, req *types.Request) {
 //
 // Predict stays no-execute: this helper reads only the static
 // capabilities table — no `service/` or `processing/` imports.
-func populateAggregationPredicts(result *PredictResult, req *types.Request) {
+func populateAggregationPredicts(result *PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return
 	}
@@ -1295,7 +1328,7 @@ func populateAggregationPredicts(result *PredictResult, req *types.Request) {
 		result.Aggregations = []AggregationPredict{}
 		return
 	}
-	idx := aggregatorComponentSchemaIndex()
+	idx := aggregatorComponentSchemaIndex(opts)
 	out := make([]AggregationPredict, 0, len(req.Aggregations))
 	for _, agg := range req.Aggregations {
 		if agg == nil {
@@ -1320,11 +1353,25 @@ func populateAggregationPredicts(result *PredictResult, req *types.Request) {
 // already prepended inside filterSchema, so every entry mirrors the
 // same shape the manifest projects under
 // Manifest.ComponentsSchemas.Filterers.
-func filtererComponentSchemaIndex() map[string]ComponentSchema {
+//
+// Extension filterers from opts.Extensions.ComponentSchemas are merged
+// in afterwards on the same contract as aggregatorComponentSchemaIndex.
+func filtererComponentSchemaIndex(opts *PredictOptions) map[string]ComponentSchema {
 	caps := filtererCapabilities()
 	out := make(map[string]ComponentSchema, len(caps))
 	for _, op := range caps {
 		out[op.Name] = op.ComponentSchema
+	}
+	snap := extensionsFromOpts(opts)
+	if snap != nil && len(snap.ComponentSchemas) > 0 {
+		for _, m := range snap.Filterers {
+			if _, dup := out[m.Name]; dup {
+				continue
+			}
+			if schema, ok := snap.ComponentSchemas[m.Name]; ok {
+				out[m.Name] = schema
+			}
+		}
 	}
 	return out
 }
@@ -1349,7 +1396,7 @@ func filtererComponentSchemaIndex() map[string]ComponentSchema {
 //
 // Predict stays no-execute: this helper reads only the static
 // capabilities table — no `service/` or `processing/` imports.
-func populateFiltererPredicts(result *PredictResult, req *types.Request) {
+func populateFiltererPredicts(result *PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return
 	}
@@ -1358,7 +1405,7 @@ func populateFiltererPredicts(result *PredictResult, req *types.Request) {
 		result.Filterers = []FiltererPredict{}
 		return
 	}
-	idx := filtererComponentSchemaIndex()
+	idx := filtererComponentSchemaIndex(opts)
 	out := make([]FiltererPredict, 0, len(req.Filterers))
 	for _, fil := range req.Filterers {
 		if fil == nil {
