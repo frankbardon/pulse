@@ -147,3 +147,35 @@ func (a *welfordAggregator) Rich() (any, error) {
 		N:        uint64(a.bucket.n),
 	}, nil
 }
+
+// Components returns the running Welford moments after Aggregate /
+// Finalize. Reads the bucket directly — neither path resets the state
+// before Components is called (Finalize is documented to leave the
+// bucket intact so Rich() reads the frozen triple). Numerically
+// identical to the WelfordTriple emitted via Rich(): {mean, m2,
+// variance, stddev} where variance = m2/(n-1) for n>=2 and 0 for n<2,
+// stddev = sqrt(variance). Empty-input case returns (nil, nil) so the
+// orchestrator's universal floor (n=0, n_null=...) is the entire
+// payload, matching the Rich() contract.
+//
+// Numerical-stability contract: emitted values are bit-identical to
+// the WelfordTriple consumed by the stat-test parity overlays
+// (OVERLAY_T_CELL / OVERLAY_Z_CELL); both surfaces share the
+// welfordBucket recurrence so any divergence at the bit level is a
+// regression.
+func (a *welfordAggregator) Components() (map[string]any, error) {
+	if a.bucket.n == 0 {
+		return nil, nil
+	}
+	variance := a.bucket.sampleVariance()
+	return map[string]any{
+		"mean":     a.bucket.mean,
+		"m2":       a.bucket.m2,
+		"variance": variance,
+		"stddev":   math.Sqrt(variance),
+	}, nil
+}
+
+// Compile-time interface lock — keeps the MetaAggregator wiring
+// grep-discoverable and surfaces interface drift at build time.
+var _ MetaAggregator = (*welfordAggregator)(nil)

@@ -229,6 +229,13 @@ type ciParams struct {
 // sqrt(n)) is the standard error; multiplied by z gives the half-width.
 // Mergeable via the same Chan-Welford reduction as the variance
 // aggregator.
+//
+// frozen{Mean,Stderr,Alpha,TCritical,Bound} mirror the post-finalize
+// CI state so Components() can emit
+// {mean, stderr, alpha, t_critical, lower|upper} after the Finalize-
+// reset wipes the live (n, mean, m2). Aggregate (buffered path) and
+// Finalize (streaming path) both stamp the same mirrors via the shared
+// bound2 helper.
 type ciAggregator struct {
 	bound      ciBound
 	confidence float64
@@ -236,6 +243,13 @@ type ciAggregator struct {
 	n          int64
 	mean       float64
 	m2         float64
+
+	frozenMean      float64
+	frozenStderr    float64
+	frozenAlpha     float64
+	frozenTCritical float64
+	frozenBound     float64
+	frozenHasResult bool
 }
 
 type ciBound int
@@ -312,7 +326,10 @@ func (a *ciAggregator) Finalize() (float64, error) {
 }
 
 func (a *ciAggregator) bound2() (float64, error) {
+	a.frozenAlpha = 1 - a.confidence
+	a.frozenHasResult = true
 	if a.n < 2 {
+		a.frozenMean, a.frozenStderr, a.frozenTCritical, a.frozenBound = 0, 0, 0, math.NaN()
 		return math.NaN(), nil
 	}
 	sampleVar := a.m2 / float64(a.n-1)
@@ -322,10 +339,17 @@ func (a *ciAggregator) bound2() (float64, error) {
 	stderr := math.Sqrt(sampleVar) / math.Sqrt(float64(a.n))
 	z := normalQuantile((1 + a.confidence) / 2)
 	half := z * stderr
+	a.frozenMean = a.mean
+	a.frozenStderr = stderr
+	a.frozenTCritical = z
+	var out float64
 	if a.bound == ciLower {
-		return a.mean - half, nil
+		out = a.mean - half
+	} else {
+		out = a.mean + half
 	}
-	return a.mean + half, nil
+	a.frozenBound = out
+	return out, nil
 }
 
 func (a *ciAggregator) MergeOnline(other OnlineAggregator) error {
@@ -336,6 +360,59 @@ func (a *ciAggregator) MergeOnline(other OnlineAggregator) error {
 	mergeWelford(&a.n, &a.mean, &a.m2, b.n, b.mean, b.m2)
 	return nil
 }
+
+// Components returns {mean, stderr, alpha, t_critical, lower|upper} —
+// the inputs to the CI bound calculation plus the resolved bound under
+// the chosen key (lower for ciLower, upper for ciUpper).
+//
+// Reads frozenMean / frozenStderr / frozenAlpha / frozenTCritical /
+// frozenBound captured inside bound2() — the shared helper Aggregate
+// and Finalize both fall through to — so Components survives the
+// streaming Finalize-reset on (n, mean, m2). NaN bound (n < 2) is
+// preserved as NaN in the components map so consumers can detect the
+// degenerate case without re-deriving from the floor.
+//
+// t_critical surfaces the normal quantile (z) actually used to scale
+// the standard error; the schema name preserves the analyst-facing
+// vocabulary while the value reflects the implementation's
+// Beasley-Springer-Moro inverse-normal approximation.
+func (a *ciAggregator) Components() (map[string]any, error) {
+	if !a.frozenHasResult {
+		// No Aggregate / Finalize call yet — emit the configured alpha
+		// so consumers can still inspect the request shape, but zero
+		// the moments.
+		alpha := 1 - a.confidence
+		out := map[string]any{
+			"mean":       0.0,
+			"stderr":     0.0,
+			"alpha":      alpha,
+			"t_critical": 0.0,
+		}
+		if a.bound == ciLower {
+			out["lower"] = 0.0
+		} else {
+			out["upper"] = 0.0
+		}
+		return out, nil
+	}
+	out := map[string]any{
+		"mean":       a.frozenMean,
+		"stderr":     a.frozenStderr,
+		"alpha":      a.frozenAlpha,
+		"t_critical": a.frozenTCritical,
+	}
+	if a.bound == ciLower {
+		out["lower"] = a.frozenBound
+	} else {
+		out["upper"] = a.frozenBound
+	}
+	return out, nil
+}
+
+// Compile-time interface lock — catches MetaAggregator drift at build
+// time for the ciAggregator that backs both AGG_CI_LOWER and
+// AGG_CI_UPPER.
+var _ MetaAggregator = (*ciAggregator)(nil)
 
 // normalQuantile returns the inverse CDF of the standard normal at p
 // via the Beasley-Springer-Moro approximation. Accurate to ~1e-9 in

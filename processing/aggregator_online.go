@@ -181,8 +181,10 @@ func (a *varianceAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *varianceAggregator) Finalize() (float64, error) {
 	if a.n == 0 {
+		a.frozenN, a.frozenMean, a.frozenM2 = 0, 0, 0
 		return 0, nil
 	}
+	a.frozenN, a.frozenMean, a.frozenM2 = a.n, a.mean, a.m2
 	out := a.m2 / float64(a.n)
 	a.n, a.mean, a.m2 = 0, 0, 0
 	return out, nil
@@ -205,8 +207,10 @@ func (a *stdDevAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *stdDevAggregator) Finalize() (float64, error) {
 	if a.n == 0 {
+		a.frozenN, a.frozenMean, a.frozenM2 = 0, 0, 0
 		return 0, nil
 	}
+	a.frozenN, a.frozenMean, a.frozenM2 = a.n, a.mean, a.m2
 	out := math.Sqrt(a.m2 / float64(a.n))
 	a.n, a.mean, a.m2 = 0, 0, 0
 	return out, nil
@@ -243,6 +247,7 @@ func (a *skewnessAggregator) UpdateRow(r *Record, field string) error {
 }
 
 func (a *skewnessAggregator) Finalize() (float64, error) {
+	a.frozenN, a.frozenMean, a.frozenM2, a.frozenM3 = a.n, a.mean, a.m2, a.m3
 	if a.n <= 1 || a.m2 == 0 {
 		a.n, a.mean, a.m2, a.m3 = 0, 0, 0, 0
 		return 0, nil
@@ -296,6 +301,7 @@ func (a *kurtosisAggregator) UpdateRow(r *Record, field string) error {
 }
 
 func (a *kurtosisAggregator) Finalize() (float64, error) {
+	a.frozenN, a.frozenMean, a.frozenM2, a.frozenM3, a.frozenM4 = a.n, a.mean, a.m2, a.m3, a.m4
 	if a.n <= 1 || a.m2 == 0 {
 		a.n, a.mean, a.m2, a.m3, a.m4 = 0, 0, 0, 0, 0
 		return 0, nil
