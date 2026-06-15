@@ -1382,3 +1382,323 @@ func TestCrosstabComponents_MarginCounts_BufferedVsFused_ParityByteEqual(t *test
 		})
 	}
 }
+
+// --- E3-S5: per-axis grouper components emission ---------------------
+//
+// RowKeyComponents[r] / ColumnKeyComponents[c] carry the per-axis grouper
+// bucket emission for the matching axis key. Single-axis crosstabs surface
+// the bucket map directly (so consumers can read e.g.
+// `RowKeyComponents[r]["count"]` against a GROUP_CATEGORY axis). Multi-axis
+// crosstabs wrap each axis position's bucket inside an `axes` slice keyed
+// by the axis field name so consumers can identify which position
+// contributed which bucket. Vector length matches
+// MatrixPayload.RowKeys / ColumnKeys; buffered + fused paths emit
+// byte-equal output.
+
+// TestCrosstabComponents_RowKeyComponents_SingleAxis_BucketLayout verifies
+// the single-axis common case: each RowKeyComponents[r] entry is the
+// MetaGrouper bucket map (carrying {key, label, count} for GROUP_CATEGORY)
+// for the matching row key. Length matches MatrixPayload.RowKeys.
+func TestCrosstabComponents_RowKeyComponents_SingleAxis_BucketLayout(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "total"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	matrix := resp.Crosstab.Matrix
+	if matrix == nil {
+		t.Fatalf("Matrix nil")
+	}
+	if len(ct.RowKeyComponents) != len(matrix.RowKeys) {
+		t.Fatalf("RowKeyComponents len = %d, want %d (RowKeys)",
+			len(ct.RowKeyComponents), len(matrix.RowKeys))
+	}
+	if len(ct.ColumnKeyComponents) != len(matrix.ColumnKeys) {
+		t.Fatalf("ColumnKeyComponents len = %d, want %d (ColumnKeys)",
+			len(ct.ColumnKeyComponents), len(matrix.ColumnKeys))
+	}
+	// Each row entry carries a GROUP_CATEGORY bucket: {key, label, count}.
+	// Expected counts per region: north=4, south=4, east=1.
+	wantCount := map[string]int{"north": 4, "south": 4, "east": 1}
+	for i, k := range matrix.RowKeys {
+		entry := ct.RowKeyComponents[i]
+		if entry == nil {
+			t.Errorf("RowKeyComponents[%d] = nil for key=%v", i, k)
+			continue
+		}
+		// Single-axis: bucket map is the entry directly.
+		gotKey, _ := entry["key"].(string)
+		if gotKey == "" {
+			t.Errorf("RowKeyComponents[%d] missing 'key' field: %v", i, entry)
+			continue
+		}
+		wantKey, _ := k[0].(string)
+		if gotKey != wantKey {
+			t.Errorf("RowKeyComponents[%d].key = %q, want %q (axis tuple)", i, gotKey, wantKey)
+		}
+		if got, want := entry["count"], wantCount[gotKey]; got != want {
+			t.Errorf("RowKeyComponents[%s].count = %v, want %v", gotKey, got, want)
+		}
+	}
+	// Column buckets: retail=6, wholesale=3.
+	wantColCount := map[string]int{"retail": 6, "wholesale": 3}
+	for j, k := range matrix.ColumnKeys {
+		entry := ct.ColumnKeyComponents[j]
+		if entry == nil {
+			t.Errorf("ColumnKeyComponents[%d] = nil", j)
+			continue
+		}
+		gotKey, _ := entry["key"].(string)
+		wantKey, _ := k[0].(string)
+		if gotKey != wantKey {
+			t.Errorf("ColumnKeyComponents[%d].key = %q, want %q", j, gotKey, wantKey)
+		}
+		if got, want := entry["count"], wantColCount[gotKey]; got != want {
+			t.Errorf("ColumnKeyComponents[%s].count = %v, want %v", gotKey, got, want)
+		}
+	}
+}
+
+// TestCrosstabComponents_RowKeyComponents_OrderMatchesRowKeys locks the
+// order invariant: ct.RowKeyComponents[r] addresses the same axis key as
+// MatrixPayload.RowKeys[r] across the sorted emission order. Same for
+// columns.
+func TestCrosstabComponents_RowKeyComponents_OrderMatchesRowKeys(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	matrix := resp.Crosstab.Matrix
+
+	for i, tuple := range matrix.RowKeys {
+		entry := ct.RowKeyComponents[i]
+		if entry == nil {
+			t.Errorf("RowKeyComponents[%d] = nil for tuple=%v", i, tuple)
+			continue
+		}
+		gotKey, _ := entry["key"].(string)
+		wantKey, _ := tuple[0].(string)
+		if gotKey != wantKey {
+			t.Errorf("RowKeyComponents[%d].key = %q, want %q (RowKeys[%d][0])",
+				i, gotKey, wantKey, i)
+		}
+	}
+	for j, tuple := range matrix.ColumnKeys {
+		entry := ct.ColumnKeyComponents[j]
+		if entry == nil {
+			t.Errorf("ColumnKeyComponents[%d] = nil for tuple=%v", j, tuple)
+			continue
+		}
+		gotKey, _ := entry["key"].(string)
+		wantKey, _ := tuple[0].(string)
+		if gotKey != wantKey {
+			t.Errorf("ColumnKeyComponents[%d].key = %q, want %q (ColumnKeys[%d][0])",
+				j, gotKey, wantKey, j)
+		}
+	}
+}
+
+// TestCrosstabComponents_RowKeyComponents_MultiAxis_CompositeLayout
+// verifies the multi-axis composite layout: a 2-grouper row axis
+// produces RowKeyComponents[r] entries shaped as {"axes": [{"field":
+// ..., "bucket": ...}, ...]} carrying one entry per axis position.
+// Per the suggested layout in the story, single-axis cases emit the
+// bucket directly while multi-axis cases wrap each axis position so
+// consumers can identify the contributing axis field.
+func TestCrosstabComponents_RowKeyComponents_MultiAxis_CompositeLayout(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			// 2-axis rows = (region, segment); single-axis columns = (segment).
+			Rows: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region"},
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			},
+			Columns: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "segment"},
+			},
+			Cell:  &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Shape: types.CrosstabShapeMatrix,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	matrix := resp.Crosstab.Matrix
+	if len(ct.RowKeyComponents) != len(matrix.RowKeys) {
+		t.Fatalf("RowKeyComponents len = %d, want %d", len(ct.RowKeyComponents), len(matrix.RowKeys))
+	}
+	for i, tuple := range matrix.RowKeys {
+		entry := ct.RowKeyComponents[i]
+		if entry == nil {
+			t.Errorf("RowKeyComponents[%d] = nil for tuple=%v", i, tuple)
+			continue
+		}
+		axes, ok := entry["axes"].([]map[string]any)
+		if !ok {
+			t.Errorf("RowKeyComponents[%d] missing 'axes' slice: %v", i, entry)
+			continue
+		}
+		if len(axes) != 2 {
+			t.Errorf("RowKeyComponents[%d].axes len = %d, want 2 (one per axis position)",
+				i, len(axes))
+			continue
+		}
+		// Position 0 → field=region, bucket.key=tuple[0]
+		// Position 1 → field=segment, bucket.key=tuple[1]
+		wantFields := []string{"region", "segment"}
+		for p, axisEntry := range axes {
+			gotField, _ := axisEntry["field"].(string)
+			if gotField != wantFields[p] {
+				t.Errorf("RowKeyComponents[%d].axes[%d].field = %q, want %q",
+					i, p, gotField, wantFields[p])
+			}
+			bucket, ok := axisEntry["bucket"].(map[string]any)
+			if !ok {
+				t.Errorf("RowKeyComponents[%d].axes[%d].bucket not a map: %v",
+					i, p, axisEntry["bucket"])
+				continue
+			}
+			wantKey, _ := tuple[p].(string)
+			gotKey, _ := bucket["key"].(string)
+			if gotKey != wantKey {
+				t.Errorf("RowKeyComponents[%d].axes[%d].bucket.key = %q, want %q (tuple[%d])",
+					i, p, gotKey, wantKey, p)
+			}
+		}
+	}
+	// Column axis is single-axis so the bucket map is emitted directly.
+	for j, tuple := range matrix.ColumnKeys {
+		entry := ct.ColumnKeyComponents[j]
+		if entry == nil {
+			t.Errorf("ColumnKeyComponents[%d] = nil for tuple=%v", j, tuple)
+			continue
+		}
+		// Should NOT have an "axes" wrapper (single-axis case).
+		if _, ok := entry["axes"]; ok {
+			t.Errorf("ColumnKeyComponents[%d] has unexpected 'axes' wrapper (single-axis column should emit bucket directly): %v",
+				j, entry)
+		}
+		gotKey, _ := entry["key"].(string)
+		wantKey, _ := tuple[0].(string)
+		if gotKey != wantKey {
+			t.Errorf("ColumnKeyComponents[%d].key = %q, want %q", j, gotKey, wantKey)
+		}
+	}
+}
+
+// TestCrosstabComponents_RowKeyComponents_BufferedVsFused_ParityByteEqual
+// is the byte-equal parity gate for axis-key component emission: the same
+// crosstab request must produce reflect-equal RowKeyComponents +
+// ColumnKeyComponents across the buffered and fused paths. Sweeps a
+// single-axis case + a multi-axis (composite-layout) case so both shapes
+// are exercised.
+func TestCrosstabComponents_RowKeyComponents_BufferedVsFused_ParityByteEqual(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	ctx := context.Background()
+
+	cases := []struct {
+		name string
+		req  func() *types.Request
+	}{
+		{
+			name: "single-axis",
+			req: func() *types.Request {
+				return &types.Request{
+					Cohort: &types.Cohort{Filename: "ct.pulse"},
+					Crosstab: &types.CrosstabSpec{
+						Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+						Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+						Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "total"},
+						Shape:   types.CrosstabShapeMatrix,
+					},
+				}
+			},
+		},
+		{
+			name: "multi-axis-rows",
+			req: func() *types.Request {
+				return &types.Request{
+					Cohort: &types.Cohort{Filename: "ct.pulse"},
+					Crosstab: &types.CrosstabSpec{
+						Rows: []*types.Group{
+							{Type: types.GROUP_CATEGORY, Field: "region"},
+							{Type: types.GROUP_CATEGORY, Field: "segment"},
+						},
+						Columns: []*types.Group{
+							{Type: types.GROUP_CATEGORY, Field: "segment"},
+						},
+						Cell:  &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+						Shape: types.CrosstabShapeMatrix,
+					},
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svcBuf := New(cfg)
+			svcBuf.SetDisableCrosstabFusion(true)
+			bufResp, err := svcBuf.Process(ctx, tc.req())
+			if err != nil {
+				t.Fatalf("buffered Process: %v", err)
+			}
+			svcFused := New(cfg)
+			fusedResp, err := svcFused.Process(ctx, tc.req())
+			if err != nil {
+				t.Fatalf("fused Process: %v", err)
+			}
+			bufCT := crosstabCTOrFail(t, bufResp)
+			fusedCT := crosstabCTOrFail(t, fusedResp)
+			if !reflect.DeepEqual(bufCT.RowKeyComponents, fusedCT.RowKeyComponents) {
+				t.Errorf("RowKeyComponents differ:\n buffered=%v\n fused   =%v",
+					bufCT.RowKeyComponents, fusedCT.RowKeyComponents)
+			}
+			if !reflect.DeepEqual(bufCT.ColumnKeyComponents, fusedCT.ColumnKeyComponents) {
+				t.Errorf("ColumnKeyComponents differ:\n buffered=%v\n fused   =%v",
+					bufCT.ColumnKeyComponents, fusedCT.ColumnKeyComponents)
+			}
+		})
+	}
+}

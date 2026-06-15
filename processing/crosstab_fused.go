@@ -793,19 +793,22 @@ func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
 		return "", nil, nil, 0, false, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"fused crosstab axis has zero groupers; spec validation should have rejected")
 	case 1:
-		key, kerr := groupers[0].KeyFor(rec)
+		key, ok, kerr := streamableKeyForRow(groupers[0], rec)
 		if kerr != nil {
 			if stderrors.Is(kerr, ErrGrouperKeyNull) {
 				return "", nil, nil, 0, false, nil
 			}
 			return "", nil, nil, 0, false, kerr
 		}
+		if !ok {
+			return "", nil, nil, 0, false, nil
+		}
 		return key, types.AxisKey{key}, []string{key}, 1, true, nil
 	}
 	tuple := make(types.AxisKey, 0, len(groupers))
 	partials := make([]string, 0, len(groupers))
 	for _, g := range groupers {
-		key, kerr := g.KeyFor(rec)
+		key, ok, kerr := streamableKeyForRow(g, rec)
 		if kerr != nil {
 			if stderrors.Is(kerr, ErrGrouperKeyNull) {
 				// Partial success: return whatever prefix resolved. The
@@ -815,6 +818,9 @@ func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
 			}
 			return "", nil, nil, 0, false, kerr
 		}
+		if !ok {
+			return "", nil, partials, len(partials), false, nil
+		}
 		tuple = append(tuple, key)
 		if len(partials) == 0 {
 			partials = append(partials, key)
@@ -823,6 +829,37 @@ func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
 		}
 	}
 	return partials[len(partials)-1], tuple, partials, len(partials), true, nil
+}
+
+// streamableKeyForRow drives a streamable axis grouper through its
+// KeyForRow side-effect path when available so MetaGrouper.Components()
+// observes the per-axis-position bucket accumulation under the fused
+// crosstab path. Falls back to KeyFor for streamable groupers that do
+// not implement the per-record StreamingGrouper sibling (extension
+// groupers without bucket-count emission). The returned (key, ok)
+// pair mirrors StreamingGrouper.KeyForRow: ok=false signals "skip the
+// row" (null axis key) without a sentinel error; a non-nil error
+// surfaces a typed CodedError unchanged.
+//
+// E3-S5: the side effect populates the grouper's liveBuckets map (or
+// the per-grouper equivalent) so the Finalize-time MetaGrouper
+// Components() call returns the cohort-wide buckets emission. The
+// alternative — re-running each grouper at Finalize against a
+// materialised record slice — defeats the fused path's memory profile
+// (O(cells + margins), not O(records)).
+func streamableKeyForRow(g StreamableGrouper, rec *Record) (string, bool, error) {
+	if sg, ok := g.(StreamingGrouper); ok {
+		key, ok, err := sg.KeyForRow(rec, "")
+		return key, ok, err
+	}
+	key, err := g.KeyFor(rec)
+	if err != nil {
+		if stderrors.Is(err, ErrGrouperKeyNull) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return key, true, nil
 }
 
 // TotalRows returns the total-row counter for use after Finalize. The
@@ -1107,14 +1144,60 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		grandMarginCountSlot = s.grandMarginCount
 		grandMarginComponentsSlot = grandComponentsMap
 	}
+	// E3-S5: per-axis grouper components emission. Each axis grouper
+	// already accumulated liveBuckets via the streamableKeyForRow side-
+	// effect path during Update; we call Components() now to capture the
+	// per-axis-position bucket emission and project it onto the sorted
+	// rowKeys / colKeys. The fused path constructs row / column tuple
+	// vectors aligned with the sorted axis-key order via tuplesForKeys
+	// above; projectAxisKeyComponents then walks each tuple position to
+	// index the matching bucket from the per-position Components map.
+	rowAxisComponents, err := s.axisComponents(s.rowGroupers)
+	if err != nil {
+		return nil, err
+	}
+	colAxisComponents, err := s.axisComponents(s.colGroupers)
+	if err != nil {
+		return nil, err
+	}
+	rowKeyComponents := projectAxisKeyComponents(s.spec.Rows, rowPart.Tuples, rowAxisComponents)
+	colKeyComponents := projectAxisKeyComponents(s.spec.Columns, colPart.Tuples, colAxisComponents)
 	populateCrosstabComponents(resp, rowKeys, colKeys,
 		cellCountsMap, cellComponentsMap,
 		rowMarginCountsSlot, rowMarginComponentsSlot,
 		colMarginCountsSlot, colMarginComponentsSlot,
 		grandMarginCountSlot, grandMarginComponentsSlot, s.spec.Margins.Grand,
-		s.includedRecords, excludedRecords)
+		s.includedRecords, excludedRecords,
+		rowKeyComponents, colKeyComponents)
 
 	return resp, nil
+}
+
+// axisComponents captures the per-axis-position MetaGrouper.Components()
+// emission for an ordered axis-grouper chain. Each grouper is queried
+// once after Update has drained the cohort, so liveBuckets reflects
+// every record routed through the axis (populated by streamableKeyForRow
+// during Update). Returns nil when the chain is empty; entries are nil
+// when the grouper does not implement MetaGrouper (extension groupers
+// without bucket-count emission). Used by Finalize to feed
+// projectAxisKeyComponents in lockstep with the buffered path.
+func (s *FusedCrosstabState) axisComponents(chain []StreamableGrouper) ([]map[string]any, error) {
+	if len(chain) == 0 {
+		return nil, nil
+	}
+	out := make([]map[string]any, len(chain))
+	for i, g := range chain {
+		meta, ok := g.(MetaGrouper)
+		if !ok {
+			continue
+		}
+		op, err := meta.Components()
+		if err != nil {
+			return nil, err
+		}
+		out[i] = op
+	}
+	return out, nil
 }
 
 // finalizeCells walks the 2D cell slice in (rowIdx, colIdx) insertion

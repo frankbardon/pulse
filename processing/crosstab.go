@@ -117,6 +117,166 @@ func CompositeAxisKey(parts []string) string {
 	return strings.Join(parts, crosstabAxisKeySep)
 }
 
+// axisComponentsFor builds the per-axis-position grouper components for
+// a crosstab axis. One *types.Group per axis position is independently
+// instantiated and exercised against the full filtered record set; the
+// resulting MetaGrouper.Components() emission is captured per position
+// so RunCrosstab can index axis-key buckets by (position, key) when
+// projecting axis components onto the sorted RowKeys / ColumnKeys.
+//
+// Per-position groupers are constructed fresh — independent of the
+// instances PartitionByAxis used for the cell partition — so the
+// recursive sub-partition pass doesn't have to expose its private
+// grouper sequence. The cost is one extra Group() call per axis
+// position, which is bounded by len(axis) ≤ a handful in practice.
+//
+// Returned slice has len(axis) entries. Entry i is the Components map
+// emitted by the grouper at axis position i; entries are nil when the
+// grouper does not implement MetaGrouper (extension groupers without a
+// Components() implementation). Empty axes return a nil slice.
+//
+// Used by RunCrosstab to feed populateCrosstabComponents with the
+// axis-grouper bucket maps. The fused path captures the same per-axis
+// emission off its long-lived rowGroupers / colGroupers instances.
+func (p *Processor) axisComponentsFor(axis []*types.Group, filtered []*Record) ([]map[string]any, error) {
+	if len(axis) == 0 {
+		return nil, nil
+	}
+	out := make([]map[string]any, len(axis))
+	for i, grp := range axis {
+		factory, ok := p.exts.LookupGrouper(grp.Type)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("unknown group type: %s", grp.Type))
+		}
+		grouper, err := factory(grp, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		// Run the grouper against the full filtered set so liveBuckets
+		// reflects every key the axis observed across the cohort. The
+		// returned partition map is discarded — the cell-partition pass
+		// in RunCrosstab handles routing; this call is purely to populate
+		// MetaGrouper.Components() state.
+		if _, err := grouper.Group(filtered, grp.Field); err != nil {
+			return nil, err
+		}
+		if meta, ok := grouper.(MetaGrouper); ok {
+			op, err := meta.Components()
+			if err != nil {
+				return nil, err
+			}
+			out[i] = op
+		}
+	}
+	return out, nil
+}
+
+// projectAxisKeyComponents builds the per-axis-key component vector
+// indexed in axisKeys order from (a) the sorted axis-tuple slice (one
+// tuple per key) and (b) the per-axis-position components emissions.
+// For single-axis (len(axis)==1) the per-key entry is the bucket map
+// emitted by the sole axis grouper for that key; for multi-axis the
+// entry carries every position's bucket merged under an "axes" slice
+// keyed by the axis field name.
+//
+// Lookup strategy: each per-position components map is expected to
+// carry a "buckets" entry of type []map[string]any whose elements have
+// a "key" string field. The per-key bucket vector is built by indexing
+// these buckets once per position so the per-axis-key loop is a flat
+// O(len(axisKeys) * len(axis)) cost without nested probes against the
+// underlying buckets slice.
+//
+// Returns nil when axis is empty (no axis to project). Returns a slice
+// of len(axisTuples) entries, parallel to axisTuples / axisKeys, when
+// axis is non-empty. Entries are nil when no bucket matches the tuple's
+// per-position key in the axis components emission — defensive: every
+// observed axis key should have a matching bucket because the grouper
+// instances ran against the same filtered set the tuples came from.
+func projectAxisKeyComponents(axis []*types.Group, axisTuples []types.AxisKey, axisComponents []map[string]any) []map[string]any {
+	if len(axis) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, len(axisTuples))
+	if len(axis) == 1 {
+		// Single-axis common case: emit the bucket map directly so
+		// consumers can read `RowKeyComponents[r]["count"]` without
+		// drilling through an axes-array wrapper.
+		buckets := axisBuckets(axisComponents[0])
+		for i, tuple := range axisTuples {
+			if len(tuple) == 0 {
+				continue
+			}
+			key, ok := tuple[0].(string)
+			if !ok {
+				continue
+			}
+			out[i] = bucketByKey(buckets, key)
+		}
+		return out
+	}
+	// Multi-axis: emit composite layout
+	//   {"axes": [{"field": <field>, "bucket": <bucket map>}, ...]}
+	// so consumers can identify which axis position contributed which
+	// bucket. Build per-position buckets slices once; the per-key loop
+	// then runs O(len(axis)) lookups per row.
+	perPosBuckets := make([][]map[string]any, len(axis))
+	for p := range axis {
+		perPosBuckets[p] = axisBuckets(axisComponents[p])
+	}
+	for i, tuple := range axisTuples {
+		axes := make([]map[string]any, 0, len(axis))
+		for p, grp := range axis {
+			if p >= len(tuple) {
+				break
+			}
+			key, ok := tuple[p].(string)
+			if !ok {
+				continue
+			}
+			entry := map[string]any{
+				"field":  grp.Field,
+				"bucket": bucketByKey(perPosBuckets[p], key),
+			}
+			axes = append(axes, entry)
+		}
+		out[i] = map[string]any{"axes": axes}
+	}
+	return out
+}
+
+// axisBuckets extracts the "buckets" slice from a per-axis-position
+// Components emission. Every built-in grouper that implements
+// MetaGrouper emits a "buckets" []map[string]any payload by contract
+// (categoryGrouper / dateGrouper / rangeGrouper / roundedGrouper /
+// quantileGrouper / setValueGrouper / setPerElementGrouper). Returns
+// nil when the emission is absent (nil grouper components) or
+// structurally divergent (extension grouper that omits the buckets
+// key).
+func axisBuckets(op map[string]any) []map[string]any {
+	if op == nil {
+		return nil
+	}
+	b, ok := op["buckets"].([]map[string]any)
+	if !ok {
+		return nil
+	}
+	return b
+}
+
+// bucketByKey returns the first bucket map whose "key" field equals
+// target, or nil when none match. Linear scan is fine in practice —
+// axis cardinalities cap out in the hundreds for the categorical
+// groupers (dict-bounded) and the dozens for numeric / date binning.
+func bucketByKey(buckets []map[string]any, target string) map[string]any {
+	for _, b := range buckets {
+		if k, ok := b["key"].(string); ok && k == target {
+			return b
+		}
+	}
+	return nil
+}
+
 // truncateCompositeKey returns the prefix of a composite axis key
 // containing the first level+1 segments. Used to translate a leaf
 // composite key (one segment per grouper in the axis) to the partial
@@ -644,12 +804,30 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		grandMarginCountSlot = grandMarginCount
 		grandMarginComponentsSlot = grandMarginComponents
 	}
+	// E3-S5: per-axis grouper components for the row + column axes. Each
+	// axis grouper is instantiated fresh and exercised against the full
+	// filtered set so MetaGrouper.Components() reflects the cohort-wide
+	// bucket emission for that axis position. Buckets are then projected
+	// onto the sorted RowKeys / ColumnKeys via projectAxisKeyComponents
+	// so RowKeyComponents[r] / ColumnKeyComponents[c] are indexed in
+	// lockstep with MatrixPayload.RowKeys / ColumnKeys.
+	rowAxisComponents, err := p.axisComponentsFor(spec.Rows, filtered)
+	if err != nil {
+		return nil, err
+	}
+	colAxisComponents, err := p.axisComponentsFor(spec.Columns, filtered)
+	if err != nil {
+		return nil, err
+	}
+	rowKeyComponents := projectAxisKeyComponents(spec.Rows, rowPart.Tuples, rowAxisComponents)
+	colKeyComponents := projectAxisKeyComponents(spec.Columns, colPart.Tuples, colAxisComponents)
 	populateCrosstabComponents(resp, rowPart.Keys, colPart.Keys,
 		cellCounts, cellComponents,
 		rowMarginCountsSlot, rowMarginComponentsSlot,
 		colMarginCountsSlot, colMarginComponentsSlot,
 		grandMarginCountSlot, grandMarginComponentsSlot, spec.Margins.Grand,
-		includedRecords, excludedRecords)
+		includedRecords, excludedRecords,
+		rowKeyComponents, colKeyComponents)
 
 	// Tier-2 post-tests run over the materialized cell rows. Margin rows
 	// are excluded — they are emission-time annotations, not statistical
@@ -1023,6 +1201,8 @@ func populateCrosstabComponents(resp *types.Response,
 	grandMarginComponents map[string]any,
 	grandHasMargin bool,
 	includedRecords, excludedRecords int,
+	rowKeyComponents []map[string]any,
+	columnKeyComponents []map[string]any,
 ) {
 	if resp == nil {
 		return
@@ -1123,6 +1303,19 @@ func populateCrosstabComponents(resp *types.Response,
 	if grandHasMargin {
 		ct.GrandTotalCount = grandMarginCount
 		ct.GrandTotalComponents = grandMarginComponents
+	}
+	// E3-S5: per-axis grouper components projected onto sorted axis-key
+	// order. Single-axis crosstabs surface the bucket map directly; multi-
+	// axis crosstabs wrap each axis position's bucket in an "axes" slice
+	// keyed by the axis field name (see projectAxisKeyComponents). Vector
+	// length matches MatrixPayload.RowKeys / ColumnKeys so consumers can
+	// dereference RowKeyComponents[r] / ColumnKeyComponents[c] in lockstep
+	// with the matrix coordinates.
+	if len(rowKeyComponents) > 0 {
+		ct.RowKeyComponents = rowKeyComponents
+	}
+	if len(columnKeyComponents) > 0 {
+		ct.ColumnKeyComponents = columnKeyComponents
 	}
 	ct.IncludedRecords = includedRecords
 	ct.ExcludedRecords = excludedRecords
