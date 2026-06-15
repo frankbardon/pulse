@@ -143,7 +143,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if err != nil {
 		return nil, err
 	}
-	resp, err := finalizeMergedPartial(req, schema, merged)
+	resp, err := finalizeMergedPartial(req, schema, merged, len(shards))
 	if err != nil {
 		return nil, err
 	}
@@ -171,6 +171,13 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 type shardPartial struct {
 	totalRows    int64
 	filteredRows int64
+
+	// nullRecords counts post-filter records where the primary
+	// aggregation field (first agg's Field, else first grouper's Field)
+	// was null. Used by finalizeMergedPartial to populate
+	// Response.Components.Run.NullRecords (E2-S11). Merger sums across
+	// shards.
+	nullRecords int64
 
 	aggs   []processing.OnlineAggregator
 	groups map[string][]processing.OnlineAggregator
@@ -242,6 +249,19 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		streamGrp = sg
 	}
 
+	// E2-S11: resolve the primary aggregation field for the per-shard
+	// null counter. Convention matches processing/run_components.go's
+	// primaryNullFieldName helper: first aggregator's Field, else the
+	// first grouper's Field. The per-shard tally accumulates into
+	// shardPartial.nullRecords and the merger sums across shards.
+	primaryNullField := ""
+	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
+		primaryNullField = req.Aggregations[0].Field
+	}
+	if primaryNullField == "" && grouperSpec != nil {
+		primaryNullField = grouperSpec.Field
+	}
+
 	out := &shardPartial{}
 	var aggsUngrouped []processing.OnlineAggregator
 	if streamGrp == nil {
@@ -295,6 +315,10 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 			continue
 		}
 		out.filteredRows++
+
+		if primaryNullField != "" && rec.IsNull(primaryNullField) {
+			out.nullRecords++
+		}
 
 		for _, ra := range rowLocalAttrs {
 			val, err := ra.computer.Row(rec, ra.attr.Field)
@@ -427,6 +451,7 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 		}
 		merged.totalRows += p.totalRows
 		merged.filteredRows += p.filteredRows
+		merged.nullRecords += p.nullRecords
 
 		if merged.aggs != nil {
 			if len(p.aggs) != len(merged.aggs) {
@@ -474,7 +499,15 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 // finalizeMergedPartial calls Finalize on each merged aggregator and
 // emits the response row(s). Mirrors the tail of processStreaming /
 // processStreamingGrouped in the processing package.
-func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial) (*types.Response, error) {
+//
+// shardCount carries the number of shards that contributed to the
+// merged state — populated by the shard-archive parallel reducer
+// (processShardArchiveParallel) and left at 0 by the single-file
+// parallel buffered reducer (reduceParallelBuffered). The value flows
+// into Response.Components.Run.ShardCount (E2-S11) and stays at 0 for
+// single-file cohorts so the omitempty wire shape is byte-identical
+// against the pre-E2-S11 baseline.
+func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int) (*types.Response, error) {
 	_ = schema
 	resp := &types.Response{
 		Metadata: &types.ResponseMetadata{
@@ -499,6 +532,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		if len(merged.aggs) > 0 {
 			resp.Data = []map[string]any{row}
 		}
+		attachMergedRunComponents(resp, merged, shardCount)
 		return resp, nil
 	}
 
@@ -529,5 +563,27 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		}
 		resp.Data = data
 	}
+	attachMergedRunComponents(resp, merged, shardCount)
 	return resp, nil
+}
+
+// attachMergedRunComponents writes Response.Components.Run from a
+// merged shardPartial. Mirrors processing.attachRunComponents but is
+// service-local so the per-shard reducer (and the single-file parallel
+// buffered reducer that reuses the same merge state) can populate the
+// typed cohort counters without reaching into the processing package's
+// unexported helper. E2-S11.
+func attachMergedRunComponents(resp *types.Response, merged *shardPartial, shardCount int) {
+	if resp == nil || merged == nil {
+		return
+	}
+	if resp.Components == nil {
+		resp.Components = &types.ResponseComponents{}
+	}
+	resp.Components.Run = &types.RunComponents{
+		TotalRecords:    merged.totalRows,
+		FilteredRecords: merged.filteredRows,
+		NullRecords:     merged.nullRecords,
+		ShardCount:      shardCount,
+	}
 }

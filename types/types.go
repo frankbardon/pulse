@@ -1229,6 +1229,16 @@ type FiltererComponents struct {
 // reason. Distinct from Response.Metadata which holds orchestrator-
 // pass facts (cohort filename, etc.); RunComponents is the
 // computational-component view of the same run.
+//
+// Metadata-vs-Run coexistence (E2-S11; promote to CLAUDE.md in E5-S2):
+// Response.Metadata.TotalRows and Components.Run.TotalRecords carry the
+// same value by construction at every orchestrator exit. Metadata
+// retains the non-numerical run facts (cohort filename); Run carries
+// the typed counters consumers compute against (joins, ratios,
+// partial-cohort diagnostics). Both slots are populated on every
+// successful Process call so consumers can rely on either side; future
+// stories may deprecate Metadata once consumers migrate to Run, but
+// not in this PR.
 type RunComponents struct {
 	// TotalRecords is the total number of records in the underlying
 	// cohort (pre-filter).

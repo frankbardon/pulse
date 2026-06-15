@@ -624,6 +624,21 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// counter walk. Empty filter chains stay nil so the omitempty
 	// wire shape is byte-identical against the pre-E2-S9 baseline.
 	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
+	// E2-S11: emit RunComponents — typed cohort-level counters.
+	// NullRecords pulls from the FIRST aggregator's per-record nNull
+	// counter (the primary-field convention locked in
+	// run_components.go); single-pass streaming has no shard concept,
+	// so ShardCount stays 0 and PartialCohortReason stays empty.
+	var nullRecords int64
+	if len(finalized) > 0 {
+		nullRecords = int64(finalized[0].nNull)
+	}
+	attachRunComponents(resp, RunCountersInput{
+		TotalRecords:    totalRows,
+		FilteredRecords: filteredRows,
+		NullRecords:     nullRecords,
+	})
 	return resp, nil
 }
 
@@ -718,6 +733,22 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 	buckets := make(map[string]*bucket)
 
+	// E2-S11: track null count on the primary aggregation field for
+	// RunComponents.NullRecords. Resolution mirrors the package-level
+	// "primary field" convention: first aggregator's Field, else the
+	// grouper's Field. Counter increments on every post-filter row
+	// where the primary field is null (the streaming-grouped path has
+	// no per-aggregator nNull counter — buckets allocate lazily on
+	// non-null key matches — so the orchestrator tracks it inline).
+	primaryField := ""
+	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
+		primaryField = req.Aggregations[0].Field
+	}
+	if primaryField == "" {
+		primaryField = grp.Field
+	}
+	var primaryNullRecords int64
+
 	var totalRows, filteredRows int64
 	for iter.Next() {
 		totalRows++
@@ -745,6 +776,10 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			continue
 		}
 		filteredRows++
+
+		if primaryField != "" && r.IsNull(primaryField) {
+			primaryNullRecords++
+		}
 
 		for _, ra := range rowLocalAttrs {
 			val, err := ra.computer.Row(r, ra.attr.Field)
@@ -871,6 +906,16 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	// stay nil so the omitempty wire shape is byte-identical against
 	// the pre-E2-S9 baseline.
 	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
+	// E2-S11: emit RunComponents — typed cohort-level counters. The
+	// streaming-grouped path has no shard concept (records flow off a
+	// single iterator regardless of the underlying cohort topology), so
+	// ShardCount stays 0 and PartialCohortReason stays empty.
+	attachRunComponents(resp, RunCountersInput{
+		TotalRecords:    totalRows,
+		FilteredRecords: filteredRows,
+		NullRecords:     primaryNullRecords,
+	})
 
 	// SERIES-host overlay hook (E3-S6). Streaming grouped exit calls
 	// into the same post-finalize wiring as the buffered processRecords
@@ -1121,6 +1166,21 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	// gating but skips the counter increment so totals match the
 	// observed record set, not pass-1+pass-2 visits).
 	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
+	// E2-S11: emit RunComponents — typed cohort-level counters.
+	// NullRecords pulls from the FIRST aggregator's per-record nNull
+	// counter (mirrors processStreaming above); two-pass streaming has
+	// no shard concept so ShardCount stays 0 and PartialCohortReason
+	// stays empty.
+	var nullRecords int64
+	if len(entries) > 0 {
+		nullRecords = int64(entries[0].nNull)
+	}
+	attachRunComponents(resp, RunCountersInput{
+		TotalRecords:    totalRows,
+		FilteredRecords: filteredRows,
+		NullRecords:     nullRecords,
+	})
 	return resp, nil
 }
 
@@ -1343,6 +1403,31 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// filterCounters nil so the omitempty wire shape stays byte-
 	// identical against the pre-E2-S9 baseline.
 	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
+	// E2-S11: emit RunComponents — typed cohort-level counters.
+	// NullRecords resolution: prefer the FIRST aggregator's nNull from
+	// aggComponents (already computed by aggregateWithComponents's
+	// per-field floor cache); fall back to the FIRST grouper's NNull
+	// when no aggregators were declared; fall back to a buffered scan
+	// of the post-filter record slice when neither carries a primary
+	// field. The buffered processRecords path has no shard concept
+	// (the iterator already merged shard archives into a flat record
+	// slice at this point) so ShardCount stays 0 and
+	// PartialCohortReason stays empty.
+	var nullRecords int64
+	switch {
+	case len(aggComponents) > 0:
+		nullRecords = int64(aggComponents[0].NNull)
+	case len(grpComponents) > 0:
+		nullRecords = int64(grpComponents[0].NNull)
+	default:
+		nullRecords = countNullsBuffered(filtered, primaryNullFieldName(req))
+	}
+	attachRunComponents(resp, RunCountersInput{
+		TotalRecords:    totalRows,
+		FilteredRecords: int64(len(filtered)),
+		NullRecords:     nullRecords,
+	})
 
 	// SERIES-host overlay hook (E3-S6). Wraps the finalized per-group
 	// Response.Data as a SeriesHostView and dispatches each
