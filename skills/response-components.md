@@ -337,6 +337,46 @@ for chunk := range stream.Chunks() {
 // finalComponents now byte-equal to buffered Process result.
 ```
 
+## Performance baselines
+
+Always-on Components emission baselines (Apple M1 Max, `go1.x`, hermetic
+`afero.NewMemMapFs()` cohorts). The buffered/streaming pair drives a
+100K-record single-`f64` cohort through a five-aggregator mix that covers
+both mergeable (`AGG_SUM` / `AGG_COUNT` / `AGG_AVERAGE` / `AGG_VARIANCE`)
+and non-mergeable (`AGG_MEDIAN`) paths. The crosstab fused / buffered
+pair drives a 200-field × 10K-row wide cohort with a `region × segment`
+crosstab over `AGG_COUNT(value)` and full margins. Each cell is the
+median of three `b.Loop()` runs captured at E5-S5 close.
+
+| Bench | ms/op | MB/op | allocs/op |
+|---|---:|---:|---:|
+| `BenchmarkProcess_BufferedComponents` (`/`) | 30.16 | 49.25 | 600,122 |
+| `BenchmarkProcessStream_WithComponents` (`/`) | 30.44 | 49.38 | 600,487 |
+| `BenchmarkCrosstabWideCohort_Fused` (`/service/`) | 8.69 | 21.07 | 143,903 |
+| `BenchmarkCrosstabWideCohort_Buffered` (`/service/`) | 9.08 | 22.03 | 83,978 |
+
+These are the canonical post-Components-always-on baselines and the
+regression frontier for future PRs — sustained `> +5%` regressions on
+any line warrant investigation.
+
+The "+5% delta vs no-Components" relative gate that E5-S5 originally
+specified (`BenchmarkProcess_NoComponents` vs `_WithComponents` and the
+matching crosstab pair) requires a `pulse.Options.DisableComponents`
+knob that does NOT exist in the current build — Components emission is
+unconditional once the operator declares a `ComponentSchema`. Locking
+absolute baselines is the practical regression frontier today; if a
+disable knob lands later, add the paired `_NoComponents` sub-cases and
+flip the gate from absolute to relative.
+
+Reproduce with:
+
+```sh
+go test -bench=BenchmarkProcessStream_WithComponents -run=^$ -count=3 -benchmem ./
+go test -bench=BenchmarkProcess_BufferedComponents  -run=^$ -count=3 -benchmem ./
+go test -bench=BenchmarkCrosstabWideCohort_Fused    -run=^$ -count=3 -benchmem ./service/
+go test -bench=BenchmarkCrosstabWideCohort_Buffered -run=^$ -count=3 -benchmem ./service/
+```
+
 ## Cross-links
 
 - [aggregation-guide](aggregation-guide.md) — per-AGG component keys + the
