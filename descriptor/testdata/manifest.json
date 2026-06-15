@@ -5950,11 +5950,11 @@
     "skills": [
       {
         "name": "aggregation-guide",
-        "description": "Choose between the 16 AGG_* operators (SUM, AVG, MEDIAN, PERCENTILE, ZSCORE, FREQUENCY, MODE, KURTOSIS, ...) and 5 FILTER_* operators. Use when assembling a Process request, interpreting percentile/frequency output, or picking a row-filter."
+        "description": "Choose between the 16 AGG_* operators (SUM, AVG, MEDIAN, PERCENTILE, ZSCORE, FREQUENCY, MODE, KURTOSIS, ...) and 7 FILTER_* operators. Use when assembling a Process request, interpreting percentile/frequency output, or picking a row-filter."
       },
       {
         "name": "attribute-composition",
-        "description": "Compose ATTR_FORMULA, ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED, ATTR_PERCENTILE, ATTR_DATE_PART rows for derived columns. Use when adding computed fields, normalizing values, or chaining attributes inside a request."
+        "description": "Compose ATTR_FORMULA, ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED, ATTR_PERCENTILE, ATTR_DATE_PART, ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE rows for derived columns. Use when adding computed fields, normalizing values, attaching regression diagnostics, or chaining attributes inside a request."
       },
       {
         "name": "cohort-schema-design",
@@ -5966,11 +5966,11 @@
       },
       {
         "name": "contributor-workflow",
-        "description": "Step-by-step recipes for extending Pulse — adding aggregators, attributes, filterers, groupers, windows, features, statistical tests, synth distributions, I/O formats, MCP tools, error codes, field types. Also covers porting, debugging predict mismatches, regenerating goldens, wiring an MCP client, and running CI gates locally. Use when modifying Pulse internals."
+        "description": "Step-by-step recipes for contributing to Pulse — adding aggregators, attributes, filterers, groupers, windows, features, statistical tests, synth distributions, I/O formats, MCP tools, error codes, and field types. Also covers porting from external sources, debugging predict mismatches, regenerating goldens, and wiring Pulse into an MCP client. Use when extending the engine or onboarding a Claude Code session that will modify Pulse internals."
       },
       {
         "name": "crosstab-guide",
-        "description": "Build cross-tabulations with the Crosstab request section — rows × columns groupers, cell aggregation, margins-are-reaggregations, normalize directions (row / column / total), streamability tradeoff, matrix vs long shape, and pairing with TEST_CHISQ / TEST_FISHER_EXACT for inference on count crosstabs. Use when a request needs a contingency table, frequency cross-tab, or any (row × column) cell view."
+        "description": "Build cross-tabulations with the Crosstab request section — rows × columns groupers, cell aggregation, margins-are-reaggregations, normalize directions, streamability tradeoff, matrix vs long shape. Pair with TEST_CHISQ / TEST_FISHER_EXACT for inference on count crosstabs."
       },
       {
         "name": "debugging-with-predict",
@@ -5982,7 +5982,7 @@
       },
       {
         "name": "export-format-selection",
-        "description": "Pick the right export format — CSV (universal), TSV, NDJSON, JSON array, Parquet (columnar analytics), Arrow IPC (zero-copy handoff), Excel (humans). Use when wiring Process output into a downstream tool or warehouse."
+        "description": "Pick the right export format — CSV (universal), TSV, NDJSON, JSON array, Parquet (columnar analytics), Arrow IPC (zero-copy handoff), Excel (humans). Use when wiring Process output into a downstream tool or warehouse. Also covers cross-format overlay embedding."
       },
       {
         "name": "extension-points",
@@ -5994,7 +5994,7 @@
       },
       {
         "name": "feature-engineering",
-        "description": "Apply pre-filter FEAT_* operators — FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE, FEAT_ONE_HOT, FEAT_FREQUENCY_ENCODE, FEAT_TARGET_ENCODE, FEAT_DATE_FEATURES, FEAT_TRAIN_TEST_SPLIT — for ML pipelines. Use when preparing training data; covers the target-leakage trap and PULSE_FEAT_TARGET_LEAKAGE_RISK."
+        "description": "Apply pre-filter FEAT_* operators — FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE, FEAT_ONE_HOT, FEAT_FREQUENCY_ENCODE, FEAT_TARGET_ENCODE, FEAT_DATE_FEATURES, FEAT_TRAIN_TEST_SPLIT, FEAT_POLY — for ML pipelines. Use when preparing training data; covers the target-leakage trap and PULSE_FEAT_TARGET_LEAKAGE_RISK."
       },
       {
         "name": "financial-cohorts",
@@ -6006,7 +6006,7 @@
       },
       {
         "name": "grouper-design",
-        "description": "Pick a grouper: GROUP_CATEGORY, GROUP_DATE (day/week/month/year/quarter), GROUP_RANGE (intervals), GROUP_ROUNDED, GROUP_QUANTILE. Use when bucketing rows, nesting groupers for cross-tabs, or choosing between range and quantile bins."
+        "description": "Pick a grouper — GROUP_CATEGORY, GROUP_DATE (day/week/month/year/quarter), GROUP_RANGE (intervals), GROUP_ROUNDED, GROUP_QUANTILE. Use when bucketing rows, nesting groupers for cross-tabs, or choosing between range and quantile bins."
       },
       {
         "name": "import-best-practices",
@@ -6014,19 +6014,19 @@
       },
       {
         "name": "join-design",
-        "description": "Use Request.Joins for pushdown hash join. v1 envelope: one inner join per Request, in-memory build, right-side hash + left-side probe. Use when comparing rows across cohorts; covers OnPair key-type compatibility, As prefix for field-collision avoidance, and the deferred outer/left/anti + spill items."
+        "description": "Pulse's pushdown hash-join surface (Request.Joins, JoinSpec, OnPair) — algorithm, schema synthesis, v1 envelope, and roadmap."
       },
       {
         "name": "label-display",
-        "description": "Translate categorical IDs (ISO codes, SKUs, ICD codes) into display labels at output time without re-encoding the cohort. Per-request LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob; tables registered via Extensions.LabelTables or PULSE_LABEL_TABLES_DIR. Labels are display-only — filters, formulas, and sort still see raw values."
+        "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. Use LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob when end users should see human-readable names where the data carries codes (country codes, ICD codes, product SKUs). Labels are display-only — filters, formulas, and sort keys still see raw values."
       },
       {
         "name": "mcp-integration",
-        "description": "Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_compose, pulse_sample, pulse_facet, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order."
+        "description": "Pulse's MCP tool surface (pulse_manifest, pulse_inspect, pulse_predict, pulse_process, pulse_compose, pulse_sample, pulse_facet, pulse_facet_schema, pulse_examples_search/get, pulse_errors_lookup, pulse_synth_*), pulse:// and pulse-skill:// resources, schema-bound field enums on inspect, recommended session bootstrap order."
       },
       {
         "name": "overlay-system",
-        "description": "Result overlay decoration framework — request-driven derived projections (index, sibling delta, baseline lift, population comparison, multi-stage chain reference) that decorate a primary result without re-deriving on the client side. Covers the OverlaySpec / OverlayLayer surface, the three-shape model (scalar / series / matrix), the six reference families (Margin, Sibling, BaselineIndex, Population, Stage, Slot), spec-order viz contract, streamable-vs-buffered split, and a worked OVERLAY_INDEX_VS_MARGIN example against a 2-axis crosstab."
+        "description": "Result overlay decoration framework — kinds, shapes, scopes, refs, streaming model. Use when adding a derived projection (index, sibling delta, baseline lift, population comparison) to a primary result without re-deriving on the client side."
       },
       {
         "name": "regression-modeling",
@@ -6034,15 +6034,15 @@
       },
       {
         "name": "response-components",
-        "description": "Universal contract for Response.Components — the constituent-parts metadata behind every aggregator scalar, grouper bucket, filterer N-in/N-out, and crosstab cell. Covers the typed shell + per-family shape (Aggregations / Groupers / Crosstab / Filterers / Run), the universal {n, n_null} floor filled by the orchestrator, the per-operator ComponentSchema declaration in the manifest, the Mergeable / Partial / None mergeability axis, streaming-chunk emission semantics, the four parity-overlay reads against CellComponents (replacing the legacy WelfordTriple smuggle in MatrixCell.Value), and the extension probe-validation contract."
+        "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell"
       },
       {
         "name": "statistical-testing",
-        "description": "Run tier-1 row tests (TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F, TEST_ANOVA_WELCH, TEST_ANOVA_RM, TEST_KS, TEST_PAIRED_T, TEST_PROP_Z, TEST_PEARSON_R, TEST_SPEARMAN_R, TEST_KENDALL_TAU, TEST_MANN_WHITNEY_U, TEST_WILCOXON_SR, TEST_KRUSKAL_WALLIS, TEST_BROWN_FORSYTHE, TEST_FISHER_EXACT, TEST_SHAPIRO_WILK) and tier-2 post-tests (TEST_TUKEY_HSD, TEST_TREND, variants). Use when a request mentions hypothesis testing, p-values, ANOVA, t-tests, correlations, normality, or post-hoc comparisons."
+        "description": "Run tier-1 row tests (TEST_T, TEST_WELCH, TEST_Z_TWO_SAMPLE, TEST_CHISQ, TEST_ANOVA_F, TEST_ANOVA_WELCH, TEST_ANOVA_RM, TEST_KS, TEST_PAIRED_T, TEST_PROP_Z, TEST_PEARSON_R, TEST_SPEARMAN_R, TEST_KENDALL_TAU, TEST_MANN_WHITNEY_U, TEST_WILCOXON_SR, TEST_KRUSKAL_WALLIS, TEST_BROWN_FORSYTHE, TEST_FISHER_EXACT, TEST_SHAPIRO_WILK) and tier-2 post-tests (TEST_TUKEY_HSD, TEST_TREND, variants). Use when a request mentions hypothesis testing, p-values, ANOVA, t-tests, correlations, normality, or post-hoc comparisons."
       },
       {
         "name": "streaming-and-watching",
-        "description": "Build reactive consumers on top of Pulse — Request.Hash() for cache keys, StreamResult[T] for incremental output (ProcessStreamResult / SynthStream), Watch/WatchDir for file-change observation, FilterToFileWithRequest for deterministic derived cohorts, manifest CommandAnnotations for caching policy, and ChainRequest dual-slot overlays for per-stage + whole-chain decoration. Use when wiring Pulse into long-running services, building materialization caches, reacting to .pulse file mutations, or stacking overlays across a ProcessChain pipeline."
+        "description": "Build reactive consumers on top of Pulse — Request.Hash() for cache keys, StreamResult[T] for incremental output, Watch/WatchDir for file-change observation, FilterToFileWithRequest for deterministic derived cohorts, manifest CommandAnnotations for caching policy, and ChainRequest dual-slot overlays for per-stage + whole-chain decoration. Use when wiring Pulse into long-running services, building materialization caches, reacting to .pulse file mutations, or stacking overlays across a ProcessChain pipeline."
       },
       {
         "name": "synthetic-data",
@@ -8176,4 +8176,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 86e4f79e1e8e26eda284b48a14b4bf73ac87f10ec1e19aa4b09d149725936622
+// golden-hash: c1a2c747607dc2e8e474cfd3c2ef497482ddf6247e17b20e607f1a5951a8eda0
