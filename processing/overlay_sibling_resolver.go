@@ -1,6 +1,5 @@
 package processing
 
-
 // Sibling resolver — runtime support for the sibling-reference overlay
 // family.
 //

@@ -11,10 +11,10 @@ import (
 // whose per-row χ² goodness-of-fit statistics are computable in closed
 // form. The matrix:
 //
-//	          c0   c1   c2  | row_margin
-//	    r0    10   20   30  |   60
-//	    r1    20   20   20  |   60
-//	    col   30   40   50  |  grand = 120
+//	      c0   c1   c2  | row_margin
+//	r0    10   20   30  |   60
+//	r1    20   20   20  |   60
+//	col   30   40   50  |  grand = 120
 //
 // Expected counts (row_margin × col_margin / grand):
 //

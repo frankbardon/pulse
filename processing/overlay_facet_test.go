@@ -973,10 +973,10 @@ func TestOverlay_FacetMixed_SpecOrderPreservedAcrossKinds(t *testing.T) {
 
 	// Mix the order: buffered → streamable → buffered → streamable.
 	specs := []types.OverlaySpec{
-		*facetTestSpec(types.OverlayKindChiSqVsPop),   // buffered
-		*facetTestSpec(types.OverlayKindIndexVsPop),   // streamable
-		*facetTestSpec(types.OverlayKindZScoreVsPop),  // streamable
-		*facetTestSpec(types.OverlayKindChiSqVsPop),   // buffered (duplicate kind, distinct slot)
+		*facetTestSpec(types.OverlayKindChiSqVsPop),  // buffered
+		*facetTestSpec(types.OverlayKindIndexVsPop),  // streamable
+		*facetTestSpec(types.OverlayKindZScoreVsPop), // streamable
+		*facetTestSpec(types.OverlayKindChiSqVsPop),  // buffered (duplicate kind, distinct slot)
 	}
 	layers, _, err := ApplyOverlaysFacet(specs, hostField, popView)
 	if err != nil {

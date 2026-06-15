@@ -1526,9 +1526,9 @@ var codeMetadata = map[Code]Metadata{
 				Examples: []any{"arrow", "parquet", "excel", "ndjson"},
 			},
 			{
-				Action: FixupReplaceField,
-				Path:   []string{"ExportJob", "IncludeOverlays"},
-				Hint:   "To suppress this warning while keeping CSV output, set ExportJob.IncludeOverlays=false (or --include-overlays=false on the CLI). The CSV body is byte-identical with or without the opt-out — the toggle only controls whether the warning fires. Same applies to ConvertJob.IncludeOverlays when the CSV target is the export half of a convert chain.",
+				Action:   FixupReplaceField,
+				Path:     []string{"ExportJob", "IncludeOverlays"},
+				Hint:     "To suppress this warning while keeping CSV output, set ExportJob.IncludeOverlays=false (or --include-overlays=false on the CLI). The CSV body is byte-identical with or without the opt-out — the toggle only controls whether the warning fires. Same applies to ConvertJob.IncludeOverlays when the CSV target is the export half of a convert chain.",
 				Examples: []any{false},
 			},
 			{

@@ -165,7 +165,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// accumulator advanced during the streaming pass once the orchestrator
 	// hits the baseline ordinal); when that lands the flag flips to true.
 	OverlayKindIndexVsBaseline: false,
-	OverlayKindIndexVsMargin: false,
+	OverlayKindIndexVsMargin:   false,
 	// OVERLAY_INDEX_VS_REF is streamable via its SERIES-host dispatch
 	// (E7-S10) — first COMPOSE-only kind in the catalog (E7-S9), ratio
 	// sibling of OVERLAY_DELTA_VS_REF. The SERIES handler is fold-only
@@ -301,7 +301,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// target matrix requires the full materialised matrix anyway.
 	OverlayKindRank:       false,
 	OverlayKindShareOfCol: false,
-	OverlayKindShareOfRow:   false,
+	OverlayKindShareOfRow: false,
 	// OVERLAY_SHARE_OF_TOTAL is streamable via its SERIES-host dispatch
 	// (E3-S3) — sibling kind to OVERLAY_INDEX_VS_TOTAL, same grand-total
 	// accumulator (computeSeriesGrandTotal in

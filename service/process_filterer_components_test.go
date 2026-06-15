@@ -637,9 +637,9 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 // every i > 0.
 //
 // Pipeline:
-//   1. FILTER_RANGE [10, 40] — admits {10, 20, 30, 40} → NOut = 4.
-//   2. FILTER_EXCLUDE {10}   — rejects 10 → NOut = 3.
-//   3. FILTER_INCLUDE {20, 40} — admits {20, 40} → NOut = 2.
+//  1. FILTER_RANGE [10, 40] — admits {10, 20, 30, 40} → NOut = 4.
+//  2. FILTER_EXCLUDE {10}   — rejects 10 → NOut = 3.
+//  3. FILTER_INCLUDE {20, 40} — admits {20, 40} → NOut = 2.
 func TestService_Process_FiltererComponents_PipelineNInInvariant(t *testing.T) {
 	svc := nullableScoreCohort(t, "fcomp_pipeline.pulse")
 	req := &types.Request{

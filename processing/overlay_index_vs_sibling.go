@@ -144,11 +144,11 @@ func applyIndexVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.O
 			Code:    string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 			Message: "overlay " + string(spec.Kind) + " sibling reference does not resolve to a known host group",
 			Details: map[string]any{
-				"kind":         string(spec.Kind),
-				"host":         "series",
-				"field":        siblingField,
-				"value":        siblingValue,
-				"group_count":  groupCount,
+				"kind":        string(spec.Kind),
+				"host":        "series",
+				"field":       siblingField,
+				"value":       siblingValue,
+				"group_count": groupCount,
 			},
 		})
 	case zeroSibling:
@@ -156,12 +156,12 @@ func applyIndexVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.O
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " sibling value is zero; indices emitted as NaN",
 			Details: map[string]any{
-				"kind":         string(spec.Kind),
-				"host":         "series",
-				"field":        siblingField,
-				"value":        siblingValue,
-				"sibling_val":  siblingVal,
-				"group_count":  groupCount,
+				"kind":        string(spec.Kind),
+				"host":        "series",
+				"field":       siblingField,
+				"value":       siblingValue,
+				"sibling_val": siblingVal,
+				"group_count": groupCount,
 			},
 		})
 	}

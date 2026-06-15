@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "Compose batch of two crosstab slots (control and variant arms of a consumer survey cohort) over region x segment decorated with an OVERLAY_T_CELL matrix overlay that runs a per-cell Welch t-test on the means against the matching control cell. Cell aggregator is AGG_WELFORD which emits the streaming Welford-Pebay triple {Mean, Variance, N} as the cell payload (RichAggregator interface). The OVERLAY_T_CELL handler is triple-aware (E1-S9 / S10): when both target and reference cells carry a WelfordTriple the handler consumes the triple directly so variance and n are read from the streaming sample state instead of the Params defaults. Each cell's value becomes the two-sided Welch p-value as a float64. Reuses the studentTTwoSidedP helper backing TEST_T / TEST_WELCH plus the same Welch-Satterthwaite df recurrence, so the overlay p-value matches the row-test surface byte-for-byte for the same (mean, variance, n) inputs (E1-S12 byte-equal parity gate). Math: se = sqrt(var_target/n_target + var_ref/n_ref); t = (mean_target - mean_ref) / se; df = (var_target/n_target + var_ref/n_ref)^2 / ((var_target/n_target)^2/(n_target-1) + (var_ref/n_ref)^2/(n_ref-1)); p = studentTTwoSidedP(t, df). Degenerate inputs (n < 2, variance = 0, missing reference cell) produce NaN p-values with one PULSE_OVERLAY_REF_ZERO warning per affected cell. Inherently buffered - inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD Non-Goals).",
+    "description": "Compose batch of two crosstab slots (control and variant arms of the experiment cohort) over region x segment decorated with an OVERLAY_T_CELL matrix overlay that runs a per-cell Welch t-test on the means against the matching control cell. Cell aggregator is AGG_WELFORD which emits the streaming Welford-Pebay triple {Mean, Variance, N} as the cell payload (RichAggregator interface). The OVERLAY_T_CELL handler is triple-aware (E1-S9 / S10): when both target and reference cells carry a WelfordTriple the handler consumes the triple directly so variance and n are read from the streaming sample state instead of the Params defaults. Each cell's value becomes the two-sided Welch p-value as a float64. Reuses the studentTTwoSidedP helper backing TEST_T / TEST_WELCH plus the same Welch-Satterthwaite df recurrence, so the overlay p-value matches the row-test surface byte-for-byte for the same (mean, variance, n) inputs (E1-S12 byte-equal parity gate). Math: se = sqrt(var_target/n_target + var_ref/n_ref); t = (mean_target - mean_ref) / se; df = (var_target/n_target + var_ref/n_ref)^2 / ((var_target/n_target)^2/(n_target-1) + (var_ref/n_ref)^2/(n_ref-1)); p = studentTTwoSidedP(t, df). Degenerate inputs (n < 2, variance = 0, missing reference cell) produce NaN p-values with one PULSE_OVERLAY_REF_ZERO warning per affected cell. Inherently buffered - inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD Non-Goals).",
     "name": "pairwise-welch-matrix",
     "operators": [
       "AGG_WELFORD",
@@ -25,13 +25,13 @@
     {
       "label": "control",
       "cohort": {
-        "filename": "survey.pulse",
+        "filename": "experiment.pulse",
         "data_dir": ".data"
       },
       "filterers": [
         {
           "type": "FILTER_INCLUDE",
-          "field": "arm",
+          "field": "treatment",
           "values": ["control"]
         }
       ],
@@ -50,21 +50,21 @@
         ],
         "cell": {
           "type": "AGG_WELFORD",
-          "field": "rating",
-          "label": "rating_triple"
+          "field": "revenue",
+          "label": "revenue_triple"
         }
       }
     },
     {
       "label": "variant",
       "cohort": {
-        "filename": "survey.pulse",
+        "filename": "experiment.pulse",
         "data_dir": ".data"
       },
       "filterers": [
         {
           "type": "FILTER_INCLUDE",
-          "field": "arm",
+          "field": "treatment",
           "values": ["variant"]
         }
       ],
@@ -83,8 +83,8 @@
         ],
         "cell": {
           "type": "AGG_WELFORD",
-          "field": "rating",
-          "label": "rating_triple"
+          "field": "revenue",
+          "label": "revenue_triple"
         }
       }
     }

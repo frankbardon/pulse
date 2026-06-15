@@ -329,10 +329,10 @@ func applyIndexVsRollingMean(spec *types.OverlaySpec, host *SeriesHostView) (typ
 
 	entries := make([]types.SeriesEntry, 0, groupCount)
 	var (
-		minV         float64
-		maxV         float64
-		seen         int
-		zeroMeanHit  bool
+		minV        float64
+		maxV        float64
+		seen        int
+		zeroMeanHit bool
 	)
 	for i := 0; i < groupCount; i++ {
 		key, _ := host.GroupKey(i)

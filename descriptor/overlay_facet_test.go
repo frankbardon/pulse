@@ -470,4 +470,3 @@ func TestValidateFacetOverlays_PopulationCohortRequired(t *testing.T) {
 		t.Errorf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for empty cohort, got %+v", env.Errors)
 	}
 }
-

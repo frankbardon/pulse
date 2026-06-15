@@ -200,16 +200,16 @@ func encodeComposeMatrixKey(rowStr, colStr string) string {
 //   - "reference" → slot label string passed via spec.Reference.
 //   - "target"    → slot label string for the diverging target.
 //   - "missing"   → []string of keys present on the reference but
-//                   absent from the target, sorted lexicographically
-//                   for deterministic output.
+//     absent from the target, sorted lexicographically
+//     for deterministic output.
 //   - "extra"     → []string of keys present on the target but
-//                   absent from the reference, sorted
-//                   lexicographically.
+//     absent from the reference, sorted
+//     lexicographically.
 //   - "code"      → string(errors.PULSE_OVERLAY_KEY_SET_DIVERGENT)
-//                   echoed so the dispatch parser can branch on the
-//                   canonical code without re-parsing the message.
+//     echoed so the dispatch parser can branch on the
+//     canonical code without re-parsing the message.
 //   - "index"     → spec index (-1 when the caller does not know it,
-//                   E7-S14 predict path passes the real value).
+//     E7-S14 predict path passes the real value).
 //
 // The "first divergence wins" rule matches the existing
 // LookupReference / LookupTarget single-fail behaviour — the

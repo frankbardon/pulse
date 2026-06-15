@@ -549,10 +549,10 @@ func (a *zscoreAggregator) aggregateValues(vals []float64) (float64, error) {
 // per the universal-floor convention, but the flag keeps the contract
 // inspectable in tests.
 type medianAggregator struct {
-	frozenFinalized   bool
-	frozenN           int
-	frozenMedian      float64
-	frozenPositionLow int
+	frozenFinalized    bool
+	frozenN            int
+	frozenMedian       float64
+	frozenPositionLow  int
 	frozenPositionHigh int
 }
 
@@ -860,15 +860,15 @@ type percentileParams struct {
 }
 
 type percentileAggregator struct {
-	percentile        float64
-	frozenFinalized   bool
-	frozenN           int
-	frozenP           float64
-	frozenPosition    int
-	frozenLower       float64
-	frozenUpper       float64
-	frozenMethod      string
-	frozenValue       float64
+	percentile      float64
+	frozenFinalized bool
+	frozenN         int
+	frozenP         float64
+	frozenPosition  int
+	frozenLower     float64
+	frozenUpper     float64
+	frozenMethod    string
+	frozenValue     float64
 }
 
 func newPercentileAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {

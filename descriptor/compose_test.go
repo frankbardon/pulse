@@ -697,7 +697,7 @@ func TestValidateCompose_SchemaDivergent_NestedDepthMismatch(t *testing.T) {
 func TestValidateCompose_SchemaDivergent_SeriesTypeMismatch(t *testing.T) {
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
-			seriesGroupedSumRequest("a", "x", "tag"),  // GROUP_CATEGORY
+			seriesGroupedSumRequest("a", "x", "tag"),   // GROUP_CATEGORY
 			seriesRangeGroupedRequest("b", "y", "tag"), // GROUP_RANGE
 		},
 		Overlays: []types.ComposeOverlaySpec{

@@ -82,10 +82,10 @@ func nestedRowAxisPayload() *types.MatrixPayload {
 //
 // Within a fixed row + parent-column-prefix bucket:
 //
-//	  (A, R): (A,R,X)+(A,R,Y) = 3
-//	  (A, W): (A,W,X)+(A,W,Y) = 7
-//	  (B, R): (B,R,X)+(B,R,Y) = 11
-//	  (B, W): (B,W,X)+(B,W,Y) = 15
+//	(A, R): (A,R,X)+(A,R,Y) = 3
+//	(A, W): (A,W,X)+(A,W,Y) = 7
+//	(B, R): (B,R,X)+(B,R,Y) = 11
+//	(B, W): (B,W,X)+(B,W,Y) = 15
 //
 // Used by the E2-S11 Within=1 test (SHARE_OF_ROW with Within fixing
 // the parent column prefix produces row sums equal to 1.0 within each

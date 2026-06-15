@@ -56,15 +56,15 @@ import (
 type e1CountingFs struct {
 	inner afero.Fs
 
-	mu               sync.Mutex
-	openCount        int
-	openFileCount    int
-	statCount        int
-	createCount      int
-	bytesReadByPath  map[string]int64
-	fullReadsByPath  map[string]int   // path -> times the file was fully drained via a returned handle
-	fileSizeByPath   map[string]int64 // path -> last observed size at Stat-or-read time
-	openedPaths      []string         // chronological list (deduped contiguously) of paths Open'd
+	mu              sync.Mutex
+	openCount       int
+	openFileCount   int
+	statCount       int
+	createCount     int
+	bytesReadByPath map[string]int64
+	fullReadsByPath map[string]int   // path -> times the file was fully drained via a returned handle
+	fileSizeByPath  map[string]int64 // path -> last observed size at Stat-or-read time
+	openedPaths     []string         // chronological list (deduped contiguously) of paths Open'd
 }
 
 func newCountingFs(inner afero.Fs) *e1CountingFs {
@@ -117,11 +117,11 @@ func (c *e1CountingFs) OpenFile(name string, flag int, perm os.FileMode) (afero.
 	return c.wrap(name, f), nil
 }
 
-func (c *e1CountingFs) Remove(name string) error                       { return c.inner.Remove(name) }
-func (c *e1CountingFs) RemoveAll(path string) error                    { return c.inner.RemoveAll(path) }
-func (c *e1CountingFs) Rename(oldname, newname string) error           { return c.inner.Rename(oldname, newname) }
-func (c *e1CountingFs) Chmod(name string, mode os.FileMode) error      { return c.inner.Chmod(name, mode) }
-func (c *e1CountingFs) Chown(name string, uid, gid int) error          { return c.inner.Chown(name, uid, gid) }
+func (c *e1CountingFs) Remove(name string) error                  { return c.inner.Remove(name) }
+func (c *e1CountingFs) RemoveAll(path string) error               { return c.inner.RemoveAll(path) }
+func (c *e1CountingFs) Rename(oldname, newname string) error      { return c.inner.Rename(oldname, newname) }
+func (c *e1CountingFs) Chmod(name string, mode os.FileMode) error { return c.inner.Chmod(name, mode) }
+func (c *e1CountingFs) Chown(name string, uid, gid int) error     { return c.inner.Chown(name, uid, gid) }
 func (c *e1CountingFs) Chtimes(name string, atime, mtime time.Time) error {
 	return c.inner.Chtimes(name, atime, mtime)
 }
@@ -152,8 +152,8 @@ type e1CountingFile struct {
 	parent *e1CountingFs
 	path   string
 
-	mu    sync.Mutex
-	read  int64
+	mu     sync.Mutex
+	read   int64
 	hitEOF bool
 }
 
@@ -224,13 +224,13 @@ func (c *e1CountingFs) recordHandleClosed(path string, read int64, fullDrain boo
 // snapshot atomically copies the recorded counters so test assertions
 // don't race with in-flight reads from a deferred Close.
 type fsCounts struct {
-	Open       int
-	OpenFile   int
-	Stat       int
-	Create     int
-	BytesRead  map[string]int64
-	FullReads  map[string]int
-	FileSizes  map[string]int64
+	Open        int
+	OpenFile    int
+	Stat        int
+	Create      int
+	BytesRead   map[string]int64
+	FullReads   map[string]int
+	FileSizes   map[string]int64
 	OpenedPaths []string
 }
 
@@ -238,13 +238,13 @@ func (c *e1CountingFs) snapshot() fsCounts {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	out := fsCounts{
-		Open:       c.openCount,
-		OpenFile:   c.openFileCount,
-		Stat:       c.statCount,
-		Create:     c.createCount,
-		BytesRead:  make(map[string]int64, len(c.bytesReadByPath)),
-		FullReads:  make(map[string]int, len(c.fullReadsByPath)),
-		FileSizes:  make(map[string]int64, len(c.fileSizeByPath)),
+		Open:        c.openCount,
+		OpenFile:    c.openFileCount,
+		Stat:        c.statCount,
+		Create:      c.createCount,
+		BytesRead:   make(map[string]int64, len(c.bytesReadByPath)),
+		FullReads:   make(map[string]int, len(c.fullReadsByPath)),
+		FileSizes:   make(map[string]int64, len(c.fileSizeByPath)),
 		OpenedPaths: append([]string(nil), c.openedPaths...),
 	}
 	for k, v := range c.bytesReadByPath {
@@ -673,7 +673,7 @@ func TestCountingFs_ProcessOutputByteEqualAcrossFsShapes(t *testing.T) {
 	// 4. RealPather stub over OsFs
 	rp := &realPatherCountingFs{
 		e1CountingFs: newCountingFs(osFs),
-		resolve: func(name string) (string, error) { return name, nil },
+		resolve:      func(name string) (string, error) { return name, nil },
 	}
 	cfgRP, err := fs.New(fs.WithFs(rp))
 	if err != nil {

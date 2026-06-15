@@ -227,4 +227,3 @@ func TestValidateOverlay_BaselineIndexAbsentRefSkips(t *testing.T) {
 		t.Fatalf("no BaselineIndex: did NOT expect PULSE_OVERLAY_REF_UNKNOWN")
 	}
 }
-

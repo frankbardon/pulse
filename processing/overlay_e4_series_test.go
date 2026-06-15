@@ -260,11 +260,11 @@ func TestOverlay_ZScoreVsRolling_WelfordParity(t *testing.T) {
 // prior).
 //
 //   - annual:  stride=1.   2-year series [10, 20].
-//                          NaN for year 0; year 1 = 200.
+//     NaN for year 0; year 1 = 200.
 //   - monthly: stride=12. 24-month series [100, 100, ..., 200, 200].
-//                          NaN for months 0..11; months 12..23 = 200.
+//     NaN for months 0..11; months 12..23 = 200.
 //   - weekly:  stride=52. 104-week series [10, 10, ..., 15, 15].
-//                          NaN for weeks 0..51; weeks 52..103 = 150.
+//     NaN for weeks 0..51; weeks 52..103 = 150.
 //
 // Daily / hourly frequency arms use a separate exact-key arithmetic
 // path (TestOverlay_YoY_DailyBasic + TestOverlay_YoY_HourlyExactArithmetic);

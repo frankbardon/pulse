@@ -56,7 +56,7 @@ import (
 // pair so the resulting (mean, variance, n) triples can be fed into
 // both surfaces side-by-side.
 type parityTuple struct {
-	name       string
+	name string
 	// targetStream / refStream are the raw scalar inputs (50 numeric
 	// observations per group) the respondent cohort produced. We drive
 	// the welfordBucket over the full stream so the test exercises the

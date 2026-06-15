@@ -430,20 +430,20 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		// Scalar / numeric ops over the f64 score cohort. AGG_NULL_COUNT
 		// inverts the floor (N=null-count, NNull=non-null-count) per the
 		// per-record bookkeeping contract in service/orchestrator.
-		types.AGG_COUNT:      num(),
-		types.AGG_SUM:        num(),
-		types.AGG_AVERAGE:    num(),
-		types.AGG_MIN:        num(),
-		types.AGG_MAX:        num(),
-		types.AGG_STDDEV:     num(),
-		types.AGG_RANGE:      num(),
-		types.AGG_FREQUENCY:  num(),
-		types.AGG_ZSCORE:     num(),
-		types.AGG_MEDIAN:     num(),
-		types.AGG_VARIANCE:   num(),
-		types.AGG_MODE:       num(),
-		types.AGG_SKEWNESS:   num(),
-		types.AGG_KURTOSIS:   num(),
+		types.AGG_COUNT:          num(),
+		types.AGG_SUM:            num(),
+		types.AGG_AVERAGE:        num(),
+		types.AGG_MIN:            num(),
+		types.AGG_MAX:            num(),
+		types.AGG_STDDEV:         num(),
+		types.AGG_RANGE:          num(),
+		types.AGG_FREQUENCY:      num(),
+		types.AGG_ZSCORE:         num(),
+		types.AGG_MEDIAN:         num(),
+		types.AGG_VARIANCE:       num(),
+		types.AGG_MODE:           num(),
+		types.AGG_SKEWNESS:       num(),
+		types.AGG_KURTOSIS:       num(),
 		types.AGG_DISTINCT_COUNT: num(),
 		// AGG_NULL_COUNT — the orchestrator's universal floor measures
 		// "rows whose field was null" (NNull) and "rows whose field was
@@ -473,12 +473,12 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		types.AGG_RATIO:         coh(json.RawMessage(`{"numerator_field":"num","denominator_field":"den"}`)),
 
 		// Set ops use the set_u8 dictionary cohort.
-		types.AGG_SET_UNION:            set(),
-		types.AGG_SET_INTERSECTION:     set(),
-		types.AGG_SET_FREQUENCY:        set(),
-		types.AGG_SET_CARDINALITY_SUM:  set(),
-		types.AGG_SET_CARDINALITY_AVG:  set(),
-		types.AGG_SET_DISTINCT_VALUES:  set(),
+		types.AGG_SET_UNION:           set(),
+		types.AGG_SET_INTERSECTION:    set(),
+		types.AGG_SET_FREQUENCY:       set(),
+		types.AGG_SET_CARDINALITY_SUM: set(),
+		types.AGG_SET_CARDINALITY_AVG: set(),
+		types.AGG_SET_DISTINCT_VALUES: set(),
 	}
 
 	// Sanity: the fixture map must cover every registered aggregator.

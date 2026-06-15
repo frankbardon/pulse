@@ -619,32 +619,32 @@ func generateBigSchemaRecords(t *testing.T, schema *Schema, seed int64) [][]byte
 	out := make([][]byte, 0, equivalenceRecordsPerSchema)
 	for i := 0; i < equivalenceRecordsPerSchema; i++ {
 		vals := map[string]any{
-			"u8_a":   uint64(r.Intn(256)),
-			"u8_b":   uint64(r.Intn(256)),
-			"u16_a":  uint64(r.Intn(65536)),
-			"u4_lo":  uint8(r.Intn(16)),
-			"u4_hi":  uint8(r.Intn(16)),
-			"pb_0":   r.Intn(2) == 1,
-			"pb_1":   r.Intn(2) == 1,
-			"u32_a":  uint64(r.Uint32()),
-			"f32_a":  uint64(math.Float32bits(float32(r.NormFloat64()) * 10)),
-			"date_a": uint64(r.Uint32()),
-			"u64_a":  r.Uint64(),
-			"f64_a":  math.Float64bits(r.NormFloat64() * 100),
-			"cat_u8":  uint64(r.Intn(200)),
-			"cat_u16": uint64(r.Intn(5000)),
-			"cat_u32": uint64(r.Intn(50000)),
-			"amount":  decimalMantissa(r, i),
+			"u8_a":     uint64(r.Intn(256)),
+			"u8_b":     uint64(r.Intn(256)),
+			"u16_a":    uint64(r.Intn(65536)),
+			"u4_lo":    uint8(r.Intn(16)),
+			"u4_hi":    uint8(r.Intn(16)),
+			"pb_0":     r.Intn(2) == 1,
+			"pb_1":     r.Intn(2) == 1,
+			"u32_a":    uint64(r.Uint32()),
+			"f32_a":    uint64(math.Float32bits(float32(r.NormFloat64()) * 10)),
+			"date_a":   uint64(r.Uint32()),
+			"u64_a":    r.Uint64(),
+			"f64_a":    math.Float64bits(r.NormFloat64() * 100),
+			"cat_u8":   uint64(r.Intn(200)),
+			"cat_u16":  uint64(r.Intn(5000)),
+			"cat_u32":  uint64(r.Intn(50000)),
+			"amount":   decimalMantissa(r, i),
 			"tags_u8":  setMask(r, i, 8),
 			"tags_u16": setMask(r, i, 16),
 			"tags_u32": setMask(r, i, 32),
 			"tags_u64": setMask(r, i, 64),
-			"u16_b":   uint64(r.Intn(65536)),
-			"u32_b":   uint64(r.Uint32()),
-			"f64_b":   math.Float64bits(r.NormFloat64() * 100),
-			"u8_c":    uint64(r.Intn(256)),
-			"u64_b":   r.Uint64(),
-			"u16_c":   uint64(r.Intn(65536)),
+			"u16_b":    uint64(r.Intn(65536)),
+			"u32_b":    uint64(r.Uint32()),
+			"f64_b":    math.Float64bits(r.NormFloat64() * 100),
+			"u8_c":     uint64(r.Intn(256)),
+			"u64_b":    r.Uint64(),
+			"u16_c":    uint64(r.Intn(65536)),
 		}
 		// Edge cases: u4 boundaries.
 		if i%47 == 0 {
@@ -779,16 +779,16 @@ func TestDecodePlan_Equivalence_SmallMixed(t *testing.T) {
 	records := make([][]byte, 0, equivalenceRecordsPerSchema)
 	for i := 0; i < equivalenceRecordsPerSchema; i++ {
 		vals := map[string]any{
-			"id":    uint64(r.Uint32()),
-			"u4_lo": uint8(r.Intn(16)),
-			"u4_hi": uint8(r.Intn(16)),
-			"flag":  r.Intn(2) == 1,
-			"cat":   uint64(r.Intn(1000)),
+			"id":     uint64(r.Uint32()),
+			"u4_lo":  uint8(r.Intn(16)),
+			"u4_hi":  uint8(r.Intn(16)),
+			"flag":   r.Intn(2) == 1,
+			"cat":    uint64(r.Intn(1000)),
 			"amount": decimalMantissa(r, i),
-			"tags":  setMask(r, i, 16),
-			"score": math.Float64bits(r.NormFloat64()),
-			"u8_x":  uint64(r.Intn(256)),
-			"u64_x": r.Uint64(),
+			"tags":   setMask(r, i, 16),
+			"score":  math.Float64bits(r.NormFloat64()),
+			"u8_x":   uint64(r.Intn(256)),
+			"u64_x":  r.Uint64(),
 		}
 		var nulls map[string]bool
 		switch i % 6 {
@@ -1035,4 +1035,3 @@ func TestDecodePlan_Equivalence_FullRetainedMatchesUnprojected(t *testing.T) {
 		}
 	}
 }
-

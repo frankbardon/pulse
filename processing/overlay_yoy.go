@@ -152,10 +152,10 @@ func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer
 				errors.PROCESSING_INTERNAL,
 				"overlay "+string(spec.Kind)+" requires a SERIES host whose first grouper is GROUP_DATE; got "+string(kinds[0]),
 				map[string]any{
-					"code":          string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-					"kind":          string(spec.Kind),
-					"host_grouper":  string(kinds[0]),
-					"required":      string(types.GROUP_DATE),
+					"code":         string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+					"kind":         string(spec.Kind),
+					"host_grouper": string(kinds[0]),
+					"required":     string(types.GROUP_DATE),
 				})
 		}
 	}

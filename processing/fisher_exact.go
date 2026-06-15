@@ -20,10 +20,10 @@ import "math"
 // fisherExactTwoSided returns the two-sided Fisher's exact p-value for a
 // 2×2 contingency table whose cells are (a, b, c, d):
 //
-//	          col=c0   col=c1   | row_margin
-//	  row=r0    a        b      |   row1 = a + b
-//	  row=r1    c        d      |   row2 = c + d
-//	  col      col1     col2    |   grand_total = n = a + b + c + d
+//	        col=c0   col=c1   | row_margin
+//	row=r0    a        b      |   row1 = a + b
+//	row=r1    c        d      |   row2 = c + d
+//	col      col1     col2    |   grand_total = n = a + b + c + d
 //
 // The two-sided convention is the "p-value method": sum hypergeometric
 // probabilities for every feasible cell[0][0] value whose log-probability

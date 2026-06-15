@@ -106,10 +106,10 @@ type OverlayCapability struct {
 //
 //   - Shapes:   [matrix]   (CELL-scoped overlay layered onto a crosstab)
 //   - Scopes:   [cell]     (E1 supports CELL only; ROW/COLUMN/TOTAL land
-//                          alongside the matching payload shapes)
+//     alongside the matching payload shapes)
 //   - RefKinds: [Margin]   (denominator is an axis-margin slot)
 //   - Buffered: true       (margins recompute from raw rows; the host
-//                          crosstab path is always buffered)
+//     crosstab path is always buffered)
 //
 // Later kinds drop in by extending the switch below. The
 // TestStreamability_OverlaysKnown gate (types/overlay_streamability.go)

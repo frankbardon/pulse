@@ -100,29 +100,29 @@ import (
 //
 // What the probe walks:
 //
-//   For each (refResp, tResp) pair, the probe consults both the row
-//   axis and the column axis of the MatrixPayload when both slots are
-//   MATRIX shape. SCALAR / SERIES slots have no comparable
-//   categorical dictionary at the response layer (SCALAR has no axis;
-//   SERIES carries grouper-key columns whose ordering is not
-//   guaranteed to derive from a categorical dictionary) so the probe
-//   degenerates to a no-op for those host shapes — the safe by-label
-//   join is the only correct path for non-MATRIX hosts regardless of
-//   the fast-path opt-in.
+//	For each (refResp, tResp) pair, the probe consults both the row
+//	axis and the column axis of the MatrixPayload when both slots are
+//	MATRIX shape. SCALAR / SERIES slots have no comparable
+//	categorical dictionary at the response layer (SCALAR has no axis;
+//	SERIES carries grouper-key columns whose ordering is not
+//	guaranteed to derive from a categorical dictionary) so the probe
+//	degenerates to a no-op for those host shapes — the safe by-label
+//	join is the only correct path for non-MATRIX hosts regardless of
+//	the fast-path opt-in.
 //
 // Comparison rule:
 //
-//   Two ordered AxisKey sequences agree on a prefix iff for every
-//   index i < min(len(ref), len(target)), the canonical string form
-//   (axisKeyToString) of ref[i] equals the canonical string form of
-//   target[i]. When one sequence is shorter than the other the
-//   comparison ends at the shorter length — the longer one is allowed
-//   to "extend" the dictionary so long as the prefix matches (mirrors
-//   encoding.isPrefix / encoding.ValidateDictPrefixRule semantics for
-//   sharded cohorts). When ANY position diverges the probe fails for
-//   that target with the offending field name and the canonical
-//   prefix strings (entries joined "|" up to the divergence point —
-//   see canonicalAxisPrefix).
+//	Two ordered AxisKey sequences agree on a prefix iff for every
+//	index i < min(len(ref), len(target)), the canonical string form
+//	(axisKeyToString) of ref[i] equals the canonical string form of
+//	target[i]. When one sequence is shorter than the other the
+//	comparison ends at the shorter length — the longer one is allowed
+//	to "extend" the dictionary so long as the prefix matches (mirrors
+//	encoding.isPrefix / encoding.ValidateDictPrefixRule semantics for
+//	sharded cohorts). When ANY position diverges the probe fails for
+//	that target with the offending field name and the canonical
+//	prefix strings (entries joined "|" up to the divergence point —
+//	see canonicalAxisPrefix).
 //
 // Details payload (encoding/json-friendly):
 //
@@ -131,10 +131,10 @@ import (
 //   - "reference"             → reference slot label (from spec.Reference)
 //   - "target_label"          → diverging target slot label
 //   - "field"                 → the axis-name (or "row_axis" / "column_axis"
-//                               when the AxisHeader.Fields slot is empty)
+//     when the AxisHeader.Fields slot is empty)
 //   - "reference_dict_prefix" → canonical dictionary prefix string for
-//                               the reference slot (axis keys joined "|"
-//                               up to the divergence point)
+//     the reference slot (axis keys joined "|"
+//     up to the divergence point)
 //   - "target_dict_prefix"    → same for the target slot
 //
 // "First divergence wins" matches the existing key-set / schema

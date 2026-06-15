@@ -302,10 +302,10 @@ type setFrequencyAggregator struct {
 	// per-label count map and aggregate counters are stamped at the
 	// freeze point so Components() returns a stable snapshot even if
 	// a future Finalize-reset clears `counts`.
-	frozenPerLabel        map[string]int
-	frozenTotalLabelObs   int
-	frozenDistinctLabels  int
-	frozenHasResult       bool
+	frozenPerLabel       map[string]int
+	frozenTotalLabelObs  int
+	frozenDistinctLabels int
+	frozenHasResult      bool
 }
 
 func newSetFrequencyAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
@@ -776,4 +776,3 @@ var (
 	_ MetaAggregator = (*setCardinalityAvgAggregator)(nil)
 	_ MetaAggregator = (*setDistinctValuesAggregator)(nil)
 )
-

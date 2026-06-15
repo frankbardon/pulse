@@ -153,7 +153,7 @@ func TestFieldFilterForPlan_PassesThroughEncodingFieldFilter(t *testing.T) {
 // `value > 5000`:
 //   - baseline (ReadRecordWithWide):           744 ms/op, 554 MB/op, 8.59M allocs/op
 //   - projected (ReadRecordWithWideProjected): 149 ms/op, 152 MB/op, 2.58M allocs/op
-//   ≈ 5× wall time, 3.6× memory, 3.3× allocations.
+//     ≈ 5× wall time, 3.6× memory, 3.3× allocations.
 //
 // Savings scale with the unreferenced-field count — at 628 fields (the
 // BERA visa_custom shape that motivated this PR) the unprojected path

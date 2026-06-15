@@ -1399,10 +1399,10 @@ func validateOverlayYoY(env *Envelope, req *types.Request, spec *types.OverlaySp
 		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 			"overlay "+string(spec.Kind)+" requires the host's first grouper to be GROUP_DATE; got "+actual,
 			map[string]any{
-				"index":         index,
-				"kind":          string(spec.Kind),
-				"host_grouper":  actual,
-				"required":      string(types.GROUP_DATE),
+				"index":        index,
+				"kind":         string(spec.Kind),
+				"host_grouper": actual,
+				"required":     string(types.GROUP_DATE),
 			})
 		return
 	}

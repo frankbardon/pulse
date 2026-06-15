@@ -505,12 +505,12 @@ func TestBuildDecodePlan_NoBitmapWhenNoNullable(t *testing.T) {
 func TestBuildDecodePlan_MixedSchema(t *testing.T) {
 	schema := &Schema{
 		Fields: []Field{
-			{Name: "id", Type: FieldTypeU64},                        // 8 bytes
-			{Name: "cat", Type: FieldTypeCategoricalU16},            // 2 bytes
+			{Name: "id", Type: FieldTypeU64},                            // 8 bytes
+			{Name: "cat", Type: FieldTypeCategoricalU16},                // 2 bytes
 			{Name: "amount", Type: FieldTypeDecimal128, Nullable: true}, // 16 bytes
-			{Name: "tags", Type: FieldTypeSetU8},                    // 1 byte
-			{Name: "score", Type: FieldTypeF64, Nullable: true},     // 8 bytes
-			{Name: "flag", Type: FieldTypePackedBool},               // 1 byte (bit-packed group of 1)
+			{Name: "tags", Type: FieldTypeSetU8},                        // 1 byte
+			{Name: "score", Type: FieldTypeF64, Nullable: true},         // 8 bytes
+			{Name: "flag", Type: FieldTypePackedBool},                   // 1 byte (bit-packed group of 1)
 		},
 	}
 	// Retain id, amount, flag. Expected layout:
@@ -647,9 +647,9 @@ func TestBuildDecodePlan_PureFunctionOfSchema(t *testing.T) {
 func TestBuildDecodePlan_BitPackedFlushSeparatesSkipAndDecode(t *testing.T) {
 	schema := &Schema{
 		Fields: []Field{
-			{Name: "skip_a", Type: FieldTypeU16},          // 2 bytes skip
-			{Name: "b0", Type: FieldTypePackedBool},       // bit-packed, retained
-			{Name: "keep_a", Type: FieldTypeU32},          // 4 bytes decode
+			{Name: "skip_a", Type: FieldTypeU16},    // 2 bytes skip
+			{Name: "b0", Type: FieldTypePackedBool}, // bit-packed, retained
+			{Name: "keep_a", Type: FieldTypeU32},    // 4 bytes decode
 		},
 	}
 	plan, err := schema.BuildDecodePlan([]string{"b0", "keep_a"})
