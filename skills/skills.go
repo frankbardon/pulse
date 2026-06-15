@@ -19,6 +19,17 @@ type Metadata struct {
 	Description string   `json:"description"`
 	Type        string   `json:"type"`
 	AppliesTo   []string `json:"applies_to"`
+
+	// Kind classifies the skill: "operator" | "tool" | "type" | "design".
+	Kind string `json:"kind,omitempty"`
+	// Category is the operator family: AGG | ATTR | FILTER | GROUP | WIN | FEAT | TEST | REG | OVERLAY | SYNTH; empty when not operator-scoped.
+	Category string `json:"category,omitempty"`
+	// Operator is the full operator constant (e.g. TEST_WELCH); empty when not operator-scoped.
+	Operator string `json:"operator,omitempty"`
+	// Covers lists operators/tools/types covered by a design skill.
+	Covers []string `json:"covers,omitempty"`
+	// ExamplesTags lists the runnable-example tags referenced by a "## See" section in an atomic skill.
+	ExamplesTags []string `json:"examples_tags,omitempty"`
 }
 
 // List returns all skills defined in index.json.
