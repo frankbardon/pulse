@@ -36,6 +36,9 @@ This is the compressed surface — the full per-contract trigger table lives at 
 | A new non-skippable CI gate | CLAUDE.md "Non-Skippable CI Gates" list | `TestClaudeMdMentionsAllNonSkippableGates` |
 | An environment variable | CLAUDE.md "Build / Env" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
 | A registered MCP tool (add/remove) | `skills/mcp-integration.md` + `internal/mcp/mcptools/meta.go` | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
+| `Response.Components` shape change | CLAUDE.md "Output Format Contract" + `skills/response-components.md` | `TestClaudeMdMentionsComponentsContract`, `TestSkillsCoverComponentsContract` |
+| Per-operator `ComponentSchema` change | skill file for that category + `descriptor/capabilities_*.go` + `internal/mcp/mcptools/meta.go` | `TestManifestComponentSchemasComplete`, `TestSkillsCoverAllOperatorComponents`, `TestComponentsUniversalFloor` |
+| Extension registration `ComponentSchema` | `skills/extension-points.md` + Update Demand table | `TestExtensions_ComponentSchemaParity` |
 | Shard archive layout (entry names, `_schema.pulse` block, magic dispatch, dict prefix rule) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded) | `TestShardArchiveLayoutDocumented`, `TestSkillsCoverShardingTopics` |
 | Any Request slot, Response slot, capability block, or Execution-mode wiring | See `.claude/reference/update-demand.md` for the per-slot trigger row | per-slot test suites cited there |
 
@@ -140,6 +143,20 @@ All `--json` CLI output + descriptor operations use `descriptor.Envelope`:
 
 Additive-only: bump `format_version` only on backward-incompatible shape changes. New `data` fields don't bump; renames/removals do. The `request` field is additive (omitempty) and does NOT bump `format_version`.
 
+### Response.Components
+
+Every `Response` carries an optional `Components *ResponseComponents` (additive `omitempty`; `format_version` stays `"1.0"`). Mirrors the request shape:
+
+- `Aggregations []AggregationComponents` — one entry per aggregator slot; universal floor `{n, n_null}` + operator-specific `Operator map[string]any` keyed by the manifest schema.
+- `Groupers []GrouperComponents` — universal floor `{total_n, n_null}` + operator-specific bucket layout.
+- `Crosstab *CrosstabComponents` — `CellCounts[r][c]`, `CellComponents[r][c]`, row/column/grand-total margin counterparts, axis-key components. Mirrors `MatrixPayload` coordinate-for-coordinate.
+- `Filterers []FiltererComponents` — uniform `{n_in, n_out, n_null_input}` across all 11 filterers.
+- `Run *RunComponents` — `total_records`, `filtered_records`, `null_records`, `shard_count`, `partial_cohort_reason`. Coexists with `Response.Metadata`: `Metadata` keeps non-numerical run facts (cohort filename); `Run` carries the typed counters.
+
+Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers}`. Mergeability axis per operator: `Mergeable` / `Partial` / `None` (`types.ComponentsMergeability`). Streaming chunks emit running state for mergeable; non-mergeable surface only on terminal flush.
+
+Full contract: `skills/response-components.md`.
+
 ### Structural defense bans
 
 - **No `fmt.Sprintf`-built JSON.** Use `encoding/json`. Grep-gated by `TestDescriptorNoFmtSprintf`.
@@ -171,8 +188,7 @@ Heavy detail lives in `.claude/reference/execution-modes.md` and the named skill
 - **Crosstab** (`Request.Crosstab`, `Response.Crosstab`) — composed row×column grid; margins recompute from raw rows; `normalize_level` / `normalize_within` compose. See `skills/crosstab-guide.md`.
 - **Fused crosstab** (`processing.CanFuseCrosstab`, `processing.StreamableGrouper.KeyFor`) — in-decode streaming alternative; ~30–47% faster on benches. See `skills/crosstab-guide.md` (Fused mergeable path) + `skills/grouper-design.md`.
 - **Facet endpoints** — simple (`pulse.Facet`) + rich (`pulse.FacetSchema`); four FACET-host overlay kinds (`OVERLAY_INDEX_VS_POP` / `OVERLAY_ZSCORE_VS_POP` / `OVERLAY_CHISQ_VS_POP` / `OVERLAY_KS_VS_POP`) ride `FacetRequest.Overlays`. FACET-host wiring is the FacetSchema-buffered-exit hook at `service.applyFacetOverlays`. See `skills/facet-design.md`.
-<!-- TODO E5-S2: remove WelfordTriple smuggling reference. E3-S8 retired the MatrixCell.Value triple path; the parity overlays now read `{n, mean, variance}` from Response.Components.Crosstab.CellComponents directly. Cleanup of the bullet prose lives in E5-S2 alongside the broader Output Format Contract refresh. -->
-- **Overlays** (`Request.Overlays`, `Response.Overlays`) — additive post-result decorations keyed to host coordinates; never mutate base payload. Level / Within prefix composition, SERIES-host fold (E3-S6), FACET-host wiring (E5-S6), CHAIN-host barrier (E6-S3), FORMULA kind (E8-S2). Stat-test parity family (`OVERLAY_T_CELL` / `OVERLAY_T_VS_REF` Welch upgrade + `OVERLAY_Z_CELL` / `OVERLAY_Z_VS_REF`) consumes a `processing.WelfordTriple{Mean, Variance, N}` cell payload flowing through `MatrixCell.Value` (emitted by the `AGG_WELFORD` aggregator's `RichAggregator` path); when the triple is present the handler bypasses `Params` defaults and computes p-values byte-equal to the standalone `TEST_WELCH` / `TEST_Z_TWO_SAMPLE` row tests over the same inputs. Additive contract preserved — scalar cell + `Params`-supplied mean/variance/N still works when no triple is attached. See `skills/overlay-system.md`.
+- **Overlays** (`Request.Overlays`, `Response.Overlays`) — additive post-result decorations keyed to host coordinates; never mutate base payload. Level / Within prefix composition, SERIES-host fold (E3-S6), FACET-host wiring (E5-S6), CHAIN-host barrier (E6-S3), FORMULA kind (E8-S2). Stat-test parity family (`OVERLAY_T_CELL` / `OVERLAY_T_VS_REF` Welch upgrade + `OVERLAY_Z_CELL` / `OVERLAY_Z_VS_REF`) reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` (populated by `AGG_WELFORD` via the `MetaAggregator` path) and computes p-values byte-equal to the standalone `TEST_WELCH` / `TEST_Z_TWO_SAMPLE` row tests over the same inputs. The legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` is removed (E3-S7/S8); `MatrixCell.Value` for `AGG_WELFORD` cells now carries the scalar mean per `Aggregate()`. Additive contract preserved — when no `CellComponents` triple is present, the handler falls back to `Params`-supplied mean/variance/N. See `skills/overlay-system.md` for the migration.
 
 ## Non-Skippable CI Gates
 
@@ -180,7 +196,9 @@ CLAUDE.md hygiene:
 - `TestClaudeMdMentionsFormatVersion` — CLAUDE.md must mention current `format_version` `"1.0"`.
 - `TestClaudeMdMentionsAllEnvVars` — every `PULSE_*` env var in Go source must appear in CLAUDE.md.
 - `TestClaudeMdMentionsAllNonSkippableGates` — every test name with these prefixes (`TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage`) must be listed in CLAUDE.md.
+- `TestClaudeMdMentionsComponentsContract` — CLAUDE.md surfaces `Response.Components` shape + universal floor + naming-collision note.
 - `TestUpdateDemandTableCovers` — Update Demand table must cover every component category and contract type.
+- `TestUpdateDemandTableCoversComponents` — the new trigger rows for `Response.Components` shape, per-operator `ComponentSchema`, and extension `ComponentSchema` are present.
 
 Predecessor-reference hygiene:
 - `TestNoOrbitPrefix` — no type-constant string contains predecessor references.
@@ -202,8 +220,9 @@ Skill-coverage:
 - `TestSkillsCoverAllRegressions` — every `REG_*` operator appears in `skills/regression-modeling.md`.
 - `TestSkillsCoverAllOverlayKinds` — every overlay kind in `types.AllOverlayKinds()` appears in `skills/overlay-system.md`.
 - `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section and `skills/contributor-workflow.md` mentions sharding.
+- `TestSkillsCoverAllOperatorComponents` — every operator's component keys appear in its target skill.
 
-Other load-bearing contract gates (not prefix-matched, enforced by their own packages): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestManifestFacetCapability`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known`, `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestExtensions_*`, `TestShardArchive*`, `TestProcessChain_*`, `TestValidateChain_*`, `TestJoin_*`, `TestValidateJoin_*`, `TestFacetSchema_*`, `TestValidateFacet_*`, `TestCountRecords_*`, `TestNeededFields_*`, `TestProjection_*`, `TestReadRecordProjected_*`.
+Other load-bearing contract gates (not prefix-matched, enforced by their own packages): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestManifestFacetCapability`, `TestManifestComponentSchemasComplete`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known`, `TestStreamability_ComponentsMergeabilityKnown`, `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestComponentsUniversalFloor`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestExtensions_*`, `TestExtensions_ComponentSchemaParity`, `TestExtensions_MissingComponentSchema`, `TestShardArchive*`, `TestProcessChain_*`, `TestValidateChain_*`, `TestJoin_*`, `TestValidateJoin_*`, `TestFacetSchema_*`, `TestValidateFacet_*`, `TestCountRecords_*`, `TestNeededFields_*`, `TestProjection_*`, `TestReadRecordProjected_*`.
 
 ## Build / Env
 
