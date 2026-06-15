@@ -148,6 +148,10 @@ func populationStdDev(vals []float64) float64 {
 
 // countAggregator counts non-null values for a field. The streaming path
 // uses the n field; the buffered path ignores it (collectValues + len).
+//
+// Components emission is floor-only — see MetaAggregator wiring below;
+// the scalar value IS the universal floor n, so no operator-specific
+// keys ride.
 type countAggregator struct {
 	n int64
 }
@@ -167,11 +171,14 @@ func (a *countAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Sum ---
 
-// sumAggregator sums non-null values. The sum field is used by the
-// streaming path; the buffered path computes from a slice and does not
-// rely on it.
+// sumAggregator sums non-null values. The sum field is the running
+// accumulator on the streaming path; the buffered path stamps it via
+// aggregateValues so Components() can read it post-Aggregate. The
+// frozenSum mirror survives Finalize's reset so the orchestrator's
+// post-Finalize Components() call sees the final value.
 type sumAggregator struct {
-	sum float64
+	sum       float64
+	frozenSum float64
 }
 
 func newSumAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -188,15 +195,19 @@ func (a *sumAggregator) aggregateValues(vals []float64) (float64, error) {
 	for _, v := range vals {
 		sum += v
 	}
+	a.frozenSum = sum
 	return sum, nil
 }
 
 // --- Average ---
 
 // averageAggregator tracks running sum and count for streaming mean.
+// frozenSum mirrors the final sum so Components() survives Finalize's
+// reset; the buffered path stamps it via aggregateValues.
 type averageAggregator struct {
-	sum float64
-	n   int64
+	sum       float64
+	n         int64
+	frozenSum float64
 }
 
 func newAverageAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -209,14 +220,26 @@ func (a *averageAggregator) Aggregate(records []*Record, field string) (float64,
 }
 
 func (a *averageAggregator) aggregateValues(vals []float64) (float64, error) {
-	return mean(vals), nil
+	sum := 0.0
+	for _, v := range vals {
+		sum += v
+	}
+	a.frozenSum = sum
+	if len(vals) == 0 {
+		return 0, nil
+	}
+	return sum / float64(len(vals)), nil
 }
 
 // --- Min ---
 
+// frozenMin survives Finalize's reset so Components() returns the same
+// value an immediately-prior Finalize emitted; the buffered path
+// populates it via aggregateValues.
 type minAggregator struct {
-	min  float64
-	seen bool
+	min       float64
+	seen      bool
+	frozenMin float64
 }
 
 func newMinAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -230,6 +253,7 @@ func (a *minAggregator) Aggregate(records []*Record, field string) (float64, err
 
 func (a *minAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
+		a.frozenMin = 0
 		return 0, nil
 	}
 	m := vals[0]
@@ -238,14 +262,17 @@ func (a *minAggregator) aggregateValues(vals []float64) (float64, error) {
 			m = v
 		}
 	}
+	a.frozenMin = m
 	return m, nil
 }
 
 // --- Max ---
 
+// frozenMax mirrors max post-Finalize for Components().
 type maxAggregator struct {
-	max  float64
-	seen bool
+	max       float64
+	seen      bool
+	frozenMax float64
 }
 
 func newMaxAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -259,6 +286,7 @@ func (a *maxAggregator) Aggregate(records []*Record, field string) (float64, err
 
 func (a *maxAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
+		a.frozenMax = 0
 		return 0, nil
 	}
 	m := vals[0]
@@ -267,6 +295,7 @@ func (a *maxAggregator) aggregateValues(vals []float64) (float64, error) {
 			m = v
 		}
 	}
+	a.frozenMax = m
 	return m, nil
 }
 
@@ -295,9 +324,13 @@ func (a *stdDevAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // --- Range ---
 
+// frozenMin/frozenMax mirror the bracketing extrema post-Finalize so
+// Components() can emit them; the buffered path populates via
+// aggregateValues.
 type rangeAggregator struct {
-	min, max float64
-	seen     bool
+	min, max             float64
+	seen                 bool
+	frozenMin, frozenMax float64
 }
 
 func newRangeAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -311,6 +344,7 @@ func (a *rangeAggregator) Aggregate(records []*Record, field string) (float64, e
 
 func (a *rangeAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
+		a.frozenMin, a.frozenMax = 0, 0
 		return 0, nil
 	}
 	minV, maxV := vals[0], vals[0]
@@ -322,6 +356,7 @@ func (a *rangeAggregator) aggregateValues(vals []float64) (float64, error) {
 			maxV = v
 		}
 	}
+	a.frozenMin, a.frozenMax = minV, maxV
 	return maxV - minV, nil
 }
 
@@ -660,3 +695,90 @@ func (a *nullCountAggregator) Aggregate(records []*Record, field string) (float6
 	}
 	return float64(nNull), nil
 }
+
+// --- MetaAggregator implementations (per-operator components map) ---
+//
+// Each Components() returns ONLY the operator-specific keys declared in
+// descriptor/capabilities_aggregators.go. The universal floor ({n,
+// n_null}) is filled by the orchestrator from per-record bookkeeping,
+// never re-emitted here. Floor-only operators (AGG_COUNT, AGG_NULL_COUNT)
+// return (nil, nil) — their entire payload IS the universal floor.
+//
+// Compile-time interface locks below catch interface drift at build
+// time: a `processing.MetaAggregator` cast that fails the build is a
+// red flag the per-operator implementation has fallen out of sync with
+// the sibling interface declared in processing/interfaces.go.
+
+// Components returns nil — AGG_COUNT is a floor-only operator (its
+// scalar value IS the universal floor n).
+func (a *countAggregator) Components() (map[string]any, error) {
+	return nil, nil
+}
+
+// Components returns {sum} — the running sum of contributing rows.
+// Reads frozenSum so the streaming path's Finalize-reset does not
+// erase the value before the orchestrator's Components() call.
+func (a *sumAggregator) Components() (map[string]any, error) {
+	return map[string]any{
+		"sum": a.frozenSum,
+	}, nil
+}
+
+// Components returns {sum} — mean is derivable as sum / n by callers
+// that need it; the floor's n is the matching denominator. The schema
+// (descriptor/capabilities_aggregators.go) intentionally exposes sum
+// only — emitting mean here would duplicate the scalar result. Reads
+// frozenSum so streaming Finalize-reset does not erase the value.
+func (a *averageAggregator) Components() (map[string]any, error) {
+	return map[string]any{
+		"sum": a.frozenSum,
+	}, nil
+}
+
+// Components returns {min} — the smallest contributing value. Empty
+// input yields a zero-valued min; callers gate on floor n > 0. Reads
+// frozenMin so streaming Finalize-reset does not erase the value.
+func (a *minAggregator) Components() (map[string]any, error) {
+	return map[string]any{
+		"min": a.frozenMin,
+	}, nil
+}
+
+// Components returns {max} — the largest contributing value. Empty
+// input yields a zero-valued max; callers gate on floor n > 0. Reads
+// frozenMax so streaming Finalize-reset does not erase the value.
+func (a *maxAggregator) Components() (map[string]any, error) {
+	return map[string]any{
+		"max": a.frozenMax,
+	}, nil
+}
+
+// Components returns {min, max} — the inputs to the scalar range
+// (max - min). Empty input yields zero for both; callers gate on
+// floor n > 0. Reads frozenMin/frozenMax so streaming Finalize-reset
+// does not erase the values.
+func (a *rangeAggregator) Components() (map[string]any, error) {
+	return map[string]any{
+		"min": a.frozenMin,
+		"max": a.frozenMax,
+	}, nil
+}
+
+// Components returns nil — AGG_NULL_COUNT is a floor-only operator
+// (its scalar value IS the universal floor n_null).
+func (a *nullCountAggregator) Components() (map[string]any, error) {
+	return nil, nil
+}
+
+// Compile-time interface locks for the seven scalar aggregators.
+// Keeps the wiring grep-discoverable and catches interface drift at
+// build time when interfaces.go.MetaAggregator changes shape.
+var (
+	_ MetaAggregator = (*countAggregator)(nil)
+	_ MetaAggregator = (*sumAggregator)(nil)
+	_ MetaAggregator = (*averageAggregator)(nil)
+	_ MetaAggregator = (*minAggregator)(nil)
+	_ MetaAggregator = (*maxAggregator)(nil)
+	_ MetaAggregator = (*rangeAggregator)(nil)
+	_ MetaAggregator = (*nullCountAggregator)(nil)
+)

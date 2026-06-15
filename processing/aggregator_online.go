@@ -47,6 +47,7 @@ func (a *sumAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *sumAggregator) Finalize() (float64, error) {
 	out := a.sum
+	a.frozenSum = out
 	a.sum = 0
 	return out, nil
 }
@@ -63,9 +64,11 @@ func (a *averageAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *averageAggregator) Finalize() (float64, error) {
 	if a.n == 0 {
+		a.frozenSum = 0
 		a.sum = 0
 		return 0, nil
 	}
+	a.frozenSum = a.sum
 	out := a.sum / float64(a.n)
 	a.sum, a.n = 0, 0
 	return out, nil
@@ -87,9 +90,11 @@ func (a *minAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *minAggregator) Finalize() (float64, error) {
 	if !a.seen {
+		a.frozenMin = 0
 		return 0, nil
 	}
 	out := a.min
+	a.frozenMin = out
 	a.min, a.seen = 0, false
 	return out, nil
 }
@@ -110,9 +115,11 @@ func (a *maxAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *maxAggregator) Finalize() (float64, error) {
 	if !a.seen {
+		a.frozenMax = 0
 		return 0, nil
 	}
 	out := a.max
+	a.frozenMax = out
 	a.max, a.seen = 0, false
 	return out, nil
 }
@@ -140,8 +147,10 @@ func (a *rangeAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *rangeAggregator) Finalize() (float64, error) {
 	if !a.seen {
+		a.frozenMin, a.frozenMax = 0, 0
 		return 0, nil
 	}
+	a.frozenMin, a.frozenMax = a.min, a.max
 	out := a.max - a.min
 	a.min, a.max, a.seen = 0, 0, false
 	return out, nil
