@@ -45,6 +45,18 @@ type Operator struct {
 	// streaming, or accept the buffered path."). Empty when Streamable
 	// is true or no near-equivalent exists.
 	StreamableHint string `json:"streamable_hint,omitempty"`
+
+	// ComponentSchema declares the per-operator components contract
+	// surfaced through the runtime ResponseComponents shell (E1-S1)
+	// and the MetaAggregator / MetaGrouper / MetaFilterer sibling
+	// interfaces (E1-S2). The universal floor of {"n", "n_null"} is
+	// declared on every aggregator entry so manifest consumers see a
+	// self-contained schema without consulting orchestrator code; the
+	// operator-specific keys are appended in emission order.
+	// Mergeability classifies how the components map folds across
+	// streaming chunks. Populated for aggregators in E1-S3; groupers
+	// and filterers wire in E2-S2 / E2-S8.
+	ComponentSchema ComponentSchema `json:"component_schema"`
 }
 
 // Param describes a single parameter accepted by an operator, test, or

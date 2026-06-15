@@ -81,6 +81,25 @@ type SkillMeta struct {
 	Description string `json:"description"`
 }
 
+// ComponentsSchemasBlock surfaces the per-operator components contract
+// (ResponseComponents.Components[] payload shape) at manifest level so
+// LLM clients can reason about meta-fields without crawling per-
+// category Operator entries. Each map is keyed by operator name and
+// sorted deterministically at serialization time. Aggregators are
+// populated in E1-S3; Groupers + Filterers fill in E2-S2 / E2-S8.
+//
+// An entry's ComponentSchema mirrors the same value carried on the
+// per-Operator entry under Components.Aggregators[i].ComponentSchema.
+// The two surfaces are deliberately redundant — Operator-level keeps
+// the per-operator entry self-contained for category-by-category
+// drilldown, while this top-level block lets a client materialize the
+// whole meta-fields catalog in one O(N) scan.
+type ComponentsSchemasBlock struct {
+	Aggregators map[string]ComponentSchema `json:"aggregators,omitempty"`
+	Groupers    map[string]ComponentSchema `json:"groupers,omitempty"`
+	Filterers   map[string]ComponentSchema `json:"filterers,omitempty"`
+}
+
 // Manifest is the root self-description of the Pulse system. One bootstrap
 // call returns every fact an LLM needs to author a valid Pulse request:
 // CLI command list, per-operator capabilities, per-test metadata (tier-1
@@ -172,6 +191,13 @@ type Manifest struct {
 	// type system. Sorted alphabetically by Kind via
 	// OverlayCapabilities() so the golden manifest stays stable.
 	Overlays []OverlayCapability `json:"overlays"`
+
+	// ComponentsSchemas projects the per-operator components contract
+	// across categories as a name-keyed map. Aggregators populated in
+	// E1-S3; Groupers + Filterers wired in E2-S2 / E2-S8. Embedders
+	// rely on this block to plan ResponseComponents.Components[]
+	// consumption without iterating Components.* per category.
+	ComponentsSchemas ComponentsSchemasBlock `json:"components_schemas"`
 }
 
 // operations returns the library-only entry points that do not back a
@@ -323,6 +349,32 @@ func sortRegressions(rs []RegressionMeta) []RegressionMeta {
 	return out
 }
 
+// componentsSchemasBlock collects every populated ComponentSchema from
+// the per-category capability tables into the top-level
+// ComponentsSchemasBlock projection. Map serialization is sorted by
+// encoding/json since Go 1.12, so the golden manifest stays
+// deterministic without a wrapping sort step. Groupers + Filterers
+// remain empty until E2-S2 / E2-S8 populate their ComponentSchema
+// surfaces; an empty map for those categories elides under
+// `omitempty`.
+func componentsSchemasBlock() ComponentsSchemasBlock {
+	aggs := aggregatorCapabilities()
+	out := ComponentsSchemasBlock{}
+	if len(aggs) > 0 {
+		m := make(map[string]ComponentSchema, len(aggs))
+		for _, op := range aggs {
+			if len(op.ComponentSchema.Keys) == 0 && op.ComponentSchema.Mergeability == "" {
+				continue
+			}
+			m[op.Name] = op.ComponentSchema
+		}
+		if len(m) > 0 {
+			out.Aggregators = m
+		}
+	}
+	return out
+}
+
 // BuildManifest constructs a deterministic Manifest from the current
 // registries and capability tables. The result is safe to cache and
 // share across goroutines; callers do not mutate the returned slices.
@@ -374,6 +426,7 @@ func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *Manifest {
 		Crosstab:           crosstabCapability(),
 		Export:             exportCapability(),
 		Overlays:           OverlayCapabilities(),
+		ComponentsSchemas:  componentsSchemasBlock(),
 	}
 }
 
