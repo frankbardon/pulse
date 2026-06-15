@@ -16,7 +16,7 @@ parallel against a bounded worker pool.
 ```
 pulse api compose --request FILE [--json] [--stream]
                                   [--parallel N] [--no-fail-fast]
-                                  [--no-defaults]
+                                  [--no-defaults] [--echo-request]
 ```
 
 ## Flags
@@ -29,6 +29,7 @@ pulse api compose --request FILE [--json] [--stream]
 | `--parallel`      |      | int    | 1          | Worker count; 0 = `GOMAXPROCS`, 1 = sequential |
 | `--no-fail-fast`  |      | bool   | false      | Aggregate errors across slots instead of cancelling on first failure (parallel mode only) |
 | `--no-defaults`   |      | bool   | false      | Disable smart operator-type inference |
+| `--echo-request`  |      | bool   | false      | Include the normalized `ComposedRequest` on `envelope.request`; each slot reflects its post-defaults form. Ignored under `--stream` |
 
 ## Request file shape
 
@@ -44,6 +45,21 @@ pulse api compose --request FILE [--json] [--stream]
 
 Each `requests[i]` is a full `types.Request`. Slots are independent —
 they may target different cohorts, use different operators, etc.
+
+When the cohort is a shard archive, each request can target the whole
+archive (fan-out across every shard) or one shard via the
+`archive.pulse#shard.pulse` anchor — Compose preserves slot order
+regardless:
+
+```json
+{
+  "requests": [
+    {"cohort": {"filename": "Q1_2019.pulse"},                "aggregations": [...]},
+    {"cohort": {"filename": "Q1_2019.pulse#20190101.pulse"}, "aggregations": [...]},
+    {"cohort": {"filename": "wave_2018.pulse"},              "aggregations": [...]}
+  ]
+}
+```
 
 ## Output ordering
 
@@ -91,6 +107,10 @@ With `--no-fail-fast`:
   "warnings": []
 }
 ```
+
+Each entry in `data[]` is a full `Response`, so per-slot
+`data[i].components` follows the same additive contract as
+[`api process`](api-process.md#-json).
 
 ### `--stream`
 

@@ -14,16 +14,17 @@ against arbitrarily large cohorts.
 ## Synopsis
 
 ```
-pulse api predict --request FILE [--json] [--strict]
+pulse api predict --request FILE [--json] [--strict] [--echo-request]
 ```
 
 ## Flags
 
 | Flag | Alias | Type | Default | Purpose |
 |---|---|---|---|---|
-| `--request` | `-r` | string | (required) | Request JSON path |
-| `--json`    |      | bool   | false      | Emit the standard envelope |
-| `--strict`  |      | bool   | false      | Treat warnings as errors |
+| `--request`      | `-r` | string | (required) | Request JSON path |
+| `--json`         |      | bool   | false      | Emit the standard envelope |
+| `--strict`       |      | bool   | false      | Treat warnings as errors |
+| `--echo-request` |      | bool   | false      | Include the normalized request on `envelope.request` (distinct from `PredictResult.Request`, which echoes the raw input) |
 
 ## Structural ban
 
@@ -73,6 +74,34 @@ Notes](../ops/performance.md) for the full streaming/buffered table.
 you can see what would actually run. To suppress defaults, run with
 `--no-defaults` on the executing leaf (`api process`,
 `api compose`); predict reports `defaults_applied` regardless.
+
+## Smart defaults
+
+When an `aggregations[]` or `groups[]` slot names a `field` but omits
+`type`, Pulse infers the operator from the named field's schema type
+before running the request. Predict reports the inferred slot under
+`data.defaults_applied` so you can echo back what was filled in:
+
+| Field type | Default aggregation | Default grouper |
+|---|---|---|
+| `u4`, `u8`..`u64`, `f32`, `f64`, `decimal128` | `AGG_SUM` | `GROUP_RANGE` (interval 10) |
+| `categorical_u8`/`u16`/`u32` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `date` | (none — must be explicit) | `GROUP_DATE` (component `"day"`) |
+| `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+
+The `Nullable` flag on a field never changes its default operator — it
+only controls per-record null-bitmap participation.
+
+Rules: defaults never override an explicit `type`; they never cross
+categories (a missing aggregator does not insert a grouper); statistical
+tests (`tests[]`, `post_tests[]`) are not defaulted; filter expressions,
+features, attributes, and windows are out of scope.
+
+`--no-defaults` on `pulse api process` /
+[`pulse api compose`](api-compose.md) disables the inference pass
+entirely and forces every slot to be source-of-truth. Predict still
+reports `defaults_applied` so the caller can see what would have been
+filled in.
 
 ## Exit codes
 

@@ -27,15 +27,19 @@ emits the manifest documented at [`pulse manifest`](manifest.md).
 
 | Variable | Used by | Required | Purpose |
 |---|---|---|---|
-| `PULSE_DATA_DIR` | All commands when no path override is given; required by `pulse mcp` | conditionally | Base directory for cohort files. Relative cohort paths resolve against it. |
+| `PULSE_DATA_DIR`        | All commands when no path override is given; required by `pulse mcp` | conditionally | Base directory for cohort files. Relative cohort paths resolve against it |
+| `PULSE_IMPORTS_DIR`     | `pulse import auto / list / drop`                                    | no | Managed-imports subdir under the data root. Defaults to `imports` |
+| `PULSE_IMPORT_TTL`      | `pulse import auto`                                                  | no | Default TTL for managed imports. Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin`. Defaults to `7d` |
+| `PULSE_LABEL_TABLES_DIR`| `pulse api sample --labels`, `pulse api facet --labels`              | no | Directory of JSON files auto-loaded as label tables at `pulse.New` time; each `*.json` becomes one table keyed by its filename |
 
-`PULSE_DATA_DIR` is the only `PULSE_*` environment variable today. The
-Makefile auto-loads a repo-root `.env` file so you can keep it (and
-any future env vars) there for development.
+`PULSE_DATA_DIR` is the only required `PULSE_*` environment variable.
+The Makefile auto-loads a repo-root `.env` file so you can keep these
+(and any future env vars) there for development.
 
-When embedding the library, you can bypass the env var entirely by
-passing `pulse.Options{DataDir: "/path"}` or `pulse.Options{FS:
-myFs}`.
+When embedding the library, you can bypass the env vars entirely by
+passing `pulse.Options{DataDir: "/path"}`, `pulse.Options{ImportsDir,
+ImportTTL, LabelTablesDir, FS: myFs}` etc. — see
+[`pulse.New` & Options](../library/options.md).
 
 ## `--json` envelope
 
@@ -47,6 +51,7 @@ fixed and documented in CLAUDE.md → Output Format Contract:
 {
   "format_version": "1.0",
   "data":     { /* operation-specific result */ },
+  "request":  { /* normalized request, omitted unless --echo-request was passed */ },
   "errors":   [ /* {"code": "...", "message": "...", "details": {...}} */ ],
   "warnings": [ /* same shape */ ]
 }
@@ -54,7 +59,10 @@ fixed and documented in CLAUDE.md → Output Format Contract:
 
 `format_version` is currently `"1.0"`. `errors` and `warnings` are
 always arrays (never null) so JSON consumers can index without
-nullable-check overhead.
+nullable-check overhead. `request` is opt-in (see
+[`--echo-request`](#--echo-request) below); `data.components` is the
+additive `Response.Components` slot documented per leaf — see
+[`api process` → `--json`](api-process.md#-json).
 
 ## Shared per-command flags
 
@@ -80,10 +88,24 @@ each row. See [Streaming & ProcessStream](../library/streaming.md).
 
 ### `--strict`
 
-Available on: `api predict`.
+Available on: `api process`, `api predict`.
 
-Treat warnings (e.g. low-quality field description) as errors.
-Useful in CI gates that want the strictest possible validation.
+Treat request-validation warnings (e.g. numeric aggregation on a
+categorical field, low-quality field description) as errors. On
+`api predict` this fails validation; on `api process` it refuses to
+execute. Useful in CI gates that want the strictest possible
+validation.
+
+### `--echo-request`
+
+Available on: `api process`, `api process-chain`, `api compose`,
+`api predict`, `api sample`, `api facet`.
+
+Include the *normalized* request — smart defaults resolved, label
+bindings expanded — on `envelope.request`. Absent (and omitted from
+JSON) by default so the envelope shape is unchanged for callers that
+do not need it. Streaming output (`--stream`) skips the echo because
+NDJSON has no envelope.
 
 ### `--full-dict`
 
