@@ -517,6 +517,78 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 			// comparison the aggregator half above performs.
 		})
 	}
+
+	// --- filterer half (E2-S8) -----------------------------------------
+	// Sweep every registered filterer (11 today) on the predict side
+	// only — per-filterer Components emission lands in E2-S9, so the
+	// runtime comparison half follows the same skip-with-TODO pattern
+	// used for groupers above. The static schema check asserts every
+	// FiltererPredict slot carries the universal floor {n_in, n_out,
+	// n_null_input} and Mergeable mergeability so the static parity
+	// half of the gate is meaningful at promotion (E5-S3).
+	filFixtures := allFilterServiceFixtures(t)
+	for _, op := range types.AllFiltererTypes() {
+		op := op
+		ffix, ok := filFixtures[op]
+		if !ok {
+			t.Fatalf("no service fixture for %s — add one in allFilterServiceFixtures", op)
+		}
+		t.Run(string(op), func(t *testing.T) {
+			hdr := buildHeaderOnlyPulseBytes(t, ffix.schema)
+			predictReq := &types.Request{
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_COUNT, Field: ffix.companionField, Label: "n"},
+				},
+				Filterers: []*types.Filterer{
+					{Type: op, Field: ffix.field, Values: ffix.values, Expression: ffix.expression},
+				},
+			}
+			env := descriptor.PredictFromBytes(hdr, predictReq, nil)
+			result, ok := env.Data.(*descriptor.PredictResult)
+			if !ok {
+				t.Fatalf("Predict.Data is %T, want *PredictResult (errors: %v)",
+					env.Data, env.Errors)
+			}
+			if len(result.Filterers) != 1 {
+				t.Fatalf("predict Filterers slots = %d, want 1", len(result.Filterers))
+			}
+			declared := result.Filterers[0].ComponentSchema.Keys
+			if len(declared) == 0 {
+				t.Fatalf("%s: predict FiltererPredict.ComponentSchema.Keys empty; want at least the universal floor {n_in, n_out, n_null_input}", op)
+			}
+			// Universal floor must lead the schema (filterSchema
+			// prepends it).
+			if got := declared[0].Name; got != "n_in" {
+				t.Errorf("%s: ComponentSchema.Keys[0].Name = %q, want %q (universal floor)", op, got, "n_in")
+			}
+			if len(declared) < 2 || declared[1].Name != "n_out" {
+				t.Errorf("%s: ComponentSchema.Keys[1].Name missing or wrong, want %q (universal floor)", op, "n_out")
+			}
+			if len(declared) < 3 || declared[2].Name != "n_null_input" {
+				t.Errorf("%s: ComponentSchema.Keys[2].Name missing or wrong, want %q (universal floor)", op, "n_null_input")
+			}
+
+			// BufferedComponents parity with the static capability
+			// table: every built-in filterer is Mergeable in v1
+			// (counter triples fold trivially), so the flag is false
+			// for everyone. Future per-filter specifics may downgrade
+			// individual entries; reopen this assertion when that
+			// lands.
+			if got := result.Filterers[0].BufferedComponents; got {
+				t.Errorf("%s: BufferedComponents = %v, want false (every v1 filterer is Mergeable)", op, got)
+			}
+
+			// TODO(E2-S9): tighten this once filterers emit per-slot
+			// FiltererComponents at runtime. The runtime comparison
+			// half is skipped here because no MetaFilterer
+			// implementation has landed yet —
+			// Response.Components.Filterers is empty for every
+			// filterer today. When E2-S9 wires the universal-floor
+			// counter pass, add the same predict-vs-runtime
+			// sorted-key-set comparison the aggregator half above
+			// performs.
+		})
+	}
 }
 
 // groupServiceFixture pairs a grouper type with the schema, cohort
@@ -646,6 +718,154 @@ func allGroupServiceFixtures(t *testing.T) map[types.GroupType]groupServiceFixtu
 			cohortName:     "predict_grp_tags.pulse",
 			field:          "tags",
 			companionField: "tags",
+		},
+	}
+}
+
+// filterServiceFixture pairs a filterer type with the schema, cohort
+// filename, field name, optional Values / Expression, and a companion
+// numeric field that the AGG_COUNT slot can reference. Mirrors
+// aggServiceFixture / groupServiceFixture for the filterer half of
+// TestPredict_ComponentSchemaMatchesRuntime.
+//
+// Today the function only powers the predict half of the sweep — no
+// runtime comparison is performed because MetaFilterer implementations
+// land in E2-S9. The svc + schema + companion field are still carried
+// on every fixture so the runtime half can be wired in place when
+// emission lands without restructuring the fixture map.
+type filterServiceFixture struct {
+	svc            *Service
+	schema         *encoding.Schema
+	cohortName     string
+	field          string
+	companionField string
+	values         []string
+	expression     string
+}
+
+// allFilterServiceFixtures builds one fixture per registered filterer
+// type, sharing svc / cohort across operators that accept the same
+// field type. Schema choice matches the capability table's
+// AcceptsTypes: FILTER_RANGE needs numeric, FILTER_SET_* needs set_u8,
+// FILTER_EXPRESSION runs over any record field, the rest accept any
+// cohort field type.
+func allFilterServiceFixtures(t *testing.T) map[types.FiltererType]filterServiceFixture {
+	t.Helper()
+
+	// Shared score cohort (u32 id + f64 score, 5 rows) — drives the
+	// numeric and any-type filterers.
+	scoreSvc, scoreSchema := componentsScoreCohort(t)
+
+	// Set cohort: set_u8 with a 4-entry dictionary, 5 rows of masks.
+	// Drives every FILTER_SET_* slot.
+	setDict := encoding.NewDictionary()
+	for _, v := range []string{"VISA", "MC", "AMEX", "DISC"} {
+		if _, err := setDict.Add(v); err != nil {
+			t.Fatalf("dict.Add: %v", err)
+		}
+	}
+	setSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "tags", Type: encoding.FieldTypeSetU8, ByteOffset: 0, CsvColumnIdx: 0, Dictionary: setDict},
+		},
+	}
+	setRecords := [][]uint64{
+		{0b0001},
+		{0b0011},
+		{0b0100},
+		{0b1000},
+		{0b0110},
+	}
+	setCfg := setupTestFS(t, "predict_fil_tags.pulse", setSchema, setRecords)
+	setSvc := New(setCfg)
+
+	return map[types.FiltererType]filterServiceFixture{
+		types.FILTER_INCLUDE: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "score",
+			companionField: "score",
+			values:         []string{"10", "20"},
+		},
+		types.FILTER_EXCLUDE: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "score",
+			companionField: "score",
+			values:         []string{"10"},
+		},
+		types.FILTER_RANGE: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "score",
+			companionField: "score",
+			values:         []string{"10", "40"},
+		},
+		types.FILTER_EXPRESSION: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			companionField: "score",
+			expression:     "score > 10",
+		},
+		types.FILTER_NULL: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "score",
+			companionField: "score",
+			values:         []string{"is_not_null"},
+		},
+		types.FILTER_TRUE: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "score",
+			companionField: "score",
+			values:         []string{"truthy"},
+		},
+		types.FILTER_FALSE: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "score",
+			companionField: "score",
+			values:         []string{"truthy"},
+		},
+		types.FILTER_SET_CONTAINS_ANY: {
+			svc:            setSvc,
+			schema:         setSchema,
+			cohortName:     "predict_fil_tags.pulse",
+			field:          "tags",
+			companionField: "tags",
+			values:         []string{"VISA", "MC"},
+		},
+		types.FILTER_SET_CONTAINS_ALL: {
+			svc:            setSvc,
+			schema:         setSchema,
+			cohortName:     "predict_fil_tags.pulse",
+			field:          "tags",
+			companionField: "tags",
+			values:         []string{"VISA", "MC"},
+		},
+		types.FILTER_SET_CONTAINS_NONE: {
+			svc:            setSvc,
+			schema:         setSchema,
+			cohortName:     "predict_fil_tags.pulse",
+			field:          "tags",
+			companionField: "tags",
+			values:         []string{"DISC"},
+		},
+		types.FILTER_SET_EQUALS: {
+			svc:            setSvc,
+			schema:         setSchema,
+			cohortName:     "predict_fil_tags.pulse",
+			field:          "tags",
+			companionField: "tags",
+			values:         []string{"VISA"},
 		},
 	}
 }

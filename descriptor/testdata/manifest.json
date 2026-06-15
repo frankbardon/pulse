@@ -2014,7 +2014,24 @@
           "emits_type_note": "record-level predicate (no emitted column)",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2048,7 +2065,24 @@
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2082,7 +2116,24 @@
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2116,7 +2167,24 @@
           "emits_type_note": "record-level predicate (no emitted column)",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2150,7 +2218,24 @@
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2174,7 +2259,24 @@
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2191,7 +2293,24 @@
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2208,7 +2327,24 @@
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2225,7 +2361,24 @@
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2242,7 +2395,24 @@
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         },
         {
@@ -2276,7 +2446,24 @@
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
           }
         }
       ],
@@ -7755,10 +7942,232 @@
           ],
           "mergeability": "mergeable"
         }
+      },
+      "filterers": {
+        "FILTER_EXCLUDE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_EXPRESSION": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_FALSE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_INCLUDE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_NULL": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_RANGE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_SET_CONTAINS_ALL": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_SET_CONTAINS_ANY": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_SET_CONTAINS_NONE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_SET_EQUALS": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_TRUE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
       }
     }
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 87720f8f3e7d572f4a42cb9699953dfe42cb59cec21cfab28e7ab721ee9db283
+// golden-hash: bc8c8d7c2093aea5a23a94b6c9a0cd6a9ac50c855b0ea3fde91470e68901537a

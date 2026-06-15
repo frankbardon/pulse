@@ -360,3 +360,57 @@ type MetaGrouper interface {
 	// KeysForRow.
 	Components() (map[string]any, error)
 }
+
+// MetaFilterer is the optional sibling of FiltererBuilder for filterers
+// that emit a per-filterer "components" map alongside their per-record
+// predicate. The map carries the named constituent-parts metadata
+// declared in the filterer's descriptor.ComponentSchema.
+//
+// In v1 (E2-S8) the components surface is uniform across every
+// registered filterer — the orchestrator emits the universal floor
+// {n_in, n_out, n_null_input} from the filter pass's record-walker
+// counters. No built-in filterer implements Components(): the
+// interface exists for extension-author parity with MetaAggregator /
+// MetaGrouper and to leave room for future per-filter specifics
+// (e.g. n_below / n_above for FILTER_RANGE; per-value n for
+// FILTER_INCLUDE / FILTER_EXCLUDE). The orchestrator's universal-
+// floor pass is always authoritative for the three floor keys; an
+// embedder-supplied Components() returns ONLY the operator-specific
+// extras.
+//
+// Components is called exactly once after the filter pass terminates
+// (the iterator is exhausted). The orchestrator routes the result
+// into Response.Components.Filterers (one entry per
+// Request.Filterers slot, in declared order). Implementations MUST
+// be safe to call Components once per result; calling it multiple
+// times or before the pass completes is a programming error and may
+// return stale state.
+//
+// Streaming merge semantics follow descriptor.ComponentsMergeability
+// declared at registration time. Filterer components in v1 are
+// Mergeable — counters fold trivially across chunks via integer
+// addition, so the streaming path emits per-chunk deltas without
+// staging. Future per-filter specifics may downgrade individual
+// entries to Partial / None; the orchestrator follows the same
+// per-operator dispatch the aggregator side uses.
+//
+// Subsequent stories (no built-in implementations in v1) may add
+// per-filterer sentinels of the form
+//
+//	var _ processing.MetaFilterer = (*rangeFilterer)(nil)
+//
+// to keep the wiring grep-discoverable and catch interface drift at
+// build time, mirroring the MetaAggregator / MetaGrouper pattern. No
+// runtime wiring is added by the interface itself — the
+// descriptor.ComponentSchema declared in capabilities_filterers.go
+// is the matching half consumed by predict / manifest.
+type MetaFilterer interface {
+	// Components returns the per-filterer components map keyed by the
+	// snake_case names declared in the filterer's
+	// descriptor.ComponentSchema. Returning (nil, nil) means "no
+	// operator-specific keys; caller fills the universal floor
+	// unconditionally" — the canonical v1 contract for every built-in
+	// filterer. A non-nil error aborts the request with the same
+	// error-routing contract as Build / FilterFunc.
+	Components() (map[string]any, error)
+}

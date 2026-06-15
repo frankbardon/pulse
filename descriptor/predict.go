@@ -180,6 +180,26 @@ type PredictResult struct {
 	// Empty when req.Groups is empty; never nil in JSON output.
 	Groups []GroupPredict `json:"groups"`
 
+	// Filterers mirrors req.Filterers in order, attaching the per-slot
+	// ComponentSchema the engine will use at runtime (the operator's
+	// `descriptor.ComponentSchema` projected from the capabilities
+	// table — same projection ComponentsSchemas.Filterers uses) plus
+	// the BufferedComponents flag.
+	//
+	// Filterer components in v1 are uniform across every registered
+	// filterer — the orchestrator emits the universal floor
+	// {n_in, n_out, n_null_input} from the filter pass's per-record
+	// counters. Mergeability is Mergeable for every entry today
+	// (counters fold trivially via integer addition), so
+	// BufferedComponents is always false. The flag is still surfaced
+	// on the predict struct for symmetry with AggregationPredict and
+	// GroupPredict so future per-filter specifics (e.g. n_below /
+	// n_above for FILTER_RANGE) can downgrade the slot without
+	// changing the predict shape.
+	//
+	// Empty when req.Filterers is empty; never nil in JSON output.
+	Filterers []FiltererPredict `json:"filterers"`
+
 	// OverlaysApplied lists every overlay spec the engine accepted, in
 	// req.Overlays order. Each entry echoes the catalog identity (Name,
 	// Kind, Scope) plus the streamability flag harvested from
@@ -318,6 +338,56 @@ type GroupPredict struct {
 	// streaming run; it does NOT flip the overall Streamable axis (the
 	// data slice still streams). GROUP_QUANTILE is the canonical
 	// None today.
+	BufferedComponents bool `json:"buffered_components,omitempty"`
+}
+
+// FiltererPredict is the per-slot predict surface for one entry of
+// req.Filterers. Carries the operator identity echoed back to the
+// caller plus the static ComponentSchema declared in the capabilities
+// table — so callers can budget the runtime Components.Filterers block
+// shape before the engine runs and so streaming consumers can branch
+// on the BufferedComponents hint without consulting the manifest.
+//
+// Predict stays no-execute: every field on this struct is sourced from
+// the descriptor capability projection — never from a constructed
+// filterer. Custom filterers registered via pulse.Options.Extensions
+// that do not (yet) supply a ComponentSchema produce an empty
+// ComponentSchema and BufferedComponents=false; the universal-floor
+// populator at orchestrator emission time still attaches
+// {"n_in", "n_out", "n_null_input"} at runtime.
+//
+// Components are uniform across every built-in filterer in v1: the
+// universal floor {n_in, n_out, n_null_input} is the entire schema and
+// Mergeability is Mergeable (counters fold trivially via integer
+// addition). The struct mirrors AggregationPredict / GroupPredict so
+// future per-filter specifics (e.g. n_below / n_above for FILTER_RANGE)
+// can downgrade the slot to Partial / None without changing the
+// predict shape.
+type FiltererPredict struct {
+	// Type echoes the filterer type from the request slot, in the
+	// canonical SCREAMING_SNAKE form (e.g. "FILTER_RANGE").
+	Type types.FiltererType `json:"type"`
+
+	// Field echoes the field referenced by the request slot. Empty
+	// when the slot was authored without a field (FILTER_EXPRESSION
+	// reads any record field through its expression body).
+	Field string `json:"field,omitempty"`
+
+	// ComponentSchema is the static schema for the filterer the engine
+	// will use at runtime, projected from the capabilities table
+	// (capabilities_filterers.go). Empty Keys + empty Mergeability
+	// means the slot references an extension filterer that has not
+	// (yet) declared a ComponentSchema — the universal-floor populator
+	// still attaches {"n_in", "n_out", "n_null_input"} at runtime.
+	ComponentSchema ComponentSchema `json:"component_schema"`
+
+	// BufferedComponents is true iff ComponentSchema.Mergeability is
+	// descriptor.None. The flag advertises that the slot's Components
+	// block will arrive only on the terminal buffered flush in a
+	// streaming run; it does NOT flip the overall Streamable axis. In
+	// v1 every built-in filterer is Mergeable so this flag is always
+	// false; the surface exists for future per-filter specifics that
+	// may downgrade individual entries.
 	BufferedComponents bool `json:"buffered_components,omitempty"`
 }
 
@@ -473,6 +543,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		DefaultsApplied:          []DefaultApplied{},
 		Aggregations:             []AggregationPredict{},
 		Groups:                   []GroupPredict{},
+		Filterers:                []FiltererPredict{},
 		OverlaysApplied:          []OverlayAppliedDescriptor{},
 		OverlaysSchemaDivergence: []SlotPair{},
 		OverlayCost:              map[string]float64{},
@@ -583,6 +654,18 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// looked up via grouperComponentSchemaIndex, never via constructed
 	// operators.
 	populateGroupPredicts(result, req)
+
+	// Populate the per-filterer predict surface (E2-S8): one
+	// FiltererPredict descriptor per req.Filterers slot in matching
+	// order. ComponentSchema is projected from the static filterer
+	// capability table; BufferedComponents flags slots whose
+	// Mergeability is None. In v1 every built-in filterer is Mergeable
+	// (counters fold trivially), so BufferedComponents is always false
+	// — the field is still surfaced for future per-filter specifics
+	// that may downgrade individual entries. Predict stays no-execute
+	// — the schema is looked up via filtererComponentSchemaIndex,
+	// never via constructed operators.
+	populateFiltererPredicts(result, req)
 
 	// Validate label bindings (display-time categorical translation). Snapshot
 	// carries the registered label tables; augment-mode collisions are
@@ -748,6 +831,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 			DefaultsApplied:          []DefaultApplied{},
 			Aggregations:             []AggregationPredict{},
 			Groups:                   []GroupPredict{},
+			Filterers:                []FiltererPredict{},
 			Suggestions:              []Suggestion{},
 			OverlaysApplied:          []OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []SlotPair{},
@@ -767,6 +851,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 			DefaultsApplied:          []DefaultApplied{},
 			Aggregations:             []AggregationPredict{},
 			Groups:                   []GroupPredict{},
+			Filterers:                []FiltererPredict{},
 			Suggestions:              []Suggestion{},
 			OverlaysApplied:          []OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []SlotPair{},
@@ -794,6 +879,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 			DefaultsApplied:          []DefaultApplied{},
 			Aggregations:             []AggregationPredict{},
 			Groups:                   []GroupPredict{},
+			Filterers:                []FiltererPredict{},
 			Suggestions:              []Suggestion{},
 			OverlaysApplied:          []OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []SlotPair{},
@@ -1225,6 +1311,68 @@ func populateAggregationPredicts(result *PredictResult, req *types.Request) {
 		})
 	}
 	result.Aggregations = out
+}
+
+// filtererComponentSchemaIndex returns a {operator name → ComponentSchema}
+// lookup over the built-in filterer capability table. The map is the
+// authoritative no-execute source predict reads at slot-population
+// time — the universal-floor keys ({n_in, n_out, n_null_input}) are
+// already prepended inside filterSchema, so every entry mirrors the
+// same shape the manifest projects under
+// Manifest.ComponentsSchemas.Filterers.
+func filtererComponentSchemaIndex() map[string]ComponentSchema {
+	caps := filtererCapabilities()
+	out := make(map[string]ComponentSchema, len(caps))
+	for _, op := range caps {
+		out[op.Name] = op.ComponentSchema
+	}
+	return out
+}
+
+// populateFiltererPredicts fills PredictResult.Filterers with one
+// FiltererPredict descriptor per req.Filterers slot, in matching order.
+// The per-slot ComponentSchema is looked up from the built-in filterer
+// capability table — the manifest snapshot's single source of truth
+// (same projection ComponentsSchemas.Filterers uses). Extension
+// filterers that have not yet declared a ComponentSchema produce an
+// empty ComponentSchema and BufferedComponents=false; the universal-
+// floor populator still attaches {n_in, n_out, n_null_input} at
+// runtime.
+//
+// BufferedComponents is true iff the resolved ComponentSchema's
+// Mergeability is descriptor.None. In v1 every built-in filterer is
+// Mergeable (counter triples fold trivially via integer addition), so
+// the flag is always false for built-ins; the surface exists for
+// future per-filter specifics that may downgrade individual entries.
+// The flag advertises streaming behaviour but does NOT flip
+// PredictResult.Streamable.
+//
+// Predict stays no-execute: this helper reads only the static
+// capabilities table — no `service/` or `processing/` imports.
+func populateFiltererPredicts(result *PredictResult, req *types.Request) {
+	if result == nil || req == nil {
+		return
+	}
+	if len(req.Filterers) == 0 {
+		// Empty-but-not-nil — keep JSON shape stable.
+		result.Filterers = []FiltererPredict{}
+		return
+	}
+	idx := filtererComponentSchemaIndex()
+	out := make([]FiltererPredict, 0, len(req.Filterers))
+	for _, fil := range req.Filterers {
+		if fil == nil {
+			continue
+		}
+		schema := idx[string(fil.Type)]
+		out = append(out, FiltererPredict{
+			Type:               fil.Type,
+			Field:              fil.Field,
+			ComponentSchema:    schema,
+			BufferedComponents: schema.Mergeability == None,
+		})
+	}
+	result.Filterers = out
 }
 
 // appendOverlayDescriptors is the shared per-spec emitter used by both

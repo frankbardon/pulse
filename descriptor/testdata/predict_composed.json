@@ -133,6 +133,7 @@
         }
       }
     ],
+    "filterers": [],
     "overlays_applied": [],
     "overlays_schema_divergence": [],
     "overlay_cost": {}
@@ -149,4 +150,4 @@
     }
   ]
 }
-// golden-hash: 53f238871c3556011d9952a40222578f48f33c7eceeef8cba93aa8a7b58a5725
+// golden-hash: 5a1eebe44ee3ad84379a7211c3b0360236de5dbb5b2a9cc60e4deb2e6c5d98a8

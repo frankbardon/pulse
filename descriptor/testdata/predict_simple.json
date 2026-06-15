@@ -51,6 +51,7 @@
       }
     ],
     "groups": [],
+    "filterers": [],
     "overlays_applied": [],
     "overlays_schema_divergence": [],
     "overlay_cost": {}
@@ -58,4 +59,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6650995c333d48b9c72e63e9b0b4bfe2d9863214c070da8783b5834407d3505b
+// golden-hash: 6d9132635f9484970c344a19ea61746c028aa2add4fdda602386cba59b06c077
