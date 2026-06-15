@@ -1187,19 +1187,12 @@ type GrouperComponents struct {
 	Label string `json:"label,omitempty"`
 }
 
-// CrosstabComponents carries crosstab-level constituent-parts metadata
-// — the per-cell components matrix, row / column margins, and any
-// crosstab-wide totals. Shell-only at E1; the full per-cell components
-// matrix lands in E3. The shell stays zero-value safe so E1 / E2
-// consumers can populate the parent ResponseComponents without
-// branching on whether Crosstab is wired yet.
-type CrosstabComponents struct {
-	// Reserved for E3. The shell intentionally carries no fields at
-	// E1 — the full schema (cell components matrix + margins) lands
-	// when the crosstab cell builder is migrated off the
-	// MatrixCell.Value WelfordTriple smuggle (see context.md "Overlay
-	// refactor scope").
-}
+// CrosstabComponents is declared in types/crosstab.go alongside
+// MatrixPayload. The struct carries the per-cell components matrix,
+// per-axis margin counts + components, grand-total counts +
+// components, axis-key grouper components, and include / exclude
+// record sanity counters — mirroring MatrixPayload coordinate-for-
+// coordinate so consumers can index components by the same (r, c).
 
 // FiltererComponents carries per-filterer constituent-parts metadata —
 // records in (post-prior-stage), records out (post-this-filter), and

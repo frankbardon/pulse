@@ -1394,3 +1394,200 @@ func TestResponse_ComponentsEmptyNestedFieldsOmitted(t *testing.T) {
 			data2, want2)
 	}
 }
+
+// TestCrosstabComponents_EmptyMarshalsToNothing verifies the
+// omitempty contract on the full CrosstabComponents struct (E3-S1).
+// An empty CrosstabComponents{} carried on Response.Components.Crosstab
+// must marshal with no inner keys at all — every field is `omitempty`
+// so the only wire output is `{"components":{"crosstab":{}}}`. This
+// pins the contract that crosstabs without orchestrator-populated
+// components do NOT leak `cell_counts: null` etc. onto the wire.
+func TestCrosstabComponents_EmptyMarshalsToNothing(t *testing.T) {
+	resp := types.Response{
+		Components: &types.ResponseComponents{
+			Crosstab: &types.CrosstabComponents{},
+		},
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal Response with empty CrosstabComponents: %v", err)
+	}
+	want := `{"components":{"crosstab":{}}}`
+	if string(data) != want {
+		t.Fatalf("empty CrosstabComponents marshal = %q, want %q",
+			data, want)
+	}
+}
+
+// TestCrosstabComponents_RoundTripJSON exercises every field of the
+// CrosstabComponents struct (E3-S1). Populates a small 2x3 cell grid
+// plus row / column / grand-total margins, per-axis key components,
+// and include / exclude counters; marshal + unmarshal must preserve
+// every coordinate-indexed slot.
+func TestCrosstabComponents_RoundTripJSON(t *testing.T) {
+	src := types.Response{
+		Components: &types.ResponseComponents{
+			Crosstab: &types.CrosstabComponents{
+				CellCounts: [][]int{
+					{10, 20, 30},
+					{40, 50, 60},
+				},
+				CellComponents: [][]map[string]any{
+					{
+						{"mean": float64(1.0), "variance": float64(0.5)},
+						{"mean": float64(2.0), "variance": float64(0.25)},
+						{"mean": float64(3.0), "variance": float64(0.1)},
+					},
+					{
+						{"mean": float64(4.0), "variance": float64(0.05)},
+						{"mean": float64(5.0), "variance": float64(0.01)},
+						{"mean": float64(6.0), "variance": float64(0.0)},
+					},
+				},
+				RowMarginCounts: []int{60, 150},
+				RowMarginComponents: []map[string]any{
+					{"mean": float64(2.0)},
+					{"mean": float64(5.0)},
+				},
+				ColumnMarginCounts: []int{50, 70, 90},
+				ColumnMarginComponents: []map[string]any{
+					{"mean": float64(2.5)},
+					{"mean": float64(3.5)},
+					{"mean": float64(4.5)},
+				},
+				GrandTotalCount: 210,
+				GrandTotalComponents: map[string]any{
+					"mean":     float64(3.5),
+					"variance": float64(2.91),
+				},
+				RowKeyComponents: []map[string]any{
+					{"bucket_count": float64(2)},
+					{"bucket_count": float64(2)},
+				},
+				ColumnKeyComponents: []map[string]any{
+					{"bucket_count": float64(3)},
+					{"bucket_count": float64(3)},
+					{"bucket_count": float64(3)},
+				},
+				IncludedRecords: 210,
+				ExcludedRecords: 5,
+			},
+		},
+	}
+
+	data, err := json.Marshal(src)
+	if err != nil {
+		t.Fatalf("marshal Response with populated CrosstabComponents: %v", err)
+	}
+
+	var got types.Response
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal Response with populated CrosstabComponents: %v", err)
+	}
+	if got.Components == nil || got.Components.Crosstab == nil {
+		t.Fatalf("Crosstab slot lost after round-trip")
+	}
+	ct := got.Components.Crosstab
+
+	// CellCounts coordinate check.
+	if len(ct.CellCounts) != 2 || len(ct.CellCounts[0]) != 3 {
+		t.Fatalf("CellCounts shape = %dx?, want 2x3", len(ct.CellCounts))
+	}
+	if ct.CellCounts[0][0] != 10 || ct.CellCounts[1][2] != 60 {
+		t.Errorf("CellCounts[0][0]=%d (want 10), CellCounts[1][2]=%d (want 60)",
+			ct.CellCounts[0][0], ct.CellCounts[1][2])
+	}
+
+	// CellComponents coordinate check.
+	if len(ct.CellComponents) != 2 || len(ct.CellComponents[0]) != 3 {
+		t.Fatalf("CellComponents shape = %dx?, want 2x3", len(ct.CellComponents))
+	}
+	if ct.CellComponents[0][0]["mean"] != float64(1.0) {
+		t.Errorf("CellComponents[0][0][mean] = %v, want 1.0",
+			ct.CellComponents[0][0]["mean"])
+	}
+	if ct.CellComponents[1][2]["variance"] != float64(0.0) {
+		t.Errorf("CellComponents[1][2][variance] = %v, want 0.0",
+			ct.CellComponents[1][2]["variance"])
+	}
+
+	// Row / column margin checks.
+	if len(ct.RowMarginCounts) != 2 || ct.RowMarginCounts[0] != 60 || ct.RowMarginCounts[1] != 150 {
+		t.Errorf("RowMarginCounts = %v, want [60 150]", ct.RowMarginCounts)
+	}
+	if len(ct.RowMarginComponents) != 2 || ct.RowMarginComponents[1]["mean"] != float64(5.0) {
+		t.Errorf("RowMarginComponents[1][mean] = %v, want 5.0",
+			ct.RowMarginComponents[1]["mean"])
+	}
+	if len(ct.ColumnMarginCounts) != 3 || ct.ColumnMarginCounts[2] != 90 {
+		t.Errorf("ColumnMarginCounts = %v, want [50 70 90]", ct.ColumnMarginCounts)
+	}
+	if len(ct.ColumnMarginComponents) != 3 || ct.ColumnMarginComponents[0]["mean"] != float64(2.5) {
+		t.Errorf("ColumnMarginComponents[0][mean] = %v, want 2.5",
+			ct.ColumnMarginComponents[0]["mean"])
+	}
+
+	// Grand-total checks.
+	if ct.GrandTotalCount != 210 {
+		t.Errorf("GrandTotalCount = %d, want 210", ct.GrandTotalCount)
+	}
+	if ct.GrandTotalComponents["mean"] != float64(3.5) {
+		t.Errorf("GrandTotalComponents[mean] = %v, want 3.5",
+			ct.GrandTotalComponents["mean"])
+	}
+
+	// Axis-key component checks.
+	if len(ct.RowKeyComponents) != 2 {
+		t.Errorf("RowKeyComponents length = %d, want 2", len(ct.RowKeyComponents))
+	}
+	if ct.RowKeyComponents[0]["bucket_count"] != float64(2) {
+		t.Errorf("RowKeyComponents[0][bucket_count] = %v, want 2",
+			ct.RowKeyComponents[0]["bucket_count"])
+	}
+	if len(ct.ColumnKeyComponents) != 3 {
+		t.Errorf("ColumnKeyComponents length = %d, want 3", len(ct.ColumnKeyComponents))
+	}
+	if ct.ColumnKeyComponents[2]["bucket_count"] != float64(3) {
+		t.Errorf("ColumnKeyComponents[2][bucket_count] = %v, want 3",
+			ct.ColumnKeyComponents[2]["bucket_count"])
+	}
+
+	// Sanity counters.
+	if ct.IncludedRecords != 210 {
+		t.Errorf("IncludedRecords = %d, want 210", ct.IncludedRecords)
+	}
+	if ct.ExcludedRecords != 5 {
+		t.Errorf("ExcludedRecords = %d, want 5", ct.ExcludedRecords)
+	}
+}
+
+// TestCanonicalHash_CrosstabComponentsKeyOrderInvariant verifies the
+// canonical-hash routine walks per-cell, per-margin, and per-axis
+// component maps in sorted-key order — two CrosstabComponents
+// differing only in the runtime insertion order of their nested maps
+// MUST hash identically. Covers the [][]map[string]any walk noted in
+// the story's acceptance criteria.
+func TestCanonicalHash_CrosstabComponentsKeyOrderInvariant(t *testing.T) {
+	mk := func(cellAB string) types.Response {
+		var cellMap map[string]any
+		switch cellAB {
+		case "a":
+			cellMap = map[string]any{"mean": 1.0, "variance": 0.5}
+		case "b":
+			cellMap = map[string]any{"variance": 0.5, "mean": 1.0}
+		}
+		return types.Response{
+			Components: &types.ResponseComponents{
+				Crosstab: &types.CrosstabComponents{
+					CellCounts:     [][]int{{10}},
+					CellComponents: [][]map[string]any{{cellMap}},
+				},
+			},
+		}
+	}
+	ha := types.CanonicalHash("response", mk("a"))
+	hb := types.CanonicalHash("response", mk("b"))
+	if ha != hb {
+		t.Fatalf("CrosstabComponents map key-order broke hash equality: %q vs %q", ha, hb)
+	}
+}
