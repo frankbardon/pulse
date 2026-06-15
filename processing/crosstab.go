@@ -1395,7 +1395,7 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 	if err != nil {
 		return cellAggregationResult{}, nil, 0, 0, err
 	}
-	v, err := dispatchAggregatorResult(aggregator, scalar)
+	v, err := dispatchAggregatorCellResult(aggregator, scalar)
 	if err != nil {
 		return cellAggregationResult{}, nil, 0, 0, err
 	}

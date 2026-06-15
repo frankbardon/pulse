@@ -943,7 +943,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		if err != nil {
 			return nil, err
 		}
-		v, err := dispatchAggregatorResult(s.grandMargin, scalar)
+		v, err := dispatchAggregatorCellResult(s.grandMargin, scalar)
 		if err != nil {
 			return nil, err
 		}
@@ -1010,7 +1010,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 			if err != nil {
 				return nil, err
 			}
-			v, err := dispatchAggregatorResult(agg, scalar)
+			v, err := dispatchAggregatorCellResult(agg, scalar)
 			if err != nil {
 				return nil, err
 			}
@@ -1234,7 +1234,7 @@ func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[cross
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			v, err := dispatchAggregatorResult(agg, scalar)
+			v, err := dispatchAggregatorCellResult(agg, scalar)
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -1291,7 +1291,7 @@ func (s *FusedCrosstabState) finalizeRowMargins() (map[string]any, map[string]bo
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
-		v, err := dispatchAggregatorResult(agg, scalar)
+		v, err := dispatchAggregatorCellResult(agg, scalar)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
@@ -1326,7 +1326,7 @@ func (s *FusedCrosstabState) finalizeColMargins() (map[string]any, map[string]bo
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
-		v, err := dispatchAggregatorResult(agg, scalar)
+		v, err := dispatchAggregatorCellResult(agg, scalar)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
@@ -1347,7 +1347,7 @@ func (s *FusedCrosstabState) finalizeColMargins() (map[string]any, map[string]bo
 // depth (normalize_level) denominators on the row axis. Map-valued
 // aggregators are rejected upstream when normalize != none, so every
 // margin here is guaranteed scalar; we still funnel through
-// dispatchAggregatorResult + coerceFloat64 so a future numeric-cell
+// dispatchAggregatorCellResult + coerceFloat64 so a future numeric-cell
 // rich payload (e.g. dictionary-of-floats) continues to coerce
 // predictably.
 func (s *FusedCrosstabState) finalizePartialRowMargins() (map[string]float64, map[string]bool, error) {
@@ -1361,7 +1361,7 @@ func (s *FusedCrosstabState) finalizePartialRowMargins() (map[string]float64, ma
 		if err != nil {
 			return nil, nil, err
 		}
-		v, err := dispatchAggregatorResult(agg, scalar)
+		v, err := dispatchAggregatorCellResult(agg, scalar)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1385,7 +1385,7 @@ func (s *FusedCrosstabState) finalizePartialColMargins() (map[string]float64, ma
 		if err != nil {
 			return nil, nil, err
 		}
-		v, err := dispatchAggregatorResult(agg, scalar)
+		v, err := dispatchAggregatorCellResult(agg, scalar)
 		if err != nil {
 			return nil, nil, err
 		}

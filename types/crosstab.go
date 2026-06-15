@@ -230,9 +230,16 @@ type AxisHeader struct {
 // RichAggregator implementations populate the structured payload
 // directly: AGG_SET_FREQUENCY emits map[string]int (per-label row
 // counts), AGG_SET_UNION / AGG_SET_INTERSECTION emit []string (sorted
-// dictionary labels). Normalize modes (row/column/total) are only
-// defined for scalar cells; the Crosstab validator rejects them paired
-// with map-valued aggregators (see types.AggregationType.MapValued).
+// dictionary labels). AGG_WELFORD is the named carve-out — its rich
+// WelfordTriple payload does NOT ride MatrixCell.Value (the carrier is
+// Response.Components.Crosstab.CellComponents[r][c]'s
+// `{mean, variance, n}` triple instead, populated by the orchestrator's
+// MetaAggregator pass); the cell value falls back to the scalar mean
+// (matching welfordAggregator.Aggregate / Finalize) so downstream
+// renderers see a plain float64. Normalize modes (row/column/total)
+// are only defined for scalar cells; the Crosstab validator rejects
+// them paired with map-valued aggregators (see
+// types.AggregationType.MapValued).
 type MatrixCell struct {
 	Value   any  `json:"value,omitempty"`
 	Present bool `json:"present"`

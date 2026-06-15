@@ -1775,6 +1775,43 @@ func dispatchAggregatorResult(agg any, scalar float64) (any, error) {
 	return scalar, nil
 }
 
+// dispatchAggregatorCellResult is the MatrixCell.Value-bound sibling of
+// dispatchAggregatorResult. It preserves the Rich-or-scalar lift for
+// every aggregator EXCEPT AGG_WELFORD: WelfordTriple is now an internal
+// statistical-moment carrier owned by Components.Crosstab.CellComponents
+// (E3-S7 migration), and no longer rides MatrixCell.Value. For
+// AGG_WELFORD specifically the cell builder writes the scalar mean
+// (matching welfordAggregator.Aggregate / Finalize) so the cell payload
+// stays a plain float64 — overlay handlers source `(mean, variance, n)`
+// from CellComponents under the post-S7 contract.
+//
+// All other RichAggregator payloads (map[string]int from
+// AGG_SET_FREQUENCY, []string from AGG_SET_UNION / AGG_SET_INTERSECTION,
+// future families) continue to ride MatrixCell.Value untouched — this
+// carve-out is type-name-specific to the WelfordTriple shape and stays
+// orthogonal to other rich families.
+//
+// E3-S8: removes the WelfordTriple smuggling that previously flowed
+// through MatrixCell.Value. The WelfordTriple type itself is retained
+// (it's still emitted by RichAggregator for non-crosstab Response.Data
+// rows via dispatchAggregatorResult); only its MatrixCell.Value payload
+// role is gone.
+func dispatchAggregatorCellResult(agg any, scalar float64) (any, error) {
+	if rich, ok := agg.(RichAggregator); ok {
+		v, err := rich.Rich()
+		if err != nil {
+			return nil, err
+		}
+		if v != nil {
+			if _, isWelford := v.(WelfordTriple); isWelford {
+				return scalar, nil
+			}
+			return v, nil
+		}
+	}
+	return scalar, nil
+}
+
 // buildAggregationComponents builds a types.AggregationComponents from
 // the post-finalize aggregator instance, the orchestrator-tracked
 // universal floor (n, nNull), and the originating Aggregation slot.

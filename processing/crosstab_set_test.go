@@ -260,8 +260,11 @@ func TestCrosstab_MapValuedCellRejectsNormalize(t *testing.T) {
 
 // TestCrosstab_WelfordCellNormalizeNoneEmitsRich verifies the happy path:
 // AGG_WELFORD on a Crosstab cell with normalize=none (the default) must
-// succeed and surface the WelfordTriple Rich payload at MatrixCell.Value
-// — not a scalar fallback. Pairs with TestCrosstab_MapValuedCellRejectsNormalize
+// succeed. Post-E3-S8 the MatrixCell.Value surface carries the SCALAR
+// mean (matching welfordAggregator.Aggregate / Finalize) — the full
+// {mean, variance, m2, stddev, n, n_null} triple now lives in
+// Response.Components.Crosstab.CellComponents[r][c] via the
+// MetaAggregator pass. Pairs with TestCrosstab_MapValuedCellRejectsNormalize
 // to bracket the runtime gate from both sides (normalize=none accepted,
 // normalize != none rejected).
 func TestCrosstab_WelfordCellNormalizeNoneEmitsRich(t *testing.T) {
@@ -284,18 +287,140 @@ func TestCrosstab_WelfordCellNormalizeNoneEmitsRich(t *testing.T) {
 	if !cell.Present {
 		t.Fatal("(north,north) cell not present")
 	}
-	triple, ok := cell.Value.(WelfordTriple)
+	// E3-S8: MatrixCell.Value carries the scalar mean (Aggregate /
+	// Finalize return value); the WelfordTriple payload no longer rides
+	// here. Sanity-check the type is plain float64.
+	mean, ok := cell.Value.(float64)
 	if !ok {
-		t.Fatalf("cell.Value = %T (%v), want WelfordTriple (Rich payload)", cell.Value, cell.Value)
+		t.Fatalf("cell.Value = %T (%v), want float64 (scalar mean after E3-S8)", cell.Value, cell.Value)
 	}
-	if triple.Mean != 4.0 {
-		t.Errorf("triple.Mean = %v, want 4.0", triple.Mean)
+	if mean != 4.0 {
+		t.Errorf("cell.Value (scalar mean) = %v, want 4.0", mean)
 	}
-	if triple.Variance != 4.0 {
-		t.Errorf("triple.Variance = %v, want 4.0 (M2=8 / (n-1)=2)", triple.Variance)
+	if _, isTriple := cell.Value.(WelfordTriple); isTriple {
+		t.Fatalf("cell.Value carries WelfordTriple — E3-S8 retired the smuggling; expect scalar float64 mean")
 	}
-	if triple.N != 3 {
-		t.Errorf("triple.N = %d, want 3", triple.N)
+	// The full triple lives in CellComponents — verify the components
+	// pass populated mean / variance / n alongside the universal floor.
+	if resp.Components == nil || resp.Components.Crosstab == nil {
+		t.Fatal("Response.Components.Crosstab missing — components pass did not fire")
+	}
+	cellComps := resp.Components.Crosstab.CellComponents
+	if len(cellComps) == 0 || len(cellComps[0]) == 0 || cellComps[0][0] == nil {
+		t.Fatal("CellComponents[0][0] missing — Welford components not routed")
+	}
+	comp := cellComps[0][0]
+	if got := comp["mean"]; got != 4.0 {
+		t.Errorf("CellComponents[0][0][mean] = %v, want 4.0", got)
+	}
+	if got := comp["variance"]; got != 4.0 {
+		t.Errorf("CellComponents[0][0][variance] = %v, want 4.0 (M2=8 / (n-1)=2)", got)
+	}
+	if got := comp["n"]; got != 3 {
+		t.Errorf("CellComponents[0][0][n] = %v, want 3", got)
+	}
+}
+
+// TestCrosstab_WelfordCellValueIsScalarNotTriple is the dedicated
+// E3-S8 contract gate: AGG_WELFORD cell aggregators MUST write the
+// scalar mean into MatrixCell.Value (NOT the WelfordTriple) for every
+// (row, col) tuple, every row margin, every column margin, and the
+// grand total. The triple stays available exclusively via
+// Response.Components.Crosstab.CellComponents[r][c]. Locks the
+// dispatcher carve-out in processor.go (dispatchAggregatorCellResult)
+// against accidental regression to the legacy Rich-or-scalar lift used
+// by Response.Data rows.
+func TestCrosstab_WelfordCellValueIsScalarNotTriple(t *testing.T) {
+	schema := crosstabWelfordSchema(t)
+	// Two cohort buckets — diagonal cells (0,0) and (1,1) populated so
+	// row / column / grand margins all have non-empty input. Samples
+	// per cell: {2, 4, 6} → mean 4, variance 4, n 3.
+	recs := []*Record{
+		crosstabWelfordRecord(schema, 0, 2.0),
+		crosstabWelfordRecord(schema, 0, 4.0),
+		crosstabWelfordRecord(schema, 0, 6.0),
+		crosstabWelfordRecord(schema, 1, 2.0),
+		crosstabWelfordRecord(schema, 1, 4.0),
+		crosstabWelfordRecord(schema, 1, 6.0),
+	}
+	p := NewProcessor(schema)
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Cell:    &types.Aggregation{Type: types.AGG_WELFORD, Field: "value", Label: "welford"},
+			Shape:   types.CrosstabShapeMatrix,
+			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+		},
+	}
+	resp, err := p.RunCrosstab(context.Background(), req, recs)
+	if err != nil {
+		t.Fatalf("RunCrosstab: %v", err)
+	}
+	if resp.Crosstab == nil || resp.Crosstab.Matrix == nil {
+		t.Fatal("expected matrix payload")
+	}
+	mx := resp.Crosstab.Matrix
+	// Every present cell, every row margin, every column margin, and the
+	// grand total MUST be float64 — not WelfordTriple.
+	for i, row := range mx.Cells {
+		for j, cell := range row {
+			if !cell.Present {
+				continue
+			}
+			if _, isTriple := cell.Value.(WelfordTriple); isTriple {
+				t.Errorf("Cells[%d][%d].Value carries WelfordTriple — E3-S8 contract requires scalar mean", i, j)
+			}
+			if _, ok := cell.Value.(float64); !ok {
+				t.Errorf("Cells[%d][%d].Value = %T, want float64 (scalar mean)", i, j, cell.Value)
+			}
+		}
+	}
+	for i, m := range mx.RowMargins {
+		if !m.Present {
+			continue
+		}
+		if _, isTriple := m.Value.(WelfordTriple); isTriple {
+			t.Errorf("RowMargins[%d].Value carries WelfordTriple — E3-S8 contract requires scalar mean", i)
+		}
+		if _, ok := m.Value.(float64); !ok {
+			t.Errorf("RowMargins[%d].Value = %T, want float64", i, m.Value)
+		}
+	}
+	for i, m := range mx.ColumnMargins {
+		if !m.Present {
+			continue
+		}
+		if _, isTriple := m.Value.(WelfordTriple); isTriple {
+			t.Errorf("ColumnMargins[%d].Value carries WelfordTriple — E3-S8 contract requires scalar mean", i)
+		}
+		if _, ok := m.Value.(float64); !ok {
+			t.Errorf("ColumnMargins[%d].Value = %T, want float64", i, m.Value)
+		}
+	}
+	if mx.GrandTotal.Present {
+		if _, isTriple := mx.GrandTotal.Value.(WelfordTriple); isTriple {
+			t.Error("GrandTotal.Value carries WelfordTriple — E3-S8 contract requires scalar mean")
+		}
+		if _, ok := mx.GrandTotal.Value.(float64); !ok {
+			t.Errorf("GrandTotal.Value = %T, want float64", mx.GrandTotal.Value)
+		}
+	}
+	// The triple lives in CellComponents — verify at least the diagonal
+	// cell carries it so the E3-S7 components-source overlay path still
+	// has its input.
+	if resp.Components == nil || resp.Components.Crosstab == nil {
+		t.Fatal("Response.Components.Crosstab missing — components pass did not fire")
+	}
+	cellComps := resp.Components.Crosstab.CellComponents
+	if len(cellComps) == 0 || len(cellComps[0]) == 0 || cellComps[0][0] == nil {
+		t.Fatal("CellComponents[0][0] missing — Welford components not routed")
+	}
+	if got := cellComps[0][0]["mean"]; got != 4.0 {
+		t.Errorf("CellComponents[0][0][mean] = %v, want 4.0", got)
+	}
+	if got := cellComps[0][0]["variance"]; got != 4.0 {
+		t.Errorf("CellComponents[0][0][variance] = %v, want 4.0", got)
 	}
 }
 
