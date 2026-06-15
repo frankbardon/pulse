@@ -1141,18 +1141,50 @@ type AggregationComponents struct {
 }
 
 // GrouperComponents carries per-grouper constituent-parts metadata —
-// bucket inventory, edge values, dictionary mappings. Slot identity
-// rides on Field which mirrors the originating Group.Field.
+// bucket inventory, edge values, dictionary mappings. The universal
+// floor — TotalN (records partitioned, post-filter) and NNull (records
+// that landed in a null / skip path) — is a typed field on every
+// entry; per-operator keys (bucket arrays, edges, dict size,
+// granularity, etc.) ride inside Operator. Slot identity rides on
+// Field, which mirrors the originating Group.Field, plus Label, which
+// mirrors the originating Group.Label when present so consumers can
+// join the components entry back to its request slot without index
+// arithmetic.
+//
+// For single-key groupers (CATEGORY / RANGE / ROUNDED / QUANTILE /
+// DATE / SET_VALUE), TotalN equals the sum of bucket counts. For
+// multi-key streaming groupers (GROUP_SET_PER_ELEMENT), a single
+// record may contribute to multiple buckets, so the sum of bucket
+// counts will exceed TotalN — TotalN remains row count, not emission
+// count.
 type GrouperComponents struct {
 	// Field mirrors the originating Group.Field so callers can join
 	// the components entry back to its request slot.
 	Field string `json:"field,omitempty"`
+
+	// TotalN is the number of records partitioned by the grouper
+	// (post-filter). Universal floor — emitted by every grouper.
+	// Zero-valued ints stay absent from JSON via omitempty so a
+	// grouper entry with only operator keys does not leak a noisy
+	// `total_n: 0` onto the wire.
+	TotalN int `json:"total_n,omitempty"`
+
+	// NNull is the number of records that landed in a null / skip
+	// path (null field value, empty set, missing key). Universal
+	// floor — emitted by every grouper. Zero-valued ints stay absent
+	// from JSON via omitempty.
+	NNull int `json:"n_null,omitempty"`
 
 	// Operator carries the per-grouper schema-declared keys (bucket
 	// edges, dict mappings, range_min / range_max, etc.). Key set is
 	// governed by the operator's ComponentSchema declaration in
 	// descriptor/capabilities_groupers.go (lands in E2+).
 	Operator map[string]any `json:"operator,omitempty"`
+
+	// Label mirrors the originating Group.Label so callers can join
+	// the components entry back to its request slot when multiple
+	// groupers share the same Field.
+	Label string `json:"label,omitempty"`
 }
 
 // CrosstabComponents carries crosstab-level constituent-parts metadata

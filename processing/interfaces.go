@@ -294,3 +294,69 @@ type MetaAggregator interface {
 	// same error-routing contract as Aggregate / Finalize.
 	Components() (map[string]any, error)
 }
+
+// MetaGrouper is the optional sibling of Grouper / StreamingGrouper /
+// StreamableGrouper / MultiKeyStreamingGrouper for groupers that emit
+// a per-operator "components" map alongside their partitioning output.
+// The map carries the named constituent-parts metadata declared in the
+// grouper's descriptor.ComponentSchema — bucket arrays, edge values,
+// dictionary mappings, range_min / range_max, granularity, etc.
+//
+// Components is called exactly once after the grouper's terminal pass:
+//
+//   - For buffered groupers (Grouper.Group), after Group returns.
+//   - For streaming groupers (StreamingGrouper / StreamableGrouper),
+//     after the per-record KeyForRow / KeyFor sequence terminates and
+//     the iterator is exhausted.
+//   - For multi-key streaming groupers (MultiKeyStreamingGrouper, e.g.
+//     GROUP_SET_PER_ELEMENT), after the per-record KeysForRow sequence
+//     terminates. Per-bucket counts in the emitted map reflect
+//     emission count (one increment per emitted key), NOT row count —
+//     a single row may contribute to multiple buckets, and the
+//     orchestrator's TotalN reflects the row count.
+//
+// The orchestrator routes the result into
+// Response.Components.Groupers (one entry per Request.Groups slot, in
+// declared order). Implementations MUST be safe to call Components
+// once per result; calling it multiple times or before the terminating
+// pass is a programming error and may return stale state.
+//
+// Universal floor contract: the orchestrator ALWAYS populates the
+// universal floor keys (TotalN, NNull on types.GrouperComponents)
+// from the post-filter record walker. Components() returns ONLY the
+// operator-specific keys (buckets, edges, dict_size, granularity, …)
+// — do NOT re-emit total_n / n_null from the operator. Returning
+// (nil, nil) is the canonical signal for "no operator-specific keys;
+// caller still fills the universal floor unconditionally".
+//
+// Streaming merge semantics follow the descriptor.ComponentsMergeability
+// declared at registration time, mirroring the MetaAggregator contract:
+// mergeable groupers (bucket counts) fold across chunks; partial
+// groupers (dict-bearing) stage merges at terminal flush; non-mergeable
+// groupers (rare for groupers; QUANTILE-class needs the full input)
+// emit components only on terminal buffered flush.
+//
+// E2-S4..S6 will add the per-grouper implementations under compile-
+// time assertions of the form:
+//
+//	var _ processing.MetaGrouper = (*categoryGrouper)(nil)
+//	var _ processing.MetaGrouper = (*rangeGrouper)(nil)
+//	var _ processing.MetaGrouper = (*roundedGrouper)(nil)
+//	var _ processing.MetaGrouper = (*quantileGrouper)(nil)
+//	var _ processing.MetaGrouper = (*dateGrouper)(nil)
+//	...
+//
+// which keep the wiring grep-discoverable and catch interface drift at
+// build time. No runtime wiring is added by the interface itself — the
+// descriptor.ComponentSchema declared in capabilities_groupers.go is
+// the matching half consumed by predict / manifest.
+type MetaGrouper interface {
+	// Components returns the per-grouper components map keyed by the
+	// snake_case names declared in the grouper's
+	// descriptor.ComponentSchema. Returning (nil, nil) means "no
+	// operator-specific keys; caller fills the universal floor
+	// unconditionally". A non-nil error aborts the request with the
+	// same error-routing contract as Group / KeyFor / KeyForRow /
+	// KeysForRow.
+	Components() (map[string]any, error)
+}
