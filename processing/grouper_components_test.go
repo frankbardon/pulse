@@ -491,6 +491,532 @@ func TestGrouper_Date_Components_YearGranularity(t *testing.T) {
 	}
 }
 
+// --- GROUP_RANGE ---------------------------------------------------
+//
+// E2-S5 — MetaGrouper.Components() emission for the three edge-based
+// groupers. RANGE / ROUNDED declare ComponentsMergeability=Mergeable
+// (per-bucket counts fold across chunks); QUANTILE is None
+// (needs a sorted view of the full input). The buffered-only emission
+// contract for QUANTILE is exercised here; the streaming-path per-
+// chunk omission lands in E4-S4 wiring.
+
+func TestGrouper_Range_Components_EmptyCohort(t *testing.T) {
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_RANGE, "score", 10, schema)
+
+	if _, err := g.Group([]*Record{}, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	meta, ok := g.(MetaGrouper)
+	if !ok {
+		t.Fatalf("rangeGrouper does not implement MetaGrouper")
+	}
+	op, err := meta.Components()
+	if err != nil {
+		t.Fatalf("Components: %v", err)
+	}
+
+	wantKeys := []string{
+		"buckets", "edges", "interval", "n_buckets",
+		"overflow_count", "range_max", "range_min", "underflow_count",
+	}
+	got := mapKeysSortedAny(op)
+	if !reflect.DeepEqual(got, wantKeys) {
+		t.Errorf("Components keys = %v, want %v", got, wantKeys)
+	}
+	if iv, _ := op["interval"].(float64); iv != 10 {
+		t.Errorf("interval = %v, want 10", iv)
+	}
+	if n, _ := op["n_buckets"].(int); n != 0 {
+		t.Errorf("n_buckets = %d, want 0", n)
+	}
+	if rmin, _ := op["range_min"].(float64); rmin != 0 {
+		t.Errorf("range_min = %v, want 0 (no rows observed)", rmin)
+	}
+	if rmax, _ := op["range_max"].(float64); rmax != 0 {
+		t.Errorf("range_max = %v, want 0 (no rows observed)", rmax)
+	}
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 0 {
+		t.Errorf("buckets len = %d, want 0", len(buckets))
+	}
+	if buckets == nil {
+		t.Errorf("buckets nil; want non-nil empty slice")
+	}
+	edges, _ := op["edges"].([]float64)
+	if len(edges) != 0 {
+		t.Errorf("edges len = %d, want 0", len(edges))
+	}
+	if edges == nil {
+		t.Errorf("edges nil; want non-nil empty slice")
+	}
+	if uc, _ := op["underflow_count"].(int); uc != 0 {
+		t.Errorf("underflow_count = %d, want 0", uc)
+	}
+	if oc, _ := op["overflow_count"].(int); oc != 0 {
+		t.Errorf("overflow_count = %d, want 0", oc)
+	}
+}
+
+func TestGrouper_Range_Components_AllInRange(t *testing.T) {
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_RANGE, "score", 10, schema)
+	records := makeRecords(schema, "score", []float64{5, 12, 18, 25, 33, 47})
+	if _, err := g.Group(records, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	op, _ := g.(MetaGrouper).Components()
+	if iv, _ := op["interval"].(float64); iv != 10 {
+		t.Errorf("interval = %v, want 10", iv)
+	}
+	if rmin, _ := op["range_min"].(float64); rmin != 5 {
+		t.Errorf("range_min = %v, want 5 (smallest observed)", rmin)
+	}
+	if rmax, _ := op["range_max"].(float64); rmax != 47 {
+		t.Errorf("range_max = %v, want 47 (largest observed)", rmax)
+	}
+	// Auto-detected bounds → no out-of-range rows.
+	if uc, _ := op["underflow_count"].(int); uc != 0 {
+		t.Errorf("underflow_count = %d, want 0 (all in range)", uc)
+	}
+	if oc, _ := op["overflow_count"].(int); oc != 0 {
+		t.Errorf("overflow_count = %d, want 0 (all in range)", oc)
+	}
+	buckets, _ := op["buckets"].([]map[string]any)
+	// Expected bins: 0-10 (1), 10-20 (2), 20-30 (1), 30-40 (1), 40-50 (1).
+	wantBuckets := []struct {
+		key   string
+		low   float64
+		high  float64
+		count int
+	}{
+		{"0-10", 0, 10, 1},
+		{"10-20", 10, 20, 2},
+		{"20-30", 20, 30, 1},
+		{"30-40", 30, 40, 1},
+		{"40-50", 40, 50, 1},
+	}
+	if len(buckets) != len(wantBuckets) {
+		t.Fatalf("buckets len = %d, want %d", len(buckets), len(wantBuckets))
+	}
+	for i, want := range wantBuckets {
+		got := buckets[i]
+		if k, _ := got["key"].(string); k != want.key {
+			t.Errorf("bucket[%d] key = %q, want %q", i, k, want.key)
+		}
+		if l, _ := got["low"].(float64); l != want.low {
+			t.Errorf("bucket[%d] low = %v, want %v", i, l, want.low)
+		}
+		if h, _ := got["high"].(float64); h != want.high {
+			t.Errorf("bucket[%d] high = %v, want %v", i, h, want.high)
+		}
+		if c, _ := got["count"].(int); c != want.count {
+			t.Errorf("bucket[%d] count = %d, want %d", i, c, want.count)
+		}
+	}
+	// Edges = sorted lows + top high → [0, 10, 20, 30, 40, 50].
+	edges, _ := op["edges"].([]float64)
+	wantEdges := []float64{0, 10, 20, 30, 40, 50}
+	if !reflect.DeepEqual(edges, wantEdges) {
+		t.Errorf("edges = %v, want %v", edges, wantEdges)
+	}
+}
+
+func TestGrouper_Range_Components_NegativeValues(t *testing.T) {
+	// Cross-zero coverage — verifies the bucket-low numeric sort
+	// keeps "-20--10" before "-10-0" rather than relying on the
+	// lexical string ordering that would group all "-" prefixes
+	// together.
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_RANGE, "score", 10, schema)
+	records := makeRecords(schema, "score", []float64{-15, -5, 5, 15})
+	if _, err := g.Group(records, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	op, _ := g.(MetaGrouper).Components()
+	if rmin, _ := op["range_min"].(float64); rmin != -15 {
+		t.Errorf("range_min = %v, want -15", rmin)
+	}
+	if rmax, _ := op["range_max"].(float64); rmax != 15 {
+		t.Errorf("range_max = %v, want 15", rmax)
+	}
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 4 {
+		t.Fatalf("buckets len = %d, want 4", len(buckets))
+	}
+	wantOrder := []string{"-20--10", "-10-0", "0-10", "10-20"}
+	for i, want := range wantOrder {
+		if got, _ := buckets[i]["key"].(string); got != want {
+			t.Errorf("bucket[%d] key = %q, want %q", i, got, want)
+		}
+	}
+	edges, _ := op["edges"].([]float64)
+	wantEdges := []float64{-20, -10, 0, 10, 20}
+	if !reflect.DeepEqual(edges, wantEdges) {
+		t.Errorf("edges = %v, want %v", edges, wantEdges)
+	}
+}
+
+func TestGrouper_Range_Components_NullValuesSkipped(t *testing.T) {
+	// Null inputs participate in n_null (orchestrator floor) but
+	// never widen range_min/range_max or land in a bucket.
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_RANGE, "score", 10, schema)
+	records := makeRecordsWithNulls(schema, "score",
+		[]float64{5, 0, 25}, []int{1})
+	if _, err := g.Group(records, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	op, _ := g.(MetaGrouper).Components()
+	if rmin, _ := op["range_min"].(float64); rmin != 5 {
+		t.Errorf("range_min = %v, want 5 (null skipped)", rmin)
+	}
+	if rmax, _ := op["range_max"].(float64); rmax != 25 {
+		t.Errorf("range_max = %v, want 25", rmax)
+	}
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 2 {
+		t.Fatalf("buckets len = %d, want 2 (null skipped)", len(buckets))
+	}
+}
+
+func TestGrouper_Range_Components_SingleBucket(t *testing.T) {
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_RANGE, "score", 10, schema)
+	records := makeRecords(schema, "score", []float64{42, 45, 49})
+	if _, err := g.Group(records, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	op, _ := g.(MetaGrouper).Components()
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 1 {
+		t.Fatalf("buckets len = %d, want 1", len(buckets))
+	}
+	if k, _ := buckets[0]["key"].(string); k != "40-50" {
+		t.Errorf("bucket key = %q, want %q", k, "40-50")
+	}
+	if c, _ := buckets[0]["count"].(int); c != 3 {
+		t.Errorf("bucket count = %d, want 3", c)
+	}
+	edges, _ := op["edges"].([]float64)
+	wantEdges := []float64{40, 50}
+	if !reflect.DeepEqual(edges, wantEdges) {
+		t.Errorf("edges = %v, want %v", edges, wantEdges)
+	}
+}
+
+// --- GROUP_ROUNDED -------------------------------------------------
+
+func TestGrouper_Rounded_Components_EmptyCohort(t *testing.T) {
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_ROUNDED, "score", 5, schema)
+	if _, err := g.Group([]*Record{}, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	meta, ok := g.(MetaGrouper)
+	if !ok {
+		t.Fatalf("roundedGrouper does not implement MetaGrouper")
+	}
+	op, err := meta.Components()
+	if err != nil {
+		t.Fatalf("Components: %v", err)
+	}
+
+	wantKeys := []string{"buckets", "edges", "precision"}
+	got := mapKeysSortedAny(op)
+	if !reflect.DeepEqual(got, wantKeys) {
+		t.Errorf("Components keys = %v, want %v", got, wantKeys)
+	}
+	if p, _ := op["precision"].(float64); p != 5 {
+		t.Errorf("precision = %v, want 5", p)
+	}
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 0 {
+		t.Errorf("buckets len = %d, want 0", len(buckets))
+	}
+	if buckets == nil {
+		t.Errorf("buckets nil; want non-nil empty slice")
+	}
+	edges, _ := op["edges"].([]float64)
+	if len(edges) != 0 {
+		t.Errorf("edges len = %d, want 0", len(edges))
+	}
+	if edges == nil {
+		t.Errorf("edges nil; want non-nil empty slice")
+	}
+}
+
+func TestGrouper_Rounded_Components_MultipleBuckets(t *testing.T) {
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_ROUNDED, "score", 10, schema)
+	// 23,27 → 20; 35 → 30; 12 → 10; 48 → 40.
+	records := makeRecords(schema, "score", []float64{23, 27, 35, 12, 48})
+	if _, err := g.Group(records, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	op, _ := g.(MetaGrouper).Components()
+	if p, _ := op["precision"].(float64); p != 10 {
+		t.Errorf("precision = %v, want 10", p)
+	}
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 4 {
+		t.Fatalf("buckets len = %d, want 4", len(buckets))
+	}
+	wantBuckets := []struct {
+		key   string
+		low   float64
+		count int
+	}{
+		{"10", 10, 1},
+		{"20", 20, 2},
+		{"30", 30, 1},
+		{"40", 40, 1},
+	}
+	for i, want := range wantBuckets {
+		got := buckets[i]
+		if k, _ := got["key"].(string); k != want.key {
+			t.Errorf("bucket[%d] key = %q, want %q", i, k, want.key)
+		}
+		if l, _ := got["low"].(float64); l != want.low {
+			t.Errorf("bucket[%d] low = %v, want %v", i, l, want.low)
+		}
+		if h, _ := got["high"].(float64); h != want.low {
+			// ROUNDED: low == high (point on value axis).
+			t.Errorf("bucket[%d] high = %v, want %v (== low for ROUNDED)", i, h, want.low)
+		}
+		if c, _ := got["count"].(int); c != want.count {
+			t.Errorf("bucket[%d] count = %d, want %d", i, c, want.count)
+		}
+	}
+	edges, _ := op["edges"].([]float64)
+	wantEdges := []float64{10, 20, 30, 40}
+	if !reflect.DeepEqual(edges, wantEdges) {
+		t.Errorf("edges = %v, want %v", edges, wantEdges)
+	}
+}
+
+func TestGrouper_Rounded_Components_SingleBucket(t *testing.T) {
+	// Values within `interval` of one scalar all collapse to the
+	// same bucket; ROUNDED is a single-point partition.
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_ROUNDED, "score", 10, schema)
+	records := makeRecords(schema, "score", []float64{21, 23, 27, 29})
+	if _, err := g.Group(records, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	op, _ := g.(MetaGrouper).Components()
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 1 {
+		t.Fatalf("buckets len = %d, want 1", len(buckets))
+	}
+	if k, _ := buckets[0]["key"].(string); k != "20" {
+		t.Errorf("bucket key = %q, want %q", k, "20")
+	}
+	if c, _ := buckets[0]["count"].(int); c != 4 {
+		t.Errorf("bucket count = %d, want 4", c)
+	}
+	edges, _ := op["edges"].([]float64)
+	wantEdges := []float64{20}
+	if !reflect.DeepEqual(edges, wantEdges) {
+		t.Errorf("edges = %v, want %v", edges, wantEdges)
+	}
+}
+
+func TestGrouper_Rounded_Components_FloatInterval(t *testing.T) {
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_ROUNDED, "score", 0.5, schema)
+	records := makeRecords(schema, "score", []float64{0.1, 0.3, 0.6, 0.8, 1.2})
+	if _, err := g.Group(records, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	op, _ := g.(MetaGrouper).Components()
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 3 {
+		t.Fatalf("buckets len = %d, want 3", len(buckets))
+	}
+	wantLows := []float64{0, 0.5, 1}
+	for i, want := range wantLows {
+		if l, _ := buckets[i]["low"].(float64); l != want {
+			t.Errorf("bucket[%d] low = %v, want %v", i, l, want)
+		}
+	}
+}
+
+// --- GROUP_QUANTILE ------------------------------------------------
+
+func TestGrouper_Quantile_Components_EmptyCohort(t *testing.T) {
+	// Empty input: Group() still runs (frozen state stamped), but
+	// the resulting buckets / edges slices are empty. The schema
+	// contract emits the keys with empty payloads so downstream
+	// consumers see a uniform shape.
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_QUANTILE, "score", 4, schema)
+	if _, err := g.Group([]*Record{}, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	meta, ok := g.(MetaGrouper)
+	if !ok {
+		t.Fatalf("quantileGrouper does not implement MetaGrouper")
+	}
+	op, err := meta.Components()
+	if err != nil {
+		t.Fatalf("Components: %v", err)
+	}
+	if op == nil {
+		t.Fatalf("Components returned nil; want emitted shape after Group()")
+	}
+	wantKeys := []string{"buckets", "edges", "method", "n_quantiles"}
+	got := mapKeysSortedAny(op)
+	if !reflect.DeepEqual(got, wantKeys) {
+		t.Errorf("Components keys = %v, want %v", got, wantKeys)
+	}
+	if n, _ := op["n_quantiles"].(int); n != 4 {
+		t.Errorf("n_quantiles = %d, want 4", n)
+	}
+	if m, _ := op["method"].(string); m != "linear" {
+		t.Errorf("method = %q, want %q", m, "linear")
+	}
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 0 {
+		t.Errorf("buckets len = %d, want 0", len(buckets))
+	}
+	if buckets == nil {
+		t.Errorf("buckets nil; want non-nil empty slice")
+	}
+	edges, _ := op["edges"].([]float64)
+	if len(edges) != 0 {
+		t.Errorf("edges len = %d, want 0", len(edges))
+	}
+	if edges == nil {
+		t.Errorf("edges nil; want non-nil empty slice")
+	}
+}
+
+func TestGrouper_Quantile_Components_BeforeGroup(t *testing.T) {
+	// Calling Components() before Group() collapses to (nil, nil)
+	// per the universal-floor convention — the orchestrator still
+	// emits TotalN / NNull.
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_QUANTILE, "score", 4, schema)
+	op, err := g.(MetaGrouper).Components()
+	if err != nil {
+		t.Fatalf("Components: %v", err)
+	}
+	if op != nil {
+		t.Errorf("Components before Group() = %v, want nil", op)
+	}
+}
+
+func TestGrouper_Quantile_Components_Quartiles(t *testing.T) {
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_QUANTILE, "score", 4, schema)
+	// 8 sorted values → 2 per quartile.
+	records := makeRecords(schema, "score", []float64{10, 20, 30, 40, 50, 60, 70, 80})
+	if _, err := g.Group(records, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	op, _ := g.(MetaGrouper).Components()
+	if n, _ := op["n_quantiles"].(int); n != 4 {
+		t.Errorf("n_quantiles = %d, want 4", n)
+	}
+	if m, _ := op["method"].(string); m != "linear" {
+		t.Errorf("method = %q, want %q", m, "linear")
+	}
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 4 {
+		t.Fatalf("buckets len = %d, want 4", len(buckets))
+	}
+	wantBuckets := []struct {
+		key   string
+		low   float64
+		high  float64
+		count int
+	}{
+		{"Q1", 10, 20, 2},
+		{"Q2", 30, 40, 2},
+		{"Q3", 50, 60, 2},
+		{"Q4", 70, 80, 2},
+	}
+	for i, want := range wantBuckets {
+		got := buckets[i]
+		if k, _ := got["key"].(string); k != want.key {
+			t.Errorf("bucket[%d] key = %q, want %q", i, k, want.key)
+		}
+		if l, _ := got["low"].(float64); l != want.low {
+			t.Errorf("bucket[%d] low = %v, want %v", i, l, want.low)
+		}
+		if h, _ := got["high"].(float64); h != want.high {
+			t.Errorf("bucket[%d] high = %v, want %v", i, h, want.high)
+		}
+		if c, _ := got["count"].(int); c != want.count {
+			t.Errorf("bucket[%d] count = %d, want %d", i, c, want.count)
+		}
+	}
+	edges, _ := op["edges"].([]float64)
+	wantEdges := []float64{10, 30, 50, 70, 80}
+	if !reflect.DeepEqual(edges, wantEdges) {
+		t.Errorf("edges = %v, want %v", edges, wantEdges)
+	}
+}
+
+func TestGrouper_Quantile_Components_Deciles(t *testing.T) {
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_QUANTILE, "score", 10, schema)
+	// 20 sorted values → 2 per decile.
+	values := make([]float64, 20)
+	for i := 0; i < 20; i++ {
+		values[i] = float64(i + 1)
+	}
+	records := makeRecords(schema, "score", values)
+	if _, err := g.Group(records, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	op, _ := g.(MetaGrouper).Components()
+	if n, _ := op["n_quantiles"].(int); n != 10 {
+		t.Errorf("n_quantiles = %d, want 10", n)
+	}
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 10 {
+		t.Fatalf("buckets len = %d, want 10", len(buckets))
+	}
+	// D1..D10 — keys must use the "D" prefix.
+	for i, b := range buckets {
+		wantKey := "D" + intToStr(i+1)
+		if k, _ := b["key"].(string); k != wantKey {
+			t.Errorf("bucket[%d] key = %q, want %q", i, k, wantKey)
+		}
+		if c, _ := b["count"].(int); c != 2 {
+			t.Errorf("bucket[%d] count = %d, want 2", i, c)
+		}
+	}
+	// Edge count = n_buckets + 1.
+	edges, _ := op["edges"].([]float64)
+	if len(edges) != 11 {
+		t.Errorf("edges len = %d, want 11", len(edges))
+	}
+}
+
+func TestGrouper_Quantile_Components_NonStandardCount(t *testing.T) {
+	// 3 buckets uses the generic "B" prefix.
+	schema := numericSchema()
+	g := makeGrouper(t, types.GROUP_QUANTILE, "score", 3, schema)
+	records := makeRecords(schema, "score", []float64{1, 2, 3, 4, 5, 6})
+	if _, err := g.Group(records, "score"); err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	op, _ := g.(MetaGrouper).Components()
+	buckets, _ := op["buckets"].([]map[string]any)
+	if len(buckets) != 3 {
+		t.Fatalf("buckets len = %d, want 3", len(buckets))
+	}
+	wantKeys := []string{"B1", "B2", "B3"}
+	for i, want := range wantKeys {
+		if k, _ := buckets[i]["key"].(string); k != want {
+			t.Errorf("bucket[%d] key = %q, want %q", i, k, want)
+		}
+	}
+}
+
 // --- shared helpers -------------------------------------------------
 
 // mapKeysSortedAny returns the sorted key set of m, mirroring the
