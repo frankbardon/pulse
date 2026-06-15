@@ -759,21 +759,30 @@ func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 // applyTCell is the COMPOSE-host runtime handler for OVERLAY_T_CELL.
 // Per-cell Welch t-test against the reference slot's matching cell.
 //
-// Triple-aware (E1-S9): when both target and reference cells carry
-// a WelfordTriple{Mean, Variance, N} the handler consumes the triple
-// directly — variance and n are read from the triple instead of the
-// Params defaults so the overlay's p-value matches TEST_WELCH /
-// TEST_T against the same (mean, variance, n) inputs byte-equal.
+// Components-source (E3-S7): when both target and reference cells
+// carry an Aggregator components map at
+// Response.Components.Crosstab.CellComponents[r][c] containing the
+// `{mean, variance, n}` triple — emitted by AGG_WELFORD via the
+// MetaAggregator path — the handler reads the triple directly from
+// the components map and bypasses the Params defaults. The overlay
+// p-value matches TEST_WELCH / TEST_T against the same (mean,
+// variance, n) inputs byte-equal because both surfaces share the
+// welchTTest helper and source identical inputs.
 //
-// Scalar fallback: when both cells are scalar float64, the handler
-// falls back to today's Params-default path (`variance_target`,
-// `variance_ref`, `sample_size_target`, `sample_size_ref`) — additive
-// contract, byte-identical to the pre-S9 output.
+// Scalar fallback: when one side has no CellComponents triple and
+// MatrixCell.Value is a scalar float64, the handler falls back to the
+// Params-default path (`variance_target`, `variance_ref`,
+// `sample_size_target`, `sample_size_ref`) — additive contract,
+// byte-identical to the pre-Components scalar baseline.
 //
 // Mixed cell shapes (one triple, one scalar) are blocked upstream by
 // the compose schema-match gate (E1-S8). The handler still emits a
 // defensive PULSE_OVERLAY_SCHEMA_DIVERGENT if a mixed pair slips
 // through.
+//
+// MatrixCell.Value type-assertion on processing.WelfordTriple is no
+// longer performed — the universal Components surface owns the triple
+// payload. E3-S8 removes the writer next.
 func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
@@ -791,6 +800,7 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 	}
 
 	refCellLookup := buildMatrixCellRawLookup(refMx)
+	refCoordLookup := buildMatrixCellCoordLookup(refMx)
 	varTarget := varianceFromParams(spec.Params, "variance_target", 1.0)
 	varRef := varianceFromParams(spec.Params, "variance_ref", 1.0)
 	nTarget := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
@@ -838,8 +848,15 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				continue
 			}
 
-			tTriple, tHasTriple := welfordTripleFromCell(cell)
-			rTriple, rHasTriple := welfordTripleFromCell(refCell)
+			tMean, tVar, tN, tHasTriple := extractCellComponentsTriple(target, i, j)
+			refCoord, refCoordOK := refCoordLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
+			var (
+				rMean, rVar, rN float64
+				rHasTriple      bool
+			)
+			if refCoordOK {
+				rMean, rVar, rN, rHasTriple = extractCellComponentsTriple(reference, refCoord.Row, refCoord.Col)
+			}
 			tScalar, tHasScalar := scalarFromCell(cell)
 			rScalar, rHasScalar := scalarFromCell(refCell)
 
@@ -869,12 +886,12 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				refVal        float64
 			)
 			if tHasTriple {
-				meanT = tTriple.Mean
-				vT = tTriple.Variance
-				nT = float64(tTriple.N)
-				meanR = rTriple.Mean
-				vR = rTriple.Variance
-				nR = float64(rTriple.N)
+				meanT = tMean
+				vT = tVar
+				nT = tN
+				meanR = rMean
+				vR = rVar
+				nR = rN
 				targetVal = meanT
 				refVal = meanR
 			} else if tHasScalar && rHasScalar {
@@ -887,7 +904,9 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				targetVal = tScalar
 				refVal = rScalar
 			} else {
-				// Neither triple nor scalar — non-addressable cell.
+				// Neither Components triple nor scalar — non-addressable
+				// cell. The handler skips silently, matching the
+				// pre-S7 baseline behaviour for unaddressable cells.
 				continue
 			}
 

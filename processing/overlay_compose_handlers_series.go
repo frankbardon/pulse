@@ -256,14 +256,16 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 // variance / default-sample-size policy and the same studentTTwoSidedP
 // helper.
 //
-// Triple-aware (E1-S10): when both target and reference value
-// columns carry a WelfordTriple{Mean, Variance, N} the handler
-// consumes the triple directly — variance and n are read from the
-// triple instead of the Params defaults so the overlay's p-value
-// matches TEST_WELCH / TEST_T against the same (mean, variance, n)
-// inputs byte-equal. When both value columns are scalar numeric the
-// handler falls back to today's Params-default path (byte-identical
-// to the pre-S10 output).
+// Components-source (E3-S7): when both target and reference value
+// columns carry a `{mean, variance, n}` triple map — emitted by
+// AGG_WELFORD via the MetaAggregator path — the handler consumes the
+// triple directly and bypasses the Params defaults. The overlay
+// p-value matches TEST_WELCH / TEST_T against the same (mean,
+// variance, n) inputs byte-equal. When both value columns are scalar
+// numeric the handler falls back to the Params-default path
+// (byte-identical to the pre-Components scalar baseline). The legacy
+// processing.WelfordTriple type-assertion on the row's value column
+// is no longer performed.
 //
 // Mixed value-column shapes (one triple, one scalar) are blocked
 // upstream by the compose schema-match gate (E1-S8). The handler
@@ -308,7 +310,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 	nTargetDefault := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
 	nRefDefault := sampleSizeFromParams(spec.Params, "sample_size_ref", 2.0)
 
-	refIndex := buildSeriesRowLookupAny(reference.Data)
+	refIndex := buildSeriesRowLookupAnyMap(reference.Data)
 
 	entries := make([]types.SeriesEntry, 0, len(target.Data))
 	targetLabel := composeFirstTargetLabel(spec)
@@ -320,7 +322,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 	)
 
 	for i, row := range target.Data {
-		keyStr, _, scalar, triple, hasScalar, hasTriple := encodeSeriesRowAny(row)
+		keyStr, _, scalar, mean, variance, n, hasScalar, hasTriple := encodeSeriesRowAnyMap(row)
 		if !hasScalar && !hasTriple {
 			continue
 		}
@@ -330,9 +332,9 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			targetN    float64
 		)
 		if hasTriple {
-			targetMean = triple.Mean
-			targetVar = triple.Variance
-			targetN = float64(triple.N)
+			targetMean = mean
+			targetVar = variance
+			targetN = n
 		} else {
 			targetMean = scalar
 			targetVar = varTargetDefault
@@ -385,9 +387,9 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			refN    float64
 		)
 		if refEntry.HasTriple {
-			refMean = refEntry.Triple.Mean
-			refVar = refEntry.Triple.Variance
-			refN = float64(refEntry.Triple.N)
+			refMean = refEntry.Mean
+			refVar = refEntry.Variance
+			refN = refEntry.N
 		} else {
 			refMean = refEntry.Scalar
 			refVar = varRefDefault

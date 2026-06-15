@@ -15,17 +15,17 @@ import (
 // (`variance_target` / `variance_ref` default 1.0, `sample_size_target`
 // / `sample_size_ref` default 2).
 //
-// Triple-aware: when both the target cell and the matching reference
-// cell carry a `WelfordTriple` Rich payload (AGG_WELFORD output), the
-// handler reads `(Mean, Variance, N)` directly off the triple and the
-// Params fallback is bypassed for that cell pair. Mixed cells (one
-// triple, one scalar) fall back to the scalar+Params path on the
-// scalar side and use the triple's (Variance, N) on the triple side.
-// Triple detection routes through the shared `welfordTripleFromCell`
-// helper (processing/welford_triple_extract.go) so the MATRIX-arm and
-// the SERIES-arm of the Z parity pair stay symmetric with the
-// T parity pair (E1-S9 / E1-S10) and the schema-match gate's
-// "welford_triple" cell-shape token.
+// Components-source (E3-S7): when both the target cell and the matching
+// reference cell carry a `{mean, variance, n}` triple at
+// Response.Components.Crosstab.CellComponents[r][c] — emitted by
+// AGG_WELFORD via the MetaAggregator path — the handler reads the
+// triple directly from the components map and bypasses the Params
+// fallback for that cell pair. Mixed cells (one triple, one scalar)
+// fall back to the scalar+Params path on the scalar side and use the
+// triple's (variance, n) on the triple side. MatrixCell.Value
+// type-assertion on processing.WelfordTriple is no longer performed —
+// the universal Components surface owns the triple payload. E3-S8
+// removes the writer next.
 //
 // Math (per cell, post-extraction of mean/variance/n on each side):
 //
@@ -62,6 +62,7 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 	}
 
 	refLookup := buildMatrixCellRawLookup(refMx)
+	refCoordLookup := buildMatrixCellCoordLookup(refMx)
 	varTargetDefault := varianceFromParams(spec.Params, "variance_target", 1.0)
 	varRefDefault := varianceFromParams(spec.Params, "variance_ref", 1.0)
 	nTargetDefault := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
@@ -108,8 +109,17 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				})
 				continue
 			}
-			targetMean, targetVar, targetN, okT := extractCellWelchInputs(cell, varTargetDefault, nTargetDefault)
-			refMean, refVar, refN, okR := extractCellWelchInputs(refCell, varRefDefault, nRefDefault)
+			refCoord, refCoordOK := refCoordLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
+			targetMean, targetVar, targetN, okT := extractCellWelchInputsFromComponents(target, cell, i, j, varTargetDefault, nTargetDefault)
+			var (
+				refMean, refVar, refN float64
+				okR                   bool
+			)
+			if refCoordOK {
+				refMean, refVar, refN, okR = extractCellWelchInputsFromComponents(reference, refCell, refCoord.Row, refCoord.Col, varRefDefault, nRefDefault)
+			} else {
+				refMean, refVar, refN, okR = extractCellWelchInputsScalar(refCell, varRefDefault, nRefDefault)
+			}
 			if !okT || !okR {
 				continue
 			}
@@ -194,22 +204,38 @@ func welchZTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 	return p, true
 }
 
-// extractCellWelchInputs reads `(mean, variance, n)` from a MatrixCell.
-// A cell carrying a `WelfordTriple` Rich payload returns the triple's
-// `(Mean, Variance, N)` and bypasses the per-side `Params` defaults;
-// a cell carrying a scalar numeric falls back to the supplied
-// `varDefault` + `nDefault`. Absent / non-numeric cells return
-// `(0, 0, 0, false)` so the caller can skip the cell.
+// extractCellWelchInputsFromComponents reads `(mean, variance, n)` from
+// the per-cell Components map at Response.Components.Crosstab.
+// CellComponents[r][c] when the operator emitted a `{mean, variance,
+// n}` triple. Falls back to the supplied `varDefault` + `nDefault`
+// when the components map is absent / missing keys but the cell carries
+// a scalar value (the additive scalar-cell contract).
 //
-// Triple detection delegates to `welfordTripleFromCell` so the MATRIX
-// and SERIES arms of the Z parity pair stay symmetric with the T
-// parity pair.
-func extractCellWelchInputs(cell types.MatrixCell, varDefault, nDefault float64) (mean, variance, n float64, ok bool) {
+// Absent / non-numeric cells with no components triple return
+// `(0, 0, 0, false)` so the caller can skip the cell. The MatrixCell
+// is still consulted for the scalar fallback path so the additive
+// pre-Components scalar contract stays byte-equal; the WelfordTriple
+// type-assertion on MatrixCell.Value is gone — the universal
+// Components surface is the only triple source after the E3-S7
+// migration.
+func extractCellWelchInputsFromComponents(resp *types.Response, cell types.MatrixCell, r, c int, varDefault, nDefault float64) (mean, variance, n float64, ok bool) {
 	if !cell.Present {
 		return 0, 0, 0, false
 	}
-	if triple, isTriple := welfordTripleFromCell(cell); isTriple {
-		return triple.Mean, triple.Variance, float64(triple.N), true
+	if tMean, tVar, tN, tripleOK := extractCellComponentsTriple(resp, r, c); tripleOK {
+		return tMean, tVar, tN, true
+	}
+	return extractCellWelchInputsScalar(cell, varDefault, nDefault)
+}
+
+// extractCellWelchInputsScalar is the scalar-fallback arm. Treats a
+// scalar MatrixCell.Value as the cell mean and supplies the Params
+// defaults for `(variance, n)`. Mirrors the pre-S7
+// extractCellWelchInputs scalar branch byte-equal so the additive
+// contract for non-triple cells stays intact.
+func extractCellWelchInputsScalar(cell types.MatrixCell, varDefault, nDefault float64) (mean, variance, n float64, ok bool) {
+	if !cell.Present {
+		return 0, 0, 0, false
 	}
 	scalar, scalarOK := scalarFromCell(cell)
 	if !scalarOK {

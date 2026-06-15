@@ -14,9 +14,15 @@ import (
 // answers.
 
 // makeSeriesResponseTriples builds a *types.Response carrying a
-// Response.Data series whose value column is a WelfordTriple per row.
-// Mirrors makeSeriesResponse but lets the triple-aware tests exercise
-// the (Mean, Variance, N) path.
+// Response.Data series whose value column is a `{mean, variance, n}`
+// components map per row (mirrors AGG_WELFORD's MetaAggregator
+// emission after the E3-S7 migration). Mirrors makeSeriesResponse but
+// lets the triple-aware tests exercise the (mean, variance, n) path.
+//
+// E3-S7 migration: the value column is a `map[string]any` carrying
+// `{mean, variance, n}` keys (plus the universal floor entries) — the
+// same shape the migrated SERIES handlers consume from
+// Response.Data[i][col]. The pre-S7 WelfordTriple typed value is gone.
 func makeSeriesResponseTriples(keys []string, triples []WelfordTriple) *types.Response {
 	if len(keys) != len(triples) {
 		panic("makeSeriesResponseTriples: keys and triples must have the same length")
@@ -25,7 +31,12 @@ func makeSeriesResponseTriples(keys []string, triples []WelfordTriple) *types.Re
 	for i, k := range keys {
 		rows[i] = map[string]any{
 			"region": k,
-			"welch":  triples[i],
+			"welch": map[string]any{
+				"n":        int(triples[i].N),
+				"n_null":   0,
+				"mean":     triples[i].Mean,
+				"variance": triples[i].Variance,
+			},
 		}
 	}
 	return &types.Response{Data: rows}

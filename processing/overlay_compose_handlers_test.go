@@ -643,16 +643,31 @@ func TestApplyComposeOverlays_SixKindsDispatch(t *testing.T) {
 // MatrixPayload whose cells are WelfordTriple rich payloads
 // (mirrors AGG_WELFORD's crosstab output). Used by the triple-aware
 // arms of the T_CELL / Z_CELL handlers (E1-S9, E1-S17).
+//
+// E3-S7 migration: also populates Response.Components.Crosstab.
+// CellComponents with the matching `{n, mean, variance}` map per
+// cell so the migrated handlers can consume the universal Components
+// surface. The legacy WelfordTriple in MatrixCell.Value stays —
+// E3-S8 removes the writer side.
 func makeMatrixFromTriples(triples [3][3]WelfordTriple) *types.Response {
 	rowKeys := []types.AxisKey{{"r0"}, {"r1"}, {"r2"}}
 	colKeys := []types.AxisKey{{"c0"}, {"c1"}, {"c2"}}
 	cells := make([][]types.MatrixCell, 3)
+	cellComponents := make([][]map[string]any, 3)
 	for i := 0; i < 3; i++ {
 		row := make([]types.MatrixCell, 3)
+		compRow := make([]map[string]any, 3)
 		for j := 0; j < 3; j++ {
 			row[j] = types.MatrixCell{Value: triples[i][j], Present: true}
+			compRow[j] = map[string]any{
+				"n":        int(triples[i][j].N),
+				"n_null":   0,
+				"mean":     triples[i][j].Mean,
+				"variance": triples[i][j].Variance,
+			}
 		}
 		cells[i] = row
+		cellComponents[i] = compRow
 	}
 	return &types.Response{
 		Crosstab: &types.CrosstabResult{
@@ -662,6 +677,11 @@ func makeMatrixFromTriples(triples [3][3]WelfordTriple) *types.Response {
 				RowKeys:      rowKeys,
 				ColumnKeys:   colKeys,
 				Cells:        cells,
+			},
+		},
+		Components: &types.ResponseComponents{
+			Crosstab: &types.CrosstabComponents{
+				CellComponents: cellComponents,
 			},
 		},
 	}
