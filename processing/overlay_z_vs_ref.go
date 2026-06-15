@@ -16,18 +16,21 @@ import (
 // `applyTVsRef` (overlay_compose_handlers_series.go) — only the
 // finaliser swaps from `studentTTwoSidedP` to `standardNormalCDF`.
 //
-// Triple-aware: when a target row OR a reference row carries a
-// `WelfordTriple` Rich payload (AGG_WELFORD output) on its value
-// column, the handler reads `(Mean, Variance, N)` off the triple and
-// bypasses the per-side `Params` defaults for that group. Scalar rows
-// fall back to the Params defaults (`variance_target` /
-// `variance_ref` default 1.0, `sample_size_target` /
-// `sample_size_ref` default 2). Mixed rows (one triple, one scalar)
-// pull `(variance, n)` from each side independently per the additive
-// contract. Triple-aware row encoding / lookup routes through
-// `encodeSeriesRowAny` + `buildSeriesRowLookupAny` so the SERIES arm
-// and the MATRIX arm of the Z parity pair stay symmetric with the
-// T parity pair (E1-S9 / E1-S10) and the schema-match gate.
+// Components-source (E3-S7): when a target row OR a reference row
+// carries a `map[string]any{"mean", "variance", "n", ...}` value
+// column — the components-source emission from AGG_WELFORD via the
+// MetaAggregator path — the handler reads `(mean, variance, n)` off
+// the map and bypasses the per-side `Params` defaults for that
+// group. Scalar rows fall back to the Params defaults
+// (`variance_target` / `variance_ref` default 1.0,
+// `sample_size_target` / `sample_size_ref` default 2). Mixed rows
+// (one triple, one scalar) pull `(variance, n)` from each side
+// independently per the additive contract. Triple-aware row encoding
+// / lookup routes through `encodeSeriesRowAnyMap` +
+// `buildSeriesRowLookupAnyMap` so the SERIES arm and the MATRIX arm
+// of the Z parity pair stay symmetric with the T parity pair
+// (E3-S7). The legacy processing.WelfordTriple type-assertion on the
+// row's value column is no longer performed.
 //
 // Math (per host group `i`):
 //
@@ -64,7 +67,7 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 	nTargetDefault := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
 	nRefDefault := sampleSizeFromParams(spec.Params, "sample_size_ref", 2.0)
 
-	refIndex := buildSeriesRowLookupAny(reference.Data)
+	refIndex := buildSeriesRowLookupAnyMap(reference.Data)
 
 	entries := make([]types.SeriesEntry, 0, len(target.Data))
 	targetLabel := composeFirstTargetLabel(spec)
@@ -76,7 +79,7 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 	)
 
 	for i, row := range target.Data {
-		keyStr, _, scalar, triple, hasScalar, hasTriple := encodeSeriesRowAny(row)
+		keyStr, _, scalar, mean, variance, n, hasScalar, hasTriple := encodeSeriesRowAnyMap(row)
 		if !hasScalar && !hasTriple {
 			// No numeric / triple column on the target row — skip rather
 			// than fabricate a NaN entry. The chassis schema-match gate
@@ -90,9 +93,9 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			targetN    float64
 		)
 		if hasTriple {
-			targetMean = triple.Mean
-			targetVar = triple.Variance
-			targetN = float64(triple.N)
+			targetMean = mean
+			targetVar = variance
+			targetN = n
 		} else {
 			targetMean = scalar
 			targetVar = varTargetDefault
@@ -127,9 +130,9 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			refN    float64
 		)
 		if refEntry.HasTriple {
-			refMean = refEntry.Triple.Mean
-			refVar = refEntry.Triple.Variance
-			refN = float64(refEntry.Triple.N)
+			refMean = refEntry.Mean
+			refVar = refEntry.Variance
+			refN = refEntry.N
 		} else {
 			refMean = refEntry.Scalar
 			refVar = varRefDefault

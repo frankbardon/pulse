@@ -117,6 +117,166 @@ func CompositeAxisKey(parts []string) string {
 	return strings.Join(parts, crosstabAxisKeySep)
 }
 
+// axisComponentsFor builds the per-axis-position grouper components for
+// a crosstab axis. One *types.Group per axis position is independently
+// instantiated and exercised against the full filtered record set; the
+// resulting MetaGrouper.Components() emission is captured per position
+// so RunCrosstab can index axis-key buckets by (position, key) when
+// projecting axis components onto the sorted RowKeys / ColumnKeys.
+//
+// Per-position groupers are constructed fresh — independent of the
+// instances PartitionByAxis used for the cell partition — so the
+// recursive sub-partition pass doesn't have to expose its private
+// grouper sequence. The cost is one extra Group() call per axis
+// position, which is bounded by len(axis) ≤ a handful in practice.
+//
+// Returned slice has len(axis) entries. Entry i is the Components map
+// emitted by the grouper at axis position i; entries are nil when the
+// grouper does not implement MetaGrouper (extension groupers without a
+// Components() implementation). Empty axes return a nil slice.
+//
+// Used by RunCrosstab to feed populateCrosstabComponents with the
+// axis-grouper bucket maps. The fused path captures the same per-axis
+// emission off its long-lived rowGroupers / colGroupers instances.
+func (p *Processor) axisComponentsFor(axis []*types.Group, filtered []*Record) ([]map[string]any, error) {
+	if len(axis) == 0 {
+		return nil, nil
+	}
+	out := make([]map[string]any, len(axis))
+	for i, grp := range axis {
+		factory, ok := p.exts.LookupGrouper(grp.Type)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("unknown group type: %s", grp.Type))
+		}
+		grouper, err := factory(grp, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		// Run the grouper against the full filtered set so liveBuckets
+		// reflects every key the axis observed across the cohort. The
+		// returned partition map is discarded — the cell-partition pass
+		// in RunCrosstab handles routing; this call is purely to populate
+		// MetaGrouper.Components() state.
+		if _, err := grouper.Group(filtered, grp.Field); err != nil {
+			return nil, err
+		}
+		if meta, ok := grouper.(MetaGrouper); ok {
+			op, err := meta.Components()
+			if err != nil {
+				return nil, err
+			}
+			out[i] = op
+		}
+	}
+	return out, nil
+}
+
+// projectAxisKeyComponents builds the per-axis-key component vector
+// indexed in axisKeys order from (a) the sorted axis-tuple slice (one
+// tuple per key) and (b) the per-axis-position components emissions.
+// For single-axis (len(axis)==1) the per-key entry is the bucket map
+// emitted by the sole axis grouper for that key; for multi-axis the
+// entry carries every position's bucket merged under an "axes" slice
+// keyed by the axis field name.
+//
+// Lookup strategy: each per-position components map is expected to
+// carry a "buckets" entry of type []map[string]any whose elements have
+// a "key" string field. The per-key bucket vector is built by indexing
+// these buckets once per position so the per-axis-key loop is a flat
+// O(len(axisKeys) * len(axis)) cost without nested probes against the
+// underlying buckets slice.
+//
+// Returns nil when axis is empty (no axis to project). Returns a slice
+// of len(axisTuples) entries, parallel to axisTuples / axisKeys, when
+// axis is non-empty. Entries are nil when no bucket matches the tuple's
+// per-position key in the axis components emission — defensive: every
+// observed axis key should have a matching bucket because the grouper
+// instances ran against the same filtered set the tuples came from.
+func projectAxisKeyComponents(axis []*types.Group, axisTuples []types.AxisKey, axisComponents []map[string]any) []map[string]any {
+	if len(axis) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, len(axisTuples))
+	if len(axis) == 1 {
+		// Single-axis common case: emit the bucket map directly so
+		// consumers can read `RowKeyComponents[r]["count"]` without
+		// drilling through an axes-array wrapper.
+		buckets := axisBuckets(axisComponents[0])
+		for i, tuple := range axisTuples {
+			if len(tuple) == 0 {
+				continue
+			}
+			key, ok := tuple[0].(string)
+			if !ok {
+				continue
+			}
+			out[i] = bucketByKey(buckets, key)
+		}
+		return out
+	}
+	// Multi-axis: emit composite layout
+	//   {"axes": [{"field": <field>, "bucket": <bucket map>}, ...]}
+	// so consumers can identify which axis position contributed which
+	// bucket. Build per-position buckets slices once; the per-key loop
+	// then runs O(len(axis)) lookups per row.
+	perPosBuckets := make([][]map[string]any, len(axis))
+	for p := range axis {
+		perPosBuckets[p] = axisBuckets(axisComponents[p])
+	}
+	for i, tuple := range axisTuples {
+		axes := make([]map[string]any, 0, len(axis))
+		for p, grp := range axis {
+			if p >= len(tuple) {
+				break
+			}
+			key, ok := tuple[p].(string)
+			if !ok {
+				continue
+			}
+			entry := map[string]any{
+				"field":  grp.Field,
+				"bucket": bucketByKey(perPosBuckets[p], key),
+			}
+			axes = append(axes, entry)
+		}
+		out[i] = map[string]any{"axes": axes}
+	}
+	return out
+}
+
+// axisBuckets extracts the "buckets" slice from a per-axis-position
+// Components emission. Every built-in grouper that implements
+// MetaGrouper emits a "buckets" []map[string]any payload by contract
+// (categoryGrouper / dateGrouper / rangeGrouper / roundedGrouper /
+// quantileGrouper / setValueGrouper / setPerElementGrouper). Returns
+// nil when the emission is absent (nil grouper components) or
+// structurally divergent (extension grouper that omits the buckets
+// key).
+func axisBuckets(op map[string]any) []map[string]any {
+	if op == nil {
+		return nil
+	}
+	b, ok := op["buckets"].([]map[string]any)
+	if !ok {
+		return nil
+	}
+	return b
+}
+
+// bucketByKey returns the first bucket map whose "key" field equals
+// target, or nil when none match. Linear scan is fine in practice —
+// axis cardinalities cap out in the hundreds for the categorical
+// groupers (dict-bounded) and the dozens for numeric / date binning.
+func bucketByKey(buckets []map[string]any, target string) map[string]any {
+	for _, b := range buckets {
+		if k, ok := b["key"].(string); ok && k == target {
+			return b
+		}
+	}
+	return nil
+}
+
 // truncateCompositeKey returns the prefix of a composite axis key
 // containing the first level+1 segments. Used to translate a leaf
 // composite key (one segment per grouper in the axis) to the partial
@@ -228,6 +388,31 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	cellValues := make(map[crosstabCellKey]any, len(rowPart.Keys)*len(colPart.Keys))
 	cellPresent := make(map[crosstabCellKey]bool, len(rowPart.Keys)*len(colPart.Keys))
 
+	// E3-S2: per-cell record count tracked alongside the aggregator update
+	// so Response.Components.Crosstab.CellCounts can be populated without
+	// a second pass. A cell entry is created whenever a non-empty
+	// (row, col) bucket exists — independent of whether the cell
+	// aggregator finalises a value (an aggregator returning a nil row is
+	// still routed N records). includedRecords is the count of records
+	// that landed in at least one cell (both axis keys non-null);
+	// ExcludedRecords on Components.Crosstab is then
+	// filteredRows - includedRecords.
+	cellCounts := make(map[crosstabCellKey]int, len(rowPart.Keys)*len(colPart.Keys))
+	var includedRecords int
+
+	// E3-S3: per-cell components map indexed by the same composite-key
+	// pair as cellValues. The buffered cell builder runs the cell
+	// aggregator through runCellAggregation which returns the post-
+	// Finalize aggregator instance, scalar value, and per-cell n_null
+	// (counted by walking the bucket once for the cell field). When the
+	// aggregator implements MetaAggregator the operator-specific keys are
+	// merged into a flat map alongside the universal floor (n, n_null);
+	// for floor-only operators (AGG_COUNT / AGG_NULL_COUNT) the operator
+	// half is empty and the cell's payload is the floor alone. Empty
+	// cells (no bucket) emit nil — preserved by the nil sentinel
+	// populateCrosstabComponents writes when no entry exists for (r, c).
+	cellComponents := make(map[crosstabCellKey]map[string]any, len(rowPart.Keys)*len(colPart.Keys))
+
 	for _, rkey := range rowPart.Keys {
 		rowRecs := rowPart.Records[rkey]
 		if len(rowRecs) == 0 {
@@ -242,72 +427,120 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if len(bucket) == 0 {
 				continue
 			}
-			row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
+			ck := crosstabCellKey{rkey, ckey}
+			cellCounts[ck] = len(bucket)
+			includedRecords += len(bucket)
+			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, bucket)
 			if err != nil {
 				return nil, err
 			}
-			if row == nil {
+			compMap, err := buildCellComponentMap(instance, n, nNull)
+			if err != nil {
+				return nil, err
+			}
+			cellComponents[ck] = compMap
+			if !val.present {
 				continue
 			}
-			cellValues[crosstabCellKey{rkey, ckey}] = row[cellLabel]
-			cellPresent[crosstabCellKey{rkey, ckey}] = true
+			cellValues[ck] = val.value
+			cellPresent[ck] = true
 		}
 	}
 
+	// E3-S4: margin recompute now routes through runCellAggregation so
+	// the orchestrator captures the post-Finalize aggregator instance
+	// alongside the scalar/rich margin value. The instance feeds
+	// buildCellComponentMap which merges the universal floor {n, n_null}
+	// with the cell aggregator's MetaAggregator.Components() output for
+	// the row-margin / column-margin / grand-total components emission.
+	// Component maps are tracked unconditionally when the margin slot is
+	// computed (NeedsRowMargin / NeedsColumnMargin / NeedsGrandMargin),
+	// but only flow to Response.Components when the corresponding
+	// display flag is set — mirroring the MatrixPayload.RowMargins /
+	// ColumnMargins / GrandTotal emission rule (computed for
+	// normalization, surfaced only on explicit request).
 	var rowMargins map[string]any
 	var rowMarginPresent map[string]bool
+	var rowMarginCounts map[string]int
+	var rowMarginComponents map[string]map[string]any
 	if spec.NeedsRowMargin() {
 		rowMargins = make(map[string]any, len(rowPart.Keys))
 		rowMarginPresent = make(map[string]bool, len(rowPart.Keys))
+		rowMarginCounts = make(map[string]int, len(rowPart.Keys))
+		rowMarginComponents = make(map[string]map[string]any, len(rowPart.Keys))
 		for _, rkey := range rowPart.Keys {
 			bucket := rowPart.Records[rkey]
 			if len(bucket) == 0 {
 				continue
 			}
-			row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
+			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, bucket)
 			if err != nil {
 				return nil, err
 			}
-			if row == nil {
+			rowMarginCounts[rkey] = n + nNull
+			compMap, err := buildCellComponentMap(instance, n, nNull)
+			if err != nil {
+				return nil, err
+			}
+			rowMarginComponents[rkey] = compMap
+			if !val.present {
 				continue
 			}
-			rowMargins[rkey] = row[cellLabel]
+			rowMargins[rkey] = val.value
 			rowMarginPresent[rkey] = true
 		}
 	}
 
 	var colMargins map[string]any
 	var colMarginPresent map[string]bool
+	var colMarginCounts map[string]int
+	var colMarginComponents map[string]map[string]any
 	if spec.NeedsColumnMargin() {
 		colMargins = make(map[string]any, len(colPart.Keys))
 		colMarginPresent = make(map[string]bool, len(colPart.Keys))
+		colMarginCounts = make(map[string]int, len(colPart.Keys))
+		colMarginComponents = make(map[string]map[string]any, len(colPart.Keys))
 		for _, ckey := range colPart.Keys {
 			bucket := colPart.Records[ckey]
 			if len(bucket) == 0 {
 				continue
 			}
-			row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
+			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, bucket)
 			if err != nil {
 				return nil, err
 			}
-			if row == nil {
+			colMarginCounts[ckey] = n + nNull
+			compMap, err := buildCellComponentMap(instance, n, nNull)
+			if err != nil {
+				return nil, err
+			}
+			colMarginComponents[ckey] = compMap
+			if !val.present {
 				continue
 			}
-			colMargins[ckey] = row[cellLabel]
+			colMargins[ckey] = val.value
 			colMarginPresent[ckey] = true
 		}
 	}
 
 	var grandMargin any
 	grandPresent := false
+	var grandMarginCount int
+	var grandMarginComponents map[string]any
 	if spec.NeedsGrandMargin() {
 		if len(filtered) > 0 {
-			row, err := p.aggregate([]*types.Aggregation{cellAgg}, filtered)
+			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, filtered)
 			if err != nil {
 				return nil, err
 			}
-			if row != nil {
-				grandMargin = row[cellLabel]
+			grandMarginCount = n + nNull
+			compMap, err := buildCellComponentMap(instance, n, nNull)
+			if err != nil {
+				return nil, err
+			}
+			grandMarginComponents = compMap
+			if val.present {
+				grandMargin = val.value
 				grandPresent = true
 			}
 		}
@@ -531,6 +764,70 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			partialRowPart, partialRowMargins, partialRowPresent, rowNormLevel,
 			partialColPart, partialColMargins, partialColPresent, colNormLevel)
 	}
+
+	// E3-S2: emit per-cell record-count matrix on Response.Components.
+	// Layout indexed identically to MatrixPayload.Cells (rowPart.Keys
+	// outer, colPart.Keys inner) so consumers can use the same (r, c) to
+	// dereference cell value and cell count. Even shape=long callers see
+	// the matrix because the components slot is shape-agnostic; the
+	// indexing tracks rowPart / colPart key order which is deterministic
+	// regardless of shape.
+	excludedRecords := int(filteredRows) - includedRecords
+	if excludedRecords < 0 {
+		// Defensive: should never happen — includedRecords is bounded by
+		// the count of records that landed in at least one cell, which is
+		// at most filteredRows. Surface the divergence as zero rather
+		// than emit a negative count to the wire.
+		excludedRecords = 0
+	}
+	// E3-S4: row / column / grand-total margin counts + components emit
+	// alongside the cell matrices. Display flags drive the emission gate —
+	// counts/components ride only when the corresponding MatrixPayload
+	// margin slot is populated (spec.Margins.Rows / Columns / Grand). The
+	// normalization-only path computes the margins internally but does
+	// not surface counts/components (mirrors the value emission rule).
+	var rowMarginCountsSlot map[string]int
+	var rowMarginComponentsSlot map[string]map[string]any
+	if spec.Margins.Rows {
+		rowMarginCountsSlot = rowMarginCounts
+		rowMarginComponentsSlot = rowMarginComponents
+	}
+	var colMarginCountsSlot map[string]int
+	var colMarginComponentsSlot map[string]map[string]any
+	if spec.Margins.Columns {
+		colMarginCountsSlot = colMarginCounts
+		colMarginComponentsSlot = colMarginComponents
+	}
+	var grandMarginCountSlot int
+	var grandMarginComponentsSlot map[string]any
+	if spec.Margins.Grand {
+		grandMarginCountSlot = grandMarginCount
+		grandMarginComponentsSlot = grandMarginComponents
+	}
+	// E3-S5: per-axis grouper components for the row + column axes. Each
+	// axis grouper is instantiated fresh and exercised against the full
+	// filtered set so MetaGrouper.Components() reflects the cohort-wide
+	// bucket emission for that axis position. Buckets are then projected
+	// onto the sorted RowKeys / ColumnKeys via projectAxisKeyComponents
+	// so RowKeyComponents[r] / ColumnKeyComponents[c] are indexed in
+	// lockstep with MatrixPayload.RowKeys / ColumnKeys.
+	rowAxisComponents, err := p.axisComponentsFor(spec.Rows, filtered)
+	if err != nil {
+		return nil, err
+	}
+	colAxisComponents, err := p.axisComponentsFor(spec.Columns, filtered)
+	if err != nil {
+		return nil, err
+	}
+	rowKeyComponents := projectAxisKeyComponents(spec.Rows, rowPart.Tuples, rowAxisComponents)
+	colKeyComponents := projectAxisKeyComponents(spec.Columns, colPart.Tuples, colAxisComponents)
+	populateCrosstabComponents(resp, rowPart.Keys, colPart.Keys,
+		cellCounts, cellComponents,
+		rowMarginCountsSlot, rowMarginComponentsSlot,
+		colMarginCountsSlot, colMarginComponentsSlot,
+		grandMarginCountSlot, grandMarginComponentsSlot, spec.Margins.Grand,
+		includedRecords, excludedRecords,
+		rowKeyComponents, colKeyComponents)
 
 	// Tier-2 post-tests run over the materialized cell rows. Margin rows
 	// are excluded — they are emission-time annotations, not statistical
@@ -861,6 +1158,282 @@ func buildLongRows(spec *types.CrosstabSpec,
 		}
 	}
 	return data
+}
+
+// populateCrosstabComponents writes the per-cell record-count matrix
+// and the per-cell components-map matrix onto
+// Response.Components.Crosstab in the same (r, c) layout as
+// MatrixPayload.Cells. Allocates Response.Components and
+// Response.Components.Crosstab when nil so the buffered and fused
+// crosstab paths can call this helper unconditionally without
+// duplicating slot-init plumbing.
+//
+// Shared with the fused path so byte-equal parity is structural — both
+// paths build the matrices from the same {(rowKey, colKey) → count}
+// and {(rowKey, colKey) → component map} maps against the same sorted
+// axis-key slices.
+//
+// cellComponents may be nil — in that case the CellComponents matrix is
+// left unpopulated (no E3-S3 emission for older callers). When non-nil,
+// every entry corresponds to a cell that received at least one record
+// (no empty cells in the map); a missing (r, c) yields a nil entry in
+// the emitted matrix so consumers can distinguish empty cells from
+// populated cells with an empty component map.
+//
+// E3-S4: rowMarginCounts / rowMarginComponents (and column / grand
+// analogues) are emitted only when the caller passes non-nil
+// maps — gated by the display flag on the buffered / fused path. The
+// emission rule mirrors MatrixPayload.RowMargins / ColumnMargins /
+// GrandTotal: margins computed for normalization but not displayed
+// stay off the wire. grandHasMargin distinguishes "grand margin
+// requested with zero count" from "grand margin not requested"; the
+// other margins use the nil-map sentinel because per-axis maps are
+// allocated only when display is on.
+func populateCrosstabComponents(resp *types.Response,
+	rowKeys, colKeys []string,
+	cellCounts map[crosstabCellKey]int,
+	cellComponents map[crosstabCellKey]map[string]any,
+	rowMarginCounts map[string]int,
+	rowMarginComponents map[string]map[string]any,
+	colMarginCounts map[string]int,
+	colMarginComponents map[string]map[string]any,
+	grandMarginCount int,
+	grandMarginComponents map[string]any,
+	grandHasMargin bool,
+	includedRecords, excludedRecords int,
+	rowKeyComponents []map[string]any,
+	columnKeyComponents []map[string]any,
+) {
+	if resp == nil {
+		return
+	}
+	if resp.Components == nil {
+		resp.Components = &types.ResponseComponents{}
+	}
+	if resp.Components.Crosstab == nil {
+		resp.Components.Crosstab = &types.CrosstabComponents{}
+	}
+	ct := resp.Components.Crosstab
+
+	// Always allocate the cell-count matrix so consumers can dereference
+	// CellCounts[r][c] by axis index without worrying about ragged rows
+	// (omitempty drops the slice when both dims are zero, but a 2x3
+	// crosstab with no surviving cells still emits an all-zero matrix —
+	// matches the MatrixPayload.Cells contract that the row outer slice
+	// is always sized to len(rowKeys)).
+	if len(rowKeys) > 0 && len(colKeys) > 0 {
+		matrix := make([][]int, len(rowKeys))
+		for i, rk := range rowKeys {
+			row := make([]int, len(colKeys))
+			for j, ck := range colKeys {
+				if n, ok := cellCounts[crosstabCellKey{rk, ck}]; ok {
+					row[j] = n
+				}
+			}
+			matrix[i] = row
+		}
+		ct.CellCounts = matrix
+
+		// E3-S3: per-cell components matrix indexed identically to
+		// CellCounts. Empty cells (no entry in cellComponents) emit nil
+		// at [r][c] — consumers can dereference both matrices with the
+		// same (r, c) pair, distinguishing "no data" (nil) from "data
+		// with empty operator payload" (non-nil map with floor only).
+		// The outer matrix is allocated only when cellComponents is
+		// non-nil so the legacy E3-S2 callsites that pre-date
+		// CellComponents emit a CellCounts-only payload.
+		if cellComponents != nil {
+			compMatrix := make([][]map[string]any, len(rowKeys))
+			for i, rk := range rowKeys {
+				row := make([]map[string]any, len(colKeys))
+				for j, ck := range colKeys {
+					if m, ok := cellComponents[crosstabCellKey{rk, ck}]; ok {
+						row[j] = m
+					}
+				}
+				compMatrix[i] = row
+			}
+			ct.CellComponents = compMatrix
+		}
+	}
+
+	// E3-S4: row-margin counts + components, indexed in rowKeys order.
+	// Emitted only when the caller passes a non-nil map (display flag
+	// gate). Per-axis vectors are sized to len(rowKeys) so consumers can
+	// dereference RowMarginCounts[r] / RowMarginComponents[r] by the
+	// same r index they use against MatrixPayload.RowKeys[r] and
+	// MatrixPayload.RowMargins[r]; missing entries (no records for the
+	// row key) emit 0 / nil in the parallel slot.
+	if rowMarginCounts != nil && len(rowKeys) > 0 {
+		counts := make([]int, len(rowKeys))
+		for i, rk := range rowKeys {
+			if n, ok := rowMarginCounts[rk]; ok {
+				counts[i] = n
+			}
+		}
+		ct.RowMarginCounts = counts
+	}
+	if rowMarginComponents != nil && len(rowKeys) > 0 {
+		comps := make([]map[string]any, len(rowKeys))
+		for i, rk := range rowKeys {
+			if m, ok := rowMarginComponents[rk]; ok {
+				comps[i] = m
+			}
+		}
+		ct.RowMarginComponents = comps
+	}
+	if colMarginCounts != nil && len(colKeys) > 0 {
+		counts := make([]int, len(colKeys))
+		for i, ck := range colKeys {
+			if n, ok := colMarginCounts[ck]; ok {
+				counts[i] = n
+			}
+		}
+		ct.ColumnMarginCounts = counts
+	}
+	if colMarginComponents != nil && len(colKeys) > 0 {
+		comps := make([]map[string]any, len(colKeys))
+		for i, ck := range colKeys {
+			if m, ok := colMarginComponents[ck]; ok {
+				comps[i] = m
+			}
+		}
+		ct.ColumnMarginComponents = comps
+	}
+	if grandHasMargin {
+		ct.GrandTotalCount = grandMarginCount
+		ct.GrandTotalComponents = grandMarginComponents
+	}
+	// E3-S5: per-axis grouper components projected onto sorted axis-key
+	// order. Single-axis crosstabs surface the bucket map directly; multi-
+	// axis crosstabs wrap each axis position's bucket in an "axes" slice
+	// keyed by the axis field name (see projectAxisKeyComponents). Vector
+	// length matches MatrixPayload.RowKeys / ColumnKeys so consumers can
+	// dereference RowKeyComponents[r] / ColumnKeyComponents[c] in lockstep
+	// with the matrix coordinates.
+	if len(rowKeyComponents) > 0 {
+		ct.RowKeyComponents = rowKeyComponents
+	}
+	if len(columnKeyComponents) > 0 {
+		ct.ColumnKeyComponents = columnKeyComponents
+	}
+	ct.IncludedRecords = includedRecords
+	ct.ExcludedRecords = excludedRecords
+}
+
+// cellAggregationResult carries the per-cell scalar/rich value and a
+// present flag distinguishing "aggregator finalised a value" from
+// "aggregator returned an empty row" (the buffered path treated the
+// latter as a skipped cell pre-E3-S3, which still holds here — we
+// surface presence via the flag).
+type cellAggregationResult struct {
+	value   any
+	present bool
+}
+
+// runCellAggregation runs a single cell aggregator against a bucket and
+// returns the rich/scalar value, the post-Finalize aggregator instance
+// (for MetaAggregator emission), and the per-cell universal-floor
+// counters (n = non-null contributing rows, nNull = null inputs the
+// aggregator skipped). The aggregator instance is exposed so the
+// caller can interrogate MetaAggregator without re-running the
+// pipeline.
+//
+// Mirrors the slot-handling subset of aggregateWithComponents — same
+// decimal dispatch, same factory lookup, same value/rich dispatch —
+// scoped to one slot. Distinct entry point so the crosstab cell
+// builder can capture the aggregator instance after Aggregate
+// returns, which the ungrouped aggregateWithComponents wraps inside
+// its closure.
+//
+// The empty-bucket case is rejected by the caller — bucket is always
+// non-empty when this is invoked from the cell loop, so we never
+// fall through to the "no rows seen" floor.
+func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record) (cellAggregationResult, any, int, int, error) {
+	// Per-cell {n, n_null} for the cell field. Walked over the bucket
+	// once before / alongside Aggregate (the floorFor helper used by
+	// aggregateWithComponents tilts the same way, but per-field rather
+	// than per-bucket). Cheap: one NumericValue probe per record.
+	var n, nNull int
+	for _, r := range bucket {
+		if _, ok := r.NumericValue(slot.Field); ok {
+			n++
+		} else {
+			nNull++
+		}
+	}
+
+	// Decimal128 dispatch — same gate as aggregateWithComponents.
+	if p.schema != nil {
+		if f := p.schema.Field(slot.Field); f != nil && f.Type.IsDecimal() {
+			if !IsDecimalAggregationSupported(slot.Type) {
+				return cellAggregationResult{}, nil, 0, 0, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+					"aggregation has no decimal128 implementation",
+					map[string]any{"aggregation": string(slot.Type), "field": slot.Field})
+			}
+			out, err := AggregateDecimalField(slot.Type, bucket, slot.Field, f.Scale)
+			if err != nil {
+				return cellAggregationResult{}, nil, 0, 0, err
+			}
+			// Decimal aggregators do not implement MetaAggregator — the
+			// orchestrator's floor-only entry is the full components
+			// payload (mirrors the ungrouped buffered path).
+			return cellAggregationResult{value: out, present: true}, nil, n, nNull, nil
+		}
+	}
+
+	factory, ok := p.exts.LookupAggregator(slot.Type)
+	if !ok {
+		return cellAggregationResult{}, nil, 0, 0, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("unknown aggregation type: %s", slot.Type))
+	}
+	aggregator, err := factory(slot, p.schema)
+	if err != nil {
+		return cellAggregationResult{}, nil, 0, 0, err
+	}
+	scalar, err := aggregator.Aggregate(bucket, slot.Field)
+	if err != nil {
+		return cellAggregationResult{}, nil, 0, 0, err
+	}
+	v, err := dispatchAggregatorCellResult(aggregator, scalar)
+	if err != nil {
+		return cellAggregationResult{}, nil, 0, 0, err
+	}
+	return cellAggregationResult{value: v, present: true}, aggregator, n, nNull, nil
+}
+
+// buildCellComponentMap merges the per-cell universal-floor counters
+// {n, n_null} with the operator-specific component keys emitted by the
+// cell aggregator's MetaAggregator.Components() implementation. The
+// returned map is pre-sized by `2 + len(operator-keys)` so the in-place
+// merge never rehashes; an aggregator without MetaAggregator (or one
+// returning a nil operator map) yields the floor alone.
+//
+// The orchestrator owns the floor: cell aggregators MUST NOT re-emit
+// `n` or `n_null` from their Components() implementation. This helper
+// is the single point of merge so the contract is structural — any
+// operator key shadowing the floor would land here and be quietly
+// overwritten by the floor pass, surfacing as a test divergence.
+//
+// Returns a non-nil error only when the underlying MetaAggregator
+// emission returns one — same dispatch contract as
+// buildAggregationComponents in the ungrouped path.
+func buildCellComponentMap(instance any, n, nNull int) (map[string]any, error) {
+	var operator map[string]any
+	if meta, ok := instance.(MetaAggregator); ok {
+		op, err := meta.Components()
+		if err != nil {
+			return nil, err
+		}
+		operator = op
+	}
+	out := make(map[string]any, 2+len(operator))
+	out["n"] = n
+	out["n_null"] = nNull
+	for k, v := range operator {
+		out[k] = v
+	}
+	return out, nil
 }
 
 // coerceAnyMarginMap converts a map[string]any margin map (the post-

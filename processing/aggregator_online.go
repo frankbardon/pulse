@@ -47,6 +47,7 @@ func (a *sumAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *sumAggregator) Finalize() (float64, error) {
 	out := a.sum
+	a.frozenSum = out
 	a.sum = 0
 	return out, nil
 }
@@ -63,9 +64,11 @@ func (a *averageAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *averageAggregator) Finalize() (float64, error) {
 	if a.n == 0 {
+		a.frozenSum = 0
 		a.sum = 0
 		return 0, nil
 	}
+	a.frozenSum = a.sum
 	out := a.sum / float64(a.n)
 	a.sum, a.n = 0, 0
 	return out, nil
@@ -87,9 +90,11 @@ func (a *minAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *minAggregator) Finalize() (float64, error) {
 	if !a.seen {
+		a.frozenMin = 0
 		return 0, nil
 	}
 	out := a.min
+	a.frozenMin = out
 	a.min, a.seen = 0, false
 	return out, nil
 }
@@ -110,9 +115,11 @@ func (a *maxAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *maxAggregator) Finalize() (float64, error) {
 	if !a.seen {
+		a.frozenMax = 0
 		return 0, nil
 	}
 	out := a.max
+	a.frozenMax = out
 	a.max, a.seen = 0, false
 	return out, nil
 }
@@ -140,8 +147,10 @@ func (a *rangeAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *rangeAggregator) Finalize() (float64, error) {
 	if !a.seen {
+		a.frozenMin, a.frozenMax = 0, 0
 		return 0, nil
 	}
+	a.frozenMin, a.frozenMax = a.min, a.max
 	out := a.max - a.min
 	a.min, a.max, a.seen = 0, 0, false
 	return out, nil
@@ -172,8 +181,10 @@ func (a *varianceAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *varianceAggregator) Finalize() (float64, error) {
 	if a.n == 0 {
+		a.frozenN, a.frozenMean, a.frozenM2 = 0, 0, 0
 		return 0, nil
 	}
+	a.frozenN, a.frozenMean, a.frozenM2 = a.n, a.mean, a.m2
 	out := a.m2 / float64(a.n)
 	a.n, a.mean, a.m2 = 0, 0, 0
 	return out, nil
@@ -196,8 +207,10 @@ func (a *stdDevAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *stdDevAggregator) Finalize() (float64, error) {
 	if a.n == 0 {
+		a.frozenN, a.frozenMean, a.frozenM2 = 0, 0, 0
 		return 0, nil
 	}
+	a.frozenN, a.frozenMean, a.frozenM2 = a.n, a.mean, a.m2
 	out := math.Sqrt(a.m2 / float64(a.n))
 	a.n, a.mean, a.m2 = 0, 0, 0
 	return out, nil
@@ -234,6 +247,7 @@ func (a *skewnessAggregator) UpdateRow(r *Record, field string) error {
 }
 
 func (a *skewnessAggregator) Finalize() (float64, error) {
+	a.frozenN, a.frozenMean, a.frozenM2, a.frozenM3 = a.n, a.mean, a.m2, a.m3
 	if a.n <= 1 || a.m2 == 0 {
 		a.n, a.mean, a.m2, a.m3 = 0, 0, 0, 0
 		return 0, nil
@@ -287,6 +301,7 @@ func (a *kurtosisAggregator) UpdateRow(r *Record, field string) error {
 }
 
 func (a *kurtosisAggregator) Finalize() (float64, error) {
+	a.frozenN, a.frozenMean, a.frozenM2, a.frozenM3, a.frozenM4 = a.n, a.mean, a.m2, a.m3, a.m4
 	if a.n <= 1 || a.m2 == 0 {
 		a.n, a.mean, a.m2, a.m3, a.m4 = 0, 0, 0, 0, 0
 		return 0, nil
@@ -317,6 +332,11 @@ func (a *distinctCountAggregator) UpdateRow(r *Record, field string) error {
 }
 
 func (a *distinctCountAggregator) Finalize() (float64, error) {
+	// Stamp the frozen mirror before nilling the live set so
+	// Components() reads the post-finalize cardinality after the
+	// streaming-path reset.
+	a.frozenCardinality = len(a.set)
+	a.frozenFinalized = true
 	out := float64(len(a.set))
 	a.set = nil
 	return out, nil
@@ -337,12 +357,36 @@ func (a *frequencyAggregator) UpdateRow(r *Record, field string) error {
 }
 
 func (a *frequencyAggregator) Finalize() (float64, error) {
+	a.frozenFinalized = true
+	if len(a.counts) == 0 {
+		a.frozenDistinct = 0
+		a.frozenModeValue = 0
+		a.frozenModeCount = 0
+		a.counts = nil
+		return 0, nil
+	}
 	maxCount := 0
 	for _, c := range a.counts {
 		if c > maxCount {
 			maxCount = c
 		}
 	}
+	// Mode value: smallest among ties — matches modeAggregator's
+	// deterministic ordering so the streaming and buffered paths
+	// emit byte-identical Components{}.
+	var modeValue float64
+	first := true
+	for v, c := range a.counts {
+		if c == maxCount {
+			if first || v < modeValue {
+				modeValue = v
+				first = false
+			}
+		}
+	}
+	a.frozenDistinct = len(a.counts)
+	a.frozenModeValue = modeValue
+	a.frozenModeCount = maxCount
 	a.counts = nil
 	return float64(maxCount), nil
 }
@@ -362,7 +406,12 @@ func (a *modeAggregator) UpdateRow(r *Record, field string) error {
 }
 
 func (a *modeAggregator) Finalize() (float64, error) {
+	a.frozenFinalized = true
 	if len(a.counts) == 0 {
+		a.frozenValue = 0
+		a.frozenCount = 0
+		a.frozenDistinct = 0
+		a.frozenTieCount = 0
 		a.counts = nil
 		return 0, nil
 	}
@@ -374,14 +423,20 @@ func (a *modeAggregator) Finalize() (float64, error) {
 	}
 	var result float64
 	first := true
+	tieCount := 0
 	for v, c := range a.counts {
 		if c == maxCount {
+			tieCount++
 			if first || v < result {
 				result = v
 				first = false
 			}
 		}
 	}
+	a.frozenValue = result
+	a.frozenCount = maxCount
+	a.frozenDistinct = len(a.counts)
+	a.frozenTieCount = tieCount
 	a.counts = nil
 	return result, nil
 }

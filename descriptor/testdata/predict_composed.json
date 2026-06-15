@@ -50,6 +50,90 @@
       }
     ],
     "defaults_applied": [],
+    "aggregations": [
+      {
+        "type": "AGG_AVERAGE",
+        "field": "score",
+        "label": "avg_score",
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum",
+              "type": "float64",
+              "description": "Running sum of non-null field values; combined with n to recover the mean."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      },
+      {
+        "type": "AGG_SUM",
+        "field": "grade",
+        "label": "sum_grade",
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum",
+              "type": "float64",
+              "description": "Running sum of non-null field values."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      }
+    ],
+    "groups": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "grade",
+        "component_schema": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "dict_size",
+              "type": "int",
+              "description": "Number of distinct values observed across all buckets (cardinality of the partition key)."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, label, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      }
+    ],
+    "filterers": [],
     "overlays_applied": [],
     "overlays_schema_divergence": [],
     "overlay_cost": {}
@@ -66,4 +150,4 @@
     }
   ]
 }
-// golden-hash: 6418c1de3a5d381ca392a7788ee20f53a776117b18c196dc82527c5c291ffcf7
+// golden-hash: 5a1eebe44ee3ad84379a7211c3b0360236de5dbb5b2a9cc60e4deb2e6c5d98a8

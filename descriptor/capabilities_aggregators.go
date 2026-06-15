@@ -128,6 +128,32 @@ var setFieldTypes = []string{
 	"set_u8",
 }
 
+// universalAggFloorKeys is the {n, n_null} pair every aggregator's
+// component schema declares. The orchestrator's universal-floor pass
+// (E1-S4) emits these keys unconditionally so embedders can rely on
+// them being present even when MetaAggregator returns an empty extra
+// map. Declared centrally so the floor stays byte-equal across every
+// entry.
+func universalAggFloorKeys() []ComponentKey {
+	return []ComponentKey{
+		{Name: "n", Type: "int", Description: "Number of records aggregated (non-null inputs)."},
+		{Name: "n_null", Type: "int", Description: "Number of null inputs encountered."},
+	}
+}
+
+// aggSchema composes a ComponentSchema by prepending the universal
+// floor to the operator-specific keys (in emission order) and tagging
+// the result with the operator's mergeability classification. Keep the
+// extra slice nil for floor-only operators (AGG_COUNT, AGG_NULL_COUNT)
+// so the call site stays clean.
+func aggSchema(merge ComponentsMergeability, extra ...ComponentKey) ComponentSchema {
+	floor := universalAggFloorKeys()
+	keys := make([]ComponentKey, 0, len(floor)+len(extra))
+	keys = append(keys, floor...)
+	keys = append(keys, extra...)
+	return ComponentSchema{Keys: keys, Mergeability: merge}
+}
+
 // aggregatorCapabilities is the static metadata table for every
 // registered aggregator. Order is irrelevant; manifest assembly sorts by
 // Name. The TestManifestOperatorsComplete gate enforces that every entry
@@ -135,12 +161,13 @@ var setFieldTypes = []string{
 func aggregatorCapabilities() []Operator {
 	return []Operator{
 		{
-			Name:          string(types.AGG_COUNT),
-			Category:      "aggregator",
-			Description:   "Count records that pass the active filter, optionally by group.",
-			AcceptsTypes:  allCohortFieldTypes,
-			EmitsTypeNote: "scalar int64",
-			Streamable:    true,
+			Name:            string(types.AGG_COUNT),
+			Category:        "aggregator",
+			Description:     "Count records that pass the active filter, optionally by group.",
+			AcceptsTypes:    allCohortFieldTypes,
+			EmitsTypeNote:   "scalar int64",
+			Streamable:      true,
+			ComponentSchema: aggSchema(Mergeable),
 		},
 		{
 			Name:          string(types.AGG_SUM),
@@ -149,6 +176,9 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64 (decimal128 preserved when input is decimal)",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "sum", Type: "float64", Description: "Running sum of non-null field values."},
+			),
 		},
 		{
 			Name:          string(types.AGG_AVERAGE),
@@ -157,6 +187,9 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "sum", Type: "float64", Description: "Running sum of non-null field values; combined with n to recover the mean."},
+			),
 		},
 		{
 			Name:          string(types.AGG_MIN),
@@ -165,6 +198,9 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "min", Type: "float64", Description: "Smallest non-null value observed."},
+			),
 		},
 		{
 			Name:          string(types.AGG_MAX),
@@ -173,6 +209,9 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "max", Type: "float64", Description: "Largest non-null value observed."},
+			),
 		},
 		{
 			Name:          string(types.AGG_STDDEV),
@@ -181,6 +220,12 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},
+				ComponentKey{Name: "m2", Type: "float64", Description: "Welford second-moment accumulator (sum of squared deviations from the running mean)."},
+				ComponentKey{Name: "variance", Type: "float64", Description: "Population variance derived from m2 / n."},
+				ComponentKey{Name: "stddev", Type: "float64", Description: "Population standard deviation (square root of variance)."},
+			),
 		},
 		{
 			Name:          string(types.AGG_RANGE),
@@ -189,6 +234,10 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "min", Type: "float64", Description: "Smallest non-null value observed."},
+				ComponentKey{Name: "max", Type: "float64", Description: "Largest non-null value observed."},
+			),
 		},
 		{
 			Name:          string(types.AGG_FREQUENCY),
@@ -197,6 +246,11 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  allCohortFieldTypes,
 			EmitsTypeNote: "map[string]int64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Partial,
+				ComponentKey{Name: "distinct_count", Type: "int", Description: "Number of distinct values observed."},
+				ComponentKey{Name: "mode_value", Type: "any", Description: "Most-frequent value (ties broken by first-seen order)."},
+				ComponentKey{Name: "mode_count", Type: "int", Description: "Row count of the modal value."},
+			),
 		},
 		{
 			Name:           string(types.AGG_ZSCORE),
@@ -206,6 +260,12 @@ func aggregatorCapabilities() []Operator {
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Streaming uses online Welford moments; the ZSCORE aggregate finalize step needs the full deviation sum.",
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "pop_mean", Type: "float64", Description: "Population mean used as the z-score center."},
+				ComponentKey{Name: "pop_stddev", Type: "float64", Description: "Population standard deviation used as the z-score scale."},
+				ComponentKey{Name: "target_value", Type: "float64", Description: "Value being standardized against the population summary."},
+				ComponentKey{Name: "zscore", Type: "float64", Description: "Standardized score: (target_value - pop_mean) / pop_stddev."},
+			),
 		},
 		{
 			Name:           string(types.AGG_MEDIAN),
@@ -215,6 +275,11 @@ func aggregatorCapabilities() []Operator {
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path.",
+			ComponentSchema: aggSchema(None,
+				ComponentKey{Name: "position_low", Type: "int", Description: "Lower index used to bracket the median in the sorted value set."},
+				ComponentKey{Name: "position_high", Type: "int", Description: "Upper index used to bracket the median in the sorted value set."},
+				ComponentKey{Name: "median", Type: "float64", Description: "Resolved median value (linear interpolation between the bracketing positions)."},
+			),
 		},
 		{
 			Name:          string(types.AGG_VARIANCE),
@@ -223,6 +288,11 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},
+				ComponentKey{Name: "m2", Type: "float64", Description: "Welford second-moment accumulator (sum of squared deviations from the running mean)."},
+				ComponentKey{Name: "variance", Type: "float64", Description: "Population variance derived from m2 / n."},
+			),
 		},
 		{
 			Name:          string(types.AGG_MODE),
@@ -231,6 +301,12 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  allCohortFieldTypes,
 			EmitsTypeNote: "string (echoes the dictionary value or stringified scalar)",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Partial,
+				ComponentKey{Name: "value", Type: "any", Description: "Most-frequent value observed (first-seen tie-break)."},
+				ComponentKey{Name: "count", Type: "int", Description: "Row count of the modal value."},
+				ComponentKey{Name: "distinct_count", Type: "int", Description: "Number of distinct values observed."},
+				ComponentKey{Name: "tie_count", Type: "int", Description: "Number of values tied with the mode at the same maximum count."},
+			),
 		},
 		{
 			Name:          string(types.AGG_SKEWNESS),
@@ -239,6 +315,12 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "mean", Type: "float64", Description: "Running mean of non-null field values."},
+				ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
+				ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
+				ComponentKey{Name: "skewness", Type: "float64", Description: "Bias-corrected skewness derived from m2, m3, and n."},
+			),
 		},
 		{
 			Name:          string(types.AGG_KURTOSIS),
@@ -247,6 +329,13 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "mean", Type: "float64", Description: "Running mean of non-null field values."},
+				ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
+				ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
+				ComponentKey{Name: "m4", Type: "float64", Description: "Fourth-moment accumulator (sum of fourth-power deviations from the running mean)."},
+				ComponentKey{Name: "kurtosis", Type: "float64", Description: "Bias-corrected excess kurtosis derived from m2, m4, and n."},
+			),
 		},
 		{
 			Name:          string(types.AGG_DISTINCT_COUNT),
@@ -255,6 +344,9 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  allCohortFieldTypes,
 			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Partial,
+				ComponentKey{Name: "cardinality", Type: "int", Description: "Number of distinct non-null values observed."},
+			),
 		},
 		{
 			Name:        string(types.AGG_PERCENTILE),
@@ -272,14 +364,23 @@ func aggregatorCapabilities() []Operator {
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.",
+			ComponentSchema: aggSchema(None,
+				ComponentKey{Name: "p", Type: "float64", Description: "Percentile requested, in [0, 100]."},
+				ComponentKey{Name: "position", Type: "int", Description: "Index into the sorted value set used to resolve the percentile."},
+				ComponentKey{Name: "lower", Type: "float64", Description: "Lower bracketing value used during interpolation."},
+				ComponentKey{Name: "upper", Type: "float64", Description: "Upper bracketing value used during interpolation."},
+				ComponentKey{Name: "method", Type: "string", Description: "Interpolation method (e.g. \"linear\")."},
+				ComponentKey{Name: "value", Type: "float64", Description: "Resolved percentile value."},
+			),
 		},
 		{
-			Name:          string(types.AGG_NULL_COUNT),
-			Category:      "aggregator",
-			Description:   "Count records where the field is null. Inverse of AGG_COUNT, which counts non-null records.",
-			AcceptsTypes:  allCohortFieldTypes,
-			EmitsTypeNote: "scalar int64",
-			Streamable:    true,
+			Name:            string(types.AGG_NULL_COUNT),
+			Category:        "aggregator",
+			Description:     "Count records where the field is null. Inverse of AGG_COUNT, which counts non-null records.",
+			AcceptsTypes:    allCohortFieldTypes,
+			EmitsTypeNote:   "scalar int64",
+			Streamable:      true,
+			ComponentSchema: aggSchema(Mergeable),
 		},
 		{
 			Name:        string(types.AGG_WEIGHTED_MEAN),
@@ -296,6 +397,11 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "sum_weighted", Type: "float64", Description: "Running sum of (field * weight) across contributing rows."},
+				ComponentKey{Name: "sum_weights", Type: "float64", Description: "Running sum of weights across contributing rows."},
+				ComponentKey{Name: "weighted_mean", Type: "float64", Description: "Resolved weighted mean: sum_weighted / sum_weights."},
+			),
 		},
 		{
 			Name:        string(types.AGG_RATIO),
@@ -318,6 +424,11 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  allCohortFieldTypes,
 			EmitsTypeNote: "scalar float64 (NaN when denominator sum == 0)",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "numerator", Type: "float64", Description: "Running sum of the numerator field."},
+				ComponentKey{Name: "denominator", Type: "float64", Description: "Running sum of the denominator field."},
+				ComponentKey{Name: "ratio", Type: "float64", Description: "Resolved ratio: numerator / denominator (NaN when denominator is zero)."},
+			),
 		},
 		{
 			Name:        string(types.AGG_CI_LOWER),
@@ -342,6 +453,13 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64 (NaN when n < 2)",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "mean", Type: "float64", Description: "Welford-running mean of the field."},
+				ComponentKey{Name: "stderr", Type: "float64", Description: "Standard error of the mean derived from variance and n."},
+				ComponentKey{Name: "alpha", Type: "float64", Description: "Significance level (1 - confidence)."},
+				ComponentKey{Name: "t_critical", Type: "float64", Description: "Critical value used to scale the standard error."},
+				ComponentKey{Name: "lower", Type: "float64", Description: "Resolved lower bound of the confidence interval."},
+			),
 		},
 		{
 			Name:        string(types.AGG_CI_UPPER),
@@ -366,6 +484,13 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64 (NaN when n < 2)",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "mean", Type: "float64", Description: "Welford-running mean of the field."},
+				ComponentKey{Name: "stderr", Type: "float64", Description: "Standard error of the mean derived from variance and n."},
+				ComponentKey{Name: "alpha", Type: "float64", Description: "Significance level (1 - confidence)."},
+				ComponentKey{Name: "t_critical", Type: "float64", Description: "Critical value used to scale the standard error."},
+				ComponentKey{Name: "upper", Type: "float64", Description: "Resolved upper bound of the confidence interval."},
+			),
 		},
 		{
 			Name:          string(types.AGG_WELFORD),
@@ -374,6 +499,12 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  numericFieldTypesStrictScalar,
 			EmitsTypeNote: "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},
+				ComponentKey{Name: "m2", Type: "float64", Description: "Welford second-moment accumulator (sum of squared deviations from the running mean)."},
+				ComponentKey{Name: "variance", Type: "float64", Description: "Unbiased sample variance derived from m2 / (n-1)."},
+				ComponentKey{Name: "stddev", Type: "float64", Description: "Sample standard deviation (square root of variance)."},
+			),
 		},
 		{
 			Name:          string(types.AGG_SET_UNION),
@@ -382,6 +513,11 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  setFieldTypes,
 			EmitsTypeNote: "rich []string (resolved labels); scalar fallback = popcount of the union mask",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "mask_union", Type: "uint64", Description: "Bitwise OR of every contributing row's set mask."},
+				ComponentKey{Name: "popcount", Type: "int", Description: "Number of bits set in mask_union."},
+				ComponentKey{Name: "labels", Type: "[]string", Description: "Resolved dictionary labels for every bit set in mask_union."},
+			),
 		},
 		{
 			Name:          string(types.AGG_SET_INTERSECTION),
@@ -390,6 +526,11 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  setFieldTypes,
 			EmitsTypeNote: "rich []string (resolved labels); scalar fallback = popcount of the intersection mask",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "mask_intersection", Type: "uint64", Description: "Bitwise AND of every contributing row's set mask."},
+				ComponentKey{Name: "popcount", Type: "int", Description: "Number of bits set in mask_intersection."},
+				ComponentKey{Name: "labels", Type: "[]string", Description: "Resolved dictionary labels for every bit set in mask_intersection."},
+			),
 		},
 		{
 			Name:          string(types.AGG_SET_FREQUENCY),
@@ -398,6 +539,14 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  setFieldTypes,
 			EmitsTypeNote: "rich map[string]int (label→row count); scalar fallback = max single-label frequency",
 			Streamable:    true,
+			// Partial: per_label_count merges across chunks but the
+			// map allocation makes it more expensive than a pure
+			// fold; orchestrator may stage merge at terminal flush.
+			ComponentSchema: aggSchema(Partial,
+				ComponentKey{Name: "total_label_observations", Type: "int", Description: "Sum of popcounts across contributing rows (total label selections seen)."},
+				ComponentKey{Name: "distinct_labels", Type: "int", Description: "Number of distinct labels observed at least once."},
+				ComponentKey{Name: "per_label_count", Type: "map[string]int", Description: "Per-label row count: how many rows had each label selected."},
+			),
 		},
 		{
 			Name:          string(types.AGG_SET_CARDINALITY_SUM),
@@ -406,6 +555,9 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  setFieldTypes,
 			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "sum_cardinality", Type: "int", Description: "Sum of popcounts across contributing rows — total label selections seen."},
+			),
 		},
 		{
 			Name:          string(types.AGG_SET_CARDINALITY_AVG),
@@ -414,6 +566,10 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  setFieldTypes,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "sum_cardinality", Type: "int", Description: "Sum of popcounts across contributing rows."},
+				ComponentKey{Name: "avg_cardinality", Type: "float64", Description: "Average popcount per contributing row (sum_cardinality / n)."},
+			),
 		},
 		{
 			Name:          string(types.AGG_SET_DISTINCT_VALUES),
@@ -422,6 +578,11 @@ func aggregatorCapabilities() []Operator {
 			AcceptsTypes:  setFieldTypes,
 			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
+			ComponentSchema: aggSchema(Mergeable,
+				ComponentKey{Name: "mask_union", Type: "uint64", Description: "Bitwise OR of every contributing row's set mask."},
+				ComponentKey{Name: "popcount", Type: "int", Description: "Number of bits set in mask_union (count of distinct labels observed)."},
+				ComponentKey{Name: "labels", Type: "[]string", Description: "Resolved dictionary labels for every bit set in mask_union."},
+			),
 		},
 	}
 }

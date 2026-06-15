@@ -227,7 +227,27 @@
             "u8"
           ],
           "emits_type_note": "scalar float64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum",
+                "type": "float64",
+                "description": "Running sum of non-null field values; combined with n to recover the mean."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_CI_LOWER",
@@ -264,7 +284,47 @@
             "u8"
           ],
           "emits_type_note": "scalar float64 (NaN when n \u003c 2)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mean",
+                "type": "float64",
+                "description": "Welford-running mean of the field."
+              },
+              {
+                "name": "stderr",
+                "type": "float64",
+                "description": "Standard error of the mean derived from variance and n."
+              },
+              {
+                "name": "alpha",
+                "type": "float64",
+                "description": "Significance level (1 - confidence)."
+              },
+              {
+                "name": "t_critical",
+                "type": "float64",
+                "description": "Critical value used to scale the standard error."
+              },
+              {
+                "name": "lower",
+                "type": "float64",
+                "description": "Resolved lower bound of the confidence interval."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_CI_UPPER",
@@ -301,7 +361,47 @@
             "u8"
           ],
           "emits_type_note": "scalar float64 (NaN when n \u003c 2)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mean",
+                "type": "float64",
+                "description": "Welford-running mean of the field."
+              },
+              {
+                "name": "stderr",
+                "type": "float64",
+                "description": "Standard error of the mean derived from variance and n."
+              },
+              {
+                "name": "alpha",
+                "type": "float64",
+                "description": "Significance level (1 - confidence)."
+              },
+              {
+                "name": "t_critical",
+                "type": "float64",
+                "description": "Critical value used to scale the standard error."
+              },
+              {
+                "name": "upper",
+                "type": "float64",
+                "description": "Resolved upper bound of the confidence interval."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_COUNT",
@@ -332,7 +432,22 @@
             "u8"
           ],
           "emits_type_note": "scalar int64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_DISTINCT_COUNT",
@@ -363,7 +478,27 @@
             "u8"
           ],
           "emits_type_note": "scalar int64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "cardinality",
+                "type": "int",
+                "description": "Number of distinct non-null values observed."
+              }
+            ],
+            "mergeability": "partial"
+          }
         },
         {
           "name": "AGG_FREQUENCY",
@@ -394,7 +529,37 @@
             "u8"
           ],
           "emits_type_note": "map[string]int64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "distinct_count",
+                "type": "int",
+                "description": "Number of distinct values observed."
+              },
+              {
+                "name": "mode_value",
+                "type": "any",
+                "description": "Most-frequent value (ties broken by first-seen order)."
+              },
+              {
+                "name": "mode_count",
+                "type": "int",
+                "description": "Row count of the modal value."
+              }
+            ],
+            "mergeability": "partial"
+          }
         },
         {
           "name": "AGG_KURTOSIS",
@@ -416,7 +581,47 @@
             "u8"
           ],
           "emits_type_note": "scalar float64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mean",
+                "type": "float64",
+                "description": "Running mean of non-null field values."
+              },
+              {
+                "name": "m2",
+                "type": "float64",
+                "description": "Second-moment accumulator (sum of squared deviations from the running mean)."
+              },
+              {
+                "name": "m3",
+                "type": "float64",
+                "description": "Third-moment accumulator (sum of cubed deviations from the running mean)."
+              },
+              {
+                "name": "m4",
+                "type": "float64",
+                "description": "Fourth-moment accumulator (sum of fourth-power deviations from the running mean)."
+              },
+              {
+                "name": "kurtosis",
+                "type": "float64",
+                "description": "Bias-corrected excess kurtosis derived from m2, m4, and n."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_MAX",
@@ -439,7 +644,27 @@
             "u8"
           ],
           "emits_type_note": "scalar float64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "max",
+                "type": "float64",
+                "description": "Largest non-null value observed."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_MEDIAN",
@@ -463,7 +688,37 @@
           ],
           "emits_type_note": "scalar float64",
           "streamable": false,
-          "streamable_hint": "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path."
+          "streamable_hint": "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path.",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "position_low",
+                "type": "int",
+                "description": "Lower index used to bracket the median in the sorted value set."
+              },
+              {
+                "name": "position_high",
+                "type": "int",
+                "description": "Upper index used to bracket the median in the sorted value set."
+              },
+              {
+                "name": "median",
+                "type": "float64",
+                "description": "Resolved median value (linear interpolation between the bracketing positions)."
+              }
+            ],
+            "mergeability": "none"
+          }
         },
         {
           "name": "AGG_MIN",
@@ -486,7 +741,27 @@
             "u8"
           ],
           "emits_type_note": "scalar float64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "min",
+                "type": "float64",
+                "description": "Smallest non-null value observed."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_MODE",
@@ -517,7 +792,42 @@
             "u8"
           ],
           "emits_type_note": "string (echoes the dictionary value or stringified scalar)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "value",
+                "type": "any",
+                "description": "Most-frequent value observed (first-seen tie-break)."
+              },
+              {
+                "name": "count",
+                "type": "int",
+                "description": "Row count of the modal value."
+              },
+              {
+                "name": "distinct_count",
+                "type": "int",
+                "description": "Number of distinct values observed."
+              },
+              {
+                "name": "tie_count",
+                "type": "int",
+                "description": "Number of values tied with the mode at the same maximum count."
+              }
+            ],
+            "mergeability": "partial"
+          }
         },
         {
           "name": "AGG_NULL_COUNT",
@@ -548,7 +858,22 @@
             "u8"
           ],
           "emits_type_note": "scalar int64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_PERCENTILE",
@@ -579,7 +904,52 @@
           ],
           "emits_type_note": "scalar float64",
           "streamable": false,
-          "streamable_hint": "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input."
+          "streamable_hint": "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "p",
+                "type": "float64",
+                "description": "Percentile requested, in [0, 100]."
+              },
+              {
+                "name": "position",
+                "type": "int",
+                "description": "Index into the sorted value set used to resolve the percentile."
+              },
+              {
+                "name": "lower",
+                "type": "float64",
+                "description": "Lower bracketing value used during interpolation."
+              },
+              {
+                "name": "upper",
+                "type": "float64",
+                "description": "Upper bracketing value used during interpolation."
+              },
+              {
+                "name": "method",
+                "type": "string",
+                "description": "Interpolation method (e.g. \"linear\")."
+              },
+              {
+                "name": "value",
+                "type": "float64",
+                "description": "Resolved percentile value."
+              }
+            ],
+            "mergeability": "none"
+          }
         },
         {
           "name": "AGG_RANGE",
@@ -602,7 +972,32 @@
             "u8"
           ],
           "emits_type_note": "scalar float64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "min",
+                "type": "float64",
+                "description": "Smallest non-null value observed."
+              },
+              {
+                "name": "max",
+                "type": "float64",
+                "description": "Largest non-null value observed."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_RATIO",
@@ -646,7 +1041,37 @@
             "u8"
           ],
           "emits_type_note": "scalar float64 (NaN when denominator sum == 0)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "numerator",
+                "type": "float64",
+                "description": "Running sum of the numerator field."
+              },
+              {
+                "name": "denominator",
+                "type": "float64",
+                "description": "Running sum of the denominator field."
+              },
+              {
+                "name": "ratio",
+                "type": "float64",
+                "description": "Resolved ratio: numerator / denominator (NaN when denominator is zero)."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_SET_CARDINALITY_AVG",
@@ -660,7 +1085,32 @@
             "set_u8"
           ],
           "emits_type_note": "scalar float64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_cardinality",
+                "type": "int",
+                "description": "Sum of popcounts across contributing rows."
+              },
+              {
+                "name": "avg_cardinality",
+                "type": "float64",
+                "description": "Average popcount per contributing row (sum_cardinality / n)."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_SET_CARDINALITY_SUM",
@@ -674,7 +1124,27 @@
             "set_u8"
           ],
           "emits_type_note": "scalar int64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_cardinality",
+                "type": "int",
+                "description": "Sum of popcounts across contributing rows — total label selections seen."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_SET_DISTINCT_VALUES",
@@ -688,7 +1158,37 @@
             "set_u8"
           ],
           "emits_type_note": "scalar int64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mask_union",
+                "type": "uint64",
+                "description": "Bitwise OR of every contributing row's set mask."
+              },
+              {
+                "name": "popcount",
+                "type": "int",
+                "description": "Number of bits set in mask_union (count of distinct labels observed)."
+              },
+              {
+                "name": "labels",
+                "type": "[]string",
+                "description": "Resolved dictionary labels for every bit set in mask_union."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_SET_FREQUENCY",
@@ -702,7 +1202,37 @@
             "set_u8"
           ],
           "emits_type_note": "rich map[string]int (label→row count); scalar fallback = max single-label frequency",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "total_label_observations",
+                "type": "int",
+                "description": "Sum of popcounts across contributing rows (total label selections seen)."
+              },
+              {
+                "name": "distinct_labels",
+                "type": "int",
+                "description": "Number of distinct labels observed at least once."
+              },
+              {
+                "name": "per_label_count",
+                "type": "map[string]int",
+                "description": "Per-label row count: how many rows had each label selected."
+              }
+            ],
+            "mergeability": "partial"
+          }
         },
         {
           "name": "AGG_SET_INTERSECTION",
@@ -716,7 +1246,37 @@
             "set_u8"
           ],
           "emits_type_note": "rich []string (resolved labels); scalar fallback = popcount of the intersection mask",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mask_intersection",
+                "type": "uint64",
+                "description": "Bitwise AND of every contributing row's set mask."
+              },
+              {
+                "name": "popcount",
+                "type": "int",
+                "description": "Number of bits set in mask_intersection."
+              },
+              {
+                "name": "labels",
+                "type": "[]string",
+                "description": "Resolved dictionary labels for every bit set in mask_intersection."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_SET_UNION",
@@ -730,7 +1290,37 @@
             "set_u8"
           ],
           "emits_type_note": "rich []string (resolved labels); scalar fallback = popcount of the union mask",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mask_union",
+                "type": "uint64",
+                "description": "Bitwise OR of every contributing row's set mask."
+              },
+              {
+                "name": "popcount",
+                "type": "int",
+                "description": "Number of bits set in mask_union."
+              },
+              {
+                "name": "labels",
+                "type": "[]string",
+                "description": "Resolved dictionary labels for every bit set in mask_union."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_SKEWNESS",
@@ -752,7 +1342,42 @@
             "u8"
           ],
           "emits_type_note": "scalar float64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mean",
+                "type": "float64",
+                "description": "Running mean of non-null field values."
+              },
+              {
+                "name": "m2",
+                "type": "float64",
+                "description": "Second-moment accumulator (sum of squared deviations from the running mean)."
+              },
+              {
+                "name": "m3",
+                "type": "float64",
+                "description": "Third-moment accumulator (sum of cubed deviations from the running mean)."
+              },
+              {
+                "name": "skewness",
+                "type": "float64",
+                "description": "Bias-corrected skewness derived from m2, m3, and n."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_STDDEV",
@@ -774,7 +1399,42 @@
             "u8"
           ],
           "emits_type_note": "scalar float64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mean",
+                "type": "float64",
+                "description": "Running Welford mean of non-null field values."
+              },
+              {
+                "name": "m2",
+                "type": "float64",
+                "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+              },
+              {
+                "name": "variance",
+                "type": "float64",
+                "description": "Population variance derived from m2 / n."
+              },
+              {
+                "name": "stddev",
+                "type": "float64",
+                "description": "Population standard deviation (square root of variance)."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_SUM",
@@ -797,7 +1457,27 @@
             "u8"
           ],
           "emits_type_note": "scalar float64 (decimal128 preserved when input is decimal)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum",
+                "type": "float64",
+                "description": "Running sum of non-null field values."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_VARIANCE",
@@ -819,7 +1499,37 @@
             "u8"
           ],
           "emits_type_note": "scalar float64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mean",
+                "type": "float64",
+                "description": "Running Welford mean of non-null field values."
+              },
+              {
+                "name": "m2",
+                "type": "float64",
+                "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+              },
+              {
+                "name": "variance",
+                "type": "float64",
+                "description": "Population variance derived from m2 / n."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_WEIGHTED_MEAN",
@@ -848,7 +1558,37 @@
             "u8"
           ],
           "emits_type_note": "scalar float64",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weighted",
+                "type": "float64",
+                "description": "Running sum of (field * weight) across contributing rows."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Running sum of weights across contributing rows."
+              },
+              {
+                "name": "weighted_mean",
+                "type": "float64",
+                "description": "Resolved weighted mean: sum_weighted / sum_weights."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_WELFORD",
@@ -866,7 +1606,42 @@
             "u8"
           ],
           "emits_type_note": "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mean",
+                "type": "float64",
+                "description": "Running Welford mean of non-null field values."
+              },
+              {
+                "name": "m2",
+                "type": "float64",
+                "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+              },
+              {
+                "name": "variance",
+                "type": "float64",
+                "description": "Unbiased sample variance derived from m2 / (n-1)."
+              },
+              {
+                "name": "stddev",
+                "type": "float64",
+                "description": "Sample standard deviation (square root of variance)."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "AGG_ZSCORE",
@@ -889,7 +1664,42 @@
           ],
           "emits_type_note": "scalar float64",
           "streamable": false,
-          "streamable_hint": "Streaming uses online Welford moments; the ZSCORE aggregate finalize step needs the full deviation sum."
+          "streamable_hint": "Streaming uses online Welford moments; the ZSCORE aggregate finalize step needs the full deviation sum.",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "pop_mean",
+                "type": "float64",
+                "description": "Population mean used as the z-score center."
+              },
+              {
+                "name": "pop_stddev",
+                "type": "float64",
+                "description": "Population standard deviation used as the z-score scale."
+              },
+              {
+                "name": "target_value",
+                "type": "float64",
+                "description": "Value being standardized against the population summary."
+              },
+              {
+                "name": "zscore",
+                "type": "float64",
+                "description": "Standardized score: (target_value - pop_mean) / pop_stddev."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         }
       ],
       "attributes": [
@@ -918,7 +1728,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "encoded integer per record (e.g. year_month=YYYYMM)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "ATTR_FORMULA",
@@ -950,7 +1763,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per record (booleans coerce to 0/1)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "ATTR_NORMALIZED",
@@ -971,7 +1787,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per record in [0, 1]",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "ATTR_PERCENTILE",
@@ -993,7 +1812,10 @@
           "emits_type": "f64",
           "emits_type_note": "one float per record in (0, 100]",
           "streamable": false,
-          "streamable_hint": "Use ATTR_NORMALIZED for a streaming-friendly rank proxy."
+          "streamable_hint": "Use ATTR_NORMALIZED for a streaming-friendly rank proxy.",
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "ATTR_REG_FITTED",
@@ -1014,7 +1836,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one fitted value per record (NaN-free)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "ATTR_REG_LEVERAGE",
@@ -1036,7 +1861,10 @@
           "emits_type": "f64",
           "emits_type_note": "one leverage per record in [0, 1]",
           "streamable": true,
-          "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG."
+          "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "ATTR_REG_RESIDUAL",
@@ -1057,7 +1885,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one residual per record",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "ATTR_SET_HAS",
@@ -1079,7 +1910,10 @@
           ],
           "emits_type": "packed_bool",
           "emits_type_note": "one 0/1 per record",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "ATTR_SET_POPCOUNT",
@@ -1094,7 +1928,10 @@
           ],
           "emits_type": "u8",
           "emits_type_note": "one small integer per record (0..set width)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "ATTR_TSCORE",
@@ -1115,7 +1952,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per record",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "ATTR_ZSCORE",
@@ -1136,7 +1976,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per record (NaN when stddev=0)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         }
       ],
       "filterers": [
@@ -1169,7 +2012,27 @@
             "u8"
           ],
           "emits_type_note": "record-level predicate (no emitted column)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "FILTER_EXPRESSION",
@@ -1200,7 +2063,27 @@
             "u8"
           ],
           "emits_type_note": "record-level predicate",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "FILTER_FALSE",
@@ -1231,7 +2114,27 @@
             "u8"
           ],
           "emits_type_note": "record-level predicate",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "FILTER_INCLUDE",
@@ -1262,7 +2165,27 @@
             "u8"
           ],
           "emits_type_note": "record-level predicate (no emitted column)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "FILTER_NULL",
@@ -1293,7 +2216,27 @@
             "u8"
           ],
           "emits_type_note": "record-level predicate",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "FILTER_RANGE",
@@ -1314,7 +2257,27 @@
             "u8"
           ],
           "emits_type_note": "record-level predicate",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "FILTER_SET_CONTAINS_ALL",
@@ -1328,7 +2291,27 @@
             "set_u8"
           ],
           "emits_type_note": "record-level predicate",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "FILTER_SET_CONTAINS_ANY",
@@ -1342,7 +2325,27 @@
             "set_u8"
           ],
           "emits_type_note": "record-level predicate",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "FILTER_SET_CONTAINS_NONE",
@@ -1356,7 +2359,27 @@
             "set_u8"
           ],
           "emits_type_note": "record-level predicate",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "FILTER_SET_EQUALS",
@@ -1370,7 +2393,27 @@
             "set_u8"
           ],
           "emits_type_note": "record-level predicate",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "FILTER_TRUE",
@@ -1401,7 +2444,27 @@
             "u8"
           ],
           "emits_type_note": "record-level predicate",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         }
       ],
       "groupers": [
@@ -1434,7 +2497,32 @@
             "u8"
           ],
           "emits_type_note": "string group key per row",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "dict_size",
+                "type": "int",
+                "description": "Number of distinct values observed across all buckets (cardinality of the partition key)."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, label, count}."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "GROUP_DATE",
@@ -1469,7 +2557,47 @@
           ],
           "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1)",
           "streamable": false,
-          "streamable_hint": "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute."
+          "streamable_hint": "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "granularity",
+                "type": "string",
+                "description": "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."
+              },
+              {
+                "name": "range_start",
+                "type": "string",
+                "description": "ISO date string of the earliest period observed."
+              },
+              {
+                "name": "range_end",
+                "type": "string",
+                "description": "ISO date string of the latest period observed."
+              },
+              {
+                "name": "n_buckets",
+                "type": "int",
+                "description": "Number of distinct calendar buckets observed."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, period_start, period_end, count}."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "GROUP_QUANTILE",
@@ -1498,7 +2626,42 @@
           ],
           "emits_type_note": "bucket label per row (Qk / Dk / Pk)",
           "streamable": false,
-          "streamable_hint": "Quantile cutoffs need the sorted value set; use GROUP_RANGE or GROUP_ROUNDED with known bounds for streaming."
+          "streamable_hint": "Quantile cutoffs need the sorted value set; use GROUP_RANGE or GROUP_ROUNDED with known bounds for streaming.",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "n_quantiles",
+                "type": "int",
+                "description": "Number of equal-population quantile buckets requested (Group.Interval)."
+              },
+              {
+                "name": "method",
+                "type": "string",
+                "description": "Quantile interpolation method (e.g. \"linear\")."
+              },
+              {
+                "name": "edges",
+                "type": "[]float64",
+                "description": "Sorted cutpoints separating adjacent quantile buckets."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+              }
+            ],
+            "mergeability": "none"
+          }
         },
         {
           "name": "GROUP_RANGE",
@@ -1525,7 +2688,62 @@
             "u8"
           ],
           "emits_type_note": "string bucket label per row (e.g. \"[10, 20)\")",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "interval",
+                "type": "float64",
+                "description": "Bucket width on the value axis (Group.Interval)."
+              },
+              {
+                "name": "range_min",
+                "type": "float64",
+                "description": "Smallest non-null value observed across all buckets."
+              },
+              {
+                "name": "range_max",
+                "type": "float64",
+                "description": "Largest non-null value observed across all buckets."
+              },
+              {
+                "name": "n_buckets",
+                "type": "int",
+                "description": "Number of half-open range buckets emitted."
+              },
+              {
+                "name": "edges",
+                "type": "[]float64",
+                "description": "Sorted cutpoints separating adjacent range buckets."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+              },
+              {
+                "name": "underflow_count",
+                "type": "int",
+                "description": "Records below the lowest configured bucket edge."
+              },
+              {
+                "name": "overflow_count",
+                "type": "int",
+                "description": "Records at or above the highest configured bucket edge."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "GROUP_ROUNDED",
@@ -1552,7 +2770,37 @@
             "u8"
           ],
           "emits_type_note": "rounded numeric key per row",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "precision",
+                "type": "float64",
+                "description": "Rounding increment used as the bucket scalar (Group.Interval)."
+              },
+              {
+                "name": "edges",
+                "type": "[]float64",
+                "description": "Sorted rounded scalars separating adjacent buckets."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "GROUP_SET_PER_ELEMENT",
@@ -1566,7 +2814,32 @@
             "set_u8"
           ],
           "emits_type_note": "string bucket key per selected label per row",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "total_label_observations",
+                "type": "int",
+                "description": "Sum of buckets[].count across the partition; may exceed total_n because each row fans into one bucket per selected label."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-label records, ordered by emission; each entry carries {key, label, count, dict_index}."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         },
         {
           "name": "GROUP_SET_VALUE",
@@ -1580,7 +2853,32 @@
             "set_u8"
           ],
           "emits_type_note": "string bucket key per row (e.g. \"AMEX|VISA\")",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "n_empty_mask",
+                "type": "int",
+                "description": "Records whose set mask was the empty selection (zero-bit mask is a valid distinct bucket from null)."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, mask, count, labels}."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
         }
       ],
       "windows": [
@@ -1614,7 +2912,10 @@
           ],
           "emits_type": "u32",
           "emits_type_note": "one integer per row",
-          "streamable": false
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "WIN_EWMA",
@@ -1642,7 +2943,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per row",
-          "streamable": false
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "WIN_LAG",
@@ -1677,7 +2981,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per row (Default when offset crosses partition start)",
-          "streamable": false
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "WIN_LEAD",
@@ -1712,7 +3019,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per row",
-          "streamable": false
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "WIN_MOVING_AVG",
@@ -1733,7 +3043,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per row (NaN when frame is empty)",
-          "streamable": false
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "WIN_PCT_CHANGE",
@@ -1762,7 +3075,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per row (NaN when previous value is zero or missing)",
-          "streamable": false
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "WIN_RANK",
@@ -1794,7 +3110,10 @@
           ],
           "emits_type": "u32",
           "emits_type_note": "one integer per row",
-          "streamable": false
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "WIN_ROW_NUMBER",
@@ -1826,7 +3145,10 @@
           ],
           "emits_type": "u32",
           "emits_type_note": "one integer per row (resets per partition)",
-          "streamable": false
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "WIN_RUNNING_AVG",
@@ -1847,7 +3169,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per row",
-          "streamable": false
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "WIN_RUNNING_SUM",
@@ -1868,7 +3193,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "one float per row",
-          "streamable": false
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
         }
       ],
       "features": [
@@ -1904,7 +3232,10 @@
           ],
           "emits_type": "u32",
           "emits_type_note": "single column \"\u003clabel\u003e\" with bucket index per row",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "FEAT_DATE_FEATURES",
@@ -1915,7 +3246,10 @@
             "date"
           ],
           "emits_type_note": "multiple columns: \u003clabel\u003e_year, \u003clabel\u003e_month, \u003clabel\u003e_day, \u003clabel\u003e_day_of_week, \u003clabel\u003e_is_weekend",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "FEAT_FREQUENCY_ENCODE",
@@ -1929,7 +3263,10 @@
           ],
           "emits_type": "f32",
           "emits_type_note": "single column \"\u003clabel\u003e\" with frequency per row",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "FEAT_LOG",
@@ -1950,7 +3287,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "single column \"\u003clabel\u003e\" (default LOG_\u003cfield\u003e)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "FEAT_ONE_HOT",
@@ -1963,7 +3303,10 @@
             "categorical_u8"
           ],
           "emits_type_note": "one column per dictionary entry, prefixed by label",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "FEAT_POLY",
@@ -1991,7 +3334,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "columns \"\u003clabel\u003e_2\" .. \"\u003clabel\u003e_\u003cDegree\u003e\" (default prefix \u003cfield\u003e_poly)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "FEAT_SQRT",
@@ -2012,7 +3358,10 @@
           ],
           "emits_type": "f64",
           "emits_type_note": "single column \"\u003clabel\u003e\" (default SQRT_\u003cfield\u003e)",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "FEAT_TARGET_ENCODE",
@@ -2041,7 +3390,10 @@
           ],
           "emits_type": "f32",
           "emits_type_note": "single column \"\u003clabel\u003e\"; risk of target leakage on non-CV pipelines",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         },
         {
           "name": "FEAT_TRAIN_TEST_SPLIT",
@@ -2094,7 +3446,10 @@
           ],
           "emits_type": "u8",
           "emits_type_note": "single column \"\u003clabel\u003e\" with split assignment per row",
-          "streamable": true
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          }
         }
       ]
     },
@@ -3443,7 +4798,7 @@
         ]
       }
     ],
-    "error_codes_count": 143,
+    "error_codes_count": 145,
     "error_domains": [
       "CLI",
       "DATA",
@@ -3503,8 +4858,10 @@
       "PULSE_DECIMAL_PRECISION_LOSS",
       "PULSE_EXPORT_FIELD_UNKNOWN",
       "PULSE_EXPORT_ROW_ERROR",
+      "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
       "PULSE_EXTENSION_DUPLICATE",
       "PULSE_EXTENSION_FACTORY_PANIC",
+      "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA",
       "PULSE_EXTENSION_NAME_COLLISION",
       "PULSE_EXTENSION_NAME_INVALID",
       "PULSE_EXTENSION_NAME_RESERVED",
@@ -4676,6 +6033,10 @@
         "description": "Fit OLS (with optional l1/l2/elasticnet penalty), GLM (logistic, poisson, gamma), and Bayesian linear regression. Use when a request needs coefficient estimates, R²/deviance, std errors, or per-row residuals; covers the 13 textbook regression names (Simple/Multiple/Linear/Logistic/Ridge/Lasso/Polynomial/Bayesian/Jackknife/ElasticNet/Ecological/Stepwise) via 3 operators + 2 modifiers + FEAT_POLY composition."
       },
       {
+        "name": "response-components",
+        "description": "Universal contract for Response.Components — the constituent-parts metadata behind every aggregator scalar, grouper bucket, filterer N-in/N-out, and crosstab cell. Covers the typed shell + per-family shape (Aggregations / Groupers / Crosstab / Filterers / Run), the universal {n, n_null} floor filled by the orchestrator, the per-operator ComponentSchema declaration in the manifest, the Mergeable / Partial / None mergeability axis, streaming-chunk emission semantics, the four parity-overlay reads against CellComponents (replacing the legacy WelfordTriple smuggle in MatrixCell.Value), and the extension probe-validation contract."
+      },
+      {
         "name": "statistical-testing",
         "description": "Run tier-1 row tests (TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F, TEST_ANOVA_WELCH, TEST_ANOVA_RM, TEST_KS, TEST_PAIRED_T, TEST_PROP_Z, TEST_PEARSON_R, TEST_SPEARMAN_R, TEST_KENDALL_TAU, TEST_MANN_WHITNEY_U, TEST_WILCOXON_SR, TEST_KRUSKAL_WALLIS, TEST_BROWN_FORSYTHE, TEST_FISHER_EXACT, TEST_SHAPIRO_WILK) and tier-2 post-tests (TEST_TUKEY_HSD, TEST_TREND, variants). Use when a request mentions hypothesis testing, p-values, ANOVA, t-tests, correlations, normality, or post-hoc comparisons."
       },
@@ -4692,7 +6053,7 @@
         "description": "Apply WIN_LAG, WIN_LEAD, WIN_RANK, WIN_DENSE_RANK, WIN_ROW_NUMBER, WIN_MOVING_AVG, WIN_RUNNING_SUM, WIN_RUNNING_AVG, WIN_EWMA, WIN_PCT_CHANGE — partitioning, ordering, and frame semantics. Use when computing row-relative metrics, time-series transforms, or top-N within partition."
       }
     ],
-    "examples_count": 118,
+    "examples_count": 120,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -5537,9 +6898,1282 @@
         "buffered": true,
         "description": "COMPOSE-host per-group two-sample z-test on the means against the reference slot's matching group, against a SERIES (grouped Process) host (E1-S15). GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling of OVERLAY_Z_CELL (the per-cell MATRIX-host z-test) and twin to the SERIES arm of OVERLAY_T_VS_REF (Welch t-test sibling on the same fold-and-finalise shape; different distribution — standard normal instead of Student's t). Each per-group target / reference value is treated as a sample mean; variance defaults to 1.0 and sample size defaults to 2 (Params[\"variance_target\"] / Params[\"variance_ref\"] / Params[\"sample_size_target\"] / Params[\"sample_size_ref\"] override). Math reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); z = (target - ref) / se; p_value = 2 * (1 - Φ(|z|)). Reuses standardNormalCDF so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n \u003c 2) produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches (E7-S5..S8)."
       }
-    ]
+    ],
+    "components_schemas": {
+      "aggregators": {
+        "AGG_AVERAGE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum",
+              "type": "float64",
+              "description": "Running sum of non-null field values; combined with n to recover the mean."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_CI_LOWER": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mean",
+              "type": "float64",
+              "description": "Welford-running mean of the field."
+            },
+            {
+              "name": "stderr",
+              "type": "float64",
+              "description": "Standard error of the mean derived from variance and n."
+            },
+            {
+              "name": "alpha",
+              "type": "float64",
+              "description": "Significance level (1 - confidence)."
+            },
+            {
+              "name": "t_critical",
+              "type": "float64",
+              "description": "Critical value used to scale the standard error."
+            },
+            {
+              "name": "lower",
+              "type": "float64",
+              "description": "Resolved lower bound of the confidence interval."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_CI_UPPER": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mean",
+              "type": "float64",
+              "description": "Welford-running mean of the field."
+            },
+            {
+              "name": "stderr",
+              "type": "float64",
+              "description": "Standard error of the mean derived from variance and n."
+            },
+            {
+              "name": "alpha",
+              "type": "float64",
+              "description": "Significance level (1 - confidence)."
+            },
+            {
+              "name": "t_critical",
+              "type": "float64",
+              "description": "Critical value used to scale the standard error."
+            },
+            {
+              "name": "upper",
+              "type": "float64",
+              "description": "Resolved upper bound of the confidence interval."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_COUNT": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_DISTINCT_COUNT": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "cardinality",
+              "type": "int",
+              "description": "Number of distinct non-null values observed."
+            }
+          ],
+          "mergeability": "partial"
+        },
+        "AGG_FREQUENCY": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "distinct_count",
+              "type": "int",
+              "description": "Number of distinct values observed."
+            },
+            {
+              "name": "mode_value",
+              "type": "any",
+              "description": "Most-frequent value (ties broken by first-seen order)."
+            },
+            {
+              "name": "mode_count",
+              "type": "int",
+              "description": "Row count of the modal value."
+            }
+          ],
+          "mergeability": "partial"
+        },
+        "AGG_KURTOSIS": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mean",
+              "type": "float64",
+              "description": "Running mean of non-null field values."
+            },
+            {
+              "name": "m2",
+              "type": "float64",
+              "description": "Second-moment accumulator (sum of squared deviations from the running mean)."
+            },
+            {
+              "name": "m3",
+              "type": "float64",
+              "description": "Third-moment accumulator (sum of cubed deviations from the running mean)."
+            },
+            {
+              "name": "m4",
+              "type": "float64",
+              "description": "Fourth-moment accumulator (sum of fourth-power deviations from the running mean)."
+            },
+            {
+              "name": "kurtosis",
+              "type": "float64",
+              "description": "Bias-corrected excess kurtosis derived from m2, m4, and n."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_MAX": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "max",
+              "type": "float64",
+              "description": "Largest non-null value observed."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_MEDIAN": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "position_low",
+              "type": "int",
+              "description": "Lower index used to bracket the median in the sorted value set."
+            },
+            {
+              "name": "position_high",
+              "type": "int",
+              "description": "Upper index used to bracket the median in the sorted value set."
+            },
+            {
+              "name": "median",
+              "type": "float64",
+              "description": "Resolved median value (linear interpolation between the bracketing positions)."
+            }
+          ],
+          "mergeability": "none"
+        },
+        "AGG_MIN": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "min",
+              "type": "float64",
+              "description": "Smallest non-null value observed."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_MODE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "value",
+              "type": "any",
+              "description": "Most-frequent value observed (first-seen tie-break)."
+            },
+            {
+              "name": "count",
+              "type": "int",
+              "description": "Row count of the modal value."
+            },
+            {
+              "name": "distinct_count",
+              "type": "int",
+              "description": "Number of distinct values observed."
+            },
+            {
+              "name": "tie_count",
+              "type": "int",
+              "description": "Number of values tied with the mode at the same maximum count."
+            }
+          ],
+          "mergeability": "partial"
+        },
+        "AGG_NULL_COUNT": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_PERCENTILE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "p",
+              "type": "float64",
+              "description": "Percentile requested, in [0, 100]."
+            },
+            {
+              "name": "position",
+              "type": "int",
+              "description": "Index into the sorted value set used to resolve the percentile."
+            },
+            {
+              "name": "lower",
+              "type": "float64",
+              "description": "Lower bracketing value used during interpolation."
+            },
+            {
+              "name": "upper",
+              "type": "float64",
+              "description": "Upper bracketing value used during interpolation."
+            },
+            {
+              "name": "method",
+              "type": "string",
+              "description": "Interpolation method (e.g. \"linear\")."
+            },
+            {
+              "name": "value",
+              "type": "float64",
+              "description": "Resolved percentile value."
+            }
+          ],
+          "mergeability": "none"
+        },
+        "AGG_RANGE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "min",
+              "type": "float64",
+              "description": "Smallest non-null value observed."
+            },
+            {
+              "name": "max",
+              "type": "float64",
+              "description": "Largest non-null value observed."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_RATIO": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "numerator",
+              "type": "float64",
+              "description": "Running sum of the numerator field."
+            },
+            {
+              "name": "denominator",
+              "type": "float64",
+              "description": "Running sum of the denominator field."
+            },
+            {
+              "name": "ratio",
+              "type": "float64",
+              "description": "Resolved ratio: numerator / denominator (NaN when denominator is zero)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_SET_CARDINALITY_AVG": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_cardinality",
+              "type": "int",
+              "description": "Sum of popcounts across contributing rows."
+            },
+            {
+              "name": "avg_cardinality",
+              "type": "float64",
+              "description": "Average popcount per contributing row (sum_cardinality / n)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_SET_CARDINALITY_SUM": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_cardinality",
+              "type": "int",
+              "description": "Sum of popcounts across contributing rows — total label selections seen."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_SET_DISTINCT_VALUES": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mask_union",
+              "type": "uint64",
+              "description": "Bitwise OR of every contributing row's set mask."
+            },
+            {
+              "name": "popcount",
+              "type": "int",
+              "description": "Number of bits set in mask_union (count of distinct labels observed)."
+            },
+            {
+              "name": "labels",
+              "type": "[]string",
+              "description": "Resolved dictionary labels for every bit set in mask_union."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_SET_FREQUENCY": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "total_label_observations",
+              "type": "int",
+              "description": "Sum of popcounts across contributing rows (total label selections seen)."
+            },
+            {
+              "name": "distinct_labels",
+              "type": "int",
+              "description": "Number of distinct labels observed at least once."
+            },
+            {
+              "name": "per_label_count",
+              "type": "map[string]int",
+              "description": "Per-label row count: how many rows had each label selected."
+            }
+          ],
+          "mergeability": "partial"
+        },
+        "AGG_SET_INTERSECTION": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mask_intersection",
+              "type": "uint64",
+              "description": "Bitwise AND of every contributing row's set mask."
+            },
+            {
+              "name": "popcount",
+              "type": "int",
+              "description": "Number of bits set in mask_intersection."
+            },
+            {
+              "name": "labels",
+              "type": "[]string",
+              "description": "Resolved dictionary labels for every bit set in mask_intersection."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_SET_UNION": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mask_union",
+              "type": "uint64",
+              "description": "Bitwise OR of every contributing row's set mask."
+            },
+            {
+              "name": "popcount",
+              "type": "int",
+              "description": "Number of bits set in mask_union."
+            },
+            {
+              "name": "labels",
+              "type": "[]string",
+              "description": "Resolved dictionary labels for every bit set in mask_union."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_SKEWNESS": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mean",
+              "type": "float64",
+              "description": "Running mean of non-null field values."
+            },
+            {
+              "name": "m2",
+              "type": "float64",
+              "description": "Second-moment accumulator (sum of squared deviations from the running mean)."
+            },
+            {
+              "name": "m3",
+              "type": "float64",
+              "description": "Third-moment accumulator (sum of cubed deviations from the running mean)."
+            },
+            {
+              "name": "skewness",
+              "type": "float64",
+              "description": "Bias-corrected skewness derived from m2, m3, and n."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_STDDEV": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mean",
+              "type": "float64",
+              "description": "Running Welford mean of non-null field values."
+            },
+            {
+              "name": "m2",
+              "type": "float64",
+              "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+            },
+            {
+              "name": "variance",
+              "type": "float64",
+              "description": "Population variance derived from m2 / n."
+            },
+            {
+              "name": "stddev",
+              "type": "float64",
+              "description": "Population standard deviation (square root of variance)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_SUM": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum",
+              "type": "float64",
+              "description": "Running sum of non-null field values."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_VARIANCE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mean",
+              "type": "float64",
+              "description": "Running Welford mean of non-null field values."
+            },
+            {
+              "name": "m2",
+              "type": "float64",
+              "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+            },
+            {
+              "name": "variance",
+              "type": "float64",
+              "description": "Population variance derived from m2 / n."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_WEIGHTED_MEAN": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weighted",
+              "type": "float64",
+              "description": "Running sum of (field * weight) across contributing rows."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Running sum of weights across contributing rows."
+            },
+            {
+              "name": "weighted_mean",
+              "type": "float64",
+              "description": "Resolved weighted mean: sum_weighted / sum_weights."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_WELFORD": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mean",
+              "type": "float64",
+              "description": "Running Welford mean of non-null field values."
+            },
+            {
+              "name": "m2",
+              "type": "float64",
+              "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+            },
+            {
+              "name": "variance",
+              "type": "float64",
+              "description": "Unbiased sample variance derived from m2 / (n-1)."
+            },
+            {
+              "name": "stddev",
+              "type": "float64",
+              "description": "Sample standard deviation (square root of variance)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_ZSCORE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "pop_mean",
+              "type": "float64",
+              "description": "Population mean used as the z-score center."
+            },
+            {
+              "name": "pop_stddev",
+              "type": "float64",
+              "description": "Population standard deviation used as the z-score scale."
+            },
+            {
+              "name": "target_value",
+              "type": "float64",
+              "description": "Value being standardized against the population summary."
+            },
+            {
+              "name": "zscore",
+              "type": "float64",
+              "description": "Standardized score: (target_value - pop_mean) / pop_stddev."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      },
+      "groupers": {
+        "GROUP_CATEGORY": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "dict_size",
+              "type": "int",
+              "description": "Number of distinct values observed across all buckets (cardinality of the partition key)."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, label, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_DATE": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "granularity",
+              "type": "string",
+              "description": "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."
+            },
+            {
+              "name": "range_start",
+              "type": "string",
+              "description": "ISO date string of the earliest period observed."
+            },
+            {
+              "name": "range_end",
+              "type": "string",
+              "description": "ISO date string of the latest period observed."
+            },
+            {
+              "name": "n_buckets",
+              "type": "int",
+              "description": "Number of distinct calendar buckets observed."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, period_start, period_end, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_QUANTILE": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "n_quantiles",
+              "type": "int",
+              "description": "Number of equal-population quantile buckets requested (Group.Interval)."
+            },
+            {
+              "name": "method",
+              "type": "string",
+              "description": "Quantile interpolation method (e.g. \"linear\")."
+            },
+            {
+              "name": "edges",
+              "type": "[]float64",
+              "description": "Sorted cutpoints separating adjacent quantile buckets."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+            }
+          ],
+          "mergeability": "none"
+        },
+        "GROUP_RANGE": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "interval",
+              "type": "float64",
+              "description": "Bucket width on the value axis (Group.Interval)."
+            },
+            {
+              "name": "range_min",
+              "type": "float64",
+              "description": "Smallest non-null value observed across all buckets."
+            },
+            {
+              "name": "range_max",
+              "type": "float64",
+              "description": "Largest non-null value observed across all buckets."
+            },
+            {
+              "name": "n_buckets",
+              "type": "int",
+              "description": "Number of half-open range buckets emitted."
+            },
+            {
+              "name": "edges",
+              "type": "[]float64",
+              "description": "Sorted cutpoints separating adjacent range buckets."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+            },
+            {
+              "name": "underflow_count",
+              "type": "int",
+              "description": "Records below the lowest configured bucket edge."
+            },
+            {
+              "name": "overflow_count",
+              "type": "int",
+              "description": "Records at or above the highest configured bucket edge."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_ROUNDED": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "precision",
+              "type": "float64",
+              "description": "Rounding increment used as the bucket scalar (Group.Interval)."
+            },
+            {
+              "name": "edges",
+              "type": "[]float64",
+              "description": "Sorted rounded scalars separating adjacent buckets."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_SET_PER_ELEMENT": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "total_label_observations",
+              "type": "int",
+              "description": "Sum of buckets[].count across the partition; may exceed total_n because each row fans into one bucket per selected label."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-label records, ordered by emission; each entry carries {key, label, count, dict_index}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_SET_VALUE": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "n_empty_mask",
+              "type": "int",
+              "description": "Records whose set mask was the empty selection (zero-bit mask is a valid distinct bucket from null)."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, mask, count, labels}."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      },
+      "filterers": {
+        "FILTER_EXCLUDE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_EXPRESSION": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_FALSE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_INCLUDE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_NULL": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_RANGE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_SET_CONTAINS_ALL": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_SET_CONTAINS_ANY": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_SET_CONTAINS_NONE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_SET_EQUALS": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_TRUE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      }
+    }
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: ff49a2976e1faebd522015f71d764742d0e670a5f22fbad26077d8fdca99b7e9
+// golden-hash: 86e4f79e1e8e26eda284b48a14b4bf73ac87f10ec1e19aa4b09d149725936622

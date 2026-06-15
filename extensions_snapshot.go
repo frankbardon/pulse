@@ -15,6 +15,12 @@ func buildExtensionsSnapshot(ext Extensions) *descriptor.ExtensionsSnapshot {
 		return nil
 	}
 	snap := &descriptor.ExtensionsSnapshot{}
+	// ComponentSchemas projects per-extension ComponentSchema declarations
+	// so manifest + predict can surface extension operators on the same
+	// shape as built-ins. Empty / floor-only registrations stay absent
+	// from the map; the descriptor-side lookups treat a missing entry as
+	// "floor-only" identically to a missing built-in capability.
+	snap.ComponentSchemas = map[string]descriptor.ComponentSchema{}
 	for _, r := range ext.Aggregators {
 		snap.Aggregators = append(snap.Aggregators, descriptor.OperatorMeta{
 			Name:        string(r.Name),
@@ -24,6 +30,9 @@ func buildExtensionsSnapshot(ext Extensions) *descriptor.ExtensionsSnapshot {
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Params:      paramMetaSnapshot(r.Params),
 		})
+		if len(r.ComponentSchema.Keys) > 0 || r.ComponentSchema.Mergeability != "" {
+			snap.ComponentSchemas[string(r.Name)] = r.ComponentSchema
+		}
 	}
 	for _, r := range ext.Attributes {
 		snap.Attributes = append(snap.Attributes, descriptor.OperatorMeta{
@@ -46,6 +55,9 @@ func buildExtensionsSnapshot(ext Extensions) *descriptor.ExtensionsSnapshot {
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Params:      paramMetaSnapshot(r.Params),
 		})
+		if len(r.ComponentSchema.Keys) > 0 || r.ComponentSchema.Mergeability != "" {
+			snap.ComponentSchemas[string(r.Name)] = r.ComponentSchema
+		}
 	}
 	for _, r := range ext.Groupers {
 		snap.Groupers = append(snap.Groupers, descriptor.OperatorMeta{
@@ -56,6 +68,9 @@ func buildExtensionsSnapshot(ext Extensions) *descriptor.ExtensionsSnapshot {
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Params:      paramMetaSnapshot(r.Params),
 		})
+		if len(r.ComponentSchema.Keys) > 0 || r.ComponentSchema.Mergeability != "" {
+			snap.ComponentSchemas[string(r.Name)] = r.ComponentSchema
+		}
 	}
 	for _, r := range ext.Windows {
 		snap.Windows = append(snap.Windows, descriptor.OperatorMeta{

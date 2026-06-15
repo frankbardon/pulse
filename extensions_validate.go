@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
@@ -136,6 +137,142 @@ func validateExtensions(ext Extensions) error {
 	}
 	if err := validateLabelTables(ext.LabelTables); err != nil {
 		return err
+	}
+	if err := validateComponentSchemas(ext); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateComponentSchemas asserts every aggregator / grouper / filterer
+// registration's ComponentSchema and ComponentsFunc declarations are
+// consistent.
+//
+// Three valid registration shapes (per E4-S5):
+//   - Floor-only: empty Keys, empty Mergeability, nil ComponentsFunc.
+//     The orchestrator emits the universal floor only.
+//   - Floor + emitter: empty Keys, empty Mergeability, ComponentsFunc
+//     supplied. Rejected — declaring an emitter without a schema is a
+//     contract bug (the orchestrator would have no way to validate
+//     emitted keys). Raises PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA.
+//   - Schema + emitter: non-empty Keys, declared Mergeability,
+//     ComponentsFunc supplied. The canonical extension path.
+//
+// Schema-without-emitter (non-empty Keys, nil ComponentsFunc) is also
+// rejected — the declared schema would never be satisfied at runtime.
+// Raises PULSE_EXTENSION_PARAM_INVALID (the schema exists, the emitter
+// is missing — a parameter contradiction, not a missing schema).
+//
+// Schema-without-mergeability (non-empty Keys, empty Mergeability) is
+// rejected — every schema must declare a mergeability classification.
+// Raises PULSE_EXTENSION_PARAM_INVALID.
+//
+// Mergeability-without-Keys (empty Keys, non-empty Mergeability) is
+// rejected — mergeability has nothing to classify without keys. Raises
+// PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA (this is the same incoherent
+// shape the probe catches: a schema declaration that is half-present).
+//
+// E4-S7 introduced the formal PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA
+// code; E4-S6 wires it here alongside the probe-time
+// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH check.
+func validateComponentSchemas(ext Extensions) error {
+	for i, r := range ext.Aggregators {
+		if err := validateComponentSchemaDeclaration(
+			"aggregator", string(r.Name), i,
+			r.ComponentSchema, r.ComponentsFunc != nil,
+		); err != nil {
+			return err
+		}
+	}
+	for i, r := range ext.Groupers {
+		if err := validateComponentSchemaDeclaration(
+			"grouper", string(r.Name), i,
+			r.ComponentSchema, r.ComponentsFunc != nil,
+		); err != nil {
+			return err
+		}
+	}
+	for i, r := range ext.Filterers {
+		if err := validateComponentSchemaDeclaration(
+			"filterer", string(r.Name), i,
+			r.ComponentSchema, r.ComponentsFunc != nil,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateComponentSchemaDeclaration enforces the per-registration
+// consistency rules between ComponentSchema and ComponentsFunc. See
+// validateComponentSchemas for the matrix.
+func validateComponentSchemaDeclaration(
+	category, name string,
+	idx int,
+	schema descriptor.ComponentSchema,
+	hasEmitter bool,
+) error {
+	hasKeys := len(schema.Keys) > 0
+	hasMergeability := schema.Mergeability != ""
+
+	// Floor-only: neither keys nor emitter — OK.
+	if !hasKeys && !hasMergeability && !hasEmitter {
+		return nil
+	}
+	// Emitter without schema — incoherent: the orchestrator would have
+	// no schema to validate emitted keys against.
+	if hasEmitter && !hasKeys {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
+			fmt.Sprintf("extension %s %q has ComponentsFunc but empty ComponentSchema.Keys (declare schema or remove emitter)", category, name),
+			map[string]any{
+				"category": category,
+				"name":     name,
+				"index":    idx,
+				"reason":   "emitter_without_schema",
+			},
+		)
+	}
+	// Mergeability set without keys — incoherent: mergeability has
+	// nothing to classify without keys.
+	if !hasKeys && hasMergeability {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
+			fmt.Sprintf("extension %s %q declares ComponentSchema.Mergeability but no Keys (mergeability has nothing to classify)", category, name),
+			map[string]any{
+				"category":     category,
+				"name":         name,
+				"index":        idx,
+				"mergeability": string(schema.Mergeability),
+				"reason":       "mergeability_without_keys",
+			},
+		)
+	}
+	// Schema without emitter — declared schema can never be satisfied.
+	if hasKeys && !hasEmitter {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_PARAM_INVALID,
+			fmt.Sprintf("extension %s %q declares ComponentSchema.Keys but supplies no ComponentsFunc (no emitter would satisfy the schema)", category, name),
+			map[string]any{
+				"category": category,
+				"name":     name,
+				"index":    idx,
+				"reason":   "schema_without_emitter",
+			},
+		)
+	}
+	// Schema without mergeability — every schema must declare intent.
+	if hasKeys && !hasMergeability {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_PARAM_INVALID,
+			fmt.Sprintf("extension %s %q declares ComponentSchema.Keys but no Mergeability (declare mergeable/partial/none, or use floor-only)", category, name),
+			map[string]any{
+				"category": category,
+				"name":     name,
+				"index":    idx,
+				"reason":   "missing_mergeability",
+			},
+		)
 	}
 	return nil
 }

@@ -749,6 +749,31 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH: {
+		Message: "An extension operator's ComponentsFunc emitted keys that are not declared in the registration's ComponentSchema. The probe rejects the registration so the runtime never sees a half-declared components contract.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Extensions", "*", "ComponentSchema", "Keys"},
+				Hint:   "Add the undeclared emitted keys to ComponentSchema.Keys (with the matching JSONType + Mergeability), or remove them from the ComponentsFunc emission. See skills/extension-points.md for the per-category contract.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Extensions", "*", "ComponentsFunc"},
+				Hint:   "Drop the extra keys from the ComponentsFunc map before returning so the emission stays a subset of ComponentSchema.Keys (plus the universal-floor keys n / n_null / total_n / n_in / n_out / n_null_input the orchestrator owns).",
+			},
+		},
+	},
+	PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA: {
+		Message: "An extension operator declared a ComponentsFunc without a matching ComponentSchema (or a non-empty ComponentSchema without a ComponentsFunc). Both halves of the contract must be present together; the floor-only path keeps both empty.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Extensions", "*", "ComponentSchema"},
+				Hint:   "Add a ComponentSchema with the keys + Mergeability that the ComponentsFunc emits, or drop the ComponentsFunc to fall back to the floor-only path. See skills/extension-points.md for examples.",
+			},
+		},
+	},
 	PULSE_LOOKUP_TABLE_UNKNOWN: {
 		Message: "A runtime expression referenced a lookup table that is not registered on the Service.",
 		Fixups: []Fixup{

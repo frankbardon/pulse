@@ -40,6 +40,126 @@ Pulse exposes 22 scalar aggregators and 7 filterers that run during `process` an
 | AGG_WELFORD | Streaming Welford-Pébaÿ triple `(mean, sample_variance, n)` emitted via `RichAggregator`. Scalar fallback is the running mean. | numeric scalar (`u8`/`u16`/`u32`/`u64`/`f32`/`f64`) |
 </reference>
 
+<rule severity="must" topic="components-contract">
+## Components contract — universal floor + per-operator keys
+
+Every aggregation result that lands in `Response.Components.Aggregations` carries a **universal floor** of two integer keys regardless of operator:
+
+- `n` — number of records aggregated (non-null inputs).
+- `n_null` — number of null inputs encountered.
+
+The floor is emitted unconditionally by the orchestrator's universal-floor pass — embedders can rely on it being present even when an aggregator declines to add any operator-specific keys.
+
+Operator-specific keys ride in the `Operator map[string]any` field of `AggregationComponents`. The authoritative key list for each `AGG_*` is the operator's `ComponentSchema` declared in `descriptor/capabilities_aggregators.go`, and the same schema is mirrored in the manifest at `components_schemas.aggregators[<op>].keys` for self-describing client lookups.
+
+### `MetaAggregator` sibling interface
+
+`MetaAggregator` joins `OnlineAggregator`, `MergeableAggregator`, and `RichAggregator` as a new sibling on the `Aggregator` interface:
+
+```go
+type MetaAggregator interface {
+    Components() (map[string]any, error)
+}
+```
+
+- Called **once** after the aggregator's `Aggregate` / `Finalize` cycle completes; never mid-stream.
+- Returning `(nil, nil)` signals "no operator-specific keys; the universal floor still applies."
+- Returned keys MUST match the operator's declared `ComponentSchema` — mismatches fire `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` at extension probe time.
+- Aggregators with no extra keys (`AGG_COUNT`, `AGG_NULL_COUNT`) may omit the implementation — the floor pass populates `n` / `n_null` either way.
+
+### `ComponentsMergeability` axis
+
+Every aggregator declares one of three merge classifications on its `ComponentSchema`:
+
+- **`Mergeable`** — components fold across chunks via the same `MergeOnline` path as the scalar value. Streaming chunks carry `ComponentsDelta` and consumers reconcile lossless. Welford-family aggregators (`AGG_VARIANCE`, `AGG_STDDEV`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_WELFORD`, `AGG_ZSCORE`), sums / counts / extrema (`AGG_SUM`, `AGG_AVERAGE`, `AGG_COUNT`, `AGG_NULL_COUNT`, `AGG_MIN`, `AGG_MAX`, `AGG_RANGE`), CI bounds (`AGG_CI_LOWER`, `AGG_CI_UPPER`), weighted / ratio (`AGG_WEIGHTED_MEAN`, `AGG_RATIO`), and every set aggregator that does NOT carry a per-label map all sit here.
+- **`Partial`** — map / set merges that work but cost allocation. The orchestrator may stage merge at terminal flush. `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, and `AGG_SET_FREQUENCY` ride this path.
+- **`None`** — non-mergeable; components emitted only on terminal buffered flush. Streaming chunks omit them. Predict declares the slot as buffered-components-only. `AGG_MEDIAN` and `AGG_PERCENTILE` are the only entries — both need sorted full input.
+
+### Streaming-consumer hint
+
+`pulse.Predict(req)` returns one `PredictResult.Aggregations[i]` per request aggregation. The `BufferedComponents` flag tells streaming consumers whether per-chunk `ComponentsDelta` will appear (`false`) or whether components will arrive only at terminal flush (`true`). The flag is `true` exactly when the operator's `ComponentsMergeability` is `None`.
+
+### Go access pattern
+
+```go
+resp, err := pulse.Process(ctx, req)
+if err != nil { return err }
+for _, agg := range resp.Components.Aggregations {
+    fmt.Printf("%s: n=%d, n_null=%d, op=%v\n", agg.Label, agg.N, agg.NNull, agg.Operator)
+}
+```
+
+The cross-cutting `Response.Components` shape — including the `Groupers`, `Filterers`, `Crosstab`, and `Run` siblings — is documented in the [response components contract](response-components.md).
+</rule>
+
+<reference>
+## Per-operator components — canonical key list
+
+Every row matches the `ComponentSchema` declared in `descriptor/capabilities_aggregators.go`. Universal floor (`n`, `n_null`) is implicit and not repeated.
+
+| Operator | Mergeability | Operator-specific keys |
+|---|---|---|
+| `AGG_COUNT` | `mergeable` | (floor only) |
+| `AGG_NULL_COUNT` | `mergeable` | (floor only — `n_null` is the value) |
+| `AGG_SUM` | `mergeable` | `sum` |
+| `AGG_AVERAGE` | `mergeable` | `sum` |
+| `AGG_MIN` | `mergeable` | `min` |
+| `AGG_MAX` | `mergeable` | `max` |
+| `AGG_RANGE` | `mergeable` | `min`, `max` |
+| `AGG_STDDEV` | `mergeable` | `mean`, `m2`, `variance`, `stddev` |
+| `AGG_VARIANCE` | `mergeable` | `mean`, `m2`, `variance` |
+| `AGG_SKEWNESS` | `mergeable` | `mean`, `m2`, `m3`, `skewness` |
+| `AGG_KURTOSIS` | `mergeable` | `mean`, `m2`, `m3`, `m4`, `kurtosis` |
+| `AGG_ZSCORE` | `mergeable` | `pop_mean`, `pop_stddev`, `target_value`, `zscore` |
+| `AGG_WELFORD` | `mergeable` | `mean`, `m2`, `variance`, `stddev` |
+| `AGG_CI_LOWER` | `mergeable` | `mean`, `stderr`, `alpha`, `t_critical`, `lower` |
+| `AGG_CI_UPPER` | `mergeable` | `mean`, `stderr`, `alpha`, `t_critical`, `upper` |
+| `AGG_WEIGHTED_MEAN` | `mergeable` | `sum_weighted`, `sum_weights`, `weighted_mean` |
+| `AGG_RATIO` | `mergeable` | `numerator`, `denominator`, `ratio` |
+| `AGG_FREQUENCY` | `partial` | `distinct_count`, `mode_value`, `mode_count` |
+| `AGG_MODE` | `partial` | `value`, `count`, `distinct_count`, `tie_count` |
+| `AGG_DISTINCT_COUNT` | `partial` | `cardinality` |
+| `AGG_MEDIAN` | `none` (buffered only) | `position_low`, `position_high`, `median` |
+| `AGG_PERCENTILE` | `none` (buffered only) | `p`, `position`, `lower`, `upper`, `method`, `value` |
+| `AGG_SET_UNION` | `mergeable` | `mask_union`, `popcount`, `labels` |
+| `AGG_SET_INTERSECTION` | `mergeable` | `mask_intersection`, `popcount`, `labels` |
+| `AGG_SET_FREQUENCY` | `partial` | `total_label_observations`, `distinct_labels`, `per_label_count` |
+| `AGG_SET_CARDINALITY_SUM` | `mergeable` | `sum_cardinality` |
+| `AGG_SET_CARDINALITY_AVG` | `mergeable` | `sum_cardinality`, `avg_cardinality` |
+| `AGG_SET_DISTINCT_VALUES` | `mergeable` | `mask_union`, `popcount`, `labels` |
+
+Per-operator detail blocks (one line per row in the table above):
+
+- **`AGG_COUNT`** — **Components** (`mergeable`): `n`, `n_null`. Floor only; the count itself IS `n`.
+- **`AGG_NULL_COUNT`** — **Components** (`mergeable`): `n`, `n_null`. Floor only; the null count itself IS `n_null`.
+- **`AGG_SUM`** — **Components** (`mergeable`): `n`, `n_null`, `sum`. Running sum across non-null inputs.
+- **`AGG_AVERAGE`** — **Components** (`mergeable`): `n`, `n_null`, `sum`. Combine `sum` with `n` to recover the mean.
+- **`AGG_MIN`** — **Components** (`mergeable`): `n`, `n_null`, `min`.
+- **`AGG_MAX`** — **Components** (`mergeable`): `n`, `n_null`, `max`.
+- **`AGG_RANGE`** — **Components** (`mergeable`): `n`, `n_null`, `min`, `max`. Range itself = `max - min`.
+- **`AGG_STDDEV`** — **Components** (`mergeable`): `n`, `n_null`, `mean`, `m2`, `variance`, `stddev`. Population denominator (`m2 / n`).
+- **`AGG_VARIANCE`** — **Components** (`mergeable`): `n`, `n_null`, `mean`, `m2`, `variance`. Population denominator (`m2 / n`).
+- **`AGG_SKEWNESS`** — **Components** (`mergeable`): `n`, `n_null`, `mean`, `m2`, `m3`, `skewness`. Extended Welford recurrence.
+- **`AGG_KURTOSIS`** — **Components** (`mergeable`): `n`, `n_null`, `mean`, `m2`, `m3`, `m4`, `kurtosis`. Extended Welford recurrence.
+- **`AGG_ZSCORE`** — **Components** (`mergeable`): `n`, `n_null`, `pop_mean`, `pop_stddev`, `target_value`, `zscore`. Group-level standardization summary.
+- **`AGG_WELFORD`** — **Components** (`mergeable`): `n`, `n_null`, `mean`, `m2`, `variance`, `stddev`. Sample denominator (`m2 / (n-1)`) — distinct from `AGG_VARIANCE` / `AGG_STDDEV` which use the population denominator.
+- **`AGG_CI_LOWER`** — **Components** (`mergeable`): `n`, `n_null`, `mean`, `stderr`, `alpha`, `t_critical`, `lower`.
+- **`AGG_CI_UPPER`** — **Components** (`mergeable`): `n`, `n_null`, `mean`, `stderr`, `alpha`, `t_critical`, `upper`.
+- **`AGG_WEIGHTED_MEAN`** — **Components** (`mergeable`): `n`, `n_null`, `sum_weighted`, `sum_weights`, `weighted_mean`. Rows with null weight or `weight == 0` are skipped (do not advance `n`).
+- **`AGG_RATIO`** — **Components** (`mergeable`): `n`, `n_null`, `numerator`, `denominator`, `ratio`. `ratio == NaN` when `denominator == 0`.
+- **`AGG_FREQUENCY`** — **Components** (`partial`): `n`, `n_null`, `distinct_count`, `mode_value`, `mode_count`. Map merge at terminal flush.
+- **`AGG_MODE`** — **Components** (`partial`): `n`, `n_null`, `value`, `count`, `distinct_count`, `tie_count`. First-seen tie-break for `value`.
+- **`AGG_DISTINCT_COUNT`** — **Components** (`partial`): `n`, `n_null`, `cardinality`. Set merge at terminal flush.
+- **`AGG_MEDIAN`** — **Components** (`none` — buffered only): `n`, `n_null`, `position_low`, `position_high`, `median`. Streaming chunks emit no components; `BufferedComponents=true` in Predict.
+- **`AGG_PERCENTILE`** — **Components** (`none` — buffered only): `n`, `n_null`, `p`, `position`, `lower`, `upper`, `method`, `value`. Streaming chunks emit no components; `BufferedComponents=true` in Predict.
+- **`AGG_SET_UNION`** — **Components** (`mergeable`): `n`, `n_null`, `mask_union`, `popcount`, `labels`. Bitwise-OR fold.
+- **`AGG_SET_INTERSECTION`** — **Components** (`mergeable`): `n`, `n_null`, `mask_intersection`, `popcount`, `labels`. Bitwise-AND fold; margin recompute at the crosstab layer.
+- **`AGG_SET_FREQUENCY`** — **Components** (`partial`): `n`, `n_null`, `total_label_observations`, `distinct_labels`, `per_label_count`. Per-label map merges at terminal flush.
+- **`AGG_SET_CARDINALITY_SUM`** — **Components** (`mergeable`): `n`, `n_null`, `sum_cardinality`. Sum of popcounts.
+- **`AGG_SET_CARDINALITY_AVG`** — **Components** (`mergeable`): `n`, `n_null`, `sum_cardinality`, `avg_cardinality`.
+- **`AGG_SET_DISTINCT_VALUES`** — **Components** (`mergeable`): `n`, `n_null`, `mask_union`, `popcount`, `labels`.
+</reference>
+
 <rule severity="caveat" topic="cohort-aggregators">
 ## Cohort-analytics aggregators
 
@@ -248,6 +368,60 @@ Keep records that match an expr-lang predicate.
 {"type": "FILTER_EXPRESSION", "expression": "score > 90 && active == true"}
 ```
 </example>
+
+<rule severity="must" topic="filterer-components-contract">
+## Filterer components — uniform counter contract
+
+Every filterer pass that runs during a Process / Compose request lands in `Response.Components.Filterers[i]` carrying the same three-integer floor regardless of operator. The orchestrator's counter pass (E2-S9) populates the slice in spec order so consumers see one entry per `Request.Filterers[i]` in matching index order.
+
+### Universal floor — `{n_in, n_out, n_null_input}`
+
+- `n_in` — records entering this filter pass.
+- `n_out` — records exiting (passing the filter).
+- `n_null_input` — records where the filter input field was null (regardless of pass / fail decision).
+
+All 11 registered filterers emit the same shape:
+`FILTER_INCLUDE`, `FILTER_EXCLUDE`, `FILTER_RANGE`, `FILTER_EXPRESSION`, `FILTER_NULL`, `FILTER_TRUE`, `FILTER_FALSE`, `FILTER_SET_CONTAINS_ANY`, `FILTER_SET_CONTAINS_ALL`, `FILTER_SET_CONTAINS_NONE`, `FILTER_SET_EQUALS`.
+
+### `n_in` invariant — chained filterers compose
+
+For the filterer at index `i`:
+
+- `n_in_i == n_out_{i-1}` — the prior filterer's exit count is this filterer's entry count.
+- `n_in_0 == TotalRecordsAfterDecode` — the first filterer sees every decoded record from the cohort.
+
+Consumers can therefore reconstruct the filter funnel (records dropped per stage, cumulative pass rate, null-input share per stage) directly from `Response.Components.Filterers` without re-reading the request.
+
+### `MetaFilterer` sibling interface
+
+`MetaFilterer` is the filterer-side sibling of `MetaAggregator` and `MetaGrouper`:
+
+```go
+type MetaFilterer interface {
+    Components() (map[string]any, error)
+}
+```
+
+- In v1 no built-in filterer overrides the floor — the orchestrator's universal-floor pass fills `{n_in, n_out, n_null_input}` uniformly across all 11 operators.
+- Extensions MAY implement `Components() (map[string]any, error)` to add operator-specific keys (for example, a custom range filterer could expose `n_below_min` / `n_above_max`). This extension surface is deferred for v1; see `skills/extension-points.md` for the planned schema-declaration path.
+- Returning `(nil, nil)` is the no-op signal — the floor still applies.
+
+### Mergeability
+
+The filterer counters are **`Mergeable`** — `{n_in, n_out, n_null_input}` fold trivially across shards by per-index addition. Parallel-shard and parallel-buffered Process collapse partial counters at terminal flush with no precision concerns (all three are exact integer counts).
+
+### Go access pattern
+
+```go
+resp, err := pulse.Process(ctx, req)
+if err != nil { return err }
+for _, f := range resp.Components.Filterers {
+    fmt.Printf("%s: %d→%d (null=%d)\n", f.Label, f.NIn, f.NOut, f.NNullInput)
+}
+```
+
+The cross-cutting `Response.Components` shape — including the `Aggregations`, `Groupers`, `Crosstab`, and `Run` siblings — is documented in the [response components contract](response-components.md).
+</rule>
 
 <rule severity="caveat" topic="sharded-buffered-memory">
 ## Shard archives and forced-buffered ops

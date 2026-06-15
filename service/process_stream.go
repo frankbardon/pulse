@@ -25,6 +25,14 @@ type RowIter interface {
 	// return nil before then. Streaming consumers that need metadata
 	// before draining should call Process instead.
 	Metadata() *types.ResponseMetadata
+	// Components returns the per-operator constituent-parts metadata
+	// emitted by the run — same shape as Response.Components on a
+	// buffered Process call. Available after the iterator is exhausted;
+	// may return nil before then or when the run produced no components
+	// payload. Streaming consumers that surface per-chunk component
+	// deltas read this on terminal flush to expose the buffered-only
+	// payload for non-mergeable operators (AGG_MEDIAN, AGG_PERCENTILE).
+	Components() *types.ResponseComponents
 }
 
 // ProcessStream executes a request and returns a pull-based row iterator
@@ -45,17 +53,18 @@ func (s *Service) ProcessStream(ctx context.Context, req *types.Request) (RowIte
 	if err != nil {
 		return nil, err
 	}
-	return &bufferedRowIter{rows: resp.Data, meta: resp.Metadata}, nil
+	return &bufferedRowIter{rows: resp.Data, meta: resp.Metadata, components: resp.Components}, nil
 }
 
 // bufferedRowIter walks a pre-materialized row slice. It is the trivial
 // implementation behind ProcessStream until the streaming Processor path
 // is wired through.
 type bufferedRowIter struct {
-	rows   []Row
-	idx    int
-	meta   *types.ResponseMetadata
-	closed bool
+	rows       []Row
+	idx        int
+	meta       *types.ResponseMetadata
+	components *types.ResponseComponents
+	closed     bool
 }
 
 var errIterClosed = errors.New("row iterator closed")
@@ -83,4 +92,13 @@ func (it *bufferedRowIter) Close() error {
 
 func (it *bufferedRowIter) Metadata() *types.ResponseMetadata {
 	return it.meta
+}
+
+// Components surfaces the per-operator constituent-parts metadata that
+// the buffered Process call attached to the underlying Response. The
+// streaming wrapper in pulse.ProcessStreamResult reads this on terminal
+// flush so non-mergeable operators (AGG_MEDIAN / AGG_PERCENTILE) reach
+// the consumer on the last chunk only.
+func (it *bufferedRowIter) Components() *types.ResponseComponents {
+	return it.components
 }

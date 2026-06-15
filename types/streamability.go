@@ -1,5 +1,46 @@
 package types
 
+// ComponentsMergeability classifies how an operator's components map
+// folds across streaming chunks. The orchestrator uses this flag to
+// decide whether to emit per-chunk component deltas, stage a terminal
+// merge, or suppress streaming-chunk components entirely.
+//
+// String constants are wire-stable and surface in the manifest JSON;
+// the values are snake_case to match the rest of the --json envelope
+// (Output Format Contract in CLAUDE.md).
+//
+// types/ is the single source of truth — descriptor/ aliases this type
+// (see descriptor/components.go) so the enum stays accessible from
+// every package (types is the leaf; descriptor and processing both
+// import it without cycle risk).
+type ComponentsMergeability string
+
+const (
+	// ComponentsMergeable signals that the components map folds across
+	// chunks via the same associative/commutative path as the scalar
+	// value. Welford-family (mean / variance / sum_squares / m2),
+	// sums, counts, set masks, and weighted accumulators are
+	// mergeable. Per-chunk components are safe to emit and merge
+	// online.
+	ComponentsMergeable ComponentsMergeability = "mergeable"
+
+	// ComponentsPartial signals that the components map merges across
+	// chunks but at non-trivial allocation cost — map / set unions
+	// where the fold is associative but not constant-space.
+	// AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT, and
+	// AGG_SET_FREQUENCY are partial. The orchestrator may stage the
+	// merge at terminal flush.
+	ComponentsPartial ComponentsMergeability = "partial"
+
+	// ComponentsNone signals that the components map cannot be
+	// computed from a per-chunk partial — the operator needs a
+	// sorted view (or equivalent) of the full input. AGG_MEDIAN /
+	// AGG_PERCENTILE are the canonical Nones. Streaming chunks omit
+	// components for these operators; predict declares the slot as
+	// buffered-components-only.
+	ComponentsNone ComponentsMergeability = "none"
+)
+
 // Streamable reports whether this aggregation type supports the single-pass
 // streaming execution path. Streamable aggregators implement
 // processing.OnlineAggregator (UpdateRow + Finalize) and produce a result

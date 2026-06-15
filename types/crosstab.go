@@ -230,9 +230,16 @@ type AxisHeader struct {
 // RichAggregator implementations populate the structured payload
 // directly: AGG_SET_FREQUENCY emits map[string]int (per-label row
 // counts), AGG_SET_UNION / AGG_SET_INTERSECTION emit []string (sorted
-// dictionary labels). Normalize modes (row/column/total) are only
-// defined for scalar cells; the Crosstab validator rejects them paired
-// with map-valued aggregators (see types.AggregationType.MapValued).
+// dictionary labels). AGG_WELFORD is the named carve-out — its rich
+// WelfordTriple payload does NOT ride MatrixCell.Value (the carrier is
+// Response.Components.Crosstab.CellComponents[r][c]'s
+// `{mean, variance, n}` triple instead, populated by the orchestrator's
+// MetaAggregator pass); the cell value falls back to the scalar mean
+// (matching welfordAggregator.Aggregate / Finalize) so downstream
+// renderers see a plain float64. Normalize modes (row/column/total)
+// are only defined for scalar cells; the Crosstab validator rejects
+// them paired with map-valued aggregators (see
+// types.AggregationType.MapValued).
 type MatrixCell struct {
 	Value   any  `json:"value,omitempty"`
 	Present bool `json:"present"`
@@ -300,6 +307,102 @@ type MatrixPayload struct {
 	// NormalizeApplied echoes the normalization mode that was actually
 	// applied. Mirrors CrosstabSpec.Normalize after defaulting.
 	NormalizeApplied CrosstabNormalize `json:"normalize_applied"`
+}
+
+// CrosstabComponents carries the constituent-parts metadata for a
+// crosstab response. Mirrors MatrixPayload coordinate-for-coordinate so
+// consumers can index components by the same (row, column) tuple they
+// already use to read MatrixPayload.Cells / RowMargins / ColumnMargins
+// / GrandTotal. Every field is `omitempty` so an unpopulated
+// CrosstabComponents marshals to byte-identical wire output against the
+// pre-Components baseline; an empty struct produces no JSON keys at
+// all.
+//
+// Layout (each axis indexed in the same order as MatrixPayload.RowKeys
+// / MatrixPayload.ColumnKeys):
+//
+//   - CellCounts[r][c] — per-cell record count (mirrors
+//     MatrixPayload.Cells[r][c]).
+//   - CellComponents[r][c] — per-cell aggregator components; keys are
+//     governed by the cell aggregator's ComponentSchema declaration
+//     (per E1-S3 manifest declaration in
+//     descriptor/capabilities_aggregators.go).
+//   - RowMarginCounts[r] / RowMarginComponents[r] — row-margin counts
+//     + components, indexed by row (mirrors MatrixPayload.RowMargins).
+//   - ColumnMarginCounts[c] / ColumnMarginComponents[c] — column-margin
+//     counts + components, indexed by column (mirrors
+//     MatrixPayload.ColumnMargins).
+//   - GrandTotalCount / GrandTotalComponents — grand-total counterparts
+//     (mirror MatrixPayload.GrandTotal).
+//   - RowKeyComponents[r] / ColumnKeyComponents[c] — per-axis grouper
+//     components carried alongside each row / column tuple (bucket
+//     edges, dict mappings, etc. — same shape as
+//     GrouperComponents.Operator). Indexed by row / column position so
+//     consumers can join axis-key metadata to the corresponding
+//     MatrixPayload.RowKeys[r] / ColumnKeys[c] entry.
+//   - IncludedRecords / ExcludedRecords — sanity counters. IncludedRecords
+//     is the number of records that contributed to at least one cell;
+//     ExcludedRecords is the number that were filtered out at the
+//     crosstab stage (null axis key, etc.). Their sum equals the
+//     post-filter input record count.
+//
+// Service-side population lands in E3-S2..S5; this story defines the
+// type only.
+type CrosstabComponents struct {
+	// CellCounts is the per-cell record count matrix. CellCounts[r][c]
+	// mirrors MatrixPayload.Cells[r][c] coordinate-for-coordinate.
+	CellCounts [][]int `json:"cell_counts,omitempty"`
+
+	// CellComponents is the per-cell aggregator components matrix.
+	// CellComponents[r][c] carries the keys declared by the cell
+	// aggregator's ComponentSchema (per E1-S3 manifest declaration).
+	CellComponents [][]map[string]any `json:"cell_components,omitempty"`
+
+	// RowMarginCounts is the per-row-margin record count vector,
+	// indexed in MatrixPayload.RowKeys order.
+	RowMarginCounts []int `json:"row_margin_counts,omitempty"`
+
+	// RowMarginComponents is the per-row-margin aggregator components
+	// vector, indexed in MatrixPayload.RowKeys order.
+	RowMarginComponents []map[string]any `json:"row_margin_components,omitempty"`
+
+	// ColumnMarginCounts is the per-column-margin record count vector,
+	// indexed in MatrixPayload.ColumnKeys order.
+	ColumnMarginCounts []int `json:"column_margin_counts,omitempty"`
+
+	// ColumnMarginComponents is the per-column-margin aggregator
+	// components vector, indexed in MatrixPayload.ColumnKeys order.
+	ColumnMarginComponents []map[string]any `json:"column_margin_components,omitempty"`
+
+	// GrandTotalCount is the grand-total record count (mirrors the
+	// count behind MatrixPayload.GrandTotal).
+	GrandTotalCount int `json:"grand_total_count,omitempty"`
+
+	// GrandTotalComponents is the grand-total aggregator components
+	// payload (mirrors the components behind MatrixPayload.GrandTotal).
+	GrandTotalComponents map[string]any `json:"grand_total_components,omitempty"`
+
+	// RowKeyComponents carries one grouper-components payload per row,
+	// indexed in MatrixPayload.RowKeys order. The key set on each
+	// element matches GrouperComponents.Operator for the row-axis
+	// grouper.
+	RowKeyComponents []map[string]any `json:"row_key_components,omitempty"`
+
+	// ColumnKeyComponents carries one grouper-components payload per
+	// column, indexed in MatrixPayload.ColumnKeys order. The key set on
+	// each element matches GrouperComponents.Operator for the
+	// column-axis grouper.
+	ColumnKeyComponents []map[string]any `json:"column_key_components,omitempty"`
+
+	// IncludedRecords is the number of records that contributed to at
+	// least one cell (sanity counter — independent of the cell count
+	// matrix sum, which double-counts records under multi-key groupers).
+	IncludedRecords int `json:"included_records,omitempty"`
+
+	// ExcludedRecords is the number of records dropped at the crosstab
+	// stage (null axis key, missing dict entry, etc.). IncludedRecords
+	// + ExcludedRecords equals the post-filter input record count.
+	ExcludedRecords int `json:"excluded_records,omitempty"`
 }
 
 // CrosstabResult is the top-level result of a crosstab request. Carries

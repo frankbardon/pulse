@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "AGG_WELFORD against the experiment cohort revenue column emits the streaming Welford-Pebay triple {Mean, Variance, N} as the aggregator value and surfaces the full Components projection {n, n_null, mean, m2, variance, stddev} under Response.Components.Aggregations[0].Operator. Canonical example of operator-specific Component keys riding alongside the universal floor {n, n_null} — see skills/response-components.md.",
+    "name": "welford_components_revenue",
+    "operators": [
+      "AGG_WELFORD"
+    ],
+    "tags": [
+      "buffered-pipeline",
+      "distribution-shape",
+      "welford-triple"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_WELFORD",
+      "field": "revenue",
+      "label": "revenue_triple"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  }
+}

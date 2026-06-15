@@ -287,11 +287,15 @@ func (s *Service) reduceParallelBuffered(
 	// shouldFanOutDecode rejects workers < 2 today so this branch is
 	// defensive — keeps the reducer correct if a future caller wires it
 	// up with workers == 1 (e.g. a focused test driver).
+	//
+	// Single-file parallel buffered runs are not shard-archive runs —
+	// ShardCount stays 0 so the omitempty wire shape is byte-identical
+	// against the pre-E2-S11 baseline.
 	if workers == 1 {
 		if partials[0] == nil {
 			partials[0] = &shardPartial{}
 		}
-		resp, err := finalizeMergedPartial(req, schema, partials[0])
+		resp, err := finalizeMergedPartial(req, schema, partials[0], 0)
 		if err != nil {
 			return nil, err
 		}
@@ -308,7 +312,7 @@ func (s *Service) reduceParallelBuffered(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := finalizeMergedPartial(req, schema, merged)
+	resp, err := finalizeMergedPartial(req, schema, merged, 0)
 	if err != nil {
 		return nil, err
 	}

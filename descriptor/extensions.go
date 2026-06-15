@@ -97,6 +97,23 @@ type ExtensionsSnapshot struct {
 	LookupTables       []LookupTableMeta
 	LabelTables        []LabelTableMeta
 
+	// ComponentSchemas projects per-extension ComponentSchema
+	// declarations keyed by registered operator name. The map carries
+	// aggregator / grouper / filterer schemas declared via
+	// pulse.AggregatorRegistration.ComponentSchema (and the matching
+	// grouper / filterer variants) so manifest + predict surface
+	// extension operators on the same shape as built-ins. Missing
+	// entries are equivalent to floor-only registrations — the
+	// orchestrator emits the universal floor without operator-
+	// specific extras.
+	//
+	// Wired by buildExtensionsSnapshot in pulse.New; manifest assembly
+	// merges this map into ComponentsSchemas alongside the built-in
+	// capability tables, and predict's per-slot ComponentSchema
+	// lookups fall through to this map when the built-in capability
+	// table does not carry an entry for the slot's operator name.
+	ComponentSchemas map[string]ComponentSchema
+
 	// OverlayKinds is the forward-compat reservation slot for
 	// embedder-registered overlay catalog entries. The runtime
 	// pulse.Options.Extensions.OverlayKinds registration surface

@@ -144,6 +144,62 @@ type PredictResult struct {
 	// JSON output.
 	DefaultsApplied []DefaultApplied `json:"defaults_applied"`
 
+	// Aggregations mirrors req.Aggregations in order, attaching the
+	// per-slot ComponentSchema the engine will use at runtime (the
+	// operator's `descriptor.ComponentSchema` projected from the
+	// capabilities table — and via the manifest snapshot for
+	// embedder-registered ops) plus the BufferedComponents flag.
+	//
+	// BufferedComponents is true iff the operator's
+	// ComponentSchema.Mergeability is None — meaning the components
+	// map cannot be reconstructed from per-chunk partials and the
+	// orchestrator emits the Components block only on the terminal
+	// buffered flush. The flag is a hint to streaming consumers; it
+	// does NOT flip the overall Streamable axis (the data slice still
+	// streams). Today the canonical None-mergeability operators are
+	// AGG_MEDIAN and AGG_PERCENTILE.
+	//
+	// Empty when req.Aggregations is empty; never nil in JSON output.
+	Aggregations []AggregationPredict `json:"aggregations"`
+
+	// Groups mirrors req.Groups in order, attaching the per-slot
+	// ComponentSchema the engine will use at runtime (the operator's
+	// `descriptor.ComponentSchema` projected from the capabilities
+	// table — same projection ComponentsSchemas.Groupers uses) plus
+	// the BufferedComponents flag.
+	//
+	// BufferedComponents is true iff the operator's
+	// ComponentSchema.Mergeability is None — meaning the components
+	// map cannot be reconstructed from per-chunk partials and the
+	// orchestrator emits the Components block only on the terminal
+	// buffered flush. The flag is a hint to streaming consumers; it
+	// does NOT flip the overall Streamable axis. Of the seven
+	// registered groupers today, GROUP_QUANTILE is the canonical
+	// None — quantile cutoffs need the sorted full input.
+	//
+	// Empty when req.Groups is empty; never nil in JSON output.
+	Groups []GroupPredict `json:"groups"`
+
+	// Filterers mirrors req.Filterers in order, attaching the per-slot
+	// ComponentSchema the engine will use at runtime (the operator's
+	// `descriptor.ComponentSchema` projected from the capabilities
+	// table — same projection ComponentsSchemas.Filterers uses) plus
+	// the BufferedComponents flag.
+	//
+	// Filterer components in v1 are uniform across every registered
+	// filterer — the orchestrator emits the universal floor
+	// {n_in, n_out, n_null_input} from the filter pass's per-record
+	// counters. Mergeability is Mergeable for every entry today
+	// (counters fold trivially via integer addition), so
+	// BufferedComponents is always false. The flag is still surfaced
+	// on the predict struct for symmetry with AggregationPredict and
+	// GroupPredict so future per-filter specifics (e.g. n_below /
+	// n_above for FILTER_RANGE) can downgrade the slot without
+	// changing the predict shape.
+	//
+	// Empty when req.Filterers is empty; never nil in JSON output.
+	Filterers []FiltererPredict `json:"filterers"`
+
 	// OverlaysApplied lists every overlay spec the engine accepted, in
 	// req.Overlays order. Each entry echoes the catalog identity (Name,
 	// Kind, Scope) plus the streamability flag harvested from
@@ -191,6 +247,148 @@ type PredictResult struct {
 	// OverlayAppliedDescriptor below. Empty when req.Overlays is empty;
 	// never nil in JSON output.
 	OverlayCost map[string]float64 `json:"overlay_cost"`
+}
+
+// AggregationPredict is the per-slot predict surface for one entry of
+// req.Aggregations. Carries the operator identity echoed back to the
+// caller plus the static ComponentSchema declared in the capabilities
+// table — so callers can budget the runtime Components block shape
+// before the engine runs and so streaming consumers can branch on the
+// BufferedComponents hint without consulting the manifest.
+//
+// Predict stays no-execute: every field on this struct is sourced from
+// the descriptor capability projection (or the embedder snapshot for
+// extension operators) — never from a constructed operator. Custom
+// operators registered via pulse.Options.Extensions that do not (yet)
+// supply a ComponentSchema produce an empty ComponentSchema and
+// BufferedComponents=false; the universal-floor populator at
+// orchestrator emission time still attaches {"n", "n_null"} at
+// runtime.
+type AggregationPredict struct {
+	// Type echoes the aggregation type from the request slot, in the
+	// canonical SCREAMING_SNAKE form (e.g. "AGG_MEDIAN").
+	Type types.AggregationType `json:"type"`
+
+	// Field echoes the field referenced by the request slot. Empty
+	// when the slot was authored without a field (defaults may have
+	// filled it; the resolved post-defaults clone is reflected here
+	// when applicable).
+	Field string `json:"field,omitempty"`
+
+	// Label echoes the response-side label the caller assigned to the
+	// slot (or the engine-default label rule fallback when empty).
+	// Predict echoes the raw label only — label fallback synthesis is
+	// the orchestrator's responsibility.
+	Label string `json:"label,omitempty"`
+
+	// ComponentSchema is the static schema for the operator the engine
+	// will use at runtime, projected from the capabilities table
+	// (capabilities_aggregators.go for built-ins; the embedder snapshot
+	// for extensions). Empty Keys + empty Mergeability means the slot
+	// references an extension operator that has not (yet) declared a
+	// ComponentSchema — the universal-floor populator still attaches
+	// {"n", "n_null"} at runtime.
+	ComponentSchema ComponentSchema `json:"component_schema"`
+
+	// BufferedComponents is true iff ComponentSchema.Mergeability is
+	// descriptor.None. The flag advertises that the slot's Components
+	// block will arrive only on the terminal buffered flush in a
+	// streaming run; it does NOT flip the overall Streamable axis (the
+	// data slice still streams). AGG_MEDIAN and AGG_PERCENTILE are the
+	// canonical Nones today.
+	BufferedComponents bool `json:"buffered_components,omitempty"`
+}
+
+// GroupPredict is the per-slot predict surface for one entry of
+// req.Groups. Carries the grouper identity echoed back to the caller
+// plus the static ComponentSchema declared in the capabilities table —
+// so callers can budget the runtime Components.Groupers block shape
+// before the engine runs and so streaming consumers can branch on the
+// BufferedComponents hint without consulting the manifest.
+//
+// Predict stays no-execute: every field on this struct is sourced from
+// the descriptor capability projection — never from a constructed
+// grouper. Custom groupers registered via pulse.Options.Extensions
+// that do not (yet) supply a ComponentSchema produce an empty
+// ComponentSchema and BufferedComponents=false; the universal-floor
+// populator at orchestrator emission time still attaches
+// {"total_n", "n_null"} at runtime.
+type GroupPredict struct {
+	// Type echoes the grouper type from the request slot, in the
+	// canonical SCREAMING_SNAKE form (e.g. "GROUP_QUANTILE").
+	Type types.GroupType `json:"type"`
+
+	// Field echoes the field referenced by the request slot. Empty
+	// when the slot was authored without a field (defaults may have
+	// filled it; the resolved post-defaults clone is reflected here
+	// when applicable).
+	Field string `json:"field,omitempty"`
+
+	// ComponentSchema is the static schema for the grouper the engine
+	// will use at runtime, projected from the capabilities table
+	// (capabilities_groupers.go). Empty Keys + empty Mergeability
+	// means the slot references an extension grouper that has not
+	// (yet) declared a ComponentSchema — the universal-floor
+	// populator still attaches {"total_n", "n_null"} at runtime.
+	ComponentSchema ComponentSchema `json:"component_schema"`
+
+	// BufferedComponents is true iff ComponentSchema.Mergeability is
+	// descriptor.None. The flag advertises that the slot's Components
+	// block will arrive only on the terminal buffered flush in a
+	// streaming run; it does NOT flip the overall Streamable axis (the
+	// data slice still streams). GROUP_QUANTILE is the canonical
+	// None today.
+	BufferedComponents bool `json:"buffered_components,omitempty"`
+}
+
+// FiltererPredict is the per-slot predict surface for one entry of
+// req.Filterers. Carries the operator identity echoed back to the
+// caller plus the static ComponentSchema declared in the capabilities
+// table — so callers can budget the runtime Components.Filterers block
+// shape before the engine runs and so streaming consumers can branch
+// on the BufferedComponents hint without consulting the manifest.
+//
+// Predict stays no-execute: every field on this struct is sourced from
+// the descriptor capability projection — never from a constructed
+// filterer. Custom filterers registered via pulse.Options.Extensions
+// that do not (yet) supply a ComponentSchema produce an empty
+// ComponentSchema and BufferedComponents=false; the universal-floor
+// populator at orchestrator emission time still attaches
+// {"n_in", "n_out", "n_null_input"} at runtime.
+//
+// Components are uniform across every built-in filterer in v1: the
+// universal floor {n_in, n_out, n_null_input} is the entire schema and
+// Mergeability is Mergeable (counters fold trivially via integer
+// addition). The struct mirrors AggregationPredict / GroupPredict so
+// future per-filter specifics (e.g. n_below / n_above for FILTER_RANGE)
+// can downgrade the slot to Partial / None without changing the
+// predict shape.
+type FiltererPredict struct {
+	// Type echoes the filterer type from the request slot, in the
+	// canonical SCREAMING_SNAKE form (e.g. "FILTER_RANGE").
+	Type types.FiltererType `json:"type"`
+
+	// Field echoes the field referenced by the request slot. Empty
+	// when the slot was authored without a field (FILTER_EXPRESSION
+	// reads any record field through its expression body).
+	Field string `json:"field,omitempty"`
+
+	// ComponentSchema is the static schema for the filterer the engine
+	// will use at runtime, projected from the capabilities table
+	// (capabilities_filterers.go). Empty Keys + empty Mergeability
+	// means the slot references an extension filterer that has not
+	// (yet) declared a ComponentSchema — the universal-floor populator
+	// still attaches {"n_in", "n_out", "n_null_input"} at runtime.
+	ComponentSchema ComponentSchema `json:"component_schema"`
+
+	// BufferedComponents is true iff ComponentSchema.Mergeability is
+	// descriptor.None. The flag advertises that the slot's Components
+	// block will arrive only on the terminal buffered flush in a
+	// streaming run; it does NOT flip the overall Streamable axis. In
+	// v1 every built-in filterer is Mergeable so this flag is always
+	// false; the surface exists for future per-filter specifics that
+	// may downgrade individual entries.
+	BufferedComponents bool `json:"buffered_components,omitempty"`
 }
 
 // OverlayAppliedDescriptor describes one accepted overlay spec the
@@ -343,6 +541,9 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		Request:                  req,
 		Shards:                   []ShardInfo{},
 		DefaultsApplied:          []DefaultApplied{},
+		Aggregations:             []AggregationPredict{},
+		Groups:                   []GroupPredict{},
+		Filterers:                []FiltererPredict{},
 		OverlaysApplied:          []OverlayAppliedDescriptor{},
 		OverlaysSchemaDivergence: []SlotPair{},
 		OverlayCost:              map[string]float64{},
@@ -434,6 +635,37 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// kinds carry overlayCostBuffered. OverlaysSchemaDivergence stays
 	// empty in E1 — Compose wiring lands later.
 	populateOverlayDescriptors(result, req)
+
+	// Populate the per-aggregation predict surface (E1-S4): one
+	// AggregationPredict descriptor per req.Aggregations slot in
+	// matching order. ComponentSchema is projected from the static
+	// capability table; BufferedComponents flags slots whose
+	// Mergeability is None so streaming consumers know the Components
+	// block arrives only on terminal flush. Predict stays no-execute
+	// — the schema is looked up via aggregatorComponentSchemaIndex,
+	// never via constructed operators.
+	populateAggregationPredicts(result, req, opts)
+
+	// Populate the per-grouper predict surface (E2-S3): one
+	// GroupPredict descriptor per req.Groups slot in matching order.
+	// ComponentSchema is projected from the static grouper capability
+	// table; BufferedComponents flags slots whose Mergeability is None
+	// (GROUP_QUANTILE today). Predict stays no-execute — the schema is
+	// looked up via grouperComponentSchemaIndex, never via constructed
+	// operators.
+	populateGroupPredicts(result, req, opts)
+
+	// Populate the per-filterer predict surface (E2-S8): one
+	// FiltererPredict descriptor per req.Filterers slot in matching
+	// order. ComponentSchema is projected from the static filterer
+	// capability table; BufferedComponents flags slots whose
+	// Mergeability is None. In v1 every built-in filterer is Mergeable
+	// (counters fold trivially), so BufferedComponents is always false
+	// — the field is still surfaced for future per-filter specifics
+	// that may downgrade individual entries. Predict stays no-execute
+	// — the schema is looked up via filtererComponentSchemaIndex,
+	// never via constructed operators.
+	populateFiltererPredicts(result, req, opts)
 
 	// Validate label bindings (display-time categorical translation). Snapshot
 	// carries the registered label tables; augment-mode collisions are
@@ -597,6 +829,9 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 			Request:                  req,
 			Shards:                   []ShardInfo{},
 			DefaultsApplied:          []DefaultApplied{},
+			Aggregations:             []AggregationPredict{},
+			Groups:                   []GroupPredict{},
+			Filterers:                []FiltererPredict{},
 			Suggestions:              []Suggestion{},
 			OverlaysApplied:          []OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []SlotPair{},
@@ -614,6 +849,9 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 			Request:                  req,
 			Shards:                   []ShardInfo{},
 			DefaultsApplied:          []DefaultApplied{},
+			Aggregations:             []AggregationPredict{},
+			Groups:                   []GroupPredict{},
+			Filterers:                []FiltererPredict{},
 			Suggestions:              []Suggestion{},
 			OverlaysApplied:          []OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []SlotPair{},
@@ -639,6 +877,9 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 			Request:                  req,
 			Shards:                   []ShardInfo{},
 			DefaultsApplied:          []DefaultApplied{},
+			Aggregations:             []AggregationPredict{},
+			Groups:                   []GroupPredict{},
+			Filterers:                []FiltererPredict{},
 			Suggestions:              []Suggestion{},
 			OverlaysApplied:          []OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []SlotPair{},
@@ -951,6 +1192,234 @@ func populateOverlayDescriptors(result *PredictResult, req *types.Request) {
 	result.OverlaysApplied, result.OverlayCost = appendOverlayDescriptors(
 		result.OverlaysApplied, result.OverlayCost, req.Overlays,
 	)
+}
+
+// aggregatorComponentSchemaIndex returns a {operator name → ComponentSchema}
+// lookup over the built-in aggregator capability table. The map is the
+// authoritative no-execute source predict reads at slot-population time
+// — the universal-floor keys are already prepended inside aggSchema, so
+// every entry mirrors the same shape the manifest projects under
+// Manifest.ComponentsSchemas.Aggregators.
+//
+// When opts carries an ExtensionsSnapshot, extension aggregator entries
+// from snap.ComponentSchemas are merged in afterwards so a slot that
+// references an extension operator sees the embedder-declared schema
+// instead of the empty default. Built-ins are not overwritten — the
+// built-in capability table wins on collision (which should never
+// happen because extension names cannot collide with built-ins, per
+// validateExtensions).
+func aggregatorComponentSchemaIndex(opts *PredictOptions) map[string]ComponentSchema {
+	caps := aggregatorCapabilities()
+	out := make(map[string]ComponentSchema, len(caps))
+	for _, op := range caps {
+		out[op.Name] = op.ComponentSchema
+	}
+	snap := extensionsFromOpts(opts)
+	if snap != nil && len(snap.ComponentSchemas) > 0 {
+		for _, m := range snap.Aggregators {
+			if _, dup := out[m.Name]; dup {
+				continue
+			}
+			if schema, ok := snap.ComponentSchemas[m.Name]; ok {
+				out[m.Name] = schema
+			}
+		}
+	}
+	return out
+}
+
+// grouperComponentSchemaIndex returns a {operator name → ComponentSchema}
+// lookup over the built-in grouper capability table. The map is the
+// authoritative no-execute source predict reads at slot-population time
+// — the universal-floor keys ({total_n, n_null}) are already prepended
+// inside groupSchema, so every entry mirrors the same shape the manifest
+// projects under Manifest.ComponentsSchemas.Groupers.
+//
+// Extension groupers from opts.Extensions.ComponentSchemas are merged
+// in afterwards on the same contract as aggregatorComponentSchemaIndex.
+func grouperComponentSchemaIndex(opts *PredictOptions) map[string]ComponentSchema {
+	caps := grouperCapabilities()
+	out := make(map[string]ComponentSchema, len(caps))
+	for _, op := range caps {
+		out[op.Name] = op.ComponentSchema
+	}
+	snap := extensionsFromOpts(opts)
+	if snap != nil && len(snap.ComponentSchemas) > 0 {
+		for _, m := range snap.Groupers {
+			if _, dup := out[m.Name]; dup {
+				continue
+			}
+			if schema, ok := snap.ComponentSchemas[m.Name]; ok {
+				out[m.Name] = schema
+			}
+		}
+	}
+	return out
+}
+
+// populateGroupPredicts fills PredictResult.Groups with one GroupPredict
+// descriptor per req.Groups slot, in matching order. The per-slot
+// ComponentSchema is looked up from the built-in grouper capability
+// table — the manifest snapshot's single source of truth (same
+// projection ComponentsSchemas.Groupers uses). Extension groupers that
+// have not yet declared a ComponentSchema produce an empty
+// ComponentSchema and BufferedComponents=false; the universal-floor
+// populator still attaches {"total_n", "n_null"} at runtime.
+//
+// BufferedComponents is true iff the resolved ComponentSchema's
+// Mergeability is descriptor.None. Of the seven registered groupers
+// today, GROUP_QUANTILE is the canonical None — quantile cutoffs need
+// the sorted full input. The flag advertises streaming behaviour but
+// does NOT flip PredictResult.Streamable.
+//
+// Predict stays no-execute: this helper reads only the static
+// capabilities table — no `service/` or `processing/` imports.
+func populateGroupPredicts(result *PredictResult, req *types.Request, opts *PredictOptions) {
+	if result == nil || req == nil {
+		return
+	}
+	if len(req.Groups) == 0 {
+		// Empty-but-not-nil — keep JSON shape stable.
+		result.Groups = []GroupPredict{}
+		return
+	}
+	idx := grouperComponentSchemaIndex(opts)
+	out := make([]GroupPredict, 0, len(req.Groups))
+	for _, grp := range req.Groups {
+		if grp == nil {
+			continue
+		}
+		schema := idx[string(grp.Type)]
+		out = append(out, GroupPredict{
+			Type:               grp.Type,
+			Field:              grp.Field,
+			ComponentSchema:    schema,
+			BufferedComponents: schema.Mergeability == None,
+		})
+	}
+	result.Groups = out
+}
+
+// populateAggregationPredicts fills PredictResult.Aggregations with one
+// AggregationPredict descriptor per req.Aggregations slot, in matching
+// order. The per-slot ComponentSchema is looked up from the built-in
+// aggregator capability table (the manifest snapshot's single source of
+// truth — same projection ComponentsSchemas.Aggregators uses). When the
+// slot references an extension operator that the snapshot has not yet
+// declared a schema for, the descriptor surfaces an empty
+// ComponentSchema and BufferedComponents=false; the universal-floor
+// populator still attaches {"n", "n_null"} at runtime.
+//
+// BufferedComponents is true iff the resolved ComponentSchema's
+// Mergeability is descriptor.None — meaning the components map cannot
+// be reconstructed from per-chunk partials and the orchestrator emits
+// the Components block only on the terminal buffered flush. The flag
+// advertises streaming behaviour but does NOT flip PredictResult.Streamable
+// (the data slice still streams).
+//
+// Predict stays no-execute: this helper reads only the static
+// capabilities table — no `service/` or `processing/` imports.
+func populateAggregationPredicts(result *PredictResult, req *types.Request, opts *PredictOptions) {
+	if result == nil || req == nil {
+		return
+	}
+	if len(req.Aggregations) == 0 {
+		// Empty-but-not-nil — keep JSON shape stable.
+		result.Aggregations = []AggregationPredict{}
+		return
+	}
+	idx := aggregatorComponentSchemaIndex(opts)
+	out := make([]AggregationPredict, 0, len(req.Aggregations))
+	for _, agg := range req.Aggregations {
+		if agg == nil {
+			continue
+		}
+		schema := idx[string(agg.Type)]
+		out = append(out, AggregationPredict{
+			Type:               agg.Type,
+			Field:              agg.Field,
+			Label:              agg.Label,
+			ComponentSchema:    schema,
+			BufferedComponents: schema.Mergeability == None,
+		})
+	}
+	result.Aggregations = out
+}
+
+// filtererComponentSchemaIndex returns a {operator name → ComponentSchema}
+// lookup over the built-in filterer capability table. The map is the
+// authoritative no-execute source predict reads at slot-population
+// time — the universal-floor keys ({n_in, n_out, n_null_input}) are
+// already prepended inside filterSchema, so every entry mirrors the
+// same shape the manifest projects under
+// Manifest.ComponentsSchemas.Filterers.
+//
+// Extension filterers from opts.Extensions.ComponentSchemas are merged
+// in afterwards on the same contract as aggregatorComponentSchemaIndex.
+func filtererComponentSchemaIndex(opts *PredictOptions) map[string]ComponentSchema {
+	caps := filtererCapabilities()
+	out := make(map[string]ComponentSchema, len(caps))
+	for _, op := range caps {
+		out[op.Name] = op.ComponentSchema
+	}
+	snap := extensionsFromOpts(opts)
+	if snap != nil && len(snap.ComponentSchemas) > 0 {
+		for _, m := range snap.Filterers {
+			if _, dup := out[m.Name]; dup {
+				continue
+			}
+			if schema, ok := snap.ComponentSchemas[m.Name]; ok {
+				out[m.Name] = schema
+			}
+		}
+	}
+	return out
+}
+
+// populateFiltererPredicts fills PredictResult.Filterers with one
+// FiltererPredict descriptor per req.Filterers slot, in matching order.
+// The per-slot ComponentSchema is looked up from the built-in filterer
+// capability table — the manifest snapshot's single source of truth
+// (same projection ComponentsSchemas.Filterers uses). Extension
+// filterers that have not yet declared a ComponentSchema produce an
+// empty ComponentSchema and BufferedComponents=false; the universal-
+// floor populator still attaches {n_in, n_out, n_null_input} at
+// runtime.
+//
+// BufferedComponents is true iff the resolved ComponentSchema's
+// Mergeability is descriptor.None. In v1 every built-in filterer is
+// Mergeable (counter triples fold trivially via integer addition), so
+// the flag is always false for built-ins; the surface exists for
+// future per-filter specifics that may downgrade individual entries.
+// The flag advertises streaming behaviour but does NOT flip
+// PredictResult.Streamable.
+//
+// Predict stays no-execute: this helper reads only the static
+// capabilities table — no `service/` or `processing/` imports.
+func populateFiltererPredicts(result *PredictResult, req *types.Request, opts *PredictOptions) {
+	if result == nil || req == nil {
+		return
+	}
+	if len(req.Filterers) == 0 {
+		// Empty-but-not-nil — keep JSON shape stable.
+		result.Filterers = []FiltererPredict{}
+		return
+	}
+	idx := filtererComponentSchemaIndex(opts)
+	out := make([]FiltererPredict, 0, len(req.Filterers))
+	for _, fil := range req.Filterers {
+		if fil == nil {
+			continue
+		}
+		schema := idx[string(fil.Type)]
+		out = append(out, FiltererPredict{
+			Type:               fil.Type,
+			Field:              fil.Field,
+			ComponentSchema:    schema,
+			BufferedComponents: schema.Mergeability == None,
+		})
+	}
+	result.Filterers = out
 }
 
 // appendOverlayDescriptors is the shared per-spec emitter used by both

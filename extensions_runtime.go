@@ -70,7 +70,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Aggregators) > 0 {
 		r.Aggregators = make(map[types.AggregationType]processing.AggregatorFactory, len(ext.Aggregators))
 		for _, reg := range ext.Aggregators {
-			r.Aggregators[reg.Name] = reg.Factory
+			r.Aggregators[reg.Name] = wrapAggregatorFactory(reg)
 			r.Streamable[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.Streamable
 			addFieldInputs("aggregator", string(reg.Name), reg.FieldInputs)
 		}
@@ -88,7 +88,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Filterers) > 0 {
 		r.Filterers = make(map[types.FiltererType]processing.FiltererFactory, len(ext.Filterers))
 		for _, reg := range ext.Filterers {
-			r.Filterers[reg.Name] = reg.Factory
+			r.Filterers[reg.Name] = wrapFiltererFactory(reg)
 			// Custom filterers are always row-local streamable today.
 			r.Streamable[processing.StreamabilityKey("filterer", string(reg.Name))] = true
 			addFieldInputs("filterer", string(reg.Name), reg.FieldInputs)
@@ -98,7 +98,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Groupers) > 0 {
 		r.Groupers = make(map[types.GroupType]processing.GrouperFactory, len(ext.Groupers))
 		for _, reg := range ext.Groupers {
-			r.Groupers[reg.Name] = reg.Factory
+			r.Groupers[reg.Name] = wrapGrouperFactory(reg)
 			r.Streamable[processing.StreamabilityKey("grouper", string(reg.Name))] = reg.Streamable
 			addFieldInputs("grouper", string(reg.Name), reg.FieldInputs)
 		}

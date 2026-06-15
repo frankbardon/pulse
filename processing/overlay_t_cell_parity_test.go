@@ -209,6 +209,12 @@ func overlayWelchPFromTriplesSeries(t *testing.T, target, ref WelfordTriple) (fl
 // single cell carries the supplied WelfordTriple. Used by the
 // OVERLAY_T_CELL parity probe so the per-cell handler sees an
 // unambiguous (target_triple, ref_triple) pair on (r0, c0).
+//
+// E3-S7 migration: also populates Response.Components.Crosstab.
+// CellComponents[0][0] with the matching `{n, mean, variance}` map so
+// the migrated handler can consume the universal Components surface.
+// The legacy WelfordTriple in MatrixCell.Value stays — E3-S8 removes
+// the writer side.
 func makeSingleCellTripleResponse(triple WelfordTriple) *types.Response {
 	cells := [][]types.MatrixCell{{{Value: triple, Present: true}}}
 	return &types.Response{
@@ -219,6 +225,20 @@ func makeSingleCellTripleResponse(triple WelfordTriple) *types.Response {
 				RowKeys:      []types.AxisKey{{"r0"}},
 				ColumnKeys:   []types.AxisKey{{"c0"}},
 				Cells:        cells,
+			},
+		},
+		Components: &types.ResponseComponents{
+			Crosstab: &types.CrosstabComponents{
+				CellComponents: [][]map[string]any{
+					{
+						{
+							"n":        int(triple.N),
+							"n_null":   0,
+							"mean":     triple.Mean,
+							"variance": triple.Variance,
+						},
+					},
+				},
 			},
 		},
 	}

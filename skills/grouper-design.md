@@ -11,6 +11,58 @@ applies_to: process, compose, predict
 Groupers partition records into groups before aggregation; each group is aggregated independently and the output rows include a key column identifying the partition. Invoke this skill when choosing a grouper type, configuring its params, or reasoning about how group keys appear in output.
 </skill_overview>
 
+<section title="Components contract (Response.Components.Groupers)">
+
+Every grouper emission in `Response.Components.Groupers` carries the **universal floor** `{total_n, n_null}` regardless of operator:
+
+- `total_n` (int) — total records partitioned across all buckets (post-filter).
+- `n_null` (int) — records that landed in the null/skip path (no bucket assignment).
+
+These are different from the aggregator floor (`{n, n_null}`) by design — groupers partition **all** post-filter records, not just non-null inputs. The null-bucket count is the records that took the null/skip path during partitioning.
+
+Operator-specific keys (dictionary cardinality, bucket edges, range bounds, fiscal granularity, etc.) ride in the `Operator map[string]any` field on each `GrouperComponents` entry. The set of operator keys for each grouper is declared in the manifest under `components_schemas.groupers[<op>].keys`; see the per-grouper "Components" blocks below for the canonical lists.
+
+### `MetaGrouper` sibling interface
+
+```go
+type MetaGrouper interface {
+    Grouper
+    // Components is called once after the grouper's terminal pass.
+    // Returns the operator-specific extras that ride alongside the
+    // universal floor in Response.Components.Groupers[i].Operator.
+    // Returning (nil, nil) means "floor only" — orchestrator still
+    // emits {total_n, n_null}.
+    Components() (map[string]any, error)
+}
+```
+
+This mirrors `MetaAggregator` / `MetaFilterer` (siblings of `Aggregator` / `FiltererBuilder`). The orchestrator probes via interface assertion; floor-only groupers may skip the sibling entirely and the universal-floor pass still emits `{total_n, n_null}`.
+
+### `ComponentsMergeability`
+
+| Class | Groupers | Streaming behaviour |
+|---|---|---|
+| `Mergeable` | `GROUP_CATEGORY`, `GROUP_DATE`, `GROUP_RANGE`, `GROUP_ROUNDED`, `GROUP_SET_VALUE`, `GROUP_SET_PER_ELEMENT` | Components fold across chunks via the same merge path as the bucket counts; streaming chunks carry `ComponentsDelta` and reconcile at flush. |
+| `None` | `GROUP_QUANTILE` | Quantile cutpoints require the sorted full input set; components emitted only on the terminal buffered flush. Predict declares the slot as `BufferedComponents=true` and streaming chunks omit the operator block. |
+
+### Multi-key streaming (GROUP_SET_PER_ELEMENT)
+
+`GROUP_SET_PER_ELEMENT` fans each row into one bucket per selected label (via `MultiKeyStreamingGrouper.KeysForRow`). As a result the sum of `buckets[].count` may **exceed** `total_n` — every selected label increments its own bucket while `total_n` still counts each input record once. The redundant total is surfaced explicitly as `total_label_observations` for embedder convenience. An empty-mask row contributes to zero buckets but still increments `total_n` (it does not increment `n_null`, because the empty mask is a valid value distinct from null — see `GROUP_SET_VALUE`'s `n_empty_mask` floor extra for the same distinction).
+
+### Access pattern
+
+```go
+resp, err := pulse.Process(ctx, req)
+if err != nil { return err }
+for _, g := range resp.Components.Groupers {
+    fmt.Printf("%s: total_n=%d, n_null=%d, op=%v\n", g.Field, g.TotalN, g.NNull, g.Operator)
+}
+```
+
+See `skills/response-components.md` (lands in E5-S1) for the umbrella shape and the cross-operator consumption recipe.
+
+</section>
+
 <reference>
 ## GROUP_CATEGORY
 
@@ -21,6 +73,7 @@ Groups records by the distinct values of a field. Each unique value becomes a se
 - **Null handling**: Records with null values are skipped (not grouped).
 - **Use when**: You want to segment results by category (e.g., by department, by diagnosis code, by treatment group).
 - **Config**: No extra params; only `field` is required.
+- **Components** (`mergeable`): floor `{total_n, n_null}` + `dict_size` (int — distinct values observed across all buckets, cardinality of the partition key), `buckets` (`[]bucket` — per-bucket records, ordered by emission; each entry `{key, label, count}`).
 </reference>
 
 <example name="group-category">
@@ -50,6 +103,7 @@ Groups records into fixed-width numeric bins with human-readable range keys. Eac
 - **Bin boundaries**: Half-open `[low, high)`. A value of exactly 10 with interval 10 falls into the `"10-20"` bin, not `"0-10"`.
 - **Null handling**: Records with null values are skipped (not grouped).
 - **vs GROUP_ROUNDED**: GROUP_ROUNDED keys are a single number (the bin's lower bound). GROUP_RANGE keys are a `"low-high"` string. Same binning formula, different key formatting.
+- **Components** (`mergeable`): floor `{total_n, n_null}` + `interval` (float64 — bucket width on the value axis, `Group.Interval`), `range_min` (float64 — smallest non-null value observed across all buckets), `range_max` (float64 — largest non-null value observed across all buckets), `n_buckets` (int — number of half-open range buckets emitted), `edges` (`[]float64` — sorted cutpoints separating adjacent range buckets), `buckets` (`[]bucket` — per-bucket records, ordered by emission; each entry `{key, low, high, count}`), `underflow_count` (int — records below the lowest configured bucket edge), `overflow_count` (int — records at or above the highest configured bucket edge).
 </reference>
 
 <example name="group-range">
@@ -87,6 +141,7 @@ Groups records by a date component extracted from a `date` type field. The field
   - `quarter` + fiscal → `"FY2025-Q1"` (Q1 is the first three months of the fiscal year, NOT the first three calendar months)
 - **Null handling**: Records with null values are skipped (not grouped).
 - **Use when**: You want to segment time-series data by calendar periods (e.g., monthly enrollment counts, quarterly revenue, day-of-week patterns), or by fiscal periods that do not align with the calendar year (UK April-start `fiscal_offset=3`, US Federal October-start `fiscal_offset=9` or equivalently `-3`).
+- **Components** (`mergeable`): floor `{total_n, n_null}` + `granularity` (string — calendar component used to bucket; one of `day`, `day_of_week`, `week`, `month`, `quarter`, `year`), `range_start` (string — ISO date of the earliest period observed), `range_end` (string — ISO date of the latest period observed), `n_buckets` (int — number of distinct calendar buckets observed), `buckets` (`[]bucket` — per-bucket records, ordered by emission; each entry `{key, period_start, period_end, count}`).
 </reference>
 
 <example name="group-date">
@@ -152,6 +207,7 @@ Groups records into equal-sized quantile buckets based on rank position within a
 - **Null handling**: Records with null values are skipped (not grouped).
 - **Uneven distribution**: When the record count is not evenly divisible by the bucket count, some buckets will have one more record than others.
 - **Use when**: You want to partition records by relative position in the distribution (e.g., top quartile vs bottom quartile, decile analysis).
+- **Components** (`none` — buffered only): floor `{total_n, n_null}` + `n_quantiles` (int — number of equal-population quantile buckets requested, `Group.Interval`), `method` (string — quantile interpolation method, e.g. `"linear"`), `edges` (`[]float64` — sorted cutpoints separating adjacent quantile buckets), `buckets` (`[]bucket` — per-bucket records, ordered by emission; each entry `{key, low, high, count}`). Predict declares `BufferedComponents=true`: streaming chunks omit the operator block; the orchestrator emits components only on the terminal buffered flush because quantile cutpoints require the sorted full input set.
 </reference>
 
 <example name="group-quantile">
@@ -180,6 +236,7 @@ Groups records by rounding a numeric field down to a specified interval. The gro
 - **Key format**: Integer string when the rounded value is integer-valued, otherwise minimal float string.
 - **Null handling**: Records with null values are skipped (not grouped).
 - **Use when**: You want to bucket continuous values into ranges (e.g., age groups by decade, score bands).
+- **Components** (`mergeable`): floor `{total_n, n_null}` + `precision` (float64 — rounding increment used as the bucket scalar, `Group.Interval`), `edges` (`[]float64` — sorted rounded scalars separating adjacent buckets), `buckets` (`[]bucket` — per-bucket records, ordered by emission; each entry `{key, low, high, count}`).
 </reference>
 
 <example name="group-rounded">
@@ -215,6 +272,10 @@ For columns typed `set_u8`, `set_u16`, `set_u32`, `set_u64`, two groupers partit
 - `GROUP_SET_PER_ELEMENT` — per-bit fan-out. One row → N buckets, one per selected label. Smart-default grouper for `set_*` fields ("respondents per option" is the typical survey question). Implements `MultiKeyStreamingGrouper.KeysForRow` so the streaming orchestrator drives `UpdateRow` per bucket without buffering.
 
 Empty-mask rows contribute to zero buckets in PER_ELEMENT (no labels selected = nothing to fan into); VALUE buckets them under the empty key. Both groupers reject non-set fields at construction with PROCESSING_CONFIG.
+
+**Components — GROUP_SET_VALUE** (`mergeable`): floor `{total_n, n_null}` + `n_empty_mask` (int — records whose set mask was the empty selection; the zero-bit mask is a valid distinct bucket from null), `buckets` (`[]bucket` — per-bucket records, ordered by emission; each entry `{key, mask, count, labels}`).
+
+**Components — GROUP_SET_PER_ELEMENT** (`mergeable`): floor `{total_n, n_null}` + `total_label_observations` (int — sum of `buckets[].count` across the partition; **may exceed `total_n`** because each row fans into one bucket per selected label), `buckets` (`[]bucket` — per-label records, ordered by emission; each entry `{key, label, count, dict_index}`).
 
 </section>
 

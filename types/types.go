@@ -1035,6 +1035,224 @@ type Response struct {
 	// renderer-friendly summary metadata. Omitted entirely when the
 	// originating Request had no overlays.
 	Overlays []OverlayLayer `json:"overlays,omitempty"`
+
+	// Components carries the constituent-parts metadata emitted by each
+	// operator during a processing run — per-aggregation N / NNull,
+	// per-grouper bucket inventory, per-filterer N-in / N-out, crosstab
+	// cell components, and run-wide totals.
+	//
+	// Naming-collision note: Response.Metadata (above) holds runtime
+	// facts about the orchestrator pass — total / filtered row counts,
+	// cohort filename — that are produced by service-layer wiring and
+	// are independent of any specific operator. Response.Components
+	// holds the computational components emitted BY the operators
+	// themselves (the AGG_*, GROUP_*, FILTER_*, crosstab pipeline) and
+	// keyed back to their slot identity. The two are deliberately
+	// distinct slots: Metadata is "what the run did", Components is
+	// "what each operator contributed". Consumers wanting both pull
+	// from both slots; renderer-friendly summaries (cell components for
+	// the parity overlays, etc.) live on Components.
+	//
+	// Additive omitempty contract: the slot is `*ResponseComponents` so
+	// an unpopulated run marshals to no `components` key at all —
+	// byte-identical to the pre-Components wire form. Every nested
+	// slice / pointer / map is `omitempty` for the same reason; an
+	// AGG-only run with no groupers omits `groupers`, a no-filter run
+	// omits `filterers`, etc. format_version stays at "1.0" because
+	// the slot is additive.
+	Components *ResponseComponents `json:"components,omitempty"`
+}
+
+// ResponseComponents carries the constituent-parts metadata emitted by
+// each operator slot during a processing run. Every nested field is
+// `omitempty` so partially populated runs (an AGG-only request, a
+// filter-free request, etc.) marshal to byte-identical wire output
+// against the pre-Components baseline. See Response.Components for the
+// runtime-facts vs computational-components naming-collision note.
+//
+// Field-level semantics:
+//   - Aggregations: one entry per Request.Aggregations spec in matching
+//     declared order. Slot identity rides on Label (mirrors
+//     Aggregation.Label). The universal floor (N, NNull) is a typed
+//     field on every entry; per-operator keys ride inside Operator.
+//   - Groupers: one entry per Request.Groups spec in matching declared
+//     order. Slot identity rides on Field. Per-grouper schema (bucket
+//     edges, dict mappings, etc.) rides inside Operator.
+//   - Crosstab: populated when the originating Request set Crosstab.
+//     Shell-only at E1; the full per-cell components matrix lands in
+//     E3.
+//   - Filterers: one entry per Request.Filterers spec in matching
+//     declared order. Slot identity rides on Label.
+//   - Run: optional run-wide totals (cohort record count, filtered
+//     count, null count, shard count, partial-cohort reason). Distinct
+//     from Response.Metadata which holds orchestrator-pass facts.
+type ResponseComponents struct {
+	// Aggregations carries one AggregationComponents entry per
+	// Request.Aggregations slot in matching declared order.
+	Aggregations []AggregationComponents `json:"aggregations,omitempty"`
+
+	// Groupers carries one GrouperComponents entry per Request.Groups
+	// slot in matching declared order.
+	Groupers []GrouperComponents `json:"groupers,omitempty"`
+
+	// Crosstab carries the crosstab-level components (cell matrix +
+	// margins). Populated only when the originating Request set
+	// Crosstab; nil otherwise. Shell-only at E1.
+	Crosstab *CrosstabComponents `json:"crosstab,omitempty"`
+
+	// Filterers carries one FiltererComponents entry per
+	// Request.Filterers slot in matching declared order.
+	Filterers []FiltererComponents `json:"filterers,omitempty"`
+
+	// Run carries run-wide totals — cohort record count, filtered
+	// count, null count, shard count, partial-cohort reason. Distinct
+	// from Response.Metadata which holds orchestrator-pass facts about
+	// the request execution (file name, etc.).
+	Run *RunComponents `json:"run,omitempty"`
+}
+
+// AggregationComponents carries per-aggregator constituent-parts
+// metadata. The universal floor — N (records observed) and NNull
+// (records skipped due to null input) — is a typed field on every
+// entry; per-operator keys (mean / variance / mode_count / range_min,
+// etc.) ride inside Operator. Slot identity rides on Label, which
+// mirrors the originating Aggregation.Label so consumers can join the
+// components entry back to the request slot without index arithmetic.
+type AggregationComponents struct {
+	// Label mirrors the originating Aggregation.Label so callers can
+	// join the components entry back to its request slot.
+	Label string `json:"label,omitempty"`
+
+	// N is the number of input records observed by the aggregator
+	// (post-filter, pre-null-skip). Universal floor — emitted by every
+	// aggregator.
+	N int `json:"n"`
+
+	// NNull is the number of records the aggregator skipped because
+	// the source field was null. Universal floor — emitted by every
+	// aggregator.
+	NNull int `json:"n_null"`
+
+	// Operator carries the per-aggregator schema-declared keys. Key
+	// set is governed by the operator's ComponentSchema declaration in
+	// descriptor/capabilities_aggregators.go (lands in E1-S5+). Values
+	// are JSON-compatible scalars or nested maps.
+	Operator map[string]any `json:"operator,omitempty"`
+}
+
+// GrouperComponents carries per-grouper constituent-parts metadata —
+// bucket inventory, edge values, dictionary mappings. The universal
+// floor — TotalN (records partitioned, post-filter) and NNull (records
+// that landed in a null / skip path) — is a typed field on every
+// entry; per-operator keys (bucket arrays, edges, dict size,
+// granularity, etc.) ride inside Operator. Slot identity rides on
+// Field, which mirrors the originating Group.Field, plus Label, which
+// mirrors the originating Group.Label when present so consumers can
+// join the components entry back to its request slot without index
+// arithmetic.
+//
+// For single-key groupers (CATEGORY / RANGE / ROUNDED / QUANTILE /
+// DATE / SET_VALUE), TotalN equals the sum of bucket counts. For
+// multi-key streaming groupers (GROUP_SET_PER_ELEMENT), a single
+// record may contribute to multiple buckets, so the sum of bucket
+// counts will exceed TotalN — TotalN remains row count, not emission
+// count.
+type GrouperComponents struct {
+	// Field mirrors the originating Group.Field so callers can join
+	// the components entry back to its request slot.
+	Field string `json:"field,omitempty"`
+
+	// TotalN is the number of records partitioned by the grouper
+	// (post-filter). Universal floor — emitted by every grouper.
+	// Zero-valued ints stay absent from JSON via omitempty so a
+	// grouper entry with only operator keys does not leak a noisy
+	// `total_n: 0` onto the wire.
+	TotalN int `json:"total_n,omitempty"`
+
+	// NNull is the number of records that landed in a null / skip
+	// path (null field value, empty set, missing key). Universal
+	// floor — emitted by every grouper. Zero-valued ints stay absent
+	// from JSON via omitempty.
+	NNull int `json:"n_null,omitempty"`
+
+	// Operator carries the per-grouper schema-declared keys (bucket
+	// edges, dict mappings, range_min / range_max, etc.). Key set is
+	// governed by the operator's ComponentSchema declaration in
+	// descriptor/capabilities_groupers.go (lands in E2+).
+	Operator map[string]any `json:"operator,omitempty"`
+
+	// Label mirrors the originating Group.Label so callers can join
+	// the components entry back to its request slot when multiple
+	// groupers share the same Field.
+	Label string `json:"label,omitempty"`
+}
+
+// CrosstabComponents is declared in types/crosstab.go alongside
+// MatrixPayload. The struct carries the per-cell components matrix,
+// per-axis margin counts + components, grand-total counts +
+// components, axis-key grouper components, and include / exclude
+// record sanity counters — mirroring MatrixPayload coordinate-for-
+// coordinate so consumers can index components by the same (r, c).
+
+// FiltererComponents carries per-filterer constituent-parts metadata —
+// records in (post-prior-stage), records out (post-this-filter), and
+// records dropped due to null input on the filter field. Slot identity
+// rides on Label, which mirrors the originating Filterer.Label so
+// consumers can join the components entry back to its request slot.
+type FiltererComponents struct {
+	// Label mirrors the originating Filterer.Label so callers can join
+	// the components entry back to its request slot.
+	Label string `json:"label,omitempty"`
+
+	// NIn is the number of records the filterer observed (post-prior-
+	// stage, pre-this-filter).
+	NIn int `json:"n_in"`
+
+	// NOut is the number of records the filterer admitted to the next
+	// stage (post-this-filter).
+	NOut int `json:"n_out"`
+
+	// NNullInput is the number of records the filterer dropped because
+	// the source field was null.
+	NNullInput int `json:"n_null_input"`
+}
+
+// RunComponents carries run-wide constituent-parts metadata — cohort
+// totals, filtered counts, null counts, shard count, partial-cohort
+// reason. Distinct from Response.Metadata which holds orchestrator-
+// pass facts (cohort filename, etc.); RunComponents is the
+// computational-component view of the same run.
+//
+// Metadata-vs-Run coexistence (E2-S11; promote to CLAUDE.md in E5-S2):
+// Response.Metadata.TotalRows and Components.Run.TotalRecords carry the
+// same value by construction at every orchestrator exit. Metadata
+// retains the non-numerical run facts (cohort filename); Run carries
+// the typed counters consumers compute against (joins, ratios,
+// partial-cohort diagnostics). Both slots are populated on every
+// successful Process call so consumers can rely on either side; future
+// stories may deprecate Metadata once consumers migrate to Run, but
+// not in this PR.
+type RunComponents struct {
+	// TotalRecords is the total number of records in the underlying
+	// cohort (pre-filter).
+	TotalRecords int64 `json:"total_records"`
+
+	// FilteredRecords is the number of records that survived the
+	// filter chain.
+	FilteredRecords int64 `json:"filtered_records"`
+
+	// NullRecords is the number of records dropped due to null input
+	// somewhere in the pipeline.
+	NullRecords int64 `json:"null_records"`
+
+	// ShardCount is the number of shards processed when the cohort
+	// resolved to a shard archive. Zero for single-file cohorts.
+	ShardCount int `json:"shard_count,omitempty"`
+
+	// PartialCohortReason carries a free-form diagnostic explaining
+	// why the run consumed less than the full cohort (e.g. a shard
+	// failed to open). Empty when the run consumed the full cohort.
+	PartialCohortReason string `json:"partial_cohort_reason,omitempty"`
 }
 
 // FileRequest identifies a file for operations like inspect.

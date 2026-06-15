@@ -402,18 +402,30 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		iter.Reset()
 	}
 
-	// Build filter functions once.
+	// Build filter functions once. The per-slot universal-floor
+	// counter triple {n_in, n_out, n_null_input} lives in
+	// filterCounters and rides alongside filterFns through the
+	// per-record applyFilterPass walk (E2-S9). Empty filter chains
+	// keep the counter slice nil so the no-filter fast path stays
+	// allocation-free.
 	filterFns, err := p.buildFilterFuncs(req.Filterers)
 	if err != nil {
 		return nil, err
 	}
+	filterCounters := newFilterPassCounters(req.Filterers)
 
 	// Build aggregator instances and their online interfaces. Each
 	// factory call produces a fresh, zero-state instance; safe to use
-	// directly as a streaming accumulator.
+	// directly as a streaming accumulator. Per-slot n / nNull counters
+	// feed the universal floor on Response.Components.Aggregations
+	// (E1-S5) — n counts non-null contributors, nNull counts null
+	// inputs; the orchestrator increments them per record alongside
+	// each aggregator's UpdateRow.
 	type onlineEntry struct {
 		agg    *types.Aggregation
 		online OnlineAggregator
+		n      int
+		nNull  int
 	}
 	entries := make([]onlineEntry, len(req.Aggregations))
 	for i, agg := range req.Aggregations {
@@ -477,16 +489,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			}
 		}
 
-		pass := true
-		for _, fn := range filterFns {
-			ok, err := fn(r)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				pass = false
-				break
-			}
+		pass, err := applyFilterPass(r, req.Filterers, filterFns, filterCounters)
+		if err != nil {
+			return nil, err
 		}
 		if !pass {
 			continue
@@ -504,7 +509,13 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			r.Set(ra.label, val)
 		}
 
-		for _, e := range entries {
+		for i := range entries {
+			e := &entries[i]
+			if _, ok := r.NumericValue(e.agg.Field); ok {
+				e.n++
+			} else {
+				e.nNull++
+			}
 			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
 				return nil, err
 			}
@@ -524,7 +535,15 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	}
 
 	row := make(map[string]any, len(entries))
-	for _, e := range entries {
+	type finalizedEntry struct {
+		online OnlineAggregator
+		agg    *types.Aggregation
+		n      int
+		nNull  int
+	}
+	finalized := make([]finalizedEntry, 0, len(entries))
+	for i := range entries {
+		e := &entries[i]
 		val, err := e.online.Finalize()
 		if err != nil {
 			return nil, err
@@ -537,6 +556,12 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		if err != nil {
 			return nil, err
 		}
+		finalized = append(finalized, finalizedEntry{
+			online: e.online,
+			agg:    e.agg,
+			n:      e.n,
+			nNull:  e.nNull,
+		})
 	}
 
 	var data []map[string]any
@@ -569,7 +594,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	}
 
 	_ = ctx
-	return &types.Response{
+	resp := &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
@@ -578,7 +603,43 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		Tests:       testResults,
 		PostTests:   postResults,
 		Regressions: regressionResults,
-	}, nil
+	}
+
+	// E1-S5: emit AggregationComponents per slot. Universal floor (n,
+	// nNull) is the orchestrator-tracked per-record bookkeeping; the
+	// operator-specific map rides off the MetaAggregator sibling when
+	// the aggregator implements it. Aggregators without MetaAggregator
+	// fall through to a floor-only entry (Operator left nil), which
+	// marshals as omitempty so the wire form stays byte-identical
+	// against the pre-MetaAggregator baseline.
+	for _, fe := range finalized {
+		entry, err := buildAggregationComponents(fe.online, fe.agg, fe.n, fe.nNull)
+		if err != nil {
+			return nil, err
+		}
+		attachAggregationComponents(resp, entry)
+	}
+
+	// E2-S9: emit FiltererComponents per slot from the per-record
+	// counter walk. Empty filter chains stay nil so the omitempty
+	// wire shape is byte-identical against the pre-E2-S9 baseline.
+	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
+	// E2-S11: emit RunComponents — typed cohort-level counters.
+	// NullRecords pulls from the FIRST aggregator's per-record nNull
+	// counter (the primary-field convention locked in
+	// run_components.go); single-pass streaming has no shard concept,
+	// so ShardCount stays 0 and PartialCohortReason stays empty.
+	var nullRecords int64
+	if len(finalized) > 0 {
+		nullRecords = int64(finalized[0].nNull)
+	}
+	attachRunComponents(resp, RunCountersInput{
+		TotalRecords:    totalRows,
+		FilteredRecords: filteredRows,
+		NullRecords:     nullRecords,
+	})
+	return resp, nil
 }
 
 // processStreamingGrouped runs the streaming execution path for
@@ -655,6 +716,10 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	if err != nil {
 		return nil, err
 	}
+	// E2-S9: per-slot filter-pass counters ride alongside filterFns
+	// through the streaming grouped path; same applyFilterPass walk
+	// the ungrouped streaming path uses.
+	filterCounters := newFilterPassCounters(req.Filterers)
 	rowLocalAttrs, err := p.buildRowLocalAttributes(req.Attributes)
 	if err != nil {
 		return nil, err
@@ -667,6 +732,22 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		online []OnlineAggregator
 	}
 	buckets := make(map[string]*bucket)
+
+	// E2-S11: track null count on the primary aggregation field for
+	// RunComponents.NullRecords. Resolution mirrors the package-level
+	// "primary field" convention: first aggregator's Field, else the
+	// grouper's Field. Counter increments on every post-filter row
+	// where the primary field is null (the streaming-grouped path has
+	// no per-aggregator nNull counter — buckets allocate lazily on
+	// non-null key matches — so the orchestrator tracks it inline).
+	primaryField := ""
+	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
+		primaryField = req.Aggregations[0].Field
+	}
+	if primaryField == "" {
+		primaryField = grp.Field
+	}
+	var primaryNullRecords int64
 
 	var totalRows, filteredRows int64
 	for iter.Next() {
@@ -687,21 +768,18 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			}
 		}
 
-		pass := true
-		for _, fn := range filterFns {
-			ok, err := fn(r)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				pass = false
-				break
-			}
+		pass, err := applyFilterPass(r, req.Filterers, filterFns, filterCounters)
+		if err != nil {
+			return nil, err
 		}
 		if !pass {
 			continue
 		}
 		filteredRows++
+
+		if primaryField != "" && r.IsNull(primaryField) {
+			primaryNullRecords++
+		}
 
 		for _, ra := range rowLocalAttrs {
 			val, err := ra.computer.Row(r, ra.attr.Field)
@@ -809,6 +887,36 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		PostTests: postResults,
 	}
 
+	// E2-S4: streaming grouped path emits one GrouperComponents entry
+	// per Group slot (single-grouper today). Bucket counts ride off
+	// the grouper's live state (populated by KeyForRow per filter-
+	// passing row); TotalN sums the bucket counts; NNull falls out of
+	// filteredRows minus TotalN — every post-filter record that did
+	// NOT land in a bucket (null field value, include-filter rejection,
+	// empty set mask, etc.). The grouper instance is the same object
+	// KeyForRow drove against, so MetaGrouper.Components() reads off
+	// the same map.
+	streamEntry, gerr := buildStreamingGrouperComponents(grouperInstance, grp, int(filteredRows))
+	if gerr != nil {
+		return nil, gerr
+	}
+	attachGrouperComponents(resp, streamEntry)
+
+	// E2-S9: emit FiltererComponents per slot. Empty filter chains
+	// stay nil so the omitempty wire shape is byte-identical against
+	// the pre-E2-S9 baseline.
+	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
+	// E2-S11: emit RunComponents — typed cohort-level counters. The
+	// streaming-grouped path has no shard concept (records flow off a
+	// single iterator regardless of the underlying cohort topology), so
+	// ShardCount stays 0 and PartialCohortReason stays empty.
+	attachRunComponents(resp, RunCountersInput{
+		TotalRecords:    totalRows,
+		FilteredRecords: filteredRows,
+		NullRecords:     primaryNullRecords,
+	})
+
 	// SERIES-host overlay hook (E3-S6). Streaming grouped exit calls
 	// into the same post-finalize wiring as the buffered processRecords
 	// path. Streamable overlay kinds (E3-S2/S3/S4 — INDEX_VS_TOTAL /
@@ -886,6 +994,13 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	if err != nil {
 		return nil, err
 	}
+	// E2-S9: per-slot filter-pass counters track {n_in, n_out,
+	// n_null_input}. The two-pass path walks every filter-passing
+	// record twice (PrePass + Row); counters increment ONLY on pass 1
+	// so the values match the single-pass observed record set —
+	// per-slot n_in / n_out / n_null_input count distinct input rows,
+	// not pass-1+pass-2 doubled visits.
+	filterCounters := newFilterPassCounters(req.Filterers)
 	twoPassAttrs, rowLocalAttrs, err := p.buildTwoPassAttributes(req.Attributes)
 	if err != nil {
 		return nil, err
@@ -893,10 +1008,14 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 
 	// Build aggregator instances once; they are reset implicitly by
 	// being constructed fresh per Process call. Each one will fold
-	// pass 2's filter-passing records into its running state.
+	// pass 2's filter-passing records into its running state. Per-slot
+	// n / nNull mirror the universal-floor counters used by the single-
+	// pass streaming path (see processStreaming above).
 	type onlineEntry struct {
 		agg    *types.Aggregation
 		online OnlineAggregator
+		n      int
+		nNull  int
 	}
 	entries := make([]onlineEntry, len(req.Aggregations))
 	for i, agg := range req.Aggregations {
@@ -916,21 +1035,16 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	// Pass 1: fold every filter-passing record into each two-pass
 	// attribute's PrePass. Filters apply here so attribute population
 	// stats match the buffered Compute path (which receives the already-
-	// filtered slice).
+	// filtered slice). Per-slot {n_in, n_out, n_null_input} counters
+	// increment only here so totals match the single-pass observed
+	// record set.
 	var totalRows, filteredRows int64
 	for iter.Next() {
 		totalRows++
 		r := iter.Record()
-		pass := true
-		for _, fn := range filterFns {
-			ok, err := fn(r)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				pass = false
-				break
-			}
+		pass, err := applyFilterPass(r, req.Filterers, filterFns, filterCounters)
+		if err != nil {
+			return nil, err
 		}
 		if !pass {
 			continue
@@ -952,6 +1066,9 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	// Pass 2: re-scan, apply filters again, emit attribute values onto
 	// each filter-passing record (two-pass first so any row-local
 	// attribute referencing a two-pass label sees it), fold each agg.
+	// Counters were closed in pass 1; the per-record filter walk here
+	// re-runs each FilterFunc to gate the per-record work but skips
+	// the counter increment so values stay aligned with pass 1.
 	for iter.Next() {
 		r := iter.Record()
 		pass := true
@@ -982,7 +1099,13 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			}
 			r.Set(ra.label, val)
 		}
-		for _, e := range entries {
+		for i := range entries {
+			e := &entries[i]
+			if _, ok := r.NumericValue(e.agg.Field); ok {
+				e.n++
+			} else {
+				e.nNull++
+			}
 			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
 				return nil, err
 			}
@@ -990,7 +1113,8 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	}
 
 	row := make(map[string]any, len(entries))
-	for _, e := range entries {
+	for i := range entries {
+		e := &entries[i]
 		val, err := e.online.Finalize()
 		if err != nil {
 			return nil, err
@@ -1016,14 +1140,48 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	}
 
 	_ = ctx
-	return &types.Response{
+	resp := &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,
 		},
 		PostTests: postResults,
-	}, nil
+	}
+
+	// E1-S5: emit AggregationComponents per slot for the two-pass
+	// streaming path. Mirrors the single-pass streaming exit (see
+	// processStreaming above).
+	for i := range entries {
+		e := &entries[i]
+		entry, err := buildAggregationComponents(e.online, e.agg, e.n, e.nNull)
+		if err != nil {
+			return nil, err
+		}
+		attachAggregationComponents(resp, entry)
+	}
+
+	// E2-S9: emit FiltererComponents per slot. Counters were
+	// populated during pass 1 (pass 2 re-runs the filter funcs for
+	// gating but skips the counter increment so totals match the
+	// observed record set, not pass-1+pass-2 visits).
+	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
+	// E2-S11: emit RunComponents — typed cohort-level counters.
+	// NullRecords pulls from the FIRST aggregator's per-record nNull
+	// counter (mirrors processStreaming above); two-pass streaming has
+	// no shard concept so ShardCount stays 0 and PartialCohortReason
+	// stays empty.
+	var nullRecords int64
+	if len(entries) > 0 {
+		nullRecords = int64(entries[0].nNull)
+	}
+	attachRunComponents(resp, RunCountersInput{
+		TotalRecords:    totalRows,
+		FilteredRecords: filteredRows,
+		NullRecords:     nullRecords,
+	})
+	return resp, nil
 }
 
 // rowLocalAttrEntry pairs an attribute spec with its constructed
@@ -1123,8 +1281,12 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		return nil, err
 	}
 
-	// Step 1: Apply filters
-	filtered, err := p.applyFilters(req.Filterers, records)
+	// Step 1: Apply filters. The counter slice carries the per-slot
+	// {n_in, n_out, n_null_input} universal floor used by
+	// Response.Components.Filterers (E2-S9). Empty filter chains
+	// short-circuit to a nil counters slice so the omitempty wire
+	// shape stays byte-identical against the pre-E2-S9 baseline.
+	filtered, filterCounters, err := p.applyFiltersWithCounters(req.Filterers, records)
 	if err != nil {
 		return nil, err
 	}
@@ -1136,14 +1298,17 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 
 	// Step 3: Group if needed, then aggregate
 	var data []map[string]any
+	var aggComponents []types.AggregationComponents
+	var grpComponents []types.GrouperComponents
 
 	if len(req.Groups) > 0 {
-		data, err = p.processGrouped(req, filtered)
+		data, grpComponents, err = p.processGrouped(req, filtered)
 		if err != nil {
 			return nil, err
 		}
 	} else if len(req.Aggregations) > 0 {
-		row, err := p.aggregate(req.Aggregations, filtered)
+		var row map[string]any
+		row, aggComponents, err = p.aggregateWithComponents(req.Aggregations, filtered, true)
 		if err != nil {
 			return nil, err
 		}
@@ -1211,6 +1376,59 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		Regressions: regressionResults,
 	}
 
+	// E1-S5: attach per-slot AggregationComponents emitted by
+	// aggregateWithComponents. The grouped buffered path leaves
+	// aggComponents nil (per-group components emission is reserved
+	// for a later story); the ungrouped buffered exit and the two
+	// streaming exits all flow through the same attach helper so the
+	// shape of Response.Components.Aggregations stays uniform.
+	for _, entry := range aggComponents {
+		attachAggregationComponents(resp, entry)
+	}
+
+	// E2-S4: attach per-slot GrouperComponents emitted by
+	// processGrouped. The ungrouped path leaves grpComponents nil so
+	// nothing is appended; the grouped exit always appends exactly
+	// one entry per Request.Groups slot (the single-grouper limit
+	// matches processGrouped today).
+	for _, entry := range grpComponents {
+		attachGrouperComponents(resp, entry)
+	}
+
+	// E2-S9: attach per-slot FiltererComponents. The buffered
+	// applyFiltersWithCounters returned one counter triple per
+	// declared filterer slot; build + attach mirrors the streaming
+	// exits in processStreaming / processStreamingGrouped /
+	// processStreamingTwoPass. Empty filter chains leave
+	// filterCounters nil so the omitempty wire shape stays byte-
+	// identical against the pre-E2-S9 baseline.
+	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
+	// E2-S11: emit RunComponents — typed cohort-level counters.
+	// NullRecords resolution: prefer the FIRST aggregator's nNull from
+	// aggComponents (already computed by aggregateWithComponents's
+	// per-field floor cache); fall back to the FIRST grouper's NNull
+	// when no aggregators were declared; fall back to a buffered scan
+	// of the post-filter record slice when neither carries a primary
+	// field. The buffered processRecords path has no shard concept
+	// (the iterator already merged shard archives into a flat record
+	// slice at this point) so ShardCount stays 0 and
+	// PartialCohortReason stays empty.
+	var nullRecords int64
+	switch {
+	case len(aggComponents) > 0:
+		nullRecords = int64(aggComponents[0].NNull)
+	case len(grpComponents) > 0:
+		nullRecords = int64(grpComponents[0].NNull)
+	default:
+		nullRecords = countNullsBuffered(filtered, primaryNullFieldName(req))
+	}
+	attachRunComponents(resp, RunCountersInput{
+		TotalRecords:    totalRows,
+		FilteredRecords: int64(len(filtered)),
+		NullRecords:     nullRecords,
+	})
+
 	// SERIES-host overlay hook (E3-S6). Wraps the finalized per-group
 	// Response.Data as a SeriesHostView and dispatches each
 	// req.Overlays spec through the SERIES handler registry
@@ -1263,34 +1481,44 @@ func recordsToRows(records []*Record) []map[string]any {
 }
 
 func (p *Processor) applyFilters(filterers []*types.Filterer, records []*Record) ([]*Record, error) {
+	filtered, _, err := p.applyFiltersWithCounters(filterers, records)
+	return filtered, err
+}
+
+// applyFiltersWithCounters is the buffered-path companion to
+// applyFilterPass: it runs the per-record filter walk over a
+// materialised []*Record slice while tracking the per-slot
+// {n_in, n_out, n_null_input} universal-floor counters used by
+// Response.Components.Filterers (E2-S9). Returns the filter-passing
+// record subset plus one counter triple per filterer slot in
+// declared order. An empty filter chain returns the input slice
+// unchanged and nil counters so the no-filter fast path remains
+// allocation-free.
+func (p *Processor) applyFiltersWithCounters(filterers []*types.Filterer, records []*Record) ([]*Record, []filterPassCounters, error) {
 	if len(filterers) == 0 {
-		return records, nil
+		return records, nil, nil
 	}
 
 	filterFns, err := p.buildFilterFuncs(filterers)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	counters := newFilterPassCounters(filterers)
 
-	// Apply all filters (AND logic)
+	// Apply all filters (AND logic) via the shared applyFilterPass
+	// helper so the per-record counter semantics match the streaming
+	// paths byte-for-byte.
 	var result []*Record
 	for _, r := range records {
-		pass := true
-		for _, fn := range filterFns {
-			ok, err := fn(r)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				pass = false
-				break
-			}
+		pass, err := applyFilterPass(r, filterers, filterFns, counters)
+		if err != nil {
+			return nil, nil, err
 		}
 		if pass {
 			result = append(result, r)
 		}
 	}
-	return result, nil
+	return result, counters, nil
 }
 
 // applyFeatures runs pre-filter feature operators over the unfiltered
@@ -1344,22 +1572,22 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 	return nil
 }
 
-func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map[string]any, error) {
+func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map[string]any, []types.GrouperComponents, error) {
 	// Use the first group for now (single-level grouping)
 	grp := req.Groups[0]
 	factory, ok := p.exts.LookupGrouper(grp.Type)
 	if !ok {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
 	}
 	grouper, err := factory(grp, p.schema)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	groups, err := grouper.Group(records, grp.Field)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Stable-emit by sorted group key so row order is deterministic
@@ -1375,7 +1603,7 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 		groupRecords := groups[key]
 		row, err := p.aggregate(req.Aggregations, groupRecords)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if row == nil {
 			// +1 reserved for the group key written below.
@@ -1384,12 +1612,40 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 		row[grp.Field] = key
 		data = append(data, row)
 	}
-	return data, nil
+
+	// E2-S4: emit GrouperComponents for the single grouper slot.
+	// Universal floor (TotalN = sum of bucket counts, NNull =
+	// post-filter records minus TotalN — the records the grouper
+	// skipped due to null inputs or include-filter rejection) is
+	// derived directly from the bucket map; the operator-specific
+	// keys ride off MetaGrouper.Components() when the grouper
+	// implements it.
+	entry, gerr := buildGrouperComponents(grouper, grp, groups, len(records))
+	if gerr != nil {
+		return nil, nil, gerr
+	}
+	return data, []types.GrouperComponents{entry}, nil
 }
 
 func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map[string]any, error) {
+	row, _, err := p.aggregateWithComponents(aggs, records, false)
+	return row, err
+}
+
+// aggregateWithComponents runs the buffered aggregation pass and
+// optionally captures per-slot AggregationComponents entries. The
+// universal floor (n, nNull) is derived from the same record walk
+// that drives the value path so the orchestrator never re-scans the
+// record set just to populate the floor. Decimal-typed slots emit
+// floor-only entries today (the decimal aggregation path lives
+// outside the MetaAggregator dispatch).
+//
+// Pass collectComponents=true on the ungrouped buffered exit; the
+// grouped buffered exit (processGrouped) leaves it false because
+// per-group components emission is reserved for a later story.
+func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records []*Record, collectComponents bool) (map[string]any, []types.AggregationComponents, error) {
 	if len(aggs) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// Cache collected non-null float64 slices per field for the duration of
@@ -1398,9 +1654,38 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 	cache := newCollectCache()
 	defer cache.release()
 
+	// Per-field {n, nNull} cache so multiple aggregator slots that
+	// share a field do not re-scan the record set. n counts non-null
+	// inputs, nNull counts null inputs — together they tile the
+	// post-filter record count.
+	type floor struct {
+		n     int
+		nNull int
+	}
+	floorCache := make(map[string]floor)
+	floorFor := func(field string) floor {
+		if f, ok := floorCache[field]; ok {
+			return f
+		}
+		var f floor
+		for _, r := range records {
+			if _, ok := r.NumericValue(field); ok {
+				f.n++
+			} else {
+				f.nNull++
+			}
+		}
+		floorCache[field] = f
+		return f
+	}
+
 	// Pre-size: one entry per aggregation. Grouped path adds +1 for the group
 	// key after this returns; map will grow once but only in that branch.
 	row := make(map[string]any, len(aggs))
+	var components []types.AggregationComponents
+	if collectComponents {
+		components = make([]types.AggregationComponents, 0, len(aggs))
+	}
 	for _, agg := range aggs {
 		label := agg.Label
 		if label == "" {
@@ -1410,26 +1695,34 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 		if p.schema != nil {
 			if f := p.schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
 				if !IsDecimalAggregationSupported(agg.Type) {
-					return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+					return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 						"aggregation has no decimal128 implementation",
 						map[string]any{"aggregation": string(agg.Type), "field": agg.Field})
 				}
 				out, err := AggregateDecimalField(agg.Type, records, agg.Field, f.Scale)
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 				row[label] = out
+				if collectComponents {
+					fl := floorFor(agg.Field)
+					components = append(components, types.AggregationComponents{
+						Label: agg.Label,
+						N:     fl.n,
+						NNull: fl.nNull,
+					})
+				}
 				continue
 			}
 		}
 		factory, ok := p.exts.LookupAggregator(agg.Type)
 		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown aggregation type: %s", agg.Type))
 		}
 		aggregator, err := factory(agg, p.schema)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		var val float64
 		if va, ok := aggregator.(valueAggregator); ok {
@@ -1439,14 +1732,22 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 			val, err = aggregator.Aggregate(records, agg.Field)
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		row[label], err = dispatchAggregatorResult(aggregator, val)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		if collectComponents {
+			fl := floorFor(agg.Field)
+			entry, err := buildAggregationComponents(aggregator, agg, fl.n, fl.nNull)
+			if err != nil {
+				return nil, nil, err
+			}
+			components = append(components, entry)
 		}
 	}
-	return row, nil
+	return row, components, nil
 }
 
 // dispatchAggregatorResult routes the aggregator's output into the
@@ -1472,4 +1773,188 @@ func dispatchAggregatorResult(agg any, scalar float64) (any, error) {
 		}
 	}
 	return scalar, nil
+}
+
+// dispatchAggregatorCellResult is the MatrixCell.Value-bound sibling of
+// dispatchAggregatorResult. It preserves the Rich-or-scalar lift for
+// every aggregator EXCEPT AGG_WELFORD: WelfordTriple is now an internal
+// statistical-moment carrier owned by Components.Crosstab.CellComponents
+// (E3-S7 migration), and no longer rides MatrixCell.Value. For
+// AGG_WELFORD specifically the cell builder writes the scalar mean
+// (matching welfordAggregator.Aggregate / Finalize) so the cell payload
+// stays a plain float64 — overlay handlers source `(mean, variance, n)`
+// from CellComponents under the post-S7 contract.
+//
+// All other RichAggregator payloads (map[string]int from
+// AGG_SET_FREQUENCY, []string from AGG_SET_UNION / AGG_SET_INTERSECTION,
+// future families) continue to ride MatrixCell.Value untouched — this
+// carve-out is type-name-specific to the WelfordTriple shape and stays
+// orthogonal to other rich families.
+//
+// E3-S8: removes the WelfordTriple smuggling that previously flowed
+// through MatrixCell.Value. The WelfordTriple type itself is retained
+// (it's still emitted by RichAggregator for non-crosstab Response.Data
+// rows via dispatchAggregatorResult); only its MatrixCell.Value payload
+// role is gone.
+func dispatchAggregatorCellResult(agg any, scalar float64) (any, error) {
+	if rich, ok := agg.(RichAggregator); ok {
+		v, err := rich.Rich()
+		if err != nil {
+			return nil, err
+		}
+		if v != nil {
+			if _, isWelford := v.(WelfordTriple); isWelford {
+				return scalar, nil
+			}
+			return v, nil
+		}
+	}
+	return scalar, nil
+}
+
+// buildAggregationComponents builds a types.AggregationComponents from
+// the post-finalize aggregator instance, the orchestrator-tracked
+// universal floor (n, nNull), and the originating Aggregation slot.
+// The returned entry always carries the floor; the operator-specific
+// map is populated only when the aggregator implements MetaAggregator
+// and returns a non-nil map. Extension aggregators that have not yet
+// adopted the MetaAggregator sibling fall through cleanly to a
+// floor-only entry (Operator == nil → marshals as omitempty).
+//
+// Accepts `any` so the same dispatch wraps both Aggregator (buffered
+// path) and OnlineAggregator (streaming path) instances — the concrete
+// type satisfies both interfaces when it implements MetaAggregator.
+func buildAggregationComponents(agg any, slot *types.Aggregation, n, nNull int) (types.AggregationComponents, error) {
+	entry := types.AggregationComponents{
+		N:     n,
+		NNull: nNull,
+	}
+	if slot != nil {
+		entry.Label = slot.Label
+	}
+	if meta, ok := agg.(MetaAggregator); ok {
+		op, err := meta.Components()
+		if err != nil {
+			return types.AggregationComponents{}, err
+		}
+		entry.Operator = op
+	}
+	return entry, nil
+}
+
+// attachAggregationComponents appends a freshly-built
+// AggregationComponents entry onto resp.Components.Aggregations,
+// allocating the parent ResponseComponents and the slice as needed.
+// The helper centralises the "lazy allocate then append" pattern so
+// every execution path (buffered, streaming, two-pass) populates the
+// components shell identically — an additive omitempty payload that
+// marshals to a no-op when the slice ends up empty.
+func attachAggregationComponents(resp *types.Response, entry types.AggregationComponents) {
+	if resp.Components == nil {
+		resp.Components = &types.ResponseComponents{}
+	}
+	resp.Components.Aggregations = append(resp.Components.Aggregations, entry)
+}
+
+// buildGrouperComponents builds a types.GrouperComponents from the
+// buffered processGrouped path: the post-Group grouper instance, the
+// originating Group slot, the partition output (key → []*Record map),
+// and the post-filter record count. The universal floor — TotalN
+// (records partitioned, equal to the sum of bucket sizes) and NNull
+// (records the grouper skipped: null inputs, include-filter rejections,
+// empty set masks, etc.) — is derived directly from the partition map
+// and totalFiltered without re-scanning records. The operator-specific
+// keys ride off MetaGrouper.Components() when the grouper implements
+// it; groupers without MetaGrouper fall through to a floor-only entry
+// (Operator == nil → marshals as omitempty).
+//
+// Single-key groupers contribute one row to exactly one bucket so
+// TotalN ≤ totalFiltered; the difference equals NNull. Multi-key
+// streaming groupers (GROUP_SET_PER_ELEMENT) contribute one row to
+// every selected label, so TotalN here would over-count; the buffered
+// path does not currently invoke multi-key groupers (KeysForRow lives
+// on the streaming path), so the simple subtraction stays correct for
+// the single-key buffered grouped exit.
+func buildGrouperComponents(grouper Grouper, slot *types.Group, groups map[string][]*Record, totalFiltered int) (types.GrouperComponents, error) {
+	totalN := 0
+	for _, bucket := range groups {
+		totalN += len(bucket)
+	}
+	nNull := totalFiltered - totalN
+	if nNull < 0 {
+		nNull = 0
+	}
+	entry := types.GrouperComponents{
+		Field:  slot.Field,
+		TotalN: totalN,
+		NNull:  nNull,
+	}
+	if meta, ok := grouper.(MetaGrouper); ok {
+		op, err := meta.Components()
+		if err != nil {
+			return types.GrouperComponents{}, err
+		}
+		entry.Operator = op
+	}
+	return entry, nil
+}
+
+// buildStreamingGrouperComponents builds a types.GrouperComponents
+// from the streaming grouped path: the grouper instance KeyForRow
+// drove, the originating Group slot, and the post-filter row count
+// observed by the streaming iterator. Mirrors buildGrouperComponents
+// except TotalN is derived from MetaGrouper.Components()'s buckets
+// payload (the orchestrator never built the buffered partition map
+// on this path). When the grouper does not implement MetaGrouper,
+// TotalN collapses to totalFiltered as a conservative floor — the
+// orchestrator has no other signal for partitioned vs skipped rows.
+func buildStreamingGrouperComponents(grouper any, slot *types.Group, totalFiltered int) (types.GrouperComponents, error) {
+	entry := types.GrouperComponents{
+		Field: slot.Field,
+	}
+	meta, ok := grouper.(MetaGrouper)
+	if !ok {
+		entry.TotalN = totalFiltered
+		return entry, nil
+	}
+	op, err := meta.Components()
+	if err != nil {
+		return types.GrouperComponents{}, err
+	}
+	entry.Operator = op
+	// Sum per-bucket counts to derive TotalN. The buckets payload is
+	// a []map[string]any with int "count" entries by GROUP_CATEGORY /
+	// GROUP_DATE convention. Other groupers that wire MetaGrouper in
+	// later stories MUST follow the same {"count": int} convention;
+	// the type assertion guards drift.
+	totalN := 0
+	if buckets, ok := op["buckets"].([]map[string]any); ok {
+		for _, b := range buckets {
+			if c, ok := b["count"].(int); ok {
+				totalN += c
+			}
+		}
+	}
+	entry.TotalN = totalN
+	nNull := totalFiltered - totalN
+	if nNull < 0 {
+		nNull = 0
+	}
+	entry.NNull = nNull
+	return entry, nil
+}
+
+// attachGrouperComponents appends a freshly-built GrouperComponents
+// entry onto resp.Components.Groupers, allocating the parent
+// ResponseComponents and the slice as needed. Mirrors
+// attachAggregationComponents — the lazy-allocate-then-append
+// pattern keeps the components shell uniform across every grouped
+// execution path (buffered processGrouped, streaming
+// processStreamingGrouped) so an additive omitempty payload marshals
+// to a no-op when the slice ends up empty.
+func attachGrouperComponents(resp *types.Response, entry types.GrouperComponents) {
+	if resp.Components == nil {
+		resp.Components = &types.ResponseComponents{}
+	}
+	resp.Components.Groupers = append(resp.Components.Groupers, entry)
 }

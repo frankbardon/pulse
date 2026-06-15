@@ -213,6 +213,19 @@ type GrouperFactory func(grp *types.Group, schema *encoding.Schema) (Grouper, er
 // (percentile/median/zscore — they require a sorted view) MUST NOT
 // implement this interface; the parallel orchestrator falls through
 // to the serial shard iterator for such requests.
+//
+// Components contract under merge. MergeOnline composes per-chunk
+// state with another mergeable aggregator's state. After MergeOnline
+// returns, the receiver's scalar (Aggregate/Finalize) output AND any
+// MetaAggregator.Components() output reflect the merged state —
+// there is no separate MergeComponents call. Implementations MUST
+// keep internal component-state mirrors consistent with the value-
+// state under MergeOnline. The orchestrator path is
+// MergeOnline...; Finalize(); Components() — so per-aggregator
+// freeze() helpers stamped from Finalize automatically cover the
+// merged emission. Operators with ComponentsMergeability=Partial may
+// stage merge at terminal flush rather than per-chunk; consult
+// types.ComponentsMergeability.
 type MergeableAggregator interface {
 	OnlineAggregator
 	MergeOnline(other OnlineAggregator) error
@@ -236,4 +249,181 @@ type MergeableAggregator interface {
 type RichAggregator interface {
 	Aggregator
 	Rich() (any, error)
+}
+
+// MetaAggregator is the optional sibling of Aggregator for aggregators
+// that emit a per-operator "components" map alongside their scalar (or
+// rich) value. The map carries the named constituent-parts metadata
+// declared in the aggregator's descriptor.ComponentSchema — Welford
+// triples (mean, variance, sum_squares, m2), frequency tables,
+// percentile sort sizes, distinct-mask popcounts, and so on.
+//
+// Components is called exactly once after Aggregate or Finalize. The
+// orchestrator routes the result into Response.Components.Aggregations
+// (or the Crosstab cell-components matrix when the aggregator runs
+// inside a crosstab cell). Implementations MUST be safe to call
+// Components once per result; calling it multiple times or before the
+// terminating Aggregate / Finalize is a programming error and may
+// return stale state.
+//
+// Universal floor contract: the orchestrator ALWAYS populates the
+// universal floor keys ({"n", "n_null"}) on Response.Components from
+// per-record bookkeeping. Components() returns ONLY the operator-
+// specific keys (mean, variance, mode, range_min, dict_size, …) — do
+// NOT re-emit n / n_null from the operator. Returning (nil, nil) is
+// the canonical signal for "no operator-specific keys; caller still
+// fills the universal floor unconditionally" (e.g. AGG_COUNT, where
+// the universal floor IS the entire component payload).
+//
+// Streaming semantics follow the descriptor.ComponentsMergeability
+// declared at registration time:
+//
+//   - Mergeable: components fold across chunks via the same
+//     MergeOnline path as the scalar value (Welford, sums, counts).
+//   - Partial: map / set merges that work but cost allocation
+//     (frequency tables, distinct masks); orchestrator may stage the
+//     merge at terminal flush.
+//   - None: components emitted only on terminal buffered flush
+//     (median / percentile — need a sorted view of the full input);
+//     streaming chunks omit them and predict declares the slot as
+//     buffered-components-only.
+//
+// Subsequent stories add the per-aggregator implementations under
+// compile-time assertions of the form:
+//
+//	var _ processing.MetaAggregator = (*welfordAgg)(nil)
+//
+// which keep the wiring grep-discoverable and catch interface drift
+// at build time. No runtime wiring is added by the interface itself —
+// the descriptor.ComponentSchema declared in capabilities_*.go is the
+// matching half consumed by predict / manifest.
+type MetaAggregator interface {
+	Aggregator
+	// Components returns the per-operator components map keyed by the
+	// snake_case names declared in the aggregator's
+	// descriptor.ComponentSchema. Returning (nil, nil) means "no
+	// operator-specific keys; caller fills the universal floor
+	// unconditionally". A non-nil error aborts the request with the
+	// same error-routing contract as Aggregate / Finalize.
+	Components() (map[string]any, error)
+}
+
+// MetaGrouper is the optional sibling of Grouper / StreamingGrouper /
+// StreamableGrouper / MultiKeyStreamingGrouper for groupers that emit
+// a per-operator "components" map alongside their partitioning output.
+// The map carries the named constituent-parts metadata declared in the
+// grouper's descriptor.ComponentSchema — bucket arrays, edge values,
+// dictionary mappings, range_min / range_max, granularity, etc.
+//
+// Components is called exactly once after the grouper's terminal pass:
+//
+//   - For buffered groupers (Grouper.Group), after Group returns.
+//   - For streaming groupers (StreamingGrouper / StreamableGrouper),
+//     after the per-record KeyForRow / KeyFor sequence terminates and
+//     the iterator is exhausted.
+//   - For multi-key streaming groupers (MultiKeyStreamingGrouper, e.g.
+//     GROUP_SET_PER_ELEMENT), after the per-record KeysForRow sequence
+//     terminates. Per-bucket counts in the emitted map reflect
+//     emission count (one increment per emitted key), NOT row count —
+//     a single row may contribute to multiple buckets, and the
+//     orchestrator's TotalN reflects the row count.
+//
+// The orchestrator routes the result into
+// Response.Components.Groupers (one entry per Request.Groups slot, in
+// declared order). Implementations MUST be safe to call Components
+// once per result; calling it multiple times or before the terminating
+// pass is a programming error and may return stale state.
+//
+// Universal floor contract: the orchestrator ALWAYS populates the
+// universal floor keys (TotalN, NNull on types.GrouperComponents)
+// from the post-filter record walker. Components() returns ONLY the
+// operator-specific keys (buckets, edges, dict_size, granularity, …)
+// — do NOT re-emit total_n / n_null from the operator. Returning
+// (nil, nil) is the canonical signal for "no operator-specific keys;
+// caller still fills the universal floor unconditionally".
+//
+// Streaming merge semantics follow the descriptor.ComponentsMergeability
+// declared at registration time, mirroring the MetaAggregator contract:
+// mergeable groupers (bucket counts) fold across chunks; partial
+// groupers (dict-bearing) stage merges at terminal flush; non-mergeable
+// groupers (rare for groupers; QUANTILE-class needs the full input)
+// emit components only on terminal buffered flush.
+//
+// E2-S4..S6 will add the per-grouper implementations under compile-
+// time assertions of the form:
+//
+//	var _ processing.MetaGrouper = (*categoryGrouper)(nil)
+//	var _ processing.MetaGrouper = (*rangeGrouper)(nil)
+//	var _ processing.MetaGrouper = (*roundedGrouper)(nil)
+//	var _ processing.MetaGrouper = (*quantileGrouper)(nil)
+//	var _ processing.MetaGrouper = (*dateGrouper)(nil)
+//	...
+//
+// which keep the wiring grep-discoverable and catch interface drift at
+// build time. No runtime wiring is added by the interface itself — the
+// descriptor.ComponentSchema declared in capabilities_groupers.go is
+// the matching half consumed by predict / manifest.
+type MetaGrouper interface {
+	// Components returns the per-grouper components map keyed by the
+	// snake_case names declared in the grouper's
+	// descriptor.ComponentSchema. Returning (nil, nil) means "no
+	// operator-specific keys; caller fills the universal floor
+	// unconditionally". A non-nil error aborts the request with the
+	// same error-routing contract as Group / KeyFor / KeyForRow /
+	// KeysForRow.
+	Components() (map[string]any, error)
+}
+
+// MetaFilterer is the optional sibling of FiltererBuilder for filterers
+// that emit a per-filterer "components" map alongside their per-record
+// predicate. The map carries the named constituent-parts metadata
+// declared in the filterer's descriptor.ComponentSchema.
+//
+// In v1 (E2-S8) the components surface is uniform across every
+// registered filterer — the orchestrator emits the universal floor
+// {n_in, n_out, n_null_input} from the filter pass's record-walker
+// counters. No built-in filterer implements Components(): the
+// interface exists for extension-author parity with MetaAggregator /
+// MetaGrouper and to leave room for future per-filter specifics
+// (e.g. n_below / n_above for FILTER_RANGE; per-value n for
+// FILTER_INCLUDE / FILTER_EXCLUDE). The orchestrator's universal-
+// floor pass is always authoritative for the three floor keys; an
+// embedder-supplied Components() returns ONLY the operator-specific
+// extras.
+//
+// Components is called exactly once after the filter pass terminates
+// (the iterator is exhausted). The orchestrator routes the result
+// into Response.Components.Filterers (one entry per
+// Request.Filterers slot, in declared order). Implementations MUST
+// be safe to call Components once per result; calling it multiple
+// times or before the pass completes is a programming error and may
+// return stale state.
+//
+// Streaming merge semantics follow descriptor.ComponentsMergeability
+// declared at registration time. Filterer components in v1 are
+// Mergeable — counters fold trivially across chunks via integer
+// addition, so the streaming path emits per-chunk deltas without
+// staging. Future per-filter specifics may downgrade individual
+// entries to Partial / None; the orchestrator follows the same
+// per-operator dispatch the aggregator side uses.
+//
+// Subsequent stories (no built-in implementations in v1) may add
+// per-filterer sentinels of the form
+//
+//	var _ processing.MetaFilterer = (*rangeFilterer)(nil)
+//
+// to keep the wiring grep-discoverable and catch interface drift at
+// build time, mirroring the MetaAggregator / MetaGrouper pattern. No
+// runtime wiring is added by the interface itself — the
+// descriptor.ComponentSchema declared in capabilities_filterers.go
+// is the matching half consumed by predict / manifest.
+type MetaFilterer interface {
+	// Components returns the per-filterer components map keyed by the
+	// snake_case names declared in the filterer's
+	// descriptor.ComponentSchema. Returning (nil, nil) means "no
+	// operator-specific keys; caller fills the universal floor
+	// unconditionally" — the canonical v1 contract for every built-in
+	// filterer. A non-nil error aborts the request with the same
+	// error-routing contract as Build / FilterFunc.
+	Components() (map[string]any, error)
 }

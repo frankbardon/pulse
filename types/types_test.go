@@ -1179,3 +1179,415 @@ func TestComposedResponse_RoundTrip(t *testing.T) {
 		t.Errorf("Overlays[0].Scope = %q, want cell", got.Overlays[0].Scope)
 	}
 }
+
+// TestResponse_ComponentsByteIdentityWhenNil locks the additive
+// omitempty contract for the new Response.Components slot (E1-S1). A
+// Response with the slot left nil — the implicit form — must marshal
+// byte-identically to a Response{} authored without ever touching
+// Components, AND to a Response with the slot explicitly set to nil.
+// This is the test that gates format_version staying at "1.0": as long
+// as the slot is omitempty and the nil case yields no `components` key,
+// the wire shape for every pre-Components caller is preserved.
+func TestResponse_ComponentsByteIdentityWhenNil(t *testing.T) {
+	implicit := types.Response{}
+	explicit := types.Response{Components: nil}
+
+	implicitBytes, err := json.Marshal(implicit)
+	if err != nil {
+		t.Fatalf("marshal implicit Response{}: %v", err)
+	}
+	explicitBytes, err := json.Marshal(explicit)
+	if err != nil {
+		t.Fatalf("marshal explicit Response{Components: nil}: %v", err)
+	}
+
+	if string(implicitBytes) != string(explicitBytes) {
+		t.Fatalf("byte-identity broken: implicit=%q explicit=%q",
+			implicitBytes, explicitBytes)
+	}
+
+	// Sanity check: neither form may contain the `components` key.
+	if strings.Contains(string(implicitBytes), "components") {
+		t.Fatalf("implicit Response{} leaked components key: %q", implicitBytes)
+	}
+	if strings.Contains(string(explicitBytes), "components") {
+		t.Fatalf("explicit Response{Components: nil} leaked components key: %q", explicitBytes)
+	}
+}
+
+// TestResponse_ComponentsRoundTripJSON exercises a Response with the
+// Components slot populated across every typed sub-struct shell:
+// AggregationComponents, GrouperComponents, CrosstabComponents,
+// FiltererComponents, RunComponents. The round-trip must preserve
+// every field on every nested struct, including the deterministically
+// keyed Operator map[string]any payloads on Aggregations and Groupers
+// (the per-operator schema-declared keys land in E1-S5+ but the carrier
+// map exists today).
+func TestResponse_ComponentsRoundTripJSON(t *testing.T) {
+	src := types.Response{
+		Components: &types.ResponseComponents{
+			Aggregations: []types.AggregationComponents{
+				{
+					Label: "avg_score",
+					N:     100,
+					NNull: 3,
+					Operator: map[string]any{
+						"mean":     float64(42.5),
+						"variance": float64(7.25),
+					},
+				},
+				{
+					Label: "count_records",
+					N:     100,
+					NNull: 0,
+				},
+			},
+			Groupers: []types.GrouperComponents{
+				{
+					Field: "region",
+					Operator: map[string]any{
+						"bucket_count": float64(5),
+					},
+				},
+			},
+			Crosstab: &types.CrosstabComponents{},
+			Filterers: []types.FiltererComponents{
+				{
+					Label:      "drop_test_accounts",
+					NIn:        1000,
+					NOut:       950,
+					NNullInput: 2,
+				},
+			},
+			Run: &types.RunComponents{
+				TotalRecords:        1000,
+				FilteredRecords:     950,
+				NullRecords:         5,
+				ShardCount:          4,
+				PartialCohortReason: "shard_03 unreadable",
+			},
+		},
+	}
+
+	data, err := json.Marshal(src)
+	if err != nil {
+		t.Fatalf("marshal Response with Components: %v", err)
+	}
+
+	var got types.Response
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal Response with Components: %v", err)
+	}
+
+	if got.Components == nil {
+		t.Fatalf("Components slot missing after round-trip")
+	}
+	if len(got.Components.Aggregations) != 2 {
+		t.Fatalf("Aggregations length = %d, want 2",
+			len(got.Components.Aggregations))
+	}
+	a0 := got.Components.Aggregations[0]
+	if a0.Label != "avg_score" || a0.N != 100 || a0.NNull != 3 {
+		t.Errorf("Aggregations[0] = %+v, want label=avg_score N=100 NNull=3", a0)
+	}
+	if a0.Operator["mean"] != float64(42.5) {
+		t.Errorf("Aggregations[0].Operator[mean] = %v, want 42.5",
+			a0.Operator["mean"])
+	}
+	if a0.Operator["variance"] != float64(7.25) {
+		t.Errorf("Aggregations[0].Operator[variance] = %v, want 7.25",
+			a0.Operator["variance"])
+	}
+	a1 := got.Components.Aggregations[1]
+	if a1.Label != "count_records" || a1.N != 100 || a1.NNull != 0 {
+		t.Errorf("Aggregations[1] = %+v, want label=count_records N=100 NNull=0", a1)
+	}
+	if a1.Operator != nil {
+		t.Errorf("Aggregations[1].Operator = %v, want nil (omitempty)",
+			a1.Operator)
+	}
+
+	if len(got.Components.Groupers) != 1 {
+		t.Fatalf("Groupers length = %d, want 1", len(got.Components.Groupers))
+	}
+	g0 := got.Components.Groupers[0]
+	if g0.Field != "region" {
+		t.Errorf("Groupers[0].Field = %q, want region", g0.Field)
+	}
+	if g0.Operator["bucket_count"] != float64(5) {
+		t.Errorf("Groupers[0].Operator[bucket_count] = %v, want 5",
+			g0.Operator["bucket_count"])
+	}
+
+	if got.Components.Crosstab == nil {
+		t.Errorf("Crosstab shell lost after round-trip")
+	}
+
+	if len(got.Components.Filterers) != 1 {
+		t.Fatalf("Filterers length = %d, want 1", len(got.Components.Filterers))
+	}
+	f0 := got.Components.Filterers[0]
+	if f0.Label != "drop_test_accounts" || f0.NIn != 1000 ||
+		f0.NOut != 950 || f0.NNullInput != 2 {
+		t.Errorf("Filterers[0] = %+v, want label=drop_test_accounts NIn=1000 NOut=950 NNullInput=2", f0)
+	}
+
+	if got.Components.Run == nil {
+		t.Fatalf("Run slot lost after round-trip")
+	}
+	if got.Components.Run.TotalRecords != 1000 {
+		t.Errorf("Run.TotalRecords = %d, want 1000", got.Components.Run.TotalRecords)
+	}
+	if got.Components.Run.FilteredRecords != 950 {
+		t.Errorf("Run.FilteredRecords = %d, want 950",
+			got.Components.Run.FilteredRecords)
+	}
+	if got.Components.Run.NullRecords != 5 {
+		t.Errorf("Run.NullRecords = %d, want 5", got.Components.Run.NullRecords)
+	}
+	if got.Components.Run.ShardCount != 4 {
+		t.Errorf("Run.ShardCount = %d, want 4", got.Components.Run.ShardCount)
+	}
+	if got.Components.Run.PartialCohortReason != "shard_03 unreadable" {
+		t.Errorf("Run.PartialCohortReason = %q, want %q",
+			got.Components.Run.PartialCohortReason, "shard_03 unreadable")
+	}
+}
+
+// TestResponse_ComponentsEmptyNestedFieldsOmitted verifies the
+// omitempty contract recursively — a *ResponseComponents with every
+// nested slice / pointer left nil marshals to `{"components":{}}` (no
+// inner keys), and zero-valued sub-structs respect their own omitempty
+// tags. This pins the contract that an operator emitting only the
+// universal-floor keys does NOT leak empty `operator` maps onto the
+// wire.
+func TestResponse_ComponentsEmptyNestedFieldsOmitted(t *testing.T) {
+	resp := types.Response{
+		Components: &types.ResponseComponents{},
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal Response{Components:&ResponseComponents{}}: %v", err)
+	}
+	want := `{"components":{}}`
+	if string(data) != want {
+		t.Fatalf("empty ResponseComponents marshal = %q, want %q",
+			data, want)
+	}
+
+	// Single AggregationComponents with universal floor only — no
+	// Label, no Operator. JSON tags `n`/`n_null` are NOT omitempty
+	// (universal floor) so they appear with zero values; label /
+	// operator must stay absent.
+	resp2 := types.Response{
+		Components: &types.ResponseComponents{
+			Aggregations: []types.AggregationComponents{{N: 0, NNull: 0}},
+		},
+	}
+	data2, err := json.Marshal(resp2)
+	if err != nil {
+		t.Fatalf("marshal Response with floor-only AggregationComponents: %v", err)
+	}
+	want2 := `{"components":{"aggregations":[{"n":0,"n_null":0}]}}`
+	if string(data2) != want2 {
+		t.Fatalf("floor-only AggregationComponents marshal = %q, want %q",
+			data2, want2)
+	}
+}
+
+// TestCrosstabComponents_EmptyMarshalsToNothing verifies the
+// omitempty contract on the full CrosstabComponents struct (E3-S1).
+// An empty CrosstabComponents{} carried on Response.Components.Crosstab
+// must marshal with no inner keys at all — every field is `omitempty`
+// so the only wire output is `{"components":{"crosstab":{}}}`. This
+// pins the contract that crosstabs without orchestrator-populated
+// components do NOT leak `cell_counts: null` etc. onto the wire.
+func TestCrosstabComponents_EmptyMarshalsToNothing(t *testing.T) {
+	resp := types.Response{
+		Components: &types.ResponseComponents{
+			Crosstab: &types.CrosstabComponents{},
+		},
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal Response with empty CrosstabComponents: %v", err)
+	}
+	want := `{"components":{"crosstab":{}}}`
+	if string(data) != want {
+		t.Fatalf("empty CrosstabComponents marshal = %q, want %q",
+			data, want)
+	}
+}
+
+// TestCrosstabComponents_RoundTripJSON exercises every field of the
+// CrosstabComponents struct (E3-S1). Populates a small 2x3 cell grid
+// plus row / column / grand-total margins, per-axis key components,
+// and include / exclude counters; marshal + unmarshal must preserve
+// every coordinate-indexed slot.
+func TestCrosstabComponents_RoundTripJSON(t *testing.T) {
+	src := types.Response{
+		Components: &types.ResponseComponents{
+			Crosstab: &types.CrosstabComponents{
+				CellCounts: [][]int{
+					{10, 20, 30},
+					{40, 50, 60},
+				},
+				CellComponents: [][]map[string]any{
+					{
+						{"mean": float64(1.0), "variance": float64(0.5)},
+						{"mean": float64(2.0), "variance": float64(0.25)},
+						{"mean": float64(3.0), "variance": float64(0.1)},
+					},
+					{
+						{"mean": float64(4.0), "variance": float64(0.05)},
+						{"mean": float64(5.0), "variance": float64(0.01)},
+						{"mean": float64(6.0), "variance": float64(0.0)},
+					},
+				},
+				RowMarginCounts: []int{60, 150},
+				RowMarginComponents: []map[string]any{
+					{"mean": float64(2.0)},
+					{"mean": float64(5.0)},
+				},
+				ColumnMarginCounts: []int{50, 70, 90},
+				ColumnMarginComponents: []map[string]any{
+					{"mean": float64(2.5)},
+					{"mean": float64(3.5)},
+					{"mean": float64(4.5)},
+				},
+				GrandTotalCount: 210,
+				GrandTotalComponents: map[string]any{
+					"mean":     float64(3.5),
+					"variance": float64(2.91),
+				},
+				RowKeyComponents: []map[string]any{
+					{"bucket_count": float64(2)},
+					{"bucket_count": float64(2)},
+				},
+				ColumnKeyComponents: []map[string]any{
+					{"bucket_count": float64(3)},
+					{"bucket_count": float64(3)},
+					{"bucket_count": float64(3)},
+				},
+				IncludedRecords: 210,
+				ExcludedRecords: 5,
+			},
+		},
+	}
+
+	data, err := json.Marshal(src)
+	if err != nil {
+		t.Fatalf("marshal Response with populated CrosstabComponents: %v", err)
+	}
+
+	var got types.Response
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal Response with populated CrosstabComponents: %v", err)
+	}
+	if got.Components == nil || got.Components.Crosstab == nil {
+		t.Fatalf("Crosstab slot lost after round-trip")
+	}
+	ct := got.Components.Crosstab
+
+	// CellCounts coordinate check.
+	if len(ct.CellCounts) != 2 || len(ct.CellCounts[0]) != 3 {
+		t.Fatalf("CellCounts shape = %dx?, want 2x3", len(ct.CellCounts))
+	}
+	if ct.CellCounts[0][0] != 10 || ct.CellCounts[1][2] != 60 {
+		t.Errorf("CellCounts[0][0]=%d (want 10), CellCounts[1][2]=%d (want 60)",
+			ct.CellCounts[0][0], ct.CellCounts[1][2])
+	}
+
+	// CellComponents coordinate check.
+	if len(ct.CellComponents) != 2 || len(ct.CellComponents[0]) != 3 {
+		t.Fatalf("CellComponents shape = %dx?, want 2x3", len(ct.CellComponents))
+	}
+	if ct.CellComponents[0][0]["mean"] != float64(1.0) {
+		t.Errorf("CellComponents[0][0][mean] = %v, want 1.0",
+			ct.CellComponents[0][0]["mean"])
+	}
+	if ct.CellComponents[1][2]["variance"] != float64(0.0) {
+		t.Errorf("CellComponents[1][2][variance] = %v, want 0.0",
+			ct.CellComponents[1][2]["variance"])
+	}
+
+	// Row / column margin checks.
+	if len(ct.RowMarginCounts) != 2 || ct.RowMarginCounts[0] != 60 || ct.RowMarginCounts[1] != 150 {
+		t.Errorf("RowMarginCounts = %v, want [60 150]", ct.RowMarginCounts)
+	}
+	if len(ct.RowMarginComponents) != 2 || ct.RowMarginComponents[1]["mean"] != float64(5.0) {
+		t.Errorf("RowMarginComponents[1][mean] = %v, want 5.0",
+			ct.RowMarginComponents[1]["mean"])
+	}
+	if len(ct.ColumnMarginCounts) != 3 || ct.ColumnMarginCounts[2] != 90 {
+		t.Errorf("ColumnMarginCounts = %v, want [50 70 90]", ct.ColumnMarginCounts)
+	}
+	if len(ct.ColumnMarginComponents) != 3 || ct.ColumnMarginComponents[0]["mean"] != float64(2.5) {
+		t.Errorf("ColumnMarginComponents[0][mean] = %v, want 2.5",
+			ct.ColumnMarginComponents[0]["mean"])
+	}
+
+	// Grand-total checks.
+	if ct.GrandTotalCount != 210 {
+		t.Errorf("GrandTotalCount = %d, want 210", ct.GrandTotalCount)
+	}
+	if ct.GrandTotalComponents["mean"] != float64(3.5) {
+		t.Errorf("GrandTotalComponents[mean] = %v, want 3.5",
+			ct.GrandTotalComponents["mean"])
+	}
+
+	// Axis-key component checks.
+	if len(ct.RowKeyComponents) != 2 {
+		t.Errorf("RowKeyComponents length = %d, want 2", len(ct.RowKeyComponents))
+	}
+	if ct.RowKeyComponents[0]["bucket_count"] != float64(2) {
+		t.Errorf("RowKeyComponents[0][bucket_count] = %v, want 2",
+			ct.RowKeyComponents[0]["bucket_count"])
+	}
+	if len(ct.ColumnKeyComponents) != 3 {
+		t.Errorf("ColumnKeyComponents length = %d, want 3", len(ct.ColumnKeyComponents))
+	}
+	if ct.ColumnKeyComponents[2]["bucket_count"] != float64(3) {
+		t.Errorf("ColumnKeyComponents[2][bucket_count] = %v, want 3",
+			ct.ColumnKeyComponents[2]["bucket_count"])
+	}
+
+	// Sanity counters.
+	if ct.IncludedRecords != 210 {
+		t.Errorf("IncludedRecords = %d, want 210", ct.IncludedRecords)
+	}
+	if ct.ExcludedRecords != 5 {
+		t.Errorf("ExcludedRecords = %d, want 5", ct.ExcludedRecords)
+	}
+}
+
+// TestCanonicalHash_CrosstabComponentsKeyOrderInvariant verifies the
+// canonical-hash routine walks per-cell, per-margin, and per-axis
+// component maps in sorted-key order — two CrosstabComponents
+// differing only in the runtime insertion order of their nested maps
+// MUST hash identically. Covers the [][]map[string]any walk noted in
+// the story's acceptance criteria.
+func TestCanonicalHash_CrosstabComponentsKeyOrderInvariant(t *testing.T) {
+	mk := func(cellAB string) types.Response {
+		var cellMap map[string]any
+		switch cellAB {
+		case "a":
+			cellMap = map[string]any{"mean": 1.0, "variance": 0.5}
+		case "b":
+			cellMap = map[string]any{"variance": 0.5, "mean": 1.0}
+		}
+		return types.Response{
+			Components: &types.ResponseComponents{
+				Crosstab: &types.CrosstabComponents{
+					CellCounts:     [][]int{{10}},
+					CellComponents: [][]map[string]any{{cellMap}},
+				},
+			},
+		}
+	}
+	ha := types.CanonicalHash("response", mk("a"))
+	hb := types.CanonicalHash("response", mk("b"))
+	if ha != hb {
+		t.Fatalf("CrosstabComponents map key-order broke hash equality: %q vs %q", ha, hb)
+	}
+}
