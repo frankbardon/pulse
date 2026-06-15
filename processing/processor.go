@@ -851,6 +851,21 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		PostTests: postResults,
 	}
 
+	// E2-S4: streaming grouped path emits one GrouperComponents entry
+	// per Group slot (single-grouper today). Bucket counts ride off
+	// the grouper's live state (populated by KeyForRow per filter-
+	// passing row); TotalN sums the bucket counts; NNull falls out of
+	// filteredRows minus TotalN — every post-filter record that did
+	// NOT land in a bucket (null field value, include-filter rejection,
+	// empty set mask, etc.). The grouper instance is the same object
+	// KeyForRow drove against, so MetaGrouper.Components() reads off
+	// the same map.
+	streamEntry, gerr := buildStreamingGrouperComponents(grouperInstance, grp, int(filteredRows))
+	if gerr != nil {
+		return nil, gerr
+	}
+	attachGrouperComponents(resp, streamEntry)
+
 	// SERIES-host overlay hook (E3-S6). Streaming grouped exit calls
 	// into the same post-finalize wiring as the buffered processRecords
 	// path. Streamable overlay kinds (E3-S2/S3/S4 — INDEX_VS_TOTAL /
@@ -1203,9 +1218,10 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// Step 3: Group if needed, then aggregate
 	var data []map[string]any
 	var aggComponents []types.AggregationComponents
+	var grpComponents []types.GrouperComponents
 
 	if len(req.Groups) > 0 {
-		data, err = p.processGrouped(req, filtered)
+		data, grpComponents, err = p.processGrouped(req, filtered)
 		if err != nil {
 			return nil, err
 		}
@@ -1287,6 +1303,15 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// shape of Response.Components.Aggregations stays uniform.
 	for _, entry := range aggComponents {
 		attachAggregationComponents(resp, entry)
+	}
+
+	// E2-S4: attach per-slot GrouperComponents emitted by
+	// processGrouped. The ungrouped path leaves grpComponents nil so
+	// nothing is appended; the grouped exit always appends exactly
+	// one entry per Request.Groups slot (the single-grouper limit
+	// matches processGrouped today).
+	for _, entry := range grpComponents {
+		attachGrouperComponents(resp, entry)
 	}
 
 	// SERIES-host overlay hook (E3-S6). Wraps the finalized per-group
@@ -1422,22 +1447,22 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 	return nil
 }
 
-func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map[string]any, error) {
+func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map[string]any, []types.GrouperComponents, error) {
 	// Use the first group for now (single-level grouping)
 	grp := req.Groups[0]
 	factory, ok := p.exts.LookupGrouper(grp.Type)
 	if !ok {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
 	}
 	grouper, err := factory(grp, p.schema)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	groups, err := grouper.Group(records, grp.Field)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Stable-emit by sorted group key so row order is deterministic
@@ -1453,7 +1478,7 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 		groupRecords := groups[key]
 		row, err := p.aggregate(req.Aggregations, groupRecords)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if row == nil {
 			// +1 reserved for the group key written below.
@@ -1462,7 +1487,19 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 		row[grp.Field] = key
 		data = append(data, row)
 	}
-	return data, nil
+
+	// E2-S4: emit GrouperComponents for the single grouper slot.
+	// Universal floor (TotalN = sum of bucket counts, NNull =
+	// post-filter records minus TotalN — the records the grouper
+	// skipped due to null inputs or include-filter rejection) is
+	// derived directly from the bucket map; the operator-specific
+	// keys ride off MetaGrouper.Components() when the grouper
+	// implements it.
+	entry, gerr := buildGrouperComponents(grouper, grp, groups, len(records))
+	if gerr != nil {
+		return nil, nil, gerr
+	}
+	return data, []types.GrouperComponents{entry}, nil
 }
 
 func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map[string]any, error) {
@@ -1655,4 +1692,107 @@ func attachAggregationComponents(resp *types.Response, entry types.AggregationCo
 		resp.Components = &types.ResponseComponents{}
 	}
 	resp.Components.Aggregations = append(resp.Components.Aggregations, entry)
+}
+
+// buildGrouperComponents builds a types.GrouperComponents from the
+// buffered processGrouped path: the post-Group grouper instance, the
+// originating Group slot, the partition output (key → []*Record map),
+// and the post-filter record count. The universal floor — TotalN
+// (records partitioned, equal to the sum of bucket sizes) and NNull
+// (records the grouper skipped: null inputs, include-filter rejections,
+// empty set masks, etc.) — is derived directly from the partition map
+// and totalFiltered without re-scanning records. The operator-specific
+// keys ride off MetaGrouper.Components() when the grouper implements
+// it; groupers without MetaGrouper fall through to a floor-only entry
+// (Operator == nil → marshals as omitempty).
+//
+// Single-key groupers contribute one row to exactly one bucket so
+// TotalN ≤ totalFiltered; the difference equals NNull. Multi-key
+// streaming groupers (GROUP_SET_PER_ELEMENT) contribute one row to
+// every selected label, so TotalN here would over-count; the buffered
+// path does not currently invoke multi-key groupers (KeysForRow lives
+// on the streaming path), so the simple subtraction stays correct for
+// the single-key buffered grouped exit.
+func buildGrouperComponents(grouper Grouper, slot *types.Group, groups map[string][]*Record, totalFiltered int) (types.GrouperComponents, error) {
+	totalN := 0
+	for _, bucket := range groups {
+		totalN += len(bucket)
+	}
+	nNull := totalFiltered - totalN
+	if nNull < 0 {
+		nNull = 0
+	}
+	entry := types.GrouperComponents{
+		Field:  slot.Field,
+		TotalN: totalN,
+		NNull:  nNull,
+	}
+	if meta, ok := grouper.(MetaGrouper); ok {
+		op, err := meta.Components()
+		if err != nil {
+			return types.GrouperComponents{}, err
+		}
+		entry.Operator = op
+	}
+	return entry, nil
+}
+
+// buildStreamingGrouperComponents builds a types.GrouperComponents
+// from the streaming grouped path: the grouper instance KeyForRow
+// drove, the originating Group slot, and the post-filter row count
+// observed by the streaming iterator. Mirrors buildGrouperComponents
+// except TotalN is derived from MetaGrouper.Components()'s buckets
+// payload (the orchestrator never built the buffered partition map
+// on this path). When the grouper does not implement MetaGrouper,
+// TotalN collapses to totalFiltered as a conservative floor — the
+// orchestrator has no other signal for partitioned vs skipped rows.
+func buildStreamingGrouperComponents(grouper any, slot *types.Group, totalFiltered int) (types.GrouperComponents, error) {
+	entry := types.GrouperComponents{
+		Field: slot.Field,
+	}
+	meta, ok := grouper.(MetaGrouper)
+	if !ok {
+		entry.TotalN = totalFiltered
+		return entry, nil
+	}
+	op, err := meta.Components()
+	if err != nil {
+		return types.GrouperComponents{}, err
+	}
+	entry.Operator = op
+	// Sum per-bucket counts to derive TotalN. The buckets payload is
+	// a []map[string]any with int "count" entries by GROUP_CATEGORY /
+	// GROUP_DATE convention. Other groupers that wire MetaGrouper in
+	// later stories MUST follow the same {"count": int} convention;
+	// the type assertion guards drift.
+	totalN := 0
+	if buckets, ok := op["buckets"].([]map[string]any); ok {
+		for _, b := range buckets {
+			if c, ok := b["count"].(int); ok {
+				totalN += c
+			}
+		}
+	}
+	entry.TotalN = totalN
+	nNull := totalFiltered - totalN
+	if nNull < 0 {
+		nNull = 0
+	}
+	entry.NNull = nNull
+	return entry, nil
+}
+
+// attachGrouperComponents appends a freshly-built GrouperComponents
+// entry onto resp.Components.Groupers, allocating the parent
+// ResponseComponents and the slice as needed. Mirrors
+// attachAggregationComponents — the lazy-allocate-then-append
+// pattern keeps the components shell uniform across every grouped
+// execution path (buffered processGrouped, streaming
+// processStreamingGrouped) so an additive omitempty payload marshals
+// to a no-op when the slice ends up empty.
+func attachGrouperComponents(resp *types.Response, entry types.GrouperComponents) {
+	if resp.Components == nil {
+		resp.Components = &types.ResponseComponents{}
+	}
+	resp.Components.Groupers = append(resp.Components.Groupers, entry)
 }

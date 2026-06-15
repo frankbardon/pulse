@@ -113,6 +113,17 @@ type categoryGrouper struct {
 	schema  *encoding.Schema
 	field   string
 	include map[string]struct{}
+
+	// liveBuckets mirrors the post-Group / post-KeyForRow state so
+	// Components() can emit per-bucket counts without re-scanning the
+	// record set. Group() populates the full map from streamableGroup's
+	// per-key bucket slices; KeyForRow increments per filter-passing
+	// record on the streaming path. KeyFor itself does NOT touch the
+	// counter (the fused crosstab path drives KeyFor directly and does
+	// not feed Response.Components.Groupers today) — this keeps the
+	// equivalence test in grouper_keyfor_test.go from double-counting
+	// rows that flow through both Group() and bare KeyFor.
+	liveBuckets map[string]int
 }
 
 func newCategoryGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
@@ -153,13 +164,79 @@ func (g *categoryGrouper) KeyFor(r *Record) (string, error) {
 // KeyForRow delegates to KeyFor — single source of truth for the
 // category bucket key format. The field argument is accepted for
 // StreamingGrouper compatibility; runtime callers always pass
-// grp.Field which matches g.field by construction.
+// grp.Field which matches g.field by construction. Bumps the
+// per-bucket live counter on success so MetaGrouper.Components()
+// has a populated map after the streaming iteration terminates.
 func (g *categoryGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
-	return keyForOrSkip(g, r)
+	key, ok, err := keyForOrSkip(g, r)
+	if err != nil || !ok {
+		return key, ok, err
+	}
+	if g.liveBuckets == nil {
+		g.liveBuckets = make(map[string]int)
+	}
+	g.liveBuckets[key]++
+	return key, ok, nil
 }
 
-func (g *categoryGrouper) Group(records []*Record, _ string) (map[string][]*Record, error) {
-	return streamableGroup(g, records)
+func (g *categoryGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
+	groups, err := streamableGroup(g, records)
+	if err != nil {
+		return nil, err
+	}
+	// Mirror the bucket population into liveBuckets so Components()
+	// can emit per-bucket counts on the buffered path. Allocates
+	// exactly len(groups) entries — no oversize, no resizing.
+	g.liveBuckets = make(map[string]int, len(groups))
+	for k, v := range groups {
+		g.liveBuckets[k] = len(v)
+	}
+	return groups, nil
+}
+
+// Components implements MetaGrouper. Returns the per-grouper schema
+// declared in descriptor/capabilities_groupers.go for GROUP_CATEGORY:
+// {dict_size, buckets: [{key, label, count}]}. dict_size is the
+// cardinality of the schema's categorical dictionary on the partition
+// field (zero for non-categorical fields). buckets are sorted by key
+// for deterministic emission; key and label match the bucket
+// identity, which IS the dictionary label for categorical fields and
+// the stringified numeric value for non-categorical inputs.
+//
+// Reads g.liveBuckets, populated by Group() (buffered) or KeyForRow
+// (streaming). Returns an empty buckets slice (not nil) when no rows
+// were observed so the emitted shape stays consistent across cohorts.
+// The universal floor ({total_n, n_null}) is filled by the orchestrator
+// — Components() returns operator-specific keys only.
+func (g *categoryGrouper) Components() (map[string]any, error) {
+	dictSize := 0
+	if g.schema != nil {
+		if f := g.schema.Field(g.field); f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
+			dictSize = f.Dictionary.Count()
+		}
+	}
+
+	// Sort bucket keys for deterministic emission. An empty live map
+	// collapses to an empty buckets slice — not nil, since downstream
+	// JSON consumers prefer a concrete `[]` over `null`.
+	keys := make([]string, 0, len(g.liveBuckets))
+	for k := range g.liveBuckets {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	buckets := make([]map[string]any, 0, len(keys))
+	for _, k := range keys {
+		buckets = append(buckets, map[string]any{
+			"key":   k,
+			"label": k,
+			"count": g.liveBuckets[k],
+		})
+	}
+	return map[string]any{
+		"dict_size": dictSize,
+		"buckets":   buckets,
+	}, nil
 }
 
 // --- Rounded Grouper ---
@@ -351,6 +428,109 @@ type dateGrouper struct {
 	field        string
 	component    string
 	fiscalOffset int // 0 = calendar; non-zero = FY starts at month (((offset%12)+12)%12)+1
+
+	// liveBuckets mirrors the post-Group / post-KeyForRow state per
+	// bucket key. count tracks rows assigned to the bucket; periodStart
+	// / periodEnd are the canonical ISO-8601 boundaries derived from
+	// the first row observed in that bucket (every row in the bucket
+	// shares the same boundaries by construction). KeyFor itself does
+	// NOT touch the live map (fused crosstab path) — see categoryGrouper
+	// for the rationale.
+	liveBuckets map[string]dateBucketStat
+	// rangeMinDay / rangeMaxDay carry the earliest / latest days-
+	// since-epoch value observed across all rows. Used to populate
+	// {range_start, range_end} on Components() in the same ISO-8601
+	// formatter family that produces per-bucket period_start /
+	// period_end. liveRangeSet flips to true on the first non-null row
+	// so an empty-input grouper emits empty strings rather than the
+	// zero-day "1970-01-01" default.
+	rangeMinDay  int64
+	rangeMaxDay  int64
+	liveRangeSet bool
+}
+
+// dateBucketStat carries the per-bucket aggregates Components() emits
+// for GROUP_DATE: row count plus ISO-8601 period boundaries. The
+// boundary strings are computed from the first row to land in the
+// bucket (every subsequent row in the same bucket would produce
+// identical strings by construction, so first-write is exact).
+type dateBucketStat struct {
+	count       int
+	periodStart string
+	periodEnd   string
+}
+
+// dateRangeBoundaries returns ISO-8601 (YYYY-MM-DD) strings for the
+// start and end of the calendar period containing t under the
+// configured granularity. Day collapses to a single date; week
+// returns Monday..Sunday of the ISO week; month / quarter / year
+// return the first day and last day of their span. day_of_week and
+// the fiscal variants do not have a contiguous calendar range, so
+// they return empty strings — Components() emits them verbatim.
+func (g *dateGrouper) dateRangeBoundaries(t time.Time) (string, string) {
+	if g.fiscalOffset != 0 {
+		// Fiscal-offset year / quarter spans rotate off the calendar
+		// year. The Components contract sticks to calendar ISO-8601
+		// boundaries; embedders reading FY-prefixed bucket keys can
+		// reconstruct the span from the key + offset. Return empty
+		// strings rather than guess the wrong calendar boundary.
+		return "", ""
+	}
+	switch g.component {
+	case "day":
+		s := t.Format("2006-01-02")
+		return s, s
+	case "week":
+		// ISO week starts Monday. Go's time.Weekday() returns Sunday=0,
+		// Monday=1, ..., Saturday=6. Shift so Monday=0, Sunday=6, then
+		// subtract to land on Monday.
+		wd := int(t.Weekday())
+		// Normalize so Monday=0 ... Sunday=6.
+		mondayOffset := (wd + 6) % 7
+		monday := t.AddDate(0, 0, -mondayOffset)
+		sunday := monday.AddDate(0, 0, 6)
+		return monday.Format("2006-01-02"), sunday.Format("2006-01-02")
+	case "month":
+		first := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
+		last := first.AddDate(0, 1, -1)
+		return first.Format("2006-01-02"), last.Format("2006-01-02")
+	case "quarter":
+		qStartMonth := time.Month(((int(t.Month())-1)/3)*3 + 1)
+		first := time.Date(t.Year(), qStartMonth, 1, 0, 0, 0, 0, time.UTC)
+		last := first.AddDate(0, 3, -1)
+		return first.Format("2006-01-02"), last.Format("2006-01-02")
+	case "year":
+		first := time.Date(t.Year(), time.January, 1, 0, 0, 0, 0, time.UTC)
+		last := time.Date(t.Year(), time.December, 31, 0, 0, 0, 0, time.UTC)
+		return first.Format("2006-01-02"), last.Format("2006-01-02")
+	}
+	// day_of_week and any unknown component — no calendar span.
+	return "", ""
+}
+
+// trackDateRow folds a single (record day, bucket key) observation
+// into the date grouper's live components state. Called once per
+// row-producing observation by both Group() (buffered) and KeyForRow
+// (streaming) so the two code paths fill liveBuckets identically.
+func (g *dateGrouper) trackDateRow(dayUnix int64, key string) {
+	if g.liveBuckets == nil {
+		g.liveBuckets = make(map[string]dateBucketStat)
+	}
+	stat, exists := g.liveBuckets[key]
+	if !exists {
+		t := time.Unix(dayUnix*86400, 0).UTC()
+		ps, pe := g.dateRangeBoundaries(t)
+		stat = dateBucketStat{periodStart: ps, periodEnd: pe}
+	}
+	stat.count++
+	g.liveBuckets[key] = stat
+	if !g.liveRangeSet || dayUnix < g.rangeMinDay {
+		g.rangeMinDay = dayUnix
+	}
+	if !g.liveRangeSet || dayUnix > g.rangeMaxDay {
+		g.rangeMaxDay = dayUnix
+	}
+	g.liveRangeSet = true
 }
 
 func newDateGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
@@ -456,11 +636,113 @@ func (g *dateGrouper) KeyFor(r *Record) (string, error) {
 
 // KeyForRow is the StreamingGrouper-shape adapter on top of KeyFor.
 // Allows downstream code that consults StreamingGrouper to drive
-// dateGrouper per record without buffering.
+// dateGrouper per record without buffering. Folds the row into the
+// live components state so MetaGrouper.Components() can emit per-
+// bucket counts + period boundaries after the streaming iteration
+// terminates.
 func (g *dateGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
-	return keyForOrSkip(g, r)
+	key, ok, err := keyForOrSkip(g, r)
+	if err != nil || !ok {
+		return key, ok, err
+	}
+	v, ok2 := r.NumericValue(g.field)
+	if !ok2 {
+		// keyForOrSkip already returned a usable key, so the field
+		// value is present — guard the cast anyway to keep the
+		// tracker safe under contract drift.
+		return key, ok, nil
+	}
+	g.trackDateRow(int64(v), key)
+	return key, ok, nil
 }
 
-func (g *dateGrouper) Group(records []*Record, _ string) (map[string][]*Record, error) {
-	return streamableGroup(g, records)
+func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
+	groups, err := streamableGroup(g, records)
+	if err != nil {
+		return nil, err
+	}
+	// Mirror the bucket population into liveBuckets. Group()'s
+	// streamableGroup path discards the per-key counts after building
+	// the per-key slices, so we re-derive count from len(slice) and
+	// re-extract the per-bucket period boundaries from the first row
+	// of each bucket (every row in a bucket shares the same boundaries
+	// by construction).
+	g.liveBuckets = make(map[string]dateBucketStat, len(groups))
+	g.liveRangeSet = false
+	for key, bucket := range groups {
+		if len(bucket) == 0 {
+			continue
+		}
+		// Resolve the first row's day to derive the bucket boundaries
+		// and feed range_start / range_end. Subsequent rows in the
+		// same bucket update range_min/max if they widen the span.
+		for _, r := range bucket {
+			v, ok := r.NumericValue(field)
+			if !ok {
+				continue
+			}
+			g.trackDateRow(int64(v), key)
+		}
+	}
+	return groups, nil
 }
+
+// Components implements MetaGrouper. Returns the per-grouper schema
+// declared in descriptor/capabilities_groupers.go for GROUP_DATE:
+// {granularity, range_start, range_end, n_buckets, buckets:
+// [{key, period_start, period_end, count}]}. Granularity mirrors the
+// configured component; range_start / range_end are the earliest /
+// latest period boundary observed across all rows (ISO-8601
+// YYYY-MM-DD); per-bucket period_start / period_end describe the
+// calendar span the bucket key represents.
+//
+// Reads g.liveBuckets, populated by Group() (buffered) or KeyForRow
+// (streaming). Returns an empty buckets slice (not nil) when no rows
+// were observed so the emitted shape stays consistent across cohorts.
+// Fiscal-offset variants emit empty period_start / period_end / range
+// strings — embedders can reconstruct the calendar span from the
+// FY-prefixed key plus the configured offset. The universal floor
+// ({total_n, n_null}) is filled by the orchestrator.
+func (g *dateGrouper) Components() (map[string]any, error) {
+	keys := make([]string, 0, len(g.liveBuckets))
+	for k := range g.liveBuckets {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	buckets := make([]map[string]any, 0, len(keys))
+	for _, k := range keys {
+		stat := g.liveBuckets[k]
+		buckets = append(buckets, map[string]any{
+			"key":          k,
+			"period_start": stat.periodStart,
+			"period_end":   stat.periodEnd,
+			"count":        stat.count,
+		})
+	}
+
+	var rangeStart, rangeEnd string
+	if g.liveRangeSet {
+		startT := time.Unix(g.rangeMinDay*86400, 0).UTC()
+		endT := time.Unix(g.rangeMaxDay*86400, 0).UTC()
+		rs, _ := g.dateRangeBoundaries(startT)
+		_, re := g.dateRangeBoundaries(endT)
+		rangeStart = rs
+		rangeEnd = re
+	}
+
+	return map[string]any{
+		"granularity": g.component,
+		"range_start": rangeStart,
+		"range_end":   rangeEnd,
+		"n_buckets":   len(buckets),
+		"buckets":     buckets,
+	}, nil
+}
+
+// Compile-time interface locks. Catch interface drift at build time
+// and keep the MetaGrouper wiring grep-discoverable for E2-S5 / S6.
+var (
+	_ MetaGrouper = (*categoryGrouper)(nil)
+	_ MetaGrouper = (*dateGrouper)(nil)
+)
