@@ -98,8 +98,19 @@ type FusedCrosstabState struct {
 	// is the running sum — equal to sum(cellCounts) by construction and
 	// reused at Finalize so the populateCrosstabComponents helper
 	// doesn't re-iterate the matrix.
-	cellCounts       [][]int
-	includedRecords  int
+	cellCounts      [][]int
+	includedRecords int
+
+	// E3-S3: per-cell null-input counter matrix indexed by
+	// [rowIdx][colIdx], kept in lockstep with `cells` and `cellCounts`.
+	// Incremented in Update when the record's cell-field value is null
+	// (NumericValue returns ok=false) AND both axis composite keys
+	// resolved (so the record landed in (rowIdx, colIdx)). cellCounts[r][c]
+	// + cellNNull[r][c] = total records routed to (r, c). Used at
+	// Finalize to populate the per-cell {n, n_null} universal floor for
+	// CellComponents[r][c] byte-equal to the buffered path's
+	// runCellAggregation walk.
+	cellNNull [][]int
 
 	// Per-row and per-column margin accumulators indexed by rowIdx /
 	// colIdx. Allocated only when the corresponding margin slot in the
@@ -410,6 +421,11 @@ func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) in
 	// E3-S2: cellCounts grows in lockstep with cells so the buffered and
 	// fused paths can later read the same (r, c) coordinates.
 	s.cellCounts = append(s.cellCounts, make([]int, len(s.colKeys)))
+	// E3-S3: cellNNull grows in lockstep with cellCounts so the per-cell
+	// universal floor (n, n_null) is addressable by the same (r, c)
+	// coordinates regardless of whether the column was interned before or
+	// after the row.
+	s.cellNNull = append(s.cellNNull, make([]int, len(s.colKeys)))
 	if s.rowMargins != nil || s.spec.NeedsRowMargin() {
 		// Lazy-init row margins slice on first row to skip the
 		// allocation when no row-margin is requested.
@@ -443,6 +459,12 @@ func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) in
 	// existing row by one zero-initialised column slot.
 	for i := range s.cellCounts {
 		s.cellCounts[i] = append(s.cellCounts[i], 0)
+	}
+	// E3-S3: cellNNull mirrors the cellCounts shape — extend each
+	// existing row by one zero-initialised column slot so the per-cell
+	// null counter is addressable for every observed (rowIdx, colIdx).
+	for i := range s.cellNNull {
+		s.cellNNull[i] = append(s.cellNNull[i], 0)
 	}
 	if s.colMargins != nil || s.spec.NeedsColumnMargin() {
 		if s.colMargins == nil {
@@ -626,6 +648,16 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		// second matrix pass.
 		s.cellCounts[rowIdx][colIdx]++
 		s.includedRecords++
+		// E3-S3: per-cell null-input counter. NumericValue probe mirrors
+		// the buffered runCellAggregation walk — a record whose
+		// cell-field value is null contributes to cellNNull but still
+		// counts toward cellCounts (every record routed to the cell
+		// shows up in CellCounts; the (n, n_null) split splits it into
+		// non-null contributors vs. null inputs). cellCounts =
+		// cellNNull + cell.frozenN (the orchestrator-visible n).
+		if _, ok := rec.NumericValue(s.cellField); !ok {
+			s.cellNNull[rowIdx][colIdx]++
+		}
 	}
 
 	// Cross-axis (normalize_within) margin. Buffered
@@ -796,7 +828,16 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	// matrix is sparse — unobserved (rowIdx, colIdx) pairs hold nil
 	// accumulators and stay out of the emitted map (which the renderer
 	// treats as Present=false).
-	cellValues, cellPresent, err := s.finalizeCells()
+	//
+	// E3-S3: finalizeCells also emits the per-cell components map
+	// alongside the (rich/scalar) value and present flag. The components
+	// map is built at Finalize time only (no allocation in the per-record
+	// hot loop) — for each cell with at least one record, the orchestrator
+	// merges the universal floor {n, n_null} with the cell aggregator's
+	// MetaAggregator.Components() output via buildCellComponentMap. Cells
+	// with no records (cells[r][c] == nil) emit no entry; the matrix
+	// builder writes nil at [r][c] for those slots.
+	cellValues, cellPresent, cellComponentsMap, err := s.finalizeCells()
 	if err != nil {
 		return nil, err
 	}
@@ -983,7 +1024,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	if excludedRecords < 0 {
 		excludedRecords = 0
 	}
-	populateCrosstabComponents(resp, rowKeys, colKeys, cellCountsMap, s.includedRecords, excludedRecords)
+	populateCrosstabComponents(resp, rowKeys, colKeys, cellCountsMap, cellComponentsMap, s.includedRecords, excludedRecords)
 
 	return resp, nil
 }
@@ -993,12 +1034,25 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 // consume. Nil entries (cells never touched by a record) are silently
 // dropped from the present set — matches the buffered path's behaviour
 // where a (rowKey, colKey) pair with no records lands no cell value.
-func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[crosstabCellKey]bool, error) {
+//
+// E3-S3: also emits the per-cell components map (keyed by composite
+// axis-key pair) — Finalize-time emission so the hot decode loop pays
+// no allocation cost for the component bookkeeping. For each cell with
+// at least one record routed, the orchestrator calls
+// MetaAggregator.Components() on the post-Finalize aggregator instance
+// and merges the result with the universal floor {n, n_null} via
+// buildCellComponentMap. The floor's n is derived as cellCounts -
+// cellNNull (records routed to cell minus null inputs); cellNNull is
+// the per-cell null counter tracked in Update. populateCrosstabComponents
+// then projects the insertion-order map back into the sorted (r, c)
+// matrix layout, writing nil at coordinates where no record landed.
+func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[crosstabCellKey]bool, map[crosstabCellKey]map[string]any, error) {
 	// Pre-size to the dense cap, even though sparsely populated cells
 	// will leave headroom — saves rehashes on the dense common case.
 	nCells := len(s.rowKeys) * len(s.colKeys)
 	values := make(map[crosstabCellKey]any, nCells)
 	present := make(map[crosstabCellKey]bool, nCells)
+	components := make(map[crosstabCellKey]map[string]any, nCells)
 	for rIdx, row := range s.cells {
 		rKey := s.rowKeys[rIdx]
 		for cIdx, agg := range row {
@@ -1007,18 +1061,28 @@ func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[cross
 			}
 			scalar, err := agg.Finalize()
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			v, err := dispatchAggregatorResult(agg, scalar)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			ck := crosstabCellKey{row: rKey, col: s.colKeys[cIdx]}
 			values[ck] = v
 			present[ck] = true
+			// E3-S3: per-cell components emission. n = records routed
+			// to (r, c) minus null inputs; n_null = null inputs. Matches
+			// the buffered path's runCellAggregation walk byte-for-byte.
+			nNull := s.cellNNull[rIdx][cIdx]
+			n := s.cellCounts[rIdx][cIdx] - nNull
+			compMap, cerr := buildCellComponentMap(agg, n, nNull)
+			if cerr != nil {
+				return nil, nil, nil, cerr
+			}
+			components[ck] = compMap
 		}
 	}
-	return values, present, nil
+	return values, present, components, nil
 }
 
 // finalizeRowMargins drives Finalize on every row-margin accumulator

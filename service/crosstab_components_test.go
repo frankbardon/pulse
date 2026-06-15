@@ -5,8 +5,10 @@ import (
 	"context"
 	"math"
 	"reflect"
+	"sort"
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/fs"
 	"github.com/frankbardon/pulse/types"
@@ -463,4 +465,521 @@ func TestCrosstabComponents_SumInvariant(t *testing.T) {
 			}
 		})
 	}
+}
+
+// --- E3-S3: CellComponents emission tests ---------------------------
+//
+// CellComponents[r][c] carries the per-cell aggregator components map:
+// universal floor {n, n_null} merged with the cell aggregator's
+// MetaAggregator.Components() output. Empty cells (Matrix.Cells[r][c]
+// Present=false because no record landed) emit nil at the same
+// coordinate so consumers can distinguish "no data" from "data with
+// floor-only payload".
+
+// crosstabCTOrFail dereferences resp.Components.Crosstab and t.Fatals
+// when nil. Used by every CellComponents test to assert the shell
+// exists before drilling into the matrix.
+func crosstabCTOrFail(t *testing.T, resp *types.Response) *types.CrosstabComponents {
+	t.Helper()
+	if resp.Components == nil || resp.Components.Crosstab == nil {
+		t.Fatalf("Components.Crosstab nil")
+	}
+	return resp.Components.Crosstab
+}
+
+// rowColIndex looks up the matrix index for a categorical row / column
+// key on the canonical (region, segment) fixture.
+func rowColIndex(matrix *types.MatrixPayload) (map[string]int, map[string]int) {
+	rowByName := map[string]int{}
+	for i, k := range matrix.RowKeys {
+		rowByName[k[0].(string)] = i
+	}
+	colByName := map[string]int{}
+	for j, k := range matrix.ColumnKeys {
+		colByName[k[0].(string)] = j
+	}
+	return rowByName, colByName
+}
+
+// TestCrosstabComponents_CellComponents_Scalar_AGG_SUM verifies the
+// scalar family: AGG_SUM cell aggregator emits {sum} on each populated
+// cell, plus the universal floor {n, n_null}. Empty cells emit nil.
+//
+// Drives the buffered path so the cell builder's runCellAggregation +
+// buildCellComponentMap path is exercised end-to-end. Per-cell n and
+// n_null come from the per-bucket walk inside runCellAggregation.
+func TestCrosstabComponents_CellComponents_Scalar_AGG_SUM(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "total"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	matrix := resp.Crosstab.Matrix
+	if matrix == nil {
+		t.Fatalf("Matrix nil")
+	}
+	rowByName, colByName := rowColIndex(matrix)
+
+	// Shape: rows x cols
+	if len(ct.CellComponents) != len(matrix.RowKeys) {
+		t.Fatalf("CellComponents rows = %d, want %d", len(ct.CellComponents), len(matrix.RowKeys))
+	}
+	for i := range ct.CellComponents {
+		if len(ct.CellComponents[i]) != len(matrix.ColumnKeys) {
+			t.Fatalf("CellComponents[%d] cols = %d, want %d",
+				i, len(ct.CellComponents[i]), len(matrix.ColumnKeys))
+		}
+	}
+
+	// (north, retail): values [10, 20, 30] → sum=60, n=3, n_null=0
+	i := rowByName["north"]
+	j := colByName["retail"]
+	cell := ct.CellComponents[i][j]
+	if cell == nil {
+		t.Fatalf("CellComponents[north][retail] = nil, want populated")
+	}
+	if got, want := cell["n"], 3; got != want {
+		t.Errorf("n = %v, want %v", got, want)
+	}
+	if got, want := cell["n_null"], 0; got != want {
+		t.Errorf("n_null = %v, want %v", got, want)
+	}
+	if got, want := cell["sum"], float64(60); got != want {
+		t.Errorf("sum = %v, want %v", got, want)
+	}
+	// Keys should be exactly {n, n_null, sum} (floor + operator).
+	if got, want := mapKeys(cell), []string{"n", "n_null", "sum"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("cell keys = %v, want %v", got, want)
+	}
+
+	// (east, wholesale) is the empty cell — should emit nil.
+	if ei, ok := rowByName["east"]; ok {
+		if ej, ok := colByName["wholesale"]; ok {
+			if ct.CellComponents[ei][ej] != nil {
+				t.Errorf("CellComponents[east][wholesale] = %v, want nil (empty cell)",
+					ct.CellComponents[ei][ej])
+			}
+		}
+	}
+}
+
+// TestCrosstabComponents_CellComponents_Welford_AGG_VARIANCE verifies
+// the Welford family: AGG_VARIANCE cell aggregator emits {mean, m2,
+// variance} on each populated cell, plus the floor. Numerical match
+// against the manual Welford pass over the (north, retail) bucket.
+func TestCrosstabComponents_CellComponents_Welford_AGG_VARIANCE(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_VARIANCE, Field: "value", Label: "var"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	matrix := resp.Crosstab.Matrix
+	rowByName, colByName := rowColIndex(matrix)
+
+	// (north, retail): values [10, 20, 30]
+	//   mean   = 20
+	//   m2     = (10-20)^2 + (20-20)^2 + (30-20)^2 = 200
+	//   variance (population) = m2 / n = 200/3
+	i := rowByName["north"]
+	j := colByName["retail"]
+	cell := ct.CellComponents[i][j]
+	if cell == nil {
+		t.Fatalf("CellComponents[north][retail] = nil")
+	}
+	if got, want := cell["n"], 3; got != want {
+		t.Errorf("n = %v, want %v", got, want)
+	}
+	if got, want := cell["n_null"], 0; got != want {
+		t.Errorf("n_null = %v, want %v", got, want)
+	}
+	if got, want := cell["mean"].(float64), 20.0; got != want {
+		t.Errorf("mean = %v, want %v", got, want)
+	}
+	if got, want := cell["m2"].(float64), 200.0; got != want {
+		t.Errorf("m2 = %v, want %v", got, want)
+	}
+	if got, want := cell["variance"].(float64), 200.0/3.0; math.Abs(got-want) > 1e-9 {
+		t.Errorf("variance = %v, want %v", got, want)
+	}
+	if got, want := mapKeys(cell), []string{"m2", "mean", "n", "n_null", "variance"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("cell keys = %v, want %v", got, want)
+	}
+}
+
+// TestCrosstabComponents_CellComponents_FloorOnly_AGG_COUNT verifies
+// the floor-only family: AGG_COUNT's Components() returns nil, so the
+// merged cell map carries the universal floor {n, n_null} alone.
+func TestCrosstabComponents_CellComponents_FloorOnly_AGG_COUNT(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	matrix := resp.Crosstab.Matrix
+	rowByName, colByName := rowColIndex(matrix)
+
+	i := rowByName["south"]
+	j := colByName["wholesale"]
+	cell := ct.CellComponents[i][j]
+	if cell == nil {
+		t.Fatalf("CellComponents[south][wholesale] = nil")
+	}
+	if got, want := cell["n"], 2; got != want {
+		t.Errorf("n = %v, want %v", got, want)
+	}
+	if got, want := cell["n_null"], 0; got != want {
+		t.Errorf("n_null = %v, want %v", got, want)
+	}
+	// AGG_COUNT is floor-only.
+	if got, want := mapKeys(cell), []string{"n", "n_null"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("cell keys = %v, want %v (floor-only)", got, want)
+	}
+}
+
+// TestCrosstabComponents_CellComponents_EmptyCellsNil verifies the
+// emission contract for empty cells: a (rowKey, colKey) pair that
+// received no records emits nil at CellComponents[r][c]. Distinct from
+// an all-null bucket which still emits a populated map with n_null > 0.
+func TestCrosstabComponents_CellComponents_EmptyCellsNil(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	svc := New(cfg)
+	svc.SetDisableCrosstabFusion(true)
+	ctx := context.Background()
+
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "total"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+	}
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ct := crosstabCTOrFail(t, resp)
+	matrix := resp.Crosstab.Matrix
+	rowByName, colByName := rowColIndex(matrix)
+
+	// (east, wholesale) is the canonical empty cell on the fixture.
+	ei, ok := rowByName["east"]
+	if !ok {
+		t.Skip("no east row — skipping empty-cell check")
+	}
+	ej, ok := colByName["wholesale"]
+	if !ok {
+		t.Skip("no wholesale col — skipping empty-cell check")
+	}
+	if !matrix.Cells[ei][ej].Present == false {
+		t.Errorf("Matrix.Cells[east][wholesale].Present = true, want false (sanity)")
+	}
+	if ct.CellComponents[ei][ej] != nil {
+		t.Errorf("CellComponents[east][wholesale] = %v, want nil", ct.CellComponents[ei][ej])
+	}
+	// Sanity: non-empty cells must NOT be nil.
+	i := rowByName["north"]
+	j := colByName["retail"]
+	if ct.CellComponents[i][j] == nil {
+		t.Errorf("CellComponents[north][retail] = nil, want populated")
+	}
+}
+
+// TestCrosstabComponents_CellComponents_BufferedVsFused_ParityByteEqual
+// is the byte-equal parity gate for CellComponents emission. The same
+// crosstab request must produce reflect-equal CellComponents across the
+// buffered and fused paths. Drives both with SetDisableCrosstabFusion.
+//
+// Welford-cell sweep — these emit operator-specific maps via
+// MetaAggregator that exercise the cellNNull tracker in the fused path
+// and the per-bucket walk in the buffered path. A divergence here
+// surfaces as a regression in the orchestrator's per-cell {n, n_null}
+// floor or in the cell aggregator's Components() emission.
+func TestCrosstabComponents_CellComponents_BufferedVsFused_ParityByteEqual(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	ctx := context.Background()
+
+	for _, cellAgg := range []types.AggregationType{
+		types.AGG_SUM,
+		types.AGG_AVERAGE,
+		types.AGG_VARIANCE,
+		types.AGG_STDDEV,
+		types.AGG_WELFORD,
+		types.AGG_COUNT,
+		types.AGG_MIN,
+		types.AGG_MAX,
+		types.AGG_RANGE,
+	} {
+		t.Run(string(cellAgg), func(t *testing.T) {
+			buildReq := func() *types.Request {
+				return &types.Request{
+					Cohort: &types.Cohort{Filename: "ct.pulse"},
+					Crosstab: &types.CrosstabSpec{
+						Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+						Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+						Cell:    &types.Aggregation{Type: cellAgg, Field: "value", Label: "cell"},
+						Shape:   types.CrosstabShapeMatrix,
+					},
+				}
+			}
+			svcBuf := New(cfg)
+			svcBuf.SetDisableCrosstabFusion(true)
+			bufResp, err := svcBuf.Process(ctx, buildReq())
+			if err != nil {
+				t.Fatalf("buffered Process: %v", err)
+			}
+			svcFused := New(cfg)
+			fusedResp, err := svcFused.Process(ctx, buildReq())
+			if err != nil {
+				t.Fatalf("fused Process: %v", err)
+			}
+			bufCT := crosstabCTOrFail(t, bufResp)
+			fusedCT := crosstabCTOrFail(t, fusedResp)
+			if !reflect.DeepEqual(bufCT.CellComponents, fusedCT.CellComponents) {
+				t.Errorf("CellComponents differ for %s:\n buffered=%v\n fused   =%v",
+					cellAgg, bufCT.CellComponents, fusedCT.CellComponents)
+			}
+		})
+	}
+}
+
+// TestCrosstabComponents_CellComponents_NullInputTracking verifies the
+// per-cell n_null floor counter. Uses the nullable crosstab cohort with
+// a row whose region is null (excluded from cell counts) and asserts
+// that valid cells emit {n, n_null} correctly. The dataset has no
+// null VALUES (only null region keys), so n_null per cell stays 0.
+//
+// Drives both paths so the buffered runCellAggregation walk and the
+// fused per-record NumericValue probe in Update both surface their
+// floor counters identically.
+func TestCrosstabComponents_CellComponents_NullInputTracking(t *testing.T) {
+	cfg := writeNullableCrosstabCohort(t, "ct.pulse")
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name        string
+		disableFuse bool
+	}{
+		{"buffered", true},
+		{"fused", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := New(cfg)
+			svc.SetDisableCrosstabFusion(tc.disableFuse)
+			req := &types.Request{
+				Cohort: &types.Cohort{Filename: "ct.pulse"},
+				Crosstab: &types.CrosstabSpec{
+					Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+					Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+					Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "total"},
+					Shape:   types.CrosstabShapeMatrix,
+				},
+			}
+			resp, err := svc.Process(ctx, req)
+			if err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			ct := crosstabCTOrFail(t, resp)
+			// Every populated cell must carry both floor keys.
+			for i := range ct.CellComponents {
+				for j, cell := range ct.CellComponents[i] {
+					if cell == nil {
+						continue
+					}
+					if _, ok := cell["n"]; !ok {
+						t.Errorf("[%d][%d] missing n", i, j)
+					}
+					if _, ok := cell["n_null"]; !ok {
+						t.Errorf("[%d][%d] missing n_null", i, j)
+					}
+					// n + n_null must equal CellCounts on the matching coord.
+					n, _ := cell["n"].(int)
+					nNull, _ := cell["n_null"].(int)
+					if n+nNull != ct.CellCounts[i][j] {
+						t.Errorf("[%d][%d] n(%d)+n_null(%d) != CellCounts(%d)",
+							i, j, n, nNull, ct.CellCounts[i][j])
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestCrosstabComponents_CellComponents_ManifestParity asserts that the
+// operator-specific keys emitted per cell match the manifest's
+// ComponentsSchemas.Aggregators[<op>].Keys (minus the universal floor
+// {n, n_null}). Sweeps one cell aggregator per family represented in
+// the built-in registry: scalar (AGG_SUM), Welford (AGG_VARIANCE),
+// floor-only (AGG_COUNT). Map-state, composite, order-stat, and set-
+// family aggregators are exercised by their own per-operator
+// components tests under processing/; this test locks the cell-level
+// parity between manifest declaration and runtime emission.
+//
+// A divergence here means either (a) the cell aggregator's
+// Components() emits a key not declared in the manifest, or (b) the
+// manifest declares a key the cell aggregator does not emit. Both
+// surface the contract drift TestManifestComponentSchemasComplete is
+// designed to catch — this is the cell-level companion test.
+func TestCrosstabComponents_CellComponents_ManifestParity(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name string
+		op   types.AggregationType
+	}{
+		{"scalar/AGG_SUM", types.AGG_SUM},
+		{"welford/AGG_VARIANCE", types.AGG_VARIANCE},
+		{"welford-rich/AGG_WELFORD", types.AGG_WELFORD},
+		{"floor/AGG_COUNT", types.AGG_COUNT},
+		{"floor/AGG_NULL_COUNT", types.AGG_NULL_COUNT},
+		{"order/AGG_MIN", types.AGG_MIN},
+		{"order/AGG_MAX", types.AGG_MAX},
+		{"order/AGG_RANGE", types.AGG_RANGE},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := New(cfg)
+			svc.SetDisableCrosstabFusion(true)
+			req := &types.Request{
+				Cohort: &types.Cohort{Filename: "ct.pulse"},
+				Crosstab: &types.CrosstabSpec{
+					Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+					Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+					Cell:    &types.Aggregation{Type: tc.op, Field: "value", Label: "cell"},
+					Shape:   types.CrosstabShapeMatrix,
+				},
+			}
+			resp, err := svc.Process(ctx, req)
+			if err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			ct := crosstabCTOrFail(t, resp)
+
+			// Pick the first populated cell — the operator-key set is
+			// the same across every populated cell for a uniform
+			// aggregator. We compare the keys MINUS the floor against
+			// the manifest's declared key set.
+			var sampleCell map[string]any
+			for i := range ct.CellComponents {
+				for _, cell := range ct.CellComponents[i] {
+					if cell != nil {
+						sampleCell = cell
+						break
+					}
+				}
+				if sampleCell != nil {
+					break
+				}
+			}
+			if sampleCell == nil {
+				t.Fatalf("no populated cell on fixture for %s", tc.op)
+			}
+			got := cellOperatorKeys(sampleCell)
+			want := manifestAggOperatorKeysForCT(t, string(tc.op))
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("operator keys for %s: cell=%v manifest=%v", tc.op, got, want)
+			}
+		})
+	}
+}
+
+// mapKeys returns the sorted list of keys on a map[string]any. Used
+// throughout the CellComponents tests so the assertions stay
+// declarative.
+func mapKeys(m map[string]any) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// cellOperatorKeys returns the sorted operator-key set on a cell map —
+// the universal-floor keys {n, n_null} are stripped so the assertion
+// matches the manifest's ComponentSchema.Keys projection.
+func cellOperatorKeys(cell map[string]any) []string {
+	out := make([]string, 0, len(cell))
+	for k := range cell {
+		if k == "n" || k == "n_null" {
+			continue
+		}
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// manifestAggOperatorKeysForCT returns the operator-key set for the
+// named aggregator from the manifest's ComponentsSchemas projection,
+// minus the universal floor. Mirrors the helper used by the ungrouped
+// process-components tests (manifestAggOperatorKeys) but kept local so
+// the crosstab test file is self-contained against helper-rename
+// refactors. The descriptor.BuildManifest() projection is the same
+// public surface LLM clients consume.
+func manifestAggOperatorKeysForCT(t *testing.T, name string) []string {
+	t.Helper()
+	m := descriptor.BuildManifest()
+	schema, ok := m.ComponentsSchemas.Aggregators[name]
+	if !ok {
+		t.Fatalf("manifest carries no components schema for %s", name)
+	}
+	out := make([]string, 0, len(schema.Keys))
+	for _, k := range schema.Keys {
+		if k.Name == "n" || k.Name == "n_null" {
+			continue
+		}
+		out = append(out, k.Name)
+	}
+	sort.Strings(out)
+	return out
 }

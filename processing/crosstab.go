@@ -240,6 +240,19 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	cellCounts := make(map[crosstabCellKey]int, len(rowPart.Keys)*len(colPart.Keys))
 	var includedRecords int
 
+	// E3-S3: per-cell components map indexed by the same composite-key
+	// pair as cellValues. The buffered cell builder runs the cell
+	// aggregator through runCellAggregation which returns the post-
+	// Finalize aggregator instance, scalar value, and per-cell n_null
+	// (counted by walking the bucket once for the cell field). When the
+	// aggregator implements MetaAggregator the operator-specific keys are
+	// merged into a flat map alongside the universal floor (n, n_null);
+	// for floor-only operators (AGG_COUNT / AGG_NULL_COUNT) the operator
+	// half is empty and the cell's payload is the floor alone. Empty
+	// cells (no bucket) emit nil — preserved by the nil sentinel
+	// populateCrosstabComponents writes when no entry exists for (r, c).
+	cellComponents := make(map[crosstabCellKey]map[string]any, len(rowPart.Keys)*len(colPart.Keys))
+
 	for _, rkey := range rowPart.Keys {
 		rowRecs := rowPart.Records[rkey]
 		if len(rowRecs) == 0 {
@@ -257,14 +270,19 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			ck := crosstabCellKey{rkey, ckey}
 			cellCounts[ck] = len(bucket)
 			includedRecords += len(bucket)
-			row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
+			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, bucket)
 			if err != nil {
 				return nil, err
 			}
-			if row == nil {
+			compMap, err := buildCellComponentMap(instance, n, nNull)
+			if err != nil {
+				return nil, err
+			}
+			cellComponents[ck] = compMap
+			if !val.present {
 				continue
 			}
-			cellValues[ck] = row[cellLabel]
+			cellValues[ck] = val.value
 			cellPresent[ck] = true
 		}
 	}
@@ -562,7 +580,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		// than emit a negative count to the wire.
 		excludedRecords = 0
 	}
-	populateCrosstabComponents(resp, rowPart.Keys, colPart.Keys, cellCounts, includedRecords, excludedRecords)
+	populateCrosstabComponents(resp, rowPart.Keys, colPart.Keys, cellCounts, cellComponents, includedRecords, excludedRecords)
 
 	// Tier-2 post-tests run over the materialized cell rows. Margin rows
 	// are excluded — they are emission-time annotations, not statistical
@@ -896,18 +914,28 @@ func buildLongRows(spec *types.CrosstabSpec,
 }
 
 // populateCrosstabComponents writes the per-cell record-count matrix
-// onto Response.Components.Crosstab.CellCounts in the same (r, c)
-// layout as MatrixPayload.Cells. Allocates Response.Components and
+// and the per-cell components-map matrix onto
+// Response.Components.Crosstab in the same (r, c) layout as
+// MatrixPayload.Cells. Allocates Response.Components and
 // Response.Components.Crosstab when nil so the buffered and fused
 // crosstab paths can call this helper unconditionally without
 // duplicating slot-init plumbing.
 //
 // Shared with the fused path so byte-equal parity is structural — both
-// paths build the matrix from the same {(rowKey, colKey) → count} map
-// against the same sorted axis-key slices.
+// paths build the matrices from the same {(rowKey, colKey) → count}
+// and {(rowKey, colKey) → component map} maps against the same sorted
+// axis-key slices.
+//
+// cellComponents may be nil — in that case the CellComponents matrix is
+// left unpopulated (no E3-S3 emission for older callers). When non-nil,
+// every entry corresponds to a cell that received at least one record
+// (no empty cells in the map); a missing (r, c) yields a nil entry in
+// the emitted matrix so consumers can distinguish empty cells from
+// populated cells with an empty component map.
 func populateCrosstabComponents(resp *types.Response,
 	rowKeys, colKeys []string,
 	cellCounts map[crosstabCellKey]int,
+	cellComponents map[crosstabCellKey]map[string]any,
 	includedRecords, excludedRecords int,
 ) {
 	if resp == nil {
@@ -939,9 +967,146 @@ func populateCrosstabComponents(resp *types.Response,
 			matrix[i] = row
 		}
 		ct.CellCounts = matrix
+
+		// E3-S3: per-cell components matrix indexed identically to
+		// CellCounts. Empty cells (no entry in cellComponents) emit nil
+		// at [r][c] — consumers can dereference both matrices with the
+		// same (r, c) pair, distinguishing "no data" (nil) from "data
+		// with empty operator payload" (non-nil map with floor only).
+		// The outer matrix is allocated only when cellComponents is
+		// non-nil so the legacy E3-S2 callsites that pre-date
+		// CellComponents emit a CellCounts-only payload.
+		if cellComponents != nil {
+			compMatrix := make([][]map[string]any, len(rowKeys))
+			for i, rk := range rowKeys {
+				row := make([]map[string]any, len(colKeys))
+				for j, ck := range colKeys {
+					if m, ok := cellComponents[crosstabCellKey{rk, ck}]; ok {
+						row[j] = m
+					}
+				}
+				compMatrix[i] = row
+			}
+			ct.CellComponents = compMatrix
+		}
 	}
 	ct.IncludedRecords = includedRecords
 	ct.ExcludedRecords = excludedRecords
+}
+
+// cellAggregationResult carries the per-cell scalar/rich value and a
+// present flag distinguishing "aggregator finalised a value" from
+// "aggregator returned an empty row" (the buffered path treated the
+// latter as a skipped cell pre-E3-S3, which still holds here — we
+// surface presence via the flag).
+type cellAggregationResult struct {
+	value   any
+	present bool
+}
+
+// runCellAggregation runs a single cell aggregator against a bucket and
+// returns the rich/scalar value, the post-Finalize aggregator instance
+// (for MetaAggregator emission), and the per-cell universal-floor
+// counters (n = non-null contributing rows, nNull = null inputs the
+// aggregator skipped). The aggregator instance is exposed so the
+// caller can interrogate MetaAggregator without re-running the
+// pipeline.
+//
+// Mirrors the slot-handling subset of aggregateWithComponents — same
+// decimal dispatch, same factory lookup, same value/rich dispatch —
+// scoped to one slot. Distinct entry point so the crosstab cell
+// builder can capture the aggregator instance after Aggregate
+// returns, which the ungrouped aggregateWithComponents wraps inside
+// its closure.
+//
+// The empty-bucket case is rejected by the caller — bucket is always
+// non-empty when this is invoked from the cell loop, so we never
+// fall through to the "no rows seen" floor.
+func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record) (cellAggregationResult, any, int, int, error) {
+	// Per-cell {n, n_null} for the cell field. Walked over the bucket
+	// once before / alongside Aggregate (the floorFor helper used by
+	// aggregateWithComponents tilts the same way, but per-field rather
+	// than per-bucket). Cheap: one NumericValue probe per record.
+	var n, nNull int
+	for _, r := range bucket {
+		if _, ok := r.NumericValue(slot.Field); ok {
+			n++
+		} else {
+			nNull++
+		}
+	}
+
+	// Decimal128 dispatch — same gate as aggregateWithComponents.
+	if p.schema != nil {
+		if f := p.schema.Field(slot.Field); f != nil && f.Type.IsDecimal() {
+			if !IsDecimalAggregationSupported(slot.Type) {
+				return cellAggregationResult{}, nil, 0, 0, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+					"aggregation has no decimal128 implementation",
+					map[string]any{"aggregation": string(slot.Type), "field": slot.Field})
+			}
+			out, err := AggregateDecimalField(slot.Type, bucket, slot.Field, f.Scale)
+			if err != nil {
+				return cellAggregationResult{}, nil, 0, 0, err
+			}
+			// Decimal aggregators do not implement MetaAggregator — the
+			// orchestrator's floor-only entry is the full components
+			// payload (mirrors the ungrouped buffered path).
+			return cellAggregationResult{value: out, present: true}, nil, n, nNull, nil
+		}
+	}
+
+	factory, ok := p.exts.LookupAggregator(slot.Type)
+	if !ok {
+		return cellAggregationResult{}, nil, 0, 0, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("unknown aggregation type: %s", slot.Type))
+	}
+	aggregator, err := factory(slot, p.schema)
+	if err != nil {
+		return cellAggregationResult{}, nil, 0, 0, err
+	}
+	scalar, err := aggregator.Aggregate(bucket, slot.Field)
+	if err != nil {
+		return cellAggregationResult{}, nil, 0, 0, err
+	}
+	v, err := dispatchAggregatorResult(aggregator, scalar)
+	if err != nil {
+		return cellAggregationResult{}, nil, 0, 0, err
+	}
+	return cellAggregationResult{value: v, present: true}, aggregator, n, nNull, nil
+}
+
+// buildCellComponentMap merges the per-cell universal-floor counters
+// {n, n_null} with the operator-specific component keys emitted by the
+// cell aggregator's MetaAggregator.Components() implementation. The
+// returned map is pre-sized by `2 + len(operator-keys)` so the in-place
+// merge never rehashes; an aggregator without MetaAggregator (or one
+// returning a nil operator map) yields the floor alone.
+//
+// The orchestrator owns the floor: cell aggregators MUST NOT re-emit
+// `n` or `n_null` from their Components() implementation. This helper
+// is the single point of merge so the contract is structural — any
+// operator key shadowing the floor would land here and be quietly
+// overwritten by the floor pass, surfacing as a test divergence.
+//
+// Returns a non-nil error only when the underlying MetaAggregator
+// emission returns one — same dispatch contract as
+// buildAggregationComponents in the ungrouped path.
+func buildCellComponentMap(instance any, n, nNull int) (map[string]any, error) {
+	var operator map[string]any
+	if meta, ok := instance.(MetaAggregator); ok {
+		op, err := meta.Components()
+		if err != nil {
+			return nil, err
+		}
+		operator = op
+	}
+	out := make(map[string]any, 2+len(operator))
+	out["n"] = n
+	out["n_null"] = nNull
+	for k, v := range operator {
+		out[k] = v
+	}
+	return out, nil
 }
 
 // coerceAnyMarginMap converts a map[string]any margin map (the post-
