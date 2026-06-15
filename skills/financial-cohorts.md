@@ -1,177 +1,100 @@
 ---
 name: financial-cohorts
-description: Use decimal128 for money — precision and scale propagation, banker's rounding, divide-by-zero policy, currency-column patterns. Nullability is opt-in via Field.Nullable plus the per-record bitmap. Use when a cohort has monetary fields or hits PULSE_DECIMAL_OVERFLOW / PRECISION_LOSS / DIVIDE_BY_ZERO errors.
+description: decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, three consumer-facing decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO.
 type: guide
+kind: design
 applies_to: process, compose, predict, inspect
+covers: [decimal128, PULSE_DECIMAL_OVERFLOW, PULSE_PRECISION_LOSS, PULSE_DECIMAL_DIVIDE_BY_ZERO]
 ---
 
-# Financial Cohorts (decimal128)
+# Financial cohorts (decimal128)
 
-<skill_overview>
-Pulse's `decimal128` type is the only type defensible for money-movement workloads. It stores up to 38 decimal digits with a per-field declared precision and scale. This skill pins the rules: when to pick decimal vs f64, how precision propagates through arithmetic, how rounding behaves, what overflow looks like, and the v1 limits.
-</skill_overview>
+`decimal128` is the only defensible type for money-movement workloads — up to 38 decimal digits, per-field declared `(precision, scale)`, banker's rounding, no NaN, no infinity, no in-band null sentinel.
 
-## When to use decimal128
-
-Pick `decimal128` whenever **silent loss of precision is unacceptable**. Concrete triggers:
+## When to pick decimal128
 
 - Currency, billing, accounting, tax, payments, ledger entries.
-- Anything that reconciles to a downstream system of record (an accounting GL, a payments rail, an exchange).
-- Cohorts that auditors will read.
+- Anything reconciling to a downstream system of record (GL, payments rail, exchange).
+- Cohorts auditors will read.
 
-`f64` is a fine choice for descriptive analytics on revenue or volumes where last-cent precision does not matter. But once the same column drives money movement, switch to decimal.
+`f64` is fine for descriptive analytics where last-cent precision is irrelevant. Once the column drives money movement, switch to decimal.
 
-## Type spec: `decimal128(precision, scale)`
+## Type spec
 
-- **Precision**: total significant digits (1–38).
-- **Scale**: digits after the decimal point (0–precision).
+`decimal128(precision, scale)` — precision = total significant digits (1–38); scale = digits after the decimal point (0–precision).
 
-Examples:
-
-| Type | Range | Use for |
-|---|---|---|
-| `decimal128(20, 6)` | ±99,999,999,999,999.999999 | USD ledgers with sub-penny accumulation |
-| `decimal128(18, 2)` | ±9,999,999,999,999,999.99 | Standard USD/EUR amounts |
-| `decimal128(38, 18)` | ±99,999,999,999,999,999,999.999999999999999999 | Crypto, ETH/BTC at native unit |
-| `decimal128(38, 0)` | ±10^38 - 1 | Integer-only counts that need 128-bit range |
-
-Precision and scale are **per field**, declared in the schema and persisted in the .pulse header. `pulse_inspect` surfaces both.
-
-## Rounding mode
-
-Pulse uses **banker's rounding** (half-to-even) — one mode, no per-op override. This is the IEEE 754 default and the only safe choice for unbiased aggregation of large series.
-
-Examples at scale 0:
-
-| Input | Rounded |
+| Type | Use for |
 |---|---|
-| `0.5` | `0` |
-| `1.5` | `2` |
-| `2.5` | `2` |
-| `-1.5` | `-2` |
-| `1.6` | `2` |
-| `1.4` | `1` |
+| `decimal128(20, 6)` | USD ledger with sub-penny accumulation |
+| `decimal128(18, 2)` | Standard USD / EUR amounts |
+| `decimal128(38, 18)` | Crypto native units |
+| `decimal128(38, 0)` | Integer-only counts beyond u64 |
 
-Banker's rounding rounds half-values toward the nearest **even** integer. Repeated applications over millions of rows do not introduce bias the way "round half up" would.
+Both precision and scale persist in the schema; `pulse_inspect` surfaces both per field.
 
-## Precision propagation rules (SQL:2016 / Arrow Decimal128)
+## Rounding
 
-| Operation | Result precision | Result scale |
+Banker's rounding (half-to-even). One mode, no per-op override. IEEE 754 default; the only unbiased choice for large-series aggregation. At scale 0: `0.5 → 0`, `1.5 → 2`, `2.5 → 2`, `-1.5 → -2`, `1.6 → 2`.
+
+## Precision propagation (SQL:2016 / Arrow Decimal128)
+
+| Op | Result precision | Result scale |
 |---|---|---|
-| `(p1, s1) + (p2, s2)` | `max(p1-s1, p2-s2) + max(s1, s2) + 1` | `max(s1, s2)` |
-| `(p1, s1) - (p2, s2)` | same as `+` | same as `+` |
-| `(p1, s1) * (p2, s2)` | `p1 + p2` | `s1 + s2` |
-| `(p1, s1) / (p2, s2)` | `p1 + s2 + 1` | `max(s1+s2, MIN_SCALE)` where `MIN_SCALE = 4` |
+| `(p1,s1) + (p2,s2)` | `max(p1-s1, p2-s2) + max(s1,s2) + 1` | `max(s1, s2)` |
+| `(p1,s1) - (p2,s2)` | same as `+` | same as `+` |
+| `(p1,s1) * (p2,s2)` | `p1 + p2` | `s1 + s2` |
+| `(p1,s1) / (p2,s2)` | `p1 + s2 + 1` | `max(s1+s2, MIN_SCALE)` where `MIN_SCALE = 4` |
 
-All result precisions are clamped at **38**. When clamping kicks in and the actual value overflows, Pulse emits `PULSE_DECIMAL_OVERFLOW`.
+All result precisions clamp at **38**. When clamping kicks in and the value overflows, `PULSE_DECIMAL_OVERFLOW`.
 
-### Worked example
-
-`decimal128(10, 4) + decimal128(10, 4) → decimal128(11, 4)`
-`decimal128(10, 4) * decimal128(10, 4) → decimal128(20, 8)`
-`decimal128(10, 4) / decimal128(10, 4) → decimal128(15, 8)` (with `MIN_SCALE=4`)
+Examples: `(10,4) + (10,4) → (11,4)`. `(10,4) * (10,4) → (20,8)`. `(10,4) / (10,4) → (15,8)`.
 
 ## Mixed-type arithmetic
 
-There is no implicit cast between `decimal128` and `f64`. Mixing them in a `FILTER_EXPRESSION` or `ATTR_FORMULA` triggers a type error. To downcast, use an attribute that explicitly converts.
+No implicit cast between `decimal128` and `f64`. Mixing in `FILTER_EXPRESSION` / `ATTR_FORMULA` raises a type error. Downcast via an explicit attribute.
 
 ## Divide-by-zero
 
-Decimal divide by zero **errors with `PULSE_DECIMAL_DIVIDE_BY_ZERO`**. There is no NaN, no infinity. Guard divisors with a `FILTER_RANGE` if your data contains zeros.
+Decimal divide-by-zero raises `PULSE_DECIMAL_DIVIDE_BY_ZERO`. No NaN, no infinity. Guard divisors with a `FILTER_RANGE` if the data contains zeros.
 
 ## Aggregations on decimal fields
 
-| Aggregator | Defined on decimal? | Result type |
-|---|---|---|
-| `AGG_SUM` | yes | `decimal128` (overflow → error) |
-| `AGG_AVERAGE` | yes | `decimal128` (overflow → f64 fallback + warning) |
-| `AGG_MIN` | yes | `decimal128` |
-| `AGG_MAX` | yes | `decimal128` |
-| `AGG_VARIANCE` | yes | `decimal128` at `2 * mean_scale` (f64 fallback on overflow) |
-| `AGG_STDDEV` | yes | `decimal128` at `mean_scale`, banker-rounded sqrt (f64 fallback on overflow) |
-| `AGG_COUNT` | yes | int |
-| `AGG_DISTINCT_COUNT` | yes | int |
-| `AGG_MEDIAN` | **no** v1 | — |
-| `AGG_PERCENTILE` | **no** v1 | — |
-| `AGG_ZSCORE` | **no** v1 | — |
-| `AGG_SKEWNESS` / `AGG_KURTOSIS` | **no** v1 | — |
-| `AGG_MODE` / `AGG_FREQUENCY` / `AGG_RANGE` | **no** v1 | — |
+| Aggregator | Result |
+|---|---|
+| `AGG_SUM` | decimal128 (overflow → error) |
+| `AGG_AVERAGE` | decimal128; f64 fallback + `PULSE_PRECISION_LOSS` warning on overflow |
+| `AGG_MIN` / `AGG_MAX` | decimal128 |
+| `AGG_VARIANCE` | decimal128 at `2 * mean_scale` (f64 fallback) |
+| `AGG_STDDEV` | decimal128 at `mean_scale`, banker-rounded sqrt (f64 fallback) |
+| `AGG_COUNT` / `AGG_DISTINCT_COUNT` | int |
 
-Predict reports `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL` for any aggregation outside the supported set.
+**v1 not supported** on decimal: `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_ZSCORE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_MODE`, `AGG_FREQUENCY`, `AGG_RANGE`. Predict raises `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
 
-## AGG_AVERAGE and the precision-loss path
+## Precision-loss path on AGG_AVERAGE
 
-`AGG_AVERAGE` preserves precision by default — the implementation accumulates the sum as `decimal128` and divides by the count. When the running sum would overflow `decimal128(38)` mid-aggregation, Pulse:
+Default path accumulates `decimal128` sum and divides by count. If running sum would overflow `decimal128(38)` mid-aggregation: re-run with `f64` accumulators, emit `PULSE_PRECISION_LOSS` **warning** (not an error). For audited workloads, split or coarsen so the warning never fires.
 
-1. Re-runs the aggregation with `f64` accumulators.
-2. Emits a `PULSE_DECIMAL_PRECISION_LOSS` **warning** (not an error).
+## Null state
 
-For audited workloads, split or coarsen so the warning never fires. For exploratory analytics, the warning is informational.
+`decimal128` opts into nullability via `Field.Nullable = true` + the per-record bitmap (see `cohort-schema-design`). Every 16-byte pattern is a legitimate value; the bitmap is the sole authority. Importers parse configured null tokens (`""`, `"null"`, `"na"`, `"n/a"`, case-insensitive) into bitmap bits on nullable fields and reject them on non-nullable fields with `PULSE_IMPORT_ROW_ERROR`.
 
-## Importer rules
+## Filtering
 
-The CSV/TSV/NDJSON/JSON-array importers parse decimal strings strictly:
+Standard comparison filterers (`FILTER_RANGE`, `FILTER_INCLUDE`, `FILTER_EXCLUDE`, `FILTER_EXPRESSION`) work natively on decimal128 fields. No dedicated filter type.
 
-- **Accepted**: `"123"`, `"-123.45"`, `"+0.001"`.
-- **Rejected**: `"$1,234.56"`, `"1 234.56"`, `"1.5e3"`, leading or trailing whitespace.
+## Feature operators
 
-Fail-closed: a malformed row produces `PULSE_IMPORT_ROW_ERROR` and skips the row.
+`FEAT_LOG`, `FEAT_SQRT`, `FEAT_BUCKETIZE` consume decimal128 by reading the f64 approximation alongside the typed mantissa; output column is **f64** (no native decimal `log` / `sqrt`). Feature outputs are NOT auditor-defensible — for decimal precision downstream, aggregate on the original column. Categorical-only (`FEAT_ONE_HOT`, `FEAT_FREQUENCY_ENCODE`, `FEAT_TARGET_ENCODE`) and date-only (`FEAT_DATE_FEATURES`) reject decimal fields; predict raises `SERVICE_VALIDATION`.
 
-## Filtering decimal fields
+## Importer accepts / rejects
 
-The standard comparison filterers (`FILTER_RANGE`, `FILTER_INCLUDE`, `FILTER_EXCLUDE`, `FILTER_EXPRESSION`) work natively on decimal128 fields. No new filter type is needed.
+CSV / TSV / NDJSON / JSON-array importers parse decimal strings strictly. Accepted: `"123"`, `"-123.45"`, `"+0.001"`. Rejected: `"$1,234.56"`, `"1 234.56"`, `"1.5e3"`, leading/trailing whitespace. Malformed row → `PULSE_IMPORT_ROW_ERROR`; row is skipped.
 
-## NULL: bitmap-driven
+## Request shape skeleton
 
-Decimal128 fields opt into nullability the same way every other type does — set `Field.Nullable = true` and the per-record null bitmap (see `skills/cohort-schema-design.md`'s "Null bitmap" reference) carries the missing state. There is no in-band sentinel — every 16-byte pattern is a legitimate decimal value, and the bitmap is the sole authority. Importers parse the configured null tokens (`""`, `"null"`, `"na"`, `"n/a"`, case-insensitive) into bitmap bits on nullable fields and reject them on non-nullable fields with `PULSE_IMPORT_ROW_ERROR`.
-
-## Feature operators on decimal fields
-
-Pre-filter feature operators (`FEAT_LOG`, `FEAT_SQRT`, `FEAT_BUCKETIZE`) consume decimal128 fields by reading the f64 approximation that the cohort reader populates alongside the typed mantissa. The derived column they emit is f64 — there is no native decimal128 `log` or `sqrt` because both are inherently irrational over decimal arguments.
-
-Implications:
-
-- Feature outputs are not auditor-defensible to the last digit. If you need decimal precision in a downstream aggregator, run the aggregator on the original decimal column, not on the feature output.
-- Categorical-only operators (`FEAT_ONE_HOT`, `FEAT_FREQUENCY_ENCODE`, `FEAT_TARGET_ENCODE`) and date-only operators (`FEAT_DATE_FEATURES`) still reject decimal fields per their existing type contracts — predict surfaces a `SERVICE_VALIDATION` error.
-
-Practical pattern:
-
-```json
-{
-  "features": [{"type": "FEAT_LOG", "field": "amount_usd", "label": "log_amount"}],
-  "aggregations": [
-    {"type": "AGG_AVERAGE", "field": "amount_usd"},
-    {"type": "AGG_AVERAGE", "field": "log_amount"}
-  ]
-}
 ```
-
-The first aggregation stays in decimal128; the second is f64.
-
-## v1 deferred items
-
-- Per-op rounding mode override.
-- `MIN_SCALE` configuration on division (locked at 4 in v1).
-- Decimal-aware median / percentile / mode.
-
-## Common patterns
-
-### A USD ledger with sub-penny accumulation
-
-```json
 {
-  "fields": [
-    {"name": "amount_usd", "type": "decimal128", "precision": 20, "scale": 6,
-     "description": "Amount in USD with micro-cent resolution; positive credit, negative debit."}
-  ]
-}
-```
-
-### Sum + average over an account
-
-```json
-{
-  "filterers": [{"type": "FILTER_INCLUDE", "field": "account_id", "values": ["A123"]}],
+  "filterers":    [{"type": "FILTER_INCLUDE", "field": "account_id", "values": [...]}],
   "aggregations": [
     {"type": "AGG_SUM",     "field": "amount_usd"},
     {"type": "AGG_AVERAGE", "field": "amount_usd"}
@@ -179,4 +102,16 @@ The first aggregation stays in decimal128; the second is f64.
 }
 ```
 
-The SUM result is `decimal128(20, 6)`. The AVERAGE result preserves precision by default; if the cohort is large enough that the running sum would overflow, the response carries a `PULSE_DECIMAL_PRECISION_LOSS` warning and the result is `f64`.
+`AGG_SUM` stays in `decimal128(p, s)`. `AGG_AVERAGE` preserves precision by default; large cohorts may fall back to f64 with a `PULSE_PRECISION_LOSS` warning.
+
+## v1 deferred
+
+- Per-op rounding-mode override.
+- `MIN_SCALE` configuration on division (locked at 4).
+- Decimal-aware median / percentile / mode.
+
+## Cross-links
+
+- `cohort-schema-design` — schema layout, null bitmap, shards.
+- `aggregation-guide` — full aggregator list and decimal column support per op.
+- `pulse_errors_lookup` — canonical message + fixups for every error code mentioned here.
