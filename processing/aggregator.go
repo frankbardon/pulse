@@ -407,9 +407,20 @@ func (a *rangeAggregator) aggregateValues(vals []float64) (float64, error) {
 }
 
 // --- Frequency ---
-
+//
+// frequencyAggregator's scalar return is the modal count; Components()
+// adds the per-value cardinality plus the modal value (smallest-value
+// tie-break, matching AGG_MODE's deterministic ordering). frozenDistinct
+// / frozenModeValue / frozenModeCount mirror the post-Aggregate /
+// post-Finalize state so Components() works on both buffered and
+// streaming code paths — the streaming Finalize step nils out `counts`
+// after computing, so the frozen mirrors are the source of truth.
 type frequencyAggregator struct {
-	counts map[float64]int
+	counts          map[float64]int
+	frozenDistinct  int
+	frozenModeValue float64
+	frozenModeCount int
+	frozenFinalized bool
 }
 
 func newFrequencyAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -422,7 +433,11 @@ func (a *frequencyAggregator) Aggregate(records []*Record, field string) (float6
 }
 
 func (a *frequencyAggregator) aggregateValues(vals []float64) (float64, error) {
+	a.frozenFinalized = true
 	if len(vals) == 0 {
+		a.frozenDistinct = 0
+		a.frozenModeValue = 0
+		a.frozenModeCount = 0
 		return 0, nil
 	}
 	counts := make(map[float64]int)
@@ -435,6 +450,22 @@ func (a *frequencyAggregator) aggregateValues(vals []float64) (float64, error) {
 			maxCount = c
 		}
 	}
+	// Mode value: smallest among ties — matches modeAggregator's
+	// deterministic ordering so AGG_MODE and AGG_FREQUENCY agree on
+	// the winner over the same input set.
+	var modeValue float64
+	first := true
+	for v, c := range counts {
+		if c == maxCount {
+			if first || v < modeValue {
+				modeValue = v
+				first = false
+			}
+		}
+	}
+	a.frozenDistinct = len(counts)
+	a.frozenModeValue = modeValue
+	a.frozenModeCount = maxCount
 	return float64(maxCount), nil
 }
 
@@ -561,9 +592,23 @@ func (a *varianceAggregator) aggregateValues(vals []float64) (float64, error) {
 }
 
 // --- Mode ---
-
+//
+// modeAggregator's scalar return is the smallest-value tie-break
+// winner among values sharing the maximal count. Components() adds
+// the modal count, the distinct-value cardinality, and the tie_count
+// (number of distinct values tied at the maximal count). frozenValue
+// / frozenCount / frozenDistinct / frozenTieCount mirror the post-
+// Aggregate / post-Finalize state so Components() works on both
+// buffered and streaming code paths — the streaming Finalize step
+// nils out `counts` after computing, so the frozen mirrors are the
+// source of truth.
 type modeAggregator struct {
-	counts map[float64]int
+	counts          map[float64]int
+	frozenValue     float64
+	frozenCount     int
+	frozenDistinct  int
+	frozenTieCount  int
+	frozenFinalized bool
 }
 
 func newModeAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -576,7 +621,12 @@ func (a *modeAggregator) Aggregate(records []*Record, field string) (float64, er
 }
 
 func (a *modeAggregator) aggregateValues(vals []float64) (float64, error) {
+	a.frozenFinalized = true
 	if len(vals) == 0 {
+		a.frozenValue = 0
+		a.frozenCount = 0
+		a.frozenDistinct = 0
+		a.frozenTieCount = 0
 		return 0, nil
 	}
 	counts := make(map[float64]int)
@@ -592,14 +642,20 @@ func (a *modeAggregator) aggregateValues(vals []float64) (float64, error) {
 	// Among values with max frequency, return the smallest (deterministic tie-breaking).
 	var result float64
 	first := true
+	tieCount := 0
 	for v, c := range counts {
 		if c == maxCount {
+			tieCount++
 			if first || v < result {
 				result = v
 				first = false
 			}
 		}
 	}
+	a.frozenValue = result
+	a.frozenCount = maxCount
+	a.frozenDistinct = len(counts)
+	a.frozenTieCount = tieCount
 	return result, nil
 }
 
@@ -705,9 +761,17 @@ func (a *kurtosisAggregator) aggregateValues(vals []float64) (float64, error) {
 }
 
 // --- Distinct Count ---
-
+//
+// distinctCountAggregator's scalar return is the cardinality of the
+// per-value set. Components() surfaces the same cardinality under the
+// {cardinality} key. frozenCardinality mirrors the post-Aggregate /
+// post-Finalize state so Components() works on both buffered and
+// streaming code paths — the streaming Finalize step nils out `set`
+// after computing, so the frozen mirror is the source of truth.
 type distinctCountAggregator struct {
-	set map[float64]struct{}
+	set               map[float64]struct{}
+	frozenCardinality int
+	frozenFinalized   bool
 }
 
 func newDistinctCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -720,13 +784,16 @@ func (a *distinctCountAggregator) Aggregate(records []*Record, field string) (fl
 }
 
 func (a *distinctCountAggregator) aggregateValues(vals []float64) (float64, error) {
+	a.frozenFinalized = true
 	if len(vals) == 0 {
+		a.frozenCardinality = 0
 		return 0, nil
 	}
 	set := make(map[float64]struct{})
 	for _, v := range vals {
 		set[v] = struct{}{}
 	}
+	a.frozenCardinality = len(set)
 	return float64(len(set)), nil
 }
 
@@ -1028,6 +1095,84 @@ func (a *zscoreAggregator) Components() (map[string]any, error) {
 	}, nil
 }
 
+// --- Map-state Components implementations (E1-S7) ----------------
+//
+// The three map-state aggregators — AGG_DISTINCT_COUNT, AGG_MODE,
+// AGG_FREQUENCY — maintain a per-value count map (or set) for their
+// primary computation; Components() surfaces summary stats over that
+// map. Each emits from the frozen mirror fields stamped by either the
+// buffered path (aggregateValues) or the streaming path (Finalize),
+// since both paths nil out the live map after computing.
+//
+// Categorical-decode FOLLOWUP: when the underlying field type is
+// categorical_*, the float64 keys are encoded dictionary indices. The
+// scalar return path also surfaces the raw float64 (the dictionary
+// index, not the label) — Components() emits the same raw value so
+// the two channels agree. Decoding to the human-visible label
+// requires plumbing the schema dictionary into the aggregator and
+// is left for a follow-up effort.
+
+// Components returns {cardinality} — the number of distinct non-null
+// values observed. Reads frozenCardinality so the streaming path's
+// Finalize-reset does not erase the value before Components() runs.
+// Empty input returns (nil, nil) so the orchestrator's universal
+// floor (n=0) is the source of truth for "no rows seen", matching
+// the empty-input convention used by Welford-family Rich().
+func (a *distinctCountAggregator) Components() (map[string]any, error) {
+	if a.frozenFinalized && a.frozenCardinality == 0 {
+		// Distinguish "ran, saw nothing" from "never ran": when the
+		// scalar path executed but found no rows, emit cardinality=0
+		// so consumers can read the post-Aggregate state without
+		// having to consult the floor independently.
+		return map[string]any{"cardinality": 0}, nil
+	}
+	if !a.frozenFinalized {
+		return nil, nil
+	}
+	return map[string]any{
+		"cardinality": a.frozenCardinality,
+	}, nil
+}
+
+// Components returns {value, count, distinct_count, tie_count} — the
+// modal value (smallest-value tie-break), the modal count, the
+// cardinality of the per-value count map, and the number of distinct
+// values sharing the modal count. Reads frozen* mirrors so the
+// streaming path's Finalize-reset does not erase the values before
+// Components() runs. Empty input returns (nil, nil) so the
+// orchestrator's universal floor (n=0) is the source of truth.
+func (a *modeAggregator) Components() (map[string]any, error) {
+	if !a.frozenFinalized || a.frozenCount == 0 {
+		return nil, nil
+	}
+	return map[string]any{
+		"value":          a.frozenValue,
+		"count":          a.frozenCount,
+		"distinct_count": a.frozenDistinct,
+		"tie_count":      a.frozenTieCount,
+	}, nil
+}
+
+// Components returns {distinct_count, mode_value, mode_count} — the
+// cardinality of the per-value count map plus the modal value
+// (smallest-value tie-break, matching AGG_MODE) and the modal count.
+// mode_count duplicates the scalar return of AGG_FREQUENCY — it is
+// the per-operator definition of the modal cardinality. Reads
+// frozen* mirrors so the streaming path's Finalize-reset does not
+// erase the values before Components() runs. Empty input returns
+// (nil, nil) so the orchestrator's universal floor (n=0) is the
+// source of truth.
+func (a *frequencyAggregator) Components() (map[string]any, error) {
+	if !a.frozenFinalized || a.frozenModeCount == 0 {
+		return nil, nil
+	}
+	return map[string]any{
+		"distinct_count": a.frozenDistinct,
+		"mode_value":     a.frozenModeValue,
+		"mode_count":     a.frozenModeCount,
+	}, nil
+}
+
 // Compile-time interface locks for the seven scalar aggregators.
 // Keeps the wiring grep-discoverable and catches interface drift at
 // build time when interfaces.go.MetaAggregator changes shape.
@@ -1046,4 +1191,9 @@ var (
 	_ MetaAggregator = (*skewnessAggregator)(nil)
 	_ MetaAggregator = (*kurtosisAggregator)(nil)
 	_ MetaAggregator = (*zscoreAggregator)(nil)
+
+	// Map-state compile-time locks (E1-S7).
+	_ MetaAggregator = (*distinctCountAggregator)(nil)
+	_ MetaAggregator = (*modeAggregator)(nil)
+	_ MetaAggregator = (*frequencyAggregator)(nil)
 )

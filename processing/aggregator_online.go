@@ -332,6 +332,11 @@ func (a *distinctCountAggregator) UpdateRow(r *Record, field string) error {
 }
 
 func (a *distinctCountAggregator) Finalize() (float64, error) {
+	// Stamp the frozen mirror before nilling the live set so
+	// Components() reads the post-finalize cardinality after the
+	// streaming-path reset.
+	a.frozenCardinality = len(a.set)
+	a.frozenFinalized = true
 	out := float64(len(a.set))
 	a.set = nil
 	return out, nil
@@ -352,12 +357,36 @@ func (a *frequencyAggregator) UpdateRow(r *Record, field string) error {
 }
 
 func (a *frequencyAggregator) Finalize() (float64, error) {
+	a.frozenFinalized = true
+	if len(a.counts) == 0 {
+		a.frozenDistinct = 0
+		a.frozenModeValue = 0
+		a.frozenModeCount = 0
+		a.counts = nil
+		return 0, nil
+	}
 	maxCount := 0
 	for _, c := range a.counts {
 		if c > maxCount {
 			maxCount = c
 		}
 	}
+	// Mode value: smallest among ties — matches modeAggregator's
+	// deterministic ordering so the streaming and buffered paths
+	// emit byte-identical Components{}.
+	var modeValue float64
+	first := true
+	for v, c := range a.counts {
+		if c == maxCount {
+			if first || v < modeValue {
+				modeValue = v
+				first = false
+			}
+		}
+	}
+	a.frozenDistinct = len(a.counts)
+	a.frozenModeValue = modeValue
+	a.frozenModeCount = maxCount
 	a.counts = nil
 	return float64(maxCount), nil
 }
@@ -377,7 +406,12 @@ func (a *modeAggregator) UpdateRow(r *Record, field string) error {
 }
 
 func (a *modeAggregator) Finalize() (float64, error) {
+	a.frozenFinalized = true
 	if len(a.counts) == 0 {
+		a.frozenValue = 0
+		a.frozenCount = 0
+		a.frozenDistinct = 0
+		a.frozenTieCount = 0
 		a.counts = nil
 		return 0, nil
 	}
@@ -389,14 +423,20 @@ func (a *modeAggregator) Finalize() (float64, error) {
 	}
 	var result float64
 	first := true
+	tieCount := 0
 	for v, c := range a.counts {
 		if c == maxCount {
+			tieCount++
 			if first || v < result {
 				result = v
 				first = false
 			}
 		}
 	}
+	a.frozenValue = result
+	a.frozenCount = maxCount
+	a.frozenDistinct = len(a.counts)
+	a.frozenTieCount = tieCount
 	a.counts = nil
 	return result, nil
 }
