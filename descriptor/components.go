@@ -1,5 +1,7 @@
 package descriptor
 
+import "github.com/frankbardon/pulse/types"
+
 // This file defines the descriptor-side typed surface for the
 // per-operator components contract. The runtime sibling interface that
 // emits the matching map[string]any payload lives in the processing
@@ -14,37 +16,37 @@ package descriptor
 // reflect.Kind) precisely so this file can declare the contract
 // without importing any execution-layer types.
 
-// ComponentsMergeability classifies how an operator's components map
-// folds across streaming chunks. The orchestrator uses this flag to
-// decide whether to emit per-chunk component deltas, stage a terminal
-// merge, or suppress streaming-chunk components entirely.
-//
-// String constants are wire-stable and surface in the manifest JSON;
-// the values are snake_case to match the rest of the --json envelope
-// (Output Format Contract in CLAUDE.md).
-type ComponentsMergeability string
+// ComponentsMergeability is re-exported from types/ where the canonical
+// enum lives (see types/streamability.go). Descriptor aliases the type
+// and forwards the constants so existing capability-file declarations
+// (descriptor.Mergeable / descriptor.Partial / descriptor.None) and
+// predict-side switches keep compiling unchanged while the source of
+// truth is the leaf-package types declaration. Wire JSON values are
+// "mergeable" / "partial" / "none".
+type ComponentsMergeability = types.ComponentsMergeability
 
 const (
-	// Mergeable signals that the components map folds across chunks
-	// via the same associative/commutative path as the scalar value.
-	// Welford-family (mean / variance / sum_squares / m2), sums,
-	// counts, set masks, and weighted accumulators are mergeable.
-	// Per-chunk components are safe to emit and merge online.
-	Mergeable ComponentsMergeability = "mergeable"
+	// Mergeable forwards types.ComponentsMergeable. The components map
+	// folds across chunks via the same associative/commutative path
+	// as the scalar value (Welford-family, sums, counts, set masks,
+	// weighted accumulators).
+	Mergeable = types.ComponentsMergeable
 
-	// Partial signals that the components map merges across chunks but
-	// at non-trivial allocation cost — map / set unions where the
-	// fold is associative but not constant-space. AGG_FREQUENCY,
-	// AGG_MODE, AGG_DISTINCT_COUNT, and AGG_SET_FREQUENCY are partial.
-	// The orchestrator may stage the merge at terminal flush.
-	Partial ComponentsMergeability = "partial"
+	// Partial forwards types.ComponentsPartial. The components map
+	// merges across chunks but at non-trivial allocation cost — map /
+	// set unions where the fold is associative but not constant-
+	// space (AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT,
+	// AGG_SET_FREQUENCY). The orchestrator may stage the merge at
+	// terminal flush.
+	Partial = types.ComponentsPartial
 
-	// None signals that the components map cannot be computed from a
-	// per-chunk partial — the operator needs a sorted view (or
-	// equivalent) of the full input. AGG_MEDIAN / AGG_PERCENTILE are
-	// the canonical Nones. Streaming chunks omit components for these
-	// operators; predict declares the slot as buffered-components-only.
-	None ComponentsMergeability = "none"
+	// None forwards types.ComponentsNone. The components map cannot
+	// be computed from a per-chunk partial — the operator needs a
+	// sorted view (or equivalent) of the full input (AGG_MEDIAN,
+	// AGG_PERCENTILE, GROUP_QUANTILE). Streaming chunks omit
+	// components for these operators; predict declares the slot as
+	// buffered-components-only.
+	None = types.ComponentsNone
 )
 
 // ComponentKey describes one named entry in an operator's components
