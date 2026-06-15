@@ -213,6 +213,19 @@ type GrouperFactory func(grp *types.Group, schema *encoding.Schema) (Grouper, er
 // (percentile/median/zscore — they require a sorted view) MUST NOT
 // implement this interface; the parallel orchestrator falls through
 // to the serial shard iterator for such requests.
+//
+// Components contract under merge. MergeOnline composes per-chunk
+// state with another mergeable aggregator's state. After MergeOnline
+// returns, the receiver's scalar (Aggregate/Finalize) output AND any
+// MetaAggregator.Components() output reflect the merged state —
+// there is no separate MergeComponents call. Implementations MUST
+// keep internal component-state mirrors consistent with the value-
+// state under MergeOnline. The orchestrator path is
+// MergeOnline...; Finalize(); Components() — so per-aggregator
+// freeze() helpers stamped from Finalize automatically cover the
+// merged emission. Operators with ComponentsMergeability=Partial may
+// stage merge at terminal flush rather than per-chunk; consult
+// types.ComponentsMergeability.
 type MergeableAggregator interface {
 	OnlineAggregator
 	MergeOnline(other OnlineAggregator) error
