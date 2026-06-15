@@ -50,6 +50,58 @@
       }
     ],
     "defaults_applied": [],
+    "aggregations": [
+      {
+        "type": "AGG_AVERAGE",
+        "field": "score",
+        "label": "avg_score",
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum",
+              "type": "float64",
+              "description": "Running sum of non-null field values; combined with n to recover the mean."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      },
+      {
+        "type": "AGG_SUM",
+        "field": "grade",
+        "label": "sum_grade",
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum",
+              "type": "float64",
+              "description": "Running sum of non-null field values."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      }
+    ],
     "overlays_applied": [],
     "overlays_schema_divergence": [],
     "overlay_cost": {}
@@ -66,4 +118,4 @@
     }
   ]
 }
-// golden-hash: 6418c1de3a5d381ca392a7788ee20f53a776117b18c196dc82527c5c291ffcf7
+// golden-hash: af90308bb3b18cc7f9bd340a94e5f95f6ea3caa79f861172c867d86d1c0d59e8

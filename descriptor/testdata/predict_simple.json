@@ -23,6 +23,33 @@
     "streamable": true,
     "suggestions": [],
     "defaults_applied": [],
+    "aggregations": [
+      {
+        "type": "AGG_AVERAGE",
+        "field": "score",
+        "label": "avg_score",
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum",
+              "type": "float64",
+              "description": "Running sum of non-null field values; combined with n to recover the mean."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      }
+    ],
     "overlays_applied": [],
     "overlays_schema_divergence": [],
     "overlay_cost": {}
@@ -30,4 +57,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1907aba5bdff99fd4278bf6f73c93c70c0e9ed526b7a0c7c06ff8303d91d2258
+// golden-hash: 26f8309a38a0e4a79d33cae60b35e7f909c6bf01d50623e0154bb6fc67aa77b4

@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -463,6 +464,98 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			}
 		})
 	}
+
+	// Buffered-components coverage (E1-S4): per-slot BufferedComponents
+	// must mirror the operator's ComponentSchema.Mergeability == None
+	// without flipping the overall Streamable axis. AGG_MEDIAN and
+	// AGG_PERCENTILE are the canonical Nones today; their slots
+	// advertise buffered components so streaming consumers know the
+	// Components block arrives only on terminal flush — but the
+	// per-aggregation Streamable check itself stays runtime-parity
+	// (both are non-streamable today). The buffered-components hint is
+	// an additive surface; mergeable aggregators leave the flag false.
+	t.Run("buffered components flag", func(t *testing.T) {
+		bufferedCases := []struct {
+			name       string
+			req        *types.Request
+			wantSlot   types.AggregationType
+			wantBuf    bool
+			wantMerge  ComponentsMergeability
+			wantStream bool
+		}{
+			{
+				name:       "AGG_MEDIAN flags buffered components",
+				req:        &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "score"}}},
+				wantSlot:   types.AGG_MEDIAN,
+				wantBuf:    true,
+				wantMerge:  None,
+				wantStream: false,
+			},
+			{
+				name:       "AGG_PERCENTILE flags buffered components",
+				req:        &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_PERCENTILE, Field: "score", Params: json.RawMessage(`{"percentile":0.9}`)}}},
+				wantSlot:   types.AGG_PERCENTILE,
+				wantBuf:    true,
+				wantMerge:  None,
+				wantStream: false,
+			},
+			{
+				name:       "AGG_SUM mergeable, no buffered flag",
+				req:        &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}}},
+				wantSlot:   types.AGG_SUM,
+				wantBuf:    false,
+				wantMerge:  Mergeable,
+				wantStream: true,
+			},
+			{
+				name:       "AGG_FREQUENCY partial, no buffered flag",
+				req:        &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "score"}}},
+				wantSlot:   types.AGG_FREQUENCY,
+				wantBuf:    false,
+				wantMerge:  Partial,
+				wantStream: true,
+			},
+		}
+		for _, bc := range bufferedCases {
+			t.Run(bc.name, func(t *testing.T) {
+				data := buildTestPulseFile(t, numericSchema)
+				env := PredictFromBytes(data, bc.req, nil)
+				result := env.Data.(*PredictResult)
+				if len(result.Aggregations) != 1 {
+					t.Fatalf("expected 1 AggregationPredict entry, got %d", len(result.Aggregations))
+				}
+				slot := result.Aggregations[0]
+				if slot.Type != bc.wantSlot {
+					t.Errorf("Aggregations[0].Type = %q, want %q", slot.Type, bc.wantSlot)
+				}
+				if slot.BufferedComponents != bc.wantBuf {
+					t.Errorf("Aggregations[0].BufferedComponents = %v, want %v", slot.BufferedComponents, bc.wantBuf)
+				}
+				if slot.ComponentSchema.Mergeability != bc.wantMerge {
+					t.Errorf("Aggregations[0].ComponentSchema.Mergeability = %q, want %q",
+						slot.ComponentSchema.Mergeability, bc.wantMerge)
+				}
+				// Universal floor: every schema must lead with n + n_null.
+				if len(slot.ComponentSchema.Keys) < 2 ||
+					slot.ComponentSchema.Keys[0].Name != "n" ||
+					slot.ComponentSchema.Keys[1].Name != "n_null" {
+					t.Errorf("Aggregations[0].ComponentSchema universal floor missing; keys=%v", slot.ComponentSchema.Keys)
+				}
+				// The overall Streamable axis must mirror the runtime gate
+				// regardless of BufferedComponents — the flag is additive
+				// metadata, not a streamability override.
+				runtime := processing.CanStreamRequest(bc.req, numericSchema)
+				if result.Streamable != runtime {
+					t.Errorf("predict.Streamable=%v but runtime CanStreamRequest=%v (reasons: %v)",
+						result.Streamable, runtime, result.StreamableReasons)
+				}
+				if result.Streamable != bc.wantStream {
+					t.Errorf("predict.Streamable=%v, want %v (BufferedComponents must not flip the axis)",
+						result.Streamable, bc.wantStream)
+				}
+			})
+		}
+	})
 }
 
 func containsReason(reasons []string, needle string) bool {
