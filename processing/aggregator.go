@@ -529,8 +529,32 @@ func (a *zscoreAggregator) aggregateValues(vals []float64) (float64, error) {
 }
 
 // --- Median ---
-
-type medianAggregator struct{}
+//
+// medianAggregator's scalar return is the median of the non-null
+// values for the named field. Components() surfaces the sorted-
+// position indices used to bracket the median (position_low /
+// position_high) plus the resolved median value itself. Both indices
+// match for odd N (single-pivot path) and differ by 1 for even N
+// (linear interpolation between the two middle positions). The
+// aggregator declares ComponentsMergeability=None — the median cannot
+// be computed incrementally without sorting the full value set, so the
+// streaming path defers Components() emission until terminal buffered
+// flush (E4-S4 wiring).
+//
+// frozenN / frozenMedian / frozenPositionLow / frozenPositionHigh
+// mirror the post-Aggregate state so Components() returns a stable
+// snapshot even on aggregator reuse. frozenFinalized distinguishes
+// "ran on empty input" (frozenN==0 + frozenFinalized==true) from
+// "never ran" (frozenFinalized==false) — both collapse to (nil, nil)
+// per the universal-floor convention, but the flag keeps the contract
+// inspectable in tests.
+type medianAggregator struct {
+	frozenFinalized   bool
+	frozenN           int
+	frozenMedian      float64
+	frozenPositionLow int
+	frozenPositionHigh int
+}
 
 func newMedianAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	return &medianAggregator{}, nil
@@ -542,7 +566,12 @@ func (a *medianAggregator) Aggregate(records []*Record, field string) (float64, 
 }
 
 func (a *medianAggregator) aggregateValues(vals []float64) (float64, error) {
+	a.frozenFinalized = true
+	a.frozenN = len(vals)
 	if len(vals) == 0 {
+		a.frozenMedian = 0
+		a.frozenPositionLow = 0
+		a.frozenPositionHigh = 0
 		return 0, nil
 	}
 	// median sorts in place — copy first to avoid mutating a shared cached slice.
@@ -551,9 +580,18 @@ func (a *medianAggregator) aggregateValues(vals []float64) (float64, error) {
 	sort.Float64s(work)
 	n := len(work)
 	if n%2 == 1 {
-		return work[n/2], nil
+		idx := n / 2
+		a.frozenPositionLow = idx
+		a.frozenPositionHigh = idx
+		a.frozenMedian = work[idx]
+		return work[idx], nil
 	}
-	return (work[n/2-1] + work[n/2]) / 2, nil
+	lo := n/2 - 1
+	hi := n / 2
+	a.frozenPositionLow = lo
+	a.frozenPositionHigh = hi
+	a.frozenMedian = (work[lo] + work[hi]) / 2
+	return a.frozenMedian, nil
 }
 
 // --- Variance ---
@@ -798,13 +836,39 @@ func (a *distinctCountAggregator) aggregateValues(vals []float64) (float64, erro
 }
 
 // --- Percentile ---
+//
+// percentileAggregator's scalar return is the configured percentile
+// (default p50) of the non-null values for the named field, resolved
+// via linear interpolation between the bracketing positions in the
+// sorted value set. Components() surfaces (p, position, lower, upper,
+// method, value) — `position` is the floor index used as the lower
+// bracket, `lower` / `upper` are the bracketing values, `method` is
+// the interpolation kind (always "linear" today), `value` mirrors the
+// scalar return. The aggregator declares ComponentsMergeability=None
+// — incrementing percentiles without a sorted view is not defensible,
+// so the streaming path defers Components() emission until terminal
+// buffered flush (E4-S4 wiring).
+//
+// frozen* mirrors hold the post-Aggregate state so Components()
+// returns a stable snapshot. frozenFinalized distinguishes
+// "ran on empty input" from "never ran" — both collapse to
+// (nil, nil) per the universal-floor convention.
+const percentileMethodLinear = "linear"
 
 type percentileParams struct {
 	Percentile float64 `json:"percentile"`
 }
 
 type percentileAggregator struct {
-	percentile float64
+	percentile        float64
+	frozenFinalized   bool
+	frozenN           int
+	frozenP           float64
+	frozenPosition    int
+	frozenLower       float64
+	frozenUpper       float64
+	frozenMethod      string
+	frozenValue       float64
 }
 
 func newPercentileAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -828,7 +892,15 @@ func (a *percentileAggregator) Aggregate(records []*Record, field string) (float
 }
 
 func (a *percentileAggregator) aggregateValues(vals []float64) (float64, error) {
+	a.frozenFinalized = true
+	a.frozenN = len(vals)
+	a.frozenP = a.percentile
+	a.frozenMethod = percentileMethodLinear
 	if len(vals) == 0 {
+		a.frozenPosition = 0
+		a.frozenLower = 0
+		a.frozenUpper = 0
+		a.frozenValue = 0
 		return 0, nil
 	}
 	// percentile sorts in place — copy first to avoid mutating a shared cached slice.
@@ -837,15 +909,24 @@ func (a *percentileAggregator) aggregateValues(vals []float64) (float64, error) 
 	sort.Float64s(work)
 	n := len(work)
 	if n == 1 {
+		a.frozenPosition = 0
+		a.frozenLower = work[0]
+		a.frozenUpper = work[0]
+		a.frozenValue = work[0]
 		return work[0], nil
 	}
 	rank := a.percentile / 100.0 * float64(n-1)
 	lower := int(math.Floor(rank))
 	upper := int(math.Ceil(rank))
+	a.frozenPosition = lower
+	a.frozenLower = work[lower]
+	a.frozenUpper = work[upper]
 	if lower == upper {
+		a.frozenValue = work[lower]
 		return work[lower], nil
 	}
-	return work[lower] + (rank-float64(lower))*(work[upper]-work[lower]), nil
+	a.frozenValue = work[lower] + (rank-float64(lower))*(work[upper]-work[lower])
+	return a.frozenValue, nil
 }
 
 // --- Null Count ---
@@ -1173,6 +1254,54 @@ func (a *frequencyAggregator) Components() (map[string]any, error) {
 	}, nil
 }
 
+// --- Order-stat Components implementations (E1-S9) ---------------
+//
+// AGG_MEDIAN and AGG_PERCENTILE are the canonical non-mergeable
+// aggregators — they require a sorted view of the full value set
+// (ComponentsMergeability=None). Streaming chunks deliberately omit
+// per-chunk Components emission and emit only at terminal buffered
+// flush (the streaming-path per-chunk omission lands in E4-S4; this
+// story implements the buffered emission + documents the contract).
+// Both Components implementations read frozen mirrors stamped by
+// aggregateValues, so the buffered path's processRecords exit
+// produces a stable snapshot.
+
+// Components returns {position_low, position_high, median} — the
+// sorted-position indices that bracket the median plus the resolved
+// value. Empty input returns (nil, nil) so the orchestrator's
+// universal floor (n=0) is the source of truth for "no rows seen".
+func (a *medianAggregator) Components() (map[string]any, error) {
+	if !a.frozenFinalized || a.frozenN == 0 {
+		return nil, nil
+	}
+	return map[string]any{
+		"position_low":  a.frozenPositionLow,
+		"position_high": a.frozenPositionHigh,
+		"median":        a.frozenMedian,
+	}, nil
+}
+
+// Components returns {p, position, lower, upper, method, value} —
+// the configured percentile, the sorted-position floor index, the
+// bracketing values, the interpolation method, and the resolved
+// scalar. method is always "linear" today; future interpolation
+// kinds (lower/higher/nearest) plug in by surfacing the configured
+// constant here. Empty input returns (nil, nil) per the universal-
+// floor convention.
+func (a *percentileAggregator) Components() (map[string]any, error) {
+	if !a.frozenFinalized || a.frozenN == 0 {
+		return nil, nil
+	}
+	return map[string]any{
+		"p":        a.frozenP,
+		"position": a.frozenPosition,
+		"lower":    a.frozenLower,
+		"upper":    a.frozenUpper,
+		"method":   a.frozenMethod,
+		"value":    a.frozenValue,
+	}, nil
+}
+
 // Compile-time interface locks for the seven scalar aggregators.
 // Keeps the wiring grep-discoverable and catches interface drift at
 // build time when interfaces.go.MetaAggregator changes shape.
@@ -1196,4 +1325,8 @@ var (
 	_ MetaAggregator = (*distinctCountAggregator)(nil)
 	_ MetaAggregator = (*modeAggregator)(nil)
 	_ MetaAggregator = (*frequencyAggregator)(nil)
+
+	// Order-stat compile-time locks (E1-S9).
+	_ MetaAggregator = (*medianAggregator)(nil)
+	_ MetaAggregator = (*percentileAggregator)(nil)
 )
