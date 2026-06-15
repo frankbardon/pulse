@@ -229,6 +229,9 @@ func TestExtensions_AggregatorComponents_FloorOnly(t *testing.T) {
 // declaring a ComponentsFunc without a matching ComponentSchema is
 // rejected at pulse.New time — the schema is required so probe-
 // validation can verify the emitted key set.
+//
+// E4-S6 wired the formal PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA code
+// here, replacing the legacy PULSE_EXTENSION_PARAM_INVALID stub.
 func TestExtensions_ComponentsFunc_WithoutSchemaRejected(t *testing.T) {
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
@@ -240,7 +243,7 @@ func TestExtensions_ComponentsFunc_WithoutSchemaRejected(t *testing.T) {
 		}},
 	}
 	_, err := pulse.New(newTestOptions(ext))
-	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+	assertCodedError(t, err, perr.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA)
 }
 
 // TestExtensions_ComponentSchema_WithoutEmitterRejected asserts that
@@ -286,9 +289,9 @@ func TestExtensions_ComponentSchema_MissingMergeabilityRejected(t *testing.T) {
 
 // TestExtensions_ComponentsFunc_EmittedKeyMismatchRejected asserts the
 // probe rejects a registration whose ComponentsFunc emits a key not
-// declared in ComponentSchema.Keys. The stub error code is
-// PULSE_EXTENSION_PARAM_INVALID until E4-S6 introduces the formal
-// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH.
+// declared in ComponentSchema.Keys. E4-S6 wired the formal
+// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH code, replacing the legacy
+// PULSE_EXTENSION_PARAM_INVALID stub.
 func TestExtensions_ComponentsFunc_EmittedKeyMismatchRejected(t *testing.T) {
 	emit := func(processing.Aggregator) (map[string]any, error) {
 		return map[string]any{"undeclared_key": 1.0}, nil
@@ -309,7 +312,7 @@ func TestExtensions_ComponentsFunc_EmittedKeyMismatchRejected(t *testing.T) {
 		}},
 	}
 	_, err := pulse.New(newTestOptions(ext))
-	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+	assertCodedError(t, err, perr.PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH)
 }
 
 // TestExtensions_Manifest_CarriesExtensionComponentSchema asserts the
@@ -394,4 +397,141 @@ func TestExtensions_Predict_CarriesExtensionComponentSchema(t *testing.T) {
 	if len(got.Keys) != 4 {
 		t.Errorf("Predict ComponentSchema.Keys count = %d, want 4", len(got.Keys))
 	}
+}
+
+// E4-S6 — Probe-validation parity tests
+//
+// These pin the probe-time contract between ComponentSchema and
+// ComponentsFunc. Probe runs at pulse.New() time after validate; cases
+// caught by validate (e.g. emitter-without-schema, schema-without-
+// emitter) surface their errors here.
+
+// TestExtensions_ComponentSchemaParity is the happy-path round-trip:
+// a registration with matching ComponentSchema + ComponentsFunc passes
+// pulse.New() and yields a working process.
+func TestExtensions_ComponentSchemaParity(t *testing.T) {
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:            "AGG_ACME_BRAND_SCORE",
+			Factory:         brandScoreFactory,
+			Streamable:      true,
+			Accepts:         []encoding.FieldType{encoding.FieldTypeF64},
+			ComponentSchema: brandScoreSchema(),
+			ComponentsFunc:  brandScoreEmit,
+		}},
+	}
+	p, path := brandScoreCohort(t, ext)
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: path},
+		Aggregations: []*types.Aggregation{
+			{Type: "AGG_ACME_BRAND_SCORE", Field: "score"},
+		},
+	}
+	resp, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if resp.Components == nil || len(resp.Components.Aggregations) != 1 {
+		t.Fatalf("Components.Aggregations missing; resp.Components=%+v", resp.Components)
+	}
+	entry := resp.Components.Aggregations[0]
+	if entry.Operator == nil {
+		t.Fatalf("Operator map nil; want sum + weights_applied keys")
+	}
+}
+
+// TestExtensions_MissingComponentSchema asserts a registration that
+// supplies a ComponentsFunc without ComponentSchema.Keys is rejected at
+// pulse.New() time with PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA.
+func TestExtensions_MissingComponentSchema(t *testing.T) {
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:           "AGG_ACME_BRAND_SCORE",
+			Factory:        brandScoreFactory,
+			Streamable:     true,
+			ComponentsFunc: brandScoreEmit,
+			// ComponentSchema.Keys intentionally empty.
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA)
+}
+
+// TestExtensions_MissingComponentSchema_MergeabilityWithoutKeys asserts
+// a registration that declares ComponentSchema.Mergeability with no
+// Keys is rejected with PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA — the
+// "Mergeability set but no Keys (incoherent)" branch of the contract.
+func TestExtensions_MissingComponentSchema_MergeabilityWithoutKeys(t *testing.T) {
+	schema := descriptor.ComponentSchema{
+		// Keys intentionally empty.
+		Mergeability: descriptor.Mergeable,
+	}
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:            "AGG_ACME_BRAND_SCORE",
+			Factory:         brandScoreFactory,
+			Streamable:      true,
+			ComponentSchema: schema,
+			// ComponentsFunc intentionally nil.
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA)
+}
+
+// TestExtensions_ComponentSchemaMismatch asserts a registration whose
+// ComponentsFunc returns keys not declared in ComponentSchema.Keys is
+// rejected at pulse.New() time with
+// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH.
+func TestExtensions_ComponentSchemaMismatch(t *testing.T) {
+	emit := func(processing.Aggregator) (map[string]any, error) {
+		return map[string]any{
+			"sum":         42.0,
+			"extra_field": "uh oh",
+		}, nil
+	}
+	schema := descriptor.ComponentSchema{
+		Keys: []descriptor.ComponentKey{
+			{Name: "sum", Type: "float64", Description: "Running sum."},
+		},
+		Mergeability: descriptor.Mergeable,
+	}
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:            "AGG_ACME_BRAND_SCORE",
+			Factory:         brandScoreFactory,
+			Streamable:      true,
+			ComponentSchema: schema,
+			ComponentsFunc:  emit,
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH)
+}
+
+// TestExtensions_ComponentsFunc_PanicDuringProbe asserts the existing
+// PULSE_EXTENSION_FACTORY_PANIC surfaces when ComponentsFunc panics
+// during probe-validation. The probe wraps the emitter in a deferred
+// recover, so an embedder bug never crashes pulse.New().
+func TestExtensions_ComponentsFunc_PanicDuringProbe(t *testing.T) {
+	emit := func(processing.Aggregator) (map[string]any, error) {
+		panic("boom")
+	}
+	schema := descriptor.ComponentSchema{
+		Keys: []descriptor.ComponentKey{
+			{Name: "sum", Type: "float64", Description: "Running sum."},
+		},
+		Mergeability: descriptor.Mergeable,
+	}
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:            "AGG_ACME_BRAND_SCORE",
+			Factory:         brandScoreFactory,
+			Streamable:      true,
+			ComponentSchema: schema,
+			ComponentsFunc:  emit,
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_FACTORY_PANIC)
 }

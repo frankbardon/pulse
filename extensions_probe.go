@@ -43,10 +43,12 @@ func probeExtensions(ext Extensions) error {
 // When the registration supplies a ComponentsFunc, the probe invokes it
 // once against the constructed instance and confirms the returned map
 // keys are a subset of ComponentSchema.Keys (universal-floor keys are
-// allowed but not required). E4-S6 will swap the stub error
-// (PULSE_EXTENSION_PARAM_INVALID) for the formal
-// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH and add the full key-set
-// check.
+// allowed but not required). Divergence raises
+// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH; the
+// emitter-without-schema and Mergeability-without-Keys variants raise
+// PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA (wired via the parity check
+// below). Factory panics still surface as
+// PULSE_EXTENSION_FACTORY_PANIC.
 func probeAggregators(regs []AggregatorRegistration) error {
 	probeSchema := &encoding.Schema{}
 	for _, reg := range regs {
@@ -68,6 +70,11 @@ func probeAggregators(regs []AggregatorRegistration) error {
 			}
 		}
 		if reg.ComponentsFunc != nil {
+			if err := verifyComponentSchemaPresence(
+				"aggregator", string(reg.Name), reg.ComponentSchema, true,
+			); err != nil {
+				return err
+			}
 			emitted, err := safeInvokeAggregatorComponents(reg, instance)
 			if err != nil {
 				return err
@@ -75,6 +82,12 @@ func probeAggregators(regs []AggregatorRegistration) error {
 			if err := verifyComponentKeysSubset(
 				"aggregator", string(reg.Name),
 				reg.ComponentSchema, emitted,
+			); err != nil {
+				return err
+			}
+		} else {
+			if err := verifyComponentSchemaPresence(
+				"aggregator", string(reg.Name), reg.ComponentSchema, false,
 			); err != nil {
 				return err
 			}
@@ -95,6 +108,11 @@ func probeGroupers(regs []GrouperRegistration) error {
 			return err
 		}
 		if reg.ComponentsFunc != nil {
+			if err := verifyComponentSchemaPresence(
+				"grouper", string(reg.Name), reg.ComponentSchema, true,
+			); err != nil {
+				return err
+			}
 			emitted, err := safeInvokeGrouperComponents(reg, instance)
 			if err != nil {
 				return err
@@ -102,6 +120,12 @@ func probeGroupers(regs []GrouperRegistration) error {
 			if err := verifyComponentKeysSubset(
 				"grouper", string(reg.Name),
 				reg.ComponentSchema, emitted,
+			); err != nil {
+				return err
+			}
+		} else {
+			if err := verifyComponentSchemaPresence(
+				"grouper", string(reg.Name), reg.ComponentSchema, false,
 			); err != nil {
 				return err
 			}
@@ -121,6 +145,11 @@ func probeFilterers(regs []FiltererRegistration) error {
 			return err
 		}
 		if reg.ComponentsFunc != nil {
+			if err := verifyComponentSchemaPresence(
+				"filterer", string(reg.Name), reg.ComponentSchema, true,
+			); err != nil {
+				return err
+			}
 			emitted, err := safeInvokeFiltererComponents(reg, builder)
 			if err != nil {
 				return err
@@ -128,6 +157,12 @@ func probeFilterers(regs []FiltererRegistration) error {
 			if err := verifyComponentKeysSubset(
 				"filterer", string(reg.Name),
 				reg.ComponentSchema, emitted,
+			); err != nil {
+				return err
+			}
+		} else {
+			if err := verifyComponentSchemaPresence(
+				"filterer", string(reg.Name), reg.ComponentSchema, false,
 			); err != nil {
 				return err
 			}
@@ -368,15 +403,22 @@ func safeInvokeFiltererComponents(reg FiltererRegistration, builder processing.F
 // declaring them on the schema (the orchestrator's universal-floor pass
 // overwrites them anyway).
 //
-// Stub error code: E4-S6 will introduce the formal
-// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH and wire it here. Today the
-// helper emits PULSE_EXTENSION_PARAM_INVALID with a precise detail
-// payload so debugging the mismatch is still mechanical.
+// Per the E4-S6 universal-floor decision: the schema may also legally
+// CONTAIN the floor keys (E1-S3 puts them on every aggregator schema
+// for self-contained manifest output). The probe compares the EMITTED
+// set to declared-MINUS-floor and asserts the emitted set is a subset
+// of declared-PLUS-floor — i.e. the orchestrator-owned floor keys are
+// neither required nor penalised in either direction.
+//
+// Divergence raises PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH (wired in
+// E4-S6); the details payload carries the offending extras and the
+// declared key list so callers can either widen the schema or trim the
+// emission.
 func verifyComponentKeysSubset(category, name string, schema descriptor.ComponentSchema, emitted map[string]any) error {
 	if len(emitted) == 0 {
 		return nil
 	}
-	allowed := make(map[string]struct{}, len(schema.Keys)+2)
+	allowed := make(map[string]struct{}, len(schema.Keys)+6)
 	for _, k := range schema.Keys {
 		allowed[k.Name] = struct{}{}
 	}
@@ -403,7 +445,7 @@ func verifyComponentKeysSubset(category, name string, schema descriptor.Componen
 		declared = append(declared, k.Name)
 	}
 	return errors.NewCodedErrorWithDetails(
-		errors.PULSE_EXTENSION_PARAM_INVALID,
+		errors.PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,
 		fmt.Sprintf("extension %s %q ComponentsFunc emitted keys not declared in ComponentSchema: %v (declared: %v)", category, name, extras, declared),
 		map[string]any{
 			"category":      category,
@@ -413,4 +455,51 @@ func verifyComponentKeysSubset(category, name string, schema descriptor.Componen
 			"reason":        "components_schema_mismatch",
 		},
 	)
+}
+
+// verifyComponentSchemaPresence asserts the ComponentSchema declaration
+// is coherent given the presence (or absence) of a ComponentsFunc
+// emitter. Two incoherent shapes raise
+// PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA at pulse.New() time:
+//
+//   - hasEmitter == true AND schema.Keys is empty — the emitter has no
+//     schema to validate against; the probe cannot verify the emitted
+//     key set against an empty contract.
+//   - schema.Mergeability != "" AND schema.Keys is empty — declaring
+//     mergeability intent without keys is incoherent; mergeability only
+//     describes per-key fold semantics for an existing key list.
+//
+// The floor-only path (empty Keys + empty Mergeability + nil emitter)
+// remains a valid registration shape and is NOT subject to this code.
+// The schema-without-emitter and schema-without-mergeability shapes are
+// caught earlier by validateComponentSchemas with the legacy
+// PULSE_EXTENSION_PARAM_INVALID code — those remain unchanged.
+func verifyComponentSchemaPresence(category, name string, schema descriptor.ComponentSchema, hasEmitter bool) error {
+	hasKeys := len(schema.Keys) > 0
+	hasMergeability := schema.Mergeability != ""
+
+	if hasEmitter && !hasKeys {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
+			fmt.Sprintf("extension %s %q has ComponentsFunc but ComponentSchema.Keys is empty (declare schema to validate emitted keys)", category, name),
+			map[string]any{
+				"category": category,
+				"name":     name,
+				"reason":   "emitter_without_schema_keys",
+			},
+		)
+	}
+	if !hasKeys && hasMergeability {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
+			fmt.Sprintf("extension %s %q declares ComponentSchema.Mergeability but no Keys (mergeability has nothing to classify)", category, name),
+			map[string]any{
+				"category":     category,
+				"name":         name,
+				"mergeability": string(schema.Mergeability),
+				"reason":       "mergeability_without_keys",
+			},
+		)
+	}
+	return nil
 }

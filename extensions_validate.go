@@ -154,19 +154,27 @@ func validateExtensions(ext Extensions) error {
 //   - Floor + emitter: empty Keys, empty Mergeability, ComponentsFunc
 //     supplied. Rejected — declaring an emitter without a schema is a
 //     contract bug (the orchestrator would have no way to validate
-//     emitted keys).
+//     emitted keys). Raises PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA.
 //   - Schema + emitter: non-empty Keys, declared Mergeability,
 //     ComponentsFunc supplied. The canonical extension path.
 //
 // Schema-without-emitter (non-empty Keys, nil ComponentsFunc) is also
 // rejected — the declared schema would never be satisfied at runtime.
+// Raises PULSE_EXTENSION_PARAM_INVALID (the schema exists, the emitter
+// is missing — a parameter contradiction, not a missing schema).
+//
 // Schema-without-mergeability (non-empty Keys, empty Mergeability) is
 // rejected — every schema must declare a mergeability classification.
+// Raises PULSE_EXTENSION_PARAM_INVALID.
 //
-// Stub error code: E4-S6 introduces the formal
-// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH / PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA.
-// Until then this helper emits PULSE_EXTENSION_PARAM_INVALID — the same
-// code every other registration-shape violation uses today.
+// Mergeability-without-Keys (empty Keys, non-empty Mergeability) is
+// rejected — mergeability has nothing to classify without keys. Raises
+// PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA (this is the same incoherent
+// shape the probe catches: a schema declaration that is half-present).
+//
+// E4-S7 introduced the formal PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA
+// code; E4-S6 wires it here alongside the probe-time
+// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH check.
 func validateComponentSchemas(ext Extensions) error {
 	for i, r := range ext.Aggregators {
 		if err := validateComponentSchemaDeclaration(
@@ -211,16 +219,32 @@ func validateComponentSchemaDeclaration(
 	if !hasKeys && !hasMergeability && !hasEmitter {
 		return nil
 	}
-	// Emitter without schema — contract bug.
+	// Emitter without schema — incoherent: the orchestrator would have
+	// no schema to validate emitted keys against.
 	if hasEmitter && !hasKeys {
 		return errors.NewCodedErrorWithDetails(
-			errors.PULSE_EXTENSION_PARAM_INVALID,
+			errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
 			fmt.Sprintf("extension %s %q has ComponentsFunc but empty ComponentSchema.Keys (declare schema or remove emitter)", category, name),
 			map[string]any{
 				"category": category,
 				"name":     name,
 				"index":    idx,
 				"reason":   "emitter_without_schema",
+			},
+		)
+	}
+	// Mergeability set without keys — incoherent: mergeability has
+	// nothing to classify without keys.
+	if !hasKeys && hasMergeability {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
+			fmt.Sprintf("extension %s %q declares ComponentSchema.Mergeability but no Keys (mergeability has nothing to classify)", category, name),
+			map[string]any{
+				"category":     category,
+				"name":         name,
+				"index":        idx,
+				"mergeability": string(schema.Mergeability),
+				"reason":       "mergeability_without_keys",
 			},
 		)
 	}
