@@ -1001,6 +1001,113 @@ Whole-matrix χ² test answering "does the target slot's distribution differ fro
 
 The reference distribution is scaled to the target's grand total before computing per-cell expected counts: `expected[i,j] = ref_cell * (target_N / ref_N)`. `df = (cells with expected > 0) - 1`. Small p-value flags a meaningful distribution shift between the two cohorts. The canonical χ² low-count rule applies — any `expected < 5` fires one `PULSE_OVERLAY_EXPECTED_LOW` warning per layer; switch to a per-cell Fisher's-exact-style backstop on small samples. Degenerate `target_N == 0` or `ref_N == 0` emits NaN + NaN with one `PULSE_OVERLAY_REF_ZERO` warning.
 
+## Components
+
+The `Response.Components.Crosstab` slot (`types.CrosstabComponents`) carries the constituent-parts metadata that backs every cell and margin in `Response.Crosstab.Matrix` (`types.MatrixPayload`). Every consumer of the matrix payload — overlay handlers, downstream renderers, parity tests — can index components by the same `(row, column)` tuple it already uses to read cells and margins. The struct is `omitempty` end-to-end: an unpopulated `CrosstabComponents` marshals to byte-identical wire output against the pre-Components baseline, and an empty struct produces no JSON keys at all.
+
+### Indexing contract — mirror of `MatrixPayload`
+
+`CrosstabComponents` is a coordinate-for-coordinate sibling of `MatrixPayload`. The pairing:
+
+| `CrosstabComponents` field | Mirrors on `MatrixPayload` |
+|---|---|
+| `CellComponents[r][c]` | `Matrix.Cells[r][c]` |
+| `CellCounts[r][c]` | count of records routed to that cell after filters |
+| `RowKeyComponents[r]` | `Matrix.RowKeys[r]` |
+| `ColumnKeyComponents[c]` | `Matrix.ColumnKeys[c]` |
+| `RowMarginCounts[r]` / `RowMarginComponents[r]` | `Matrix.RowMargins[r]` |
+| `ColumnMarginCounts[c]` / `ColumnMarginComponents[c]` | `Matrix.ColumnMargins[c]` |
+| `GrandTotalCount` / `GrandTotalComponents` | `Matrix.GrandTotal` |
+
+Iterate in lockstep with the matrix — `for r := range Matrix.Cells { for c := range Matrix.Cells[r] { ... Components.Crosstab.CellComponents[r][c] ... } }` — and the two structures stay aligned by construction.
+
+### Universal cell floor
+
+`CellComponents[r][c]` is a `map[string]any` whose keys are governed by the cell aggregator's `ComponentSchema` declaration (per the `descriptor/capabilities_aggregators.go` manifest). On top of those per-operator keys the builder always installs a **universal floor** of `{n, n_null}`:
+
+- `n` — record count for the cell. Always `int`. Equal to `CellCounts[r][c]`.
+- `n_null` — per-cell null-input count (records whose cell-aggregation input field resolved to null and were therefore skipped by the aggregator). Always `int`.
+
+The floor is filled by the builder, NOT the aggregator — the operator only emits its declared component keys, and the builder layers `n` / `n_null` on top before the cell is sealed. Operators must not declare `n` or `n_null` in their own `ComponentSchema`; a collision is rejected at `pulse.New()` time for extension registrations and is forbidden by convention for built-ins.
+
+### Empty cells
+
+`Matrix.Cells[r][c].Present == false` marks a structurally missing cell (no record matched the row × column tuple). In that case `CellComponents[r][c] == nil` — there is nothing for the aggregator to emit and the universal floor is not synthesised for an empty cell. Consumers must null-check the cell map before reading keys:
+
+```go
+cell := ct.CellComponents[r][c]
+if cell == nil { continue }
+```
+
+`CellCounts[r][c]` is `0` for an absent cell — distinguishable from a present cell with `n == 0` by the `MatrixCell.Present` flag.
+
+### Margin presence
+
+The margin fields are populated only when the matching margin slot exists on `MatrixPayload`:
+
+- `RowMarginCounts` / `RowMarginComponents` are non-nil iff `Matrix.RowMargins` is non-empty (i.e. `Margins.Rows == true` OR `Normalize == "row"`).
+- `ColumnMarginCounts` / `ColumnMarginComponents` are non-nil iff `Matrix.ColumnMargins` is non-empty (i.e. `Margins.Columns == true` OR `Normalize == "column"`).
+- `GrandTotalCount` / `GrandTotalComponents` are populated iff `Matrix.GrandTotal.Present == true` (i.e. `Margins.Grand == true` OR `Normalize == "total"`).
+
+When the matching margin is absent the fields stay nil / zero and the `omitempty` JSON tag drops them from the wire payload — consumers reading from the wire see no key, consumers reading from the Go struct see a zero value.
+
+### Sanity invariants
+
+The Components payload carries two scalar counters — `IncludedRecords` (records that contributed to at least one cell) and `ExcludedRecords` (records dropped at the crosstab stage because at least one axis-key resolution returned null / skip). Together they satisfy:
+
+- `sum(CellCounts) == IncludedRecords` — every record that made it through filters lands in exactly one cell (single-key groupers) or one or more cells (multi-key groupers like `GROUP_SET_PER_ELEMENT`). The cell-counts sum is the authoritative cell-arrival count.
+- `IncludedRecords + ExcludedRecords == filteredRows` — `filteredRows` is the post-filter input record count (mirrors the `Response.Metadata.FilteredRecords` counter on the corresponding grouped Process path). `ExcludedRecords` covers axis-key nulls and skip-class grouper outcomes; nothing else drops a record at the crosstab stage.
+- `sum(RowMarginCounts) == GrandTotalCount` — when both margins are present, the row-margin counts and the grand-total count agree by construction (margins recompute from raw rows; the grand total is the row-margin sum is the column-margin sum is the IncludedRecords count for single-key groupers).
+- `sum(ColumnMarginCounts) == GrandTotalCount` — symmetric.
+
+Multi-key groupers (`GROUP_SET_PER_ELEMENT`) intentionally double-count records across their fanned-out keys; `sum(CellCounts) > IncludedRecords` in that case, and the row / column margin invariants compare against the cell-arrival counts on the respective margins rather than against `IncludedRecords` directly. The `IncludedRecords` + `ExcludedRecords` identity still holds.
+
+### Multi-axis composite groupers
+
+When the row or column axis has a single grouper, `RowKeyComponents[r]` (respectively `ColumnKeyComponents[c]`) carries the grouper-components map directly — the same shape as `GrouperComponents.Operator` for the axis grouper (bucket edges, dict mappings, etc.). When the axis has more than one grouper, the components payload carries a typed composite layout:
+
+```json
+{
+  "axes": [
+    {"field": "region",  "bucket": { ... per-grouper component keys ... }},
+    {"field": "segment", "bucket": { ... per-grouper component keys ... }}
+  ]
+}
+```
+
+The `axes` array preserves grouper declaration order — `axes[0]` is the first grouper on the axis, matching position 0 of every `Matrix.RowKeys[r]` tuple. Each `bucket` map carries the same key set the single-axis case would have emitted for that grouper alone. The `field` echoes the grouper's `Field` so renderers can render bucket labels without re-deriving from the request.
+
+### Reading a Welford triple
+
+The load-bearing pattern for the overlay parity migration — `AGG_WELFORD` cells emit their streaming `(mean, variance, n)` triple directly into `CellComponents[r][c]` via the `MetaAggregator` path. The Welford aggregator's `ComponentSchema` declares `{n, mean, variance, m2}`; consumers read the triple from the map without reaching for the rich `MatrixCell.Value` payload:
+
+```go
+resp, err := pulse.Process(ctx, req)
+if err != nil { return err }
+
+ct := resp.Components.Crosstab
+for r := range ct.CellComponents {
+    for c := range ct.CellComponents[r] {
+        cell := ct.CellComponents[r][c]
+        if cell == nil { continue }
+        n      := cell["n"].(int)
+        mean   := cell["mean"].(float64)
+        variance := cell["variance"].(float64)
+        fmt.Printf("(%d,%d) n=%d mean=%.3f var=%.3f\n", r, c, n, mean, variance)
+    }
+}
+```
+
+The same pattern reads any cell aggregator's declared components — the only thing that changes per operator is the key set. `n` and `n_null` are always available; per-operator keys come from the manifest's `component_schemas` block for that aggregator.
+
+### Buffered vs fused parity
+
+Both crosstab orchestrator paths emit byte-identical `CellComponents`. The buffered path (`service.runCrosstab`) folds components on the same `MaterializedRecords` partition the cell aggregator already consumes; the fused path (`processing.FusedCrosstabState`) folds components in the same single decode pass that produces the cell value, via the `MetaAggregator.Components()` call invoked at finalize. Consumers can rely on identical output regardless of which path the orchestrator chose — the fused-vs-buffered equivalence golden suite covers `Response.Components.Crosstab` alongside `Response.Crosstab.Matrix` so any divergence trips the existing parity gate.
+
+### Migration target for parity overlays
+
+The four parity overlays — `OVERLAY_T_CELL`, `OVERLAY_Z_CELL`, `OVERLAY_T_VS_REF`, `OVERLAY_Z_VS_REF` — migrate to read from `CellComponents` in stories E3-S7 / E3-S8. Today they read the Welford triple by reaching into the smuggled `MatrixCell.Value` payload (`processing.WelfordTriple`); after the migration they read `cell["mean"]` / `cell["variance"]` / `cell["n"]` directly off `CellComponents[r][c]`, dropping the rich-payload coupling and aligning with the universal Components contract. The additive contract on the overlay handlers is preserved — scalar cells with `Params`-supplied mean / variance / n still work as a fallback. See `skills/overlay-system.md` ("Welch overlay upgrade (Rich-triple consumption)") for the per-handler contract that moves to `CellComponents` and the fallback chain.
+
 ## Conflicts and rejections
 
 The crosstab section is mutually exclusive with top-level `groups` + `aggregations` on the same Request. Predict surfaces `PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS` when both are present. Either remove the top-level slots or split into two Compose requests.
