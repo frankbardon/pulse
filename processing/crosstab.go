@@ -228,6 +228,18 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	cellValues := make(map[crosstabCellKey]any, len(rowPart.Keys)*len(colPart.Keys))
 	cellPresent := make(map[crosstabCellKey]bool, len(rowPart.Keys)*len(colPart.Keys))
 
+	// E3-S2: per-cell record count tracked alongside the aggregator update
+	// so Response.Components.Crosstab.CellCounts can be populated without
+	// a second pass. A cell entry is created whenever a non-empty
+	// (row, col) bucket exists — independent of whether the cell
+	// aggregator finalises a value (an aggregator returning a nil row is
+	// still routed N records). includedRecords is the count of records
+	// that landed in at least one cell (both axis keys non-null);
+	// ExcludedRecords on Components.Crosstab is then
+	// filteredRows - includedRecords.
+	cellCounts := make(map[crosstabCellKey]int, len(rowPart.Keys)*len(colPart.Keys))
+	var includedRecords int
+
 	for _, rkey := range rowPart.Keys {
 		rowRecs := rowPart.Records[rkey]
 		if len(rowRecs) == 0 {
@@ -242,6 +254,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if len(bucket) == 0 {
 				continue
 			}
+			ck := crosstabCellKey{rkey, ckey}
+			cellCounts[ck] = len(bucket)
+			includedRecords += len(bucket)
 			row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
 			if err != nil {
 				return nil, err
@@ -249,8 +264,8 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if row == nil {
 				continue
 			}
-			cellValues[crosstabCellKey{rkey, ckey}] = row[cellLabel]
-			cellPresent[crosstabCellKey{rkey, ckey}] = true
+			cellValues[ck] = row[cellLabel]
+			cellPresent[ck] = true
 		}
 	}
 
@@ -531,6 +546,23 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			partialRowPart, partialRowMargins, partialRowPresent, rowNormLevel,
 			partialColPart, partialColMargins, partialColPresent, colNormLevel)
 	}
+
+	// E3-S2: emit per-cell record-count matrix on Response.Components.
+	// Layout indexed identically to MatrixPayload.Cells (rowPart.Keys
+	// outer, colPart.Keys inner) so consumers can use the same (r, c) to
+	// dereference cell value and cell count. Even shape=long callers see
+	// the matrix because the components slot is shape-agnostic; the
+	// indexing tracks rowPart / colPart key order which is deterministic
+	// regardless of shape.
+	excludedRecords := int(filteredRows) - includedRecords
+	if excludedRecords < 0 {
+		// Defensive: should never happen — includedRecords is bounded by
+		// the count of records that landed in at least one cell, which is
+		// at most filteredRows. Surface the divergence as zero rather
+		// than emit a negative count to the wire.
+		excludedRecords = 0
+	}
+	populateCrosstabComponents(resp, rowPart.Keys, colPart.Keys, cellCounts, includedRecords, excludedRecords)
 
 	// Tier-2 post-tests run over the materialized cell rows. Margin rows
 	// are excluded — they are emission-time annotations, not statistical
@@ -861,6 +893,55 @@ func buildLongRows(spec *types.CrosstabSpec,
 		}
 	}
 	return data
+}
+
+// populateCrosstabComponents writes the per-cell record-count matrix
+// onto Response.Components.Crosstab.CellCounts in the same (r, c)
+// layout as MatrixPayload.Cells. Allocates Response.Components and
+// Response.Components.Crosstab when nil so the buffered and fused
+// crosstab paths can call this helper unconditionally without
+// duplicating slot-init plumbing.
+//
+// Shared with the fused path so byte-equal parity is structural — both
+// paths build the matrix from the same {(rowKey, colKey) → count} map
+// against the same sorted axis-key slices.
+func populateCrosstabComponents(resp *types.Response,
+	rowKeys, colKeys []string,
+	cellCounts map[crosstabCellKey]int,
+	includedRecords, excludedRecords int,
+) {
+	if resp == nil {
+		return
+	}
+	if resp.Components == nil {
+		resp.Components = &types.ResponseComponents{}
+	}
+	if resp.Components.Crosstab == nil {
+		resp.Components.Crosstab = &types.CrosstabComponents{}
+	}
+	ct := resp.Components.Crosstab
+
+	// Always allocate the cell-count matrix so consumers can dereference
+	// CellCounts[r][c] by axis index without worrying about ragged rows
+	// (omitempty drops the slice when both dims are zero, but a 2x3
+	// crosstab with no surviving cells still emits an all-zero matrix —
+	// matches the MatrixPayload.Cells contract that the row outer slice
+	// is always sized to len(rowKeys)).
+	if len(rowKeys) > 0 && len(colKeys) > 0 {
+		matrix := make([][]int, len(rowKeys))
+		for i, rk := range rowKeys {
+			row := make([]int, len(colKeys))
+			for j, ck := range colKeys {
+				if n, ok := cellCounts[crosstabCellKey{rk, ck}]; ok {
+					row[j] = n
+				}
+			}
+			matrix[i] = row
+		}
+		ct.CellCounts = matrix
+	}
+	ct.IncludedRecords = includedRecords
+	ct.ExcludedRecords = excludedRecords
 }
 
 // coerceAnyMarginMap converts a map[string]any margin map (the post-

@@ -89,6 +89,18 @@ type FusedCrosstabState struct {
 	// it routes a record into the cell.
 	cells [][]OnlineAggregator
 
+	// E3-S2: per-cell record-count matrix indexed by [rowIdx][colIdx],
+	// kept in lockstep with `cells` above so cellCounts[r][c] mirrors the
+	// number of records routed through cells[r][c]. Incremented in the
+	// hot loop alongside cell.UpdateRow; the same intern-growth path
+	// that extends the cells matrix on first-sight axis keys extends
+	// this slice in parallel (zero-initialised int rows). includedRecords
+	// is the running sum — equal to sum(cellCounts) by construction and
+	// reused at Finalize so the populateCrosstabComponents helper
+	// doesn't re-iterate the matrix.
+	cellCounts       [][]int
+	includedRecords  int
+
 	// Per-row and per-column margin accumulators indexed by rowIdx /
 	// colIdx. Allocated only when the corresponding margin slot in the
 	// spec is enabled.
@@ -395,6 +407,9 @@ func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) in
 	// The new row is sized to the current column count so existing
 	// (rowIdx<idx, colIdx) cells remain at their indices.
 	s.cells = append(s.cells, make([]OnlineAggregator, len(s.colKeys)))
+	// E3-S2: cellCounts grows in lockstep with cells so the buffered and
+	// fused paths can later read the same (r, c) coordinates.
+	s.cellCounts = append(s.cellCounts, make([]int, len(s.colKeys)))
 	if s.rowMargins != nil || s.spec.NeedsRowMargin() {
 		// Lazy-init row margins slice on first row to skip the
 		// allocation when no row-margin is requested.
@@ -423,6 +438,11 @@ func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) in
 	// per cohort and we want stable index addressing.
 	for i := range s.cells {
 		s.cells[i] = append(s.cells[i], nil)
+	}
+	// E3-S2: cellCounts matches the cells matrix shape — extend each
+	// existing row by one zero-initialised column slot.
+	for i := range s.cellCounts {
+		s.cellCounts[i] = append(s.cellCounts[i], 0)
 	}
 	if s.colMargins != nil || s.spec.NeedsColumnMargin() {
 		if s.colMargins == nil {
@@ -598,6 +618,14 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		if err := cell.UpdateRow(rec, s.cellField); err != nil {
 			return err
 		}
+		// E3-S2: per-cell record-count tracking sits in the same
+		// instruction sequence as the aggregator UpdateRow — a single
+		// pointer-add into the matrix slot. includedRecords mirrors the
+		// running sum so Finalize can populate
+		// Components.Crosstab.IncludedRecords / ExcludedRecords without a
+		// second matrix pass.
+		s.cellCounts[rowIdx][colIdx]++
+		s.includedRecords++
 	}
 
 	// Cross-axis (normalize_within) margin. Buffered
@@ -906,6 +934,23 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	rowPart := &CrosstabAxisPartition{Keys: rowKeys, Tuples: tuplesForKeys(rowKeys, rowTuples)}
 	colPart := &CrosstabAxisPartition{Keys: colKeys, Tuples: tuplesForKeys(colKeys, colTuples)}
 
+	// E3-S2: convert the insertion-order [rowIdx][colIdx] cellCounts
+	// matrix to a {(rowKey, colKey) → count} map keyed by composite axis
+	// key string. populateCrosstabComponents then re-projects it into a
+	// matrix indexed by the sorted rowKeys / colKeys above so the layout
+	// matches buildMatrixPayload's Cells coordinates byte-for-byte across
+	// buffered and fused paths.
+	cellCountsMap := make(map[crosstabCellKey]int, len(s.rowKeys)*len(s.colKeys))
+	for rIdx, row := range s.cellCounts {
+		rKey := s.rowKeys[rIdx]
+		for cIdx, n := range row {
+			if n == 0 {
+				continue
+			}
+			cellCountsMap[crosstabCellKey{rKey, s.colKeys[cIdx]}] = n
+		}
+	}
+
 	shape := s.spec.ShapeOrDefault()
 	if shape == types.CrosstabShapeMatrix {
 		resp.Crosstab = &types.CrosstabResult{
@@ -928,6 +973,17 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 			partialRowDenom, partialRowDenomPresent, s.rowNormLevel,
 			partialColDenom, partialColDenomPresent, s.colNormLevel)
 	}
+
+	// E3-S2: emit per-cell record-count matrix on Response.Components.
+	// Layout indexed identically to MatrixPayload.Cells via the sorted
+	// rowKeys / colKeys above. excludedRecords = filteredRows -
+	// includedRecords; includedRecords is the running sum maintained in
+	// Update so no second matrix pass is needed.
+	excludedRecords := int(s.filteredRows) - s.includedRecords
+	if excludedRecords < 0 {
+		excludedRecords = 0
+	}
+	populateCrosstabComponents(resp, rowKeys, colKeys, cellCountsMap, s.includedRecords, excludedRecords)
 
 	return resp, nil
 }
