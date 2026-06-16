@@ -80,7 +80,7 @@ import (
 // view). Future stories may unify the three through a shared
 // interface; v1 keeps them separate so each path's host-shape
 // contract stays explicit at the type level.
-type facetOverlayHandler func(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []OverlayWarning, error)
+type facetOverlayHandler func(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error)
 
 // facetOverlayHandlers is the per-kind dispatch table for the FACET
 // host path. Stories E5-S2 / E5-S3 / E5-S4 / E5-S5 register the real
@@ -169,12 +169,12 @@ var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
 // fire here — FACET kinds in v1 do not engage prefix-bucket
 // denominators, and the per-kind E5-S2..S5 handlers add their own
 // gates when their math requires it.
-func ApplyOverlaysFacet(specs []types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) ([]types.OverlayLayer, []OverlayWarning, error) {
+func ApplyOverlaysFacet(specs []types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
 	layers := make([]types.OverlayLayer, 0, len(specs))
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	for i := range specs {
 		spec := &specs[i]
 		handler, ok := facetOverlayHandlers[spec.Kind]

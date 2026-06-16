@@ -97,7 +97,7 @@ func resolveMaxPanelTargets(opts *types.OverlayOptions) int {
 // The output OverlayLayer's Payload.Matrix mirrors the reference
 // matrix's RowKeys / ColumnKeys / headers so renderers lay the overlay
 // on top of the reference grid with the same header machinery.
-func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	// Cap enforcement runs FIRST so an over-cap panel fails loud
 	// before any matrix work happens. The cap counts target slots
 	// (reference is always present and does not count).
@@ -171,7 +171,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 
 	totalPairs := pairCount(m)
 	targetLabel := composeFirstTargetLabel(spec)
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 
 	for i := 0; i < rowCount; i++ {
 		rowKeyStr := axisKeyToString(refMx.RowKeys[i])
@@ -203,7 +203,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 				ns[s] = nSize
 			}
 			if anyMissing {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " absent slot value at coordinate; skipping cell",
 					Details: map[string]any{
@@ -229,7 +229,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 					idx := pairIndex(a, b, m)
 					if !ok {
 						pairs[idx] = math.NaN()
-						warnings = append(warnings, OverlayWarning{
+						warnings = append(warnings, types.OverlayWarning{
 							Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 							Message: "overlay " + string(spec.Kind) + " z-statistic undefined for slot pair (pooled ∈ {0, 1} OR zero SE)",
 							Details: map[string]any{

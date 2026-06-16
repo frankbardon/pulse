@@ -65,7 +65,7 @@ func snapshotJSON(t *testing.T, layer types.OverlayLayer) []byte {
 
 // captureLayer drives applyTCell and returns the resulting
 // OverlayLayer + any warnings. Used by both byte-identity tests.
-func captureLayerTCell(t *testing.T, spec types.ComposeOverlaySpec, ref, target *types.Response) (types.OverlayLayer, []OverlayWarning) {
+func captureLayerTCell(t *testing.T, spec types.ComposeOverlaySpec, ref, target *types.Response) (types.OverlayLayer, []types.OverlayWarning) {
 	t.Helper()
 	layer, warnings, err := applyTCell(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
@@ -76,7 +76,7 @@ func captureLayerTCell(t *testing.T, spec types.ComposeOverlaySpec, ref, target 
 
 // captureLayerTVsRef drives applyTVsRef and returns the resulting
 // OverlayLayer + any warnings.
-func captureLayerTVsRef(t *testing.T, spec types.ComposeOverlaySpec, ref, target *types.Response) (types.OverlayLayer, []OverlayWarning) {
+func captureLayerTVsRef(t *testing.T, spec types.ComposeOverlaySpec, ref, target *types.Response) (types.OverlayLayer, []types.OverlayWarning) {
 	t.Helper()
 	layer, warnings, err := applyTVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {

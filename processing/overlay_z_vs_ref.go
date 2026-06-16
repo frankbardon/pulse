@@ -48,7 +48,7 @@ import (
 // Reuses `welchZTest` (the shared MATRIX-arm helper in
 // overlay_z_cell.go) so the SERIES and MATRIX surfaces produce
 // identical p-values for the same (mean, variance, n) triple.
-func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	if reference == nil || target == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -72,7 +72,7 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 	entries := make([]types.SeriesEntry, 0, len(target.Data))
 	targetLabel := composeFirstTargetLabel(spec)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -105,7 +105,7 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 		entry := types.SeriesEntry{Key: types.AxisKey{keyStr}}
 		refEntry, refPresent := refIndex[keyStr]
 		if !refPresent {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) + " reference row missing for target row key",
 				Details: map[string]any{
@@ -141,7 +141,7 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 
 		p, ok := welchZTest(targetMean, targetVar, targetN, refMean, refVar, refN)
 		if !ok {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) + " z-test undefined for group (zero SE OR insufficient n)",
 				Details: map[string]any{

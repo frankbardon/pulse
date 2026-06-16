@@ -40,22 +40,13 @@ import (
 //     built with string concatenation so envelope output stays
 //     grep-clean against the structural defense ban.
 
-// OverlayWarning is the in-process diagnostic emitted by an overlay
-// handler when it could not produce a meaningful value for some
-// subset of cells (zero denominator, missing margin slot). Carries the
-// canonical error code (today: errors.PULSE_OVERLAY_REF_ZERO), a
-// renderer-friendly message, and structured details so the
-// orchestrator can promote each entry into a types.ResponseWarning on
-// the envelope.
-type OverlayWarning struct {
-	// Code is the canonical overlay error code (today: errors.PULSE_OVERLAY_REF_ZERO).
-	Code string
-	// Message is the human-readable summary.
-	Message string
-	// Details carries structured context for the warning — overlay
-	// index, kind, axis, the offending row / column key indices, etc.
-	Details map[string]any
-}
+// types.OverlayWarning relocated to types.OverlayWarning in E1-S1 of the
+// unwired-facade-lift effort. The struct is value-only and now lives
+// alongside OverlayLayer in types/overlay.go so the next story can
+// attach a `Warnings []types.OverlayWarning` field to OverlayLayer without
+// fighting the package dependency graph (types/ does not import
+// processing/). All call sites inside processing/ reference
+// types.OverlayWarning directly.
 
 // CrosstabHostView is the read-only window an overlay handler uses to
 // fold a derived projection over a fully-materialised MatrixPayload.
@@ -252,7 +243,7 @@ func scalarFromCell(cell types.MatrixCell) (float64, bool) {
 // per-kind contracts (axis mismatch, scope unsupported) are caught at
 // predict time and should not reach here, but ApplyOverlays still runs
 // defensive guards.
-type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error)
+type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error)
 
 // overlayHandlers is the per-kind dispatch table. The
 // TestStreamability_OverlaysKnown / TestUpdateDemandTableCovers
@@ -309,7 +300,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 // expression environment should use `ApplyOverlaysWithExtensions`
 // instead — this no-extension entry point preserves backward
 // compatibility for in-package tests + non-FORMULA call sites.
-func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.OverlayLayer, []OverlayWarning, error) {
+func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	return ApplyOverlaysWithExtensions(specs, host, nil)
 }
 
@@ -330,7 +321,7 @@ func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 // custom functions at compile time. The nil-registry no-extension
 // behaviour is preserved when the caller does not have a registry on
 // hand (tests, isolated handler exercises).
-func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostView, exts *ExtensionRegistry) ([]types.OverlayLayer, []OverlayWarning, error) {
+func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostView, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -339,7 +330,7 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 			"ApplyOverlays requires a non-nil CrosstabHostView (no MATRIX host present)")
 	}
 	layers := make([]types.OverlayLayer, 0, len(specs))
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	for i := range specs {
 		spec := &specs[i]
 		if err := validateOverlayLevelWithinRuntime(spec, host, i); err != nil {
@@ -576,7 +567,7 @@ func overlayLevelWithinAxisDepths(spec *types.OverlaySpec, host *CrosstabHostVie
 // mismatches at predict time. The handler still defends against a nil
 // crosstab payload (ApplyOverlays already gates that) and against
 // degenerate contingencies.
-func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	rowCount := host.RowCount()
 	colCount := host.ColumnCount()
 
@@ -683,13 +674,13 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 	df64 := df
 	pv := pValue
 
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	if lowExpectedCells > 0 {
 		// Canonical χ² low-expected-count warning. Code promoted from a
 		// stub string in E2-S10 to the canonical
 		// errors.PULSE_OVERLAY_EXPECTED_LOW constant; mirrors
 		// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ surface.
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code: string(errors.PULSE_OVERLAY_EXPECTED_LOW),
 			Message: "overlay " + string(spec.Kind) +
 				" χ² approximation may be unreliable: cells with expected count < 5 detected",
@@ -790,7 +781,7 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 // mismatches at predict time. The handler still defends against a nil
 // crosstab payload (ApplyOverlays already gates that) and against
 // degenerate matrix shapes.
-func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	rowCount := host.RowCount()
 	colCount := host.ColumnCount()
 
@@ -835,7 +826,7 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 
 	payload := host.Payload()
 	entries := make([]types.SeriesEntry, 0, rowCount)
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	df := float64(colCount - 1)
 
 	for i := 0; i < rowCount; i++ {
@@ -915,7 +906,7 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 			// errors.PULSE_OVERLAY_EXPECTED_LOW constant; mirrors
 			// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ
 			// surface.
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code: string(errors.PULSE_OVERLAY_EXPECTED_LOW),
 				Message: "overlay " + string(spec.Kind) +
 					" χ² approximation may be unreliable: row contains cells with expected count < 5",
@@ -1004,7 +995,7 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 // mismatches at predict time. The handler still defends against a nil
 // crosstab payload (ApplyOverlays already gates that) and against
 // degenerate matrix shapes.
-func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	rowCount := host.RowCount()
 	colCount := host.ColumnCount()
 
@@ -1048,7 +1039,7 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 
 	payload := host.Payload()
 	entries := make([]types.SeriesEntry, 0, colCount)
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	df := float64(rowCount - 1)
 
 	for c := 0; c < colCount; c++ {
@@ -1129,7 +1120,7 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 			// errors.PULSE_OVERLAY_EXPECTED_LOW constant; mirrors
 			// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ
 			// surface.
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code: string(errors.PULSE_OVERLAY_EXPECTED_LOW),
 				Message: "overlay " + string(spec.Kind) +
 					" χ² approximation may be unreliable: column contains cells with expected count < 5",
@@ -1186,7 +1177,7 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 // Defense in depth: the descriptor validator rejects bad axes / refs /
 // scopes at predict time. This handler still re-checks the Margin
 // pointer + axis so a misconfigured caller fails closed.
-func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -1370,7 +1361,7 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 // mismatches at predict time. The handler still defends against a nil
 // crosstab payload (ApplyOverlays already gates that) and against
 // degenerate margins (grand_total <= 0).
-func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	rowCount := host.RowCount()
 	colCount := host.ColumnCount()
 	payload := host.Payload()
@@ -1411,7 +1402,7 @@ func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (type
 			Baseline: &baseline,
 			Count:    &zeroCount,
 		}
-		warnings := []OverlayWarning{{
+		warnings := []types.OverlayWarning{{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " requires a positive grand total; got " + formatFloatForWarning(grandTotal),
 			Details: map[string]any{
@@ -1425,7 +1416,7 @@ func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (type
 
 	cells := make([][]types.MatrixCell, rowCount)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -1529,7 +1520,7 @@ func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (type
 				// expected cell triggers.
 				lowFraction := float64(lowCount) / 4.0
 				if anyBelowOne || lowFraction >= 0.20 {
-					warnings = append(warnings, OverlayWarning{
+					warnings = append(warnings, types.OverlayWarning{
 						Code: string(errors.PULSE_OVERLAY_EXPECTED_LOW),
 						Message: "overlay " + string(spec.Kind) +
 							" Fisher's exact 2×2 contains low expected counts " +
@@ -1848,7 +1839,7 @@ func buildOverlayDenominators(
 // scopes at predict time. This handler still re-checks the Margin
 // pointer + axis so a misconfigured caller fails closed rather than
 // dividing by an unset slot.
-func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -1874,7 +1865,7 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 
 	cells := make([][]types.MatrixCell, rowCount)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -1888,7 +1879,7 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 			}
 			marginVal, marginPresent := resolveOverlayDenominator(spec, host, axis, i, j, buckets, bucketKeys)
 			if !marginPresent || marginVal == 0 {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " denominator missing or zero on " + string(axis) + " axis",
 					Details: map[string]any{
@@ -1903,7 +1894,7 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 			}
 			score := cellVal / marginVal * 100.0
 			if math.IsNaN(score) || math.IsInf(score, 0) {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " produced non-finite value on " + string(axis) + " axis",
 					Details: map[string]any{
@@ -1996,7 +1987,7 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 // and renderers centre diverging colour ramps on the population
 // median rather than the uniform baseline. Future renderer-side
 // metadata may refine this.
-func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -2028,7 +2019,7 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 
 	cells := make([][]types.MatrixCell, rowCount)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -2042,7 +2033,7 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 			}
 			marginVal, marginPresent := resolveOverlayDenominator(spec, host, axis, i, j, buckets, bucketKeys)
 			if !marginPresent || marginVal == 0 {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " denominator missing or zero on row axis",
 					Details: map[string]any{
@@ -2057,7 +2048,7 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 			}
 			share := cellVal / marginVal
 			if math.IsNaN(share) || math.IsInf(share, 0) {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " produced non-finite value on row axis",
 					Details: map[string]any{
@@ -2147,7 +2138,7 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 // 0 to match the SHARE_OF_ROW convention — share ratios cluster near
 // zero on tall columns and renderers centre diverging colour ramps on
 // the population median rather than the uniform baseline.
-func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -2174,7 +2165,7 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 
 	cells := make([][]types.MatrixCell, rowCount)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -2188,7 +2179,7 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 			}
 			marginVal, marginPresent := resolveOverlayDenominator(spec, host, axis, i, j, buckets, bucketKeys)
 			if !marginPresent || marginVal == 0 {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " denominator missing or zero on column axis",
 					Details: map[string]any{
@@ -2203,7 +2194,7 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 			}
 			share := cellVal / marginVal
 			if math.IsNaN(share) || math.IsInf(share, 0) {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " produced non-finite value on column axis",
 					Details: map[string]any{
@@ -2299,7 +2290,7 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 // NOTE per story description: the same kind name will later route to
 // a streamable series-shape handler under Process context (E3); this
 // story lands only the MATRIX dispatch.
-func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -2321,7 +2312,7 @@ func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.O
 
 	cells := make([][]types.MatrixCell, rowCount)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -2339,7 +2330,7 @@ func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.O
 			// signature uniform with the row / col handlers.
 			marginVal, marginPresent := host.MarginFor(axis, i, j)
 			if !marginPresent || marginVal == 0 {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " denominator missing or zero on grand axis",
 					Details: map[string]any{
@@ -2354,7 +2345,7 @@ func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.O
 			}
 			share := cellVal / marginVal
 			if math.IsNaN(share) || math.IsInf(share, 0) {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " produced non-finite value on grand axis",
 					Details: map[string]any{
@@ -2461,7 +2452,7 @@ func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.O
 // / scopes at predict time. This handler still re-checks the Margin
 // pointer + axis so a misconfigured caller fails closed rather than
 // dividing by an unset slot.
-func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -2542,7 +2533,7 @@ func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types
 
 	cells := make([][]types.MatrixCell, rowCount)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -2556,7 +2547,7 @@ func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types
 			}
 			marginVal, marginPresent := resolveOverlayDenominator(spec, host, axis, i, j, buckets, bucketKeys)
 			if !marginPresent {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " denominator missing on " + string(axis) + " axis",
 					Details: map[string]any{
@@ -2579,7 +2570,7 @@ func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types
 				sd = grandSD
 			}
 			if sd == 0 {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " standard deviation is zero on " + string(axis) + " axis (degenerate slice)",
 					Details: map[string]any{
@@ -2594,7 +2585,7 @@ func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types
 			}
 			score := (cellVal - marginVal) / sd
 			if math.IsNaN(score) || math.IsInf(score, 0) {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " produced non-finite value on " + string(axis) + " axis",
 					Details: map[string]any{

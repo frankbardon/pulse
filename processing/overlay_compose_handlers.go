@@ -332,7 +332,7 @@ func summaryWithBaseline(baseline float64, seen int, minV, maxV float64) *types.
 // INDEX_VS_MARGIN. SERIES arm output payload is a SeriesPayload whose
 // entries match the target's Response.Data row order element-for-
 // element (modulo missing-ref drops).
-func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	if composeHostIsSeries(reference, target) {
 		return applyIndexVsRefSeries(spec, reference, target, refIdx, targetIdx)
@@ -364,7 +364,7 @@ func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 
 	targetLabel := composeFirstTargetLabel(spec)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -387,7 +387,7 @@ func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 			colKeyStr := axisKeyToString(targetMx.ColumnKeys[j])
 			refVal, refPresent := refLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
 			if !refPresent {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " reference cell missing for target (row, col) key pair",
 					Details: map[string]any{
@@ -406,7 +406,7 @@ func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 				continue
 			}
 			if refVal == 0 {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " reference cell is zero; substituting NaN",
 					Details: map[string]any{
@@ -448,7 +448,7 @@ func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 // hazard — the handler never emits PULSE_OVERLAY_REF_ZERO for a zero
 // reference. Missing reference rows / cells still emit a warning per
 // the PRD §4 missing-key contract.
-func applyDeltaVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyDeltaVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	if composeHostIsSeries(reference, target) {
 		return applyDeltaVsRefSeries(spec, reference, target, refIdx, targetIdx)
@@ -474,7 +474,7 @@ func applyDeltaVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 
 	targetLabel := composeFirstTargetLabel(spec)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -497,7 +497,7 @@ func applyDeltaVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 			colKeyStr := axisKeyToString(targetMx.ColumnKeys[j])
 			refVal, refPresent := refLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
 			if !refPresent {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " reference cell missing for target (row, col) key pair",
 					Details: map[string]any{
@@ -572,7 +572,7 @@ func twoProportionZ(sa, na, sb, nb float64) (float64, bool) {
 // (a structurally degenerate case where p_target == 1 by
 // construction — useful for debugging, surfaces NaN+warning rather
 // than silently producing a meaningless statistic).
-func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	targetMx := readMatrix(target)
@@ -600,7 +600,7 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 
 	targetLabel := composeFirstTargetLabel(spec)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -623,7 +623,7 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 			colKeyStr := axisKeyToString(targetMx.ColumnKeys[j])
 			refVal, refPresent := refLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
 			if !refPresent {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " reference cell missing for target (row, col) key pair",
 					Details: map[string]any{
@@ -654,7 +654,7 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 			}
 			p, ok := twoProportionZ(targetVal, nTarget, refVal, nRef)
 			if !ok {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " z-statistic undefined (pooled ∈ {0, 1} OR zero SE)",
 					Details: map[string]any{
@@ -783,7 +783,7 @@ func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 // MatrixCell.Value type-assertion on processing.WelfordTriple is no
 // longer performed — the universal Components surface owns the triple
 // payload. E3-S8 removes the writer next.
-func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	targetMx := readMatrix(target)
@@ -812,7 +812,7 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 
 	targetLabel := composeFirstTargetLabel(spec)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -831,7 +831,7 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 			colKeyStr := axisKeyToString(targetMx.ColumnKeys[j])
 			refCell, refPresent := refCellLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
 			if !refPresent {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " reference cell missing for target (row, col) key pair",
 					Details: map[string]any{
@@ -912,7 +912,7 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 
 			p, ok := welchTTest(meanT, vT, nT, meanR, vR, nR)
 			if !ok {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " Welch t-test undefined for cell (zero SE OR insufficient n)",
 					Details: map[string]any{
@@ -969,7 +969,7 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 // `OverlayPayload.Scalar` plus `OverlaySummary{Statistic, PValue,
 // Parameters{"df"}}`. Reuses the chiSquareSurvival helper backing
 // TEST_CHISQ + the MATRIX-host CHISQ family.
-func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	targetMx := readMatrix(target)
@@ -994,7 +994,7 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	var (
 		targetN     float64
 		refN        float64
-		warnings    []OverlayWarning
+		warnings    []types.OverlayWarning
 		lowExpected int
 	)
 
@@ -1032,7 +1032,7 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	}
 
 	if targetN == 0 || refN == 0 || len(pairs) == 0 {
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " cannot compute χ² (empty target or reference)",
 			Details: map[string]any{
@@ -1071,7 +1071,7 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 
 	pValue := chiSquareSurvival(chisq, df)
 	if lowExpected > 0 {
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_EXPECTED_LOW),
 			Message: "overlay " + string(spec.Kind) + " contingency table has cells with expected < 5",
 			Details: map[string]any{
@@ -1125,7 +1125,7 @@ func nanPtr() *float64 {
 // Output cells carry 1-based ranks (1 = largest). Ties take the
 // average of their would-be ranks (canonical "average" tie-breaking,
 // matches scipy.stats.rankdata default).
-func applyRank(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyRank(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	_ = reference // RANK does not consume reference values; the slot anchors gates only.
 	_ = refIdx
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
@@ -1147,7 +1147,7 @@ func applyRank(spec *types.ComposeOverlaySpec, reference *types.Response, target
 	cells := buildEmptyMatrixLike(rowCount, colCount)
 
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -1169,7 +1169,7 @@ func applyRank(spec *types.ComposeOverlaySpec, reference *types.Response, target
 	default:
 		// "matrix" mode (also the fallback for unknown population values).
 		if population != "matrix" {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				Message: "overlay " + string(spec.Kind) + " unknown population mode; defaulting to \"matrix\"",
 				Details: map[string]any{

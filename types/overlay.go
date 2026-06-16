@@ -2977,3 +2977,28 @@ type OverlayLayer struct {
 	// when the layer reported nothing useful.
 	Summary *OverlaySummary `json:"summary,omitempty"`
 }
+
+// OverlayWarning is the in-process diagnostic emitted by an overlay
+// handler when it could not produce a meaningful value for some
+// subset of cells (zero denominator, missing margin slot). Carries the
+// canonical error code (today: errors.PULSE_OVERLAY_REF_ZERO), a
+// renderer-friendly message, and structured details so the
+// orchestrator can promote each entry into a types.ResponseWarning on
+// the envelope.
+//
+// Relocated from processing.OverlayWarning in E1-S1 of the
+// unwired-facade-lift effort: the next story attaches an
+// `OverlayWarning` slice to OverlayLayer (a types-level struct), and
+// types/ does not import processing/. Moving the value-only
+// diagnostic up the dependency graph keeps the types package
+// behavioural-import-free while letting both processing/ and
+// service/ produce warnings against the same shape.
+type OverlayWarning struct {
+	// Code is the canonical overlay error code (today: errors.PULSE_OVERLAY_REF_ZERO).
+	Code string
+	// Message is the human-readable summary.
+	Message string
+	// Details carries structured context for the warning — overlay
+	// index, kind, axis, the offending row / column key indices, etc.
+	Details map[string]any
+}

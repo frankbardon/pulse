@@ -84,7 +84,7 @@ import (
 // does not touch ctx today. Future per-kind handlers (multi-ref kinds
 // in E7-S15+) may issue follow-up cohort opens or population reads
 // that consume the deadline.
-func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedRequest, requests []*types.Request, responses []*types.Response) ([]types.OverlayLayer, []processing.OverlayWarning, error) {
+func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedRequest, requests []*types.Request, responses []*types.Response) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	_ = ctx
 	if req == nil || len(req.Overlays) == 0 {
 		// Byte-identity guarantee for overlay-free composes: the

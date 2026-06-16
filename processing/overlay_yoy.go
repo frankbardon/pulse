@@ -130,7 +130,7 @@ var yoySupportedFrequencies = []string{
 // list is populated), and (c) a missing / unsupported frequency Param.
 // All three defenses surface coded errors mirroring the predict
 // gate's failure shapes.
-func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -245,7 +245,7 @@ func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer
 		})
 	}
 
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	if zeroPriorHit {
 		details := map[string]any{
 			"kind":        string(spec.Kind),
@@ -256,7 +256,7 @@ func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer
 		for k, v := range frequencyDetails {
 			details[k] = v
 		}
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " encountered a zero prior-year value; affected indices emitted as NaN",
 			Details: details,

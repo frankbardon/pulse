@@ -111,7 +111,7 @@ import (
 // error when the named population FIELD is unknown — that error
 // surfaces from `ResolveFacetPopulation` BEFORE this handler runs, so
 // the handler sees only resolved views.
-func applyIndexVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedError(
 			errors.PROCESSING_INTERNAL,
@@ -169,7 +169,7 @@ func applyIndexVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 // appeared in the population but not in the subset — well-defined as
 // zero index, not a denominator failure). When pop_freq is also zero
 // the zero-denominator warning still fires.
-func applyIndexVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host.Discrete == nil {
 		return emptyIndexVsPopLayer(spec), nil, nil
 	}
@@ -178,7 +178,7 @@ func applyIndexVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, po
 	values := host.Discrete.Values
 
 	entries := make([]types.SeriesEntry, 0, len(values))
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	var (
 		minV float64
 		maxV float64
@@ -206,7 +206,7 @@ func applyIndexVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, po
 			// PULSE_OVERLAY_REF_ZERO warning carrying the value + kind
 			// and SKIP the index. The entry's Summary stays empty so the
 			// parallel-slice contract holds (one entry per host value).
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) +
 					" population frequency is zero or absent for value " + indexVsPopValueDisplay(vc.Value),
@@ -232,7 +232,7 @@ func applyIndexVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, po
 			// inputs should never produce NaN or Inf because we gated
 			// pop_freq == 0 above; defense in depth surfaces the same
 			// PULSE_OVERLAY_REF_ZERO contract.
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) +
 					" produced a non-finite index for value " + indexVsPopValueDisplay(vc.Value),
@@ -330,7 +330,7 @@ func subsetDiscreteDenominator(d *types.FacetDiscrete) int64 {
 // the kind and return an empty Entries slice. The population view does
 // not surface a per-bin denominator, so every index would be
 // zero-denominator anyway.
-func applyIndexVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host.Numeric == nil || host.Numeric.Histogram == nil {
 		// Host did not carry a histogram — emit an empty layer. The
 		// caller's FacetRequest may need to set IncludeHistogram=true
@@ -343,7 +343,7 @@ func applyIndexVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop
 	if !popOk || popHist == nil {
 		// Population view has no histogram — every per-bin lookup would
 		// fail. One layer-level warning carrying the kind; zero entries.
-		warnings := []OverlayWarning{{
+		warnings := []types.OverlayWarning{{
 			Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) +
 				" requires a population histogram to index numeric host bins; none present",
@@ -361,7 +361,7 @@ func applyIndexVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop
 	if len(hostHist.Bins) != len(popHist.Bins) ||
 		hostHist.Min != popHist.Min ||
 		hostHist.Max != popHist.Max {
-		warnings := []OverlayWarning{{
+		warnings := []types.OverlayWarning{{
 			Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) +
 				" host and population histograms have mismatched shapes; indices not computable",
@@ -393,7 +393,7 @@ func applyIndexVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop
 	bins := hostHist.Bins
 	step := (hostHist.Max - hostHist.Min) / float64(len(bins))
 	entries := make([]types.SeriesEntry, 0, len(bins))
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	var (
 		minV float64
 		maxV float64
@@ -417,7 +417,7 @@ func applyIndexVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop
 		}
 
 		if popFreq == 0 {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) +
 					" population bin frequency is zero for bin " + strconv.Itoa(i),
@@ -436,7 +436,7 @@ func applyIndexVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop
 
 		index := subsetFreq / popFreq * 100.0
 		if math.IsNaN(index) || math.IsInf(index, 0) {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) +
 					" produced a non-finite index for bin " + strconv.Itoa(i),
@@ -508,7 +508,7 @@ func emptyIndexVsPopLayer(spec *types.OverlaySpec) types.OverlayLayer {
 // 100, underperform < 100), Min/Max/Count populated from present + non-
 // NaN entries. The per-entry Statistic carries the renderer-facing
 // detail; the layer-level Summary surfaces the colour-ramp pivot.
-func finalizeIndexVsPopLayer(spec *types.OverlaySpec, entries []types.SeriesEntry, _ []OverlayWarning, minV, maxV float64, seen int) types.OverlayLayer {
+func finalizeIndexVsPopLayer(spec *types.OverlaySpec, entries []types.SeriesEntry, _ []types.OverlayWarning, minV, maxV float64, seen int) types.OverlayLayer {
 	layer := types.OverlayLayer{
 		Name:  overlayLayerName(spec),
 		Kind:  spec.Kind,

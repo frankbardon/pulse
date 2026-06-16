@@ -45,7 +45,7 @@ import (
 // non-finite z): emit `PULSE_OVERLAY_REF_ZERO` warning + NaN cell.
 // Missing reference cells emit the same warning with
 // `ref_missing=true`.
-func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	targetMx := readMatrix(target)
@@ -74,7 +74,7 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 
 	targetLabel := composeFirstTargetLabel(spec)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -93,7 +93,7 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 			colKeyStr := axisKeyToString(targetMx.ColumnKeys[j])
 			refCell, refPresent := refLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
 			if !refPresent {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " reference cell missing for target (row, col) key pair",
 					Details: map[string]any{
@@ -125,7 +125,7 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 			}
 			p, ok := welchZTest(targetMean, targetVar, targetN, refMean, refVar, refN)
 			if !ok {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " z-test undefined for cell (zero SE OR insufficient n)",
 					Details: map[string]any{

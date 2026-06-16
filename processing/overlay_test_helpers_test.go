@@ -234,7 +234,7 @@ func assertScalarLayerWithinTol(t *testing.T, layer *types.OverlayLayer,
 //     case so the test reads correctly)
 //   - len(warnings) != wantCount
 //   - any warnings[i].Code != wantCode
-func assertWarningCode(t *testing.T, warnings []OverlayWarning, wantCode string, wantCount int) {
+func assertWarningCode(t *testing.T, warnings []types.OverlayWarning, wantCode string, wantCount int) {
 	t.Helper()
 	if wantCount <= 0 {
 		t.Fatalf("assertWarningCode: wantCount must be > 0 (got %d); use assertNoOverlayWarnings instead",
@@ -268,7 +268,7 @@ func assertWarningCode(t *testing.T, warnings []OverlayWarning, wantCode string,
 //
 //   - len(warnings) != 0; the failure message lists every observed
 //     warning's Code so the diff is actionable.
-func assertNoOverlayWarnings(t *testing.T, warnings []OverlayWarning) {
+func assertNoOverlayWarnings(t *testing.T, warnings []types.OverlayWarning) {
 	t.Helper()
 	if len(warnings) == 0 {
 		return

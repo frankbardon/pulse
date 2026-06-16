@@ -95,7 +95,7 @@ import (
 // predict) by returning a coded PROCESSING_INTERNAL error — that
 // branch is unreachable in practice but the defense is cheap and
 // matches the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES safety pattern.
-func applyDeltaVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyDeltaVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -129,9 +129,9 @@ func applyDeltaVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.O
 	// emission shape (one warning per layer, not per cell). The
 	// entries slice still carries one entry per host ordinal so the
 	// parallel-slice contract holds.
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	if !siblingPresent {
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 			Message: "overlay " + string(spec.Kind) + " sibling reference does not resolve to a known host group",
 			Details: map[string]any{

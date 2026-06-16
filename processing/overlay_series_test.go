@@ -71,10 +71,10 @@ func installSeriesStubHandler(t *testing.T, fn seriesOverlayHandler) {
 // absent). The handler runs no math — its job is to prove the dispatch
 // wired the host through correctly and the parallel-slice alignment
 // holds. Out-of-scope here: real per-kind math (E3-S2..S5).
-func stubSeriesHandler(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func stubSeriesHandler(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	n := host.GroupCount()
 	entries := make([]types.SeriesEntry, 0, n)
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	for i := 0; i < n; i++ {
 		key, _ := host.GroupKey(i)
 		var summary types.OverlaySummary
@@ -411,7 +411,7 @@ func TestApplyOverlaysSeries_SpecOrderPreserved(t *testing.T) {
 // 4 host groups) and Entries[*].Key still aligns element-for-element
 // with the corresponding host ordinal.
 func TestApplyOverlaysSeries_LooseAlignmentSubset(t *testing.T) {
-	subsetHandler := func(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error) {
+	subsetHandler := func(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 		n := host.GroupCount()
 		entries := make([]types.SeriesEntry, 0, n/2+1)
 		for i := 0; i < n; i++ {

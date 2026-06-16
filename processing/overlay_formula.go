@@ -419,7 +419,7 @@ func computeMatrixWelfordSDs(host *CrosstabHostView, needRow, needCol, needGrand
 // Callers that need embedder functions in scope (Process / Crosstab
 // orchestrators) use `applyFormulaWithExtensions` directly via
 // `ApplyOverlaysWithExtensions` (E8-S5).
-func applyFormula(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyFormula(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	return applyFormulaWithExtensions(spec, host, nil)
 }
 
@@ -450,7 +450,7 @@ func applyFormula(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overla
 // lookup builtin in one slice and the FORMULA surface inherits both.
 // FORMULA authors who do not want lookup access simply do not call
 // it.
-func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView, exts *ExtensionRegistry) (types.OverlayLayer, []OverlayWarning, error) {
+func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView, exts *ExtensionRegistry) (types.OverlayLayer, []types.OverlayWarning, error) {
 	formula, err := extractFormulaParam(spec)
 	if err != nil {
 		return types.OverlayLayer{}, nil, err

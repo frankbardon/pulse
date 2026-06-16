@@ -89,7 +89,7 @@ import (
 // Numeric host (no discrete payload) fails with the same code — the
 // per-kind validator (lands in E5-S6 / E5-S7) rejects numeric hosts at
 // predict time; this runtime arm is defense in depth.
-func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedError(
 			errors.PROCESSING_INTERNAL,
@@ -149,7 +149,7 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 		nanStat := math.NaN()
 		nanPV := math.NaN()
 		zeroDf := 0.0
-		warnings := []OverlayWarning{{
+		warnings := []types.OverlayWarning{{
 			Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) +
 				" host distribution is empty; cannot compute χ² goodness-of-fit",
@@ -215,7 +215,7 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 		if zeroDf < 0 {
 			zeroDf = 0
 		}
-		warnings := []OverlayWarning{{
+		warnings := []types.OverlayWarning{{
 			Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) +
 				" population distribution has zero total records; cannot compute χ² goodness-of-fit",
@@ -235,14 +235,14 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 	}
 	pValue := chiSquareSurvival(stat, df)
 
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	if lowExpectedCells > 0 {
 		// Canonical χ² low-expected-count warning — same code the
 		// MATRIX-host CHISQ family + FISHER_EXACT_CELL surface emit
 		// (PRD FR-J1 shares the code across overlay surfaces). The
 		// statistic + p-value are still emitted alongside; the warning
 		// flags categories where the approximation may be unreliable.
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code: string(errors.PULSE_OVERLAY_EXPECTED_LOW),
 			Message: "overlay " + string(spec.Kind) +
 				" χ² approximation may be unreliable: categories with expected count < 5 detected",

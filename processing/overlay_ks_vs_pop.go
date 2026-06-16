@@ -97,7 +97,7 @@ import (
 // Categorical host (no numeric payload) fails with
 // PULSE_OVERLAY_SCOPE_UNSUPPORTED — the per-kind validator (E5-S10) rejects
 // categorical hosts at predict time; this runtime arm is defense in depth.
-func applyKSVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyKSVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedError(
 			errors.PROCESSING_INTERNAL,
@@ -455,11 +455,11 @@ func interpolatePercentileCDF(x float64, pct map[string]float64) float64 {
 // arm sizes and the reconstruction-failure reason so the renderer can
 // surface a fixup hint ("turn on IncludeHistogram=true or
 // NumericPercentiles=[...] on both FacetRequests").
-func ksDegenerateLayer(spec *types.OverlaySpec, nSubset, nPop int64, message string, details map[string]any) (types.OverlayLayer, []OverlayWarning) {
+func ksDegenerateLayer(spec *types.OverlaySpec, nSubset, nPop int64, message string, details map[string]any) (types.OverlayLayer, []types.OverlayWarning) {
 	nanStat := math.NaN()
 	nanPV := math.NaN()
 	layer := buildKSVsPopLayer(spec, nanStat, &nanStat, &nanPV, nSubset, nPop)
-	warnings := []OverlayWarning{{
+	warnings := []types.OverlayWarning{{
 		Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 		Message: message,
 		Details: details,

@@ -71,7 +71,7 @@ import (
 //
 // On success, resp.Overlays carries one OverlayLayer per spec in
 // matching order and resp.Warnings is extended with one
-// types.ResponseWarning per OverlayWarning the handlers emitted
+// types.ResponseWarning per types.OverlayWarning the handlers emitted
 // (mirrors processing/crosstab.go applyOverlaysToResponse — the same
 // warning-promotion shape labels and stat tests use).
 //

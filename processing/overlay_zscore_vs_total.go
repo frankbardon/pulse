@@ -207,7 +207,7 @@ func computeSeriesWelfordPopulation(host *SeriesHostView) (mean, sd float64, pre
 // practice because ApplyOverlaysSeries short-circuits empty specs
 // before dispatch, but the defense is cheap and matches the
 // INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES safety pattern.
-func applyZScoreVsTotal(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyZScoreVsTotal(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -235,10 +235,10 @@ func applyZScoreVsTotal(spec *types.OverlaySpec, host *SeriesHostView) (types.Ov
 	// sd == 0 with n >= 2), every-group-zero, single-present-group
 	// (n < 2 leaves sd at the helper's zero default), and the
 	// every-group-absent degenerate case (n == 0).
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	zeroVariance := sd == 0 || math.IsNaN(sd)
 	if zeroVariance {
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " grand-total standard deviation is zero; z-scores emitted as NaN",
 			Details: map[string]any{

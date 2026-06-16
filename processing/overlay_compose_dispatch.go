@@ -88,10 +88,10 @@ import (
 // Signature parity with the MATRIX (overlayHandler) / SERIES
 // (seriesOverlayHandler) / FACET (facetOverlayHandler) / CHAIN
 // (chainOverlayHandler) paths is intentional — the host parameters
-// change but the `(OverlayLayer, []OverlayWarning, error)` return
+// change but the `(OverlayLayer, []types.OverlayWarning, error)` return
 // shape stays uniform so the orchestrator-side promotion logic looks
 // the same on every host.
-type composeOverlayHandler func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error)
+type composeOverlayHandler func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error)
 
 // composeOverlayMultiLayerHandler is the per-kind execution signature
 // for COMPOSE-only kinds that emit MULTIPLE OverlayLayer entries per
@@ -117,7 +117,7 @@ type composeOverlayHandler func(spec *types.ComposeOverlaySpec, reference *types
 // COMPOSE-only kind sees the same (spec, refResp, targetResps,
 // refIdx, targetIdxs) input shape regardless of how many layers it
 // emits. The chassis is the only place that branches on the table.
-type composeOverlayMultiLayerHandler func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) ([]types.OverlayLayer, []OverlayWarning, error)
+type composeOverlayMultiLayerHandler func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) ([]types.OverlayLayer, []types.OverlayWarning, error)
 
 // composeOverlayHandlers is the per-kind dispatch table for the
 // COMPOSE host path. E7-S4 lands an EMPTY table — the chassis falls
@@ -205,7 +205,7 @@ var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMulti
 // a zero-payload OverlayLayer that inherits the reference slot's host
 // shape. The stub emits no warnings and no per-coordinate values;
 // real arithmetic ships with each per-kind handler.
-func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string) ([]types.OverlayLayer, []OverlayWarning, error) {
+func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -219,7 +219,7 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 		return nil, nil, err
 	}
 	layers := make([]types.OverlayLayer, 0, len(specs))
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	for i := range specs {
 		spec := &specs[i]
 		// Reference must resolve to a known label AND a non-nil slot.
@@ -387,7 +387,7 @@ func resolveComposeSlotsFromLabels(labels []string, responses []*types.Response)
 // (per-coordinate reference / target folding, zero-denominator
 // handling, shape-divergence detection) ships with the per-kind
 // handlers in E7-S9 through E7-S15.
-func applyComposeStub(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyComposeStub(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	name := spec.Name
 	if name == "" {
 		name = string(spec.Kind)

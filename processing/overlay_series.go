@@ -287,7 +287,7 @@ func (h *SeriesHostView) ValueAt(i int) (float64, bool) {
 // the only difference is the host parameter type. Future stories may
 // unify the two through a shared interface; v1 keeps them separate so
 // each path's host-shape contract stays explicit at the type level.
-type seriesOverlayHandler func(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error)
+type seriesOverlayHandler func(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error)
 
 // seriesOverlayHandlers is the per-kind dispatch table for the SERIES
 // host path. Stories E3-S2 / E3-S3 / E3-S4 / E3-S5 register the real
@@ -470,12 +470,12 @@ func computeSeriesGrandTotal(host *SeriesHostView) (grandTotal float64, presentM
 // validateOverlayLevelWithinRuntime does NOT fire here — SERIES kinds
 // do not engage prefix-bucket denominators in E3-S1, and the per-kind
 // E3-S2..S5 handlers add their own gates when their math requires it.
-func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]types.OverlayLayer, []OverlayWarning, error) {
+func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
 	layers := make([]types.OverlayLayer, 0, len(specs))
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	for i := range specs {
 		spec := &specs[i]
 		handler, ok := seriesOverlayHandlers[spec.Kind]

@@ -99,13 +99,13 @@ func assertOverlayLayerValue(t *testing.T, layer *types.OverlayLayer, idx int, w
 // assertOverlayLayerNoWarnings is the layer-level analogue of
 // assertNoOverlayWarnings — when a per-kind test resolves the
 // per-layer warnings from a single-spec ApplyOverlaysSeries call, it
-// still threads a flat `[]OverlayWarning` slice through. This helper
+// still threads a flat `[]types.OverlayWarning` slice through. This helper
 // is a thin alias over assertNoOverlayWarnings; the alias lifts the
 // brief's preferred naming for the E4 batch without disturbing the
 // E2-S12 helper file's existing call sites.
 //
 // Failure mode (fatal via t.Fatalf): len(warnings) != 0.
-func assertOverlayLayerNoWarnings(t *testing.T, warnings []OverlayWarning) {
+func assertOverlayLayerNoWarnings(t *testing.T, warnings []types.OverlayWarning) {
 	t.Helper()
 	assertNoOverlayWarnings(t, warnings)
 }
@@ -126,7 +126,7 @@ func assertOverlayLayerNoWarnings(t *testing.T, warnings []OverlayWarning) {
 //
 //   - len(warnings) != 1
 //   - warnings[0].Code != string(code)
-func assertOverlayLayerHasWarning(t *testing.T, warnings []OverlayWarning, code errors.Code) {
+func assertOverlayLayerHasWarning(t *testing.T, warnings []types.OverlayWarning, code errors.Code) {
 	t.Helper()
 	assertWarningCode(t, warnings, string(code), 1)
 }

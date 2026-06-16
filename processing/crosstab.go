@@ -847,7 +847,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// ApplyOverlays dispatch each spec through the per-kind runtime
 	// handler (E1-S5). Result: Response.Overlays carries one
 	// OverlayLayer per spec in matching order, and every
-	// OverlayWarning is promoted to types.ResponseWarning so envelope
+	// types.OverlayWarning is promoted to types.ResponseWarning so envelope
 	// consumers see the same diagnostics surface label warnings already
 	// use (see service/process_labels.go for the canonical promotion
 	// shape).
@@ -878,7 +878,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 //
 // On success, resp.Overlays carries one OverlayLayer per spec in
 // matching order and resp.Warnings is extended with one
-// ResponseWarning per OverlayWarning the handlers emitted (mirrors the
+// ResponseWarning per types.OverlayWarning the handlers emitted (mirrors the
 // label-resolver promotion in service/process_labels.go).
 //
 // On unknown overlay kind, ApplyOverlays returns a PROCESSING_INTERNAL

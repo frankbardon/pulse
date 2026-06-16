@@ -94,7 +94,7 @@ import (
 // in the Details map — mirrors the INDEX_VS_POP guard. An unknown host
 // kind emits an empty layer rather than failing the whole request (the
 // per-kind validator should have rejected the request at predict time).
-func applyZScoreVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyZScoreVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedError(
 			errors.PROCESSING_INTERNAL,
@@ -148,7 +148,7 @@ func applyZScoreVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Face
 // returns `(0, false)` — discrete payload missing OR population total
 // records is zero) the handler emits one layer-level
 // PULSE_OVERLAY_REF_ZERO warning and zero entries.
-func applyZScoreVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyZScoreVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host.Discrete == nil {
 		return emptyZScoreVsPopLayer(spec), nil, nil
 	}
@@ -158,7 +158,7 @@ func applyZScoreVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, p
 		// Population view has no usable discrete-frequency SD (no
 		// discrete payload OR zero total records). One layer-level
 		// warning; zero entries.
-		warnings := []OverlayWarning{{
+		warnings := []types.OverlayWarning{{
 			Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) +
 				" requires a population discrete distribution to compute sd_pop; none present",
@@ -174,7 +174,7 @@ func applyZScoreVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, p
 	values := host.Discrete.Values
 
 	entries := make([]types.SeriesEntry, 0, len(values))
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	var (
 		minV float64
 		maxV float64
@@ -193,7 +193,7 @@ func applyZScoreVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, p
 		// (mirrors INDEX_VS_POP per-entry zero-denominator emission
 		// shape) and skip the Statistic.
 		if sdPop == 0 {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) +
 					" population frequency standard deviation is zero; cannot standardise value " + zscoreVsPopValueDisplay(vc.Value),
@@ -227,7 +227,7 @@ func applyZScoreVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, p
 		if math.IsNaN(zscore) || math.IsInf(zscore, 0) {
 			// Non-finite path: defense in depth against future host
 			// shapes that surface NaN cells.
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) +
 					" produced a non-finite z-score for value " + zscoreVsPopValueDisplay(vc.Value),
@@ -281,7 +281,7 @@ func applyZScoreVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, p
 // has parallel-slice alignment with the INDEX_VS_POP layer (both kinds
 // emit one entry per bin in bin-index order when both are requested
 // alongside).
-func applyZScoreVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyZScoreVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host.Numeric == nil || host.Numeric.Histogram == nil {
 		// Host did not carry a histogram — emit an empty layer. The
 		// caller's FacetRequest may need to set IncludeHistogram=true
@@ -293,7 +293,7 @@ func applyZScoreVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, po
 		// Population view has no Welford summary — every per-bin
 		// z-score would lack a centerpoint. One layer-level warning;
 		// zero entries.
-		warnings := []OverlayWarning{{
+		warnings := []types.OverlayWarning{{
 			Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) +
 				" requires a population Welford summary to standardise numeric host bins; none present",
@@ -309,7 +309,7 @@ func applyZScoreVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, po
 		// every per-bin z-score is undefined. One layer-level warning;
 		// zero entries (mirrors the INDEX_VS_POP layer-level missing-
 		// histogram-pop warning shape).
-		warnings := []OverlayWarning{{
+		warnings := []types.OverlayWarning{{
 			Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) +
 				" population standard deviation is zero; cannot standardise host bins",
@@ -327,7 +327,7 @@ func applyZScoreVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, po
 	bins := hostHist.Bins
 	step := (hostHist.Max - hostHist.Min) / float64(len(bins))
 	entries := make([]types.SeriesEntry, 0, len(bins))
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	var (
 		minV float64
 		maxV float64
@@ -346,7 +346,7 @@ func applyZScoreVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, po
 
 		zscore := (binCenter - popNum.Mean) / popNum.StdDev
 		if math.IsNaN(zscore) || math.IsInf(zscore, 0) {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code: string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) +
 					" produced a non-finite z-score for bin " + strconv.Itoa(i),

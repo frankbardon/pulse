@@ -78,10 +78,10 @@ import (
 // Signature parity with the MATRIX (overlayHandler) / SERIES
 // (seriesOverlayHandler) / FACET (facetOverlayHandler) paths is
 // intentional — the host parameters change but the
-// `(OverlayLayer, []OverlayWarning, error)` return shape stays
+// `(OverlayLayer, []types.OverlayWarning, error)` return shape stays
 // uniform so the orchestrator-side promotion logic looks the same on
 // every host.
-type chainOverlayHandler func(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []OverlayWarning, error)
+type chainOverlayHandler func(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error)
 
 // chainOverlayHandlers is the per-kind dispatch table for the CHAIN
 // host path. E6-S3 ships compile-time stub handlers for both
@@ -175,7 +175,7 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 // handlers own the shape-divergence defence so each kind picks its own
 // fallback payload (the canonical rule today is "empty payload that
 // inherits the target stage's shape").
-func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string) ([]*types.OverlayLayer, []OverlayWarning, error) {
+func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -193,7 +193,7 @@ func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Respons
 		namedIndex[name] = i
 	}
 	layers := make([]*types.OverlayLayer, 0, len(specs))
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	for i, spec := range specs {
 		if spec == nil {
 			return nil, nil, errors.NewCodedErrorWithDetails(
@@ -347,7 +347,7 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 // (per-coordinate target / ref folding, zero-denominator handling,
 // shape-divergence detection) ships with the per-kind handlers in
 // E6-S4 (INDEX_VS_STAGE) and E6-S5 (DELTA_VS_STAGE).
-func applyChainStub(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyChainStub(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	name := spec.Name
 	if name == "" {
 		name = string(spec.Kind)
