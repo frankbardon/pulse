@@ -24,13 +24,8 @@ func TestManifestFacetCapability(t *testing.T) {
 	if len(m.Facet.StreamableConditions) == 0 {
 		t.Fatal("FacetCapability.StreamableConditions must be non-empty")
 	}
-	// E5-S6: FACET-host overlay kinds wired into FacetSchema. Capability
-	// must declare both the boolean flag AND the canonical kind set so
-	// LLM clients discover the dispatch surface without inspecting the
-	// source. The kind list must be sorted alphabetically for golden
-	// stability.
 	if !m.Facet.SupportsOverlays {
-		t.Errorf("FacetCapability.SupportsOverlays must be true after E5-S6")
+		t.Errorf("FacetCapability.SupportsOverlays must be true")
 	}
 	expected := []string{
 		"OVERLAY_CHISQ_VS_POP",

@@ -6,10 +6,6 @@ import (
 	"github.com/frankbardon/pulse/fs"
 )
 
-// TestService_DecodeWorkers_DefaultZero verifies that a freshly
-// constructed Service exposes DecodeWorkers() == 0 — the zero value
-// that pulse.New translates into "runtime.NumCPU() above threshold"
-// in the dispatch site that lands in E3-S2.
 func TestService_DecodeWorkers_DefaultZero(t *testing.T) {
 	cfg := fs.NewMemMap()
 	svc := New(cfg)

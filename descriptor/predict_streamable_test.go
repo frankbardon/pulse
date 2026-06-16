@@ -465,15 +465,6 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		})
 	}
 
-	// Buffered-components coverage (E1-S4): per-slot BufferedComponents
-	// must mirror the operator's ComponentSchema.Mergeability == None
-	// without flipping the overall Streamable axis. AGG_MEDIAN and
-	// AGG_PERCENTILE are the canonical Nones today; their slots
-	// advertise buffered components so streaming consumers know the
-	// Components block arrives only on terminal flush — but the
-	// per-aggregation Streamable check itself stays runtime-parity
-	// (both are non-streamable today). The buffered-components hint is
-	// an additive surface; mergeable aggregators leave the flag false.
 	t.Run("buffered components flag", func(t *testing.T) {
 		bufferedCases := []struct {
 			name       string

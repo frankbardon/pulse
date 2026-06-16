@@ -188,10 +188,6 @@ func TestShardArchiveProcessParallel_NonMergeableFallsThrough(t *testing.T) {
 	}
 }
 
-// TestShardArchiveProcessParallel_SerialEqualsOne confirms that
-// SetShardWorkers(1) takes the same code path as the pre-S6 serial
-// shardIter — the byte-for-byte parity guarantee documented in the
-// design contract.
 func TestShardArchiveProcessParallel_SerialEqualsOne(t *testing.T) {
 	cfg, _, _ := fourShardScoreCohort(t)
 

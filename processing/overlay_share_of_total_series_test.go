@@ -8,23 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_SHARE_OF_TOTAL SERIES-host handler
-// (processing/overlay_share_of_total_series.go).
-//
-// E3-S3 scope:
-//
-//   - Sibling SERIES-host overlay kind to OVERLAY_INDEX_VS_TOTAL.
-//     Dispatch registered in seriesOverlayHandlers (overlay_series.go).
-//   - The acceptance criteria call for: basic series math (scale 1.0),
-//     ULP-precision sum across a complete partition, zero-grand-total
-//     emits PULSE_OVERLAY_REF_ZERO + NaN, absent-group passthrough
-//     stays absent, streaming-vs-buffered byte-identity at the post-
-//     finalize entry point, default layer-name synthesis.
-//   - Tests reuse the SeriesHostView fixtures from
-//     overlay_series_test.go (newStubSeriesHost) and the per-entry
-//     assertion helpers established by the INDEX_VS_TOTAL tests
-//     (assertSeriesEntryStatisticWithinTol).
-
 // newShareOfTotalSeriesSpec returns the canonical happy-path SERIES
 // OVERLAY_SHARE_OF_TOTAL spec the per-test fixtures consume — GROUP
 // scope, empty Ref (implicit-grand-total), and a deterministic name so
@@ -114,15 +97,6 @@ func TestOverlay_ShareOfTotal_Series_UnequalGroups(t *testing.T) {
 	}
 }
 
-// TestOverlay_ShareOfTotal_Series_SumsToOneULP is the inline ULP-
-// precision smoke test the story explicitly calls out: "4 groups sum to
-// 1.0 within `math.Nextafter`." A complete partition's shares MUST sum
-// to exactly 1.0 (within one ULP of 1.0); any divergence indicates the
-// scale factor regressed (e.g. an accidental ×100 — the INDEX_VS_TOTAL
-// scaling — slipped in).
-//
-// Deeper coverage of the SUM=1.0 invariant across nested groupings
-// lands in E3-S8.
 func TestOverlay_ShareOfTotal_Series_SumsToOneULP(t *testing.T) {
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	values := []float64{125.0, 375.0, 250.0, 250.0} // sum = 1000

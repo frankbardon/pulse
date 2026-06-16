@@ -11,15 +11,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E5-S10 close-out tests for the FACET-host predict surface.
-// FacetValidationResult mirrors PredictResult: OverlaysApplied lists every
-// FACET-host overlay spec the engine accepted plus the streamability echo,
-// and OverlayCost maps each spec name to a coarse cost multiplier
-// (overlayCostStreamable for streamable kinds, overlayCostBuffered for
-// buffered kinds). The dispatch reads types.OverlayStreamable(kind) so the
-// static streamability table at types/overlay_streamability.go remains the
-// single source of truth.
-
 // buildFacetOverlayPulseBytes returns a minimal .pulse file with one
 // categorical "category" field and one numeric "score" field — the
 // canonical fixture for FACET-host predict tests. Carries four records so
@@ -49,15 +40,6 @@ func buildFacetOverlayPulseBytes(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// TestPredict_FacetOverlaysApplied is the E5-S10 close-out gate for the
-// FACET-host overlay descriptor surface. ValidateFacet populates
-// FacetValidationResult.OverlaysApplied with one entry per FacetRequest.Overlays
-// spec (in matching order) carrying (Name, Kind, Scope, Streamable). The
-// streamability flag comes from types.OverlayStreamable so a kind that
-// flips streamable automatically flips here.
-//
-// Covers all four FACET-host kinds in the catalog: INDEX_VS_POP / ZSCORE_VS_POP
-// (streamable, descriptive) and CHISQ_VS_POP / KS_VS_POP (buffered, inferential).
 func TestPredict_FacetOverlaysApplied(t *testing.T) {
 	data := buildFacetOverlayPulseBytes(t)
 
@@ -300,14 +282,6 @@ func TestPredict_FacetOverlaysApplied_SynthesizesDefaultName(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_FacetKsOnCategoricalRejected pins the predict-time
-// gate against OVERLAY_KS_VS_POP on a categorical host field. This is the
-// S10-acceptance shape — sibling to the E5-S6 boundary test
-// TestValidateFacetOverlays_KS_VS_POP_RejectsCategoricalHost but anchored
-// at the predict surface (ValidateFacetFromBytes round-trip) so the
-// envelope-level invalidation contract is locked: KS_VS_POP on a
-// categorical host flips FacetValidationResult.Valid to false and surfaces
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE on the envelope.
 func TestValidateOverlay_FacetKsOnCategoricalRejected(t *testing.T) {
 	data := buildFacetOverlayPulseBytes(t)
 	categoryField := json.RawMessage(`{"field":"category"}`)
@@ -336,16 +310,6 @@ func TestValidateOverlay_FacetKsOnCategoricalRejected(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_FacetPopulationRefUnknown pins the predict-time
-// gate against a Params["field"] reference that does not exist in
-// FacetRequest.Fields. The validator surfaces
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE carrying the
-// {field, available_fields} detail map (mirrors the runtime resolver's
-// PULSE_OVERLAY_REF_UNKNOWN shape). This is the predict-side
-// "population reference unknown" gate the S10 acceptance criteria pins —
-// the runtime resolver fires its own PULSE_OVERLAY_REF_UNKNOWN at execute
-// time, but predict cannot read the population cohort, so the predict
-// gate enforces the field-known-to-host contract instead.
 func TestValidateOverlay_FacetPopulationRefUnknown(t *testing.T) {
 	data := buildFacetOverlayPulseBytes(t)
 	unknownField := json.RawMessage(`{"field":"nope"}`)

@@ -11,36 +11,6 @@ import (
 	"testing"
 )
 
-// This file is the load-bearing safety net for the E2 plan-driven decode
-// rewrite. For every (schema, projection-subset, record) triple it asserts
-// that ReadRecordWithWidePlan produces byte-equal values / nulls / wide
-// maps to the per-field walk at ReadRecordWithWideProjected.
-//
-// Three schemas are exercised:
-//
-//   1. perTypeSchemas — one schema per supported field type, each replicated
-//      in both nullable and non-nullable variants where the type supports
-//      nullability. Tiny enough to enumerate every 2^N projection subset
-//      (≤ 12 fields each).
-//
-//   2. smallMixedSchema — 10-field schema combining bit-packed runs,
-//      categoricals, decimal128, set_u8/u16/u32/u64, and a bitmap. All
-//      2^10 = 1024 projection subsets are enumerated.
-//
-//   3. bigSchema — 26-field schema with every supported field type plus
-//      nullable variants. 2^26 subsets is too many to enumerate, so the
-//      test deterministically samples ~200 subsets covering: all retained,
-//      none retained, only nullable retained, only bit-packed retained,
-//      mid-field-only retained (leading and trailing skips), every-other-
-//      field retained, plus random uniformly-distributed subsets.
-//
-// Records are synthesised per-schema with a deterministic seed and include
-// edge cases (empty set, max-cardinality set, decimal128 negatives and
-// large mantissas, u4 boundary values, every-other-record null pattern).
-// Decode results are compared via reflect.DeepEqual. No frozen golden
-// blobs — the contract is "both paths produce the same output on the same
-// data".
-
 const equivalenceRecordsPerSchema = 1000
 
 // encodeRecord serializes one logical record (fieldValues + null bitmap)

@@ -73,12 +73,6 @@ func helperLayers() []*types.OverlayLayer {
 	}
 }
 
-// TestCsvWriter_OverlayInterface verifies the CSV Writer satisfies the
-// pio.OverlayAwareWriter contract at compile time AND at runtime — the
-// dispatcher (E9-S11) consumes the interface to decide whether to hand
-// the writer Response.Overlays. The CSV writer satisfies the contract
-// by recording the layers (without writing them) and surfacing the
-// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED warning via OverlayWarnings().
 func TestCsvWriter_OverlayInterface(t *testing.T) {
 	var w pio.OverlayAwareWriter = NewWriterToBuffer()
 	// Nil and empty slices must be safe to pass — the dispatcher will

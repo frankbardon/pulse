@@ -9,23 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E7-S11 per-handler unit tests for OVERLAY_PROP_Z_PANEL — multi-ref
-// COMPOSE-host pairwise two-proportion z-test panel.
-//
-// Test surface (per the story's acceptance criteria):
-//
-//   - TestApplyPropZPanel_PairwiseSig_3Targets — known pairwise p-values
-//     from prepared cells (4-slot panel: reference + 3 targets).
-//   - TestApplyPropZPanel_DiagonalIsOneMirroredLower — verifies the
-//     pair-index ordering invariant (flattened upper-triangular row-
-//     major, diagonal implicit, lower triangular implicit).
-//   - TestApplyPropZPanel_OverCap_17Targets_Rejected — coded error path.
-//   - TestApplyPropZPanel_DefaultMaxPanelTargets_16 — locks the default.
-//   - TestApplyPropZPanel_CustomMaxPanelTargets — verifies per-spec
-//     override surface.
-//   - TestApplyPropZPanel_SingleTarget_DegenerateCase — only 1 target
-//     means a 2-slot panel and one pair (still must work).
-
 // composeSpecMultiTargetPropZPanel wires a multi-target
 // ComposeOverlaySpec for the PROP_Z_PANEL tests. `targets` is the
 // renderer-facing target slot labels; `opts` is the per-spec

@@ -8,24 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// dictMatrixSlot returns a *types.Response carrying a Crosstab
-// matrix whose row / column axis keys match the passed-in label
-// sequences. Used by the E7-S8 dict-prefix probe tests to construct
-// per-slot results with controlled "dictionary" orderings at the
-// response-axis layer.
-//
-// rowField / colField name the row / column axes (rendered into the
-// PULSE_OVERLAY_DICT_PREFIX_DRIFT Details.field slot when the probe
-// fires). When either is empty the AxisHeader.Fields slot is left
-// nil so the probe falls back to its "row_axis" / "column_axis"
-// placeholder.
-//
-// rowLabels / colLabels become the ordered AxisKey sequences; cells
-// are populated dense-present so the key-set + schema gates upstream
-// accept the slot pair. axisKind defaults to "GROUP_CATEGORY" — the
-// dict-prefix probe is orthogonal to grouper kind but the E7-S7
-// schema-match gate requires per-slot axis-kind tuples to agree, so
-// every slot in these tests carries the same kind.
 func dictMatrixSlot(rowField string, rowLabels []string, colField string, colLabels []string) *types.Response {
 	rowKeys := make([]types.AxisKey, len(rowLabels))
 	for i, lbl := range rowLabels {
@@ -115,20 +97,6 @@ func TestOverlayOptions_DictPrefixFast_Default_False(t *testing.T) {
 	}
 }
 
-// TestOverlay_DictDrift_ByLabelDefault is the SAFE-path positive
-// arm: two slots with byte-swapped categorical dicts at the
-// response-axis layer (ref RowKeys ["a","b"], target ["b","a"])
-// must produce overlay layers correctly because the default key
-// comparison decodes via the axis labels — both slots agree on
-// "a" and "b" at the label level regardless of order.
-//
-// At the chassis layer the by-label join is intrinsic — the
-// AxisKey sequences carry decoded label values and axisKeyToString
-// renders them by label. The E7-S6 key-set gate compares by label
-// (not by index) per construction. This test exercises end-to-end
-// that two slots with re-ordered axis labels still pass the chassis
-// without DictPrefixFast set (Options=nil, the safe default), and
-// the per-spec stub layer is emitted in order.
 func TestOverlay_DictDrift_ByLabelDefault(t *testing.T) {
 	// Reference: rows in [a, b] order.
 	ref := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"x", "y"})

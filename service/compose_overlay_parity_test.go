@@ -16,52 +16,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// E3-S8 — Byte-equal parity gate per COMPOSE-host overlay kind.
-//
-// Locking goal: for every overlay kind registered in the COMPOSE-host
-// dispatch tables (processing.composeOverlayHandlers +
-// processing.composeOverlayMultiLayerHandlers), assert that the layer
-// slice surfaced by the Compose facade (*ComposedResponse.Overlays) is
-// JSON-byte-identical to the layer slice produced by calling
-// processing.ApplyComposeOverlays directly with the same per-slot
-// *Response inputs.
-//
-// Why this matters: the entire unwired-facade-lift effort exists to
-// guarantee "data computed but discarded now reaches the surface,
-// unchanged". The facade rewires service.Compose to return a typed
-// *ComposedResponse whose Overlays slot carries the already-computed
-// per-kind output. This gate is the load-bearing acceptance for that
-// promise — any mid-pipe transformation (struct copy, JSON re-marshal,
-// warning re-routing, slice re-ordering) that touched the layers would
-// flip the byte-equal assertion red.
-//
-// Surface graph per kind:
-//
-//	cohort (fs.NewMemMap)
-//	  → svc.Compose(ctx, composed_with_overlay)
-//	      → composed.Overlays = facadeLayers              ← compared
-//	  → svc.Compose(ctx, composed_without_overlay)
-//	      → composed.Responses = parityResponses (re-used)
-//	  → processing.ApplyComposeOverlays(specs, parityResponses, labels)
-//	      → distributeComposeWarnings(layers, warnings)
-//	      = internalLayers                                 ← compared
-//
-// Marshal both layer slices via encoding/json and assert byte-equal.
-
-// composeHostOverlayKinds is the canonical hardcoded enumeration of
-// every COMPOSE-host overlay kind the dispatcher routes. The list is
-// the single source of truth for the parity coverage gate
-// (TestComposeOverlayParity_CoversAllComposeHostKinds); a future-added
-// COMPOSE-host kind whose `TestComposeOverlayParity_<KIND>` parity
-// sibling has not landed will fail the coverage check loudly.
-//
-// The processing package's two dispatch tables are not exported, so
-// keeping the canonical list inline as a hardcoded slice is the
-// declared house style for this gate (per the E3-S8 acceptance rules:
-// "if there's no clean way [to introspect], hardcode the expected
-// enumerable and t.Fatalf on drift — make the failure mode loud").
-// Adding a new COMPOSE-host kind requires touching this slice + landing
-// the matching TestComposeOverlayParity_<KIND> test in the same PR.
 var composeHostOverlayKinds = []types.OverlayKind{
 	types.OverlayKindIndexVsRef,
 	types.OverlayKindDeltaVsRef,

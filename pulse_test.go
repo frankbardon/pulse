@@ -122,10 +122,6 @@ func TestNew_NegativeDecodeWorkersRejected(t *testing.T) {
 	}
 }
 
-// TestNew_DecodeWorkersPropagatedToService verifies that the value
-// the caller passes through pulse.Options.DecodeWorkers is installed
-// on the underlying Service. Pure plumbing check — fan-out behavior
-// lands in E3-S2.
 func TestNew_DecodeWorkersPropagatedToService(t *testing.T) {
 	cases := []int{0, 1, 2, 4}
 	for _, want := range cases {

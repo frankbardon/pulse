@@ -12,24 +12,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_FORMULA handler (processing/overlay_formula.go).
-//
-// E8-S2 scope:
-//
-//   - Spine of the FORMULA evaluator: compile-once / run-many via
-//     expr-lang. The handler compiles `Params["formula"]` ONCE at
-//     handler entry and runs the compiled program per cell against
-//     the stubbed prototype env (`{"cell": cellVal}`).
-//   - The acceptance criteria call for: single `expr.Compile` per
-//     spec regardless of cell count, basic happy-path evaluation,
-//     missing / malformed `formula` param rejection, parse-error
-//     wrapping as `PULSE_OVERLAY_FORMULA_PARSE_ERROR`, and
-//     type-mismatch wrapping as
-//     `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH`.
-//   - Per-shape namespace coverage (`margin_row` / `margin_col` /
-//     `sd_*` / `ref_cell`) is OUT of scope at E8-S2 — those tests
-//     land in E8-S3 alongside the per-shape binder.
-
 // newFormulaSpec returns the canonical OVERLAY_FORMULA spec the
 // per-test fixtures consume — CELL scope over a MATRIX host, a
 // deterministic Name so the renderer-facing label is pinned in the
@@ -174,9 +156,6 @@ func TestOverlay_Formula_CompilesOnce(t *testing.T) {
 	}
 }
 
-// TestOverlay_Formula_MissingParam verifies that an OVERLAY_FORMULA
-// spec without `Params["formula"]` fires PULSE_OVERLAY_PARAM_MISSING
-// at runtime (the predict equivalent lands in E8-S4).
 func TestOverlay_Formula_MissingParam(t *testing.T) {
 	host := newFormulaHost(1, 1, func(_, _ int) float64 { return 1.0 })
 
@@ -783,26 +762,6 @@ func TestOverlay_Formula_BoolCoercesToFloat(t *testing.T) {
 	}
 }
 
-// TestExtensions_OverlayKinds_FormulaExprFn verifies the E8-S5 wiring
-// — an embedder ExprFunction registered via the runtime ExtensionRegistry
-// becomes reachable from an `OVERLAY_FORMULA` Params["formula"]
-// expression when the buffered crosstab exit threads the registry into
-// `ApplyOverlaysWithExtensions`.
-//
-// The test stubs a registry with a single function `pct_change(now,
-// ref) → (now - ref) / ref * 100`, builds a 2x2 host matrix, runs
-// `applyFormulaWithExtensions` with a formula calling the function,
-// and asserts every present cell carries the expected percent-change
-// value relative to a reference column constant.
-//
-// The matching control case (nil registry, same formula) is
-// expected to fail at compile time with the canonical
-// PULSE_OVERLAY_FORMULA_PARSE_ERROR — expr-lang surfaces an undefined
-// identifier when the function is not registered. The control arm
-// pins the failure mode the AC names: function unavailability surfaces
-// as a parse-time CodedError (PULSE_OVERLAY_FORMULA_PARSE_ERROR; the
-// FORMULA-specific INVALID_IDENT code is reserved for the E8-S4
-// predict path).
 func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 	// Embedder function: classic percent-change between two values.
 	// Mirrors the AC example pct_change(cell, ref_cell) * 1 — the
@@ -866,12 +825,6 @@ func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 		}
 	}
 
-	// Negative arm: nil registry. The same formula refers to the
-	// unknown identifier `pct_change` so expr-lang surfaces a parse
-	// error wrapped as PULSE_OVERLAY_FORMULA_PARSE_ERROR. The
-	// FORMULA-specific INVALID_IDENT code (PULSE_OVERLAY_FORMULA_INVALID_IDENT)
-	// is reserved for the E8-S4 predict path; the runtime arm relies
-	// on the parser to flag the missing identifier.
 	_, _, err = applyFormulaWithExtensions(&spec, host, nil)
 	if err == nil {
 		t.Fatalf("applyFormulaWithExtensions(nil exts): want PULSE_OVERLAY_FORMULA_PARSE_ERROR, got nil")
@@ -899,16 +852,6 @@ func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 	}
 }
 
-// TestOverlay_Formula_Cell_Matrix is the E8-S7 canonical-name
-// acceptance gate for the MATRIX-host CELL-scope FORMULA path. Drives
-// the per-cell hot path through the public `applyFormula` entry against
-// the canonical 2x3 fixture and asserts every present cell carries the
-// expected `(cell - margin_grand) / sd_grand` value. Pins the spec the
-// research note § 2.1 contract documents for the MATRIX namespace — a
-// formula referencing the host's cell, the grand margin slot, and the
-// pre-computed grand SD slot all in one expression. The arithmetic
-// matches the standalone single-axis Welford SD baselines locked by
-// TestOverlay_Formula_NamespaceMatrixSDs.
 func TestOverlay_Formula_Cell_Matrix(t *testing.T) {
 	// 2x3 matrix:
 	//   row 0: [1, 2, 3]
@@ -956,12 +899,6 @@ func TestOverlay_Formula_Cell_Matrix(t *testing.T) {
 	}
 }
 
-// TestOverlay_Formula_MarginAccess_RowMargin is the E8-S7 canonical-name
-// acceptance gate for the MATRIX-host `margin_row` identifier. Drives a
-// `cell / margin_row` formula against the 2x3 fixture and asserts every
-// present cell carries the row-share value. Sibling of
-// TestOverlay_Formula_MarginAccess_ColMargin /
-// TestOverlay_Formula_MarginAccess_GrandMargin.
 func TestOverlay_Formula_MarginAccess_RowMargin(t *testing.T) {
 	host := newFormulaHostWithMargins(2, 3, func(r, c int) float64 {
 		return float64(r*3 + c + 1)
@@ -987,9 +924,6 @@ func TestOverlay_Formula_MarginAccess_RowMargin(t *testing.T) {
 	}
 }
 
-// TestOverlay_Formula_MarginAccess_ColMargin is the E8-S7 canonical-name
-// acceptance gate for the MATRIX-host `margin_col` identifier. Drives a
-// `cell / margin_col` formula against the 2x3 fixture.
 func TestOverlay_Formula_MarginAccess_ColMargin(t *testing.T) {
 	host := newFormulaHostWithMargins(2, 3, func(r, c int) float64 {
 		return float64(r*3 + c + 1)
@@ -1015,10 +949,6 @@ func TestOverlay_Formula_MarginAccess_ColMargin(t *testing.T) {
 	}
 }
 
-// TestOverlay_Formula_MarginAccess_GrandMargin is the E8-S7
-// canonical-name acceptance gate for the MATRIX-host `margin_grand`
-// identifier. Drives a `cell / margin_grand` formula against the 2x3
-// fixture.
 func TestOverlay_Formula_MarginAccess_GrandMargin(t *testing.T) {
 	host := newFormulaHostWithMargins(2, 3, func(r, c int) float64 {
 		return float64(r*3 + c + 1)
@@ -1044,19 +974,6 @@ func TestOverlay_Formula_MarginAccess_GrandMargin(t *testing.T) {
 	}
 }
 
-// TestOverlay_Formula_Series_Prior is the E8-S7 canonical-name
-// acceptance gate for the SERIES-host `prior` identifier. Drives a
-// `(value - prior) / prior` formula against a 4-entry series host
-// through the compile-once / bind-per-entry pattern (the SERIES dispatch
-// is not yet wired into the seriesOverlayHandlers table per E8-S6 —
-// FORMULA's SERIES integration tier is reserved as a follow-up; this
-// test locks the binder + program contract until the dispatch lands).
-//
-// First entry's `prior` is NaN per research note § 2.2 first-entry
-// semantics; the test asserts the eval bubbles NaN through the
-// expression (`(value - NaN) / NaN == NaN`) so the layer rendering can
-// emit absent for that slot when the SERIES dispatch eventually wires
-// in. Subsequent entries carry the lag-1 ratio (value - prior) / prior.
 func TestOverlay_Formula_Series_Prior(t *testing.T) {
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	values := []float64{10, 20, 30, 40}
@@ -1107,22 +1024,6 @@ func TestOverlay_Formula_Series_Prior(t *testing.T) {
 	}
 }
 
-// TestOverlay_Formula_SlotAccess_Compose is the E8-S7 canonical-name
-// acceptance gate for the Compose `slot.<label>.cell` namespace per
-// research note § 2.4. Drives a two-slot scenario through the binder +
-// compile/run pattern: a matrix host carrying its own cell values, plus
-// two labeled Compose slots ("population" and "audience") each carrying
-// matrix-shaped per-cell payloads. The formula
-// `slot.population.cell / slot.audience.cell` is byte-evaluated against
-// every host cell and the resulting per-cell ratio asserted.
-//
-// The COMPOSE-host FORMULA dispatch is not yet wired into
-// composeOverlayHandlers per E8 scope (it relies on the per-shape
-// binders shipped by E8-S3; the per-Kind COMPOSE entry lands in a
-// follow-up). This test locks the slot-binding semantics in the
-// meantime so the dispatch integration tier stays trivial when it
-// arrives — every per-iteration binder write is asserted against a
-// known answer.
 func TestOverlay_Formula_SlotAccess_Compose(t *testing.T) {
 	// Host carries cell values 1..4 in a 2x2 grid (used by the formula
 	// only for the iteration coordinate space; the actual formula reads
@@ -1197,10 +1098,6 @@ func TestOverlay_Formula_SlotAccess_Compose(t *testing.T) {
 		}
 	}
 
-	// Sanity-check: engine-defaulted slot names also resolve. The E7-S1
-	// `request_<index+1>` Compose-label default ensures even unnamed
-	// slots get a stable identifier; this arm tests the binder accepts
-	// the canonical default label shape end-to-end.
 	defaultedSlot := formulaSlotBinding{
 		Label: "request_1",
 		MatrixCells: [][]float64{

@@ -8,25 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestValidateOverlay_FormulaInvalidIdent asserts that an OVERLAY_FORMULA
-// spec referencing an identifier not in the per-shape variable
-// namespace surfaces PULSE_OVERLAY_FORMULA_INVALID_IDENT on the
-// envelope. Acceptance criterion 1 of E8-S4.
-//
-// Cases mirror the per-host-shape namespace decisions from research
-// note `.planning/result-overlay-system/research/formula-namespace.md`:
-//
-//   - MATRIX host: a formula referencing `undefined_var` fails the
-//     allowed-vars check (allowed: cell, margin_*, sd_*).
-//   - SERIES host: a formula referencing `cell` fails (allowed:
-//     value, total, prior).
-//   - SCALAR host: a formula referencing `total` fails (allowed:
-//     value).
-//   - SERIES host without `baseline_position` param: a formula
-//     referencing `baseline` fails (the opt-in variable is gated on
-//     the Params slot per research note § 2.2).
-//   - Any host: a `slot.<label>.<field>` reference fails on a
-//     Request-host (slot namespace is Compose-only).
 func TestValidateOverlay_FormulaInvalidIdent(t *testing.T) {
 	cases := []struct {
 		name             string
@@ -130,10 +111,6 @@ func TestValidateOverlay_FormulaInvalidIdent(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_FormulaParseError asserts that a malformed
-// formula string (one expr-lang cannot parse) surfaces
-// PULSE_OVERLAY_FORMULA_PARSE_ERROR on the envelope with the parser's
-// error message echoed in Details. Acceptance criterion 2 of E8-S4.
 func TestValidateOverlay_FormulaParseError(t *testing.T) {
 	req := &types.Request{
 		Crosstab: crosstabHostSpec(),
@@ -168,11 +145,6 @@ func TestValidateOverlay_FormulaParseError(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_FormulaExprFunctionAllowed asserts that a formula
-// calling an embedder-registered ExprFunction passes the predict gate
-// when the function name is in the snapshot's ExprFunctions set, and
-// fails with PULSE_OVERLAY_FORMULA_INVALID_IDENT when it is NOT
-// registered. Acceptance criterion 3 of E8-S4.
 func TestValidateOverlay_FormulaExprFunctionAllowed(t *testing.T) {
 	req := &types.Request{
 		Crosstab: crosstabHostSpec(),
@@ -215,11 +187,6 @@ func TestValidateOverlay_FormulaExprFunctionAllowed(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_FormulaSlotLabelRequired asserts that a
-// `slot.<label>.cell` reference on a Request-host fires
-// PULSE_OVERLAY_FORMULA_INVALID_IDENT with a Detail explaining the
-// slot namespace is Compose-only. Acceptance criterion 4 of E8-S4 +
-// the "Slot identifiers validated against Compose slot labels" rule.
 func TestValidateOverlay_FormulaSlotLabelRequired(t *testing.T) {
 	req := &types.Request{
 		Crosstab: crosstabHostSpec(),

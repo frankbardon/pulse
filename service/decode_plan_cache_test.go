@@ -78,11 +78,6 @@ func TestStreamingIterator_NilProjectionClearsPlan(t *testing.T) {
 	}
 }
 
-// TestStreamingIterator_PlanDrivenDecodeMatchesFullDecode runs the
-// same request twice — once with projection off (full decode) and once
-// with projection on (plan-driven decode) — and asserts the response
-// shape matches. This is a smoke gate for the new plan-walking hot
-// path; the exhaustive matrix lives in E2-S3.
 func TestStreamingIterator_PlanDrivenDecodeMatchesFullDecode(t *testing.T) {
 	schema := wideSchema()
 	cfg := setupTestFS(t, "wide.pulse", schema, wideRecords())

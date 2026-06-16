@@ -179,13 +179,6 @@ func TestClaudeMdMentionsAllNonSkippableGates(t *testing.T) {
 func TestUpdateDemandTableCovers(t *testing.T) {
 	content := readClaudeMd(t)
 
-	// These are the component categories and contract types that must appear
-	// in the Update Demand table. Each entry is checked case-insensitively.
-	//
-	// The "CLI leaf" row was removed in the skill-pack overhaul (E6-S1) —
-	// CLI is out of scope for the atomic-skill convention, and the
-	// per-leaf documentation moved to docs/src/cli/. The check is dropped
-	// here so the table no longer carries a CLI leaf row.
 	required := []string{
 		"aggregator",
 		"attribute",
@@ -259,15 +252,6 @@ func TestShardArchiveLayoutDocumented(t *testing.T) {
 	}
 }
 
-// TestSkillsCoverShardingTopics verifies that the cohort-schema-design
-// skill carries a "Sharded" section. Non-skippable CI gate (Update
-// Demand row for shard archive layout enforces this).
-//
-// Post-E4 simplification: the legacy monolithic contributor skill was
-// retired in the skill-pack overhaul (E3-S2 split it into topical
-// skills); the load-bearing assertion is now on cohort-schema-design.md
-// alone, which carries the canonical sharding section preserved across
-// the rewrite.
 func TestSkillsCoverShardingTopics(t *testing.T) {
 	schemaSkill, err := os.ReadFile(filepath.Join("skills", "cohort-schema-design.md"))
 	if err != nil {

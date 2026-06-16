@@ -9,20 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestShardArchiveProcessStream is the S5 gate per the sharding design
-// contract (§5.1): ProcessStream walks a shard archive shard-by-shard in
-// central-directory (insertion) order, yielding rows from shard1 first,
-// then shard2, etc. Row order within each shard is the shard's on-disk
-// record order. Single-file cohorts retain their prior pass-through
-// behaviour. Online aggregators accumulate across shards (§5.1); buffered
-// operators materialize across the union (§5.2). Filters apply per-row,
-// identical to a single concatenated cohort.
-//
-// The wiring relies on Process routing through newScanIter (S3). The
-// streaming row iterator currently buffers via Process and walks Data;
-// when a true per-record streaming Processor path lands, the same
-// archive support is inherited transparently because the orchestrator
-// already sees a unified record stream.
 func TestShardArchiveProcessStream(t *testing.T) {
 	t.Run("SingleFileRegression", testShardArchiveProcessStream_SingleFileRegression)
 	t.Run("MultiShardRowCount", testShardArchiveProcessStream_MultiShardRowCount)

@@ -300,7 +300,7 @@ func TestOverlay_FisherExactCell_ExpectedLowEmitsWarn(t *testing.T) {
 	}
 	for _, w := range warnings {
 		if w.Code != "PULSE_OVERLAY_EXPECTED_LOW" {
-			t.Errorf("warning Code = %q, want PULSE_OVERLAY_EXPECTED_LOW (stub; E2-S10 promotes)", w.Code)
+			t.Errorf("warning Code = %q, want PULSE_OVERLAY_EXPECTED_LOW (stub)", w.Code)
 		}
 		if _, ok := w.Details["row_index"]; !ok {
 			t.Errorf("warning Details missing row_index: %+v", w.Details)
@@ -369,21 +369,7 @@ func TestOverlay_FisherExactCell_AbsentCellsStayAbsent(t *testing.T) {
 	}
 }
 
-// TestOverlay_FisherExactCell_HelperMatchesRowTest verifies the
-// fisherExactTwoSided helper produces a p-value byte-equal to what the
-// existing TEST_FISHER_EXACT primitive would compute for the same 2×2.
-// The row test (processing/test_fisher.go) inlines the same algorithm;
-// E2-S9 factored fisherExactTwoSided alongside it so the overlay and
-// row-test surfaces share one source of truth. This guards against an
-// accidental divergence in either surface.
 func TestOverlay_FisherExactCell_HelperMatchesRowTest(t *testing.T) {
-	// Several 2×2s spanning the small-margin regime where Fisher's
-	// exact is the canonical surface.
-	// Reference values come from the lgamma-backed hypergeometric
-	// implementation that fisherExactRow.Finalize() inlines (the
-	// TEST_FISHER_EXACT row-test surface). The helper E2-S9 factored is
-	// the same algorithm, so the byte-equal cross-check guarantees the
-	// two surfaces never diverge.
 	cases := []struct {
 		name       string
 		a, b, c, d int

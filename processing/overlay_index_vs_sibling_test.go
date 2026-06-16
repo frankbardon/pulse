@@ -8,21 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_INDEX_VS_SIBLING handler
-// (processing/overlay_index_vs_sibling.go).
-//
-// E3-S5 scope:
-//
-//   - Second sibling-reference SERIES-host overlay kind. The handler is
-//     wired into seriesOverlayHandlers via the dispatch entry in
-//     processing/overlay_series.go.
-//   - Acceptance: basic series math (per-group
-//     `(value / sibling_val) * 100`), unknown-sibling emits
-//     PULSE_OVERLAY_REF_UNKNOWN + NaN, ZERO-sibling emits
-//     PULSE_OVERLAY_REF_ZERO + NaN (division by zero undefined),
-//     absent-group passthrough stays absent, sibling-self-emission
-//     yields 100.
-
 // newIndexVsSiblingSpec returns a canonical OVERLAY_INDEX_VS_SIBLING
 // spec naming the requested `(field, value)` sibling reference.
 func newIndexVsSiblingSpec(name, field, value string) types.OverlaySpec {

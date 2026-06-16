@@ -6,27 +6,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestStreamability_ComponentsMergeabilityKnown is the fail-closed gate
-// for the per-operator components mergeability axis (E4-S1). Every
-// registered aggregator, grouper, and filterer MUST declare a
-// non-empty ComponentSchema.Mergeability drawn from the canonical
-// triple {Mergeable, Partial, None} (defined in types/streamability.go
-// and aliased on the descriptor side).
-//
-// Drift modes the gate catches:
-//   - A new operator landing in types.All*Types() without a row in
-//     the capabilities slice (capabilities_*.go).
-//   - An existing capability row losing its Mergeability tag during a
-//     refactor (zero-value empty string).
-//   - A typo'd merge string sneaking in via direct ComponentSchema
-//     construction (the constants forward from types/ so any literal
-//     other than "mergeable" / "partial" / "none" fails the lookup).
-//
-// The gate is intentionally co-located with descriptor/ rather than
-// types/ — types/ is the leaf package and cannot import descriptor/
-// (would cycle), so the only place that can introspect both
-// types.All*Types() and the descriptor capability slices at once is
-// descriptor/.
 func TestStreamability_ComponentsMergeabilityKnown(t *testing.T) {
 	validMerge := map[ComponentsMergeability]bool{
 		Mergeable: true,

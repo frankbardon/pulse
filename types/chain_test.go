@@ -5,13 +5,6 @@ import (
 	"testing"
 )
 
-// TestChainRequest_ZeroOverlayByteIdentical locks the additive
-// contract for the whole-chain Overlays slot landed in E6-S2: a
-// ChainRequest with no Overlays slot populated MUST marshal to the
-// same JSON bytes the pre-S2 ChainRequest produced. The `omitempty`
-// tag on the slot is what makes the round-trip byte-identical;
-// dropping it would break every cached chain request authored before
-// the slot existed.
 func TestChainRequest_ZeroOverlayByteIdentical(t *testing.T) {
 	const captured = `{"cohort":{"filename":"a.pulse"},"stages":[{"name":"stage_zero","request":{"aggregations":[{"type":"AGG_SUM","field":"x"}]}}]}`
 
@@ -61,20 +54,6 @@ func TestChainRequest_ZeroOverlayByteIdentical(t *testing.T) {
 	}
 }
 
-// TestChainCanonicalHash_OverlayFreeByteIdentity locks the additive
-// contract on the hash surface: adding the Overlays slot (E6-S2) to
-// ChainRequest must NOT change the canonical hash for any existing
-// overlay-free chain request. The slot is `omitempty`, so
-// json.Marshal omits the `overlays` key entirely when the slice is
-// nil or empty, and the canonical-hash pipeline therefore produces
-// byte-identical output to the pre-Overlays implementation.
-//
-// The captured constant below is the hash for the exact request
-// computed against the canonical-hash routine after this story
-// landed. Any change that alters this hash means the additive
-// extension broke byte-identity for callers that have pinned dedup
-// keys against earlier Pulse versions — bump CanonicalHash with a
-// migration plan, do not silently re-hash.
 func TestChainCanonicalHash_OverlayFreeByteIdentity(t *testing.T) {
 	const captured = "c6e6a6f5d28dc6e4eb3bd712cc1f3b10"
 	base := func() *ChainRequest {
@@ -239,20 +218,6 @@ func TestChainCanonicalHash_OverlaysIncluded(t *testing.T) {
 	}
 }
 
-// TestCanonicalHash_ChainOverlaysIncluded is the E6-S8 acceptance-list
-// alias for the chain canonical-hash gate. The underlying coverage rides
-// TestChainCanonicalHash_OverlaysIncluded (above); this wrapper
-// re-executes the two load-bearing assertions under the exact name the
-// E6-S8 acceptance list demands so the gate is discoverable via the
-// promised test identifier.
-//
-// Asserts:
-//   - nil-vs-spec hash differs (overlay-bearing ChainRequest does NOT
-//     collide with the overlay-free baseline — overlays participate in
-//     the canonical hash so dedup keys see overlay slots as load-bearing).
-//   - identical-spec hash equality (two ChainRequests with byte-equal
-//     overlay slots produce identical canonical hashes — the hash is
-//     deterministic).
 func TestCanonicalHash_ChainOverlaysIncluded(t *testing.T) {
 	zero := 0
 	two := 2
@@ -304,11 +269,6 @@ func TestCanonicalHash_ChainOverlaysIncluded(t *testing.T) {
 	}
 }
 
-// TestStageRef_IndexNamedXOR confirms StageRef's two arms round-trip
-// through JSON cleanly and that the canonical hash treats the two
-// arms as semantically distinct. The XOR validation (exactly one of
-// Index / Name) lives downstream (E6-S3 / E6-S7 / E6-S11) — the
-// struct itself simply round-trips both shapes.
 func TestStageRef_IndexNamedXOR(t *testing.T) {
 	zero := 0
 	indexForm := StageRef{Index: &zero}

@@ -530,8 +530,6 @@ func TestCliSkillsList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("skills list: %v\noutput: %s", err, out)
 	}
-	// session-bootstrap is the post-E4 anchor (legacy: getting-started).
-	// Asserts the list output includes at least one canonical skill.
 	if !strings.Contains(out, "session-bootstrap") {
 		t.Errorf("expected 'session-bootstrap' in output: %s", out)
 	}
@@ -588,43 +586,6 @@ func TestCliConvertCommand_E2E(t *testing.T) {
 	}
 }
 
-// TestCliApiProcessChain_Warnings is the E2-S2 CLI integration gate.
-// Drives `pulse api process-chain --json` against a chain request
-// engineered to deterministically emit at least one chain-overlay
-// warning, and asserts the warning lands on `data.overlays[i].warnings`
-// in the JSON envelope.
-//
-// Deterministic trigger (same shape the service-layer parity test in
-// service/chain_test.go uses — missing-reference row, NOT zero-divisor;
-// the zero-divisor SERIES path injects NaN into the payload which
-// blocks JSON marshalling at the CLI boundary):
-//
-//   - Hermetic 6-row .pulse file with region (u8) and score (f64)
-//     columns. Region=2 has two zero-score rows so stage 0's AGG_SUM
-//     emits 0 for region=2.
-//   - 3-stage SERIES chain. Stage 1 carries a FILTER_RANGE v>0.5 that
-//     drops the region=2 row before re-aggregating; stage 2's
-//     AGG_COUNT only sees region=1 and region=3.
-//   - One whole-chain OVERLAY_INDEX_VS_STAGE spec, Target=stage 0
-//     (3 rows incl. region=2), Ref=stage 2 (2 rows). The region=2
-//     target row has no matching reference → SERIES handler emits ONE
-//     PULSE_OVERLAY_REF_ZERO warning with ref_missing=true and SKIPS
-//     the entry (no NaN substitution per
-//     processing/overlay_index_vs_stage.go:518–531).
-//   - Same overlay kind + same input always emits the same warning
-//     code; trigger is structural not timing-dependent.
-//
-// The envelope assertion has two layers:
-//
-//  1. data.overlays[0].warnings is present and non-empty — the wire
-//     shape that downstream callers (JSON consumers, embedders) actually
-//     observe must reflect what ProcessChain returned.
-//  2. The warning carries the canonical PULSE_OVERLAY_REF_ZERO code so
-//     test-coverage assertions against the catalog stay stable.
-//
-// E2-S1 (service layer) and E2-S2 (this test) together guarantee that
-// every chain-overlay warning emitted by processing.ApplyChainOverlays
-// reaches the CLI envelope without loss.
 func TestCliApiProcessChain_Warnings(t *testing.T) {
 	dir := t.TempDir()
 	pulsePath := filepath.Join(dir, "chain_warn.pulse")
@@ -838,32 +799,6 @@ doneScan:
 	}
 }
 
-// TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope is the E3-S9
-// headline CLI gate for OVERLAY_Z_CELL. It invokes `pulse api compose
-// --json` over the canonical examples/overlays/pairwise-z-matrix.json
-// request (re-rooted at a hermetic experiment cohort built from
-// examples/fixtures/experiment.csv with examples/fixtures/schemas/
-// experiment.json) and asserts:
-//
-//  1. The envelope's format_version is "1.1" — the bump that landed
-//     when Compose's data field switched from raw Response to
-//     ComposedResponse.
-//  2. env.Data decodes as a ComposedResponse whose Overlays slot is
-//     non-empty — the same data that was discarded before the
-//     unwired-facade-lift effort now reaches the wire envelope.
-//  3. Every present cell in the overlay's matrix payload byte-equals
-//     (math.Float64bits) the p-value the canonical row-test surface
-//     (TEST_Z_TWO_SAMPLE) emits when fed the SAME control + variant
-//     records for the SAME (region, segment) coordinate. The byte-
-//     equal parity is the design lock — the overlay surface MUST stay
-//     drift-free vs the row-test surface that backs it.
-//
-// The byte-equal check is delegated to the actual processing-layer test
-// handler via a second `pulse api process --json` invocation per cell
-// (FILTER_INCLUDE region=<row> + FILTER_INCLUDE segment=<col> + a
-// TEST_Z_TWO_SAMPLE row test split by treatment). The p-value returned
-// by Response.Tests[0].p_value is what the overlay handler is mirroring
-// byte-for-byte — any drift surfaces here first.
 func TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope(t *testing.T) {
 	dir := t.TempDir()
 	pulsePath := importExperimentCohort(t, dir)
@@ -886,17 +821,6 @@ func TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope(t *testing.T) {
 	assertPairwiseByteEqual(t, pulsePath, matrix, "TEST_Z_TWO_SAMPLE", "z")
 }
 
-// TestCliApiCompose_PairwiseWelchMatrix_OverlayReachesEnvelope mirrors
-// the pairwise-z gate for OVERLAY_T_CELL: the Welch t-test variant.
-// Same fixture, same envelope-reaches-wire assertion, same byte-equal
-// parity claim — but the row-test surface is TEST_WELCH instead.
-//
-// E3-S9 acceptance criterion: the canonical examples/overlays/
-// pairwise-welch-matrix.json executes through the CLI and the per-cell
-// p-values that the OVERLAY_T_CELL handler emits in the envelope are
-// bit-for-bit identical to TEST_WELCH's two-sided p-value over the
-// same (mean, variance, n) inputs — i.e. the same control + variant
-// records for the same (region, segment) cell.
 func TestCliApiCompose_PairwiseWelchMatrix_OverlayReachesEnvelope(t *testing.T) {
 	dir := t.TempDir()
 	pulsePath := importExperimentCohort(t, dir)

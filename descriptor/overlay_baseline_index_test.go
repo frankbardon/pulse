@@ -8,37 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Predict-time tests for the BaselineIndex resolver foundation
-// (E4-S1). The descriptor mirror of `processing.ResolveBaselineIndex`
-// surfaces PULSE_OVERLAY_REF_UNKNOWN for negative or out-of-range
-// `Position` values, using schema-derivable upper bounds where
-// computable and deferring to runtime otherwise.
-//
-// Contract enforced (matches `processing.ResolveBaselineIndex` runtime
-// shape):
-//
-//   - Negative `Position` always rejected.
-//   - `Position >= predictedLength` rejected when the schema bounds the
-//     host (single-grouper GROUP_CATEGORY over a categorical_*
-//     dictionary). The predict gate's series_length detail matches the
-//     dict cardinality.
-//   - Schema cannot bound the host (GROUP_DATE / GROUP_RANGE /
-//     numeric-axis grouper / no schema) → predict defers to runtime;
-//     no overlay error fires at predict time.
-//   - Crosstab host → predict skips (the SERIES-host arm has no MATRIX
-//     meaning); the per-kind validators already reject populated
-//     BaselineIndex pointers on the MATRIX kinds.
-//
-// Test fixtures: a "synthetic baseline" overlay kind synthesised on the
-// wire (an existing E1..E3 kind would short-circuit the predict gate
-// via its own per-kind validator before BaselineIndex is consulted). We
-// use the unknown-kind path: the predict gate runs
-// validateOverlayBaselineIndexPredict ALONGSIDE the per-kind validator,
-// so the per-kind unknown-kind error AND the baseline-index error both
-// land on the envelope when the BaselineIndex slot is exercised. The
-// test only asserts on the baseline-index code's presence/absence; the
-// unknown-kind code is incidental.
-
 // baselineIndexHostReq returns a single-grouper SERIES-host request
 // over the `region` categorical field (2 dict entries) so the predict
 // gate's schema-derived upper bound is 2.
@@ -188,11 +157,6 @@ func TestValidateOverlay_BaselineIndexDefersWhenNoSeriesHost(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_BaselineIndexSkipsCrosstabHost pins the
-// crosstab-host short-circuit: when Request.Crosstab is set the
-// BaselineIndex gate skips. The per-kind validators (E1..E3 kinds)
-// already reject populated BaselineIndex pointers on MATRIX hosts via
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateOverlay_BaselineIndexSkipsCrosstabHost(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)

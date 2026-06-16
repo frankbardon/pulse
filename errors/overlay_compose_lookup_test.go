@@ -7,12 +7,6 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 )
 
-// TestErrorsLookup_OverlayReferenceUnknown_FixupCount asserts the
-// PULSE_OVERLAY_REFERENCE_UNKNOWN entry surfaces at least two fixup
-// templates. The E7-S13 polish bar required upgrading the S6 minimal
-// form to a multi-template form that covers both the Compose slot-label
-// arm and the chain StageRef arm so a single envelope hit gives the
-// caller a complete repair surface regardless of the host family.
 func TestErrorsLookup_OverlayReferenceUnknown_FixupCount(t *testing.T) {
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_REFERENCE_UNKNOWN))
 	if !ok {
@@ -22,7 +16,7 @@ func TestErrorsLookup_OverlayReferenceUnknown_FixupCount(t *testing.T) {
 		t.Errorf("FixupNotApplicable=true, want false for a polish-bar entry")
 	}
 	if got := len(r.Fixups); got < 2 {
-		t.Errorf("len(Fixups)=%d, want >= 2 (E7-S13 polish bar)", got)
+		t.Errorf("len(Fixups)=%d, want >= 2 (polish bar)", got)
 	}
 }
 
@@ -104,7 +98,7 @@ func TestErrorsLookup_OverlayTargetUnknown_FixupCount(t *testing.T) {
 		t.Errorf("FixupNotApplicable=true, want false for a polish-bar entry")
 	}
 	if got := len(r.Fixups); got < 2 {
-		t.Errorf("len(Fixups)=%d, want >= 2 (E7-S13 polish bar)", got)
+		t.Errorf("len(Fixups)=%d, want >= 2 (polish bar)", got)
 	}
 }
 
@@ -166,11 +160,6 @@ func TestErrorsLookup_OverlayTargetUnknown_FixupHintMentionsRequestsLabel(t *tes
 	t.Errorf("Compose-arm fixup hint does not mention ComposedRequest.Requests[].Label")
 }
 
-// TestErrorsLookup_OverlayPanelTargetsOverCap_FixupCount asserts the
-// PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP entry surfaces at least two
-// fixup templates — one that drops targets to fit the active cap, one
-// that raises the cap via Options. The E7-S13 polish bar lifts this
-// from a minimal entry to the canonical multi-template form.
 func TestErrorsLookup_OverlayPanelTargetsOverCap_FixupCount(t *testing.T) {
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP))
 	if !ok {
@@ -180,7 +169,7 @@ func TestErrorsLookup_OverlayPanelTargetsOverCap_FixupCount(t *testing.T) {
 		t.Errorf("FixupNotApplicable=true, want false for a polish-bar entry")
 	}
 	if got := len(r.Fixups); got < 2 {
-		t.Errorf("len(Fixups)=%d, want >= 2 (E7-S13 polish bar)", got)
+		t.Errorf("len(Fixups)=%d, want >= 2 (polish bar)", got)
 	}
 }
 

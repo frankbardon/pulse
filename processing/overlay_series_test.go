@@ -8,41 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the SERIES-host overlay fold engine (processing/overlay_series.go).
-//
-// E3-S1 scope: structural pre-req for the five grouped-Process overlay
-// kinds that land in E3-S2..S5. This file exercises only the dispatch /
-// host-shape contract — no real SERIES handlers exist yet. Tests use a
-// synthetic stub kind ("OVERLAY_TEST_SERIES_STUB") wired through the
-// package-level seriesOverlayHandlers map; each test installs the stub
-// via installSeriesStubHandler and tears it down via t.Cleanup so the
-// production dispatch table stays empty between tests.
-//
-// Coverage matrix (per the E3-S1 acceptance criteria):
-//
-//   - SERIES dispatch accepts an OverlayShape == SERIES branch (the
-//     stub emits SeriesPayload) and walks an ordered group-key list.
-//   - Series fold preserves spec-order layer emission (FR-A2) — two
-//     stub specs emit two layers in the same order.
-//   - Group-key alignment is byte-identical when the handler covers
-//     every host group; loose alignment (handler emits a subset) keeps
-//     the host's key order.
-//   - Null / missing group values surface through SeriesPayload without
-//     crashing — the stub emits zero-value Summary for groups where
-//     host.ValueAt(i) reports (0, false).
-//   - 0 / 1 / N group fixtures all dispatch cleanly.
-//   - Existing E1 / E2 MATRIX SCALAR path is byte-identical (defense
-//     in depth — TestApplyOverlaysSeries_MatrixPathUnchanged guards
-//     against accidental cross-contamination).
-//   - Unknown-kind defense fires PROCESSING_INTERNAL + the
-//     PULSE_OVERLAY_KIND_UNKNOWN details code.
-
-// testSeriesStubKind is the synthetic overlay kind the SERIES dispatch
-// tests register against. NOT a real catalog entry — declared inline so
-// the test file is self-contained and the production
-// types.AllOverlayKinds() surface stays untouched. CLAUDE.md's Update
-// Demand row for overlays explicitly notes that new kind constants
-// belong to E3-S2..S5; E3-S1 is structural infra.
 const testSeriesStubKind types.OverlayKind = "OVERLAY_TEST_SERIES_STUB"
 
 // installSeriesStubHandler registers the test stub handler against
@@ -65,12 +30,6 @@ func installSeriesStubHandler(t *testing.T, fn seriesOverlayHandler) {
 	})
 }
 
-// stubSeriesHandler is the canonical test-only SERIES handler. For each
-// host group ordinal it emits one SeriesEntry whose Summary.Statistic
-// carries the host's metric value (when present) or stays unset (when
-// absent). The handler runs no math — its job is to prove the dispatch
-// wired the host through correctly and the parallel-slice alignment
-// holds. Out-of-scope here: real per-kind math (E3-S2..S5).
 func stubSeriesHandler(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	n := host.GroupCount()
 	entries := make([]types.SeriesEntry, 0, n)
@@ -500,38 +459,7 @@ func TestApplyOverlaysSeries_UnknownKind(t *testing.T) {
 	}
 }
 
-// TestApplyOverlaysSeries_ProductionDispatchTableRegistered verifies
-// the E3-S2+ invariant: every SERIES OverlayKind registered in
-// production has a real dispatch entry. As of E3-S2 the dispatch
-// carries OVERLAY_INDEX_VS_TOTAL; later stories (E3-S3..S5) add the
-// remaining SERIES-host kinds. The assertion guards against an
-// accidental drop of a real entry — a SERIES kind whose handler is
-// missing from the dispatch would otherwise reach
-// ApplyOverlaysSeries's defense-in-depth unknown-kind branch and surface
-// as PULSE_OVERLAY_KIND_UNKNOWN at runtime instead of computing.
-//
-// The stub-installation tests above use t.Cleanup to restore the
-// production state; this test runs without installing the stub so the
-// assertion reflects the production baseline.
 func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
-	// As of E4-S7: OVERLAY_INDEX_VS_TOTAL (E3-S2) + OVERLAY_SHARE_OF_TOTAL
-	// SERIES dispatch (E3-S3) + OVERLAY_ZSCORE_VS_TOTAL (E3-S4) +
-	// OVERLAY_DELTA_VS_SIBLING (E3-S5) + OVERLAY_INDEX_VS_SIBLING (E3-S5) +
-	// OVERLAY_INDEX_VS_PRIOR (E4-S4) + OVERLAY_INDEX_VS_BASELINE (E4-S2) +
-	// OVERLAY_DELTA_VS_BASELINE (E4-S3) + OVERLAY_INDEX_VS_ROLLING_MEAN (E4-S5)
-	// + OVERLAY_ZSCORE_VS_ROLLING (E4-S6) + OVERLAY_YOY (E4-S7) are the
-	// registered SERIES kinds. The three streamable SERIES kinds from the
-	// E3-S2..S4 subset, the two buffered sibling-reference kinds the
-	// E3-S5 story adds, the streamable windowed-Process lag-1 kind the
-	// E4-S4 story adds, the buffered windowed-Process positional-baseline
-	// kind the E4-S2 story adds, the absolute-difference twin of the
-	// baseline family the E4-S3 story adds, the buffered windowed
-	// rolling-mean kind the E4-S5 story adds, the buffered windowed
-	// rolling sample-SD z-score kind the E4-S6 story adds (sibling to
-	// INDEX_VS_ROLLING_MEAN — shares the same ring-buffer + Welford
-	// carrier), and the buffered windowed year-over-year kind the E4-S7
-	// story adds (requires a GROUP_DATE host; per-frequency prior-period
-	// lookup). Each subsequent handler story extends this list.
 	expected := map[types.OverlayKind]bool{
 		types.OverlayKindIndexVsTotal:       true,
 		types.OverlayKindShareOfTotal:       true,

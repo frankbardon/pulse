@@ -12,23 +12,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestMetaAggregator_ScalarOps_Components is the table-driven sweep
-// covering Components() emission for the seven scalar aggregators
-// implemented in E1-S5: AGG_COUNT / AGG_SUM / AGG_AVERAGE / AGG_MIN /
-// AGG_MAX / AGG_RANGE / AGG_NULL_COUNT. Each operator is exercised
-// across three input shapes:
-//
-//   - populated: 3-5 non-null rows.
-//   - empty: no input records at all (filtered out upstream).
-//   - null-heavy: every input row is null for the target field.
-//
-// The orchestrator runs the buffered processRecords exit (no streaming
-// gates here on a small in-memory cohort) so Response.Components is
-// populated through the same buildAggregationComponents helper the
-// streaming exits use. Each case asserts (a) the universal floor
-// (N, NNull) matches the per-record bookkeeping, (b) the operator-
-// specific map matches the schema-declared key set byte-for-byte via
-// reflect.DeepEqual.
 func TestMetaAggregator_ScalarOps_Components(t *testing.T) {
 	schema := numericSchema()
 	makeRecs := func(values []float64, nullIdxs []int) []*Record {
@@ -319,20 +302,6 @@ func numericParityRecords(schema *encoding.Schema) []*Record {
 	return makeRecordsWithNulls(schema, "score", values, []int{4, 7})
 }
 
-// setParityRecords builds a 10-row cohort of set masks against the
-// 4-entry {VISA, MC, AMEX, DISC} dictionary. Two rows carry an
-// in-band zero mask (treated as "no selection" but NOT null — set_*
-// fields' zero mask is a valid value). The orchestrator's universal-
-// floor populator currently routes through Record.NumericValue which
-// returns (0, false) for set fields (the wide-typed mask is stored
-// outside the float64 narrow map). The universal-floor pair therefore
-// surfaces as {N: 0, NNull: 10} for every set aggregator on this
-// fixture — the aggregator's internal Components() emission is still
-// the source of truth for the operator-specific key set, which is
-// what the manifest-parity sweep checks. The non-zero floor lock for
-// set ops lives in the per-family E1-S10 tests where Aggregate is
-// called directly. The mix of overlapping and disjoint masks
-// exercises the OR / AND / per-bit fold paths.
 func setParityRecords(schema *encoding.Schema) []*Record {
 	masks := []uint64{
 		0b0001, // VISA
@@ -411,11 +380,6 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		}
 	}
 	set := func() aggParityFixture {
-		// Per the floor-populator note in setParityRecords: set fields
-		// route the mask through the wide-typed map so Record.NumericValue
-		// returns (0, false), surfacing the universal floor as
-		// {N: 0, NNull: 10}. The per-family E1-S10 tests still lock the
-		// per-operator emission via Aggregate.
 		return aggParityFixture{
 			schema:          setSchema,
 			field:           "tags",
@@ -530,25 +494,6 @@ func mapKeysSorted(m map[string]any) []string {
 	return out
 }
 
-// TestMetaAggregator_AllOps_ManifestParity is the E1-S12 manifest-vs-
-// runtime parity sweep. For every registered aggregator (28 today)
-// it drives one Process round-trip on a small in-memory cohort and
-// asserts:
-//
-//   - Response.Components.Aggregations carries exactly one entry for
-//     the slot.
-//   - That entry's Operator map key set (sorted ascending) equals the
-//     manifest's components_schemas.aggregators[<op>].keys minus the
-//     universal floor {"n", "n_null"} (those keys are typed fields on
-//     AggregationComponents — not in the Operator map).
-//   - The universal-floor pair (N, NNull) matches the fixture's
-//     expected post-filter / null-handling outcome.
-//
-// The per-family tests (E1-S5..S10) verify each operator's math;
-// THIS test verifies the schema matches what the operator emits. Any
-// drift between descriptor/capabilities_aggregators.go and the
-// runtime emission surfaces as an immediate failure with the
-// operator name + key diff.
 func TestMetaAggregator_AllOps_ManifestParity(t *testing.T) {
 	fixtures := allAggParityFixtures(t)
 	for _, op := range types.AllAggregationTypes() {
@@ -592,20 +537,6 @@ func TestMetaAggregator_AllOps_ManifestParity(t *testing.T) {
 	}
 }
 
-// TestComponentsUniversalFloor exercises the universal-floor
-// invariant gate across every registered aggregator (28 today). For
-// each operator the test drives a 10-row cohort with 2 nulls through
-// Process and asserts:
-//
-//   - Components.Aggregations[0].N >= 0
-//   - Components.Aggregations[0].NNull >= 0
-//   - Components.Aggregations[0].N + NNull <= filtered_records
-//
-// E5-S3 promotes this test to a non-skippable CI gate; the E1-S12
-// stub form here covers every operator so the gate is meaningful the
-// moment it is wired. The invariant is intentionally weak — the
-// stronger per-operator value assertions live in the family tests
-// (E1-S5..S10) and the manifest-parity sweep above.
 func TestComponentsUniversalFloor(t *testing.T) {
 	fixtures := allAggParityFixtures(t)
 	for _, op := range types.AllAggregationTypes() {

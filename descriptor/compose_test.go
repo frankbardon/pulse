@@ -8,16 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E7-S14 — predict-time validator for ComposedRequest.Overlays.
-//
-// Coverage matrix mirrors descriptor/chain_overlay_test.go: kind-
-// unknown, reference / target arm resolution, slot-shape divergence,
-// slot-not-crosstab, schema-divergent, panel-targets-over-cap, the
-// happy path, and the FR-I3 OverlaysSchemaDivergence echo. Per-helper
-// sync tests pin kindRequiresMatrixCompose + composeDescriptorDefaultLabel
-// against their processing/ originals so the duplicated catalog rows
-// cannot drift.
-
 // --- fixtures -------------------------------------------------------
 
 // scalarSumRequest is the SCALAR fixture: a single AGG_SUM with no
@@ -73,10 +63,6 @@ func matrixCrosstabRangeRowRequest(label, rowField, colField string) *types.Requ
 	}
 }
 
-// matrixCrosstabDateColRequest is a MATRIX variant whose column axis
-// uses GROUP_DATE instead of GROUP_CATEGORY. Paired with
-// matrixCrosstabRequest to exercise PULSE_OVERLAY_SCHEMA_DIVERGENT
-// on the COLUMN axis (E10-S2 col-grouper-kind divergence dimension).
 func matrixCrosstabDateColRequest(label, rowField, colField string) *types.Request {
 	return &types.Request{
 		Label: label,
@@ -88,10 +74,6 @@ func matrixCrosstabDateColRequest(label, rowField, colField string) *types.Reque
 	}
 }
 
-// matrixCrosstabNestedRowRequest is a MATRIX variant whose row axis
-// is nested two-deep (two row groupers). Paired with the standard
-// single-row matrixCrosstabRequest to exercise the nested-depth
-// dimension of PULSE_OVERLAY_SCHEMA_DIVERGENT (E10-S2).
 func matrixCrosstabNestedRowRequest(label, rowFieldA, rowFieldB, colField string) *types.Request {
 	return &types.Request{
 		Label: label,
@@ -106,11 +88,6 @@ func matrixCrosstabNestedRowRequest(label, rowFieldA, rowFieldB, colField string
 	}
 }
 
-// matrixCrosstabRenamedFieldsRequest is a MATRIX variant whose row
-// and column groupers carry DIFFERENT Field names from the baseline
-// (matrixCrosstabRequest) but identical grouper-Type tuples. Used to
-// pin the E10-S2 "field-name divergence NOT reported" rule —
-// composeRequestAxisTuples MUST drop Field and key only on Type.
 func matrixCrosstabRenamedFieldsRequest(label, rowField, colField string) *types.Request {
 	return &types.Request{
 		Label: label,
@@ -122,11 +99,6 @@ func matrixCrosstabRenamedFieldsRequest(label, rowField, colField string) *types
 	}
 }
 
-// seriesRangeGroupedRequest is the SERIES fixture with GROUP_RANGE
-// instead of GROUP_CATEGORY. Paired with seriesGroupedSumRequest to
-// exercise the SERIES-arm grouper-Type divergence dimension
-// (E10-S2 "type divergence" — distinct grouper Type values on
-// otherwise-identical SERIES slots).
 func seriesRangeGroupedRequest(label, field, groupField string) *types.Request {
 	return &types.Request{
 		Label: label,
@@ -598,11 +570,6 @@ func TestValidateCompose_NilRequest_Coded(t *testing.T) {
 	}
 }
 
-// TestValidateCompose_SchemaDivergent_ColGrouperMismatch is the
-// E10-S2 column-axis divergence dimension: both slots are MATRIX with
-// identical row-axis grouper-Type tuples, but the column axis kinds
-// disagree (GROUP_CATEGORY vs GROUP_DATE). PULSE_OVERLAY_SCHEMA_DIVERGENT
-// must fire and the SlotPair must echo (a, b) with Reason="schema-divergent".
 func TestValidateCompose_SchemaDivergent_ColGrouperMismatch(t *testing.T) {
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
@@ -642,12 +609,6 @@ func TestValidateCompose_SchemaDivergent_ColGrouperMismatch(t *testing.T) {
 	}
 }
 
-// TestValidateCompose_SchemaDivergent_NestedDepthMismatch is the
-// E10-S2 nested-depth dimension: both slots are MATRIX with identical
-// per-grouper Types but the row axis is single-deep on the reference
-// and two-deep on the target. PULSE_OVERLAY_SCHEMA_DIVERGENT must
-// fire — the structural match treats grouper depth as part of the
-// schema (composeRequestAxisTuples returns different-length tuples).
 func TestValidateCompose_SchemaDivergent_NestedDepthMismatch(t *testing.T) {
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
@@ -687,13 +648,6 @@ func TestValidateCompose_SchemaDivergent_NestedDepthMismatch(t *testing.T) {
 	}
 }
 
-// TestValidateCompose_SchemaDivergent_SeriesTypeMismatch is the
-// E10-S2 SERIES-arm grouper-Type dimension: both slots are SERIES
-// with a single grouper each but the Types disagree (GROUP_CATEGORY
-// vs GROUP_RANGE). PULSE_OVERLAY_SCHEMA_DIVERGENT must fire —
-// composeRequestAxisTuples reads Group.Type for the series arm so
-// distinct grouper kinds produce distinct row tuples even with
-// matching Fields.
 func TestValidateCompose_SchemaDivergent_SeriesTypeMismatch(t *testing.T) {
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
@@ -733,12 +687,6 @@ func TestValidateCompose_SchemaDivergent_SeriesTypeMismatch(t *testing.T) {
 	}
 }
 
-// TestValidateCompose_FieldNameDivergence_NotReported pins the
-// E10-S2 "Field-name divergence NOT reported" rule: two MATRIX slots
-// with structurally identical grouper Types but DIFFERENT per-grouper
-// Field values must not surface PULSE_OVERLAY_SCHEMA_DIVERGENT.
-// composeRequestAxisTuples drops Field by design — only Type
-// participates in the structural match, so column renames are silent.
 func TestValidateCompose_FieldNameDivergence_NotReported(t *testing.T) {
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
@@ -815,12 +763,6 @@ func TestValidateCompose_DefaultLabelResolution(t *testing.T) {
 	}
 }
 
-// TestValidateCompose_OverlayCost_SingleTargetBaseline pins the per-spec
-// OverlayCost emission for a single-target ComposeOverlaySpec — the cost
-// dispatcher must surface the bare kind cost (no multi-target scaling)
-// for every non-panel kind. E10-S3 establishes the cost map contract on
-// ComposeValidationResult sibling to PredictResult.OverlayCost /
-// FacetValidationResult.OverlayCost.
 func TestValidateCompose_OverlayCost_SingleTargetBaseline(t *testing.T) {
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{

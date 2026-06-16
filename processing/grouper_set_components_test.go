@@ -9,17 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E2-S6 — MetaGrouper.Components() emission for GROUP_SET_VALUE and
-// GROUP_SET_PER_ELEMENT. Exercises the operator-specific keys only;
-// the universal floor ({total_n, n_null}) is filled by the
-// orchestrator (verified end-to-end via service/ tests).
-//
-// Reuses makeSetTestSchema / makeSetRecord from aggregator_set_test.go
-// (set_u8 "tags" field with dict {VISA, MC, AMEX, DISC}).
-//
-// Bit map for the shared fixture:
-//   bit 0 = VISA, bit 1 = MC, bit 2 = AMEX, bit 3 = DISC
-
 // --- GROUP_SET_VALUE -----------------------------------------------
 
 // makeSetU16Schema builds a one-field schema with a set_u16 column

@@ -10,30 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E2-S12 — Per-filterer FiltererComponents emission parity sweep over
-// every registered filterer (11 today). Symmetric to the aggregator
-// (TestMetaAggregator_AllOps_ManifestParity) and grouper
-// (TestMetaGrouper_AllOps_ManifestParity) parity sweeps; the
-// filterer-side runtime emission lives in service/ tests
-// (process_filterer_components_test.go) where the orchestrator drives
-// the in-memory pulse file, but this file locks the in-package
-// parity contract via Processor.processRecords directly so a regression
-// in the buffered-path filter walk surfaces here without going through
-// the service-layer fs marshalling.
-//
-// Coverage:
-//
-//   - "small": a non-trivial subset of rows passes the filter.
-//   - "empty": the filter rejects every row.
-//   - "all-null": every row's filtered field is null on input.
-//
-// Plus the n_in chain invariant test pinned to the buffered path:
-// n_in[0] == post-feature-pass total (input row count); n_in[i] ==
-// n_out[i-1] for every i > 0. Mirrors
-// TestService_Process_FiltererComponents_PipelineNInInvariant but via
-// processRecords directly so any orchestrator-vs-filter-walk drift
-// surfaces with the slot index named.
-
 // manifestFiltererOperatorKeys returns the operator-specific key set
 // (manifest schema MINUS the universal floor {n_in, n_out, n_null_input})
 // for the named filterer. Sorted ascending. Sourced from the public
@@ -448,9 +424,6 @@ func TestMetaFilterer_AllOps_ManifestParity(t *testing.T) {
 				Values:     fix.values,
 				Expression: fix.expression,
 			}
-			// FILTER_NULL all-null sub-case uses is_null semantics
-			// (matches the orchestrator's E2-S9 service test), so
-			// override Values for that one filterer.
 			if op == types.FILTER_NULL {
 				slot.Values = []string{"is_null"}
 			}

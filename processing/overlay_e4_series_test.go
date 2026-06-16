@@ -10,72 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E4-S9 gap-fill batch for the six windowed-Process overlay kinds.
-//
-// E4-S2..S8 each landed extensive inline coverage at the per-kind level;
-// this file picks up the cross-kind regressions the per-kind suites
-// could not own:
-//
-//   - TestOverlay_IndexVsBaseline_SpecOrderStable — multi-overlay stack
-//     ordering for buffered E4 kinds (INDEX_VS_BASELINE + DELTA_VS_BASELINE
-//     on the same Request). Mirrors the E3 streamable-kinds
-//     TestOverlay_SeriesSpecOrderPreserved_E2E pattern at the buffered
-//     dispatch level — `Response.Overlays[0]` / `Response.Overlays[1]`
-//     preserve request-side spec order regardless of which kind
-//     finalizes first inside ApplyOverlaysSeries.
-//   - TestOverlay_ZScoreVsRolling_WelfordParity — compare the rolling
-//     Welford SD output against a naive `sqrt(sum((x-mean)^2)/(n-1))`
-//     reference impl over a 20-point series with window=5. Cross-checks
-//     the rolling carrier's online Welford-Pébaÿ recurrence against the
-//     two-pass closed-form across every window frontier (the per-kind
-//     suite pins individual window values but not the full sweep).
-//     Tolerance: 1e-12 ULP (the cohort-analytics convention for
-//     Welford-vs-naive sweeps).
-//   - TestOverlay_YoY_AnnualMonthlyWeekly — single table-driven test
-//     covering the 3 lower-resolution YoY frequencies (annual / monthly /
-//     weekly) at consolidated regression granularity. Per the story
-//     brief: this is the consolidated regression check for the YoY math.
-//     The per-frequency tests in overlay_yoy_test.go pin the specific
-//     fixture-value outputs (the existing TestOverlay_YoY_AnnualBasic
-//     etc.); this test asserts the kind handles every coarse-frequency
-//     arm end-to-end through the dispatch in one shot, so a future
-//     refactor cannot quietly break one arm while the others pass.
-//   - TestOverlay_YoY_HourlyExactArithmetic — explicit 8760-hour offset
-//     on an hourly date series, exact-key prior-year lookup. Pins the
-//     hourly stride arithmetic (365*24h) the existing
-//     TestOverlay_YoY_HourlyBasic test only covers in the 4-key
-//     minimal-fixture form. This test walks a multi-day hourly series
-//     and asserts every prior-year ordinal lands on the correct host
-//     key.
-//   - TestOverlay_E4SeriesHandlers_ShapeContract — property assertion
-//     across every E4-added SERIES handler. Each handler returns a
-//     SERIES-shape OverlayLayer whose `Series.Entries` length equals
-//     `host.GroupCount()`, preserves the host's group-key order, and
-//     synthesises the documented per-kind default Name. Catches future
-//     refactors that accidentally diverge any handler from the
-//     canonical SERIES-host contract.
-//
-// All tests use newStubSeriesHost / newStubYoYHost from the per-kind
-// suites — no disk I/O, hermetic by construction. The processing/
-// package's overlay_*_test.go family is the canonical home for these
-// fixtures; this file picks up the cross-kind shape that none of them
-// could own on its own.
-
-// TestOverlay_IndexVsBaseline_SpecOrderStable pins the
-// multi-overlay-stack-order contract at the SERIES dispatch level:
-// when a Request carries multiple SERIES overlays in matching slot
-// order, `Response.Overlays` preserves the request-side ordering
-// regardless of which kind finalizes first inside ApplyOverlaysSeries.
-// The brief named this test against the INDEX_VS_BASELINE +
-// DELTA_VS_BASELINE pair so the assertion covers two buffered E4 kinds
-// in one fixture (their per-kind tests cover the cell-value math; this
-// covers the cross-kind ordering contract).
-//
-// Mirrors the E3 streamable-family TestOverlay_SeriesSpecOrderPreserved_E2E
-// at the SERIES dispatch level — both kinds in this test are buffered
-// per types.OverlayStreamability so the orchestrator's mixed-mode gate
-// is not the subject; the spec-order guarantee rides on the
-// ApplyOverlaysSeries dispatch loop in processing/overlay_series.go.
 func TestOverlay_IndexVsBaseline_SpecOrderStable(t *testing.T) {
 	keys := []types.AxisKey{{"jan"}, {"feb"}, {"mar"}, {"apr"}}
 	values := []float64{10.0, 20.0, 30.0, 40.0}
@@ -479,25 +413,6 @@ func TestOverlay_YoY_HourlyExactArithmetic(t *testing.T) {
 	}
 }
 
-// TestOverlay_E4SeriesHandlers_ShapeContract is the property assertion
-// the brief calls out for the 6 E4 SERIES handlers. Every handler:
-//
-//  1. Returns a SERIES-shape OverlayLayer (Payload.Shape == OverlayShapeSeries).
-//  2. Series.Entries length equals host.GroupCount() (FR-A2: loose
-//     alignment — every host ordinal gets exactly one entry slot).
-//  3. Preserves the host's group-key order in the entries slice
-//     (entries[i].Key == host.GroupKey(i)).
-//  4. Synthesises the documented per-kind default Name when Spec.Name
-//     is empty.
-//
-// Catches future refactors that accidentally diverge any of the six
-// E4 handlers from the canonical SERIES-host contract. Buffered or
-// streamable does not matter here — the property holds at the handler
-// emission point regardless of how the orchestrator dispatches.
-//
-// Per-kind table threads minimal happy-path fixtures (3-key host, no
-// gates) so the test stays focused on the shape contract — the
-// per-kind suites pin specific cell-value math.
 func TestOverlay_E4SeriesHandlers_ShapeContract(t *testing.T) {
 	type kindCase struct {
 		name      string
@@ -676,10 +591,4 @@ func TestOverlay_E4SeriesHandlers_ShapeContract(t *testing.T) {
 // overlay_delta_vs_baseline_test.go; reused here as-is for the
 // TestOverlay_IndexVsBaseline_SpecOrderStable pair fixture.
 
-// Compile-time defense: bind errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING
-// so the errors package import stays live for future failure-path
-// assertions in this file (the gap-fill tests above use NaN-presence
-// + warning-code assertions imported from overlay_test_helpers_test.go,
-// but a future regression on the missing-frequency arm will land here
-// alongside the rest of the E4-S9 batch).
 var _ = errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING

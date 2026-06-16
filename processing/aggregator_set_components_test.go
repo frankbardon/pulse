@@ -8,22 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E1-S10 — Table-driven Components() emission sweep for the six set
-// aggregators: AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
-// AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
-// AGG_SET_DISTINCT_VALUES.
-//
-// Each aggregator declares a ComponentSchema in
-// descriptor/capabilities_aggregators.go. This test exercises the
-// runtime emission path against the same fixtures the existing
-// processing/aggregator_set_test.go uses (4-entry dictionary over
-// {VISA, MC, AMEX, DISC} on a set_u8 field "tags").
-//
-// `labels` (UNION / INTERSECTION / DISTINCT_VALUES) flows through the
-// same resolveMaskLabels helper Rich() already uses, so the test does
-// NOT duplicate dictionary decode logic — it asserts byte-equal label
-// slices against the decoded fixture.
-
 // runSetAggregateForComponents drives Aggregate over the supplied
 // records via the buffered path and returns the emitted operator-
 // specific map plus scalar. Mirrors runAggregateForComponents in

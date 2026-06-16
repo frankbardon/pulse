@@ -118,17 +118,6 @@ func TestValidateOverlay_KeySetDivergent_Matrix(t *testing.T) {
 		Targets:   []string{"treatment"},
 	}
 	err := checkKeySetAlignment(ref, []*types.Response{target}, spec, 0)
-	// Reference grid: { (rowA,colX), (rowA,colY) }
-	// Target grid:    { (rowA,colX), (rowA,colY), (rowB,colX), (rowB,colY) }
-	// missing (on ref but not target) = {}
-	// extra (on target but not ref) = { (rowB,colX), (rowB,colY) }
-	//
-	// E7-S6 acceptance describes the missing/extra split in terms of
-	// asymmetric grids; the matrix grid is the full row × column
-	// cross-product, so a target whose grid is a strict superset of
-	// the reference's emits only `extra` entries. We assert the strict
-	// superset shape because the algorithm walks the declared axis
-	// product per slot (not per-cell presence).
 	requireKeySetDivergent(t, err,
 		nil,
 		[]string{"rowB||colX", "rowB||colY"},
@@ -186,10 +175,6 @@ func TestValidateOverlay_KeySetDivergent_Series(t *testing.T) {
 	)
 }
 
-// TestValidateOverlay_KeySetAlignment_HappyPath_Matrix exercises the
-// matrix arm under identical axis grids — no divergence, no error.
-// Locks the "missing+extra empty → alignment passes" branch from
-// the E7-S6 acceptance.
 func TestValidateOverlay_KeySetAlignment_HappyPath_Matrix(t *testing.T) {
 	ref := composeMatrixSlot(
 		[]types.AxisKey{{"rowA"}, {"rowB"}},
@@ -290,21 +275,12 @@ func TestValidateOverlay_KeySetAlignment_ScalarNoOp(t *testing.T) {
 		t.Fatalf("checkKeySetAlignment(scalar / scalar): want nil, got %v", err)
 	}
 
-	// Scalar reference + series target — mixed shape, the gate is
-	// orthogonal to the schema-match arm (E7-S7) so the key-set
-	// check still short-circuits when the reference is scalar.
 	seriesTarget := composeSeriesSlot("region", []string{"us"})
 	if err := checkKeySetAlignment(ref, []*types.Response{seriesTarget}, spec, 0); err != nil {
 		t.Fatalf("checkKeySetAlignment(scalar ref / series target): want nil, got %v", err)
 	}
 }
 
-// TestValidateOverlay_KeySetAlignment_TargetScalarSkipped asserts
-// the mirror arm: non-scalar reference + scalar target — the
-// scalar target gets skipped (shape-mismatch is owned by the
-// E7-S7 schema-match gate) and the check does not double-trigger
-// PULSE_OVERLAY_KEY_SET_DIVERGENT. The next target in the slice
-// (if any) is still evaluated against the reference.
 func TestValidateOverlay_KeySetAlignment_TargetScalarSkipped(t *testing.T) {
 	ref := composeSeriesSlot("region", []string{"us", "eu"})
 	scalarTarget := &types.Response{}

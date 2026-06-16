@@ -13,23 +13,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestAtomicSkillHasRequiredSections enforces the structural contract for
-// atomic skills introduced in E4: every file matching op-* / tool-* / type-*
-// MUST carry a fixed set of `## <header>` sections. The exact header list
-// branches by skill family:
-//
-//   - op-* (non-overlay): `## Params`, `## Inputs`, `## Output`, `## Gotchas`,
-//     `## See`. AGG / GROUP / FILTER additionally require `## Components`
-//     per the v0.20.0 response-components contract.
-//   - op-overlay-*: `## Params`, `## Host shape`, `## Output`, `## Gotchas`,
-//     `## See`. Overlays decorate a host result and do not take row-level
-//     `Inputs`; they document the host they ride on instead.
-//   - type-*: `## Bytes`, `## Range`, `## Null`, `## Dictionary`, `## See`.
-//   - tool-*: `## When to use`, `## Input`, `## Output`, `## Gotchas`,
-//     `## See`.
-//
-// The category gate keying off frontmatter (`category: AGG|GROUP|FILTER`)
-// is the load-bearing dispatch — operator prefix is a fallback only.
 func TestAtomicSkillHasRequiredSections(t *testing.T) {
 	type fileCase struct {
 		stem     string
@@ -135,34 +118,6 @@ func containsHeading(md, heading string) bool {
 	return false
 }
 
-// TestSkillTokenBudget enforces the body-size budget for the atomic-skill
-// pack. Body is defined as the file contents with the leading
-// `---\n...\n---\n` frontmatter block stripped; budget is on raw byte
-// count of that remainder. The char/4 heuristic from the story spec maps
-// directly: 1200 chars ≈ 300 tokens, 2000 chars ≈ 500 tokens, 6000 chars
-// ≈ 1500 tokens.
-//
-// Budget table:
-//
-//   - op-*    : 1200 chars (≈300 tokens)
-//   - tool-*  : 2000 chars (≈500 tokens)
-//   - type-*  : 2000 chars (≈500 tokens)
-//   - kind:design (frontmatter): 6000 chars (≈1500 tokens)
-//
-// TRANSITIONAL CARVE-OUT (E4-S13): the budget is enforced as a warning
-// only — overruns surface via t.Logf so reviewers can see the live state
-// of the skill pack without the test going red. The hard-fail branch
-// triggers only above hardFailOverPercent (set to a transitional value
-// here); E4-S15 tightens this to 30% and replaces the t.Logf with
-// t.Errorf once the offending op-reg-* / op-reg-mod-* / op-feat-* /
-// op-synth-regex bodies have been trimmed. The mechanism is in place;
-// flipping the threshold + one t.Logf to t.Errorf is the only change
-// needed.
-//
-// Files not matching any of the four buckets above (e.g.
-// response-components which is type:guide with no kind:design) are
-// skipped silently — design-kind floor is enforced via frontmatter,
-// not file-stem.
 func TestSkillTokenBudget(t *testing.T) {
 	const (
 		opBudget     = 1200
@@ -170,11 +125,6 @@ func TestSkillTokenBudget(t *testing.T) {
 		typeBudget   = 2000
 		designBudget = 6000
 
-		// hardFailOverPercent caps the transitional soft-only regime.
-		// E4-S15 will lower this to 30 and flip the matching t.Logf to
-		// t.Errorf. Anything above this percent over-budget surfaces a
-		// stronger warning today; nothing in the current pack triggers
-		// the t.Errorf branch.
 		hardFailOverPercent = 1000
 	)
 

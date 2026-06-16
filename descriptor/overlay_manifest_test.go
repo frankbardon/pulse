@@ -6,15 +6,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestManifestOverlayCapability verifies the root manifest carries the
-// Overlays capability slice populated from OverlayCapabilities() with
-// the E1 OVERLAY_INDEX_VS_MARGIN entry shaped per PRD §I-FR-I2.
-//
-// Story E1-S10 acceptance gate. Wires the kind-catalog into the
-// manifest so LLM clients can detect overlay availability without
-// inspecting the source. As later kinds land, the parity check
-// against types.AllOverlayKinds() catches a missing manifest entry
-// before a golden regen would silently absorb it.
 func TestManifestOverlayCapability(t *testing.T) {
 	m := BuildManifest()
 
@@ -38,7 +29,6 @@ func TestManifestOverlayCapability(t *testing.T) {
 		t.Errorf("Shapes = %v, want %v", got, want)
 	}
 
-	// Scopes: [cell] in E1.
 	if got, want := entry.Scopes, []types.OverlayScope{types.OverlayScopeCell}; !equalScopes(got, want) {
 		t.Errorf("Scopes = %v, want %v", got, want)
 	}

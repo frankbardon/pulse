@@ -39,15 +39,6 @@ func kebabName(s string) string {
 	return strings.ReplaceAll(strings.ToLower(s), "_", "-")
 }
 
-// TestSkillsCoverAllComponents verifies every registered aggregator,
-// attribute, filterer, and grouper has a matching atomic skill file.
-// Convention: op-<category>-<kebab-name>.md.
-//
-// This is the post-E4 replacement for the legacy "name string appears
-// somewhere in the target skill" check. Atomic-file existence is the
-// load-bearing gate: every operator owns one file, and the file's
-// frontmatter `name:` matches the file stem (enforced by
-// TestSkillsManifestConsistent).
 func TestSkillsCoverAllComponents(t *testing.T) {
 	embedded := embeddedSkillSet(t)
 

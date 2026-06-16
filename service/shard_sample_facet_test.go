@@ -12,18 +12,6 @@ import (
 
 // --- Sample union semantics ---
 
-// TestShardArchiveSampleGlobalOffsetLimit is the required CI gate for
-// S4: offset/limit on a shard archive applies globally across the union
-// in central-directory (insertion) order. The contract:
-//
-//   - offset=0 limit=3 → first 3 rows of the first shard.
-//   - offset that lands inside shard 2 → rows start at the offset row
-//     of shard 2 and continue into shard 3 as needed.
-//   - limit that spans multiple shards → collects across shards in
-//     order, exactly limit rows or fewer when the union is shorter.
-//
-// The single-file path is unchanged — Sample still returns the first
-// n rows of the only file.
 func TestShardArchiveSampleGlobalOffsetLimit(t *testing.T) {
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
@@ -230,8 +218,6 @@ func TestShardArchiveFacet_NumericUnion(t *testing.T) {
 	}
 }
 
-// TestShardArchiveFacet_SingleFileUnchanged confirms single-file
-// facet behavior is identical to the pre-S4 path.
 func TestShardArchiveFacet_SingleFileUnchanged(t *testing.T) {
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"red", "green", "blue"} {
@@ -262,11 +248,6 @@ func TestShardArchiveFacet_SingleFileUnchanged(t *testing.T) {
 
 // --- FacetSchema union semantics ---
 
-// TestShardArchiveFacetSchemaMatches is the required CI gate for S4:
-// FacetSchema on a shard archive equals FacetSchema on the manually-
-// concatenated single-file equivalent. Welford stats, dict counts,
-// null tallies, histograms, and percentiles all accumulate across the
-// union of shards.
 func TestShardArchiveFacetSchemaMatches(t *testing.T) {
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)

@@ -14,19 +14,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// E1-S12 — End-to-end Response.Components population tests driven
-// through the service-layer Process orchestration. These tests
-// complement the per-aggregator unit tests in processing/ by
-// exercising the full pulse.Process pipeline: in-memory cohort
-// (via fs.NewMemMap) → svc.Process → Response.Components.Aggregations.
-//
-// One representative aggregator per family is covered so the wiring
-// (orchestrator → processor → MetaAggregator → AggregationComponents)
-// is locked at the service boundary. The processing-package tests
-// already verify the math; these service tests verify that the
-// orchestrator's universal-floor pass + per-slot Components emission
-// flow through to the public Response shape.
-
 // componentsScoreCohort writes a 5-row score cohort and returns a
 // service wired to the in-memory fs. The schema (u32 id + f64 score)
 // is shared with the existing service helper testSchema()/testRecords()
@@ -359,61 +346,6 @@ func TestService_Process_Components_Set_AGG_SET_UNION(t *testing.T) {
 	}
 }
 
-// TestPredict_ComponentSchemaMatchesRuntime is the E1-S12 / E2-S3 /
-// E2-S12 manifest-vs-runtime parity sweep. All three halves are now
-// active (E2-S12 lights up the grouper + filterer runtime-comparison
-// halves that E2-S3 / E2-S8 staged behind TODO guards):
-//
-//   - Aggregator half: every registered aggregator (28 today) end-to-
-//     end through Predict + Process.
-//   - Grouper half: every registered grouper (7 today) end-to-end
-//     through Predict + Process. MetaGrouper implementations landed
-//     in E2-S4..S6, so the runtime side now carries an Operator map
-//     for every grouper; the sorted key set must match the predict
-//     declaration minus the universal grouper floor {total_n, n_null}.
-//   - Filterer half: every registered filterer (11 today) end-to-end
-//     through Predict + Process. The orchestrator's universal-floor
-//     pass (E2-S9) emits the {n_in, n_out, n_null_input} triple onto
-//     FiltererComponents for every slot; v1 has no built-in
-//     MetaFilterer implementation, so the operator-specific key set
-//     collapses to the empty slice on both sides. The assertion locks
-//     the contract for embedder-supplied MetaFilterer registrations.
-//
-// For each aggregator the test:
-//
-//   - Builds a one-slot Request with that aggregator over an
-//     in-memory cohort whose schema matches the aggregator's accepted
-//     field types.
-//   - Runs descriptor.PredictFromBytes(headerOnly, req) to capture
-//     the per-slot ComponentSchema declared by predict.
-//   - Runs svc.Process(req) on the same cohort to capture the runtime
-//     Operator key set.
-//   - Asserts the sorted key set of PredictResult.Aggregations[0]
-//     .ComponentSchema.Keys minus floor {n, n_null} equals the sorted
-//     key set of Response.Components.Aggregations[0].Operator.
-//
-// For each grouper the test:
-//
-//   - Builds a Request with that grouper plus a minimal AGG_COUNT
-//     companion (every aggregation request needs at least one
-//     aggregation slot) over an in-memory cohort whose schema matches
-//     the grouper's accepted field types.
-//   - Runs descriptor.PredictFromBytes(headerOnly, req) and asserts
-//     the per-slot GroupPredict carries a non-empty ComponentSchema
-//     with the universal grouper floor {total_n, n_null} present.
-//   - Asserts BufferedComponents=true for GROUP_QUANTILE (the only
-//     None-mergeability grouper today) and =false for every other
-//     grouper.
-//   - Runs svc.Process(req) and asserts the runtime Operator key set
-//     (universal floor stripped) equals the predict declared key set
-//     (universal floor stripped).
-//
-// E5-S3 promotes this test to a non-skippable CI gate; this stub
-// covers every registered aggregator and grouper so the gate is
-// meaningful at promotion. The test deliberately lives in service/
-// (not descriptor/) so the runtime side can call Process directly —
-// descriptor/predict.go itself stays free of service/processing
-// imports, satisfying TestPredictNoExecutionImports.
 func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 	fixtures := allAggServiceFixtures(t)
 	for _, op := range types.AllAggregationTypes() {
@@ -471,23 +403,6 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 		})
 	}
 
-	// --- grouper half (E2-S3 static; E2-S12 runtime-comparison
-	// activation) -------------------------------------------------
-	// E2-S4..S6 landed MetaGrouper for all 7 built-in groupers, so the
-	// runtime-comparison half of the gate (skipped at E2-S3) is now
-	// active. For every registered grouper the test:
-	//   - Asserts predict's declared ComponentSchema carries the
-	//     universal grouper floor {total_n, n_null} as the first two
-	//     entries.
-	//   - Asserts BufferedComponents parity with the static capability
-	//     table (GROUP_QUANTILE = true, everyone else = false).
-	//   - Drives svc.Process on the same fixture and compares the
-	//     runtime-emitted Components.Groupers[0].Operator key set
-	//     (sorted, universal floor stripped) against predict's
-	//     declared key set (sorted, universal floor stripped). Any
-	//     drift between descriptor/capabilities_groupers.go and the
-	//     runtime emission surfaces here as an immediate failure with
-	//     the operator name + key diff.
 	groupFixtures := allGroupServiceFixtures(t)
 	for _, op := range types.AllGroupTypes() {
 		op := op
@@ -574,16 +489,6 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 		})
 	}
 
-	// --- filterer half (E2-S8 static; E2-S9 runtime universal-floor
-	// emission; E2-S12 runtime-comparison activation) ----------------
-	// Sweep every registered filterer (11 today). The runtime-
-	// comparison half is now active per E2-S12: v1 has no built-in
-	// MetaFilterer implementation, so the operator-specific key set
-	// collapses to the empty slice on both sides (every filterer's
-	// universal floor is the whole payload). The assertion still
-	// locks the wiring contract so a future per-filter specific
-	// addition (e.g. FILTER_RANGE n_below / n_above) has an immediate
-	// parity gate to fail.
 	filFixtures := allFilterServiceFixtures(t)
 	for _, op := range types.AllFiltererTypes() {
 		op := op
@@ -636,16 +541,6 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 				t.Errorf("%s: BufferedComponents = %v, want false (every v1 filterer is Mergeable)", op, got)
 			}
 
-			// E2-S9 / E2-S12: runtime FiltererComponents emission
-			// lands at the service.Process boundary and the runtime-
-			// comparison half is now active. Drive a one-slot request
-			// through the service fixture and confirm the runtime
-			// operator-specific key set (universal floor stripped)
-			// equals the predict-declared operator-specific key set.
-			// v1 has no built-in MetaFilterer implementation, so both
-			// projections collapse to the empty set — the assertion
-			// still locks the wiring contract so a future per-filter
-			// specific addition has a parity gate to fail.
 			runReq := &types.Request{
 				Cohort: &types.Cohort{Filename: ffix.cohortName},
 				Aggregations: []*types.Aggregation{
@@ -702,18 +597,6 @@ type groupServiceFixture struct {
 	params         json.RawMessage
 }
 
-// allGroupServiceFixtures builds one fixture per registered grouper
-// type, sharing svc / cohort across operators that accept the same
-// field type. Schema choice matches the capability table's
-// AcceptsTypes: GROUP_DATE needs a date field, GROUP_RANGE / ROUNDED /
-// QUANTILE need numeric, GROUP_SET_VALUE / GROUP_SET_PER_ELEMENT need
-// set_u8, GROUP_CATEGORY accepts any cohort field type.
-//
-// Today the function only powers the predict half of the sweep — no
-// runtime comparison is performed because MetaGrouper implementations
-// land in E2-S4..S6. The svc + schema + companion field are still
-// carried on every fixture so the runtime half can be wired in place
-// when emission lands without restructuring the fixture map.
 func allGroupServiceFixtures(t *testing.T) map[types.GroupType]groupServiceFixture {
 	t.Helper()
 
@@ -819,17 +702,6 @@ func allGroupServiceFixtures(t *testing.T) map[types.GroupType]groupServiceFixtu
 	}
 }
 
-// filterServiceFixture pairs a filterer type with the schema, cohort
-// filename, field name, optional Values / Expression, and a companion
-// numeric field that the AGG_COUNT slot can reference. Mirrors
-// aggServiceFixture / groupServiceFixture for the filterer half of
-// TestPredict_ComponentSchemaMatchesRuntime.
-//
-// Today the function only powers the predict half of the sweep — no
-// runtime comparison is performed because MetaFilterer implementations
-// land in E2-S9. The svc + schema + companion field are still carried
-// on every fixture so the runtime half can be wired in place when
-// emission lands without restructuring the fixture map.
 type filterServiceFixture struct {
 	svc            *Service
 	schema         *encoding.Schema

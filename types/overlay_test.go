@@ -158,15 +158,6 @@ func TestOverlayLayer_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestOverlayLayer_WarningsFreeByteIdentical locks the additive
-// contract for the new OverlayLayer.Warnings slot (E1-S2): a layer
-// authored without ever touching the field marshals byte-identically
-// to one with Warnings explicitly set to nil AND to one with Warnings
-// set to an empty (non-nil) slice. The `omitempty` tag must elide the
-// key in all three cases — pre-E1-S2 callers stay wire-stable.
-//
-// Mirrors TestComposedResponse_OverlayFreeByteIdentical at
-// types/types_test.go:1106 in style and intent.
 func TestOverlayLayer_WarningsFreeByteIdentical(t *testing.T) {
 	value := 1.0
 	base := types.OverlayLayer{
@@ -254,10 +245,6 @@ func TestOverlayLayer_WarningsFreeByteIdentical(t *testing.T) {
 			back.Warnings[0].Message, "reference cell is zero")
 	}
 
-	// (5) Unmarshal a JSON object WITHOUT the warnings key — the
-	// resulting struct must have Warnings == nil (not an empty slice).
-	// This is the contract that lets downstream code use `len(...) == 0`
-	// and `Warnings == nil` interchangeably for pre-E1-S2 payloads.
 	noKey := `{"name":"i_row","kind":"OVERLAY_INDEX_VS_MARGIN","scope":"cell",` +
 		`"ref":{"margin":{"axis":"row"}},"payload":{"shape":"scalar","scalar":1}}`
 	var decoded types.OverlayLayer

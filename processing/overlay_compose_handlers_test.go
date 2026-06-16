@@ -9,17 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Per-handler unit tests for the six COMPOSE-host overlay kinds
-// landed by E7-S9: OVERLAY_INDEX_VS_REF, OVERLAY_DELTA_VS_REF,
-// OVERLAY_PROP_Z_CELL, OVERLAY_T_CELL, OVERLAY_CHISQ_VS_REF, and
-// OVERLAY_RANK. Each test pairs a synthetic 3×3 matrix on the
-// reference + target side with hand-computed known answers.
-//
-// The fixtures use the canonical {"r0","r1","r2"} × {"c0","c1","c2"}
-// axis-key shape to keep the lookup tables predictable and to mirror
-// the chassis-side schema-match tests under
-// processing/compose_overlay_schemamatch_test.go.
-
 // makeMatrixFromValues constructs a *types.Response carrying a
 // MatrixPayload with the given 3×3 cell values. NaN values render as
 // absent (Present=false) so per-handler tests can exercise the
@@ -574,11 +563,6 @@ func TestApplyRank_TiesAverageRank(t *testing.T) {
 	}
 }
 
-// TestApplyComposeOverlays_SixKindsDispatch is the dispatch-level
-// integration test asserting every E7-S9 kind routes through its
-// registered handler (NOT the chassis stub) when called via
-// ApplyComposeOverlays. The fixture exercises one spec per kind
-// against the same ref / target matrix.
 func TestApplyComposeOverlays_SixKindsDispatch(t *testing.T) {
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
@@ -639,16 +623,6 @@ func TestApplyComposeOverlays_SixKindsDispatch(t *testing.T) {
 	}
 }
 
-// makeMatrixFromTriples constructs a *types.Response carrying a
-// MatrixPayload whose cells are WelfordTriple rich payloads
-// (mirrors AGG_WELFORD's crosstab output). Used by the triple-aware
-// arms of the T_CELL / Z_CELL handlers (E1-S9, E1-S17).
-//
-// E3-S7 migration: also populates Response.Components.Crosstab.
-// CellComponents with the matching `{n, mean, variance}` map per
-// cell so the migrated handlers can consume the universal Components
-// surface. The legacy WelfordTriple in MatrixCell.Value stays —
-// E3-S8 removes the writer side.
 func makeMatrixFromTriples(triples [3][3]WelfordTriple) *types.Response {
 	rowKeys := []types.AxisKey{{"r0"}, {"r1"}, {"r2"}}
 	colKeys := []types.AxisKey{{"c0"}, {"c1"}, {"c2"}}
@@ -832,11 +806,6 @@ func TestApplyTCell_TripleZeroVarianceBothSides(t *testing.T) {
 	}
 }
 
-// TestApplyTCell_MixedShapeRejected asserts the defensive
-// PULSE_OVERLAY_SCHEMA_DIVERGENT arm. The compose schema-match gate
-// (E1-S8) should reject mixed-shape pairs BEFORE dispatch, but the
-// handler also defensively rejects a target triple paired with a
-// scalar reference at runtime.
 func TestApplyTCell_MixedShapeRejected(t *testing.T) {
 	tri := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	target := makeMatrixFromTriples([3][3]WelfordTriple{
@@ -863,10 +832,6 @@ func TestApplyTCell_MixedShapeRejected(t *testing.T) {
 	}
 }
 
-// TestApplyTCell_ScalarFallbackByteIdentical asserts the additive
-// contract: a request paired with scalar-only cells produces byte-
-// identical output to the pre-S9 Params-default path. We use the same
-// 3×3 fixture as TestApplyTCell_KnownAnswer and compare cell-for-cell.
 func TestApplyTCell_ScalarFallbackByteIdentical(t *testing.T) {
 	ref := makeMatrixFromValues([3][3]float64{
 		{9, 9, 9},
@@ -894,12 +859,6 @@ func TestApplyTCell_ScalarFallbackByteIdentical(t *testing.T) {
 	}
 }
 
-// TestApplyIndexVsRef_NonMatrixSlotErrors asserts the handler returns
-// a coded PULSE_OVERLAY_SLOT_NOT_CROSSTAB error when reference or
-// target carries a non-MATRIX shape. Defense in depth — the chassis
-// schema-match gate (E7-S7 + kindRequiresMatrix flip) is the primary
-// surface that catches this case BEFORE dispatch, but the handler
-// guards against direct callers.
 func TestApplyIndexVsRef_NonMatrixSlotErrors(t *testing.T) {
 	ref := &types.Response{Data: []map[string]any{
 		{"region": "us", "sum": 1.0},

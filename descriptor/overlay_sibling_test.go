@@ -7,31 +7,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Predict-time tests for the sibling-reference SERIES-host overlay
-// family (E3-S5): OVERLAY_DELTA_VS_SIBLING + OVERLAY_INDEX_VS_SIBLING.
-// Both kinds share an identical structural contract — the two test
-// suites below mirror each other so a future drift between the two
-// kinds' predict gates surfaces at the test level.
-//
-// Contract enforced:
-//
-//   - Happy path: GROUP scope + Ref.Sibling{Field, Value} both
-//     populated + SERIES host (Request.Groups non-empty,
-//     Request.Crosstab nil) passes without overlay errors.
-//   - Scope: every non-GROUP scope (CELL / ROW / COLUMN / MATRIX /
-//     TOTAL) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-//   - Ref family: any non-Sibling pointer (Margin / BaselineIndex /
-//     Population / Stage / Slot) fires
-//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
-//   - Ref.Sibling: missing pointer, empty Field, empty Value all fire
-//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
-//   - Host shape: a request with no groupers OR an active Crosstab
-//     fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (no SERIES host
-//     for the sibling resolver to walk).
-//   - Level / Within: non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE
-//     (the sibling reference is a single fixed group, not an axis
-//     prefix).
-
 // siblingHostReq returns a minimal grouped Process request (the
 // SERIES host the sibling-reference family targets). Mirrors
 // indexVsTotalSeriesHostReq — region grouper + value AGG_SUM.

@@ -9,25 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Equivalence tests for StreamableGrouper.KeyFor.
-//
-// For every streamable grouper, KeyFor(rec) MUST produce the same
-// bucket key that Group([]rec, field) places that record under. The
-// fused crosstab path in E4-S3 builds on this invariant: it walks the
-// decode stream calling KeyFor per record, then routes the record to
-// the (rowKey, colKey) cell accumulator. If any drift exists between
-// KeyFor and Group, the fused output would diverge from the legacy
-// buffered crosstab output byte-for-byte.
-//
-// Each test synthesises ~1000 random records and asserts:
-//   - every record present in Group's bucket has its key produced by
-//     KeyFor unchanged;
-//   - every record absent from Group's buckets (null / missing field)
-//     produces ErrGrouperKeyNull from KeyFor.
-//
-// Quantile grouper and the multi-key set-per-element grouper are NOT
-// in scope — they do not implement StreamableGrouper.
-
 const keyForEquivalenceN = 1024
 
 // assertStreamableEquivalence pumps records through Group() and KeyFor

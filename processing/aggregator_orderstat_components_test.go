@@ -10,25 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestMetaAggregator_OrderStatOps_Components is the E1-S9 table-
-// driven sweep covering Components() emission for the two order-stat
-// aggregators: AGG_MEDIAN and AGG_PERCENTILE. Both operators are
-// ComponentsMergeability=None — they require a sorted view of the full
-// value set, so the streaming path defers emission to terminal buffered
-// flush (the per-chunk omission contract lands in E4-S4).
-//
-// MEDIAN cases exercise odd N, even N, single-row, and empty input.
-// PERCENTILE cases vary the configured percentile to drive the linear
-// interpolation through its three branches: single-row trivial,
-// integer-rank single-bucket, and fractional-rank two-bucket
-// interpolation. Empty input must collapse to (nil, nil) per the
-// universal-floor convention — the orchestrator's per-record (n,
-// n_null) bookkeeping is the source of truth for "no rows seen".
-//
-// Each case asserts (a) the universal floor (N, NNull) matches the
-// per-record bookkeeping and (b) the operator-specific map matches the
-// schema declared in descriptor/capabilities_aggregators.go byte-for-
-// byte via reflect.DeepEqual.
 func TestMetaAggregator_OrderStatOps_Components(t *testing.T) {
 	schema := numericSchema()
 	makeRecs := func(values []float64, nullIdxs []int) []*Record {

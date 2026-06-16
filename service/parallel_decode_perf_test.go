@@ -8,37 +8,6 @@ import (
 	"testing"
 )
 
-// parallel_decode_perf_test.go houses the build-tag-gated perf gate for
-// the per-cohort parallel decode dispatch. Default CI runs (no -tags)
-// skip this file entirely; the maintainer runs it on demand via
-//
-//	go test -tags=perf ./service/... -run TestParallelDecode_PerfGate -count=3
-//
-// The gate runs BenchmarkBufferedProcessWideCohortMergeable via
-// testing.Benchmark for the workers=1 (serial) and workers=NumCPU
-// (parallel) sub-cases, then asserts the parallel variant's ns/op is at
-// most parallelDecodePerfRatio of the serial variant's ns/op.
-//
-// The 0.67 ratio (≤ 67 % of serial wall-clock) is the E3-S5 acceptance
-// threshold: a healthy parallel decode on a multi-core machine should
-// give a meaningful — though not necessarily linear — speedup. We do not
-// chase the theoretical (1/N) bound because the per-record cost is
-// dominated by map[string]float64 allocation, which contends on the
-// runtime's mcache and amortises sub-linearly with worker count.
-//
-// Constrained-runner safety: on a host where runtime.NumCPU() == 1 the
-// NumCPU variant collapses to the serial path; the ratio is then ~1.0
-// and the gate would trivially fail despite there being no regression.
-// We Skip with a clear message in that case rather than mask a real
-// regression with a soft threshold.
-//
-// Run cadence: the perf gate is sensitive to machine state (background
-// load, thermals, CPU frequency scaling). The maintainer takes the
-// median of -count=3 runs; the bench fixture (b.Loop in the underlying
-// bench) supplies the per-run iteration count automatically. testing.B
-// + testing.Benchmark already runs each sub-case to statistical stability
-// before returning, so this gate compares the converged ns/op values.
-
 // parallelDecodePerfRatio is the upper bound on (parallel ns/op) /
 // (serial ns/op). 0.67 ⇒ parallel must shave at least 33 % of the
 // serial wall-clock. Numbers tighter than 0.5 are achievable on
@@ -46,19 +15,6 @@ import (
 // 0.67 is the regression-resistant gate the story specifies.
 const parallelDecodePerfRatio = 0.67
 
-// TestParallelDecode_PerfGate asserts the perf acceptance criterion for
-// the E3 parallel-decode dispatch. It uses testing.Benchmark to drive
-// BenchmarkBufferedProcessWideCohortMergeable programmatically at two
-// fixed worker counts, compares the resulting ns/op, and fails when the
-// NumCPU variant fails to clear parallelDecodePerfRatio of the workers=1
-// baseline.
-//
-// The gate ALSO reports allocs/op and B/op for both variants so a
-// regression in per-worker partial state (the E3-S3 reducer holds one
-// shardPartial per worker) shows up alongside the wall-clock delta —
-// parallel decode should keep allocations near-flat vs serial because
-// the per-worker accumulator is a small fixed-size struct, not a copy of
-// the cohort.
 func TestParallelDecode_PerfGate(t *testing.T) {
 	numCPU := runtime.NumCPU()
 	if numCPU < 2 {

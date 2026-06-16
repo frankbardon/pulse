@@ -11,43 +11,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestOverlay_Facet*VsPop_* — non-skippable CI gate family for the four
-// FACET-host overlay kinds (E5-S7).
-//
-// Per PRD §6 "Non-Skippable CI gates" the catalog of public gate names
-// for the overlay family uses the `TestOverlay_*` prefix; the per-kind
-// `TestApply*` tests in overlay_{index,zscore,chisq,ks}_vs_pop_test.go
-// pin the inner-handler arithmetic, while this suite is the publicly
-// named gate that proves each kind works end-to-end through the public
-// FACET-host facade — i.e. `processing.ApplyOverlaysFacet` against a
-// resolver-built `FacetPopulationView`. That entry point IS the surface
-// `service.FacetSchema` wires through (`service/facet_overlay.go`); the
-// service-layer wiring itself is covered by `TestFacetWithOverlays_*` in
-// `service/facet_overlay_test.go`. By exercising `ApplyOverlaysFacet`
-// here we cover the same code path the service hits without taking on a
-// service-package dependency (processing/ MUST NOT import service/).
-//
-// Per the story's catalog-bloat mitigation note (PRD §7), the per-kind
-// families share a small set of fixture + assertion helpers so the four
-// kinds × N scenarios stay linear instead of quadratic. Helpers:
-//
-//   - facetTestDiscreteHostPopPair — build host + population FacetResults
-//     for a categorical scenario plus the matching pre-resolved view.
-//   - facetTestNumericHostPopPair — same shape for the numeric arm
-//     (Welford summary + optional histogram + optional percentiles).
-//   - runApplyOverlaysFacet — dispatches a single spec via
-//     ApplyOverlaysFacet and returns (layer, warnings, err) so each
-//     scenario reads as one helper call.
-//   - assertFacetHostByteIdentityWithStripped — encodes a FacetResult
-//     with overlays cleared vs the baseline result, asserts JSON
-//     equality, the PRD §9 "additive byte-identity" Success Metric.
-//   - assertFacetLayerOrderMatchesSpec — asserts the spec-order layer
-//     emission contract (FR-A2) across a mixed multi-spec request.
-//
-// Hermetic: every fixture is synthetic in-memory `*types.FacetResult`
-// state. No disk I/O, no `afero.Fs`, no service-package types. The
-// service-layer wiring tests own the FacetSchema-from-cohort path.
-
 // -----------------------------------------------------------------------------
 // Shared fixture helpers (file-private).
 // -----------------------------------------------------------------------------
@@ -148,23 +111,6 @@ func runApplyOverlaysFacet(t *testing.T, spec *types.OverlaySpec, host *types.Fa
 	return layers[0], warnings, nil
 }
 
-// assertFacetHostByteIdentityWithStripped is the PRD §9 Success Metric
-// "no-overlay regression test" — a Facet host's JSON output with
-// `Overlays` cleared must be byte-equal to the JSON of the same
-// FacetResult before overlays were attached. The signature accepts two
-// parallel FacetResults: `baseline` (a Facet response with no overlays
-// attached at all, i.e. `Overlays = nil`) and `withOverlays` (the same
-// result after `ApplyOverlaysFacet` populated the slot). The helper
-// stamps `Overlays = nil` on a deep-cloned copy of `withOverlays` and
-// re-serialises both; the JSON must match byte-for-byte.
-//
-// Why JSON byte-equality is the right test here: the FacetResult shape
-// uses `omitempty` on the Overlays slot, so a populated overlays field
-// is the ONLY non-additive byte the JSON output gains under E5. The
-// rest of the response shape is identical regardless of whether
-// overlays ran. Stripping the slot and comparing bytes pins that no
-// other field accidentally drifted as a side-effect of the overlay
-// path.
 func assertFacetHostByteIdentityWithStripped(t *testing.T, baseline, withOverlays *types.FacetResult) {
 	t.Helper()
 	if baseline == nil || withOverlays == nil {

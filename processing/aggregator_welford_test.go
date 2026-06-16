@@ -36,11 +36,6 @@ func controlWelford(samples []float64) (mean, variance float64, n uint64) {
 	return b.mean, b.sampleVariance(), uint64(b.n)
 }
 
-// TestAggregatorWelford_BufferedMatchesWelfordBucket pumps 100 random
-// samples through AGG_WELFORD's buffered path and asserts at
-// math.Float64bits granularity against a parallel welfordBucket
-// computation. This locks the aggregator to the same recurrence
-// TEST_WELCH consumes per the S1 design doc.
 func TestAggregatorWelford_BufferedMatchesWelfordBucket(t *testing.T) {
 	rng := rand.New(rand.NewSource(0xDEADBEEF))
 	samples := make([]float64, 100)
@@ -209,12 +204,6 @@ func TestAggregatorWelford_NullValuesSkipped(t *testing.T) {
 	}
 }
 
-// TestAggregatorWelford_FactoryRejectsNonNumericFields confirms the
-// field-type gate. The aggregator accepts only the strict scalar
-// numeric family (u8/u16/u32/u64/f32/f64) per the S1 design doc;
-// every other type — categorical, set, date, decimal128, packed_bool —
-// must surface PROCESSING_CONFIG at factory time so the per-record
-// hot path never has to branch on type.
 func TestAggregatorWelford_FactoryRejectsNonNumericFields(t *testing.T) {
 	dict := encoding.NewDictionary()
 	if _, err := dict.Add("A"); err != nil {

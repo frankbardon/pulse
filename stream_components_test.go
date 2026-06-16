@@ -254,11 +254,6 @@ func TestChunkComponents_NonTerminalRedactsNonMergeable(t *testing.T) {
 	}
 }
 
-// TestChunkComponents_NilBufferedPassesThrough verifies the nil-input
-// edge case: if the buffered Process attached no Components shell the
-// per-chunk projection emits nil (not a synthetic empty shell). This
-// preserves the omitempty wire shape — runs with no aggregations /
-// groupers / filterers stream byte-identical to the pre-S3 baseline.
 func TestChunkComponents_NilBufferedPassesThrough(t *testing.T) {
 	mergeability := []descriptor.ComponentsMergeability{descriptor.Mergeable}
 	if got := chunkComponents(nil, mergeability, nil, false); got != nil {

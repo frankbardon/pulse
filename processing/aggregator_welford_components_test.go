@@ -9,30 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E1-S6: Components() emission tests for the Welford-family aggregators
-// — VARIANCE, STDDEV, SKEWNESS, KURTOSIS, ZSCORE, WELFORD, CI_LOWER,
-// CI_UPPER. Each operator is exercised across three input shapes:
-//
-//   - empty: no input records at all.
-//   - singleRow: exactly one observation (variance/stddev/skewness/
-//     kurtosis collapse to zero; WELFORD emits N=1 with Variance=0;
-//     CI emits NaN bound under the N<2 contract).
-//   - multiRow: a deterministic 6-sample cohort with enough spread to
-//     exercise every moment through M4.
-//
-// Each case asserts the operator-emitted map carries every key declared
-// in descriptor/capabilities_aggregators.go and that the values are
-// bit-identical to a private control computation derived from the same
-// recurrence the production code uses (welfordBucket for variance /
-// stddev / welford; private moment sums for skewness / kurtosis).
-//
-// The TestWelfordFamilyComponents_ParallelVsSerial parity lock fans
-// the same cohort across multiple aggregator instances, merges via
-// the MergeOnline / Chan-Welford parallel formula already used by
-// service/shard_reduce.go + service/parallel_decode.go, and asserts
-// every Components() value matches the single-pass run within ULP via
-// math.Float64bits.
-
 // controlMoments returns the buffered (M2, M3, M4) population central
 // moments of vals around the population mean. Mirrors the Aggregate
 // path's sumDeviationPowers helper so the control is computed by the

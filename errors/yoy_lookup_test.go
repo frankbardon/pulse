@@ -8,12 +8,6 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 )
 
-// TestErrorsLookup_YoY_FrequencyMissing_FixupCount asserts the
-// PULSE_OVERLAY_YOY_FREQUENCY_MISSING entry surfaces at least two
-// fixup templates. The E4-S8 polish bar required upgrading the S7
-// single-template form to a multi-template form that gives the caller
-// the choice between authoring the frequency on the host GROUP_DATE
-// grouper or on the OverlaySpec itself.
 func TestErrorsLookup_YoY_FrequencyMissing_FixupCount(t *testing.T) {
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_YOY_FREQUENCY_MISSING))
 	if !ok {
@@ -23,7 +17,7 @@ func TestErrorsLookup_YoY_FrequencyMissing_FixupCount(t *testing.T) {
 		t.Errorf("FixupNotApplicable=true, want false for a polish-bar entry")
 	}
 	if got := len(r.Fixups); got < 2 {
-		t.Errorf("len(Fixups)=%d, want >= 2 (E4-S8 polish bar)", got)
+		t.Errorf("len(Fixups)=%d, want >= 2 (polish bar)", got)
 	}
 }
 
@@ -74,12 +68,6 @@ func TestErrorsLookup_YoY_FrequencyMissing_FixupsCoverBothAuthoringSlots(t *test
 	}
 }
 
-// TestErrorsLookup_YoY_IncompatibleFrequency_FixupCount asserts the
-// PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY entry carries at least two
-// fixup templates. The E4-S8 polish bar covers both substitution
-// (swap the frequency string in place) and granularity-shift (switch
-// the host grouper to a coarser component when the raw data is
-// finer-grained than the supported catalog).
 func TestErrorsLookup_YoY_IncompatibleFrequency_FixupCount(t *testing.T) {
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY))
 	if !ok {
@@ -89,7 +77,7 @@ func TestErrorsLookup_YoY_IncompatibleFrequency_FixupCount(t *testing.T) {
 		t.Errorf("FixupNotApplicable=true, want false for a polish-bar entry")
 	}
 	if got := len(r.Fixups); got < 2 {
-		t.Errorf("len(Fixups)=%d, want >= 2 (E4-S8 polish bar)", got)
+		t.Errorf("len(Fixups)=%d, want >= 2 (polish bar)", got)
 	}
 }
 

@@ -8,23 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestMetaAggregator_MapStateOps_Components is the E1-S7 table-driven
-// sweep covering Components() emission for the three map-state
-// aggregators implemented in E1-S7: AGG_DISTINCT_COUNT / AGG_MODE /
-// AGG_FREQUENCY. Each operator is exercised across four input shapes:
-//
-//   - empty: no input records.
-//   - single-distinct: every row carries the same value.
-//   - tie-mode: two values share the maximal count.
-//   - full-unique: every row distinct (every value ties at count=1).
-//
-// The orchestrator runs the buffered processRecords exit so the
-// frozen mirrors stamped by aggregateValues are the source of truth
-// for Components(). Each case asserts (a) the universal floor (N,
-// NNull) matches the per-record bookkeeping and (b) the operator-
-// specific map matches the schema declared in
-// descriptor/capabilities_aggregators.go byte-for-byte via
-// reflect.DeepEqual.
 func TestMetaAggregator_MapStateOps_Components(t *testing.T) {
 	schema := numericSchema()
 	makeRecs := func(values []float64) []*Record {

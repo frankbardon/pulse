@@ -46,9 +46,6 @@ func TestSkillsList_ReturnsAll(t *testing.T) {
 }
 
 func TestSkillsGet_ValidName(t *testing.T) {
-	// session-bootstrap.md is the E3 replacement for the legacy
-	// session-bootstrap anchor — same role (first stop on every new
-	// MCP session) under the topical-skill naming convention.
 	content, ok := Get("session-bootstrap")
 	if !ok {
 		t.Fatal("Get(\"session-bootstrap\") returned false")
@@ -99,16 +96,7 @@ func TestSkillsFrontmatter_RequiredFields(t *testing.T) {
 	}
 }
 
-// TestSkillsManifestConsistent walks the embedded *.md set directly (no
-// index.json) and verifies that every file has a frontmatter `name:` matching
-// its filename stem and that `applies_to:` only references valid CLI leaves.
-// This is the post-E2-S2 replacement for the legacy index.json consistency
-// check — the loader is now the source of truth.
 func TestSkillsManifestConsistent(t *testing.T) {
-	// Valid CLI leaves from the manifest. Must stay in sync with
-	// descriptor/manifest.go commands(). `process-chain` is the
-	// ProcessChain leaf (E6-S9) — streaming-and-watching's chain-overlay
-	// recipe routes off it.
 	validLeaves := map[string]bool{
 		"process":       true,
 		"process-chain": true,
@@ -164,10 +152,6 @@ func TestSkillsNames(t *testing.T) {
 			t.Errorf("Names() missing embedded skill %q", stem)
 		}
 	}
-	// session-bootstrap is the canonical anchor under the atomic-skill
-	// naming convention (E3 replacement for getting-started). It is
-	// the load-bearing first-session skill referenced by
-	// TestSkillsGet_ValidName.
 	if !slices.Contains(got, "session-bootstrap") {
 		t.Error("Names() does not contain 'session-bootstrap'")
 	}

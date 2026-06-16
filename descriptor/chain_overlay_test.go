@@ -7,14 +7,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E6-S7 — predict-time chain-overlay validator coverage.
-//
-// Bulk runtime tests live in S8; this file owns the gate-coverage
-// matrix: kind unknown, StageRef arms, shape divergence detection, the
-// happy path, and the FR-I3 OverlaysSchemaDivergence echo. The bigger
-// per-handler equivalence matrix rides alongside the runtime handlers
-// in processing/.
-
 func intPtr(v int) *int { return &v }
 
 func makeMergeableSumRequest(field, label string) *types.Request {
@@ -36,11 +28,6 @@ func makeMergeableSumGroupedRequest(field, label, groupField string) *types.Requ
 	}
 }
 
-// twoStageScalarChainRequest returns a ChainRequest carrying two
-// mergeable scalar stages. Stage 0 sums "x" → "sx"; stage 1 sums "sx" →
-// "n". Both stages have empty Groups so inferChainStageShape returns
-// OverlayShapeScalar for either index. The shape happens to match the
-// E6-S4 runtime handler's scalar arm.
 func twoStageScalarChainRequest(specs []*types.ChainOverlaySpec) *types.ChainRequest {
 	return &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
@@ -394,18 +381,6 @@ func TestValidateChain_OverlayTargetDefaultsToLatestStage(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_ChainStageShapeDivergent is the E6-S8 acceptance-list
-// alias for the predict-time MATRIX-vs-SERIES gate. The underlying
-// coverage rides TestValidateChain_OverlayShapeDivergent (above); this
-// wrapper just re-executes the same assertion under the exact name the
-// E6-S8 acceptance list demands so the gate is discoverable via the
-// promised test identifier.
-//
-// Drives a 2-stage chain where stage 0 is MATRIX (Crosstab spec) and
-// stage 1 is SERIES (grouper + aggregator). The whole-chain
-// OVERLAY_INDEX_VS_STAGE spec points Ref to stage 0 and Target to
-// stage 1, forcing the shape gate to fire
-// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT.
 func TestValidateOverlay_ChainStageShapeDivergent(t *testing.T) {
 	data := buildSimplePulseBytes(t)
 	req := twoStageMatrixVsSeriesChainRequest([]*types.ChainOverlaySpec{

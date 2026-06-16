@@ -12,13 +12,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// crosstabOverlayPulseFile builds a tiny categorical-by-categorical
-// cohort whose AGG_SUM 3×3 crosstab produces predictable margin slots,
-// mirroring the processing-layer fixture in
-// processing/crosstab_overlay_test.go. Row margins are 6 / 60 / 600 so
-// the INDEX_VS_MARGIN axis=ROW handler emits cells that sum to 100
-// (= 1/6+2/6+3/6) per row, the same canonical golden the E1-S6
-// processing test pins.
 func crosstabOverlayPulseFile(t *testing.T) (afero.Fs, string) {
 	t.Helper()
 	memFs := afero.NewMemMapFs()
@@ -55,19 +48,6 @@ func crosstabOverlayRequest() *Request {
 	}
 }
 
-// TestProcess_OverlayPopulatesResponse is the E1-S9 acceptance: a
-// pulse.Process call against a Crosstab request carrying Overlays
-// produces Response.Overlays[0] with shape MATRIX and a non-empty
-// MatrixPayload. Mirrors the processing-layer
-// TestCrosstab_OverlayResponsePopulated golden but exercises the
-// full facade chain (pulse.New → pulse.Process → service.Process →
-// service.processCrosstab → buffered RunCrosstab → overlay fold).
-//
-// The fused gate (E1-S9 addition) rejects Overlays-bearing requests,
-// so this test also validates that the buffered path is selected end-
-// to-end — without that gate the fused exit would drop Response.
-// Overlays on the floor (the fused finalize doesn't apply overlays in
-// E1, see processing/crosstab.go applyOverlaysToResponse doc).
 func TestProcess_OverlayPopulatesResponse(t *testing.T) {
 	memFs, _ := crosstabOverlayPulseFile(t)
 	p, err := New(Options{FS: memFs})
@@ -257,22 +237,6 @@ func TestProcess_OverlayEchoedRequest(t *testing.T) {
 	}
 }
 
-// TestExtensions_OverlayKinds_FormulaExprFn is the E8-S7 canonical-name
-// acceptance gate verifying that an embedder-registered ExprFunction
-// surfaced through `pulse.Options.Extensions.ExprFunctions` becomes
-// reachable from an `OVERLAY_FORMULA` `Params["formula"]` expression
-// when the Process facade dispatches a Crosstab + Overlays request.
-// Exercises the full extension thread: pulse.New(Options{Extensions:
-// {ExprFunctions: {...}}}) → ExtensionsSnapshot → buffered crosstab
-// exit → ApplyOverlaysWithExtensions → FORMULA compile-time
-// `ExprOptions()` slice → per-cell expr.Run.
-//
-// Also asserts Predict accepts the same registered-function call (no
-// PULSE_OVERLAY_FORMULA_INVALID_IDENT for the registered name) so the
-// predict + runtime surfaces agree on what an embedder can author. The
-// PredictResult.Streamable flag must report false for the FORMULA
-// catalog entry per types.OverlayStreamability — runtime fold is
-// buffered.
 func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 	memFs, _ := crosstabOverlayPulseFile(t)
 

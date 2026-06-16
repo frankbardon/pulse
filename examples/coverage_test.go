@@ -10,59 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestEveryOperatorHasAnExampleTag is the non-skippable CI gate that
-// enforces the skills-defer-to-examples contract: every atomic operator
-// skill carries a `## See: pulse_examples_search tags=[...]` pointer, and
-// that pointer must resolve to at least one example. The gate enumerates
-// every in-scope operator from the canonical types.All*Types() enumerators
-// and asserts each is represented somewhere in the embedded example
-// library.
-//
-// In-scope categories (assert coverage):
-//
-//   - AGG_*     — types.AllAggregationTypes()
-//   - ATTR_*    — types.AllAttributeTypes()
-//   - FILTER_*  — types.AllFiltererTypes()
-//   - GROUP_*   — types.AllGroupTypes()
-//   - WIN_*     — types.AllWindowTypes()
-//   - FEAT_*    — types.AllFeatureTypes()
-//   - TEST_*    — types.AllTestTypes() (covers both tier-1 row tests and
-//     tier-2 natives like TEST_TREND / TEST_TUKEY_HSD; the
-//     tier-2 family-name partition is a descriptor-side facet,
-//     not a separate types.All*Types() enumerator)
-//   - REG_*     — types.AllRegressionTypes()
-//   - OVERLAY_* — types.AllOverlayKinds()
-//
-// Out-of-scope (intentional — tracked by other gates):
-//
-//   - SYNTH distributions — exercised via pulse_synth_* and the synth/
-//     examples directory; they are not Request-slot operators and are
-//     tracked by TestSkillsCoverAllSynthDistributions +
-//     TestManifestDistributionsComplete.
-//   - Field types — schema-level, not operator-level; tracked by
-//     TestSkillsCoverAllFieldTypes.
-//   - MCP tools — covered by TestSkillsCoverAllMCPTools and the
-//     internal/mcp/mcptools registry, not by _meta.operators.
-//
-// Coverage rule per category:
-//
-//   - For AGG / ATTR / FILTER / GROUP / WIN / FEAT / TEST / REG the
-//     operator string must appear in `_meta.operators` of at least one
-//     example. `_meta.operators` is the canonical declared surface
-//     (kept in sync with the request body via TestExamples_OperatorsMatchBody).
-//   - For OVERLAY the overlay kind must appear in the `kind` field of an
-//     `overlays[]` entry in at least one example body. Overlay kinds are
-//     not part of `_meta.operators` by design — the regex in
-//     TestExamples_OperatorsMatchBody only catches operator types that
-//     ride a Request slot's `type` field. The audit at
-//     `.planning/skill-pack-overhaul/research/examples-gap.md` codified
-//     this two-track convention; E5-S2 authored the gap-closing examples
-//     against it.
-//
-// Style: per-operator t.Run subtests so a failure pinpoints exactly which
-// operator lacks coverage. The subtest name is the operator string itself
-// (e.g. `t.Run("AGG_SUM", ...)`), which makes `go test -run` filtering
-// natural and `--- FAIL` output legible.
 func TestEveryOperatorHasAnExampleTag(t *testing.T) {
 	declared, kinds := collectExampleCoverage(t)
 

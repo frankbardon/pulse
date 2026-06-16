@@ -15,32 +15,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// BenchmarkBufferedProcessWideCohort is the in-tree, hermetic equivalent of
-// the canonical user-facing benchmark in `tmp/huge-request.json` × the
-// (external-drive) `vc/1.pulse` cohort. The cohort lives on an external
-// volume and is not portable across machines or CI, so this bench
-// synthesises a 200-field × 100K-row cohort with a field-type mix similar
-// to the real `vc/1.pulse` (categorical-heavy + a few numeric/date/decimal
-// fields plus one set_u8, one packed_bool, and one nullable categorical so
-// subsequent epics' decode-plan goldens have something to chew on).
-//
-// The driven request mirrors `tmp/huge-request.json`:
-//   - rows:    [{ GROUP_CATEGORY field=brand }]
-//   - columns: [
-//     { GROUP_DATE field=waveDate component=quarter fiscal_offset=-3 },
-//     { GROUP_CATEGORY field=cardFeeling },
-//     ]
-//   - cell:    AGG_SUM(weight) label=sum_weight
-//   - margins: rows, columns, grand
-//   - shape:   matrix (default)
-//   - normalize: row
-//   - normalize_within: 0  (fixes the outer column grouper as the denominator slab)
-//
-// This bench is the standing measurement surface for the crosstab-perf
-// epic — E2-S4, E3-S5, and E4-S5 compare deltas against the baseline
-// captured here. E4-S5 extended it with `b.Run("fused", …)` and
-// `b.Run("buffered", …)` sub-cases so the fused-vs-buffered ratio is
-// directly observable in a single bench invocation.
 func BenchmarkBufferedProcessWideCohort(b *testing.B) {
 	const (
 		fieldCount = 200
@@ -129,36 +103,6 @@ func BenchmarkBufferedProcessWideCohort(b *testing.B) {
 	})
 }
 
-// BenchmarkBufferedProcessWideCohortMergeable is the parallel-decode-
-// driving sibling to BenchmarkBufferedProcessWideCohort. The original
-// crosstab bench routes through the slice-collecting buffered path
-// because Crosstab requests are non-mergeable per
-// processing.CanMergeRequest (req.Aggregations must be empty when
-// req.Crosstab is set). The canParallelDecode gate wired in E3-S4
-// therefore never engages on that bench, leaving the DecodeWorkers knob
-// dormant.
-//
-// To exercise the E3-S3 per-worker partial-aggregator reducer + E3-S4
-// dispatch we drive the same 200-field × 100K-row synth cohort with a
-// mergeable request shape: AGG_SUM + AGG_COUNT + AGG_MIN on the
-// `weight` field. Those aggregators are all associative+commutative
-// (the shard-reduce path already covers them) so the request passes
-// processing.CanMergeRequest and the parallel reducer fires.
-//
-// Worker-count sub-cases (1, 2, 4, runtime.NumCPU()) sweep
-// pulse.Options.DecodeWorkers — N=1 forces the serial scanIter baseline,
-// N>=2 hits canParallelDecode. The b.ReportMetric "workers" tag makes
-// the sub-case identifier survive into bench JSON / benchstat output.
-//
-// Acceptance: TestParallelDecode_PerfGate (//go:build perf) re-runs this
-// bench via testing.Benchmark and asserts the NumCPU variant's ns/op is
-// at most 0.67× the workers=1 baseline. Default CI skips the gate
-// (build-tag exclusion); the maintainer runs it on demand via
-// `go test -tags=perf ./service/... -run TestParallelDecode_PerfGate`.
-//
-// The unchanged BenchmarkBufferedProcessWideCohort (crosstab) stays as
-// the crosstab-orchestrator baseline and remains the E1/E2/E4 perf
-// surface; this sibling bench owns the E3 parallel-decode surface only.
 func BenchmarkBufferedProcessWideCohortMergeable(b *testing.B) {
 	const (
 		fieldCount = 200

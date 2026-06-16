@@ -302,8 +302,6 @@ func TestArchive_PeekShardHeader_InvalidMagic(t *testing.T) {
 	}
 }
 
-// --- PeekShardRecordCount (S2) ---
-
 func TestArchive_PeekShardRecordCount_ZeroRecords(t *testing.T) {
 	single := buildSinglePulse(t)
 	data := buildArchive(t, single, map[string][]byte{
@@ -375,8 +373,6 @@ func TestArchive_PeekShardRecordCount_InvalidHeader(t *testing.T) {
 		t.Errorf("expected PULSE_SHARD_HEADER_INVALID, got %v", perr)
 	}
 }
-
-// --- TestArchive_Open_PopulatesRecordCounts (S2) ---
 
 func TestArchive_Open_PopulatesRecordCounts(t *testing.T) {
 	schema := &encoding.Schema{
@@ -495,9 +491,8 @@ func TestShardArchiveMagicDispatch(t *testing.T) {
 		if s.Filename != want[i] {
 			t.Errorf("shards[%d].Filename = %q, want %q", i, s.Filename, want[i])
 		}
-		// S1 leaves RecordCount at zero — S2 will populate it.
 		if s.RecordCount != 0 {
-			t.Errorf("shards[%d].RecordCount = %d, want 0 (S1 stub)", i, s.RecordCount)
+			t.Errorf("shards[%d].RecordCount = %d, want 0 (stub)", i, s.RecordCount)
 		}
 	}
 	if c2.Schema() == nil || len(c2.Schema().Fields) == 0 {
@@ -607,15 +602,6 @@ func TestShardArchiveCorruptEOCD(t *testing.T) {
 
 // --- TestShardArchiveBackwardsCompat: non-skippable CI gate ---
 
-// TestShardArchiveBackwardsCompat verifies that existing single-file
-// .pulse cohorts open unchanged through the post-sharding Open
-// dispatch path: the file's bytes are not rewritten, its magic and
-// format_version remain "PULSE\x00\x00\x00" + 0x01, the returned
-// Cohort.Shards slice is empty, and the schema reads cleanly.
-//
-// This is the backwards-compatibility safety net for the wire-format
-// change in S1 — sharding adds a second magic (PK\x03\x04) without
-// touching the single-file path.
 func TestShardArchiveBackwardsCompat(t *testing.T) {
 	cfg := fs.NewMemMap()
 

@@ -166,19 +166,6 @@ func TestCrosstab_ParallelDecode_BailBelowThreshold(t *testing.T) {
 	}
 }
 
-// TestCrosstab_ParallelDecode_ByteEqualToSerial is the load-bearing
-// equivalence test for E3-S2: a cohort above the parallelDecodeRecord
-// Threshold, backed by an OsFs (so mmap engages), produces byte-equal
-// crosstab matrices when run with DecodeWorkers=1 (serial path) and
-// DecodeWorkers=4 (parallel segment-aware decode). Any drift signals
-// a segment-boundary bug, a per-worker race on the shared mmap region,
-// or a callback stitching error.
-//
-// The cohort uses the existing 200-field × N-row builder with a
-// reduced row count tuned just above the threshold so the test fits a
-// race-detector run budget. Cohort shape mirrors the crosstab
-// equivalence golden so any aggregator-shape-specific edge case
-// surfaces here too.
 func TestCrosstab_ParallelDecode_ByteEqualToSerial(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping parallel-decode equivalence in -short mode")

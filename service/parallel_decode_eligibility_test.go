@@ -13,31 +13,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// parallel_decode_eligibility_test.go covers the E3-S4 gate +
-// dispatch wiring. The gate function (canParallelDecode) is exercised
-// directly as a pure predicate, then the integration is covered by
-// running Process on representative cohort shapes and asserting
-// byte-equal output vs the DecodeWorkers=1 (forced-serial) baseline.
-//
-// Acceptance criteria mapped to tests:
-//
-//   - mergeable, large, mmap engaged, workers=4 ⇒ parallel
-//     → TestCanParallelDecode_Eligible
-//     → TestProcess_ParallelDecode_ByteEqualToSerial
-//   - mergeable, small (< threshold), workers=4 ⇒ serial (threshold)
-//     → TestCanParallelDecode_BelowThreshold
-//     → TestProcess_ParallelDecode_BelowThresholdBails
-//   - mergeable, large, MemMapFs (no mmap), workers=4 ⇒ serial (mmap)
-//     → TestCanParallelDecode_MemMapFsBails
-//     → TestProcess_ParallelDecode_MemMapFsBails
-//   - non-mergeable, large, workers=4 ⇒ serial (CanMergeRequest)
-//     → TestCanParallelDecode_NonMergeableBails
-//     → TestProcess_ParallelDecode_NonMergeableBails
-//   - shard archive, large, workers=4 ⇒ serial (ShardWorkers route)
-//     → TestCanParallelDecode_ShardArchiveBails
-//   - workers=1 explicit ⇒ serial regardless
-//     → TestCanParallelDecode_WorkersOneBails
-
 // mergeableRequest is the canonical mergeable request used across the
 // eligibility tests. AGG_COUNT + AGG_SUM are associative+commutative
 // integer/float reductions; both implement OnlineAggregator and
@@ -295,13 +270,6 @@ func TestCanParallelDecode_AutoWorkersTreatedAsParallel(t *testing.T) {
 	}
 }
 
-// TestProcess_ParallelDecode_ByteEqualToSerial is the load-bearing
-// integration test for E3-S4: a mergeable request against an eligible
-// single-file cohort with DecodeWorkers=4 must produce byte-equal
-// output vs the DecodeWorkers=1 (forced-serial) baseline for the
-// integer/sentinel aggregators (COUNT/MIN/MAX) and ULP-equivalent
-// output for the float-reducing aggregator (SUM). Drives Service.Process
-// directly so the dispatch wiring is exercised end-to-end.
 func TestProcess_ParallelDecode_ByteEqualToSerial(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping parallel-decode Process equivalence in -short mode")

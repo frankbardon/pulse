@@ -7,55 +7,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E1-S22 byte-equal parity gate: TEST_Z_TWO_SAMPLE ↔ OVERLAY_Z_CELL +
-// OVERLAY_Z_VS_REF. The z-on-means p-value the overlay surface emits
-// MUST be bit-for-bit identical to the p-value TEST_Z_TWO_SAMPLE
-// computes for the same (mean, variance, n) inputs.
-//
-// Both surfaces share the same plumbing by construction:
-//
-//   - TEST_Z_TWO_SAMPLE (processing/test_z.go zTestRow.Finalize)
-//     consumes per-group welfordBucket state, computes the Welch
-//     standard error `sqrt(va/na + vb/nb)`, and finishes through
-//     `standardNormalCDF` rather than the t-CDF.
-//   - AGG_WELFORD (processing/aggregator_welford.go) emits the SAME
-//     welfordBucket state as a WelfordTriple {Mean, Variance, N}.
-//   - applyZCell / applyZVsRef consume a triple-bearing cell pair (or
-//     series entry pair) and route into welchZTest
-//     (processing/overlay_z_cell.go), which performs the SAME
-//     `sqrt(va/na + vb/nb)` SE arithmetic and finishes through the
-//     SAME `standardNormalCDF` helper.
-//
-// The parity test exploits this: it drives one welfordBucket per group
-// over a synthesized 4-group × 50-row data set (≥10 distinct
-// (mean, variance, n) tuples), snapshots the final triple, builds a
-// triple-bearing crosstab cell pair from those exact triples, and
-// asserts `math.Float64bits(p_overlay) == math.Float64bits(p_native)`
-// for every (target, ref) tuple. Sourcing both surfaces from the same
-// welfordBucket end-state guarantees bit-for-bit equivalence — any
-// drift would imply welchZTest and zTestRow.Finalize diverged.
-//
-// Coverage:
-//
-//   - TestOverlayZCell_ParityWithTestZTwoSample (MATRIX-host): 10+
-//     distinct (mean, variance, n) input tuples driven through both
-//     surfaces.
-//   - TestOverlayZVsRef_ParityWithTestZTwoSample (SERIES-host): the
-//     same parity check against the OVERLAY_Z_VS_REF series handler.
-//   - TestOverlayZCell_DegenerateNaNParity: N=1 + Variance=0
-//     degenerate arms produce matching NaN behaviour across both
-//     surfaces — the z row test gates trigger PULSE_TEST_INSUFFICIENT_N
-//     / PULSE_TEST_VARIANCE_ZERO, the overlay surfaces NaN; this test
-//     pins both-side failure where both reject.
-//   - TestOverlayZCell_HelpersReused: targeted single-tuple probe so a
-//     refactor that duplicates the SE / standardNormalCDF recurrence
-//     (instead of reusing the canonical helper) breaks here first.
-//
-// Naming convention: "respondent cohort" / "consumer survey" /
-// "pairwise survey" terminology only — no customer brand names
-// anywhere in this file. Mirrors the same constraint enforced in the
-// T parity test at processing/overlay_t_cell_parity_test.go.
-
 // nativeZTwoSampleP runs the TEST_Z_TWO_SAMPLE row-test surface for
 // one tuple and returns the p-value the row-test emits.
 func nativeZTwoSampleP(t *testing.T, targetStream, refStream []float64) (float64, bool) {
@@ -154,20 +105,6 @@ func overlayZFromTriplesSeries(t *testing.T, target, ref WelfordTriple) (float64
 	return *stat, true
 }
 
-// TestOverlayZCell_ParityWithTestZTwoSample is the headline E1-S22
-// byte-equal parity gate. For each of 10+ (mean, variance, n) tuples
-// the row-test surface (TEST_Z_TWO_SAMPLE via newZTestRow) and the
-// overlay surface (applyZCell via WelfordTriple cells) must produce
-// the same float64 p-value at math.Float64bits granularity.
-//
-// Both surfaces source their (mean, variance, n) from the SAME
-// welfordBucket instance per group so any divergence at the bit level
-// would imply welchZTest and zTestRow.Finalize drifted.
-//
-// Reuses parityTuples() (the canonical ≥10-row tuple table the T
-// parity test pioneered) so the Z gate exercises the identical input
-// surface as the T gate — any drift introduced by a refactor that
-// unifies the Welch SE math will surface in both gates simultaneously.
 func TestOverlayZCell_ParityWithTestZTwoSample(t *testing.T) {
 	tuples := parityTuples()
 	if len(tuples) < 10 {
@@ -205,11 +142,6 @@ func TestOverlayZCell_ParityWithTestZTwoSample(t *testing.T) {
 	}
 }
 
-// TestOverlayZVsRef_ParityWithTestZTwoSample is the SERIES-host
-// sub-test (E1-S22 acceptance criterion: "OVERLAY_Z_VS_REF parity
-// sub-test included"). Same tuples, same welfordBucket-sourced
-// triples, same byte-equal assertion — but routes through the series
-// handler against a grouped-Process-shaped response.
 func TestOverlayZVsRef_ParityWithTestZTwoSample(t *testing.T) {
 	tuples := parityTuples()
 	for _, tc := range tuples {

@@ -10,21 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ValidateFacetOverlays tests (E5-S6). The per-kind contract:
-//
-//   - Ref.Population only; every other ref-family pointer is a shape
-//     mismatch.
-//   - Scope=GROUP only; other scopes fire PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-//   - Level / Within MUST be 0; non-zero fires
-//     PULSE_OVERLAY_LEVEL_OUT_OF_RANGE.
-//   - CHISQ_VS_POP rejects numeric hosts; KS_VS_POP rejects categorical
-//     hosts.
-//   - Single-field default: Params["field"] is optional when the
-//     FacetRequest carries exactly one Field; required when multiple
-//     fields are present.
-//   - Non-FACET kinds attached to FacetRequest.Overlays fire
-//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
-
 // buildOverlayFacetSchema returns a schema with one categorical
 // "category" field and one numeric "score" field — the canonical fixture
 // for FACET-host overlay validator tests.

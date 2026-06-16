@@ -10,30 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_ZSCORE_VS_ROLLING handler
-// (processing/overlay_zscore_vs_rolling.go).
-//
-// E4-S6 scope:
-//
-//   - Fifth windowed-Process overlay in the catalog and second consumer
-//     of the `Ref.RollingMean` arm of the OverlayRef discriminated union
-//     (sibling windowed-rolling kind to E4-S5 INDEX_VS_ROLLING_MEAN —
-//     both kinds share the same per-group ring buffer + Welford trio
-//     carrier; this kind reads BOTH mean and M2 via
-//     `sqrt(M2 / (count - 1))` SAMPLE SD, the sibling reads only mean).
-//   - The acceptance criteria call for: basic windowed math (window=5),
-//     window-exceeds-series degenerate case, carrier count<2 NaN-without-
-//     warning rule, zero rolling-SD PULSE_OVERLAY_REF_ZERO emission,
-//     absent-point ring-carrier preservation, missing-window-param
-//     rejection, non-positive window rejection, default layer name,
-//     buffered Process E2E path, nil-host coded error, and a sample-SD
-//     hand-computed math pin (the canonical distinguishing fact from
-//     OVERLAY_ZSCORE_VS_TOTAL which uses POPULATION SD).
-//   - Tests reuse the SeriesHostView fixtures from
-//     overlay_series_test.go (newStubSeriesHost) for the per-handler
-//     coverage, and the grouped Process integration fixture for the
-//     buffered smoke test (mirrors overlay_index_vs_rolling_mean_test.go).
-
 // newZScoreVsRollingSpec returns the canonical happy-path
 // OVERLAY_ZSCORE_VS_ROLLING spec the per-test fixtures consume — GROUP
 // scope, `Ref.RollingMean` populated as the empty marker, a caller-
@@ -314,8 +290,6 @@ func TestOverlay_ZScoreVsRolling_AbsentPointDoesNotAdvanceCarrier(t *testing.T) 
 	const tol = 1e-9
 	want2 := (30.0 - 15.0) / math.Sqrt(50.0)
 	assertSeriesEntryStatisticWithinTol(t, &layers[0], 2, want2, tol)
-	// entry[3]: absent → nil Statistic (canonical "present slot, empty
-	// summary" shape from E3-S1).
 	if entries[3].Summary.Statistic != nil {
 		t.Errorf("entries[3].Summary.Statistic = %v, want nil (absent group)",
 			*entries[3].Summary.Statistic)

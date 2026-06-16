@@ -9,14 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Per-handler unit tests for OVERLAY_Z_CELL (E1-S17). Each test pairs
-// a synthetic 3×3 matrix on the reference + target side with
-// hand-computed known answers; the scalar fixture builder
-// (makeMatrixFromValues) and the triple fixture builder
-// (makeMatrixFromTriples) live alongside the T_CELL test surface in
-// overlay_compose_handlers_test.go (landed by E1-S9+S10) so the
-// parity pair stays symmetric across handlers.
-
 // TestApplyZCell_ScalarKnownAnswer pins a Z-cell p-value for the
 // scalar+Params fallback path. Cell (0,0): target_mean=10, ref_mean=9,
 // var=1, n=2 ⇒ se = sqrt(0.5+0.5) = 1, z = 1 ⇒ p ≈ 0.3173.

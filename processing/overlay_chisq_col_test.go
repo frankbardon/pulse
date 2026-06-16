@@ -7,36 +7,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// chiSqColPayloadKnown returns a synthetic 3 × 2 host MatrixPayload
-// whose per-column χ² goodness-of-fit statistics are computable in
-// closed form. Mechanical column-axis transpose of
-// chiSqRowPayloadKnown (E2-S7) so the math reuses the same arithmetic
-// in flipped axis orientation.
-//
-//	      c0   c1   | row_margin
-//	r0    10   20   |   30
-//	r1    20   20   |   40
-//	r2    30   20   |   50
-//	col   60   60   |  grand = 120
-//
-// Expected counts (row_margin × col_margin / grand):
-//
-//	c0: [30*60/120, 40*60/120, 50*60/120] = [15, 20, 25]
-//	c1: [30*60/120, 40*60/120, 50*60/120] = [15, 20, 25]
-//
-// Per-column χ² (df = rows - 1 = 2):
-//
-//	χ²_c0 = (10-15)²/15 + (20-20)²/20 + (30-25)²/25
-//	      = 25/15 + 0 + 25/25
-//	      = 1.6667 + 0 + 1.0
-//	      = 2.6667
-//	χ²_c1 = (20-15)²/15 + (20-20)²/20 + (20-25)²/25
-//	      = 25/15 + 0 + 25/25
-//	      = 1.6667 + 0 + 1.0
-//	      = 2.6667
-//
-// p-value for χ² ≈ 2.6667, df=2 is ≈ 0.2636. Both columns produce the
-// same statistic on this symmetric contingency.
 func chiSqColPayloadKnown() *types.MatrixPayload {
 	return &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"r"}, Types: []string{"GROUP_CATEGORY"}},
@@ -220,7 +190,7 @@ func TestOverlay_ChiSqCol_ExpectedLowEmitsWarn(t *testing.T) {
 			len(warnings), warnings)
 	}
 	if got, want := warnings[0].Code, "PULSE_OVERLAY_EXPECTED_LOW"; got != want {
-		t.Fatalf("warning Code = %q, want %q (stub code; E2-S10 promotes)", got, want)
+		t.Fatalf("warning Code = %q, want %q (stub code)", got, want)
 	}
 	// Details should carry the column index (0) and count of low-expected
 	// cells (all 3 cells in col 0 have expected < 5).

@@ -13,13 +13,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E2-S4 — MetaGrouper.Components() emission for GROUP_CATEGORY and
-// GROUP_DATE. These tests exercise the operator-specific keys only;
-// the universal floor ({total_n, n_null}) is filled by the
-// orchestrator and is verified end-to-end via
-// service/process_components_test.go's TestService_Process_Components_*
-// suites at the boundary where Process drives both.
-
 // --- GROUP_CATEGORY ------------------------------------------------
 
 // makeCategoricalSchemaWithDictSize builds a categoricalSchema-style
@@ -493,15 +486,6 @@ func TestGrouper_Date_Components_YearGranularity(t *testing.T) {
 		}
 	}
 }
-
-// --- GROUP_RANGE ---------------------------------------------------
-//
-// E2-S5 — MetaGrouper.Components() emission for the three edge-based
-// groupers. RANGE / ROUNDED declare ComponentsMergeability=Mergeable
-// (per-bucket counts fold across chunks); QUANTILE is None
-// (needs a sorted view of the full input). The buffered-only emission
-// contract for QUANTILE is exercised here; the streaming-path per-
-// chunk omission lands in E4-S4 wiring.
 
 func TestGrouper_Range_Components_EmptyCohort(t *testing.T) {
 	schema := numericSchema()
@@ -1037,8 +1021,6 @@ func mapKeysSortedAny(m map[string]any) []string {
 	return out
 }
 
-// --- E2-S12 manifest-vs-runtime parity sweep ----------------------
-
 // manifestGroupOperatorKeys returns the operator-specific key set
 // (manifest schema MINUS the universal grouper floor {total_n, n_null})
 // for the named grouper. Sorted ascending. Sourced from the public
@@ -1162,12 +1144,6 @@ func allGroupParityFixturesEmpty(t *testing.T) map[types.GroupType]groupParityFi
 	return out
 }
 
-// allGroupParityFixturesNullHeavy returns the fixture map with cohorts
-// whose grouper-input field is null on every row. Only categories
-// where the field-type supports nullable inputs (numeric, date) are
-// covered; the set-field cohorts share the small-case records since
-// set_* nullability is bitmap-only and the per-field-null heavy case
-// is exercised in the per-family E2-S6 unit tests.
 func allGroupParityFixturesNullHeavy(t *testing.T) map[types.GroupType]groupParityFixture {
 	t.Helper()
 
@@ -1195,9 +1171,6 @@ func allGroupParityFixturesNullHeavy(t *testing.T) map[types.GroupType]groupPari
 			map[string]bool{"brand": true})
 	}
 
-	// Set ops: null-heavy substitutes "empty mask" rows (the set_* zero
-	// mask is a valid distinct bucket from null per the field-type
-	// contract; the per-family E2-S6 tests cover the strict null path).
 	setSchema := makeSetTestSchema(t)
 	setEmptyRecs := []*Record{
 		makeSetRecord(setSchema, 0),
@@ -1216,37 +1189,6 @@ func allGroupParityFixturesNullHeavy(t *testing.T) map[types.GroupType]groupPari
 	}
 }
 
-// TestMetaGrouper_AllOps_ManifestParity is the E2-S12 manifest-vs-
-// runtime parity sweep. For every registered grouper (7 today) it
-// drives one Process round-trip on a small in-memory cohort and
-// asserts:
-//
-//   - Response.Components.Groupers carries exactly one entry for the
-//     slot.
-//   - That entry's Operator map key set (sorted ascending) equals the
-//     manifest's components_schemas.groupers[<op>].keys minus the
-//     universal grouper floor {total_n, n_null} (those keys are typed
-//     fields on GrouperComponents — not in the Operator map).
-//
-// Three sub-cases per grouper:
-//   - small: a non-trivial input partitions across multiple buckets.
-//   - empty: zero input rows; floor-only Operator (still emits the
-//     schema-declared keys with empty payloads per the per-family
-//     E2-S4..S6 contract).
-//   - null-heavy: every input row's field is null; floor-only Operator
-//     with zero-bucket payloads.
-//
-// The per-family tests (E2-S4..S6) verify each grouper's bucket math;
-// THIS test verifies the schema matches what the grouper emits. Any
-// drift between descriptor/capabilities_groupers.go and the runtime
-// emission surfaces as an immediate failure with the operator name +
-// key diff.
-//
-// FOLLOWUP: multi-shard sub-case is covered end-to-end via the
-// service/process_run_components_test.go shard-archive case; in-
-// processing/ has no shard archive fixture (the orchestrator's
-// shard-parallel reducer lives in service/), so the multi-shard
-// parity surface is locked at the service boundary.
 func TestMetaGrouper_AllOps_ManifestParity(t *testing.T) {
 	// --- small (populated) cohort -----------------------------------
 	t.Run("small", func(t *testing.T) {
@@ -1287,11 +1229,6 @@ func TestMetaGrouper_AllOps_ManifestParity(t *testing.T) {
 				if entry.NNull < 0 {
 					t.Errorf("%s: NNull = %d, want >= 0", op, entry.NNull)
 				}
-				// Single-key groupers: TotalN + NNull ≤ input rows.
-				// Multi-key streaming groupers (GROUP_SET_PER_ELEMENT)
-				// fan one row into one bucket per selected label, so
-				// TotalN (= sum of bucket counts) can EXCEED input rows;
-				// the per-family E2-S6 test locks that invariant.
 				if op != types.GROUP_SET_PER_ELEMENT && entry.TotalN+entry.NNull > len(fix.records) {
 					t.Errorf("%s: TotalN (%d) + NNull (%d) > input rows (%d)",
 						op, entry.TotalN, entry.NNull, len(fix.records))
@@ -1354,14 +1291,6 @@ func TestMetaGrouper_AllOps_ManifestParity(t *testing.T) {
 		}
 	})
 
-	// --- null-heavy cohort ------------------------------------------
-	// Every input row is null on the grouper input field (or for the
-	// set ops, every row carries an empty mask — the set_* zero-mask
-	// surface is a distinct "no selection" bucket the per-family E2-S6
-	// tests already lock). The operator-specific key set must remain
-	// the manifest-declared set; counts collapse onto NNull (numeric /
-	// date / categorical) or to the n_empty_mask bucket-side count
-	// (set ops).
 	t.Run("null_heavy", func(t *testing.T) {
 		fixtures := allGroupParityFixturesNullHeavy(t)
 		for _, op := range types.AllGroupTypes() {

@@ -484,9 +484,6 @@ func TestNdjsonReader_ReadOverlays_HostRecordsIgnored(t *testing.T) {
 	}
 }
 
-// TestNdjsonWriter_SatisfiesOverlayAwareWriter is the compile-time
-// check that the Writer satisfies pio.OverlayAwareWriter so the
-// ExportJob dispatch wiring (E9-S7) can detect the capability.
 func TestNdjsonWriter_SatisfiesOverlayAwareWriter(t *testing.T) {
 	var _ pio.OverlayAwareWriter = (*Writer)(nil)
 	w := NewWriterToBuffer()

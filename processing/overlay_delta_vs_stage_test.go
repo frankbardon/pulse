@@ -104,12 +104,6 @@ func TestApplyDeltaVsStage_MatrixZeroRefNoNaN(t *testing.T) {
 	}
 }
 
-// TestApplyDeltaVsStage_MatrixMissingRefCellWarns covers the missing-
-// reference defence — a target cell whose (rowKey, colKey) pair has
-// no matching reference cell emits PULSE_OVERLAY_REFERENCE_UNKNOWN with
-// a "ref_missing" Detail AND folds against an implicit zero reference
-// so the overlay cell value equals the target verbatim (per the E6-S5
-// acceptance "Missing reference key → delta defined as `target - 0`").
 func TestApplyDeltaVsStage_MatrixMissingRefCellWarns(t *testing.T) {
 	rowKeys := []types.AxisKey{{"r0"}}
 	colKeys := []types.AxisKey{{"c0"}, {"c1"}}
@@ -308,12 +302,6 @@ func TestApplyDeltaVsStage_ScalarZeroRefNoNaN(t *testing.T) {
 	}
 }
 
-// TestApplyDeltaVsStage_ShapeDivergenceWarning covers the shape-
-// divergence defence: target carries matrix shape, reference carries
-// series shape. The handler emits a single warning under the canonical
-// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT code (landed with E6-S6)
-// and surfaces an empty payload that inherits the target's shape
-// (matrix).
 func TestApplyDeltaVsStage_ShapeDivergenceWarning(t *testing.T) {
 	target := matrixResponse(
 		[]types.AxisKey{{"r0"}},
@@ -366,11 +354,6 @@ func TestApplyDeltaVsStage_DispatchReplacesStub(t *testing.T) {
 	}
 }
 
-// TestApplyDeltaVsStage_SpecOrderPreserved covers the cross-cutting
-// regression that S4+S5 layers land in matching spec order. A two-spec
-// ChainRequest.Overlays (one INDEX_VS_STAGE, one DELTA_VS_STAGE)
-// walked through ApplyChainOverlays must produce two layers, both
-// carrying real arithmetic now that S5 has replaced the stub.
 func TestApplyDeltaVsStage_SpecOrderPreserved(t *testing.T) {
 	target := seriesResponse([]map[string]any{{"group": "us", "sum": 120.0}})
 	ref := seriesResponse([]map[string]any{{"group": "us", "sum": 100.0}})
@@ -414,9 +397,6 @@ func TestApplyDeltaVsStage_SpecOrderPreserved(t *testing.T) {
 	if math.Abs(*idxEntry.Summary.Statistic-120.0) > 1e-9 {
 		t.Errorf("INDEX entry Statistic = %g, want 120.0", *idxEntry.Summary.Statistic)
 	}
-	// DELTA layer should now carry a series entry with Statistic == 20
-	// (120 - 100). Pre-S5 this would have been the chassis stub with an
-	// empty payload — the test asserts the stub has been replaced.
 	if layers[1].Payload.Series == nil || len(layers[1].Payload.Series.Entries) != 1 {
 		t.Fatalf("DELTA layer should have one series entry (stub replaced), got %+v", layers[1].Payload)
 	}

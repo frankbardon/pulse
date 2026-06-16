@@ -44,12 +44,6 @@ func TestResolveComposeSlots_ByLabel(t *testing.T) {
 	}
 }
 
-// TestResolveComposeSlots_AutoDefaultedLabels asserts an empty Label
-// on a *Request slot is filled with `request_<i+1>` (1-based) per the
-// E7-S1 auto-default rule that lives on
-// service.applyComposeLabelDefaults. The resolver mirrors the same
-// rule so descriptor-side predict (which never goes through the
-// service normaliser) reaches an identical lookup table.
 func TestResolveComposeSlots_AutoDefaultedLabels(t *testing.T) {
 	respA := composeSlotOf(types.OverlayShapeScalar)
 	respB := composeSlotOf(types.OverlayShapeScalar)
@@ -271,11 +265,6 @@ func TestLookupReference_HappyPath(t *testing.T) {
 	}
 }
 
-// TestLookupReference_UnknownReturnsCoded asserts an unknown label
-// surfaces a coded PROCESSING_INTERNAL error whose Details carry the
-// canonical PULSE_OVERLAY_REFERENCE_UNKNOWN code plus the originating
-// spec index. The handler-side wrapping pattern relies on the Details
-// shape; locking it here keeps E7-S9..S15 handlers honest.
 func TestLookupReference_UnknownReturnsCoded(t *testing.T) {
 	byLabel := map[string]*types.Response{"baseline": composeSlotOf(types.OverlayShapeScalar)}
 

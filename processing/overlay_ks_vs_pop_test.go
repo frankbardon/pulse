@@ -9,26 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_KS_VS_POP runtime handler
-// (processing/overlay_ks_vs_pop.go) + the FACET-host dispatch
-// (processing/overlay_facet_dispatch.go).
-//
-// E5-S5 scope: runtime handler only — the per-kind predict-side validator
-// lands in E5-S10. The tests below exercise:
-//
-//   - The histogram-path known-answer KS against a synth shifted-normal
-//     vs centered-normal fixture (acceptance: HISTOGRAM PATH preferred).
-//   - The percentile-path fallback when histograms are absent on both
-//     arms but percentile maps are present (acceptance: PERCENTILE PATH
-//     fallback).
-//   - The Welford-only degenerate path when neither histograms nor
-//     percentiles are available (acceptance: NaN + NaN with
-//     PULSE_OVERLAY_REF_ZERO carrying which knobs are missing).
-//   - The categorical host rejection (acceptance: numeric-arm only —
-//     categorical hosts fire PULSE_OVERLAY_SCOPE_UNSUPPORTED).
-//   - The defense-in-depth nil-host / nil-pop / empty arm guards.
-//   - The dispatch-table wiring + streaming-vs-buffered byte identity.
-
 // ksVsPopSpec builds a minimal OverlaySpec carrying the OVERLAY_KS_VS_POP
 // kind + a GROUP scope + a populated Population reference. Mirrors
 // chiSqVsPopSpec() / zscoreVsPopSpec() / indexVsPopSpec().
@@ -284,11 +264,6 @@ func TestApplyKSVsPop_WelfordOnlyDegenerate(t *testing.T) {
 	}
 }
 
-// TestApplyKSVsPop_CategoricalHostRejected pins the numeric-arm-only
-// contract: a categorical host (no Numeric payload) returns a coded
-// PROCESSING_INTERNAL error carrying PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-// Defense in depth — the per-kind validator (E5-S10) will reject
-// categorical hosts at predict time.
 func TestApplyKSVsPop_CategoricalHostRejected(t *testing.T) {
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},

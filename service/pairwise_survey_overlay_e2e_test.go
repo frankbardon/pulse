@@ -9,62 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E1-S23 end-to-end byte-equal parity gate for the pairwise consumer
-// survey overlay surface against the native TEST_WELCH / TEST_Z_TWO_SAMPLE
-// row tests.
-//
-// Mission. Stories S12 (Welch parity) and S22 (Z parity) already pin
-// the in-package per-cell parity gates at processing/overlay_t_cell_
-// parity_test.go and processing/overlay_z_cell_parity_test.go. Those
-// gates drive synthesized welfordBucket triples through the overlay
-// surface and the row tests directly — perfect for the math, but they
-// do NOT prove the customer-shape pipeline (categorical respondent
-// cohort → Crosstab + AGG_WELFORD per Compose slot → OVERLAY_T_CELL /
-// OVERLAY_Z_CELL pair → byte-equal p-value vs TEST_WELCH /
-// TEST_Z_TWO_SAMPLE) survives the full service-level wiring.
-//
-// This file closes that gap. The synthetic cohort mirrors the field
-// shape from .planning/stat-test-overlay-parity/research/pairwise-test-
-// examples.md fixtures 02 / 03 / 04:
-//
-//   - 8 fields: 7 categorical_u8 dimensions + 1 f64 metric.
-//   - Field names: country_code, study_code, metric_code,
-//     metric_brand_code, wave_date_label, option_code,
-//     column_designator (the pair axis), metric_value (the f64
-//     measurement under test).
-//
-// Brand-name policy. Any customer-brand references found in
-// `.planning/` background docs are uncommitted — those references are
-// scrubbed from the in-tree research fixture and from THIS file. Every
-// identifier, comment, and dictionary value here uses neutral
-// terminology: respondent cohort, consumer survey, pairwise survey,
-// generic demographic-segment labels (TOTAL_POP, AFFLUENT,
-// URBAN_MILLENNIALS, RURAL), country / study / metric codes (C0..C2,
-// S0..S1, M0..M1). The Compose envelope mirrors the fixture 04 pattern
-// without naming any customer.
-//
-// The two parity tests below:
-//
-//   1. TestPairwiseSurveyOverlay_WelchEndToEnd — one ComposedRequest
-//      with two slots, each filtered to one column_designator value
-//      under a fixed (country_code, study_code, metric_code,
-//      metric_brand_code, wave_date_label, option_code) outer tuple.
-//      Each slot is a Crosstab with AGG_WELFORD on metric_value
-//      producing a 1×1 matrix carrying a WelfordTriple cell.
-//      `applyComposeOverlays` runs OVERLAY_T_CELL; the resulting
-//      per-cell p-value MUST byte-equal the p-value TEST_WELCH emits
-//      when SplitBy=column_designator over the same row set.
-//
-//   2. TestPairwiseSurveyOverlay_ZEndToEnd — the same shape but using
-//      OVERLAY_Z_CELL on the overlay side and TEST_Z_TWO_SAMPLE on the
-//      native side. Mirrors fixture 03.
-//
-//   3. TestPairwiseSurveyOverlay_MultiSlotOrderPreserved — mirrors
-//      fixture 04 (C(k,2) pairs within one outer group). The
-//      ComposedRequest carries multiple OVERLAY_T_CELL specs (one per
-//      unordered pair); the layer slice MUST emit in spec order
-//      regardless of the parallel worker dispatch.
-
 // pairwiseSurveySchema builds the 8-field respondent-cohort schema the
 // e2e tests share. The categorical fields use small dictionaries so a
 // u8 column index suffices for every code; the f64 metric column
@@ -173,12 +117,6 @@ func pairwiseSurveyCohort() []pairwiseSurveyRow {
 		{mu: 45.0, sd: 10.0}, // RURAL
 	}
 
-	// Outer keys exercised by the synthetic cohort. The headline
-	// parity tests filter to the first outer tuple (country=C0,
-	// study=S0, metric=M0, brand=B0, wave=W0, option=O0); the
-	// remaining rows under different outer tuples confirm the
-	// Filterer narrowing actually engages (without them every row in
-	// the cohort would land in the headline tuple's Welford bucket).
 	type outerKey struct {
 		country, study, metric, brand, wave uint64
 	}
@@ -375,10 +313,6 @@ func pairwiseSurveyOverlayP(t *testing.T, svc *Service, kind types.OverlayKind, 
 	if len(responses) != 2 {
 		t.Fatalf("Compose returned %d responses, want 2", len(responses))
 	}
-	// The Compose facade discards the layer slice (facade rewire
-	// deferred to E7-S15) so we invoke applyComposeOverlays directly
-	// against the materialised responses to extract the layer the
-	// orchestrator hook produced.
 	requests, err := applyComposeLabelDefaults(composed)
 	if err != nil {
 		t.Fatalf("applyComposeLabelDefaults: %v", err)
