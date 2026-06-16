@@ -1,107 +1,75 @@
 ---
 name: compose-requests
-description: Run several Process requests against one cohort in a single pulse_compose call — order-preserving slot-by-index, optional parallel execution. Use when comparing operator outputs, fan-out reporting, or batching multiple analyses for one MCP round-trip.
+description: ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components.
 type: guide
-applies_to: compose
+kind: design
+applies_to: compose, predict
+covers: [ComposedRequest, pulse_compose, OverlayLayer]
 ---
 
-# Compose Requests
+# Compose requests
 
-<skill_overview>
-A ComposedRequest bundles multiple Request objects into a single operation. Invoke this skill when running several analyses against the same cohort without reloading data.
-</skill_overview>
+`ComposedRequest` bundles N independent `Request` objects into one round-trip. Use it when several analyses share a cohort — Pulse loads + decodes the cohort once and dispatches every slot against the same record set.
 
-<reference>
-## When to Use ComposedRequest
-
-Use ComposedRequest when:
-
-1. **Multiple aggregations on the same cohort**: You need COUNT, AVERAGE, and FREQUENCY results but with different grouping or filtering.
-2. **Comparison queries**: You want the same aggregation with different filters to compare subgroups.
-3. **Dashboard population**: You need to fill multiple dashboard widgets from a single cohort in one call.
-
-Do NOT use ComposedRequest when:
-
-- You only have one query. Use a regular Request instead.
-- Each query targets a different cohort. ComposedRequest is optimized for shared-cohort scenarios.
-</reference>
-
-<example name="composed-request">
-## Structure
-
-```json
+```jsonc
 {
   "requests": [
-    {
-      "cohort": {"filename": "students.pulse"},
-      "aggregations": [{"type": "AGG_COUNT", "field": "score"}],
-      "filterers": [{"type": "FILTER_INCLUDE", "field": "grade", "values": ["A"]}]
-    },
-    {
-      "cohort": {"filename": "students.pulse"},
-      "aggregations": [{"type": "AGG_AVERAGE", "field": "score"}],
-      "groups": [{"type": "GROUP_CATEGORY", "field": "department"}]
-    }
+    {"cohort": {"filename": "students.pulse"},
+     "aggregations": [{"type": "AGG_COUNT", "field": "score"}],
+     "filterers":    [{"type": "FILTER_INCLUDE", "field": "grade", "values": ["A"]}]},
+    {"cohort": {"filename": "students.pulse"},
+     "aggregations": [{"type": "AGG_AVERAGE", "field": "score"}],
+     "groups":       [{"type": "GROUP_CATEGORY", "field": "department"}]}
   ]
 }
 ```
-</example>
 
-<rule severity="should" topic="shared-cohort">
-## Shared Cohorts
+## Order-preserving slot dispatch
 
-When all requests reference the same cohort file, Pulse loads and decodes the file once and shares the record set across all requests. This provides significant performance benefit for large cohorts.
+Slots execute in declared order; the response is an array in the same order. Each slot carries its own `Response` shell — per-slot `Metadata`, `Aggregations`, `Crosstab`, `Components`, etc. Filter state in slot `i` does not affect slot `j`.
 
-If requests reference different cohort files, each file is loaded independently.
-</rule>
-
-<rule severity="must" topic="result-ordering">
-## Result Merging
-
-Results are returned as an array in the same order as the input requests. Each result has its own metadata (total_rows, filtered_rows) reflecting that request's filter state.
-
-```json
+```jsonc
 [
   {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 50}},
   {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 1000}}
 ]
 ```
-</rule>
 
-<rule severity="should" topic="slot-labels">
-## Slot Labels
+## Shared cohort optimisation
 
-Each `Request` carries an optional `label` field (`"label,omitempty"`) used by Compose-only overlay kinds to resolve sibling references across slots. The engine auto-fills empty labels with `request_<index+1>` (1-based: `request_1`, `request_2`, ...) before dispatching, against a clone of the slot so your `*Request` pointer is never mutated.
+When every slot's `cohort.filename` resolves to the same path, the orchestrator decodes the file once and shares record buffers across slots. Mixed cohorts fall through to per-slot independent decode.
 
-Two slots resolving to the same final label (caller-supplied duplicates OR a caller-supplied value that collides with another slot's auto-default) are rejected with `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs. Set explicit labels when you intend to reference a slot by name from a Compose-only overlay; omit them otherwise and accept the auto-default.
+## Slot labels
 
-The slot is additive — omitting it leaves the JSON wire shape and `CanonicalHash` output byte-identical to pre-Label callers.
-</rule>
+Each `Request` carries an optional `label` (`"label,omitempty"`). The engine auto-fills empty labels with `request_<index+1>` (1-based) against a clone — your `*Request` pointer is never mutated. Labels are the resolution key for Compose-only overlay `Reference` / `Target` lookups.
 
-<example name="invoke-compose">
-## Calling pulse_compose
+Two slots resolving to the same final label (caller duplicates OR caller-vs-auto collision) reject with `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs. Set explicit labels when an overlay references the slot by name; omit otherwise and accept the default. The slot is additive — omitting it keeps wire bytes and `CanonicalHash` output byte-identical to pre-label callers.
 
-```json
-{
-  "request": "{\"requests\":[{\"cohort\":{\"filename\":\"students.pulse\"},\"aggregations\":[{\"type\":\"AGG_COUNT\",\"field\":\"score\"}]}]}"
-}
-```
+## Parallel execution
 
-The response is the standard envelope. Each request's result is one entry in `data` in the same order as the input. Per-request `metadata` reflects that request's filter state.
-</example>
+`ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` (CLI: `pulse api compose --parallel N --fail-fast --timeout 30s`) gates a bounded worker pool. `MaxWorkers <= 1` forces serial. `FailFast: true` cancels in-flight slots on the first error; default mode runs every slot and collects per-slot errors. Determinism: response order matches request order regardless of completion order.
 
-<reference>
+## Post-slot Compose-overlay fold
+
+`ComposedRequest.Overlays []OverlaySpec` runs AFTER every slot finalises. The fold reads each slot's already-emitted `Response.Crosstab` / `Response.Data` / `Response.Components` (read-only) and writes a sibling `Response.Overlays[i]` entry. **The fold never mutates per-slot `Components` or the per-slot payload** — overlays are an additive decoration keyed to host coordinates (see `skills/overlay-system.md`).
+
+Compose-only kinds (`OVERLAY_PROP_Z_PANEL`, `OVERLAY_PANEL_INDEX_VS_REF`, etc.) resolve `Reference.SlotLabel` / `Target.SlotLabel` against the auto-or-explicit labels above. Schema-divergence (per-axis grouper-kind tuple mismatch) is the most common reject; the no-execute companion `descriptor.ValidateCompose(req)` walks every overlay against per-slot request shapes (MATRIX / SERIES / SCALAR) and populates `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` with `(ReferenceLabel, TargetLabel, Reason)` for every offender. Run it before paying for `pulse_compose`.
+
+### Optional fast-path knob
+
+`OverlaySpec.Options.DictPrefixFast bool` — multi-slot schema-match via byte-equal dictionary prefix probe. Requires embedder to verify prefix-equal dicts. Default `false`. `MaxPanelTargets int` caps `OVERLAY_PROP_Z_PANEL` / `OVERLAY_PANEL_INDEX_VS_REF` Targets; overflow → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP` (default 16).
+
+## Per-slot Components contract (v0.20.0)
+
+Every slot's `Response.Components` is emitted independently — the universal floor (`{n, n_null}` on aggregators, `{total_n, n_null}` on groupers, `{n_in, n_out, n_null_input}` on filterers) plus per-operator `Operator` map ride the per-slot response. The Compose-overlay fold runs AFTER per-slot Components emission and treats them as read-only inputs; overlays never rewrite the per-slot `Components` block. Consumers can render a per-slot Components view immediately and a Compose-overlay decoration layer on top.
+
 ## Validate before executing
 
-Call `pulse_predict` on each `Request` inside the batch (or run them as a sequence through `pulse_predict` calls) to check field references, type compatibility, and aggregator-categorical interactions before paying for `pulse_compose`. Predict has no batch mode in v1; loop per element.
+`pulse_predict` has no batch mode in v1 — loop per slot to catch field typos, missing categorical dicts, or aggregator-type mismatches before paying for `pulse_compose`. For `ComposedRequest.Overlays` use `descriptor.ValidateCompose` (no-execute, walks every spec against per-slot shapes).
 
-For Compose-only overlay validation (`ComposedRequest.Overlays`), the no-execute companion is `descriptor.ValidateCompose(req *types.ComposedRequest)`. It walks every overlay spec against the per-slot request shapes (MATRIX / SERIES / SCALAR) and surfaces the six structural failures the runtime would otherwise raise — unknown kind, unknown reference, unknown target, slot-shape divergence, slot-not-crosstab (matrix-required kinds against a non-MATRIX slot), schema-divergence (per-axis grouper-kind tuple mismatch), and panel-target-cap violation (`OVERLAY_PROP_Z_PANEL` / `OVERLAY_PANEL_INDEX_VS_REF` over 16 targets, or over `OverlayOptions.MaxPanelTargets` when set). Each failure populates `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` with the rejected `(ReferenceLabel, TargetLabel, Reason)` tuple alongside the envelope error so renderers can read every offending pair in one round-trip. Key-set alignment and dictionary-prefix drift are runtime-only (record-level visibility) and stay out of the no-execute surface.
+## See
 
-For parallel execution and fail-fast control (CLI-side flags), see https://frankbardon.github.io/pulse/cli/api-compose.html.
-</reference>
-
-<rule severity="caveat" topic="batch-size">
-## Limits
-
-There is no hard limit on the number of requests in a ComposedRequest, but each request adds processing time proportional to its filter/aggregate complexity. For very large batches, consider whether the cohort data is better served by a single request with appropriate grouping.
-</rule>
+- `response-components` — per-slot Components shape + universal floor + per-operator keys.
+- `overlay-system` — Compose-only overlay catalog and resolution rules.
+- `streaming-and-watching` — `Request.Hash()` for per-slot cache keys; `StreamResult` is Process-only (not Compose).
+- `process-chain` — sequential pipeline alternative when slots depend on each other.
