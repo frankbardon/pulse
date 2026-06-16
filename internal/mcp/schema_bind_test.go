@@ -329,10 +329,10 @@ func TestMCPSchemaBinding_OverlayKindEnum(t *testing.T) {
 	// Facade isolation invariants: per-facade kinds must NOT leak onto
 	// the Request enum.
 	for _, leak := range []string{
-		"OVERLAY_INDEX_VS_POP",     // FACET-only
-		"OVERLAY_INDEX_VS_STAGE",   // CHAIN-only
-		"OVERLAY_INDEX_VS_REF",     // COMPOSE-only
-		"OVERLAY_PROP_Z_PANEL",     // COMPOSE-only multi-ref
+		"OVERLAY_INDEX_VS_POP",       // FACET-only
+		"OVERLAY_INDEX_VS_STAGE",     // CHAIN-only
+		"OVERLAY_INDEX_VS_REF",       // COMPOSE-only
+		"OVERLAY_PROP_Z_PANEL",       // COMPOSE-only multi-ref
 		"OVERLAY_PANEL_INDEX_VS_REF", // COMPOSE-only multi-ref
 	} {
 		if slices.Contains(got, leak) {

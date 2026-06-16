@@ -421,4 +421,3 @@ func applyDeltaVsStageScalar(spec *types.ChainOverlaySpec, target, ref *types.Re
 	layer.Summary.Max = &scoreCopy
 	return layer, warnings, nil
 }
-

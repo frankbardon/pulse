@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process aggregating revenue by month decorated with TWO overlay layers — OVERLAY_DELTA_VS_BASELINE and OVERLAY_INDEX_VS_BASELINE — both anchored on the same fixed positional baseline (Ref.BaselineIndex.Position=0, the first month). DELTA emits (point - baseline) per group (absolute subtractive difference in revenue units). INDEX emits (point / baseline * 100) per group (multiplicative ratio scaled to 100). Sibling shapes — DELTA is additive twin, INDEX is the ratio twin; together they form the canonical positional-anchor comparison pair. Both windowed-Process kinds consume the Ref.BaselineIndex.Position arm. Buffered (the baseline resolver reads host.ValueAt after finalize). Out-of-range Position fires PULSE_OVERLAY_REF_UNKNOWN. INDEX emits PULSE_OVERLAY_REF_ZERO on zero baseline; DELTA does not (subtraction by zero is well-defined). Renderers centre INDEX colour ramps on baseline = 100, DELTA on baseline = 0.",
+    "name": "process-delta-index-vs-baseline",
+    "operators": [
+      "AGG_SUM",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "comparison",
+      "overlay",
+      "time-series"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "monthly_revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "order_date",
+      "params": {
+        "component": "month"
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "delta_vs_jan",
+      "kind": "OVERLAY_DELTA_VS_BASELINE",
+      "scope": "group",
+      "ref": {
+        "baseline_index": {
+          "position": 0
+        }
+      }
+    },
+    {
+      "name": "index_vs_jan",
+      "kind": "OVERLAY_INDEX_VS_BASELINE",
+      "scope": "group",
+      "ref": {
+        "baseline_index": {
+          "position": 0
+        }
+      }
+    }
+  ]
+}

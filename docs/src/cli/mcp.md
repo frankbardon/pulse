@@ -47,7 +47,8 @@ tool schemas itself.
 
 The binding logic lives in
 [`internal/mcp/schema_bind.go`](https://github.com/frankbardon/pulse/blob/main/internal/mcp/schema_bind.go);
-see `skills/mcp-integration.md` for the LLM-facing implications.
+see [Adding an MCP tool](../internals/adding-mcp-tool.md) for the
+LLM-facing implications.
 
 ## Wiring it into Claude Desktop
 
@@ -92,7 +93,8 @@ list.
 ```
 
 The full LLM-side recipe (including resource URIs and the schema
-binding details) is in `skills/mcp-integration.md`.
+binding details) is in [Adding an MCP tool](../internals/adding-mcp-tool.md)
+and [Wiring an MCP client](../internals/wiring-mcp-client.md).
 
 ## Exit codes
 
@@ -126,8 +128,8 @@ pulse --json | jq '.data.mcp_tools[]'
 
 - [How LLMs Use Pulse](../mcp/index.md) — the pointer table from this
   site into the skill pack
-- `skills/mcp-integration.md` — LLM-side wiring, tool catalog, resource
-  schemes, schema binding
+- [Adding an MCP tool](../internals/adding-mcp-tool.md) — LLM-side
+  wiring, tool catalog, resource schemes, schema binding
 - [Deployment](../ops/deployment.md) — production hardening notes
 - [Troubleshooting](../ops/troubleshooting.md) — common MCP failure
   modes

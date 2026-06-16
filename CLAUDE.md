@@ -6,11 +6,11 @@ Pulse is a self-describing tabular data processing engine. Ships as Go library (
 
 - **Library-first.** `pulse.go` facade (`New`, `Open`, `Process`, `Compose`, `Import`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `ProcessStream`, `ProcessChain`, `CountRecords`, `ComposeParallel`) is the public API. CLI never contains business logic.
 - **Self-describing.** Every `.pulse` file carries its schema in the header. `descriptor/` provides `manifest`, `predict`, `inspect` — no-execute operations.
-- **Skill-augmented.** `skills/` embeds 25 markdown skills via `//go:embed`. LLM agents call `skills.List()` / `skills.Get(name)` for domain guidance.
-- **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators (AGG/ATTR/FILTER/GROUP/WIN/FEAT/TEST/SYNTH) + expr functions + lookup tables. First-class — predict, manifest, MCP, runtime treat identically to built-ins. See `skills/extension-points.md`.
+- **Skill-augmented.** `skills/` embeds an atomic-per-surface skill pack (`op-*` / `tool-*` / `type-*`) plus ~20 topical design skills via `//go:embed *.md`. LLM agents call `skills.List()` / `skills.Get(name)` for domain guidance; the filesystem walk + frontmatter parse is the source of truth.
+- **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators (AGG/ATTR/FILTER/GROUP/WIN/FEAT/TEST/SYNTH) + expr functions + lookup tables. First-class — predict, manifest, MCP, runtime treat identically to built-ins. See `docs/src/internals/extension-points.md`.
 - **Nexus relationship.** Pulse standalone. Nexus discovers via `pulse manifest --json` + loads embedded skills. No reverse dependency.
 
-For recipes (adding operators, I/O formats, MCP tools, error codes, field types; porting; debugging predict; regenerating goldens; wiring MCP client) read `skills/contributor-workflow.md`. Long-form reference docs live under `.claude/reference/` — see "Reference Docs" at the bottom.
+For recipes (adding operators, I/O formats, MCP tools, error codes, field types; porting; debugging predict; regenerating goldens; wiring MCP client) read the mdBook Internals chapter under `docs/src/internals/` (adding-aggregator.md, adding-attribute.md, adding-filterer.md, adding-grouper.md, adding-window.md, adding-feature.md, adding-test.md, adding-synth-distribution.md, adding-mcp-tool.md, adding-io-format.md, adding-field-type.md, adding-error-code.md, adding-chain-predicate.md, adding-facet-capability.md, regenerating-goldens.md, debugging-predict.md, wiring-mcp-client.md, extension-points.md). Long-form reference docs live under `.claude/reference/` — see "Reference Docs" at the bottom.
 
 ## The Update Demand
 
@@ -20,29 +20,31 @@ This is the compressed surface — the full per-contract trigger table lives at 
 
 | If you change... (category) | You MUST also update... | Enforced by |
 |---|---|---|
-| A registered aggregator | `skills/aggregation-guide.md` + `descriptor/capabilities_aggregators.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
-| A registered attribute | `skills/attribute-composition.md` + `descriptor/capabilities_attributes.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
-| A registered filterer | `skills/aggregation-guide.md` (filtering section) + `descriptor/capabilities_filterers.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
-| A registered grouper, or the `Group.Include` inclusion-list slot | `skills/grouper-design.md` + `descriptor/capabilities_groupers.go` + (Include: `processing/grouper.go` + `processing/grouper_set.go`) | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete`, `TestGroupCategory_IncludeFiltersLabels`, `TestGroupSetValue_IncludeFiltersCompositeKey`, `TestGroupSetPerElement_IncludeFilters` |
-| A registered window operator | `skills/window-operations.md` + `descriptor/capabilities_windows.go` | `TestSkillsCoverAllWindowTypes`, `TestManifestOperatorsComplete` |
-| A registered feature operator | `skills/feature-engineering.md` + `descriptor/capabilities_features.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
-| A registered statistical test (`TEST_*`) or tier-2 variant | `skills/statistical-testing.md` + `types/streamability.go` + `descriptor/capabilities_tests.go` | `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
-| A registered regression (`REG_*`) or modifier | `skills/regression-modeling.md` + `descriptor/capabilities_regressions.go` | `TestSkillsCoverAllRegressions`, `TestManifestRegressionsComplete` |
-| A registered synth distribution | `skills/synthetic-data.md` + `descriptor/capabilities_distributions.go` | `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
+| A registered aggregator | `skills/op-agg-<kebab>.md` (atomic skill) + `descriptor/capabilities_aggregators.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
+| A registered attribute | `skills/op-attr-<kebab>.md` (atomic skill) + `descriptor/capabilities_attributes.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
+| A registered filterer | `skills/op-filter-<kebab>.md` (atomic skill) + `descriptor/capabilities_filterers.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
+| A registered grouper, or the `Group.Include` inclusion-list slot | `skills/op-group-<kebab>.md` (atomic skill) + `descriptor/capabilities_groupers.go` + (Include: `processing/grouper.go` + `processing/grouper_set.go`) | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete`, `TestGroupCategory_IncludeFiltersLabels`, `TestGroupSetValue_IncludeFiltersCompositeKey`, `TestGroupSetPerElement_IncludeFilters` |
+| A registered window operator | `skills/op-win-<kebab>.md` (atomic skill) + `descriptor/capabilities_windows.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllWindowTypes`, `TestManifestOperatorsComplete` |
+| A registered feature operator | `skills/op-feat-<kebab>.md` (atomic skill) + `descriptor/capabilities_features.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
+| A registered statistical test (`TEST_*`) or tier-2 variant | `skills/op-test-<kebab>.md` (atomic skill) + `types/streamability.go` + `descriptor/capabilities_tests.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
+| A registered regression (`REG_*`) or modifier | `skills/op-reg-<kebab>.md` (atomic skill; modifiers ship as `skills/op-reg-mod-<kebab>.md`) + `descriptor/capabilities_regressions.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllRegressions`, `TestManifestRegressionsComplete` |
+| A registered synth distribution | `skills/op-synth-<kebab>.md` (atomic skill) + `descriptor/capabilities_distributions.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
+| A registered overlay kind (`OVERLAY_*`) | `skills/op-overlay-<kebab>.md` (atomic skill) + `types/overlay.go` (`AllOverlayKinds`) | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllOverlayKinds` |
+| A registered MCP tool (add/remove) | `skills/tool-<kebab>.md` (atomic skill; strip `pulse_` prefix) + `internal/mcp/mcptools/meta.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
+| A registered field type | `skills/type-<kebab>.md` (atomic skill) + CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
+| An example tag for a registered operator | `examples/<category>/*.json` `_meta.operators` (tag the operator string in at least one example body; overlay kinds tag via `overlays[].kind`) | `TestEveryOperatorHasAnExampleTag`, `TestExamples_OperatorsMatchBody` |
 | An error code (add/remove/rename) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
-| A CLI leaf (add/remove/flag) | `skills/getting-started.md` + `skills/contributor-workflow.md` if internal | `TestSkillsCoverAllCliLeaves` |
 | A `--json` envelope or `format_version` value (currently `"1.0"`) | CLAUDE.md "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
 | A `.pulse` file format change (header, field type) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
 | A new non-skippable CI gate | CLAUDE.md "Non-Skippable CI Gates" list | `TestClaudeMdMentionsAllNonSkippableGates` |
-| An environment variable | CLAUDE.md "Build / Env" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
-| A registered MCP tool (add/remove) | `skills/mcp-integration.md` + `internal/mcp/mcptools/meta.go` | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
-| `Response.Components` shape change | CLAUDE.md "Output Format Contract" + `skills/response-components.md` | `TestClaudeMdMentionsComponentsContract`, `TestSkillsCoverComponentsContract` |
-| Per-operator `ComponentSchema` change | skill file for that category + `descriptor/capabilities_*.go` + `internal/mcp/mcptools/meta.go` | `TestManifestComponentSchemasComplete`, `TestSkillsCoverAllOperatorComponents`, `TestComponentsUniversalFloor` |
-| Extension registration `ComponentSchema` | `skills/extension-points.md` + Update Demand table | `TestExtensions_ComponentSchemaParity` |
+| An environment variable | CLAUDE.md "Build / Env" + `skills/session-bootstrap.md` | `TestClaudeMdMentionsAllEnvVars` |
+| `Response.Components` shape change | CLAUDE.md "Output Format Contract" + `skills/response-components.md` | `TestClaudeMdMentionsComponentsContract` |
+| Per-operator `ComponentSchema` change | the operator's atomic skill (per category above) + `descriptor/capabilities_*.go` + `internal/mcp/mcptools/meta.go` | `TestManifestComponentSchemasComplete`, `TestSkillsCoverAllOperatorComponents`, `TestComponentsUniversalFloor` |
+| Extension registration `ComponentSchema` | `docs/src/internals/extension-points.md` + Update Demand table | `TestExtensions_ComponentSchemaParity` |
 | Shard archive layout (entry names, `_schema.pulse` block, magic dispatch, dict prefix rule) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded) | `TestShardArchiveLayoutDocumented`, `TestSkillsCoverShardingTopics` |
 | Any Request slot, Response slot, capability block, or Execution-mode wiring | See `.claude/reference/update-demand.md` for the per-slot trigger row | per-slot test suites cited there |
 
-Table covers every component category and contract type required by `TestUpdateDemandTableCovers` (case-insensitive checks for: aggregator, attribute, filterer, grouper, error code, CLI leaf, format_version, field type, CI gate, environment variable, MCP tool, feature operator). New trigger rows for slot-level contracts go into `.claude/reference/update-demand.md`.
+Table covers every component category and contract type required by `TestUpdateDemandTableCovers` (case-insensitive checks for: aggregator, attribute, filterer, grouper, error code, format_version, field type, CI gate, environment variable, MCP tool, feature operator). New trigger rows for slot-level contracts go into `.claude/reference/update-demand.md`.
 
 Defer the doc/skill update to "a follow-up PR" and the follow-up will not happen. Update in the same PR or do not merge.
 
@@ -106,7 +108,7 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 **Shard archive variant.** `.pulse` path resolves to either single-file layout above or **shard archive** — uncompressed Zip64 (Method 0, store-only) whose first four bytes are zip magic `PK\x03\x04` instead of `PULSE` magic. Single-file byte format **unchanged**; magic-byte dispatch at `pulse.Open` selects shape. Shard archive carries reserved `_schema.pulse` entry (header-only canonical schema + SHRD trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Per-shard cohesion: structural strict (byte-equal at insert), descriptions tolerant. Categorical dictionaries grow under union-merge semantics; divergent incoming shards byte-rewritten with remapped indices. Width overflow → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. Stricter prefix-only validator (`PULSE_SHARD_DICT_DIVERGENCE`) retained for `pulse shard verify`. Anchor syntax `archive.pulse#shard.pulse` opens one shard as one-shard cohort. Caller-owned concurrency. Full detail in `skills/cohort-schema-design.md` (Sharded cohorts).
 
-**Projected buffered decode.** `pulse.Options.ProjectBufferedFields` enables per-request field projection on the streaming iterator. `processing.NeededFields(req, schema, ext)` walks every request slot and returns a `FieldSet`; the iterator turns retained set into a cached `encoding.DecodePlan` via `Schema.BuildDecodePlan(retained)`. Plan segments: `SkipBytes{N}` (one discard over N bytes) and `DecodeFields{Fields}`. Bit-packed runs stay grouped; null-bitmap whole-or-skip. Extension operators without `FieldInputs` widen retained set to `*`. Bench: ~7× speedup, ~14× fewer allocs on a 4-field projection of a 200-field cohort. Detail: `skills/cohort-schema-design.md` + `skills/extension-points.md` + `.claude/reference/execution-modes.md`.
+**Projected buffered decode.** `pulse.Options.ProjectBufferedFields` enables per-request field projection on the streaming iterator. `processing.NeededFields(req, schema, ext)` walks every request slot and returns a `FieldSet`; the iterator turns retained set into a cached `encoding.DecodePlan` via `Schema.BuildDecodePlan(retained)`. Plan segments: `SkipBytes{N}` (one discard over N bytes) and `DecodeFields{Fields}`. Bit-packed runs stay grouped; null-bitmap whole-or-skip. Extension operators without `FieldInputs` widen retained set to `*`. Bench: ~7× speedup, ~14× fewer allocs on a 4-field projection of a 200-field cohort. Detail: `skills/cohort-schema-design.md` + `docs/src/internals/extension-points.md` + `.claude/reference/execution-modes.md`.
 
 ### Smart defaults
 
@@ -178,12 +180,12 @@ Full contract: `skills/response-components.md`.
 
 Heavy detail lives in `.claude/reference/execution-modes.md` and the named skill. CLAUDE.md keeps gate-relevant pointers only.
 
-- **Streaming Process** (`pulse.ProcessStream`, `pulse api process --stream`) — four orchestrator modes; forced-buffered list at `skills/getting-started.md`.
-- **Projected buffered decode** — see "Byte-layout invariants" above + `skills/extension-points.md`.
+- **Streaming Process** (`pulse.ProcessStream`, `pulse api process --stream`) — four orchestrator modes; forced-buffered list at `skills/streaming-and-watching.md` and `.claude/reference/execution-modes.md`.
+- **Projected buffered decode** — see "Byte-layout invariants" above + `docs/src/internals/extension-points.md`.
 - **Parallel Compose** (`pulse.ComposeParallel`, `pulse api compose --parallel N`) — `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}`; post-slot Compose-overlay fold at `service/compose_overlay.go`. See `skills/compose-requests.md`.
 - **Parallel shards** (`pulse.Options.ShardWorkers`) — bounded per-shard pool inside `Process`; mergeable-only via `processing.CanMergeRequest`. See `skills/cohort-schema-design.md`.
 - **Parallel buffered Process** (`pulse.Options.DecodeWorkers`) — bounded per-segment pool over single-file mmap'd cohorts; threshold `parallelDecodeRecordThreshold = 100_000`. See `skills/cohort-schema-design.md`.
-- **ProcessChain** (`pulse.ProcessChain`, `pulse_process_chain`, `pulse api process-chain`) — source-rooted linear chain; mergeable-only at v1; dual-slot overlay design (per-stage + whole-chain). See `skills/contributor-workflow.md`.
+- **ProcessChain** (`pulse.ProcessChain`, `pulse_process_chain`, `pulse api process-chain`) — source-rooted linear chain; mergeable-only at v1; dual-slot overlay design (per-stage + whole-chain). See `skills/process-chain.md`.
 - **Pushdown hash join** (`Request.Joins []*JoinSpec`) — v1 = exactly one inner join per Request. See `skills/join-design.md`.
 - **Crosstab** (`Request.Crosstab`, `Response.Crosstab`) — composed row×column grid; margins recompute from raw rows; `normalize_level` / `normalize_within` compose. See `skills/crosstab-guide.md`.
 - **Fused crosstab** (`processing.CanFuseCrosstab`, `processing.StreamableGrouper.KeyFor`) — in-decode streaming alternative; ~30–47% faster on benches. See `skills/crosstab-guide.md` (Fused mergeable path) + `skills/grouper-design.md`.
@@ -210,17 +212,22 @@ Descriptor contracts:
 - `TestGoldensNotHandEdited` — golden files end with valid `// golden-hash: <sha256>` line.
 - `TestPerPackageCoverageFloors` — package directories exist; documents target coverage floors per package.
 
-Skill-coverage:
-- `TestSkillsCoverAllComponents` — every aggregator/attribute/filterer/grouper in registries mentioned in its target skill.
-- `TestSkillsCoverAllCliLeaves` — every CLI leaf appears in `skills/getting-started.md`.
-- `TestSkillsCoverAllFieldTypes` — every field type appears in `skills/cohort-schema-design.md`.
-- `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator appears in `skills/window-operations.md`.
-- `TestSkillsCoverAllMCPTools` — every registered MCP tool appears in `skills/mcp-integration.md`.
-- `TestSkillsCoverAllSynthDistributions` — every distribution kind appears in `skills/synthetic-data.md`.
-- `TestSkillsCoverAllRegressions` — every `REG_*` operator appears in `skills/regression-modeling.md`.
-- `TestSkillsCoverAllOverlayKinds` — every overlay kind in `types.AllOverlayKinds()` appears in `skills/overlay-system.md`.
-- `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section and `skills/contributor-workflow.md` mentions sharding.
-- `TestSkillsCoverAllOperatorComponents` — every operator's component keys appear in its target skill.
+Skill-coverage (atomic-skill convention, post-E4):
+- `TestSkillsCoverAllComponents` — every registered aggregator/attribute/filterer/grouper/feature has a matching `skills/op-<category>-<kebab>.md` atomic skill file.
+- `TestSkillsCoverAllFieldTypes` — every `FieldType` has a matching `skills/type-<kebab>.md` atomic skill file (in addition to listing in `skills/cohort-schema-design.md`).
+- `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator has a matching `skills/op-win-<kebab>.md` atomic skill file.
+- `TestSkillsCoverAllMCPTools` — every tool registered via `mcptools.Meta()` has a matching `skills/tool-<kebab-name-minus-pulse-prefix>.md` atomic skill file.
+- `TestSkillsCoverAllSynthDistributions` — every distribution kind in `synth.AllDistributions()` has a matching `skills/op-synth-<kebab>.md` atomic skill file.
+- `TestSkillsCoverAllRegressions` — every constant in `types.AllRegressionTypes()` has a matching `skills/op-reg-<kebab>.md` atomic skill file.
+- `TestSkillsCoverAllOverlayKinds` — every constant in `types.AllOverlayKinds()` has a matching `skills/op-overlay-<kebab>.md` atomic skill file.
+- `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section.
+- `TestSkillsCoverAllOperatorComponents` — every aggregator/grouper/filterer's per-operator `ComponentSchema` keys appear in the body of its matching `skills/op-<category>-<kebab>.md` atomic skill, under a `## Components` section.
+
+Atomic-skill structure / budget / example-tag (post-E4):
+- `TestAtomicSkillHasRequiredSections` — every `op-*` / `op-overlay-*` / `tool-*` / `type-*` skill file carries its required `##` section set (e.g. op-*: `## Params`, `## Inputs`, `## Output`, `## Gotchas`, `## See`; AGG/GROUP/FILTER additionally require `## Components`).
+- `TestSkillTokenBudget` — per-family body-size budget enforced on atomic skills (op-*: 1200 chars, tool-*: 2000, type-*: 2000, `kind:design` frontmatter: 6000). Transitional soft-only regime today; tightens in E4-S15.
+- `TestOperatorHasAtomicSkill` — every registered operator, MCP tool, and field type has a matching atomic skill file at the conventional stem (`op-<category>-<kebab>`, `tool-<kebab>`, `type-<kebab>`).
+- `TestEveryOperatorHasAnExampleTag` — every registered operator name appears as a tag on at least one `examples/<dir>/*.json` example (gap-closure gate).
 
 Other load-bearing contract gates (not prefix-matched, enforced by their own packages): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestManifestFacetCapability`, `TestManifestComponentSchemasComplete`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known`, `TestStreamability_ComponentsMergeabilityKnown`, `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestComponentsUniversalFloor`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestExtensions_*`, `TestExtensions_ComponentSchemaParity`, `TestExtensions_MissingComponentSchema`, `TestShardArchive*`, `TestProcessChain_*`, `TestValidateChain_*`, `TestJoin_*`, `TestValidateJoin_*`, `TestFacetSchema_*`, `TestValidateFacet_*`, `TestCountRecords_*`, `TestNeededFields_*`, `TestProjection_*`, `TestReadRecordProjected_*`.
 
@@ -258,49 +265,110 @@ Hermetic testing: `fs.NewMemMap()` returns a `Config` backed by `afero.NewMemMap
 - **Snapshot pattern:** `descriptor.ExtensionsSnapshot` — read-only projection passed into `descriptor.PredictOptions.Extensions` and `mcp.BindSessionToolsWithExtensions`. Built by `pulse.New` via `buildExtensionsSnapshot`. Descriptor stays free of `service/` and `processing/` imports.
 - **FieldInputs hook:** every operator registration accepts optional `FieldInputs FieldInputsFunc`. Used by `processing.NeededFields` for projection. Absent → retained set widens to `*` (full-decode fallback).
 
-Surface: `extensions.go`, `extensions_validate.go`, `extensions_probe.go`, `extensions_runtime.go`, `extensions_snapshot.go`. Runtime overlay: `processing/extensions.go`. Full recipe: `skills/extension-points.md`.
+Surface: `extensions.go`, `extensions_validate.go`, `extensions_probe.go`, `extensions_runtime.go`, `extensions_snapshot.go`. Runtime overlay: `processing/extensions.go`. Full recipe: `docs/src/internals/extension-points.md`.
 
 ## Skill Pack
 
-25 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
+The pack under `skills/` is the LLM surface, embedded via `//go:embed *.md`. Two skill shapes — **atomic** (one file per registered surface) and **topical** (one file per cross-cutting design topic).
+
+### Convention
+
+- **Atomic skill = one operator / tool / type per file.** Stem encodes the surface:
+  - `op-agg-<kebab>.md`, `op-attr-<kebab>.md`, `op-filter-<kebab>.md`, `op-group-<kebab>.md`, `op-win-<kebab>.md`, `op-feat-<kebab>.md`, `op-test-<kebab>.md`, `op-reg-<kebab>.md` / `op-reg-mod-<kebab>.md`, `op-synth-<kebab>.md`, `op-overlay-<kebab>.md` — one per registered operator constant.
+  - `tool-<kebab>.md` — one per registered MCP tool (drop the `pulse_` prefix).
+  - `type-<kebab>.md` — one per `FieldType`.
+- **Topical skill = one cross-cutting design topic per file.** ~17 files (`aggregation-design`, `attribute-composition`, `cohort-schema-design`, `compose-requests`, `crosstab-guide`, `facet-design`, `feature-engineering`, `grouper-design`, `join-design`, `label-display`, `overlay-system`, `process-chain`, `regression-modeling`, `request-envelope`, `response-components`, `session-bootstrap`, `statistical-testing`, `streaming-and-watching`, `synthetic-data`, `window-design`, plus the optional `financial-cohorts` example pack). Atomic skills cross-link into these for the why/how-it-composes prose; the topical files keep no per-operator detail.
+
+### Frontmatter
+
+Atomic:
 
 ```yaml
 ---
-name: skill-name
-description: What the skill teaches
-type: guide   # or "reference"
+name: op-agg-count            # must match file stem
+description: <one-line — what this operator does>
+kind: operator                # operator | tool | type
+category: AGG                 # AGG | ATTR | FILTER | GROUP | WIN | FEAT | TEST | REG | OVERLAY | SYNTH (empty for tool / type)
+operator: AGG_COUNT           # full SCREAMING_SNAKE constant (empty for tool / type)
+type: reference
 applies_to: process, compose, predict
+examples_tags: [streaming-friendly, cohort-analysis]
 ---
 ```
 
-`applies_to` entries must be valid CLI leaves (`process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`).
+Topical:
 
-| Category | Target skill |
+```yaml
+---
+name: aggregation-design
+description: <what the topic teaches>
+kind: design
+type: guide
+applies_to: process, compose, predict
+covers: [AGG, FILTER, aggregations, filterers]
+---
+```
+
+`applies_to` entries must be valid CLI leaves (`process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`) — or `mcp` on `tool-*` skills.
+
+### Required body sections (atomic skills)
+
+| Family | Required `##` sections |
 |---|---|
-| Aggregator (`AGG_*`) | `skills/aggregation-guide.md` |
-| Attribute (`ATTR_*`) | `skills/attribute-composition.md` |
-| Filterer (`FILTER_*`) | `skills/aggregation-guide.md` (filtering section) |
-| Grouper (`GROUP_*`) | `skills/grouper-design.md` |
-| Window (`WIN_*`) | `skills/window-operations.md` |
-| Feature (`FEAT_*`) | `skills/feature-engineering.md` |
-| Statistical test (`TEST_*`) | `skills/statistical-testing.md` |
-| Regression (`REG_*`) | `skills/regression-modeling.md` |
-| Synth distribution | `skills/synthetic-data.md` |
-| CLI leaf | `skills/getting-started.md` |
-| Field type | `skills/cohort-schema-design.md` |
-| MCP tool | `skills/mcp-integration.md` |
-| Facet endpoint | `skills/facet-design.md` |
-| Join | `skills/join-design.md` |
-| Label binding / display overlay | `skills/label-display.md` |
-| Crosstab / cross-tabulation | `skills/crosstab-guide.md` |
-| Overlay (`OVERLAY_*`) | `skills/overlay-system.md` |
-| Error code | `errors/fixup_metadata.go` (via `pulse_errors_lookup`) |
-| Extension API surface | `skills/extension-points.md` |
-| Request hashing / StreamResult / Watch / FilterToFileWithRequest / manifest annotations | `skills/streaming-and-watching.md` |
+| `op-*` (default) | `## Params`, `## Inputs`, `## Output`, `## Gotchas`, `## See` |
+| `op-agg-*`, `op-group-*`, `op-filter-*` | the above **plus** `## Components` (v0.20.0 `Response.Components` contract — universal floor + per-operator schema must appear here) |
+| `op-overlay-*` | `## Params`, `## Host shape` (replaces `## Inputs` — overlays decorate a host result), `## Output`, `## Gotchas`, `## See` |
+| `type-*` | `## Bytes`, `## Range`, `## Null`, `## Dictionary`, `## See` |
+| `tool-*` | `## When to use`, `## Input`, `## Output`, `## Gotchas`, `## See` |
 
-Current registered counts: 28 aggregators, 11 attributes, 11 filterers, 7 groupers, 10 windows, 9 features, 20 tests, 12 synth distributions, 3 regressions.
+`TestAtomicSkillHasRequiredSections` keys off the `category:` frontmatter field; stem prefix is the fallback.
 
-Adding a skill: create `skills/<name>.md` with frontmatter, add entry to `skills/index.json`, bump count in `TestSkillsList_ReturnsAll` and `TestSkillsNames`. Run `go test ./skills/...`.
+### Token budget
+
+Heuristic: `chars / 4 ≈ tokens`. Budgets are byte counts of the post-frontmatter body.
+
+| Family | Budget (chars) | Token target |
+|---|---|---|
+| `op-*` | ≤1200 | ≤300 |
+| `tool-*` | ≤2000 | ≤500 |
+| `type-*` | ≤2000 | ≤500 |
+| `kind: design` (topical) | ≤6000 | ≤1500 |
+
+`TestSkillTokenBudget` enforces these. The current regime is transitional — the soft cap allows up to 1000% over budget so reviewers see the live state of legacy bodies without a red gate; E4-S15 tightens to 30% over and flips `t.Logf` → `t.Errorf` once the offending `op-reg-*` / `op-reg-mod-*` / `op-feat-*` / `op-synth-regex` bodies have been trimmed.
+
+### List source of truth
+
+`skills.List()` walks the embedded `embed.FS` for `*.md` files and parses each frontmatter block. There is no `skills/index.json` — the filesystem is the manifest, and any new file with valid frontmatter is picked up automatically. Manifest visibility lands via the `skills` block emitted by `BuildManifest()`.
+
+### Per-trigger target convention
+
+| Trigger | Atomic skill convention |
+|---|---|
+| Aggregator (`AGG_*`) | `op-agg-<name>.md` |
+| Attribute (`ATTR_*`) | `op-attr-<name>.md` |
+| Filterer (`FILTER_*`) | `op-filter-<name>.md` |
+| Grouper (`GROUP_*`) | `op-group-<name>.md` |
+| Window (`WIN_*`) | `op-win-<name>.md` |
+| Feature (`FEAT_*`) | `op-feat-<name>.md` |
+| Statistical test (`TEST_*`) | `op-test-<name>.md` |
+| Regression (`REG_*`) | `op-reg-<name>.md` / `op-reg-mod-<name>.md` |
+| Synth distribution | `op-synth-<name>.md` |
+| Overlay (`OVERLAY_*`) | `op-overlay-<name>.md` |
+| Field type | `type-<name>.md` |
+| MCP tool | `tool-<name>.md` (strip the `pulse_` prefix) |
+
+Cross-cutting topics that are not operator-keyed route to the matching topical skill: `Response.Components` shape → `skills/response-components.md` (the canonical Components contract topical, paired with the v0.20.0 per-operator `## Components` requirement above); request slot map / smart defaults → `request-envelope`; streaming / `StreamResult` / `Watch` / `FilterToFileWithRequest` / request hashing → `streaming-and-watching`; error codes → `errors/fixup_metadata.go` via `pulse_errors_lookup`; extension surface → `docs/src/internals/extension-points.md`.
+
+### Registered counts
+
+Counts surfaced at runtime via `pulse_manifest` (`commands`, `components.{aggregators,attributes,filterers,groupers,windows,features}`, `tests`, `post_tests`, `synth_distributions`, `regressions`, `mcp_tools`). Never hardcode these in docs — the manifest is the single source of truth and the per-category coverage gates (`TestSkillsCoverAll*`, `TestOperatorHasAtomicSkill`) reject drift.
+
+### Adding a skill
+
+1. Create the file at the conventional stem (`op-<category>-<kebab>.md`, `tool-<kebab>.md`, `type-<kebab>.md`, or a new topical name).
+2. Write the required frontmatter for the matching shape (atomic or topical) and the required `##` section set for that family.
+3. Stay under budget — atomic op ≤1200 chars body, tool/type ≤2000, topical ≤6000.
+4. Run `go test ./skills/... -count=1`. The filesystem walk picks the new file up; no count bump or index entry is needed.
 
 ## What NOT to Do
 

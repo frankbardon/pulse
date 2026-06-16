@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "name": "poisson_glm",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "glm",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_GLM"
+    ],
+    "description": "Poisson regression: REG_GLM with family=poisson + link=log models a count-like outcome whose conditional mean grows multiplicatively with the predictors. Sibling family to logistic regression (04_logistic.json, binomial+logit) — both are GLM links; the Poisson+log pair is the canonical choice for non-negative integer counts (event counts, frequencies, claim rates). Uses customers.pulse age as a small-integer outcome with income as the multiplicative predictor — the canonical Poisson interpretation is 'how does the expected count of years scale with one's income?'."
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_GLM",
+      "name": "age_poisson",
+      "target": "age",
+      "predictors": ["income"],
+      "family": "poisson",
+      "link": "log"
+    }
+  ]
+}

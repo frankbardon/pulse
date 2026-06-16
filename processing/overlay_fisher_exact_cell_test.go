@@ -12,9 +12,9 @@ import (
 // 1 of the 24 grand-total observations; the matching 2×2 contingency
 // (for that cell) is:
 //
-//	          c=c0   c≠c0
-//	  r=r0     1      9      (row_margin = 10)
-//	  r≠r0    11      3      (col_margin = 12, grand = 24)
+//	        c=c0   c≠c0
+//	r=r0     1      9      (row_margin = 10)
+//	r≠r0    11      3      (col_margin = 12, grand = 24)
 //
 // row1 = 10 (top of row), row2 = 14 (bottom of row), col1 = 12,
 // col2 = 12, grand = 24. The handler reads row_margin[r0] = 10 and

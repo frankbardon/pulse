@@ -28,9 +28,9 @@ You are the Pulse data/IO engineer. One job: change format/codec/IO code without
 ## Same-PR rules
 
 - New field type → `skills/cohort-schema-design.md` + CLAUDE.md "Byte-layout invariants" + `TestSkillsCoverAllFieldTypes`.
-- Shard layout change → CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded section) + `skills/contributor-workflow.md`.
-- Projection (`ProjectBufferedFields`, `processing.NeededFields`) → CLAUDE.md "Byte-layout invariants" pointer + `skills/extension-points.md`.
-- Sidecar shape (`imports.Sidecar`) → `skills/mcp-integration.md` + CLAUDE.md "Build / Env".
+- Shard layout change → CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded section) + `docs/src/internals/managing-shard-archives.md`.
+- Projection (`ProjectBufferedFields`, `processing.NeededFields`) → CLAUDE.md "Byte-layout invariants" pointer + `docs/src/internals/extension-points.md`.
+- Sidecar shape (`imports.Sidecar`) → `skills/session-bootstrap.md` + CLAUDE.md "Build / Env".
 - Inference knob (`SetInferenceMinPct`, infer options) → tests + skill + (if env-var) CLAUDE.md "Build / Env".
 - Export/convert projection (`ExportJob.Includes`, CLI `--include`) → skill + error code metadata.
 
@@ -48,7 +48,7 @@ format_invariants_touched:
   - <e.g. added field type set_u64; CLAUDE.md byte-layout updated>
 skills_updated:
   - skills/cohort-schema-design.md
-  - skills/extension-points.md (if projection)
+  - docs/src/internals/extension-points.md (if projection)
 tests_added:
   - <test names>
 gates_passing:

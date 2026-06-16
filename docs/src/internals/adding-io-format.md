@@ -65,14 +65,12 @@ does not), share the type map with neighbouring formats via the
 
 ## 5. Skill update
 
-Add or update a skill that points users at the new format. If the
-new format is primarily an export concern, update
-`skills/export-format-selection.md`. If it has import-side
-considerations (schema inference, null markers, type ambiguity),
-update `skills/import-best-practices.md`.
+Add or update a skill that points users at the new format. Cohort-
+schema considerations (field-type round-trip, dictionary behaviour,
+null markers) belong in `skills/cohort-schema-design.md`.
 
 If the format adds a CLI flag (e.g. `--sheet` for Excel), update
-`skills/getting-started.md` so `TestSkillsCoverAllCliLeaves` keeps
+`skills/session-bootstrap.md` so `TestSkillsCoverAllCliLeaves` keeps
 passing.
 
 ## 6. Convert and orchestration plumbing

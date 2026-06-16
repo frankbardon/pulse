@@ -19,7 +19,7 @@ import (
 //
 // Embedder factories MUST tolerate a nil/empty Schema and a spec
 // carrying only the operator Name; documented in
-// skills/extension-points.md (E10).
+// docs/src/internals/extension-points.md (E10).
 func probeExtensions(ext Extensions) error {
 	if err := probeAggregators(ext.Aggregators); err != nil {
 		return err

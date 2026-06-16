@@ -517,8 +517,10 @@ func TestCliSkillsList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("skills list: %v\noutput: %s", err, out)
 	}
-	if !strings.Contains(out, "getting-started") {
-		t.Errorf("expected 'getting-started' in output: %s", out)
+	// session-bootstrap is the post-E4 anchor (legacy: getting-started).
+	// Asserts the list output includes at least one canonical skill.
+	if !strings.Contains(out, "session-bootstrap") {
+		t.Errorf("expected 'session-bootstrap' in output: %s", out)
 	}
 }
 
@@ -535,7 +537,7 @@ func TestCliSkillsListJson(t *testing.T) {
 }
 
 func TestCliSkillsShow(t *testing.T) {
-	out, err := runApp(t, "skills", "show", "getting-started")
+	out, err := runApp(t, "skills", "show", "session-bootstrap")
 	if err != nil {
 		t.Fatalf("skills show: %v\noutput: %s", err, out)
 	}

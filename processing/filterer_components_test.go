@@ -72,12 +72,12 @@ type filtererParityFixture struct {
 	values     []string
 	expression string
 
-	smallRecs  []*Record
-	smallWant  [3]int // {NIn, NOut, NNullInput}
-	emptyRecs  []*Record
-	emptyWant  [3]int
-	nullRecs   []*Record
-	nullWant   [3]int
+	smallRecs []*Record
+	smallWant [3]int // {NIn, NOut, NNullInput}
+	emptyRecs []*Record
+	emptyWant [3]int
+	nullRecs  []*Record
+	nullWant  [3]int
 }
 
 // nullRecordsOn returns n records where the named field is null.
@@ -304,10 +304,10 @@ func emptyCaseOverrides() map[types.FiltererType]struct {
 		types.FILTER_EXCLUDE:           {values: []string{"10", "20", "30", "40", "50"}},
 		types.FILTER_RANGE:             {values: []string{"100", "200"}},
 		types.FILTER_EXPRESSION:        {expression: "score > 9999"},
-		types.FILTER_NULL:              {values: []string{"is_null"}},   // non-null cohort: every row rejects
-		types.FILTER_TRUE:              {values: []string{"truthy"}},    // all-null cohort coerces to false → reject all
-		types.FILTER_FALSE:             {values: []string{"truthy"}},    // non-null cohort coerces to true → FALSE rejects all
-		types.FILTER_SET_CONTAINS_ANY:  {values: []string{}},            // mask=0 → CONTAINS_ANY rejects all
+		types.FILTER_NULL:              {values: []string{"is_null"}}, // non-null cohort: every row rejects
+		types.FILTER_TRUE:              {values: []string{"truthy"}},  // all-null cohort coerces to false → reject all
+		types.FILTER_FALSE:             {values: []string{"truthy"}},  // non-null cohort coerces to true → FALSE rejects all
+		types.FILTER_SET_CONTAINS_ANY:  {values: []string{}},          // mask=0 → CONTAINS_ANY rejects all
 		types.FILTER_SET_CONTAINS_ALL:  {values: []string{"VISA", "MC", "AMEX", "DISC"}},
 		types.FILTER_SET_CONTAINS_NONE: {values: []string{"VISA", "MC", "AMEX", "DISC"}},
 		types.FILTER_SET_EQUALS:        {values: []string{"VISA", "MC", "AMEX", "DISC"}},

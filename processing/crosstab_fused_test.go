@@ -517,11 +517,11 @@ func fusedCrosstabRecordsWithNulls(schema *encoding.Schema) []*Record {
 		mk(0, 0, 10), mk(0, 0, 20), // (north, retail)
 		mkColNull(0, 50), mkColNull(0, 60), // (north, NULL)
 		mkRowNull(1, 100), mkRowNull(1, 110), // (NULL, wholesale)
-		mkBothNull(200),  // (NULL, NULL)
-		mk(1, 0, 5),      // (south, retail)
-		mkColNull(2, 1),  // (east, NULL)
-		mkColNull(2, 2),  // (east, NULL)
-		mkColNull(2, 3),  // (east, NULL)
+		mkBothNull(200), // (NULL, NULL)
+		mk(1, 0, 5),     // (south, retail)
+		mkColNull(2, 1), // (east, NULL)
+		mkColNull(2, 2), // (east, NULL)
+		mkColNull(2, 3), // (east, NULL)
 	}
 }
 

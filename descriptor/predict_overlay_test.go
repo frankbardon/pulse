@@ -862,13 +862,13 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		// Streamable via per-target SERIES emission (the kind inherits
 		// OVERLAY_INDEX_VS_REF's dual-shape streamability convention).
 		types.OverlayKindPanelIndexVsRef: true,
-		types.OverlayKindTCell:      true,
+		types.OverlayKindTCell:           true,
 		// T_VS_REF (E7-S10) is the series-shape sibling of T_CELL — same
 		// COMPOSE-host skip rule applies. Buffered (inferential family).
-		types.OverlayKindTVsRef:     true,
+		types.OverlayKindTVsRef: true,
 		// Z_CELL (E1-S14) is the standard-normal sibling of T_CELL — same
 		// COMPOSE-host skip rule applies. Buffered (inferential family).
-		types.OverlayKindZCell:      true,
+		types.OverlayKindZCell: true,
 		// Z_VS_REF (E1-S15) is the standard-normal sibling of T_VS_REF —
 		// same COMPOSE-host skip rule applies. Buffered (inferential
 		// family).

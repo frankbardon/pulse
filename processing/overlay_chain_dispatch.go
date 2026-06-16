@@ -327,19 +327,19 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 // OverlayLayer carrying:
 //
 //   - Name  — the spec's Name when set, else "OVERLAY_{KIND}" so the
-//             renderer-facing label is always populated.
+//     renderer-facing label is always populated.
 //   - Kind  — the spec's Kind, echoed verbatim.
 //   - Scope — the spec's Scope, echoed verbatim (validator enforces
-//             scope policy at predict / runtime entry; the stub trusts
-//             the caller).
+//     scope policy at predict / runtime entry; the stub trusts
+//     the caller).
 //   - Payload — a zero-value payload whose Shape inherits from the
-//             target stage's host shape: matrix when the target stage
-//             carries a Crosstab matrix; series when it carries grouped
-//             Process Data; scalar otherwise. The stub does NOT
-//             populate the payload's per-coordinate value slots — the
-//             real arithmetic ships with E6-S4 / E6-S5.
+//     target stage's host shape: matrix when the target stage
+//     carries a Crosstab matrix; series when it carries grouped
+//     Process Data; scalar otherwise. The stub does NOT
+//     populate the payload's per-coordinate value slots — the
+//     real arithmetic ships with E6-S4 / E6-S5.
 //   - Summary — nil (descriptive summary slots are kind-specific and
-//             land with the real handlers).
+//     land with the real handlers).
 //
 // The stub emits no warnings and no error. The chassis test exercises
 // the round-trip: spec count == layer count, layer.Kind matches

@@ -42,7 +42,7 @@ type defaultRule struct {
 // defaultRules is the authoritative field-type → default operator table.
 // Source of truth for predict.DefaultsApplied and service-side resolution.
 // Keep in sync with the Smart Defaults subsection of CLAUDE.md and the
-// "Defaults" section of skills/getting-started.md.
+// "Smart defaults" section of skills/session-bootstrap.md.
 var defaultRules = map[encoding.FieldType]defaultRule{
 	// Numeric integers and floats: SUM aggregation, RANGE bucketing.
 	encoding.FieldTypeU4:         {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},

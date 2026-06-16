@@ -135,11 +135,11 @@ func applyDeltaVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.O
 			Code:    string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 			Message: "overlay " + string(spec.Kind) + " sibling reference does not resolve to a known host group",
 			Details: map[string]any{
-				"kind":         string(spec.Kind),
-				"host":         "series",
-				"field":        siblingField,
-				"value":        siblingValue,
-				"group_count":  groupCount,
+				"kind":        string(spec.Kind),
+				"host":        "series",
+				"field":       siblingField,
+				"value":       siblingValue,
+				"group_count": groupCount,
 			},
 		})
 	}

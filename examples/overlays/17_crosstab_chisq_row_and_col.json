@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of region x segment decorated with TWO overlay layers — OVERLAY_CHISQ_ROW and OVERLAY_CHISQ_COL — that each compute a per-axis chi-square goodness-of-fit statistic against the matching margin. CHISQ_ROW asks 'do the column counts within each row diverge from the row-margin proportions?'; CHISQ_COL asks 'do the row counts within each column diverge from the column-margin proportions?'. Both fold the same expected-vs-observed recurrence as the whole-table OVERLAY_CHISQ_MATRIX (03_crosstab_chisq_matrix.json) but emit per-row / per-column statistics instead of a single scalar — the per-axis surface is the canonical drill-down shape for finding which rows / columns drive the table-level divergence. Implicit-margin contract — Ref must be empty (the host's row / column margins are the canonical expected slot).",
+    "name": "crosstab-chisq-row-and-col",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay",
+      "hypothesis-test",
+      "nonparametric"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "chisq_row",
+      "kind": "OVERLAY_CHISQ_ROW",
+      "scope": "row"
+    },
+    {
+      "name": "chisq_col",
+      "kind": "OVERLAY_CHISQ_COL",
+      "scope": "column"
+    }
+  ]
+}

@@ -11,26 +11,26 @@ package descriptor
 // research/export-embedding-shape.md and wired by E9-S2..S6:
 //
 //   - "sidecar"        — the format carries a top-level
-//                        LIST<STRUCT> column-family appended to the
-//                        host stream (Arrow / Parquet). The host
-//                        record stream is byte-identical to the
-//                        overlay-free shape; readers that ignore the
-//                        column family see the unchanged host.
+//     LIST<STRUCT> column-family appended to the
+//     host stream (Arrow / Parquet). The host
+//     record stream is byte-identical to the
+//     overlay-free shape; readers that ignore the
+//     column family see the unchanged host.
 //   - "sheets"         — one workbook sheet per overlay layer named
-//                        "__overlay_<layer_name>" (Excel). The host
-//                        workbook sheet is unchanged from the overlay-
-//                        free shape.
+//     "__overlay_<layer_name>" (Excel). The host
+//     workbook sheet is unchanged from the overlay-
+//     free shape.
 //   - "trailing_block" — a single trailing line `{"_overlays": [...]}`
-//                        after the last host record (NDJSON). The
-//                        host stream is byte-identical to the overlay-
-//                        free shape until the trailer.
+//     after the last host record (NDJSON). The
+//     host stream is byte-identical to the overlay-
+//     free shape until the trailer.
 //   - "warn_and_skip"  — the format cannot embed overlays at all (CSV /
-//                        TSV). The dispatcher emits one
-//                        PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED warning
-//                        and writes the host body verbatim; no overlay
-//                        output lands. Setting IncludeOverlays=false
-//                        suppresses the warning while keeping the same
-//                        body.
+//     TSV). The dispatcher emits one
+//     PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED warning
+//     and writes the host body verbatim; no overlay
+//     output lands. Setting IncludeOverlays=false
+//     suppresses the warning while keeping the same
+//     body.
 type ExportFormatCapability struct {
 	// Name is the canonical format identifier matching the
 	// io/format package constants (csv / tsv / ndjson / jsonarray /

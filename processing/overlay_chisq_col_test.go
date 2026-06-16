@@ -13,11 +13,11 @@ import (
 // chiSqRowPayloadKnown (E2-S7) so the math reuses the same arithmetic
 // in flipped axis orientation.
 //
-//	          c0   c1   | row_margin
-//	    r0    10   20   |   30
-//	    r1    20   20   |   40
-//	    r2    30   20   |   50
-//	    col   60   60   |  grand = 120
+//	      c0   c1   | row_margin
+//	r0    10   20   |   30
+//	r1    20   20   |   40
+//	r2    30   20   |   50
+//	col   60   60   |  grand = 120
 //
 // Expected counts (row_margin × col_margin / grand):
 //

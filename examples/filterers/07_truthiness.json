@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "category": "filterers",
+    "description": "Boolean filtering on the all_types.pulse packed_bool active field via FILTER_TRUE (keep rows where active is logical true). Strict mode (no Values entry) is the canonical packed_bool path. The sibling FILTER_FALSE is exercised in a separate compose-style request shape; both share the boolFilterer implementation and accept Values=[\"truthy\"] for JavaScript-style coercion on non-bool columns.",
+    "name": "filter_truthiness",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_TRUE"
+    ],
+    "tags": [
+      "data-quality",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "all_types.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_TRUE",
+      "field": "active"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "rows_active_true"
+    }
+  ]
+}

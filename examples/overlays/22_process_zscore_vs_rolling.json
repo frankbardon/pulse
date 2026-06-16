@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process aggregating revenue by month decorated with an OVERLAY_ZSCORE_VS_ROLLING group overlay that emits a per-point windowed z-score against the rolling-window mean + SAMPLE SD of the W=3 immediately preceding points (zscore_i = (point - rolling_mean) / rolling_sd, sd via Welford triple with n-1 denominator). Windowed-Process kind sharing the carrier shape with OVERLAY_INDEX_VS_ROLLING_MEAN (28_process_index_vs_rolling_mean.json) — both maintain a per-group ring buffer of the W most recent PRESENT values plus the Welford (count, mean, M2) trio updated alongside each push / evict. Buffered (the ring buffer carrier widens past v1's single-state lag accumulator). Window-fill semantics: fewer than 2 prior PRESENT points emits NaN without warning. Zero rolling-SD emits PULSE_OVERLAY_REF_ZERO. Renderers centre diverging colour ramps on baseline = 0.",
+    "name": "process-zscore-vs-rolling",
+    "operators": [
+      "AGG_SUM",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "overlay",
+      "outlier-detection",
+      "time-series"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "monthly_revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "order_date",
+      "params": {
+        "component": "month"
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "rolling_z",
+      "kind": "OVERLAY_ZSCORE_VS_ROLLING",
+      "scope": "group",
+      "ref": {
+        "rolling_mean": {}
+      },
+      "params": {
+        "window": 3
+      }
+    }
+  ]
+}

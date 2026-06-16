@@ -456,4 +456,3 @@ func TestValidateChain_OverlayRefMustBeExplicit(t *testing.T) {
 		t.Fatalf("expected PULSE_OVERLAY_REFERENCE_UNKNOWN; got %+v", env.Errors)
 	}
 }
-

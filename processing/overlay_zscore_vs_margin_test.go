@@ -36,10 +36,11 @@ import (
 //	→ sd_col1 / sd_col2 identical (same shape per column).
 //
 // Grand variance: every cell minus mean=50 → squared deviations:
-//   (10,20,30,40,50,60,70,80,90) - 50 = (-40,-30,-20,-10,0,10,20,30,40)
-//   squared sum = 1600+900+400+100+0+100+400+900+1600 = 6000
-//   variance = 6000 / 9 = 666.666...
-//   sd_grand = sqrt(666.666...) ≈ 25.81988897471611
+//
+//	(10,20,30,40,50,60,70,80,90) - 50 = (-40,-30,-20,-10,0,10,20,30,40)
+//	squared sum = 1600+900+400+100+0+100+400+900+1600 = 6000
+//	variance = 6000 / 9 = 666.666...
+//	sd_grand = sqrt(666.666...) ≈ 25.81988897471611
 //
 // Margins are filled in as cells so MarginFor returns the matching
 // mean; this is the same shape AGG_MEAN would produce in a real host

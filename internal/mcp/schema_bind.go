@@ -10,7 +10,7 @@ package mcp
 // The bound variants reuse the global tool names; mcp-go's session-scoped
 // tools override globals for that session. Multi-file binding is not
 // supported in v1: the latest inspect wins. A documented limitation; see
-// skills/mcp-integration.md.
+// docs/src/internals/adding-mcp-tool.md.
 //
 // JSON Schema limitations note: per-element correlation between an
 // operator-type enum and the field-name enum (e.g. "AGG_SUM permitted only
@@ -640,35 +640,35 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 // that are addressable on the bound tool's request shape:
 //
 //   - overlayFacadeRequest  — pulse_process / pulse_predict.
-//                             Request.Overlays accepts the in-Request
-//                             catalog: MATRIX-host kinds layered on a
-//                             crosstab (`Request.Crosstab`) plus
-//                             SERIES-host kinds layered on a grouped
-//                             Process / Window result (`Request.Groups`).
-//                             Excludes COMPOSE-only (slot-label-bound)
-//                             / CHAIN-only (StageRef-bound) / FACET-only
-//                             (population-bound) kinds — those address
-//                             a different request shape and surface on
-//                             their own facade.
+//     Request.Overlays accepts the in-Request
+//     catalog: MATRIX-host kinds layered on a
+//     crosstab (`Request.Crosstab`) plus
+//     SERIES-host kinds layered on a grouped
+//     Process / Window result (`Request.Groups`).
+//     Excludes COMPOSE-only (slot-label-bound)
+//     / CHAIN-only (StageRef-bound) / FACET-only
+//     (population-bound) kinds — those address
+//     a different request shape and surface on
+//     their own facade.
 //   - overlayFacadeCompose  — pulse_compose. ComposedRequest.Overlays
-//                             accepts COMPOSE-only kinds whose Ref +
-//                             Targets resolve to slot labels in the
-//                             parent ComposedRequest (`ComposeOverlaySpec`).
-//                             FORMULA crosses over (in-Request AND
-//                             Compose surfaces per the kind's catalog
-//                             row); RANK rides the same slot-label
-//                             plumbing as the comparison family even
-//                             though the rank computation reads only
-//                             the target matrix.
+//     accepts COMPOSE-only kinds whose Ref +
+//     Targets resolve to slot labels in the
+//     parent ComposedRequest (`ComposeOverlaySpec`).
+//     FORMULA crosses over (in-Request AND
+//     Compose surfaces per the kind's catalog
+//     row); RANK rides the same slot-label
+//     plumbing as the comparison family even
+//     though the rank computation reads only
+//     the target matrix.
 //   - overlayFacadeFacet    — pulse_facet / pulse_facet_schema.
-//                             FacetRequest.Overlays accepts only the
-//                             four population-comparison kinds whose
-//                             Ref.Population resolves to a separate
-//                             cohort cohort.
+//     FacetRequest.Overlays accepts only the
+//     four population-comparison kinds whose
+//     Ref.Population resolves to a separate
+//     cohort cohort.
 //   - overlayFacadeChain    — pulse_process_chain. ChainRequest.Overlays
-//                             accepts the two whole-chain kinds whose
-//                             Ref + Target are StageRef values pointing
-//                             at stages of the parent ChainRequest.
+//     accepts the two whole-chain kinds whose
+//     Ref + Target are StageRef values pointing
+//     at stages of the parent ChainRequest.
 type overlayFacade int
 
 const (
@@ -736,20 +736,20 @@ func facetOnlyOverlayKinds() []string {
 // Classification rules (per acceptance criteria):
 //
 //   - Request facade   — every kind NOT in the compose / facet / chain
-//                        lists. Includes the MATRIX-host crosstab kinds
-//                        (INDEX_VS_MARGIN, SHARE_OF_ROW/COL/TOTAL,
-//                        DELTA_VS_MARGIN, ZSCORE_VS_MARGIN, CHISQ_MATRIX,
-//                        CHISQ_ROW, CHISQ_COL, FISHER_EXACT_CELL) plus
-//                        the SERIES-host grouped / windowed kinds
-//                        (INDEX_VS_TOTAL, INDEX_VS_SIBLING,
-//                        DELTA_VS_SIBLING, ZSCORE_VS_TOTAL, SHARE_OF_TOTAL
-//                        series arm, INDEX_VS_PRIOR, INDEX_VS_BASELINE,
-//                        DELTA_VS_BASELINE, INDEX_VS_ROLLING_MEAN,
-//                        ZSCORE_VS_ROLLING, YOY) and FORMULA (cross-shape).
+//     lists. Includes the MATRIX-host crosstab kinds
+//     (INDEX_VS_MARGIN, SHARE_OF_ROW/COL/TOTAL,
+//     DELTA_VS_MARGIN, ZSCORE_VS_MARGIN, CHISQ_MATRIX,
+//     CHISQ_ROW, CHISQ_COL, FISHER_EXACT_CELL) plus
+//     the SERIES-host grouped / windowed kinds
+//     (INDEX_VS_TOTAL, INDEX_VS_SIBLING,
+//     DELTA_VS_SIBLING, ZSCORE_VS_TOTAL, SHARE_OF_TOTAL
+//     series arm, INDEX_VS_PRIOR, INDEX_VS_BASELINE,
+//     DELTA_VS_BASELINE, INDEX_VS_ROLLING_MEAN,
+//     ZSCORE_VS_ROLLING, YOY) and FORMULA (cross-shape).
 //   - Compose facade   — the compose-only catalog plus FORMULA. The kind
-//                        catalog rows note FORMULA's Compose surface
-//                        directly; it stays on the Request enum too
-//                        because its in-Request surface also ships.
+//     catalog rows note FORMULA's Compose surface
+//     directly; it stays on the Request enum too
+//     because its in-Request surface also ships.
 //   - Facet facade     — exactly the four FACET-host kinds.
 //   - Chain facade     — exactly the two CHAIN-host kinds.
 //

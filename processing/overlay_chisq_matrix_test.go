@@ -11,10 +11,10 @@ import (
 // whose χ² statistic is computable in closed form. Standard textbook
 // 2×2 contingency:
 //
-//	         c0   c1   | row_margin
-//	    r0   10   20   |   30
-//	    r1   20   10   |   30
-//	    col  30   30   |  grand = 60
+//	     c0   c1   | row_margin
+//	r0   10   20   |   30
+//	r1   20   10   |   30
+//	col  30   30   |  grand = 60
 //
 // Expected counts (row_margin × col_margin / grand):
 //

@@ -1,0 +1,107 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Compose batch of two crosstab slots (control + variant treatment arms of the experiment cohort) over region x segment decorated with an OVERLAY_CHISQ_VS_REF scalar compose overlay that runs a whole-matrix chi-square test of independence between the target matrix and the reference matrix (treated as two contingency tables, target observed vs reference-scaled-to-target-N expected). Reuses the chiSquareSurvival helper backing TEST_CHISQ + the MATRIX-host CHISQ family so the overlay and the row-test surface emit identical p-values for the same contingency. Each layer carries an OverlaySummary{Statistic, PValue, Parameters{df}} scalar. Sibling shape to the per-cell OVERLAY_PROP_Z_CELL (13_compose_prop_z_cell.json) — both run an inferential test against the reference slot, but CHISQ_VS_REF surfaces ONE scalar per target matrix instead of one p-value per cell. Inherently buffered (inferential family).",
+    "name": "compose-chisq-vs-ref",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "compose",
+      "cross-tabulation",
+      "experiment-analysis",
+      "hypothesis-test",
+      "nonparametric",
+      "overlay"
+    ]
+  },
+  "requests": [
+    {
+      "label": "control",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["control"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "id",
+          "label": "n"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    },
+    {
+      "label": "variant",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["variant"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "id",
+          "label": "n"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "chisq_vs_control",
+      "kind": "OVERLAY_CHISQ_VS_REF",
+      "scope": "matrix",
+      "reference": "control",
+      "targets": ["variant"]
+    }
+  ]
+}

@@ -60,26 +60,26 @@ import (
 //
 //   - Name        — subtest name; surfaced via `t.Run`.
 //   - Kind        — the OverlayKind under test. The helper writes this
-//                   into the synthesised ComposeOverlaySpec.Kind slot.
+//     into the synthesised ComposeOverlaySpec.Kind slot.
 //   - Scope       — the overlay scope. Most cell-host kinds use
-//                   OverlayScopeCell; whole-matrix scalar kinds use
-//                   OverlayScopeMatrix.
+//     OverlayScopeCell; whole-matrix scalar kinds use
+//     OverlayScopeMatrix.
 //   - Reference   — the spec.Reference label. Must match one of the
-//                   labels returned by BuildSlots's parallel labels list.
+//     labels returned by BuildSlots's parallel labels list.
 //   - Targets     — the spec.Targets labels.
 //   - Params      — per-spec param bag (forwarded verbatim to the
-//                   handler).
+//     handler).
 //   - Options     — per-spec options bag (DictPrefixFast / MaxPanelTargets
-//                   knobs).
+//     knobs).
 //   - BuildSlots  — caller-supplied builder returning the parallel
-//                   (responses, labels) slices ApplyComposeOverlays
-//                   consumes. Responses[i] is the slot for labels[i];
-//                   the order is the canonical ComposedRequest slot
-//                   ordering.
+//     (responses, labels) slices ApplyComposeOverlays
+//     consumes. Responses[i] is the slot for labels[i];
+//     the order is the canonical ComposedRequest slot
+//     ordering.
 //   - Expect      — caller-supplied assertion callback run against the
-//                   resulting (layers, warnings) tuple. Helpers like
-//                   `cellAt` and `approxEqual` are file-private in this
-//                   package and free for use inside Expect.
+//     resulting (layers, warnings) tuple. Helpers like
+//     `cellAt` and `approxEqual` are file-private in this
+//     package and free for use inside Expect.
 type composeOverlayCase struct {
 	Name       string
 	Kind       types.OverlayKind

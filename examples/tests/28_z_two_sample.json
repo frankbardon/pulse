@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "Two-sample z-test on revenue split by treatment arm via TEST_Z_TWO_SAMPLE — the large-sample asymptotic sibling of TEST_T / TEST_WELCH. Reuses the standardNormalCDF helper backing the OVERLAY_Z_CELL / OVERLAY_Z_VS_REF parity overlays so the row-test surface and the overlay surface emit identical p-values for the same (mean, variance, n) inputs. Paired with TEST_WELCH so the example surfaces the parametric distinction (Student's t vs standard normal) on the same fixture.",
+    "name": "z_two_sample_revenue",
+    "operators": [
+      "AGG_AVERAGE",
+      "TEST_WELCH",
+      "TEST_Z_TWO_SAMPLE"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "two-sample",
+      "experiment-analysis",
+      "comparison",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "revenue",
+      "label": "avg_revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "tests": [
+    {
+      "type": "TEST_Z_TWO_SAMPLE",
+      "field": "revenue",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "revenue_z_test"
+    },
+    {
+      "type": "TEST_WELCH",
+      "field": "revenue",
+      "split_by": "treatment",
+      "alpha": 0.05,
+      "label": "revenue_welch_test"
+    }
+  ]
+}

@@ -15,15 +15,19 @@ aggregation, no transformation — just a typed view of raw rows.
 
 ```
 pulse api sample --input PATH [--count N] [--json]
+                              [--labels FIELD=TABLE[:replace|augment]]
+                              [--echo-request]
 ```
 
 ## Flags
 
 | Flag | Alias | Type | Default | Purpose |
 |---|---|---|---|---|
-| `--input` | `-i` | string | (required) | Cohort `.pulse` file path |
-| `--count` | `-n` | int    | 10        | Rows to sample |
-| `--json`  |      | bool   | false     | Emit the standard envelope |
+| `--input`        | `-i` | string | (required) | Cohort `.pulse` file path |
+| `--count`        | `-n` | int    | 10         | Rows to sample |
+| `--json`         |      | bool   | false      | Emit the standard envelope |
+| `--labels`       |      | string | (none)     | Categorical label binding: `field=table[:replace|augment]`. Repeatable. Requires `PULSE_LABEL_TABLES_DIR` or a programmatically registered label table |
+| `--echo-request` |      | bool   | false      | Include the resolved `SampleRequest` on `envelope.request` |
 
 ## Output (text mode)
 

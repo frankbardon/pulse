@@ -226,8 +226,8 @@ func TestConvertValue_SetU64_Bit63RoundTrip(t *testing.T) {
 		raw  string
 		want uint64
 	}{
-		{"T63", 1 << 63},                     // highest bit alone
-		{"T0|T63", (1 << 63) | 1},            // bit 0 and bit 63
+		{"T63", 1 << 63},          // highest bit alone
+		{"T0|T63", (1 << 63) | 1}, // bit 0 and bit 63
 		{"T31|T32|T63", (1 << 31) | (1 << 32) | (1 << 63)},
 		{"", 0},
 	}

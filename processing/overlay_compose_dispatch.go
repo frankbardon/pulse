@@ -136,16 +136,16 @@ type composeOverlayMultiLayerHandler func(spec *types.ComposeOverlaySpec, refere
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
-	types.OverlayKindIndexVsRef:  applyIndexVsRef,
-	types.OverlayKindDeltaVsRef:  applyDeltaVsRef,
-	types.OverlayKindPropZCell:   applyPropZCell,
-	types.OverlayKindPropZPanel:  applyPropZPanel,
-	types.OverlayKindTCell:       applyTCell,
-	types.OverlayKindTVsRef:      applyTVsRef,
-	types.OverlayKindZCell:       applyZCell,
-	types.OverlayKindZVsRef:      applyZVsRef,
-	types.OverlayKindChiSqVsRef:  applyChiSqVsRef,
-	types.OverlayKindRank:        applyRank,
+	types.OverlayKindIndexVsRef: applyIndexVsRef,
+	types.OverlayKindDeltaVsRef: applyDeltaVsRef,
+	types.OverlayKindPropZCell:  applyPropZCell,
+	types.OverlayKindPropZPanel: applyPropZPanel,
+	types.OverlayKindTCell:      applyTCell,
+	types.OverlayKindTVsRef:     applyTVsRef,
+	types.OverlayKindZCell:      applyZCell,
+	types.OverlayKindZVsRef:     applyZVsRef,
+	types.OverlayKindChiSqVsRef: applyChiSqVsRef,
+	types.OverlayKindRank:       applyRank,
 }
 
 // composeOverlayMultiLayerHandlers is the per-kind dispatch table for
@@ -367,19 +367,19 @@ func resolveComposeSlotsFromLabels(labels []string, responses []*types.Response)
 // OverlayLayer carrying:
 //
 //   - Name  — the spec's Name when set, else "OVERLAY_{KIND}" so the
-//             renderer-facing label is always populated.
+//     renderer-facing label is always populated.
 //   - Kind  — the spec's Kind, echoed verbatim.
 //   - Scope — the spec's Scope, echoed verbatim (validator enforces
-//             scope policy at predict / runtime entry; the stub trusts
-//             the caller).
+//     scope policy at predict / runtime entry; the stub trusts
+//     the caller).
 //   - Payload — a zero-value payload whose Shape inherits from the
-//             reference slot's host shape: matrix when the reference
-//             carries a Crosstab matrix; series when it carries
-//             grouped Process Data; scalar otherwise. The stub does
-//             NOT populate the payload's per-coordinate value slots —
-//             the real arithmetic ships with E7-S9..S12 + E7-S15+.
+//     reference slot's host shape: matrix when the reference
+//     carries a Crosstab matrix; series when it carries
+//     grouped Process Data; scalar otherwise. The stub does
+//     NOT populate the payload's per-coordinate value slots —
+//     the real arithmetic ships with E7-S9..S12 + E7-S15+.
 //   - Summary — nil (descriptive summary slots are kind-specific and
-//             land with the real handlers).
+//     land with the real handlers).
 //
 // The stub emits no warnings and no error. The chassis test exercises
 // the round-trip: spec count == layer count, layer.Kind matches

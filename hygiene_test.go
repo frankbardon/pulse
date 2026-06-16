@@ -181,13 +181,17 @@ func TestUpdateDemandTableCovers(t *testing.T) {
 
 	// These are the component categories and contract types that must appear
 	// in the Update Demand table. Each entry is checked case-insensitively.
+	//
+	// The "CLI leaf" row was removed in the skill-pack overhaul (E6-S1) —
+	// CLI is out of scope for the atomic-skill convention, and the
+	// per-leaf documentation moved to docs/src/cli/. The check is dropped
+	// here so the table no longer carries a CLI leaf row.
 	required := []string{
 		"aggregator",
 		"attribute",
 		"filterer",
 		"grouper",
 		"error code",
-		"CLI leaf",
 		"format_version",
 		"field type",
 		"CI gate",
@@ -256,9 +260,14 @@ func TestShardArchiveLayoutDocumented(t *testing.T) {
 }
 
 // TestSkillsCoverShardingTopics verifies that the cohort-schema-design
-// skill carries a "Sharded" section and the contributor-workflow skill
-// mentions sharding. Non-skippable CI gate (Update Demand row for
-// shard archive layout enforces this).
+// skill carries a "Sharded" section. Non-skippable CI gate (Update
+// Demand row for shard archive layout enforces this).
+//
+// Post-E4 simplification: the legacy monolithic contributor skill was
+// retired in the skill-pack overhaul (E3-S2 split it into topical
+// skills); the load-bearing assertion is now on cohort-schema-design.md
+// alone, which carries the canonical sharding section preserved across
+// the rewrite.
 func TestSkillsCoverShardingTopics(t *testing.T) {
 	schemaSkill, err := os.ReadFile(filepath.Join("skills", "cohort-schema-design.md"))
 	if err != nil {
@@ -266,18 +275,6 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 	}
 	if !strings.Contains(string(schemaSkill), "Sharded") {
 		t.Error("skills/cohort-schema-design.md does not contain a `Sharded` section heading or callout")
-	}
-
-	workflowSkill, err := os.ReadFile(filepath.Join("skills", "contributor-workflow.md"))
-	if err != nil {
-		t.Fatalf("reading skills/contributor-workflow.md: %v", err)
-	}
-	workflow := string(workflowSkill)
-	// Either the recipe heading or any reference to sharding suffices —
-	// the recipe is the load-bearing content but tolerate phrasing
-	// variations.
-	if !strings.Contains(workflow, "shard") && !strings.Contains(workflow, "Shard") {
-		t.Error("skills/contributor-workflow.md does not mention sharding")
 	}
 }
 

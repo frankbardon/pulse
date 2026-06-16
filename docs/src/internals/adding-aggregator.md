@@ -74,7 +74,7 @@ If the aggregator is online, also expect
 ## 5. Update the skill pack
 
 Add a section for the new aggregator in
-`skills/aggregation-guide.md`. Cover when to use it, what its inputs
+`skills/aggregation-design.md`. Cover when to use it, what its inputs
 and outputs look like, and any caveats (sort cost, memory, supported
 field types).
 
@@ -84,10 +84,121 @@ as the name appears.
 
 ## 6. Declare the capability metadata
 
-Add a row to `descriptor/capabilities_aggregations.go` describing the
+Add a row to `descriptor/capabilities_aggregators.go` describing the
 operator's params, accepted field types, emitted type, and the
 streamable hint. `TestManifestOperatorsComplete` enforces that every
 registered aggregator has a capability row.
+
+The capability row also carries the operator's `ComponentSchema` and
+`Mergeability` — both required for every registered aggregator since
+v0.20.0. The next section walks through both.
+
+## 6a. Declare the `ComponentSchema` (Response.Components contract)
+
+Every registered aggregator MUST declare a `ComponentSchema` on its
+capability row in `descriptor/capabilities_aggregators.go`. The schema
+enumerates the operator-specific keys the aggregator emits into
+`Response.Components.Aggregations[i].Operator` and tags the operator
+with one of three mergeability classes:
+
+| Class | Wire value | When to use |
+|---|---|---|
+| `Mergeable` | `"mergeable"` | Components fold via the same associative / commutative path as the scalar value. Constant-space online merge works across streaming chunks and parallel shards. Used by `AGG_SUM`, `AGG_COUNT`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_WELFORD`. |
+| `Partial` | `"partial"` | Components fold across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. The orchestrator may stage the merge at terminal flush. Used by `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`. |
+| `None` | `"none"` | Components cannot be computed from a per-chunk partial. The operator needs a sorted view of the full input. Streaming chunks omit components; emission lands only on the terminal buffered flush. Used by `AGG_MEDIAN`, `AGG_PERCENTILE`. |
+
+The `aggSchema` helper in `capabilities_aggregators.go` prepends the
+universal floor (`{"n", "n_null"}`) automatically — do not list those
+keys in your `extra` slice, the helper adds them:
+
+```go
+{
+    Name:          string(types.AGG_GINI),
+    Category:      "aggregator",
+    Description:   "Gini coefficient of the field across the input set.",
+    AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+    EmitsTypeNote: "scalar float64 in [0, 1]",
+    Streamable:    false,
+    ComponentSchema: aggSchema(None,
+        ComponentKey{Name: "sorted_n", Type: "int", Description: "Number of non-null values seen before the final sort."},
+    ),
+},
+```
+
+A floor-only aggregator (operator-specific keys empty) is valid — pass
+no `extra` arguments and the schema declares only `{n, n_null}` under
+the chosen mergeability class. `AGG_COUNT` is the canonical floor-only
+operator.
+
+## 6b. Emit per-operator component values at runtime
+
+Two equivalent paths exist for emitting the operator-specific keys at
+runtime; pick whichever fits your aggregator type.
+
+**Sibling interface (preferred for built-in operators).** Implement
+`processing.MetaAggregator` on your aggregator type and add a
+compile-time assertion in `processing/aggregator.go`:
+
+```go
+type giniAggregator struct {
+    // ... operator state ...
+}
+
+func (g *giniAggregator) Components() (map[string]any, error) {
+    return map[string]any{
+        "sorted_n": len(g.values),
+    }, nil
+}
+
+// In processing/aggregator.go's compile-time assertion block:
+var _ MetaAggregator = (*giniAggregator)(nil)
+```
+
+The assertion list near the bottom of `processing/aggregator.go` is the
+grep-discoverable record of which operators emit components. Add the
+new entry so interface drift is caught at build time.
+
+**`ComponentsFunc` closure.** Used primarily by `pulse.Options.Extensions`
+registrations where you cannot extend the aggregator type. The closure
+receives the constructed aggregator instance and returns the
+operator-specific keys map. See
+[Extension Points](extension-points.md)
+for the full extension recipe and the probe-validation contract
+(`PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA`,
+`PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH`).
+
+In both paths the orchestrator owns the universal floor `{n, n_null}`
+unconditionally — your `Components()` MUST NOT re-emit those keys.
+Return `(nil, nil)` to signal "no operator-specific keys; let the
+orchestrator fill the floor only" — the canonical AGG_COUNT shape.
+
+The full Response.Components contract (per-family typed shape, streaming
+behaviour by mergeability class, overlay parity reads) lives in the
+[response-components
+skill](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md) —
+that file remains the authoritative contract document.
+
+## 6c. Mergeable-aggregator rule
+
+If your aggregator is mergeable, implement `MergeableAggregator.Merge(other)`
+and declare it as `Mergeable()` in `AggregationType.Mergeable()`
+(`types/types.go`) so it composes correctly under parallel decode
+(`service/parallel_reduce.go`) and shard reduce (`service/shard_reduce.go`).
+Both surfaces fold per-worker / per-shard partials in deterministic
+index order via `mergeShardPartials` + `finalizeMergedPartial`.
+
+An aggregator registered but not `Mergeable()` silently forces the request
+down the serial `scanIter` / `shardIter` path; both parallel paths gate on
+`processing.CanMergeRequest` and fall through cleanly when an entry is not
+flagged.
+
+Associative + commutative aggregators (count, sum, min, max, frequency,
+distinct_count, mode) produce byte-equal merge output; Welford-Pébaÿ
+aggregators (mean, variance, stddev) use Chan-Welford and stay within ULP
+of serial. If your aggregator's online state cannot be folded associatively,
+leave `Mergeable()` returning false. See [Cohort schema design — Parallel
+decode](https://github.com/frankbardon/pulse/blob/main/skills/cohort-schema-design.md)
+for the gate composition and observed perf characteristics.
 
 ## 7. CLAUDE.md and registered-component lists
 

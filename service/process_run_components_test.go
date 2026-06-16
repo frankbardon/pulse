@@ -342,4 +342,3 @@ func TestService_Process_RunComponents_RoundTripJSON(t *testing.T) {
 			got.Components.Run.ShardCount, want.ShardCount)
 	}
 }
-

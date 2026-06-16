@@ -328,7 +328,7 @@ type MatrixPayload struct {
 //     (per E1-S3 manifest declaration in
 //     descriptor/capabilities_aggregators.go).
 //   - RowMarginCounts[r] / RowMarginComponents[r] — row-margin counts
-//     + components, indexed by row (mirrors MatrixPayload.RowMargins).
+//   - components, indexed by row (mirrors MatrixPayload.RowMargins).
 //   - ColumnMarginCounts[c] / ColumnMarginComponents[c] — column-margin
 //     counts + components, indexed by column (mirrors
 //     MatrixPayload.ColumnMargins).

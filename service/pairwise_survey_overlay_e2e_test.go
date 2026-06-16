@@ -167,9 +167,9 @@ func pairwiseSurveyCohort() []pairwiseSurveyRow {
 		sd float64
 	}
 	designatorTable := []designatorParams{
-		{mu: 50.0, sd: 8.0}, // TOTAL_POP
-		{mu: 65.0, sd: 7.0}, // AFFLUENT
-		{mu: 55.0, sd: 9.0}, // URBAN_MILLENNIALS
+		{mu: 50.0, sd: 8.0},  // TOTAL_POP
+		{mu: 65.0, sd: 7.0},  // AFFLUENT
+		{mu: 55.0, sd: 9.0},  // URBAN_MILLENNIALS
 		{mu: 45.0, sd: 10.0}, // RURAL
 	}
 
@@ -636,4 +636,3 @@ func TestPairwiseSurveyOverlay_MultiSlotOrderPreserved(t *testing.T) {
 		verifyOrder(t, layers)
 	})
 }
-

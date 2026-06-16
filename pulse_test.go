@@ -309,11 +309,11 @@ func TestProcess_WithGroup(t *testing.T) {
 // Group.Include inclusion-list contract through the public pulse.Process
 // facade:
 //
-//   (a) Include populated  → Response.Data contains ONLY rows whose group
-//       key is in the Include list. Other keys are skipped exactly as
-//       null-key rows would be — no bucket emitted.
-//   (b) Include empty/nil  → Response.Data contains EVERY group key, byte-
-//       identical to the pre-Include behaviour (baseline parity).
+//	(a) Include populated  → Response.Data contains ONLY rows whose group
+//	    key is in the Include list. Other keys are skipped exactly as
+//	    null-key rows would be — no bucket emitted.
+//	(b) Include empty/nil  → Response.Data contains EVERY group key, byte-
+//	    identical to the pre-Include behaviour (baseline parity).
 //
 // Drives GROUP_CATEGORY across three distinct keys so the test fails fast
 // if Include either over-filters (drops kept keys) or under-filters

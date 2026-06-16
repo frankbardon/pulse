@@ -20,8 +20,8 @@ byte-identical to the pre-Components wire form. `format_version` stays at
 Output Format Contract in CLAUDE.md.
 
 This is the single source of truth for the universal contract; the per-category
-skills (`aggregation-guide.md`, `grouper-design.md`, `crosstab-guide.md`,
-`overlay-system.md`, `extension-points.md`) carry per-operator key tables and
+skills (`aggregation-design.md`, `grouper-design.md`, `crosstab-guide.md`,
+`overlay-system.md`, and `docs/src/internals/extension-points.md`) carry per-operator key tables and
 point back here for the cross-cutting shape.
 
 ## Universal floor
@@ -68,7 +68,7 @@ type ResponseComponents struct {
   `Request.Aggregations` slot in matching declared order. Slot identity rides
   on `Label` (mirrors `Aggregation.Label`). Universal floor fields `N` and
   `NNull` plus operator-specific keys inside `Operator map[string]any`. See
-  `skills/aggregation-guide.md` for the per-AGG key tables.
+  `skills/aggregation-design.md` for the per-AGG key tables.
 
 - **`Groupers []GrouperComponents`** — one entry per `Request.Groups` slot in
   matching declared order. Slot identity rides on `Field` plus `Label` when
@@ -264,7 +264,7 @@ The manifest's `extensions` block surfaces per-extension
 extension operator names in the per-category enums so an LLM client can
 plan against the union of built-in + extension catalogs.
 
-See `skills/extension-points.md` for the full registration recipe and
+See `docs/src/internals/extension-points.md` for the full registration recipe and
 the `FieldInputs` projection hook.
 
 ## Examples
@@ -413,7 +413,7 @@ bin/pulse api process --request examples/crosstab/16_welford_components_revenue_
 
 ## Cross-links
 
-- [aggregation-guide](aggregation-guide.md) — per-AGG component keys + the
+- [aggregation-design](aggregation-design.md) — per-AGG component keys + the
   per-category Components section model
 - [grouper-design](grouper-design.md) — per-GROUP component keys
 - [crosstab-guide](crosstab-guide.md) — `CrosstabComponents` indexing
@@ -421,5 +421,5 @@ bin/pulse api process --request examples/crosstab/16_welford_components_revenue_
 - [overlay-system](overlay-system.md) — parity-overlay migration (the four
   `OVERLAY_*_CELL` / `OVERLAY_*_VS_REF` kinds reading from
   `CellComponents`)
-- [extension-points](extension-points.md) — extension `ComponentSchema`
+- [extension-points](../docs/src/internals/extension-points.md) — extension `ComponentSchema`
   registration, probe-validation errors, and `FieldInputs` projection

@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Per-arm ARPU (revenue per session-minute) via AGG_RATIO with Params.numerator_field=revenue + Params.denominator_field=session_minutes, bucketed by treatment so the ratio reads as one ARPU per arm. Streamable cohort-analytics aggregator — two running sums fold inline; no second pass.",
+    "name": "ratio_revenue_per_minute",
+    "operators": [
+      "AGG_RATIO",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "experiment-analysis",
+      "financial",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_RATIO",
+      "field": "revenue",
+      "label": "revenue_per_minute",
+      "params": {
+        "numerator_field": "revenue",
+        "denominator_field": "session_minutes"
+      }
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "sort": [
+    {
+      "field": "treatment"
+    }
+  ]
+}

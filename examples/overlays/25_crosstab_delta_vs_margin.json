@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of region x segment decorated with an OVERLAY_DELTA_VS_MARGIN cell overlay that emits (cell - row_margin) per cell (additive sibling of OVERLAY_INDEX_VS_MARGIN / 01_crosstab_index_vs_margin.json). DELTA preserves the cell's units (counts) so renderers can surface absolute over/under-representation against the row average without dividing by zero. Supports every axis a Margin reference can target (row / column / grand) — this example uses row-axis. Buffered (host margin recomputation). Renderers centre diverging colour ramps on baseline = 0.",
+    "name": "crosstab-delta-vs-margin",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "comparison",
+      "overlay"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "delta_row",
+      "kind": "OVERLAY_DELTA_VS_MARGIN",
+      "scope": "cell",
+      "ref": {
+        "margin": {
+          "axis": "row"
+        }
+      }
+    }
+  ]
+}

@@ -134,8 +134,8 @@ func ResolveComposeSlots(req *types.ComposedRequest, responses []*types.Response
 				errors.PULSE_COMPOSE_LABEL_COLLISION,
 				"compose overlay resolver: label collision",
 				map[string]any{
-					"label":            label,
-					"first_slot_index": byIndex[label],
+					"label":             label,
+					"first_slot_index":  byIndex[label],
 					"second_slot_index": i,
 				})
 		}

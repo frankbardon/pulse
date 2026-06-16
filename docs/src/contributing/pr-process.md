@@ -32,11 +32,11 @@ the cliff-notes are:
 |---|---|
 | Registered aggregator / attribute / filterer / grouper | The matching skill file + the operator capability table |
 | Registered window / feature / synth distribution / statistical test | Same — skill + capability file |
-| Error code (added / removed / renamed) | `errors/codes.go`, `skills/error-code-reference.md`, `descriptor/capabilities_errors.go` |
-| CLI leaf (added or flag added) | `CLAUDE.md` "Common Claude Code Workflows" + `skills/getting-started.md` if user-facing |
+| Error code (added / removed / renamed) | `errors/codes.go`, `errors/fixup_metadata.go` (`codeMetadata` Message + Fixups), `descriptor/capabilities_errors.go` |
+| CLI leaf (added or flag added) | `CLAUDE.md` "Common Claude Code Workflows" + `skills/session-bootstrap.md` if user-facing |
 | `--json` envelope change | `CLAUDE.md` "Output Format Contract" |
 | `.pulse` file format change | `CLAUDE.md` "Code Conventions" + `skills/cohort-schema-design.md` |
-| New environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/getting-started.md` |
+| New environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/session-bootstrap.md` |
 | New non-skippable CI gate | List it by name in `CLAUDE.md` |
 
 If you find yourself wanting to defer the doc update to a follow-up

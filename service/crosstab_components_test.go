@@ -292,10 +292,10 @@ func writeNullableCrosstabCohort(t *testing.T, path string) *fs.Config {
 
 	// (region, segment, value, region_is_null)
 	type rec struct {
-		region   uint64
-		segment  uint64
-		value    uint64
-		regNull  bool
+		region  uint64
+		segment uint64
+		value   uint64
+		regNull bool
 	}
 	records := []rec{
 		{0, 0, math.Float64bits(10), false}, // north, retail
@@ -1711,18 +1711,18 @@ func TestCrosstabComponents_RowKeyComponents_BufferedVsFused_ParityByteEqual(t *
 // slot parity tests left for the wrap-up story (E3-S10):
 //
 //   - Aggregator families on the cell:
-//       * scalar:        AGG_SUM
-//       * Welford:       AGG_VARIANCE
-//       * map-state:     AGG_FREQUENCY  (fused-eligible: mergeable +
-//                        scalar margin + non-MapValued)
-//       * order-stat:    AGG_MEDIAN     (non-mergeable → fused gate
-//                        rejects, both runs take the buffered path,
-//                        components emit only on terminal flush — this
-//                        locks the same-path invariant)
+//   - scalar:        AGG_SUM
+//   - Welford:       AGG_VARIANCE
+//   - map-state:     AGG_FREQUENCY  (fused-eligible: mergeable +
+//     scalar margin + non-MapValued)
+//   - order-stat:    AGG_MEDIAN     (non-mergeable → fused gate
+//     rejects, both runs take the buffered path,
+//     components emit only on terminal flush — this
+//     locks the same-path invariant)
 //   - Axis pairings on the (rows × columns) crosstab:
-//       * GROUP_CATEGORY × GROUP_CATEGORY  (canonical)
-//       * GROUP_RANGE    × GROUP_CATEGORY  (numeric row binning)
-//       * GROUP_CATEGORY × GROUP_DATE      (date column binning)
+//   - GROUP_CATEGORY × GROUP_CATEGORY  (canonical)
+//   - GROUP_RANGE    × GROUP_CATEGORY  (numeric row binning)
+//   - GROUP_CATEGORY × GROUP_DATE      (date column binning)
 //
 // For every (aggregator, pairing) combination the test asserts:
 //

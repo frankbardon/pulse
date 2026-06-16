@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "category": "filterers",
+    "description": "Boolean falsey filtering on the all_types.pulse packed_bool active field via FILTER_FALSE (keep rows where active is logical false). Sibling shape to FILTER_TRUE — same boolFilterer implementation, opposite want flag. Counts the surviving rows so the keep-only-inactive fold reads as a single scalar.",
+    "name": "filter_falsey",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_FALSE"
+    ],
+    "tags": [
+      "data-quality",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "all_types.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_FALSE",
+      "field": "active"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "rows_active_false"
+    }
+  ]
+}

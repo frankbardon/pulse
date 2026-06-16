@@ -676,12 +676,12 @@ func expectedDelta(target, ref float64) float64 {
 // region, exercising the SERIES handler's per-row fold rather than
 // degenerating into "identical numerators and denominators"):
 //
-//   Stage 0 (sum): GROUP region, AGG_SUM score → "v" — picks up the
-//                  raw cohort's 2 rows per region (sums to 6 / 30 / 150).
-//   Stage 1 (sum): GROUP region, AGG_SUM v → "w" — only 1 row per
-//                  region in stage 0 output, so w == v (6 / 30 / 150).
-//   Stage 2 (count): GROUP region, AGG_COUNT w → "c" — returns 1 per
-//                    region (one row per region in stage 1 output).
+//	Stage 0 (sum): GROUP region, AGG_SUM score → "v" — picks up the
+//	               raw cohort's 2 rows per region (sums to 6 / 30 / 150).
+//	Stage 1 (sum): GROUP region, AGG_SUM v → "w" — only 1 row per
+//	               region in stage 0 output, so w == v (6 / 30 / 150).
+//	Stage 2 (count): GROUP region, AGG_COUNT w → "c" — returns 1 per
+//	                 region (one row per region in stage 1 output).
 //
 // Per-row INDEX(stage 2 / stage 0) = 1/v * 100 (≈ 16.67, 3.33, 0.67).
 // Per-row DELTA(stage 2 - stage 0) = 1 - v (-5, -29, -149).
@@ -846,7 +846,7 @@ func TestOverlay_ChainWholeChain_IndexVsStage(t *testing.T) {
 		return out
 	}
 	targetByRegion := collect(target.Data, "c") // stage 2 aggregator
-	refByRegion := collect(ref.Data, "v")        // stage 0 aggregator
+	refByRegion := collect(ref.Data, "v")       // stage 0 aggregator
 
 	wantIndex := make(map[string]float64, len(targetByRegion))
 	for keyStr, tv := range targetByRegion {

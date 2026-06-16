@@ -154,10 +154,10 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 			Message: "overlay " + string(spec.Kind) +
 				" host distribution is empty; cannot compute χ² goodness-of-fit",
 			Details: map[string]any{
-				"kind":      string(spec.Kind),
-				"host":      "facet",
-				"subset_n":  subsetN,
-				"value_n":   len(values),
+				"kind":     string(spec.Kind),
+				"host":     "facet",
+				"subset_n": subsetN,
+				"value_n":  len(values),
 			},
 		}}
 		layer := buildChiSqVsPopLayer(spec, nanStat, &nanStat, &nanPV, zeroDf, 0, math.Inf(1))

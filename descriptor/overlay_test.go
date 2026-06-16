@@ -1499,9 +1499,9 @@ func TestValidateOverlay_IndexVsTotal_LevelWithinRejected(t *testing.T) {
 	data := buildTestPulseFile(t, schema)
 
 	cases := []struct {
-		name        string
-		level       int
-		within      int
+		name   string
+		level  int
+		within int
 	}{
 		{name: "level=1", level: 1},
 		{name: "within=1", within: 1},

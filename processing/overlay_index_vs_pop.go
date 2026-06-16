@@ -366,14 +366,14 @@ func applyIndexVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop
 			Message: "overlay " + string(spec.Kind) +
 				" host and population histograms have mismatched shapes; indices not computable",
 			Details: map[string]any{
-				"kind":          string(spec.Kind),
-				"host":          "facet",
-				"host_bin_min":  hostHist.Min,
-				"host_bin_max":  hostHist.Max,
-				"host_bin_n":    len(hostHist.Bins),
-				"pop_bin_min":   popHist.Min,
-				"pop_bin_max":   popHist.Max,
-				"pop_bin_n":     len(popHist.Bins),
+				"kind":         string(spec.Kind),
+				"host":         "facet",
+				"host_bin_min": hostHist.Min,
+				"host_bin_max": hostHist.Max,
+				"host_bin_n":   len(hostHist.Bins),
+				"pop_bin_min":  popHist.Min,
+				"pop_bin_max":  popHist.Max,
+				"pop_bin_n":    len(popHist.Bins),
 			},
 		}}
 		return emptyIndexVsPopLayer(spec), warnings, nil

@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Tally per-category frequency on the customers cohort's region field via AGG_FREQUENCY (returns the count of the modal category as the scalar, the full per-value count map via the rich-components surface). Paired with GROUP_CATEGORY on city so the breakdown reads as one frequency map per city — the canonical AGG_FREQUENCY shape sibling of AGG_MODE.",
+    "name": "categorical_frequency",
+    "operators": [
+      "AGG_FREQUENCY",
+      "AGG_MODE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cardinality-analysis",
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_FREQUENCY",
+      "field": "region",
+      "label": "region_freq"
+    },
+    {
+      "type": "AGG_MODE",
+      "field": "region",
+      "label": "modal_region"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "city"
+    }
+  ],
+  "sort": [
+    {
+      "field": "city"
+    }
+  ]
+}

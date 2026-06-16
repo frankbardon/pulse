@@ -96,7 +96,9 @@ fixtures that exercise the streaming and buffered paths.
 If your test introduces a new failure mode, add a code to
 `errors/codes.go` (mirror the existing `PULSE_TEST_*` family),
 register its description row in `descriptor/capabilities_errors.go`,
-and document recovery in `skills/error-code-reference.md`. See the
+and document recovery in `errors/fixup_metadata.go` (`codeMetadata`
+Message + Fixups, surfaced per-code via `pulse_errors_lookup` /
+`pulse errors lookup CODE`). See the
 [Adding an Aggregator](adding-aggregator.md) recipe for the same
 pattern at the aggregator layer.
 

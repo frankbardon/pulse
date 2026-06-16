@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Bucket-level AGG_ZSCORE on customers.pulse income grouped by region — each region's z-score is computed against the cohort-wide mean / stddev so the per-region buckets emit standardised aggregates suitable for cross-region comparison. Distinct from ATTR_ZSCORE (per-row standardisation): AGG_ZSCORE folds the per-group means into the cohort population summary before standardising. Buffered.",
+    "name": "zscore_grouped",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_ZSCORE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "comparison",
+      "distribution-shape",
+      "buffered-pipeline"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "region_mean_income"
+    },
+    {
+      "type": "AGG_ZSCORE",
+      "field": "income",
+      "label": "region_z_income"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "sort": [
+    {
+      "field": "region"
+    }
+  ]
+}

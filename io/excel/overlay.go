@@ -98,12 +98,12 @@ func (w *Writer) writeOverlaySheets() error {
 //
 // Truncation strategy:
 //
-//   1. Prepend the OverlaySheetPrefix.
-//   2. If the composed name fits in 31 chars and is unique, use it.
-//   3. Otherwise truncate the suffix portion and append "_tN" (N >= 1)
-//      until the name is unique. The numeric suffix grows in width
-//      (1 → 2 → 3 digits) so the prefix shrinks accordingly to stay
-//      under the cap.
+//  1. Prepend the OverlaySheetPrefix.
+//  2. If the composed name fits in 31 chars and is unique, use it.
+//  3. Otherwise truncate the suffix portion and append "_tN" (N >= 1)
+//     until the name is unique. The numeric suffix grows in width
+//     (1 → 2 → 3 digits) so the prefix shrinks accordingly to stay
+//     under the cap.
 //
 // The disambiguation suffix is "_t<N>" rather than just "<N>" so the
 // pattern is visually distinct from a layer name that happens to end in
