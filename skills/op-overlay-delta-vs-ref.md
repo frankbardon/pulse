@@ -21,7 +21,7 @@ Compose-only dual-shape. Overlays decorate the host result; they do not emit `Re
 
 ## Host shape
 
-COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on both reference + target. Schema-match (E7-S7) + key-alignment (E7-S6) + dict-prefix (E7-S8) gates at the slot barrier. Subtractive twin of `OVERLAY_INDEX_VS_REF`.
+COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on both reference + target. Schema-match, key-alignment, and dict-prefix gates run at the slot barrier. Subtractive twin of `OVERLAY_INDEX_VS_REF`.
 
 ## Output
 

@@ -21,7 +21,7 @@ Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decora
 
 ## Host shape
 
-CHAIN — `ProcessChain` with reference + target stages' host result shape (scalar / series / matrix). First whole-chain (E6) kind; first consumer of `StageRef` discriminated reference family.
+CHAIN — `ProcessChain` with reference + target stages' host result shape (scalar / series / matrix). Consumes the `StageRef` discriminated reference family.
 
 ## Output
 

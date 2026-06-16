@@ -27,9 +27,9 @@ import (
 //   - WIN_*     — types.AllWindowTypes()
 //   - FEAT_*    — types.AllFeatureTypes()
 //   - TEST_*    — types.AllTestTypes() (covers both tier-1 row tests and
-//                 tier-2 natives like TEST_TREND / TEST_TUKEY_HSD; the
-//                 tier-2 family-name partition is a descriptor-side facet,
-//                 not a separate types.All*Types() enumerator)
+//     tier-2 natives like TEST_TREND / TEST_TUKEY_HSD; the
+//     tier-2 family-name partition is a descriptor-side facet,
+//     not a separate types.All*Types() enumerator)
 //   - REG_*     — types.AllRegressionTypes()
 //   - OVERLAY_* — types.AllOverlayKinds()
 //

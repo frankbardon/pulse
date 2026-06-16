@@ -16,7 +16,7 @@ Source-rooted linear chain — collapses N round-trips into one open + N stage v
 
 ## Output
 
-`descriptor.Envelope` wrapping per-stage `Response`s plus a whole-chain summary. Each stage's `Components` populates as usual. Chain-host overlays fold at the post-chain barrier (E6-S3).
+`descriptor.Envelope` wrapping per-stage `Response`s plus a whole-chain summary. Each stage's `Components` populates as usual. Chain-host overlays fold at the post-chain barrier.
 
 ## Gotchas
 
@@ -27,4 +27,4 @@ Source-rooted linear chain — collapses N round-trips into one open + N stage v
 
 - `process-chain` — full mergeability matrix and recipe library.
 - `response-components` — per-stage emission contract.
-- `overlay-system` — CHAIN-host overlays (E6-S3).
+- `overlay-system` — CHAIN-host overlays.

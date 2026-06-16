@@ -21,7 +21,7 @@ Overlays decorate the host result; they do not emit `Response.Components`.
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). First inferential MATRIX-host overlay; establishes the SCALAR-payload pattern E2/E5 χ²/post-test kinds reuse.
+MATRIX crosstab (`Response.Crosstab.Matrix`). SCALAR-payload pattern shared by sibling χ² / post-test overlays.
 
 ## Output
 
