@@ -9,7 +9,7 @@ leaf in the binary.
 
 > **LLM agents using MCP:** the equivalent surface is the
 > `pulse_process` MCP tool — see `skills/session-bootstrap.md` and
-> `skills/aggregation-guide.md` for request authoring guidance.
+> `skills/aggregation-design.md` for request authoring guidance.
 
 ## Synopsis
 
@@ -75,7 +75,7 @@ The full request grammar is one JSON object whose top-level keys mirror
 
 The full grammar — windows, sort, tests, post-tests — is documented in
 [`types.Request`](https://github.com/frankbardon/pulse/blob/main/types/types.go);
-the LLM-facing companion is `skills/aggregation-guide.md`.
+the LLM-facing companion is `skills/aggregation-design.md`.
 
 ## Pipeline order
 

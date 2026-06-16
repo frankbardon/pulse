@@ -12,11 +12,11 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 
 | If you change... | You MUST also update... | Enforced by |
 |---|---|---|
-| A registered aggregator | `skills/aggregation-guide.md` (add or update the section for that aggregator) | `TestSkillsCoverAllComponents` |
+| A registered aggregator | `skills/aggregation-design.md` (add or update the section for that aggregator) | `TestSkillsCoverAllComponents` |
 | A registered attribute | `skills/attribute-composition.md` | `TestSkillsCoverAllComponents` |
-| A registered filterer | `skills/aggregation-guide.md` (filtering section) | `TestSkillsCoverAllComponents` |
+| A registered filterer | `skills/aggregation-design.md` (filtering section) | `TestSkillsCoverAllComponents` |
 | A registered grouper | `skills/grouper-design.md` | `TestSkillsCoverAllComponents` |
-| A registered window operator | `skills/window-operations.md` | `TestSkillsCoverAllWindowTypes` |
+| A registered window operator | `skills/window-design.md` | `TestSkillsCoverAllWindowTypes` |
 | An error code (added/removed/renamed) | `errors/fixup_metadata.go` (`codeMetadata` Message + Fixups; surfaced per-code via `pulse_errors_lookup` / `pulse errors lookup CODE`) | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
 | A CLI leaf (added/removed/flag added) | `CLAUDE.md` "Common Claude Code Workflows" + `skills/session-bootstrap.md` if user-facing | `TestSkillsCoverAllCliLeaves` |
 | A `--json` envelope or `format_version` | `CLAUDE.md` "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |

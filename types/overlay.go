@@ -885,7 +885,7 @@ const (
 	//
 	// Window-via-Params convention: the rolling window width is supplied via
 	// `OverlaySpec.Params["window"]` as a positive integer (mirrors the
-	// `WIN_*` operator convention; see `skills/window-operations.md` for the
+	// `WIN_*` operator convention; see `skills/window-design.md` for the
 	// pattern). The `Ref.RollingMean` arm is an empty marker struct
 	// (`OverlayRollingMeanRef{}`) tagging the ref family — the v1 window
 	// value lives entirely on `Params`. Forward-compat: `OverlayRollingMeanRef`
@@ -1391,7 +1391,7 @@ const (
 	//
 	// Window-via-Params convention: the rolling window width is supplied
 	// via `OverlaySpec.Params["window"]` as a positive integer (mirrors
-	// the `WIN_*` operator convention; see `skills/window-operations.md`).
+	// the `WIN_*` operator convention; see `skills/window-design.md`).
 	// The `Ref.RollingMean` arm is an empty marker struct
 	// (`OverlayRollingMeanRef{}`) tagging the ref family — identical to
 	// the `OVERLAY_INDEX_VS_ROLLING_MEAN` shape so the validator's
@@ -2604,7 +2604,7 @@ type OverlayYoYRef struct{}
 // E4-S5 (`OVERLAY_INDEX_VS_ROLLING_MEAN`) is the first kind to consume
 // this arm and the empty marker is intentional — the v1 window width
 // lives on `OverlaySpec.Params["window"]` per the `WIN_*` operator
-// convention (see `skills/window-operations.md`). The empty struct tags
+// convention (see `skills/window-design.md`). The empty struct tags
 // the ref family so the validator's "exactly one ref arm populated per
 // kind" contract stays uniform with the rest of the catalog (every kind
 // picks exactly one ref family, even when its parameters live on

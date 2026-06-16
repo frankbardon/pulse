@@ -98,6 +98,6 @@ during row decode where the corruption could go unnoticed.
 
 | Concern | Source |
 |---|---|
-| Which aggregators are meaningful on which types | `skills/aggregation-guide.md` (LLM) / [api process](../cli/api-process.md) (CLI) |
+| Which aggregators are meaningful on which types | `skills/aggregation-design.md` (LLM) / [api process](../cli/api-process.md) (CLI) |
 | Decimal arithmetic semantics | `skills/financial-cohorts.md` (LLM) |
 | Categorical dictionary limits | [Dictionary Blocks](dictionaries.md) |

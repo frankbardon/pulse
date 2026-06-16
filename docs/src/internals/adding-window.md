@@ -72,7 +72,7 @@ single-row, null-bearing, and order-sensitive cases.
 
 ## 6. Update the window-operations skill
 
-Add a section in `skills/window-operations.md` covering the operator's
+Add a section in `skills/window-design.md` covering the operator's
 frame contract, parameter shape, and output column naming. The
 `TestSkillsCoverAllWindowTypes` gate enforces presence.
 

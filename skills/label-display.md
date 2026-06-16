@@ -89,7 +89,7 @@ LLM clients discover label tables via two MCP tools. `pulse_label_tables` lists 
 
 ## See
 
-- `skills/extension-points.md` — registering `LabelTables` on `Options.Extensions`.
-- `skills/aggregation-guide.md` — `AGG_FREQUENCY` / `AGG_MODE` label-key path.
+- `docs/src/internals/extension-points.md` — registering `LabelTables` on `Options.Extensions`.
+- `skills/aggregation-design.md` — `AGG_FREQUENCY` / `AGG_MODE` label-key path.
 - `skills/facet-design.md` — surfacing labels on `FacetField` values.
-- `skills/mcp-integration.md` — `pulse_label_tables` / `pulse_label_resolve` schemas.
+- `skills/tool-label-tables.md` / `skills/tool-label-resolve.md` — `pulse_label_tables` / `pulse_label_resolve` schemas.

@@ -75,5 +75,5 @@ Tier-1 `tests` / tier-2 `post_tests` ride raw rows; the crosstab-conflict guard 
 - `skills/response-components.md` — universal `Response.Components` contract.
 - `skills/overlay-system.md` — overlay framework + parity migration.
 - `skills/grouper-design.md` — fused-path eligibility per grouper.
-- `skills/aggregation-guide.md` — margin reducibility per `AGG_*`.
+- `skills/aggregation-design.md` — margin reducibility per `AGG_*`.
 - `skills/statistical-testing.md` — picking `TEST_*` per cell aggregator.

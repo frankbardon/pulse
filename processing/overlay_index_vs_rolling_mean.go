@@ -22,7 +22,7 @@ import (
 //   - First kind to consume the `Ref.RollingMean` arm of the OverlayRef
 //     discriminated union. The arm is an empty marker — the window
 //     width lives on `OverlaySpec.Params["window"]` per the `WIN_*`
-//     operator convention (`skills/window-operations.md`).
+//     operator convention (`skills/window-design.md`).
 //   - Per-point math: `index_i = point_value_i / mean(W prior present
 //     points) * 100`. The window is bounded so naive arithmetic mean is
 //     numerically fine (no Welford recurrence required); the carrier

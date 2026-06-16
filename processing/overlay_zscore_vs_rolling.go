@@ -22,7 +22,7 @@ import (
 //     discriminated union — sibling windowed-rolling kind to E4-S5
 //     INDEX_VS_ROLLING_MEAN. The empty marker tags the ref family; the
 //     window width lives on `OverlaySpec.Params["window"]` per the
-//     `WIN_*` operator convention (`skills/window-operations.md`).
+//     `WIN_*` operator convention (`skills/window-design.md`).
 //   - Per-point math: `zscore_i = (point_value_i - rolling_mean(W)) /
 //     rolling_sd(W)` where `rolling_sd = sqrt(M2 / (count - 1))` (SAMPLE
 //     SD, n-1 denominator).

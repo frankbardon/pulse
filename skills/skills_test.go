@@ -47,7 +47,7 @@ func TestSkillsList_ReturnsAll(t *testing.T) {
 
 func TestSkillsGet_ValidName(t *testing.T) {
 	// session-bootstrap.md is the E3 replacement for the legacy
-	// getting-started.md anchor — same role (first stop on every new
+	// session-bootstrap anchor — same role (first stop on every new
 	// MCP session) under the topical-skill naming convention.
 	content, ok := Get("session-bootstrap")
 	if !ok {

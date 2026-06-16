@@ -20,11 +20,11 @@ This is the compressed surface — the full per-contract trigger table lives at 
 
 | If you change... (category) | You MUST also update... | Enforced by |
 |---|---|---|
-| A registered aggregator | `skills/aggregation-guide.md` + `descriptor/capabilities_aggregators.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
+| A registered aggregator | `skills/aggregation-design.md` + `descriptor/capabilities_aggregators.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
 | A registered attribute | `skills/attribute-composition.md` + `descriptor/capabilities_attributes.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
-| A registered filterer | `skills/aggregation-guide.md` (filtering section) + `descriptor/capabilities_filterers.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
+| A registered filterer | `skills/aggregation-design.md` (filtering section) + `descriptor/capabilities_filterers.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
 | A registered grouper, or the `Group.Include` inclusion-list slot | `skills/grouper-design.md` + `descriptor/capabilities_groupers.go` + (Include: `processing/grouper.go` + `processing/grouper_set.go`) | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete`, `TestGroupCategory_IncludeFiltersLabels`, `TestGroupSetValue_IncludeFiltersCompositeKey`, `TestGroupSetPerElement_IncludeFilters` |
-| A registered window operator | `skills/window-operations.md` + `descriptor/capabilities_windows.go` | `TestSkillsCoverAllWindowTypes`, `TestManifestOperatorsComplete` |
+| A registered window operator | `skills/window-design.md` + `descriptor/capabilities_windows.go` | `TestSkillsCoverAllWindowTypes`, `TestManifestOperatorsComplete` |
 | A registered feature operator | `skills/feature-engineering.md` + `descriptor/capabilities_features.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
 | A registered statistical test (`TEST_*`) or tier-2 variant | `skills/statistical-testing.md` + `types/streamability.go` + `descriptor/capabilities_tests.go` | `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
 | A registered regression (`REG_*`) or modifier | `skills/regression-modeling.md` + `descriptor/capabilities_regressions.go` | `TestSkillsCoverAllRegressions`, `TestManifestRegressionsComplete` |
@@ -214,7 +214,7 @@ Skill-coverage:
 - `TestSkillsCoverAllComponents` — every aggregator/attribute/filterer/grouper in registries mentioned in its target skill.
 - `TestSkillsCoverAllCliLeaves` — every CLI leaf appears in `skills/session-bootstrap.md`.
 - `TestSkillsCoverAllFieldTypes` — every field type appears in `skills/cohort-schema-design.md`.
-- `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator appears in `skills/window-operations.md`.
+- `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator has a matching `skills/op-win-<kebab>.md` atomic skill file.
 - `TestSkillsCoverAllMCPTools` — every registered MCP tool appears in `skills/session-bootstrap.md`.
 - `TestSkillsCoverAllSynthDistributions` — every distribution kind appears in `skills/synthetic-data.md`.
 - `TestSkillsCoverAllRegressions` — every `REG_*` operator appears in `skills/regression-modeling.md`.
@@ -277,11 +277,11 @@ applies_to: process, compose, predict
 
 | Category | Target skill |
 |---|---|
-| Aggregator (`AGG_*`) | `skills/aggregation-guide.md` |
+| Aggregator (`AGG_*`) | `skills/aggregation-design.md` |
 | Attribute (`ATTR_*`) | `skills/attribute-composition.md` |
-| Filterer (`FILTER_*`) | `skills/aggregation-guide.md` (filtering section) |
+| Filterer (`FILTER_*`) | `skills/aggregation-design.md` (filtering section) |
 | Grouper (`GROUP_*`) | `skills/grouper-design.md` |
-| Window (`WIN_*`) | `skills/window-operations.md` |
+| Window (`WIN_*`) | `skills/window-design.md` |
 | Feature (`FEAT_*`) | `skills/feature-engineering.md` |
 | Statistical test (`TEST_*`) | `skills/statistical-testing.md` |
 | Regression (`REG_*`) | `skills/regression-modeling.md` |

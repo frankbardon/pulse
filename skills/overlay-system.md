@@ -62,5 +62,5 @@ Declare constant + `AllOverlayKinds()` (`types/overlay.go`); add `types/overlay_
 - `skills/response-components.md` — `CellComponents` (parity source).
 - `skills/crosstab-guide.md` — MATRIX host.
 - `skills/facet-design.md` — FACET host + `*_VS_POP`.
-- `skills/contributor-workflow.md` — CHAIN host.
-- `skills/extension-points.md` — overlay extensions.
+- `docs/src/internals/` — Internals chapter: CHAIN host wiring.
+- `docs/src/internals/extension-points.md` — overlay extensions.

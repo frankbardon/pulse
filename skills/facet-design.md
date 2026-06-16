@@ -67,6 +67,6 @@ Distinct values of one field, no counts ⇒ `pulse.Facet`. Per-value counts of N
 ## See
 
 - `skills/overlay-system.md` — overlay framework + per-shape contract.
-- `skills/aggregation-guide.md` — `AGG_PERCENTILE` semantics.
+- `skills/aggregation-design.md` — `AGG_PERCENTILE` semantics.
 - `skills/statistical-testing.md` — χ² / KS row-test surfaces (overlay parity).
 - `skills/label-display.md` — labels on `FacetField` values.

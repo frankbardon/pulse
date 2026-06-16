@@ -259,11 +259,11 @@ func TestShardArchiveLayoutDocumented(t *testing.T) {
 // skill carries a "Sharded" section. Non-skippable CI gate (Update
 // Demand row for shard archive layout enforces this).
 //
-// Post-E4 simplification: contributor-workflow.md was retired in the
-// skill-pack overhaul (E3-S2 split it into topical skills); the
-// load-bearing assertion is now on cohort-schema-design.md alone,
-// which carries the canonical sharding section preserved across the
-// rewrite.
+// Post-E4 simplification: the legacy monolithic contributor skill was
+// retired in the skill-pack overhaul (E3-S2 split it into topical
+// skills); the load-bearing assertion is now on cohort-schema-design.md
+// alone, which carries the canonical sharding section preserved across
+// the rewrite.
 func TestSkillsCoverShardingTopics(t *testing.T) {
 	schemaSkill, err := os.ReadFile(filepath.Join("skills", "cohort-schema-design.md"))
 	if err != nil {

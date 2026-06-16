@@ -14,9 +14,9 @@ import (
 //
 // Convention: pulse_skills_list -> tool-skills-list.md.
 //
-// This is the post-E4 replacement for the legacy "tool name appears in
-// mcp-integration.md" check. Atomic-file existence is now the
-// load-bearing gate — every MCP tool owns one tool-*.md file.
+// This is the post-E4 replacement for the legacy monolithic-skill check.
+// Atomic-file existence is now the load-bearing gate — every MCP tool
+// owns one tool-*.md file.
 func TestSkillsCoverAllMCPTools(t *testing.T) {
 	// Build the membership set from skills.List() — the loader is the
 	// canonical embed surface and avoids re-embedding here.

@@ -159,7 +159,7 @@ func TestUpdateDemandTableCoversComponents(t *testing.T) {
 	// extension framing.
 	hasExtensionRow := strings.Contains(section, "Extension registration `ComponentSchema`") ||
 		strings.Contains(section, "Extension registration ComponentSchema") ||
-		(strings.Contains(section, "Extension") && strings.Contains(section, "skills/extension-points.md"))
+		(strings.Contains(section, "Extension") && strings.Contains(section, "docs/src/internals/extension-points.md"))
 	if !hasExtensionRow {
 		t.Error("Update Demand table does not mention the Extension registration ComponentSchema row (extension surface must trigger a skill + Update Demand update)")
 	}

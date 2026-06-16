@@ -756,7 +756,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"OVERLAY_DELTA_VS_BASELINE / E4-S3) and the first kind to consume the Ref.RollingMean arm of the " +
 				"OverlayRef discriminated union. Window-via-Params convention: the rolling window width is supplied via " +
 				"OverlaySpec.Params[\"window\"] as a positive integer (mirrors the WIN_* operator convention; see " +
-				"skills/window-operations.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family " +
+				"skills/window-design.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family " +
 				"— the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W " +
 				"most recently observed PRESENT values plus a Welford (count, mean, M2) trio reserved for the E4-S6 " +
 				"OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). " +
@@ -1342,7 +1342,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"time series; OVERLAY_ZSCORE_VS_TOTAL uses POPULATION SD (sqrt(M2 / N)) because the per-group aggregation " +
 				"set IS the whole population. The two surfaces are intentionally orthogonal. " +
 				"Window-via-Params convention: OverlaySpec.Params[\"window\"] supplies a positive integer (mirrors the " +
-				"WIN_* operator convention; see skills/window-operations.md). Carrier shape (shared with INDEX_VS_ROLLING_MEAN): " +
+				"WIN_* operator convention; see skills/window-design.md). Carrier shape (shared with INDEX_VS_ROLLING_MEAN): " +
 				"per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio. " +
 				"The sibling kind reads only mean; this kind reads BOTH mean and M2. " +
 				"Window-fill semantics: when the carrier count < 2 (sample variance requires at least 2 observations) the " +

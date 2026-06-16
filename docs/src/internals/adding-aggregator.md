@@ -74,7 +74,7 @@ If the aggregator is online, also expect
 ## 5. Update the skill pack
 
 Add a section for the new aggregator in
-`skills/aggregation-guide.md`. Cover when to use it, what its inputs
+`skills/aggregation-design.md`. Cover when to use it, what its inputs
 and outputs look like, and any caveats (sort cost, memory, supported
 field types).
 

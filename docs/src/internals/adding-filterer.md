@@ -97,7 +97,7 @@ extension-side parity lives in
 
 ## 6. Update the aggregation-guide skill
 
-Add a section in the filtering portion of `skills/aggregation-guide.md`
+Add a section in the filtering portion of `skills/aggregation-design.md`
 covering the new filterer's semantics, parameter shape, and the null-
 input contract.
 

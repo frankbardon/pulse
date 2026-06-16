@@ -241,7 +241,7 @@ func TestAttribute_Percentile_Basic(t *testing.T) {
 
 // TestAttribute_RankRemoved verifies the registry no longer resolves ATTR_RANK.
 // Migration: use WIN_RANK with empty PartitionBy and one ASC OrderBy on the
-// same field. See skills/window-operations.md.
+// same field. See skills/window-design.md.
 func TestAttribute_RankRemoved(t *testing.T) {
 	if _, ok := attributeRegistry[types.AttributeType("ATTR_RANK")]; ok {
 		t.Error("ATTR_RANK still registered; expected removal in favor of WIN_RANK")

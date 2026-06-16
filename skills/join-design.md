@@ -75,6 +75,6 @@ The joined schema unions left + right field names. Two fields with the same name
 
 ## See
 
-- `skills/aggregation-guide.md` — operators consuming the joined schema downstream.
-- `skills/contributor-workflow.md` — adding a join kind (left/outer/anti) + spill wiring.
+- `skills/aggregation-design.md` — operators consuming the joined schema downstream.
+- `docs/src/internals/` — Internals chapter: adding a join kind (left/outer/anti) + spill wiring.
 - `skills/cohort-schema-design.md` — shard archive + anchor syntax (`archive.pulse#shard.pulse`).
