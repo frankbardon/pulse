@@ -816,7 +816,7 @@ func (s *Service) installProjection(iter scanIterator, req *types.Request, schem
 // same final Label are rejected with PULSE_COMPOSE_LABEL_COLLISION.
 // Future Compose-only overlay kinds (E7) resolve sibling references by
 // final Label so the names must be unique across the batch.
-func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) ([]*types.Response, error) {
+func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
 	}
@@ -842,19 +842,48 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 	// barrier every slot succeeded — the hook is unconditional.
 	// Empty / nil req.Overlays short-circuits with no allocation
 	// (byte-identical JSON vs pre-E7-S4 output).
-	//
-	// Facade rewire still owed: the layers + warnings are computed (so
-	// the hook surface is exercised end-to-end) but the facade still
-	// returns []*Response, so the values are discarded here. The follow-up
-	// lifts the return type to *ComposedResponse{Responses, Overlays} and
-	// persists both slots — no story is currently scheduled. Originally
-	// promised to E7-S15 of result-overlay-system; that story shipped as a
-	// test-tier helper (composeOverlayCase) with zero production change.
-	if _, _, err := s.applyComposeOverlays(ctx, composed, requests, responses); err != nil {
+	layers, warnings, err := s.applyComposeOverlays(ctx, composed, requests, responses)
+	if err != nil {
 		return nil, err
 	}
 
-	return responses, nil
+	// Build the ComposedResponse wrapper. Overlay-free composes leave
+	// `Overlays == nil` (no make-with-zero-len allocation, no
+	// `overlays: []` empty-array marshalling) so the byte-identity
+	// contract locked by TestComposedResponse_OverlayFreeByteIdentical
+	// (types/types_test.go:1106) is preserved when the caller declared
+	// no Compose-only overlays. The `Responses` slot is the SAME slice
+	// that the pre-lift facade returned bare — no per-slot shape
+	// change.
+	out := &types.ComposedResponse{Responses: responses}
+	if len(layers) > 0 {
+		out.Overlays = layers
+		// Distribute the flat warning slice into the matching layer's
+		// `Warnings` slot. The dispatcher
+		// (processing.ApplyComposeOverlays) stamps
+		// `Details["overlay_index"]` on every warning it appends so
+		// routing is a single lookup per warning; warnings missing the
+		// key (defensive — should never happen with the current
+		// dispatcher) fall back to layer 0 so they are still surfaced
+		// rather than silently dropped. Layers with no warnings keep
+		// `Warnings == nil` (no empty slice allocation) so the
+		// `omitempty` JSON tag preserves byte identity for the
+		// overlay-free path. Mirrors the E2-S1 chain-host convention
+		// in service.applyChainOverlays.
+		for i := range warnings {
+			layerIdx := 0
+			if warnings[i].Details != nil {
+				if v, ok := warnings[i].Details["overlay_index"]; ok {
+					if idx, ok := v.(int); ok && idx >= 0 && idx < len(out.Overlays) {
+						layerIdx = idx
+					}
+				}
+			}
+			out.Overlays[layerIdx].Warnings = append(out.Overlays[layerIdx].Warnings, warnings[i])
+		}
+	}
+
+	return out, nil
 }
 
 // resolveCohortPath builds the file path from a Cohort specification.

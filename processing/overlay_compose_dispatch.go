@@ -302,6 +302,23 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 			}
 			layers = append(layers, multi...)
 			if len(ws) > 0 {
+				// Stamp the originating overlay spec index on every warning
+				// so the service-layer barrier hook (service.Compose's
+				// warning distribution) can route each warning to the
+				// matching `OverlayLayer.Warnings` slot deterministically.
+				// Mirrors the E2-S1 chain-dispatch convention in
+				// processing.ApplyChainOverlays — the dispatcher is the
+				// natural owner of the spec index (per-kind handlers
+				// receive (refIdx, targetIdxs) but not their own spec
+				// position), so stamping here keeps the per-handler
+				// signature stable while making the flat warning slice
+				// routable downstream.
+				for j := range ws {
+					if ws[j].Details == nil {
+						ws[j].Details = map[string]any{}
+					}
+					ws[j].Details["overlay_index"] = i
+				}
 				warnings = append(warnings, ws...)
 			}
 			continue
@@ -324,6 +341,18 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 		}
 		layers = append(layers, layer)
 		if len(ws) > 0 {
+			// Stamp the originating overlay spec index on every warning
+			// so the service-layer barrier hook in `service.Compose`
+			// can route each warning to the matching
+			// `OverlayLayer.Warnings` slot deterministically. Mirrors
+			// the E2-S1 chain-dispatch convention in
+			// `processing.ApplyChainOverlays`.
+			for j := range ws {
+				if ws[j].Details == nil {
+					ws[j].Details = map[string]any{}
+				}
+				ws[j].Details["overlay_index"] = i
+			}
 			warnings = append(warnings, ws...)
 		}
 	}
