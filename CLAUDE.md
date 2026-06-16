@@ -6,7 +6,7 @@ Pulse is a self-describing tabular data processing engine. Ships as Go library (
 
 - **Library-first.** `pulse.go` facade (`New`, `Open`, `Process`, `Compose`, `Import`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `ProcessStream`, `ProcessChain`, `CountRecords`, `ComposeParallel`) is the public API. CLI never contains business logic.
 - **Self-describing.** Every `.pulse` file carries its schema in the header. `descriptor/` provides `manifest`, `predict`, `inspect` — no-execute operations.
-- **Skill-augmented.** `skills/` embeds 25 markdown skills via `//go:embed`. LLM agents call `skills.List()` / `skills.Get(name)` for domain guidance.
+- **Skill-augmented.** `skills/` embeds an atomic-per-surface skill pack (`op-*` / `tool-*` / `type-*`) plus ~20 topical design skills via `//go:embed *.md`. LLM agents call `skills.List()` / `skills.Get(name)` for domain guidance; the filesystem walk + frontmatter parse is the source of truth.
 - **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators (AGG/ATTR/FILTER/GROUP/WIN/FEAT/TEST/SYNTH) + expr functions + lookup tables. First-class — predict, manifest, MCP, runtime treat identically to built-ins. See `docs/src/internals/extension-points.md`.
 - **Nexus relationship.** Pulse standalone. Nexus discovers via `pulse manifest --json` + loads embedded skills. No reverse dependency.
 
@@ -269,45 +269,106 @@ Surface: `extensions.go`, `extensions_validate.go`, `extensions_probe.go`, `exte
 
 ## Skill Pack
 
-25 skills under `skills/`, embedded via `//go:embed`. Frontmatter:
+The pack under `skills/` is the LLM surface, embedded via `//go:embed *.md`. Two skill shapes — **atomic** (one file per registered surface) and **topical** (one file per cross-cutting design topic).
+
+### Convention
+
+- **Atomic skill = one operator / tool / type per file.** Stem encodes the surface:
+  - `op-agg-<kebab>.md`, `op-attr-<kebab>.md`, `op-filter-<kebab>.md`, `op-group-<kebab>.md`, `op-win-<kebab>.md`, `op-feat-<kebab>.md`, `op-test-<kebab>.md`, `op-reg-<kebab>.md` / `op-reg-mod-<kebab>.md`, `op-synth-<kebab>.md`, `op-overlay-<kebab>.md` — one per registered operator constant.
+  - `tool-<kebab>.md` — one per registered MCP tool (drop the `pulse_` prefix).
+  - `type-<kebab>.md` — one per `FieldType`.
+- **Topical skill = one cross-cutting design topic per file.** ~17 files (`aggregation-design`, `attribute-composition`, `cohort-schema-design`, `compose-requests`, `crosstab-guide`, `facet-design`, `feature-engineering`, `grouper-design`, `join-design`, `label-display`, `overlay-system`, `process-chain`, `regression-modeling`, `request-envelope`, `response-components`, `session-bootstrap`, `statistical-testing`, `streaming-and-watching`, `synthetic-data`, `window-design`, plus the optional `financial-cohorts` example pack). Atomic skills cross-link into these for the why/how-it-composes prose; the topical files keep no per-operator detail.
+
+### Frontmatter
+
+Atomic:
 
 ```yaml
 ---
-name: skill-name
-description: What the skill teaches
-type: guide   # or "reference"
+name: op-agg-count            # must match file stem
+description: <one-line — what this operator does>
+kind: operator                # operator | tool | type
+category: AGG                 # AGG | ATTR | FILTER | GROUP | WIN | FEAT | TEST | REG | OVERLAY | SYNTH (empty for tool / type)
+operator: AGG_COUNT           # full SCREAMING_SNAKE constant (empty for tool / type)
+type: reference
 applies_to: process, compose, predict
+examples_tags: [streaming-friendly, cohort-analysis]
 ---
 ```
 
-`applies_to` entries must be valid CLI leaves (`process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`).
+Topical:
 
-| Category | Target skill |
+```yaml
+---
+name: aggregation-design
+description: <what the topic teaches>
+kind: design
+type: guide
+applies_to: process, compose, predict
+covers: [AGG, FILTER, aggregations, filterers]
+---
+```
+
+`applies_to` entries must be valid CLI leaves (`process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`) — or `mcp` on `tool-*` skills.
+
+### Required body sections (atomic skills)
+
+| Family | Required `##` sections |
 |---|---|
-| Aggregator (`AGG_*`) | `skills/aggregation-design.md` |
-| Attribute (`ATTR_*`) | `skills/attribute-composition.md` |
-| Filterer (`FILTER_*`) | `skills/aggregation-design.md` (filtering section) |
-| Grouper (`GROUP_*`) | `skills/grouper-design.md` |
-| Window (`WIN_*`) | `skills/window-design.md` |
-| Feature (`FEAT_*`) | `skills/feature-engineering.md` |
-| Statistical test (`TEST_*`) | `skills/statistical-testing.md` |
-| Regression (`REG_*`) | `skills/regression-modeling.md` |
-| Synth distribution | `skills/synthetic-data.md` |
-| CLI leaf | `skills/session-bootstrap.md` |
-| Field type | `skills/cohort-schema-design.md` |
-| MCP tool | `skills/session-bootstrap.md` |
-| Facet endpoint | `skills/facet-design.md` |
-| Join | `skills/join-design.md` |
-| Label binding / display overlay | `skills/label-display.md` |
-| Crosstab / cross-tabulation | `skills/crosstab-guide.md` |
-| Overlay (`OVERLAY_*`) | `skills/overlay-system.md` |
-| Error code | `errors/fixup_metadata.go` (via `pulse_errors_lookup`) |
-| Extension API surface | `docs/src/internals/extension-points.md` |
-| Request hashing / StreamResult / Watch / FilterToFileWithRequest / manifest annotations | `skills/streaming-and-watching.md` |
+| `op-*` (default) | `## Params`, `## Inputs`, `## Output`, `## Gotchas`, `## See` |
+| `op-agg-*`, `op-group-*`, `op-filter-*` | the above **plus** `## Components` (v0.20.0 `Response.Components` contract — universal floor + per-operator schema must appear here) |
+| `op-overlay-*` | `## Params`, `## Host shape` (replaces `## Inputs` — overlays decorate a host result), `## Output`, `## Gotchas`, `## See` |
+| `type-*` | `## Bytes`, `## Range`, `## Null`, `## Dictionary`, `## See` |
+| `tool-*` | `## When to use`, `## Input`, `## Output`, `## Gotchas`, `## See` |
 
-Current registered counts: 28 aggregators, 11 attributes, 11 filterers, 7 groupers, 10 windows, 9 features, 20 tests, 12 synth distributions, 3 regressions.
+`TestAtomicSkillHasRequiredSections` keys off the `category:` frontmatter field; stem prefix is the fallback.
 
-Adding a skill: create `skills/<name>.md` with frontmatter, add entry to `skills/index.json`, bump count in `TestSkillsList_ReturnsAll` and `TestSkillsNames`. Run `go test ./skills/...`.
+### Token budget
+
+Heuristic: `chars / 4 ≈ tokens`. Budgets are byte counts of the post-frontmatter body.
+
+| Family | Budget (chars) | Token target |
+|---|---|---|
+| `op-*` | ≤1200 | ≤300 |
+| `tool-*` | ≤2000 | ≤500 |
+| `type-*` | ≤2000 | ≤500 |
+| `kind: design` (topical) | ≤6000 | ≤1500 |
+
+`TestSkillTokenBudget` enforces these. The current regime is transitional — the soft cap allows up to 1000% over budget so reviewers see the live state of legacy bodies without a red gate; E4-S15 tightens to 30% over and flips `t.Logf` → `t.Errorf` once the offending `op-reg-*` / `op-reg-mod-*` / `op-feat-*` / `op-synth-regex` bodies have been trimmed.
+
+### List source of truth
+
+`skills.List()` walks the embedded `embed.FS` for `*.md` files and parses each frontmatter block. There is no `skills/index.json` — the filesystem is the manifest, and any new file with valid frontmatter is picked up automatically. Manifest visibility lands via the `skills` block emitted by `BuildManifest()`.
+
+### Per-trigger target convention
+
+| Trigger | Atomic skill convention |
+|---|---|
+| Aggregator (`AGG_*`) | `op-agg-<name>.md` |
+| Attribute (`ATTR_*`) | `op-attr-<name>.md` |
+| Filterer (`FILTER_*`) | `op-filter-<name>.md` |
+| Grouper (`GROUP_*`) | `op-group-<name>.md` |
+| Window (`WIN_*`) | `op-win-<name>.md` |
+| Feature (`FEAT_*`) | `op-feat-<name>.md` |
+| Statistical test (`TEST_*`) | `op-test-<name>.md` |
+| Regression (`REG_*`) | `op-reg-<name>.md` / `op-reg-mod-<name>.md` |
+| Synth distribution | `op-synth-<name>.md` |
+| Overlay (`OVERLAY_*`) | `op-overlay-<name>.md` |
+| Field type | `type-<name>.md` |
+| MCP tool | `tool-<name>.md` (strip the `pulse_` prefix) |
+
+Cross-cutting topics that are not operator-keyed route to the matching topical skill: `Response.Components` shape → `skills/response-components.md` (the canonical Components contract topical, paired with the v0.20.0 per-operator `## Components` requirement above); request slot map / smart defaults → `request-envelope`; streaming / `StreamResult` / `Watch` / `FilterToFileWithRequest` / request hashing → `streaming-and-watching`; error codes → `errors/fixup_metadata.go` via `pulse_errors_lookup`; extension surface → `docs/src/internals/extension-points.md`.
+
+### Registered counts
+
+Counts surfaced at runtime via `pulse_manifest` (`commands`, `components.{aggregators,attributes,filterers,groupers,windows,features}`, `tests`, `post_tests`, `synth_distributions`, `regressions`, `mcp_tools`). Never hardcode these in docs — the manifest is the single source of truth and the per-category coverage gates (`TestSkillsCoverAll*`, `TestOperatorHasAtomicSkill`) reject drift.
+
+### Adding a skill
+
+1. Create the file at the conventional stem (`op-<category>-<kebab>.md`, `tool-<kebab>.md`, `type-<kebab>.md`, or a new topical name).
+2. Write the required frontmatter for the matching shape (atomic or topical) and the required `##` section set for that family.
+3. Stay under budget — atomic op ≤1200 chars body, tool/type ≤2000, topical ≤6000.
+4. Run `go test ./skills/... -count=1`. The filesystem walk picks the new file up; no count bump or index entry is needed.
 
 ## What NOT to Do
 
