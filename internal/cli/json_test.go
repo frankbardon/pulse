@@ -32,8 +32,8 @@ func TestWriteEnvelope(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if env.FormatVersion != "1.0" {
-		t.Errorf("format_version = %q, want 1.0", env.FormatVersion)
+	if env.FormatVersion != "1.1" {
+		t.Errorf("format_version = %q, want 1.1", env.FormatVersion)
 	}
 }
 

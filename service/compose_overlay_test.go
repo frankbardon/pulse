@@ -43,10 +43,11 @@ func TestCompose_NoOverlaysByteIdentical(t *testing.T) {
 	svc := New(cfg)
 
 	composed := composeOverlayBaseRequest()
-	responses, err := svc.Compose(context.Background(), composed)
+	composedResp, err := svc.Compose(context.Background(), composed)
 	if err != nil {
 		t.Fatalf("Compose (no overlays): %v", err)
 	}
+	responses := composedResp.Responses
 	if got, want := len(responses), 2; got != want {
 		t.Fatalf("len(responses) = %d, want %d", got, want)
 	}
@@ -86,10 +87,11 @@ func TestCompose_StubOverlayRoundTrip(t *testing.T) {
 		},
 	}
 
-	responses, err := svc.Compose(context.Background(), composed)
+	composedResp, err := svc.Compose(context.Background(), composed)
 	if err != nil {
 		t.Fatalf("Compose (with stub overlay): %v", err)
 	}
+	responses := composedResp.Responses
 	if got, want := len(responses), 2; got != want {
 		t.Fatalf("len(responses) = %d, want %d", got, want)
 	}
@@ -129,10 +131,11 @@ func TestCompose_StubOverlayOrderPreserved(t *testing.T) {
 	// the order contract on the returned slice (the facade discards
 	// the layer slice; the hook is the canonical surface for order
 	// observation in the chassis).
-	responses, err := svc.Compose(context.Background(), composed)
+	composedResp, err := svc.Compose(context.Background(), composed)
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
+	responses := composedResp.Responses
 
 	// Re-run the label-defaults pass to reproduce the per-slot
 	// labels the orchestrator passed into the hook.
@@ -170,10 +173,11 @@ func TestComposeParallel_NoOverlaysByteIdentical(t *testing.T) {
 	svc := New(cfg)
 
 	composed := composeOverlayBaseRequest()
-	responses, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 2})
+	composedResp, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 2})
 	if err != nil {
 		t.Fatalf("ComposeParallel (no overlays): %v", err)
 	}
+	responses := composedResp.Responses
 	if got, want := len(responses), 2; got != want {
 		t.Fatalf("len(responses) = %d, want %d", got, want)
 	}
@@ -215,10 +219,11 @@ func TestComposeParallel_StubOverlayRoundTrip(t *testing.T) {
 		},
 	}
 
-	responses, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 2})
+	composedResp, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 2})
 	if err != nil {
 		t.Fatalf("ComposeParallel (with stub overlays): %v", err)
 	}
+	responses := composedResp.Responses
 	if got, want := len(responses), 2; got != want {
 		t.Fatalf("len(responses) = %d, want %d", got, want)
 	}
@@ -344,13 +349,14 @@ func TestCompose_NoFailFast_RunsOverlaysOnSucceededSlots(t *testing.T) {
 		},
 	}
 
-	responses, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{
+	composedResp, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{
 		MaxWorkers: 2,
 		FailFast:   false,
 	})
 	if err != nil {
 		t.Fatalf("ComposeParallel(FailFast=false, all-succeed): %v", err)
 	}
+	responses := composedResp.Responses
 	if got, want := len(responses), 2; got != want {
 		t.Fatalf("len(responses) = %d, want %d", got, want)
 	}

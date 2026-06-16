@@ -251,10 +251,11 @@ func TestService_Process_ComposedRequest(t *testing.T) {
 		},
 	}
 
-	responses, err := svc.Compose(context.Background(), composed)
+	composedResp, err := svc.Compose(context.Background(), composed)
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
+	responses := composedResp.Responses
 	if len(responses) != 2 {
 		t.Fatalf("response count = %d, want 2", len(responses))
 	}

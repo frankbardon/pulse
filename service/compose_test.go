@@ -37,10 +37,11 @@ func TestCompose_MultipleRequests(t *testing.T) {
 		},
 	}
 
-	responses, err := svc.Compose(context.Background(), composed)
+	composedResp, err := svc.Compose(context.Background(), composed)
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
+	responses := composedResp.Responses
 	if len(responses) != 3 {
 		t.Fatalf("response count = %d, want 3", len(responses))
 	}
@@ -98,10 +99,11 @@ func TestCompose_SharedCohort(t *testing.T) {
 		},
 	}
 
-	responses, err := svc.Compose(context.Background(), composed)
+	composedResp, err := svc.Compose(context.Background(), composed)
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
+	responses := composedResp.Responses
 	if len(responses) != 2 {
 		t.Fatalf("response count = %d, want 2", len(responses))
 	}

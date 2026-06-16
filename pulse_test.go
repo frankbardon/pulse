@@ -607,8 +607,8 @@ func TestProcess_ComposedRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
-	if len(responses) != 2 {
-		t.Errorf("expected 2 responses, got %d", len(responses))
+	if len(responses.Responses) != 2 {
+		t.Errorf("expected 2 responses, got %d", len(responses.Responses))
 	}
 }
 
@@ -1042,16 +1042,16 @@ func TestComposeParallel_FacadeOrderPreserved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ComposeParallel: %v", err)
 	}
-	if len(resps) != 3 {
-		t.Fatalf("got %d responses, want 3", len(resps))
+	if len(resps.Responses) != 3 {
+		t.Fatalf("got %d responses, want 3", len(resps.Responses))
 	}
-	if _, ok := resps[0].Data[0]["a"]; !ok {
+	if _, ok := resps.Responses[0].Data[0]["a"]; !ok {
 		t.Error("slot 0 missing label a")
 	}
-	if _, ok := resps[1].Data[0]["b"]; !ok {
+	if _, ok := resps.Responses[1].Data[0]["b"]; !ok {
 		t.Error("slot 1 missing label b")
 	}
-	if _, ok := resps[2].Data[0]["c"]; !ok {
+	if _, ok := resps.Responses[2].Data[0]["c"]; !ok {
 		t.Error("slot 2 missing label c")
 	}
 }

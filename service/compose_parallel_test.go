@@ -31,10 +31,11 @@ func TestComposeParallel_PreservesOrder(t *testing.T) {
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
-	resps, err := svc.ComposeParallel(context.Background(), composeFiveAvgRequests(), ComposeOptions{MaxWorkers: 4})
+	composedResp, err := svc.ComposeParallel(context.Background(), composeFiveAvgRequests(), ComposeOptions{MaxWorkers: 4})
 	if err != nil {
 		t.Fatalf("ComposeParallel: %v", err)
 	}
+	resps := composedResp.Responses
 	if len(resps) != 5 {
 		t.Fatalf("got %d responses, want 5", len(resps))
 	}
@@ -107,12 +108,13 @@ func TestComposeParallel_RespectsWorkerCap(t *testing.T) {
 	singleLatency := time.Since(startSerial)
 
 	startParallel := time.Now()
-	resps, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 2})
+	composedResp, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 2})
 	if err != nil {
 		t.Fatalf("ComposeParallel: %v", err)
 	}
 	parallelDur := time.Since(startParallel)
 
+	resps := composedResp.Responses
 	if len(resps) != 16 {
 		t.Fatalf("got %d, want 16", len(resps))
 	}
@@ -227,12 +229,13 @@ func TestComposeParallel_FreshOperatorsPerRequest(t *testing.T) {
 		})
 	}
 
-	resps, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{
+	composedResp, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{
 		MaxWorkers: runtime.GOMAXPROCS(0),
 	})
 	if err != nil {
 		t.Fatalf("ComposeParallel: %v", err)
 	}
+	resps := composedResp.Responses
 
 	wantSum := 150.0 // 10+20+30+40+50
 	wantAvg := 30.0

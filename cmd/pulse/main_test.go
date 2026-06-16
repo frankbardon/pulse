@@ -100,8 +100,8 @@ func TestCliRootJson(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
 	}
-	if env.FormatVersion != "1.0" {
-		t.Errorf("format_version = %q, want 1.0", env.FormatVersion)
+	if env.FormatVersion != "1.1" {
+		t.Errorf("format_version = %q, want 1.1", env.FormatVersion)
 	}
 }
 
@@ -266,8 +266,8 @@ func TestCliCohortInspectJson(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
 	}
-	if env.FormatVersion != "1.0" {
-		t.Errorf("format_version = %q, want 1.0", env.FormatVersion)
+	if env.FormatVersion != "1.1" {
+		t.Errorf("format_version = %q, want 1.1", env.FormatVersion)
 	}
 }
 
@@ -362,8 +362,8 @@ func TestCliApiProcessJson(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("invalid JSON envelope: %v\noutput: %s", err, out)
 	}
-	if env.FormatVersion != "1.0" {
-		t.Errorf("format_version = %q, want 1.0", env.FormatVersion)
+	if env.FormatVersion != "1.1" {
+		t.Errorf("format_version = %q, want 1.1", env.FormatVersion)
 	}
 }
 
@@ -387,10 +387,17 @@ func TestCliApiCompose(t *testing.T) {
 		t.Fatalf("api compose: %v\noutput: %s", err, out)
 	}
 
-	// Should be array of responses.
-	var responses []json.RawMessage
-	if err := json.Unmarshal([]byte(out), &responses); err != nil {
+	// Default (non-JSON) output emits the ComposedResponse shape
+	// {responses: [...], overlays: ...} — array-shaped decode would
+	// fail since the top level is now an object.
+	var composed struct {
+		Responses []json.RawMessage `json:"responses"`
+	}
+	if err := json.Unmarshal([]byte(out), &composed); err != nil {
 		t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
+	}
+	if len(composed.Responses) == 0 {
+		t.Errorf("expected non-empty responses, got: %s", out)
 	}
 }
 
@@ -446,12 +453,16 @@ func TestCliApiComposeParallel(t *testing.T) {
 		t.Fatalf("api compose --parallel: %v\noutput: %s", err, out)
 	}
 
-	var responses []map[string]any
-	if err := json.Unmarshal([]byte(out), &responses); err != nil {
+	// Default (non-JSON) output emits the ComposedResponse shape
+	// {responses: [...], overlays: ...}.
+	var composed struct {
+		Responses []map[string]any `json:"responses"`
+	}
+	if err := json.Unmarshal([]byte(out), &composed); err != nil {
 		t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
 	}
-	if len(responses) != 2 {
-		t.Fatalf("expected 2 responses, got %d", len(responses))
+	if len(composed.Responses) != 2 {
+		t.Fatalf("expected 2 responses, got %d", len(composed.Responses))
 	}
 }
 
@@ -561,8 +572,8 @@ func TestCliConvertCommand_E2E(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
 	}
-	if env.FormatVersion != "1.0" {
-		t.Errorf("format_version = %q, want 1.0", env.FormatVersion)
+	if env.FormatVersion != "1.1" {
+		t.Errorf("format_version = %q, want 1.1", env.FormatVersion)
 	}
 
 	// Verify TSV was created
