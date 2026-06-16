@@ -195,7 +195,7 @@ pulse
 └── mcp [--data-dir DIR] [--bind-on-open]   Serve MCP over stdio
 ```
 
-Every leaf supports `--json` for output wrapped in a `descriptor.Envelope` with `format_version: "1.0"`, `data`, `errors`, and `warnings`.
+Every leaf supports `--json` for output wrapped in a `descriptor.Envelope` with `format_version: "1.1"`, `data`, `errors`, and `warnings`. `pulse api compose --json` wraps a `ComposedResponse` `{responses[], overlays[]}` on `data` — not the legacy `[]*Response` array.
 
 ## MCP Usage
 
@@ -474,14 +474,14 @@ All `--json` output is wrapped in a `descriptor.Envelope`:
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": { ... },
   "errors": [],
   "warnings": []
 }
 ```
 
-`format_version` is `"1.0"`. Errors/warnings use `{"code", "message", "details"}` entries (empty array when absent, never null). Additive-only: new `data` fields don't bump the version; renames or removals do.
+`format_version` is `"1.1"` (bumped from `"1.0"` for the Compose facade lift — `pulse api compose --json` now wraps a `ComposedResponse` object `{responses[], overlays[]}` on `data` instead of a raw `[]*Response` array). Errors/warnings use `{"code", "message", "details"}` entries (empty array when absent, never null). Additive-only: new `data` fields don't bump the version; renames or removals do.
 
 ## Development
 

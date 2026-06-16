@@ -39,29 +39,30 @@ Each host has a finalize hook walking `Request.Overlays`.
 
 - **MATRIX (Crosstab)** — `processing/crosstab.go applyOverlaysToResponse`. Share triad + margin compare + matrix inferential + parity + vs-ref.
 - **SERIES (windowed Process)** — `service/series_overlay.go` per-group fold (E3-S6).
-- **FACET** — `service.applyFacetOverlays` at the buffered exit (E5-S6); `Ref.Population` recursion produces the comparison FacetResult.
-- **CHAIN** — `service.applyChainOverlays` at post-stage barrier (E6-S3); per-stage `Stages[i].Overlays` untouched, whole-chain on `ChainResponse.Overlays`. Shape divergence ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`.
+- **FACET** — `service.applyFacetOverlays` at buffered exit (E5-S6); `Ref.Population` recursion produces the comparison FacetResult.
+- **CHAIN** — `service.applyChainOverlays` post-stage (E6-S3); per-stage `Stages[i].Overlays` untouched, whole-chain on `ChainResponse.Overlays`. Shape divergence ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`.
 - **FORMULA** — `OVERLAY_FORMULA` (E8-S2) evaluates expr-lang against earlier layers; refs resolve by `Name`.
 
-Compose post-slot fold (`service/compose_overlay.go`) gates slot-label, key alignment, schema, dict-prefix drift. `OverlayOptions.DictPrefixFast` ⇒ prefix probe.
+Compose post-slot fold (`service/compose_overlay.go`) gates slot-label, key alignment, schema, dict-prefix drift; `OverlayOptions.DictPrefixFast` ⇒ prefix probe.
+
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-Additive `[]OverlayWarning` slot (`omitempty`); empty / nil elides the key, so overlay-free responses stay byte-identical (`TestOverlayLayer_WarningsFreeByteIdentical`, mirrored by `TestComposedResponse_OverlayFreeByteIdentical`). Each entry carries `Code`, `Message`, `Details map[string]any`; canonical codes are `PULSE_OVERLAY_REF_ZERO` and siblings (`pulse errors lookup`).
+Additive `[]OverlayWarning` slot (`omitempty`); empty/nil elides the key, so overlay-free responses stay byte-identical (`TestOverlayLayer_WarningsFreeByteIdentical`, mirrored by `TestComposedResponse_OverlayFreeByteIdentical`). Each entry carries `Code`, `Message`, `Details map[string]any`; canonical codes `PULSE_OVERLAY_REF_ZERO` + siblings (`pulse errors lookup`).
 
-Routing is dispatcher-stamped, service-distributed. `processing/overlay_chain_dispatch.go` and `processing/overlay_compose_dispatch.go` stamp `Details["overlay_index"] = i` on every warning a per-kind handler appends; handlers receive only target / reference indices, so the dispatcher owns the spec position. `service.applyChainOverlays` and `service.applyComposeOverlays` consume the flat slice and route each warning to `out.Overlays[idx].Warnings` by index; layers with no warnings keep `Warnings == nil`. Missing key falls back to layer 0. Same convention on Compose (E3-S1) and Chain (post-stage barrier). Per-kind catalogs in `op-overlay-*.md`.
+Routing is dispatcher-stamped, service-distributed. `processing/overlay_chain_dispatch.go` and `overlay_compose_dispatch.go` stamp `Details["overlay_index"] = i` on every warning a handler appends; handlers receive only target / reference indices, so the dispatcher owns spec position. `service.applyChainOverlays` and `service.applyComposeOverlays` consume the flat slice and route each warning to `out.Overlays[idx].Warnings` by index; layers with no warnings keep `Warnings == nil`. Missing key falls back to layer 0. Compose-host barrier rides the same `OverlayLayer.Warnings` slot exposed on `ComposedResponse.Overlays[i]` by the v0.21.0 Compose facade lift. Per-kind catalogs in `op-overlay-*.md`.
 
 ## Streamability
 
-`types.OverlayStreamability` — one row per kind. Descriptive SERIES stream; inferential (χ²/KS/Fisher/parity/Welch) buffer. All Crosstab overlays buffer today. `pulse predict --json` classifies per spec.
+`types.OverlayStreamability` — one row per kind. Descriptive SERIES stream; inferential (χ²/KS/Fisher/parity/Welch) buffer. Crosstab overlays buffer. `pulse predict --json` classifies per spec.
 
 ## Parity overlays — Welford migration (v0.20.0)
 
-The four parity kinds (`OVERLAY_T_CELL`, `OVERLAY_Z_CELL`, `OVERLAY_T_VS_REF`, `OVERLAY_Z_VS_REF`) read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` (populated by `AGG_WELFORD` via `MetaAggregator`). The legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` is **removed in v0.20.0** (E3-S7/S8); `MatrixCell.Value` carries the scalar mean. Absent the triple, handlers fall back to `Params`-supplied `{mean, variance, n}`. P-values byte-equal to `TEST_WELCH` / `TEST_Z_TWO_SAMPLE`. Canonical per-cell parametric: `AGG_WELFORD` cell + parity kind.
+The four parity kinds (`OVERLAY_T_CELL`, `OVERLAY_Z_CELL`, `OVERLAY_T_VS_REF`, `OVERLAY_Z_VS_REF`) read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` (populated by `AGG_WELFORD` via `MetaAggregator`). Legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` is **removed in v0.20.0** (E3-S7/S8); `MatrixCell.Value` carries the scalar mean. Absent the triple, handlers fall back to `Params`-supplied `{mean, variance, n}`. P-values byte-equal to `TEST_WELCH` / `TEST_Z_TWO_SAMPLE`. Canonical per-cell parametric: `AGG_WELFORD` cell + parity kind.
 
 ## Adding a new kind
 
-Declare constant + `AllOverlayKinds()`; add `overlay_streamability.go` row; handler under `processing/overlay_*.go`; register in host dispatch; predict validator (`descriptor/overlay_*.go`); add to catalog above; ship `op-overlay-*` atomic.
+Declare constant + `AllOverlayKinds()`; add `overlay_streamability.go` row; handler in `processing/overlay_*.go`; register in host dispatch; predict validator (`descriptor/overlay_*.go`); add to catalog; ship `op-overlay-*` atomic.
 
 ## See
 
