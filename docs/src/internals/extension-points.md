@@ -666,5 +666,3 @@ CLAUDE.md Update Demand table in the same PR.
 - [`skills/response-components.md`](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md)
   — universal `Response.Components` contract (typed shells, floor
   keys, additive `omitempty` shape).
-- The historical LLM-facing `skills/extension-points.md` was removed
-  in E3-S8; this internals page is now the single source of truth.
