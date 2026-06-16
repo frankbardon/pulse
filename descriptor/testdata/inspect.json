@@ -1,5 +1,5 @@
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": {
     "field_count": 3,
     "fields": [
@@ -46,4 +46,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e40aa9017552f9f4f48cd9d27f774b7808b252dc28cbfcbc43cdafdfb1cb101d
+// golden-hash: 86bbb33377e8d0a1b1afbd05bfda3f2500f797234492cc39ea877b50b2c369b4
