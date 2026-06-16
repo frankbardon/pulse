@@ -857,30 +857,13 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 	// change.
 	out := &types.ComposedResponse{Responses: responses}
 	if len(layers) > 0 {
-		out.Overlays = layers
-		// Distribute the flat warning slice into the matching layer's
-		// `Warnings` slot. The dispatcher
-		// (processing.ApplyComposeOverlays) stamps
-		// `Details["overlay_index"]` on every warning it appends so
-		// routing is a single lookup per warning; warnings missing the
-		// key (defensive — should never happen with the current
-		// dispatcher) fall back to layer 0 so they are still surfaced
-		// rather than silently dropped. Layers with no warnings keep
-		// `Warnings == nil` (no empty slice allocation) so the
-		// `omitempty` JSON tag preserves byte identity for the
-		// overlay-free path. Mirrors the E2-S1 chain-host convention
-		// in service.applyChainOverlays.
-		for i := range warnings {
-			layerIdx := 0
-			if warnings[i].Details != nil {
-				if v, ok := warnings[i].Details["overlay_index"]; ok {
-					if idx, ok := v.(int); ok && idx >= 0 && idx < len(out.Overlays) {
-						layerIdx = idx
-					}
-				}
-			}
-			out.Overlays[layerIdx].Warnings = append(out.Overlays[layerIdx].Warnings, warnings[i])
-		}
+		// distributeComposeWarnings (service/compose_overlay.go) folds
+		// the flat warnings slice into each layer's `Warnings` slot via
+		// the `Details["overlay_index"]` routing key. Shared with
+		// `service.ComposeParallel` so serial and parallel paths
+		// surface identical layer-warning shapes. Mirrors the E2-S1
+		// chain-host convention in service.applyChainOverlays.
+		out.Overlays = distributeComposeWarnings(layers, warnings)
 	}
 
 	return out, nil
