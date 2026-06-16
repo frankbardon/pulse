@@ -112,7 +112,7 @@ The standard envelope:
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": {
     "data": [ /* result rows */ ],
     "metadata": { "total_rows": 1000, "filtered_rows": 800, "cohort_file": "sales.pulse" },

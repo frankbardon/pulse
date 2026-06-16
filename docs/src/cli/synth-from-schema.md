@@ -79,7 +79,7 @@ high to make progress).
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": {
     "output_path": "sales.pulse",
     "rows_generated": 10000,

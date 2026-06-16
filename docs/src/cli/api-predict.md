@@ -48,7 +48,7 @@ non-zero.
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": {
     "valid": true,
     "schema_info": {"field_count": 7},

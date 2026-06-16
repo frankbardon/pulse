@@ -70,7 +70,7 @@ west
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": ["east", "north", "south", "west"],
   "errors": [],
   "warnings": []

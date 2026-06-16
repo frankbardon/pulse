@@ -50,7 +50,7 @@ fixed and documented in CLAUDE.md → Output Format Contract:
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data":     { /* operation-specific result */ },
   "request":  { /* normalized request, omitted unless --echo-request was passed */ },
   "errors":   [ /* {"code": "...", "message": "...", "details": {...}} */ ],

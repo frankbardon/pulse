@@ -465,7 +465,7 @@ are listed in the table above.
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "components": { ... built-ins ... },
   "extensions": {
     "aggregators": [
