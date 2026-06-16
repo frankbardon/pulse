@@ -181,13 +181,17 @@ func TestUpdateDemandTableCovers(t *testing.T) {
 
 	// These are the component categories and contract types that must appear
 	// in the Update Demand table. Each entry is checked case-insensitively.
+	//
+	// The "CLI leaf" row was removed in the skill-pack overhaul (E6-S1) —
+	// CLI is out of scope for the atomic-skill convention, and the
+	// per-leaf documentation moved to docs/src/cli/. The check is dropped
+	// here so the table no longer carries a CLI leaf row.
 	required := []string{
 		"aggregator",
 		"attribute",
 		"filterer",
 		"grouper",
 		"error code",
-		"CLI leaf",
 		"format_version",
 		"field type",
 		"CI gate",
