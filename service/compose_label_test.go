@@ -142,10 +142,11 @@ func TestRequestLabel_ComposeAcceptsAutoDefault(t *testing.T) {
 	svc := New(cfg)
 
 	composed := labelComposeRequests([]string{"", "", ""})
-	resps, err := svc.Compose(context.Background(), composed)
+	composedResp, err := svc.Compose(context.Background(), composed)
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
+	resps := composedResp.Responses
 	if len(resps) != 3 {
 		t.Fatalf("got %d responses, want 3", len(resps))
 	}
@@ -163,10 +164,11 @@ func TestRequestLabel_ComposeParallelHonoursDefault(t *testing.T) {
 	svc := New(cfg)
 
 	composed := labelComposeRequests([]string{"", "audience_a", ""})
-	resps, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 2})
+	composedResp, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 2})
 	if err != nil {
 		t.Fatalf("ComposeParallel: %v", err)
 	}
+	resps := composedResp.Responses
 	if len(resps) != 3 {
 		t.Fatalf("got %d responses, want 3", len(resps))
 	}

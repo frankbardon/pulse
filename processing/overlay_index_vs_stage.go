@@ -58,7 +58,7 @@ import (
 // handler reads only the two *Response objects' top-level slots
 // (Crosstab.Matrix, Data) — no record stream is opened, no schema is
 // re-read.
-func applyIndexVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if target == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -98,7 +98,7 @@ func applyIndexVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response
 				Shape: targetShape,
 			},
 		}
-		warnings := []OverlayWarning{{
+		warnings := []types.OverlayWarning{{
 			Code:    string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
 			Message: "overlay " + string(spec.Kind) + " target and reference stages disagree on host shape; surfacing empty payload",
 			Details: map[string]any{
@@ -212,7 +212,7 @@ func indexKernel(target, reference float64) (float64, bool) {
 // headers so renderers can lay the overlay on top of the target base
 // matrix with the same header machinery as MATRIX-host
 // INDEX_VS_MARGIN.
-func applyIndexVsStageMatrix(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsStageMatrix(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	targetMx := target.Crosstab.Matrix
 	refMx := ref.Crosstab.Matrix
 
@@ -227,7 +227,7 @@ func applyIndexVsStageMatrix(spec *types.ChainOverlaySpec, target, ref *types.Re
 	colCount := len(targetMx.ColumnKeys)
 	cells := make([][]types.MatrixCell, rowCount)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -257,7 +257,7 @@ func applyIndexVsStageMatrix(spec *types.ChainOverlaySpec, target, ref *types.Re
 			colKeyStr := axisKeyToString(targetMx.ColumnKeys[j])
 			refVal, refPresent := refLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
 			if !refPresent {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " reference cell missing for target (row, col) key pair",
 					Details: map[string]any{
@@ -275,7 +275,7 @@ func applyIndexVsStageMatrix(spec *types.ChainOverlaySpec, target, ref *types.Re
 			}
 			score, okScore := indexKernel(targetVal, refVal)
 			if !okScore {
-				warnings = append(warnings, OverlayWarning{
+				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 					Message: "overlay " + string(spec.Kind) + " reference cell is zero (or non-finite quotient); substituting NaN",
 					Details: map[string]any{
@@ -494,12 +494,12 @@ func anyToCanonicalString(v any) string {
 // pass — for now the entry is dropped from the output series). Zero
 // reference values emit the same code with NaN substitution carried on
 // the entry's Summary.Statistic.
-func applyIndexVsStageSeries(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsStageSeries(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refIndex, refValueCol := buildSeriesRowLookup(ref.Data)
 
 	entries := make([]types.SeriesEntry, 0, len(target.Data))
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -516,7 +516,7 @@ func applyIndexVsStageSeries(spec *types.ChainOverlaySpec, target, ref *types.Re
 		refVal, refPresent := refIndex[keyStr]
 		_ = refValueCol // kept for future per-kind diagnostics
 		if !refPresent {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) + " reference row missing for target row key",
 				Details: map[string]any{
@@ -536,7 +536,7 @@ func applyIndexVsStageSeries(spec *types.ChainOverlaySpec, target, ref *types.Re
 			Key: entryKey,
 		}
 		if !ok {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) + " reference value is zero (or quotient non-finite); substituting NaN",
 				Details: map[string]any{
@@ -716,11 +716,11 @@ func coerceNumericValue(v any) (float64, bool) {
 //     overlay's Payload.Scalar is NaN.
 //   - Reference value zero: indexKernel produces NaN; warning fires;
 //     layer Payload.Scalar surfaces NaN per acceptance.
-func applyIndexVsStageScalar(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsStageScalar(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	targetVal, targetHas := singleScalarFromResponse(target)
 	refVal, refHas := singleScalarFromResponse(ref)
 
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	layer := types.OverlayLayer{
 		Name:  chainOverlayLayerName(spec),
 		Kind:  spec.Kind,
@@ -733,7 +733,7 @@ func applyIndexVsStageScalar(spec *types.ChainOverlaySpec, target, ref *types.Re
 	layer.Summary = &types.OverlaySummary{Baseline: &baseline}
 
 	if !targetHas || !refHas {
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " missing scalar value on target or reference stage",
 			Details: map[string]any{
@@ -750,7 +750,7 @@ func applyIndexVsStageScalar(spec *types.ChainOverlaySpec, target, ref *types.Re
 	}
 	score, ok := indexKernel(targetVal, refVal)
 	if !ok {
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " reference scalar is zero (or quotient non-finite); substituting NaN",
 			Details: map[string]any{

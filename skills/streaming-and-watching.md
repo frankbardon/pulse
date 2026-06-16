@@ -13,9 +13,9 @@ Four primitives for deterministic identity, incremental output, and reactive obs
 
 ## `Request.Hash()`
 
-`Hash() string` returns a 32-char hex digest of canonical-JSON form. Supported: `pulse.Request`, `ComposedRequest`, `FacetRequest`, `ChainRequest`, `synth.Spec`. Lower-level: `types.CanonicalHash(tag, v)` for any JSON-serializable value.
+`Hash() string` returns a 32-char hex digest of canonical-JSON form. Supported: `Request`, `ComposedRequest`, `FacetRequest`, `ChainRequest`, `synth.Spec`. Lower-level: `types.CanonicalHash(tag, v)`.
 
-Guarantees: same logical request → same hash across processes/versions; round-trip stable; field-order invariant; default-normalising (`Limit: 0` ≡ omitted); `-0.0` ≡ `0.0`; namespace tag separates shapes — `Request` and `ComposedRequest` with identical wire bytes never collide.
+Guarantees: same logical request → same hash across processes/versions; round-trip stable; field-order invariant; default-normalising (`Limit: 0` ≡ omitted); `-0.0` ≡ `0.0`; namespace tag separates shapes (e.g. `Request` vs `ComposedRequest`).
 
 ```go
 key := req.Hash()
@@ -108,6 +108,10 @@ Every `Manifest.Commands` (CLI leaves) and `Manifest.Operations` (library-only: 
 `streamable` — has a `*Stream` variant. `deterministic` — same inputs ⇒ byte-identical output; cache keyed by `req.Hash()` + source hash. Non-deterministic entries MUST NOT be cached as stable. `expensive` — hint.
 
 A buffered overlay on a streamable Process downgrades the whole request to buffered — price as buffered regardless of the entry-point annotation.
+
+## Compose streaming vs. overlays
+
+`pulse api compose --stream` emits per-row NDJSON `{index, row}` and bypasses the envelope. The Compose-host overlay fold (`service/compose_overlay.go`) runs only at terminal flush — `ComposedResponse.Overlays[i]` + per-layer `Warnings` appear under `--json` (`data.overlays`) but are absent under `--stream`. Consumers needing Compose overlays MUST run buffered; `Pulse.Compose` / `Pulse.ComposeParallel` callers see overlays on the returned `*ComposedResponse`, never on row events.
 
 ## See
 

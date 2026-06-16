@@ -109,7 +109,7 @@ func cellAt(t *testing.T, layer types.OverlayLayer, i, j int) float64 {
 
 // requireRefZeroWarning asserts the warnings slice carries at least one
 // PULSE_OVERLAY_REF_ZERO entry.
-func requireRefZeroWarning(t *testing.T, warnings []OverlayWarning) {
+func requireRefZeroWarning(t *testing.T, warnings []types.OverlayWarning) {
 	t.Helper()
 	for _, w := range warnings {
 		if w.Code == string(pulseerrors.PULSE_OVERLAY_REF_ZERO) {

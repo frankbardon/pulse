@@ -219,14 +219,14 @@ func apiComposeCmd() *cli.Command {
 				return err
 			}
 
-			var responses []*types.Response
+			var resp *types.ComposedResponse
 			if workers != 1 {
-				responses, err = p.ComposeParallel(ctx, composed, pulse.ComposeOptions{
+				resp, err = p.ComposeParallel(ctx, composed, pulse.ComposeOptions{
 					MaxWorkers: workers,
 					FailFast:   !noFailFast,
 				})
 			} else {
-				responses, err = p.Compose(ctx, composed)
+				resp, err = p.Compose(ctx, composed)
 			}
 			if err != nil {
 				if jsonOut {
@@ -236,14 +236,17 @@ func apiComposeCmd() *cli.Command {
 			}
 
 			if stream {
+				// overlays surface only at terminal flush, not in per-row events
 				enc := json.NewEncoder(cmd.Writer)
-				for i, resp := range responses {
-					if resp == nil {
-						continue
-					}
-					for _, row := range resp.Data {
-						if err := enc.Encode(map[string]any{"index": i, "row": row}); err != nil {
-							return err
+				if resp != nil {
+					for i, sub := range resp.Responses {
+						if sub == nil {
+							continue
+						}
+						for _, row := range sub.Data {
+							if err := enc.Encode(map[string]any{"index": i, "row": row}); err != nil {
+								return err
+							}
 						}
 					}
 				}
@@ -258,10 +261,10 @@ func apiComposeCmd() *cli.Command {
 					// whole — each slot is the post-defaults form.
 					echoed = composed
 				}
-				return writeEnvelopeWithRequest(cmd.Writer, responses, echoed)
+				return writeEnvelopeWithRequest(cmd.Writer, resp, echoed)
 			}
 
-			return writeJSON(cmd.Writer, responses)
+			return writeJSON(cmd.Writer, resp)
 		},
 	}
 }

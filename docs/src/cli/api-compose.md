@@ -65,7 +65,7 @@ regardless:
 
 Responses come back **in input order**, regardless of `--parallel`.
 A worker that finishes early waits its turn before emitting. So
-`responses[i]` always corresponds to `request.requests[i]`.
+`data.responses[i]` always corresponds to `request.requests[i]`.
 
 ## Parallel mode
 
@@ -92,7 +92,7 @@ With `--no-fail-fast`:
 - Every request runs to its own completion (or per-request timeout).
 - Errors aggregate into a single `SERVICE_INTERNAL` error whose
   `details.failed_indices` lists the slot indices that failed.
-- Successful slots populate the response array; failed slots are
+- Successful slots populate `data.responses[]`; failed slots are
   `null`.
 
 ## Output
@@ -101,16 +101,25 @@ With `--no-fail-fast`:
 
 ```json
 {
-  "format_version": "1.0",
-  "data": [ /* response per slot, in input order */ ],
+  "format_version": "1.1",
+  "data": {
+    "responses": [ /* one Response per slot, in input order */ ],
+    "overlays":  [ /* one OverlayLayer per ComposedRequest.overlays spec; omitted when no Compose overlays */ ]
+  },
   "errors": [],
   "warnings": []
 }
 ```
 
-Each entry in `data[]` is a full `Response`, so per-slot
-`data[i].components` follows the same additive contract as
-[`api process`](api-process.md#-json).
+`data` is a `ComposedResponse` object (since the v0.21.0 Compose facade
+lift). Each `data.responses[i]` is a full `Response`, so per-slot
+`data.responses[i].components` follows the same additive contract as
+[`api process`](api-process.md#-json). `data.overlays[i]` carries the
+post-fold Compose-host overlay layer plus its per-layer
+`warnings[]` diagnostics (`OverlayWarning{code, message, details}`);
+the slot is `omitempty` so overlay-free Compose responses are
+byte-identical to the legacy `[]*Response` wire shape that shipped
+under `format_version: "1.0"`.
 
 ### `--stream`
 

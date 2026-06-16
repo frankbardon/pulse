@@ -89,7 +89,7 @@ type composeOverlayCase struct {
 	Params     map[string]any
 	Options    *types.OverlayOptions
 	BuildSlots func() (responses []*types.Response, labels []string)
-	Expect     func(t *testing.T, layers []types.OverlayLayer, warnings []OverlayWarning)
+	Expect     func(t *testing.T, layers []types.OverlayLayer, warnings []types.OverlayWarning)
 }
 
 // runComposeOverlayCase executes one composeOverlayCase row. Synthesises
@@ -179,7 +179,7 @@ func TestOverlay_ComposeIndexVsRef_Matrix(t *testing.T) {
 		Reference:  "baseline",
 		Targets:    []string{"treatment"},
 		BuildSlots: twoSlotMatrix3x3(ref, target),
-		Expect: func(t *testing.T, layers []types.OverlayLayer, warnings []OverlayWarning) {
+		Expect: func(t *testing.T, layers []types.OverlayLayer, warnings []types.OverlayWarning) {
 			t.Helper()
 			if len(warnings) != 0 {
 				t.Errorf("warnings = %+v, want none", warnings)
@@ -232,7 +232,7 @@ func TestOverlay_ComposeChisqVsRef(t *testing.T) {
 		Reference:  "baseline",
 		Targets:    []string{"treatment"},
 		BuildSlots: twoSlotMatrix3x3(ref, target),
-		Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+		Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 			t.Helper()
 			if len(layers) != 1 {
 				t.Fatalf("len(layers) = %d, want 1", len(layers))
@@ -290,7 +290,7 @@ func TestOverlay_PropZCell_KnownAnswer(t *testing.T) {
 		Reference:  "baseline",
 		Targets:    []string{"treatment"},
 		BuildSlots: twoSlotMatrix3x3(ref, target),
-		Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+		Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 			t.Helper()
 			if len(layers) != 1 {
 				t.Fatalf("len(layers) = %d, want 1", len(layers))
@@ -329,7 +329,7 @@ func TestOverlay_TCell_KnownAnswer(t *testing.T) {
 		Reference:  "baseline",
 		Targets:    []string{"treatment"},
 		BuildSlots: twoSlotMatrix3x3(ref, target),
-		Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+		Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 			t.Helper()
 			if len(layers) != 1 {
 				t.Fatalf("len(layers) = %d, want 1", len(layers))
@@ -391,7 +391,7 @@ func TestOverlay_PropZPanel_PairwiseSig(t *testing.T) {
 		Reference:  "baseline",
 		Targets:    []string{"t0", "t1", "t2"},
 		BuildSlots: fourSlotMatrix3x3(ref, t0, t1, t2),
-		Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+		Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 			t.Helper()
 			// PROP_Z_PANEL is a single-layer kind even with N targets —
 			// the pairwise matrix lives inside one MatrixCell.Value slice.
@@ -449,7 +449,7 @@ func TestOverlay_PanelIndexVsRef_MultiLayer(t *testing.T) {
 		Reference:  "baseline",
 		Targets:    []string{"t0", "t1", "t2"},
 		BuildSlots: fourSlotMatrix3x3(ref, t0, t1, t2),
-		Expect: func(t *testing.T, layers []types.OverlayLayer, warnings []OverlayWarning) {
+		Expect: func(t *testing.T, layers []types.OverlayLayer, warnings []types.OverlayWarning) {
 			t.Helper()
 			if len(warnings) != 0 {
 				t.Errorf("warnings = %+v, want none", warnings)
@@ -728,7 +728,7 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 			Reference:  "baseline",
 			Targets:    []string{"treatment"},
 			BuildSlots: twoSlotMatrix3x3(refMatrix(), targetMatrix()),
-			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 				t.Helper()
 				approxEqual(t, "index_vs_ref cell (0,0)", cellAt(t, layers[0], 0, 0), 150.0, 1e-9)
 				if layers[0].Payload.Shape != types.OverlayShapeMatrix {
@@ -743,7 +743,7 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 			Reference:  "baseline",
 			Targets:    []string{"treatment"},
 			BuildSlots: twoSlotMatrix3x3(refMatrix(), targetMatrix()),
-			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 				t.Helper()
 				// Delta = target - ref. Cell (0,0) = 15 - 10 = 5.
 				approxEqual(t, "delta_vs_ref cell (0,0)", cellAt(t, layers[0], 0, 0), 5.0, 1e-9)
@@ -756,7 +756,7 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 			Reference:  "baseline",
 			Targets:    []string{"treatment"},
 			BuildSlots: twoSlotMatrix3x3(propRef(), propTarget()),
-			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 				t.Helper()
 				approxEqual(t, "prop_z_cell p (0,0)", cellAt(t, layers[0], 0, 0), 0.1552, 0.005)
 			},
@@ -768,7 +768,7 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 			Reference:  "baseline",
 			Targets:    []string{"treatment"},
 			BuildSlots: twoSlotMatrix3x3(tCellRef(), tCellTarget()),
-			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 				t.Helper()
 				approxEqual(t, "t_cell p (0,0)", cellAt(t, layers[0], 0, 0), 0.4226, 0.01)
 			},
@@ -780,7 +780,7 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 			Reference:  "baseline",
 			Targets:    []string{"treatment"},
 			BuildSlots: twoSlotMatrix3x3(uniformRef(), uniformTarget()),
-			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 				t.Helper()
 				if layers[0].Payload.Shape != types.OverlayShapeScalar {
 					t.Errorf("chisq Payload.Shape = %q, want SCALAR", layers[0].Payload.Shape)
@@ -799,7 +799,7 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 			Targets:    []string{"treatment"},
 			Params:     map[string]any{"population": "matrix"},
 			BuildSlots: twoSlotMatrix3x3(uniformRef(), uniformTarget()),
-			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 				t.Helper()
 				// Descending rank: 90 is rank 1; 10 is rank 9.
 				approxEqual(t, "rank (2,2) max value", cellAt(t, layers[0], 2, 2), 1.0, 1e-9)
@@ -834,7 +834,7 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 					{35, 40, 45},
 				}),
 			),
-			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 				t.Helper()
 				// Multi-layer dispatch: 3 targets ⇒ 3 layers.
 				if len(layers) != 3 {
@@ -885,7 +885,7 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 					[3]float64{100, 100, 100},
 				),
 			),
-			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []OverlayWarning) {
+			Expect: func(t *testing.T, layers []types.OverlayLayer, _ []types.OverlayWarning) {
 				t.Helper()
 				// PROP_Z_PANEL is single-layer (matrix of pair-index slices).
 				if len(layers) != 1 {
@@ -940,7 +940,7 @@ func TestComposeOverlayDispatch_ZKinds_RouteToHandlers(t *testing.T) {
 			Reference:  "baseline",
 			Targets:    []string{"treatment"},
 			BuildSlots: twoSlotMatrix3x3(ref, target),
-			Expect: func(t *testing.T, layers []types.OverlayLayer, warnings []OverlayWarning) {
+			Expect: func(t *testing.T, layers []types.OverlayLayer, warnings []types.OverlayWarning) {
 				t.Helper()
 				if len(layers) != 1 {
 					t.Fatalf("len(layers) = %d, want 1 — chassis did not dispatch ZCell", len(layers))
@@ -976,7 +976,7 @@ func TestComposeOverlayDispatch_ZKinds_RouteToHandlers(t *testing.T) {
 			BuildSlots: func() ([]*types.Response, []string) {
 				return []*types.Response{ref, target}, []string{"baseline", "treatment"}
 			},
-			Expect: func(t *testing.T, layers []types.OverlayLayer, warnings []OverlayWarning) {
+			Expect: func(t *testing.T, layers []types.OverlayLayer, warnings []types.OverlayWarning) {
 				t.Helper()
 				if len(layers) != 1 {
 					t.Fatalf("len(layers) = %d, want 1 — chassis did not dispatch ZVsRef", len(layers))

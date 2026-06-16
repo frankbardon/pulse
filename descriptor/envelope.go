@@ -32,7 +32,7 @@ type EnvelopeEntry struct {
 // NewEnvelope creates an envelope with the given data and no errors/warnings.
 func NewEnvelope(data any) *Envelope {
 	return &Envelope{
-		FormatVersion: "1.0",
+		FormatVersion: "1.1",
 		Data:          data,
 		Errors:        []*EnvelopeEntry{},
 		Warnings:      []*EnvelopeEntry{},

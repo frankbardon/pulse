@@ -66,6 +66,40 @@ import (
 // shape, and the facade rewire is a downstream wiring story rather
 // than a runtime contract change.
 
+// distributeComposeWarnings folds the flat warning slice produced by
+// the Compose overlay dispatcher into the matching layer's `Warnings`
+// slot. The dispatcher (processing.ApplyComposeOverlays) stamps
+// `Details["overlay_index"]` on every warning it appends, so routing is
+// a single lookup per warning; warnings missing the key (defensive —
+// should never happen with the current dispatcher) fall back to layer
+// 0 so they are still surfaced rather than silently dropped. Layers
+// with no warnings keep `Warnings == nil` (no empty slice allocation)
+// so the `omitempty` JSON tag preserves byte identity for the
+// overlay-free path.
+//
+// Mutates `layers` in place and returns the same slice for chained-
+// expression convenience. No-op when `layers` is empty or `warnings`
+// is empty. Shared between `service.Compose` and
+// `service.ComposeParallel` so both serial and parallel paths preserve
+// the identical layer-warning routing contract.
+func distributeComposeWarnings(layers []types.OverlayLayer, warnings []types.OverlayWarning) []types.OverlayLayer {
+	if len(layers) == 0 || len(warnings) == 0 {
+		return layers
+	}
+	for i := range warnings {
+		layerIdx := 0
+		if warnings[i].Details != nil {
+			if v, ok := warnings[i].Details["overlay_index"]; ok {
+				if idx, ok := v.(int); ok && idx >= 0 && idx < len(layers) {
+					layerIdx = idx
+				}
+			}
+		}
+		layers[layerIdx].Warnings = append(layers[layerIdx].Warnings, warnings[i])
+	}
+	return layers
+}
+
 // applyComposeOverlays runs the COMPOSE-host overlay dispatch against
 // the materialised per-slot responses and returns the resulting
 // layers + warnings in spec order. No-op (returns `(nil, nil)`) when
@@ -84,7 +118,7 @@ import (
 // does not touch ctx today. Future per-kind handlers (multi-ref kinds
 // in E7-S15+) may issue follow-up cohort opens or population reads
 // that consume the deadline.
-func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedRequest, requests []*types.Request, responses []*types.Response) ([]types.OverlayLayer, []processing.OverlayWarning, error) {
+func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedRequest, requests []*types.Request, responses []*types.Response) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	_ = ctx
 	if req == nil || len(req.Overlays) == 0 {
 		// Byte-identity guarantee for overlay-free composes: the

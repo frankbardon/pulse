@@ -170,7 +170,7 @@ func (c *rollingCarrier) rollingSampleSD() float64 {
 // invalid Params["window"] (the predict gate runs in parallel; the
 // runtime defense is cheap and matches the INDEX_VS_ROLLING_MEAN safety
 // pattern).
-func applyZScoreVsRolling(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyZScoreVsRolling(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -252,9 +252,9 @@ func applyZScoreVsRolling(spec *types.OverlaySpec, host *SeriesHostView) (types.
 		})
 	}
 
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	if zeroSDHit {
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " encountered a zero rolling sample SD; affected indices emitted as NaN",
 			Details: map[string]any{

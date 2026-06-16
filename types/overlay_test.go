@@ -158,6 +158,118 @@ func TestOverlayLayer_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestOverlayLayer_WarningsFreeByteIdentical locks the additive
+// contract for the new OverlayLayer.Warnings slot (E1-S2): a layer
+// authored without ever touching the field marshals byte-identically
+// to one with Warnings explicitly set to nil AND to one with Warnings
+// set to an empty (non-nil) slice. The `omitempty` tag must elide the
+// key in all three cases — pre-E1-S2 callers stay wire-stable.
+//
+// Mirrors TestComposedResponse_OverlayFreeByteIdentical at
+// types/types_test.go:1106 in style and intent.
+func TestOverlayLayer_WarningsFreeByteIdentical(t *testing.T) {
+	value := 1.0
+	base := types.OverlayLayer{
+		Name:  "i_row",
+		Kind:  types.OverlayKindIndexVsMargin,
+		Scope: types.OverlayScopeCell,
+		Ref: types.OverlayRef{
+			Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
+		},
+		Payload: types.OverlayPayload{
+			Shape:  types.OverlayShapeScalar,
+			Scalar: &value,
+		},
+	}
+
+	// (1) Implicit: field never touched on the struct literal.
+	implicit, err := json.Marshal(base)
+	if err != nil {
+		t.Fatalf("marshal implicit OverlayLayer: %v", err)
+	}
+	if contains(string(implicit), `"warnings"`) {
+		t.Fatalf("implicit OverlayLayer must omit the warnings key: %s", implicit)
+	}
+
+	// (2) Explicit nil: Warnings: nil produces the same bytes as the
+	// implicit shape.
+	explicitNil := base
+	explicitNil.Warnings = nil
+	gotNil, err := json.Marshal(explicitNil)
+	if err != nil {
+		t.Fatalf("marshal explicit-nil Warnings OverlayLayer: %v", err)
+	}
+	if string(gotNil) != string(implicit) {
+		t.Fatalf("explicit-nil Warnings diverged from implicit:\n got: %s\nwant: %s",
+			gotNil, implicit)
+	}
+
+	// (3) Empty non-nil slice: omitempty must still elide the key.
+	emptySlice := base
+	emptySlice.Warnings = []types.OverlayWarning{}
+	gotEmpty, err := json.Marshal(emptySlice)
+	if err != nil {
+		t.Fatalf("marshal empty-slice Warnings OverlayLayer: %v", err)
+	}
+	if string(gotEmpty) != string(implicit) {
+		t.Fatalf("empty-slice Warnings diverged from implicit:\n got: %s\nwant: %s",
+			gotEmpty, implicit)
+	}
+
+	// (4) Populated slice: the warnings key MUST appear, carrying the
+	// expected entries. Locks the positive path so a future tag
+	// regression cannot silently drop populated warnings either.
+	populated := base
+	populated.Warnings = []types.OverlayWarning{
+		{
+			Code:    "PULSE_OVERLAY_REF_ZERO",
+			Message: "reference cell is zero",
+			Details: map[string]any{"row": 0.0, "col": 1.0},
+		},
+	}
+	gotPopulated, err := json.Marshal(populated)
+	if err != nil {
+		t.Fatalf("marshal populated Warnings OverlayLayer: %v", err)
+	}
+	if !contains(string(gotPopulated), `"Warnings"`) &&
+		!contains(string(gotPopulated), `"warnings"`) {
+		t.Fatalf("populated OverlayLayer must surface the warnings key: %s",
+			gotPopulated)
+	}
+	// Round-trip the populated layer to confirm the entries survive.
+	var back types.OverlayLayer
+	if err := json.Unmarshal(gotPopulated, &back); err != nil {
+		t.Fatalf("unmarshal populated OverlayLayer: %v", err)
+	}
+	if len(back.Warnings) != 1 {
+		t.Fatalf("populated round-trip lost Warnings: len=%d, want 1",
+			len(back.Warnings))
+	}
+	if back.Warnings[0].Code != "PULSE_OVERLAY_REF_ZERO" {
+		t.Fatalf("Warnings[0].Code = %q, want PULSE_OVERLAY_REF_ZERO",
+			back.Warnings[0].Code)
+	}
+	if back.Warnings[0].Message != "reference cell is zero" {
+		t.Fatalf("Warnings[0].Message = %q, want %q",
+			back.Warnings[0].Message, "reference cell is zero")
+	}
+
+	// (5) Unmarshal a JSON object WITHOUT the warnings key — the
+	// resulting struct must have Warnings == nil (not an empty slice).
+	// This is the contract that lets downstream code use `len(...) == 0`
+	// and `Warnings == nil` interchangeably for pre-E1-S2 payloads.
+	noKey := `{"name":"i_row","kind":"OVERLAY_INDEX_VS_MARGIN","scope":"cell",` +
+		`"ref":{"margin":{"axis":"row"}},"payload":{"shape":"scalar","scalar":1}}`
+	var decoded types.OverlayLayer
+	if err := json.Unmarshal([]byte(noKey), &decoded); err != nil {
+		t.Fatalf("unmarshal warnings-free OverlayLayer JSON: %v", err)
+	}
+	if decoded.Warnings != nil {
+		t.Fatalf("Warnings must be nil after unmarshal of warnings-free JSON, "+
+			"got %v (len=%d)", decoded.Warnings, len(decoded.Warnings))
+	}
+}
+
 // contains is a tiny grep helper used only by the omitempty assertion.
 // Avoids pulling strings.Contains into the import block when only one
 // site needs it.

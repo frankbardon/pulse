@@ -175,7 +175,7 @@ func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainRe
 		}
 		stageNames[i] = st.Name
 	}
-	layers, _, err := processing.ApplyChainOverlays(req.Overlays, out.Stages, stageNames)
+	layers, warnings, err := processing.ApplyChainOverlays(req.Overlays, out.Stages, stageNames)
 	if err != nil {
 		return err
 	}
@@ -189,6 +189,31 @@ func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainRe
 	}
 	out.Overlays = make([]*types.OverlayLayer, len(layers))
 	copy(out.Overlays, layers)
+	// Distribute the flat warning slice into the matching layer's
+	// `Warnings` slot. The dispatcher (processing.ApplyChainOverlays)
+	// stamps `Details["overlay_index"]` on every warning it appends so
+	// routing is a single lookup per warning; warnings missing the key
+	// (defensive — should never happen with the current dispatcher) fall
+	// back to layer 0 so they are still surfaced rather than silently
+	// dropped. Layers with no warnings keep `Warnings == nil` (no empty
+	// slice allocation) so the `omitempty` JSON tag preserves byte
+	// identity for the overlay-free path. E3-S1 (Compose) mirrors this
+	// convention so a shared helper can factor both paths later.
+	for i := range warnings {
+		layerIdx := 0
+		if warnings[i].Details != nil {
+			if v, ok := warnings[i].Details["overlay_index"]; ok {
+				if idx, ok := v.(int); ok && idx >= 0 && idx < len(out.Overlays) {
+					layerIdx = idx
+				}
+			}
+		}
+		layer := out.Overlays[layerIdx]
+		if layer == nil {
+			continue
+		}
+		layer.Warnings = append(layer.Warnings, warnings[i])
+	}
 	return nil
 }
 

@@ -56,7 +56,7 @@ func (s *Service) ComposeParallel(
 	ctx context.Context,
 	composed *types.ComposedRequest,
 	opts ComposeOptions,
-) ([]*types.Response, error) {
+) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"composed request must contain at least one request")
@@ -166,15 +166,24 @@ func (s *Service) ComposeParallel(
 	// `req.Overlays` spec order regardless of slot dispatch order
 	// because `responses` is keyed by slot index, not completion
 	// order.
-	//
-	// Facade rewire deferred to E7-S15: the layers + warnings are
-	// computed (so the hook surface is exercised end-to-end) but the
-	// facade still returns []*Response, so the values are discarded.
-	// E7-S15 lifts the return type to *ComposedResponse{Responses,
-	// Overlays} and persists both slots.
-	if _, _, err := s.applyComposeOverlays(ctx, composed, requests, responses); err != nil {
+	layers, warnings, err := s.applyComposeOverlays(ctx, composed, requests, responses)
+	if err != nil {
 		return nil, err
 	}
 
-	return responses, nil
+	// Build the ComposedResponse wrapper. Overlay-free composes leave
+	// `Overlays == nil` (no make-with-zero-len allocation, no
+	// `overlays: []` empty-array marshalling) so the byte-identity
+	// contract locked by TestComposedResponse_OverlayFreeByteIdentical
+	// (types/types_test.go:1106) is preserved when the caller declared
+	// no Compose-only overlays. Warning fold delegated to
+	// `distributeComposeWarnings` (service/compose_overlay.go) so the
+	// serial `service.Compose` and the parallel path here share the
+	// identical layer-warning routing contract.
+	out := &types.ComposedResponse{Responses: responses}
+	if len(layers) > 0 {
+		out.Overlays = distributeComposeWarnings(layers, warnings)
+	}
+
+	return out, nil
 }

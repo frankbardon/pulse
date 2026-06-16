@@ -1,5 +1,5 @@
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": {
     "format_version": "1.0",
     "commands": [
@@ -4957,7 +4957,7 @@
     "mcp_tools": [
       {
         "name": "pulse_compose",
-        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop."
+        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop.\n\nReturns a structured `ComposedResponse{responses, overlays}`: `responses` is the per-slot array of `Response` objects (one entry per `request.requests[i]` in matching order); `overlays` carries the executed Compose-level overlay layers (one `OverlayLayer` per `request.overlays[i]` in matching order). The `overlays` key is omitted entirely when the request carried no Compose overlays — byte-identical to the legacy raw-array shape for overlay-free composes."
       },
       {
         "name": "pulse_drop",
@@ -8908,4 +8908,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 45d9c84f9bcfb142f8f793ed6249eed83408ffd428eb63ac6bf8a8bf4b03a786
+// golden-hash: ef719a39d71c06881746957cfbc9a6c03c302bb84630c4a4736616fa96d0b3c9

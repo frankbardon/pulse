@@ -25,7 +25,7 @@ The canonical order for an LLM driving Pulse over MCP. Do this once per session;
 
 6. **`pulse_predict`** — validate the adapted Request against the schema. Read `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons`. Iterate until clean.
 
-7. **`pulse_process`** (or `pulse_compose` / `pulse_process_chain` / `pulse_facet` / `pulse_facet_schema` / `pulse_sample`) — execute. Returns `{format_version, data, errors, warnings}` plus the additive `data.components` family.
+7. **`pulse_process`** (or `pulse_compose` / `pulse_process_chain` / `pulse_facet` / `pulse_facet_schema` / `pulse_sample`) — execute. Returns `{format_version, data, errors, warnings}` plus the additive `data.components` family. `format_version` is `"1.1"`. For `pulse_compose` `data` is a `ComposedResponse` `{responses[], overlays[]}` — not the legacy `[]*Response`; per-slot Components rides each `responses[i]`, overlay diagnostics ride `overlays[i].warnings`.
 
 8. **`pulse_errors_lookup`** — on any non-empty `errors[]` entry. Resolves `code` to canonical `message` + structured `fixups[]`. Do not paraphrase from memory — the lookup is authoritative.
 
@@ -68,7 +68,7 @@ When you see `data.components` (or `Response.Components` in a typed envelope) fo
 
 1. Call `pulse_skills_get` with `name: "response-components"`.
 2. It is the canonical reference for the per-family shape: `aggregations[]`, `groupers[]`, `crosstab`, `filterers[]`, `run`.
-3. `format_version` stays `"1.0"` — Components is additive-only.
+3. `format_version` is `"1.1"` — Components itself is additive-only and never bumps; the bump came from the Compose facade lift.
 4. Universal floor `{n, n_null}` (or `{total_n, n_null}` / `{n_in, n_out, n_null_input}` depending on family) is filled by the orchestrator and is NOT enumerated in `manifest.components_schemas[*].keys`.
 5. Per-operator keys appear inside `Operator map[string]any` (aggregations / groupers) or directly inside the cell map (crosstab cells). Look them up via `manifest.components_schemas.aggregators[name].keys` / `.groupers[name].keys` / `.filterers[name].keys`.
 

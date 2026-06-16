@@ -97,7 +97,7 @@ import (
 // a coded PROCESSING_INTERNAL error — that branch is unreachable in
 // practice because ApplyOverlaysSeries short-circuits empty specs
 // before dispatch, but the defense is cheap.
-func applyIndexVsTotal(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsTotal(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -126,10 +126,10 @@ func applyIndexVsTotal(spec *types.OverlaySpec, host *SeriesHostView) (types.Ove
 	// and surface NaN per the OverlayPayload convention. The entries
 	// slice still carries one entry per host ordinal so the parallel-
 	// slice contract holds.
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	zeroDenominator := grandTotal == 0 || math.IsNaN(grandTotal)
 	if zeroDenominator {
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " grand total is zero; indices emitted as NaN",
 			Details: map[string]any{

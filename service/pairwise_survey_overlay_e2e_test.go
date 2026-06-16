@@ -367,10 +367,11 @@ func pairwiseSurveyOverlayP(t *testing.T, svc *Service, kind types.OverlayKind, 
 			Targets:   []string{"target"},
 		}},
 	}
-	responses, err := svc.Compose(context.Background(), composed)
+	composedResp, err := svc.Compose(context.Background(), composed)
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
+	responses := composedResp.Responses
 	if len(responses) != 2 {
 		t.Fatalf("Compose returned %d responses, want 2", len(responses))
 	}
@@ -599,10 +600,11 @@ func TestPairwiseSurveyOverlay_MultiSlotOrderPreserved(t *testing.T) {
 	}
 
 	t.Run("serial", func(t *testing.T) {
-		responses, err := svc.Compose(context.Background(), composed)
+		composedResp, err := svc.Compose(context.Background(), composed)
 		if err != nil {
 			t.Fatalf("Compose: %v", err)
 		}
+		responses := composedResp.Responses
 		if len(responses) != 4 {
 			t.Fatalf("len(responses) = %d, want 4", len(responses))
 		}
@@ -618,10 +620,11 @@ func TestPairwiseSurveyOverlay_MultiSlotOrderPreserved(t *testing.T) {
 	})
 
 	t.Run("parallel", func(t *testing.T) {
-		responses, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 3})
+		composedResp, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{MaxWorkers: 3})
 		if err != nil {
 			t.Fatalf("ComposeParallel: %v", err)
 		}
+		responses := composedResp.Responses
 		if len(responses) != 4 {
 			t.Fatalf("len(responses) = %d, want 4", len(responses))
 		}

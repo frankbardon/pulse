@@ -53,7 +53,7 @@ Decimal128 values are serialised as strings to preserve precision.
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": [ /* row array */ ],
   "errors": [],
   "warnings": []

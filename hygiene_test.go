@@ -64,12 +64,12 @@ func findGoTestFiles(t *testing.T, root string) []string {
 }
 
 // TestClaudeMdMentionsFormatVersion verifies that CLAUDE.md contains the
-// current format_version value "1.0". This is a non-skippable CI gate.
+// current format_version value "1.1". This is a non-skippable CI gate.
 func TestClaudeMdMentionsFormatVersion(t *testing.T) {
 	content := readClaudeMd(t)
-	// The format version is "1.0" as defined in descriptor/envelope.go.
-	if !strings.Contains(content, "1.0") {
-		t.Error("CLAUDE.md does not contain the current format_version value \"1.0\"")
+	// The format version is "1.1" as defined in descriptor/envelope.go.
+	if !strings.Contains(content, "1.1") {
+		t.Error("CLAUDE.md does not contain the current format_version value \"1.1\"")
 	}
 }
 

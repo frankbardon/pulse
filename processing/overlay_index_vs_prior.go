@@ -110,7 +110,7 @@ import (
 // practice because ApplyOverlaysSeries short-circuits empty specs
 // before dispatch, but the defense is cheap and matches the
 // INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES safety pattern.
-func applyIndexVsPrior(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsPrior(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -198,9 +198,9 @@ func applyIndexVsPrior(spec *types.OverlaySpec, host *SeriesHostView) (types.Ove
 		})
 	}
 
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	if zeroPriorHit {
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " encountered a zero prior value; affected indices emitted as NaN",
 			Details: map[string]any{

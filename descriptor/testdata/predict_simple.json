@@ -1,5 +1,5 @@
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": {
     "valid": true,
     "request": {
@@ -59,4 +59,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6d9132635f9484970c344a19ea61746c028aa2add4fdda602386cba59b06c077
+// golden-hash: cad507be43056879d880dcd994797d42d5440bc2c9e9241864dd3f88dde48bd7

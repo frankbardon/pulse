@@ -26,13 +26,16 @@ covers: [ComposedRequest, pulse_compose, OverlayLayer]
 
 ## Order-preserving slot dispatch
 
-Slots execute in declared order; the response is an array in the same order. Each slot carries its own `Response` shell — per-slot `Metadata`, `Aggregations`, `Crosstab`, `Components`, etc. Filter state in slot `i` does not affect slot `j`.
+Slots execute in declared order; the response is a `ComposedResponse` object `{Responses, Overlays}` where `Responses[i]` matches `Requests[i]` (since the v0.21.0 facade lift — predecessors returned a raw `[]*Response` slice). Each slot carries its own `Response` shell — per-slot `Metadata`, `Aggregations`, `Crosstab`, `Components`, etc. Filter state in slot `i` does not affect slot `j`.
 
 ```jsonc
-[
-  {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 50}},
-  {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 1000}}
-]
+{
+  "responses": [
+    {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 50}},
+    {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 1000}}
+  ],
+  "overlays": [ /* per-Compose-spec OverlayLayer; omitted when no Compose overlays */ ]
+}
 ```
 
 ## Shared cohort optimisation

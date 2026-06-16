@@ -16,7 +16,11 @@ Multiple distinct `types.Request` payloads against the same or different cohorts
 
 ## Output
 
-`descriptor.Envelope` wrapping `pulse.ComposedResponse` — a slice of per-slot `Response`s (each with its own `Data`, `Metadata`, `Components`, `Overlays`) plus a `Compose` overlay block applied post-fold by `service/compose_overlay.go`.
+`descriptor.Envelope` (`format_version: "1.1"`) wrapping a `pulse.ComposedResponse` on `data`:
+
+- `data.responses[]` — full `Response` per slot in input order; each carries its own `Data`, `Metadata`, `Components`, per-Request `Overlays`.
+- `data.overlays[]` — `OverlayLayer` per Compose `overlays[i]` spec via `service/compose_overlay.go`. Omitted when no Compose overlays declared.
+- `data.overlays[i].warnings[]` — per-layer `OverlayWarning{code, message, details}` diagnostics (cohesion, missing coordinates, panel overflow). Omitted when empty, so overlay-free Compose stays byte-identical (`TestComposedResponse_OverlayFreeByteIdentical`).
 
 ## Gotchas
 

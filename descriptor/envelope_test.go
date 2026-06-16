@@ -7,8 +7,8 @@ import (
 
 func TestNewEnvelope(t *testing.T) {
 	env := NewEnvelope("test")
-	if env.FormatVersion != "1.0" {
-		t.Errorf("FormatVersion = %q, want %q", env.FormatVersion, "1.0")
+	if env.FormatVersion != "1.1" {
+		t.Errorf("FormatVersion = %q, want %q", env.FormatVersion, "1.1")
 	}
 	if env.Data != "test" {
 		t.Errorf("Data = %v, want %q", env.Data, "test")
@@ -62,7 +62,7 @@ func TestEnvelope_MarshalJSON(t *testing.T) {
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if parsed["format_version"] != "1.0" {
+	if parsed["format_version"] != "1.1" {
 		t.Error("format_version missing or wrong")
 	}
 }

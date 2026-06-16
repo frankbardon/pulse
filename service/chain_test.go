@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/fs"
+	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -977,6 +979,188 @@ func TestOverlay_ChainWholeChain_DeltaVsStage(t *testing.T) {
 	for i, st := range resp.Stages {
 		if st.Overlays != nil {
 			t.Errorf("Stages[%d].Overlays = %+v, want nil", i, st.Overlays)
+		}
+	}
+}
+
+// TestChain_OverlayLayerWarnings_ReachServiceReturn is the E2-S2
+// service-layer parity gate. It locks the "computed-once, surfaced-once"
+// contract introduced by E2-S1: every OverlayWarning emitted by
+// processing.ApplyChainOverlays MUST land on the matching
+// OverlayLayer.Warnings slot that the public ProcessChain return value
+// exposes — no warning may be lost between the dispatcher and the
+// caller.
+//
+// Deterministic trigger (missing-reference series row, NOT zero
+// divisor — the zero-divisor path injects NaN into the payload which
+// blocks JSON marshalling at the CLI boundary; this path is structural
+// and is shared with the CLI integration test in cmd/pulse to keep both
+// tiers driving the same warning shape):
+//
+//   - 3-stage SERIES chain (region grouper + AGG_SUM / FILTER_RANGE +
+//     AGG_SUM / AGG_COUNT). The cohort carries 3 regions; region=2 has
+//     two zero-score rows so stage 0's AGG_SUM emits 0 for region=2.
+//   - Stage 1 carries a FILTER_RANGE on v > 0.5 that drops the
+//     region=2 row before re-aggregating. Stage 2's AGG_COUNT only
+//     sees region=1 and region=3.
+//   - One whole-chain OVERLAY_INDEX_VS_STAGE spec, Target=stage 0
+//     (3 rows: regions 1, 2, 3), Ref=stage 2 (2 rows: regions 1, 3).
+//     The region=2 target row has no matching reference row → SERIES
+//     handler emits ONE PULSE_OVERLAY_REF_ZERO warning with
+//     ref_missing=true and SKIPS the entry (no NaN substitution per
+//     processing/overlay_index_vs_stage.go:518–531).
+//   - Same overlay kind + same input always emits the same warning
+//     code + details (the dispatcher then stamps "overlay_index" so the
+//     service-layer barrier hook can route it).
+//
+// The parity assertion:
+//
+//   - Call processing.ApplyChainOverlays directly with the same stage
+//     responses and stage names that ProcessChain feeds it. The returned
+//     flat warning slice is the "ground truth" — the dispatcher's view
+//     of every warning produced for this request.
+//   - Call svc.ProcessChain, then walk every layer's Warnings slice in
+//     order. Concatenate them flat.
+//   - The two slices must be reflect.DeepEqual — same length, same
+//     ordering within each layer, same Code / Message / Details on every
+//     entry. This is the byte-equal contract from the story.
+//
+// Why this assertion is meaningful end-to-end: the dispatcher stamps
+// Details["overlay_index"] on every warning it emits, then returns a
+// flat slice. The service-layer barrier hook (service.applyChainOverlays
+// at chain.go:202) groups that flat slice by overlay_index and writes
+// each group into the matching layer's Warnings slot. Walking the
+// layers in order and re-flattening must reconstruct the original
+// dispatcher slice exactly — otherwise the routing layer either dropped
+// or duplicated an entry.
+func TestChain_OverlayLayerWarnings_ReachServiceReturn(t *testing.T) {
+	// Cohort: 3 regions × 2 rows each. Region=2's score sums to 0 so
+	// stage 1's FILTER_RANGE v>0.5 drops it before re-aggregation, and
+	// stage 2 never sees region=2 — the missing-row trigger for
+	// PULSE_OVERLAY_REF_ZERO with ref_missing=true on the SERIES handler.
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "region", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 1, CsvColumnIdx: 1},
+		},
+	}
+	records := [][]uint64{
+		{1, math.Float64bits(2.0)},
+		{1, math.Float64bits(4.0)},
+		{2, math.Float64bits(0.0)}, // zero-score rows so stage 0 sum == 0 → dropped at stage 1
+		{2, math.Float64bits(0.0)},
+		{3, math.Float64bits(10.0)},
+		{3, math.Float64bits(20.0)},
+	}
+	cfg := setupTestFS(t, "test.pulse", schema, records)
+	ctx := context.Background()
+
+	zero := 0
+	two := 2
+	req := &types.ChainRequest{
+		Cohort: &types.Cohort{Filename: "test.pulse"},
+		Stages: []*types.ChainStage{
+			{Name: "stage_a", Request: &types.Request{
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "v"}},
+			}},
+			{Name: "stage_b", Request: &types.Request{
+				// Drop region=2 (v == 0). FILTER_RANGE keeps rows in
+				// [0.5, 1000] → stage 2 never sees region=2.
+				Filterers:    []*types.Filterer{{Type: types.FILTER_RANGE, Field: "v", Values: []string{"0.5", "1000"}}},
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Label: "w"}},
+			}},
+			{Name: "stage_c", Request: &types.Request{
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "w", Label: "c"}},
+			}},
+		},
+		Overlays: []*types.ChainOverlaySpec{
+			{
+				// Target=stage 0 (3 rows incl. region=2),
+				// Ref=stage 2 (2 rows; region=2 dropped at stage 1).
+				// The region=2 target row has no matching ref → one
+				// PULSE_OVERLAY_REF_ZERO warning with ref_missing=true.
+				Name:   "stage0_vs_stage2_index_warn",
+				Kind:   types.OverlayKindIndexVsStage,
+				Scope:  types.OverlayScopeGroup,
+				Ref:    types.StageRef{Index: &two},
+				Target: types.StageRef{Index: &zero},
+			},
+		},
+	}
+
+	svc := New(cfg)
+	resp, err := svc.ProcessChain(ctx, req)
+	if err != nil {
+		t.Fatalf("ProcessChain: %v", err)
+	}
+	if got := len(resp.Overlays); got != 1 {
+		t.Fatalf("ChainResponse.Overlays length = %d, want 1 (one spec → one layer)", got)
+	}
+
+	// Re-run the dispatcher directly against the same materialised
+	// stages to capture the ground-truth flat warning slice. This is
+	// the same call the service-layer barrier makes — we replay it here
+	// to get the unrouted view.
+	stageNames := []string{"stage_a", "stage_b", "stage_c"}
+	_, wantWarnings, err := processing.ApplyChainOverlays(req.Overlays, resp.Stages, stageNames)
+	if err != nil {
+		t.Fatalf("ApplyChainOverlays (parity replay): %v", err)
+	}
+	if len(wantWarnings) == 0 {
+		t.Fatalf("ApplyChainOverlays returned no warnings; trigger condition is no longer deterministic (PULSE_OVERLAY_REF_ZERO must fire for region=2)")
+	}
+
+	// Concatenate the per-layer Warnings slices in spec order — this is
+	// the inverse of the service-side routing.
+	var got []types.OverlayWarning
+	for _, layer := range resp.Overlays {
+		if layer == nil {
+			continue
+		}
+		got = append(got, layer.Warnings...)
+	}
+
+	if len(got) != len(wantWarnings) {
+		t.Fatalf("flattened layer.Warnings length = %d, want %d (warning routing must be loss-free)\nwant: %+v\ngot:  %+v",
+			len(got), len(wantWarnings), wantWarnings, got)
+	}
+	if !reflect.DeepEqual(got, wantWarnings) {
+		t.Fatalf("flattened layer.Warnings != ApplyChainOverlays return slice (computed-once, surfaced-once contract violated)\nwant: %+v\ngot:  %+v",
+			wantWarnings, got)
+	}
+
+	// Sanity-check the trigger is the one we intended: at least one
+	// warning carries the PULSE_OVERLAY_REF_ZERO code stamped by the
+	// SERIES handler when indexKernel returns ok=false on a zero
+	// reference value.
+	sawRefZero := false
+	for _, w := range got {
+		if w.Code == string(errors.PULSE_OVERLAY_REF_ZERO) {
+			sawRefZero = true
+			break
+		}
+	}
+	if !sawRefZero {
+		t.Errorf("warning trigger drift: expected at least one PULSE_OVERLAY_REF_ZERO entry; got %+v", got)
+	}
+
+	// Defence in depth: every routed warning must carry the
+	// overlay_index stamp the dispatcher attached. Without it the
+	// service-layer router would have fallen back to layer 0; with a
+	// single spec the fallback would still land on the right layer, so
+	// the stamp is the only behavioural witness that routing was
+	// driven by the dispatcher contract rather than the defensive
+	// default.
+	for i, w := range got {
+		if w.Details == nil {
+			t.Errorf("warning %d Details = nil; dispatcher must stamp overlay_index", i)
+			continue
+		}
+		if _, ok := w.Details["overlay_index"]; !ok {
+			t.Errorf("warning %d Details missing overlay_index key: %+v", i, w.Details)
 		}
 	}
 }

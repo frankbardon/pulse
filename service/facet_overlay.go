@@ -272,7 +272,7 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 // canonical PULSE_OVERLAY_* code alongside the human-readable summary.
 // String concatenation only — no fmt.Sprintf per the descriptor /
 // processing no-fmt-Sprintf ban (mirrored here for grep parity).
-func formatOverlayWarning(w processing.OverlayWarning) string {
+func formatOverlayWarning(w types.OverlayWarning) string {
 	if w.Code == "" {
 		return w.Message
 	}

@@ -48,9 +48,10 @@ func LoadMemberSetFromReader(r io.Reader, schema *encoding.Schema, fieldName str
 // Type aliases re-exported from the types package so embedders can use
 // pulse.Request instead of types.Request.
 type (
-	Request         = types.Request
-	Response        = types.Response
-	ComposedRequest = types.ComposedRequest
+	Request          = types.Request
+	Response         = types.Response
+	ComposedRequest  = types.ComposedRequest
+	ComposedResponse = types.ComposedResponse
 
 	// FacetRequest is the input to FacetSchema — multi-field, with
 	// optional filters, percentiles, histograms, and additive
@@ -471,8 +472,27 @@ func (p *Pulse) ProcessStream(ctx context.Context, req *Request) (RowIter, error
 	return p.svc.ProcessStream(ctx, req)
 }
 
-// Compose executes multiple requests, returning a response for each.
-func (p *Pulse) Compose(ctx context.Context, req *ComposedRequest) ([]*Response, error) {
+// Compose executes multiple requests against a cohort and returns a
+// structured ComposedResponse carrying both per-request results and any
+// composition-level overlay output.
+//
+// Returned shape:
+//
+//   - Responses []*Response — one entry per request in req.Requests,
+//     in input order. Per-request errors surface as a Response with
+//     non-empty Errors; the call returns a top-level error only on
+//     orchestration failures (validation, cohort open, etc.).
+//   - Overlays []OverlayLayer — one layer per OverlaySpec in
+//     req.Overlays, in declaration order. The Compose-host overlay
+//     fold (service.applyComposeOverlays) writes layers post-execution;
+//     when req.Overlays is empty the slot is nil/omitempty and the
+//     returned envelope is byte-identical to the legacy raw-Response
+//     payload.
+//   - Overlays[i].Warnings []OverlayWarning — per-overlay diagnostics
+//     emitted by the handler (cohesion failures, missing host
+//     coordinates, threshold breaches). Empty when the layer produced
+//     no diagnostics.
+func (p *Pulse) Compose(ctx context.Context, req *ComposedRequest) (*ComposedResponse, error) {
 	return p.svc.Compose(ctx, req)
 }
 
@@ -529,15 +549,30 @@ func (p *Pulse) ProcessChain(ctx context.Context, req *ChainRequest) (*ChainResp
 // ComposeOptions controls parallel execution. See service.ComposeOptions.
 type ComposeOptions = service.ComposeOptions
 
-// ComposeParallel runs every request in req concurrently across a bounded
-// worker pool. Responses are returned in input order. Workers share the
-// engine's read-only registries; each Process call constructs fresh
-// stateful operators per request, so concurrent execution is safe.
+// ComposeParallel runs every request in req concurrently across a
+// bounded worker pool and returns a structured ComposedResponse.
+// Workers share the engine's read-only registries; each Process call
+// constructs fresh stateful operators per request, so concurrent
+// execution is safe.
 //
 // Defaults: MaxWorkers = runtime.GOMAXPROCS(0), no per-request timeout,
 // FailFast = true (set FailFast=false to collect every request's outcome
 // instead of cancelling siblings on first error).
-func (p *Pulse) ComposeParallel(ctx context.Context, req *ComposedRequest, opts ComposeOptions) ([]*Response, error) {
+//
+// Returned shape mirrors Compose:
+//
+//   - Responses []*Response — one entry per request in req.Requests,
+//     in input order (not completion order). Workers compose the slice
+//     deterministically before returning.
+//   - Overlays []OverlayLayer — one layer per OverlaySpec in
+//     req.Overlays, in declaration order. The Compose-host overlay
+//     fold runs after every per-request Process has settled, so
+//     overlay handlers always observe the full Responses slice.
+//   - Overlays[i].Warnings []OverlayWarning — per-overlay diagnostics
+//     surfaced by distributeComposeWarnings (cohesion failures,
+//     missing host coordinates, panel-target overflow). Empty when
+//     the layer produced no diagnostics.
+func (p *Pulse) ComposeParallel(ctx context.Context, req *ComposedRequest, opts ComposeOptions) (*ComposedResponse, error) {
 	return p.svc.ComposeParallel(ctx, req, opts)
 }
 

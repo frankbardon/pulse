@@ -47,7 +47,7 @@ Dictionaries with > 100 entries are flagged `(truncated)` — pass
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": {
     "field_count": 7,
     "fields": [

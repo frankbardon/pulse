@@ -30,11 +30,13 @@ This is the compressed surface — the full per-contract trigger table lives at 
 | A registered regression (`REG_*`) or modifier | `skills/op-reg-<kebab>.md` (atomic skill; modifiers ship as `skills/op-reg-mod-<kebab>.md`) + `descriptor/capabilities_regressions.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllRegressions`, `TestManifestRegressionsComplete` |
 | A registered synth distribution | `skills/op-synth-<kebab>.md` (atomic skill) + `descriptor/capabilities_distributions.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
 | A registered overlay kind (`OVERLAY_*`) | `skills/op-overlay-<kebab>.md` (atomic skill) + `types/overlay.go` (`AllOverlayKinds`) | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllOverlayKinds` |
+| `OverlayLayer.Warnings` slot shape or the dispatcher-stamped `Details["overlay_index"]` routing key | `skills/overlay-system.md` (Per-layer warnings section) + `types/overlay.go` + `processing/overlay_chain_dispatch.go` + `processing/overlay_compose_dispatch.go` + `service/chain.go` + `service/compose_overlay.go` | `TestOverlayLayer_WarningsFreeByteIdentical`, `TestComposedResponse_OverlayFreeByteIdentical`, `TestSkillsCoverAllOverlayKinds` |
+| `ComposedResponse` shape (`Responses`/`Overlays` slots) OR the `Pulse.Compose` / `Pulse.ComposeParallel` facade return type OR the `pulse api compose --json` `data` envelope wrapping | CLAUDE.md "Output Format Contract" (`--json` envelope + Compose envelope block) + `skills/compose-requests.md` + `skills/tool-compose.md` + `skills/session-bootstrap.md` (step 7 Compose return shape) + `skills/overlay-system.md` (Compose-host fold) + `skills/streaming-and-watching.md` (Compose streaming vs. overlays) + `docs/src/cli/api-compose.md` + `types/types.go` (`ComposedResponse`) + `descriptor/envelope.go` (`format_version`) + `internal/mcp/mcptools/meta.go` (`DescCompose`) + `internal/cli/api.go` (Compose handler) | `TestClaudeMdMentionsFormatVersion`, `TestComposedResponse_OverlayFreeByteIdentical` |
 | A registered MCP tool (add/remove) | `skills/tool-<kebab>.md` (atomic skill; strip `pulse_` prefix) + `internal/mcp/mcptools/meta.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
 | A registered field type | `skills/type-<kebab>.md` (atomic skill) + CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
 | An example tag for a registered operator | `examples/<category>/*.json` `_meta.operators` (tag the operator string in at least one example body; overlay kinds tag via `overlays[].kind`) | `TestEveryOperatorHasAnExampleTag`, `TestExamples_OperatorsMatchBody` |
 | An error code (add/remove/rename) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
-| A `--json` envelope or `format_version` value (currently `"1.0"`) | CLAUDE.md "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
+| A `--json` envelope or `format_version` value (currently `"1.1"`) | CLAUDE.md "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
 | A `.pulse` file format change (header, field type) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
 | A new non-skippable CI gate | CLAUDE.md "Non-Skippable CI Gates" list | `TestClaudeMdMentionsAllNonSkippableGates` |
 | An environment variable | CLAUDE.md "Build / Env" + `skills/session-bootstrap.md` | `TestClaudeMdMentionsAllEnvVars` |
@@ -131,7 +133,7 @@ All `--json` CLI output + descriptor operations use `descriptor.Envelope`:
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": { ... },
   "request": { ... },
   "errors": [],
@@ -139,15 +141,31 @@ All `--json` CLI output + descriptor operations use `descriptor.Envelope`:
 }
 ```
 
-- `format_version` always `"1.0"`. Changes MUST update this section.
+- `format_version` always `"1.1"`. Bumped from `"1.0"` for the Compose facade lift (E3-S5): `pulse.Compose` / `pulse.ComposeParallel` now return `*ComposedResponse` and `pulse api compose --json` wraps that object on `data` (see Compose-specific envelope below). Future backward-incompatible shape changes MUST update this section.
 - `errors` / `warnings` use `{"code", "message", "details"}`. Empty array (never null) when absent.
 - `request` is opt-in echo of the *normalized* request. Omitted unless `pulse.Options.EchoRequest` is true or CLI flag `--echo-request`. Shape varies: `Request` for process/predict, `ComposedRequest` for compose, `ChainRequest` for process-chain, `FacetRequest` for facet, `SampleRequest` for sample. Streaming output skips the echo. Use `descriptor.NewEnvelopeWithRequest(data, req)` or `env.WithRequest(req)` to populate.
 
 Additive-only: bump `format_version` only on backward-incompatible shape changes. New `data` fields don't bump; renames/removals do. The `request` field is additive (omitempty) and does NOT bump `format_version`.
 
+**Compose envelope (`pulse api compose --json`).** Since the v1.1 lift `data` is a `ComposedResponse` object — not the legacy `[]*Response` array:
+
+```json
+{
+  "format_version": "1.1",
+  "data": {
+    "responses": [ /* one Response per ComposedRequest.Requests slot, in input order */ ],
+    "overlays":  [ /* one OverlayLayer per ComposedRequest.Overlays spec; omitted when no Compose overlays */ ]
+  },
+  "errors": [],
+  "warnings": []
+}
+```
+
+Streaming (`--stream`) bypasses the envelope and emits per-row `{"index", "row"}` NDJSON; Compose overlays surface only at terminal flush in non-streaming mode (see `skills/streaming-and-watching.md`).
+
 ### Response.Components
 
-Every `Response` carries an optional `Components *ResponseComponents` (additive `omitempty`; `format_version` stays `"1.0"`). Mirrors the request shape:
+Every `Response` carries an optional `Components *ResponseComponents` (additive `omitempty`; `format_version` stays `"1.1"`). Mirrors the request shape:
 
 - `Aggregations []AggregationComponents` — one entry per aggregator slot; universal floor `{n, n_null}` + operator-specific `Operator map[string]any` keyed by the manifest schema.
 - `Groupers []GrouperComponents` — universal floor `{total_n, n_null}` + operator-specific bucket layout.
@@ -156,6 +174,8 @@ Every `Response` carries an optional `Components *ResponseComponents` (additive 
 - `Run *RunComponents` — `total_records`, `filtered_records`, `null_records`, `shard_count`, `partial_cohort_reason`. Coexists with `Response.Metadata`: `Metadata` keeps non-numerical run facts (cohort filename); `Run` carries the typed counters.
 
 Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers}`. Mergeability axis per operator: `Mergeable` / `Partial` / `None` (`types.ComponentsMergeability`). Streaming chunks emit running state for mergeable; non-mergeable surface only on terminal flush.
+
+**Compose surface (v1.1).** `ComposedResponse.Responses[i].Components` carries the per-slot block exactly as it does for a buffered `Process` call — the Compose-overlay fold treats per-slot Components as read-only. Diagnostics from the Compose-host overlay fold (cohesion failures, missing host coordinates, panel-target overflow) ride a sibling per-layer slot `ComposedResponse.Overlays[i].Warnings []OverlayWarning`; the slot is `omitempty` so overlay-free Compose responses stay byte-identical to the v1.0 wire shape (`TestComposedResponse_OverlayFreeByteIdentical`). The same per-layer `Warnings` slot is shared with the CHAIN-host barrier. See `skills/overlay-system.md` (Per-layer warnings).
 
 Full contract: `skills/response-components.md`.
 
@@ -195,7 +215,7 @@ Heavy detail lives in `.claude/reference/execution-modes.md` and the named skill
 ## Non-Skippable CI Gates
 
 CLAUDE.md hygiene:
-- `TestClaudeMdMentionsFormatVersion` — CLAUDE.md must mention current `format_version` `"1.0"`.
+- `TestClaudeMdMentionsFormatVersion` — CLAUDE.md must mention current `format_version` `"1.1"`.
 - `TestClaudeMdMentionsAllEnvVars` — every `PULSE_*` env var in Go source must appear in CLAUDE.md.
 - `TestClaudeMdMentionsAllNonSkippableGates` — every test name with these prefixes (`TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage`) must be listed in CLAUDE.md.
 - `TestClaudeMdMentionsComponentsContract` — CLAUDE.md surfaces `Response.Components` shape + universal floor + naming-collision note.

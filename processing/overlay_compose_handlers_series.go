@@ -79,14 +79,14 @@ func composeHostIsSeries(reference *types.Response, target *types.Response) bool
 // Response.Data order element-for-element (modulo missing-ref drops).
 // Layer-level Summary.Baseline = scale (default 100) for renderer-
 // facing centring.
-func applyIndexVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Response, target *types.Response, refIdx int, targetIdx int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Response, target *types.Response, refIdx int, targetIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	scale := scaleFromParams(spec.Params, 100.0)
 	refIndex, _ := buildSeriesRowLookup(reference.Data)
 
 	entries := make([]types.SeriesEntry, 0, len(target.Data))
 	targetLabel := composeFirstTargetLabel(spec)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -102,7 +102,7 @@ func applyIndexVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 		}
 		refVal, refPresent := refIndex[keyStr]
 		if !refPresent {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) + " reference row missing for target row key",
 				Details: map[string]any{
@@ -120,7 +120,7 @@ func applyIndexVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 		}
 		entry := types.SeriesEntry{Key: types.AxisKey{keyStr}}
 		if refVal == 0 {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) + " reference value is zero; substituting NaN",
 				Details: map[string]any{
@@ -182,13 +182,13 @@ func applyIndexVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 // emits PULSE_OVERLAY_REF_ZERO for a zero reference. Missing reference
 // rows still emit a warning per the PRD §4 missing-key contract (the
 // entry is dropped from the output series).
-func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Response, target *types.Response, refIdx int, targetIdx int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Response, target *types.Response, refIdx int, targetIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refIndex, _ := buildSeriesRowLookup(reference.Data)
 
 	entries := make([]types.SeriesEntry, 0, len(target.Data))
 	targetLabel := composeFirstTargetLabel(spec)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -201,7 +201,7 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 		}
 		refVal, refPresent := refIndex[keyStr]
 		if !refPresent {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) + " reference row missing for target row key",
 				Details: map[string]any{
@@ -291,7 +291,7 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 // the same warning. Reuses welchTTest (the shared MATRIX-arm helper
 // in overlay_compose_handlers.go) so the SERIES and MATRIX surfaces
 // produce identical p-values for the same (mean, variance, n) triple.
-func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []OverlayWarning, error) {
+func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	if reference == nil || target == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -315,7 +315,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 	entries := make([]types.SeriesEntry, 0, len(target.Data))
 	targetLabel := composeFirstTargetLabel(spec)
 	var (
-		warnings []OverlayWarning
+		warnings []types.OverlayWarning
 		minV     float64
 		maxV     float64
 		seen     int
@@ -344,7 +344,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 		entry := types.SeriesEntry{Key: types.AxisKey{keyStr}}
 		refEntry, refPresent := refIndex[keyStr]
 		if !refPresent {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) + " reference row missing for target row key",
 				Details: map[string]any{
@@ -398,7 +398,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 
 		p, ok := welchTTest(targetMean, targetVar, targetN, refMean, refVar, refN)
 		if !ok {
-			warnings = append(warnings, OverlayWarning{
+			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 				Message: "overlay " + string(spec.Kind) + " Welch t-test undefined for group (zero SE OR insufficient n)",
 				Details: map[string]any{

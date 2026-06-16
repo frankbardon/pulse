@@ -35,7 +35,7 @@ From [`descriptor/manifest.go`](https://github.com/frankbardon/pulse/blob/main/d
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": {
     "commands":   [ /* every CLI leaf with a usage line */ ],
     "operators":  [ /* every aggregator / attribute / filterer / grouper / window / feature */ ],

@@ -73,7 +73,7 @@ func panelLayerName(spec *types.ComposeOverlaySpec, targetLabel string) string {
 // corresponds to `spec.Targets[i]` so renderers can address the
 // emitted panel by target offset without any auxiliary index map.
 // Stable across re-runs of the same spec.
-func applyPanelIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) ([]types.OverlayLayer, []OverlayWarning, error) {
+func applyPanelIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	// Cap enforcement runs FIRST — an over-cap panel fails loud before
 	// any per-target work happens. The cap counts target slots only; the
 	// reference is always present and does not count.
@@ -91,7 +91,7 @@ func applyPanelIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Respo
 	}
 
 	layers := make([]types.OverlayLayer, 0, len(targets))
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 
 	for i, target := range targets {
 		// Build a single-target ComposeOverlaySpec shim so the reused

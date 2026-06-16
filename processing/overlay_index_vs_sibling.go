@@ -96,7 +96,7 @@ import (
 // predict) by returning a coded PROCESSING_INTERNAL error — that
 // branch is unreachable in practice but the defense is cheap and
 // matches the DELTA_VS_SIBLING safety pattern.
-func applyIndexVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,
@@ -135,12 +135,12 @@ func applyIndexVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.O
 	// Both paths surface NaN per present entry — the entries slice still
 	// carries one entry per host ordinal so the parallel-slice contract
 	// holds regardless of denominator health.
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	zeroSibling := siblingPresent && (siblingVal == 0 || math.IsNaN(siblingVal))
 	unknownSibling := !siblingPresent
 	switch {
 	case unknownSibling:
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 			Message: "overlay " + string(spec.Kind) + " sibling reference does not resolve to a known host group",
 			Details: map[string]any{
@@ -152,7 +152,7 @@ func applyIndexVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.O
 			},
 		})
 	case zeroSibling:
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " sibling value is zero; indices emitted as NaN",
 			Details: map[string]any{

@@ -90,7 +90,7 @@ import (
 // practice because ApplyOverlaysSeries short-circuits empty specs before
 // dispatch, but the defense matches the INDEX_VS_TOTAL / SHARE_OF_TOTAL
 // SERIES / INDEX_VS_PRIOR safety pattern.
-func applyIndexVsBaseline(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []OverlayWarning, error) {
+func applyIndexVsBaseline(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	baselineValue, err := ResolveBaselineIndex(host, spec.Ref.BaselineIndex)
 	if err != nil {
 		return types.OverlayLayer{}, nil, err
@@ -156,9 +156,9 @@ func applyIndexVsBaseline(spec *types.OverlaySpec, host *SeriesHostView) (types.
 		})
 	}
 
-	var warnings []OverlayWarning
+	var warnings []types.OverlayWarning
 	if zeroDenominator {
-		warnings = append(warnings, OverlayWarning{
+		warnings = append(warnings, types.OverlayWarning{
 			Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
 			Message: "overlay " + string(spec.Kind) + " resolved baseline value is zero; indices emitted as NaN",
 			Details: map[string]any{

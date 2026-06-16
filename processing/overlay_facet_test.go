@@ -135,7 +135,7 @@ func facetTestNumericHostPopPair(t *testing.T, field string, hostNum, popNum *ty
 // facade and returns (layer, warnings, err). The single-spec shape
 // makes each scenario read as one helper call; multi-spec scenarios
 // (mixed-kinds spec-order test) call ApplyOverlaysFacet directly.
-func runApplyOverlaysFacet(t *testing.T, spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []OverlayWarning, error) {
+func runApplyOverlaysFacet(t *testing.T, spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	t.Helper()
 	specs := []types.OverlaySpec{*spec}
 	layers, warnings, err := ApplyOverlaysFacet(specs, host, pop)
