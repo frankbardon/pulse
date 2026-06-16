@@ -11,8 +11,8 @@ import (
 // types.AllOverlayKinds() and the per-kind catalog entries
 // OverlayCapabilities() emits. A new overlay kind that lands in
 // types/overlay.go without an entry here fails this gate — the
-// manifest builder (E1-S10) iterates the capability slice and a
-// missing entry would silently drop the kind.
+// manifest builder iterates the capability slice and a missing entry
+// would silently drop the kind.
 func TestOverlayCapabilities_CoversAllKinds(t *testing.T) {
 	caps := OverlayCapabilities()
 	if got, want := len(caps), len(types.AllOverlayKinds()); got != want {
@@ -49,9 +49,9 @@ func TestOverlayCapabilities_AlphabetizedByKind(t *testing.T) {
 	}
 }
 
-// TestOverlayCapabilities_IndexVsMargin verifies the E1 entry
-// emits the contract spelled out in PRD §I-FR-I2 and the story
-// acceptance criteria.
+// TestOverlayCapabilities_IndexVsMargin verifies the seed
+// OVERLAY_INDEX_VS_MARGIN entry emits the contract spelled out in
+// PRD §I-FR-I2.
 func TestOverlayCapabilities_IndexVsMargin(t *testing.T) {
 	caps := OverlayCapabilities()
 
@@ -91,7 +91,7 @@ func TestOverlayCapabilities_IndexVsMargin(t *testing.T) {
 			entry.Buffered, want, streamable)
 	}
 	if !entry.Buffered {
-		t.Errorf("Buffered = false, want true (E1 host crosstab is buffered)")
+		t.Errorf("Buffered = false, want true (host crosstab is buffered)")
 	}
 
 	// Description: non-empty.
@@ -121,8 +121,7 @@ func TestOverlayCapabilities_BufferedMatchesStreamability(t *testing.T) {
 
 // TestOverlayCapabilities_FieldsSorted verifies every entry's Shapes,
 // Scopes, and RefKinds lists are alphabetically sorted. Required for
-// deterministic golden output once the manifest hookup lands in
-// E1-S10.
+// deterministic golden manifest output.
 func TestOverlayCapabilities_FieldsSorted(t *testing.T) {
 	for _, c := range OverlayCapabilities() {
 		shapes := make([]string, len(c.Shapes))
@@ -145,9 +144,9 @@ func TestOverlayCapabilities_FieldsSorted(t *testing.T) {
 			t.Errorf("entry %q: RefKinds not sorted: %v", c.Kind, c.RefKinds)
 		}
 
-		// E2-S11: Fields slot lists Level / Within field-name strings
-		// for the share / index / delta / zscore family; alphabetised
-		// for golden stability mirroring the RefKinds / Shapes / Scopes
+		// Fields slot lists Level / Within field-name strings for the
+		// share / index / delta / zscore family; alphabetised for
+		// golden stability mirroring the RefKinds / Shapes / Scopes
 		// sort contract.
 		if !sort.StringsAreSorted(c.Fields) {
 			t.Errorf("entry %q: Fields not sorted: %v", c.Kind, c.Fields)
@@ -155,7 +154,7 @@ func TestOverlayCapabilities_FieldsSorted(t *testing.T) {
 	}
 }
 
-// TestOverlayCapabilities_TupleComplete is the E10-S4 audit gate —
+// TestOverlayCapabilities_TupleComplete is the catalog audit gate —
 // every entry returned by OverlayCapabilities() must carry a fully-
 // populated tuple per PRD §I-FR-I2: non-empty Shapes, non-empty
 // Scopes, and a non-empty Description. Empty Kind is rejected
@@ -189,12 +188,12 @@ func TestOverlayCapabilities_TupleComplete(t *testing.T) {
 	}
 }
 
-// TestManifestOverlayCapability_FullCoverage is the E10-S4 audit gate
-// for the root manifest — every kind in types.AllOverlayKinds() must
-// appear in Manifest.Overlays with a fully-populated tuple. The
-// per-kind test TestManifestOverlayCapability spot-checks
-// OVERLAY_INDEX_VS_MARGIN; this gate walks the full catalog so a new
-// kind that lands without a manifest entry cannot pass CI.
+// TestManifestOverlayCapability_FullCoverage is the manifest-side
+// audit gate — every kind in types.AllOverlayKinds() must appear in
+// Manifest.Overlays with a fully-populated tuple. The per-kind test
+// TestManifestOverlayCapability spot-checks OVERLAY_INDEX_VS_MARGIN;
+// this gate walks the full catalog so a new kind that lands without a
+// manifest entry cannot pass CI.
 //
 // Mirrors TestOverlayCapabilities_TupleComplete but operates against
 // the materialised Manifest payload BuildManifest() emits (the path
@@ -228,14 +227,13 @@ func TestManifestOverlayCapability_FullCoverage(t *testing.T) {
 	}
 }
 
-// TestManifestOverlayCapability_FormatVersionStable is the E10-S4
-// audit gate confirming the manifest's format_version stays "1.0"
-// regardless of the Overlays catalog. Overlay catalog additions are
-// additive — new kinds extend Manifest.Overlays without bumping
-// format_version (additive-only rule, CLAUDE.md "Output Format
-// Contract"). A bump here would force every downstream client to
-// re-handshake; this gate prevents accidental version drift via
-// the Overlays surface.
+// TestManifestOverlayCapability_FormatVersionStable confirms the
+// manifest's format_version stays at its current value regardless of
+// the Overlays catalog. Overlay catalog additions are additive — new
+// kinds extend Manifest.Overlays without bumping format_version
+// (additive-only rule, CLAUDE.md "Output Format Contract"). A bump
+// here would force every downstream client to re-handshake; this
+// gate prevents accidental version drift via the Overlays surface.
 func TestManifestOverlayCapability_FormatVersionStable(t *testing.T) {
 	m := BuildManifest()
 	if m.FormatVersion != "1.0" {

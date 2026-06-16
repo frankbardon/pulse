@@ -40,8 +40,7 @@ type ProcessChainCapability struct {
 
 	// OverlayKinds lists the whole-chain overlay catalog entries
 	// accepted on ChainRequest.Overlays today. Alphabetically sorted.
-	// Minimal additive surface kept for backward compatibility — E6-S7
-	// added the allowlist when the predict-time validator landed; the
+	// Minimal additive surface kept for backward compatibility; the
 	// richer per-kind sub-block at Overlays carries the full surface
 	// (shapes / scopes / ref kinds / buffered / description).
 	OverlayKinds []string `json:"overlay_kinds"`
@@ -63,7 +62,7 @@ type ProcessChainCapability struct {
 	//   - RefKinds    — the OverlayRef union pointer-field names the kind
 	//                   consumes; the chain family consumes Stage.
 	//   - Buffered    — !types.OverlayStreamable(kind); whole-chain kinds
-	//                   stay buffered for E6 (the streamability flag is
+	//                   stay buffered today (the streamability flag is
 	//                   the inverse of the table in
 	//                   types/overlay_streamability.go).
 	//   - Description — short human-readable summary; mirrors the prose
@@ -120,10 +119,9 @@ func processChainCapability() ProcessChainCapability {
 // stability.
 //
 // The list of whole-chain kinds is intentionally local to this file —
-// the chain family is a closed set (E6 ships OVERLAY_INDEX_VS_STAGE +
-// OVERLAY_DELTA_VS_STAGE; no further whole-chain kinds are planned in
-// the E6 scope). Future chain kinds extend this slice and the matching
-// switch arm in overlayCapabilityFor().
+// the chain family is a closed set (OVERLAY_INDEX_VS_STAGE +
+// OVERLAY_DELTA_VS_STAGE). Future chain kinds extend this slice and
+// the matching switch arm in overlayCapabilityFor().
 func chainOverlayCapabilities() []OverlayCapability {
 	kinds := []types.OverlayKind{
 		types.OverlayKindDeltaVsStage,

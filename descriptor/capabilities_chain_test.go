@@ -55,7 +55,7 @@ func TestProcessChainCapability_OverlaysAlphabetizedByKind(t *testing.T) {
 // TestProcessChainCapability_OverlaysBufferedMatchesStreamability
 // verifies that every entry's Buffered flag is the inverse of
 // types.OverlayStreamable for its kind. Whole-chain kinds always stay
-// buffered for E6 (the post-stage-loop barrier runs after every stage
+// buffered (the post-stage-loop barrier runs after every stage
 // finalises); this test guards against capability-surface drift if the
 // streamability table flips.
 func TestProcessChainCapability_OverlaysBufferedMatchesStreamability(t *testing.T) {
