@@ -17,9 +17,9 @@ import (
 // are recorded by category for predict + IsStreamable consumption.
 //
 // This helper does NOT run probe-validation (factory invocation) —
-// that lives in the per-category integration phases (E3 onward) and
-// emits PULSE_EXTENSION_STREAMABLE_MISMATCH when the declared
-// streaming tier disagrees with the factory's returned interface.
+// that lives in the per-category integration paths and emits
+// PULSE_EXTENSION_STREAMABLE_MISMATCH when the declared streaming
+// tier disagrees with the factory's returned interface.
 func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if !hasAnyRegistrations(ext) {
 		return nil

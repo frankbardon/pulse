@@ -183,8 +183,7 @@ func (a *Archive) IsStored(name string) bool {
 // named entry and validates them as a single-file Pulse header (magic
 // + format version). Returns PULSE_SHARD_HEADER_INVALID on mismatch so
 // callers can surface a structured error without parsing the full
-// schema. Used by S2+ phases when peeking shard metadata on first
-// read.
+// schema. Used when peeking shard metadata on first read.
 func (a *Archive) PeekShardHeader(name string) error {
 	rc, err := a.Open(name)
 	if err != nil {

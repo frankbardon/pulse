@@ -19,7 +19,7 @@ import (
 //
 // Embedder factories MUST tolerate a nil/empty Schema and a spec
 // carrying only the operator Name; documented in
-// docs/src/internals/extension-points.md (E10).
+// docs/src/internals/extension-points.md.
 func probeExtensions(ext Extensions) error {
 	if err := probeAggregators(ext.Aggregators); err != nil {
 		return err
@@ -403,17 +403,16 @@ func safeInvokeFiltererComponents(reg FiltererRegistration, builder processing.F
 // declaring them on the schema (the orchestrator's universal-floor pass
 // overwrites them anyway).
 //
-// Per the E4-S6 universal-floor decision: the schema may also legally
-// CONTAIN the floor keys (E1-S3 puts them on every aggregator schema
-// for self-contained manifest output). The probe compares the EMITTED
-// set to declared-MINUS-floor and asserts the emitted set is a subset
-// of declared-PLUS-floor — i.e. the orchestrator-owned floor keys are
+// Per the universal-floor convention: the schema may also legally
+// CONTAIN the floor keys (every aggregator schema lists them for
+// self-contained manifest output). The probe compares the EMITTED set
+// to declared-MINUS-floor and asserts the emitted set is a subset of
+// declared-PLUS-floor — i.e. the orchestrator-owned floor keys are
 // neither required nor penalised in either direction.
 //
-// Divergence raises PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH (wired in
-// E4-S6); the details payload carries the offending extras and the
-// declared key list so callers can either widen the schema or trim the
-// emission.
+// Divergence raises PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH; the
+// details payload carries the offending extras and the declared key
+// list so callers can either widen the schema or trim the emission.
 func verifyComponentKeysSubset(category, name string, schema descriptor.ComponentSchema, emitted map[string]any) error {
 	if len(emitted) == 0 {
 		return nil

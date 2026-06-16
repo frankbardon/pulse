@@ -23,8 +23,8 @@ import (
 //     OverlayWarnings(). The warning carries layer_count, layer_names,
 //     and layer_kinds in its Details so callers can audit the dropped
 //     layer slate without re-reading the source Response. The
-//     dispatcher wiring (E9-S11) lifts this slice onto the
-//     ExportReport / envelope warnings surface.
+//     dispatcher wiring lifts this slice onto the ExportReport /
+//     envelope warnings surface.
 //  3. nil OR empty layers leave OverlayWarnings() empty — the warning
 //     is specifically "you asked for overlays but CSV cannot carry
 //     them," not "CSV cannot carry overlays in general."
@@ -40,9 +40,8 @@ import (
 // NEVER written into the CSV body. The host CSV output is byte-
 // identical to a pre-overlay export regardless of whether SetOverlays
 // was called or what slice it received. Implements
-// pio.OverlayAwareWriter — the dispatcher (E9-S11) lifts the
-// OverlayWarnings() slice onto the ExportReport / envelope warnings
-// slot.
+// pio.OverlayAwareWriter — the dispatcher lifts the OverlayWarnings()
+// slice onto the ExportReport / envelope warnings slot.
 //
 // Calling SetOverlays multiple times overwrites the previously
 // recorded layers; the warning slice surfaces the LAST recorded set.
@@ -52,8 +51,8 @@ func (w *Writer) SetOverlays(layers []*types.OverlayLayer) {
 
 // OverlayWarnings returns the PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED
 // warning slice for the recorded overlay layers, or nil when no
-// layers were recorded. The dispatcher wiring (E9-S11) consumes this
-// slice and lifts it onto the ExportReport / envelope warnings slot.
+// layers were recorded. The dispatcher consumes this slice and lifts
+// it onto the ExportReport / envelope warnings slot.
 //
 // Per research/export-embedding-shape.md § 7.1 the warning fires
 // REGARDLESS of ExportJob.IncludeOverlays because the writer never

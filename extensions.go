@@ -13,7 +13,7 @@ import (
 
 // AggregatorComponentsFunc is the optional emitter an embedder may
 // supply alongside an AggregatorRegistration to make the operator
-// participate in the per-operator components contract (E1-S2 / E1-S3).
+// participate in the per-operator components contract.
 // The orchestrator invokes the func ONCE after Aggregate / Finalize and
 // routes the result onto Response.Components.Aggregations[i].Operator;
 // the universal floor ({"n", "n_null"}) is filled unconditionally by
@@ -27,8 +27,7 @@ import (
 // be a SUBSET of the registration's ComponentSchema.Keys (universal-
 // floor keys allowed but not required) — probe-validation enforces
 // this contract at pulse.New time and runtime mismatches surface as
-// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH (formal code lands in
-// E4-S6).
+// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH.
 type AggregatorComponentsFunc func(instance processing.Aggregator) (map[string]any, error)
 
 // GrouperComponentsFunc is the grouper-shape sibling of
@@ -134,8 +133,8 @@ type AggregatorRegistration struct {
 	// appears in a request).
 	FieldInputs FieldInputsFunc
 	// ComponentSchema declares the per-operator components contract
-	// surfaced through Response.Components.Aggregations[i].Operator
-	// (E1-S3 / E4-S5). Leaving the schema empty (zero-value Keys plus
+	// surfaced through Response.Components.Aggregations[i].Operator.
+	// Leaving the schema empty (zero-value Keys plus
 	// empty Mergeability) makes the operator floor-only — the
 	// orchestrator emits the universal floor ({"n", "n_null"}) and no
 	// extra keys. When ComponentSchema.Keys is non-empty, the
@@ -211,8 +210,8 @@ type FiltererRegistration struct {
 	// beyond Filterer.Field.
 	FieldInputs FieldInputsFunc
 	// ComponentSchema declares the per-operator components contract
-	// surfaced through Response.Components.Filterers[i].Operator
-	// (E2-S8 / E4-S5). v1 ships every built-in filterer as floor-only
+	// surfaced through Response.Components.Filterers[i].Operator.
+	// v1 ships every built-in filterer as floor-only
 	// (uniform {n_in, n_out, n_null_input}); extensions may opt in by
 	// declaring a non-empty ComponentSchema alongside a ComponentsFunc.
 	// Mismatch between declared schema and emitted keys is rejected at
@@ -241,8 +240,8 @@ type GrouperRegistration struct {
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
 	// ComponentSchema declares the per-operator components contract
-	// surfaced through Response.Components.Groupers[i].Operator
-	// (E2-S2 / E4-S5). Leaving the schema empty makes the operator
+	// surfaced through Response.Components.Groupers[i].Operator.
+	// Leaving the schema empty makes the operator
 	// floor-only — the orchestrator emits the universal floor
 	// ({total_n, n_null}) without operator-specific extras. When
 	// ComponentSchema.Keys is non-empty, the ComponentsFunc emitter

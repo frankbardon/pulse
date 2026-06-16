@@ -22,9 +22,9 @@ import (
 // orchestrator's type assertion to Meta* simply returns false (the
 // floor-only path).
 //
-// E4-S6 swaps the stub probe error code for the formal
+// Probe-validation mismatches surface as
 // PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH; runtime emission errors
-// continue to ride the same routing as Aggregate / Finalize.
+// ride the same routing as Aggregate / Finalize.
 
 // metaAggregatorWrapper wraps an embedder-supplied Aggregator so the
 // orchestrator's processing.MetaAggregator assertion succeeds. The

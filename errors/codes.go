@@ -369,9 +369,8 @@ const (
 	// pulse.New() time so the runtime never sees a half-declared
 	// components contract. Details carry the offending category, name,
 	// the undeclared emitted keys, and the declared key list so callers
-	// can either widen the schema or trim the emission. E4-S6 wires this
-	// code into extensions_probe.verifyComponentKeysSubset, replacing
-	// the temporary PULSE_EXTENSION_PARAM_INVALID stub.
+	// can either widen the schema or trim the emission. Wired into
+	// extensions_probe.verifyComponentKeysSubset.
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH Code = "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH"
 
 	// PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA indicates an extension
@@ -383,8 +382,8 @@ const (
 	// floor-only path (zero ComponentSchema AND nil ComponentsFunc)
 	// remains a valid shape and is NOT subject to this code. Surfaced at
 	// pulse.New() time during probe-validation; details carry the
-	// category and name of the offending registration. E4-S6 wires this
-	// code into extensions_probe alongside
+	// category and name of the offending registration. Wired into
+	// extensions_probe alongside
 	// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH.
 	PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA Code = "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA"
 
@@ -486,11 +485,11 @@ const (
 	// ComposedRequest resolve to the same final Label after the
 	// auto-default pass (`request_<index+1>` for empty slots) and
 	// caller-supplied values are merged. Compose-only overlay kinds
-	// (E7) resolve their Reference / Targets by final Label, so
-	// duplicate names would make sibling lookups ambiguous. Details
-	// carry the offending label string plus the colliding slot
-	// indices so callers can rename one side or drop the colliding
-	// caller-supplied value.
+	// resolve their Reference / Targets by final Label, so duplicate
+	// names would make sibling lookups ambiguous. Details carry the
+	// offending label string plus the colliding slot indices so
+	// callers can rename one side or drop the colliding caller-supplied
+	// value.
 	PULSE_COMPOSE_LABEL_COLLISION Code = "PULSE_COMPOSE_LABEL_COLLISION"
 
 	// PULSE_JOIN_TYPE_MISMATCH indicates an equi-join key pair where
@@ -693,16 +692,14 @@ const (
 
 	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE indicates an
 	// OverlaySpec's Ref does not match the host shape required by the
-	// chosen Kind. E1 fires this in three cases for
-	// OVERLAY_INDEX_VS_MARGIN: missing Ref.Margin pointer, unknown
-	// Ref.Margin.Axis, or non-MATRIX host (Request.Crosstab is nil).
+	// chosen Kind. For OVERLAY_INDEX_VS_MARGIN this fires in three
+	// cases: missing Ref.Margin pointer, unknown Ref.Margin.Axis, or
+	// non-MATRIX host (Request.Crosstab is nil).
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
 
 	// PULSE_OVERLAY_SCOPE_UNSUPPORTED indicates an OverlaySpec named a
-	// scope that is not yet supported for the chosen Kind. E1 ships
-	// OVERLAY_INDEX_VS_MARGIN with Scope=CELL only; ROW / COLUMN /
-	// TOTAL / MATRIX / GROUP land in later epics alongside the matching
-	// payload shapes.
+	// scope that is not yet supported for the chosen Kind.
+	// OVERLAY_INDEX_VS_MARGIN currently supports Scope=CELL only.
 	PULSE_OVERLAY_SCOPE_UNSUPPORTED Code = "PULSE_OVERLAY_SCOPE_UNSUPPORTED"
 
 	// PULSE_OVERLAY_REF_ZERO is a WARNING-class code emitted by an
@@ -730,24 +727,22 @@ const (
 	// (Row axis depth = len(req.Crosstab.Rows), Column axis depth =
 	// len(req.Crosstab.Columns)). Mirrors
 	// PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab
-	// normalize_level surface. Forward-compat: E2-S10 registers the
-	// code + fixup so the catalog is in place for the deferred level /
-	// within overlay family in E2-S11; OverlaySpec carries no Level
-	// slot today, so this code is unreachable from runtime until that
-	// story wires the slot through.
+	// normalize_level surface. Forward-compat: the code + fixup are
+	// registered so the catalog is in place for the deferred level /
+	// within overlay family; OverlaySpec carries no Level slot today,
+	// so this code is unreachable from runtime until that slot is
+	// wired through.
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE Code = "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE"
 
 	// PULSE_OVERLAY_PARAM_MISSING indicates an OverlaySpec did not supply
-	// a Params entry that the chosen Kind requires. E4-S5
-	// (OVERLAY_INDEX_VS_ROLLING_MEAN) is the first kind to require a
-	// Params entry — the window width lives on Params["window"] per the
-	// WIN_* operator convention. Missing Params["window"] fires this
-	// code at both predict
+	// a Params entry that the chosen Kind requires. OVERLAY_INDEX_VS_ROLLING_MEAN
+	// is the canonical example — the window width lives on
+	// Params["window"] per the WIN_* operator convention. Missing
+	// Params["window"] fires this code at both predict
 	// (descriptor.validateOverlayIndexVsRollingMean) and runtime
 	// (processing.applyIndexVsRollingMean) with Details carrying the
-	// kind and the missing param name. Reserved for future windowed
-	// kinds (E4-S6 OVERLAY_ZSCORE_VS_ROLLING reuses the same code for
-	// the missing-window case).
+	// kind and the missing param name. Reused by other windowed kinds
+	// (e.g. OVERLAY_ZSCORE_VS_ROLLING) for the missing-window case.
 	PULSE_OVERLAY_PARAM_MISSING Code = "PULSE_OVERLAY_PARAM_MISSING"
 
 	// PULSE_OVERLAY_FORMULA_PARSE_ERROR indicates an OVERLAY_FORMULA spec's
@@ -757,9 +752,8 @@ const (
 	// (`descriptor.validateOverlayFormula`) and runtime
 	// (`processing.applyFormula` family) with Details carrying
 	// `{formula, parse_error}` so the renderer can surface both the
-	// offending input and the underlying parser message. E8-S2 landed
-	// the runtime emission path; E8-S6 refined the message + fixup
-	// catalogue (errors/fixup_metadata.go) against the per-shape
+	// offending input and the underlying parser message. The fixup
+	// catalogue (errors/fixup_metadata.go) tracks the per-shape
 	// namespace tables in skills/overlay-system.md.
 	PULSE_OVERLAY_FORMULA_PARSE_ERROR Code = "PULSE_OVERLAY_FORMULA_PARSE_ERROR"
 
@@ -770,8 +764,7 @@ const (
 	// 1.0`, and rejects everything else (strings, maps, nil, etc.).
 	// Surfaced at runtime by `processing.applyFormula` after
 	// `expr.Run` returns; Details carry `{returned_type, formula}`.
-	// E8-S2 landed the runtime emission path; E8-S6 refined the
-	// message + fixup catalogue (errors/fixup_metadata.go).
+	// The fixup catalogue lives in errors/fixup_metadata.go.
 	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH Code = "PULSE_OVERLAY_FORMULA_TYPE_MISMATCH"
 
 	// PULSE_OVERLAY_FORMULA_INVALID_IDENT indicates an OVERLAY_FORMULA
@@ -783,12 +776,9 @@ const (
 	// carrying `{ident, host_shape, available_vars}`. Embedders that
 	// need new variables MUST register a custom kind via
 	// `pulse.Options.Extensions.OverlayKinds` — FORMULA cannot widen
-	// its variable namespace from outside. E8-S2 reserved the code
-	// for the predict validator (landed in E8-S4) and the runtime
-	// defense-in-depth path; E8-S6 refined the message + fixup
-	// catalogue (errors/fixup_metadata.go) — the fixup hint walks
-	// authors through the per-shape namespace table in
-	// skills/overlay-system.md FORMULA section.
+	// its variable namespace from outside. The fixup hint
+	// (errors/fixup_metadata.go) walks authors through the per-shape
+	// namespace table in skills/overlay-system.md FORMULA section.
 	PULSE_OVERLAY_FORMULA_INVALID_IDENT Code = "PULSE_OVERLAY_FORMULA_INVALID_IDENT"
 
 	// PULSE_OVERLAY_YOY_FREQUENCY_MISSING indicates an OVERLAY_YOY spec
@@ -853,10 +843,10 @@ const (
 	// mismatch caught at predict time, but for CHAIN-host kinds the
 	// divergence is between two stages, not between a single Ref and
 	// the host). Surfaced at both predict (descriptor.ValidateChain
-	// shape-divergence gate landing in E6-S7) and runtime
-	// (processing.applyIndexVsStage / processing.applyDeltaVsStage
-	// shape-divergence defence). Warning-class — surfaced as a
-	// Response.Warning, never as an envelope error.
+	// shape-divergence gate) and runtime (processing.applyIndexVsStage /
+	// processing.applyDeltaVsStage shape-divergence defence).
+	// Warning-class — surfaced as a Response.Warning, never as an
+	// envelope error.
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
 
 	// PULSE_OVERLAY_TARGET_UNKNOWN indicates a whole-chain
@@ -904,10 +894,10 @@ const (
 	// encoding/json-friendly types so the envelope serializer renders
 	// them verbatim. The check runs once per overlay spec at the
 	// post-slot-barrier inside processing.ApplyComposeOverlays, BEFORE
-	// schema-match (E7-S7) and dict-drift (E7-S8) gates fire — key-set
+	// the schema-match and dict-drift gates fire — key-set
 	// divergence is the cheapest signal so it fails fast. Surfaced at
-	// runtime today (E7-S6); the descriptor.ValidateComposedRequest
-	// predict-time companion lands with E7-S14.
+	// runtime; the descriptor.ValidateComposedRequest predict-time
+	// companion is deferred.
 	PULSE_OVERLAY_KEY_SET_DIVERGENT Code = "PULSE_OVERLAY_KEY_SET_DIVERGENT"
 
 	// PULSE_OVERLAY_SCHEMA_DIVERGENT indicates a Compose overlay spec
@@ -924,9 +914,9 @@ const (
 	// "/") so renderers can diff the two structures verbatim. The
 	// check runs once per overlay spec at the post-slot-barrier inside
 	// processing.ApplyComposeOverlays AFTER PULSE_OVERLAY_KEY_SET_DIVERGENT
-	// and shape gates have passed. Surfaced at runtime today (E7-S7);
-	// the descriptor.ValidateComposedRequest predict-time companion
-	// lands with E7-S14.
+	// and shape gates have passed. Surfaced at runtime; the
+	// descriptor.ValidateComposedRequest predict-time companion is
+	// deferred.
 	PULSE_OVERLAY_SCHEMA_DIVERGENT Code = "PULSE_OVERLAY_SCHEMA_DIVERGENT"
 
 	// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT indicates a Compose overlay
@@ -944,9 +934,9 @@ const (
 	// code). The check runs once per overlay spec at the post-slot-
 	// barrier inside processing.ApplyComposeOverlays AFTER
 	// PULSE_OVERLAY_KEY_SET_DIVERGENT and BEFORE
-	// PULSE_OVERLAY_SCHEMA_DIVERGENT. Surfaced at runtime today
-	// (E7-S7); the descriptor.ValidateComposedRequest predict-time
-	// companion lands with E7-S14.
+	// PULSE_OVERLAY_SCHEMA_DIVERGENT. Surfaced at runtime; the
+	// descriptor.ValidateComposedRequest predict-time companion is
+	// deferred.
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
 
 	// PULSE_OVERLAY_DICT_PREFIX_DRIFT indicates a Compose overlay spec
@@ -968,31 +958,30 @@ const (
 	// barrier inside processing.ApplyComposeOverlays AFTER the key-set,
 	// shape, and schema gates have passed and BEFORE the per-kind
 	// handler dispatches. Probe-validation at registration time is an
-	// E7-S8 scoping non-goal: cohort pairing is a per-request decision
+	// explicit non-goal: cohort pairing is a per-request decision
 	// rather than a registration-time one, so the probe runs per
-	// ApplyComposeOverlays invocation instead. Surfaced at runtime today
-	// (E7-S8); the descriptor.ValidateComposedRequest predict-time
-	// companion lands with E7-S14.
+	// ApplyComposeOverlays invocation instead. Surfaced at runtime;
+	// the descriptor.ValidateComposedRequest predict-time companion
+	// is deferred.
 	PULSE_OVERLAY_DICT_PREFIX_DRIFT Code = "PULSE_OVERLAY_DICT_PREFIX_DRIFT"
 
 	// PULSE_OVERLAY_SLOT_NOT_CROSSTAB indicates a Compose overlay spec
 	// whose Kind requires a MATRIX-shaped (crosstab) host but at least
 	// one resolved slot — reference or target — is not a crosstab
-	// result. The matrix-required Compose kinds land with E7-S9+
-	// (OVERLAY_RANK and the matrix-shape Compose family); until those
-	// stories register their per-kind shape requirements the helper
-	// table `kindRequiresMatrix` is a stub and this code stays
-	// unreachable at runtime. The catalog row is in place so E7-S9..S12
-	// can wire shape gating without touching this file again. Details
-	// carry the `required_shape: "MATRIX"`, the offending `target_label`
-	// (or "reference" when the reference itself is the offender), and
-	// the `observed_shape` ("series" / "scalar"). Sibling of
+	// result. The matrix-required Compose kinds (OVERLAY_RANK and the
+	// matrix-shape Compose family) have not yet registered their
+	// per-kind shape requirements, so the helper table
+	// `kindRequiresMatrix` is a stub and this code stays unreachable
+	// at runtime. The catalog row is in place so shape gating can be
+	// wired without touching this file again. Details carry the
+	// `required_shape: "MATRIX"`, the offending `target_label` (or
+	// "reference" when the reference itself is the offender), and the
+	// `observed_shape` ("series" / "scalar"). Sibling of
 	// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT — both fire at the same gate;
 	// this one fires when the kind dictates MATRIX and a target is
 	// non-MATRIX, the other when target / reference shapes disagree
 	// regardless of kind. The check runs once per overlay spec at the
-	// post-slot-barrier inside processing.ApplyComposeOverlays. E7-S13
-	// polishes the Message + Fixup catalogue.
+	// post-slot-barrier inside processing.ApplyComposeOverlays.
 	PULSE_OVERLAY_SLOT_NOT_CROSSTAB Code = "PULSE_OVERLAY_SLOT_NOT_CROSSTAB"
 
 	// PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP indicates a multi-reference
@@ -1003,10 +992,10 @@ const (
 	// requires an interview update; the per-request override surface
 	// lives on `ComposeOverlaySpec.Options.MaxPanelTargets` so callers
 	// who need a larger panel today can opt in explicitly. Surfaced at
-	// runtime by `processing.applyPropZPanel` at handler entry (E7-S11);
-	// the descriptor.ValidateComposedRequest predict-time companion
-	// lands with E7-S14. Details carry `{kind, observed, cap}` so the
-	// renderer can surface both the offending size and the cap.
+	// runtime by `processing.applyPropZPanel` at handler entry; the
+	// descriptor.ValidateComposedRequest predict-time companion is
+	// deferred. Details carry `{kind, observed, cap}` so the renderer
+	// can surface both the offending size and the cap.
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
 
 	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED is a WARNING-class code
