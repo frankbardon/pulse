@@ -838,6 +838,373 @@ doneScan:
 	}
 }
 
+// TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope is the E3-S9
+// headline CLI gate for OVERLAY_Z_CELL. It invokes `pulse api compose
+// --json` over the canonical examples/overlays/pairwise-z-matrix.json
+// request (re-rooted at a hermetic experiment cohort built from
+// examples/fixtures/experiment.csv with examples/fixtures/schemas/
+// experiment.json) and asserts:
+//
+//  1. The envelope's format_version is "1.1" — the bump that landed
+//     when Compose's data field switched from raw Response to
+//     ComposedResponse.
+//  2. env.Data decodes as a ComposedResponse whose Overlays slot is
+//     non-empty — the same data that was discarded before the
+//     unwired-facade-lift effort now reaches the wire envelope.
+//  3. Every present cell in the overlay's matrix payload byte-equals
+//     (math.Float64bits) the p-value the canonical row-test surface
+//     (TEST_Z_TWO_SAMPLE) emits when fed the SAME control + variant
+//     records for the SAME (region, segment) coordinate. The byte-
+//     equal parity is the design lock — the overlay surface MUST stay
+//     drift-free vs the row-test surface that backs it.
+//
+// The byte-equal check is delegated to the actual processing-layer test
+// handler via a second `pulse api process --json` invocation per cell
+// (FILTER_INCLUDE region=<row> + FILTER_INCLUDE segment=<col> + a
+// TEST_Z_TWO_SAMPLE row test split by treatment). The p-value returned
+// by Response.Tests[0].p_value is what the overlay handler is mirroring
+// byte-for-byte — any drift surfaces here first.
+func TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope(t *testing.T) {
+	dir := t.TempDir()
+	pulsePath := importExperimentCohort(t, dir)
+	exampleSrc := readRepoFile(t, "examples/overlays/pairwise-z-matrix.json")
+	composedPath := rewriteComposedExample(t, dir, exampleSrc, pulsePath, "composed_z.json")
+
+	out, err := runApp(t, "api", "compose", "--request", composedPath, "--json")
+	if err != nil {
+		t.Fatalf("api compose --json: %v\noutput: %s", err, out)
+	}
+
+	env, layer, matrix := readPairwiseEnvelope(t, out, "OVERLAY_Z_CELL")
+	if env.FormatVersion != "1.1" {
+		t.Errorf("format_version = %q, want \"1.1\"", env.FormatVersion)
+	}
+	if got, want := layer.Kind, "OVERLAY_Z_CELL"; got != want {
+		t.Errorf("data.overlays[0].kind = %q, want %q", got, want)
+	}
+
+	assertPairwiseByteEqual(t, pulsePath, matrix, "TEST_Z_TWO_SAMPLE", "z")
+}
+
+// TestCliApiCompose_PairwiseWelchMatrix_OverlayReachesEnvelope mirrors
+// the pairwise-z gate for OVERLAY_T_CELL: the Welch t-test variant.
+// Same fixture, same envelope-reaches-wire assertion, same byte-equal
+// parity claim — but the row-test surface is TEST_WELCH instead.
+//
+// E3-S9 acceptance criterion: the canonical examples/overlays/
+// pairwise-welch-matrix.json executes through the CLI and the per-cell
+// p-values that the OVERLAY_T_CELL handler emits in the envelope are
+// bit-for-bit identical to TEST_WELCH's two-sided p-value over the
+// same (mean, variance, n) inputs — i.e. the same control + variant
+// records for the same (region, segment) cell.
+func TestCliApiCompose_PairwiseWelchMatrix_OverlayReachesEnvelope(t *testing.T) {
+	dir := t.TempDir()
+	pulsePath := importExperimentCohort(t, dir)
+	exampleSrc := readRepoFile(t, "examples/overlays/pairwise-welch-matrix.json")
+	composedPath := rewriteComposedExample(t, dir, exampleSrc, pulsePath, "composed_welch.json")
+
+	out, err := runApp(t, "api", "compose", "--request", composedPath, "--json")
+	if err != nil {
+		t.Fatalf("api compose --json: %v\noutput: %s", err, out)
+	}
+
+	env, layer, matrix := readPairwiseEnvelope(t, out, "OVERLAY_T_CELL")
+	if env.FormatVersion != "1.1" {
+		t.Errorf("format_version = %q, want \"1.1\"", env.FormatVersion)
+	}
+	if got, want := layer.Kind, "OVERLAY_T_CELL"; got != want {
+		t.Errorf("data.overlays[0].kind = %q, want %q", got, want)
+	}
+
+	assertPairwiseByteEqual(t, pulsePath, matrix, "TEST_WELCH", "welch")
+}
+
+// repoRoot returns the absolute path to the repository root from the
+// package test working directory (cmd/pulse/...). Used by the pairwise
+// gates to locate the canonical example fixtures without hard-coding
+// the os-specific path layout. Failing here is unrecoverable — the
+// test relies on examples/ + examples/fixtures/ being present, which
+// is true on every dev / CI checkout.
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd: %v", err)
+	}
+	// cmd/pulse → ../../ to repo root.
+	return filepath.Clean(filepath.Join(wd, "..", ".."))
+}
+
+// readRepoFile reads a file from the repo root and returns its bytes.
+func readRepoFile(t *testing.T, relPath string) []byte {
+	t.Helper()
+	path := filepath.Join(repoRoot(t), relPath)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", relPath, err)
+	}
+	return data
+}
+
+// importExperimentCohort builds the experiment.pulse cohort the
+// pairwise example requests reference. Re-uses the checked-in
+// examples/fixtures/experiment.csv + examples/fixtures/schemas/
+// experiment.json so the schema (treatment / region / segment as
+// categorical_u8; revenue as f64) matches the example request slot
+// fields exactly.
+//
+// Returns the absolute path to the produced .pulse file. The caller
+// hands this path to rewriteComposedExample so the example points at
+// the hermetic cohort instead of the repo-level .data/ directory the
+// examples expect at runtime.
+func importExperimentCohort(t *testing.T, dir string) string {
+	t.Helper()
+	root := repoRoot(t)
+	csvPath := filepath.Join(root, "examples", "fixtures", "experiment.csv")
+	schemaPath := filepath.Join(root, "examples", "fixtures", "schemas", "experiment.json")
+	pulsePath := filepath.Join(dir, "experiment.pulse")
+
+	out, err := runApp(t, "import", "csv",
+		"--input", csvPath,
+		"--output", pulsePath,
+		"--schema", schemaPath,
+		"--json")
+	if err != nil {
+		t.Fatalf("import csv (experiment): %v\noutput: %s", err, out)
+	}
+	if _, err := os.Stat(pulsePath); err != nil {
+		t.Fatalf("experiment.pulse not produced: %v", err)
+	}
+	return pulsePath
+}
+
+// rewriteComposedExample loads the original example body and rewrites
+// every request slot's cohort to point at the temp pulse file the test
+// fixture produced. The original example references
+// {filename: "experiment.pulse", data_dir: ".data"} which only works
+// after examples/fixtures/build.sh has populated the repo-level .data
+// directory; hermetic tests need an absolute path on a temp file
+// instead. Returns the absolute path to the rewritten request JSON.
+func rewriteComposedExample(t *testing.T, dir string, body []byte, pulsePath, name string) string {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("unmarshal example: %v", err)
+	}
+	reqs, ok := doc["requests"].([]any)
+	if !ok || len(reqs) == 0 {
+		t.Fatalf("example missing requests slice: %v", doc)
+	}
+	for i, r := range reqs {
+		rm, ok := r.(map[string]any)
+		if !ok {
+			t.Fatalf("requests[%d] not an object: %T", i, r)
+		}
+		rm["cohort"] = map[string]any{"filename": pulsePath}
+	}
+	// Strip _meta so the request loader does not have to handle it.
+	delete(doc, "_meta")
+
+	out, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatalf("marshal rewritten: %v", err)
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, out, 0644); err != nil {
+		t.Fatalf("write rewritten: %v", err)
+	}
+	return path
+}
+
+// readPairwiseEnvelope decodes the api-compose JSON envelope and
+// extracts the first overlay layer plus its matrix payload. Fails the
+// test if any of the structural assumptions (envelope shape,
+// non-empty overlays, matrix-shape payload) are not met — the gate's
+// whole point is that the discard is gone and these structures are
+// reachable.
+func readPairwiseEnvelope(t *testing.T, out, wantKind string) (descriptor.Envelope, pairwiseLayer, *types.MatrixPayload) {
+	t.Helper()
+	var env descriptor.Envelope
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("invalid JSON envelope: %v\noutput: %s", err, out)
+	}
+	var raw struct {
+		Data struct {
+			Responses []json.RawMessage `json:"responses"`
+			Overlays  []pairwiseLayer   `json:"overlays"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(out), &raw); err != nil {
+		t.Fatalf("invalid data shape: %v\noutput: %s", err, out)
+	}
+	if got := len(raw.Data.Responses); got != 2 {
+		t.Fatalf("data.responses length = %d, want 2 (control + variant): %s", got, out)
+	}
+	if got := len(raw.Data.Overlays); got != 1 {
+		t.Fatalf("data.overlays length = %d, want 1; the discard would surface as 0 here: %s", got, out)
+	}
+	layer := raw.Data.Overlays[0]
+	if layer.Kind != wantKind {
+		t.Errorf("overlay kind = %q, want %q", layer.Kind, wantKind)
+	}
+	if layer.Payload.Shape != "matrix" {
+		t.Fatalf("overlay payload shape = %q, want \"matrix\"", layer.Payload.Shape)
+	}
+	if layer.Payload.Matrix == nil {
+		t.Fatalf("overlay payload matrix is nil — handler emitted empty payload")
+	}
+	return env, layer, layer.Payload.Matrix
+}
+
+// pairwiseLayer mirrors the OverlayLayer shape we need to inspect in
+// the CLI envelope. Reuses types.MatrixPayload + types.OverlayWarning
+// directly so the structural contract stays locked to the production
+// surface.
+type pairwiseLayer struct {
+	Name    string                 `json:"name"`
+	Kind    string                 `json:"kind"`
+	Scope   string                 `json:"scope"`
+	Payload pairwiseOverlayPayload `json:"payload"`
+}
+
+type pairwiseOverlayPayload struct {
+	Shape  string               `json:"shape"`
+	Matrix *types.MatrixPayload `json:"matrix,omitempty"`
+}
+
+// assertPairwiseByteEqual iterates every present cell in the overlay
+// matrix and asserts the p-value byte-equals the canonical row-test
+// surface for the same (region, segment) cell. The row test is invoked
+// via a second `pulse api process --request <file> --json` call per
+// cell (FILTER_INCLUDE region=<row_key> + FILTER_INCLUDE segment=
+// <col_key> + a single split-by-treatment test) — same plumbing
+// downstream callers exercise.
+//
+// kindName labels the row-test type used (TEST_Z_TWO_SAMPLE or
+// TEST_WELCH); shortName labels the test in error messages.
+func assertPairwiseByteEqual(t *testing.T, pulsePath string, matrix *types.MatrixPayload, kindName, shortName string) {
+	t.Helper()
+	if len(matrix.RowKeys) == 0 || len(matrix.ColumnKeys) == 0 {
+		t.Fatalf("matrix has no row/column keys; overlay produced nothing to verify")
+	}
+	if len(matrix.Cells) != len(matrix.RowKeys) {
+		t.Fatalf("matrix cells row count %d != row keys %d", len(matrix.Cells), len(matrix.RowKeys))
+	}
+
+	verified := 0
+	for r, rowKey := range matrix.RowKeys {
+		region := axisKeyToScalarString(t, rowKey)
+		for c, colKey := range matrix.ColumnKeys {
+			segment := axisKeyToScalarString(t, colKey)
+			if c >= len(matrix.Cells[r]) {
+				continue
+			}
+			cell := matrix.Cells[r][c]
+			if !cell.Present {
+				continue
+			}
+			overlayP, ok := cell.Value.(float64)
+			if !ok {
+				t.Fatalf("cell (%d,%d) value not float64: %T (%v)", r, c, cell.Value, cell.Value)
+			}
+			if math.IsNaN(overlayP) {
+				// Degenerate cell — both surfaces decline; nothing to
+				// byte-compare here. The row test would have raised
+				// PULSE_TEST_INSUFFICIENT_N / PULSE_TEST_VARIANCE_ZERO
+				// for the same inputs.
+				continue
+			}
+			rowP := runRowTestForCell(t, pulsePath, region, segment, kindName)
+			bitsOverlay := math.Float64bits(overlayP)
+			bitsRow := math.Float64bits(rowP)
+			if bitsOverlay != bitsRow {
+				t.Errorf("byte-equal parity violated at (region=%s, segment=%s): overlay p=%v (bits=0x%x), %s p=%v (bits=0x%x)",
+					region, segment, overlayP, bitsOverlay, shortName, rowP, bitsRow)
+			}
+			verified++
+		}
+	}
+	if verified == 0 {
+		t.Fatalf("no overlay cells could be compared — every present cell was NaN; the gate locked nothing")
+	}
+}
+
+// axisKeyToScalarString collapses a single-grouper AxisKey (which is
+// always length 1 in the pairwise examples — one GROUP_CATEGORY per
+// axis) to its underlying string label. Fails the test if the shape
+// drifts (multi-grouper axes, non-string keys).
+func axisKeyToScalarString(t *testing.T, key types.AxisKey) string {
+	t.Helper()
+	if len(key) != 1 {
+		t.Fatalf("expected single-grouper axis key, got %d entries: %v", len(key), key)
+	}
+	switch v := key[0].(type) {
+	case string:
+		return v
+	default:
+		t.Fatalf("axis key entry not a string: %T (%v)", v, v)
+		return ""
+	}
+}
+
+// runRowTestForCell invokes `pulse api process --json` against the
+// same cohort with FILTER_INCLUDE region=<region> +
+// FILTER_INCLUDE segment=<segment> and a single split-by-treatment
+// row test of the named kind. Returns the p-value the row test
+// emits — the canonical surface the overlay handler is byte-equal to
+// by construction.
+func runRowTestForCell(t *testing.T, pulsePath, region, segment, testKind string) float64 {
+	t.Helper()
+	dir := filepath.Dir(pulsePath)
+	reqBody := map[string]any{
+		"cohort": map[string]any{"filename": pulsePath},
+		"filterers": []any{
+			map[string]any{"type": "FILTER_INCLUDE", "field": "region", "values": []string{region}},
+			map[string]any{"type": "FILTER_INCLUDE", "field": "segment", "values": []string{segment}},
+		},
+		"tests": []any{
+			map[string]any{
+				"type":     testKind,
+				"field":    "revenue",
+				"split_by": "treatment",
+				"alpha":    0.05,
+			},
+		},
+	}
+	raw, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("marshal row-test request: %v", err)
+	}
+	// Unique filename per cell so concurrent fixtures cannot collide
+	// (the table is small but t.Parallel may land later).
+	reqPath := filepath.Join(dir, "rowtest_"+region+"_"+segment+"_"+testKind+".json")
+	if err := os.WriteFile(reqPath, raw, 0644); err != nil {
+		t.Fatalf("write row-test request: %v", err)
+	}
+	out, err := runApp(t, "api", "process", "--request", reqPath, "--json")
+	if err != nil {
+		t.Fatalf("api process (%s region=%s segment=%s): %v\noutput: %s", testKind, region, segment, err, out)
+	}
+	var raw2 struct {
+		Data struct {
+			Tests []struct {
+				Type   string  `json:"type"`
+				PValue float64 `json:"p_value"`
+			} `json:"tests"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(out), &raw2); err != nil {
+		t.Fatalf("row-test envelope decode: %v\noutput: %s", err, out)
+	}
+	if len(raw2.Data.Tests) == 0 {
+		t.Fatalf("row-test produced no tests for region=%s segment=%s: %s", region, segment, out)
+	}
+	if raw2.Data.Tests[0].Type != testKind {
+		t.Fatalf("row-test type = %q, want %q", raw2.Data.Tests[0].Type, testKind)
+	}
+	return raw2.Data.Tests[0].PValue
+}
+
 // Ensure unused imports are consumed.
 var _ = encoding.FieldTypeU8
 var _ = (*afero.MemMapFs)(nil)
