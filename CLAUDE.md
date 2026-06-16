@@ -34,7 +34,7 @@ This is the compressed surface — the full per-contract trigger table lives at 
 | A registered field type | `skills/type-<kebab>.md` (atomic skill) + CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
 | An example tag for a registered operator | `examples/<category>/*.json` `_meta.operators` (tag the operator string in at least one example body; overlay kinds tag via `overlays[].kind`) | `TestEveryOperatorHasAnExampleTag`, `TestExamples_OperatorsMatchBody` |
 | An error code (add/remove/rename) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
-| A `--json` envelope or `format_version` value (currently `"1.0"`) | CLAUDE.md "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
+| A `--json` envelope or `format_version` value (currently `"1.1"`) | CLAUDE.md "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
 | A `.pulse` file format change (header, field type) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
 | A new non-skippable CI gate | CLAUDE.md "Non-Skippable CI Gates" list | `TestClaudeMdMentionsAllNonSkippableGates` |
 | An environment variable | CLAUDE.md "Build / Env" + `skills/session-bootstrap.md` | `TestClaudeMdMentionsAllEnvVars` |
@@ -131,7 +131,7 @@ All `--json` CLI output + descriptor operations use `descriptor.Envelope`:
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": { ... },
   "request": { ... },
   "errors": [],
@@ -139,7 +139,7 @@ All `--json` CLI output + descriptor operations use `descriptor.Envelope`:
 }
 ```
 
-- `format_version` always `"1.0"`. Changes MUST update this section.
+- `format_version` always `"1.1"`. Changes MUST update this section.
 - `errors` / `warnings` use `{"code", "message", "details"}`. Empty array (never null) when absent.
 - `request` is opt-in echo of the *normalized* request. Omitted unless `pulse.Options.EchoRequest` is true or CLI flag `--echo-request`. Shape varies: `Request` for process/predict, `ComposedRequest` for compose, `ChainRequest` for process-chain, `FacetRequest` for facet, `SampleRequest` for sample. Streaming output skips the echo. Use `descriptor.NewEnvelopeWithRequest(data, req)` or `env.WithRequest(req)` to populate.
 
@@ -147,7 +147,7 @@ Additive-only: bump `format_version` only on backward-incompatible shape changes
 
 ### Response.Components
 
-Every `Response` carries an optional `Components *ResponseComponents` (additive `omitempty`; `format_version` stays `"1.0"`). Mirrors the request shape:
+Every `Response` carries an optional `Components *ResponseComponents` (additive `omitempty`; `format_version` stays `"1.1"`). Mirrors the request shape:
 
 - `Aggregations []AggregationComponents` — one entry per aggregator slot; universal floor `{n, n_null}` + operator-specific `Operator map[string]any` keyed by the manifest schema.
 - `Groupers []GrouperComponents` — universal floor `{total_n, n_null}` + operator-specific bucket layout.
@@ -195,7 +195,7 @@ Heavy detail lives in `.claude/reference/execution-modes.md` and the named skill
 ## Non-Skippable CI Gates
 
 CLAUDE.md hygiene:
-- `TestClaudeMdMentionsFormatVersion` — CLAUDE.md must mention current `format_version` `"1.0"`.
+- `TestClaudeMdMentionsFormatVersion` — CLAUDE.md must mention current `format_version` `"1.1"`.
 - `TestClaudeMdMentionsAllEnvVars` — every `PULSE_*` env var in Go source must appear in CLAUDE.md.
 - `TestClaudeMdMentionsAllNonSkippableGates` — every test name with these prefixes (`TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage`) must be listed in CLAUDE.md.
 - `TestClaudeMdMentionsComponentsContract` — CLAUDE.md surfaces `Response.Components` shape + universal floor + naming-collision note.
