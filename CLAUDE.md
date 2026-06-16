@@ -212,17 +212,22 @@ Descriptor contracts:
 - `TestGoldensNotHandEdited` — golden files end with valid `// golden-hash: <sha256>` line.
 - `TestPerPackageCoverageFloors` — package directories exist; documents target coverage floors per package.
 
-Skill-coverage:
-- `TestSkillsCoverAllComponents` — every aggregator/attribute/filterer/grouper in registries mentioned in its target skill.
-- `TestSkillsCoverAllCliLeaves` — every CLI leaf appears in `skills/session-bootstrap.md`.
-- `TestSkillsCoverAllFieldTypes` — every field type appears in `skills/cohort-schema-design.md`.
+Skill-coverage (atomic-skill convention, post-E4):
+- `TestSkillsCoverAllComponents` — every registered aggregator/attribute/filterer/grouper/feature has a matching `skills/op-<category>-<kebab>.md` atomic skill file.
+- `TestSkillsCoverAllFieldTypes` — every `FieldType` has a matching `skills/type-<kebab>.md` atomic skill file (in addition to listing in `skills/cohort-schema-design.md`).
 - `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator has a matching `skills/op-win-<kebab>.md` atomic skill file.
-- `TestSkillsCoverAllMCPTools` — every registered MCP tool appears in `skills/session-bootstrap.md`.
-- `TestSkillsCoverAllSynthDistributions` — every distribution kind appears in `skills/synthetic-data.md`.
-- `TestSkillsCoverAllRegressions` — every `REG_*` operator appears in `skills/regression-modeling.md`.
-- `TestSkillsCoverAllOverlayKinds` — every overlay kind in `types.AllOverlayKinds()` appears in `skills/overlay-system.md`.
-- `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section and `docs/src/internals/managing-shard-archives.md` mentions sharding.
-- `TestSkillsCoverAllOperatorComponents` — every operator's component keys appear in its target skill.
+- `TestSkillsCoverAllMCPTools` — every tool registered via `mcptools.Meta()` has a matching `skills/tool-<kebab-name-minus-pulse-prefix>.md` atomic skill file.
+- `TestSkillsCoverAllSynthDistributions` — every distribution kind in `synth.AllDistributions()` has a matching `skills/op-synth-<kebab>.md` atomic skill file.
+- `TestSkillsCoverAllRegressions` — every constant in `types.AllRegressionTypes()` has a matching `skills/op-reg-<kebab>.md` atomic skill file.
+- `TestSkillsCoverAllOverlayKinds` — every constant in `types.AllOverlayKinds()` has a matching `skills/op-overlay-<kebab>.md` atomic skill file.
+- `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section.
+- `TestSkillsCoverAllOperatorComponents` — every aggregator/grouper/filterer's per-operator `ComponentSchema` keys appear in the body of its matching `skills/op-<category>-<kebab>.md` atomic skill, under a `## Components` section.
+
+Atomic-skill structure / budget / example-tag (post-E4):
+- `TestAtomicSkillHasRequiredSections` — every `op-*` / `op-overlay-*` / `tool-*` / `type-*` skill file carries its required `##` section set (e.g. op-*: `## Params`, `## Inputs`, `## Output`, `## Gotchas`, `## See`; AGG/GROUP/FILTER additionally require `## Components`).
+- `TestSkillTokenBudget` — per-family body-size budget enforced on atomic skills (op-*: 1200 chars, tool-*: 2000, type-*: 2000, `kind:design` frontmatter: 6000). Transitional soft-only regime today; tightens in E4-S15.
+- `TestOperatorHasAtomicSkill` — every registered operator, MCP tool, and field type has a matching atomic skill file at the conventional stem (`op-<category>-<kebab>`, `tool-<kebab>`, `type-<kebab>`).
+- `TestEveryOperatorHasAnExampleTag` — every registered operator name appears as a tag on at least one `examples/<dir>/*.json` example (gap-closure gate).
 
 Other load-bearing contract gates (not prefix-matched, enforced by their own packages): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestManifestFacetCapability`, `TestManifestComponentSchemasComplete`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known`, `TestStreamability_ComponentsMergeabilityKnown`, `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestComponentsUniversalFloor`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestExtensions_*`, `TestExtensions_ComponentSchemaParity`, `TestExtensions_MissingComponentSchema`, `TestShardArchive*`, `TestProcessChain_*`, `TestValidateChain_*`, `TestJoin_*`, `TestValidateJoin_*`, `TestFacetSchema_*`, `TestValidateFacet_*`, `TestCountRecords_*`, `TestNeededFields_*`, `TestProjection_*`, `TestReadRecordProjected_*`.
 
