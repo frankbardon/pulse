@@ -141,7 +141,7 @@ All `--json` CLI output + descriptor operations use `descriptor.Envelope`:
 }
 ```
 
-- `format_version` always `"1.1"`. Bumped from `"1.0"` for the Compose facade lift (E3-S5): `pulse.Compose` / `pulse.ComposeParallel` now return `*ComposedResponse` and `pulse api compose --json` wraps that object on `data` (see Compose-specific envelope below). Future backward-incompatible shape changes MUST update this section.
+- `format_version` always `"1.1"`. Bumped from `"1.0"` for the Compose facade lift: `pulse.Compose` / `pulse.ComposeParallel` now return `*ComposedResponse` and `pulse api compose --json` wraps that object on `data` (see Compose-specific envelope below). Future backward-incompatible shape changes MUST update this section.
 - `errors` / `warnings` use `{"code", "message", "details"}`. Empty array (never null) when absent.
 - `request` is opt-in echo of the *normalized* request. Omitted unless `pulse.Options.EchoRequest` is true or CLI flag `--echo-request`. Shape varies: `Request` for process/predict, `ComposedRequest` for compose, `ChainRequest` for process-chain, `FacetRequest` for facet, `SampleRequest` for sample. Streaming output skips the echo. Use `descriptor.NewEnvelopeWithRequest(data, req)` or `env.WithRequest(req)` to populate.
 
@@ -210,7 +210,7 @@ Heavy detail lives in `.claude/reference/execution-modes.md` and the named skill
 - **Crosstab** (`Request.Crosstab`, `Response.Crosstab`) — composed row×column grid; margins recompute from raw rows; `normalize_level` / `normalize_within` compose. See `skills/crosstab-guide.md`.
 - **Fused crosstab** (`processing.CanFuseCrosstab`, `processing.StreamableGrouper.KeyFor`) — in-decode streaming alternative; ~30–47% faster on benches. See `skills/crosstab-guide.md` (Fused mergeable path) + `skills/grouper-design.md`.
 - **Facet endpoints** — simple (`pulse.Facet`) + rich (`pulse.FacetSchema`); four FACET-host overlay kinds (`OVERLAY_INDEX_VS_POP` / `OVERLAY_ZSCORE_VS_POP` / `OVERLAY_CHISQ_VS_POP` / `OVERLAY_KS_VS_POP`) ride `FacetRequest.Overlays`. FACET-host wiring is the FacetSchema-buffered-exit hook at `service.applyFacetOverlays`. See `skills/facet-design.md`.
-- **Overlays** (`Request.Overlays`, `Response.Overlays`) — additive post-result decorations keyed to host coordinates; never mutate base payload. Level / Within prefix composition, SERIES-host fold (E3-S6), FACET-host wiring (E5-S6), CHAIN-host barrier (E6-S3), FORMULA kind (E8-S2). Stat-test parity family (`OVERLAY_T_CELL` / `OVERLAY_T_VS_REF` Welch upgrade + `OVERLAY_Z_CELL` / `OVERLAY_Z_VS_REF`) reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` (populated by `AGG_WELFORD` via the `MetaAggregator` path) and computes p-values byte-equal to the standalone `TEST_WELCH` / `TEST_Z_TWO_SAMPLE` row tests over the same inputs. The legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` is removed (E3-S7/S8); `MatrixCell.Value` for `AGG_WELFORD` cells now carries the scalar mean per `Aggregate()`. Additive contract preserved — when no `CellComponents` triple is present, the handler falls back to `Params`-supplied mean/variance/N. See `skills/overlay-system.md` for the migration.
+- **Overlays** (`Request.Overlays`, `Response.Overlays`) — additive post-result decorations keyed to host coordinates; never mutate base payload. Level / Within prefix composition, SERIES-host fold, FACET-host wiring, CHAIN-host barrier, FORMULA kind. Stat-test parity family (`OVERLAY_T_CELL` / `OVERLAY_T_VS_REF` Welch upgrade + `OVERLAY_Z_CELL` / `OVERLAY_Z_VS_REF`) reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` (populated by `AGG_WELFORD` via the `MetaAggregator` path) and computes p-values byte-equal to the standalone `TEST_WELCH` / `TEST_Z_TWO_SAMPLE` row tests over the same inputs. The legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` is removed; `MatrixCell.Value` for `AGG_WELFORD` cells now carries the scalar mean per `Aggregate()`. Additive contract preserved — when no `CellComponents` triple is present, the handler falls back to `Params`-supplied mean/variance/N. See `skills/overlay-system.md` for the migration.
 
 ## Non-Skippable CI Gates
 
@@ -232,7 +232,7 @@ Descriptor contracts:
 - `TestGoldensNotHandEdited` — golden files end with valid `// golden-hash: <sha256>` line.
 - `TestPerPackageCoverageFloors` — package directories exist; documents target coverage floors per package.
 
-Skill-coverage (atomic-skill convention, post-E4):
+Skill-coverage (atomic-skill convention):
 - `TestSkillsCoverAllComponents` — every registered aggregator/attribute/filterer/grouper/feature has a matching `skills/op-<category>-<kebab>.md` atomic skill file.
 - `TestSkillsCoverAllFieldTypes` — every `FieldType` has a matching `skills/type-<kebab>.md` atomic skill file (in addition to listing in `skills/cohort-schema-design.md`).
 - `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator has a matching `skills/op-win-<kebab>.md` atomic skill file.
@@ -243,9 +243,9 @@ Skill-coverage (atomic-skill convention, post-E4):
 - `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section.
 - `TestSkillsCoverAllOperatorComponents` — every aggregator/grouper/filterer's per-operator `ComponentSchema` keys appear in the body of its matching `skills/op-<category>-<kebab>.md` atomic skill, under a `## Components` section.
 
-Atomic-skill structure / budget / example-tag (post-E4):
+Atomic-skill structure / budget / example-tag:
 - `TestAtomicSkillHasRequiredSections` — every `op-*` / `op-overlay-*` / `tool-*` / `type-*` skill file carries its required `##` section set (e.g. op-*: `## Params`, `## Inputs`, `## Output`, `## Gotchas`, `## See`; AGG/GROUP/FILTER additionally require `## Components`).
-- `TestSkillTokenBudget` — per-family body-size budget enforced on atomic skills (op-*: 1200 chars, tool-*: 2000, type-*: 2000, `kind:design` frontmatter: 6000). Transitional soft-only regime today; tightens in E4-S15.
+- `TestSkillTokenBudget` — per-family body-size budget enforced on atomic skills (op-*: 1200 chars, tool-*: 2000, type-*: 2000, `kind:design` frontmatter: 6000). Transitional soft-only regime today; tightens in a follow-up.
 - `TestOperatorHasAtomicSkill` — every registered operator, MCP tool, and field type has a matching atomic skill file at the conventional stem (`op-<category>-<kebab>`, `tool-<kebab>`, `type-<kebab>`).
 - `TestEveryOperatorHasAnExampleTag` — every registered operator name appears as a tag on at least one `examples/<dir>/*.json` example (gap-closure gate).
 
@@ -354,7 +354,7 @@ Heuristic: `chars / 4 ≈ tokens`. Budgets are byte counts of the post-frontmatt
 | `type-*` | ≤2000 | ≤500 |
 | `kind: design` (topical) | ≤6000 | ≤1500 |
 
-`TestSkillTokenBudget` enforces these. The current regime is transitional — the soft cap allows up to 1000% over budget so reviewers see the live state of legacy bodies without a red gate; E4-S15 tightens to 30% over and flips `t.Logf` → `t.Errorf` once the offending `op-reg-*` / `op-reg-mod-*` / `op-feat-*` / `op-synth-regex` bodies have been trimmed.
+`TestSkillTokenBudget` enforces these. The current regime is transitional — the soft cap allows up to 1000% over budget so reviewers see the live state of legacy bodies without a red gate; a follow-up tightens to 30% over and flips `t.Logf` → `t.Errorf` once the offending `op-reg-*` / `op-reg-mod-*` / `op-feat-*` / `op-synth-regex` bodies have been trimmed.
 
 ### List source of truth
 
