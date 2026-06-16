@@ -8,9 +8,8 @@ import (
 // COMPOSE-host overlay fold engine — runtime side of the Compose-only
 // overlay catalog.
 //
-// E7-S4 scope: structural pre-req for the nine Compose-only overlay
-// kinds the E7 epic ships (the per-kind handlers land in E7-S9..S12 and
-// the multi-ref kinds in E7-S15+). The MATRIX-host overlay path
+// Structural chassis for the Compose-only overlay kinds. The
+// MATRIX-host overlay path
 // (`overlay.go`) folds against a crosstab; the SERIES-host overlay
 // path (`overlay_series.go`) folds against a grouped Process result;
 // the FACET-host overlay path (`overlay_facet_dispatch.go`) folds
@@ -21,7 +20,7 @@ import (
 // ComposedRequest, with an optional `Label → Index` lookup for
 // resolving `ComposeOverlaySpec.Reference` and per-target labels.
 //
-// What this file lands (per the E7-S4 acceptance criteria):
+// What this file lands:
 //
 //   - composeOverlayHandler is the per-kind execution signature for
 //     the COMPOSE host path. Handlers receive the spec, the reference
@@ -30,25 +29,18 @@ import (
 //     index pair so warnings can reference the originating slot by
 //     index.
 //
-//   - composeOverlayHandlers is the per-kind dispatch table. E7-S4
-//     ships an EMPTY dispatch table — the chassis falls through to a
-//     compile-time stub handler (`applyComposeStub`) so the wiring
-//     can be exercised end-to-end without per-kind arithmetic. E7-S9
-//     onward replace the stub with real handlers as each Compose-only
-//     kind lands.
+//   - composeOverlayHandlers is the per-kind dispatch table for the
+//     Compose-only kinds. Adding a kind here wires it into the runtime
+//     fold.
 //
 //   - ApplyComposeOverlays walks the spec list in matching order,
 //     resolves each spec's Reference + Targets via the Label resolver,
 //     dispatches each via composeOverlayHandlers (falling back to the
-//     stub when a kind is not yet registered), and returns one
-//     OverlayLayer per spec in matching order plus a flat warnings
-//     slice. Unknown kinds with no registered handler use the same
-//     stub-layer fallback as the chassis tests exercise; once the
-//     per-kind handlers register (E7-S9+) the stub fallback path is
-//     reserved for genuinely unknown kinds (which fire a coded error).
+//     stub for genuinely unknown kinds), and returns one OverlayLayer
+//     per spec in matching order plus a flat warnings slice.
 //
-// Service-side wiring (per the E7-S4 acceptance "post-slot-barrier
-// overlay fold (CanFailFast aware)"): the `service.Compose` /
+// Service-side wiring: post-slot-barrier overlay fold (FailFast-aware).
+// The `service.Compose` /
 // `service.ComposeParallel` orchestrators call `ApplyComposeOverlays`
 // at the post-slot-barrier — once every slot has produced a finalised
 // `*Response` the cross-slot fold runs over the already-materialised
@@ -100,7 +92,7 @@ type composeOverlayHandler func(spec *types.ComposeOverlaySpec, reference *types
 // to `[]types.OverlayLayer` so a single spec can produce N layers in
 // the parent ComposedResponse.Overlays slice.
 //
-// First consumer: OVERLAY_PANEL_INDEX_VS_REF (E7-S12) — the
+// First consumer: OVERLAY_PANEL_INDEX_VS_REF — the
 // multi-reference descriptive twin of OVERLAY_PROP_Z_PANEL. The
 // PANEL_INDEX_VS_REF authoring shape names N target slots against one
 // shared reference slot and the chassis emits one OverlayLayer per
@@ -120,10 +112,9 @@ type composeOverlayHandler func(spec *types.ComposeOverlaySpec, reference *types
 type composeOverlayMultiLayerHandler func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) ([]types.OverlayLayer, []types.OverlayWarning, error)
 
 // composeOverlayHandlers is the per-kind dispatch table for the
-// COMPOSE host path. E7-S4 lands an EMPTY table — the chassis falls
-// through to `applyComposeStub` for every kind so end-to-end wiring
-// can be exercised without per-kind arithmetic. Subsequent E7 stories
-// register real handlers as each Compose-only kind lands.
+// COMPOSE host path. Unregistered kinds fall through to
+// `applyComposeStub` (a defensive no-arithmetic layer used as a
+// genuine-unknown safety net).
 //
 // Tests register synthetic handlers by writing into this map and using
 // `t.Cleanup` to restore the prior state — the test stub pattern
@@ -155,7 +146,7 @@ var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
 // per-spec dispatch loop; on a hit it appends every emitted layer to
 // the parent layers slice in spec order then target order.
 //
-// First entry: OVERLAY_PANEL_INDEX_VS_REF (E7-S12). The handler emits
+// First entry: OVERLAY_PANEL_INDEX_VS_REF. The handler emits
 // `len(spec.Targets)` layers, each one mathematically equivalent to
 // the single-target OVERLAY_INDEX_VS_REF output for that
 // (reference, target[i]) pair. Layer naming convention:
@@ -180,7 +171,7 @@ var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMulti
 // `request_<index+1>`) — the resolver uses it to build the
 // `Label → Index` lookup table for `Reference` / `Targets` resolution.
 //
-// Resolution policy (E7-S5):
+// Resolution policy:
 //
 //   - Reference is REQUIRED on every spec. Empty Reference (or a
 //     Reference that does not resolve to any label in `labels`) fires
@@ -193,18 +184,17 @@ var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMulti
 //     PULSE_OVERLAY_TARGET_UNKNOWN via processing.LookupTarget.
 //
 // Defense in depth: the descriptor.ValidateComposedRequest gate
-// (E7-S14 will lift it) will reject bad references / unknown kinds at
-// predict time, so a missing dispatch entry should rarely reach the
+// rejects bad references / unknown kinds at predict time, so a
+// missing dispatch entry should rarely reach the
 // runtime in practice; nonetheless ApplyComposeOverlays guards
 // against missing slot labels and returns a CodedError whose details
 // carry the appropriate canonical code so the orchestrator surfaces
 // the same failure mode predict would have flagged.
 //
-// Stub fallback: until the per-kind handlers register (E7-S9..S12 +
-// E7-S15+), every spec routes through `applyComposeStub` which emits
-// a zero-payload OverlayLayer that inherits the reference slot's host
-// shape. The stub emits no warnings and no per-coordinate values;
-// real arithmetic ships with each per-kind handler.
+// Stub fallback: kinds without a registered handler route through
+// `applyComposeStub`, which emits a zero-payload OverlayLayer that
+// inherits the reference slot's host shape. The stub emits no
+// warnings and no per-coordinate values.
 func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
@@ -213,7 +203,7 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 	// canonical resolver. The chassis adapter builds a synthetic
 	// *types.ComposedRequest from the parallel labels slice so the
 	// resolver's pure surface stays the single source of truth for
-	// slot-label → *Response binding (E7-S5).
+	// slot-label → *Response binding.
 	byLabel, byIndex, err := resolveComposeSlotsFromLabels(labels, responses)
 	if err != nil {
 		return nil, nil, err
@@ -252,31 +242,29 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 			targetIdxs = append(targetIdxs, byIndex[label])
 			targetResps = append(targetResps, tResp)
 		}
-		// Strict cross-Request key-set alignment (E7-S6). Runs AFTER
-		// reference + targets have resolved to concrete *Response
-		// objects but BEFORE the per-kind handler dispatches — key-set
-		// divergence is the cheapest signal to fail on so we surface it
-		// before any per-kind handler walks the matrix / series payload
-		// a second time. Schema-match (E7-S7) and dict-drift (E7-S8)
-		// gates fire AFTER this one.
+		// Strict cross-Request key-set alignment. Runs AFTER reference
+		// + targets have resolved to concrete *Response objects but
+		// BEFORE the per-kind handler dispatches — key-set divergence
+		// is the cheapest signal to fail on so we surface it before any
+		// per-kind handler walks the matrix / series payload a second
+		// time. Schema-match and dict-drift gates fire AFTER this one.
 		if err := checkKeySetAlignment(refResp, targetResps, *spec, i); err != nil {
 			return nil, nil, err
 		}
-		// Strict structural schema match across slots (E7-S7). Runs
-		// AFTER key-set alignment and BEFORE the per-kind handler
+		// Strict structural schema match across slots. Runs AFTER
+		// key-set alignment and BEFORE the per-kind handler
 		// dispatches. Three orthogonal gates fire from the same entry
 		// point: PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT (reference vs
 		// target host shape disagrees), PULSE_OVERLAY_SLOT_NOT_CROSSTAB
 		// (spec.Kind requires MATRIX but a slot is non-MATRIX — gated
-		// by `kindRequiresMatrix`, stub-false today), and
-		// PULSE_OVERLAY_SCHEMA_DIVERGENT (per-axis grouper-kind tuples
-		// disagree across slots). Dict-drift (E7-S8) fires AFTER this
-		// one.
+		// by `kindRequiresMatrix`), and PULSE_OVERLAY_SCHEMA_DIVERGENT
+		// (per-axis grouper-kind tuples disagree across slots).
+		// Dict-drift fires AFTER this one.
 		if err := checkSlotShapeAndSchema(refResp, targetResps, *spec, i); err != nil {
 			return nil, nil, err
 		}
-		// Categorical dictionary-prefix drift probe (E7-S8). Runs ONLY
-		// when the caller opted into the byte-equal fast path via
+		// Categorical dictionary-prefix drift probe. Runs ONLY when
+		// the caller opted into the byte-equal fast path via
 		// ComposeOverlaySpec.Options.DictPrefixFast = true. Default
 		// behaviour (Options == nil OR DictPrefixFast == false) is the
 		// SAFE by-label join — every cell / group key compares via its
@@ -285,13 +273,13 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 		// fast path opts into direct-index comparison; we fail loud
 		// with PULSE_OVERLAY_DICT_PREFIX_DRIFT when any slot
 		// dictionary diverges. See processing/compose_overlay_dictprobe.go
-		// for the probe-vs-pulse.New scoping discussion.
+		// for the probe scope.
 		if spec.Options != nil && spec.Options.DictPrefixFast {
 			if err := checkDictPrefixEquality(refResp, targetResps, *spec, i); err != nil {
 				return nil, nil, err
 			}
 		}
-		// Multi-layer dispatch (E7-S12) runs FIRST — kinds in this table
+		// Multi-layer dispatch runs FIRST — kinds in this table
 		// emit N layers per spec (one per target). The single-layer
 		// dispatch below is the historical default; the two tables are
 		// mutually exclusive per kind.
@@ -306,7 +294,7 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 				// so the service-layer barrier hook (service.Compose's
 				// warning distribution) can route each warning to the
 				// matching `OverlayLayer.Warnings` slot deterministically.
-				// Mirrors the E2-S1 chain-dispatch convention in
+				// Mirrors the chain-dispatch convention in
 				// processing.ApplyChainOverlays — the dispatcher is the
 				// natural owner of the spec index (per-kind handlers
 				// receive (refIdx, targetIdxs) but not their own spec
@@ -325,14 +313,10 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 		}
 		handler, ok := composeOverlayHandlers[spec.Kind]
 		if !ok {
-			// E7-S4 chassis fallback: no per-kind handler registered
-			// yet for any Compose-only kind, so every spec routes
-			// through the stub. Once the per-kind handlers register
-			// (E7-S9..S12 + E7-S15+), an unknown kind reaching this
-			// branch is a genuine kind-unknown error and the stub
-			// fallback becomes the predict / runtime defense in depth.
-			// For E7-S4 the stub is the production path; predict
-			// catches genuinely unknown kinds upstream.
+			// Chassis fallback: an unknown kind reaching this branch
+			// is a genuine kind-unknown error (predict catches
+			// genuinely unknown kinds upstream) and the stub fallback
+			// is the runtime defense in depth.
 			handler = applyComposeStub
 		}
 		layer, ws, err := handler(spec, refResp, targetResps, refIdx, targetIdxs)
@@ -345,7 +329,7 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 			// so the service-layer barrier hook in `service.Compose`
 			// can route each warning to the matching
 			// `OverlayLayer.Warnings` slot deterministically. Mirrors
-			// the E2-S1 chain-dispatch convention in
+			// the chain-dispatch convention in
 			// `processing.ApplyChainOverlays`.
 			for j := range ws {
 				if ws[j].Details == nil {
@@ -391,9 +375,9 @@ func resolveComposeSlotsFromLabels(labels []string, responses []*types.Response)
 	return ResolveComposeSlots(composed, responses)
 }
 
-// applyComposeStub is the compile-time stub handler shared by every
-// E7-S4 Compose-only kind. Each invocation emits a single
-// OverlayLayer carrying:
+// applyComposeStub is the compile-time stub handler used by the
+// chassis when an unknown Compose-only kind reaches the dispatcher.
+// Each invocation emits a single OverlayLayer carrying:
 //
 //   - Name  — the spec's Name when set, else "OVERLAY_{KIND}" so the
 //     renderer-facing label is always populated.
@@ -406,7 +390,7 @@ func resolveComposeSlotsFromLabels(labels []string, responses []*types.Response)
 //     carries a Crosstab matrix; series when it carries
 //     grouped Process Data; scalar otherwise. The stub does
 //     NOT populate the payload's per-coordinate value slots —
-//     the real arithmetic ships with E7-S9..S12 + E7-S15+.
+//     the real arithmetic ships with each per-kind handler.
 //   - Summary — nil (descriptive summary slots are kind-specific and
 //     land with the real handlers).
 //
@@ -415,7 +399,7 @@ func resolveComposeSlotsFromLabels(labels []string, responses []*types.Response)
 // spec.Kind, per-slot Responses[i].Overlays untouched. Real arithmetic
 // (per-coordinate reference / target folding, zero-denominator
 // handling, shape-divergence detection) ships with the per-kind
-// handlers in E7-S9 through E7-S15.
+// per-kind handlers.
 func applyComposeStub(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	name := spec.Name
 	if name == "" {
@@ -437,8 +421,8 @@ func applyComposeStub(spec *types.ComposeOverlaySpec, reference *types.Response,
 		// the ComposeOverlaySpec's Reference/Targets pair (the spec's
 		// slot labels live on a different struct). The stub leaves
 		// Ref empty — the per-kind validator + real handler in
-		// E7-S9..S15 will surface the resolved slot labels through a
-		// kind-specific summary slot when the math lands.
+		// per-kind validator + real handler surfaces the resolved
+		// slot labels through a kind-specific summary slot.
 		Payload: types.OverlayPayload{
 			Shape: shape,
 		},
@@ -457,9 +441,9 @@ func applyComposeStub(spec *types.ComposeOverlaySpec, reference *types.Response,
 //     canonical grouped Process shape).
 //   - Otherwise (scalar facet result OR empty Data) ⇒ OverlayShapeScalar.
 //
-// The real handlers in E7-S9..S15 inherit the same precedence rule;
-// codifying it here keeps the chassis byte-identical to the shipping
-// shape selection logic.
+// The real handlers inherit the same precedence rule; codifying it
+// here keeps the chassis byte-identical to the shipping shape
+// selection logic.
 func inferComposeStubShape(reference *types.Response) types.OverlayShape {
 	if reference == nil {
 		return types.OverlayShapeScalar

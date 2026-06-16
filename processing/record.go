@@ -101,7 +101,7 @@ func (r *Record) NumericValue(name string) (float64, bool) {
 // is null when explicitly marked via SetNull / SetNullField (the on-wire
 // bitmap signal during decode), or when the field is absent from both
 // the values map and the wide map. Used by the orchestrator's filter
-// pass (E2-S9) to track the n_null_input universal-floor counter per
+// pass to track the n_null_input universal-floor counter per
 // FiltererComponents slot without coupling each filterer to a particular
 // null-detection path.
 //

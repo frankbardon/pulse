@@ -388,7 +388,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	cellValues := make(map[crosstabCellKey]any, len(rowPart.Keys)*len(colPart.Keys))
 	cellPresent := make(map[crosstabCellKey]bool, len(rowPart.Keys)*len(colPart.Keys))
 
-	// E3-S2: per-cell record count tracked alongside the aggregator update
+	// Per-cell record count tracked alongside the aggregator update
 	// so Response.Components.Crosstab.CellCounts can be populated without
 	// a second pass. A cell entry is created whenever a non-empty
 	// (row, col) bucket exists — independent of whether the cell
@@ -400,7 +400,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	cellCounts := make(map[crosstabCellKey]int, len(rowPart.Keys)*len(colPart.Keys))
 	var includedRecords int
 
-	// E3-S3: per-cell components map indexed by the same composite-key
+	// Per-cell components map indexed by the same composite-key
 	// pair as cellValues. The buffered cell builder runs the cell
 	// aggregator through runCellAggregation which returns the post-
 	// Finalize aggregator instance, scalar value, and per-cell n_null
@@ -447,7 +447,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		}
 	}
 
-	// E3-S4: margin recompute now routes through runCellAggregation so
+	// Margin recompute routes through runCellAggregation so
 	// the orchestrator captures the post-Finalize aggregator instance
 	// alongside the scalar/rich margin value. The instance feeds
 	// buildCellComponentMap which merges the universal floor {n, n_null}
@@ -765,7 +765,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			partialColPart, partialColMargins, partialColPresent, colNormLevel)
 	}
 
-	// E3-S2: emit per-cell record-count matrix on Response.Components.
+	// Emit per-cell record-count matrix on Response.Components.
 	// Layout indexed identically to MatrixPayload.Cells (rowPart.Keys
 	// outer, colPart.Keys inner) so consumers can use the same (r, c) to
 	// dereference cell value and cell count. Even shape=long callers see
@@ -780,7 +780,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		// than emit a negative count to the wire.
 		excludedRecords = 0
 	}
-	// E3-S4: row / column / grand-total margin counts + components emit
+	// Row / column / grand-total margin counts + components emit
 	// alongside the cell matrices. Display flags drive the emission gate —
 	// counts/components ride only when the corresponding MatrixPayload
 	// margin slot is populated (spec.Margins.Rows / Columns / Grand). The
@@ -804,7 +804,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		grandMarginCountSlot = grandMarginCount
 		grandMarginComponentsSlot = grandMarginComponents
 	}
-	// E3-S5: per-axis grouper components for the row + column axes. Each
+	// Per-axis grouper components for the row + column axes. Each
 	// axis grouper is instantiated fresh and exercised against the full
 	// filtered set so MetaGrouper.Components() reflects the cohort-wide
 	// bucket emission for that axis position. Buckets are then projected
@@ -841,11 +841,11 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	}
 	resp.PostTests = postResults
 
-	// Overlay fold (E1-S6). When Request.Overlays is non-empty and the
+	// Overlay fold. When Request.Overlays is non-empty and the
 	// buffered exit produced a MATRIX-shaped CrosstabResult, wrap the
 	// finalised MatrixPayload in a CrosstabHostView and let
 	// ApplyOverlays dispatch each spec through the per-kind runtime
-	// handler (E1-S5). Result: Response.Overlays carries one
+	// handler. Result: Response.Overlays carries one
 	// OverlayLayer per spec in matching order, and every
 	// types.OverlayWarning is promoted to types.ResponseWarning so envelope
 	// consumers see the same diagnostics surface label warnings already
@@ -862,7 +862,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	//   - Empty / nil req.Overlays leaves resp.Overlays nil — additive
 	//     byte-identity preserved against the pre-overlay baseline.
 	//   - The fused crosstab path (crosstab_fused.go) is intentionally
-	//     deferred per the E1 scope notes.
+	//     deferred.
 	if err := applyOverlaysToResponse(req, resp, p.exts); err != nil {
 		return nil, err
 	}
@@ -895,7 +895,7 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 		return nil
 	}
 	host := NewCrosstabHostView(resp.Crosstab.Matrix)
-	// E8-S5: when the Processor carries a live ExtensionRegistry the
+	// When the Processor carries a live ExtensionRegistry the
 	// FORMULA dispatch arm of ApplyOverlaysWithExtensions threads the
 	// registry's ExprFunctions into the compile-time `[]expr.Option`
 	// slice so embedder-registered helpers (`pct_change`, lookup
@@ -1174,13 +1174,14 @@ func buildLongRows(spec *types.CrosstabSpec,
 // axis-key slices.
 //
 // cellComponents may be nil — in that case the CellComponents matrix is
-// left unpopulated (no E3-S3 emission for older callers). When non-nil,
-// every entry corresponds to a cell that received at least one record
+// left unpopulated (older callers skip per-cell components emission).
+// When non-nil, every entry corresponds to a cell that received at
+// least one record
 // (no empty cells in the map); a missing (r, c) yields a nil entry in
 // the emitted matrix so consumers can distinguish empty cells from
 // populated cells with an empty component map.
 //
-// E3-S4: rowMarginCounts / rowMarginComponents (and column / grand
+// rowMarginCounts / rowMarginComponents (and column / grand
 // analogues) are emitted only when the caller passes non-nil
 // maps — gated by the display flag on the buffered / fused path. The
 // emission rule mirrors MatrixPayload.RowMargins / ColumnMargins /
@@ -1234,14 +1235,14 @@ func populateCrosstabComponents(resp *types.Response,
 		}
 		ct.CellCounts = matrix
 
-		// E3-S3: per-cell components matrix indexed identically to
-		// CellCounts. Empty cells (no entry in cellComponents) emit nil
-		// at [r][c] — consumers can dereference both matrices with the
-		// same (r, c) pair, distinguishing "no data" (nil) from "data
-		// with empty operator payload" (non-nil map with floor only).
-		// The outer matrix is allocated only when cellComponents is
-		// non-nil so the legacy E3-S2 callsites that pre-date
-		// CellComponents emit a CellCounts-only payload.
+		// Per-cell components matrix indexed identically to CellCounts.
+		// Empty cells (no entry in cellComponents) emit nil at [r][c] —
+		// consumers can dereference both matrices with the same (r, c)
+		// pair, distinguishing "no data" (nil) from "data with empty
+		// operator payload" (non-nil map with floor only). The outer
+		// matrix is allocated only when cellComponents is non-nil so
+		// legacy callsites that pre-date CellComponents emit a
+		// CellCounts-only payload.
 		if cellComponents != nil {
 			compMatrix := make([][]map[string]any, len(rowKeys))
 			for i, rk := range rowKeys {
@@ -1257,7 +1258,7 @@ func populateCrosstabComponents(resp *types.Response,
 		}
 	}
 
-	// E3-S4: row-margin counts + components, indexed in rowKeys order.
+	// Row-margin counts + components, indexed in rowKeys order.
 	// Emitted only when the caller passes a non-nil map (display flag
 	// gate). Per-axis vectors are sized to len(rowKeys) so consumers can
 	// dereference RowMarginCounts[r] / RowMarginComponents[r] by the
@@ -1304,7 +1305,7 @@ func populateCrosstabComponents(resp *types.Response,
 		ct.GrandTotalCount = grandMarginCount
 		ct.GrandTotalComponents = grandMarginComponents
 	}
-	// E3-S5: per-axis grouper components projected onto sorted axis-key
+	// Per-axis grouper components projected onto sorted axis-key
 	// order. Single-axis crosstabs surface the bucket map directly; multi-
 	// axis crosstabs wrap each axis position's bucket in an "axes" slice
 	// keyed by the axis field name (see projectAxisKeyComponents). Vector
@@ -1323,9 +1324,8 @@ func populateCrosstabComponents(resp *types.Response,
 
 // cellAggregationResult carries the per-cell scalar/rich value and a
 // present flag distinguishing "aggregator finalised a value" from
-// "aggregator returned an empty row" (the buffered path treated the
-// latter as a skipped cell pre-E3-S3, which still holds here — we
-// surface presence via the flag).
+// "aggregator returned an empty row" (the buffered path treats the
+// latter as a skipped cell — presence surfaces via the flag).
 type cellAggregationResult struct {
 	value   any
 	present bool

@@ -349,8 +349,8 @@ type MetaAggregator interface {
 // groupers (rare for groupers; QUANTILE-class needs the full input)
 // emit components only on terminal buffered flush.
 //
-// E2-S4..S6 will add the per-grouper implementations under compile-
-// time assertions of the form:
+// Per-grouper implementations register under compile-time assertions
+// of the form:
 //
 //	var _ processing.MetaGrouper = (*categoryGrouper)(nil)
 //	var _ processing.MetaGrouper = (*rangeGrouper)(nil)
@@ -379,7 +379,7 @@ type MetaGrouper interface {
 // predicate. The map carries the named constituent-parts metadata
 // declared in the filterer's descriptor.ComponentSchema.
 //
-// In v1 (E2-S8) the components surface is uniform across every
+// In v1 the components surface is uniform across every
 // registered filterer — the orchestrator emits the universal floor
 // {n_in, n_out, n_null_input} from the filter pass's record-walker
 // counters. No built-in filterer implements Components(): the

@@ -17,14 +17,13 @@ import (
 // Overlay FORMULA evaluator spine + per-shape namespace binders —
 // runtime side of the OVERLAY_FORMULA catalog entry.
 //
-// E8-S2 landed the spine: compile-once / run-many via expr-lang, the
-// matrix-host `applyFormula` handler driving the per-cell loop, a
-// stub prototype env carrying only `cell`, and the three failure
+// Spine: compile-once / run-many via expr-lang, the matrix-host
+// `applyFormula` handler driving the per-cell loop, and three failure
 // modes (`PULSE_OVERLAY_FORMULA_PARSE_ERROR` /
-// `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH` / `PULSE_OVERLAY_PARAM_MISSING`).
+// `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH` /
+// `PULSE_OVERLAY_PARAM_MISSING`).
 //
-// E8-S3 extends the spine with per-host-shape variable binders per the
-// research note
+// Per-host-shape variable binders per the research note
 // `.planning/result-overlay-system/research/formula-namespace.md` § 2:
 //
 //   - `bindFormulaEnvMatrix` fills the MATRIX namespace (`cell`,
@@ -59,14 +58,14 @@ import (
 // prototype env carries the same nested-map shape so expr-lang's
 // compile-time env validator accepts `slot.<label>.cell` /
 // `slot.<label>.value` identifiers as well-typed member accesses.
-// Unknown slot labels are rejected at predict time (E8-S4); the
+// Unknown slot labels are rejected at predict time; the
 // runtime binder simply does not populate a slot whose Compose payload
 // is nil (the renderer-facing payload stays NaN for that cell — the
 // predict gate makes this unreachable in production).
 //
-// Embedder `ExprFunctions` integration is still reserved as a TODO
-// (see `compileFormulaProgram` comments). E8-S5 widens the dispatch
-// signature to thread the ExtensionRegistry through.
+// Embedder `ExprFunctions` integration threads the
+// ExtensionRegistry through the dispatch signature (see
+// `compileFormulaProgram` comments).
 //
 // Failure modes:
 //
@@ -76,7 +75,7 @@ import (
 //   - `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH` — `expr.Run` returned a
 //     value whose type cannot be coerced to float64. Per-cell failure
 //     propagates as a CodedError so the orchestrator surfaces the same
-//     shape predict (E8-S4) would have flagged.
+//     shape predict would have flagged.
 //
 // Structural invariants (CLAUDE.md "Predict / Inspect contracts" +
 // "What NOT to Do"):
@@ -103,11 +102,10 @@ const (
 // formula string so the runtime can echo the offending expression in
 // CodedError Details when a type mismatch fires at evaluation time.
 //
-// Forward-compat (E8-S5): when the embedder ExprFunctions wiring lands
-// this struct will carry an additional reference to the
-// `ExtensionsSnapshot` used at compile time so the runtime can fall
-// back to a re-compile when the extension registry is rebuilt mid-
-// session.
+// Forward-compat: this struct may carry an additional reference to
+// the `ExtensionsSnapshot` used at compile time so the runtime can
+// fall back to a re-compile when the extension registry is rebuilt
+// mid-session.
 type formulaProgram struct {
 	// formula is the source string the caller supplied via
 	// `OverlaySpec.Params["formula"]`. Echoed verbatim in CodedError
@@ -136,13 +134,13 @@ type formulaProgram struct {
 // Present flags ride alongside each shape's value slot so the binder
 // can surface NaN for absent coordinates without crashing the formula
 // evaluation (mirrors the existing matrix-host absent-cell discipline
-// in `applyFormula`). The predict gate (E8-S4) catches structural
+// in `applyFormula`). The predict gate catches structural
 // shape divergence across slots — a Compose-matrix host that references
 // a Compose-series slot fires `PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT` at
 // predict time, so the runtime should never see a binding whose
 // per-shape payload disagrees with the host's iteration shape.
 type formulaSlotBinding struct {
-	// Label is the slot's resolved Request.Label (after the E7-S1
+	// Label is the slot's resolved Request.Label (after the
 	// `request_<index+1>` auto-default). Used by the prototype env
 	// builder to lay out the nested slot.<label> map and by the binder
 	// to look up the payload at iteration time. Always non-empty.
@@ -176,7 +174,7 @@ type formulaSlotBinding struct {
 // Reference values (RefMatrix / RefSeries / RefScalar) are populated
 // when the per-spec OverlayRef carries a Compose Reference slot whose
 // host result shape matches the iteration host shape; predict-time
-// shape-match enforcement (E7-S7's `checkSlotShapeAndSchema` for
+// shape-match enforcement (`checkSlotShapeAndSchema` for
 // COMPOSE Reference slots) keeps the per-shape ref payload consistent
 // with the iteration shape so the binder doesn't have to validate the
 // pairing — it just reads whichever arm matches `Shape`.
@@ -190,8 +188,8 @@ type formulaSlotBinding struct {
 // BaselinePosition opt-in: when the formula references `baseline` and
 // the per-spec `Params["baseline_position"]` is set, the per-host
 // orchestrator resolves the baseline value once and plumbs it through
-// `BaselineValue` / `BaselineValuePresent`. The predict gate (E8-S4)
-// rejects formulas referencing `baseline` when the param is absent so
+// `BaselineValue` / `BaselineValuePresent`. The predict gate rejects
+// formulas referencing `baseline` when the param is absent so
 // the runtime never sees `BaselineValuePresent == false` paired with
 // a `baseline` identifier.
 type FormulaContext struct {
@@ -393,12 +391,12 @@ func computeMatrixWelfordSDs(host *CrosstabHostView, needRow, needCol, needGrand
 // to float64. Absent host cells stay absent on the overlay (the
 // formula is not evaluated).
 //
-// E8-S2 spine: the per-cell env carries only `{"cell": cellVal}` —
-// the per-shape namespace binder lands in E8-S3 and will populate
-// `margin_row` / `margin_col` / `margin_grand` / `sd_row` / `sd_col`
-// / `sd_grand` per the research note § 2.1. Until then, formulas that
-// reference any identifier beyond `cell` will fire at predict time
-// (E8-S4) or at runtime via `expr.Run`'s undefined-variable handling.
+// The per-cell env carries the matrix namespace (`cell`,
+// `margin_row` / `margin_col` / `margin_grand`, `sd_row` / `sd_col`
+// / `sd_grand`, and `ref_cell` when a Compose reference is present)
+// per the research note § 2.1. Formulas referencing unknown
+// identifiers fail at predict time or via `expr.Run`'s
+// undefined-variable handling.
 //
 // Compile-once / run-many: the formula is compiled via `expr.Compile`
 // ONCE at handler entry against a prototype env (zeroed slots for the
@@ -418,7 +416,7 @@ func computeMatrixWelfordSDs(host *CrosstabHostView, needRow, needCol, needGrand
 // + the expr-lang stdlib; embedder ExprFunctions are NOT visible.
 // Callers that need embedder functions in scope (Process / Crosstab
 // orchestrators) use `applyFormulaWithExtensions` directly via
-// `ApplyOverlaysWithExtensions` (E8-S5).
+// `ApplyOverlaysWithExtensions`.
 func applyFormula(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	return applyFormulaWithExtensions(spec, host, nil)
 }
@@ -430,7 +428,7 @@ func applyFormula(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overla
 // reachable from the formula via the same `ExprOptions()` merge that
 // ATTR_FORMULA / FILTER_EXPRESSION already consume.
 //
-// E8-S5: the registry's `ExprFunctions` are appended to the
+// The registry's `ExprFunctions` are appended to the
 // `[]expr.Option` slice via `exts.ExprOptions()`; collision with the
 // per-shape variable namespace (`cell` / `margin_*` / `sd_*` /
 // `ref_cell` / etc.) is impossible because variables and functions
@@ -456,11 +454,11 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 		return types.OverlayLayer{}, nil, err
 	}
 
-	// E8-S3: build the matrix FormulaContext ONCE per overlay layer.
+	// Build the matrix FormulaContext ONCE per overlay layer.
 	// The in-Request (non-Compose) path leaves RefMatrix nil and Slots
 	// empty — the Compose-host wiring lifts the same context shape with
-	// the per-spec reference + slot bindings (lands in E7-host glue
-	// post-S5). SDs participate only when the formula references the
+	// the per-spec reference + slot bindings. SDs participate only when
+	// the formula references the
 	// matching identifier; the AST-driven detection ensures the O(cells)
 	// recurrence short-circuits for absent SD arms (research note § 2.1
 	// SD derivation paragraph).
@@ -658,8 +656,8 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 // carrying the compiled bytecode + the source formula string for
 // later runtime error wrapping.
 //
-// E8-S2: compiled against the static prototype env only — the no-
-// extension entry point that older callers and isolated tests use.
+// Compiled against the static prototype env only — the no-extension
+// entry point that older callers and isolated tests use.
 // Registry-aware callers (the buffered Crosstab orchestrator and any
 // future Process-wide overlay dispatch) go through
 // `compileFormulaProgramWithExtensions` directly to thread embedder
@@ -773,8 +771,8 @@ func buildFormulaPrototypeEnvMatrix(ctx *FormulaContext) map[string]any {
 // when Compose-series).
 //
 // `baseline` is omitted from the prototype when
-// `ctx.BaselineValuePresent == false` — the predict gate (E8-S4)
-// rejects formulas referencing `baseline` when the opt-in param is
+// `ctx.BaselineValuePresent == false` — the predict gate rejects
+// formulas referencing `baseline` when the opt-in param is
 // absent, so a runtime walk that never bound the identifier returns
 // an undefined-variable error from `expr.Run` (mapped to
 // `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH`). When ctx is nil the helper
@@ -1285,7 +1283,7 @@ func detectFormulaSDIdentifiers(formula string) (needRow, needCol, needGrand boo
 // formulaSDIdentVisitor is the AST walker `detectFormulaSDIdentifiers`
 // uses to spot the three MATRIX-host SD identifiers
 // (`sd_row` / `sd_col` / `sd_grand`). Other identifiers are ignored;
-// the predict gate (E8-S4) is the authoritative arbiter of the full
+// the predict gate is the authoritative arbiter of the full
 // identifier set.
 type formulaSDIdentVisitor struct {
 	needRow   bool

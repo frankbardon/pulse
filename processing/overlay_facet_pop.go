@@ -8,14 +8,14 @@ import (
 )
 
 // Facet-side population reference resolver — runtime support for the
-// Facet-host overlay family (E5-S1 foundation).
+// Facet-host overlay family.
 //
-// E5-S1 scope: the four Facet overlay kinds shipping in E5 (
-// `OVERLAY_INDEX_VS_POP` / E5-S2, `OVERLAY_ZSCORE_VS_POP` / E5-S3,
-// `OVERLAY_CHISQ_VS_POP` / E5-S4, `OVERLAY_KS_VS_POP` / E5-S5) all need
-// the same operation — derive a "whole-field" population view from a
-// fully-finalized `*types.FacetResult`. The resolver lets every handler
-// read against one consistent denominator shape so the four kinds do not
+// The four Facet overlay kinds (`OVERLAY_INDEX_VS_POP`,
+// `OVERLAY_ZSCORE_VS_POP`, `OVERLAY_CHISQ_VS_POP`,
+// `OVERLAY_KS_VS_POP`) all need the same operation — derive a
+// "whole-field" population view from a fully-finalized
+// `*types.FacetResult`. The resolver lets every handler read against
+// one consistent denominator shape so the four kinds do not
 // independently reinvent population access.
 //
 // Two paths emerge from `FacetField.Kind`:
@@ -40,9 +40,9 @@ import (
 // Architectural shape mirrors `CrosstabHostView` (overlay.go) and
 // `SeriesHostView` (overlay_series.go) — a view wrapping a fully-
 // materialized host payload, exposing per-kind lookups, never mutating
-// the underlying payload. E5-S2..S5 consume the view via per-kind
-// handlers landing in subsequent stories; this file ships only the view
-// + the resolver entry point + the unknown-field rejection arm.
+// the underlying payload. Per-kind handlers consume the view to fold
+// against population statistics; this file ships only the view + the
+// resolver entry point + the unknown-field rejection arm.
 //
 // Structural invariants:
 //
@@ -55,7 +55,7 @@ import (
 //     the requested overlay field. Same FacetResult + same field name →
 //     byte-equal lookup return on every invocation.
 
-// FacetPopulationView is the read-only window an E5 Facet overlay handler
+// FacetPopulationView is the read-only window a Facet overlay handler
 // uses to read population statistics for a single overlay field. The view
 // holds a pointer to the underlying FacetResult and a resolved
 // *FacetField cached at construction so per-call lookups are
@@ -67,7 +67,7 @@ import (
 //
 // All lookups read what FacetSchema already computed and emitted — the
 // view never re-derives counts, never re-runs Welford, never recomputes
-// percentiles. The four E5 handlers read what is already on the wire.
+// percentiles. The four handlers read what is already on the wire.
 type FacetPopulationView struct {
 	// result is the underlying FacetResult the host produced. Read-only.
 	result *types.FacetResult
@@ -83,7 +83,7 @@ type FacetPopulationView struct {
 // ResolveFacetPopulation resolves a population reference against a
 // finalized FacetResult and returns `(view, err)`. The view exposes
 // per-kind lookups (categorical fast path + numeric streaming-state path)
-// so the four E5 Facet overlay handlers can consume one consistent
+// so the four Facet overlay handlers can consume one consistent
 // surface.
 //
 // Two rejection arms — both return `(nil, CodedError)` with code
@@ -275,7 +275,7 @@ func (v *FacetPopulationView) DiscreteFrequency(value string) (float64, bool) {
 // counts slice).
 //
 // This is the per-category frequency-SD that the Facet-host z-score
-// overlay (OVERLAY_ZSCORE_VS_POP / E5-S3) reads as `sd_pop`. The
+// overlay (OVERLAY_ZSCORE_VS_POP) reads as `sd_pop`. The
 // implementation walks the already-resolved `DiscreteCounts()` slice
 // (the per-value (value, count) tuples FacetSchema folded into the
 // payload) and uses the canonical Welford-Pébaÿ recurrence over those
@@ -289,7 +289,7 @@ func (v *FacetPopulationView) DiscreteFrequency(value string) (float64, bool) {
 // Single-entry payload (N=1): the recurrence is well-defined and
 // returns `(0, true)` — every frequency equals the single observed
 // value's frequency so the variance is exactly zero. Callers (the
-// E5-S3 handler) then route every entry through the
+// ZSCORE_VS_POP handler) then route every entry through the
 // PULSE_OVERLAY_REF_ZERO arm. Distinct from the unknown-shape case
 // `(0, false)` which means the view itself is not discrete-enabled.
 //
@@ -298,10 +298,9 @@ func (v *FacetPopulationView) DiscreteFrequency(value string) (float64, bool) {
 // length (capped per FacetRequest.DiscreteTopK or by the dictionary
 // cardinality otherwise — typically small).
 //
-// Added at E5-S3 as an additive accessor on the S1 resolver — keeps
-// the "no second pass over records" contract intact by reading only
-// already-folded population state. E5-S4 / E5-S5 will reuse the same
-// shape when they need population-frequency variance.
+// Additive accessor on the resolver — keeps the "no second pass over
+// records" contract intact by reading only already-folded population
+// state.
 func (v *FacetPopulationView) DiscreteFrequencyStdev() (float64, bool) {
 	counts, ok := v.DiscreteCounts()
 	if !ok {

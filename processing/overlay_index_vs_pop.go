@@ -11,15 +11,14 @@ import (
 // OVERLAY_INDEX_VS_POP — per-value population-comparison index against a
 // FACET host.
 //
-// E5-S2 scope:
+// Behaviour:
 //
-//   - First FACET-host handler in the catalog. Registered in
-//     `facetOverlayHandlers` (processing/overlay_facet_dispatch.go); the
-//     dispatch route is the post-host-finalize entry point for the
-//     streaming-Facet orchestrator (E5-S6 wires `ApplyOverlaysFacet`
-//     into `service.FacetSchema`) AND the buffered fallback entry for
-//     any callers that materialise a FacetResult before calling into the
-//     overlay surface.
+//   - FACET-host handler. Registered in `facetOverlayHandlers`
+//     (processing/overlay_facet_dispatch.go); the dispatch route is
+//     the post-host-finalize entry point for the streaming-Facet
+//     orchestrator (`service.FacetSchema` calls `ApplyOverlaysFacet`)
+//     AND the buffered fallback entry for any callers that materialise
+//     a FacetResult before calling into the overlay surface.
 //
 //   - Per-value math: `index = subset_freq / pop_freq * 100` where
 //     `subset_freq` is the host FacetResult's per-value frequency
@@ -34,16 +33,16 @@ import (
 //     ONE PULSE_OVERLAY_REF_ZERO warning per affected entry carrying the
 //     kind + value and SKIPS the index for that entry (the entry's
 //     Summary leaves Statistic unset — "present slot, empty summary"
-//     shape). The E5-S2 acceptance criterion is explicit: "on
-//     `pop_freq == 0` emit warning code `PULSE_OVERLAY_REF_ZERO` and
-//     skip the index entry". Subsequent entries continue to emit indices.
+//     shape) — on `pop_freq == 0` emit warning code
+//     `PULSE_OVERLAY_REF_ZERO` and skip the index entry. Subsequent
+//     entries continue to emit indices.
 //
 //   - Absent-host-value policy: a host whose per-value count list is
 //     empty (no discrete payload, no histogram) yields an empty Entries
 //     slice without warning — the layer is well-formed but carries no
 //     indices. Renderers surface that as "no comparison available".
 //
-// Streaming finalize hook (per E5-S2 acceptance): the handler runs at
+// Streaming finalize hook: the handler runs at
 // the FacetSchema streaming finalize point. By the time
 // `ApplyOverlaysFacet` calls into this handler, the host FacetResult is
 // fully finalised and the population view is fully resolved — both are
@@ -65,27 +64,26 @@ import (
 //     built with string concatenation; numeric bin labels render via
 //     strconv (the no-Sprintf ban covers fmt only).
 //
-// Forward-compat notes for E5-S3 / E5-S4 / E5-S5:
+// Notes on companion FACET kinds:
 //
 //   - The categorical fast path is the canonical implementation. The
-//     numeric histogram path is a structural placeholder — E5-S5
-//     (`OVERLAY_KS_VS_POP`) is the canonical numeric population-
+//     numeric histogram path is a structural placeholder —
+//     `OVERLAY_KS_VS_POP` is the canonical numeric population-
 //     comparison kind, walking the percentile / histogram surface as a
 //     KS test. INDEX_VS_POP's numeric path stays narrow on purpose:
 //     per-bin frequency indexing is the simplest stream-compatible
 //     surface that does NOT need the percentile sort.
 //
 //   - The dispatch + handler signature mirror `overlay_series.go`
-//     verbatim so future FACET kinds (`OVERLAY_ZSCORE_VS_POP` /
-//     `OVERLAY_CHISQ_VS_POP` / `OVERLAY_KS_VS_POP`) drop in by adding
-//     a row to `facetOverlayHandlers` plus a per-kind handler file.
+//     verbatim so additional FACET kinds drop in by adding a row to
+//     `facetOverlayHandlers` plus a per-kind handler file.
 
 // applyIndexVsPop is the OVERLAY_INDEX_VS_POP runtime handler. For every
 // host value (categorical fast path) or every host histogram bin
 // (numeric path) it surfaces `(subset_freq / pop_freq) * 100` on the
 // SeriesEntry's Summary.Statistic. The host's per-value distribution is
 // already materialised on the FacetResult; the population view is the
-// resolver-supplied FacetPopulationView that E5-S1 ships.
+// resolver-supplied FacetPopulationView.
 //
 // Two dispatch arms branch on the host's FacetField.Kind:
 //
@@ -103,11 +101,11 @@ import (
 // bin with Key carrying the value-string tuple) and the same
 // zero-pop_freq warning contract.
 //
-// Defense in depth: the descriptor validator (lands in E5-S6) rejects
-// ref / scope mismatches at predict time. The handler still defends
-// against a nil host (caller passed nil into `ApplyOverlaysFacet`) and
-// a nil population view by returning a coded PROCESSING_INTERNAL error.
-// The E5-S1 resolver itself returns a coded PULSE_OVERLAY_REF_UNKNOWN
+// Defense in depth: the descriptor validator rejects ref / scope
+// mismatches at predict time. The handler still defends against a nil
+// host (caller passed nil into `ApplyOverlaysFacet`) and a nil
+// population view by returning a coded PROCESSING_INTERNAL error.
+// The resolver itself returns a coded PULSE_OVERLAY_REF_UNKNOWN
 // error when the named population FIELD is unknown — that error
 // surfaces from `ResolveFacetPopulation` BEFORE this handler runs, so
 // the handler sees only resolved views.
@@ -202,7 +200,7 @@ func applyIndexVsPopDiscrete(spec *types.OverlaySpec, host *types.FacetField, po
 		// for the population view).
 		popFreq, popOk := pop.DiscreteFrequency(vc.Value)
 		if !popOk || popFreq == 0 {
-			// Zero-denominator path per E5-S2 acceptance: emit ONE
+			// Zero-denominator path: emit ONE
 			// PULSE_OVERLAY_REF_ZERO warning carrying the value + kind
 			// and SKIP the index. The entry's Summary stays empty so the
 			// parallel-slice contract holds (one entry per host value).
@@ -318,7 +316,7 @@ func subsetDiscreteDenominator(d *types.FacetDiscrete) int64 {
 // aligned with the host's histogram (same `Min` / `Max` / bin count).
 // The handler's contract is that the caller materialises both
 // FacetResults with the same histogram request (a single FacetRequest
-// authoring rule the E5-S6 service-side validator enforces; the
+// authoring rule the service-side validator enforces; the
 // handler does NOT compare bins when the shapes disagree and emits
 // zero entries with a warning).
 //
@@ -336,7 +334,7 @@ func applyIndexVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop
 		// caller's FacetRequest may need to set IncludeHistogram=true
 		// for INDEX_VS_POP to produce numeric output; documented in the
 		// skill, not enforced here (the validator surfaces the missing
-		// histogram at predict time when E5-S6 lands).
+		// histogram at predict time).
 		return emptyIndexVsPopLayer(spec), nil, nil
 	}
 	popHist, popOk := pop.NumericHistogram()

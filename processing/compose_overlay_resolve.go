@@ -15,8 +15,8 @@ import (
 // reference is folded against) — to the matching *types.Response
 // already materialised by the orchestrator's slot-loop barrier. This
 // file lands the single point of that binding so the per-kind handlers
-// (E7-S9..S15) share one resolver shape rather than each handler
-// reimplementing its own slot-label walk.
+// share one resolver shape rather than each handler reimplementing its
+// own slot-label walk.
 //
 // Architecture choice: the resolver intentionally takes the
 // *types.ComposedRequest directly (rather than a pre-extracted labels
@@ -80,8 +80,7 @@ import (
 // Final label rule (mirrors applyComposeLabelDefaults):
 //
 //   - Non-empty `req.Requests[i].Label` → used verbatim.
-//   - Empty `req.Requests[i].Label` → `request_<i+1>` (1-based, per
-//     E7-S1).
+//   - Empty `req.Requests[i].Label` → `request_<i+1>` (1-based).
 //   - Nil *Request slot → skipped. The slot index is NOT registered
 //     in either map; downstream Reference / Target lookups against a
 //     nil slot surface PULSE_OVERLAY_REFERENCE_UNKNOWN /
@@ -152,11 +151,10 @@ func ResolveComposeSlots(req *types.ComposedRequest, responses []*types.Response
 // FailFast=false failed-slot hole).
 //
 // The handler-side wrapping pattern: every per-kind COMPOSE handler
-// (E7-S9..S15) calls LookupReference once at the top of its body and
-// returns the coded error verbatim. Keeping the canonical-code
-// dispatch on this single helper means handlers never re-code the
-// "which arm" branching twice; the call site reads as a one-line
-// guard.
+// calls LookupReference once at the top of its body and returns the
+// coded error verbatim. Keeping the canonical-code dispatch on this
+// single helper means handlers never re-code the "which arm" branching
+// twice; the call site reads as a one-line guard.
 //
 // `specIdx` is the originating ComposeOverlaySpec index in
 // `ComposedRequest.Overlays`. The MCP fix-up surface uses the index
@@ -275,7 +273,7 @@ func composeDefaultLabel(index int) string {
 
 // ComposeDefaultLabel is the exported sibling of the package-internal
 // composeDefaultLabel helper. The descriptor-side compose validator
-// (descriptor.ValidateCompose, E7-S14) re-derives the same default
+// (descriptor.ValidateCompose) re-derives the same default
 // slot label rule (`request_<i+1>`, 1-based) so a predict-time
 // reference / target lookup matches the runtime's view of the slot
 // labels; the per-helper sync test in descriptor/compose_test.go

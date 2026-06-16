@@ -11,24 +11,9 @@ import (
 
 // OVERLAY_YOY — per-point year-over-year ratio against the same period
 // one year prior in an ordered SERIES (grouped Process) host whose
-// grouper is `GROUP_DATE`.
-//
-// E4-S7 scope:
-//
-//   - Sixth windowed-Process overlay in the catalog (siblings: E4-S2
-//     INDEX_VS_BASELINE, E4-S3 DELTA_VS_BASELINE, E4-S4 INDEX_VS_PRIOR,
-//     E4-S5 INDEX_VS_ROLLING_MEAN, E4-S6 ZSCORE_VS_ROLLING). Registered
-//     in processing/overlay_series.go's seriesOverlayHandlers dispatch
-//     table; the dispatch route is the buffered post-host-finalize
-//     entry point for the SERIES overlay engine.
-//   - First kind to consume the `Ref.YoY` empty marker arm of the
-//     OverlayRef discriminated union. The arm is an empty marker — the
-//     frequency value lives on `OverlaySpec.Params["frequency"]` (the
-//     YoY's own override) or falls back to `req.Groups[0].Params["frequency"]`
-//     (the canonical GROUP_DATE authoring slot).
-//   - Per-point math: `index_i = point_value_i / prior_year_value * 100`
-//     where `prior_year_value` is the host series value at the matching
-//     prior-year ordinal computed per frequency:
+// grouper is `GROUP_DATE`. Per-point math: `index_i = point_value_i /
+// prior_year_value * 100` where `prior_year_value` is the host series
+// value at the matching prior-year ordinal computed per frequency:
 //
 //	annual    ⇒ i - 1
 //	quarterly ⇒ i - 4
@@ -41,13 +26,17 @@ import (
 //	hourly    ⇒ exact-hour 365×24-hour-prior arithmetic with the same
 //	            exact-key rule.
 //
+// Consumes the `Ref.YoY` empty marker arm of the OverlayRef
+// discriminated union. The arm is an empty marker — the frequency value
+// lives on `OverlaySpec.Params["frequency"]` (the YoY's own override)
+// or falls back to `req.Groups[0].Params["frequency"]` (the canonical
+// GROUP_DATE authoring slot).
+//
 // Required GROUP_DATE host grouper (runtime mirror of predict gate):
 // the kind only operates against a SERIES host whose first grouper is
 // `GROUP_DATE`. The runtime introspection reads the grouper kind via
-// `SeriesHostView.GrouperKinds()[0]` (populated by the E3-S6
-// orchestrator wiring + the E4-S7 SeriesHostView extension). When the
-// host's grouper kind list is empty (callers that built the view via
-// the pre-E4-S7 constructors) the runtime defers to the predict gate's
+// `SeriesHostView.GrouperKinds()[0]`. When the host's grouper kind list
+// is empty (legacy callers) the runtime defers to the predict gate's
 // earlier rejection — predict already surfaces
 // `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` for non-DATE hosts via
 // `descriptor.validateOverlayYoY` (the runtime defense is cheap and
@@ -63,12 +52,11 @@ import (
 // Note: this handler runs at the SERIES exit and receives the spec but
 // NOT the request — the host's grouper Params are NOT available here.
 // The runtime relies on the spec.Params["frequency"] arm; the predict
-// gate walks req.Groups[0].Params and the orchestrator wiring (E3-S6
-// applyOverlaysSeriesToResponse) is responsible for promoting the
+// gate walks req.Groups[0].Params and the orchestrator wiring at
+// applyOverlaysSeriesToResponse is responsible for promoting the
 // grouper's frequency onto every YoY spec before the handler runs.
-// The hook lives at applyOverlaysSeriesToResponse — see the call site
-// comments there for the promotion details. The handler defends
-// against a missing frequency by emitting the
+// See the call-site comments there for the promotion details. The
+// handler defends against a missing frequency by emitting the
 // PULSE_OVERLAY_YOY_FREQUENCY_MISSING code from this surface even
 // though predict and the orchestrator hook should catch it first.
 //
@@ -142,9 +130,8 @@ func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer
 	}
 
 	// Runtime host-grouper-kind introspection. When the host carries a
-	// populated grouper-kind list (the E3-S6 orchestrator wiring
-	// thread-through), enforce the "first grouper must be GROUP_DATE"
-	// requirement at runtime. When the list is empty (legacy
+	// populated grouper-kind list, enforce the "first grouper must be
+	// GROUP_DATE" requirement at runtime. When the list is empty (legacy
 	// constructors) defer to the predict gate's earlier rejection.
 	if kinds := host.GrouperKinds(); len(kinds) > 0 {
 		if kinds[0] != types.GROUP_DATE {
@@ -238,7 +225,7 @@ func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer
 		}
 		// Absent host point: emit a present SeriesEntry with an unset
 		// Summary.Statistic (the canonical "present slot, empty
-		// summary" shape from E3-S1).
+		// summary" shape from the SERIES dispatch contract).
 		entries = append(entries, types.SeriesEntry{
 			Key:     keyCopy,
 			Summary: summary,

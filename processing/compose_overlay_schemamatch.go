@@ -8,8 +8,8 @@ import (
 )
 
 // Strict structural schema match for the COMPOSE-host overlay
-// dispatch. Runs AFTER the key-set alignment gate (E7-S6) and BEFORE
-// the per-kind handler dispatch. Three orthogonal gates fire from
+// dispatch. Runs AFTER the key-set alignment gate and BEFORE the
+// per-kind handler dispatch. Three orthogonal gates fire from
 // the same entry point so the canonical-code dispatch stays
 // orthogonal:
 //
@@ -21,12 +21,7 @@ import (
 //
 //  2. PULSE_OVERLAY_SLOT_NOT_CROSSTAB — the spec's Kind requires a
 //     MATRIX-shape host (per the per-kind shape-required catalog) but
-//     a resolved slot is not a crosstab result. The matrix-required
-//     catalog lands with the per-kind handlers in E7-S9..S12; the
-//     `kindRequiresMatrix` helper is a stub returning false at S7
-//     time so this gate is currently unreachable from runtime. The
-//     catalog row is in place so subsequent E7 stories can wire shape
-//     gating without touching this file again.
+//     a resolved slot is not a crosstab result.
 //
 //  3. PULSE_OVERLAY_SCHEMA_DIVERGENT — row / column axis schemas
 //     disagree across slots. The match is structural over grouper
@@ -61,23 +56,19 @@ import (
 //
 // Where this fits in the canonical-code matrix:
 //
-//   - PULSE_OVERLAY_KEY_SET_DIVERGENT (E7-S6) runs FIRST. If keys
-//     agree, structure can still diverge in axis grouper kind.
+//   - PULSE_OVERLAY_KEY_SET_DIVERGENT runs FIRST. If keys agree,
+//     structure can still diverge in axis grouper kind.
 //   - PULSE_OVERLAY_SCHEMA_DIVERGENT / SLOT_SHAPE_DIVERGENT /
-//     SLOT_NOT_CROSSTAB (this file, E7-S7).
-//   - Dict-drift / field semantic gates land in E7-S8.
+//     SLOT_NOT_CROSSTAB (this file).
+//   - Dict-drift / field semantic gates fire after the structural
+//     checks here.
 //   - Per-kind handler executes AFTER all three gates pass.
-//
-// codeMetadata for all three codes lands in errors/fixup_metadata.go
-// at minimal-row quality today; E7-S13 polishes the Message + Fixup
-// catalog.
 
 // composeOverlaySchemaShape captures the structural schema for one
 // slot — the host shape plus the per-axis grouper-kind tuples. The
-// per-axis tuples drop field names by design (field names are
-// allowed to differ across slots per the E7-S7 acceptance
-// "Field names allowed to differ; only kinds + types + depth
-// compared"). For MATRIX shape both rowAxis and colAxis are
+// per-axis tuples drop field names by design — field names are
+// allowed to differ across slots; only kinds + types + depth are
+// compared. For MATRIX shape both rowAxis and colAxis are
 // populated; for SERIES shape rowAxis carries the series group-key
 // columns (sorted) and colAxis is empty; for SCALAR shape both are
 // empty.
@@ -85,10 +76,10 @@ import (
 // cellShape captures the per-cell payload contract — distinct
 // scalar / rich families are structurally different (a scalar
 // float64 cell and a WelfordTriple-bearing cell can NOT participate
-// in the same per-cell COMPOSE handler). E1-S8 extends the
-// structural match to reject mixed cell shapes ahead of the per-
-// kind dispatch so triple-aware handlers (T_CELL, OVERLAY_Z_CELL)
-// and scalar handlers stay distinct surfaces. Populated only for
+// in the same per-cell COMPOSE handler). The structural match
+// rejects mixed cell shapes ahead of the per-kind dispatch so
+// triple-aware handlers (T_CELL, OVERLAY_Z_CELL) and scalar
+// handlers stay distinct surfaces. Populated only for
 // the MATRIX shape; empty for SERIES / SCALAR (the cell-shape
 // probe is matrix-only — series rows carry value columns, scalars
 // have no cell grid).
@@ -159,8 +150,7 @@ func joinKindTuple(parts []string) string {
 //
 // Returns a SCALAR shape with empty axes for nil *Response —
 // defensive guard so callers that reach this helper without going
-// through the slot resolver (descriptor predict at E7-S14) still
-// get a well-formed short-circuit.
+// through the slot resolver still get a well-formed short-circuit.
 func extractSchemaShape(resp *types.Response) composeOverlaySchemaShape {
 	if resp == nil {
 		return composeOverlaySchemaShape{shape: types.OverlayShapeScalar}
@@ -184,9 +174,9 @@ func extractSchemaShape(resp *types.Response) composeOverlaySchemaShape {
 
 // extractSeriesAxisFields returns the sorted list of non-value
 // column names from a series Response.Data. Mirrors the
-// encodeSeriesRow value-column rule (E7-S6): the FIRST sorted
-// numeric column is the value, subsequent numeric columns
-// participate in the structural axis alongside non-numeric columns.
+// encodeSeriesRow value-column rule: the FIRST sorted numeric column
+// is the value, subsequent numeric columns participate in the
+// structural axis alongside non-numeric columns.
 //
 // Returns nil when the rows are empty OR when the first row has no
 // columns. The structural-match gate treats nil as the empty axis
@@ -241,7 +231,7 @@ func extractSeriesAxisFields(rows []map[string]any) []string {
 // equivalent (degenerate match) so a zero-row matrix slot does
 // not trip the gate against another zero-row matrix slot.
 //
-// E1-S8 admits scalar (float64 / float32 / int / int64 / uint32
+// The probe admits scalar (float64 / float32 / int / int64 / uint32
 // / uint64) and processing.WelfordTriple as the two canonical
 // cell shapes. Future Rich payloads (e.g. map[string]int for
 // AGG_SET_FREQUENCY, []string for AGG_SET_UNION) fall through to
@@ -268,8 +258,8 @@ func probeMatrixCellShape(m *types.MatrixPayload) string {
 // cell-shape token. Scalar numeric kinds collapse to "scalar" so
 // the per-aggregator numeric width (float32 vs float64 vs int)
 // never trips the gate. WelfordTriple is the named carve-out for
-// the AGG_WELFORD rich payload — the E1 stat-test-overlay-parity
-// epic depends on triple-aware handlers binding to this token.
+// the AGG_WELFORD rich payload — the stat-test-overlay-parity
+// family depends on triple-aware handlers binding to this token.
 // Unrelated Rich families fall through to type-name branches so
 // the gate stays orthogonal across them without dragging in
 // reflect.
@@ -312,13 +302,11 @@ func cellShapesEqual(a, b string) bool {
 }
 
 // kindRequiresMatrix reports whether the given OverlayKind requires
-// a MATRIX-shape host. The Compose-only matrix-required catalog
-// lands kind-by-kind with the per-kind handlers. E7-S9 registered
-// the first six entries; E7-S10 lifts OVERLAY_INDEX_VS_REF and
-// OVERLAY_DELTA_VS_REF out of the matrix-required set because they
-// now accept dual-shape (MATRIX or SERIES) hosts — the per-handler
-// shape dispatch routes the in-kind arm. OVERLAY_T_VS_REF is the
-// SERIES-shape sibling of OVERLAY_T_CELL and stays matrix-NOT-required.
+// a MATRIX-shape host. OVERLAY_INDEX_VS_REF and OVERLAY_DELTA_VS_REF
+// accept dual-shape (MATRIX or SERIES) hosts and stay out of the
+// matrix-required set — the per-handler shape dispatch routes the
+// in-kind arm. OVERLAY_T_VS_REF is the SERIES-shape sibling of
+// OVERLAY_T_CELL and stays matrix-NOT-required.
 //
 // Matrix-required today:
 //   - OVERLAY_PROP_Z_CELL, OVERLAY_PROP_Z_PANEL, OVERLAY_T_CELL,
@@ -330,18 +318,18 @@ func cellShapesEqual(a, b string) bool {
 // non-MATRIX target; the canonical-code dispatch carries
 // {target_label, required_shape="MATRIX", observed_shape} Details.
 // Dual-shape kinds (OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF) and
-// series-shape kinds (OVERLAY_T_VS_REF, future E7-S11..S12) stay
-// false here; their per-slot shape gating fires through the more
-// general PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path (still ensures
-// reference + target slots share the same host shape).
+// series-shape kinds (OVERLAY_T_VS_REF) stay false here; their
+// per-slot shape gating fires through the more general
+// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path (still ensures reference +
+// target slots share the same host shape).
 func kindRequiresMatrix(kind types.OverlayKind) bool {
 	return KindRequiresMatrix(kind)
 }
 
 // KindRequiresMatrix is the exported sibling of the package-internal
 // kindRequiresMatrix predicate. The descriptor-side compose validator
-// (descriptor.ValidateCompose, E7-S14) needs to read the catalog
-// without dragging in processing's full overlay machinery, but the
+// (descriptor.ValidateCompose) needs to read the catalog without
+// dragging in processing's full overlay machinery, but the
 // per-helper sync test (TestKindRequiresMatrixCompose_MatchesProcessing
 // in descriptor/compose_test.go) pins the two surfaces in lockstep so
 // a new matrix-required kind cannot land here without an accompanying
@@ -454,8 +442,6 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 		// declares MATRIX-required AND the target is non-MATRIX. The
 		// reference arm above caught the symmetric case; this one
 		// catches a non-MATRIX target paired with a MATRIX reference.
-		// Today kindRequiresMatrix returns false everywhere so this
-		// branch is unreachable at runtime; E7-S9..S12 flip the bit.
 		if kindRequiresMatrix(spec.Kind) && tSchema.shape != types.OverlayShapeMatrix {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_INTERNAL,
@@ -493,7 +479,7 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 				})
 		}
 
-		// Gate 3.5: SCHEMA_DIVERGENT — cell-shape arm (E1-S8).
+		// Gate 3.5: SCHEMA_DIVERGENT — cell-shape arm.
 		// Reuses the canonical SCHEMA_DIVERGENT code; same coded-
 		// error envelope, distinct Details payload. Fires when the
 		// reference and a target slot carry structurally different

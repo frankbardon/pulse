@@ -11,10 +11,9 @@ import (
 // immediately preceding point of an ordered SERIES (grouped Process)
 // host.
 //
-// E4-S4 scope:
+// Behaviour:
 //
-//   - First streamable windowed-Process handler in the catalog (per
-//     kind-catalog-v1 "Streaming-capable subset"). Registered in
+//   - Streamable windowed-Process handler. Registered in
 //     processing/overlay_series.go's seriesOverlayHandlers dispatch
 //     table; the dispatch route is the post-host finalize entry point
 //     for the streaming-Process orchestrator AND the buffered fallback
@@ -60,7 +59,7 @@ import (
 // Absent-point policy (lag carrier does not advance): an absent host
 // ordinal (resolver reports `(0, false)`) emits a present SeriesEntry
 // whose Summary leaves Statistic unset and DOES NOT advance the carrier.
-// This matches the E3-S2 / E3-S3 / E3-S4 absent-group contract and the
+// This matches the SERIES-host absent-group contract and the
 // SeriesHostView resolver documentation. The next present ordinal will
 // compare against the last PRESENT value, not the absent slot.
 //
@@ -191,7 +190,7 @@ func applyIndexVsPrior(spec *types.OverlaySpec, host *SeriesHostView) (types.Ove
 		}
 		// Absent host point: emit a present SeriesEntry with an unset
 		// Summary.Statistic (the canonical "present slot, empty summary"
-		// shape from E3-S1) and do NOT advance the carrier.
+		// shape) and do NOT advance the carrier.
 		entries = append(entries, types.SeriesEntry{
 			Key:     keyCopy,
 			Summary: summary,

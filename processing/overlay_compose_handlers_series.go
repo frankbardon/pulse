@@ -7,14 +7,14 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// COMPOSE-host SERIES-shape overlay handlers (E7-S10).
+// COMPOSE-host SERIES-shape overlay handlers.
 //
 // Dual-shape kinds (OVERLAY_INDEX_VS_REF, OVERLAY_DELTA_VS_REF) +
 // the series-only OVERLAY_T_VS_REF dispatch into the series arms
 // below when the chassis detects a SERIES host. The MATRIX arms
 // continue to live alongside in overlay_compose_handlers.go.
 //
-// Shape dispatch (E7-S10 design decision): each dual-shape handler
+// Shape dispatch: each dual-shape handler
 // in overlay_compose_handlers.go starts with a `composeHostIsSeries`
 // arm — when the reference and target slots both carry SERIES-shape
 // host results (resp.Data populated, resp.Crosstab nil/empty), the
@@ -37,7 +37,7 @@ import (
 
 // composeHostIsSeries reports whether the per-spec reference + first
 // target both carry SERIES-shape host responses. The chassis schema-
-// match gate (E7-S7) already enforces shape parity between reference
+// match gate already enforces shape parity between reference
 // and target slots — when this returns true the per-kind handler
 // dispatches into its series arm.
 //
@@ -256,7 +256,7 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 // variance / default-sample-size policy and the same studentTTwoSidedP
 // helper.
 //
-// Components-source (E3-S7): when both target and reference value
+// Components-source: when both target and reference value
 // columns carry a `{mean, variance, n}` triple map — emitted by
 // AGG_WELFORD via the MetaAggregator path — the handler consumes the
 // triple directly and bypasses the Params defaults. The overlay
@@ -268,7 +268,7 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 // is no longer performed.
 //
 // Mixed value-column shapes (one triple, one scalar) are blocked
-// upstream by the compose schema-match gate (E1-S8). The handler
+// upstream by the compose schema-match gate. The handler
 // still emits a defensive PULSE_OVERLAY_SCHEMA_DIVERGENT if a mixed
 // pair slips through.
 //
@@ -364,7 +364,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			continue
 		}
 
-		// Mixed value-column shapes — schema-match gate (E1-S8) should
+		// Mixed value-column shapes — schema-match gate should
 		// already reject this upstream; emit a defensive coded error
 		// if a mismatched pair slips through.
 		if hasTriple != refEntry.HasTriple {

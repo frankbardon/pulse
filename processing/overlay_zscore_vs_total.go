@@ -8,26 +8,20 @@ import (
 )
 
 // OVERLAY_ZSCORE_VS_TOTAL — per-group standardized z-score against the
-// host series' grand-total distribution.
-//
-// E3-S4 scope:
-//
-//   - Third and final streamable SERIES-host handler in the catalog —
-//     sibling to OVERLAY_INDEX_VS_TOTAL (E3-S2) and the SERIES dispatch
-//     of OVERLAY_SHARE_OF_TOTAL (E3-S3). Registered in
-//     processing/overlay_series.go's seriesOverlayHandlers dispatch
-//     table; the dispatch route is the post-host finalize entry point
-//     for the streaming-Process orchestrator (E3-S6) AND the buffered
-//     fallback entry point for any callers that materialise the host
-//     series before calling into the overlay surface.
-//   - Per-group math: `zscore_i = (group_val[i] - mean) / sd` where
-//     `mean = Σ_j group_val[j] / N` and `sd = sqrt(M2 / N)` (POPULATION
-//     variance — divide by N, not N-1) folded across the N present
-//     per-group aggregated values via the single-pass Welford-Pébaÿ
-//     recurrence. Absent groups (resolver reports (0, false)) are
-//     skipped — they do NOT contribute to the Welford accumulator,
-//     identical to the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES grand-
-//     total fold contract.
+// host series' grand-total distribution. Per-group math:
+// `zscore_i = (group_val[i] - mean) / sd` where
+// `mean = Σ_j group_val[j] / N` and `sd = sqrt(M2 / N)` (POPULATION
+// variance — divide by N, not N-1) folded across the N present
+// per-group aggregated values via the single-pass Welford-Pébaÿ
+// recurrence. Absent groups (resolver reports (0, false)) are
+// skipped — they do NOT contribute to the Welford accumulator,
+// identical to the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES grand-total
+// fold contract. Registered in processing/overlay_series.go's
+// seriesOverlayHandlers dispatch table; the dispatch route is the
+// post-host finalize entry point for the streaming-Process
+// orchestrator AND the buffered fallback entry point for any callers
+// that materialise the host series before calling into the overlay
+// surface.
 //
 // Variance choice (population, not sample): the kind name says
 // `_VS_TOTAL` which implies the host's per-group aggregation set IS the
@@ -41,17 +35,14 @@ import (
 // equivalence tests stay byte-equal within ULP.
 //
 // Why single-pass Welford (and not the two-pass classical
-// `Σ(x - mean)² / N` formula): the story acceptance criterion calls for
-// "Welford accumulator (mean + M2) updated per group at finalize —
-// single-pass over the per-group SeriesPayload". The single-pass
-// recurrence is numerically stable on values of disparate magnitudes
-// (the classical formula suffers from catastrophic cancellation when
-// the mean and the values are similar but the variance is small) and
-// it is the same convention the parallel buffered Process path uses
-// for cross-mode parity. A TestOverlay_ZScoreVsTotal_WelfordULP test
-// in this file's companion suite verifies the single-pass output stays
-// within ULP of the two-pass classical formula across a benign input
-// distribution.
+// `Σ(x - mean)² / N` formula): the single-pass recurrence is
+// numerically stable on values of disparate magnitudes (the classical
+// formula suffers from catastrophic cancellation when the mean and the
+// values are similar but the variance is small) and it is the same
+// convention the parallel buffered Process path uses for cross-mode
+// parity. A TestOverlay_ZScoreVsTotal_WelfordULP test in this file's
+// companion suite verifies the single-pass output stays within ULP of
+// the two-pass classical formula across a benign input distribution.
 //
 // Zero-variance path: when `sd == 0` (every present group value is
 // equal, including the every-group-zero degenerate case AND the
@@ -63,24 +54,23 @@ import (
 // preserved regardless of denominator health.
 //
 // Streaming finalize hook: same shape as INDEX_VS_TOTAL /
-// SHARE_OF_TOTAL — the streaming-Process orchestrator wiring lands in
-// E3-S6, and the inner per-record hook keeps a single Welford triple
-// (count + mean + M2) inside the streaming fold alongside the per-
-// group accumulators. This file ships the SERIES-host POST-FINALIZE
-// entry; given a finalized SeriesHostView, the handler folds Welford
-// once over the host group values and emits per-group standardised
-// scores. The streaming-vs-buffered byte-identity test asserts that
-// running this handler against a streaming vs a buffered host produces
+// SHARE_OF_TOTAL — the streaming-Process orchestrator's inner
+// per-record hook keeps a single Welford triple (count + mean + M2)
+// inside the streaming fold alongside the per-group accumulators.
+// This file ships the SERIES-host POST-FINALIZE entry; given a
+// finalized SeriesHostView, the handler folds Welford once over the
+// host group values and emits per-group standardised scores. The
+// streaming-vs-buffered byte-identity test asserts that running this
+// handler against a streaming vs a buffered host produces
 // byte-identical SeriesPayload output.
 //
-// Gotcha (per the E3-S4 story note): the streaming pass folds Welford
-// over GROUPS, not raw records — variance is across N groups, not N
-// records. This differs from `ATTR_ZSCORE`'s record-level semantics
-// (which standardises raw cell values against their record-level mean
-// and SD). The two surfaces are intentionally orthogonal: ATTR_ZSCORE
-// standardises records inside a single column; OVERLAY_ZSCORE_VS_TOTAL
-// standardises aggregated group totals against the per-group
-// distribution.
+// Gotcha: the streaming pass folds Welford over GROUPS, not raw
+// records — variance is across N groups, not N records. This differs
+// from `ATTR_ZSCORE`'s record-level semantics (which standardises raw
+// cell values against their record-level mean and SD). The two
+// surfaces are intentionally orthogonal: ATTR_ZSCORE standardises
+// records inside a single column; OVERLAY_ZSCORE_VS_TOTAL standardises
+// aggregated group totals against the per-group distribution.
 //
 // Structural invariants:
 //
@@ -104,9 +94,9 @@ import (
 // and SHARE_OF_TOTAL SERIES) — the two helpers diverge on the
 // accumulator state they carry (one f64 for grand-total kinds, three
 // for the Welford triple) but share the same single-pass-over-host
-// shape so the streaming-Process orchestrator (E3-S6) can keep ONE
-// per-spec accumulator alongside the per-group accumulators regardless
-// of which streamable SERIES kinds the request mixes.
+// shape so the streaming-Process orchestrator can keep ONE per-spec
+// accumulator alongside the per-group accumulators regardless of which
+// streamable SERIES kinds the request mixes.
 //
 // Recurrence (single-pass Welford-Pébaÿ):
 //
@@ -177,19 +167,18 @@ func computeSeriesWelfordPopulation(host *SeriesHostView) (mean, sd float64, pre
 //     they do NOT contribute to the Welford accumulator and they do
 //     NOT carry a Statistic on the emitted entry.
 //  2. Second pass emits one SeriesEntry per host ordinal in host order
-//     — the parallel-slice contract (FR-A2) the E3-S1 dispatch
-//     established. Present groups carry Statistic = `(value - mean) /
-//     sd`; absent groups carry a nil Statistic.
+//     — the parallel-slice contract the SERIES dispatch established.
+//     Present groups carry Statistic = `(value - mean) / sd`; absent
+//     groups carry a nil Statistic.
 //
 // The two-pass shape over the SERIES host is the post-finalize fold the
-// streaming-Process orchestrator (E3-S6) drives at the end of the
-// streaming pass — by the time ApplyOverlaysSeries calls into this
-// handler the host series is finalised, so "two passes over the host"
-// is structurally O(groups), not O(records). The streaming
-// orchestrator's per-record fold runs ONCE over the cohort to build
-// the host series + a sibling Welford triple; THIS handler then runs
-// once over the finalized host. Combined cost per the PRD §6 streaming
-// gate: O(records + groups × layers).
+// streaming-Process orchestrator drives at the end of the streaming
+// pass — by the time ApplyOverlaysSeries calls into this handler the
+// host series is finalised, so "two passes over the host" is
+// structurally O(groups), not O(records). The streaming orchestrator's
+// per-record fold runs ONCE over the cohort to build the host series +
+// a sibling Welford triple; THIS handler then runs once over the
+// finalized host. Combined cost: O(records + groups × layers).
 //
 // Zero-variance path: `sd == 0` (which covers every-group-equal, every-
 // group-zero, single-present-group, and arithmetic underflow) yields
@@ -223,9 +212,9 @@ func applyZScoreVsTotal(spec *types.OverlaySpec, host *SeriesHostView) (types.Ov
 	// Pass 1: running Welford accumulator (count + mean + M2) via the
 	// dedicated SERIES helper. Absent host values (resolver reports
 	// `(0, false)`) skip the addition — this is the AGG_SUM semantics
-	// the story acceptance calls out (POST-FILTER only, never reads
-	// pre-filter row count) AND the Welford variant of the grand-total
-	// fold INDEX_VS_TOTAL / SHARE_OF_TOTAL share.
+	// (POST-FILTER only, never reads pre-filter row count) AND the
+	// Welford variant of the grand-total fold INDEX_VS_TOTAL /
+	// SHARE_OF_TOTAL share.
 	mean, sd, presentMask, values, n := computeSeriesWelfordPopulation(host)
 
 	// Zero-variance path: emit one PULSE_OVERLAY_REF_ZERO warning and
@@ -254,9 +243,9 @@ func applyZScoreVsTotal(spec *types.OverlaySpec, host *SeriesHostView) (types.Ov
 
 	// Pass 2: per-host-ordinal entry emission. Absent groups carry a
 	// nil Summary.Statistic (canonical "present slot, empty summary"
-	// shape from E3-S1). Present groups carry Statistic = (value -
-	// mean) / sd; in the zero-variance path every present group
-	// carries NaN.
+	// shape from the SERIES dispatch contract). Present groups carry
+	// Statistic = (value - mean) / sd; in the zero-variance path every
+	// present group carries NaN.
 	entries := make([]types.SeriesEntry, 0, groupCount)
 	var (
 		minV float64

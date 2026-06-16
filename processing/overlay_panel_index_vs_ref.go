@@ -5,24 +5,22 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E7-S12 runtime handler for OVERLAY_PANEL_INDEX_VS_REF — the
-// multi-reference DESCRIPTIVE COMPOSE-host ratio index that emits ONE
-// OverlayLayer per target slot against a single shared reference slot.
-// Each emitted layer is mathematically equivalent to
-// OVERLAY_INDEX_VS_REF for that single (reference, target[i]) pair —
-// the handler reuses the single-target `applyIndexVsRef` math verbatim
-// per target, then renames the resulting layer per the
-// `<spec.Name>__<target_label>` template documented on the kind's
-// catalog row.
+// Runtime handler for OVERLAY_PANEL_INDEX_VS_REF — the multi-reference
+// DESCRIPTIVE COMPOSE-host ratio index that emits ONE OverlayLayer per
+// target slot against a single shared reference slot. Each emitted
+// layer is mathematically equivalent to OVERLAY_INDEX_VS_REF for that
+// single (reference, target[i]) pair — the handler reuses the
+// single-target `applyIndexVsRef` math verbatim per target, then
+// renames the resulting layer per the `<spec.Name>__<target_label>`
+// template documented on the kind's catalog row.
 //
-// Multi-layer chassis surface: PANEL_INDEX_VS_REF is the first kind
-// to consume the `composeOverlayMultiLayerHandler` signature added in
-// E7-S12 — the chassis dispatch in ApplyComposeOverlays checks the
-// multi-layer dispatch table FIRST and appends every emitted layer to
-// the parent layers slice in (spec order × target order). The
-// PROP_Z_PANEL pattern from E7-S11 encoded its N-slot output inside a
-// single layer's per-cell vector; PANEL_INDEX_VS_REF emits N layers
-// instead so renderers see the panel as N parallel index strips
+// Multi-layer chassis surface: PANEL_INDEX_VS_REF consumes the
+// `composeOverlayMultiLayerHandler` signature — the chassis dispatch
+// in ApplyComposeOverlays checks the multi-layer dispatch table FIRST
+// and appends every emitted layer to the parent layers slice in
+// (spec order × target order). PROP_Z_PANEL encodes its N-slot output
+// inside a single layer's per-cell vector; PANEL_INDEX_VS_REF emits N
+// layers instead so renderers see the panel as N parallel index strips
 // sharing one coord canvas.
 //
 // Cap enforcement: identical to OVERLAY_PROP_Z_PANEL — the catalog
@@ -34,13 +32,12 @@ import (
 // not count against the cap (so an authoring shape with 16 targets is
 // valid against the default 16; 17 targets fail).
 //
-// Shared coord space: the schema-match (E7-S7) and key-alignment
-// (E7-S6) gates already enforce coord-space identity across every
-// (reference, target) pair BEFORE this handler dispatches, so every
-// emitted layer's row/col axis descriptors are byte-identical (matrix
-// host) or share the same group key set (series host) by construction.
-// The handler relies on that invariant rather than re-validating per
-// emission.
+// Shared coord space: the schema-match and key-alignment gates already
+// enforce coord-space identity across every (reference, target) pair
+// BEFORE this handler dispatches, so every emitted layer's row/col
+// axis descriptors are byte-identical (matrix host) or share the same
+// group key set (series host) by construction. The handler relies on
+// that invariant rather than re-validating per emission.
 
 // panelLayerName builds the renderer-facing label for one emitted
 // PANEL_INDEX_VS_REF layer. Template: `<spec.Name>__<target_label>`.

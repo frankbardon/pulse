@@ -9,12 +9,9 @@ import (
 )
 
 // OVERLAY_ZSCORE_VS_POP — per-value population-comparison z-score
-// against a FACET host (E5-S3).
-//
-// Sibling streamable FACET-host kind to `OVERLAY_INDEX_VS_POP` (E5-S2).
-// Pairs with INDEX_VS_POP as the two streamable Facet overlay kinds —
-// the viz developer requesting both together gets two parallel series
-// layers from a single Facet pass. Structure mirrors
+// against a FACET host. Sibling streamable FACET-host kind to
+// `OVERLAY_INDEX_VS_POP` — requesting both together produces two
+// parallel series layers from a single Facet pass. Structure mirrors
 // `processing/overlay_index_vs_pop.go` verbatim — same dispatch arms
 // (discrete fast path + numeric path), same per-entry Summary shape,
 // same zero-sd_pop warning contract.
@@ -49,24 +46,22 @@ import (
 //     population) the handler emits one layer-level zero-denominator
 //     warning and zero entries.
 //
-// Zero-sd_pop path (per E5-S3 acceptance): when `sd_pop == 0` the
-// handler emits ONE PULSE_OVERLAY_REF_ZERO warning per affected entry
-// (discrete arm — value-level granularity) OR one layer-level warning
-// (numeric arm — sd_pop is a single layer-scoped denominator). The
-// affected entries' Summary.Statistic stays unset so the parallel-
-// slice contract holds (one entry per host value).
+// Zero-sd_pop path: when `sd_pop == 0` the handler emits ONE
+// PULSE_OVERLAY_REF_ZERO warning per affected entry (discrete arm —
+// value-level granularity) OR one layer-level warning (numeric arm —
+// sd_pop is a single layer-scoped denominator). The affected entries'
+// Summary.Statistic stays unset so the parallel-slice contract holds
+// (one entry per host value).
 //
-// Streaming finalize hook (per E5-S3 acceptance "Streaming finalize
-// hook engaged when host Facet streams; reuses Welford state from S1
-// resolver"): the handler runs at the FacetSchema streaming finalize
-// point — once the host FacetField is fully finalised and the
-// population view's already-folded Welford state is available, the
-// overlay reads against POST-FINALIZE state and emits the per-value
-// z-score. No second pass over records. The streamable guarantee is
-// that running this handler against a streaming Facet host vs a
-// buffered one produces byte-identical SeriesPayload output because
-// the input state is identical (mirrors the INDEX_VS_POP streaming
-// finalize hook).
+// Streaming finalize hook: the handler runs at the FacetSchema
+// streaming finalize point — once the host FacetField is fully
+// finalised and the population view's already-folded Welford state is
+// available, the overlay reads against POST-FINALIZE state and emits
+// the per-value z-score. No second pass over records. The streamable
+// guarantee is that running this handler against a streaming Facet
+// host vs a buffered one produces byte-identical SeriesPayload output
+// because the input state is identical (mirrors the INDEX_VS_POP
+// streaming finalize hook).
 //
 // Structural invariants:
 //
@@ -76,15 +71,6 @@ import (
 //   - No fmt.Sprintf in any JSON-bearing path. Warning messages are
 //     built with string concatenation; numeric bin labels render via
 //     strconv (the no-Sprintf ban covers fmt only).
-//
-// Forward-compat notes:
-//
-//   - E5-S4 (`OVERLAY_CHISQ_VS_POP`) and E5-S5 (`OVERLAY_KS_VS_POP`)
-//     drop in the same way: per-kind handler file + dispatch row +
-//     capability row + skill row + streamability row + manifest
-//     regen. The discrete-arm population-SD accessor on
-//     `FacetPopulationView` (DiscreteFrequencyStdev) is structured for
-//     reuse by E5-S4 if it needs frequency variance.
 
 // applyZScoreVsPop is the OVERLAY_ZSCORE_VS_POP runtime handler. Dispatches
 // to the discrete or numeric arm depending on the host's FacetField.Kind.

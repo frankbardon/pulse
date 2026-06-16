@@ -8,9 +8,9 @@ import (
 // SERIES-host overlay fold engine — runtime side of the grouped Process
 // overlay catalog.
 //
-// E3-S1 scope: structural pre-req for the five grouped-Process overlay
-// kinds that land in E3-S2 .. E3-S5. The buffered crosstab overlay path
-// (overlay.go) folds against a MATRIX host (CrosstabHostView); this file
+// Structural chassis for the grouped-Process overlay kinds. The
+// buffered crosstab overlay path (overlay.go) folds against a MATRIX
+// host (CrosstabHostView); this file
 // is its parallel for a SERIES host — a grouped Process result where the
 // caller passed `Request.Groupers` and the response carries one record
 // per group key. The grouped Process orchestrator (processing/processor.go)
@@ -18,7 +18,7 @@ import (
 // list; each overlay layer in the response is a SeriesPayload of the
 // same arity.
 //
-// What this file lands (per the E3-S1 acceptance criteria):
+// What this file lands:
 //
 //   - SeriesHostView wraps an ordered slice of types.AxisKey group-key
 //     tuples plus a sparse `key → value` resolver for the host's metric
@@ -28,14 +28,12 @@ import (
 //     handlers emit `SeriesEntry.Summary` without a Statistic/PValue
 //     instead of crashing the fold (mirrors the MATRIX path's
 //     absent-host-cell discipline).
-//   - seriesOverlayHandler is the per-kind execution signature. Handlers
-//     receive the spec, the host, and an integer scratch (placeholder
-//     for future kind-specific options) and return a fully-shaped
-//     OverlayLayer + warnings + error. E3-S2..S5 register the real
-//     handlers; E3-S1 only ships the dispatch.
-//   - seriesOverlayHandlers is the per-kind dispatch table. Initialised
-//     empty in production — no SERIES kinds exist as of E3-S1. The
-//     E3-S2..S5 stories add entries.
+//   - seriesOverlayHandler is the per-kind execution signature.
+//     Handlers receive the spec, the host, and an integer scratch
+//     (placeholder for future kind-specific options) and return a
+//     fully-shaped OverlayLayer + warnings + error.
+//   - seriesOverlayHandlers is the per-kind dispatch table; each
+//     SERIES kind registers itself here.
 //   - ApplyOverlaysSeries walks `specs` in matching order, dispatches
 //     each via seriesOverlayHandlers, and returns one OverlayLayer per
 //     spec in matching order plus a flat warnings slice. Unknown kinds
@@ -45,7 +43,7 @@ import (
 //     falls through this branch and the caller gets a coded failure.
 //
 // Streamability discipline (story note): SERIES handlers may be
-// streamable (E3-S2/S3/S4) or buffered (E3-S5). The dispatch entry
+// streamable or buffered per kind. The dispatch entry
 // MUST NOT commit to a memory model at fold-entry — that decision rides
 // on the per-kind handler. ApplyOverlaysSeries is purely structural; it
 // does not inspect `types.OverlayStreamability`.
@@ -102,31 +100,29 @@ type SeriesHostView struct {
 	resolver func(i int) (float64, bool)
 
 	// groupFields names the grouper Fields the host's AxisKey tuples
-	// align to element-for-element. When populated (E3-S6 orchestrator
-	// wiring), the sibling resolver (E3-S5) maps a
-	// `Ref.Sibling.Field` to the matching axis-key element index via
-	// this slot — index `i` of every AxisKey corresponds to
-	// groupFields[i]. When empty (the E3-S5 default, before the
-	// orchestrator wires the slot), the sibling resolver falls back to
-	// scanning every axis-key element. The slot is optional so the
-	// existing E3-S2 / E3-S3 / E3-S4 handlers (which do not consume
-	// the field list) keep working against the legacy constructor.
+	// align to element-for-element. When populated, the sibling
+	// resolver maps a `Ref.Sibling.Field` to the matching axis-key
+	// element index via this slot — index `i` of every AxisKey
+	// corresponds to groupFields[i]. When empty, the sibling resolver
+	// falls back to scanning every axis-key element. The slot is
+	// optional so legacy handlers (which do not consume the field
+	// list) keep working against the legacy constructor.
 	groupFields []string
 
 	// grouperKinds names the grouper Types (`GROUP_CATEGORY` /
 	// `GROUP_DATE` / `GROUP_RANGE` / `GROUP_ROUNDED` / `GROUP_QUANTILE` /
 	// `GROUP_SET_VALUE`) the host's AxisKey tuples are produced from,
 	// element-for-element with `groupFields`. The slot is consulted by
-	// host-shape-introspecting overlay handlers — the E4-S7
-	// `OVERLAY_YOY` handler reads `grouperKinds[0]` to enforce its
-	// "host grouper must be GROUP_DATE" requirement at runtime (the
-	// runtime mirror of the predict gate). When empty (the pre-E4-S7
-	// default constructor path, before the orchestrator threads the
-	// slot), the YoY handler treats the host as unknown and defers to
-	// the predict gate's earlier rejection; nil/empty means "host
-	// grouper kind not introspected". The slot is optional so the
-	// existing E3 / E4 handlers (which do not consult grouper kind)
-	// keep working against the legacy constructor.
+	// host-shape-introspecting overlay handlers — the `OVERLAY_YOY`
+	// handler reads `grouperKinds[0]` to enforce its "host grouper
+	// must be GROUP_DATE" requirement at runtime (the runtime mirror
+	// of the predict gate). When empty (the default constructor path,
+	// before the orchestrator threads the slot), the YoY handler
+	// treats the host as unknown and defers to the predict gate's
+	// earlier rejection; nil/empty means "host grouper kind not
+	// introspected". The slot is optional so handlers that never
+	// consult grouper kind keep working against the legacy
+	// constructor.
 	grouperKinds []types.GroupType
 }
 
@@ -140,7 +136,7 @@ type SeriesHostView struct {
 // The view holds the caller's groupKeys slice header by value; mutating
 // the slice's backing array after construction yields undefined fold
 // behavior. The dispatch contract documents that callers (the grouped
-// Process orchestrator in E3-S6) treat the slice as read-only between
+// Process orchestrator) treat the slice as read-only between
 // the host build and ApplyOverlaysSeries return.
 func NewSeriesHostView(groupKeys []types.AxisKey, resolver func(i int) (float64, bool)) *SeriesHostView {
 	return &SeriesHostView{groupKeys: groupKeys, resolver: resolver}
@@ -149,15 +145,15 @@ func NewSeriesHostView(groupKeys []types.AxisKey, resolver func(i int) (float64,
 // NewSeriesHostViewWithFields wraps an ordered list of group keys, a
 // resolver, and the grouper-field list the AxisKey tuples align to.
 // The grouper-field list is the source-of-truth for the sibling
-// resolver (E3-S5) — `groupFields[i]` names the field index `i` of
+// resolver — `groupFields[i]` names the field index `i` of
 // every AxisKey corresponds to. Length of groupFields SHOULD match the
 // width of every AxisKey tuple (the orchestrator's grouper list); a
 // shorter list is tolerated and the resolver simply cannot resolve
 // fields outside the declared range. Empty groupFields keeps the
-// resolver in its E3-S5 fallback (scan every axis-key element). The
-// helper exists alongside NewSeriesHostView so the legacy E3-S2 /
-// E3-S3 / E3-S4 handlers (which never consult the field list) keep
-// compiling against the simpler two-argument constructor.
+// resolver in its scan-every-element fallback. The helper exists
+// alongside NewSeriesHostView so legacy handlers (which never consult
+// the field list) keep compiling against the simpler two-argument
+// constructor.
 func NewSeriesHostViewWithFields(groupKeys []types.AxisKey, resolver func(i int) (float64, bool), groupFields []string) *SeriesHostView {
 	return &SeriesHostView{groupKeys: groupKeys, resolver: resolver, groupFields: groupFields}
 }
@@ -166,18 +162,18 @@ func NewSeriesHostViewWithFields(groupKeys []types.AxisKey, resolver func(i int)
 // resolver, the grouper-field list, and the grouper-kind list the
 // AxisKey tuples are produced from. The grouper-kind list is the
 // source-of-truth for host-shape-introspecting overlay handlers — the
-// E4-S7 `OVERLAY_YOY` handler reads `grouperKinds[0]` to enforce its
+// `OVERLAY_YOY` handler reads `grouperKinds[0]` to enforce its
 // "host grouper must be GROUP_DATE" requirement at runtime.
 //
 // Length of `grouperKinds` SHOULD match `groupFields` (the orchestrator's
 // grouper list); a shorter list is tolerated and host-shape-introspecting
 // handlers simply cannot resolve kinds outside the declared range. Empty
-// `grouperKinds` keeps host-shape introspection in its pre-E4-S7
+// `grouperKinds` keeps host-shape introspection in its deferred
 // fallback (the handler defers to the predict gate's earlier
 // rejection). The helper exists alongside `NewSeriesHostView` and
-// `NewSeriesHostViewWithFields` so the legacy E3-S2 / E3-S3 / E3-S4 /
-// E4-S2..S6 handlers (which never consult the grouper-kind list) keep
-// compiling against the simpler constructors.
+// `NewSeriesHostViewWithFields` so legacy handlers (which never
+// consult the grouper-kind list) keep compiling against the simpler
+// constructors.
 func NewSeriesHostViewWithGrouper(groupKeys []types.AxisKey, resolver func(i int) (float64, bool), groupFields []string, grouperKinds []types.GroupType) *SeriesHostView {
 	return &SeriesHostView{
 		groupKeys:    groupKeys,
@@ -222,7 +218,7 @@ func (h *SeriesHostView) GroupKeys() []types.AxisKey {
 
 // GroupFields returns the grouper Fields the host's AxisKey tuples
 // align to element-for-element. Returns nil when the view is nil OR
-// when the view was built via NewSeriesHostView (E3-S5 default — the
+// when the view was built via NewSeriesHostView (the
 // field list is optional). The sibling resolver consults this slot to
 // map a `Ref.Sibling.Field` to the matching axis-key element index;
 // when the slot is empty the resolver falls back to scanning every
@@ -239,9 +235,9 @@ func (h *SeriesHostView) GroupFields() []string {
 // GrouperKinds returns the grouper Types the host's AxisKey tuples are
 // produced from, element-for-element with `GroupFields()`. Returns nil
 // when the view is nil OR when the view was built via
-// `NewSeriesHostView` / `NewSeriesHostViewWithFields` (the pre-E4-S7
-// default constructors — the slot is optional). The E4-S7
-// `OVERLAY_YOY` handler consults `GrouperKinds[0]` to enforce its
+// `NewSeriesHostView` / `NewSeriesHostViewWithFields` (the slot is
+// optional). The `OVERLAY_YOY` handler consults `GrouperKinds[0]` to
+// enforce its
 // "host grouper must be GROUP_DATE" requirement at runtime. When the
 // slot is empty the YoY handler defers to the predict gate's earlier
 // rejection (predict already surfaces
@@ -290,9 +286,9 @@ func (h *SeriesHostView) ValueAt(i int) (float64, bool) {
 type seriesOverlayHandler func(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error)
 
 // seriesOverlayHandlers is the per-kind dispatch table for the SERIES
-// host path. Stories E3-S2 / E3-S3 / E3-S4 / E3-S5 register the real
-// handlers (and add the matching kind constants + capability rows +
-// skill mentions per the CLAUDE.md Update Demand row for overlays).
+// host path. Each kind brings matching kind constants + capability
+// rows + skill mentions per the CLAUDE.md Update Demand row for
+// overlays.
 //
 // Tests register synthetic handlers by writing into this map and using
 // `t.Cleanup` to restore the prior state — the test stub pattern
@@ -305,74 +301,75 @@ type seriesOverlayHandler func(spec *types.OverlaySpec, host *SeriesHostView) (t
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
-	// OVERLAY_DELTA_VS_BASELINE (E4-S3): per-point absolute additive delta
-	// against a single fixed positional baseline of the ordered host series —
-	// the baseline is resolved once via processing.ResolveBaselineIndex (E4-S1
-	// foundation helper) and every present point subtracts it. Buffered
-	// (baseline resolution requires the materialised host series). Absolute-
-	// difference sibling of applyIndexVsBaseline (E4-S2); does NOT emit
+	// OVERLAY_DELTA_VS_BASELINE: per-point absolute additive delta
+	// against a single fixed positional baseline of the ordered host
+	// series — the baseline is resolved once via
+	// processing.ResolveBaselineIndex and every present point subtracts
+	// it. Buffered (baseline resolution requires the materialised host
+	// series). Absolute-difference sibling of applyIndexVsBaseline;
+	// does NOT emit
 	// PULSE_OVERLAY_REF_ZERO because subtraction is total. Handler:
 	// applyDeltaVsBaseline in processing/overlay_delta_vs_baseline.go.
 	types.OverlayKindDeltaVsBaseline: applyDeltaVsBaseline,
-	// OVERLAY_DELTA_VS_SIBLING (E3-S5): per-group additive delta
+	// OVERLAY_DELTA_VS_SIBLING: per-group additive delta
 	// against a sibling group named in Ref.Sibling. Buffered (sibling
 	// resolution requires the full materialised SeriesPayload).
 	// Handler: applyDeltaVsSibling in
 	// processing/overlay_delta_vs_sibling.go.
 	types.OverlayKindDeltaVsSibling: applyDeltaVsSibling,
-	// OVERLAY_INDEX_VS_BASELINE (E4-S2): per-point ratio index against a
-	// single fixed positional baseline of the ordered host series — the
-	// baseline is resolved once via processing.ResolveBaselineIndex
-	// (E4-S1 foundation helper) and every present point divides by it.
+	// OVERLAY_INDEX_VS_BASELINE: per-point ratio index against a
+	// single fixed positional baseline of the ordered host series —
+	// the baseline is resolved once via
+	// processing.ResolveBaselineIndex and every present point divides
+	// by it.
 	// Buffered (baseline resolution requires the materialised host
 	// series). Handler: applyIndexVsBaseline in
 	// processing/overlay_index_vs_baseline.go.
 	types.OverlayKindIndexVsBaseline: applyIndexVsBaseline,
-	// OVERLAY_INDEX_VS_PRIOR (E4-S4): per-point windowed index against
-	// the immediately preceding ordered-axis point — single-state lag
+	// OVERLAY_INDEX_VS_PRIOR: per-point windowed index against the
+	// immediately preceding ordered-axis point — single-state lag
 	// carrier (one f64 alongside the per-group accumulators in the
-	// streaming fold). First streamable windowed-Process handler in the
-	// catalog. Handler: applyIndexVsPrior in
+	// streaming fold). Streamable. Handler: applyIndexVsPrior in
 	// processing/overlay_index_vs_prior.go.
 	types.OverlayKindIndexVsPrior: applyIndexVsPrior,
-	// OVERLAY_INDEX_VS_ROLLING_MEAN (E4-S5): per-point windowed index
+	// OVERLAY_INDEX_VS_ROLLING_MEAN: per-point windowed index
 	// against the arithmetic mean of the W immediately preceding
 	// present points — rolling-window carrier (ring buffer of W f64s
-	// plus a Welford (count, mean, M2) trio reserved for E4-S6
+	// plus a Welford (count, mean, M2) trio shared with
 	// ZSCORE_VS_ROLLING). Buffered (the ring carrier is larger than the
 	// single-state lag accumulator and cannot fold inline with the
 	// streaming pass in v1). Handler: applyIndexVsRollingMean in
 	// processing/overlay_index_vs_rolling_mean.go.
 	types.OverlayKindIndexVsRollingMean: applyIndexVsRollingMean,
-	// OVERLAY_INDEX_VS_SIBLING (E3-S5): per-group ratio index against a
+	// OVERLAY_INDEX_VS_SIBLING: per-group ratio index against a
 	// sibling group named in Ref.Sibling, scaled to ×100. Buffered
 	// (sibling resolution requires the full materialised SeriesPayload).
 	// Handler: applyIndexVsSibling in
 	// processing/overlay_index_vs_sibling.go.
 	types.OverlayKindIndexVsSibling: applyIndexVsSibling,
-	// OVERLAY_INDEX_VS_TOTAL (E3-S2): per-group index score against the
-	// grand total of the host series — first streamable SERIES-host
-	// handler in the catalog. Handler: applyIndexVsTotal in
+	// OVERLAY_INDEX_VS_TOTAL: per-group index score against the
+	// grand total of the host series — streamable SERIES-host
+	// handler. Handler: applyIndexVsTotal in
 	// processing/overlay_index_vs_total.go.
 	types.OverlayKindIndexVsTotal: applyIndexVsTotal,
-	// OVERLAY_SHARE_OF_TOTAL (E3-S3): per-group share of the host series'
+	// OVERLAY_SHARE_OF_TOTAL: per-group share of the host series'
 	// grand total (`group_val / grand_total`, scale 1.0). Sibling handler
 	// to INDEX_VS_TOTAL — same grand-total accumulator, different
 	// scaling. Handler: applyShareOfTotalSeries in
 	// processing/overlay_share_of_total_series.go.
 	types.OverlayKindShareOfTotal: applyShareOfTotalSeries,
-	// OVERLAY_YOY (E4-S7): per-point year-over-year ratio against the
-	// same period one year prior in an ordered SERIES (grouped Process)
+	// OVERLAY_YOY: per-point year-over-year ratio against the same
+	// period one year prior in an ordered SERIES (grouped Process)
 	// host whose grouper is GROUP_DATE. Per-frequency prior-period
-	// lookup (annual / quarterly / monthly / weekly use ordinal-arithmetic;
-	// daily / hourly use exact-key lookup against the host key index).
-	// Sixth windowed-Process kind in the catalog. Buffered. Handler:
-	// applyYoY in processing/overlay_yoy.go.
+	// lookup (annual / quarterly / monthly / weekly use
+	// ordinal-arithmetic; daily / hourly use exact-key lookup against
+	// the host key index). Buffered. Handler: applyYoY in
+	// processing/overlay_yoy.go.
 	types.OverlayKindYoY: applyYoY,
-	// OVERLAY_ZSCORE_VS_ROLLING (E4-S6): per-point windowed standardized
+	// OVERLAY_ZSCORE_VS_ROLLING: per-point windowed standardized
 	// z-score against the rolling-window mean + SAMPLE SD (n-1
 	// denominator) of the W immediately preceding present points.
-	// Sibling windowed-rolling kind to INDEX_VS_ROLLING_MEAN (E4-S5) —
+	// Sibling windowed-rolling kind to INDEX_VS_ROLLING_MEAN —
 	// reuses the same per-group ring buffer + Welford (count, mean, M2)
 	// trio carrier (rollingCarrier in
 	// processing/overlay_index_vs_rolling_mean.go); this handler reads
@@ -382,10 +379,10 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// POPULATION SD. Buffered. Handler: applyZScoreVsRolling in
 	// processing/overlay_zscore_vs_rolling.go.
 	types.OverlayKindZScoreVsRolling: applyZScoreVsRolling,
-	// OVERLAY_ZSCORE_VS_TOTAL (E3-S4): per-group standardized z-score
+	// OVERLAY_ZSCORE_VS_TOTAL: per-group standardized z-score
 	// against the host series' grand-total distribution
-	// (`(group_val - mean) / sd`, population variance). Third and final
-	// streamable SERIES-host handler in the E3 grouped-Process subset.
+	// (`(group_val - mean) / sd`, population variance). Streamable
+	// SERIES-host handler.
 	// Welford accumulator (count + mean + M2) is sibling to the
 	// grand-total accumulator INDEX_VS_TOTAL / SHARE_OF_TOTAL share —
 	// see computeSeriesWelfordPopulation in
@@ -400,11 +397,11 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 // keep the per-group accumulators they already need without a second
 // resolver dispatch).
 //
-// Shared between OVERLAY_INDEX_VS_TOTAL (E3-S2) and OVERLAY_SHARE_OF_TOTAL
-// (E3-S3) — both kinds fold the same grand-total accumulator over a
-// SERIES host and only differ in the scaling step at per-group emission.
-// Keeping the accumulator in one helper lines up with the story note for
-// E3-S3 (`"do NOT duplicate the running-sum carrier"`) and matches the
+// Shared between OVERLAY_INDEX_VS_TOTAL and OVERLAY_SHARE_OF_TOTAL —
+// both kinds fold the same grand-total accumulator over a SERIES host
+// and only differ in the scaling step at per-group emission. Keeping
+// the accumulator in one helper avoids duplicating the running-sum
+// carrier, and matches the
 // streaming-Process orchestrator's shape: the streaming pass keeps ONE
 // f64 grand-total accumulator alongside the per-group accumulators
 // regardless of how many SHARE / INDEX / etc. overlays the request
@@ -468,8 +465,8 @@ func computeSeriesGrandTotal(host *SeriesHostView) (grandTotal float64, presentM
 // same failure mode predict would have flagged. The Level / Within
 // belt-and-suspenders runtime gate the MATRIX path runs at
 // validateOverlayLevelWithinRuntime does NOT fire here — SERIES kinds
-// do not engage prefix-bucket denominators in E3-S1, and the per-kind
-// E3-S2..S5 handlers add their own gates when their math requires it.
+// do not engage prefix-bucket denominators, and the per-kind handlers
+// add their own gates when their math requires it.
 func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil

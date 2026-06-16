@@ -6,15 +6,15 @@ import "math"
 // TEST_FISHER_EXACT row test (processing/test_fisher.go) and the
 // OVERLAY_FISHER_EXACT_CELL overlay handler (processing/overlay.go).
 //
-// E2-S9 factors the two-sided p-value computation into fisherExactTwoSided
-// so the overlay surface and the row-test surface produce identical p-
-// values for the same 2×2 contingency. The lgamma-backed hypergeometric
-// primitive (logHypergeometric, logBinomial) continues to live in
-// test_fisher.go where it originated; this file only adds the higher-
-// level "compute the two-sided p" entry point.
+// The two-sided p-value computation is factored into fisherExactTwoSided
+// so the overlay surface and the row-test surface produce identical
+// p-values for the same 2×2 contingency. The lgamma-backed
+// hypergeometric primitive (logHypergeometric, logBinomial) lives in
+// test_fisher.go; this file only adds the higher-level "compute the
+// two-sided p" entry point.
 //
-// Naming follows the established factoring pattern from E2-S4
-// (processing/welford.go's WelfordStdDev) — package-local lowercase
+// Naming follows the established factoring pattern in
+// processing/welford.go (WelfordStdDev) — package-local lowercase
 // helper, no exposure outside the processing package.
 
 // fisherExactTwoSided returns the two-sided Fisher's exact p-value for a

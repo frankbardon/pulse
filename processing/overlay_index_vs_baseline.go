@@ -10,16 +10,15 @@ import (
 // OVERLAY_INDEX_VS_BASELINE — per-point ratio index against a single
 // fixed positional baseline of an ordered SERIES (grouped Process) host.
 //
-// E4-S2 scope:
+// Behaviour:
 //
-//   - Second windowed-Process overlay in the catalog (E4-S2; the first
-//     windowed kind was OVERLAY_INDEX_VS_PRIOR / E4-S4). First kind to
-//     consume the `Ref.BaselineIndex.Position` arm of the
-//     OverlayBaselineIndexRef discriminated union landed at E4-S1.
+//   - Windowed-Process overlay consuming the
+//     `Ref.BaselineIndex.Position` arm of the OverlayBaselineIndexRef
+//     discriminated union.
 //   - Per-point math: `index_i = point_value_i / baseline_value * 100`
 //     where `baseline_value = host.ValueAt(Ref.BaselineIndex.Position)`.
 //     The baseline is resolved ONCE at handler entry via
-//     ResolveBaselineIndex (the E4-S1 foundation helper).
+//     ResolveBaselineIndex.
 //   - Baseline-at-self: a present point at the baseline ordinal yields
 //     `100.0` (self-vs-self under the ratio scaling). The first present
 //     point with non-zero baseline emits `100` when `Position` is the
@@ -38,7 +37,7 @@ import (
 //   - Absent-point policy: a host that did not produce a value for group
 //     i (the resolver returns `(0, false)`) surfaces a SeriesEntry whose
 //     Summary leaves Statistic unset — the canonical "present slot,
-//     empty summary" shape from the E3-S1 SERIES dispatch contract.
+//     empty summary" shape from the SERIES dispatch contract.
 //     Absent groups do NOT participate in the index computation.
 //
 // Buffered (per kind-catalog-v1 "Streaming-capable subset"): resolving a
@@ -148,8 +147,8 @@ func applyIndexVsBaseline(spec *types.OverlaySpec, host *SeriesHostView) (types.
 			}
 		}
 		// Absent host point: emit a present SeriesEntry with an unset
-		// Summary.Statistic (the canonical "present slot, empty summary"
-		// shape from E3-S1).
+		// Summary.Statistic (the canonical "present slot, empty
+		// summary" shape).
 		entries = append(entries, types.SeriesEntry{
 			Key:     keyCopy,
 			Summary: summary,

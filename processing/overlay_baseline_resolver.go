@@ -6,17 +6,15 @@ import (
 )
 
 // Baseline-index resolver — runtime support for the windowed-Process
-// overlay family (E4-S1 foundation).
+// overlay family.
 //
-// E4-S1 scope: the windowed-Process kinds (INDEX_VS_BASELINE / E4-S2,
-// DELTA_VS_BASELINE / E4-S3, INDEX_VS_ROLLING_MEAN / E4-S5, YOY /
-// E4-S7) all reach for the same operation — pin a single positional
-// point in the ordered SERIES host and surface its metric so every
-// other point can be compared against it. The resolver is a small
-// standalone function that takes the SERIES host view + the
-// OverlayBaselineIndexRef arm and returns `(baselineValue, error)`.
-// E4-S1 lands ONLY the resolver + the descriptor predict mirror; the
-// per-kind handlers consume it in S2 / S3 / S5 / S7.
+// The windowed-Process kinds (INDEX_VS_BASELINE, DELTA_VS_BASELINE,
+// INDEX_VS_ROLLING_MEAN, YOY) all reach for the same operation — pin
+// a single positional point in the ordered SERIES host and surface
+// its metric so every other point can be compared against it. The
+// resolver is a small standalone function that takes the SERIES host
+// view + the OverlayBaselineIndexRef arm and returns
+// `(baselineValue, error)`.
 //
 // Architectural shape mirrors processing/overlay_sibling_resolver.go
 // — small standalone file, single function, host-view + ref-arm +

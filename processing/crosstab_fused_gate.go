@@ -15,8 +15,9 @@ import (
 //
 // Naming mirrors CanMergeRequest / CanStreamRequest / CanChainRequest.
 // The returned reason string is short and operator-specific so callers
-// (dispatch in E4-S4, predict surfaces in a follow-up) can surface a
-// human-readable explanation without re-deriving the rule.
+// (dispatch in service/crosstab.go, predict surfaces in a follow-up)
+// can surface a human-readable explanation without re-deriving the
+// rule.
 //
 // Eligibility = ALL of:
 //
@@ -69,8 +70,8 @@ import (
 //
 // The gate is a pure predicate. It does NOT modify req or schema, and
 // it does NOT touch the orchestrator (RunCrosstab / processCrosstab).
-// E4-S4 wires the dispatch in service/crosstab.go around the result of
-// this call.
+// service/crosstab.go wires the dispatch around the result of this
+// call.
 func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *ExtensionRegistry) (bool, string) {
 	if req == nil {
 		return false, "nil request"
@@ -130,18 +131,17 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 		return false, "stat tests force buffered"
 	}
 
-	// Overlays (E1-S9): the overlay fold runs against the finalised
+	// Overlays: the overlay fold runs against the finalised
 	// MatrixPayload from the buffered RunCrosstab path
 	// (processing/crosstab.go applyOverlaysToResponse). The fused exit
 	// (crosstab_fused_run.go RunCrosstabFused → FusedCrosstabState.
-	// Finalize) intentionally does NOT invoke that hook — E1 ships the
-	// buffered overlay surface only, with the fused mirror deferred per
-	// the E1 scope notes. Reject any request carrying Overlays here so
-	// the dispatch in service/crosstab.go falls back to the buffered
-	// path and Response.Overlays is populated end-to-end. Every
-	// registered OverlayKind today (OVERLAY_INDEX_VS_MARGIN) is also
-	// non-streamable per types.OverlayStreamability, so this gate
-	// matches the predict-level streamability surface.
+	// Finalize) intentionally does NOT invoke that hook — the buffered
+	// path owns the overlay surface, with the fused mirror deferred.
+	// Reject any request carrying Overlays here so the dispatch in
+	// service/crosstab.go falls back to the buffered path and
+	// Response.Overlays is populated end-to-end. Registered
+	// OverlayKinds are non-streamable per types.OverlayStreamability,
+	// so this gate matches the predict-level streamability surface.
 	if len(req.Overlays) > 0 {
 		return false, "overlays force buffered"
 	}

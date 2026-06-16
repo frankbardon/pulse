@@ -10,11 +10,11 @@ import (
 // OVERLAY_DELTA_VS_SIBLING — per-group additive delta against a sibling
 // group named in `Ref.Sibling`.
 //
-// E3-S5 scope:
+// Behaviour:
 //
-//   - First sibling-reference SERIES-host handler in the catalog
-//     (alphabetised between DELTA_VS_MARGIN and FISHER_EXACT_CELL).
-//     Registered in processing/overlay_series.go's
+//   - Sibling-reference SERIES-host handler (alphabetised between
+//     DELTA_VS_MARGIN and FISHER_EXACT_CELL). Registered in
+//     processing/overlay_series.go's
 //     seriesOverlayHandlers dispatch table; the dispatch route is the
 //     post-host-finalize entry point. Buffered (per kind-catalog-v1
 //     "Streaming-capable subset"): the streaming Process pass cannot
@@ -49,7 +49,7 @@ import (
 // Absent-group policy: a host that did not produce a value for group
 // i (resolver returns `(0, false)`) surfaces a SeriesEntry whose
 // Summary leaves Statistic unset — the canonical "present slot, empty
-// summary" shape from the E3-S1 SERIES dispatch contract. Absent
+// summary" shape from the SERIES dispatch contract. Absent
 // groups do NOT participate in the delta computation. Critically, the
 // sibling group's own entry surfaces a delta of `0.0` when present
 // (self-vs-self) — NOT a nil Statistic.
@@ -79,14 +79,14 @@ import (
 //     Ref.Sibling.Value)`. The resolver returns `(value, present)` —
 //     present=false drives the unknown-sibling NaN path.
 //  2. Walk the host once and emit one SeriesEntry per host ordinal in
-//     host order — the parallel-slice contract (FR-A2) the E3-S1
+//     host order — the parallel-slice contract (FR-A2) the SERIES
 //     dispatch established. Present groups carry Statistic =
 //     `value - sibling_val`; absent groups carry a nil Statistic.
 //
 // Cost: O(groups) per layer for the resolver pass (single scan over
 // the host's group-key list) + O(groups) for the emission pass =
 // O(groups). Acceptable because the kind is buffered by construction —
-// the streaming-Process orchestrator (E3-S6) does NOT short-circuit
+// the streaming-Process orchestrator does NOT short-circuit
 // this path through a streaming accumulator.
 //
 // Defense in depth: the descriptor validator rejects ref / scope
@@ -146,7 +146,7 @@ func applyDeltaVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.O
 
 	// Pass 2: per-host-ordinal entry emission. Absent groups carry a
 	// nil Summary.Statistic (canonical "present slot, empty summary"
-	// shape from E3-S1). Present groups carry Statistic = value -
+	// shape). Present groups carry Statistic = value -
 	// sibling_val; in the unknown-sibling path every present group
 	// carries NaN.
 	entries := make([]types.SeriesEntry, 0, groupCount)

@@ -8,30 +8,28 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Per-kind handlers for the COMPOSE-host overlay catalog (E7-S9).
-// Replaces the chassis `applyComposeStub` for the six crosstab-shape
-// Compose-only kinds: OVERLAY_INDEX_VS_REF, OVERLAY_DELTA_VS_REF,
-// OVERLAY_PROP_Z_CELL, OVERLAY_T_CELL, OVERLAY_CHISQ_VS_REF, and
-// OVERLAY_RANK.
+// Per-kind handlers for the COMPOSE-host overlay catalog: the six
+// crosstab-shape Compose-only kinds — OVERLAY_INDEX_VS_REF,
+// OVERLAY_DELTA_VS_REF, OVERLAY_PROP_Z_CELL, OVERLAY_T_CELL,
+// OVERLAY_CHISQ_VS_REF, and OVERLAY_RANK.
 //
 // Dispatch model:
 //
 //   - Each handler emits one OverlayLayer per target slot — multi-target
 //     specs produce a single OverlayLayer per (spec, target) pair via
-//     the composeOverlayHandler signature established in E7-S4. The
-//     ApplyComposeOverlays chassis loops per spec and the handler
-//     loops per target inside that spec, returning a SINGLE OverlayLayer
-//     whose payload aggregates the per-target results (typically the
-//     first target's payload for single-target authoring). For multi-
-//     target authoring the E7-S15+ multi-ref kinds will land separately;
-//     the v1 single-target convention keeps the per-kind handlers simple
-//     and matches the chassis stub's single-layer-per-spec contract.
+//     the composeOverlayHandler signature. The ApplyComposeOverlays
+//     chassis loops per spec and the handler loops per target inside
+//     that spec, returning a SINGLE OverlayLayer whose payload
+//     aggregates the per-target results (typically the first target's
+//     payload for single-target authoring). The multi-ref kinds land
+//     via composeOverlayMultiLayerHandlers; the single-target
+//     convention keeps the per-kind handlers simple.
 //
 //   - Every handler runs AFTER the chassis-side gates accept the spec:
-//     resolution (E7-S5), key alignment (E7-S6), schema match (E7-S7),
-//     and optional dict-prefix drift (E7-S8). Handlers can rely on
-//     byte-equal `(rowKey, colKey)` key sets between reference and
-//     target matrices and on structurally identical axis schemas.
+//     resolution, key alignment, schema match, and optional
+//     dict-prefix drift. Handlers can rely on byte-equal
+//     `(rowKey, colKey)` key sets between reference and target
+//     matrices and on structurally identical axis schemas.
 //
 //   - Output payload mirrors the target slot's matrix shape (RowKeys /
 //     ColumnKeys / headers) so renderers can lay the overlay grid on
@@ -66,8 +64,8 @@ func composeOverlayLayerName(spec *types.ComposeOverlaySpec) string {
 // composeFirstTarget returns the first target slot's *Response from the
 // per-kind handler's `targets` slice plus the first target's index in
 // the parallel `targetIdxs` slice. Every v1 single-target Compose kind
-// reads from the first target; multi-target kinds (E7-S15+) walk the
-// full slice.
+// reads from the first target; multi-target kinds walk the full
+// slice.
 //
 // Returns (nil, -1) when targets is empty — the chassis already
 // rejects empty Targets via PULSE_OVERLAY_TARGET_UNKNOWN before
@@ -95,7 +93,7 @@ func composeFirstTargetLabel(spec *types.ComposeOverlaySpec) string {
 
 // readMatrix returns the *MatrixPayload pointer from a *Response, or
 // nil when the response does not carry a crosstab matrix. The chassis-
-// side schema-match gate (E7-S7 + kindRequiresMatrix) rejects non-
+// side schema-match gate (kindRequiresMatrix) rejects non-
 // matrix slots BEFORE the per-kind handler dispatches, so this guard
 // is defense in depth.
 func readMatrix(resp *types.Response) *types.MatrixPayload {
@@ -309,10 +307,10 @@ func summaryWithBaseline(baseline float64, seen int, minV, maxV float64) *types.
 }
 
 // applyIndexVsRef is the COMPOSE-host runtime handler for
-// OVERLAY_INDEX_VS_REF. Dual-shape dispatcher (E7-S10) — detects the
-// host shape from the reference + first target slots and routes into
+// OVERLAY_INDEX_VS_REF. Dual-shape dispatcher — detects the host
+// shape from the reference + first target slots and routes into
 // either the MATRIX arm (per-cell lookup + emit) or the SERIES arm
-// (per-row lookup + emit). The chassis schema-match gate (E7-S7)
+// (per-row lookup + emit). The chassis schema-match gate
 // guarantees the reference and target slots share the same shape
 // before this handler is dispatched.
 //
@@ -440,7 +438,7 @@ func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 }
 
 // applyDeltaVsRef is the COMPOSE-host runtime handler for
-// OVERLAY_DELTA_VS_REF. Dual-shape dispatcher (E7-S10) — detects the
+// OVERLAY_DELTA_VS_REF. Dual-shape dispatcher — detects the
 // host shape from the reference + first target slots and routes into
 // either the MATRIX arm (per-cell subtract + emit) or the SERIES arm
 // (per-row subtract + emit). Per-coordinate additive `target - ref`.
@@ -759,7 +757,7 @@ func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 // applyTCell is the COMPOSE-host runtime handler for OVERLAY_T_CELL.
 // Per-cell Welch t-test against the reference slot's matching cell.
 //
-// Components-source (E3-S7): when both target and reference cells
+// Components-source: when both target and reference cells
 // carry an Aggregator components map at
 // Response.Components.Crosstab.CellComponents[r][c] containing the
 // `{mean, variance, n}` triple — emitted by AGG_WELFORD via the
@@ -776,13 +774,12 @@ func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 // byte-identical to the pre-Components scalar baseline.
 //
 // Mixed cell shapes (one triple, one scalar) are blocked upstream by
-// the compose schema-match gate (E1-S8). The handler still emits a
-// defensive PULSE_OVERLAY_SCHEMA_DIVERGENT if a mixed pair slips
-// through.
+// the compose schema-match gate. The handler still emits a defensive
+// PULSE_OVERLAY_SCHEMA_DIVERGENT if a mixed pair slips through.
 //
 // MatrixCell.Value type-assertion on processing.WelfordTriple is no
 // longer performed — the universal Components surface owns the triple
-// payload. E3-S8 removes the writer next.
+// payload.
 func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
@@ -860,9 +857,9 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 			tScalar, tHasScalar := scalarFromCell(cell)
 			rScalar, rHasScalar := scalarFromCell(refCell)
 
-			// Mixed cell shapes — schema-match gate (E1-S8) should
-			// already reject this upstream; emit defensive coded
-			// error if a mismatched pair slips through.
+			// Mixed cell shapes — schema-match gate should already
+			// reject this upstream; emit defensive coded error if a
+			// mismatched pair slips through.
 			if tHasTriple != rHasTriple {
 				return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 					errors.PROCESSING_INTERNAL,
@@ -989,7 +986,7 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 
 	// Walk both matrices to compute target_N + ref_N. The
 	// per-coordinate iteration uses the target's RowKeys / ColumnKeys
-	// because the key-set gate (E7-S6) guarantees both matrices share
+	// because the key-set gate guarantees both matrices share
 	// the same key set.
 	var (
 		targetN     float64

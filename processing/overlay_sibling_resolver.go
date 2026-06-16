@@ -1,28 +1,23 @@
 package processing
 
 // Sibling resolver — runtime support for the sibling-reference overlay
-// family.
+// family. The DELTA_VS_SIBLING / INDEX_VS_SIBLING handlers both need to
+// map an OverlaySpec.Ref.Sibling `(Field, Value)` pair to a single host
+// group ordinal so the per-group fold can subtract or divide against
+// that fixed reference. The resolver walks the host's GroupKeys list
+// and matches against the SERIES host's grouper-field list (surfaced
+// via the SeriesHostView's `groupFields` slot). It matches against the
+// first grouper field (the SERIES host shape emits a single-axis
+// grouper list of length 1 in the common case — the row-axis tuple is
+// the only key component) AND falls back to scanning every axis-key
+// element for a match when the field-list is empty (a defensive
+// fallback when the orchestrator has not populated the field list).
 //
-// E3-S5 scope: the DELTA_VS_SIBLING / INDEX_VS_SIBLING handlers both
-// need to map an OverlaySpec.Ref.Sibling `(Field, Value)` pair to a
-// single host group ordinal so the per-group fold can subtract or
-// divide against that fixed reference. The resolver is intentionally
-// minimal in E3-S5 — it walks the host's GroupKeys list and matches
-// against the SERIES host's grouper-field list (which the orchestrator
-// surfaces via the SeriesHostView's `groupFields` slot E3-S6 will wire
-// in). For now the resolver matches against the first grouper field
-// (the SERIES host shape today emits a single-axis grouper list of
-// length 1 in the common case — the row-axis tuple is the only key
-// component) AND falls back to scanning every axis-key element for a
-// match when the field-list is empty (a defensive fallback so the
-// E3-S6 wiring can flip the field list on without breaking this
-// handler).
-//
-// E3-S7 will factor this resolver out behind a richer interface that
-// surfaces composite-key tuples (Field1=v1 AND Field2=v2) and integrates
-// the field-list directly. For now the simpler single-field lookup is
-// enough to unblock the two sibling-reference handlers and exercise the
-// resolver-driven dispatch path.
+// A future iteration may factor this resolver out behind a richer
+// interface that surfaces composite-key tuples (Field1=v1 AND
+// Field2=v2) and integrates the field-list directly. For now the
+// simpler single-field lookup is enough to power the two
+// sibling-reference handlers.
 //
 // Structural invariants:
 //
@@ -52,16 +47,14 @@ package processing
 // group (the orchestrator's grouper list is consumed as the row axis;
 // multi-grouper composite axes lower to a single AxisKey tuple where
 // element `i` matches `groupFields[i]`). The resolver consults the host
-// view's `GroupFields()` slot when populated (E3-S6 wiring) — when the
-// slot is empty (E3-S5 default — the SERIES host shape does NOT carry
-// the field list yet) the resolver defensively scans every element of
-// every axis key tuple looking for an `any` value whose string form
-// matches `value`. The scan path is byte-equivalent on a single-axis
-// host (the only element matches by definition) and produces a sensible
-// fallback on a multi-axis host that surfaces the matching value in any
-// position (matches the "find the first sibling whose key contains the
-// requested value" semantics until E3-S7 introduces the composite-key
-// resolver).
+// view's `GroupFields()` slot when populated — when the slot is empty
+// the resolver defensively scans every element of every axis key tuple
+// looking for an `any` value whose string form matches `value`. The
+// scan path is byte-equivalent on a single-axis host (the only element
+// matches by definition) and produces a sensible fallback on a
+// multi-axis host that surfaces the matching value in any position
+// (matches the "find the first sibling whose key contains the
+// requested value" semantics until a composite-key resolver lands).
 //
 // Returns `(0, false)` when host is nil, when the host has no group
 // keys, when field or value is empty (defensive — the validator rejects
@@ -75,12 +68,12 @@ package processing
 // host ordinal; resolveSibling indexes by `(field, value)` semantics
 // and walks the host's group-key list to find the matching ordinal.
 //
-// Forward-compat (E4+ ordered-axis kinds): the windowed Process catalog
-// (Baseline / Prior / RollingMean per research/kind-catalog-v1.md) wants
-// resolution against an ordered axis index, not a `(field, value)` pair.
-// No new resolver helper is needed — those kinds call `host.ValueAt(i)`
-// directly with the desired index ordinal; this resolver stays scoped to
-// the `(field, value)` sibling shape.
+// Forward-compat (ordered-axis kinds): the windowed Process catalog
+// (Baseline / Prior / RollingMean) wants resolution against an ordered
+// axis index, not a `(field, value)` pair. No new resolver helper is
+// needed — those kinds call `host.ValueAt(i)` directly with the
+// desired index ordinal; this resolver stays scoped to the
+// `(field, value)` sibling shape.
 func resolveSibling(host *SeriesHostView, field, value string) (float64, bool) {
 	if host == nil || field == "" || value == "" {
 		return 0, false
@@ -90,10 +83,10 @@ func resolveSibling(host *SeriesHostView, field, value string) (float64, bool) {
 		return 0, false
 	}
 	// Determine the axis-key element index `field` resolves to via the
-	// host's optional GroupFields() slot. When the slot is empty
-	// (E3-S5 default — the orchestrator has not wired the field list
-	// onto the SeriesHostView yet) the column index stays at -1 and the
-	// scan path matches against every element of every axis-key tuple.
+	// host's optional GroupFields() slot. When the slot is empty (the
+	// orchestrator has not wired the field list onto the SeriesHostView)
+	// the column index stays at -1 and the scan path matches against
+	// every element of every axis-key tuple.
 	colIdx := -1
 	for fi, name := range host.GroupFields() {
 		if name == field {
@@ -140,10 +133,10 @@ func resolveSibling(host *SeriesHostView, field, value string) (float64, bool) {
 // String equality is the primary path — categorical axis keys are
 // already string-valued. For non-string axis-key elements the function
 // returns false; v1 of the sibling resolver does NOT coerce numerics to
-// strings (e.g. `123` does not match `"123"` automatically). E3-S7 may
-// widen the policy if a non-categorical sibling axis surfaces a
-// concrete need; today every sibling-reference test rides on a
-// categorical grouper field.
+// strings (e.g. `123` does not match `"123"` automatically). A future
+// iteration may widen the policy if a non-categorical sibling axis
+// surfaces a concrete need; today every sibling-reference test rides
+// on a categorical grouper field.
 func axisKeyElementMatches(elem any, value string) bool {
 	switch v := elem.(type) {
 	case string:

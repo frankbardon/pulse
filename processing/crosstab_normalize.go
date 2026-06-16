@@ -38,9 +38,9 @@ import (
 // already encode (`omitempty` omits the zero value on the wire). Used
 // by the share / index / delta / zscore handler dispatch to skip the
 // per-cell prefix-bucket precompute when the caller is on the legacy
-// path — preserves the E1 / E2-S1..S9 overlay-handler byte-identity
-// guarantee (story E2-S11 acceptance criterion: "Default Level=0,
-// Within=0 MUST be byte-equivalent to the no-Level/no-Within path").
+// path — preserves the overlay-handler byte-identity guarantee that
+// Default Level=0, Within=0 MUST be byte-equivalent to the
+// no-Level/no-Within path.
 //
 // Returns true when either slot is positive (non-zero). Negative slots
 // (predict gate would reject; runtime gate would also reject) are
