@@ -80,20 +80,19 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	// across N workers. Each worker decodes its segment with its own
 	// bytes.Reader + RecordReader over the shared read-only mmap
 	// bytes. Otherwise fall through to the serial
-	// materializeRecords(iter) path that has driven crosstab since E2.
+	// materializeRecords(iter) path that has driven crosstab.
 	//
-	// E3-S2 wired the decode-only segment fan-out: workers append to
-	// per-worker slabs and the orchestrator stitches them into a
-	// single []*processing.Record consumed by RunCrosstab unchanged.
-	// E3-S3 layers per-worker partial aggregator state on top via
-	// reduceParallelBuffered, but only mergeable requests
-	// (processing.CanMergeRequest) qualify. A crosstab request always
-	// fails that gate today — validateCrosstabSpec rejects
+	// Workers append to per-worker slabs and the orchestrator stitches
+	// them into a single []*processing.Record consumed by RunCrosstab
+	// unchanged. The dispatch also layers per-worker partial aggregator
+	// state on top via reduceParallelBuffered, but only mergeable
+	// requests (processing.CanMergeRequest) qualify. A crosstab request
+	// always fails that gate today — validateCrosstabSpec rejects
 	// req.Aggregations and CanMergeRequest requires non-empty
 	// Aggregations — so the dispatch keeps the slice path for every
-	// crosstab call. The mergeable arm is wired here so E3-S4 has a
-	// single, documented dispatch point to broaden the eligibility
-	// from.
+	// crosstab call. The mergeable arm is wired here so the broader
+	// Process-level eligibility gate has a single, documented dispatch
+	// point to share.
 	if processing.CanMergeRequest(req, cohort.Schema()) {
 		mergedResp, mergedOK, err := s.crosstabDecodeReduceMergeable(ctx, req, cohort, path, iter)
 		if err != nil {
@@ -140,16 +139,16 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 // reduceParallelBuffered instead of a []*processing.Record. The third
 // return value (ok) is true when the reducer ran end-to-end; false
 // signals the caller should fall back to the slice path (the caller,
-// processCrosstab, then calls into materializeRecords + RunCrosstab as
-// it did pre-E3-S3).
+// processCrosstab, then calls into materializeRecords + RunCrosstab).
 //
 // Today this arm is unreachable from a crosstab request because
 // validateCrosstabSpec rejects req.Aggregations and CanMergeRequest
 // requires non-empty Aggregations — the gate in processCrosstab
 // therefore always trips false for crosstab and the slice path is
-// taken. The dispatch is wired here so E3-S4's broader Process-level
-// gate has a single integration point to share, and so unit tests can
-// exercise reduceParallelBuffered without re-routing the call chain.
+// taken. The dispatch is wired here so the broader Process-level
+// eligibility gate has a single integration point to share, and so
+// unit tests can exercise reduceParallelBuffered without re-routing
+// the call chain.
 func (s *Service) crosstabDecodeReduceMergeable(
 	ctx context.Context,
 	req *types.Request,

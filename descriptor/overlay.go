@@ -13,21 +13,6 @@ import (
 // structural failures on the envelope alongside the aggregator / test
 // / crosstab gates the rest of Predict runs.
 //
-// E1 scope (kind-catalog-v1 milestone S3):
-//
-//   - Unknown OverlayKind            → errors.PULSE_OVERLAY_KIND_UNKNOWN
-//   - OVERLAY_INDEX_VS_MARGIN
-//       * Ref family must be Margin and Margin.Axis must be a known
-//         MarginAxis (row / column / grand).
-//       * Host result must be MATRIX-shaped, i.e. Request.Crosstab is
-//         non-nil. Without a crosstab there is no margin slot to
-//         reference; mismatch fires
-//         errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
-//       * Scope must be one of the supported scopes for the kind. E1
-//         supports CELL only; everything else fires
-//         errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED. Later epics widen the
-//         set as ROW / COLUMN / TOTAL projections land.
-//
 // Structural invariants (CLAUDE.md "Predict / Inspect contracts" +
 // "What NOT to Do"):
 //
@@ -41,7 +26,7 @@ import (
 //     built with string concatenation so descriptor envelope output
 //     stays grep-clean against the structural defense ban.
 
-// chiSqMatrixSupportedScopes is the E2-supported scope set for
+// chiSqMatrixSupportedScopes is the supported scope set for
 // OVERLAY_CHISQ_MATRIX. The χ² independence test is a whole-matrix
 // inferential overlay — Scope=MATRIX is the only sensible footprint
 // and any other scope (CELL / ROW / COLUMN / TOTAL / GROUP) fires
@@ -50,7 +35,7 @@ var chiSqMatrixSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeMatrix: true,
 }
 
-// chiSqRowSupportedScopes is the E2-supported scope set for
+// chiSqRowSupportedScopes is the supported scope set for
 // OVERLAY_CHISQ_ROW. The per-row χ² goodness-of-fit test is a ROW-
 // scoped inferential overlay — Scope=ROW is the only sensible footprint
 // and any other scope (CELL / COLUMN / MATRIX / TOTAL / GROUP) fires
@@ -59,7 +44,7 @@ var chiSqRowSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeRow: true,
 }
 
-// chiSqColSupportedScopes is the E2-supported scope set for
+// chiSqColSupportedScopes is the supported scope set for
 // OVERLAY_CHISQ_COL. The per-column χ² goodness-of-fit test is a COLUMN-
 // scoped inferential overlay (mechanical column-axis twin of
 // CHISQ_ROW) — Scope=COLUMN is the only sensible footprint and any other
@@ -69,7 +54,7 @@ var chiSqColSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeColumn: true,
 }
 
-// deltaVsBaselineSupportedScopes is the E4-supported scope set for
+// deltaVsBaselineSupportedScopes is the supported scope set for
 // OVERLAY_DELTA_VS_BASELINE. The kind emits one entry per host group key
 // (the ordered windowed series) — Scope=GROUP is the only sensible
 // footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
@@ -80,7 +65,7 @@ var deltaVsBaselineSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// deltaVsMarginSupportedScopes is the E2-supported scope set for
+// deltaVsMarginSupportedScopes is the supported scope set for
 // OVERLAY_DELTA_VS_MARGIN. DELTA_VS_MARGIN is a CELL-scoped overlay by
 // construction — every cell receives an additive deviation against
 // the matching margin slot. Like ZSCORE_VS_MARGIN the axis is not
@@ -91,7 +76,7 @@ var deltaVsMarginSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
-// deltaVsSiblingSupportedScopes is the E3-supported scope set for
+// deltaVsSiblingSupportedScopes is the supported scope set for
 // OVERLAY_DELTA_VS_SIBLING. The kind emits one entry per host group
 // key — Scope=GROUP is the only sensible footprint and any other
 // scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
@@ -102,7 +87,7 @@ var deltaVsSiblingSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// fisherExactCellSupportedScopes is the E2-supported scope set for
+// fisherExactCellSupportedScopes is the supported scope set for
 // OVERLAY_FISHER_EXACT_CELL. The per-cell Fisher's exact 2×2 test is
 // a CELL-scoped inferential overlay (canonical low-count χ² backstop;
 // PRD § 4.C FR-C2) — every cell receives an exact two-sided p-value
@@ -114,15 +99,15 @@ var fisherExactCellSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
-// indexVsMarginSupportedScopes is the E1-supported scope set for
-// OVERLAY_INDEX_VS_MARGIN. Today only CELL ships; later epics widen
-// the gate to ROW / COLUMN / TOTAL once the matching payload shapes
-// are wired through processing.
+// indexVsMarginSupportedScopes is the supported scope set for
+// OVERLAY_INDEX_VS_MARGIN. Today only CELL ships; the gate widens
+// to ROW / COLUMN / TOTAL once the matching payload shapes are wired
+// through processing.
 var indexVsMarginSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
-// indexVsBaselineSupportedScopes is the E4-supported scope set for
+// indexVsBaselineSupportedScopes is the supported scope set for
 // OVERLAY_INDEX_VS_BASELINE. The kind emits one entry per host group key
 // (the ordered windowed series) — Scope=GROUP is the only sensible
 // footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
@@ -132,7 +117,7 @@ var indexVsBaselineSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// indexVsPriorSupportedScopes is the E4-supported scope set for
+// indexVsPriorSupportedScopes is the supported scope set for
 // OVERLAY_INDEX_VS_PRIOR. The kind emits one entry per host group key
 // (the ordered windowed series) — Scope=GROUP is the only sensible
 // footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
@@ -142,7 +127,7 @@ var indexVsPriorSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// indexVsRollingMeanSupportedScopes is the E4-supported scope set for
+// indexVsRollingMeanSupportedScopes is the supported scope set for
 // OVERLAY_INDEX_VS_ROLLING_MEAN. The kind emits one entry per host
 // group key (the ordered windowed series) — Scope=GROUP is the only
 // sensible footprint and any other scope (CELL / ROW / COLUMN / MATRIX /
@@ -152,7 +137,7 @@ var indexVsRollingMeanSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// yoySupportedScopes is the E4-supported scope set for OVERLAY_YOY.
+// yoySupportedScopes is the supported scope set for OVERLAY_YOY.
 // The kind emits one entry per host group key (the ordered windowed
 // series) — Scope=GROUP is the only sensible footprint and any other
 // scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
@@ -175,7 +160,7 @@ var yoySupportedFrequencies = []string{
 	"hourly",
 }
 
-// zscoreVsRollingSupportedScopes is the E4-supported scope set for
+// zscoreVsRollingSupportedScopes is the supported scope set for
 // OVERLAY_ZSCORE_VS_ROLLING. The kind emits one entry per host group
 // key (the ordered windowed series) — Scope=GROUP is the only sensible
 // footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
@@ -185,7 +170,7 @@ var zscoreVsRollingSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// indexVsSiblingSupportedScopes is the E3-supported scope set for
+// indexVsSiblingSupportedScopes is the supported scope set for
 // OVERLAY_INDEX_VS_SIBLING. The kind emits one entry per host group
 // key — Scope=GROUP is the only sensible footprint and any other
 // scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
@@ -195,7 +180,7 @@ var indexVsSiblingSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// indexVsTotalSupportedScopes is the E3-supported scope set for
+// indexVsTotalSupportedScopes is the supported scope set for
 // OVERLAY_INDEX_VS_TOTAL. INDEX_VS_TOTAL emits one per-group index
 // score against the host series' grand total — Scope=GROUP is the
 // only sensible footprint and any other scope (CELL / ROW / COLUMN /
@@ -204,19 +189,19 @@ var indexVsTotalSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// zscoreVsTotalSupportedScopes is the E3-supported scope set for
+// zscoreVsTotalSupportedScopes is the supported scope set for
 // OVERLAY_ZSCORE_VS_TOTAL. ZSCORE_VS_TOTAL emits one per-group
 // standardized z-score against the host series' grand-total
 // distribution — Scope=GROUP is the only sensible footprint and any
 // other scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
 // PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors `indexVsTotalSupportedScopes`
-// — the third streamable SERIES-host kind in the E3 grouped-Process
-// subset shares the implicit-grand-total scope contract verbatim.
+// — the streamable SERIES-host grouped-Process subset shares the
+// implicit-grand-total scope contract verbatim.
 var zscoreVsTotalSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// shareOfRowSupportedScopes is the E2-supported scope set for
+// shareOfRowSupportedScopes is the supported scope set for
 // OVERLAY_SHARE_OF_ROW. SHARE_OF_ROW is a CELL-scoped layer by
 // construction — every cell divides by its row margin. ROW / COLUMN /
 // TOTAL projections are not meaningful for this kind.
@@ -224,7 +209,7 @@ var shareOfRowSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeCell: true,
 }
 
-// shareOfColSupportedScopes is the E2-supported scope set for
+// shareOfColSupportedScopes is the supported scope set for
 // OVERLAY_SHARE_OF_COL. SHARE_OF_COL is a CELL-scoped layer by
 // construction — every cell divides by its column margin. ROW /
 // COLUMN / TOTAL projections are not meaningful for this kind.
@@ -233,12 +218,12 @@ var shareOfColSupportedScopes = map[types.OverlayScope]bool{
 }
 
 // shareOfTotalSupportedScopes is the supported scope set for the
-// MATRIX-host dispatch of OVERLAY_SHARE_OF_TOTAL (E2-S3). The MATRIX
+// MATRIX-host dispatch of OVERLAY_SHARE_OF_TOTAL. The MATRIX
 // dispatch is a CELL-scoped layer by construction — every cell divides
 // by the grand total. ROW / COLUMN / TOTAL projections are not
 // meaningful for the MATRIX dispatch.
 //
-// The SERIES-host dispatch (E3-S3) accepts GROUP scope and routes through
+// The SERIES-host dispatch accepts GROUP scope and routes through
 // `shareOfTotalSeriesSupportedScopes`. The host-shape pre-check in
 // `validateOverlayShareOfTotal` selects between the two scope sets so
 // each dispatch's rejection set is exhaustive for its own host.
@@ -247,7 +232,7 @@ var shareOfTotalSupportedScopes = map[types.OverlayScope]bool{
 }
 
 // shareOfTotalSeriesSupportedScopes is the supported scope set for the
-// SERIES-host dispatch of OVERLAY_SHARE_OF_TOTAL (E3-S3). The SERIES
+// SERIES-host dispatch of OVERLAY_SHARE_OF_TOTAL. The SERIES
 // dispatch emits one per-group share against the host series' grand
 // total — Scope=GROUP is the only sensible footprint and any other
 // scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
@@ -256,7 +241,7 @@ var shareOfTotalSeriesSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// zscoreVsMarginSupportedScopes is the E2-supported scope set for
+// zscoreVsMarginSupportedScopes is the supported scope set for
 // OVERLAY_ZSCORE_VS_MARGIN. ZSCORE_VS_MARGIN is a CELL-scoped overlay
 // by construction — every cell receives a deviation score against the
 // matching margin slice's standard deviation. Unlike the SHARE_OF_*
@@ -283,12 +268,12 @@ var validMarginAxes = map[types.MarginAxis]bool{
 // overlay issues surface alongside crosstab / aggregator / test ones.
 //
 // No-op when req is nil or req.Overlays is empty. Schema is currently
-// unused — every E1 rule is structural — but the signature accepts it
+// unused — every rule is structural — but the signature accepts it
 // so later kinds can validate against schema-derived state (e.g.
 // referenced field types on sibling / baseline-index families) without
 // re-opening every call site.
 //
-// Level / Within out-of-range gate (E2-S11): runs alongside the per-
+// Level / Within out-of-range gate: runs alongside the per-
 // kind ref/scope checks via validateOverlayLevelWithinPredict. Mirrors
 // the PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE shape on the
 // crosstab path — out-of-range slots surface
@@ -317,8 +302,8 @@ func ValidateOverlays(env *Envelope, req *types.Request, schema *encoding.Schema
 // envelopes carry the same structured context the runtime would have
 // emitted.
 //
-// Foundation gate (E4-S1) — the spec is intentionally tolerant of the
-// existing E1..E3 overlay kinds because every shipping kind already
+// Foundation gate — the spec is intentionally tolerant of the
+// other shipping overlay kinds because every other kind already
 // rejects a populated `BaselineIndex` slot via its own per-kind validator
 // (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE). When `BaselineIndex` is
 // absent the gate is a no-op. When present:
@@ -484,7 +469,7 @@ func baselineIndexSeriesLengthDetail(predictedLength int) int {
 //
 // Zero defaults (Level == 0 && Within == 0) pass — the runtime
 // resolver short-circuits to the legacy MarginFor lookup, preserving
-// the E1 / E2-S1..S9 byte-identity contract.
+// the byte-identity contract.
 func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
 	if spec == nil {
 		return
@@ -531,7 +516,7 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
-	// DELTA_VS_BASELINE is the E4-S3 windowed-SERIES kind (req.Groups, no
+	// DELTA_VS_BASELINE is a windowed-SERIES kind (req.Groups, no
 	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_BASELINE
 	// because the baseline is a single fixed positional anchor
 	// (Ref.BaselineIndex.Position), not an axis prefix. Absolute-difference
@@ -551,7 +536,7 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
-	// INDEX_VS_BASELINE is the E4-S2 windowed-SERIES kind (req.Groups, no
+	// INDEX_VS_BASELINE is a windowed-SERIES kind (req.Groups, no
 	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_TOTAL /
 	// INDEX_VS_PRIOR because the baseline is a single fixed positional
 	// anchor (Ref.BaselineIndex.Position), not an axis prefix. Run the gate
@@ -570,7 +555,7 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
-	// INDEX_VS_PRIOR is the E4-S4 windowed-SERIES kind (req.Groups, no
+	// INDEX_VS_PRIOR is a windowed-SERIES kind (req.Groups, no
 	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_TOTAL
 	// because the single-state lag carrier folds across the ordered axis
 	// without a prefix-bucket denominator. Run the gate before the no-
@@ -589,7 +574,7 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
-	// INDEX_VS_ROLLING_MEAN is the E4-S5 windowed-SERIES kind (req.Groups,
+	// INDEX_VS_ROLLING_MEAN is a windowed-SERIES kind (req.Groups,
 	// no req.Crosstab); its Level / Within gate mirrors INDEX_VS_PRIOR
 	// because the rolling-window carrier folds across the ordered axis
 	// without a prefix-bucket denominator. Run the gate before the no-
@@ -608,12 +593,11 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
-	// OVERLAY_YOY is the E4-S7 windowed-SERIES kind (req.Groups, no
+	// OVERLAY_YOY is a windowed-SERIES kind (req.Groups, no
 	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_PRIOR /
 	// INDEX_VS_ROLLING_MEAN because the year-over-year prior-period
 	// lookup folds across the ordered axis without a prefix-bucket
-	// denominator. Sixth windowed-Process kind — same implicit-margin /
-	// windowed family rule.
+	// denominator. Same implicit-margin / windowed family rule.
 	if spec.Kind == types.OverlayKindYoY {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
@@ -627,7 +611,7 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
-	// ZSCORE_VS_ROLLING is the E4-S6 windowed-SERIES kind (req.Groups, no
+	// ZSCORE_VS_ROLLING is a windowed-SERIES kind (req.Groups, no
 	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_ROLLING_MEAN
 	// because the rolling-window carrier folds across the ordered axis
 	// without a prefix-bucket denominator. Sibling windowed-rolling kind
@@ -664,14 +648,13 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
-	// SHARE_OF_TOTAL SERIES dispatch (E3-S3) honours the same implicit-
+	// SHARE_OF_TOTAL SERIES dispatch honours the same implicit-
 	// grand-total contract as INDEX_VS_TOTAL — Level / Within must both
-	// be zero. The MATRIX dispatch (E2-S3) falls through to the
+	// be zero. The MATRIX dispatch falls through to the
 	// crosstab-axis-depth check below where the kind's row+col depths
-	// are accepted (the existing E2-S11 rule), preserving the byte-
-	// identity contract with pre-E3 SHARE_OF_TOTAL MATRIX requests.
-	// Host-shape disambiguation matches `validateOverlayShareOfTotal`'s
-	// dispatch policy.
+	// are accepted, preserving the byte-identity contract with the
+	// original SHARE_OF_TOTAL MATRIX requests. Host-shape disambiguation
+	// matches `validateOverlayShareOfTotal`'s dispatch policy.
 	if spec.Kind == types.OverlayKindShareOfTotal && req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
@@ -784,14 +767,14 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, req *types.Req
 	return 0, 0, "rows", "columns"
 }
 
-// validateOverlaySpec applies the E1 ruleset to one OverlaySpec.
+// validateOverlaySpec applies the per-kind ruleset to one OverlaySpec.
 // Errors are emitted with deterministic Details so MCP / CLI
 // envelopes can render the index, kind, and offending value without
 // re-parsing the message string.
 //
 // `opts` is threaded through so per-kind validators reach
-// `opts.Extensions` for embedder-side state (E5 / E8). Most kinds do
-// not consume opts today; the FORMULA dispatch (E8-S4) reads
+// `opts.Extensions` for embedder-side state. Most kinds do not
+// consume opts today; the FORMULA dispatch reads
 // `opts.Extensions.ExprFunctions` to widen the allowed identifier set.
 func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	if spec == nil {
@@ -824,7 +807,7 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		types.OverlayKindIndexVsPop,
 		types.OverlayKindKSVsPop,
 		types.OverlayKindZScoreVsPop:
-		// FACET-host kinds (E5) — wrong host on Request.Overlays. The
+		// FACET-host kinds — wrong host on Request.Overlays. The
 		// correct surface is FacetRequest.Overlays validated via
 		// ValidateFacetOverlays in descriptor/overlay_facet.go. Fail
 		// closed with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE so the
@@ -936,12 +919,12 @@ func validateOverlayIndexVsMargin(env *Envelope, req *types.Request, spec *types
 		return
 	}
 
-	// Scope must be in the supported set for INDEX_VS_MARGIN. E1
-	// supports CELL only; ROW / COLUMN / TOTAL ship in later epics
-	// alongside the matching payload shapes.
+	// Scope must be in the supported set for INDEX_VS_MARGIN. Today only
+	// CELL ships; ROW / COLUMN / TOTAL widen the gate as the matching
+	// payload shapes land.
 	if !indexVsMarginSupportedScopes[spec.Scope] {
 		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (E1 supports: cell)",
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
@@ -1015,8 +998,8 @@ func validateOverlayIndexVsTotal(env *Envelope, req *types.Request, spec *types.
 }
 
 // validateOverlayIndexVsPrior enforces the per-kind contract for
-// OVERLAY_INDEX_VS_PRIOR (E4-S4, first windowed-Process kind in the
-// catalog and first consumer of the `Ref.Prior` arm of the discriminated
+// OVERLAY_INDEX_VS_PRIOR (first windowed-Process kind in the catalog and
+// first consumer of the `Ref.Prior` arm of the discriminated
 // OverlayRef union):
 //
 //   - Ref.Prior populated → accepted. Ref.Prior.Lag MUST be zero (v1
@@ -1104,9 +1087,9 @@ func validateOverlayIndexVsPrior(env *Envelope, req *types.Request, spec *types.
 }
 
 // validateOverlayIndexVsRollingMean enforces the per-kind contract for
-// OVERLAY_INDEX_VS_ROLLING_MEAN (E4-S5, fourth windowed-Process kind in
-// the catalog and first consumer of the `Ref.RollingMean` arm of the
-// OverlayRef discriminated union):
+// OVERLAY_INDEX_VS_ROLLING_MEAN (a windowed-Process kind that is the
+// first consumer of the `Ref.RollingMean` arm of the OverlayRef
+// discriminated union):
 //
 //   - Ref.RollingMean MUST be populated (the empty marker struct tags the
 //     ref family; the v1 window value lives on Params per the WIN_*
@@ -1198,10 +1181,9 @@ func validateOverlayIndexVsRollingMean(env *Envelope, req *types.Request, spec *
 }
 
 // validateOverlayZScoreVsRolling enforces the per-kind contract for
-// OVERLAY_ZSCORE_VS_ROLLING (E4-S6, fifth windowed-Process kind in the
-// catalog and second consumer of the `Ref.RollingMean` arm of the
-// OverlayRef discriminated union — sibling windowed-rolling kind to
-// INDEX_VS_ROLLING_MEAN / E4-S5):
+// OVERLAY_ZSCORE_VS_ROLLING (windowed-Process kind that is the second
+// consumer of the `Ref.RollingMean` arm of the OverlayRef discriminated
+// union — sibling windowed-rolling kind to INDEX_VS_ROLLING_MEAN):
 //
 //   - Ref.RollingMean MUST be populated (the empty marker struct tags the
 //     ref family; the v1 window value lives on Params per the WIN_*
@@ -1303,9 +1285,8 @@ func validateOverlayZScoreVsRolling(env *Envelope, req *types.Request, spec *typ
 }
 
 // validateOverlayYoY enforces the per-kind contract for OVERLAY_YOY
-// (E4-S7, sixth windowed-Process kind in the catalog and first consumer
-// of the empty `Ref.YoY` marker arm of the OverlayRef discriminated
-// union):
+// (a windowed-Process kind that is the first consumer of the empty
+// `Ref.YoY` marker arm of the OverlayRef discriminated union):
 //
 //   - Ref.YoY MUST be populated (the empty marker tags the ref family;
 //     the v1 frequency value lives on Params per the WIN_* operator
@@ -1529,8 +1510,8 @@ func isYoYSupportedFrequencyPredict(frequency string) bool {
 }
 
 // validateOverlayRollingWindowParam validates the OverlaySpec.Params
-// "window" key for the windowed rolling-* family (E4-S5
-// OVERLAY_INDEX_VS_ROLLING_MEAN; E4-S6 OVERLAY_ZSCORE_VS_ROLLING).
+// "window" key for the windowed rolling-* family
+// (OVERLAY_INDEX_VS_ROLLING_MEAN, OVERLAY_ZSCORE_VS_ROLLING).
 // Both kinds carry the window width on Params["window"] per the WIN_*
 // operator convention; the helper centralises the parse + range check
 // so the rolling family stays parity-true at predict time. Surfaces
@@ -1629,9 +1610,8 @@ func coerceIntegralOverlayParam(v any) (int, bool) {
 }
 
 // validateOverlayIndexVsBaseline enforces the per-kind contract for
-// OVERLAY_INDEX_VS_BASELINE (E4-S2, second windowed-Process kind in the
-// catalog and first consumer of the `Ref.BaselineIndex.Position` arm
-// landed at E4-S1):
+// OVERLAY_INDEX_VS_BASELINE (a windowed-Process kind that is the first
+// consumer of the `Ref.BaselineIndex.Position` arm):
 //
 //   - Ref.BaselineIndex MUST be populated (the resolver consumes Position
 //     as the windowed positional anchor). Empty Ref is rejected with
@@ -1645,7 +1625,7 @@ func coerceIntegralOverlayParam(v any) (int, bool) {
 //   - Scope must be GROUP (mirrors INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES
 //     / ZSCORE_VS_TOTAL / INDEX_VS_PRIOR).
 //   - Ref.BaselineIndex.Position is range-checked downstream by
-//     validateOverlayBaselineIndexPredict (E4-S1) — negative or
+//     validateOverlayBaselineIndexPredict — negative or
 //     out-of-range values fire PULSE_OVERLAY_REF_UNKNOWN with the
 //     `{baseline_index, series_length}` Details map.
 //
@@ -1716,14 +1696,14 @@ func validateOverlayIndexVsBaseline(env *Envelope, req *types.Request, spec *typ
 	}
 
 	// Position range check is delegated to
-	// validateOverlayBaselineIndexPredict (E4-S1) which runs alongside
-	// this per-kind validator from ValidateOverlays. Negative or
-	// out-of-range values fire PULSE_OVERLAY_REF_UNKNOWN.
+	// validateOverlayBaselineIndexPredict which runs alongside this
+	// per-kind validator from ValidateOverlays. Negative or out-of-range
+	// values fire PULSE_OVERLAY_REF_UNKNOWN.
 }
 
 // validateOverlayDeltaVsBaseline enforces the per-kind contract for
-// OVERLAY_DELTA_VS_BASELINE (E4-S3, third windowed-Process kind in the
-// catalog and the absolute-difference twin of OVERLAY_INDEX_VS_BASELINE):
+// OVERLAY_DELTA_VS_BASELINE (a windowed-Process kind that is the
+// absolute-difference twin of OVERLAY_INDEX_VS_BASELINE):
 //
 //   - Ref.BaselineIndex MUST be populated (the resolver consumes Position
 //     as the windowed positional anchor). Empty Ref is rejected with
@@ -1737,8 +1717,8 @@ func validateOverlayIndexVsBaseline(env *Envelope, req *types.Request, spec *typ
 //   - Scope must be GROUP (mirrors INDEX_VS_BASELINE / INDEX_VS_TOTAL /
 //     SHARE_OF_TOTAL SERIES / ZSCORE_VS_TOTAL / INDEX_VS_PRIOR).
 //   - Ref.BaselineIndex.Position is range-checked downstream by
-//     validateOverlayBaselineIndexPredict (E4-S1) — negative or
-//     out-of-range values fire PULSE_OVERLAY_REF_UNKNOWN with the
+//     validateOverlayBaselineIndexPredict — negative or out-of-range
+//     values fire PULSE_OVERLAY_REF_UNKNOWN with the
 //     `{baseline_index, series_length}` Details map.
 //
 // Level / Within rule lives in validateOverlayLevelWithinPredict — the
@@ -1812,9 +1792,9 @@ func validateOverlayDeltaVsBaseline(env *Envelope, req *types.Request, spec *typ
 	}
 
 	// Position range check is delegated to
-	// validateOverlayBaselineIndexPredict (E4-S1) which runs alongside
-	// this per-kind validator from ValidateOverlays. Negative or
-	// out-of-range values fire PULSE_OVERLAY_REF_UNKNOWN.
+	// validateOverlayBaselineIndexPredict which runs alongside this
+	// per-kind validator from ValidateOverlays. Negative or out-of-range
+	// values fire PULSE_OVERLAY_REF_UNKNOWN.
 }
 
 // validateOverlayChiSqMatrix enforces the per-kind contract for
@@ -2260,8 +2240,8 @@ func validateOverlayShareOfCol(env *Envelope, req *types.Request, spec *types.Ov
 
 // validateOverlayShareOfTotal enforces the per-kind contract for
 // OVERLAY_SHARE_OF_TOTAL. The kind is dual-shape — the dispatch chooses
-// between the MATRIX-host validator (E2-S3) and the SERIES-host
-// validator (E3-S3) based on the request's host shape:
+// between the MATRIX-host validator and the SERIES-host validator based
+// on the request's host shape:
 //
 //   - Request.Crosstab non-nil ⇒ MATRIX dispatch: Ref must populate
 //     Margin (the grand-total reference family), Margin.Axis must be a
@@ -2272,7 +2252,7 @@ func validateOverlayShareOfCol(env *Envelope, req *types.Request, spec *types.Ov
 //   - Neither host shape present ⇒ MATRIX-style rejection so the
 //     existing failure mode is preserved (callers without a host get
 //     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE the same way they did
-//     before E3-S3 landed).
+//     against the original MATRIX-only contract).
 //
 // Host-shape disambiguation by inspecting `req.Crosstab` / `req.Groups`
 // matches `validateOverlayIndexVsTotal`'s policy and the runtime
@@ -2292,8 +2272,8 @@ func validateOverlayShareOfTotal(env *Envelope, req *types.Request, spec *types.
 	validateOverlayShareOfTotalMatrix(env, req, spec, index)
 }
 
-// validateOverlayShareOfTotalMatrix enforces the MATRIX-host dispatch
-// (E2-S3): Ref must populate Margin (the grand-total reference family),
+// validateOverlayShareOfTotalMatrix enforces the MATRIX-host dispatch:
+// Ref must populate Margin (the grand-total reference family),
 // Margin.Axis must be a known MarginAxis (the runtime handler is grand-
 // axis-locked, but the validator accepts any known axis at predict time
 // so a misconfigured caller fails closed with a single shape-mismatch
@@ -2357,8 +2337,8 @@ func validateOverlayShareOfTotalMatrix(env *Envelope, req *types.Request, spec *
 	}
 }
 
-// validateOverlayShareOfTotalSeries enforces the SERIES-host dispatch
-// (E3-S3): the Ref union must be EMPTY (implicit-grand-total — the host
+// validateOverlayShareOfTotalSeries enforces the SERIES-host dispatch:
+// the Ref union must be EMPTY (implicit-grand-total — the host
 // series' own grand total is the denominator), the host result must be
 // SERIES-shaped (Request.Crosstab nil AND Request.Groups non-empty —
 // the caller-side dispatcher already verified the host shape before
@@ -2488,9 +2468,9 @@ func validateOverlayZScoreVsMargin(env *Envelope, req *types.Request, spec *type
 // centerpoint), the host result must be SERIES-shaped (i.e.
 // Request.Groups is non-empty and Request.Crosstab is nil), and Scope
 // must be GROUP. Sibling validator to validateOverlayIndexVsTotal and
-// validateOverlayShareOfTotalSeries — the third streamable SERIES-host
-// kind in the E3 grouped-Process subset shares the implicit-grand-total
-// contract verbatim.
+// validateOverlayShareOfTotalSeries — the streamable SERIES-host
+// grouped-Process subset shares the implicit-grand-total contract
+// verbatim.
 //
 // Errors emitted (in order, first hit short-circuits the spec):
 //   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
@@ -2714,7 +2694,7 @@ var zVsRefSupportedScopes = map[types.OverlayScope]bool{
 // p-value. When the cell aggregator is map-valued (the AGG_WELFORD triple
 // carrier — `AggregationType.MapValued() == true`) the handlers consume
 // the triple's (mean, variance, n) directly and the Params slot is
-// optional — predict accepts a Params-less spec in that case (E1-S11 + S20).
+// optional — predict accepts a Params-less spec in that case.
 var twoSampleStatParamKeys = []string{
 	"variance_target",
 	"variance_ref",
@@ -2723,9 +2703,9 @@ var twoSampleStatParamKeys = []string{
 }
 
 // validateOverlayTCell enforces the per-kind contract for
-// OVERLAY_T_CELL (E1-S11): MATRIX host (Request.Crosstab is non-nil),
+// OVERLAY_T_CELL: MATRIX host (Request.Crosstab is non-nil),
 // Scope=CELL only, and Params consumption that mirrors the runtime
-// handler's triple-aware behaviour (E1-S9). When the crosstab's cell
+// handler's triple-aware behaviour. When the crosstab's cell
 // aggregator is map-valued (`AGG_WELFORD` today via
 // `AggregationType.MapValued()`) the handler reads (mean, variance, n)
 // from the Welford triple directly, so Params are OPTIONAL at predict
@@ -2738,16 +2718,16 @@ func validateOverlayTCell(env *Envelope, req *types.Request, spec *types.Overlay
 	validateOverlayTwoSampleStatCell(env, req, spec, index, tCellSupportedScopes, "cell")
 }
 
-// validateOverlayZCell mirrors validateOverlayTCell for OVERLAY_Z_CELL
-// (E1-S20). The two kinds share the same host-shape / scope / Params
-// contract — only the runtime finaliser differs (standardNormalCDF vs
+// validateOverlayZCell mirrors validateOverlayTCell for OVERLAY_Z_CELL.
+// The two kinds share the same host-shape / scope / Params contract —
+// only the runtime finaliser differs (standardNormalCDF vs
 // studentTTwoSidedP).
 func validateOverlayZCell(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
 	validateOverlayTwoSampleStatCell(env, req, spec, index, zCellSupportedScopes, "cell")
 }
 
 // validateOverlayTVsRef enforces the per-kind contract for
-// OVERLAY_T_VS_REF (E1-S11): SERIES host (Request.Crosstab nil AND
+// OVERLAY_T_VS_REF: SERIES host (Request.Crosstab nil AND
 // Request.Groups non-empty), Scope=GROUP only, and the same triple-aware
 // Params behaviour as OVERLAY_T_CELL — the SERIES-host cell aggregator
 // lives on Request.Aggregations; if any of them is map-valued
@@ -2757,9 +2737,9 @@ func validateOverlayTVsRef(env *Envelope, req *types.Request, spec *types.Overla
 	validateOverlayTwoSampleStatVsRef(env, req, spec, index, tVsRefSupportedScopes, "group")
 }
 
-// validateOverlayZVsRef mirrors validateOverlayTVsRef for OVERLAY_Z_VS_REF
-// (E1-S20). Same SERIES-host / Params contract as OVERLAY_T_VS_REF; only
-// the runtime finaliser differs (standardNormalCDF vs studentTTwoSidedP).
+// validateOverlayZVsRef mirrors validateOverlayTVsRef for OVERLAY_Z_VS_REF.
+// Same SERIES-host / Params contract as OVERLAY_T_VS_REF; only the
+// runtime finaliser differs (standardNormalCDF vs studentTTwoSidedP).
 func validateOverlayZVsRef(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
 	validateOverlayTwoSampleStatVsRef(env, req, spec, index, zVsRefSupportedScopes, "group")
 }

@@ -102,8 +102,8 @@ type ComponentSchema struct {
 	Mergeability ComponentsMergeability `json:"mergeability"`
 }
 
-// Compile-time-assertion pattern for downstream stories (E1-S5..S10):
-// per-aggregator MetaAggregator implementations should add a sentinel
+// Compile-time-assertion pattern: per-aggregator MetaAggregator
+// implementations should add a sentinel
 // of the form
 //
 //	var _ processing.MetaAggregator = (*welfordAgg)(nil)

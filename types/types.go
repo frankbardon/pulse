@@ -63,7 +63,7 @@ const (
 	// count — over a numeric field. Returns the running mean through
 	// the legacy float64 contract and the typed WelfordTriple via the
 	// RichAggregator interface so overlay handlers (OVERLAY_T_CELL /
-	// OVERLAY_Z_CELL — E1) can type-switch on the moment payload
+	// OVERLAY_Z_CELL) can type-switch on the moment payload
 	// without re-deriving variance from raw rows. Streamable; mergeable
 	// via Chan-Welford. Margin reducibility is recompute (variance does
 	// not pool by addition). Field type restricted to the strict scalar
@@ -965,9 +965,7 @@ type Request struct {
 	// Each spec produces one OverlayLayer in Response.Overlays in
 	// matching order. Per-kind semantics, required Ref fields, and
 	// scope compatibility live in the overlay catalog (see
-	// types/overlay.go). E1 ships OVERLAY_INDEX_VS_MARGIN over
-	// crosstab results; later epics extend the catalog to
-	// regressions, group results, and ProcessChain stages.
+	// types/overlay.go).
 	Overlays []OverlaySpec `json:"overlays,omitempty"`
 }
 
@@ -1079,8 +1077,6 @@ type Response struct {
 //     order. Slot identity rides on Field. Per-grouper schema (bucket
 //     edges, dict mappings, etc.) rides inside Operator.
 //   - Crosstab: populated when the originating Request set Crosstab.
-//     Shell-only at E1; the full per-cell components matrix lands in
-//     E3.
 //   - Filterers: one entry per Request.Filterers spec in matching
 //     declared order. Slot identity rides on Label.
 //   - Run: optional run-wide totals (cohort record count, filtered
@@ -1097,7 +1093,7 @@ type ResponseComponents struct {
 
 	// Crosstab carries the crosstab-level components (cell matrix +
 	// margins). Populated only when the originating Request set
-	// Crosstab; nil otherwise. Shell-only at E1.
+	// Crosstab; nil otherwise.
 	Crosstab *CrosstabComponents `json:"crosstab,omitempty"`
 
 	// Filterers carries one FiltererComponents entry per
@@ -1135,8 +1131,8 @@ type AggregationComponents struct {
 
 	// Operator carries the per-aggregator schema-declared keys. Key
 	// set is governed by the operator's ComponentSchema declaration in
-	// descriptor/capabilities_aggregators.go (lands in E1-S5+). Values
-	// are JSON-compatible scalars or nested maps.
+	// descriptor/capabilities_aggregators.go. Values are JSON-compatible
+	// scalars or nested maps.
 	Operator map[string]any `json:"operator,omitempty"`
 }
 
@@ -1178,7 +1174,7 @@ type GrouperComponents struct {
 	// Operator carries the per-grouper schema-declared keys (bucket
 	// edges, dict mappings, range_min / range_max, etc.). Key set is
 	// governed by the operator's ComponentSchema declaration in
-	// descriptor/capabilities_groupers.go (lands in E2+).
+	// descriptor/capabilities_groupers.go.
 	Operator map[string]any `json:"operator,omitempty"`
 
 	// Label mirrors the originating Group.Label so callers can join
@@ -1223,15 +1219,13 @@ type FiltererComponents struct {
 // pass facts (cohort filename, etc.); RunComponents is the
 // computational-component view of the same run.
 //
-// Metadata-vs-Run coexistence (E2-S11; promote to CLAUDE.md in E5-S2):
+// Metadata-vs-Run coexistence (see CLAUDE.md Output Format Contract):
 // Response.Metadata.TotalRows and Components.Run.TotalRecords carry the
 // same value by construction at every orchestrator exit. Metadata
 // retains the non-numerical run facts (cohort filename); Run carries
 // the typed counters consumers compute against (joins, ratios,
 // partial-cohort diagnostics). Both slots are populated on every
-// successful Process call so consumers can rely on either side; future
-// stories may deprecate Metadata once consumers migrate to Run, but
-// not in this PR.
+// successful Process call so consumers can rely on either side.
 type RunComponents struct {
 	// TotalRecords is the total number of records in the underlying
 	// cohort (pre-filter).
@@ -1287,22 +1281,16 @@ type ComposedRequest struct {
 	// slot's result inside the same ComposedRequest — the slots are
 	// addressed by their per-Request Label field (with empty Labels
 	// auto-defaulted to `request_<index+1>` before reference lookup,
-	// per E7-S1). Produces one OverlayLayer in ComposedResponse.
-	// Overlays in matching index order.
+	// before reference lookup). Produces one OverlayLayer in
+	// ComposedResponse.Overlays in matching index order.
 	//
-	// Forward-compat: every ComposedRequest authored before E7-S2
-	// landed produces byte-identical JSON to the same request with
-	// `Overlays: nil` because the slot is `omitempty` — nil / empty
-	// slices marshal to no key at all. The canonical-hash routine
-	// inherits that contract via the data-driven JSON walk in
-	// types/hash.go (see
+	// Forward-compat: a ComposedRequest without overlays produces
+	// byte-identical JSON to the same request with `Overlays: nil`
+	// because the slot is `omitempty` — nil / empty slices marshal to
+	// no key at all. The canonical-hash routine inherits that contract
+	// via the data-driven JSON walk in types/hash.go (see
 	// TestComposedRequest_OverlayFreeByteIdentity in
 	// types/hash_test.go).
-	//
-	// E7-S2 lands the slot + the canonical-hash extension only; E7-S3
-	// polishes the JSON round-trip surface and adds the user-facing
-	// validation tests; the per-kind handler dispatch lands in the
-	// subsequent E7 stories.
 	Overlays []ComposeOverlaySpec `json:"overlays,omitempty"`
 }
 
@@ -1312,17 +1300,11 @@ type ComposedRequest struct {
 // Compose-level Overlays slice — one OverlayLayer per
 // ComposedRequest.Overlays spec in matching index order.
 //
-// Scope note (E7-S3): the type lands here so the request-side
+// Scope note: the type lives here so the request-side
 // ComposeOverlaySpec catalog has a typed response sibling to write
-// against during the E7 catalog rollout (E7-S4 through E7-S15 land the
-// per-kind handlers). The pulse.Pulse.Compose facade still returns
-// []*Response today — facade-level rewiring was intentionally deferred so
-// the type-layer contract (this file) could land without rippling through
-// service/, mcp/, and cli/api.go. Once the facade lifts to
-// *ComposedResponse the Overlays slot here is the slot the runtime fills.
-// No follow-up story is currently scheduled — the deferral was originally
-// pointed at E7-S15 of result-overlay-system, which shipped as a test-tier
-// helper only.
+// against. The pulse.Pulse.Compose facade now returns
+// *ComposedResponse and the runtime populates the Overlays slot here
+// at the post-slot barrier.
 //
 // Forward-compat: every ComposedResponse marshalled before any overlay
 // landed produces byte-identical JSON to the same shape with
@@ -1337,7 +1319,7 @@ type ComposedResponse struct {
 	// Overlays carries the executed Compose-level overlay layers, one
 	// entry per ComposedRequest.Overlays spec in matching order. Each
 	// layer holds its derived payload (scalar / series / matrix) plus
-	// optional renderer-friendly summary metadata — reuses the E1
+	// optional renderer-friendly summary metadata — reuses the
 	// OverlayLayer shape so renderers handle Compose layers and
 	// per-Request layers with the same machinery. Omitted entirely when
 	// the originating ComposedRequest had no Overlays.

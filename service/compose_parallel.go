@@ -141,10 +141,9 @@ func (s *Service) ComposeParallel(
 	if firstErr != nil {
 		if o.FailFast {
 			// FailFast=true + any-slot-failed: SKIP the overlay
-			// barrier entirely (per E7-S4 acceptance "when
-			// ComposeOptions.FailFast = true [...] and any slot
-			// fails, overlays are skipped entirely — no
-			// applyComposeOverlays call, no partial emission"). The
+			// barrier entirely. When ComposeOptions.FailFast is true
+			// and any slot fails, overlays are skipped — no
+			// applyComposeOverlays call, no partial emission. The
 			// failing call returns immediately with the first
 			// observed error.
 			return nil, fmt.Errorf("compose parallel: request %d: %w", failed[0], firstErr)
@@ -155,7 +154,7 @@ func (s *Service) ComposeParallel(
 			details)
 	}
 
-	// Compose-only overlay barrier (E7-S4). Runs AFTER the worker
+	// Compose-only overlay barrier. Runs AFTER the worker
 	// pool drains and all per-slot results are gathered into the
 	// order-preserved `responses` slice. The parallel path here only
 	// reaches this barrier when EITHER every slot succeeded (FailFast

@@ -129,7 +129,7 @@ func ValidateChain(fileData io.ReadSeeker, req *types.ChainRequest) *Envelope {
 		current = synthChainSchema(stage.Request)
 	}
 
-	// Whole-chain overlay walk (E6-S7). Runs after the per-stage gate so
+	// Whole-chain overlay walk. Runs after the per-stage gate so
 	// stage-level errors and overlay-level errors land in the same
 	// envelope; the walk is a no-op when req.Overlays is empty.
 	validateChainOverlays(env, result, req)

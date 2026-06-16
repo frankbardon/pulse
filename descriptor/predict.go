@@ -210,26 +210,24 @@ type PredictResult struct {
 	// Per kind-catalog-v1 PRD §I-FR-I3 the predict surface is
 	// `OverlaysApplied + OverlaysSchemaDivergence + OverlayCost`.
 	// Predict emits one descriptor per spec in matching order across
-	// the full overlay catalog (E2 ships 10 kinds; future epics
-	// append entries to types.AllOverlayKinds() and inherit the same
-	// per-spec emission without re-opening this slot).
-	// OverlaysSchemaDivergence: Compose-driven divergence detection lands
-	// in E7-S14; CHAIN-driven detection in E10-S2. OverlayCost: the
-	// streamability-derived dispatch landed in E3-S11 (streamable kinds
-	// emit overlayCostStreamable; buffered kinds emit overlayCostBuffered)
-	// and the E10-S3 audit + multi-ref scaling closed the catalog
-	// (every kind in types.AllOverlayKinds() carries a multiplier; the
+	// the full overlay catalog; new kinds appended to
+	// types.AllOverlayKinds() inherit the same per-spec emission
+	// without re-opening this slot. The streamability-derived
+	// dispatch routes streamable kinds to overlayCostStreamable and
+	// buffered kinds to overlayCostBuffered; every kind in
+	// types.AllOverlayKinds() carries a multiplier, and the
 	// multi-ref scaling rule lives on the COMPOSE-host equivalent at
 	// ComposeValidationResult.OverlayCost since Targets / MaxPanelTargets
-	// only exist on ComposeOverlaySpec).
+	// only exist on ComposeOverlaySpec.
 	OverlaysApplied []OverlayAppliedDescriptor `json:"overlays_applied"`
 
 	// OverlaysSchemaDivergence lists every (left, right) overlay-spec
 	// slot pair that produced incompatible result-schema shapes. Empty
-	// in E1 — divergence detection lands with Compose wiring in a later
-	// epic — but the field is present so consumers can rely on the
-	// shape today. Per PRD §I-FR-I3 the placeholder is honoured as
-	// "this slot is reserved and shipped empty".
+	// for the Request-only Predict surface — divergence detection lives
+	// on the Compose-host validator (ValidateCompose) — but the field is
+	// present so consumers can rely on the shape today. Per PRD §I-FR-I3
+	// the placeholder is honoured as "this slot is reserved and shipped
+	// empty".
 	OverlaysSchemaDivergence []SlotPair `json:"overlays_schema_divergence"`
 
 	// OverlayCost maps each overlay-spec Name to a coarse cost score
@@ -452,9 +450,8 @@ type OverlayAppliedDescriptor struct {
 	Ref string `json:"ref,omitempty"`
 
 	// Streamable mirrors types.OverlayStreamable(kind). False for
-	// every E2 kind today (the whole crosstab catalog is buffered);
-	// later epics flip kinds to streamable kind-by-kind and the field
-	// surfaces the per-kind decision uniformly.
+	// the buffered crosstab catalog; streamable kinds surface the
+	// per-kind decision uniformly.
 	Streamable bool `json:"streamable"`
 }
 
@@ -621,11 +618,10 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// computeStreamable below.
 	validateCrosstab(env, req, schema, opts)
 
-	// Validate overlay specs (Request.Overlays). E1 covers OVERLAY_INDEX_VS_MARGIN
-	// only — unknown kind, ref-shape compatibility against the MATRIX host,
-	// and the per-kind supported scope set. Streamability is gated on the
-	// host operator (today: always-buffered crosstab); overlay streamability
-	// surfaces via types.OverlayStreamable in later epics.
+	// Validate overlay specs (Request.Overlays). Surfaces unknown kind,
+	// ref-shape compatibility against the host, and the per-kind
+	// supported scope set. Streamability is gated on the host operator;
+	// overlay streamability surfaces via types.OverlayStreamable.
 	ValidateOverlays(env, req, schema, opts)
 
 	// Populate the predict surface from req.Overlays. One descriptor per
@@ -633,10 +629,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// by the spec's renderer-facing name (or a synthesised default when
 	// empty) — streamable kinds carry overlayCostStreamable, buffered
 	// kinds carry overlayCostBuffered. OverlaysSchemaDivergence stays
-	// empty in E1 — Compose wiring lands later.
+	// empty on Predict — Compose wiring exposes divergence on
+	// ValidateCompose.
 	populateOverlayDescriptors(result, req)
 
-	// Populate the per-aggregation predict surface (E1-S4): one
+	// Populate the per-aggregation predict surface: one
 	// AggregationPredict descriptor per req.Aggregations slot in
 	// matching order. ComponentSchema is projected from the static
 	// capability table; BufferedComponents flags slots whose
@@ -646,8 +643,8 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// never via constructed operators.
 	populateAggregationPredicts(result, req, opts)
 
-	// Populate the per-grouper predict surface (E2-S3): one
-	// GroupPredict descriptor per req.Groups slot in matching order.
+	// Populate the per-grouper predict surface: one GroupPredict
+	// descriptor per req.Groups slot in matching order.
 	// ComponentSchema is projected from the static grouper capability
 	// table; BufferedComponents flags slots whose Mergeability is None
 	// (GROUP_QUANTILE today). Predict stays no-execute — the schema is
@@ -655,9 +652,9 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// operators.
 	populateGroupPredicts(result, req, opts)
 
-	// Populate the per-filterer predict surface (E2-S8): one
-	// FiltererPredict descriptor per req.Filterers slot in matching
-	// order. ComponentSchema is projected from the static filterer
+	// Populate the per-filterer predict surface: one FiltererPredict
+	// descriptor per req.Filterers slot in matching order.
+	// ComponentSchema is projected from the static filterer
 	// capability table; BufferedComponents flags slots whose
 	// Mergeability is None. In v1 every built-in filterer is Mergeable
 	// (counters fold trivially), so BufferedComponents is always false
@@ -1140,8 +1137,8 @@ func isLowQualityDescription(desc string) bool {
 // carried alongside the per-group reducers, so the marginal cost is
 // effectively a few f64 adds per record. The value is a rough record-
 // count multiplier per PRD §I-FR-I3; 0.05 ≈ "5% extra work" relative
-// to a fresh pass over the source records. The streamable E3 trio
-// (INDEX_VS_TOTAL, ZSCORE_VS_TOTAL, the SERIES dispatch of
+// to a fresh pass over the source records. The streamable SERIES-host
+// trio (INDEX_VS_TOTAL, ZSCORE_VS_TOTAL, the SERIES dispatch of
 // SHARE_OF_TOTAL) lands at this value today.
 const overlayCostStreamable = 0.05
 
@@ -1151,9 +1148,9 @@ const overlayCostStreamable = 0.05
 // finalized per-group SeriesPayload for the sibling family, etc.) and
 // folds at the post-host exit, traversing the payload a second time.
 // The value is a rough record-count multiplier per PRD §I-FR-I3; 1.0
-// ≈ "one extra pass" over the materialised host structure. Every E1 /
-// E2 kind plus the SIBLING family (DELTA_VS_SIBLING, INDEX_VS_SIBLING)
-// lands at this value today.
+// ≈ "one extra pass" over the materialised host structure. The
+// MATRIX-host catalog plus the SIBLING family (DELTA_VS_SIBLING,
+// INDEX_VS_SIBLING) lands at this value today.
 const overlayCostBuffered = 1.0
 
 // overlayCostForKind returns the OverlayCost multiplier for a given
@@ -1176,10 +1173,10 @@ func overlayCostForKind(kind types.OverlayKind) float64 {
 // populateOverlayDescriptors fills PredictResult.OverlaysApplied and
 // PredictResult.OverlayCost from req.Overlays. Per kind-catalog-v1 PRD
 // §I-FR-I3 the predict surface is `OverlaysApplied +
-// OverlaysSchemaDivergence + OverlayCost`; E1 emits one
+// OverlaysSchemaDivergence + OverlayCost`. It emits one
 // OverlayAppliedDescriptor per spec (Name + Kind + Scope + Streamable)
 // and a per-kind OverlayCost multiplier keyed by the spec name. The
-// divergence slot stays empty in E1.
+// divergence slot stays empty on the Request-only Predict surface.
 //
 // The streamability echo and the cost score both consult
 // types.OverlayStreamable(kind) — the static table in

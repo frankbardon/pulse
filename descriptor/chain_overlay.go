@@ -5,7 +5,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E6-S7: whole-chain overlay predict-time validator.
+// Whole-chain overlay predict-time validator.
 //
 // Extends ValidateChain (descriptor/chain.go) with an Overlays walk that
 // runs AFTER the per-stage chain gate but BEFORE any stage executes.

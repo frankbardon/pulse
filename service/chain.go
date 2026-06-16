@@ -126,15 +126,14 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 			Overlays: req.Overlays,
 		}
 	}
-	// Whole-chain overlay barrier (E6-S3). Runs AFTER every stage has
-	// finalised and BEFORE the response is returned to the caller.
-	// Per-stage `Stages[i].Overlays` (populated via the per-stage
-	// `Request.Overlays` slot per E6-S1) is left UNTOUCHED — the
-	// whole-chain barrier reads finalised `*Response` objects only and
-	// emits its own `ChainResponse.Overlays` slice keyed to
-	// `req.Overlays` in matching index order. Empty / nil `req.Overlays`
-	// short-circuits with no allocation (byte-identical JSON vs
-	// pre-E6-S3 output).
+	// Whole-chain overlay barrier. Runs AFTER every stage has finalised
+	// and BEFORE the response is returned to the caller. Per-stage
+	// `Stages[i].Overlays` (populated via the per-stage
+	// `Request.Overlays` slot) is left UNTOUCHED — the whole-chain
+	// barrier reads finalised `*Response` objects only and emits its own
+	// `ChainResponse.Overlays` slice keyed to `req.Overlays` in matching
+	// index order. Empty / nil `req.Overlays` short-circuits with no
+	// allocation (byte-identical JSON for overlay-free chains).
 	if err := s.applyChainOverlays(req, out); err != nil {
 		return nil, err
 	}
@@ -145,7 +144,7 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 // processing.ApplyChainOverlays against the materialised stage
 // responses and populates `out.Overlays` in spec-order. Returns nil
 // when `req.Overlays` is empty so the wire form stays byte-identical
-// to the pre-E6-S3 ChainResponse for overlay-free chains.
+// to the overlay-free ChainResponse shape.
 //
 // Per FR-F1 ("whole-chain overlay fold operates exclusively on
 // already-materialised *Response objects; no record re-traversal"):
@@ -155,11 +154,10 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 //
 // Per FR-F2 ("PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT raises at
 // runtime here when target stage and reference stage host shapes
-// diverge"): the shape-divergence check is deferred to E6-S6 (the
-// canonical error code lands there). Until then the stub handlers in
-// `processing.ApplyChainOverlays` skip the divergence check entirely
-// and the layer inherits the target stage's shape; the FIXME comment
-// in `processing/overlay_chain_dispatch.go` documents the deferred
+// diverge"): the stub handlers in `processing.ApplyChainOverlays`
+// skip the divergence check entirely and the layer inherits the target
+// stage's shape; the FIXME comment in
+// `processing/overlay_chain_dispatch.go` documents the deferred
 // surface.
 func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainResponse) error {
 	if len(req.Overlays) == 0 {
@@ -197,8 +195,9 @@ func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainRe
 	// back to layer 0 so they are still surfaced rather than silently
 	// dropped. Layers with no warnings keep `Warnings == nil` (no empty
 	// slice allocation) so the `omitempty` JSON tag preserves byte
-	// identity for the overlay-free path. E3-S1 (Compose) mirrors this
-	// convention so a shared helper can factor both paths later.
+	// identity for the overlay-free path. The Compose-host barrier
+	// mirrors this convention so a shared helper can factor both paths
+	// later.
 	for i := range warnings {
 		layerIdx := 0
 		if warnings[i].Details != nil {

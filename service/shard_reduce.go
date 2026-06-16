@@ -175,8 +175,7 @@ type shardPartial struct {
 	// nullRecords counts post-filter records where the primary
 	// aggregation field (first agg's Field, else first grouper's Field)
 	// was null. Used by finalizeMergedPartial to populate
-	// Response.Components.Run.NullRecords (E2-S11). Merger sums across
-	// shards.
+	// Response.Components.Run.NullRecords. Merger sums across shards.
 	nullRecords int64
 
 	aggs   []processing.OnlineAggregator
@@ -249,7 +248,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		streamGrp = sg
 	}
 
-	// E2-S11: resolve the primary aggregation field for the per-shard
+	// Resolve the primary aggregation field for the per-shard
 	// null counter. Convention matches processing/run_components.go's
 	// primaryNullFieldName helper: first aggregator's Field, else the
 	// first grouper's Field. The per-shard tally accumulates into
@@ -504,9 +503,9 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 // merged state — populated by the shard-archive parallel reducer
 // (processShardArchiveParallel) and left at 0 by the single-file
 // parallel buffered reducer (reduceParallelBuffered). The value flows
-// into Response.Components.Run.ShardCount (E2-S11) and stays at 0 for
+// into Response.Components.Run.ShardCount and stays at 0 for
 // single-file cohorts so the omitempty wire shape is byte-identical
-// against the pre-E2-S11 baseline.
+// against the single-cohort baseline.
 func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int) (*types.Response, error) {
 	_ = schema
 	resp := &types.Response{
@@ -572,7 +571,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 // service-local so the per-shard reducer (and the single-file parallel
 // buffered reducer that reuses the same merge state) can populate the
 // typed cohort counters without reaching into the processing package's
-// unexported helper. E2-S11.
+// unexported helper.
 func attachMergedRunComponents(resp *types.Response, merged *shardPartial, shardCount int) {
 	if resp == nil || merged == nil {
 		return

@@ -12,7 +12,7 @@ import (
 // FACET-host overlay wiring — service-layer orchestration of the four
 // FACET-host overlay handlers (OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP /
 // OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP) at the FacetSchema buffered
-// exit (E5-S6).
+// exit.
 //
 // The runtime handlers live entirely inside processing/ (the overlay
 // catalog stays free of service/ imports per CLAUDE.md "What NOT to
@@ -245,7 +245,7 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 	popReq := &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: cohortName},
 		Fields: []string{field},
-		// E5-S5 KS_VS_POP reads `NumericPercentiles` for the population
+		// KS_VS_POP reads `NumericPercentiles` for the population
 		// CDF and the histogram path for INDEX_VS_POP. Forward the host
 		// request's matching slots so the population materialisation
 		// carries the same numerical surface the handlers expect to

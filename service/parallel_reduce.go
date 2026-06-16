@@ -11,11 +11,11 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// parallel_reduce.go composes the E3-S2 segment-aware parallel decode
+// parallel_reduce.go composes the segment-aware parallel decode
 // infrastructure with per-worker partial aggregator state so a buffered
 // Process call whose request is mergeable (processing.CanMergeRequest)
 // can emit its Response without ever materialising the
-// []*processing.Record slice the E3-S2 wire-up still produces.
+// []*processing.Record slice the parallel-decode path produces.
 //
 // Each worker owns a *shardPartial (the exact same shape shard_reduce.go
 // already uses for archive-shard parallelism). When the per-record
@@ -28,14 +28,6 @@ import (
 // associative+commutative aggregator and ULP-bounded equivalence holds
 // for the Welford-Pébaÿ merge (the same guarantee shard_reduce already
 // ships).
-//
-// E3-S3 ships the infrastructure + a dispatch site in service/crosstab.go
-// that branches on CanMergeRequest; today a Crosstab request always
-// fails CanMergeRequest (req.Aggregations is empty per
-// validateCrosstabSpec, and CanMergeRequest requires len(Aggregations)>0)
-// so this path is dormant from the crosstab entry. E3-S4 broadens the
-// eligibility gate to non-crosstab buffered Process calls; the reducer
-// here is the implementation E3-S4 will dispatch into.
 
 // reduceParallelBuffered is the per-segment partial-state + merge
 // orchestrator. The caller guarantees:
@@ -46,7 +38,7 @@ import (
 //   - processing.CanMergeRequest(req, schema) returns true
 //
 // On entry the function constructs per-worker partial-state slots via
-// the same factory shape the E3-S2 path uses. The factory closure builds
+// the same factory shape the parallel-decode path uses. The factory closure builds
 // a fresh aggregator/grouper/filter/attribute instance set per worker
 // (no shared mutable state) and returns a DecodeCallback that updates
 // the worker's partial on each decoded Record. After the errgroup
@@ -290,7 +282,7 @@ func (s *Service) reduceParallelBuffered(
 	//
 	// Single-file parallel buffered runs are not shard-archive runs —
 	// ShardCount stays 0 so the omitempty wire shape is byte-identical
-	// against the pre-E2-S11 baseline.
+	// against the single-cohort baseline.
 	if workers == 1 {
 		if partials[0] == nil {
 			partials[0] = &shardPartial{}

@@ -5,16 +5,13 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E7-S14: predict-time validator for ComposedRequest.Overlays.
-//
 // ValidateCompose is the no-execute descriptor mirror of the runtime
-// COMPOSE-host overlay gates (E7-S6 strict key-set alignment, E7-S7
-// structural schema match, E7-S11 panel target cap). It walks
+// COMPOSE-host overlay gates (strict key-set alignment, structural
+// schema match, panel target cap). It walks
 // ComposedRequest.Overlays and surfaces every per-spec failure that can
 // be detected from header + schema alone — every other Compose overlay
-// failure mode (key-set alignment, categorical dict-prefix drift) is
-// out of scope per the story acceptance list because it requires
-// record-level visibility the no-execute path does not have.
+// failure mode (key-set alignment, categorical dict-prefix drift)
+// requires record-level visibility the no-execute path does not have.
 //
 // The validator stays inside descriptor/ — no service / processing
 // import. The helpers that mirror processing/-side normalisers
@@ -71,8 +68,7 @@ type ComposeValidationResult struct {
 	// to PredictResult.OverlayCost / FacetValidationResult.OverlayCost —
 	// streamable kinds carry overlayCostStreamable (~5% extra work) and
 	// buffered kinds carry overlayCostBuffered (~one extra payload
-	// traversal). E10-S3 lands this slot alongside multi-reference cost
-	// scaling: the two multi-ref kinds (OVERLAY_PROP_Z_PANEL,
+	// traversal). The two multi-ref kinds (OVERLAY_PROP_Z_PANEL,
 	// OVERLAY_PANEL_INDEX_VS_REF) scale the base cost by
 	// `min(len(spec.Targets), MaxPanelTargets)` so renderers can budget
 	// per-panel fan-out without re-deriving the cap. Single-target kinds
