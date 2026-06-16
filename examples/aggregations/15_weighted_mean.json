@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Age-weighted mean income on customers.pulse via AGG_WEIGHTED_MEAN with Params.weight_field=age (older customers carry more weight). Paired with unweighted AGG_AVERAGE for the canonical weighted-vs-unweighted contrast — when the weight covaries with the value the two diverge. Streamable via the Chan-Welford weighted recurrence.",
+    "name": "weighted_mean_income",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_WEIGHTED_MEAN"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "financial",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "mean_income"
+    },
+    {
+      "type": "AGG_WEIGHTED_MEAN",
+      "field": "income",
+      "label": "age_weighted_mean_income",
+      "params": {
+        "weight_field": "age"
+      }
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  }
+}

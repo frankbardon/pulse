@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "name": "forward_selection",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ols",
+      "selection",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_OLS"
+    ],
+    "description": "Forward stepwise selection: REG_OLS with selection=forward grows the predictor set greedily by starting empty and adding the AIC-optimal candidate each round, halting when no remaining predictor improves the criterion. Sibling shape to 11_stepwise.json (bidirectional) — the forward arm is the canonical \"start small, add as needed\" subset-selection strategy. Forces the buffered orchestrator path."
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "income_forward",
+      "target": "income",
+      "predictors": ["price", "label"],
+      "selection": "forward",
+      "criterion": "aic"
+    }
+  ]
+}

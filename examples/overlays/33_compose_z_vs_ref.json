@@ -1,0 +1,88 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Compose batch of one reference slot (control treatment arm) plus one target slot (variant treatment arm) grouped by region decorated with an OVERLAY_Z_VS_REF series-shape compose overlay that runs a per-group two-sample z-test against the matching reference group. Cell aggregator is AGG_WELFORD which emits the streaming Welford-Pebay triple {Mean, Variance, N} as the per-group payload via the RichAggregator interface — the OVERLAY_Z_VS_REF handler is triple-aware (mirrors OVERLAY_Z_CELL) so variance and n are read from the streaming sample state instead of the Params defaults. v0.20.0 parity overlay (E1 family) — series-shape sibling of OVERLAY_Z_CELL with byte-equal parity against the standalone TEST_Z_TWO_SAMPLE row test for the same (mean, variance, n) triple. Each entry's Statistic becomes the two-sided z p-value. Reuses the standardNormalCDF helper backing TEST_Z_TWO_SAMPLE / OVERLAY_Z_CELL. Twin to OVERLAY_T_VS_REF (32_compose_t_vs_ref.json) — same fold-and-finalise shape, different finalising distribution (standard normal vs Student's t). Missing reference groups emit PULSE_OVERLAY_REF_ZERO with ref_missing=true Detail. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD Non-Goals).",
+    "name": "compose-z-vs-ref",
+    "operators": [
+      "AGG_WELFORD",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "byte-equal-test",
+      "compose",
+      "experiment-analysis",
+      "hypothesis-test",
+      "overlay",
+      "parametric",
+      "two-sample",
+      "welford-triple",
+      "z"
+    ]
+  },
+  "requests": [
+    {
+      "label": "control",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["control"]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_WELFORD",
+          "field": "revenue",
+          "label": "revenue_triple"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "region"
+        }
+      ]
+    },
+    {
+      "label": "variant",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["variant"]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_WELFORD",
+          "field": "revenue",
+          "label": "revenue_triple"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "region"
+        }
+      ]
+    }
+  ],
+  "overlays": [
+    {
+      "name": "z_vs_control",
+      "kind": "OVERLAY_Z_VS_REF",
+      "scope": "group",
+      "reference": "control",
+      "targets": ["variant"]
+    }
+  ]
+}

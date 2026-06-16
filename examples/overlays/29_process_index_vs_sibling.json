@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process aggregating revenue by region decorated with an OVERLAY_INDEX_VS_SIBLING group overlay that emits (group_val / sibling_val * 100) per region, anchored on Ref.Sibling=(field=region, value=north). Ratio sibling of OVERLAY_DELTA_VS_SIBLING (07_process_delta_vs_sibling.json) — same (Field, Value) sibling resolver, ratio arithmetic instead of subtraction. The sibling group itself emits 100 (self-vs-self under the ratio scaling). Buffered (sibling resolution requires the full materialised SeriesPayload before the (Field, Value) lookup runs). Unknown sibling emits PULSE_OVERLAY_REF_UNKNOWN. Zero sibling emits PULSE_OVERLAY_REF_ZERO (division by zero). Renderers centre diverging colour ramps on baseline = 100.",
+    "name": "process-index-vs-sibling",
+    "operators": [
+      "AGG_SUM",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "comparison",
+      "overlay"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "overlays": [
+    {
+      "name": "i_sibling",
+      "kind": "OVERLAY_INDEX_VS_SIBLING",
+      "scope": "group",
+      "ref": {
+        "sibling": {
+          "field": "region",
+          "value": "north"
+        }
+      }
+    }
+  ]
+}

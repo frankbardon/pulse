@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "name": "gamma_glm",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "glm",
+      "financial",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_GLM"
+    ],
+    "description": "Gamma regression: REG_GLM with family=gamma + link=inverse models a strictly-positive continuous outcome whose conditional mean is a reciprocal-linear function of the predictors. Sibling family to Poisson (15_poisson.json) — Gamma fits continuous skewed positives (income, claim sizes, durations) where Poisson would over-restrict variance. The canonical Gamma link is inverse (the GLM theory's natural link); v1 reserves link=log as a future implementation. Uses customers.pulse income (a strictly-positive log-normally distributed outcome — the canonical Gamma fit target)."
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_GLM",
+      "name": "income_gamma",
+      "target": "income",
+      "predictors": ["age"],
+      "family": "gamma",
+      "link": "inverse"
+    }
+  ]
+}

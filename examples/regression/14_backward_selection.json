@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "name": "backward_selection",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ols",
+      "selection",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_OLS"
+    ],
+    "description": "Backward stepwise selection: REG_OLS with selection=backward starts with the full predictor set and drops the BIC-worst candidate each round, halting when removing any further predictor degrades the criterion. Sibling shape to 13_forward_selection.json (forward) and 11_stepwise.json (bidirectional) — backward is the canonical \"start big, prune\" subset-selection strategy. Forces the buffered orchestrator path."
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "income_backward",
+      "target": "income",
+      "predictors": ["price", "label"],
+      "selection": "backward",
+      "criterion": "bic"
+    }
+  ]
+}

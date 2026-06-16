@@ -1,0 +1,193 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Compose batch of one reference slot (control treatment arm) plus three target slots (three audience filters over the variant arm) over region x segment decorated with an OVERLAY_PROP_Z_PANEL multi-reference compose overlay that runs pairwise two-proportion z-tests across the N+1=4 slot panel. Multi-ref panel sibling of the single-target OVERLAY_PROP_Z_CELL (13_compose_prop_z_cell.json). Each cell's Value is a flattened upper-triangular slice of pairwise two-sided p-values across the panel (slice length = M*(M-1)/2 for an M=N+1 slot panel). Reuses the same twoProportionZ helper backing TEST_PROP_Z / OVERLAY_PROP_Z_CELL — every pairwise p-value matches the corresponding OVERLAY_PROP_Z_CELL output byte-for-byte. Cap enforcement via OverlayOptions.MaxPanelTargets defaults to 16 when Options is nil — three targets clears the default cap. Inherently buffered (inferential family).",
+    "name": "compose-prop-z-panel",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "compose",
+      "cross-tabulation",
+      "experiment-analysis",
+      "hypothesis-test",
+      "overlay",
+      "proportion-analysis"
+    ]
+  },
+  "requests": [
+    {
+      "label": "control",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["control"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "converted",
+          "label": "successes"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    },
+    {
+      "label": "audience_a",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["variant"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "converted",
+          "label": "successes"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    },
+    {
+      "label": "audience_b",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["variant"]
+        },
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "region",
+          "values": ["north", "south", "east", "west"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "converted",
+          "label": "successes"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    },
+    {
+      "label": "audience_c",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "converted",
+          "values": ["yes"]
+        },
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "region",
+          "values": ["north", "south", "east", "west"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "converted",
+          "label": "successes"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "prop_z_panel",
+      "kind": "OVERLAY_PROP_Z_PANEL",
+      "scope": "cell",
+      "reference": "control",
+      "targets": ["audience_a", "audience_b", "audience_c"]
+    }
+  ]
+}

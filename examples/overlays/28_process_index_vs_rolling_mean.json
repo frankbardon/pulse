@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process aggregating revenue by month decorated with an OVERLAY_INDEX_VS_ROLLING_MEAN group overlay that emits a per-point windowed index against the arithmetic mean of the W=3 immediately preceding points (point / rolling_mean * 100). Windowed-Process kind sharing the carrier shape with OVERLAY_ZSCORE_VS_ROLLING (22_process_zscore_vs_rolling.json) — both maintain a per-group ring buffer of the W most recent PRESENT values plus the Welford (count, mean, M2) trio. INDEX reads only the mean. Buffered (the ring buffer carrier widens past v1's single-state lag accumulator). Window-fill semantics: first W present ordinals emit NaN without warning. Zero rolling-mean emits PULSE_OVERLAY_REF_ZERO. Renderers centre diverging colour ramps on baseline = 100.",
+    "name": "process-index-vs-rolling-mean",
+    "operators": [
+      "AGG_SUM",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "overlay",
+      "time-series"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "monthly_revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "order_date",
+      "params": {
+        "component": "month"
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "rolling_index",
+      "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN",
+      "scope": "group",
+      "ref": {
+        "rolling_mean": {}
+      },
+      "params": {
+        "window": 3
+      }
+    }
+  ]
+}

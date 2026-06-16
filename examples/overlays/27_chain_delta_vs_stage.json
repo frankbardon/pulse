@@ -1,0 +1,91 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "3-stage ProcessChain decorated with one whole-chain OVERLAY_DELTA_VS_STAGE spec (Ref.Stage.Index=0, Target.Stage.Index=2) that emits (stage2_value - stage0_value) per region. Additive sibling of OVERLAY_INDEX_VS_STAGE (11_chain_whole_chain_index_vs_stage.json) — same dual-slot whole-chain barrier wiring, subtractive arithmetic instead of ratio. Each stage preserves SERIES shape (grouper + scalar aggregator on region) so the whole-chain shape gate accepts: stage 0 sums revenue per region (label v), stage 1 sums v per region (label w), stage 2 counts w per region (label c). Output preserves the target stage's units. DELTA does not emit PULSE_OVERLAY_REF_ZERO on zero reference value (subtraction is well-defined). Buffered — the whole-chain barrier runs after every stage has produced a Response. Shape-divergence rule (PRD §6 FR-F2) emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT when target and reference stage shapes differ. Renderers centre diverging colour ramps on baseline = 0.",
+    "name": "chain-delta-vs-stage",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "comparison",
+      "composed",
+      "overlay"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "stages": [
+    {
+      "name": "stage_a",
+      "request": {
+        "groups": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "aggregations": [
+          {
+            "type": "AGG_SUM",
+            "field": "revenue",
+            "label": "v"
+          }
+        ]
+      }
+    },
+    {
+      "name": "stage_b",
+      "request": {
+        "groups": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "aggregations": [
+          {
+            "type": "AGG_SUM",
+            "field": "v",
+            "label": "w"
+          }
+        ]
+      }
+    },
+    {
+      "name": "stage_c",
+      "request": {
+        "groups": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "aggregations": [
+          {
+            "type": "AGG_COUNT",
+            "field": "w",
+            "label": "c"
+          }
+        ]
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "stage2_vs_stage0_delta",
+      "kind": "OVERLAY_DELTA_VS_STAGE",
+      "scope": "group",
+      "ref": {
+        "index": 0
+      },
+      "target": {
+        "index": 2
+      }
+    }
+  ]
+}

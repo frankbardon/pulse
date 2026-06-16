@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "category": "features",
+    "description": "Square-root variance-stabilising transform on the skewed transactions.pulse amount column via FEAT_SQRT. Sibling shape to FEAT_LOG (01_log_transform.json) but uses sqrt instead of natural log — appropriate when the distribution carries zero values (log(0) is undefined; sqrt(0) is 0). Summarises the transformed distribution via AGG_AVERAGE + AGG_STDDEV so the shape change is visible as scalars.",
+    "name": "feat_sqrt_transform",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_STDDEV",
+      "FEAT_SQRT"
+    ],
+    "tags": [
+      "feature-engineering",
+      "distribution-shape",
+      "pre-filter",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "sqrt_amount",
+      "label": "mean_sqrt_amount"
+    },
+    {
+      "type": "AGG_STDDEV",
+      "field": "sqrt_amount",
+      "label": "stddev_sqrt_amount"
+    }
+  ],
+  "cohort": {
+    "filename": "transactions.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_SQRT",
+      "field": "amount",
+      "label": "sqrt_amount"
+    }
+  ]
+}

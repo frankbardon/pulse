@@ -1,0 +1,98 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Compose batch of two crosstab slots (total_pop, audience_a) over region x segment decorated with an OVERLAY_DELTA_VS_REF matrix-shape compose overlay that emits (audience_a_cell - total_pop_cell) per cell. Subtractive twin of OVERLAY_INDEX_VS_REF (12_compose_audience_index_vs_total.json) — same alignment + schema-match contract, additive arithmetic instead of ratio. DELTA preserves cell units (counts) so renderers surface absolute audience uplift / shortfall against the population baseline. Reference names the baseline slot; Targets names the slot whose cells the overlay decorates. Mathematically defined for every finite reference value including zero (the handler does NOT emit PULSE_OVERLAY_REF_ZERO on zero ref cells — subtraction is well-defined). Buffered (Compose slot barrier — MATRIX arm). Renderers centre diverging colour ramps on baseline = 0.",
+    "name": "compose-delta-vs-ref",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "compose",
+      "comparison",
+      "cross-tabulation",
+      "overlay"
+    ]
+  },
+  "requests": [
+    {
+      "label": "total_pop",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "id",
+          "label": "n"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    },
+    {
+      "label": "audience_a",
+      "cohort": {
+        "filename": "experiment.pulse",
+        "data_dir": ".data"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "treatment",
+          "values": ["variant"]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "segment"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "id",
+          "label": "n"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "audience_delta",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "cell",
+      "reference": "total_pop",
+      "targets": ["audience_a"]
+    }
+  ]
+}

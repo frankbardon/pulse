@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process aggregating revenue by region decorated with an OVERLAY_ZSCORE_VS_TOTAL group overlay that standardises each region's revenue against the per-region distribution's mean + POPULATION SD (sqrt(M2 / N)) folded across all present groups. Streamable — the Welford accumulator is one (count, mean, M2) triple carried alongside the per-group accumulators inside the streaming Process fold. Third and final streamable overlay in the E3 grouped-Process subset (siblings: OVERLAY_INDEX_VS_TOTAL / 06_process_index_vs_total.json, OVERLAY_SHARE_OF_TOTAL SERIES dispatch). Implicit-grand-total — Ref must be empty. Variance choice (POPULATION, not sample) intentional: the per-group aggregation set IS the whole population we are standardising against. Zero-variance emits PULSE_OVERLAY_REF_ZERO. Renderers centre diverging colour ramps on baseline = 0.",
+    "name": "process-zscore-vs-total",
+    "operators": [
+      "AGG_SUM",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "comparison",
+      "overlay",
+      "outlier-detection",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "overlays": [
+    {
+      "name": "z_total",
+      "kind": "OVERLAY_ZSCORE_VS_TOTAL",
+      "scope": "group"
+    }
+  ]
+}

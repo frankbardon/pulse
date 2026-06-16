@@ -77,7 +77,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		{"windows", "windows", 10},
 		{"aggregations", "aggregations", 4},
 		{"tests", "tests", 27},
-		{"regression", "regression", 11},
+		{"regression", "regression", 16},
 		{"crosstab", "crosstab", 13},
 	}
 
@@ -181,8 +181,8 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	if len(matches) != 11 {
-		t.Fatalf("expected exactly 11 regression examples, found %d", len(matches))
+	if len(matches) != 16 {
+		t.Fatalf("expected exactly 16 regression examples, found %d", len(matches))
 	}
 	for _, ex := range matches {
 		t.Run(filepath.Base(ex), func(t *testing.T) {
@@ -220,16 +220,18 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 	}
 }
 
-// TestRegressionExamplesCount asserts there are exactly 11 regression
-// examples (the Phase 6 ecological one plus the 10 added in Phase 8).
-// New regression examples should bump this count and document the
-// addition in the regression mdBook chapter.
+// TestRegressionExamplesCount asserts there are exactly 16 regression
+// examples (the Phase 6 ecological one plus the 10 added in Phase 8 plus
+// the 5 modifier-axis examples added in E5-S2 — bootstrap resampling,
+// forward / backward selection, poisson / gamma GLM families). New
+// regression examples should bump this count and document the addition
+// in the regression mdBook chapter.
 func TestRegressionExamplesCount(t *testing.T) {
 	matches, err := filepath.Glob(filepath.Join("examples", "regression", "*.json"))
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	const want = 11
+	const want = 16
 	if len(matches) != want {
 		t.Errorf("want %d regression examples under examples/regression/, found %d: %v", want, len(matches), matches)
 	}

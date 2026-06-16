@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Compute the 95th percentile of transactions.pulse amount and contrast it with AGG_AVERAGE and AGG_MAX to surface the tail vs mean gap. AGG_PERCENTILE accepts Params.percentile in 0..100; defaults to 50 (the median) when omitted. Non-mergeable buffered aggregator — needs the full value set.",
+    "name": "percentile_p95",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_MAX",
+      "AGG_PERCENTILE"
+    ],
+    "tags": [
+      "distribution-shape",
+      "outlier-detection",
+      "financial",
+      "buffered-pipeline"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "amount",
+      "label": "mean_amount"
+    },
+    {
+      "type": "AGG_MAX",
+      "field": "amount",
+      "label": "max_amount"
+    },
+    {
+      "type": "AGG_PERCENTILE",
+      "field": "amount",
+      "label": "p95_amount",
+      "params": {
+        "percentile": 95
+      }
+    }
+  ],
+  "cohort": {
+    "filename": "transactions.pulse",
+    "data_dir": ".data"
+  }
+}

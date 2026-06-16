@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Per-row OLS fitted values and residuals on customers.pulse with target=income and predictors=[age] via ATTR_REG_FITTED + ATTR_REG_RESIDUAL. The regression attributes are siblings: REG_FITTED emits hat(y_i) = X_i . beta + beta_0 per row; REG_RESIDUAL emits (y_i - hat(y_i)). Together they let downstream slots reason about per-row model quality without re-fitting (e.g. surfacing residual outliers via ATTR_ZSCORE on the residual column).",
+    "name": "attr_reg_fitted_residual",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_STDDEV",
+      "ATTR_REG_FITTED",
+      "ATTR_REG_RESIDUAL"
+    ],
+    "tags": [
+      "regression",
+      "ols",
+      "feature-engineering",
+      "buffered-pipeline"
+    ]
+  },
+  "attributes": [
+    {
+      "type": "ATTR_REG_FITTED",
+      "label": "income_fitted",
+      "target": "income",
+      "predictors": ["age"]
+    },
+    {
+      "type": "ATTR_REG_RESIDUAL",
+      "label": "income_residual",
+      "target": "income",
+      "predictors": ["age"]
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income_residual",
+      "label": "mean_residual"
+    },
+    {
+      "type": "AGG_STDDEV",
+      "field": "income_residual",
+      "label": "stddev_residual"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Higher-order distribution-shape moments on customers.pulse income: AGG_STDDEV (spread), AGG_SKEWNESS (asymmetry; m3 / (n * sd^3)), AGG_KURTOSIS (tail-weight; m4 / (n * sd^4) - 3 excess form). Together they form the canonical four-moment shape summary alongside the mean.",
+    "name": "shape_moments",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_KURTOSIS",
+      "AGG_SKEWNESS",
+      "AGG_STDDEV"
+    ],
+    "tags": [
+      "distribution-shape",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "mean_income"
+    },
+    {
+      "type": "AGG_STDDEV",
+      "field": "income",
+      "label": "stddev_income"
+    },
+    {
+      "type": "AGG_SKEWNESS",
+      "field": "income",
+      "label": "skew_income"
+    },
+    {
+      "type": "AGG_KURTOSIS",
+      "field": "income",
+      "label": "kurt_income"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  }
+}

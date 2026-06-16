@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "FacetSchema summarising a filtered customers cohort's income distribution (numeric arm with histogram + percentiles) decorated with an OVERLAY_KS_VS_POP scalar overlay that runs a Kolmogorov-Smirnov two-sample test against the resolver-supplied population numeric distribution. NUMERIC-arm-only FACET-host inferential kind — pairs with OVERLAY_CHISQ_VS_POP (18_facet_chisq_vs_pop.json) which serves the discrete arm. KS emits D = sup_x |F_subset(x) - F_pop(x)| plus the asymptotic p-value via the canonical kolmogorovSurvival helper backing TEST_KS (byte-equal for the same D + N). Reconstructs both empirical CDFs from histograms (preferred precision) or percentiles (fallback) since the FacetPopulationView discards raw values after the Welford fold. Inherently buffered (inferential FACET-host family). Empty distributions or missing histogram + percentile knobs emit NaN + PULSE_OVERLAY_REF_ZERO.",
+    "name": "facet-ks-vs-pop",
+    "operators": [],
+    "tags": [
+      "cohort-analysis",
+      "distribution-shape",
+      "facet",
+      "hypothesis-test",
+      "overlay"
+    ]
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "fields": [
+    "income"
+  ],
+  "include_histogram": true,
+  "histogram_bins": 20,
+  "histogram_range": [0, 250000],
+  "numeric_percentiles": [0.10, 0.25, 0.50, 0.75, 0.90],
+  "overlays": [
+    {
+      "name": "income_ks_vs_population",
+      "kind": "OVERLAY_KS_VS_POP",
+      "scope": "group",
+      "ref": {
+        "population": {
+          "cohort": "customers_population.pulse"
+        }
+      }
+    }
+  ]
+}

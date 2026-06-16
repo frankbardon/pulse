@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "category": "filterers",
+    "description": "Null-state filtering on the all_types.pulse u8 small_int field via FILTER_NULL. Mode lives in Values[0] as the literal string \"is_null\" (keep only nulls) or \"is_not_null\" (keep only present values). This example takes the \"is_not_null\" path — the canonical data-quality keep-only-present shape — then counts the surviving rows so the data-quality fold is visible as a single scalar.",
+    "name": "filter_null_present",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_NULL"
+    ],
+    "tags": [
+      "data-quality",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "all_types.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_NULL",
+      "field": "small_int",
+      "values": ["is_not_null"]
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "rows_present"
+    }
+  ]
+}

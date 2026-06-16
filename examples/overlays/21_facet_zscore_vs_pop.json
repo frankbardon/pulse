@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "FacetSchema summarising a filtered experiment cohort's region distribution decorated with an OVERLAY_ZSCORE_VS_POP per-value standardised-distance overlay against the resolver-supplied population frequencies. Streamable FACET-host kind — sibling to OVERLAY_INDEX_VS_POP (10_facet_index_vs_pop.json): pair both together to get two parallel SERIES layers from a single Facet pass. Each entry's Statistic = (subset_freq - pop_freq) / sd_pop where sd_pop is the population SD across per-category frequencies. Renderers centre diverging colour ramps on baseline = 0 (mirrors the rest of the z-score family). pop_freq of zero emits PULSE_OVERLAY_REF_ZERO and skips the entry.",
+    "name": "facet-zscore-vs-pop",
+    "operators": [],
+    "tags": [
+      "cohort-analysis",
+      "facet",
+      "overlay",
+      "outlier-detection",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "fields": [
+    "region"
+  ],
+  "overlays": [
+    {
+      "name": "region_zscore_vs_population",
+      "kind": "OVERLAY_ZSCORE_VS_POP",
+      "scope": "group",
+      "ref": {
+        "population": {
+          "cohort": "experiment_population.pulse"
+        }
+      }
+    }
+  ]
+}

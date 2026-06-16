@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "groupers",
+    "description": "Bucket each respondent into ONE bucket per distinct issuer-set mask via GROUP_SET_VALUE on the card_issuers.pulse cohort. Each row contributes to exactly one bucket keyed by its complete set membership (e.g. {VISA, MC} is one bucket; {VISA, MC, AMEX} is a different bucket). Distinct semantics from GROUP_SET_PER_ELEMENT (one row -> N buckets). The bucket count surfaces the cardinality of distinct wallet combinations across the survey.",
+    "name": "group_set_value_issuers",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "GROUP_SET_VALUE"
+    ],
+    "tags": [
+      "cardinality-analysis",
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "card_issuers.pulse",
+    "data_dir": ".data"
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "respondent_id",
+      "label": "respondents"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "age",
+      "label": "avg_age"
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_SET_VALUE",
+      "field": "issuers"
+    }
+  ],
+  "sort": [
+    {
+      "field": "issuers"
+    }
+  ]
+}

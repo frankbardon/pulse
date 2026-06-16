@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "FacetSchema summarising a filtered customers cohort's region distribution decorated with an OVERLAY_CHISQ_VS_POP scalar overlay that runs a chi-square goodness-of-fit test of the host subset's per-value distribution against the resolver-supplied population frequencies (an unfiltered or alternately-filtered comparison cohort). FACET-host inferential sibling of the discrete-arm streamable OVERLAY_INDEX_VS_POP (10_facet_index_vs_pop.json) and OVERLAY_ZSCORE_VS_POP (21_facet_zscore_vs_pop.json). Emits one scalar OverlaySummary{Statistic, PValue, Parameters{df}} carrying the table-level test result — the renderer surfaces it as a distributional-shift badge near the facet header. Low-expected-cell warning follows the canonical chi-square rule (any expected < 5 → one PULSE_OVERLAY_EXPECTED_LOW warning). Inherently buffered (inferential FACET-host family).",
+    "name": "facet-chisq-vs-pop",
+    "operators": [],
+    "tags": [
+      "cohort-analysis",
+      "facet",
+      "overlay",
+      "hypothesis-test",
+      "nonparametric"
+    ]
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "fields": [
+    "region"
+  ],
+  "overlays": [
+    {
+      "name": "region_chisq_vs_population",
+      "kind": "OVERLAY_CHISQ_VS_POP",
+      "scope": "group",
+      "ref": {
+        "population": {
+          "cohort": "customers_population.pulse"
+        }
+      }
+    }
+  ]
+}

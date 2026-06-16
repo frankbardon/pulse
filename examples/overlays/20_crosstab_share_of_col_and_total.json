@@ -1,0 +1,67 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of region x segment decorated with TWO overlay layers — OVERLAY_SHARE_OF_COL and OVERLAY_SHARE_OF_TOTAL — that complete the matrix share triad alongside OVERLAY_SHARE_OF_ROW (02_crosstab_share_of_row.json). SHARE_OF_COL renormalises each cell into its share of the column margin (cell / col_margin) so cells along a single column sum to 1.0 — the 100%-stacked vertical projection. SHARE_OF_TOTAL renormalises into share of the grand total (cell / grand_total) so the entire matrix sums to 1.0 — the single-population share projection. Both kinds are CELL-scoped over the MATRIX host. Buffered (host crosstab orchestrator recomputes margins from raw rows before ApplyOverlays runs).",
+    "name": "crosstab-share-of-col-and-total",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay",
+      "proportion-analysis"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "col_share",
+      "kind": "OVERLAY_SHARE_OF_COL",
+      "scope": "cell",
+      "ref": {
+        "margin": {
+          "axis": "column"
+        }
+      }
+    },
+    {
+      "name": "total_share",
+      "kind": "OVERLAY_SHARE_OF_TOTAL",
+      "scope": "cell",
+      "ref": {
+        "margin": {
+          "axis": "grand"
+        }
+      }
+    }
+  ]
+}

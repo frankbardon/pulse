@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Normal-approximation 95% confidence interval for the mean of customers.pulse income via AGG_CI_LOWER + AGG_CI_UPPER (paired with AGG_AVERAGE for the centre point). Params.confidence defaults to 0.95 when omitted; Params.method defaults to \"normal\" (the streaming-friendly z-quantile path; \"bootstrap\" is reserved for a buffered follow-up). Streamable — the CI bounds ride alongside Welford state.",
+    "name": "confidence_interval_normal",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_CI_LOWER",
+      "AGG_CI_UPPER"
+    ],
+    "tags": [
+      "distribution-shape",
+      "hypothesis-test",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "mean_income"
+    },
+    {
+      "type": "AGG_CI_LOWER",
+      "field": "income",
+      "label": "ci_lower_95",
+      "params": {
+        "confidence": 0.95,
+        "method": "normal"
+      }
+    },
+    {
+      "type": "AGG_CI_UPPER",
+      "field": "income",
+      "label": "ci_upper_95",
+      "params": {
+        "confidence": 0.95,
+        "method": "normal"
+      }
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  }
+}
