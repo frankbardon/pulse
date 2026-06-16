@@ -93,8 +93,8 @@ import (
 // reserved overhead (+1 f64 per group per layer).
 //
 // The carrier is intentionally NOT a streaming-pass primitive in v1 —
-// it lives entirely on the buffered post-host-finalize handler. When a
-// future story lifts the rolling carrier into the streaming fold the
+// it lives entirely on the buffered post-host-finalize handler. When
+// future work lifts the rolling carrier into the streaming fold the
 // SAME struct can ride alongside the per-group accumulators.
 type rollingCarrier struct {
 	window int

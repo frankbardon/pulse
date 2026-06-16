@@ -95,7 +95,7 @@ type FacetPopulationView struct {
 //
 //   - `field` is absent from `result.Fields`: the overlay named a
 //     population field that was not part of the FacetRequest.Fields
-//     slice (the canonical "unknown reference field" arm for this story).
+//     slice (the canonical "unknown reference field" arm for this kind).
 //     Details carry `{field, available_fields: [<sorted field names>]}`.
 //
 // Defense-in-depth returns:

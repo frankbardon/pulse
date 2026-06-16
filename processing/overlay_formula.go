@@ -443,7 +443,7 @@ func applyFormula(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overla
 // `lookup(table, keys...)` built-in is reachable from FORMULA
 // expressions — same shape ATTR_FORMULA / FILTER_EXPRESSION expose.
 // Research note § 4.3 contemplated keeping LookupTables out of scope
-// at v1; this story respects the unified expression-environment
+// at v1; this implementation respects the unified expression-environment
 // contract — `ExprOptions()` registers both ExprFunctions and the
 // lookup builtin in one slice and the FORMULA surface inherits both.
 // FORMULA authors who do not want lookup access simply do not call
@@ -1053,7 +1053,7 @@ func bindFormulaEnvScalar(env map[string]any, ctx *FormulaContext) (value float6
 // O(i) worst case (the per-iteration scan); acceptable at v1 because
 // SERIES FORMULA is buffered and the typical series length is
 // bounded by the grouped Process orchestrator's per-group key count.
-// A future story may pre-compute a lag1 array if the linear scan
+// Future work may pre-compute a lag1 array if the linear scan
 // becomes hot.
 func resolveSeriesPrior(host *SeriesHostView, i int) float64 {
 	if host == nil || i <= 0 {

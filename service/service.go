@@ -242,8 +242,8 @@ func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
 //   - "PK\x03\x04" (zip archive) — parses the zip central directory,
 //     reads the canonical schema from the reserved `_schema.pulse`
 //     entry, and populates Shards with every other entry in
-//     central-directory order. S1 leaves RecordCount at zero; later
-//     phases populate from `_schema.pulse` metadata or shard headers.
+//     central-directory order. RecordCount is populated from
+//     `_schema.pulse` metadata or shard headers.
 //
 // Returns PULSE_ARCHIVE_MAGIC_INVALID when the file matches neither
 // magic, PULSE_ARCHIVE_CORRUPT when the zip EOCD or central directory

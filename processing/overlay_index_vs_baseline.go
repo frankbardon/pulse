@@ -33,7 +33,8 @@ import (
 //     false) from `host.ValueAt`, which ResolveBaselineIndex returns as
 //     baseline_value=0; the zero-baseline arm fires and the layer emits
 //     NaN throughout. This matches the documented "absent baseline =
-//     handler-owned PULSE_OVERLAY_REF_ZERO surface" decision from S1.
+//     handler-owned PULSE_OVERLAY_REF_ZERO surface" decision from the
+//     OVERLAY_INDEX_VS_BASELINE design contract.
 //   - Absent-point policy: a host that did not produce a value for group
 //     i (the resolver returns `(0, false)`) surfaces a SeriesEntry whose
 //     Summary leaves Statistic unset — the canonical "present slot,
@@ -43,7 +44,7 @@ import (
 // Buffered (per kind-catalog-v1 "Streaming-capable subset"): resolving a
 // single positional baseline requires the materialised host series; the
 // handler runs at the buffered post-host-finalize exit via
-// ApplyOverlaysSeries. Forward-compat: a future story may lift the
+// ApplyOverlaysSeries. Forward-compat: future work may lift the
 // baseline resolver into a streaming-aware shape (carrying the resolved
 // baseline inline as a kind-specific accumulator advanced during the
 // streaming pass once the orchestrator hits the baseline ordinal); when

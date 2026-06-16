@@ -47,7 +47,7 @@ import (
 // M2 = M2_A + M2_B + delta² * n_A*n_B/n` over the per-group
 // accumulators. v1 ships serial-per-group execution so the merge path
 // is NOT exercised today, but the carrier shape stays parallel-safe so
-// a future story that lifts the rolling fold into the parallel
+// future work that lifts the rolling fold into the parallel
 // buffered Process pipeline can reuse the existing merge plumbing.
 //
 // Carrier shape (ring buffer over the last W present values plus a

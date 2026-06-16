@@ -555,10 +555,10 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"in the per-shape variable table (types.FormulaNamespace) or the embedder ExprFunctions function " +
 				"set with PULSE_OVERLAY_FORMULA_INVALID_IDENT. INHERENTLY BUFFERED at v1 across every host shape " +
 				"— the variable namespace depends on post-fold state (margins / totals / SDs are not available " +
-				"mid-stream); a streamable variant under a distinct kind constant lands in a future story without " +
+				"mid-stream); a streamable variant under a distinct kind constant may land in future work without " +
 				"re-opening this kind's contract. The MATRIX-host evaluator spine + the per-shape binder fill the " +
 				"full namespace across MATRIX / SERIES / SCALAR hosts. SERIES + SCALAR runtime host glue lands in " +
-				"a follow-up story; this capability row declares the full per-shape surface for predict / " +
+				"a follow-up; this capability row declares the full per-shape surface for predict / " +
 				"manifest alignment.",
 		}
 	case types.OverlayKindIndexVsBaseline:
@@ -911,7 +911,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"(3) WELFORD-ONLY DEGENERATE when neither histograms nor percentiles are available — emits NaN + NaN with one " +
 				"PULSE_OVERLAY_REF_ZERO warning whose Details document which knobs were missing on the FacetRequest. KS precision " +
 				"is bounded by histogram bucket width (path 1) or percentile-label resolution (path 2) because the population view " +
-				"does not retain raw values; a future story may lift the resolver to retain raw sorted population values when a KS " +
+				"does not retain raw values; future work may lift the resolver to retain raw sorted population values when a KS " +
 				"overlay is requested, at which point the handler can call ksTwoSampleD on raw arms directly (additive change). " +
 				"INHERENTLY BUFFERED per PRD §2 Non-Goals (\"Streaming overlay path for inferential kinds\") — the empirical-CDF " +
 				"construction requires sorted values on both sides; an online folded shape would widen the streaming carrier " +
@@ -1145,7 +1145,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"(var_ref/n_ref)²/(n_ref-1)); p_value = studentTTwoSidedP(t, df). Reuses the studentTTwoSidedP helper backing " +
 				"TEST_T so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) " +
 				"triple. Default-variance and default-sample-size policy: v1 ships well-defined defaults so the per-cell " +
-				"handler stays usable against a minimal Compose authoring surface; a future story may lift the per-cell " +
+				"handler stays usable against a minimal Compose authoring surface; future work may lift the per-cell " +
 				"(mean, variance, n) triple into a richer Compose authoring surface (the crosstab cell carrier could grow " +
 				"to carry sample statistics alongside the scalar mean). Inherently buffered — inferential overlays as a " +
 				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals).",
@@ -1415,7 +1415,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"backing TEST_Z_TWO_SAMPLE so the overlay and the row-test surface produce identical p-values for " +
 				"the same (mean, variance, n) triple. Default-variance and default-sample-size policy: v1 ships " +
 				"well-defined defaults so the per-cell handler stays usable against a minimal Compose authoring " +
-				"surface; a future story may lift the per-cell (mean, variance, n) triple into a richer Compose " +
+				"surface; future work may lift the per-cell (mean, variance, n) triple into a richer Compose " +
 				"authoring surface (the crosstab cell carrier could grow to carry sample statistics alongside the " +
 				"scalar mean). Inherently buffered — inferential overlays as a family stay buffered until a " +
 				"streamable-test path is plumbed (PRD §2 Non-Goals).",

@@ -1781,7 +1781,7 @@ func dispatchAggregatorResult(agg any, scalar float64) (any, error) {
 // AGG_WELFORD specifically the cell builder writes the scalar mean
 // (matching welfordAggregator.Aggregate / Finalize) so the cell payload
 // stays a plain float64 — overlay handlers source `(mean, variance, n)`
-// from CellComponents under the post-S7 contract.
+// from CellComponents under the post-Welford-extract contract.
 //
 // All other RichAggregator payloads (map[string]int from
 // AGG_SET_FREQUENCY, []string from AGG_SET_UNION / AGG_SET_INTERSECTION,

@@ -903,7 +903,7 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 			} else {
 				// Neither Components triple nor scalar — non-addressable
 				// cell. The handler skips silently, matching the
-				// pre-S7 baseline behaviour for unaddressable cells.
+				// pre-Welford-extract baseline behaviour for unaddressable cells.
 				continue
 			}
 

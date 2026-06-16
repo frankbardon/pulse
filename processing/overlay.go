@@ -393,7 +393,7 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 //     contract. Non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE.
 //
 // Zero defaults (Level == 0 && Within == 0) preserve byte-identity
-// against the pre-S11 overlay handlers — the gate returns nil for
+// against the pre-Level/Within overlay handlers — the gate returns nil for
 // every existing well-formed spec.
 //
 // The runtime gate is structurally distinct from the predict gate:

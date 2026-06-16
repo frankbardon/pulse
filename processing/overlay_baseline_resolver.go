@@ -65,7 +65,7 @@ import (
 //     resolver stays robust).
 //   - `ref == nil`: returns `(0, nil)` — the caller's responsibility is
 //     to consult `ref` before invoking the resolver. The function does
-//     not raise on the empty case so a S2 / S3 / S5 / S7 handler can
+//     not raise on the empty case so an overlay handler can
 //     short-circuit cleanly when no baseline ref was supplied (other
 //     ref families take over).
 //

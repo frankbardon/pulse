@@ -44,7 +44,7 @@ import (
 // Buffered (per kind-catalog-v1 "Streaming-capable subset"): resolving a
 // single positional baseline requires the materialised host series; the
 // handler runs at the buffered post-host-finalize exit via
-// ApplyOverlaysSeries. Forward-compat: a future story may lift the
+// ApplyOverlaysSeries. Forward-compat: future work may lift the
 // baseline resolver into a streaming-aware shape; when that lands the
 // streamability row in types/overlay_streamability.go flips to true.
 //

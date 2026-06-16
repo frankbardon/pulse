@@ -35,7 +35,7 @@ import (
 //     surface absorbs each entry as a `<code>: <message>` line (matches
 //     the existing warning shape FacetSchema produces for top-K
 //     truncation and label-collision diagnostics — the FacetResult
-//     warnings slot is structurally []string today; a future story may
+//     warnings slot is structurally []string today; future work may
 //     widen it to []*ResponseWarning).
 //
 // Streaming-vs-buffered byte-identity: the per-handler streamability flag

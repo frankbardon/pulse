@@ -89,7 +89,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// handler runs at the buffered post-host-finalize exit via
 	// ApplyOverlaysSeries (mirrors OverlayKindIndexVsBaseline — the
 	// absolute-difference twin of the same windowed positional-baseline
-	// family). Forward-compat: a future story may lift the baseline
+	// family). Forward-compat: future work may lift the baseline
 	// resolver into a streaming-aware shape (carrying the resolved baseline
 	// inline as a kind-specific accumulator advanced during the streaming
 	// pass once the orchestrator hits the baseline ordinal); when that
@@ -150,7 +150,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// restrict the variable table to a subset that excludes margin / total
 	// / SD variables, splitting FORMULA into two kinds. Authoring clarity
 	// argues against the split — better to keep one kind with a clear
-	// "buffered" contract. Forward-compat: a future story may carve out a
+	// "buffered" contract. Forward-compat: future work may carve out a
 	// streamable variant under a distinct kind constant (e.g.
 	// `OVERLAY_FORMULA_STREAMING`) with a restricted variable table
 	// without re-opening this kind's contract; see research note § 6 for
@@ -161,7 +161,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// series (`host.ValueAt(Position)` is consulted after finalize). The
 	// handler runs at the buffered post-host-finalize exit via
 	// ApplyOverlaysSeries (mirrors OVERLAY_INDEX_VS_SIBLING). Forward-compat:
-	// a future story may lift the baseline resolver into a streaming-aware
+	// future work may lift the baseline resolver into a streaming-aware
 	// shape (carrying the resolved baseline inline as a kind-specific
 	// accumulator advanced during the streaming pass once the orchestrator
 	// hits the baseline ordinal); when that lands the flag flips to true.
@@ -214,7 +214,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// streamable lag carrier is one f64; rolling-mean's ring is W f64s and
 	// grows the streaming-fold state past v1's single-state lag
 	// accumulator). The handler runs at the buffered post-host-finalize
-	// exit via ApplyOverlaysSeries. Forward-compat: a future story may lift
+	// exit via ApplyOverlaysSeries. Forward-compat: future work may lift
 	// the rolling-mean ring into a streaming-aware shape (the streaming
 	// orchestrator's per-group accumulator carries the ring inline
 	// alongside the per-group online aggregator); when that lands the flag
@@ -261,7 +261,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// are OVERLAY_INDEX_VS_POP and OVERLAY_ZSCORE_VS_POP.
 	// KS is NUMERIC-arm only — categorical hosts fire
 	// PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime (per-kind validator lives
-	// in descriptor/overlay_facet.go). A future story may lift KS into a streaming carrier by
+	// in descriptor/overlay_facet.go). Future work may lift KS into a streaming carrier by
 	// retaining a heap or finer histogram per group; v1 stays buffered.
 	OverlayKindKSVsPop: false,
 	// OVERLAY_PANEL_INDEX_VS_REF is streamable via its per-target SERIES
@@ -341,7 +341,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// before finalize). The handler runs at the buffered post-host-
 	// finalize exit via ApplyOverlaysSeries (mirrors the
 	// INDEX_VS_BASELINE / INDEX_VS_ROLLING_MEAN buffered rationale).
-	// Forward-compat: a future story may lift the per-frequency lookup
+	// Forward-compat: future work may lift the per-frequency lookup
 	// into a streaming-aware shape when the streaming-Process
 	// orchestrator carries an exact-key host index inline.
 	OverlayKindYoY:            false,
@@ -370,7 +370,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// state lag accumulator the same way the sibling kind does. The
 	// handler runs at the buffered post-host-finalize exit via
 	// ApplyOverlaysSeries. Forward-compat: when the sibling
-	// OVERLAY_INDEX_VS_ROLLING_MEAN flips streamable (a future story
+	// OVERLAY_INDEX_VS_ROLLING_MEAN flips streamable (future work
 	// lifts the rolling carrier into the streaming-Process orchestrator's
 	// per-group accumulator surface), this kind flips with it — the two
 	// kinds share the same carrier and the streaming finalize is one

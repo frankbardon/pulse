@@ -55,7 +55,7 @@ import (
 // Inherently BUFFERED — streaming overlay path for inferential kinds is
 // an explicit non-goal. The streamability row in
 // types/overlay_streamability.go is `false` regardless of host
-// streamability. A future story may extend the population resolver to
+// streamability. Future work may extend the population resolver to
 // retain raw sorted population values when a KS overlay is requested;
 // the handler would then call ksTwoSampleD directly on raw arms
 // (additive change).

@@ -65,7 +65,7 @@ func OverlayLevelEnabled(spec *types.OverlaySpec) bool {
 //
 // Returns axisDepth (= no truncation, full leaf) when Level <= 0, so
 // the zero-default code path produces leaf-margin denominators byte-
-// identical to the pre-S11 handler output.
+// identical to the pre-Level/Within handler output.
 //
 // Out-of-range (Level >= axisDepth) is caught by the runtime
 // validateOverlayLevelWithinRuntime gate before this function is
@@ -97,7 +97,7 @@ func SameAxisPrefixDepth(axisDepth, level int) int {
 //
 // Returns 0 (= no cross-axis fixing) when Within <= 0, so the zero-
 // default code path produces leaf-margin denominators byte-identical
-// to the pre-S11 handler output (the SHARE_OF_ROW denominator stays
+// to the pre-Level/Within handler output (the SHARE_OF_ROW denominator stays
 // "row margin sums across all columns").
 //
 // The non-zero return is a prefix LENGTH (count of opposite-axis

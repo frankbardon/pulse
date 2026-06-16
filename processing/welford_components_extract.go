@@ -112,7 +112,7 @@ type seriesRowComponents struct {
 // remaining columns fold into the key) so a scalar-only row produces a
 // key BYTE-IDENTICAL to encodeSeriesRowAny's output — the additive
 // contract for the scalar fallback path on OVERLAY_T_VS_REF /
-// OVERLAY_Z_VS_REF requires this identity AND the pre-S7 series
+// OVERLAY_Z_VS_REF requires this identity AND the pre-Welford-extract series
 // encoding identity.
 //
 // A row whose value column carries a `map[string]any` with `{mean,

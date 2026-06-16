@@ -110,9 +110,9 @@ func applyDeltaVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response
 // concerns INDEX has (zero denominator, non-finite quotient) do not
 // apply to subtraction so the kernel is pure float64 arithmetic with no
 // ok flag. Extracted as a one-liner for parity with the indexKernel
-// pattern and so a future kernel-indirection refactor (story note "a
-// chainOverlayKernel func indirection so S4 and S5 differ only in
-// kernel registration") has a stable callee shape to point at.
+// pattern and so a future kernel-indirection refactor (design note "a
+// chainOverlayKernel func indirection so the index and delta kinds differ
+// only in kernel registration") has a stable callee shape to point at.
 func deltaKernel(target, reference float64) float64 {
 	return target - reference
 }

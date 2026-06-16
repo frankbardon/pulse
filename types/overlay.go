@@ -440,7 +440,7 @@ const (
 	// namespace depends on post-fold state (margins / totals / SDs are
 	// not available mid-stream). The streamability row in
 	// `types/overlay_streamability.go` stays `false` regardless of
-	// host streamability. A future story may carve out a streamable
+	// host streamability. Future work may carve out a streamable
 	// variant under a distinct kind constant without re-opening this
 	// kind's contract; see research note § 6 for the rationale.
 	//
@@ -547,7 +547,7 @@ const (
 	// row is `false` — resolving a single positional baseline requires
 	// the materialised host series (`host.ValueAt(Position)` reads after
 	// finalize). The handler runs at the buffered post-host-finalize exit
-	// via `ApplyOverlaysSeries`. Forward-compat: a future story may lift
+	// via `ApplyOverlaysSeries`. Forward-compat: future work may lift
 	// the baseline resolver into a streaming-aware shape; when that lands
 	// the streamability flag flips to true.
 	OverlayKindDeltaVsBaseline OverlayKind = "OVERLAY_DELTA_VS_BASELINE"
@@ -679,7 +679,7 @@ const (
 	// row is `false` — resolving a single positional baseline requires
 	// the materialised host series (`host.ValueAt(Position)` reads after
 	// finalize). The handler runs at the buffered post-host-finalize exit
-	// via `ApplyOverlaysSeries`. Forward-compat: a future story may lift
+	// via `ApplyOverlaysSeries`. Forward-compat: future work may lift
 	// the baseline resolver into a streaming-aware shape (carrying the
 	// resolved baseline inline as a kind-specific accumulator advanced
 	// during the streaming pass once the orchestrator hits the baseline
@@ -1246,7 +1246,7 @@ const (
 	//	     NumericPercentiles=["p10","p25","p50","p75","p90"] on both
 	//	     arms.
 	//
-	// FORWARD-COMPAT PRECISION UPLIFT: a future story may extend the S1
+	// FORWARD-COMPAT PRECISION UPLIFT: future work may extend the
 	// resolver to retain raw sorted population values when the host
 	// FacetRequest names a KS overlay — the handler would then call
 	// ksTwoSampleD directly on the raw arms (path 0) and the histogram /
@@ -1398,7 +1398,7 @@ const (
 	// being standardised against. The two surfaces are intentionally
 	// orthogonal: rolling = local sample; total = global population. The
 	// `OVERLAY_INDEX_VS_ROLLING_MEAN` carrier stores the Welford
-	// `(count, mean, M2)` trio precisely so this story can lift the
+	// `(count, mean, M2)` trio precisely so this kind can lift the
 	// rolling SD via `sqrt(M2 / (count - 1))` without re-folding.
 	//
 	// Math (per host group ordinal `i`):
@@ -1472,7 +1472,7 @@ const (
 	// values plus the Welford trio per group, which the streaming Process
 	// pass cannot maintain inline with the per-record fold today (matches
 	// the `OVERLAY_INDEX_VS_ROLLING_MEAN` buffered rationale verbatim).
-	// Forward-compat: a future story may lift the rolling carrier into a
+	// Forward-compat: future work may lift the rolling carrier into a
 	// streaming-aware shape; when that lands the streamability flag flips
 	// to true.
 	//
@@ -1482,7 +1482,7 @@ const (
 	// mean = mean_A + delta * n_B/n;
 	// M2 = M2_A + M2_B + delta² * n_A*n_B/n` recurrence. v1 ships
 	// serial-per-group execution so the merge path is not exercised
-	// today, but the carrier shape stays parallel-safe so a future story
+	// today, but the carrier shape stays parallel-safe so future work
 	// that lifts the rolling fold into the parallel buffered Process
 	// pipeline can reuse the existing merge plumbing.
 	//
@@ -1509,7 +1509,7 @@ const (
 	//     FacetPopulationView.DiscreteFrequencyStdev() (population SD
 	//     across the population's per-category frequencies — Welford-
 	//     Pébaÿ accumulator already used by FacetSchema, surfaced by the
-	//     S1 resolver via DiscreteCounts() walk).
+	//     resolver via DiscreteCounts() walk).
 	//
 	//   Numeric host: subset_val and pop_mean / pop_sd come from the
 	//     respective FacetNumeric.Mean / StdDev slots. The per-bin path
@@ -2055,7 +2055,7 @@ const (
 	// who want a real Welch test should supply
 	// `Params["variance_target"]`, `Params["variance_ref"]`,
 	// `Params["sample_size_target"]`, `Params["sample_size_ref"]`.
-	// Forward-compat: a future story may lift the per-cell `(mean,
+	// Forward-compat: future work may lift the per-cell `(mean,
 	// variance, n)` triple into a richer Compose authoring surface (the
 	// crosstab cell carrier could grow to carry sample statistics
 	// alongside the scalar mean); when that lands the defaults become
@@ -2089,7 +2089,7 @@ const (
 	// who want a real z-test should supply
 	// `Params["variance_target"]`, `Params["variance_ref"]`,
 	// `Params["sample_size_target"]`, `Params["sample_size_ref"]`.
-	// Forward-compat: a future story may lift the per-cell `(mean,
+	// Forward-compat: future work may lift the per-cell `(mean,
 	// variance, n)` triple into a richer Compose authoring surface (the
 	// crosstab cell carrier could grow to carry sample statistics
 	// alongside the scalar mean); when that lands the defaults become
@@ -2208,7 +2208,7 @@ const (
 	// default-variance and default-sample-size policy verbatim — v1
 	// ships well-defined defaults (`var = 1.0`, `n = 2`) so the per-group
 	// handler stays usable against minimal Compose authoring surfaces.
-	// Forward-compat: a future story may lift the per-group `(mean,
+	// Forward-compat: future work may lift the per-group `(mean,
 	// variance, n)` triple into a richer Compose authoring surface (the
 	// SERIES entry carrier could grow to carry sample statistics
 	// alongside the scalar mean); when that lands the defaults become
