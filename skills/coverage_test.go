@@ -1,6 +1,8 @@
 package skills
 
 import (
+	"io/fs"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,205 +11,159 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestSkillsCoverAllComponents verifies that every aggregator, attribute,
-// filterer, and grouper registry entry has a heading in its target skill.
+// embeddedSkillSet returns the set of embedded markdown stem names as a
+// map for O(1) membership checks. Filesystem-driven so the gates stay
+// valid as the skill pack grows or shrinks without touching the test
+// surface.
+func embeddedSkillSet(t *testing.T) map[string]bool {
+	t.Helper()
+	entries, err := fs.ReadDir(content, ".")
+	if err != nil {
+		t.Fatalf("read embedded skills dir: %v", err)
+	}
+	out := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".md" {
+			continue
+		}
+		out[strings.TrimSuffix(e.Name(), ".md")] = true
+	}
+	return out
+}
+
+// kebabName converts an identifier to its skill-file kebab form: lowercase
+// with underscores rewritten to hyphens. Mirrors the helper used by
+// atomic_test.go so the coverage gates and the operator-existence gate
+// share one naming convention.
+func kebabName(s string) string {
+	return strings.ReplaceAll(strings.ToLower(s), "_", "-")
+}
+
+// TestSkillsCoverAllComponents verifies every registered aggregator,
+// attribute, filterer, and grouper has a matching atomic skill file.
+// Convention: op-<category>-<kebab-name>.md.
+//
+// This is the post-E4 replacement for the legacy "name string appears
+// somewhere in the target skill" check. Atomic-file existence is the
+// load-bearing gate: every operator owns one file, and the file's
+// frontmatter `name:` matches the file stem (enforced by
+// TestSkillsManifestConsistent).
 func TestSkillsCoverAllComponents(t *testing.T) {
-	aggContent, ok := Get("aggregation-guide")
-	if !ok {
-		t.Fatal("aggregation-guide.md not found")
-	}
-	for _, agg := range types.AllAggregationTypes() {
-		if !strings.Contains(aggContent, string(agg)) {
-			t.Errorf("aggregation-guide.md does not mention aggregator %s", agg)
+	embedded := embeddedSkillSet(t)
+
+	for _, v := range types.AllAggregationTypes() {
+		stem := "op-agg-" + kebabName(strings.TrimPrefix(string(v), "AGG_"))
+		if !embedded[stem] {
+			t.Errorf("aggregator %s: missing atomic skill skills/%s.md", v, stem)
 		}
 	}
-
-	attrContent, ok := Get("attribute-composition")
-	if !ok {
-		t.Fatal("attribute-composition.md not found")
-	}
-	for _, attr := range types.AllAttributeTypes() {
-		if !strings.Contains(attrContent, string(attr)) {
-			t.Errorf("attribute-composition.md does not mention attribute %s", attr)
+	for _, v := range types.AllAttributeTypes() {
+		stem := "op-attr-" + kebabName(strings.TrimPrefix(string(v), "ATTR_"))
+		if !embedded[stem] {
+			t.Errorf("attribute %s: missing atomic skill skills/%s.md", v, stem)
 		}
 	}
-
-	// Filterers should be mentioned across skills; check in getting-started or compose
-	// Actually, filterers are referenced in multiple skills. Check that each one appears
-	// in at least one skill.
-	allContent := collectAllSkillContent(t)
-	for _, f := range types.AllFiltererTypes() {
-		if !strings.Contains(allContent, string(f)) {
-			t.Errorf("no skill mentions filterer %s", f)
+	for _, v := range types.AllFiltererTypes() {
+		stem := "op-filter-" + kebabName(strings.TrimPrefix(string(v), "FILTER_"))
+		if !embedded[stem] {
+			t.Errorf("filterer %s: missing atomic skill skills/%s.md", v, stem)
 		}
 	}
-
-	grouperContent, ok := Get("grouper-design")
-	if !ok {
-		t.Fatal("grouper-design.md not found")
-	}
-	for _, g := range types.AllGroupTypes() {
-		if !strings.Contains(grouperContent, string(g)) {
-			t.Errorf("grouper-design.md does not mention grouper %s", g)
+	for _, v := range types.AllGroupTypes() {
+		stem := "op-group-" + kebabName(strings.TrimPrefix(string(v), "GROUP_"))
+		if !embedded[stem] {
+			t.Errorf("grouper %s: missing atomic skill skills/%s.md", v, stem)
 		}
 	}
-
-	featureContent, ok := Get("feature-engineering")
-	if !ok {
-		t.Fatal("feature-engineering.md not found")
-	}
-	for _, f := range types.AllFeatureTypes() {
-		if !strings.Contains(featureContent, string(f)) {
-			t.Errorf("feature-engineering.md does not mention feature %s", f)
+	for _, v := range types.AllFeatureTypes() {
+		stem := "op-feat-" + kebabName(strings.TrimPrefix(string(v), "FEAT_"))
+		if !embedded[stem] {
+			t.Errorf("feature %s: missing atomic skill skills/%s.md", v, stem)
 		}
 	}
 }
 
-// Note: TestSkillsCoverAllErrorCodes and TestSkillsErrorCodeFixupsDocumented
-// were removed when the error catalog moved out of the skill and behind
-// the pulse_errors_lookup MCP tool / pulse errors lookup CLI leaf.
-// Authoritative coverage now lives in errors/fixup_test.go
-// (TestCodesHaveFixups) and descriptor/manifest_capabilities_test.go
-// (TestManifestErrorCodesComplete / TestManifest_ErrorCodesSlim).
-
-// TestSkillsCoverAllCliLeaves verifies that every user-facing CLI leaf
-// appears in getting-started.md.
-func TestSkillsCoverAllCliLeaves(t *testing.T) {
-	content, ok := Get("getting-started")
-	if !ok {
-		t.Fatal("getting-started.md not found")
-	}
-
-	// These are the CLI leaf commands from descriptor/manifest.go commands().
-	leaves := []string{
-		"process",
-		"process-chain",
-		"compose",
-		"sample",
-		"facet",
-		"inspect",
-		"predict",
-		"manifest",
-		"mcp",
-	}
-
-	for _, leaf := range leaves {
-		// Check for the leaf as a heading or backtick-quoted reference
-		if !strings.Contains(content, leaf) {
-			t.Errorf("getting-started.md does not mention CLI leaf %q", leaf)
-		}
-	}
-}
-
-// TestSkillsCoverAllFieldTypes verifies that every FieldType constant
-// appears in cohort-schema-design.md.
+// TestSkillsCoverAllFieldTypes verifies every FieldType has a matching
+// type-<kebab>.md atomic skill file.
 func TestSkillsCoverAllFieldTypes(t *testing.T) {
-	content, ok := Get("cohort-schema-design")
-	if !ok {
-		t.Fatal("cohort-schema-design.md not found")
-	}
+	embedded := embeddedSkillSet(t)
 
-	// All 13 field types from encoding/field_type.go
 	fieldTypes := []encoding.FieldType{
+		encoding.FieldTypeU4,
 		encoding.FieldTypeU8,
 		encoding.FieldTypeU16,
 		encoding.FieldTypeU32,
 		encoding.FieldTypeU64,
 		encoding.FieldTypeF32,
 		encoding.FieldTypeF64,
-		encoding.FieldTypeU4,
 		encoding.FieldTypeDate,
 		encoding.FieldTypePackedBool,
 		encoding.FieldTypeCategoricalU8,
 		encoding.FieldTypeCategoricalU16,
 		encoding.FieldTypeCategoricalU32,
 		encoding.FieldTypeDecimal128,
+		encoding.FieldTypeSetU8,
+		encoding.FieldTypeSetU16,
+		encoding.FieldTypeSetU32,
+		encoding.FieldTypeSetU64,
 	}
-
 	for _, ft := range fieldTypes {
-		name := ft.String()
-		if !strings.Contains(content, name) {
-			t.Errorf("cohort-schema-design.md does not mention field type %s", name)
+		stem := "type-" + kebabName(ft.String())
+		if !embedded[stem] {
+			t.Errorf("field type %s: missing atomic skill skills/%s.md", ft.String(), stem)
 		}
 	}
 }
 
-// TestSkillsCoverAllSynthDistributions verifies that every distribution
-// kind registered in synth.AllDistributions() appears in
-// synthetic-data.md.
+// TestSkillsCoverAllSynthDistributions verifies every distribution
+// kind registered in synth.AllDistributions() has a matching
+// op-synth-<kebab>.md atomic skill file.
 func TestSkillsCoverAllSynthDistributions(t *testing.T) {
-	content, ok := Get("synthetic-data")
-	if !ok {
-		t.Fatal("synthetic-data.md not found")
-	}
+	embedded := embeddedSkillSet(t)
 	for _, d := range synth.AllDistributions() {
-		if !strings.Contains(content, d) {
-			t.Errorf("synthetic-data.md does not mention distribution %q", d)
+		stem := "op-synth-" + kebabName(d)
+		if !embedded[stem] {
+			t.Errorf("synth distribution %q: missing atomic skill skills/%s.md", d, stem)
 		}
 	}
 }
 
-// TestSkillsCoverAllRegressions verifies that every constant in
-// types.AllRegressionTypes() appears in regression-modeling.md.
+// TestSkillsCoverAllRegressions verifies every constant in
+// types.AllRegressionTypes() has a matching op-reg-<kebab>.md atomic
+// skill file.
 func TestSkillsCoverAllRegressions(t *testing.T) {
-	content, ok := Get("regression-modeling")
-	if !ok {
-		t.Fatal("regression-modeling.md not found")
-	}
+	embedded := embeddedSkillSet(t)
 	for _, r := range types.AllRegressionTypes() {
-		if !strings.Contains(content, string(r)) {
-			t.Errorf("regression-modeling.md does not mention regression type %s", r)
+		stem := "op-reg-" + kebabName(strings.TrimPrefix(string(r), "REG_"))
+		if !embedded[stem] {
+			t.Errorf("regression %s: missing atomic skill skills/%s.md", r, stem)
 		}
 	}
 }
 
-// TestSkillsCoverAllWindowTypes verifies that every constant in
-// types.AllWindowTypes appears in window-operations.md.
+// TestSkillsCoverAllWindowTypes verifies every constant in
+// types.AllWindowTypes() has a matching op-win-<kebab>.md atomic skill
+// file.
 func TestSkillsCoverAllWindowTypes(t *testing.T) {
-	content, ok := Get("window-operations")
-	if !ok {
-		t.Fatal("window-operations.md not found")
-	}
+	embedded := embeddedSkillSet(t)
 	for _, w := range types.AllWindowTypes() {
-		if !strings.Contains(content, string(w)) {
-			t.Errorf("window-operations.md does not mention window type %s", w)
+		stem := "op-win-" + kebabName(strings.TrimPrefix(string(w), "WIN_"))
+		if !embedded[stem] {
+			t.Errorf("window %s: missing atomic skill skills/%s.md", w, stem)
 		}
 	}
 }
 
-// TestSkillsCoverAllOverlayKinds verifies that every constant in
-// types.AllOverlayKinds() appears in overlay-system.md. Mirrors the
-// gate pattern used by TestSkillsCoverAllWindowTypes / Regressions /
-// SynthDistributions: as new overlay kinds land (later epics), the
-// kind catalog and the skill body stay in lock-step.
-//
-// E1-S12 lands the gate. The matching skills/overlay-system.md body
-// lands in E1-S13, which flips the lookup from t.Skip to t.Fatal so a
-// missing skill becomes a hard failure rather than a silent skip.
+// TestSkillsCoverAllOverlayKinds verifies every constant in
+// types.AllOverlayKinds() has a matching op-overlay-<kebab>.md atomic
+// skill file. Mirrors the gate pattern used by the other operator
+// coverage gates.
 func TestSkillsCoverAllOverlayKinds(t *testing.T) {
-	content, ok := Get("overlay-system")
-	if !ok {
-		t.Fatal("skills/overlay-system.md not found")
-	}
+	embedded := embeddedSkillSet(t)
 	for _, k := range types.AllOverlayKinds() {
-		if !strings.Contains(content, string(k)) {
-			t.Errorf("overlay-system.md does not mention overlay kind %s", k)
+		stem := "op-overlay-" + kebabName(strings.TrimPrefix(string(k), "OVERLAY_"))
+		if !embedded[stem] {
+			t.Errorf("overlay kind %s: missing atomic skill skills/%s.md", k, stem)
 		}
 	}
-}
-
-// collectAllSkillContent returns the concatenated content of all skills.
-func collectAllSkillContent(t *testing.T) string {
-	t.Helper()
-	var sb strings.Builder
-	for _, m := range List() {
-		content, ok := Get(m.Name)
-		if !ok {
-			t.Errorf("skill %q not found", m.Name)
-			continue
-		}
-		sb.WriteString(content)
-		sb.WriteString("\n")
-	}
-	return sb.String()
 }

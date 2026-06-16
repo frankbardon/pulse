@@ -119,8 +119,12 @@ func TestServer_ListResources_IncludesCohortAndSkill(t *testing.T) {
 	if !uris["pulse://demo.pulse"] {
 		t.Errorf("expected cohort resource pulse://demo.pulse, got %v", uris)
 	}
-	if !uris["pulse-skill://getting-started"] {
-		t.Errorf("expected skill resource pulse-skill://getting-started, got %v", uris)
+	// session-bootstrap is the post-E4 anchor skill (legacy
+	// getting-started). Asserts the skill resource enumeration includes
+	// at least one canonical entry without pinning to any one operator
+	// skill that might be renamed later.
+	if !uris["pulse-skill://session-bootstrap"] {
+		t.Errorf("expected skill resource pulse-skill://session-bootstrap, got %v", uris)
 	}
 }
 

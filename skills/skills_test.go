@@ -46,15 +46,18 @@ func TestSkillsList_ReturnsAll(t *testing.T) {
 }
 
 func TestSkillsGet_ValidName(t *testing.T) {
-	content, ok := Get("getting-started")
+	// session-bootstrap.md is the E3 replacement for the legacy
+	// getting-started.md anchor — same role (first stop on every new
+	// MCP session) under the topical-skill naming convention.
+	content, ok := Get("session-bootstrap")
 	if !ok {
-		t.Fatal("Get(\"getting-started\") returned false")
+		t.Fatal("Get(\"session-bootstrap\") returned false")
 	}
 	if len(content) == 0 {
-		t.Fatal("Get(\"getting-started\") returned empty content")
+		t.Fatal("Get(\"session-bootstrap\") returned empty content")
 	}
 	if !strings.HasPrefix(content, "---\n") {
-		t.Fatal("getting-started.md does not start with YAML frontmatter")
+		t.Fatal("session-bootstrap.md does not start with YAML frontmatter")
 	}
 }
 
@@ -103,10 +106,9 @@ func TestSkillsFrontmatter_RequiredFields(t *testing.T) {
 // check — the loader is now the source of truth.
 func TestSkillsManifestConsistent(t *testing.T) {
 	// Valid CLI leaves from the manifest. Must stay in sync with
-	// coverage_test.go's TestSkillsCoverAllCliLeaves leaves list and
-	// descriptor/manifest.go commands(). `process-chain` is the ProcessChain
-	// leaf (E6-S9) — streaming-and-watching's chain-overlay recipe routes
-	// off it.
+	// descriptor/manifest.go commands(). `process-chain` is the
+	// ProcessChain leaf (E6-S9) — streaming-and-watching's chain-overlay
+	// recipe routes off it.
 	validLeaves := map[string]bool{
 		"process":       true,
 		"process-chain": true,
@@ -162,8 +164,12 @@ func TestSkillsNames(t *testing.T) {
 			t.Errorf("Names() missing embedded skill %q", stem)
 		}
 	}
-	if !slices.Contains(got, "getting-started") {
-		t.Error("Names() does not contain 'getting-started'")
+	// session-bootstrap is the canonical anchor under the atomic-skill
+	// naming convention (E3 replacement for getting-started). It is
+	// the load-bearing first-session skill referenced by
+	// TestSkillsGet_ValidName.
+	if !slices.Contains(got, "session-bootstrap") {
+		t.Error("Names() does not contain 'session-bootstrap'")
 	}
 }
 
