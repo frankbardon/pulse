@@ -16,12 +16,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// E4-S5 — Extension AGG / GROUP / FILTER registrations gain
-// ComponentSchema + ComponentsFunc. These tests pin the public
-// registration surface, the snapshot projection, and the runtime
-// wrapper that makes processing.MetaAggregator / .MetaGrouper /
-// .MetaFilterer assertions succeed for embedder-supplied operators.
-
 // brandScoreSchema returns the ComponentSchema declaration used by
 // the AGG_ACME_BRAND_SCORE test registration. Two operator-specific
 // keys (sum, weights_applied) layered on top of the universal floor
@@ -225,13 +219,6 @@ func TestExtensions_AggregatorComponents_FloorOnly(t *testing.T) {
 	}
 }
 
-// TestExtensions_ComponentsFunc_WithoutSchemaRejected asserts that
-// declaring a ComponentsFunc without a matching ComponentSchema is
-// rejected at pulse.New time — the schema is required so probe-
-// validation can verify the emitted key set.
-//
-// E4-S6 wired the formal PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA code
-// here, replacing the legacy PULSE_EXTENSION_PARAM_INVALID stub.
 func TestExtensions_ComponentsFunc_WithoutSchemaRejected(t *testing.T) {
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
@@ -287,11 +274,6 @@ func TestExtensions_ComponentSchema_MissingMergeabilityRejected(t *testing.T) {
 	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
 }
 
-// TestExtensions_ComponentsFunc_EmittedKeyMismatchRejected asserts the
-// probe rejects a registration whose ComponentsFunc emits a key not
-// declared in ComponentSchema.Keys. E4-S6 wired the formal
-// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH code, replacing the legacy
-// PULSE_EXTENSION_PARAM_INVALID stub.
 func TestExtensions_ComponentsFunc_EmittedKeyMismatchRejected(t *testing.T) {
 	emit := func(processing.Aggregator) (map[string]any, error) {
 		return map[string]any{"undeclared_key": 1.0}, nil
@@ -398,13 +380,6 @@ func TestExtensions_Predict_CarriesExtensionComponentSchema(t *testing.T) {
 		t.Errorf("Predict ComponentSchema.Keys count = %d, want 4", len(got.Keys))
 	}
 }
-
-// E4-S6 — Probe-validation parity tests
-//
-// These pin the probe-time contract between ComponentSchema and
-// ComponentsFunc. Probe runs at pulse.New() time after validate; cases
-// caught by validate (e.g. emitter-without-schema, schema-without-
-// emitter) surface their errors here.
 
 // TestExtensions_ComponentSchemaParity is the happy-path round-trip:
 // a registration with matching ComponentSchema + ComponentsFunc passes

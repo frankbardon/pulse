@@ -9,16 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the baseline-index resolver helper
-// (processing/overlay_baseline_resolver.go).
-//
-// E4-S1 scope: structural foundation for the windowed-Process overlay
-// kinds that consume the BaselineIndex.Position arm in S2 / S3 / S5 /
-// S7. The resolver maps a 0-based ordinal on the host's ordered SERIES
-// axis to a single baseline value; out-of-range slots fail with the
-// canonical PULSE_OVERLAY_REF_UNKNOWN code carrying the
-// `{baseline_index, series_length}` Details map shape.
-
 // TestResolveBaselineIndex_HappyPath exercises the canonical resolver
 // success path against a three-group ordered series. Position 0 → 100,
 // Position 1 → 200, Position 2 → 300 — same series, same Position,

@@ -4,9 +4,9 @@ import "github.com/frankbardon/pulse/types"
 
 // universalGrouperFloorKeys is the {total_n, n_null} pair every grouper's
 // component schema declares. The orchestrator's universal-floor pass
-// (E2-S4) emits these keys unconditionally so embedders can rely on
-// them being present even when MetaGrouper returns an empty extra map.
-// Declared centrally so the floor stays byte-equal across every entry.
+// emits these keys unconditionally so embedders can rely on them being
+// present even when MetaGrouper returns an empty extra map. Declared
+// centrally so the floor stays byte-equal across every entry.
 //
 // Note these names differ from the aggregator floor ({n, n_null}) by
 // design — groupers partition all post-filter records (`total_n`), not

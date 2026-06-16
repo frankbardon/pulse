@@ -8,14 +8,14 @@ import (
 )
 
 // applyZCell is the COMPOSE-host MATRIX-shape runtime handler for
-// OVERLAY_Z_CELL (E1-S17). Per-cell two-sample z-test on the means
-// against the reference slot's matching cell. Cells are treated as
-// sample means; per-side variance and sample size are read from the
-// spec's `Params` map with the same defaults applied by `applyTCell`
+// OVERLAY_Z_CELL. Per-cell two-sample z-test on the means against the
+// reference slot's matching cell. Cells are treated as sample means;
+// per-side variance and sample size are read from the spec's `Params`
+// map with the same defaults applied by `applyTCell`
 // (`variance_target` / `variance_ref` default 1.0, `sample_size_target`
 // / `sample_size_ref` default 2).
 //
-// Components-source (E3-S7): when both the target cell and the matching
+// Components-source: when both the target cell and the matching
 // reference cell carry a `{mean, variance, n}` triple at
 // Response.Components.Crosstab.CellComponents[r][c] — emitted by
 // AGG_WELFORD via the MetaAggregator path — the handler reads the
@@ -24,8 +24,7 @@ import (
 // fall back to the scalar+Params path on the scalar side and use the
 // triple's (variance, n) on the triple side. MatrixCell.Value
 // type-assertion on processing.WelfordTriple is no longer performed —
-// the universal Components surface owns the triple payload. E3-S8
-// removes the writer next.
+// the universal Components surface owns the triple payload.
 //
 // Math (per cell, post-extraction of mean/variance/n on each side):
 //
@@ -216,8 +215,7 @@ func welchZTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 // is still consulted for the scalar fallback path so the additive
 // pre-Components scalar contract stays byte-equal; the WelfordTriple
 // type-assertion on MatrixCell.Value is gone — the universal
-// Components surface is the only triple source after the E3-S7
-// migration.
+// Components surface is the only triple source.
 func extractCellWelchInputsFromComponents(resp *types.Response, cell types.MatrixCell, r, c int, varDefault, nDefault float64) (mean, variance, n float64, ok bool) {
 	if !cell.Present {
 		return 0, 0, 0, false
@@ -230,9 +228,9 @@ func extractCellWelchInputsFromComponents(resp *types.Response, cell types.Matri
 
 // extractCellWelchInputsScalar is the scalar-fallback arm. Treats a
 // scalar MatrixCell.Value as the cell mean and supplies the Params
-// defaults for `(variance, n)`. Mirrors the pre-S7
-// extractCellWelchInputs scalar branch byte-equal so the additive
-// contract for non-triple cells stays intact.
+// defaults for `(variance, n)`. Mirrors the legacy scalar branch
+// byte-equal so the additive contract for non-triple cells stays
+// intact.
 func extractCellWelchInputsScalar(cell types.MatrixCell, varDefault, nDefault float64) (mean, variance, n float64, ok bool) {
 	if !cell.Present {
 		return 0, 0, 0, false

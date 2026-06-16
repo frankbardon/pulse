@@ -1,17 +1,9 @@
-// Raw-cell lookup helper for COMPOSE overlay handlers. Originally
-// (E1-S9 / E1-S10) shared between the MATRIX-arm and SERIES-arm
-// inferential overlays so triple-aware handlers could detect a
-// `WelfordTriple` payload on the reference side via type-assertion.
-//
-// E3-S7 retires the triple type-assertion: the four parity overlays
-// (OVERLAY_T_CELL / OVERLAY_Z_CELL / OVERLAY_T_VS_REF /
-// OVERLAY_Z_VS_REF) read `(mean, variance, n)` from
+// Raw-cell lookup helper for COMPOSE overlay handlers. The four
+// parity overlays (OVERLAY_T_CELL / OVERLAY_Z_CELL / OVERLAY_T_VS_REF
+// / OVERLAY_Z_VS_REF) read `(mean, variance, n)` from
 // Response.Components.Crosstab.CellComponents[r][c] (MATRIX arm) or
-// the row-shape components map (SERIES arm) instead. The siblings
-// `welfordTripleFromCell`, `encodeSeriesRowAny`, `seriesRowEntry`,
-// and `buildSeriesRowLookupAny` are gone (their consumers no longer
-// reach for the typed payload); the components-source equivalents
-// live in welford_components_extract.go.
+// the row-shape components map (SERIES arm); the components-source
+// equivalents live in welford_components_extract.go.
 //
 // `buildMatrixCellRawLookup` remains because the MATRIX-arm handlers
 // still need to verify a reference cell is `Present` at the matching

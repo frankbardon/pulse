@@ -6,10 +6,9 @@ import (
 )
 
 // Dictionary-prefix drift probe for the COMPOSE-host overlay dispatch.
-// Runs AFTER the key-set (E7-S6) and shape/schema (E7-S7) gates and
-// BEFORE per-kind handler dispatch — but ONLY when the caller opted
-// into the byte-equal fast path via
-// ComposeOverlaySpec.Options.DictPrefixFast = true.
+// Runs AFTER the key-set and shape/schema gates and BEFORE per-kind
+// handler dispatch — but ONLY when the caller opted into the byte-equal
+// fast path via ComposeOverlaySpec.Options.DictPrefixFast = true.
 //
 // Background:
 //
@@ -26,31 +25,25 @@ import (
 //   reference dict is ["a","b"] and the target is ["b","a"] or the
 //   reference is ["a","b","c"] and the target is ["b"] only.
 //
-//   E7-S8 opts callers into a faster DIRECT-INDEX comparison path via
-//   ComposeOverlaySpec.Options.DictPrefixFast = true. That path
-//   skips the per-key decode and compares categorical index bytes
-//   directly across slots; correctness depends on every slot's
-//   categorical dictionary being byte-equal on the common prefix.
+//   ComposeOverlaySpec.Options.DictPrefixFast = true opts callers into
+//   a faster DIRECT-INDEX comparison path. That path skips the per-key
+//   decode and compares categorical index bytes directly across slots;
+//   correctness depends on every slot's categorical dictionary being
+//   byte-equal on the common prefix.
 //   When the prefix-equality assumption holds the fast path is
 //   indistinguishable from the safe path; when it does NOT hold the
 //   fast path silently misaligns cells. We fail loud with
 //   PULSE_OVERLAY_DICT_PREFIX_DRIFT rather than degrade silently.
 //
-// Probe-validation-at-pulse.New scoping non-goal:
+// Probe-validation scope:
 //
-//   The E7-S8 acceptance criteria originally specified probe-validation
-//   at `pulse.New` per the existing extension probe pattern. In
-//   practice that requires the runtime to know which Compose-able
-//   cohorts will be paired BEFORE any request runs — cohort pairing
-//   is a per-request decision (each ComposedRequest names its slot
-//   cohorts), not a registration-time one, so the registration-time
-//   probe has no input to probe against. The E7-S8 pragmatic scope
-//   instead runs the probe per ApplyComposeOverlays invocation
-//   against the already-finalised per-slot *Response objects. The
-//   per-invocation probe carries the same correctness guarantee at
-//   roughly the same cost (a single linear-scan comparison per
-//   categorical axis per spec) and lifts the registration-time
-//   coupling constraint.
+//   The probe runs per ApplyComposeOverlays invocation against the
+//   already-finalised per-slot *Response objects rather than at
+//   `pulse.New` time. Cohort pairing is a per-request decision (each
+//   ComposedRequest names its slot cohorts), so a registration-time
+//   probe has no input to probe against. The per-invocation probe
+//   carries the same correctness guarantee at roughly the same cost (a
+//   single linear-scan comparison per categorical axis per spec).
 //
 // What "dictionary" means at the *types.Response layer:
 //
@@ -153,8 +146,8 @@ func checkDictPrefixEquality(refResp *types.Response, targetResps []*types.Respo
 	refMx := refResp.Crosstab.Matrix
 	for i, tResp := range targetResps {
 		if tResp == nil || tResp.Crosstab == nil || tResp.Crosstab.Matrix == nil {
-			// Mixed-shape pairs are owned by the shape gate (E7-S7);
-			// stay orthogonal so the canonical-code dispatch does not
+			// Mixed-shape pairs are owned by the shape gate; stay
+			// orthogonal so the canonical-code dispatch does not
 			// double-trigger.
 			continue
 		}

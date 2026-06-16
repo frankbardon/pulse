@@ -4,10 +4,10 @@ import "github.com/frankbardon/pulse/types"
 
 // universalFiltererFloorKeys is the {n_in, n_out, n_null_input} triple
 // every filterer's component schema declares. The orchestrator's
-// universal-floor pass (E2-S9) emits these keys unconditionally from
-// the filter pass's per-record counter, so embedders can rely on them
-// being present even when MetaFilterer returns an empty extra map.
-// Declared centrally so the floor stays byte-equal across every entry.
+// universal-floor pass emits these keys unconditionally from the filter
+// pass's per-record counter, so embedders can rely on them being
+// present even when MetaFilterer returns an empty extra map. Declared
+// centrally so the floor stays byte-equal across every entry.
 //
 // Semantics:
 //   - n_in: records that entered the filter pass (post-source, pre-

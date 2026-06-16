@@ -10,24 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestMetaAggregator_CompositeOps_Components is the E1-S8 table-driven
-// sweep covering Components() emission for the two composite
-// aggregators implemented in E1-S8: AGG_WEIGHTED_MEAN / AGG_RATIO.
-// Both operators track a numerator + denominator under different
-// names (sum_weighted/sum_weights vs numerator/denominator) and
-// surface those plus the derived scalar (weighted_mean / ratio).
-//
-// Each operator is exercised across input shapes covering the
-// non-degenerate path, the empty-input path, the degenerate-
-// denominator path (zero-weight rows for AGG_WEIGHTED_MEAN, zero
-// denominator for AGG_RATIO), and a single-row path. The
-// orchestrator runs the buffered processRecords exit so the frozen
-// mirrors stamped by Aggregate are the source of truth for
-// Components(). Each case asserts (a) the universal floor (N, NNull)
-// matches the per-record bookkeeping and (b) the operator-specific
-// map matches the schema declared in
-// descriptor/capabilities_aggregators.go byte-for-byte via
-// reflect.DeepEqual.
 func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 	schema := cohortSchema()
 

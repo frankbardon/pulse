@@ -338,14 +338,6 @@ func TestProcessChain_FiveStageScalarPipeline(t *testing.T) {
 	}
 }
 
-// TestProcessChain_NoOverlaysByteIdentical asserts the post-stage-loop
-// whole-chain overlay barrier is a no-op when ChainRequest.Overlays is
-// nil — the response's `Overlays` slot stays nil (omitempty rule) and
-// the marshalled JSON is byte-identical to a pre-E6-S3 ChainResponse.
-//
-// Story E6-S3 acceptance: "When ChainRequest.Overlays is empty/nil, no
-// barrier work; ChainResponse.Overlays stays nil (no allocation,
-// byte-identical JSON vs pre-S3)".
 func TestProcessChain_NoOverlaysByteIdentical(t *testing.T) {
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	ctx := context.Background()
@@ -378,9 +370,6 @@ func TestProcessChain_NoOverlaysByteIdentical(t *testing.T) {
 		t.Errorf("ChainResponse.Overlays = %+v, want nil (barrier must short-circuit on empty req.Overlays)", resp.Overlays)
 	}
 
-	// Defense in depth: marshal the response and confirm no "overlays"
-	// key landed in the JSON. The omitempty rule on the slot is what
-	// drives byte-identity vs pre-E6-S3 callers.
 	js, err := json.Marshal(resp)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -401,17 +390,6 @@ func containsKey(haystack, needle string) bool {
 	return false
 }
 
-// TestProcessChain_StubOverlayRoundTrip asserts the post-stage-loop
-// whole-chain overlay barrier populates ChainResponse.Overlays with
-// one stub layer per request spec in matching index order. The stub
-// handler in processing/overlay_chain_dispatch.go emits a
-// zero-payload OverlayLayer whose Kind echoes the spec.Kind; the
-// chassis exercises the resolver + dispatch round-trip without S4/S5
-// arithmetic.
-//
-// Story E6-S3 acceptance: "ChainResponse.Overlays populated after the
-// stage loop finishes and BEFORE the response is returned to the
-// caller" + "Handler dispatch table keyed by OverlayKind".
 func TestProcessChain_StubOverlayRoundTrip(t *testing.T) {
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	ctx := context.Background()
@@ -481,29 +459,6 @@ func TestProcessChain_StubOverlayRoundTrip(t *testing.T) {
 	}
 }
 
-// TestOverlay_ChainPerStage_Piggyback is the E6-S1 dual-slot per-stage
-// conformance test. Per-stage overlays must surface on
-// ChainResponse.Stages[i].Overlays exactly as if each stage's Request
-// were run standalone through E3 — there is no chain-specific overlay
-// code path; the per-stage half of the dual-slot design is a pure
-// consequence of the universal Request.Overlays slot landed in E1/E3.
-//
-// Acceptance:
-//
-//   - Stage 0 carries one OVERLAY_INDEX_VS_TOTAL spec; Stage 1 carries
-//     one OVERLAY_SHARE_OF_TOTAL spec.
-//   - ChainResponse.Stages[0].Overlays has length 1 with
-//     Kind=OVERLAY_INDEX_VS_TOTAL.
-//   - ChainResponse.Stages[1].Overlays has length 1 with
-//     Kind=OVERLAY_SHARE_OF_TOTAL.
-//   - ChainResponse.Overlays stays nil (no whole-chain overlay slot is
-//     exercised here — that surface lands in E6-S2..S5).
-//   - Stripping Stages[i].Overlays from the response JSON yields the
-//     same Stages[i] host data as a chain run with empty per-stage
-//     Overlays (additive byte-identity contract).
-//
-// The chain stays mergeable end-to-end (AGG_SUM + GROUP_CATEGORY only)
-// so CanChainRequest accepts every stage.
 func TestOverlay_ChainPerStage_Piggyback(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -572,14 +527,6 @@ func TestOverlay_ChainPerStage_Piggyback(t *testing.T) {
 		t.Fatalf("ProcessChain (with per-stage overlays): %v", err)
 	}
 
-	// Per E6-S3, ChainResponse.Overlays MUST stay nil when the
-	// originating ChainRequest carried no whole-chain overlays — the
-	// whole-chain barrier in service.applyChainOverlays short-circuits
-	// on empty / nil req.Overlays without allocating. This piggyback
-	// test exercises only the per-stage half of the dual-slot design,
-	// so the slot stays nil end-to-end (E6-S2 introduced the slot;
-	// E6-S3 introduced the populating hook; with no whole-chain spec
-	// the response shape is byte-identical to a pre-E6-S2 ChainResponse).
 	if resp.Overlays != nil {
 		t.Errorf("ChainResponse.Overlays = %+v, want nil (per-stage-only chain — no whole-chain barrier work)", resp.Overlays)
 	}
@@ -670,27 +617,6 @@ func expectedDelta(target, ref float64) float64 {
 	return target - ref
 }
 
-// build3StageSeriesChain returns a 3-stage ChainRequest whose stages
-// all preserve SERIES shape (grouper + aggregator) so the whole-chain
-// shape gate accepts and a per-key INDEX / DELTA can be hand-computed.
-//
-// Layout (chosen so each stage emits arithmetically distinct values per
-// region, exercising the SERIES handler's per-row fold rather than
-// degenerating into "identical numerators and denominators"):
-//
-//	Stage 0 (sum): GROUP region, AGG_SUM score → "v" — picks up the
-//	               raw cohort's 2 rows per region (sums to 6 / 30 / 150).
-//	Stage 1 (sum): GROUP region, AGG_SUM v → "w" — only 1 row per
-//	               region in stage 0 output, so w == v (6 / 30 / 150).
-//	Stage 2 (count): GROUP region, AGG_COUNT w → "c" — returns 1 per
-//	                 region (one row per region in stage 1 output).
-//
-// Per-row INDEX(stage 2 / stage 0) = 1/v * 100 (≈ 16.67, 3.33, 0.67).
-// Per-row DELTA(stage 2 - stage 0) = 1 - v (-5, -29, -149).
-//
-// Both targets/refs are wired via StageRef.Index so the resolver path is
-// exercised end-to-end through service.ProcessChain (the per-stage hook
-// landed in E6-S3 + the real handlers landed in E6-S4 / E6-S5).
 func build3StageSeriesChain(specs []*types.ChainOverlaySpec) *types.ChainRequest {
 	return &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "test.pulse"},
@@ -773,20 +699,6 @@ func seriesLayerValuesByKey(t *testing.T, layer *types.OverlayLayer) map[string]
 	return out
 }
 
-// TestOverlay_ChainWholeChain_IndexVsStage drives a 3-stage chain
-// end-to-end through service.ProcessChain with one whole-chain
-// OVERLAY_INDEX_VS_STAGE spec attached (Target=stage 2, Ref=stage 0).
-// Asserts the resulting ChainResponse.Overlays[0] SERIES payload is
-// byte-equal to the hand-computed indices for each region.
-//
-// E6-S8 acceptance: "3-stage chain, byte-equal hand-computed indices".
-//
-// Builds confidence in the dual-slot design's whole-chain half:
-// service.ProcessChain runs every stage to completion, the post-stage
-// barrier (service.applyChainOverlays) dispatches the whole-chain spec
-// against the finalised stage responses, and the per-row index is
-// folded by processing.applyIndexVsStageSeries — the exact runtime
-// path a caller would take in production with no test-only stubs.
 func TestOverlay_ChainWholeChain_IndexVsStage(t *testing.T) {
 	cfg := build3StageCohort(t)
 	ctx := context.Background()
@@ -885,20 +797,6 @@ func TestOverlay_ChainWholeChain_IndexVsStage(t *testing.T) {
 	}
 }
 
-// TestOverlay_ChainWholeChain_DeltaVsStage drives the same 3-stage
-// SERIES chain through service.ProcessChain but attaches a whole-chain
-// OVERLAY_DELTA_VS_STAGE spec. Asserts the resulting layer carries
-// per-row `target - ref` differences byte-equal to hand-computed
-// values per region.
-//
-// E6-S8 acceptance: "3-stage chain, byte-equal hand-computed deltas".
-//
-// Sibling to TestOverlay_ChainWholeChain_IndexVsStage. The DELTA handler
-// shares the same SERIES dispatch + row-key encoding as INDEX (see
-// processing/overlay_delta_vs_stage.go reusing the E6-S4 helpers), so
-// the two tests collectively exercise the whole CHAIN-host series fold
-// surface: shape inference, row-key parity, per-key kernel arithmetic,
-// summary baseline (DELTA centres on zero, INDEX on 100).
 func TestOverlay_ChainWholeChain_DeltaVsStage(t *testing.T) {
 	cfg := build3StageCohort(t)
 	ctx := context.Background()
@@ -983,56 +881,6 @@ func TestOverlay_ChainWholeChain_DeltaVsStage(t *testing.T) {
 	}
 }
 
-// TestChain_OverlayLayerWarnings_ReachServiceReturn is the E2-S2
-// service-layer parity gate. It locks the "computed-once, surfaced-once"
-// contract introduced by E2-S1: every OverlayWarning emitted by
-// processing.ApplyChainOverlays MUST land on the matching
-// OverlayLayer.Warnings slot that the public ProcessChain return value
-// exposes — no warning may be lost between the dispatcher and the
-// caller.
-//
-// Deterministic trigger (missing-reference series row, NOT zero
-// divisor — the zero-divisor path injects NaN into the payload which
-// blocks JSON marshalling at the CLI boundary; this path is structural
-// and is shared with the CLI integration test in cmd/pulse to keep both
-// tiers driving the same warning shape):
-//
-//   - 3-stage SERIES chain (region grouper + AGG_SUM / FILTER_RANGE +
-//     AGG_SUM / AGG_COUNT). The cohort carries 3 regions; region=2 has
-//     two zero-score rows so stage 0's AGG_SUM emits 0 for region=2.
-//   - Stage 1 carries a FILTER_RANGE on v > 0.5 that drops the
-//     region=2 row before re-aggregating. Stage 2's AGG_COUNT only
-//     sees region=1 and region=3.
-//   - One whole-chain OVERLAY_INDEX_VS_STAGE spec, Target=stage 0
-//     (3 rows: regions 1, 2, 3), Ref=stage 2 (2 rows: regions 1, 3).
-//     The region=2 target row has no matching reference row → SERIES
-//     handler emits ONE PULSE_OVERLAY_REF_ZERO warning with
-//     ref_missing=true and SKIPS the entry (no NaN substitution per
-//     processing/overlay_index_vs_stage.go:518–531).
-//   - Same overlay kind + same input always emits the same warning
-//     code + details (the dispatcher then stamps "overlay_index" so the
-//     service-layer barrier hook can route it).
-//
-// The parity assertion:
-//
-//   - Call processing.ApplyChainOverlays directly with the same stage
-//     responses and stage names that ProcessChain feeds it. The returned
-//     flat warning slice is the "ground truth" — the dispatcher's view
-//     of every warning produced for this request.
-//   - Call svc.ProcessChain, then walk every layer's Warnings slice in
-//     order. Concatenate them flat.
-//   - The two slices must be reflect.DeepEqual — same length, same
-//     ordering within each layer, same Code / Message / Details on every
-//     entry. This is the byte-equal contract from the story.
-//
-// Why this assertion is meaningful end-to-end: the dispatcher stamps
-// Details["overlay_index"] on every warning it emits, then returns a
-// flat slice. The service-layer barrier hook (service.applyChainOverlays
-// at chain.go:202) groups that flat slice by overlay_index and writes
-// each group into the matching layer's Warnings slot. Walking the
-// layers in order and re-flattening must reconstruct the original
-// dispatcher slice exactly — otherwise the routing layer either dropped
-// or duplicated an entry.
 func TestChain_OverlayLayerWarnings_ReachServiceReturn(t *testing.T) {
 	// Cohort: 3 regions × 2 rows each. Region=2's score sums to 0 so
 	// stage 1's FILTER_RANGE v>0.5 drops it before re-aggregation, and

@@ -35,10 +35,10 @@ type FacetValidationResult struct {
 	//
 	// Per kind-catalog-v1 PRD §I-FR-I3 the FACET-host predict surface
 	// mirrors the Request-host predict surface so LLM callers see the
-	// same per-spec descriptor shape regardless of host. E5-S10 wires
-	// the four FACET-host kinds (OVERLAY_INDEX_VS_POP /
-	// OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP)
-	// onto this surface; sibling to PredictResult.OverlaysApplied.
+	// same per-spec descriptor shape regardless of host. The four
+	// FACET-host kinds (OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP /
+	// OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP) route onto this
+	// surface; sibling to PredictResult.OverlaysApplied.
 	OverlaysApplied []OverlayAppliedDescriptor `json:"overlays_applied"`
 
 	// OverlayCost maps each FACET-host overlay-spec Name to a coarse
@@ -206,15 +206,15 @@ func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest
 	// schema namespace.
 	ValidateLabels(env, req.Labels, schema, snap, nil)
 
-	// Validate FACET-host overlay specs (E5-S6). Per-kind contracts live
-	// in descriptor/overlay_facet.go; the validator is no-op when
+	// Validate FACET-host overlay specs. Per-kind contracts live in
+	// descriptor/overlay_facet.go; the validator is no-op when
 	// req.Overlays is empty so the no-overlay envelope shape stays
-	// byte-identical to the pre-E5 path.
+	// byte-identical to the legacy Facet path.
 	ValidateFacetOverlays(env, req, schema)
 
 	// Populate the FACET-host predict surface (OverlaysApplied + OverlayCost)
-	// per kind-catalog-v1 PRD §I-FR-I3. E5-S10 wires the four FACET-host
-	// kinds onto the FacetValidationResult — sibling to the Request-host
+	// per kind-catalog-v1 PRD §I-FR-I3. The four FACET-host kinds route
+	// onto the FacetValidationResult — sibling to the Request-host
 	// PredictResult emission. The populator walks every spec regardless of
 	// whether ValidateFacetOverlays surfaced errors so LLM callers see the
 	// catalog identity of the spec the engine would attempt to dispatch.

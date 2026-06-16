@@ -1,28 +1,3 @@
-// E3-S7 reader-migration regression gate: the four stat-test parity
-// overlay handlers MUST read `(mean, variance, n)` from
-// Response.Components.Crosstab.CellComponents[r][c] (MATRIX arm) or
-// the corresponding row-shape map (SERIES arm) and MUST NOT reach for
-// the typed `WelfordTriple` payload on MatrixCell.Value / row value
-// columns. These tests pin the migrated source so a refactor that
-// reintroduces the WelfordTriple type-assertion would fail here.
-//
-// Scope:
-//
-//   - For each of the four kinds (OVERLAY_T_CELL, OVERLAY_Z_CELL,
-//     OVERLAY_T_VS_REF, OVERLAY_Z_VS_REF) build a response whose target
-//     cell / row carries a WelfordTriple in the legacy smuggle slot
-//     but NO components-source triple. The handler MUST NOT consume
-//     the legacy triple — the cell is treated as non-addressable and
-//     skipped silently (matrix arm) or routes through the scalar
-//     fallback (which itself returns false for a non-numeric
-//     WelfordTriple value). The resulting overlay layer carries no
-//     finite p-value for the (r0, c0) cell / first series entry.
-//
-//   - The scalar+Params additive contract is exercised separately by
-//     the existing TestApplyTCell_ScalarKnownAnswer /
-//     TestApplyZCell_ScalarKnownAnswer / TestApplyTVsRef_ScalarKnown
-//     Answer / TestApplyZVsRef_ScalarKnownAnswer tests — no need to
-//     re-cover the additive path here.
 package processing
 
 import (
@@ -32,11 +7,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// makeSingleCellLegacyTripleResponse builds a 1×1 MATRIX-shape Response
-// whose cell carries a WelfordTriple in the legacy MatrixCell.Value
-// smuggle slot but NO Response.Components.Crosstab.CellComponents
-// entry. After the E3-S7 migration the parity handlers must NOT
-// consume the legacy triple.
 func makeSingleCellLegacyTripleResponse(triple WelfordTriple) *types.Response {
 	cells := [][]types.MatrixCell{{{Value: triple, Present: true}}}
 	return &types.Response{
@@ -172,17 +142,6 @@ func TestApplyZVsRef_LegacyTripleNotConsumed(t *testing.T) {
 	}
 }
 
-// TestApplyTCell_ComponentsTripleSourcePrimary asserts the MATRIX-arm
-// Welch handler reads `(mean, variance, n)` from the components-source
-// map at Response.Components.Crosstab.CellComponents[r][c] — even when
-// MatrixCell.Value carries a divergent legacy triple. The components
-// source is canonical post-E3-S7; the legacy triple smuggle is not
-// consulted.
-//
-// We populate CellComponents with one (mean, variance, n) tuple and
-// MatrixCell.Value with a DIFFERENT WelfordTriple. The handler must
-// emit a p-value derived from the components map, not from the
-// stale typed smuggle.
 func TestApplyTCell_ComponentsTripleSourcePrimary(t *testing.T) {
 	// Components map carries the canonical (10, 4, 10) and (9, 4, 10)
 	// — same shape the parity tests pin to a known answer.

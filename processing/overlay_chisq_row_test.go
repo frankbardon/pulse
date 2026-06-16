@@ -221,7 +221,7 @@ func TestOverlay_ChiSqRow_ExpectedLowEmitsWarn(t *testing.T) {
 			len(warnings), warnings)
 	}
 	if got, want := warnings[0].Code, "PULSE_OVERLAY_EXPECTED_LOW"; got != want {
-		t.Fatalf("warning Code = %q, want %q (stub code; E2-S10 promotes)", got, want)
+		t.Fatalf("warning Code = %q, want %q (stub code)", got, want)
 	}
 	// Details should carry the row index (0) and count of low-expected
 	// cells (all 3 cells in row 0 have expected < 5).

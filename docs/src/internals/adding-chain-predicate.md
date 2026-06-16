@@ -53,7 +53,7 @@ divergence the rule exists to prevent.
 Skim `skills/session-bootstrap.md` and `skills/process-chain.md` for
 any operator allowlist that needs adjustment in prose.
 
-## 6. Whole-chain overlays (E6)
+## 6. Whole-chain overlays
 
 `ChainRequest.Overlays []*ChainOverlaySpec` is the whole-chain overlay
 surface — overlays here execute AFTER every stage finalises (NOT
@@ -77,7 +77,7 @@ between stages). Per-stage overlays continue to ride the universal
 
 Canonical-hash coverage is data-driven (`types/hash.go`): the slot's
 `omitempty` tag means overlay-free chain requests hash byte-identically
-to the pre-E6-S2 form; populated overlays fold into the hash
+to the overlay-free baseline; populated overlays fold into the hash
 automatically. Locked by `TestChainCanonicalHash_OverlayFreeByteIdentity`
 and `TestChainCanonicalHash_OverlaysIncluded`.
 

@@ -22,7 +22,7 @@ Compose-only. Overlays decorate the host result; they do not emit `Response.Comp
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab. Reference slot anchors schema-match (E7-S7) + key-alignment (E7-S6) but its VALUES are not consumed — rank math reads only target cells. Intentional asymmetry keeps RANK orthogonal to comparison family (INDEX / DELTA / PROP_Z / T / CHISQ).
+COMPOSE — MATRIX crosstab. Reference slot anchors schema-match + key-alignment but its VALUES are not consumed — rank math reads only target cells. Intentional asymmetry keeps RANK orthogonal to comparison family (INDEX / DELTA / PROP_Z / T / CHISQ).
 
 ## Output
 

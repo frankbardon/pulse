@@ -8,20 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Per-handler unit tests for the three SERIES-shape COMPOSE-host
-// overlay kinds landed by E7-S10: OVERLAY_INDEX_VS_REF (series arm),
-// OVERLAY_DELTA_VS_REF (series arm), OVERLAY_T_VS_REF (series only).
-//
-// Each test builds a synthetic ordered series via the shared
-// makeSeriesResponse helper and exercises a per-kind known answer.
-// The shape dispatch happens at handler entry — `composeHostIsSeries`
-// detects SERIES vs MATRIX from the reference + target slots.
-
-// makeSeriesResponse builds a *types.Response carrying a Response.Data
-// series whose first sorted numeric column is the "value" and whose
-// "region" column is the group key. Mirrors the canonical grouped
-// Process shape the chassis schema-match gate (E7-S7) treats as
-// SERIES-host.
 func makeSeriesResponse(keys []string, values []float64) *types.Response {
 	if len(keys) != len(values) {
 		panic("makeSeriesResponse: keys and values must have the same length")
@@ -373,17 +359,6 @@ func TestApplyComposeOverlays_SeriesShapeDispatchesCorrectly(t *testing.T) {
 	}
 }
 
-// TestApplyTVsRef_TripleKnownAnswer pins the per-group Welch p-value
-// for the triple-bearing path (E1-S10). Both sides carry WelfordTriple
-// rows — (Mean, Variance, N) is read off the triple and the Params
-// defaults are bypassed.
-//
-//	target = {mean: 10, var: 4, n: 10}
-//	ref    = {mean:  9, var: 4, n: 10}
-//	se     = sqrt(4/10 + 4/10) ≈ 0.8944
-//	t      = 1 / 0.8944 ≈ 1.118
-//	df_ws  ≈ 18 (equal var, equal n)
-//	p      ≈ 0.2783
 func TestApplyTVsRef_TripleKnownAnswer(t *testing.T) {
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 4, N: 10},
@@ -510,11 +485,6 @@ func TestApplyTVsRef_TripleZeroVariance(t *testing.T) {
 	}
 }
 
-// TestApplyTVsRef_MixedShapeRejected asserts the defensive
-// PULSE_OVERLAY_SCHEMA_DIVERGENT arm on the SERIES surface. The
-// compose schema-match gate (E1-S8) should reject mixed-shape pairs
-// BEFORE dispatch, but the handler still defensively rejects a target
-// triple row paired with a scalar reference row.
 func TestApplyTVsRef_MixedShapeRejected(t *testing.T) {
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 4, N: 10},

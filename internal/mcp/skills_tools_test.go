@@ -10,15 +10,6 @@ import (
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 )
 
-// TestPulseSkillsList_BackwardCompatFields drives handleSkillsList directly
-// (no MCP server start) and asserts the historical four fields (name,
-// description, type, applies_to) are present on every entry. This locks the
-// additive contract so a future change to the skills.Metadata struct cannot
-// silently rename or remove a field downstream consumers depend on.
-//
-// Also asserts the v0.20.0 skill response-components.md is visible — the
-// loader is a filesystem scan (E2-S2), so a regression that breaks the embed
-// or the parser would drop it.
 func TestPulseSkillsList_BackwardCompatFields(t *testing.T) {
 	handler := handleSkillsList()
 	req := mcpgo.CallToolRequest{}
@@ -195,9 +186,6 @@ func TestPulseSkillsGet_BackwardCompatBody(t *testing.T) {
 	}
 }
 
-// TestPulseSkillsGet_MissingNameError exercises the error branch — empty /
-// missing `name` arg returns IsError, not a panic or a silent empty body.
-// Locks the request-validation contract that existed before E2.
 func TestPulseSkillsGet_MissingNameError(t *testing.T) {
 	handler := handleSkillsGet()
 

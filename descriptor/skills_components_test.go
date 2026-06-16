@@ -7,37 +7,6 @@ import (
 	"github.com/frankbardon/pulse/skills"
 )
 
-// TestSkillsCoverAllOperatorComponents is the non-skippable CI gate for
-// per-operator component-key documentation under the post-E4 atomic-skill
-// regime. For every registered aggregator, grouper, and filterer:
-//
-//  1. The matching per-operator atomic skill file exists
-//     (skills/op-<category>-<kebab-name>.md). Existence is also
-//     enforced by skills/coverage_test.go's TestSkillsCoverAllComponents
-//     — this gate is a sibling assertion that focuses on component-key
-//     coverage rather than file existence alone.
-//  2. The atomic file contains a `## Components` section (also enforced
-//     structurally by skills/atomic_test.go TestAtomicSkillHasRequiredSections).
-//  3. Every key declared in the operator's `ComponentSchema` appears
-//     in the matching atomic file's body. Universal-floor keys live in
-//     the file as part of the operator's Components bullet; per-operator
-//     keys extend that section inline.
-//
-// Routing (E4 atomic-skill convention):
-//   - AGG_<name>  -> skills/op-agg-<kebab>.md
-//   - GROUP_<name> -> skills/op-group-<kebab>.md
-//   - FILTER_<name> -> skills/op-filter-<kebab>.md
-//
-// Drift modes caught:
-//   - A new operator landing with a new component key that the
-//     per-operator skill does not yet document.
-//   - A capability-row rename that loses skill coverage.
-//   - A skill edit that removes a previously-documented key.
-//   - A registered operator missing its per-operator skill file.
-//
-// The descriptor package is the natural home for this gate — skills/
-// is a leaf the descriptor package imports for manifest assembly, so
-// reaching from descriptor into skills.Get is acyclic.
 func TestSkillsCoverAllOperatorComponents(t *testing.T) {
 	check := func(t *testing.T, opName, stem string, keys []string) {
 		t.Helper()

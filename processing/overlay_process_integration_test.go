@@ -67,12 +67,6 @@ func overlayIntegrationBaseRequest() *types.Request {
 	}
 }
 
-// TestProcess_OverlaysSeriesPopulatesResponse verifies the E3-S6 grouped
-// Process wiring lands: a Request{Groups, Aggregations, Overlays} call
-// against Processor.Process populates Response.Overlays with one layer
-// per spec in matching order. The layer payload matches the E3-S2
-// INDEX_VS_TOTAL handler output for the three known per-region totals
-// (30, 90, 150) over a grand total of 270.
 func TestProcess_OverlaysSeriesPopulatesResponse(t *testing.T) {
 	schema := overlayIntegrationSchema(t)
 	recs := overlayIntegrationRecords(schema)
@@ -161,12 +155,6 @@ func TestProcess_NoOverlaysSeriesPreservesBaseline(t *testing.T) {
 	}
 }
 
-// TestProcess_OverlayKindUnknown verifies the runtime mirror of the
-// E3-S1 validation defense: a Request.Overlays entry naming an
-// unregistered kind produces a CodedError whose details carry the
-// canonical PULSE_OVERLAY_KIND_UNKNOWN code. Predict catches this at
-// validation time; the runtime gate is defense in depth. Mirrors the
-// MATRIX path's TestCrosstab_UnknownOverlayKindReturnsCodedError.
 func TestProcess_OverlayKindUnknown(t *testing.T) {
 	schema := overlayIntegrationSchema(t)
 	recs := overlayIntegrationRecords(schema)
@@ -195,15 +183,6 @@ func TestProcess_OverlayKindUnknown(t *testing.T) {
 	}
 }
 
-// TestProcess_OverlayMixedModeDowngrades verifies the mixed-mode
-// downgrade rule (PRD §6): a Request mixing a streamable overlay
-// (E3-S2/S3/S4 — OVERLAY_INDEX_VS_TOTAL is streamable per
-// types.OverlayStreamability) with a non-streamable overlay
-// (E3-S5 — OVERLAY_INDEX_VS_SIBLING is buffered) forces the entire
-// Request through the buffered path so the post-finalize hook sees a
-// complete SeriesHostView. The CanStreamRequest gate is the single
-// decision point — once it returns false the buffered processRecords
-// path runs and Response.Overlays still populates correctly.
 func TestProcess_OverlayMixedModeDowngrades(t *testing.T) {
 	schema := overlayIntegrationSchema(t)
 	req := overlayIntegrationBaseRequest()
@@ -255,37 +234,6 @@ func TestProcess_OverlayMixedModeDowngrades(t *testing.T) {
 	}
 }
 
-// E3-S8 — broad cross-mode equivalence + slice-wide invariants.
-//
-// The S2/S3/S4 per-handler suites already pin streaming-vs-buffered
-// byte-identity at the ApplyOverlaysSeries entry point against
-// synthetic SeriesHostView fixtures. S8 lifts that contract one layer
-// up — driving Processor.Process() against a hermetic record cohort
-// and asserting the same byte-identity invariants hold across the
-// streaming-eligible AND buffered orchestrator branches. The buffered
-// variant in each pair forces the orchestrator off the streaming path
-// by adding an AGG_MEDIAN aggregator (Streamable() == false), so the
-// orchestrator routes through processRecords; the streaming variant
-// uses only AGG_SUM (Streamable() == true) so the orchestrator routes
-// through processStreamingGrouped.
-//
-// Math reference (fixture in overlayIntegrationRecords): three regions
-// {east, west, north} with per-region AGG_SUM(score) = {30, 90, 150}.
-// Grand total = 270. INDEX_VS_TOTAL = group/270*100 ∈ {11.111, 33.333,
-// 55.555} (Σ = 100). SHARE_OF_TOTAL = group/270 ∈ {0.111, 0.333,
-// 0.555} (Σ = 1). ZSCORE_VS_TOTAL: mean=90, M2 = (30-90)² + 0 +
-// (150-90)² = 7200, sd = sqrt(7200/3) = sqrt(2400). z = (30-90)/sd, 0,
-// (150-90)/sd (Σ z = 0, Σ z² = N).
-
-// overlayE2EUlpTol mirrors the per-handler suites' tolerance — the
-// Welford accumulator (single-pass Chan-Welford in the streaming
-// path) matches a classical two-pass reducer within a few ULPs on
-// benign inputs. The integer-valued fixture (30 / 90 / 150) is
-// numerically benign so the bound stays tight; we follow the
-// processing/aggregator_cohort tests' convention of using 1e-12 as
-// the "within ULP via Welford" bound. The same constant gates every
-// E3 cross-mode equivalence assertion below so a single regression
-// reads consistently across kinds.
 const overlayE2EUlpTol = 1e-12
 
 // forceBufferedAggregation returns an AGG_MEDIAN aggregator. Adding
@@ -400,13 +348,6 @@ func TestOverlay_IndexVsTotal_Streaming_E2E(t *testing.T) {
 	}
 }
 
-// TestOverlay_IndexVsTotal_Buffered_E2E forces the orchestrator off
-// the streaming path by attaching an AGG_MEDIAN aggregator (which
-// drops CanStreamRequest to false) and asserts the buffered-path
-// SeriesPayload output is byte-identical (within ULP) to the streaming
-// path's output. Cross-mode equivalence at Processor level — the
-// guarantee S2's TestOverlay_IndexVsTotal_StreamingBufferedByteIdentical
-// pins at handler entry, lifted to the orchestrator dispatch.
 func TestOverlay_IndexVsTotal_Buffered_E2E(t *testing.T) {
 	streamResp, streamPath := runOverlayE2E(t, []types.OverlaySpec{
 		newIndexVsTotalSpec("idx_total"),
@@ -503,12 +444,6 @@ func TestOverlay_ShareOfTotal_Buffered_E2E(t *testing.T) {
 	}
 }
 
-// TestOverlay_ZScoreVsTotal_Streaming_E2E drives the streaming-eligible
-// orchestrator through Processor.Process for ZSCORE_VS_TOTAL. The
-// streaming path folds Welford over the per-group accumulators inside
-// the streaming Process pass; the buffered path consumes the
-// materialised slice. Asserts Σ z = 0 and Σ z² = N within ULP — the
-// two canonical population-z invariants per S4's acceptance.
 func TestOverlay_ZScoreVsTotal_Streaming_E2E(t *testing.T) {
 	resp, path := runOverlayE2E(t, []types.OverlaySpec{
 		newZScoreVsTotalSpec("z_total"),
@@ -705,22 +640,6 @@ func TestOverlay_IndexVsSibling_E2E(t *testing.T) {
 	})
 }
 
-// TestStreamability_OverlaysKnown_ProcessSubset is the E3-narrow
-// specialisation of the slice-wide TestStreamability_OverlaysKnown
-// gate in types/overlay_streamability_test.go. It asserts every kind
-// in the E3 grouped-Process subset (INDEX_VS_TOTAL / SHARE_OF_TOTAL /
-// ZSCORE_VS_TOTAL streamable; DELTA_VS_SIBLING / INDEX_VS_SIBLING
-// buffered) has a row in types.OverlayStreamability matching the
-// runtime declaration.
-//
-// Distinct from the full-table gate: this test reads only the five
-// E3 kinds — the canStreamOverlays runtime helper consults the same
-// table, and a regression on any one of these five would break
-// streaming-vs-buffered routing for grouped Process. The full table
-// gate enforces completeness across every kind in
-// AllOverlayKinds(); this subset gate documents that E3-S2/S3/S4 are
-// streamable and E3-S5 is buffered, per the kind-catalog-v1
-// "Streaming-capable subset" carve-out.
 func TestStreamability_OverlaysKnown_ProcessSubset(t *testing.T) {
 	cases := []struct {
 		kind            types.OverlayKind
@@ -736,12 +655,12 @@ func TestStreamability_OverlaysKnown_ProcessSubset(t *testing.T) {
 	for _, c := range cases {
 		streamable, known := types.OverlayStreamable(c.kind)
 		if !known {
-			t.Errorf("OverlayStreamable(%s) known=false; expected row in OverlayStreamability for the E3 subset",
+			t.Errorf("OverlayStreamable(%s) known=false; expected row in OverlayStreamability for the streamable subset",
 				c.kind)
 			continue
 		}
 		if streamable != c.wantStreamable {
-			t.Errorf("OverlayStreamable(%s) = %v, want %v (E3 routing: %s)",
+			t.Errorf("OverlayStreamable(%s) = %v, want %v (routing: %s)",
 				c.kind, streamable, c.wantStreamable, c.runtimeBranchTo)
 		}
 	}
@@ -790,19 +709,6 @@ func TestOverlay_SeriesSpecOrderPreserved_E2E(t *testing.T) {
 	}
 }
 
-// TestOverlay_NoOverlaysAdditiveByteIdentity_E2E lifts S6's
-// TestProcess_NoOverlaysSeriesPreservesBaseline byte-identity assertion
-// from Response.Data + Response.Warnings to the full Response (including
-// Overlays). Confirms that a Request with `Overlays: nil` produces a
-// Response that is structurally indistinguishable from a Request that
-// omits the Overlays slot entirely.
-//
-// PRD §9 (additive viz contract): adding overlays MUST NOT mutate the
-// baseline response. The S6 test covers Data + Warnings; this test
-// extends coverage to the full Response surface, including the Overlays
-// field itself (must be nil for both shapes — leaving the JSON
-// `overlays` slot omitted via omitempty rather than emitting an empty
-// array). DeepEqual asserts every exported field matches.
 func TestOverlay_NoOverlaysAdditiveByteIdentity_E2E(t *testing.T) {
 	schema := overlayIntegrationSchema(t)
 	recs := overlayIntegrationRecords(schema)

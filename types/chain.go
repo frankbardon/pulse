@@ -30,21 +30,17 @@ type ChainRequest struct {
 	// whole-chain here) means callers can decorate any individual
 	// stage's result OR the post-finalize chain result with the same
 	// universal OverlayKind catalog; the StageRef discriminated
-	// reference (see below) is what the whole-chain kinds (E6 series:
-	// OVERLAY_INDEX_VS_STAGE, OVERLAY_DELTA_VS_STAGE) consume to
+	// reference (see below) is what the whole-chain kinds
+	// (OVERLAY_INDEX_VS_STAGE, OVERLAY_DELTA_VS_STAGE) consume to
 	// identify which stage's result is the comparison baseline and
 	// which stage's result is the comparison target.
 	//
-	// Forward-compat: every ChainRequest authored before E6-S2
-	// landed produces byte-identical JSON to the same request with
+	// Forward-compat: a ChainRequest without whole-chain overlays
+	// produces byte-identical JSON to the same request with
 	// `Overlays: nil` because the slot is `omitempty` — nil / empty
 	// slices marshal to no key at all. The canonical-hash routine
 	// inherits that contract via the data-driven JSON walk in
 	// types/hash.go (see TestChainCanonicalHash_OverlayFreeByteIdentity).
-	//
-	// The whole-chain handler dispatch + per-kind validation lands in
-	// E6-S3 / E6-S7 / E6-S11; this story (E6-S2) ships the slot, the
-	// spec struct, and the StageRef reference family only.
 	Overlays []*ChainOverlaySpec `json:"overlays,omitempty"`
 }
 
@@ -97,7 +93,7 @@ type ChainResponse struct {
 	//
 	// Empty (or nil) when the request carried no whole-chain
 	// overlays — the slot is `omitempty` so the wire form stays
-	// byte-identical to the pre-E6-S2 ChainResponse for overlay-free
+	// byte-identical to the overlay-free ChainResponse for overlay-free
 	// chains.
 	Overlays []*OverlayLayer `json:"overlays,omitempty"`
 }
@@ -105,8 +101,8 @@ type ChainResponse struct {
 // StageRef is the discriminated reference one ChainOverlaySpec uses
 // to identify a specific stage in the parent ChainRequest.Stages
 // slice. Exactly one of Index / Name is populated per StageRef value
-// — the XOR is validated downstream (E6-S3 validator + the per-kind
-// runtime handler):
+// — the XOR is validated downstream by the chain-overlay validator
+// and the per-kind runtime handler:
 //
 //   - Index is a pointer so the zero value (`Index: ptr(0)`,
 //     meaningfully "stage 0") is distinguishable from "no index
@@ -117,7 +113,7 @@ type ChainResponse struct {
 //     (XOR is "exactly one").
 //
 // The StageRef family is the canonical entry point for whole-chain
-// overlay reference resolution: the E6 whole-chain kinds
+// overlay reference resolution: the whole-chain kinds
 // (OVERLAY_INDEX_VS_STAGE, OVERLAY_DELTA_VS_STAGE) populate both Ref
 // (the baseline stage to compare against) and Target (the stage
 // whose result the comparison surface decorates) with StageRef
@@ -144,11 +140,11 @@ type StageRef struct {
 // re-opening OverlayRef.
 //
 // Validation rules (enforced in descriptor + processing layers, not
-// this file — land in E6-S3 / E6-S7 / E6-S11):
+// this file — land in descriptor/chain_overlay.go +
+// processing/overlay_chain_dispatch.go):
 //   - Kind is required and must be a known OverlayKind whose
-//     whole-chain catalog entry exists (currently empty;
-//     OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE land in
-//     subsequent E6 stories).
+//     whole-chain catalog entry exists (OVERLAY_INDEX_VS_STAGE,
+//     OVERLAY_DELTA_VS_STAGE).
 //   - Scope is required.
 //   - Ref and Target each populate exactly one of (Index, Name)
 //     (XOR validated by the per-kind validator).
@@ -183,6 +179,6 @@ type ChainOverlaySpec struct {
 
 	// Params holds kind-specific configuration as a free-form map.
 	// The per-kind schema is documented alongside the kind's
-	// processor (E6-S3+). Omitted on the wire when nil.
+	// processor. Omitted on the wire when nil.
 	Params map[string]any `json:"params,omitempty"`
 }

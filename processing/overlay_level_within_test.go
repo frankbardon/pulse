@@ -8,23 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// nestedRowAxisPayload returns a 4 × 2 host MatrixPayload whose row
-// axis is 2-deep ([brand, region]) and whose column axis is 1-deep
-// ([segment]). The 4 leaf rows partition into 2 parent prefixes:
-//
-//	   c0   c1   | row_margin
-//	A,N  1    2  |  3
-//	A,S  3    4  |  7
-//	B,N  5    6  | 11
-//	B,S  7    8  | 15
-//
-// Row margins are the per-leaf-row sums. Parent-prefix-row sums are:
-//
-//	A: cells (A,N,*) + (A,S,*) = (1+2+3+4) = 10 → spans 4 cells
-//	B: cells (B,N,*) + (B,S,*) = (5+6+7+8) = 26 → spans 4 cells
-//
-// Used by the E2-S11 Level / Within tests to drive nested-axis prefix-
-// denominator dispatch.
 func nestedRowAxisPayload() *types.MatrixPayload {
 	return &types.MatrixPayload{
 		RowHeader: types.AxisHeader{
@@ -66,30 +49,6 @@ func nestedRowAxisPayload() *types.MatrixPayload {
 	}
 }
 
-// nestedColumnAxisPayload returns a 2 × 4 host MatrixPayload whose
-// column axis is 2-deep ([segment, channel]) and whose row axis is
-// 1-deep ([brand]). The 4 leaf columns partition into 2 parent prefixes:
-//
-//	          R,X  R,Y  W,X  W,Y  | row_margin
-//	  A        1    2    3    4   |  10
-//	  B        5    6    7    8   |  26
-//	col_margin 6    8   10   12   |  36 (grand)
-//
-// Parent column prefixes:
-//
-//	R: cells (A,R,X)+(A,R,Y)+(B,R,X)+(B,R,Y) = (1+2+5+6) = 14
-//	W: cells (A,W,X)+(A,W,Y)+(B,W,X)+(B,W,Y) = (3+4+7+8) = 22
-//
-// Within a fixed row + parent-column-prefix bucket:
-//
-//	(A, R): (A,R,X)+(A,R,Y) = 3
-//	(A, W): (A,W,X)+(A,W,Y) = 7
-//	(B, R): (B,R,X)+(B,R,Y) = 11
-//	(B, W): (B,W,X)+(B,W,Y) = 15
-//
-// Used by the E2-S11 Within=1 test (SHARE_OF_ROW with Within fixing
-// the parent column prefix produces row sums equal to 1.0 within each
-// (leafRow, parentColPrefix) bucket).
 func nestedColumnAxisPayload() *types.MatrixPayload {
 	return &types.MatrixPayload{
 		RowHeader: types.AxisHeader{
@@ -135,27 +94,6 @@ func nestedColumnAxisPayload() *types.MatrixPayload {
 	}
 }
 
-// TestOverlay_ShareOfRow_NestedAxisLevel1 — 2-deep nested row axis
-// crosstab, OVERLAY_SHARE_OF_ROW{Level:1} produces cell-aligned shares
-// whose row sums equal 1.0 within each parent-prefix-row bucket
-// (sum of all cells under the same brand parent prefix). Level=1
-// truncates the row axis to first (rowDepth - 1) = 1 grouper = brand
-// only. Each cell's denominator = sum of cells under same brand
-// prefix (across all leaf rows and all columns).
-//
-// Expected denominators (per E2-S11 prefix-bucket math):
-//
-//	cell (A,N,c0) = 1 ; denom = brand_A_sum = 1+2+3+4 = 10  → share = 0.1
-//	cell (A,N,c1) = 2 ; denom = 10                          → share = 0.2
-//	cell (A,S,c0) = 3 ; denom = 10                          → share = 0.3
-//	cell (A,S,c1) = 4 ; denom = 10                          → share = 0.4
-//	  sum of A-brand shares = 1.0 ✓
-//
-//	cell (B,N,c0) = 5 ; denom = brand_B_sum = 5+6+7+8 = 26  → share ≈ 0.1923
-//	cell (B,N,c1) = 6 ; denom = 26                          → share ≈ 0.2308
-//	cell (B,S,c0) = 7 ; denom = 26                          → share ≈ 0.2692
-//	cell (B,S,c1) = 8 ; denom = 26                          → share ≈ 0.3077
-//	  sum of B-brand shares = 1.0 ✓
 func TestOverlay_ShareOfRow_NestedAxisLevel1(t *testing.T) {
 	host := NewCrosstabHostView(nestedRowAxisPayload())
 	specs := []types.OverlaySpec{
@@ -223,27 +161,6 @@ func TestOverlay_ShareOfRow_NestedAxisLevel1(t *testing.T) {
 	}
 }
 
-// TestOverlay_ShareOfRow_Within1_ColumnAxis — 2-deep nested COLUMN axis
-// crosstab + 1-deep row axis. OVERLAY_SHARE_OF_ROW{Within:1} fixes the
-// column-axis prefix at first (colDepth - 1) = 1 grouper = segment
-// only. Each cell's denominator = sum of cells in same row AND same
-// segment parent prefix (folded across leaf-column grouper).
-//
-// Expected denominators (per E2-S11 prefix-bucket math) using
-// nestedColumnAxisPayload:
-//
-//	cell (A, R, X) = 1 ; denom = (A,R,*) sum = 1+2 = 3  → share = 1/3
-//	cell (A, R, Y) = 2 ; denom = 3                      → share = 2/3
-//	  sum within (A, parent=R) = 1.0 ✓
-//
-//	cell (A, W, X) = 3 ; denom = (A,W,*) sum = 3+4 = 7  → share = 3/7
-//	cell (A, W, Y) = 4 ; denom = 7                      → share = 4/7
-//	  sum within (A, parent=W) = 1.0 ✓
-//
-//	cell (B, R, X) = 5 ; denom = 5+6 = 11               → share = 5/11
-//	cell (B, R, Y) = 6 ; denom = 11                     → share = 6/11
-//	cell (B, W, X) = 7 ; denom = 7+8 = 15               → share = 7/15
-//	cell (B, W, Y) = 8 ; denom = 15                     → share = 8/15
 func TestOverlay_ShareOfRow_Within1_ColumnAxis(t *testing.T) {
 	host := NewCrosstabHostView(nestedColumnAxisPayload())
 	specs := []types.OverlaySpec{
@@ -311,15 +228,6 @@ func TestOverlay_ShareOfRow_Within1_ColumnAxis(t *testing.T) {
 	}
 }
 
-// TestOverlay_ShareOfRow_LevelZero_ByteIdenticalToBaseline — Level=0,
-// Within=0 (the zero defaults) produces byte-equal output to a request
-// without Level / Within at all. Regression guard for the default
-// path: the E1 / E2-S1..S9 overlay-handler byte-identity contract
-// must survive the slot addition.
-//
-// Comparison: marshal both response Overlays slices to JSON and assert
-// byte equality. JSON equality is the strictest renderer-facing check
-// because envelopes ship as JSON.
 func TestOverlay_ShareOfRow_LevelZero_ByteIdenticalToBaseline(t *testing.T) {
 	host := NewCrosstabHostView(synthIndexMarginPayload())
 

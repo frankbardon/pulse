@@ -16,57 +16,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// TestCrosstab_DecodePlanEquivalence_HugeRequestShape is the end-to-end
-// equivalence golden for the crosstab-perf/E2 decode-plan epic. It
-// catches plan misconfigurations that the per-record unit golden in
-// E2-S3 might miss because the unit golden operates one record at a
-// time and the matrix only emerges after every record has been
-// partitioned, aggregated, normalized, and margin-recomputed.
-//
-// Compare path used: Option A.
-//
-// The story digest offered Option B (toggle ProjectBufferedFields on/
-// off to compare plan-driven projected vs full-decode) as the lighter
-// choice. That comparison is unavailable on the crosstab path because
-// service.applyCrosstabProjection installs projection unconditionally
-// — service/crosstab.go:46-52 declares the gate "forced on independent
-// of opts.ProjectBufferedFields". Flipping the cohort-wide flag changes
-// nothing on the crosstab dispatch.
-//
-// Option A directly compares the two projected decode paths the
-// iterator can take: plan-driven (the new E2-S2 hot path,
-// RecordReader.ReadRecordWithWidePlan) and per-field projected (the
-// pre-existing fallback, RecordReader.ReadRecordWithWideProjected).
-// Both paths receive the same applyCrosstabProjection-derived retained
-// set; they differ only in whether the iterator's cached DecodePlan
-// drives the walk or the per-field cursor does.
-//
-// The plan-on side is exercised through pulse.Service.Process — the
-// public default surface every caller hits. The plan-off side mirrors
-// processCrosstab's setup but clears the iterator's plan pointer
-// before iteration begins, falling through the case-arm in
-// streamingIterator.Next() that routes to ReadRecordWithWideProjected.
-// Both sides materialize the same record set and hand it to the same
-// processing.Processor.RunCrosstab, so any divergence in the matrix
-// payload is provably the fault of the decode path, not the
-// orchestration on top of it.
-//
-// The cohort shape mirrors tmp/huge-request.json's `vc/1.pulse`
-// reference: 200 fields × 10K rows with one categorical brand-shaped
-// row field (13 cats), one date column field, one categorical
-// cardFeeling-shaped column field (30 cats), one f64 weight, and 196
-// decoy fields the request never touches. The request shape mirrors
-// huge-request.json verbatim including normalize=row and
-// normalize_within=0.
-//
-// The cohort is written to an OsFs-backed t.TempDir() rather than
-// MemMapFs so the iterator's mmap fast path engages (via the
-// RealPather probe added in E1-S2). This pulls the same hot path
-// downstream consumers will hit in production into the equivalence
-// gate as a side benefit.
-//
-// Deterministic by construction — no rand.* calls, only modular
-// arithmetic over the row index.
 func TestCrosstab_DecodePlanEquivalence_HugeRequestShape(t *testing.T) {
 	const (
 		fieldCount = 200

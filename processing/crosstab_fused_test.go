@@ -465,24 +465,6 @@ func normalizeWithinSchema(t *testing.T) *encoding.Schema {
 	}
 }
 
-// fusedCrosstabRecordsWithNulls builds a (region, segment, value) record
-// stream where some records have a null row key (region) and others have
-// a null column key (segment). Used by the per-axis-null equivalence
-// tests added in E4-S4Q. The buffered RunCrosstab path captures these
-// records on the non-null axis margin (and the grand margin) regardless
-// of the partner axis nullity; the fused path must do the same.
-//
-// Layout:
-//
-//	(north, retail):     [10, 20]           — placed cells
-//	(north, NULL):       [50, 60]           — row margin contribution only
-//	(NULL,  wholesale):  [100, 110]         — column margin contribution only
-//	(NULL,  NULL):       [200]              — grand margin contribution only
-//	(south, retail):     [5]                — placed cells
-//	(east,  NULL):       [1, 2, 3]          — row margin only; entire row's
-//	                                          col keys are null so this row
-//	                                          appears in RowKeys with no
-//	                                          placed cells
 func fusedCrosstabRecordsWithNulls(schema *encoding.Schema) []*Record {
 	mk := func(region, segment uint64, value float64) *Record {
 		return NewRecord(schema, map[string]float64{
@@ -525,13 +507,6 @@ func fusedCrosstabRecordsWithNulls(schema *encoding.Schema) []*Record {
 	}
 }
 
-// TestFusedCrosstab_RowNullColValidStillFeedsColMargin: records whose
-// row key is null but column key is valid must contribute to the column
-// margin in the fused path, mirroring the buffered RunCrosstab path
-// where PartitionByAxis(spec.Columns, filtered) groups records by column
-// key regardless of row key nullity. Pre-E4-S4Q the fused path skipped
-// the entire record on any axis nullity — those rows disappeared from
-// the column margin.
 func TestFusedCrosstab_RowNullColValidStillFeedsColMargin(t *testing.T) {
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecordsWithNulls(schema)
@@ -572,10 +547,6 @@ func TestFusedCrosstab_RowNullColValidStillFeedsColMargin(t *testing.T) {
 	}
 }
 
-// TestFusedCrosstab_ColNullRowValidStillFeedsRowMargin: mirror of the
-// above — records whose column key is null but row key is valid must
-// contribute to the row margin in the fused path. Pre-E4-S4Q those rows
-// were dropped entirely.
 func TestFusedCrosstab_ColNullRowValidStillFeedsRowMargin(t *testing.T) {
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecordsWithNulls(schema)
@@ -613,11 +584,6 @@ func TestFusedCrosstab_ColNullRowValidStillFeedsRowMargin(t *testing.T) {
 	}
 }
 
-// TestFusedCrosstab_RowKeysIncludeAllSeenBrands: the canonical real-world
-// divergence — a row whose every record carries a null column key must
-// still appear in RowKeys (matching buffered PartitionByAxis(spec.Rows,
-// filtered) behaviour). Pre-E4-S4Q the fused path dropped these rows
-// entirely because Update returned early on any axis nullity.
 func TestFusedCrosstab_RowKeysIncludeAllSeenBrands(t *testing.T) {
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecordsWithNulls(schema)
@@ -650,7 +616,7 @@ func TestFusedCrosstab_RowKeysIncludeAllSeenBrands(t *testing.T) {
 		}
 	}
 	if !foundEast {
-		t.Errorf("expected 'east' in RowKeys; got %v (regression of pre-E4-S4Q axis-null bug)",
+		t.Errorf("expected 'east' in RowKeys; got %v (regression of pre-fix axis-null bug)",
 			m.RowKeys)
 	}
 }

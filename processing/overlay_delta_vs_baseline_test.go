@@ -7,24 +7,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_DELTA_VS_BASELINE handler
-// (processing/overlay_delta_vs_baseline.go).
-//
-// E4-S3 scope:
-//
-//   - Third windowed-Process overlay in the catalog (E4-S3) and the
-//     absolute-difference twin of OVERLAY_INDEX_VS_BASELINE (E4-S2). The
-//     handler is wired into seriesOverlayHandlers via the dispatch entry
-//     in processing/overlay_series.go.
-//   - Acceptance criteria covered: basic positional baseline math, mid-
-//     series baseline, **NO** PULSE_OVERLAY_REF_ZERO on zero baseline
-//     (the key contrast vs INDEX_VS_BASELINE), negative-delta sign
-//     preservation, absent host ordinal NaN-Statistic passthrough,
-//     negative + out-of-range Position propagate PULSE_OVERLAY_REF_UNKNOWN
-//     from the resolver, default-name synthesis, buffered-path full
-//     end-to-end via Processor.Process, and the structural nil-host
-//     coded-error defense.
-
 // newDeltaVsBaselineSpec returns the canonical happy-path
 // OVERLAY_DELTA_VS_BASELINE spec the per-test fixtures consume — GROUP
 // scope, populated `Ref.BaselineIndex{Position}` (the windowed positional
@@ -203,17 +185,6 @@ func TestOverlay_DeltaVsBaseline_NegativeDeltaPreserved(t *testing.T) {
 	}
 }
 
-// TestOverlay_DeltaVsBaseline_AbsentPointEmitsNaN pins the absent-point
-// passthrough: [10, absent, 30] anchored at Position 0 produces
-// [0, nil, 20] on Summary.Statistic. The absent middle ordinal surfaces a
-// SeriesEntry whose Summary leaves Statistic unset (the canonical
-// "present slot, empty summary" shape from E3-S1) and DOES NOT emit a
-// warning — absent passthrough is structurally distinct from a zero-
-// denominator path AND there is no zero-denominator path on this kind
-// anyway.
-//
-// math.NaN signals absent (newStubSeriesHost's resolver returns
-// (0, false) for NaN inputs).
 func TestOverlay_DeltaVsBaseline_AbsentPointEmitsNaN(t *testing.T) {
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, math.NaN(), 30.0}
@@ -234,8 +205,6 @@ func TestOverlay_DeltaVsBaseline_AbsentPointEmitsNaN(t *testing.T) {
 	const tol = 1e-9
 	// entry[0]: baseline-at-self = 0.
 	assertSeriesEntryStatisticWithinTol(t, &layers[0], 0, 0.0, tol)
-	// entry[1]: nil Statistic (absent — canonical "present slot, empty
-	// summary" shape from E3-S1).
 	if entries[1].Summary.Statistic != nil {
 		t.Errorf("entries[1].Summary.Statistic = %v, want nil (absent group)",
 			*entries[1].Summary.Statistic)

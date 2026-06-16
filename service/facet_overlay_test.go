@@ -14,28 +14,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// FACET-host overlay integration tests (E5-S6). The handlers themselves
-// land in E5-S2..S5 with byte-equality unit tests; this surface exercises
-// the service-layer wiring — FacetSchema runs against the host cohort,
-// resolves each spec's Ref.Population to a sibling FacetSchema call,
-// dispatches the overlay handler via processing.ApplyOverlaysFacet, and
-// attaches the resulting layers to FacetResult.Overlays in spec order.
-//
-// Coverage:
-//
-//   - The no-overlay byte-identity contract (empty slot keeps the
-//     pre-E5 JSON output verbatim).
-//   - Spec-order layer emission across mixed streamable / buffered kinds.
-//   - End-to-end dispatch of all four kinds in one request.
-//   - Service-layer ApplyOverlaysFacet hookup verified by populated
-//     FacetResult.Overlays slices.
-//   - Population cohort cycle: when Ref.Population.Cohort names the same
-//     file as the host, the population materialisation produces the
-//     unfiltered baseline (which is the same as the host's payload here
-//     since no host filter is applied — the resolver still works as
-//     expected and the index/zscore math reduces to the no-divergence
-//     baseline).
-
 // buildFacetOverlayCohort writes a fixture with a categorical "category"
 // column and a numeric "score" column. Distinct values:
 //
@@ -101,11 +79,6 @@ func buildFacetOverlayCohort(t *testing.T) (*Service, string) {
 	return New(cfg), "fixture.pulse"
 }
 
-// TestFacetWithOverlays_HostByteIdenticalToNoOverlays asserts that
-// running FacetSchema with an empty Overlays slot produces JSON output
-// byte-identical to the pre-E5 baseline. This is the additive byte-
-// identity contract — viewers that don't set Overlays see no change in
-// payload shape (no extra "overlays": null key, no spurious field).
 func TestFacetWithOverlays_HostByteIdenticalToNoOverlays(t *testing.T) {
 	svc, path := buildFacetOverlayCohort(t)
 	ctx := context.Background()

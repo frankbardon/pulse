@@ -7,12 +7,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// nestedCrosstabHostSpec returns a 2-deep row × 1-deep column crosstab
-// spec used by the E2-S11 Level / Within predict-gate tests. The row
-// axis carries two groupers ([brand, region]) so Level in [0, 2) is
-// the valid range and Level >= 2 fires
-// PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The column axis is 1-deep so
-// Within in [0, 1) is valid and Within >= 1 is out of range.
 func nestedCrosstabHostSpec() *types.CrosstabSpec {
 	return &types.CrosstabSpec{
 		Rows: []*types.Group{

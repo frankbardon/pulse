@@ -8,21 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_INDEX_VS_TOTAL handler
-// (processing/overlay_index_vs_total.go).
-//
-// E3-S2 scope:
-//
-//   - First registered SERIES-host overlay kind. The handler is wired
-//     into seriesOverlayHandlers via the dispatch entry in
-//     processing/overlay_series.go.
-//   - The acceptance criteria call for: basic series math, zero-grand-
-//     total emits PULSE_OVERLAY_REF_ZERO + NaN, absent-group passthrough
-//     stays absent, streaming-vs-buffered byte-identity at the post-
-//     finalize entry point.
-//   - Tests reuse the SeriesHostView fixtures from
-//     overlay_series_test.go (newStubSeriesHost) where possible.
-
 // newIndexVsTotalSpec returns the canonical happy-path
 // OVERLAY_INDEX_VS_TOTAL spec the per-test fixtures consume — GROUP
 // scope, empty Ref (implicit-grand-total), and a deterministic name so
@@ -148,16 +133,6 @@ func TestOverlay_IndexVsTotal_ZeroGrandTotalEmitsWarn(t *testing.T) {
 	}
 }
 
-// TestOverlay_IndexVsTotal_AbsentGroupsStayAbsent exercises the
-// absent-group contract: groups for which the resolver reports
-// (0, false) surface a SeriesEntry whose Summary leaves Statistic
-// unset (the canonical "present slot, empty summary" shape from
-// E3-S1). Absent groups do NOT contribute to the grand total.
-//
-// Fixture: groups [a=100, b=absent, c=200, d=absent]. The grand total
-// is 100 + 200 = 300 (absent groups excluded). Present entries:
-// a → 100/300 ≈ 33.333; c → 200/300 ≈ 66.667. Absent entries: nil
-// Statistic.
 func TestOverlay_IndexVsTotal_AbsentGroupsStayAbsent(t *testing.T) {
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	// math.NaN signals absent (newStubSeriesHost's resolver returns
@@ -184,8 +159,6 @@ func TestOverlay_IndexVsTotal_AbsentGroupsStayAbsent(t *testing.T) {
 	assertSeriesEntryStatisticWithinTol(t, &layers[0], 0, wantA, 1e-9)
 	assertSeriesEntryStatisticWithinTol(t, &layers[0], 2, wantC, 1e-9)
 
-	// Absent groups: Statistic pointer is nil (the canonical "present
-	// slot, empty summary" shape from E3-S1).
 	if entries[1].Summary.Statistic != nil {
 		t.Errorf("entries[1].Summary.Statistic = %v, want nil (absent group)",
 			*entries[1].Summary.Statistic)
@@ -211,22 +184,6 @@ func TestOverlay_IndexVsTotal_AbsentGroupsStayAbsent(t *testing.T) {
 	}
 }
 
-// TestOverlay_IndexVsTotal_StreamingBufferedByteIdentical pins the
-// streaming-vs-buffered byte-identity contract the E3-S2 acceptance
-// names: the post-host-finalize entry point (ApplyOverlaysSeries
-// dispatch) produces byte-identical SeriesPayload output whether the
-// host was built via a streaming Process pass or a buffered one,
-// because in both cases the handler consumes the same finalised
-// SeriesHostView.
-//
-// We model the two paths by constructing two SeriesHostView instances
-// with IDENTICAL finalised group keys + values but distinct internal
-// resolvers — one returns values from a buffered slice (the buffered
-// path's classic shape) and the other returns the same values via a
-// closure that mimics a streaming-Process finalize hook (a snapshot
-// of the streamingly-built map). The handler must not branch on
-// resolver identity — both paths feed the same handler entry point
-// and the output must be structurally equivalent.
 func TestOverlay_IndexVsTotal_StreamingBufferedByteIdentical(t *testing.T) {
 	keys := []types.AxisKey{{"x"}, {"y"}, {"z"}}
 	values := []float64{12.0, 34.0, 56.0}

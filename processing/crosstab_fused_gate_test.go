@@ -154,12 +154,6 @@ func TestCanFuseCrosstab_NonStreamableGrouperOnRowAxis(t *testing.T) {
 	}
 }
 
-// GROUP_QUANTILE on the column axis is the canonical
-// non-key-derivable case — the per-record fused walk cannot replicate
-// its finalize-time bucketization. After E4-S4P the gate consults the
-// StreamableGrouper interface directly rather than the static
-// GroupType.Streamable() table; GROUP_QUANTILE has no StreamableGrouper
-// implementation and is rejected here.
 func TestCanFuseCrosstab_NonStreamableGrouperOnColumnAxis(t *testing.T) {
 	req := happyPathCrosstabRequest()
 	req.Crosstab.Columns = []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score", Interval: 4}}
@@ -246,14 +240,6 @@ func TestCanFuseCrosstab_PostTestsForceBuffered(t *testing.T) {
 	}
 }
 
-// TestCanFuseCrosstab_OverlaysForceBuffered locks in the E1-S9 gate
-// addition: any Request.Overlays entry disqualifies the fused crosstab
-// path so the dispatcher falls back to buffered RunCrosstab, which is
-// the only path that wires Response.Overlays today (processing/
-// crosstab.go applyOverlaysToResponse). Mirrors the
-// TestCanFuseCrosstab_TestsForceBuffered shape — single positive
-// disqualifier on top of a happy-path request, reason-substring
-// assertion.
 func TestCanFuseCrosstab_OverlaysForceBuffered(t *testing.T) {
 	req := happyPathCrosstabRequest()
 	req.Overlays = []types.OverlaySpec{

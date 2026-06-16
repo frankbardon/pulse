@@ -3,9 +3,8 @@ package encoding
 // DecodePlan is a pre-computed walk of one record's on-wire bytes that
 // elides ranges the caller will not consume. It is produced by
 // Schema.BuildDecodePlan given a retained-field set, and consumed by
-// the streaming iterator (introduced in E2-S2) so unprojected byte
-// ranges turn into a single advance-cursor step instead of a per-field
-// typed read.
+// the streaming iterator so unprojected byte ranges turn into a single
+// advance-cursor step instead of a per-field typed read.
 //
 // A DecodePlan is a pure function of (Schema, retained-set). It carries
 // no file content, no offsets into a particular reader, and no mutable

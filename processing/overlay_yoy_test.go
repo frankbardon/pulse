@@ -9,25 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_YOY handler (processing/overlay_yoy.go).
-//
-// E4-S7 scope:
-//
-//   - Sixth windowed-Process overlay in the catalog and first kind to
-//     consume the empty `Ref.YoY` marker arm of the OverlayRef
-//     discriminated union. The handler is wired into
-//     seriesOverlayHandlers via the dispatch entry in
-//     processing/overlay_series.go.
-//   - Acceptance criteria: per-frequency math (annual/quarterly/monthly/
-//     weekly/daily/hourly), first-year NaN, Feb 29 daily exact-key NaN,
-//     zero-prior REF_ZERO, missing-frequency rejection,
-//     unsupported-frequency rejection, non-DATE grouper rejection,
-//     default layer name, buffered Process path, nil-host coded error.
-//   - Tests reuse the SeriesHostView fixtures from
-//     overlay_series_test.go (newStubSeriesHost) for the per-handler
-//     coverage; runtime grouper-kind introspection requires the
-//     extended NewSeriesHostViewWithGrouper constructor.
-
 // newYoYSpec returns the canonical happy-path OVERLAY_YOY spec with a
 // caller-supplied frequency Param. GROUP scope, `Ref.YoY` populated as
 // the empty marker, deterministic Name pinned in assertions.
@@ -504,13 +485,6 @@ func TestOverlay_YoY_NilHostReturnsCoded(t *testing.T) {
 	}
 }
 
-// TestOverlay_YoY_BufferedPath drives the canonical 3-region buffered
-// Process integration fixture and asserts the overlay rejects the
-// non-GROUP_DATE host with a coded error. The standard fixture is
-// region-grouped so the YoY runtime guard fires — the test exercises
-// the orchestrator wiring + the runtime-host-grouper-kind check
-// end-to-end. (A GROUP_DATE-grouped integration fixture is reserved
-// for the E4 examples / process-level wiring story.)
 func TestOverlay_YoY_BufferedPath_RejectsNonDateHost(t *testing.T) {
 	specs := []types.OverlaySpec{newYoYSpec("yoy", "monthly")}
 	schema := overlayIntegrationSchema(t)

@@ -8,22 +8,21 @@ import (
 )
 
 // COMPOSE-host overlay wiring — service-layer orchestration of the
-// nine Compose-only overlay handlers (lands in E7-S9..S12 + E7-S15+)
-// at the post-slot-barrier exit of both `service.Compose` (serial)
-// and `service.ComposeParallel` (bounded worker pool).
+// Compose-only overlay handlers at the post-slot-barrier exit of both
+// `service.Compose` (serial) and `service.ComposeParallel` (bounded
+// worker pool).
 //
-// E7-S4 scope: the runtime handlers live entirely inside processing/
-// (the overlay catalog stays free of service/ imports per CLAUDE.md
-// "What NOT to Do"); this file owns the orchestrator-side hook that:
+// The runtime handlers live entirely inside processing/ (the overlay
+// catalog stays free of service/ imports per CLAUDE.md "What NOT to
+// Do"); this file owns the orchestrator-side hook that:
 //
 //   - Walks `req.Overlays` in spec-order.
 //   - Builds the per-slot Label → Index lookup from the
 //     applyComposeLabelDefaults-normalised `labels []string` slice.
 //   - Delegates per-spec dispatch to processing.ApplyComposeOverlays,
 //     which resolves Reference / Targets, dispatches each via the
-//     per-kind handler table (currently the chassis stub fallback —
-//     real per-kind handlers register in E7-S9..S12 + E7-S15+), and
-//     returns one OverlayLayer per spec in matching index order.
+//     per-kind handler table, and returns one OverlayLayer per spec
+//     in matching index order.
 //
 // Call-site invariant: both Compose paths invoke this hook AFTER every
 // slot's Process call has terminated and BEFORE the response is
@@ -33,9 +32,8 @@ import (
 // downstream layer order matches `ComposedRequest.Overlays` spec
 // order verbatim.
 //
-// FailFast handling (per the E7-S4 acceptance "CanFailFast aware"):
-// the call-site decides whether to invoke this hook based on the
-// FailFast policy:
+// FailFast handling: the call-site decides whether to invoke this
+// hook based on the FailFast policy:
 //
 //   - FailFast=true (default per CLAUDE.md "Parallel Compose"): when
 //     ANY slot fails, the orchestrator does NOT call
@@ -45,26 +43,12 @@ import (
 //     with the partial responses slice (failed slots are nil holes).
 //     `processing.ApplyComposeOverlays` resolves Reference / Targets
 //     against the slice; a nil hole at a referenced slot surfaces
-//     PULSE_OVERLAY_REFERENCE_UNKNOWN / PULSE_OVERLAY_TARGET_UNKNOWN
-//     (E7-S13 lands the canonical codes; until then the chassis
-//     falls back to PULSE_OVERLAY_REF_UNKNOWN).
+//     PULSE_OVERLAY_REFERENCE_UNKNOWN / PULSE_OVERLAY_TARGET_UNKNOWN.
 //
 // Empty-Overlays fast path: when `req.Overlays` is nil OR empty the
 // hook returns `(nil, nil)` with no map allocation, no goroutine, and
-// no log line — byte-identical to pre-E7-S4 service.Compose /
-// ComposeParallel output for callers that do not declare any
-// Compose-only overlays.
-//
-// Facade rewire deferred: the `service.Compose` / `service.ComposeParallel`
-// facade currently returns `[]*types.Response` (per CLAUDE.md
-// "Architecture") and the chassis call sites discard the returned
-// layer slice. E7-S15 lifts the facade return type to
-// `*types.ComposedResponse{Responses, Overlays}` so the layer slice
-// produced here lands on `ComposedResponse.Overlays`. Until E7-S15
-// the layers are computed (so the hook surface is exercised) but not
-// persisted — the per-kind handler authors target this hook's slice
-// shape, and the facade rewire is a downstream wiring story rather
-// than a runtime contract change.
+// no log line — byte-identical output for callers that do not declare
+// any Compose-only overlays.
 
 // distributeComposeWarnings folds the flat warning slice produced by
 // the Compose overlay dispatcher into the matching layer's `Warnings`
@@ -112,12 +96,11 @@ func distributeComposeWarnings(layers []types.OverlayLayer, warnings []types.Ove
 // holes for failed slots under FailFast=false). The caller MUST gate
 // this hook with the FailFast policy — see the package doc above.
 //
-// The context parameter is accepted to match the signature shape the
-// E7-S4 acceptance criteria calls out (`applyComposeOverlays(ctx, req,
-// responses) ([]OverlayLayer, error)`) even though the v1 dispatch
-// does not touch ctx today. Future per-kind handlers (multi-ref kinds
-// in E7-S15+) may issue follow-up cohort opens or population reads
-// that consume the deadline.
+// The context parameter is accepted to match the canonical signature
+// `applyComposeOverlays(ctx, req, responses) ([]OverlayLayer, error)`
+// even though the v1 dispatch does not touch ctx today. Future
+// per-kind handlers (multi-ref kinds) may issue follow-up cohort opens
+// or population reads that consume the deadline.
 func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedRequest, requests []*types.Request, responses []*types.Response) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	_ = ctx
 	if req == nil || len(req.Overlays) == 0 {

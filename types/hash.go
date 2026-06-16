@@ -172,7 +172,7 @@ func writeCanonicalJSON(buf *bytes.Buffer, v any) error {
 //
 // Slot coverage is data-driven: every JSON-tagged field on Request
 // participates in the hash via the json.Marshal → canonicalize →
-// sha256 pipeline. The Overlays slot (E1-S1) is covered automatically
+// sha256 pipeline. The Overlays slot is covered automatically
 // — each OverlaySpec contributes its Name/Kind/Scope/Ref to the
 // canonical bytes in declared spec order (slices preserve order), and
 // the discriminated OverlayRef union hashes only the populated arm
@@ -192,10 +192,10 @@ func (r *Request) Hash() string {
 //
 // Slot coverage is data-driven: every JSON-tagged field on
 // ComposedRequest participates in the hash via the json.Marshal →
-// canonicalize → sha256 pipeline. The per-Request Label slot (E7-S1)
-// folds in through the json walk of each *Request — empty Labels are
+// canonicalize → sha256 pipeline. The per-Request Label slot folds in
+// through the json walk of each *Request — empty Labels are
 // `omitempty` and stay byte-identical to the pre-Label form. Before
-// hashing, the helper applies the E7-S1 auto-default rule that
+// hashing, the helper applies the auto-default rule that
 // service/compose_label.go uses at validate time: every slot whose
 // Label arrives empty is rewritten to `request_<index+1>` (1-based)
 // against a shallow clone, so two ComposedRequests differing only in
@@ -205,7 +205,7 @@ func (r *Request) Hash() string {
 // time normalizer in service/compose_label.go so hash equality lines
 // up with execution-time slot identity.
 //
-// The Compose-level Overlays slot (E7-S2) is covered automatically —
+// The Compose-level Overlays slot is covered automatically —
 // each ComposeOverlaySpec contributes its Name / Kind / Scope /
 // Reference / Targets / Level / Within / Params to the canonical
 // bytes in declared spec order (slices preserve order). An overlay-
@@ -239,7 +239,7 @@ func normalizeComposedRequestForHash(r *ComposedRequest) *ComposedRequest {
 	}
 	if len(r.Requests) == 0 {
 		// Nothing to normalize — the slot list is the only carrier of
-		// Label. Returning r directly keeps the pre-E7-S2 byte form
+		// Label. Returning r directly keeps the pre-Overlays byte form
 		// for callers that authored an empty Requests slice.
 		return r
 	}
@@ -302,7 +302,7 @@ func (r *FacetRequest) Hash() string {
 //
 // Slot coverage is data-driven: every JSON-tagged field on
 // ChainRequest participates via the json.Marshal → canonicalize →
-// sha256 pipeline. The whole-chain Overlays slot (E6-S2) is covered
+// sha256 pipeline. The whole-chain Overlays slot is covered
 // automatically — each ChainOverlaySpec contributes its Name / Kind /
 // Ref{Index,Name} / Target{Index,Name} / Scope / Params to the
 // canonical bytes in declared spec order (slices preserve order),

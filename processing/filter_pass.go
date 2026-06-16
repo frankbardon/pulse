@@ -6,17 +6,17 @@ import (
 
 // filter_pass.go centralises the per-slot {n_in, n_out, n_null_input}
 // universal-floor counter pass that drives Response.Components.Filterers
-// for every Pulse execution path (E2-S9). The orchestrator instantiates
-// one filterPassCounters per Request.Filterers slot before the filter
-// walk; each per-record applyFilterPass call updates the counters in
-// place and returns whether the record was admitted to the next stage.
+// for every Pulse execution path. The orchestrator instantiates one
+// filterPassCounters per Request.Filterers slot before the filter walk;
+// each per-record applyFilterPass call updates the counters in place
+// and returns whether the record was admitted to the next stage.
 //
 // The counter triple is uniform across all 11 built-in filterers — the
-// MetaFilterer sibling registered in E2-S8 is the embedder-parity surface
-// for per-filter operator-specific extras, but v1 has no built-in
-// implementations: the universal floor is the whole payload. Built-in
-// filterers therefore need no per-kind hook; the orchestrator's
-// applyFilterPass is the single emission site.
+// MetaFilterer sibling is the embedder-parity surface for per-filter
+// operator-specific extras, but v1 has no built-in implementations:
+// the universal floor is the whole payload. Built-in filterers
+// therefore need no per-kind hook; the orchestrator's applyFilterPass
+// is the single emission site.
 //
 // AND semantics match the historical inline filter walk: the first
 // filterer that rejects short-circuits — no later slot's counters
@@ -110,9 +110,9 @@ func applyFilterPass(
 // built-in implementations in v1) ride off the MetaFilterer sibling
 // when an embedder-supplied filterer implements it.
 //
-// Returns nil for an empty filter chain so callers can preserve the
-// pre-E2-S9 byte-identical wire output (omitempty drops the Filterers
-// slice entirely).
+// Returns nil for an empty filter chain so callers can preserve
+// byte-identical wire output (omitempty drops the Filterers slice
+// entirely).
 func buildFiltererComponents(filterers []*types.Filterer, counters []filterPassCounters) []types.FiltererComponents {
 	if len(filterers) == 0 {
 		return nil
@@ -133,7 +133,7 @@ func buildFiltererComponents(filterers []*types.Filterer, counters []filterPassC
 // ResponseComponents shell as needed. Mirrors attachAggregationComponents
 // / attachGrouperComponents so every execution path populates the
 // components shell identically; an empty entries slice is a no-op and
-// preserves byte-identical wire output against the pre-E2-S9 baseline.
+// preserves byte-identical wire output.
 func attachFiltererComponents(resp *types.Response, entries []types.FiltererComponents) {
 	if len(entries) == 0 || resp == nil {
 		return

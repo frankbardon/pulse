@@ -10,17 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the Facet-side population resolver
-// (processing/overlay_facet_pop.go).
-//
-// E5-S1 scope: structural foundation for the Facet overlay kinds that
-// consume the OverlayRef.Population arm in S2 / S3 / S4 / S5. The
-// resolver maps a FacetResult + field name to a per-kind population
-// view (categorical fast path via dict counts, numeric streaming path
-// via Welford summary / percentiles / histogram); unknown fields fail
-// with the canonical PULSE_OVERLAY_REF_UNKNOWN code carrying the
-// `{field, available_fields}` Details map shape.
-
 // newFacetResultDiscrete builds a synthetic FacetResult carrying one
 // discrete field for the categorical-path tests. Mirrors the shape
 // FacetSchema's categoricalAccumulator.finalize emits.

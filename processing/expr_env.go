@@ -97,7 +97,7 @@ func reflectiveExprTrampoline(fn any) func(args ...any) (any, error) {
 // Expressions in cohorts with no lookup tables registered still
 // reference `lookup` legally — the function returns
 // PULSE_LOOKUP_TABLE_UNKNOWN at evaluation time. The compile-time
-// typecheck (E8) catches static misuse.
+// typecheck catches static misuse.
 func (r *ExtensionRegistry) ExprOptions() []expr.Option {
 	out := setExprOptions()
 	if r == nil {

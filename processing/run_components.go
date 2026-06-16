@@ -4,7 +4,7 @@ import "github.com/frankbardon/pulse/types"
 
 // run_components.go centralises the run-pass accumulator that populates
 // Response.Components.Run (the typed cohort-level counters: TotalRecords,
-// FilteredRecords, NullRecords, ShardCount, PartialCohortReason). E2-S11.
+// FilteredRecords, NullRecords, ShardCount, PartialCohortReason).
 //
 // Coexistence with Response.Metadata is deliberate: Metadata keeps the
 // non-numerical run facts surfaced by the orchestrator (cohort filename),
@@ -14,9 +14,9 @@ import "github.com/frankbardon/pulse/types"
 // Components.Run.TotalRecords by construction so consumers can derive
 // either side without drift.
 //
-// "Primary aggregation field" definition (locked in code per the E2-S11
-// acceptance criteria comment): NullRecords counts records whose primary
-// field was null on the post-filter record set. The primary field is the
+// "Primary aggregation field" definition: NullRecords counts records
+// whose primary field was null on the post-filter record set. The
+// primary field is the
 // FIRST Aggregation slot's Field; if no aggregators, the FIRST Group
 // slot's Field; if neither, the helper leaves NullRecords at 0. This
 // matches the convention the per-slot AggregationComponents universal

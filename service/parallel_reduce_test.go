@@ -14,31 +14,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// parallel_reduce_test.go exercises the E3-S3 per-worker partial-state
-// reducer (service.reduceParallelBuffered) end-to-end against a
-// mergeable Request. The tests build a cohort above the parallel-
-// decode threshold on a real OsFs (so the mmap probe engages), then
-// invoke reduceParallelBuffered with worker counts in {1, 2, 4,
-// runtime.NumCPU()} and compare every result against the canonical
-// serial Process baseline.
-//
-// Float-equal policy mirrors shard_reduce.go (and the broader
-// shard-parity test surface):
-//
-//   - Integer aggregators (AGG_COUNT) — byte-equal.
-//   - Mass-summable aggregators on integer-typed fields (AGG_SUM of u8
-//     dictionary indices) — byte-equal.
-//   - Welford-Pébaÿ aggregators (AGG_AVERAGE, AGG_STDDEV,
-//     AGG_VARIANCE) on f64 fields — equivalent to within 1 ULP.
-//
-// The same policy lands in TestShardParity_SingleFileVsArchiveVsAnchor
-// already; the routes are different but the math is the same.
-
-// TestParallelDecode_MergeableByteEqualVsSerial is the load-bearing
-// equivalence harness for E3-S3: integer/count aggregators must produce
-// byte-equal output across every supported worker count. Any drift here
-// signals a segment-boundary bug, a per-worker race on the shared mmap
-// region, or a merge-fold ordering error in mergeShardPartials.
 func TestParallelDecode_MergeableByteEqualVsSerial(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping parallel reduce equivalence in -short mode")
@@ -79,11 +54,6 @@ func TestParallelDecode_MergeableByteEqualVsSerial(t *testing.T) {
 		}
 	}
 
-	// Serial baseline: run the standard streaming Process path with
-	// DecodeWorkers=1 so no parallel-decode dispatch could engage even
-	// if a future story wires it at the Process level. This is the
-	// "single-threaded path" the brief calls out as the byte-equal
-	// reference.
 	svcSerial := New(cfg)
 	svcSerial.SetDecodeWorkers(1)
 	serialResp, err := svcSerial.Process(context.Background(), mkReq())
@@ -274,18 +244,6 @@ func TestParallelDecode_MergeableULPEquivalent(t *testing.T) {
 	}
 }
 
-// TestParallelDecode_MergeableZeroRecordSegments exercises the
-// zero-record-segment branch of the reducer: a cohort whose record
-// count is below the worker count (after the shouldFanOutDecode cap)
-// — every worker that receives zero records must produce a partial
-// state that merges cleanly without panicking or emitting NaN.
-//
-// We exercise the reducer directly with workers > 1 and a tiny cohort
-// (a few hundred records) so the partition is very uneven. The
-// shouldFanOutDecode gate would normally reject this configuration via
-// the threshold floor — bypassing it via reduceParallelBuffered is the
-// exact pattern E3-S4 would surface if a future caller used a
-// different threshold policy and let small cohorts through.
 func TestParallelDecode_MergeableZeroRecordSegments(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping zero-record segment test in -short mode")

@@ -8,21 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_INDEX_VS_BASELINE handler
-// (processing/overlay_index_vs_baseline.go).
-//
-// E4-S2 scope:
-//
-//   - Second windowed-Process overlay in the catalog (first consumer of
-//     the BaselineIndex.Position arm landed at E4-S1). The handler is
-//     wired into seriesOverlayHandlers via the dispatch entry in
-//     processing/overlay_series.go.
-//   - Acceptance criteria covered: basic positional baseline math, mid-
-//     series baseline, zero baseline PULSE_OVERLAY_REF_ZERO, absent host
-//     ordinal NaN passthrough, negative + out-of-range Position propagate
-//     PULSE_OVERLAY_REF_UNKNOWN from the resolver, buffered-path full
-//     end-to-end via Processor.Process.
-
 // newIndexVsBaselineSpec returns the canonical happy-path
 // OVERLAY_INDEX_VS_BASELINE spec the per-test fixtures consume — GROUP
 // scope, populated `Ref.BaselineIndex{Position}` (the windowed positional
@@ -154,16 +139,6 @@ func TestOverlay_IndexVsBaseline_BaselineZeroEmitsRefZero(t *testing.T) {
 	}
 }
 
-// TestOverlay_IndexVsBaseline_AbsentPointEmitsNaN pins the absent-point
-// passthrough: [10, absent, 30] anchored to Position 0 produces
-// [100, nil, 300] on Summary.Statistic. The absent middle ordinal
-// surfaces a SeriesEntry whose Summary leaves Statistic unset (the
-// canonical "present slot, empty summary" shape from E3-S1) and DOES NOT
-// emit a warning — absent passthrough is structurally distinct from a
-// zero-denominator path.
-//
-// math.NaN signals absent (newStubSeriesHost's resolver returns
-// (0, false) for NaN inputs).
 func TestOverlay_IndexVsBaseline_AbsentPointEmitsNaN(t *testing.T) {
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, math.NaN(), 30.0}
@@ -184,8 +159,6 @@ func TestOverlay_IndexVsBaseline_AbsentPointEmitsNaN(t *testing.T) {
 	const tol = 1e-9
 	// entry[0]: baseline-at-self = 100.
 	assertSeriesEntryStatisticWithinTol(t, &layers[0], 0, 100.0, tol)
-	// entry[1]: nil Statistic (absent — canonical "present slot, empty
-	// summary" shape from E3-S1).
 	if entries[1].Summary.Statistic != nil {
 		t.Errorf("entries[1].Summary.Statistic = %v, want nil (absent group)",
 			*entries[1].Summary.Statistic)

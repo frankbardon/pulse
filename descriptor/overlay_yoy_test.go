@@ -8,24 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Predict-time tests for the OVERLAY_YOY validator
-// (descriptor.validateOverlayYoY).
-//
-// E4-S7 scope: contract enforced by the predict gate:
-//
-//   - Happy path: GROUP scope + Ref.YoY populated + SERIES host
-//     (Request.Groups non-empty, Request.Crosstab nil) + first grouper
-//     is GROUP_DATE + frequency Param on either OverlaySpec.Params or
-//     Groups[0].Params resolves to a supported value (annual | quarterly
-//     | monthly | weekly | daily | hourly) passes without overlay errors.
-//   - Frequency Param missing on both spec.Params AND
-//     Groups[0].Params fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING.
-//   - Frequency Param outside the supported set fires
-//     PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY.
-//   - Non-DATE first grouper fires
-//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE with Details naming the
-//     actual grouper type.
-
 // yoyHostReq returns a minimal grouped Process request whose first
 // grouper is GROUP_DATE — the SERIES host the OVERLAY_YOY kind
 // targets. Frequency lives on the OverlaySpec.Params (per-test fixture)

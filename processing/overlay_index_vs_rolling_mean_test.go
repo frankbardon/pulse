@@ -10,26 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_INDEX_VS_ROLLING_MEAN handler
-// (processing/overlay_index_vs_rolling_mean.go).
-//
-// E4-S5 scope:
-//
-//   - Fourth windowed-Process overlay in the catalog and first kind to
-//     consume the `Ref.RollingMean` arm of the OverlayRef discriminated
-//     union. The handler is wired into seriesOverlayHandlers via the
-//     dispatch entry in processing/overlay_series.go.
-//   - The acceptance criteria call for: basic windowed math (window=3),
-//     window=1 collapsing to INDEX_VS_PRIOR behaviour, window-exceeds-
-//     series degenerate case, zero rolling-mean PULSE_OVERLAY_REF_ZERO,
-//     absent-point ring-carrier preservation, missing-window-param
-//     rejection, non-positive window rejection, default layer name,
-//     buffered Process E2E path, nil-host coded error.
-//   - Tests reuse the SeriesHostView fixtures from
-//     overlay_series_test.go (newStubSeriesHost) for the per-handler
-//     coverage, and the grouped Process integration fixture for the
-//     buffered smoke test (mirrors overlay_index_vs_prior_test.go).
-
 // newIndexVsRollingMeanSpec returns the canonical happy-path
 // OVERLAY_INDEX_VS_ROLLING_MEAN spec the per-test fixtures consume —
 // GROUP scope, `Ref.RollingMean` populated as the empty marker, a
@@ -257,8 +237,6 @@ func TestOverlay_IndexVsRollingMean_AbsentPointDoesNotAdvanceCarrier(t *testing.
 		t.Fatalf("entries[1].Summary.Statistic = %v, want NaN (second point, window unfilled)",
 			entries[1].Summary.Statistic)
 	}
-	// entry[2]: nil Statistic — absent (canonical "present slot, empty
-	// summary" shape from E3-S1).
 	if entries[2].Summary.Statistic != nil {
 		t.Errorf("entries[2].Summary.Statistic = %v, want nil (absent group)",
 			*entries[2].Summary.Statistic)

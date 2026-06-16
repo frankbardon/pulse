@@ -8,16 +8,16 @@ import (
 // single fixed positional baseline of an ordered SERIES (grouped Process)
 // host.
 //
-// E4-S3 scope:
+// Behaviour:
 //
-//   - Third windowed-Process overlay in the catalog (E4-S3); the second
-//     consumer of the `Ref.BaselineIndex.Position` arm of the
-//     OverlayBaselineIndexRef discriminated union landed at E4-S1.
-//     Absolute-difference sibling of OVERLAY_INDEX_VS_BASELINE (E4-S2).
+//   - Windowed-Process overlay consuming the
+//     `Ref.BaselineIndex.Position` arm of the OverlayBaselineIndexRef
+//     discriminated union. Absolute-difference sibling of
+//     OVERLAY_INDEX_VS_BASELINE.
 //   - Per-point math: `delta_i = point_value_i - baseline_value` where
 //     `baseline_value = host.ValueAt(Ref.BaselineIndex.Position)`. The
-//     baseline is resolved ONCE at handler entry via ResolveBaselineIndex
-//     (the E4-S1 foundation helper).
+//     baseline is resolved ONCE at handler entry via
+//     ResolveBaselineIndex.
 //   - Baseline-at-self: a present point at the baseline ordinal yields
 //     `0.0` (self-vs-self under additive subtraction). Mirrors the
 //     `OVERLAY_DELTA_VS_MARGIN` / `OVERLAY_DELTA_VS_SIBLING`
@@ -33,7 +33,7 @@ import (
 //   - Absent-point policy: a host that did not produce a value for group
 //     i (the resolver returns `(0, false)`) surfaces a SeriesEntry whose
 //     Summary leaves Statistic unset — the canonical "present slot,
-//     empty summary" shape from the E3-S1 SERIES dispatch contract.
+//     empty summary" shape from the SERIES dispatch contract.
 //     Absent groups do NOT participate in the delta computation. An
 //     absent baseline (`present=false` at the baseline ordinal) yields a
 //     baseline value of `0.0` from the host; subsequent points subtract
@@ -44,7 +44,7 @@ import (
 // Buffered (per kind-catalog-v1 "Streaming-capable subset"): resolving a
 // single positional baseline requires the materialised host series; the
 // handler runs at the buffered post-host-finalize exit via
-// ApplyOverlaysSeries. Forward-compat: a future story may lift the
+// ApplyOverlaysSeries. Forward-compat: future work may lift the
 // baseline resolver into a streaming-aware shape; when that lands the
 // streamability row in types/overlay_streamability.go flips to true.
 //
@@ -127,7 +127,7 @@ func applyDeltaVsBaseline(spec *types.OverlaySpec, host *SeriesHostView) (types.
 		}
 		// Absent host point: emit a present SeriesEntry with an unset
 		// Summary.Statistic (the canonical "present slot, empty summary"
-		// shape from E3-S1).
+		// shape).
 		entries = append(entries, types.SeriesEntry{
 			Key:     keyCopy,
 			Summary: summary,

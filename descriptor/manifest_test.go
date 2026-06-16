@@ -187,24 +187,6 @@ func TestManifestExamplesPopulated(t *testing.T) {
 	}
 }
 
-// TestManifestComponentSchemasComplete asserts that every registered
-// aggregator (types.AllAggregationTypes()), every registered grouper
-// (types.AllGroupTypes()), and every registered filterer
-// (types.AllFiltererTypes()) has a populated ComponentSchema on its
-// capability entry AND a corresponding entry in
-// Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers}. The
-// universal floor is declared on every entry so the Keys slice is
-// always non-empty; mergeability is required (no zero-value default).
-//
-// Aggregator floor is {"n", "n_null"}; grouper floor is {"total_n",
-// "n_null"} (groupers partition all post-filter records, not just
-// non-null inputs); filterer floor is {"n_in", "n_out",
-// "n_null_input"} (filterer counts inputs entering the pass, the
-// post-predicate survivors, and the null-input book-keep separately).
-//
-// Stub gate for E1-S3 / E2-S2 / E2-S8 — the finalize pass (E5-S3)
-// tightens this to also assert byte-equal parity with the runtime
-// MetaAggregator / MetaGrouper / MetaFilterer emission.
 func TestManifestComponentSchemasComplete(t *testing.T) {
 	m := BuildManifest()
 

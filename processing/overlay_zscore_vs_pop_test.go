@@ -9,17 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_ZSCORE_VS_POP runtime handler
-// (processing/overlay_zscore_vs_pop.go) + the FACET-host dispatch
-// (processing/overlay_facet_dispatch.go).
-//
-// E5-S3 scope: runtime handler only — the service-side wiring lands in
-// E5-S6 and the descriptor-side validator lands in E5-S6 / E5-S7. The
-// tests below exercise the math (categorical + numeric + ULP-checkable
-// known-sd cohort) + the streaming-finalize-shape guarantee (the handler
-// reads only POST-FINALIZE state) + the zero-sd_pop + missing-population
-// paths.
-
 // zscoreVsPopSpec builds a minimal OverlaySpec carrying the
 // OVERLAY_ZSCORE_VS_POP kind + a GROUP scope + a populated Population
 // reference. Mirrors indexVsPopSpec() in overlay_index_vs_pop_test.go.
@@ -191,11 +180,6 @@ func TestApplyZScoreVsPop_DiscreteAbsentValueNoWarning(t *testing.T) {
 	}
 }
 
-// TestApplyZScoreVsPop_DiscreteZeroSDPop exercises the E5-S3
-// acceptance criterion: "on sd_pop == 0 emit warning code
-// PULSE_OVERLAY_REF_ZERO and skip the entry". Population has a single
-// category — DiscreteFrequencyStdev returns 0 — every per-value entry
-// hits the zero-denominator arm.
 func TestApplyZScoreVsPop_DiscreteZeroSDPop(t *testing.T) {
 	// Population: single category, sd_pop = 0 (n=1 — Welford variance
 	// is zero).
@@ -522,10 +506,6 @@ func TestApplyZScoreVsPop_StreamingVsBufferedByteIdentity(t *testing.T) {
 	}
 }
 
-// TestFacetPopulationView_DiscreteFrequencyStdev exercises the S1
-// resolver's new accessor — the additive surface E5-S3 added to
-// expose population frequency SD. ULP check against the analytical
-// Welford-Pébaÿ recurrence over the per-category frequencies.
 func TestFacetPopulationView_DiscreteFrequencyStdev(t *testing.T) {
 	t.Run("multi-category", func(t *testing.T) {
 		result := newFacetResultDiscrete("category", []types.FacetValueCount{

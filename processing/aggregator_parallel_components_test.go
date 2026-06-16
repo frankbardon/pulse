@@ -12,23 +12,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E4-S2: parallel-vs-serial Components() parity for every mergeable
-// aggregator across cohort sizes {1K, 10K, 100K} and shard counts
-// {1, 2, 4, 8}. Locks the contract that MergeableAggregator.MergeOnline
-// keeps internal component-state mirrors consistent under merge — after
-// the orchestrator's `MergeOnline...; Finalize(); Components()` sequence
-// the emitted map matches the single-pass serial run within either a
-// ULP budget (Welford-family numerics) or byte-equal (scalar integer /
-// composite / map / set state).
-//
-// E1-S6 already established the 4-way merge parity lock for the Welford
-// family at 200 samples; this story extends parity across the full
-// MergeableAggregator surface at production-scale cohorts.
-//
-// MEDIAN / PERCENTILE / ZSCORE / SKEWNESS / KURTOSIS are intentionally
-// NOT covered here — none implements MergeableAggregator and the
-// per-shard parallel reducer falls back to the serial path for them.
-
 // parallelComponentsCase enumerates a single aggregator the parity
 // sweep covers. Per-category key buckets target each value flavor:
 // floatKeys allow a ULP budget (0 = byte-equal bit pattern, >0 =
@@ -46,11 +29,6 @@ type parallelComponentsCase struct {
 	floatBudget uint64
 }
 
-// parallelMergeSchema is a superset schema covering every field the
-// E4-S2 sweep exercises: a float64 score for the scalar / Welford /
-// composite aggregators; a numerator + denominator for AGG_RATIO; a
-// weight for AGG_WEIGHTED_MEAN; plus a set_u8 column "tags" for the
-// two mergeable set aggregators (AGG_SET_UNION and AGG_SET_CARDINALITY_SUM).
 func parallelMergeSchema(t *testing.T) *encoding.Schema {
 	t.Helper()
 	dict := encoding.NewDictionary()
@@ -298,26 +276,10 @@ func sortedStringSlice(v any) []string {
 	return out
 }
 
-// TestComponents_ParallelMergeMatchesSerial — the E4-S2 parity lock.
-// Sweeps every mergeable aggregator across (cohort size, shard count)
-// matrix and asserts byte-equal (or ULP-budgeted) Components emission
-// vs the serial buffered run.
-//
-// The 100K-record tier is gated behind testing.Short() so go test
-// -short skips it during fast CI cycles. The 1K and 10K tiers are
-// always exercised.
 func TestComponents_ParallelMergeMatchesSerial(t *testing.T) {
 	schema := parallelMergeSchema(t)
 
 	cases := []parallelComponentsCase{
-		// Scalar float — SUM / AVERAGE accumulate via repeated addition
-		// which is non-associative under IEEE-754; reordering the merge
-		// boundary shifts the result by a small ULP count. The 64-ULP
-		// budget mirrors the E1-S6 Welford-family lock at 4-way merge
-		// and is empirically generous for 100K-record cohorts at 8-way
-		// fan-out. MIN / MAX / RANGE are idempotent under reorder
-		// (the extremum is the extremum regardless of fold order) and
-		// stay strictly byte-equal.
 		{
 			name:        "AGG_SUM",
 			aggType:     types.AGG_SUM,
@@ -350,12 +312,6 @@ func TestComponents_ParallelMergeMatchesSerial(t *testing.T) {
 			field:     "score",
 			floatKeys: []string{"min", "max"},
 		},
-		// Welford-family — Chan-Welford parallel recurrence; ULP budget
-		// of 256 absorbs the floating-point associativity reordering
-		// against a 100K serial sum. The 4-way merge at 200 samples
-		// stays inside 64 ULP per E1-S6; 100K records across 8 shards
-		// widens the band — 256 is empirically generous without hiding
-		// drift.
 		{
 			name:        "AGG_VARIANCE",
 			aggType:     types.AGG_VARIANCE,

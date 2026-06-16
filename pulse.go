@@ -161,10 +161,9 @@ type Options struct {
 	Extensions Extensions
 
 	// ShardWorkers caps the per-shard parallel worker pool used when
-	// Process operates on a shard archive (S6 of the sharding rollout).
-	// Zero means runtime.NumCPU(); 1 forces strictly serial execution
-	// (same byte-for-byte semantics as the pre-S6 path). Negative
-	// values are rejected at New() time.
+	// Process operates on a shard archive. Zero means runtime.NumCPU();
+	// 1 forces strictly serial execution (same byte-for-byte semantics
+	// as the serial path). Negative values are rejected at New() time.
 	//
 	// The parallel reducer engages only when every operator in the
 	// request is mergeable per processing.CanMergeRequest. Non-
@@ -184,13 +183,11 @@ type Options struct {
 
 	// DecodeWorkers caps the per-cohort parallel decode worker pool the
 	// buffered Process path spawns when a single-file cohort is large
-	// enough to benefit from segmenting record-decode across workers
-	// (E3 of the crosstab-perf rollout). Zero means runtime.NumCPU()
-	// at dispatch time when the cohort exceeds
-	// service.parallelDecodeRecordThreshold (currently 100_000
-	// records); 1 forces strictly serial execution (the pre-E3 path)
-	// regardless of cohort size. Negative values are rejected at
-	// New() time.
+	// enough to benefit from segmenting record-decode across workers.
+	// Zero means runtime.NumCPU() at dispatch time when the cohort
+	// exceeds service.parallelDecodeRecordThreshold (currently 100_000
+	// records); 1 forces strictly serial execution regardless of cohort
+	// size. Negative values are rejected at New() time.
 	//
 	// Below the threshold the buffered Process path stays serial
 	// regardless of this knob — worker spawn + merge overhead
@@ -198,9 +195,6 @@ type Options struct {
 	// route through ShardWorkers; the two knobs are orthogonal (one
 	// fans out across shards, the other fans out across record
 	// segments within a single file or shard payload).
-	//
-	// E3-S1 plumbing only: the buffered Process path reads this value
-	// but does not yet act on it. The fan-out logic lands in E3-S2.
 	DecodeWorkers int
 
 	// Strict promotes request-validation warnings into hard errors at

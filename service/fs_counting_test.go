@@ -1,32 +1,5 @@
 package service
 
-// This file is the load-bearing regression guard for the E1 epic's IO
-// contract (crosstab-perf epic 1 — "Open + iterator stop slurping").
-//
-// Post E1-S1 + E1-S2 the contract is:
-//
-//   - Service.Open performs a header-only read on the single-file path
-//     — never a full slurp of the cohort bytes.
-//   - The streaming iterator engages the mmap fast path whenever the
-//     filesystem resolves to a real on-disk file (OsFs directly, or any
-//     wrapper that satisfies the RealPather capability — BasePathFs in
-//     tree, CopyOnRead overlays downstream). When mmap engages the
-//     iterator MUST NOT route the file through afero.ReadFile.
-//   - When the filesystem cannot resolve a real path (MemMapFs, custom
-//     wrapper without RealPather) the iterator falls back to a single
-//     afero.ReadFile — never more than one full read per Process call.
-//
-// A future filesystem wrapper that silently disables the mmap fast path
-// would silently regress wide-cohort Process latency on real-world
-// hundreds-of-MB cohort files. This test wraps the backing fs in a
-// recording proxy and asserts the read shape per Process call, so any
-// such regression fails CI loudly.
-//
-// All four fs shapes (MemMapFs / OsFs / BasePathFs(OsFs) / RealPather-
-// capable stub) MUST produce byte-equal Process output for the same
-// cohort + request — see the trailing TestCountingFs_ProcessOutputByteEqualAcrossFsShapes
-// case which materialises that guarantee.
-
 import (
 	"context"
 	"io"
@@ -45,14 +18,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// e1CountingFs wraps any afero.Fs and tallies every method call relevant
-// to the E1 IO contract: Open / OpenFile / Stat plus the cumulative
-// per-handle byte-read counts. It does NOT implement RealPather so the
-// iterator's resolveRealPath probe falls through to whatever the inner
-// fs advertises (i.e., wrapping e1CountingFs around BasePathFs still
-// disables the mmap fast path — by design, the OsFs / BasePathFs /
-// RealPather tests below use either a bare OsFs / BasePathFs or the
-// realPatherCountingFs sibling type that DOES advertise the capability).
 type e1CountingFs struct {
 	inner afero.Fs
 
@@ -534,9 +499,6 @@ func TestCountingFs_BasePathFs_MmapEngagesZeroReadFile(t *testing.T) {
 
 	basePath := afero.NewBasePathFs(osFs, dir)
 
-	// Half one: direct iterator over the bare BasePathFs — proves the
-	// E1-S2 probe unwrap fires. (e1CountingFs in this position would
-	// shadow the capability; that's the documented failure mode.)
 	iter := newStreamingIterator(basePath, "bench.pulse", mustReadSchema(t, basePath, "bench.pulse"))
 	defer iter.Close()
 	if !iter.Next() {

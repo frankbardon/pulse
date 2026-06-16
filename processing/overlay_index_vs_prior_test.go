@@ -10,23 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_INDEX_VS_PRIOR handler
-// (processing/overlay_index_vs_prior.go).
-//
-// E4-S4 scope:
-//
-//   - First streamable windowed-Process overlay in the catalog. The
-//     handler is wired into seriesOverlayHandlers via the dispatch entry
-//     in processing/overlay_series.go.
-//   - The acceptance criteria call for: basic lag-1 series math, first-
-//     point NaN, zero-prior PULSE_OVERLAY_REF_ZERO, absent-point lag
-//     carrier preservation, streaming-vs-buffered byte-identity at the
-//     grouped Process exit.
-//   - Tests reuse the SeriesHostView fixtures from
-//     overlay_series_test.go (newStubSeriesHost) for the per-handler
-//     coverage, and the grouped Process integration fixture for the
-//     streaming smoke test (mirrors overlay_process_integration_test.go).
-
 // newIndexVsPriorSpec returns the canonical happy-path
 // OVERLAY_INDEX_VS_PRIOR spec the per-test fixtures consume — GROUP
 // scope, empty Ref (the implicit-default authoring shape for the lag-1
@@ -201,8 +184,6 @@ func TestOverlay_IndexVsPrior_AbsentPointPreservesPriorCarrier(t *testing.T) {
 		t.Fatalf("entries[0].Summary.Statistic = %v, want NaN (first point)",
 			entries[0].Summary.Statistic)
 	}
-	// entry[1]: nil Statistic (absent — canonical "present slot, empty
-	// summary" shape from E3-S1).
 	if entries[1].Summary.Statistic != nil {
 		t.Errorf("entries[1].Summary.Statistic = %v, want nil (absent group)",
 			*entries[1].Summary.Statistic)

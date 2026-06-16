@@ -2,25 +2,21 @@
 // parity overlay handlers — OVERLAY_T_CELL / OVERLAY_Z_CELL (MATRIX
 // arm) and OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF (SERIES arm).
 //
-// E3-S7 migration target: handlers read `{mean, variance, n}` from the
-// universal Components surface instead of the WelfordTriple smuggled
-// through `MatrixCell.Value` / row value-column type assertions.
+// Handlers read `{mean, variance, n}` from the universal Components
+// surface — the canonical source of stat-test inputs for the parity
+// overlays.
 //
 //   - MATRIX arm: extractCellComponentsTriple pulls the triple from
 //     Response.Components.Crosstab.CellComponents[r][c]. Maps without
 //     all three keys fall through to (0, 0, 0, false) so the scalar +
-//     Params fallback path engages identically to the pre-S7 baseline.
+//     Params fallback path engages.
 //
 //   - SERIES arm: encodeSeriesRowAnyMap / buildSeriesRowLookupAnyMap
 //     mirror the row-encoding identity rule of encodeSeriesRowAny but
 //     detect a `map[string]any` value column carrying `{mean, variance,
-//     n}` keys instead of a typed WelfordTriple. Same canonical key
-//     rendering — scalar-only rows produce byte-identical keys against
-//     the pre-S7 encoding so the additive contract is preserved.
-//
-// The WelfordTriple writer in processing/crosstab.go (cell builder)
-// stays intact in this story; E3-S8 removes it. These readers are the
-// universal consumption surface AFTER E3-S8 lands.
+//     n}` keys. Same canonical key rendering — scalar-only rows
+//     produce byte-identical keys so the additive contract is
+//     preserved.
 package processing
 
 import (
@@ -116,7 +112,7 @@ type seriesRowComponents struct {
 // remaining columns fold into the key) so a scalar-only row produces a
 // key BYTE-IDENTICAL to encodeSeriesRowAny's output — the additive
 // contract for the scalar fallback path on OVERLAY_T_VS_REF /
-// OVERLAY_Z_VS_REF requires this identity AND the pre-S7 series
+// OVERLAY_Z_VS_REF requires this identity AND the pre-Welford-extract series
 // encoding identity.
 //
 // A row whose value column carries a `map[string]any` with `{mean,
@@ -211,11 +207,10 @@ type matrixCellCoord struct {
 
 // buildMatrixCellCoordLookup folds a MatrixPayload's RowKeys / ColumnKeys
 // into a `(rowKey, colKey) → matrixCellCoord` map keyed by string-form
-// axis keys. Used by OVERLAY_T_CELL / OVERLAY_Z_CELL after the E3-S7
-// migration: the handlers look up the reference response's CellComponents
-// index from the matching key pair on the target side, then pull the
-// triple out of Response.Components.Crosstab.CellComponents[r][c]
-// directly (instead of reaching for the rich payload on MatrixCell.Value).
+// axis keys. Used by OVERLAY_T_CELL / OVERLAY_Z_CELL: the handlers
+// look up the reference response's CellComponents index from the
+// matching key pair on the target side, then pull the triple out of
+// Response.Components.Crosstab.CellComponents[r][c] directly.
 //
 // Mirrors buildMatrixCellLookup's axis-key rendering rule
 // (axisKeyToString) so a target row key string keys into the same

@@ -8,10 +8,10 @@ import (
 // CHAIN-host overlay fold engine — runtime side of the whole-chain
 // overlay catalog.
 //
-// E6-S3 scope: structural pre-req for the two whole-chain overlay kinds
-// the E6 epic ships (`OVERLAY_INDEX_VS_STAGE` / E6-S4,
-// `OVERLAY_DELTA_VS_STAGE` / E6-S5). The MATRIX-host overlay path
-// (`overlay.go`) folds against a crosstab; the SERIES-host overlay path
+// Structural pre-req for the two whole-chain overlay kinds
+// (`OVERLAY_INDEX_VS_STAGE`, `OVERLAY_DELTA_VS_STAGE`). The
+// MATRIX-host overlay path (`overlay.go`) folds against a crosstab;
+// the SERIES-host overlay path
 // (`overlay_series.go`) folds against a grouped Process result; the
 // FACET-host overlay path (`overlay_facet_dispatch.go`) folds against a
 // finalised `*types.FacetResult`. This file is its parallel for a CHAIN
@@ -19,7 +19,7 @@ import (
 // per `ChainStage`, with an optional `Name → Index` lookup for
 // resolving `StageRef.Name` references.
 //
-// What this file lands (per the E6-S3 acceptance criteria):
+// What this file lands:
 //
 //   - chainOverlayHandler is the per-kind execution signature for the
 //     CHAIN host path. Handlers receive the spec, the target stage's
@@ -27,10 +27,9 @@ import (
 //     (resolved via Ref), and the same index pair so warnings can
 //     reference the originating stage by index.
 //
-//   - chainOverlayHandlers is the per-kind dispatch table. E6-S3 lands
-//     stub handlers for `OVERLAY_INDEX_VS_STAGE` and
-//     `OVERLAY_DELTA_VS_STAGE`; E6-S4 / E6-S5 replace the stubs with
-//     real arithmetic.
+//   - chainOverlayHandlers is the per-kind dispatch table for the
+//     whole-chain kinds `OVERLAY_INDEX_VS_STAGE` and
+//     `OVERLAY_DELTA_VS_STAGE`.
 //
 //   - ApplyChainOverlays walks the spec list in matching order,
 //     resolves each spec's Target + Ref via the StageRef resolver,
@@ -40,15 +39,15 @@ import (
 //     PROCESSING_INTERNAL + PULSE_OVERLAY_KIND_UNKNOWN details shape
 //     the MATRIX / SERIES / FACET paths emit.
 //
-// Service-side wiring (per the E6-S3 acceptance "ChainResponse.Overlays
-// populated after the stage loop finishes and BEFORE the response is
-// returned"): the `service.ProcessChain` orchestrator calls
+// Service-side wiring: ChainResponse.Overlays is populated after the
+// stage loop finishes and BEFORE the response is returned. The
+// `service.ProcessChain` orchestrator calls
 // `ApplyChainOverlays` at the post-stage-loop barrier — once every
 // stage has produced a finalised `*Response` the whole-chain fold runs
 // over the already-materialised stage responses. The fold operates
 // EXCLUSIVELY on `*Response` objects; no record re-traversal. Per-stage
 // `Response.Overlays` (populated via the per-stage `Request.Overlays`
-// slot per E6-S1) is left UNTOUCHED by this barrier.
+// slot) is left UNTOUCHED by this barrier.
 //
 // Streamability discipline: every whole-chain kind is BUFFERED by
 // construction — the barrier runs after every stage has finalised, so
@@ -84,11 +83,8 @@ import (
 type chainOverlayHandler func(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error)
 
 // chainOverlayHandlers is the per-kind dispatch table for the CHAIN
-// host path. E6-S3 ships compile-time stub handlers for both
-// whole-chain kinds — the chassis demonstrates end-to-end wiring
-// (Layer.Kind matches spec.Kind, spec-order preservation, per-stage
-// Overlays untouched) without per-kind arithmetic. E6-S4 / E6-S5
-// replace the stubs with real INDEX / DELTA math.
+// host path. Real INDEX / DELTA math ships in the per-kind handlers
+// below.
 //
 // Tests register synthetic handlers by writing into this map and using
 // `t.Cleanup` to restore the prior state — the test stub pattern
@@ -101,35 +97,31 @@ type chainOverlayHandler func(spec *types.ChainOverlaySpec, target, ref *types.R
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
-	// OVERLAY_DELTA_VS_STAGE (E6-S5 lands the real handler):
-	// applyDeltaVsStage replaces the chassis stub with per-coordinate
-	// `target - reference` arithmetic. Same shape-inheritance logic as
+	// OVERLAY_DELTA_VS_STAGE: applyDeltaVsStage computes per-coordinate
+	// `target - reference`. Same shape-inheritance logic as
 	// OVERLAY_INDEX_VS_STAGE (matrix from crosstab target, series from
 	// grouped Process target, scalar from scalar target — chainStageShape
-	// drives dispatch). Reuses the shared E6-S4 lookup helpers
+	// drives dispatch). Reuses the shared lookup helpers
 	// (buildMatrixCellLookup, buildSeriesRowLookup, axisKeyToString,
 	// singleScalarFromResponse) so per-coordinate key encoding stays
 	// byte-equivalent to INDEX_VS_STAGE. Zero-reference values do NOT
 	// emit any warning (zero is a number, not a divisor — DELTA is
 	// well-defined for every finite reference); missing reference keys
-	// fire PULSE_OVERLAY_REFERENCE_UNKNOWN (canonical chain-overlay
-	// missing-reference code landed with E6-S6) and fold against an
-	// implicit zero reference per the E6-S5 acceptance "missing
-	// reference key → delta defined as `target - 0`". Shape divergence
-	// emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (landed with E6-S6)
-	// and surfaces an empty payload that inherits the target's shape.
+	// fire PULSE_OVERLAY_REFERENCE_UNKNOWN and fold against an implicit
+	// zero reference (missing reference key → delta defined as
+	// `target - 0`). Shape divergence emits
+	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and surfaces an empty
+	// payload that inherits the target's shape.
 	types.OverlayKindDeltaVsStage: applyDeltaVsStage,
-	// OVERLAY_INDEX_VS_STAGE (E6-S4 lands the real handler):
-	// applyIndexVsStage replaces the chassis stub with per-coordinate
-	// `target / reference * 100.0` arithmetic. The handler dispatches
-	// internally by target-stage host shape (matrix / series /
-	// scalar), reuses the shared E4 INDEX_VS_MARGIN arithmetic kernel
-	// (indexKernel), and emits PULSE_OVERLAY_REF_ZERO per affected
-	// coordinate on missing / zero reference values. Shape-divergence
-	// defence (target vs ref host shape mismatch) emits a single
-	// warning per spec under PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
-	// (landed with E6-S6) and surfaces an empty payload that inherits
-	// the target shape.
+	// OVERLAY_INDEX_VS_STAGE: applyIndexVsStage computes per-coordinate
+	// `target / reference * 100.0`. The handler dispatches internally
+	// by target-stage host shape (matrix / series / scalar), reuses
+	// the shared INDEX_VS_MARGIN arithmetic kernel (indexKernel), and
+	// emits PULSE_OVERLAY_REF_ZERO per affected coordinate on missing
+	// / zero reference values. Shape-divergence defence (target vs ref
+	// host shape mismatch) emits a single warning per spec under
+	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and surfaces an empty
+	// payload that inherits the target shape.
 	types.OverlayKindIndexVsStage: applyIndexVsStage,
 }
 
@@ -153,15 +145,14 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 //
 //   - StageRef.Index (non-nil) resolves directly; out-of-range fires a
 //     coded error (PULSE_OVERLAY_TARGET_UNKNOWN for the Target arm,
-//     PULSE_OVERLAY_REFERENCE_UNKNOWN for the Ref arm — both landed
-//     with E6-S6).
+//     PULSE_OVERLAY_REFERENCE_UNKNOWN for the Ref arm).
 //   - StageRef.Name (non-empty) resolves against the namedIndex
 //     lookup; absent name fires the same coded error.
 //   - Target with both slots empty defaults to `len(stages) - 1` (the
 //     latest stage). Ref with both slots empty fires the coded error
 //     immediately — every spec MUST name a baseline.
 //
-// Defense in depth: the descriptor.ValidateOverlays gate (E6-S7) will
+// Defense in depth: the descriptor.ValidateOverlays gate will
 // reject bad kinds at predict time, so a missing dispatch entry should
 // never reach the runtime in practice; nonetheless ApplyChainOverlays
 // guards against an unknown kind and returns a CodedError whose
@@ -243,9 +234,9 @@ func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Respons
 			// of the spec index — per-kind handlers receive (target, ref)
 			// stage indices but not their own spec position, so stamping
 			// here keeps the per-handler signature stable while making the
-			// flat warning slice routable downstream. E3-S1 (Compose)
-			// mirrors this convention so the eventual shared helper
-			// (E3-S2+) can group both surfaces uniformly.
+			// flat warning slice routable downstream. The Compose
+			// path mirrors this convention so a future shared helper
+			// can group both surfaces uniformly.
 			for j := range ws {
 				if ws[j].Details == nil {
 					ws[j].Details = map[string]any{}
@@ -268,9 +259,7 @@ func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Respons
 // `PULSE_OVERLAY_TARGET_UNKNOWN` (Target arm) and
 // `PULSE_OVERLAY_REFERENCE_UNKNOWN` (Ref arm). The arm is selected via
 // `targetDefault` AND echoed in the `which` Detail so the MCP fix-up
-// surface can branch on either signal. (Both codes landed with E6-S6;
-// pre-E6-S6 the chassis fell back to `PULSE_OVERLAY_REF_UNKNOWN` with
-// the same `which` Detail.)
+// surface can branch on either signal.
 func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedIndex map[string]int, targetDefault bool, specIdx int) (int, error) {
 	whichArm := "ref"
 	armCode := errors.PULSE_OVERLAY_REFERENCE_UNKNOWN
@@ -338,9 +327,9 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 	return idx, nil
 }
 
-// applyChainStub is the compile-time stub handler shared by both
-// E6-S3 whole-chain kinds. Each invocation emits a single
-// OverlayLayer carrying:
+// applyChainStub is the compile-time stub handler shared by the
+// whole-chain kinds. Each invocation emits a single OverlayLayer
+// carrying:
 //
 //   - Name  — the spec's Name when set, else "OVERLAY_{KIND}" so the
 //     renderer-facing label is always populated.
@@ -353,7 +342,8 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 //     carries a Crosstab matrix; series when it carries grouped
 //     Process Data; scalar otherwise. The stub does NOT
 //     populate the payload's per-coordinate value slots — the
-//     real arithmetic ships with E6-S4 / E6-S5.
+//     real arithmetic ships in the per-kind handlers
+//     (applyIndexVsStage / applyDeltaVsStage).
 //   - Summary — nil (descriptive summary slots are kind-specific and
 //     land with the real handlers).
 //
@@ -361,8 +351,8 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 // the round-trip: spec count == layer count, layer.Kind matches
 // spec.Kind, per-stage Stages[i].Overlays untouched. Real arithmetic
 // (per-coordinate target / ref folding, zero-denominator handling,
-// shape-divergence detection) ships with the per-kind handlers in
-// E6-S4 (INDEX_VS_STAGE) and E6-S5 (DELTA_VS_STAGE).
+// shape-divergence detection) ships with the per-kind handlers
+// applyIndexVsStage and applyDeltaVsStage.
 func applyChainStub(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	name := spec.Name
 	if name == "" {
@@ -379,9 +369,8 @@ func applyChainStub(spec *types.ChainOverlaySpec, target, ref *types.Response, t
 		// Ref slot on the response side is the OverlayRef union, NOT
 		// the ChainOverlaySpec's StageRef pair (the spec's Ref lives
 		// on a different struct). The stub leaves Ref empty — the
-		// per-kind validator + real handler in E6-S4 / E6-S5 will
-		// surface the resolved stage indices through a kind-specific
-		// summary slot when the math lands.
+		// per-kind validator + real handler surfaces the resolved
+		// stage indices through a kind-specific summary slot.
 		Payload: types.OverlayPayload{
 			Shape: shape,
 		},
@@ -399,9 +388,9 @@ func applyChainStub(spec *types.ChainOverlaySpec, target, ref *types.Response, t
 //     grouped Process shape).
 //   - Otherwise (scalar facet result OR empty Data) ⇒ OverlayShapeScalar.
 //
-// The real handlers in E6-S4 / E6-S5 inherit the same precedence
-// rule; codifying it here keeps the chassis byte-identical to the
-// shipping shape selection logic.
+// The real handlers inherit the same precedence rule; codifying it
+// here keeps the chassis byte-identical to the shipping shape
+// selection logic.
 func inferChainStubShape(target *types.Response) types.OverlayShape {
 	if target == nil {
 		return types.OverlayShapeScalar

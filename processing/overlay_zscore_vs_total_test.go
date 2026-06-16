@@ -8,24 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_ZSCORE_VS_TOTAL handler
-// (processing/overlay_zscore_vs_total.go).
-//
-// E3-S4 scope:
-//
-//   - Third and final streamable SERIES-host overlay kind. The handler
-//     is wired into seriesOverlayHandlers via the dispatch entry in
-//     processing/overlay_series.go.
-//   - The acceptance criteria call for: basic series math, Welford
-//     ULP-parity vs the classical two-pass formula, zero-variance emits
-//     PULSE_OVERLAY_REF_ZERO + NaN, absent-group passthrough stays
-//     absent, streaming-vs-buffered byte-identity at the post-finalize
-//     entry point.
-//   - Tests reuse the SeriesHostView fixtures from
-//     overlay_series_test.go (newStubSeriesHost) and the per-entry
-//     assertion helpers established by the INDEX_VS_TOTAL tests
-//     (assertSeriesEntryStatisticWithinTol).
-
 // newZScoreVsTotalSpec returns the canonical happy-path SERIES
 // OVERLAY_ZSCORE_VS_TOTAL spec the per-test fixtures consume — GROUP
 // scope, empty Ref (implicit-grand-total), and a deterministic name so
@@ -320,16 +302,6 @@ func TestOverlay_ZScoreVsTotal_SinglePresentGroupEmitsWarn(t *testing.T) {
 	}
 }
 
-// TestOverlay_ZScoreVsTotal_AbsentGroupsStayAbsent exercises the
-// absent-group contract: groups for which the resolver reports
-// (0, false) surface a SeriesEntry whose Summary leaves Statistic
-// unset (the canonical "present slot, empty summary" shape from
-// E3-S1). Absent groups do NOT contribute to the Welford accumulator.
-//
-// Fixture: groups [a=10, b=absent, c=20, d=absent, e=30]. The Welford
-// fold runs only over (10, 20, 30): mean = 20, sd = sqrt(200/3) ≈
-// 8.16497. Present entries: a → -1.22474, c → 0, e → 1.22474. Absent
-// entries: nil Statistic.
 func TestOverlay_ZScoreVsTotal_AbsentGroupsStayAbsent(t *testing.T) {
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}}
 	// NaN signals absent (newStubSeriesHost's resolver returns
@@ -360,8 +332,6 @@ func TestOverlay_ZScoreVsTotal_AbsentGroupsStayAbsent(t *testing.T) {
 	assertSeriesEntryStatisticWithinTol(t, &layers[0], 2, wantC, 1e-12)
 	assertSeriesEntryStatisticWithinTol(t, &layers[0], 4, wantE, 1e-12)
 
-	// Absent groups: Statistic pointer is nil (the canonical "present
-	// slot, empty summary" shape from E3-S1).
 	if entries[1].Summary.Statistic != nil {
 		t.Errorf("entries[1].Summary.Statistic = %v, want nil (absent group)",
 			*entries[1].Summary.Statistic)
@@ -387,19 +357,6 @@ func TestOverlay_ZScoreVsTotal_AbsentGroupsStayAbsent(t *testing.T) {
 	}
 }
 
-// TestOverlay_ZScoreVsTotal_StreamingBufferedByteIdentical pins the
-// streaming-vs-buffered byte-identity contract the E3-S4 acceptance
-// names: the post-host-finalize entry point (ApplyOverlaysSeries
-// dispatch) produces byte-identical SeriesPayload output whether the
-// host was built via a streaming Process pass or a buffered one,
-// because in both cases the handler consumes the same finalised
-// SeriesHostView.
-//
-// Mirrors TestOverlay_IndexVsTotal_StreamingBufferedByteIdentical and
-// the equivalent SHARE_OF_TOTAL SERIES test — the two host resolvers
-// surface identical (keys, values) but differ on resolver identity;
-// the handler must not branch on resolver identity and both paths must
-// produce structurally equivalent output.
 func TestOverlay_ZScoreVsTotal_StreamingBufferedByteIdentical(t *testing.T) {
 	keys := []types.AxisKey{{"x"}, {"y"}, {"z"}}
 	values := []float64{12.0, 34.0, 56.0}

@@ -103,19 +103,6 @@ func TestCanonicalHash_SynthSpec_StableShape(t *testing.T) {
 	}
 }
 
-// TestCanonicalHash_OverlayFreeByteIdentity locks the additive contract:
-// adding the Overlays slot (E1-S1) to Request must NOT change the hash
-// for any existing overlay-free request — the slot is `omitempty` so
-// `json.Marshal` omits the `overlays` key entirely when the slice is
-// nil or empty, and the canonical-hash pipeline therefore produces
-// byte-identical output to the pre-Overlays implementation.
-//
-// The captured constant below is the hash for this exact Request
-// computed against the canonical-hash routine as it existed before
-// E1-S8. Any change that alters this hash means the additive
-// extension broke byte-identity for callers that have already pinned
-// dedup keys against earlier Pulse versions — bump CanonicalHash with
-// migration plan, do not silently re-hash.
 func TestCanonicalHash_OverlayFreeByteIdentity(t *testing.T) {
 	const captured = "a4e259f7ed18dcbcb3e78b76066bcbee"
 	r := &Request{
@@ -182,10 +169,6 @@ func TestCanonicalHash_OverlaysIncluded(t *testing.T) {
 		t.Fatalf("overlay-bearing Request must hash distinctly from overlay-free Request")
 	}
 
-	// Differing only in Kind — synthesise a second kind value (E1
-	// ships only INDEX_VS_MARGIN, so use a non-canonical kind string
-	// to drive the comparison; OverlayKind is a string newtype so any
-	// distinct value differentiates the canonical JSON form).
 	differentKind := base()
 	differentKind.Overlays[0].Kind = OverlayKind("OVERLAY_DIFFERENT_KIND")
 	if a.Hash() == differentKind.Hash() {
@@ -206,9 +189,6 @@ func TestCanonicalHash_OverlaysIncluded(t *testing.T) {
 		t.Fatalf("differing Margin.Axis must produce different hash")
 	}
 
-	// Differing only in OverlayRef family arm — Margin vs Sibling.
-	// (Sibling is reserved E1, but the canonical-hash routine still
-	// covers it because OverlayRef carries the pointer slot today.)
 	differentArm := base()
 	differentArm.Overlays[0].Ref = OverlayRef{Sibling: &OverlaySiblingRef{Field: "brand", Value: "acme"}}
 	if a.Hash() == differentArm.Hash() {
@@ -243,21 +223,6 @@ func TestCanonicalHash_OverlaysIncluded(t *testing.T) {
 	}
 }
 
-// TestCanonicalHash_RequestLabelEmptyByteIdentical locks the additive
-// contract for the E7-S1 Label slot: adding Label string to Request must
-// NOT change the hash for any existing caller that leaves it empty. The
-// `omitempty` tag keeps `json.Marshal` from emitting the `label` key and
-// the canonical-hash pipeline therefore produces byte-identical output to
-// the pre-Label implementation.
-//
-// The captured constant below matches TestCanonicalHash_OverlayFreeByteIdentity
-// because the two tests share the same fixture Request — both lock the same
-// pre-Label / pre-Overlay byte form. If either constant drifts, the
-// additive extension broke byte-identity for callers that have already
-// pinned dedup keys against earlier Pulse versions; bump CanonicalHash with
-// a migration plan rather than silently re-hashing.
-//
-// CanonicalHash coverage for non-empty Label values lands in E7-S2.
 func TestCanonicalHash_RequestLabelEmptyByteIdentical(t *testing.T) {
 	const captured = "a4e259f7ed18dcbcb3e78b76066bcbee"
 	noLabel := &Request{
@@ -281,21 +246,6 @@ func TestCanonicalHash_RequestLabelEmptyByteIdentical(t *testing.T) {
 	}
 }
 
-// TestComposedRequest_OverlayFreeByteIdentity locks the additive
-// contract for the Compose-level Overlays slot landed in E7-S2: a
-// ComposedRequest with no Overlays populated MUST hash identically to
-// the pre-S2 ComposedRequest shape. The `omitempty` tag on the slot is
-// what makes the round-trip byte-identical; dropping it would break
-// every cached ComposedRequest authored before the slot existed. The
-// captured constant below pins the post-S2 hash so any change to the
-// canonical-hash routine that perturbs the overlay-free form fails
-// loudly.
-//
-// Note: this captures the post-S2 hash because the new auto-default
-// normalizer kicks in even for overlay-free ComposedRequests — every
-// empty-Label slot now hashes against the synthesised `request_<n>`
-// value. The TestComposedRequest_Pre_S2_ByteForm test below documents
-// the pre-S2 (un-normalized) byte form for diagnostic purposes.
 func TestComposedRequest_OverlayFreeByteIdentity(t *testing.T) {
 	base := func() *ComposedRequest {
 		return &ComposedRequest{
@@ -331,20 +281,6 @@ func TestComposedRequest_OverlayFreeByteIdentity(t *testing.T) {
 	}
 }
 
-// TestCanonicalHash_ComposedRequest_LabelStability locks the E7-S2
-// contract that two ComposedRequests differing only in their slot
-// Labels produce DIFFERENT hashes, while two ComposedRequests where
-// one supplies the auto-default-synthesised value explicitly and the
-// other leaves the slot empty hash IDENTICALLY (the auto-default
-// normalizer runs before hashing).
-//
-// The acceptance list specifies:
-//   - "Two ComposedRequest values differing only in slot label produce
-//     different hashes"
-//   - "two values identical except for empty-vs-auto-defaulted label
-//     produce the SAME hash (auto-default applied before hashing)"
-//
-// Both assertions are exercised below.
 func TestCanonicalHash_ComposedRequest_LabelStability(t *testing.T) {
 	base := func() *ComposedRequest {
 		return &ComposedRequest{
@@ -532,20 +468,6 @@ func TestCanonicalHash_ComposedRequest_Overlays(t *testing.T) {
 	}
 }
 
-// TestCanonicalHash_Request_LabelOmitemptyMatchesDefault verifies the
-// canonical Label-position contract from the E7-S2 acceptance list:
-// CanonicalHash walks Request.Label at the same offset across every
-// request shape (Request, ComposedRequest's per-slot Requests,
-// ChainRequest stages). The data-driven JSON walk inherits this for
-// free because every Request value flows through the same json.Marshal
-// projection, but we lock it explicitly so future hash-pipeline
-// edits cannot drift the position silently.
-//
-// The test also verifies the additive contract: a Request with empty
-// Label hashes identically whether embedded directly, inside a
-// ComposedRequest (where the auto-default fires), or inside a
-// ChainRequest stage (where Label has no behavioural effect and stays
-// `omitempty`).
 func TestCanonicalHash_Request_LabelOmitemptyMatchesDefault(t *testing.T) {
 	// Bare Request — empty Label and explicit `Label: ""` must hash
 	// identically (the structural baseline locked by
@@ -640,12 +562,6 @@ func TestComposedRequest_AutoDefaultDoesNotMutateCaller(t *testing.T) {
 	}
 }
 
-// TestCanonicalHash_OverlayLevelDistinct verifies that overlay specs
-// differing only in Level produce distinct canonical hashes — and the
-// same for Within. Locks the E2-S11 contract that non-zero Level /
-// Within values fold into the canonical hash so distinct overlay
-// slates produce distinct hashes (zero defaults preserve byte-
-// identity via OverlayFreeByteIdentity above).
 func TestCanonicalHash_OverlayLevelDistinct(t *testing.T) {
 	base := func() *Request {
 		return &Request{
@@ -693,13 +609,6 @@ func TestCanonicalHash_OverlayLevelDistinct(t *testing.T) {
 	}
 }
 
-// TestCanonicalHash_ResponseComponentsByteIdentity locks the additive
-// contract for the Response.Components slot (E1-S1) when fed through
-// CanonicalHash. A Response with the slot nil must hash identically to
-// the implicit pre-Components form — the JSON walker drops the absent
-// `components` key, so the canonical bytes are byte-identical to the
-// pre-E1-S1 baseline. This is the hash-routine companion to
-// TestResponse_ComponentsByteIdentityWhenNil in types_test.go.
 func TestCanonicalHash_ResponseComponentsByteIdentity(t *testing.T) {
 	implicit := Response{}
 	explicit := Response{Components: nil}

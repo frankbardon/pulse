@@ -8,32 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Predict-time tests for the two-sample stat-test overlay family
-// (E1-S11 + E1-S20): OVERLAY_T_CELL + OVERLAY_T_VS_REF (Welch t) and
-// OVERLAY_Z_CELL + OVERLAY_Z_VS_REF (two-sample z). All four kinds
-// share the same predict-time contract — only the runtime finaliser
-// differs (studentTTwoSidedP vs standardNormalCDF) — so the four test
-// suites below mirror each other so a future drift between the kinds'
-// predict gates surfaces at the test level.
-//
-// Contract enforced:
-//
-//   - *_CELL kinds: MATRIX host required (Request.Crosstab non-nil),
-//     Scope=CELL only. When the cell aggregator is map-valued
-//     (`AggregationType.MapValued() == true`, today AGG_WELFORD) the
-//     handler reads (mean, variance, n) from the Welford triple
-//     directly and Params are OPTIONAL — predict accepts a Params-less
-//     spec. When the cell aggregator is scalar the handler falls back
-//     to the per-side Params defaults; predict requires all four keys
-//     (variance_target / variance_ref / sample_size_target /
-//     sample_size_ref) and surfaces PULSE_OVERLAY_PARAM_MISSING for
-//     any missing key.
-//   - *_VS_REF kinds: SERIES host required (Request.Crosstab nil AND
-//     Request.Groups non-empty), Scope=GROUP only. Same Params-
-//     optional-when-triple rule, but the triple lookup walks
-//     Request.Aggregations[*].Type — one map-valued aggregator is
-//     sufficient.
-
 // triplebearingCrosstabHostReq returns a MATRIX-host Request whose
 // crosstab cell aggregator is AGG_WELFORD (the map-valued triple
 // carrier). The two-sample stat-test overlays consume the Welford
@@ -102,12 +76,6 @@ func twoSampleStatFullParams() json.RawMessage {
 	return json.RawMessage(`{"variance_target":1.0,"variance_ref":1.0,"sample_size_target":10,"sample_size_ref":10}`)
 }
 
-// TestValidateOverlay_TCell_TripleBearingNoParams asserts predict
-// accepts a Params-less OVERLAY_T_CELL spec against a MATRIX host
-// whose cell aggregator is the AGG_WELFORD triple carrier. The runtime
-// handler (applyTCell at processing/overlay_compose_handlers.go E1-S9)
-// consumes the triple's (mean, variance, n) directly so the per-side
-// Params defaults are inert.
 func TestValidateOverlay_TCell_TripleBearingNoParams(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)

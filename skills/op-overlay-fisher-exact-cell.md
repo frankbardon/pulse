@@ -21,7 +21,7 @@ Overlays decorate the host result; they do not emit `Response.Components`.
 
 ## Host shape
 
-MATRIX crosstab. Implicit-margin family (no `Ref`). Canonical low-count χ² backstop — the correct surface when `expected < 5` breaks χ² approximation. Closes the E2 inferential family.
+MATRIX crosstab. Implicit-margin family (no `Ref`). Canonical low-count χ² backstop — the correct surface when `expected < 5` breaks χ² approximation.
 
 ## Output
 

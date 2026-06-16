@@ -85,8 +85,7 @@ type SkillMeta struct {
 // (ResponseComponents.Components[] payload shape) at manifest level so
 // LLM clients can reason about meta-fields without crawling per-
 // category Operator entries. Each map is keyed by operator name and
-// sorted deterministically at serialization time. Aggregators are
-// populated in E1-S3; Groupers + Filterers fill in E2-S2 / E2-S8.
+// sorted deterministically at serialization time.
 //
 // An entry's ComponentSchema mirrors the same value carried on the
 // per-Operator entry under Components.Aggregators[i].ComponentSchema.
@@ -178,8 +177,7 @@ type Manifest struct {
 	// supports, declaring the per-format overlay-embedding shape
 	// (sidecar / sheets / trailing_block / warn_and_skip) so LLM
 	// planners can route Response.Overlays through ExportJob without
-	// inspecting the io/ packages. Wired by E9-S11 once the per-
-	// format adapters (E9-S2..S6) landed.
+	// inspecting the io/ packages.
 	Export ExportCapability `json:"export"`
 
 	// Overlays enumerates the registered overlay catalog — one
@@ -193,10 +191,9 @@ type Manifest struct {
 	Overlays []OverlayCapability `json:"overlays"`
 
 	// ComponentsSchemas projects the per-operator components contract
-	// across categories as a name-keyed map. Aggregators populated in
-	// E1-S3; Groupers + Filterers wired in E2-S2 / E2-S8. Embedders
-	// rely on this block to plan ResponseComponents.Components[]
-	// consumption without iterating Components.* per category.
+	// across categories as a name-keyed map. Embedders rely on this
+	// block to plan ResponseComponents.Components[] consumption without
+	// iterating Components.* per category.
 	ComponentsSchemas ComponentsSchemasBlock `json:"components_schemas"`
 }
 
@@ -353,9 +350,8 @@ func sortRegressions(rs []RegressionMeta) []RegressionMeta {
 // the per-category capability tables into the top-level
 // ComponentsSchemasBlock projection. Map serialization is sorted by
 // encoding/json since Go 1.12, so the golden manifest stays
-// deterministic without a wrapping sort step. Aggregators wired in
-// E1-S3; Groupers wired in E2-S2; Filterers wired in E2-S8 — every
-// registered category populates its sub-map today.
+// deterministic without a wrapping sort step. Every registered category
+// populates its sub-map today.
 //
 // When snap is non-nil, every entry in snap.ComponentSchemas is merged
 // into the appropriate sub-map after the built-in capability table is

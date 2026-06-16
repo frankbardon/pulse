@@ -1229,7 +1229,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_SCOPE_UNSUPPORTED: {
-		Message: "An OverlaySpec named a Scope that is not supported for the chosen Kind. E1 ships OVERLAY_INDEX_VS_MARGIN with Scope=cell only; row / column / total / matrix / group land in later epics alongside the matching payload shapes.",
+		Message: "An OverlaySpec named a Scope that is not supported for the chosen Kind. OVERLAY_INDEX_VS_MARGIN currently supports Scope=cell only; row / column / total / matrix / group land in later releases alongside the matching payload shapes.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -1430,8 +1430,7 @@ var codeMetadata = map[Code]Metadata{
 	},
 	PULSE_OVERLAY_KEY_SET_DIVERGENT: {
 		// Minimal entry — full polish (richer Message + per-shape Fixup
-		// hints) lands with E7-S13. This row keeps TestCodesHaveFixups
-		// green at E7-S6.
+		// hints) is deferred.
 		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose per-coordinate key sets disagree — matrix (row × column) tuples present on one slot but absent on another, or series group-keys diverging across slots. Compose-only overlays require strict cross-Request key alignment so the renderer can fold target values against the reference at byte-equal coordinates; tolerant alignment is an explicit non-goal for v1. Details carry the reference slot label, the offending target slot label, and the symmetric difference of the two key sets (`missing` keys present on reference but absent from target; `extra` keys present on target but absent from reference).",
 		Fixups: []Fixup{
 			{
@@ -1442,9 +1441,9 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_SCHEMA_DIVERGENT: {
-		// E7-S7 lit the gate; E10-S2 polished the prose to point at the
-		// predict-side SlotPair surface so MCP planners can fan the per-
-		// divergence repair without parsing envelope Details.
+		// Prose points at the predict-side SlotPair surface so MCP
+		// planners can fan the per-divergence repair without parsing
+		// envelope Details.
 		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. Runtime Details carry the `reference` slot label, the offending `target_label`, and canonical `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`); the no-execute predict surface (`descriptor.ValidateCompose`) mirrors the same information via `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` (one entry per offending (reference, target) pair, Reason = `schema-divergent`). Predict consumers should branch on `Reason` for the divergence class and read `ReferenceLabel` / `TargetLabel` for the offending slots without re-parsing envelope details.",
 		Fixups: []Fixup{
 			{
@@ -1460,7 +1459,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT: {
-		// Minimal entry — full polish lands with E7-S13.
+		// Minimal entry — full polish is deferred.
 		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose host result shapes disagree (one is MATRIX while the other is SERIES, or one is SCALAR while the other is non-SCALAR). Compose overlays fold target values against the reference at byte-equal coordinates; without a shared shape there is no coordinate grid. Details carry the offending `target_label`, the `reference_shape`, and the `target_shape`.",
 		Fixups: []Fixup{
 			{
@@ -1472,8 +1471,7 @@ var codeMetadata = map[Code]Metadata{
 	},
 	PULSE_OVERLAY_DICT_PREFIX_DRIFT: {
 		// Minimal entry — full polish (richer Message + per-field Fixup
-		// hints) lands with E7-S13. This row keeps TestCodesHaveFixups
-		// green at E7-S8.
+		// hints) is deferred.
 		Message: "A Compose overlay spec opted into ComposeOverlaySpec.Options.DictPrefixFast but the reference slot and one or more target slots carry categorical dictionaries that do not share a byte-equal common prefix. The fast path engages direct-index comparison across slots; divergent dictionaries silently produce incorrect cell alignment under that mode so the runtime fails loud. Default behaviour is the safe by-label join (decode each key via the slot dictionary before comparison) and tolerates arbitrary dict reordering. Details carry the offending `reference` slot label, the `target_label`, the `field` whose dictionaries disagree, and the canonical `reference_dict_prefix` / `target_dict_prefix` strings (entries joined `|`).",
 		Fixups: []Fixup{
 			{
@@ -1489,10 +1487,10 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_SLOT_NOT_CROSSTAB: {
-		// Minimal entry — full polish (kind-aware Fixup catalogue)
-		// lands with E7-S13 alongside the per-kind matrix-required
-		// catalog finalisation in E7-S9..S12.
-		Message: "A Compose overlay spec whose Kind requires a MATRIX-shaped (crosstab) host resolved at least one slot — reference or target — that is not a crosstab result. The matrix-required Compose kinds land with E7-S9+; until those stories register their per-kind shape requirements this code is unreachable at runtime. Details carry the `required_shape: \"MATRIX\"`, the offending `target_label`, and the `observed_shape` (`series` / `scalar`).",
+		// Minimal entry — full polish (kind-aware Fixup catalogue) is
+		// deferred alongside the per-kind matrix-required catalog
+		// finalisation.
+		Message: "A Compose overlay spec whose Kind requires a MATRIX-shaped (crosstab) host resolved at least one slot — reference or target — that is not a crosstab result. The matrix-required Compose kinds have not yet registered their per-kind shape requirements, so this code is unreachable at runtime. Details carry the `required_shape: \"MATRIX\"`, the offending `target_label`, and the `observed_shape` (`series` / `scalar`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

@@ -12,26 +12,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// E2-S9 — End-to-end Response.Components.Filterers population tests
-// driven through the service-layer Process orchestration. The
-// orchestrator's filter walk tracks {n_in, n_out, n_null_input} per
-// Request.Filterers slot uniformly across all 11 built-in filterers;
-// these tests lock the wiring (orchestrator → applyFilterPass →
-// buildFiltererComponents → Response.Components.Filterers) at the
-// service boundary.
-//
-// Coverage per filterer:
-//
-//   - "small": a non-trivial subset of rows passes the filter; counters
-//     assert NIn / NOut / NNullInput against hand-computed expectations.
-//   - "empty": the filter rejects every row; NOut == 0 holds the floor.
-//   - "all-null": every row's filtered field is null on input; NNullInput
-//     equals NIn and the filter's pass/fail decision still drives NOut.
-//
-// A separate multi-filterer pipeline test asserts the n_in invariant
-// (n_in[i] == n_out[i-1] for every i > 0, and n_in[0] equals the
-// post-feature-pass total observed by the first slot).
-
 // nullableScoreCohort writes a 5-row score cohort with a non-nullable
 // f64 score column for the small / empty cases. Every row has a valid
 // score; the all-null variant below builds its own bitmap for the
@@ -674,10 +654,6 @@ func TestService_Process_FiltererComponents_PipelineNInInvariant(t *testing.T) {
 	}
 }
 
-// TestService_Process_FiltererComponents_NoFilterers asserts that a
-// filterless request leaves Response.Components.Filterers nil so the
-// omitempty wire shape stays byte-identical against the pre-E2-S9
-// baseline.
 func TestService_Process_FiltererComponents_NoFilterers(t *testing.T) {
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{

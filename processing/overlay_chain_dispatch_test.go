@@ -39,10 +39,6 @@ func chainStageOf(shape types.OverlayShape) *types.Response {
 // int field would collapse "no index supplied" onto "stage 0").
 func ptrInt(i int) *int { return &i }
 
-// TestApplyChainOverlays_EmptySpecsShortCircuits asserts the chassis
-// returns nil layers / nil warnings / nil error when the spec slice
-// is empty — the byte-identity guard against pre-E6-S3 ChainResponse
-// shapes (no Overlays slot allocated, no JSON key emitted).
 func TestApplyChainOverlays_EmptySpecsShortCircuits(t *testing.T) {
 	stages := []*types.Response{chainStageOf(types.OverlayShapeMatrix)}
 
@@ -201,11 +197,6 @@ func TestApplyChainOverlays_TargetDefaultsToLatest(t *testing.T) {
 	}
 }
 
-// TestApplyChainOverlays_StageRefOutOfRange_CodedError asserts an
-// Index that lands outside [0, len(stages)) fires a coded error. The
-// canonical PULSE_OVERLAY_TARGET_UNKNOWN code (Target arm) landed with
-// E6-S6 along with PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm); arms are
-// distinguished by the `which` Detail.
 func TestApplyChainOverlays_StageRefOutOfRange_CodedError(t *testing.T) {
 	stages := []*types.Response{chainStageOf(types.OverlayShapeSeries)}
 	specs := []*types.ChainOverlaySpec{
@@ -238,11 +229,6 @@ func TestApplyChainOverlays_StageRefOutOfRange_CodedError(t *testing.T) {
 	}
 }
 
-// TestApplyChainOverlays_StageRefUnknownName_CodedError asserts that
-// a Name that does not match any ChainStage.Name fires the same
-// coded error shape. Ref arm vs Target arm is distinguished via the
-// `which` Detail; the Ref arm carries PULSE_OVERLAY_REFERENCE_UNKNOWN
-// (canonical chain-overlay missing-reference code, landed with E6-S6).
 func TestApplyChainOverlays_StageRefUnknownName_CodedError(t *testing.T) {
 	stages := []*types.Response{chainStageOf(types.OverlayShapeSeries)}
 	specs := []*types.ChainOverlaySpec{

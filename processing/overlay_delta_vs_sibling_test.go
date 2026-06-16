@@ -8,24 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_DELTA_VS_SIBLING handler
-// (processing/overlay_delta_vs_sibling.go).
-//
-// E3-S5 scope:
-//
-//   - First sibling-reference SERIES-host overlay kind. The handler is
-//     wired into seriesOverlayHandlers via the dispatch entry in
-//     processing/overlay_series.go.
-//   - Acceptance: basic series math (per-group `value - sibling_val`),
-//     unknown-sibling emits PULSE_OVERLAY_REF_UNKNOWN + NaN, zero-
-//     sibling stays a well-defined delta (no warning — subtraction by
-//     zero recovers the raw value), absent-group passthrough stays
-//     absent, sibling-self-emission yields 0.
-//   - Tests reuse the SeriesHostView fixtures from
-//     overlay_series_test.go (newStubSeriesHost) and the per-entry
-//     assertion helpers established by the INDEX_VS_TOTAL tests
-//     (assertSeriesEntryStatisticWithinTol).
-
 // newDeltaVsSiblingSpec returns a canonical OVERLAY_DELTA_VS_SIBLING
 // spec naming the requested `(field, value)` sibling reference. GROUP
 // scope plus Ref.Sibling populated — the predict-time happy path.
@@ -263,13 +245,6 @@ func TestOverlay_DeltaVsSibling_DefaultLayerName(t *testing.T) {
 	}
 }
 
-// TestOverlay_DeltaVsSibling_FallbackResolverScansKeys exercises the
-// E3-S5 fallback resolver path: when the SeriesHostView does NOT carry
-// a GroupFields slot (legacy NewSeriesHostView constructor), the
-// sibling resolver scans every axis-key element for a match against
-// the requested Value. With a single-axis host this is byte-equivalent
-// to the field-driven lookup — entry 0 ("US") still matches Ref.Sibling.
-// Value="US".
 func TestOverlay_DeltaVsSibling_FallbackResolverScansKeys(t *testing.T) {
 	keys := []types.AxisKey{{"US"}, {"CA"}, {"MX"}}
 	values := []float64{100.0, 200.0, 300.0}

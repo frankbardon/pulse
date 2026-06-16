@@ -65,7 +65,7 @@ type FacetRequest struct {
 	// FacetResult.Overlays in matching order. Per-kind semantics,
 	// required Ref fields, and host-field selection live in the
 	// overlay catalog (see types/overlay.go) and skills/overlay-system.md.
-	// E5 ships the four FACET-host kinds; the host-field the overlay
+	// The four FACET-host kinds ship today; the host-field the overlay
 	// decorates is read from OverlaySpec.Params["field"] (which MUST
 	// reference one of FacetRequest.Fields) — when the FacetRequest
 	// declares exactly one Field the slot may be omitted.
@@ -96,7 +96,7 @@ type FacetResult struct {
 	// layer holds its derived payload (scalar / series) plus optional
 	// renderer-friendly summary metadata. Omitted entirely when the
 	// originating FacetRequest had no overlays — the no-overlay shape
-	// is byte-identical to the pre-E5 FacetResult JSON output.
+	// is byte-identical to the overlay-free FacetResult JSON output.
 	Overlays []OverlayLayer `json:"overlays,omitempty"`
 }
 

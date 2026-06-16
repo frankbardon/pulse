@@ -35,11 +35,6 @@ func composeSlotOf(shape types.OverlayShape) *types.Response {
 	}
 }
 
-// TestApplyComposeOverlays_EmptySpecsShortCircuits asserts the chassis
-// returns nil layers / nil warnings / nil error when the spec slice
-// is empty — the byte-identity guard against pre-E7-S4
-// ComposedResponse shapes (no Overlays slot allocated, no JSON key
-// emitted).
 func TestApplyComposeOverlays_EmptySpecsShortCircuits(t *testing.T) {
 	responses := []*types.Response{composeSlotOf(types.OverlayShapeScalar)}
 	labels := []string{"request_1"}
@@ -64,14 +59,6 @@ func TestApplyComposeOverlays_EmptySpecsShortCircuits(t *testing.T) {
 	}
 }
 
-// TestApplyComposeOverlays_MultiLayerDispatch_PanelIndexVsRef pins the
-// E7-S12 multi-layer chassis wiring: a single PANEL_INDEX_VS_REF spec
-// with N targets surfaces N OverlayLayer entries in the parent
-// `layers` slice in spec order then target order. Asserts the
-// `composeOverlayMultiLayerHandlers` dispatch table is checked BEFORE
-// the single-layer table — every emitted layer carries the parent kind
-// (OVERLAY_PANEL_INDEX_VS_REF) and the `<spec.Name>__<target_label>`
-// naming convention.
 func TestApplyComposeOverlays_MultiLayerDispatch_PanelIndexVsRef(t *testing.T) {
 	// Three slots: baseline (reference) + t0 + t1 + t2 (3 targets).
 	// Every slot carries the same canonical 3×3 matrix shape so the
@@ -144,12 +131,6 @@ func TestApplyComposeOverlays_StubLayerOrderPreserved(t *testing.T) {
 		composeSlotOf(types.OverlayShapeSeries),
 	}
 	labels := []string{"baseline", "treatment"}
-	// E7-S4 ships the chassis without per-kind handlers, so the
-	// dispatch table is empty and every spec falls through to
-	// applyComposeStub. The Kind values here are placeholders chosen
-	// from the universal OverlayKind enum to exercise the spec-order
-	// echo — the per-kind catalog (E7-S9..S12 + E7-S15+) will
-	// register real handlers and replace the stub.
 	specs := []types.ComposeOverlaySpec{
 		{
 			Name:      "first",
@@ -188,21 +169,6 @@ func TestApplyComposeOverlays_StubLayerOrderPreserved(t *testing.T) {
 	}
 }
 
-// TestApplyComposeOverlays_StubShapeInheritsReference asserts the stub
-// handler's inferred OverlayShape walks the reference slot's
-// top-level host shape — matrix when reference carries a Crosstab,
-// series when it carries grouped Process Data, scalar otherwise. The
-// reference (not the target) is the canonical anchor for Compose-only
-// kinds.
-//
-// E7-S7 ordering note: the SHAPE_DIVERGENT gate now intercepts
-// mismatched ref/target shapes BEFORE the stub fallback, so the
-// reference/target pair must agree on host shape for this test to
-// reach the stub. The original pre-E7-S7 variant used a SCALAR
-// target against a matrix/series reference to confirm the stub read
-// from the reference; today that pairing fails the SHAPE_DIVERGENT
-// gate. We instead use matching ref/target shapes so the stub runs
-// and the shape-inheritance contract stays asserted.
 func TestApplyComposeOverlays_StubShapeInheritsReference(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -217,10 +183,6 @@ func TestApplyComposeOverlays_StubShapeInheritsReference(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			responses := []*types.Response{
 				composeSlotOf(tc.refShape),
-				// Target matches reference shape so the E7-S7
-				// SHAPE_DIVERGENT gate accepts and the stub fallback
-				// runs. The stub still reads its OverlayShape from
-				// the REFERENCE slot — the contract under test.
 				composeSlotOf(tc.refShape),
 			}
 			labels := []string{"ref_slot", "target_slot"}
@@ -242,11 +204,6 @@ func TestApplyComposeOverlays_StubShapeInheritsReference(t *testing.T) {
 	}
 }
 
-// TestApplyComposeOverlays_ReferenceUnknown_CodedError asserts that a
-// spec whose Reference does not match any label in `labels` surfaces
-// a coded PROCESSING_INTERNAL error whose Details carry the canonical
-// PULSE_OVERLAY_REFERENCE_UNKNOWN code (lifted by E7-S5 from the
-// pre-E7-S5 PULSE_OVERLAY_REF_UNKNOWN fallback).
 func TestApplyComposeOverlays_ReferenceUnknown_CodedError(t *testing.T) {
 	responses := []*types.Response{
 		composeSlotOf(types.OverlayShapeScalar),
@@ -267,12 +224,6 @@ func TestApplyComposeOverlays_ReferenceUnknown_CodedError(t *testing.T) {
 	requireDetailCode(t, err, pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN)
 }
 
-// TestApplyComposeOverlays_TargetUnknown_CodedError asserts that a
-// spec whose Targets list contains a label that does not match any
-// entry in `labels` surfaces a coded PROCESSING_INTERNAL error whose
-// Details carry the canonical PULSE_OVERLAY_TARGET_UNKNOWN code
-// (lifted by E7-S5 from the pre-E7-S5 PULSE_OVERLAY_REF_UNKNOWN
-// fallback).
 func TestApplyComposeOverlays_TargetUnknown_CodedError(t *testing.T) {
 	responses := []*types.Response{
 		composeSlotOf(types.OverlayShapeScalar),
@@ -293,10 +244,6 @@ func TestApplyComposeOverlays_TargetUnknown_CodedError(t *testing.T) {
 	requireDetailCode(t, err, pulseerrors.PULSE_OVERLAY_TARGET_UNKNOWN)
 }
 
-// requireDetailCode asserts the error's CodedError.Details carry a
-// `code` key equal to the supplied canonical code string. Used by the
-// E7-S5 chassis tests to lock the canonical-code dispatch lifted from
-// the legacy PULSE_OVERLAY_REF_UNKNOWN fallback.
 func requireDetailCode(t *testing.T, err error, want pulseerrors.Code) {
 	t.Helper()
 	var coded *pulseerrors.CodedError

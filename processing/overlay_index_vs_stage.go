@@ -11,8 +11,7 @@ import (
 
 // applyIndexVsStage is the CHAIN-host runtime handler for
 // OVERLAY_INDEX_VS_STAGE — the first whole-chain overlay kind to ship
-// real arithmetic. Replaces the E6-S3 applyChainStub in the
-// chainOverlayHandlers dispatch table.
+// real arithmetic.
 //
 // Math (per host coordinate):
 //
@@ -27,11 +26,11 @@ import (
 //     OverlayShapeSeries — per-row index against the reference's
 //     row-key-keyed lookup; reference rows missing their key in the
 //     reference table fire PULSE_OVERLAY_REF_ZERO (the canonical
-//     "denominator absent" warning per E1's catalog).
+//     "denominator absent" warning).
 //   - target carries empty Data ⇒ OverlayShapeScalar — single
 //     reference-divided index emitted as the layer's Payload.Scalar.
 //
-// The Index handler reuses the same E4 INDEX_VS_MARGIN arithmetic kernel
+// The Index handler reuses the same INDEX_VS_MARGIN arithmetic kernel
 // (indexKernel — see overlay.go) so per-coordinate arithmetic is
 // byte-identical to the MATRIX-host INDEX_VS_MARGIN family. Reference
 // stage resolution happens BEFORE this handler is reached (the
@@ -39,14 +38,11 @@ import (
 // StageRef resolver in overlay_chain_dispatch.go), so the handler
 // receives finalised *Response objects for both slots.
 //
-// Shape divergence defence (the story description "handler MAY assume
-// shapes match but emit PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT as
-// defence if it sees divergence at runtime"): when the target and
-// reference stages disagree on host shape (target matrix, ref series;
-// target series, ref scalar; etc) the handler emits ONE warning per
-// spec under PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (the canonical
-// code landed with E6-S6) and falls back to an empty payload that
-// inherits the target stage's shape.
+// Shape divergence defence: when the target and reference stages
+// disagree on host shape (target matrix, ref series; target series,
+// ref scalar; etc) the handler emits ONE warning per spec under
+// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and falls back to an empty
+// payload that inherits the target stage's shape.
 //
 // Zero / missing-reference policy: zero or missing reference values
 // emit PULSE_OVERLAY_REF_ZERO (matrix per-cell, series per-entry,
@@ -54,10 +50,9 @@ import (
 // coordinate. Mirrors the MATRIX-host INDEX_VS_MARGIN handler's
 // per-cell warning shape exactly.
 //
-// Per the story's "No re-traversal of source cohort" acceptance: this
-// handler reads only the two *Response objects' top-level slots
-// (Crosstab.Matrix, Data) — no record stream is opened, no schema is
-// re-read.
+// No re-traversal of source cohort: this handler reads only the two
+// *Response objects' top-level slots (Crosstab.Matrix, Data) — no
+// record stream is opened, no schema is re-read.
 func applyIndexVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if target == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -84,11 +79,11 @@ func applyIndexVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response
 	refShape := chainStageShape(ref)
 
 	// Shape-divergence defence: when target and reference disagree on
-	// host shape, emit a single warning (canonical code lands with
-	// E6-S6; fallback per story rule) and surface an empty overlay
-	// payload that inherits the target's shape — the renderer sees the
-	// divergence diagnostic + an empty layer instead of a malformed
-	// arithmetic crash.
+	// host shape, emit a single warning under
+	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and surface an empty
+	// overlay payload that inherits the target's shape — the renderer
+	// sees the divergence diagnostic + an empty layer instead of a
+	// malformed arithmetic crash.
 	if targetShape != refShape {
 		layer := types.OverlayLayer{
 			Name:  chainOverlayLayerName(spec),
@@ -124,8 +119,8 @@ func applyIndexVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response
 // chainStageShape resolves a stage's *Response into the OverlayShape
 // the CHAIN-host overlay handlers branch on. Mirrors the precedence
 // inferChainStubShape uses in overlay_chain_dispatch.go — codified
-// here so the real handler and the E6-S3 stub stay byte-equivalent on
-// shape selection.
+// here so the real handler and the chassis stub stay byte-equivalent
+// on shape selection.
 //
 // Precedence (top-down):
 //
@@ -180,8 +175,7 @@ func chainOverlayLayerName(spec *types.ChainOverlaySpec) string {
 //
 // Extracted from the inline INDEX_VS_MARGIN arithmetic so the
 // per-coordinate math stays parity-true between MATRIX-host and
-// CHAIN-host kinds. E6-S5 will add a sibling deltaKernel for
-// OVERLAY_DELTA_VS_STAGE.
+// CHAIN-host kinds.
 func indexKernel(target, reference float64) (float64, bool) {
 	if reference == 0 {
 		return math.NaN(), false
@@ -250,8 +244,8 @@ func applyIndexVsStageMatrix(spec *types.ChainOverlaySpec, target, ref *types.Re
 			targetVal, ok := scalarFromCell(cell)
 			if !ok {
 				// Map-valued / rich cell — INDEX is scalar-only; the
-				// per-kind validator at E6-S7 will reject this, but the
-				// handler stays defensive.
+				// per-kind validator rejects this, but the handler
+				// stays defensive.
 				continue
 			}
 			colKeyStr := axisKeyToString(targetMx.ColumnKeys[j])
@@ -481,11 +475,10 @@ func anyToCanonicalString(v any) string {
 // per-stage shape contract), the row-key encoding stays parity-true.
 // When multiple numeric columns are present, the FIRST (sorted by
 // column name) is treated as the value column so the handler stays
-// deterministic without per-kind configuration. The follow-up
-// configuration surface (E6-S8 / S11 integration) may grow an
-// explicit "value column" param; today the deterministic-first rule
-// keeps the implementation parity-true with the common single-aggregator
-// shape.
+// deterministic without per-kind configuration. A future configuration
+// surface may grow an explicit "value column" param; today the
+// deterministic-first rule keeps the implementation parity-true with
+// the common single-aggregator shape.
 //
 // Missing reference rows (target row key not present in the
 // reference table) emit PULSE_OVERLAY_REF_ZERO with a "ref_missing"
@@ -509,8 +502,8 @@ func applyIndexVsStageSeries(spec *types.ChainOverlaySpec, target, ref *types.Re
 		keyStr, _, value, hasValue := encodeSeriesRow(row)
 		if !hasValue {
 			// Target row had no numeric column to fold — skip rather
-			// than fabricate a NaN entry. The validator at E6-S7 will
-			// gate this at predict time.
+			// than fabricate a NaN entry. The validator gates this at
+			// predict time.
 			continue
 		}
 		refVal, refPresent := refIndex[keyStr]

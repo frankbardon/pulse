@@ -12,31 +12,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// E2-S11 — End-to-end Response.Components.Run population tests driven
-// through the service-layer Process orchestration. These tests lock the
-// terminal-flush wiring (orchestrator → attachRunComponents) at the
-// service boundary across the four built-in process paths
-// (processStreaming, processStreamingGrouped, processStreamingTwoPass,
-// processRecords) plus the service-layer shard-archive parallel reducer
-// (processShardArchiveParallel → finalizeMergedPartial).
-//
-// The "primary aggregation field" rule for NullRecords is locked in
-// processing/run_components.go and tested end-to-end here: first
-// aggregator's Field, else first grouper's Field, else 0.
-//
-// Coverage rows:
-//
-//   - single-file, no filters, no nullables — every counter at its
-//     zero-state floor; ShardCount == 0; PartialCohortReason == "".
-//   - single-file, FILTER_RANGE drops N rows — FilteredRecords < Total;
-//     last filterer's NOut == FilteredRecords (invariant locked).
-//   - single-file with null inputs on the primary field — NullRecords > 0
-//     and equals the number of post-filter records carrying a null on
-//     the primary aggregation field.
-//   - Metadata-vs-Run parity — Response.Metadata.TotalRows equals
-//     Response.Components.Run.TotalRecords across every path. This lock
-//     is the contract documented on types.RunComponents.
-
 // runProcessForRunComponents drives svc.Process and returns the
 // RunComponents pointer. Fails the test if Components or Run is nil.
 func runProcessForRunComponents(t *testing.T, svc *Service, req *types.Request) *types.RunComponents {

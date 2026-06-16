@@ -1013,17 +1013,6 @@ func TestGroupWithRoundedInterval(t *testing.T) {
 	}
 }
 
-// TestComposeOverlaySpec_RoundTrip locks the JSON round-trip surface for
-// the E7-S3 ComposeOverlaySpec — marshal, unmarshal, and struct-equal.
-// Every populated field round-trips identically and the unmarshalled
-// shape matches the source slot-for-slot.
-//
-// The test uses a string-literal cast for OverlayKind because the
-// Compose-only catalog constants (OVERLAY_INDEX_VS_REF and friends) are
-// declared in a subsequent story (E7-S9); the E7-S3 round-trip surface
-// validates the struct shape itself, not the kind catalog. This matches
-// the casting pattern already used by E7-S2's canonical-hash tests
-// (types/hash_test.go).
 func TestComposeOverlaySpec_RoundTrip(t *testing.T) {
 	src := types.ComposeOverlaySpec{
 		Name:      "audience_a_vs_pop",
@@ -1075,10 +1064,6 @@ func TestComposeOverlaySpec_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestComposeOverlaySpec_OmitemptyShape locks the JSON tag contract from
-// the E7-S3 acceptance list: every field is `omitempty` except Kind and
-// Reference. A spec carrying only those two fields must marshal to a
-// JSON object with exactly two keys.
 func TestComposeOverlaySpec_OmitemptyShape(t *testing.T) {
 	minimal := types.ComposeOverlaySpec{
 		Kind:      types.OverlayKind("OVERLAY_INDEX_VS_REF"),
@@ -1180,14 +1165,6 @@ func TestComposedResponse_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestResponse_ComponentsByteIdentityWhenNil locks the additive
-// omitempty contract for the new Response.Components slot (E1-S1). A
-// Response with the slot left nil — the implicit form — must marshal
-// byte-identically to a Response{} authored without ever touching
-// Components, AND to a Response with the slot explicitly set to nil.
-// This is the test that gates format_version staying at "1.0": as long
-// as the slot is omitempty and the nil case yields no `components` key,
-// the wire shape for every pre-Components caller is preserved.
 func TestResponse_ComponentsByteIdentityWhenNil(t *testing.T) {
 	implicit := types.Response{}
 	explicit := types.Response{Components: nil}
@@ -1215,14 +1192,6 @@ func TestResponse_ComponentsByteIdentityWhenNil(t *testing.T) {
 	}
 }
 
-// TestResponse_ComponentsRoundTripJSON exercises a Response with the
-// Components slot populated across every typed sub-struct shell:
-// AggregationComponents, GrouperComponents, CrosstabComponents,
-// FiltererComponents, RunComponents. The round-trip must preserve
-// every field on every nested struct, including the deterministically
-// keyed Operator map[string]any payloads on Aggregations and Groupers
-// (the per-operator schema-declared keys land in E1-S5+ but the carrier
-// map exists today).
 func TestResponse_ComponentsRoundTripJSON(t *testing.T) {
 	src := types.Response{
 		Components: &types.ResponseComponents{
@@ -1395,13 +1364,6 @@ func TestResponse_ComponentsEmptyNestedFieldsOmitted(t *testing.T) {
 	}
 }
 
-// TestCrosstabComponents_EmptyMarshalsToNothing verifies the
-// omitempty contract on the full CrosstabComponents struct (E3-S1).
-// An empty CrosstabComponents{} carried on Response.Components.Crosstab
-// must marshal with no inner keys at all — every field is `omitempty`
-// so the only wire output is `{"components":{"crosstab":{}}}`. This
-// pins the contract that crosstabs without orchestrator-populated
-// components do NOT leak `cell_counts: null` etc. onto the wire.
 func TestCrosstabComponents_EmptyMarshalsToNothing(t *testing.T) {
 	resp := types.Response{
 		Components: &types.ResponseComponents{
@@ -1419,11 +1381,6 @@ func TestCrosstabComponents_EmptyMarshalsToNothing(t *testing.T) {
 	}
 }
 
-// TestCrosstabComponents_RoundTripJSON exercises every field of the
-// CrosstabComponents struct (E3-S1). Populates a small 2x3 cell grid
-// plus row / column / grand-total margins, per-axis key components,
-// and include / exclude counters; marshal + unmarshal must preserve
-// every coordinate-indexed slot.
 func TestCrosstabComponents_RoundTripJSON(t *testing.T) {
 	src := types.Response{
 		Components: &types.ResponseComponents{

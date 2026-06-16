@@ -11,16 +11,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// E4-S9 — perf bench locks for the Components emission machinery.
-//
-// These establish the baseline numbers that E5 (final perf budget gates)
-// will lock against. The benches are hermetic: in-memory afero fs, no
-// disk I/O, no external fixture files. Each bench drives a 100K-record
-// f64 cohort through a five-aggregator mix that covers both mergeable
-// (AGG_SUM / AGG_COUNT / AGG_AVERAGE / AGG_VARIANCE — Welford-family)
-// and non-mergeable (AGG_MEDIAN) paths so the buffered terminal flush
-// and per-chunk redaction code paths are both exercised.
-
 const benchComponentsRowCount = 100_000
 
 // writeBenchComponentsCohort materialises a 100K-row, single-f64-field
@@ -75,17 +65,6 @@ func buildBenchMixedAggRequest(path string) *Request {
 	}
 }
 
-// BenchmarkProcessStream_WithComponents establishes the baseline
-// throughput for the streaming Process pipeline with Response.Components
-// emission enabled across a five-aggregator mergeable/non-mergeable mix.
-// Components emission is always-on in the current build (no
-// pulse.Options.DisableComponents knob) so this single sub-case captures
-// the budget E5 locks against; if a disable knob lands, add a paired
-// "off" sub-case for the +5% delta gate.
-//
-// Drives 100K records through ProcessStreamResult, drains every chunk to
-// avoid backpressure, and waits on the terminator. Reports ns/op +
-// allocs/op for the full pipeline; per-record cost is total/100_000.
 func BenchmarkProcessStream_WithComponents(b *testing.B) {
 	memFs := afero.NewMemMapFs()
 	path := writeBenchComponentsCohort(b, memFs)
@@ -114,17 +93,6 @@ func BenchmarkProcessStream_WithComponents(b *testing.B) {
 	}
 }
 
-// BenchmarkProcess_BufferedComponents establishes the baseline
-// throughput for the buffered Process pipeline with Response.Components
-// emission enabled. Same 100K cohort + five-aggregator mix as the
-// streaming bench, but driven through pulse.Process so the buffered
-// terminal-flush path (which is the only path that can carry the
-// AGG_MEDIAN Operator map) is measured end-to-end.
-//
-// This is the apples-to-apples comparison point for the streaming bench:
-// the streaming variant pays per-chunk projection cost; the buffered
-// variant pays one terminal-flush cost. E5 locks both to +5% of the
-// per-aggregator baseline captured here.
 func BenchmarkProcess_BufferedComponents(b *testing.B) {
 	memFs := afero.NewMemMapFs()
 	path := writeBenchComponentsCohort(b, memFs)

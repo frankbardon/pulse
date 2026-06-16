@@ -8,29 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E7-S12 per-handler unit tests for OVERLAY_PANEL_INDEX_VS_REF — the
-// multi-reference DESCRIPTIVE COMPOSE-host ratio index that emits ONE
-// OverlayLayer per target slot against a single shared reference slot.
-//
-// Test surface (per the story's acceptance criteria):
-//
-//   - TestApplyPanelIndexVsRef_MultiLayer_3Targets_Matrix — 3 targets vs
-//     1 reference asserts 3 layers emitted, shared row/col axes,
-//     per-target math matches single-target INDEX_VS_REF.
-//   - TestApplyPanelIndexVsRef_LayerNamingConvention — `<spec.Name>__
-//     <target_label>` shape (with the Name-empty fallback).
-//   - TestApplyPanelIndexVsRef_SpecOrderTargetOrderPreserved — emitted
-//     layers[i] corresponds to spec.Targets[i].
-//   - TestApplyPanelIndexVsRef_OverCap_17Targets_Rejected — coded error
-//     path against the default 16-target cap.
-//   - TestApplyPanelIndexVsRef_DefaultMaxPanelTargets_16 — locks the
-//     default cap value at 16.
-//   - TestApplyPanelIndexVsRef_SeriesShape_3Targets — series-arm
-//     dispatch (per-target SERIES emission).
-//   - TestApplyPanelIndexVsRef_LayerMathMatchesSingleTargetIndexVsRef —
-//     strict per-target byte-identity with single-target INDEX_VS_REF
-//     for the same (reference, target) pair.
-
 // composeSpecMultiTargetPanelIndex wires a multi-target
 // ComposeOverlaySpec for the PANEL_INDEX_VS_REF tests. `targets` is the
 // renderer-facing target slot labels; `opts` is the per-spec

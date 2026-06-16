@@ -27,7 +27,7 @@ import (
 // dispatch. Predicate ordering is intentional — key-set divergence is
 // O(slots × cells) and computes per spec, so we fail fast before the
 // per-kind handlers walk the matrix / series payload again. Schema
-// match (E7-S7) and dict-drift (E7-S8) gates run AFTER this one.
+// match and dict-drift gates run AFTER this one.
 //
 // Structural invariants:
 //
@@ -55,8 +55,7 @@ import (
 //     coordinates present on the reference but absent from the
 //     target, `extra` lists coordinates present on the target but
 //     absent from the reference, both sorted for deterministic
-//     output. The minimal codeMetadata entry lands in this story;
-//     E7-S13 polishes the Message + Fixup catalogue.
+//     output.
 
 // composeOverlayKeySet is the per-slot key set extracted from a
 // *Response. The set values are the canonical per-coordinate strings
@@ -102,8 +101,7 @@ type composeOverlayKeySet struct {
 //
 // Returns SCALAR / nil-keys for nil *Response — defensive guard so
 // callers that reach this helper without going through the slot
-// resolver (descriptor predict at E7-S14) still get a well-formed
-// short-circuit.
+// resolver still get a well-formed short-circuit.
 func extractKeySet(resp *types.Response) composeOverlayKeySet {
 	if resp == nil {
 		return composeOverlayKeySet{shape: types.OverlayShapeScalar}
@@ -191,9 +189,9 @@ func encodeComposeMatrixKey(rowStr, colStr string) string {
 // degenerates to a no-op (returns nil). Mixed-shape pairs (one
 // MATRIX, one SERIES) are NOT a key-set divergence — that is a
 // structural shape mismatch and the per-kind handler's shape gate
-// (the E7-S7 schema-match story) owns rejecting it; the chassis-side
-// key-set check stays purely on the within-shape coordinate grid so
-// the canonical-code dispatch stays orthogonal.
+// owns rejecting it; the chassis-side key-set check stays purely on
+// the within-shape coordinate grid so the canonical-code dispatch
+// stays orthogonal.
 //
 // Details payload (encoding/json-friendly):
 //
@@ -209,7 +207,7 @@ func encodeComposeMatrixKey(rowStr, colStr string) string {
 //     echoed so the dispatch parser can branch on the
 //     canonical code without re-parsing the message.
 //   - "index"     → spec index (-1 when the caller does not know it,
-//     E7-S14 predict path passes the real value).
+//     the predict path passes the real value).
 //
 // The "first divergence wins" rule matches the existing
 // LookupReference / LookupTarget single-fail behaviour — the
@@ -230,9 +228,9 @@ func checkKeySetAlignment(refResp *types.Response, targetResps []*types.Response
 		tSet := extractKeySet(tResp)
 		if tSet.shape == types.OverlayShapeScalar {
 			// Target is scalar against a non-scalar reference. Shape
-			// mismatch is owned by the E7-S7 schema-match gate; the
-			// key-set check stays orthogonal and returns nil here so
-			// the canonical-code dispatch does not double-trigger.
+			// mismatch is owned by the schema-match gate; the key-set
+			// check stays orthogonal and returns nil here so the
+			// canonical-code dispatch does not double-trigger.
 			continue
 		}
 		missing, extra := symmetricKeyDifference(refSet.keys, tSet.keys)

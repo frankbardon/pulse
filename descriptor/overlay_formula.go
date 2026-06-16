@@ -37,8 +37,8 @@ import (
 //     reuses the same flatten + walk helpers and widens its own allowed
 //     set with the Compose-specific identifiers.
 //  5. Widen the allowed set with the embedder-registered
-//     `ExprFunctions` from `opts.Extensions` per E5's
-//     unified-expression-environment contract. Functions widen the
+//     `ExprFunctions` from `opts.Extensions` per the unified-
+//     expression-environment contract. Functions widen the
 //     callable surface only — they do NOT widen the variable surface
 //     (mirrors `processing.compileFormulaProgramWithExtensions`).
 //  6. Reject every identifier not in the allowed set with

@@ -8,21 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Per-handler unit tests for OVERLAY_Z_VS_REF (E1-S18). SERIES-host
-// sibling of OVERLAY_Z_CELL; each test pairs a synthetic ordered
-// series on the reference + target side with hand-computed known
-// answers.
-
-// makeSeriesResponseTriples builds a *types.Response carrying a
-// Response.Data series whose value column is a `{mean, variance, n}`
-// components map per row (mirrors AGG_WELFORD's MetaAggregator
-// emission after the E3-S7 migration). Mirrors makeSeriesResponse but
-// lets the triple-aware tests exercise the (mean, variance, n) path.
-//
-// E3-S7 migration: the value column is a `map[string]any` carrying
-// `{mean, variance, n}` keys (plus the universal floor entries) — the
-// same shape the migrated SERIES handlers consume from
-// Response.Data[i][col]. The pre-S7 WelfordTriple typed value is gone.
 func makeSeriesResponseTriples(keys []string, triples []WelfordTriple) *types.Response {
 	if len(keys) != len(triples) {
 		panic("makeSeriesResponseTriples: keys and triples must have the same length")

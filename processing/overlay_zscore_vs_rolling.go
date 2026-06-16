@@ -10,22 +10,12 @@ import (
 // OVERLAY_ZSCORE_VS_ROLLING — per-point windowed standardized z-score
 // against the rolling-window mean + SAMPLE standard deviation of the W
 // immediately preceding points of an ordered SERIES (grouped Process)
-// host.
-//
-// E4-S6 scope:
-//
-//   - Fifth windowed-Process overlay in the catalog (siblings: E4-S2
-//     INDEX_VS_BASELINE, E4-S3 DELTA_VS_BASELINE, E4-S4 INDEX_VS_PRIOR,
-//     E4-S5 INDEX_VS_ROLLING_MEAN). Registered in
-//     processing/overlay_series.go's seriesOverlayHandlers dispatch table.
-//   - Second consumer of the `Ref.RollingMean` arm of the OverlayRef
-//     discriminated union — sibling windowed-rolling kind to E4-S5
-//     INDEX_VS_ROLLING_MEAN. The empty marker tags the ref family; the
-//     window width lives on `OverlaySpec.Params["window"]` per the
-//     `WIN_*` operator convention (`skills/window-design.md`).
-//   - Per-point math: `zscore_i = (point_value_i - rolling_mean(W)) /
-//     rolling_sd(W)` where `rolling_sd = sqrt(M2 / (count - 1))` (SAMPLE
-//     SD, n-1 denominator).
+// host. Per-point math: `zscore_i = (point_value_i - rolling_mean(W)) /
+// rolling_sd(W)` where `rolling_sd = sqrt(M2 / (count - 1))` (SAMPLE
+// SD, n-1 denominator). Registered in
+// processing/overlay_series.go's seriesOverlayHandlers dispatch table.
+// The window width lives on `OverlaySpec.Params["window"]` per the
+// `WIN_*` operator convention (`skills/window-design.md`).
 //
 // Variance choice (SAMPLE, NOT population): the rolling z-score
 // intentionally uses SAMPLE SD (n-1 denominator) — distinct from
@@ -39,8 +29,8 @@ import (
 // type-level prose (`types/overlay.go`) so wire authors pick the right
 // surface for their semantic.
 //
-// Welford state shared semantically with E4-S5's INDEX_VS_ROLLING_MEAN:
-// the rolling carrier (`rollingCarrier` in
+// Welford state shared semantically with INDEX_VS_ROLLING_MEAN: the
+// rolling carrier (`rollingCarrier` in
 // processing/overlay_index_vs_rolling_mean.go) stores the Welford
 // `(count, mean, M2)` trio. INDEX_VS_ROLLING_MEAN reads only `mean`;
 // this kind reads BOTH `mean` and `M2`. The shared carrier keeps the
@@ -48,10 +38,7 @@ import (
 // land. The carrier is intentionally NOT extracted to a separate file
 // because the two kinds live in the same package and the carrier's
 // only consumers are the rolling-family handlers; lifting it to a
-// shared file would add an indirection without a payoff. Mirror the
-// architectural pattern E3 used when sharing `computeSeriesGrandTotal`
-// between INDEX_VS_TOTAL and SHARE_OF_TOTAL — package-level helper
-// reused in-place.
+// shared file would add an indirection without a payoff.
 //
 // Chan-Welford merge: documented for parity with CLAUDE.md §
 // Execution modes → Parallel buffered Process. The Welford triple
@@ -60,11 +47,11 @@ import (
 // M2 = M2_A + M2_B + delta² * n_A*n_B/n` over the per-group
 // accumulators. v1 ships serial-per-group execution so the merge path
 // is NOT exercised today, but the carrier shape stays parallel-safe so
-// a future story that lifts the rolling fold into the parallel
+// future work that lifts the rolling fold into the parallel
 // buffered Process pipeline can reuse the existing merge plumbing.
 //
 // Carrier shape (ring buffer over the last W present values plus a
-// Welford triple — reused from E4-S5):
+// Welford triple — reused from INDEX_VS_ROLLING_MEAN):
 //
 //   - resolver returns (0, false)  ⇒ absent host point: emit SeriesEntry
 //                                     with empty Summary, do NOT advance
@@ -100,7 +87,7 @@ import (
 //                                     semantics on Params slots — keeps
 //                                     the error code surface narrow).
 //
-// Both gates reuse the existing E4-S5 `extractWindowParam` helper
+// Both gates reuse the shared `extractWindowParam` helper
 // (processing/overlay_index_vs_rolling_mean.go) so the predict gate +
 // runtime emission shape stays aligned across the rolling family.
 //
@@ -141,7 +128,7 @@ func (c *rollingCarrier) rollingSampleSD() float64 {
 // `(point - rolling_mean(W)) / rolling_sample_sd(W)` on the
 // SeriesEntry's Summary.Statistic. Walks the host group-key list once
 // with a rolling-window carrier (the shared `rollingCarrier` struct
-// from E4-S5).
+// from INDEX_VS_ROLLING_MEAN).
 //
 // Window-fill semantics: the carrier needs at least 2 PRESENT prior
 // points to compute a sample SD (the n-1 denominator is undefined for a

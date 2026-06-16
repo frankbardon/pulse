@@ -23,7 +23,7 @@ Compose-only parity overlay. Overlays decorate the host result; they do not emit
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` populated by `AGG_WELFORD` via `MetaAggregator` (E3-S7/S8). Falls back to `params`-supplied triple when `CellComponents` absent.
+COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` populated by `AGG_WELFORD` via `MetaAggregator`. Falls back to `params`-supplied triple when `CellComponents` absent.
 
 ## Output
 

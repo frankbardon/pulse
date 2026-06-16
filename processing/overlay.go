@@ -9,7 +9,7 @@ import (
 
 // Overlay execution — runtime side of the overlay catalog.
 //
-// E1 scope (kind-catalog-v1 milestone S5):
+// Catalog v1 scope:
 //
 //   - CrosstabHostView wraps a fully-materialised *types.MatrixPayload
 //     and exposes cell + per-axis margin lookups so handlers read from
@@ -27,9 +27,9 @@ import (
 //     for the spec's MarginAxis (ROW → RowMargins[rowIdx], COLUMN →
 //     ColumnMargins[colIdx], GRAND → GrandTotal).
 //
-// Fused-path integration is deferred — E1 only wires the buffered
-// crosstab exit; later epics lift handler dispatch into
-// crosstab_fused.go.
+// Fused-path integration is deferred — the buffered crosstab exit is
+// the only overlay dispatch site today; later work lifts handler
+// dispatch into crosstab_fused.go.
 //
 // Structural invariants:
 //
@@ -40,13 +40,12 @@ import (
 //     built with string concatenation so envelope output stays
 //     grep-clean against the structural defense ban.
 
-// types.OverlayWarning relocated to types.OverlayWarning in E1-S1 of the
-// unwired-facade-lift effort. The struct is value-only and now lives
-// alongside OverlayLayer in types/overlay.go so the next story can
-// attach a `Warnings []types.OverlayWarning` field to OverlayLayer without
-// fighting the package dependency graph (types/ does not import
-// processing/). All call sites inside processing/ reference
-// types.OverlayWarning directly.
+// types.OverlayWarning is a value-only struct that lives alongside
+// OverlayLayer in types/overlay.go so OverlayLayer can carry a
+// `Warnings []types.OverlayWarning` field without fighting the
+// package dependency graph (types/ does not import processing/). All
+// call sites inside processing/ reference types.OverlayWarning
+// directly.
 
 // CrosstabHostView is the read-only window an overlay handler uses to
 // fold a derived projection over a fully-materialised MatrixPayload.
@@ -285,9 +284,9 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 //
 // host may be nil when specs is empty; ApplyOverlays short-circuits.
 // When specs is non-empty but host is nil the call fails fast — every
-// E1 overlay family expects a MATRIX-shaped host.
+// crosstab overlay family expects a MATRIX-shaped host.
 //
-// Level / Within belt-and-suspenders gate (E2-S11): before dispatching
+// Level / Within belt-and-suspenders gate: before dispatching
 // each spec ApplyOverlays runs `validateOverlayLevelWithinRuntime` to
 // surface PULSE_OVERLAY_LEVEL_OUT_OF_RANGE for out-of-range Level /
 // Within values against the host's RowAxisDepth / ColumnAxisDepth.
@@ -312,9 +311,9 @@ func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 // via the same `ExprOptions()` slice that ATTR_FORMULA / FILTER_EXPRESSION
 // already consume. Non-FORMULA kinds ignore the registry; the per-kind
 // runtime handler signature is intentionally NOT widened so the existing
-// 11 handlers stay byte-identical to their pre-E8 implementations.
+// 11 handlers stay byte-identical to their pre-FORMULA implementations.
 //
-// E8-S5: the buffered crosstab exit (`applyOverlaysToResponse`) routes
+// The buffered crosstab exit (`applyOverlaysToResponse`) routes
 // every Request-host overlay fold through this entry point and forwards
 // the Processor's live `*ExtensionRegistry` so a request that lists
 // `OVERLAY_FORMULA` alongside any other kind picks up the registry's
@@ -394,7 +393,7 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 //     contract. Non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE.
 //
 // Zero defaults (Level == 0 && Within == 0) preserve byte-identity
-// against the pre-S11 overlay handlers — the gate returns nil for
+// against the pre-Level/Within overlay handlers — the gate returns nil for
 // every existing well-formed spec.
 //
 // The runtime gate is structurally distinct from the predict gate:
@@ -542,7 +541,7 @@ func overlayLevelWithinAxisDepths(spec *types.OverlaySpec, host *CrosstabHostVie
 // cell value is below 5 the handler emits one PULSE_OVERLAY_EXPECTED_LOW
 // warning carrying the count of low-expected cells and the offending
 // minimum. The canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant is
-// the source of truth (promoted from a stub string in E2-S10); mirrors
+// the source of truth; mirrors
 // PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ surface.
 //
 // Output shape: SCALAR payload with Scalar populated to the χ²
@@ -676,9 +675,8 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 
 	var warnings []types.OverlayWarning
 	if lowExpectedCells > 0 {
-		// Canonical χ² low-expected-count warning. Code promoted from a
-		// stub string in E2-S10 to the canonical
-		// errors.PULSE_OVERLAY_EXPECTED_LOW constant; mirrors
+		// Canonical χ² low-expected-count warning. Uses
+		// errors.PULSE_OVERLAY_EXPECTED_LOW; mirrors
 		// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ surface.
 		warnings = append(warnings, types.OverlayWarning{
 			Code: string(errors.PULSE_OVERLAY_EXPECTED_LOW),
@@ -754,8 +752,7 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 // Low-expected-count warning: when ANY expected[c] in row r is below 5
 // the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning per
 // offending row (not per cell — the row is the diagnostic unit for
-// goodness-of-fit). Canonical errors.PULSE_OVERLAY_EXPECTED_LOW
-// constant (promoted from a stub string in E2-S10).
+// goodness-of-fit). Canonical errors.PULSE_OVERLAY_EXPECTED_LOW.
 //
 // SERIES entry order: SeriesPayload.Entries[i].Key == host RowKeys[i]
 // element-for-element. The parallel-slice contract is the renderer-
@@ -901,9 +898,8 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 		// diagnostic unit for goodness-of-fit). Skip for degenerate
 		// rows since the expected-count recurrence did not execute.
 		if !degenerate && rowLowExpected > 0 {
-			// Canonical χ² low-expected-count warning. Code promoted
-			// from a stub string in E2-S10 to the canonical
-			// errors.PULSE_OVERLAY_EXPECTED_LOW constant; mirrors
+			// Canonical χ² low-expected-count warning. Uses
+			// errors.PULSE_OVERLAY_EXPECTED_LOW; mirrors
 			// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ
 			// surface.
 			warnings = append(warnings, types.OverlayWarning{
@@ -967,8 +963,7 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 // Low-expected-count warning: when ANY expected[r] in column c is below
 // 5 the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning per
 // offending column (not per cell — the column is the diagnostic unit
-// for goodness-of-fit). Canonical errors.PULSE_OVERLAY_EXPECTED_LOW
-// constant (promoted from a stub string in E2-S10).
+// for goodness-of-fit). Canonical errors.PULSE_OVERLAY_EXPECTED_LOW.
 //
 // SERIES entry order: SeriesPayload.Entries[i].Key == host ColumnKeys[i]
 // element-for-element. The parallel-slice contract is the renderer-
@@ -1115,9 +1110,8 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 		// degenerate columns since the expected-count recurrence did
 		// not execute.
 		if !degenerate && colLowExpected > 0 {
-			// Canonical χ² low-expected-count warning. Code promoted
-			// from a stub string in E2-S10 to the canonical
-			// errors.PULSE_OVERLAY_EXPECTED_LOW constant; mirrors
+			// Canonical χ² low-expected-count warning. Uses
+			// errors.PULSE_OVERLAY_EXPECTED_LOW; mirrors
 			// PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the TEST_CHISQ
 			// surface.
 			warnings = append(warnings, types.OverlayWarning{
@@ -1189,7 +1183,7 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 	}
 	axis := spec.Ref.Margin.Axis
 
-	// E2-S11: Level / Within prefix-bucket denominator dispatch (same
+	// Level / Within prefix-bucket denominator dispatch (same
 	// shape as INDEX_VS_MARGIN — direction is driven by axis).
 	buckets, bucketKeys := buildOverlayDenominators(spec, host, overlayDenominatorAxisFor(axis))
 
@@ -1283,7 +1277,7 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 // — then computes Fisher's exact two-sided p-value via the shared
 // fisherExactTwoSided helper (processing/fisher_exact.go). PRD § 4.C
 // FR-C2 calls out this kind as the canonical low-count contingency
-// overlay closing the E2 inferential family.
+// overlay closing the inferential family.
 //
 // 2×2 layout (for cell at (i, j)):
 //
@@ -1328,8 +1322,7 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 // counts fall below 5, the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW
 // warning per offending cell carrying the (row_index, col_index) plus
 // the offending minimum expected count. Canonical
-// errors.PULSE_OVERLAY_EXPECTED_LOW constant (promoted from a stub
-// string in E2-S10).
+// errors.PULSE_OVERLAY_EXPECTED_LOW constant.
 //
 // The threshold runs on the OVERLAY itself (not the underlying χ²
 // surface) because Fisher's exact is the SOLUTION to the low-expected-
@@ -1650,8 +1643,8 @@ func intToString(n int64) string {
 // (rowIdx, colIdx) under the spec's Level / Within configuration. When
 // Level / Within are both zero (the default), the legacy MarginFor
 // lookup is used and the returned value is byte-identical to the
-// pre-S11 handler output (preserving the E1 / E2-S1..S9 byte-identity
-// guarantee). When either slot is non-zero, the per-cell denominator
+// legacy handler output (preserving overlay-handler byte-identity).
+// When either slot is non-zero, the per-cell denominator
 // is sourced from the precomputed prefix-bucket map keyed by the
 // effective (rowPrefix, colPrefix) bucket the cell belongs to.
 //
@@ -1851,7 +1844,7 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 	}
 	axis := spec.Ref.Margin.Axis
 
-	// E2-S11: Level / Within prefix-bucket denominator dispatch. The
+	// Level / Within prefix-bucket denominator dispatch. The
 	// direction is driven by Ref.Margin.Axis:
 	//   row    → fold across columns within (rowPrefix, colPrefix)
 	//   column → fold across rows within (rowPrefix, colPrefix)
@@ -2003,13 +1996,13 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 	// response Ref.Margin.Axis faithful to what the caller requested.
 	axis := types.MarginAxisRow
 
-	// E2-S11: when the spec engages the Level / Within prefix-axis
-	// denominator path (either slot non-zero), precompute the per-cell
-	// (rowPrefix, colPrefix) bucket map so the per-cell loop dispatches
-	// through the prefix-bucket denominator instead of the legacy
-	// MarginFor lookup. The zero-default code path keeps using the
-	// legacy MarginFor lookup — byte-identical to the pre-S11 handler
-	// output (resolveOverlayDenominator short-circuits when
+	// When the spec engages the Level / Within prefix-axis denominator
+	// path (either slot non-zero), precompute the per-cell (rowPrefix,
+	// colPrefix) bucket map so the per-cell loop dispatches through
+	// the prefix-bucket denominator instead of the legacy MarginFor
+	// lookup. The zero-default code path keeps using the legacy
+	// MarginFor lookup — byte-identical to the legacy handler output
+	// (resolveOverlayDenominator short-circuits when
 	// OverlayLevelEnabled returns false).
 	buckets, bucketKeys := buildOverlayDenominators(spec, host, overlayDenominatorAxisRow)
 
@@ -2126,7 +2119,7 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 // populate Ref.Margin, but the handler reads MarginFor(MarginAxisColumn,
 // ...) regardless of any axis the caller wrote. The validator gate
 // may later evolve to reject mismatched axes; today the handler is the
-// source of truth (matching the E2-S1 SHARE_OF_ROW followup policy).
+// source of truth (matching the SHARE_OF_ROW followup policy).
 //
 // Output shape: MATRIX payload mirroring the host's RowKeys /
 // ColumnKeys / headers so renderers can lay the overlay on top of the
@@ -2154,7 +2147,7 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 	// response Ref.Margin.Axis faithful to what the caller requested.
 	axis := types.MarginAxisColumn
 
-	// E2-S11: Level / Within prefix-bucket denominator dispatch (see
+	// Level / Within prefix-bucket denominator dispatch (see
 	// applyShareOfRow for the documented zero-default byte-identity
 	// contract).
 	buckets, bucketKeys := buildOverlayDenominators(spec, host, overlayDenominatorAxisColumn)
@@ -2272,7 +2265,7 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 // populate Ref.Margin, but the handler reads MarginFor(MarginAxisGrand,
 // ...) regardless of any axis the caller wrote. The validator gate
 // may later evolve to reject mismatched axes; today the handler is the
-// source of truth (matching the E2-S1 / E2-S2 followup policy).
+// source of truth (matching the SHARE_OF_ROW / SHARE_OF_COL followup policy).
 //
 // Output shape: MATRIX payload mirroring the host's RowKeys /
 // ColumnKeys / headers so renderers can lay the overlay on top of the
@@ -2287,9 +2280,9 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 // diverging colour ramps on the population median rather than the
 // uniform baseline.
 //
-// NOTE per story description: the same kind name will later route to
-// a streamable series-shape handler under Process context (E3); this
-// story lands only the MATRIX dispatch.
+// NOTE: the same kind name also routes to a streamable series-shape
+// handler under Process context; this site is the MATRIX dispatch
+// only.
 func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -2464,7 +2457,7 @@ func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types
 	}
 	axis := spec.Ref.Margin.Axis
 
-	// E2-S11: Level / Within prefix-bucket denominator dispatch — only
+	// Level / Within prefix-bucket denominator dispatch — only
 	// the margin centroid (cell - margin numerator) honours the prefix-
 	// bucket path; the SD denominator continues to compute over the
 	// full per-axis slice. The behaviour is intentional — the
@@ -2652,8 +2645,8 @@ func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types
 
 // overlayLayerName returns the renderer-facing label for a layer.
 // Honours an explicit Name on the spec; otherwise synthesises a
-// deterministic default keyed by Kind + axis (the only ref family E1
-// consumes). Future kinds extend the synthesis branch.
+// deterministic default keyed by Kind + axis. Future kinds extend the
+// synthesis branch.
 func overlayLayerName(spec *types.OverlaySpec) string {
 	if spec.Name != "" {
 		return spec.Name
@@ -2724,8 +2717,8 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 			return string(spec.Kind) + "_" + string(spec.Ref.Margin.Axis)
 		}
 	case types.OverlayKindIndexVsPop:
-		// INDEX_VS_POP is the FACET-host population-comparison kind
-		// (E5-S2); synthesised default surfaces the lower-case bare-kind
+		// INDEX_VS_POP is the FACET-host population-comparison kind;
+		// synthesised default surfaces the lower-case bare-kind
 		// string "index_vs_pop" matching the INDEX_VS_TOTAL / INDEX_VS_PRIOR /
 		// INDEX_VS_BASELINE / INDEX_VS_ROLLING_MEAN convention (no axis
 		// dispatch — the Facet field is fixed by the host shape).
@@ -2760,7 +2753,7 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// uppercasing (mirrors the CHISQ_* / FISHER_EXACT_CELL family).
 		return "index_vs_total"
 	case types.OverlayKindKSVsPop:
-		// KS_VS_POP (E5-S5) is the FACET-host inferential numeric-arm
+		// KS_VS_POP is the FACET-host inferential numeric-arm
 		// kind; synthesised default surfaces the lower-case bare-kind
 		// string "ks_vs_pop" matching the INDEX_VS_POP / ZSCORE_VS_POP /
 		// CHISQ_VS_POP convention (no axis dispatch — the Facet field is
@@ -2779,7 +2772,7 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 	case types.OverlayKindShareOfTotal:
 		// SHARE_OF_TOTAL dispatches both shapes: MATRIX (crosstab host,
 		// grand-axis-locked, Ref.Margin populated) and SERIES (grouped
-		// Process host, implicit-grand-total, Ref empty per E3-S3). The
+		// Process host, implicit-grand-total, Ref empty). The
 		// synthesised default reflects the host shape — when Ref.Margin
 		// is populated the MATRIX default surfaces
 		// "OVERLAY_SHARE_OF_TOTAL_grand" (echoing the grand-axis lock
@@ -2810,7 +2803,7 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// populate spec.Name explicitly.
 		return "yoy"
 	case types.OverlayKindZScoreVsPop:
-		// ZSCORE_VS_POP (E5-S3) is the FACET-host population-comparison
+		// ZSCORE_VS_POP is the FACET-host population-comparison
 		// z-score kind; synthesised default surfaces the lower-case bare-
 		// kind string "zscore_vs_pop" matching the INDEX_VS_POP / INDEX_VS_TOTAL /
 		// ZSCORE_VS_TOTAL convention (no axis dispatch — the Facet field is

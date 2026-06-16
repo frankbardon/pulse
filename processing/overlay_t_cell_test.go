@@ -8,42 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E1-S13 non-regression gate: scalar + Params path byte-identical.
-//
-// The triple-aware Welch upgrade (E1-S9 MATRIX, E1-S10 SERIES) is
-// additive — pre-S9 callers using scalar AGG_MEAN cells + Params
-// (variance_target / variance_ref / sample_size_target /
-// sample_size_ref) MUST see byte-identical Response.Overlays JSON to
-// the pre-S9 output. This file pins that invariant via deterministic
-// JSON snapshots: each test case captures the layer JSON the post-S9
-// handler emits and asserts byte-equality against a hand-authored
-// snapshot. Any drift in the scalar fallback arm — a new field on
-// OverlayLayer, a reordered Summary, an unexpected warning — breaks
-// here first.
-//
-// The snapshots are authored from the same hand-computed math the
-// pre-S9 tests pinned (Cell (0,0): target_mean=10, ref_mean=9,
-// variance=1, n=2 ⇒ se=1, t=1, df=2 ⇒ p ≈ 0.42264973081 via
-// studentTTwoSidedP). Encoding the snapshot inline (rather than
-// against a testdata file) keeps the test self-contained and avoids
-// adding a never-edited golden — the snapshot is hand-checked once
-// and any rebuild needs a new hand-authored string. This is the
-// conservative shape for a non-regression pin.
-//
-// Coverage:
-//
-//   - TestOverlayTCell_NonRegression_ScalarParamsByteIdentical: the
-//     MATRIX-host scalar fallback path (applyTCell against scalar
-//     MatrixCells + Params defaults) round-trips through
-//     encoding/json byte-identical to the captured snapshot.
-//   - TestOverlayTVsRef_NonRegression_ScalarParamsByteIdentical: the
-//     SERIES-host scalar fallback path (applyTVsRef against scalar
-//     numeric row values + Params defaults) round-trips byte-
-//     identical.
-//
-// Naming: respondent cohort / pairwise survey terminology only — no
-// customer brand names in this file.
-
 // scalarMatrix3x3 wraps the existing makeMatrixFromValues helper from
 // overlay_compose_handlers_test.go and applies a marker so the
 // non-regression test's intent is clear at the call site.
@@ -85,23 +49,10 @@ func captureLayerTVsRef(t *testing.T, spec types.ComposeOverlaySpec, ref, target
 	return layer, warnings
 }
 
-// expectedMatrixPValueScalar is the hand-computed Welch p-value for
-// the pre-S9 scalar+Params fixture: target_mean=10, ref_mean=9,
-// variance=1, n=2 ⇒ se=sqrt(0.5+0.5)=1, t=1, df=2 ⇒
-// p = studentTTwoSidedP(1, 2). We source the constant from the same
-// helper applyTCell uses so the snapshot is anchored to the canonical
-// recurrence (not a transcribed decimal that could drift if
-// studentTTwoSidedP's accuracy improves).
 func expectedMatrixPValueScalar() float64 {
 	return studentTTwoSidedP(1.0, 2.0)
 }
 
-// TestOverlayTCell_NonRegression_ScalarParamsByteIdentical is the
-// MATRIX-host non-regression gate. The fixture mirrors
-// TestApplyTCell_KnownAnswer (the pre-S9 reference behavior) and
-// asserts the post-S9 handler emits byte-identical JSON. Any drift
-// in the layer's Name / Kind / Scope / Payload / Summary shape — or
-// in the underlying Welch p-value — breaks the snapshot.
 func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 	ref := scalarMatrix3x3([3][3]float64{
 		{9, 9, 9},
@@ -113,8 +64,6 @@ func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 		{10, 10, 10},
 		{10, 10, 10},
 	})
-	// Spec mirrors the pre-S9 authoring shape: no triple cells, full
-	// Params slot supplying variance + sample_size for both sides.
 	spec := types.ComposeOverlaySpec{
 		Name:      "test",
 		Kind:      types.OverlayKindTCell,
@@ -147,10 +96,6 @@ func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 			string(got), string(want))
 	}
 
-	// Sanity guard: the captured p-value must equal the hand-computed
-	// constant to the ULP, which is also what TestApplyTCell_
-	// KnownAnswer asserted at coarser tolerance. If this fails the
-	// snapshot author drifted from the pre-S9 reference.
 	mx := layer.Payload.Matrix
 	gotP := mx.Cells[0][0].Value.(float64)
 	wantP := expectedMatrixPValueScalar()
@@ -166,10 +111,6 @@ func expectedSeriesPValueScalar() float64 {
 	return studentTTwoSidedP(1.0, 2.0)
 }
 
-// TestOverlayTVsRef_NonRegression_ScalarParamsByteIdentical is the
-// SERIES-host non-regression gate. The fixture mirrors the pre-S10
-// scalar fallback behavior: scalar numeric value columns + Params
-// defaults supplying variance + sample_size for both sides.
 func TestOverlayTVsRef_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 	keys := []string{"east", "north", "south", "west"}
 	ref := makeSeriesResponse(keys, []float64{9, 9, 9, 9})

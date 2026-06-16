@@ -219,11 +219,6 @@ func TestReadRecordPlan_BitmapSegmentSurfacesNulls(t *testing.T) {
 	}
 }
 
-// TestReadRecordPlan_MatchesPerFieldOutput exercises a synthesised
-// schema and asserts the plan-driven decode produces the same
-// values/nulls/wide maps as the per-field readRecord path for the same
-// retained set. Lightweight smoke test — the exhaustive matrix lands
-// in E2-S3.
 func TestReadRecordPlan_MatchesPerFieldOutput(t *testing.T) {
 	schema := &Schema{
 		Fields: []Field{

@@ -9,23 +9,24 @@ import (
 // SERIES-host overlay → Response wiring for the grouped Process
 // orchestrator.
 //
-// E3-S6 scope: the buffered processGrouped and streaming
-// processStreamingGrouped exit points both produce a `[]map[string]any`
-// per-group row set on `Response.Data`. This file lands the shared
-// post-finalize hook that wraps that row set as a SeriesHostView, runs
-// ApplyOverlaysSeries (overlay_series.go) against it, and folds the
-// resulting OverlayLayer slice + warnings onto the Response.
+// The buffered processGrouped and streaming
+// processStreamingGrouped exit points both produce a
+// `[]map[string]any` per-group row set on `Response.Data`. This file
+// lands the shared post-finalize hook that wraps that row set as a
+// SeriesHostView, runs ApplyOverlaysSeries (overlay_series.go)
+// against it, and folds the resulting OverlayLayer slice + warnings
+// onto the Response.
 //
 // Wiring discipline:
 //
 //   - The hook is GROUPED-Process scoped. The buffered no-group fall-
 //     through (one summary row per request) and the streaming two-pass
-//     attribute path are out of scope for E3-S6 — overlays on those
-//     hosts surface in later epics (E4 windowed Process, etc.). When the
-//     hook is called with no Groups slot, it short-circuits.
+//     attribute path are out of scope — overlays on those hosts are
+//     deferred. When the hook is called with no Groups slot, it
+//     short-circuits.
 //   - When `req.Overlays` is empty the hook short-circuits before
 //     touching the host or building any SeriesHostView. This keeps the
-//     no-overlay Response byte-identical to the pre-E3 grouped path,
+//     no-overlay Response byte-identical to the legacy grouped path,
 //     mirroring the additive byte-identity contract the MATRIX overlay
 //     hook already enforces in processing/crosstab.go.
 //   - Crosstab requests are handled by the MATRIX-host hook in
@@ -40,9 +41,9 @@ import (
 //     error bubble to the caller without populating Response.Overlays).
 //
 // Mixed-mode downgrade rule (per PRD §6 "Performance / scale"): a
-// request that mixes a streamable overlay (E3-S2/S3/S4 — INDEX_VS_TOTAL
-// / SHARE_OF_TOTAL / ZSCORE_VS_TOTAL) with a non-streamable overlay
-// (E3-S5 — DELTA_VS_SIBLING / INDEX_VS_SIBLING) forces the whole
+// request that mixes a streamable overlay (e.g. INDEX_VS_TOTAL /
+// SHARE_OF_TOTAL / ZSCORE_VS_TOTAL) with a non-streamable overlay
+// (e.g. DELTA_VS_SIBLING / INDEX_VS_SIBLING) forces the whole
 // Request to the buffered path. The downgrade is enforced inside the
 // Processor.canStream gate (processing/processor.go) by walking
 // req.Overlays against types.OverlayStreamability — any non-streamable
@@ -67,7 +68,7 @@ import (
 // byte-identity), when the request is a Crosstab (the MATRIX hook in
 // processing/crosstab.go owns Crosstab response wiring), when the
 // request has no Groups slot (overlays attach to grouped output only in
-// E3), or when no aggregation produced a primary value to fold over.
+// today), or when no aggregation produced a primary value to fold over.
 //
 // On success, resp.Overlays carries one OverlayLayer per spec in
 // matching order and resp.Warnings is extended with one
@@ -91,10 +92,10 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response) err
 		return nil
 	}
 	if len(req.Groups) == 0 {
-		// E3 scope is GROUPED Process. Overlays on a single-row
-		// (no-Groups) host surface in later epics; predict already
-		// rejects this combination, so the runtime hook short-circuits
-		// without touching resp.Overlays.
+		// SERIES overlays attach only to GROUPED Process today.
+		// Overlays on a single-row (no-Groups) host are deferred;
+		// predict already rejects this combination, so the runtime
+		// hook short-circuits without touching resp.Overlays.
 		return nil
 	}
 	if resp == nil || len(req.Aggregations) == 0 {
@@ -108,7 +109,7 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response) err
 	if host == nil {
 		return nil
 	}
-	// E4-S7 OVERLAY_YOY frequency promotion. The YoY handler reads
+	// OVERLAY_YOY frequency promotion. The YoY handler reads
 	// the frequency value from spec.Params["frequency"] only; the
 	// orchestrator promotes req.Groups[0].Params["frequency"] (the
 	// canonical GROUP_DATE authoring slot) onto every YoY spec before
@@ -203,10 +204,10 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 		}
 		return toFloat64(raw), true
 	}
-	// E4-S7 OVERLAY_YOY consumes the grouper-kind list via
+	// OVERLAY_YOY consumes the grouper-kind list via
 	// SeriesHostView.GrouperKinds to enforce its "host grouper must be
-	// GROUP_DATE" requirement at runtime. The existing E3-S5 sibling
-	// resolver continues to consume the grouper-field list. Both lists
+	// GROUP_DATE" requirement at runtime. The sibling resolver
+	// continues to consume the grouper-field list. Both lists
 	// are populated unconditionally here so handlers that consume them
 	// see the same view shape regardless of whether the request carries
 	// overlay specs that introspect kind.

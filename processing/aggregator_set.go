@@ -87,8 +87,8 @@ type setUnionAggregator struct {
 	// frozen* mirror the post-Aggregate / post-Finalize state so
 	// Components() works on both buffered and streaming code paths.
 	// The set Finalize methods do not reset live state today, but the
-	// frozen-mirror pattern matches E1-S5..S9 — the components map
-	// stays stable across any future Finalize-reset.
+	// frozen-mirror pattern keeps the components map stable across any
+	// future Finalize-reset.
 	frozenMask      uint64
 	frozenHasResult bool
 }

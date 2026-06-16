@@ -27,20 +27,17 @@ type Service struct {
 	// path spawns when a request is mergeable per
 	// processing.CanMergeRequest. Zero is interpreted as
 	// runtime.NumCPU() at dispatch time; 1 forces strictly serial
-	// execution (the pre-S6 path). The reducer caps spawn count at
-	// the shard count regardless of this knob.
+	// execution. The reducer caps spawn count at the shard count
+	// regardless of this knob.
 	shardWorkers int
 
 	// decodeWorkers caps the per-cohort parallel decode worker pool
 	// the buffered Process path spawns when the cohort exceeds
 	// parallelDecodeRecordThreshold and the request is mergeable.
 	// Zero is interpreted as runtime.NumCPU() at dispatch time; 1
-	// forces strictly serial execution (the pre-E3 path). Cohorts
-	// below the threshold stay serial regardless of this knob.
-	// Matches pulse.Options.DecodeWorkers.
-	//
-	// E3-S1 plumbing only: the buffered Process path reads this field
-	// but does not yet act on it; the fan-out logic lands in E3-S2.
+	// forces strictly serial execution. Cohorts below the threshold
+	// stay serial regardless of this knob. Matches
+	// pulse.Options.DecodeWorkers.
 	decodeWorkers int
 
 	// strict promotes runtime request-validation warnings into hard
@@ -158,9 +155,6 @@ func (s *Service) ShardWorkers() int {
 // BenchmarkBufferedProcessWideCohort row count (100K) where the
 // parallel decode win first becomes measurable on the canonical
 // reference cohort.
-//
-// E3-S1 sets the constant and the dispatch site reads it; the
-// fan-out logic that consults the threshold lands in E3-S2.
 const parallelDecodeRecordThreshold = 100_000
 
 // SetDecodeWorkers configures the per-cohort parallel decode worker
@@ -169,16 +163,12 @@ const parallelDecodeRecordThreshold = 100_000
 // parallelDecodeRecordThreshold; 1 disables parallelism (strictly
 // serial path). Negative values are not rejected here — pulse.New()
 // performs that validation at the public API boundary.
-//
-// E3-S1 plumbing only: the setter installs the value and the
-// buffered Process path reads it via DecodeWorkers(), but the fan-
-// out logic lands in E3-S2.
 func (s *Service) SetDecodeWorkers(n int) {
 	s.decodeWorkers = n
 }
 
 // DecodeWorkers returns the configured cap. Exposed for tests and
-// the buffered-decode orchestrator that lands in E3-S2.
+// the buffered-decode orchestrator.
 func (s *Service) DecodeWorkers() int {
 	return s.decodeWorkers
 }
@@ -252,8 +242,8 @@ func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
 //   - "PK\x03\x04" (zip archive) — parses the zip central directory,
 //     reads the canonical schema from the reserved `_schema.pulse`
 //     entry, and populates Shards with every other entry in
-//     central-directory order. S1 leaves RecordCount at zero; later
-//     phases populate from `_schema.pulse` metadata or shard headers.
+//     central-directory order. RecordCount is populated from
+//     `_schema.pulse` metadata or shard headers.
 //
 // Returns PULSE_ARCHIVE_MAGIC_INVALID when the file matches neither
 // magic, PULSE_ARCHIVE_CORRUPT when the zip EOCD or central directory
@@ -814,8 +804,8 @@ func (s *Service) installProjection(iter scanIterator, req *types.Request, schem
 // supplied Label is empty, against an in-memory clone of each *Request
 // so the caller's pointer is not mutated. Two slots resolving to the
 // same final Label are rejected with PULSE_COMPOSE_LABEL_COLLISION.
-// Future Compose-only overlay kinds (E7) resolve sibling references by
-// final Label so the names must be unique across the batch.
+// Compose-only overlay kinds resolve sibling references by final Label
+// so the names must be unique across the batch.
 func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
@@ -835,13 +825,13 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 		responses[i] = resp
 	}
 
-	// Compose-only overlay barrier (E7-S4). Runs AFTER every slot has
+	// Compose-only overlay barrier. Runs AFTER every slot has
 	// produced a finalised *Response and BEFORE the response is
 	// returned to the caller. The serial path has no FailFast knob
 	// (a slot error returned early above), so when we reach this
 	// barrier every slot succeeded — the hook is unconditional.
 	// Empty / nil req.Overlays short-circuits with no allocation
-	// (byte-identical JSON vs pre-E7-S4 output).
+	// (byte-identical JSON vs the overlay-free baseline).
 	layers, warnings, err := s.applyComposeOverlays(ctx, composed, requests, responses)
 	if err != nil {
 		return nil, err
@@ -861,7 +851,7 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 		// the flat warnings slice into each layer's `Warnings` slot via
 		// the `Details["overlay_index"]` routing key. Shared with
 		// `service.ComposeParallel` so serial and parallel paths
-		// surface identical layer-warning shapes. Mirrors the E2-S1
+		// surface identical layer-warning shapes. Mirrors the
 		// chain-host convention in service.applyChainOverlays.
 		out.Overlays = distributeComposeWarnings(layers, warnings)
 	}

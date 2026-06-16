@@ -130,10 +130,9 @@ var setFieldTypes = []string{
 
 // universalAggFloorKeys is the {n, n_null} pair every aggregator's
 // component schema declares. The orchestrator's universal-floor pass
-// (E1-S4) emits these keys unconditionally so embedders can rely on
-// them being present even when MetaAggregator returns an empty extra
-// map. Declared centrally so the floor stays byte-equal across every
-// entry.
+// emits these keys unconditionally so embedders can rely on them being
+// present even when MetaAggregator returns an empty extra map. Declared
+// centrally so the floor stays byte-equal across every entry.
 func universalAggFloorKeys() []ComponentKey {
 	return []ComponentKey{
 		{Name: "n", Type: "int", Description: "Number of records aggregated (non-null inputs)."},

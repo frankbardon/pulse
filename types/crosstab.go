@@ -325,8 +325,7 @@ type MatrixPayload struct {
 //     MatrixPayload.Cells[r][c]).
 //   - CellComponents[r][c] — per-cell aggregator components; keys are
 //     governed by the cell aggregator's ComponentSchema declaration
-//     (per E1-S3 manifest declaration in
-//     descriptor/capabilities_aggregators.go).
+//     in descriptor/capabilities_aggregators.go.
 //   - RowMarginCounts[r] / RowMarginComponents[r] — row-margin counts
 //   - components, indexed by row (mirrors MatrixPayload.RowMargins).
 //   - ColumnMarginCounts[c] / ColumnMarginComponents[c] — column-margin
@@ -346,8 +345,7 @@ type MatrixPayload struct {
 //     crosstab stage (null axis key, etc.). Their sum equals the
 //     post-filter input record count.
 //
-// Service-side population lands in E3-S2..S5; this story defines the
-// type only.
+// Service-side population lives in service/crosstab.go.
 type CrosstabComponents struct {
 	// CellCounts is the per-cell record count matrix. CellCounts[r][c]
 	// mirrors MatrixPayload.Cells[r][c] coordinate-for-coordinate.
@@ -355,7 +353,7 @@ type CrosstabComponents struct {
 
 	// CellComponents is the per-cell aggregator components matrix.
 	// CellComponents[r][c] carries the keys declared by the cell
-	// aggregator's ComponentSchema (per E1-S3 manifest declaration).
+	// aggregator's ComponentSchema.
 	CellComponents [][]map[string]any `json:"cell_components,omitempty"`
 
 	// RowMarginCounts is the per-row-margin record count vector,

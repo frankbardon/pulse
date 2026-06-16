@@ -6,10 +6,9 @@ import (
 
 // TestManifestExportCapability verifies the manifest carries the
 // canonical ExportCapability entry with one ExportFormatCapability
-// per format the export dispatcher supports. The five formats called
-// out by E9-S2..S6 MUST be present with their canonical OverlaySupport
-// label so LLM planners can route Response.Overlays without inspecting
-// io/.
+// per format the export dispatcher supports. The canonical formats
+// MUST be present with their OverlaySupport label so LLM planners can
+// route Response.Overlays without inspecting io/.
 func TestManifestExportCapability(t *testing.T) {
 	m := BuildManifest()
 	if len(m.Export.Formats) == 0 {
@@ -28,7 +27,7 @@ func TestManifestExportCapability(t *testing.T) {
 		got[f.Name] = f.OverlaySupport
 	}
 
-	// The five E9 stories landed these per-format strategies.
+	// Canonical per-format overlay-embedding strategies.
 	want := map[string]string{
 		"arrow":   "sidecar",
 		"parquet": "sidecar",

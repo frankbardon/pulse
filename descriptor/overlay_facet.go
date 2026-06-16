@@ -14,7 +14,7 @@ import (
 // + Scope / Ref-family enum source of truth but enforce different host-
 // shape contracts.
 //
-// E5-S6 scope (per the FacetRequest.Overlays slot landed in this story):
+// Per-kind host-arm acceptance:
 //
 //   - OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP: discrete OR numeric
 //     host arm accepted — the runtime handler dispatches internally.
@@ -59,7 +59,7 @@ import (
 //     grep-clean against the structural defense ban.
 
 // facetOverlaySupportedScopes is the supported scope set for the FACET-
-// host overlay kinds (E5: OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP /
+// host overlay kinds (OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP /
 // OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP). GROUP is the only sensible
 // footprint for the per-value population-comparison statistic these
 // kinds emit; CELL / ROW / COLUMN / MATRIX / TOTAL fires
@@ -145,9 +145,8 @@ func validateFacetOverlaySpec(env *Envelope, req *types.FacetRequest, schema *en
 }
 
 // isFacetOverlayKind reports whether kind is one of the four FACET-host
-// overlay kinds the E5 epic ships. Used as the gate for
-// FacetRequest.Overlays — non-FACET kinds belong on Request.Overlays
-// instead.
+// overlay kinds. Used as the gate for FacetRequest.Overlays — non-FACET
+// kinds belong on Request.Overlays instead.
 func isFacetOverlayKind(kind types.OverlayKind) bool {
 	switch kind {
 	case types.OverlayKindIndexVsPop,

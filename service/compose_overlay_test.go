@@ -66,12 +66,6 @@ func TestCompose_NoOverlaysByteIdentical(t *testing.T) {
 	}
 }
 
-// TestCompose_StubOverlayRoundTrip asserts the serial Compose path
-// invokes applyComposeOverlays when `req.Overlays` is non-empty AND
-// the hook produces one layer per spec. The facade still returns
-// []*Response (the layers themselves are discarded until E7-S15 lifts
-// the facade), so the round-trip here verifies the hook does not
-// surface an error and the Compose call itself succeeds.
 func TestCompose_StubOverlayRoundTrip(t *testing.T) {
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
@@ -97,12 +91,6 @@ func TestCompose_StubOverlayRoundTrip(t *testing.T) {
 	}
 }
 
-// TestCompose_StubOverlayOrderPreserved asserts the serial Compose
-// path's overlay hook walks `req.Overlays` in spec order. The chassis
-// dispatch returns one layer per spec in matching index order; this
-// test exercises the hook directly (via applyComposeOverlays) to
-// verify the order contract because the serial Compose facade does
-// not surface the layers slice (deferred to E7-S15).
 func TestCompose_StubOverlayOrderPreserved(t *testing.T) {
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
@@ -316,20 +304,6 @@ func TestCompose_FailFast_SkipsOverlays(t *testing.T) {
 	}
 }
 
-// TestCompose_NoFailFast_RunsOverlaysOnSucceededSlots asserts that
-// under FailFast=false the orchestrator routes through the
-// non-FailFast aggregation branch and surfaces the per-slot error
-// aggregated under SERVICE_INTERNAL — the overlay hook is NOT
-// invoked in this branch either (the non-FailFast branch in
-// compose_parallel.go returns the aggregated error before reaching
-// the overlay barrier, matching the FailFast=true behaviour
-// structurally).
-//
-// This test locks the structural shape: when ANY slot fails, the
-// orchestrator surfaces an error without invoking the overlay hook.
-// A future story may lift the non-FailFast branch to run overlays
-// over the succeeded subset; until then the test guards against
-// accidental partial emission on slot failure.
 func TestCompose_NoFailFast_RunsOverlaysOnSucceededSlots(t *testing.T) {
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)

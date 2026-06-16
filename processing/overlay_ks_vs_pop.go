@@ -8,23 +8,12 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// OVERLAY_KS_VS_POP — single scalar Kolmogorov-Smirnov distance + asymptotic
-// p-value comparing the host Facet subset numeric distribution against the
-// resolved population numeric distribution (E5-S5).
-//
-// Fourth and final FACET-host kind in the catalog. Second inferential
-// FACET-host kind — sibling to OVERLAY_CHISQ_VS_POP. KS pairs with
-// CHISQ_VS_POP as the two inferential FACET-host kinds, partitioning the
-// inferential FACET surface by host arm:
-//
-//   - CHISQ_VS_POP: discrete-arm only (categorical buckets).
-//   - KS_VS_POP:    numeric-arm only (continuous CDF).
-//
-// Sibling descriptive FACET-host kinds shipped earlier in E5:
-// OVERLAY_INDEX_VS_POP / E5-S2 (per-value index, streamable) and
-// OVERLAY_ZSCORE_VS_POP / E5-S3 (per-value z-score, streamable). KS_VS_POP
-// closes the FACET-host overlay catalog by emitting a single SCALAR
-// statistic over the numeric arm.
+// OVERLAY_KS_VS_POP — single scalar Kolmogorov-Smirnov distance +
+// asymptotic p-value comparing the host Facet subset numeric
+// distribution against the resolved population numeric distribution.
+// Inferential FACET-host kind paired with OVERLAY_CHISQ_VS_POP — KS is
+// numeric-arm only (continuous CDF), CHISQ is discrete-arm only
+// (categorical buckets).
 //
 // Math:
 //
@@ -42,8 +31,8 @@ import (
 // processing/test_ks.go requires raw sorted values which the population
 // view does not retain.
 //
-// Population-sample availability (KEY DESIGN NOTE): the S1 resolver
-// exposes only summary state for numeric fields — Welford
+// Population-sample availability (KEY DESIGN NOTE): the population
+// resolver exposes only summary state for numeric fields — Welford
 // mean/stdev/count, an optional percentile map, and an optional
 // fixed-width histogram. Raw values were folded into Welford state at
 // FacetSchema fold time and discarded. KS requires two empirical CDFs, so
@@ -63,12 +52,13 @@ import (
 //      NaN p-value + one PULSE_OVERLAY_REF_ZERO warning whose Details
 //      document which knobs were missing on the FacetRequest.
 //
-// Inherently BUFFERED per PRD §2 Non-Goals ("Streaming overlay path for
-// inferential kinds"). The streamability row in
+// Inherently BUFFERED — streaming overlay path for inferential kinds is
+// an explicit non-goal. The streamability row in
 // types/overlay_streamability.go is `false` regardless of host
-// streamability. A future story may extend the S1 resolver to retain raw
-// sorted population values when a KS overlay is requested; the handler
-// would then call ksTwoSampleD directly on raw arms (additive change).
+// streamability. Future work may extend the population resolver to
+// retain raw sorted population values when a KS overlay is requested;
+// the handler would then call ksTwoSampleD directly on raw arms
+// (additive change).
 //
 // Structural invariants:
 //
@@ -79,8 +69,8 @@ import (
 //     with string concatenation only.
 //   - Numeric arm only. A categorical host (no numeric payload) fails
 //     closed with errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED — the per-kind
-//     validator (E5-S10) rejects categorical hosts at predict time; this
-//     runtime arm is defense in depth.
+//     validator rejects categorical hosts at predict time; this runtime
+//     arm is defense in depth.
 
 // applyKSVsPop is the OVERLAY_KS_VS_POP runtime handler. Reads the host's
 // already-finalised numeric payload (histogram / percentiles) and the
@@ -95,7 +85,7 @@ import (
 // PROCESSING_INTERNAL error carrying PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
 // in the Details map (mirrors INDEX_VS_POP / ZSCORE_VS_POP / CHISQ_VS_POP).
 // Categorical host (no numeric payload) fails with
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED — the per-kind validator (E5-S10) rejects
+// PULSE_OVERLAY_SCOPE_UNSUPPORTED — the per-kind validator rejects
 // categorical hosts at predict time; this runtime arm is defense in depth.
 func applyKSVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec == nil {
@@ -122,9 +112,9 @@ func applyKSVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPop
 			})
 	}
 
-	// Numeric-arm only. The per-kind validator (E5-S10) rejects
-	// categorical hosts at predict time; this runtime arm is defense in
-	// depth — a categorical host (no Numeric payload) fails closed with
+	// Numeric-arm only. The per-kind validator rejects categorical hosts
+	// at predict time; this runtime arm is defense in depth — a
+	// categorical host (no Numeric payload) fails closed with
 	// PULSE_OVERLAY_SCOPE_UNSUPPORTED (KS is undefined on categorical
 	// distributions: no continuous CDF to compare).
 	if host.Kind != "numeric" || host.Numeric == nil {

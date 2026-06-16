@@ -7,23 +7,21 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E7-S11 runtime handler for OVERLAY_PROP_Z_PANEL — the multi-reference
+// Runtime handler for OVERLAY_PROP_Z_PANEL — the multi-reference
 // COMPOSE-host per-cell pairwise two-proportion z-test across N + 1
 // slots (the reference slot plus every target slot).
 //
-// Output shape decision (per the story's "flattened upper-triangular
-// slice with documented ordering"): each MATRIX cell carries a
-// []float64 (length M*(M-1)/2, M = N+1) holding the pairwise p-values in
-// canonical row-major upper-triangular order — see pairIndex below.
-// The diagonal (every p[i, i] is 1.0 — self-vs-self) is implicit and
-// the lower triangular (p[j, i] == p[i, j]) is implicit. The
-// MatrixCell.Value `any` slot accepts the slice verbatim — same
-// precedent the RichAggregator family uses for map / slice cell values.
-// Documented in skills/overlay-system.md.
+// Output shape: each MATRIX cell carries a []float64 (length M*(M-1)/2,
+// M = N+1) holding the pairwise p-values in canonical row-major
+// upper-triangular order — see pairIndex below. The diagonal (every
+// p[i, i] is 1.0 — self-vs-self) is implicit and the lower triangular
+// (p[j, i] == p[i, j]) is implicit. The MatrixCell.Value `any` slot
+// accepts the slice verbatim — same precedent the RichAggregator family
+// uses for map / slice cell values. Documented in
+// skills/overlay-system.md.
 //
 // Cap enforcement: ComposeOverlaySpec.Options.MaxPanelTargets defaults
-// to 16 when nil or zero (per the interview risk paragraph
-// "Multi-reference combinatorics"). len(targets) > cap fires
+// to 16 when nil or zero. len(targets) > cap fires
 // PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry — the
 // orchestrator surfaces the offending observed/cap pair so renderers
 // can show the cap-vs-observed fix-up immediately. Note the cap counts
@@ -32,8 +30,7 @@ import (
 // valid against the default 16 cap; 17 targets fail).
 
 // defaultMaxPanelTargets is the explicit default for
-// OverlayOptions.MaxPanelTargets when the slot is zero / unset. Per
-// the interview risk paragraph "Multi-reference combinatorics".
+// OverlayOptions.MaxPanelTargets when the slot is zero / unset.
 const defaultMaxPanelTargets = 16
 
 // pairIndex maps a (i, j) pair with i < j into the flattened
@@ -68,9 +65,9 @@ func pairCount(m int) int {
 // resolveMaxPanelTargets returns the effective cap for one
 // OVERLAY_PROP_Z_PANEL spec. nil Options OR zero MaxPanelTargets ⇒ 16.
 // Negative values are ignored at this layer — the type slot rejects
-// them via JSON unmarshal mismatch and the predict-time gate (E7-S14)
-// will surface them; the runtime safe-defaults to 16 if a negative
-// value slips through.
+// them via JSON unmarshal mismatch and the predict-time gate surfaces
+// them; the runtime safe-defaults to 16 if a negative value slips
+// through.
 func resolveMaxPanelTargets(opts *types.OverlayOptions) int {
 	if opts == nil || opts.MaxPanelTargets <= 0 {
 		return defaultMaxPanelTargets
@@ -163,8 +160,8 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	}
 
 	// Use the reference matrix's axis keys as the canonical iteration
-	// shape — the key-set alignment gate (E7-S6) already guaranteed
-	// every target carries the same key set.
+	// shape — the key-set alignment gate already guaranteed every
+	// target carries the same key set.
 	rowCount := len(refMx.RowKeys)
 	colCount := len(refMx.ColumnKeys)
 	cells := buildEmptyMatrixLike(rowCount, colCount)

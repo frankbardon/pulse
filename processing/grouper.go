@@ -597,7 +597,7 @@ type quantileGrouper struct {
 	// frozen* mirrors stamp the post-Group state so Components() can
 	// emit operator-specific keys without re-scanning the record set.
 	// GROUP_QUANTILE is non-mergeable (needs a sorted view of the full
-	// input) — streaming chunks MUST NOT emit components per E4-S4's
+	// input) — streaming chunks MUST NOT emit components per the
 	// per-chunk omission contract. The runtime's terminal buffered
 	// flush is the only call site that observes a populated frozen
 	// state; calls before Group() collapse to (nil, nil) per the
@@ -757,9 +757,9 @@ func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*
 // buckets — ascending bucket lows plus the top bucket's high.
 //
 // ComponentsMergeability=none — quantile cutoffs depend on a sorted
-// view of the full input. The streaming path's per-chunk omission
-// contract lands in E4-S4; this story implements the buffered
-// emission. Returns (nil, nil) when Group() has not yet been called
+// view of the full input. The streaming path omits per-chunk
+// components; the buffered exit emits them. Returns (nil, nil) when
+// Group() has not yet been called
 // (no frozen state) so the orchestrator's universal-floor pass still
 // emits TotalN / NNull.
 func (g *quantileGrouper) Components() (map[string]any, error) {
@@ -1124,7 +1124,7 @@ func (g *dateGrouper) Components() (map[string]any, error) {
 }
 
 // Compile-time interface locks. Catch interface drift at build time
-// and keep the MetaGrouper wiring grep-discoverable for E2-S5 / S6.
+// and keep the MetaGrouper wiring grep-discoverable.
 var (
 	_ MetaGrouper = (*categoryGrouper)(nil)
 	_ MetaGrouper = (*dateGrouper)(nil)

@@ -9,10 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// crosstabOverlaySchema returns a (row, col, value) schema where row /
-// col are 3-entry categoricals and value is f64. The overlay tests
-// drive RunCrosstab over this schema to exercise the buffered exit's
-// Response.Overlays population hook (E1-S6).
 func crosstabOverlaySchema(t *testing.T) *encoding.Schema {
 	t.Helper()
 	rowDict := encoding.NewDictionary()
@@ -82,13 +78,6 @@ func crosstabOverlayBaseRequest() *types.Request {
 	}
 }
 
-// TestCrosstab_OverlayResponsePopulated verifies the E1-S6 buffered
-// hook: a Request.Overlays entry on a Crosstab request emits one
-// Response.Overlays layer in matching order. The layer payload matches
-// the E1-S5 handler output (INDEX_VS_MARGIN axis=ROW = cell / row_margin
-// × 100 per present host cell), and every cell index is exactly 100/3,
-// 200/6 etc. consistent with the (1,2,3 / 10,20,30 / 100,200,300)
-// fixture.
 func TestCrosstab_OverlayResponsePopulated(t *testing.T) {
 	schema := crosstabOverlaySchema(t)
 	recs := crosstabOverlayRecords(schema)
@@ -198,11 +187,6 @@ func TestCrosstab_NoOverlaysPreservesByteIdentity(t *testing.T) {
 	}
 }
 
-// TestCrosstab_UnknownOverlayKindReturnsCodedError verifies the runtime
-// mirror of E1-S3 validation: a Request.Overlays entry naming an
-// unregistered kind produces a CodedError carrying the stub
-// PULSE_OVERLAY_KIND_UNKNOWN code in its details. The validator catches
-// this at predict time; the runtime gate is defense in depth.
 func TestCrosstab_UnknownOverlayKindReturnsCodedError(t *testing.T) {
 	schema := crosstabOverlaySchema(t)
 	recs := crosstabOverlayRecords(schema)

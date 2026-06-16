@@ -7,21 +7,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the sibling resolver helper
-// (processing/overlay_sibling_resolver.go).
-//
-// E3-S5 scope:
-//
-//   - Single-field resolver shape: when the host has a GroupFields slot
-//     the resolver maps `Sibling.Field` to the matching axis-key
-//     element via that slot.
-//   - Fallback scan: when the host has NO GroupFields slot the resolver
-//     scans every axis-key element for a match against `Sibling.Value`
-//     — byte-equivalent on a single-axis host.
-//   - Defensive returns: nil host, empty field, empty value, unknown
-//     field, unknown value, present=false from the host's own resolver
-//     all return `(0, false)`.
-
 // TestResolveSibling_KnownFieldAndValue exercises the happy path with
 // the GroupFields slot populated.
 func TestResolveSibling_KnownFieldAndValue(t *testing.T) {
@@ -102,12 +87,6 @@ func TestResolveSibling_HostAbsentValueReturnsPresentFalse(t *testing.T) {
 	}
 }
 
-// TestResolveSibling_EmptySeriesReturnsAbsent pins the S7 acceptance
-// matrix "empty series" arm: a host with zero group keys returns
-// (0, false) for any `(field, value)` pair without panicking. The
-// resolver's groupCount==0 short-circuit covers this branch — verified
-// here as a top-level test so the S7 unit-coverage matrix (hit / miss /
-// empty / single-entry) reads explicitly in the file.
 func TestResolveSibling_EmptySeriesReturnsAbsent(t *testing.T) {
 	host := newStubSeriesHostWithField(nil, nil, "region")
 	got, present := resolveSibling(host, "region", "US")
@@ -119,12 +98,6 @@ func TestResolveSibling_EmptySeriesReturnsAbsent(t *testing.T) {
 	}
 }
 
-// TestResolveSibling_SingleEntrySeriesHits pins the S7 acceptance
-// matrix "single-entry series" arm: a one-group host whose key matches
-// returns the host's value with present=true; a non-matching value on
-// the same one-group host returns (0, false). Exercises both branches
-// of the single-entry case in one test so the failure mode is obvious
-// when one regresses without the other.
 func TestResolveSibling_SingleEntrySeriesHits(t *testing.T) {
 	keys := []types.AxisKey{{"US"}}
 	host := newStubSeriesHostWithField(keys, []float64{42.0}, "region")

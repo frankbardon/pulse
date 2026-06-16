@@ -756,9 +756,9 @@ func facetOnlyOverlayKinds() []string {
 // Extension-registered kinds (snap.OverlayKinds) appear on the Request
 // facade enum today (lowest-risk fallback). The registration surface
 // is not yet implemented and the per-kind facade tag does not exist
-// yet — when it lands a future story routes extension kinds through
-// the matching arm. snapshot-less paths return the built-in catalog
-// only.
+// yet — once registrations carry a per-kind facade tag, extension
+// kinds can be routed through the matching arm. snapshot-less paths
+// return the built-in catalog only.
 func overlayKindEnumForFacade(facade overlayFacade, snap *descriptor.ExtensionsSnapshot) []string {
 	composeSet := stringSetFrom(composeOnlyOverlayKinds())
 	chainSet := stringSetFrom(chainOnlyOverlayKinds())
@@ -798,8 +798,8 @@ func overlayKindEnumForFacade(facade overlayFacade, snap *descriptor.ExtensionsS
 	}
 	// Extension-registered kinds — today every extension kind lands on
 	// the Request-facade enum (the lowest-risk fallback while the
-	// registration surface evolves). A future story may route by a
-	// per-kind facade tag once registrations carry one.
+	// registration surface evolves). Routing by a per-kind facade tag
+	// becomes possible once registrations carry one.
 	if facade == overlayFacadeRequest {
 		out = append(out, extensionNames(snap, "overlay")...)
 	}

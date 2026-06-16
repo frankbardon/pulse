@@ -42,9 +42,6 @@ func crosstabHostSpec() *types.CrosstabSpec {
 	}
 }
 
-// TestValidateOverlay_KindUnknown asserts that an OverlaySpec whose
-// Kind is not in AllOverlayKinds() surfaces PULSE_OVERLAY_KIND_UNKNOWN
-// on the envelope. Acceptance criterion 1 of E1-S3.
 func TestValidateOverlay_KindUnknown(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
@@ -81,16 +78,6 @@ func TestValidateOverlay_KindUnknown(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_RefIncompatibleShape asserts the three ways an
-// OVERLAY_INDEX_VS_MARGIN overlay can fail the ref/shape compatibility
-// gate:
-//
-//  1. Ref.Margin is nil (no axis pointer at all).
-//  2. Ref.Margin.Axis is not a known MarginAxis value.
-//  3. Host is non-MATRIX (Request.Crosstab is nil).
-//
-// Each case must surface PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE on
-// the envelope. Acceptance criterion 2 of E1-S3.
 func TestValidateOverlay_RefIncompatibleShape(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
@@ -160,10 +147,6 @@ func TestValidateOverlay_RefIncompatibleShape(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_ScopeUnsupported asserts that a known overlay
-// kind (OVERLAY_INDEX_VS_MARGIN) paired with a non-CELL scope surfaces
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. E1 ships CELL only; ROW / COLUMN /
-// TOTAL widen the gate in later epics.
 func TestValidateOverlay_ScopeUnsupported(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
@@ -237,12 +220,6 @@ func TestValidateOverlay_HappyPath(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_ShareOfRow_HappyPath asserts a well-formed
-// OVERLAY_SHARE_OF_ROW overlay riding on a MATRIX-shaped crosstab
-// passes the predict gate without surfacing any overlay-specific
-// errors. Matches the INDEX_VS_MARGIN happy-path contract — the
-// kind-unknown gate auto-passes once the streamability row lands
-// (E2-S1), and the per-kind scope-cell + ref-margin checks accept.
 func TestValidateOverlay_ShareOfRow_HappyPath(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
@@ -315,12 +292,6 @@ func TestValidateOverlay_ShareOfRow_ScopeUnsupported(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_ShareOfCol_HappyPath asserts a well-formed
-// OVERLAY_SHARE_OF_COL overlay riding on a MATRIX-shaped crosstab
-// passes the predict gate without surfacing any overlay-specific
-// errors. Matches the SHARE_OF_ROW happy-path contract — the kind-
-// unknown gate auto-passes once the streamability row lands
-// (E2-S2), and the per-kind scope-cell + ref-margin checks accept.
 func TestValidateOverlay_ShareOfCol_HappyPath(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
@@ -393,13 +364,6 @@ func TestValidateOverlay_ShareOfCol_ScopeUnsupported(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_ShareOfTotal_HappyPath asserts a well-formed
-// OVERLAY_SHARE_OF_TOTAL overlay riding on a MATRIX-shaped crosstab
-// passes the predict gate without surfacing any overlay-specific
-// errors. Mirrors the SHARE_OF_ROW / SHARE_OF_COL happy-path
-// contract — the kind-unknown gate auto-passes once the
-// streamability row lands (E2-S3), and the per-kind scope-cell +
-// ref-margin checks accept.
 func TestValidateOverlay_ShareOfTotal_HappyPath(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
@@ -1032,12 +996,6 @@ func TestValidateOverlay_ChiSqCol_RefRejected(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_FisherExactCell_HappyPath asserts a well-formed
-// OVERLAY_FISHER_EXACT_CELL overlay riding on a MATRIX-shaped crosstab
-// passes the predict gate without surfacing any overlay-specific
-// errors. FISHER_EXACT_CELL is implicit-margin (mirrors the CHISQ_*
-// family): Scope=CELL, Ref=empty. PRD § 4.C FR-C2 closes the E2
-// inferential overlay family.
 func TestValidateOverlay_FisherExactCell_HappyPath(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
@@ -1173,45 +1131,10 @@ func TestValidateOverlay_FisherExactCell_NoCrosstabHostRejected(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_ExpectedLowWarn pins the predict-vs-runtime
-// boundary for the canonical χ² low-expected-count warning code
-// PULSE_OVERLAY_EXPECTED_LOW. Predict is no-execute: it sees the
-// request, the .pulse file header, and the schema — but NOT the
-// records the crosstab will eventually fold. Expected-count
-// computation (row_margin × col_margin / grand_total < 5) requires
-// observing the per-cell counts the host crosstab produces from those
-// records, which is data only the runtime path holds.
-//
-// Contract pinned by this test:
-//
-//   - PredictFromBytes does NOT emit PULSE_OVERLAY_EXPECTED_LOW on a
-//     well-formed CHISQ_MATRIX overlay — the per-kind predict gate
-//     accepts the spec without inspecting records, and the warning
-//     surfaces only after ApplyOverlays consumes the materialised host
-//     matrix at runtime.
-//   - The same applies to CHISQ_ROW, CHISQ_COL, and FISHER_EXACT_CELL
-//     (every inferential overlay that emits PULSE_OVERLAY_EXPECTED_LOW
-//     at runtime is silent at predict time).
-//
-// Runtime emission lives at
-// processing/overlay_chisq_matrix_test.go::TestOverlay_ChiSqMatrix_ExpectedLowEmitsWarn
-// (and its CHISQ_ROW / CHISQ_COL / FISHER_EXACT_CELL siblings). Those
-// tests cover the warning's positive surface; this test pins the
-// negative surface at predict time so a future refactor that pushes
-// the warning into ValidateOverlays (and accidentally drops it from
-// runtime) fails closed.
-//
-// This is the "warn, not error" test the E2-S12 story names — predict
-// does not promote PULSE_OVERLAY_EXPECTED_LOW to an envelope error,
-// AND predict does not surface it as a warning either; the warning is
-// deferred to the runtime overlay handler, which has the records to
-// compute expected counts.
 func TestValidateOverlay_ExpectedLowWarn(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
-	// Every E2 inferential overlay that emits PULSE_OVERLAY_EXPECTED_LOW
-	// at runtime must be silent at predict time.
 	cases := []struct {
 		name string
 		req  *types.Request
@@ -1531,12 +1454,6 @@ func TestValidateOverlay_IndexVsTotal_LevelWithinRejected(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_ShareOfTotal_Series_HappyPath asserts a well-
-// formed OVERLAY_SHARE_OF_TOTAL overlay riding on a grouped Process
-// request (SERIES host — E3-S3 sibling dispatch to INDEX_VS_TOTAL)
-// passes the predict gate without surfacing any overlay-specific
-// errors. SERIES SHARE_OF_TOTAL is implicit-grand-total: Scope=GROUP,
-// Ref=empty. Mirrors TestValidateOverlay_IndexVsTotal_HappyPath.
 func TestValidateOverlay_ShareOfTotal_Series_HappyPath(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)

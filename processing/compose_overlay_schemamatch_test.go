@@ -9,18 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// schemaMatrixSlot returns a *types.Response carrying a Crosstab
-// matrix whose RowHeader / ColumnHeader axis types match the
-// passed-in (rowKinds, colKinds) tuples. Cells / keys are populated
-// to be aligned so the upstream key-set gate (E7-S6) passes — the
-// E7-S7 schema-match gate fires only when the key-set gate has
-// already accepted the slot pair.
-//
-// The row/column keys are deterministic placeholders ({"r0"}, ...)
-// so two slots constructed with the same (rowCount, colCount) pair
-// produce byte-identical key sets regardless of the axis-type
-// tuple — that's exactly the surface the E7-S7 schema-match gate
-// targets (key-set agrees, structure differs).
 func schemaMatrixSlot(rowKinds, colKinds []string, rowCount, colCount int) *types.Response {
 	rowKeys := make([]types.AxisKey, rowCount)
 	for i := range rowKeys {
@@ -178,16 +166,6 @@ func TestValidateOverlay_SchemaDivergent_DifferentDepth(t *testing.T) {
 	)
 }
 
-// TestValidateOverlay_SchemaDivergent_FieldNamesAllowedToDiffer is
-// the positive companion of the SCHEMA_DIVERGENT arm: two slots
-// declaring the same axis kinds at the same depth must pass even
-// when the underlying matrix uses different field names. The
-// schema-match check is purely structural over Types — field names
-// are intentionally NOT compared (per E7-S7 acceptance).
-//
-// Implementation note: extractSchemaShape reads Matrix.RowHeader.Types
-// (not .Fields), so two slots with identical .Types and different
-// .Fields produce byte-equal kind tuples and the gate accepts.
 func TestValidateOverlay_SchemaDivergent_FieldNamesAllowedToDiffer(t *testing.T) {
 	ref := &types.Response{
 		Crosstab: &types.CrosstabResult{
@@ -263,18 +241,9 @@ func TestValidateOverlay_SlotShapeDivergent_MatrixVsScalar(t *testing.T) {
 	)
 }
 
-// TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget
-// exercises the SLOT_NOT_CROSSTAB gate against a real matrix-required
-// COMPOSE kind. The E7-S9 matrix-required catalog flipped the six
-// crosstab-shape kinds to require MATRIX; E7-S10 lifted INDEX_VS_REF
-// and DELTA_VS_REF out of the matrix-required set (they now accept
-// dual-shape hosts). The remaining matrix-required kinds (T_CELL /
-// PROP_Z_CELL / CHISQ_VS_REF / RANK) still fire PULSE_OVERLAY_SLOT_
-// NOT_CROSSTAB when paired with a non-MATRIX slot. The error carries
-// {target_label, required_shape="MATRIX", observed_shape}.
 func TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget(t *testing.T) {
 	if !kindRequiresMatrix(types.OverlayKindTCell) {
-		t.Fatal("E7-S9 invariant violated: kindRequiresMatrix(OverlayKindTCell) must return true after the matrix-required catalog flip")
+		t.Fatal("invariant violated: kindRequiresMatrix(OverlayKindTCell) must return true after the matrix-required catalog flip")
 	}
 	// MATRIX reference + SERIES target → the gate fires on the
 	// shape-divergent gate FIRST (gate 1). The SLOT_NOT_CROSSTAB gate
@@ -479,16 +448,6 @@ func TestExtractSchemaShape_Canonical_Scalar(t *testing.T) {
 	}
 }
 
-// TestKindRequiresMatrix_E7S10Registry locks the E7-S10 matrix-required
-// catalog: the remaining four matrix-only crosstab-shape Compose kinds
-// (PROP_Z_CELL, T_CELL, CHISQ_VS_REF, RANK) all return true; every
-// other kind returns false. E7-S9 originally registered six entries;
-// E7-S10 lifted INDEX_VS_REF and DELTA_VS_REF out of the matrix-
-// required set because they now accept dual-shape hosts (MATRIX or
-// SERIES). T_VS_REF (E7-S10 series-shape sibling of T_CELL) stays
-// false here — series-shape and panel-shape Compose kinds use the
-// more general PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT path for cross-slot
-// shape gating.
 func TestKindRequiresMatrix_E7S10Registry(t *testing.T) {
 	matrixRequired := map[types.OverlayKind]bool{
 		types.OverlayKindPropZCell:  true,
@@ -598,17 +557,6 @@ func TestApplyComposeOverlays_SchemaDivergenceFailsLoud(t *testing.T) {
 	requireDetailCode(t, err, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
 }
 
-// schemaMatrixSlotWithCellShape mirrors schemaMatrixSlot but
-// populates every present cell's Value with the supplied payload
-// rather than the default scalar 0.0. The helper is the E1-S8
-// hook for exercising the cell-shape arm of the SCHEMA_DIVERGENT
-// gate — pass a WelfordTriple{} to build a triple-bearing matrix
-// slot, pass a float64 to build a scalar slot. The axis
-// (rowKinds / colKinds) and the row × column key set are kept
-// byte-identical to schemaMatrixSlot's output so the upstream
-// key-set gate (E7-S6) and the axis-kind arm of the SCHEMA_
-// DIVERGENT gate both pass cleanly, leaving the cell-shape arm
-// as the only failure surface under test.
 func schemaMatrixSlotWithCellShape(rowKinds, colKinds []string, rowCount, colCount int, cellValue any) *types.Response {
 	rowKeys := make([]types.AxisKey, rowCount)
 	for i := range rowKeys {
@@ -639,11 +587,6 @@ func schemaMatrixSlotWithCellShape(rowKinds, colKinds []string, rowCount, colCou
 	}
 }
 
-// TestValidateOverlay_SchemaMatch_TripleOnBothPasses exercises
-// the positive arm of the E1-S8 cell-shape gate: both slots emit
-// processing.WelfordTriple-bearing cells. Axis kinds match. The
-// gate must accept (return nil) so triple-aware overlay handlers
-// (T_CELL, OVERLAY_Z_CELL) can proceed against the matched pair.
 func TestValidateOverlay_SchemaMatch_TripleOnBothPasses(t *testing.T) {
 	ref := schemaMatrixSlotWithCellShape(
 		[]string{"GROUP_CATEGORY"},
@@ -666,11 +609,6 @@ func TestValidateOverlay_SchemaMatch_TripleOnBothPasses(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_SchemaMatch_ScalarOnBothPasses preserves
-// the pre-E1-S8 baseline: both slots emit scalar float64 cell
-// values. The gate must accept (return nil) — the cell-shape arm
-// must not introduce a regression against the existing scalar
-// matched-pair path.
 func TestValidateOverlay_SchemaMatch_ScalarOnBothPasses(t *testing.T) {
 	ref := schemaMatrixSlotWithCellShape(
 		[]string{"GROUP_CATEGORY"},
@@ -693,15 +631,6 @@ func TestValidateOverlay_SchemaMatch_ScalarOnBothPasses(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_SchemaDivergent_TripleVsScalar exercises
-// the negative arm of the E1-S8 cell-shape gate: reference is a
-// triple-bearing matrix; target is a scalar matrix. Axis kinds
-// match (axis-kind arm passes cleanly) so the cell-shape arm is
-// the only divergence the gate can fire on. The check must
-// reject with PULSE_OVERLAY_SCHEMA_DIVERGENT and surface the
-// canonical cell-shape tokens on reference_cell_shape /
-// target_cell_shape Details so a renderer can diff cell-shape
-// mismatches from axis-kind mismatches.
 func TestValidateOverlay_SchemaDivergent_TripleVsScalar(t *testing.T) {
 	ref := schemaMatrixSlotWithCellShape(
 		[]string{"GROUP_CATEGORY"},
@@ -787,16 +716,6 @@ func TestValidateOverlay_SchemaDivergent_ScalarVsTriple(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_SchemaDivergent_TripleVsForeignStruct
-// covers the "future-extended struct" arm called out in the
-// E1-S8 acceptance criteria: one slot carries WelfordTriple, the
-// other slot carries an unrelated Rich payload (here a
-// []string — the AGG_SET_UNION shape). The canonical tokens must
-// resolve to distinct strings ("welford_triple" vs "[]string")
-// so the gate fires with PULSE_OVERLAY_SCHEMA_DIVERGENT. Confirms
-// the Rich-family branches stay orthogonal — a WelfordTriple slot
-// cannot silently align with a set-aggregator slot just because
-// both axis kind tuples happen to match.
 func TestValidateOverlay_SchemaDivergent_TripleVsForeignStruct(t *testing.T) {
 	ref := schemaMatrixSlotWithCellShape(
 		[]string{"GROUP_CATEGORY"},
@@ -833,16 +752,6 @@ func TestValidateOverlay_SchemaDivergent_TripleVsForeignStruct(t *testing.T) {
 	}
 }
 
-// TestCanonicalCellShape_Tokens locks the canonical-token table
-// the E1-S8 cell-shape gate consults. Scalar numeric kinds (every
-// width) collapse to "scalar"; WelfordTriple emits "welford_triple";
-// unrelated Rich families (map[string]int, []string) emit distinct
-// type-name tokens; a nil cell.Value emits the empty-token short-
-// circuit so absent cells never trip the gate. The table is
-// load-bearing for the gate's correctness — adding a new Rich
-// family without an explicit token would route through the
-// "unknown" fallback, where two distinct Rich shapes could
-// accidentally compare equal.
 func TestCanonicalCellShape_Tokens(t *testing.T) {
 	cases := []struct {
 		name string
@@ -918,12 +827,6 @@ func TestCellShapesEqual_EmptyTokenShortCircuits(t *testing.T) {
 	}
 }
 
-// TestApplyComposeOverlays_SlotShapeDivergenceFailsLoud is the
-// integration companion for the SHAPE_DIVERGENT gate. Uses a
-// SCALAR target (empty *Response) against a MATRIX reference —
-// the upstream key-set gate intentionally skips scalar targets
-// when the reference is non-scalar so the SHAPE_DIVERGENT gate
-// fires next (per its E7-S7 ordering contract).
 func TestApplyComposeOverlays_SlotShapeDivergenceFailsLoud(t *testing.T) {
 	responses := []*types.Response{
 		schemaMatrixSlot(

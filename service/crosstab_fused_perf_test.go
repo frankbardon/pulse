@@ -13,32 +13,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// TestFusedCrosstab_PerfGate is the build-tagged perf acceptance for
-// E4-S5. Runs the canonical huge-request.json-shaped crosstab (200
-// fields × 100K rows synth cohort) through the fused and buffered
-// paths via testing.Benchmark and asserts the fused ns/op is at most
-// 0.80 × the buffered ns/op — a 20 % wall-clock improvement.
-//
-// The 0.80 ratio is the spec's "this Mac" reference; the canonical
-// 1M-row bench against the real cohort (vc/1.pulse) clears it
-// comfortably (~0.67 on the maintainer's M1 Max). Synth-scale parity
-// at 10K-100K rows is expected because per-record decode overhead
-// dominates at small N; the gate captures the win at the scale that
-// matters.
-//
-// This test mirrors the E3-S5 perf-gate pattern: gated by the `perf`
-// build tag so the default `go test ./...` run stays fast, and
-// surfaced through `make bench` or `go test -tags=perf
-// ./service/... -run TestFusedCrosstab_PerfGate`. Use `-count=3` and
-// compare medians when investigating regressions; a single run is
-// noisy.
-//
-// If runtime.NumCPU() is 1 on the test host, the buffered path's
-// shard-worker parallelism collapses to serial, eliminating the
-// shard-reducer's contribution to the buffered baseline. The gate
-// still applies — fusion's win comes from skipping record
-// materialisation, not from parallelism — but the absolute ratio may
-// tighten.
 func TestFusedCrosstab_PerfGate(t *testing.T) {
 	const (
 		fieldCount = 200

@@ -31,7 +31,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors referen
 
 - Pooled SE: `sqrt(pooled × (1-pooled) × (1/n_target + 1/n_ref))` where `pooled = (target+ref) / (n_target+n_ref)`. Reuses `standardNormalCDF` — byte-equal to `TEST_PROP_Z` on the same `(success, n)` pair.
 - Degenerate inputs (`pooled ∈ {0,1}`, missing row margin, `se == 0`) → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` warning per affected cell.
-- Schema-match (E7-S7) + key-alignment (E7-S6) gates at the slot barrier.
+- Schema-match + key-alignment gates at the slot barrier.
 - Buffered (inferential family).
 
 ## See

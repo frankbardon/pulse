@@ -148,7 +148,7 @@ func validateExtensions(ext Extensions) error {
 // registration's ComponentSchema and ComponentsFunc declarations are
 // consistent.
 //
-// Three valid registration shapes (per E4-S5):
+// Three valid registration shapes:
 //   - Floor-only: empty Keys, empty Mergeability, nil ComponentsFunc.
 //     The orchestrator emits the universal floor only.
 //   - Floor + emitter: empty Keys, empty Mergeability, ComponentsFunc
@@ -172,9 +172,8 @@ func validateExtensions(ext Extensions) error {
 // PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA (this is the same incoherent
 // shape the probe catches: a schema declaration that is half-present).
 //
-// E4-S7 introduced the formal PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA
-// code; E4-S6 wires it here alongside the probe-time
-// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH check.
+// PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA is enforced here alongside
+// the probe-time PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH check.
 func validateComponentSchemas(ext Extensions) error {
 	for i, r := range ext.Aggregators {
 		if err := validateComponentSchemaDeclaration(
@@ -411,8 +410,7 @@ func validateParams(params []ParamMeta, cat extensionCategory, regName string) e
 }
 
 // validateAttributeModes asserts every AttributeRegistration declares
-// a known Mode. The mode-vs-factory probe (does Factory actually
-// return a TwoPassAttribute when Mode=two_pass?) lands in E4.
+// a known Mode.
 func validateAttributeModes(regs []AttributeRegistration) error {
 	for i, r := range regs {
 		switch r.Mode {
@@ -531,8 +529,7 @@ func validateExprFunctions(fns []ExprFunction) error {
 }
 
 // validateLookupTables asserts exactly one of Rows / Lookup is set per
-// table and that the table name is non-empty. The lookup() built-in
-// itself is exposed in the expr env from E6 onward.
+// table and that the table name is non-empty.
 func validateLookupTables(tables map[string]LookupTable) error {
 	for name, t := range tables {
 		if strings.TrimSpace(name) == "" {

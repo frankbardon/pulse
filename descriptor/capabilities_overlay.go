@@ -9,9 +9,9 @@ import (
 // Overlay capability surface — manifest-bound declaration of every
 // registered OverlayKind, the shapes / scopes / ref kinds the kind
 // supports, and whether it forces the orchestrator down the buffered
-// path. The manifest builder (E1-S10) calls OverlayCapabilities() and
-// drops the returned slice into Manifest.Overlays so LLM clients can
-// detect the catalog without inspecting the source.
+// path. The manifest builder calls OverlayCapabilities() and drops the
+// returned slice into Manifest.Overlays so LLM clients can detect the
+// catalog without inspecting the source.
 //
 // Per kind-catalog-v1 PRD §I-FR-I2, each entry carries:
 //
@@ -47,7 +47,7 @@ import (
 // OverlayCapability is the per-kind manifest entry describing one
 // registered overlay catalog entry. The manifest carries one
 // OverlayCapability per types.AllOverlayKinds() entry under
-// Manifest.Overlays (wired in E1-S10).
+// Manifest.Overlays.
 //
 // Field shape mirrors the kind-catalog-v1 PRD §I-FR-I2 contract:
 // kind × supported shapes × supported scopes × valid ref kinds ×
@@ -78,15 +78,15 @@ type OverlayCapability struct {
 
 	// Fields lists the OverlaySpec slot names beyond Kind / Scope /
 	// Ref / Params that the kind's runtime honours. Sorted
-	// alphabetically for golden stability. E2-S11 introduces "level"
-	// and "within" — the share / index / delta / zscore family honours
-	// both (prefix-axis denominator dispatch) while the χ² / Fisher
-	// inferential family leaves the list empty (Level / Within must
-	// stay zero; non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE).
-	// SHARE_OF_TOTAL declares the fields for renderer-facing parity
-	// with the rest of the share family even though the grand-axis
-	// denominator makes the slots inert at runtime — the predict gate
-	// still accepts in-range values without behavior change.
+	// alphabetically for golden stability. "level" and "within" are
+	// honoured by the share / index / delta / zscore family (prefix-axis
+	// denominator dispatch) while the χ² / Fisher inferential family
+	// leaves the list empty (Level / Within must stay zero; non-zero
+	// values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE). SHARE_OF_TOTAL
+	// declares the fields for renderer-facing parity with the rest of
+	// the share family even though the grand-axis denominator makes the
+	// slots inert at runtime — the predict gate still accepts in-range
+	// values without behavior change.
 	Fields []string `json:"fields,omitempty"`
 
 	// Description is a short human-readable summary of what the kind
@@ -102,19 +102,19 @@ type OverlayCapability struct {
 // single source of truth for streaming behaviour — a kind that flips
 // to streamable automatically flips Buffered to false here.
 //
-// E1 ships a single entry — OVERLAY_INDEX_VS_MARGIN — with:
+// OVERLAY_INDEX_VS_MARGIN is the seed entry for the catalog:
 //
 //   - Shapes:   [matrix]   (CELL-scoped overlay layered onto a crosstab)
-//   - Scopes:   [cell]     (E1 supports CELL only; ROW/COLUMN/TOTAL land
+//   - Scopes:   [cell]     (CELL-only today; ROW/COLUMN/TOTAL land
 //     alongside the matching payload shapes)
 //   - RefKinds: [Margin]   (denominator is an axis-margin slot)
 //   - Buffered: true       (margins recompute from raw rows; the host
 //     crosstab path is always buffered)
 //
-// Later kinds drop in by extending the switch below. The
-// TestStreamability_OverlaysKnown gate (types/overlay_streamability.go)
-// and TestManifestOperatorsComplete-style follow-ups (descriptor) will
-// enforce that every catalog entry has a row in this surface.
+// Later kinds drop in by extending the switch below.
+// TestStreamability_OverlaysKnown (types/overlay_streamability.go) and
+// TestManifestOperatorsComplete-style follow-ups (descriptor) enforce
+// that every catalog entry has a row in this surface.
 func OverlayCapabilities() []OverlayCapability {
 	kinds := types.AllOverlayKinds()
 	caps := make([]OverlayCapability, 0, len(kinds))
@@ -227,28 +227,26 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeGroup,
 			},
 			// Population is the FACET-host comparison-population ref family
-			// (E5-S1 foundation; E5-S2 INDEX_VS_POP first consumer; E5-S3
-			// ZSCORE_VS_POP second consumer; E5-S4 CHISQ_VS_POP third
-			// consumer). The capability row declares the consumed Ref-arm
-			// so MCP / manifest clients see the kind requires Ref.Population
-			// to be populated; the per-kind validator
-			// (descriptor.validateOverlayChiSqVsPop) lands in E5-S6 / E5-S7
-			// (this story is the runtime handler only).
+			// shared with INDEX_VS_POP / ZSCORE_VS_POP / KS_VS_POP. The
+			// capability row declares the consumed Ref-arm so MCP /
+			// manifest clients see the kind requires Ref.Population to be
+			// populated; descriptor.validateOverlayChiSqVsPop gates the
+			// shape at predict time.
 			RefKinds: []string{"Population"},
 			Description: "Single scalar χ² goodness-of-fit statistic + p-value comparing the host Facet subset distribution " +
 				"against the resolved population distribution. GROUP scope over a FACET (FacetSchema) host with SCALAR " +
 				"payload — the layer carries the chi-square statistic plus degrees of freedom and the corresponding p-value " +
-				"via OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. Third FACET-host overlay in the catalog (E5-S4; " +
-				"siblings: OVERLAY_INDEX_VS_POP / E5-S2, OVERLAY_ZSCORE_VS_POP / E5-S3) and the first inferential FACET-host " +
-				"kind. Pairs with the MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ² " +
-				"family — the viz developer renders the SCALAR statistic as a goodness-of-fit badge near the facet header. " +
+				"via OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. Third FACET-host overlay in the catalog " +
+				"(siblings: OVERLAY_INDEX_VS_POP, OVERLAY_ZSCORE_VS_POP) and the first inferential FACET-host kind. Pairs " +
+				"with the MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ² family — the " +
+				"viz developer renders the SCALAR statistic as a goodness-of-fit badge near the facet header. " +
 				"Math: subset_N = sum(host counts); expected[v] = pop_freq[v] * subset_N (population frequencies scaled to " +
 				"subset N); chisq = Σ (observed - expected)² / expected; df = len(observed) - 1; p_value = " +
 				"chiSquareSurvival(chisq, df) — the same χ² survival helper backing TEST_CHISQ and the MATRIX-host CHISQ " +
 				"family, so the overlay surface produces identical p-values for the same contingency. Discrete arm only " +
 				"(χ² goodness-of-fit requires categorical buckets — numeric hosts fire " +
-				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at runtime; the per-kind validator lands in E5-S6 / E5-S7 to " +
-				"reject numeric hosts at predict time). Streaming finalize hook: the handler runs at the FacetSchema " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at runtime, and the per-kind validator rejects numeric hosts at " +
+				"predict time). Streaming finalize hook: the handler runs at the FacetSchema " +
 				"post-host-finalize entry — once the per-value (value, count) map is folded into the FacetField.Discrete.Values " +
 				"slice the overlay reads the already-finalized host distribution and the resolver's population view to emit " +
 				"the SCALAR statistic. No second pass over records. INHERENTLY BUFFERED per PRD §2 Non-Goals (\"Streaming " +
@@ -264,7 +262,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"be computed without observed counts. Single category (df = 0): NaN p-value alongside the statistic — " +
 				"descriptive only. Ref.Population MUST be populated (the cohort name lives on Ref.Population.Cohort); any " +
 				"other ref-family pointer (Margin / Sibling / BaselineIndex / Prior / RollingMean / YoY / Stage / Slot) fires " +
-				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E5-S6 / E5-S7). " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. " +
 				"Level / Within MUST be zero (population comparison is a single-value lookup, not an axis prefix); non-zero " +
 				"values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the implicit-ref family. Scope must be GROUP. " +
 				"Renderer-facing shape: viz developer reads OverlayPayload.Scalar for the χ² statistic and OverlaySummary " +
@@ -286,7 +284,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// discriminated union. RefKinds is empty because the on-wire
 			// shape uses slot labels rather than an OverlayRef pointer.
 			RefKinds: []string{},
-			Description: "COMPOSE-host whole-matrix χ² test against the reference slot's matrix (E7-S9). The two matrices are " +
+			Description: "COMPOSE-host whole-matrix χ² test against the reference slot's matrix. The two matrices are " +
 				"treated as two independent contingency tables and the test answers \"do the target and reference distributions " +
 				"differ?\" by scaling the reference distribution to the target's grand total: expected[i,j] = ref_cell * " +
 				"(target_N / ref_N); chisq = Σ (target_cell - expected)² / expected; df = (cells with expected > 0) - 1; " +
@@ -297,7 +295,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"with one PULSE_OVERLAY_REF_ZERO warning. Low-expected-cell warning follows the canonical χ² rule (any " +
 				"expected < 5 → one PULSE_OVERLAY_EXPECTED_LOW warning per layer). Inherently buffered — inferential overlays " +
 				"as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key " +
-				"alignment + schema match + dict drift all run BEFORE the handler dispatches (E7-S5..S8) so the handler " +
+				"alignment + schema match + dict drift all run BEFORE the handler dispatches so the handler " +
 				"receives finalised *Response objects for both slots with identical structure.",
 		}
 	case types.OverlayKindDeltaVsBaseline:
@@ -310,19 +308,17 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeGroup,
 			},
 			// BaselineIndex is the windowed positional-anchor ref family
-			// (E4-S1 foundation; E4-S3 consumer, sibling to E4-S2
-			// INDEX_VS_BASELINE). The capability row declares the consumed
-			// Ref-arm so MCP / manifest clients see the kind requires
-			// Ref.BaselineIndex.Position to be populated; the per-kind
-			// validator (descriptor.validateOverlayDeltaVsBaseline) gates
-			// the shape at predict time.
+			// shared with OVERLAY_INDEX_VS_BASELINE. The capability row
+			// declares the consumed Ref-arm so MCP / manifest clients see
+			// the kind requires Ref.BaselineIndex.Position to be populated;
+			// descriptor.validateOverlayDeltaVsBaseline gates the shape at
+			// predict time.
 			RefKinds: []string{"BaselineIndex"},
 			Description: "Per-point additive delta against a single fixed positional baseline of an ordered SERIES " +
 				"(grouped Process) host: point_value - baseline_value. GROUP scope over a SERIES host with " +
 				"SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on " +
-				"Summary.Statistic. Absolute-difference sibling of OVERLAY_INDEX_VS_BASELINE (E4-S2) and third " +
-				"windowed-Process kind in the catalog (E4-S3). Like its sibling it consumes the " +
-				"Ref.BaselineIndex.Position arm of the OverlayBaselineIndexRef union (E4-S1 foundation). The " +
+				"Summary.Statistic. Absolute-difference sibling of OVERLAY_INDEX_VS_BASELINE. Consumes the " +
+				"Ref.BaselineIndex.Position arm of the OverlayBaselineIndexRef union. The " +
 				"baseline is resolved ONCE up front via processing.ResolveBaselineIndex and every present point " +
 				"subtracts it. The first present point at the baseline ordinal yields 0.0 (self-vs-self). Output " +
 				"preserves the host cell's units — a $-valued AGG_SUM point minus a $-valued baseline yields a " +
@@ -359,7 +355,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"cell minus a $-valued margin yields a $-valued deviation. No division and " +
 				"no Welford recurrence, so PULSE_OVERLAY_REF_ZERO is never emitted; renderers " +
 				"centre diverging colour ramps on baseline=0. Honours OverlaySpec Level / " +
-				"Within slots for nested-axis denominator truncation (E2-S11).",
+				"Within slots for nested-axis denominator truncation.",
 		}
 	case types.OverlayKindDeltaVsRef:
 		return OverlayCapability{
@@ -379,9 +375,9 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			RefKinds: []string{},
 			Description: "COMPOSE-host dual-shape additive delta of each target slot's value against the matching reference " +
 				"slot value: target - ref. Dual-shape overload — the host-shape disambiguator (matrix vs series) routes the " +
-				"per-coordinate / per-group dispatch: MATRIX host (E7-S9) emits per-cell deltas at (rowKey, colKey) with CELL " +
-				"scope; SERIES host (E7-S10) emits per-group deltas at the host's group key with GROUP scope. Subtractive " +
-				"sibling of OVERLAY_INDEX_VS_REF (E7-S9; gains the SERIES arm in the same E7-S10 batch). Output preserves the " +
+				"per-coordinate / per-group dispatch: MATRIX host emits per-cell deltas at (rowKey, colKey) with CELL " +
+				"scope; SERIES host emits per-group deltas at the host's group key with GROUP scope. Subtractive " +
+				"sibling of OVERLAY_INDEX_VS_REF. Output preserves the " +
 				"target slot's units — a $-valued AGG_SUM target value minus a $-valued reference value yields a $-valued " +
 				"deviation in the same currency (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_BASELINE / " +
 				"OVERLAY_DELTA_VS_SIBLING). Unlike the OVERLAY_INDEX_VS_REF sibling (which divides by the reference value " +
@@ -390,7 +386,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"PULSE_OVERLAY_REF_ZERO on a zero reference. Missing reference rows / cells (target carries a key the " +
 				"reference did not surface) still emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag. Renderers " +
 				"centre diverging colour ramps on baseline=0. Resolution + key alignment + schema match + dict drift all run " +
-				"BEFORE the handler dispatches (E7-S5..S8). Streamable via the SERIES dispatch (the MATRIX route is forced " +
+				"BEFORE the handler dispatches. Streamable via the SERIES dispatch (the MATRIX route is forced " +
 				"buffered through the slot barrier in service.Compose / service.ComposeParallel; the flag describes the " +
 				"kind's INTRINSIC streaming capability via its SERIES handler, mirroring OVERLAY_INDEX_VS_REF's dual-shape " +
 				"convention).",
@@ -439,12 +435,11 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// on ChainOverlaySpec each populate exactly one of Index / Name
 			// per StageRef value. The capability row declares the consumed
 			// Ref-arm so MCP / manifest clients see the kind addresses
-			// ChainRequest.Stages directly. Per-kind validator + runtime
-			// handler land in E6-S5 (this story is the dispatcher chassis).
+			// ChainRequest.Stages directly.
 			RefKinds: []string{"Stage"},
 			Description: "Whole-chain additive-delta overlay against another ProcessChain stage's result: " +
-				"target_val - ref_val per host coordinate. Second whole-chain overlay in the catalog " +
-				"(E6-S2 declares the kind; E6-S5 lands the runtime handler). CHAIN scope over a CHAIN " +
+				"target_val - ref_val per host coordinate. Second whole-chain overlay in the catalog. " +
+				"CHAIN scope over a CHAIN " +
 				"(ProcessChain) host with a shape inherited from the target stage (scalar / series / " +
 				"matrix). Sibling subtractive twin of OVERLAY_INDEX_VS_STAGE — the runtime handler " +
 				"runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays " +
@@ -453,17 +448,17 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage " +
 				"explicitly. Unknown stage path: Index out of range OR Name unmatched fires " +
 				"PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref " +
-				"arm) — both canonical chain-overlay missing-stage codes landed with E6-S6. " +
+				"arm) — both canonical chain-overlay missing-stage codes. " +
 				"Shape-divergence rule (PRD §6 FR-F2): when " +
 				"the target stage's host shape differs from the reference stage's host shape the " +
-				"handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (landed with E6-S6) and " +
+				"handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and " +
 				"surfaces NaN across every coordinate. Unlike OVERLAY_INDEX_VS_STAGE (divides by the " +
 				"reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined " +
 				"for every finite reference value including zero — the handler does NOT emit " +
 				"PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN " +
 				"/ OVERLAY_DELTA_VS_SIBLING family rule. Ref MUST populate Ref.Stage (StageRef); any " +
 				"other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict " +
-				"time (per-kind validator lands in E6-S5). Scope must be `total`. Level / Within MUST " +
+				"time. Scope must be `total`. Level / Within MUST " +
 				"be zero. Buffered — whole-chain kinds always run after every stage has finalised. " +
 				"Renderers centre diverging colour ramps on baseline=0 (mirrors the rest of the DELTA " +
 				"family on other host shapes).",
@@ -499,17 +494,16 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 		return OverlayCapability{
 			Kind: types.OverlayKindFormula,
 			Shapes: []types.OverlayShape{
-				// E8-S10 widens FORMULA to its full per-shape surface
-				// across MATRIX (E8-S2 evaluator spine + S3 per-shape
-				// binder), SERIES (S3 SERIES binder via grouped Process
-				// hosts), and SCALAR (S3 SCALAR binder via whole-matrix
-				// p-value / whole-chain SCALAR hosts). The runtime
-				// dispatch is still MATRIX-only at v1 via
-				// processing/overlay.go; the SERIES + SCALAR host glue
-				// lands in a follow-up story. Declaring the full shape
-				// surface here keeps the capability manifest aligned
-				// with the per-shape binders + the predict-time
-				// namespace tables FormulaNamespace serves.
+				// FORMULA declares its full per-shape surface across
+				// MATRIX (evaluator spine + per-shape binder), SERIES
+				// (SERIES binder via grouped Process hosts), and SCALAR
+				// (SCALAR binder via whole-matrix p-value / whole-chain
+				// SCALAR hosts). Runtime dispatch is still MATRIX-only at
+				// v1 via processing/overlay.go; the SERIES + SCALAR host
+				// glue lands in a follow-up story. Declaring the full
+				// shape surface here keeps the capability manifest aligned
+				// with the per-shape binders + the predict-time namespace
+				// tables FormulaNamespace serves.
 				types.OverlayShapeMatrix,
 				types.OverlayShapeScalar,
 				types.OverlayShapeSeries,
@@ -525,8 +519,8 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				// resolves the host shape via inferRequestHostShape and
 				// the per-shape variable table at types.FormulaNamespace
 				// routes the right namespace into the AST walker. The
-				// runtime dispatch (E8-S3 per-shape binder) emits the
-				// matching payload shape.
+				// runtime dispatch (per-shape binder) emits the matching
+				// payload shape.
 				types.OverlayScopeCell,
 				types.OverlayScopeGroup,
 				types.OverlayScopeTotal,
@@ -536,10 +530,10 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// / ref_cell / etc.) directly from the materialised host
 			// payload. Compose-host FORMULA surfaces the dotted
 			// `slot.<label>.{cell|value}` namespace via the per-shape
-			// binder (E8-S3) and reuses the existing
-			// ComposeOverlaySpec.Reference / Targets name-resolution
-			// machinery — no new ref family pointer is required (see
-			// research note .planning/result-overlay-system/research/formula-namespace.md
+			// binder and reuses the existing ComposeOverlaySpec.Reference
+			// / Targets name-resolution machinery — no new ref family
+			// pointer is required (see research note
+			// .planning/result-overlay-system/research/formula-namespace.md
 			// § 1 "OverlayRef back-pressure status: NONE"). The locked
 			// Six (Margin / Sibling / BaselineIndex / Population /
 			// Stage / Slot) plus the per-shape host payload already
@@ -556,16 +550,16 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"`slot.<label>.{cell|value}` namespace tied to Request.Label). Compile-once / run-many: O(1) " +
 				"compile per overlay layer; O(cells) / O(entries) / O(1) run cost per evaluation. Return-type " +
 				"coercion: float64 / float32 / int / int64 widen natively; bool widens to 0.0 / 1.0; everything " +
-				"else fires PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict-time identifier validation (E8-S4) walks " +
+				"else fires PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict-time identifier validation walks " +
 				"the parsed AST via expr-lang/expr/parser + expr-lang/expr/ast and rejects every identifier not " +
 				"in the per-shape variable table (types.FormulaNamespace) or the embedder ExprFunctions function " +
 				"set with PULSE_OVERLAY_FORMULA_INVALID_IDENT. INHERENTLY BUFFERED at v1 across every host shape " +
 				"— the variable namespace depends on post-fold state (margins / totals / SDs are not available " +
-				"mid-stream); a streamable variant under a distinct kind constant lands in a future story without " +
-				"re-opening this kind's contract. E8-S2 ships the MATRIX-host evaluator spine; E8-S3 lands the " +
-				"per-shape binder that fills the full namespace across MATRIX / SERIES / SCALAR hosts. SERIES + " +
-				"SCALAR runtime host glue lands in a follow-up story; this capability row declares the full " +
-				"per-shape surface for predict / manifest alignment.",
+				"mid-stream); a streamable variant under a distinct kind constant may land in future work without " +
+				"re-opening this kind's contract. The MATRIX-host evaluator spine + the per-shape binder fill the " +
+				"full namespace across MATRIX / SERIES / SCALAR hosts. SERIES + SCALAR runtime host glue lands in " +
+				"a follow-up; this capability row declares the full per-shape surface for predict / " +
+				"manifest alignment.",
 		}
 	case types.OverlayKindIndexVsBaseline:
 		return OverlayCapability{
@@ -577,19 +571,18 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeGroup,
 			},
 			// BaselineIndex is the windowed positional-anchor ref family
-			// (E4-S1 foundation; E4-S2 first consumer). The capability row
+			// shared with OVERLAY_DELTA_VS_BASELINE. The capability row
 			// declares the consumed Ref-arm so MCP / manifest clients see
 			// the kind requires Ref.BaselineIndex.Position to be populated;
-			// the per-kind validator
-			// (descriptor.validateOverlayIndexVsBaseline) gates the shape
-			// at predict time.
+			// descriptor.validateOverlayIndexVsBaseline gates the shape at
+			// predict time.
 			RefKinds: []string{"BaselineIndex"},
 			Description: "Per-point ratio index against a single fixed positional baseline of an ordered SERIES " +
 				"(grouped Process) host: (point_value / baseline_value) * 100. GROUP scope over a SERIES host with " +
 				"SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on " +
-				"Summary.Statistic. Second windowed-Process overlay in the catalog (E4-S2; the first windowed kind " +
-				"was OVERLAY_INDEX_VS_PRIOR / E4-S4) and the first kind to consume the Ref.BaselineIndex.Position " +
-				"arm of the OverlayBaselineIndexRef union (E4-S1 foundation). The baseline is resolved ONCE up " +
+				"Summary.Statistic. Sibling ratio twin of OVERLAY_DELTA_VS_BASELINE and a member of the " +
+				"windowed-Process family alongside OVERLAY_INDEX_VS_PRIOR. Consumes the " +
+				"Ref.BaselineIndex.Position arm of the OverlayBaselineIndexRef union. The baseline is resolved ONCE up " +
 				"front via processing.ResolveBaselineIndex and every present point divides by it. The first present " +
 				"point at the baseline ordinal yields 100.0 (self-vs-self). Zero baseline (resolved baseline_value " +
 				"is 0 — includes the absent-baseline case where host.ValueAt returns (0, false) at the baseline " +
@@ -617,9 +610,8 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			RefKinds: []string{"Margin"},
 			Fields:   []string{"level", "within"},
 			Description: "Per-cell index score against the matching axis margin: 100 * cell / margin. " +
-				"E1 supports CELL scope over a MATRIX (crosstab) host with a Margin reference. " +
-				"Honours OverlaySpec Level / Within slots for nested-axis denominator truncation " +
-				"(E2-S11).",
+				"CELL scope over a MATRIX (crosstab) host with a Margin reference. " +
+				"Honours OverlaySpec Level / Within slots for nested-axis denominator truncation.",
 		}
 	case types.OverlayKindIndexVsPop:
 		return OverlayCapability{
@@ -631,17 +623,17 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeGroup,
 			},
 			// Population is the FACET-host comparison-population ref family
-			// (E5-S1 foundation; E5-S2 first consumer). The capability row
-			// declares the consumed Ref-arm so MCP / manifest clients see
-			// the kind requires Ref.Population to be populated; the per-kind
-			// validator (descriptor.validateOverlayIndexVsPop) lands in E5-S6
-			// (this story is the runtime handler only).
+			// shared with CHISQ_VS_POP / ZSCORE_VS_POP / KS_VS_POP. The
+			// capability row declares the consumed Ref-arm so MCP /
+			// manifest clients see the kind requires Ref.Population to be
+			// populated; descriptor.validateOverlayIndexVsPop gates the
+			// shape at predict time.
 			RefKinds: []string{"Population"},
 			Description: "Per-value population-comparison index against a FACET host: subset_freq / pop_freq * 100. " +
 				"GROUP scope over a FACET (FacetSchema) host with SERIES payload — one SeriesEntry per host value in " +
 				"payload order, each carrying the index on Summary.Statistic. First FACET-host overlay in the catalog " +
-				"(E5-S2) and the first kind to consume the Ref.Population arm of the OverlayRef discriminated union " +
-				"(E5-S1 foundation — the resolver shape lives at processing.FacetPopulationView). Categorical fast " +
+				"and the first kind to consume the Ref.Population arm of the OverlayRef discriminated union " +
+				"(the resolver shape lives at processing.FacetPopulationView). Categorical fast " +
 				"path (host.Kind == \"discrete\"): walks host.Discrete.Values in payload order (descending by count, " +
 				"ties ascending by value-string — the canonical FacetSchema sort); each entry emits the per-value " +
 				"subset_freq / pop_freq * 100 against FacetPopulationView.DiscreteFrequency. Numeric path " +
@@ -649,7 +641,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"requested a histogram and the population view also carries a histogram with matching shape; each " +
 				"entry emits per-bin subset_bin_freq / pop_bin_freq * 100. When the host carries no histogram the " +
 				"layer emits zero entries (the Welford summary carries no per-value buckets the index can compare " +
-				"against — percentile-bucket indexing is reserved for OVERLAY_KS_VS_POP / E5-S5). Streaming finalize " +
+				"against — percentile-bucket indexing is reserved for OVERLAY_KS_VS_POP). Streaming finalize " +
 				"hook: the handler runs as a post-finalize fold over the host's already-materialized per-value " +
 				"distribution and the resolver's already-materialized population view; no second pass over records " +
 				"and no widening of the host streaming carrier — the streamable guarantee is that running this " +
@@ -661,7 +653,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"population's discrete payload) routes through the same zero-pop_freq arm. Ref.Population MUST be " +
 				"populated (the cohort name lives on Ref.Population.Cohort); any other ref-family pointer (Margin / " +
 				"Sibling / BaselineIndex / Prior / RollingMean / YoY / Stage / Slot) fires " +
-				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E5-S6). " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. " +
 				"Level / Within MUST be zero (population comparison is a single-value lookup, not an axis prefix); " +
 				"non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the implicit-ref family. Scope must " +
 				"be GROUP. Streamable — host streaming carriers are unchanged; the overlay reads finalized state " +
@@ -677,16 +669,16 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeGroup,
 			},
-			// Prior is the windowed-axis lag-N ref family (E4-S4 ships
-			// lag-1 only via Ref.Prior or an entirely empty Ref). Listed
-			// in the capability surface so MCP / manifest clients see the
-			// kind consumes the Prior arm even though the v1 authoring
-			// shape can leave Ref entirely empty.
+			// Prior is the windowed-axis lag-N ref family — v1 ships lag-1
+			// only via Ref.Prior or an entirely empty Ref. Listed in the
+			// capability surface so MCP / manifest clients see the kind
+			// consumes the Prior arm even though the v1 authoring shape
+			// can leave Ref entirely empty.
 			RefKinds: []string{"Prior"},
 			Description: "Per-point windowed index against the immediately preceding point of an ordered SERIES " +
 				"(grouped Process) host: (point_value / prior_value) * 100. GROUP scope over a SERIES host with " +
 				"SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on " +
-				"Summary.Statistic. First streamable windowed-Process overlay in the catalog (E4-S4) and the " +
+				"Summary.Statistic. First streamable windowed-Process overlay in the catalog and the " +
 				"first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state " +
 				"lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process " +
 				"fold (no second pass over records); the post-host finalize is the divide step. First present " +
@@ -720,12 +712,12 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Description: "COMPOSE-host dual-shape ratio index of each target slot's value against the matching reference " +
 				"slot value: (target / ref) * scale where scale defaults to 100 (set Params[\"scale\"] = 1 for a raw " +
 				"ratio). Dual-shape overload — the host-shape disambiguator (matrix vs series) routes the per-coordinate / " +
-				"per-group dispatch: MATRIX host (E7-S9) emits per-cell ratios at (rowKey, colKey) with CELL scope; SERIES " +
-				"host (E7-S10) emits per-group ratios at the host's group key with GROUP scope. First COMPOSE-only crosstab-" +
-				"shape overlay kind in the catalog (E7-S9; SERIES arm in E7-S10) and the first kind to consume the " +
+				"per-group dispatch: MATRIX host emits per-cell ratios at (rowKey, colKey) with CELL scope; SERIES " +
+				"host emits per-group ratios at the host's group key with GROUP scope. First COMPOSE-only crosstab-" +
+				"shape overlay kind in the catalog and the first kind to consume the " +
 				"ComposeOverlaySpec.Reference / Targets slot-label pair across both MATRIX and SERIES slots. Ratio sibling " +
-				"of OVERLAY_DELTA_VS_REF (subtractive twin; gains the SERIES arm in the same E7-S10 batch). Resolution + " +
-				"key alignment + schema match + dict drift all run BEFORE the handler dispatches (E7-S5..S8) — the handler " +
+				"of OVERLAY_DELTA_VS_REF (subtractive twin). Resolution + " +
+				"key alignment + schema match + dict drift all run BEFORE the handler dispatches — the handler " +
 				"receives finalised *Response objects for both slots with byte-aligned key sets and identical structural " +
 				"schemas. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN substitution; missing reference rows / " +
 				"cells (target carries a key the reference did not surface) emit the same code with a ref_missing=true " +
@@ -743,22 +735,23 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeGroup,
 			},
-			// RollingMean is the windowed-axis ref family the kind consumes
-			// (E4-S5; E4-S6 ZSCORE_VS_ROLLING will reuse). The empty marker
-			// struct tags the family — the v1 window value lives on
-			// OverlaySpec.Params["window"] per the WIN_* operator convention.
+			// RollingMean is the windowed-axis ref family the kind
+			// consumes, shared with OVERLAY_ZSCORE_VS_ROLLING. The empty
+			// marker struct tags the family — the v1 window value lives
+			// on OverlaySpec.Params["window"] per the WIN_* operator
+			// convention.
 			RefKinds: []string{"RollingMean"},
 			Description: "Per-point windowed index against the arithmetic mean of the W immediately preceding points of " +
 				"an ordered SERIES (grouped Process) host: point_value / mean(point[i-W] .. point[i-1]) * 100. GROUP " +
 				"scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, " +
-				"each carrying the index on Summary.Statistic. Fourth windowed-Process overlay in the catalog (E4-S5; " +
-				"siblings: OVERLAY_INDEX_VS_PRIOR / E4-S4, OVERLAY_INDEX_VS_BASELINE / E4-S2, " +
-				"OVERLAY_DELTA_VS_BASELINE / E4-S3) and the first kind to consume the Ref.RollingMean arm of the " +
-				"OverlayRef discriminated union. Window-via-Params convention: the rolling window width is supplied via " +
+				"each carrying the index on Summary.Statistic. Member of the windowed-Process overlay family " +
+				"alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE, and the " +
+				"first kind to consume the Ref.RollingMean arm of the OverlayRef discriminated union. " +
+				"Window-via-Params convention: the rolling window width is supplied via " +
 				"OverlaySpec.Params[\"window\"] as a positive integer (mirrors the WIN_* operator convention; see " +
 				"skills/window-design.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family " +
 				"— the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W " +
-				"most recently observed PRESENT values plus a Welford (count, mean, M2) trio reserved for the E4-S6 " +
+				"most recently observed PRESENT values plus a Welford (count, mean, M2) trio shared with the " +
 				"OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). " +
 				"Window-fill semantics: the first W present ordinals all emit NaN without warning — \"window not yet " +
 				"filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports " +
@@ -823,31 +816,29 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// on ChainOverlaySpec each populate exactly one of Index / Name
 			// per StageRef value. The capability row declares the consumed
 			// Ref-arm so MCP / manifest clients see the kind addresses
-			// ChainRequest.Stages directly. Per-kind validator + runtime
-			// handler land in E6-S4 (this story is the dispatcher chassis).
+			// ChainRequest.Stages directly.
 			RefKinds: []string{"Stage"},
 			Description: "Whole-chain ratio overlay against another ProcessChain stage's result: " +
 				"(target_val / ref_val) * 100 per host coordinate. First whole-chain overlay in the " +
-				"catalog (E6-S2 declares the kind; E6-S4 lands the runtime handler) and the first " +
-				"consumer of the StageRef discriminated reference family (Ref + Target on " +
-				"ChainOverlaySpec — each populates exactly one of Index / Name per StageRef value). " +
-				"CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target " +
-				"stage (scalar / series / matrix). The runtime handler runs at the post-stage-loop " +
+				"catalog and the first consumer of the StageRef discriminated reference family (Ref + " +
+				"Target on ChainOverlaySpec — each populates exactly one of Index / Name per StageRef " +
+				"value). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the " +
+				"target stage (scalar / series / matrix). The runtime handler runs at the post-stage-loop " +
 				"barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) " +
 				"against already-materialised *Response objects for each Stages[i]. No record " +
 				"re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); " +
 				"Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage " +
 				"path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target " +
 				"arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay " +
-				"missing-stage codes landed with E6-S6. " +
+				"missing-stage codes. " +
 				"Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from " +
 				"the reference stage's host shape the handler emits " +
-				"PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (landed with E6-S6) and surfaces NaN " +
+				"PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and surfaces NaN " +
 				"across every coordinate. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN " +
 				"on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST " +
 				"populate Ref.Stage (StageRef); any other ref-family pointer fires " +
-				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands " +
-				"in E6-S4). Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. " +
+				"Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain " +
 				"kinds always run after every stage has finalised. Renderers centre diverging colour " +
 				"ramps on baseline=100 (mirrors the rest of the INDEX_VS_* family on other host " +
 				"shapes).",
@@ -888,20 +879,18 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeGroup,
 			},
 			// Population is the FACET-host comparison-population ref family
-			// (E5-S1 foundation; E5-S2 INDEX_VS_POP first consumer; E5-S3
-			// ZSCORE_VS_POP second consumer; E5-S4 CHISQ_VS_POP third
-			// consumer; E5-S5 KS_VS_POP fourth consumer). The capability row
-			// declares the consumed Ref-arm so MCP / manifest clients see
-			// the kind requires Ref.Population to be populated; the per-kind
-			// validator (descriptor.validateOverlayKSVsPop) lands in E5-S10
-			// (this story is the runtime handler only).
+			// shared with INDEX_VS_POP / ZSCORE_VS_POP / CHISQ_VS_POP. The
+			// capability row declares the consumed Ref-arm so MCP /
+			// manifest clients see the kind requires Ref.Population to be
+			// populated; descriptor.validateOverlayKSVsPop gates the shape
+			// at predict time.
 			RefKinds: []string{"Population"},
 			Description: "Single scalar Kolmogorov-Smirnov distance D = sup_x |F_subset(x) - F_pop(x)| plus an asymptotic p-value " +
 				"comparing the host Facet subset NUMERIC distribution against the resolved population NUMERIC distribution. " +
 				"GROUP scope over a FACET (FacetSchema) host with SCALAR payload — the layer carries the KS statistic plus the " +
 				"asymptotic p-value via OverlaySummary{Statistic, PValue, Parameters{\"n_subset\", \"n_pop\"}}. Fourth and final " +
-				"FACET-host overlay in the catalog (E5-S5; siblings: OVERLAY_INDEX_VS_POP / E5-S2 descriptive, " +
-				"OVERLAY_ZSCORE_VS_POP / E5-S3 descriptive, OVERLAY_CHISQ_VS_POP / E5-S4 inferential discrete-arm only). KS is the " +
+				"FACET-host overlay in the catalog (siblings: OVERLAY_INDEX_VS_POP descriptive, " +
+				"OVERLAY_ZSCORE_VS_POP descriptive, OVERLAY_CHISQ_VS_POP inferential discrete-arm only). KS is the " +
 				"canonical NUMERIC-arm distributional-shift indicator — it pairs with CHISQ_VS_POP as the two inferential FACET-host " +
 				"kinds, partitioning the inferential FACET surface by host arm (CHISQ for categorical, KS for numeric). The viz " +
 				"developer renders the SCALAR statistic as a distributional-shift indicator near the facet header. Math: " +
@@ -909,10 +898,10 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D) — the same Kolmogorov-survival helper backing TEST_KS " +
 				"(processing/test_stat.go), so the overlay and the row-test surface produce identical p-values for the same D + N. " +
 				"NUMERIC ARM ONLY: KS is undefined on categorical distributions (no continuous CDF to compare). A categorical host " +
-				"(no numeric payload) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime; the per-kind validator (lands in E5-S10) " +
+				"(no numeric payload) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime; the per-kind validator " +
 				"rejects categorical hosts at predict time so the runtime arm is belt-and-braces. Distinct from CHISQ_VS_POP which " +
 				"is DISCRETE-arm only and rejects numeric hosts with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Population-sample " +
-				"availability: the S1 resolver exposes only summary state for numeric fields (Welford mean/stdev/count, optional " +
+				"availability: the resolver exposes only summary state for numeric fields (Welford mean/stdev/count, optional " +
 				"percentile map, optional histogram) — raw population values were folded into Welford state and discarded. The " +
 				"handler picks the highest-precision reconstruction available: (1) HISTOGRAM PATH (preferred) when host AND " +
 				"population each surface a histogram with matching Min/Max/bucket count — aligns bucket edges and computes " +
@@ -922,7 +911,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"(3) WELFORD-ONLY DEGENERATE when neither histograms nor percentiles are available — emits NaN + NaN with one " +
 				"PULSE_OVERLAY_REF_ZERO warning whose Details document which knobs were missing on the FacetRequest. KS precision " +
 				"is bounded by histogram bucket width (path 1) or percentile-label resolution (path 2) because the population view " +
-				"does not retain raw values; a future story may lift the resolver to retain raw sorted population values when a KS " +
+				"does not retain raw values; future work may lift the resolver to retain raw sorted population values when a KS " +
 				"overlay is requested, at which point the handler can call ksTwoSampleD on raw arms directly (additive change). " +
 				"INHERENTLY BUFFERED per PRD §2 Non-Goals (\"Streaming overlay path for inferential kinds\") — the empirical-CDF " +
 				"construction requires sorted values on both sides; an online folded shape would widen the streaming carrier " +
@@ -961,13 +950,13 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// empty: every target is indexed against the SHARED reference
 			// slot; no OverlayRef family pointer applies.
 			RefKinds: []string{},
-			Description: "COMPOSE-host MULTI-REFERENCE dual-shape ratio index of each target slot against the SHARED reference slot " +
-				"(E7-S12). Emits ONE OverlayLayer per target — the chassis dispatches a multi-layer return surface so a single " +
+			Description: "COMPOSE-host MULTI-REFERENCE dual-shape ratio index of each target slot against the SHARED reference slot. " +
+				"Emits ONE OverlayLayer per target — the chassis dispatches a multi-layer return surface so a single " +
 				"ComposeOverlaySpec produces len(spec.Targets) entries in the parent ComposedResponse.Overlays slice. Layer naming " +
 				"convention: \"<spec.Name>__<target_label>\" so renderers can address every panel target by a stable handle (spec.Name " +
 				"empty falls back to the kind string per the chassis composeOverlayLayerName precedent — degenerate naming becomes " +
-				"\"OVERLAY_PANEL_INDEX_VS_REF__<target_label>\"). Shared coord space guarantee: the schema-match (E7-S7) and " +
-				"key-alignment (E7-S6) gates enforce coord-space identity across every (reference, target) pair BEFORE the handler " +
+				"\"OVERLAY_PANEL_INDEX_VS_REF__<target_label>\"). Shared coord space guarantee: the schema-match and " +
+				"key-alignment gates enforce coord-space identity across every (reference, target) pair BEFORE the handler " +
 				"dispatches, so every emitted layer's row/col axis descriptors are byte-identical (matrix host) or share the same " +
 				"group key set (series host). Each emitted layer is mathematically equivalent to OVERLAY_INDEX_VS_REF for that single " +
 				"(reference, target[i]) pair — the handler reuses applyIndexVsRef verbatim per target, then renames the resulting " +
@@ -995,7 +984,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
 			// discriminated union.
 			RefKinds: []string{},
-			Description: "COMPOSE-host per-cell two-proportion z-test against the reference slot's matching cell (E7-S9). CELL " +
+			Description: "COMPOSE-host per-cell two-proportion z-test against the reference slot's matching cell. CELL " +
 				"scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the two-sided p-value as a " +
 				"float64. Cells are treated as success counts; each cell's matching row margin is treated as its sample size " +
 				"(target_n on the target side, ref_n on the reference side). Math: p_target = target_cell / target_row_margin; " +
@@ -1022,7 +1011,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// pairwise universe, no OverlayRef family pointer applies.
 			RefKinds: []string{},
 			Description: "COMPOSE-host MULTI-REFERENCE per-cell pairwise two-proportion z-test across the reference slot plus " +
-				"every target slot (E7-S11). CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's Value " +
+				"every target slot. CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's Value " +
 				"is the flattened upper-triangular slice of pairwise two-sided p-values across the panel's N + 1 slots " +
 				"(reference at index 0; Targets[i] at index i + 1). Slot ordering: {reference, targets[0], targets[1], ..., " +
 				"targets[N-1]}. Output shape — row-major upper triangle, NO diagonal: [(0,1), (0,2), ..., (0,M-1), (1,2), ..., " +
@@ -1059,8 +1048,8 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"within the cell's own column across all rows; \"matrix\" ranks across every present cell of the target matrix. " +
 				"Ties take the average of their would-be ranks (canonical \"average\" tie-breaking; matches " +
 				"scipy.stats.rankdata default convention). Absent cells stay absent on the overlay; they do NOT participate in " +
-				"the population's denominator. The reference slot is required to anchor the resolution + key-set gates (E7-S6 " +
-				"/ E7-S7) but the rank computation reads only the target cells — RANK is orthogonal to the ref-vs-target " +
+				"the population's denominator. The reference slot is required to anchor the resolution + key-set gates " +
+				"but the rank computation reads only the target cells — RANK is orthogonal to the ref-vs-target " +
 				"comparison family while still reusing the same resolution + alignment pipeline. Inherently buffered — the " +
 				"COMPOSE host is buffered by the slot barrier; ranking within the target matrix requires the full materialised " +
 				"matrix anyway.",
@@ -1079,7 +1068,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Description: "Per-cell share-of-column ratio: cell / col_margin. CELL scope over a MATRIX " +
 				"(crosstab) host. Column cells sum to 1.0 in the absence of missing cells; renderers " +
 				"can present the layer as a 100%-stacked vertical projection. Honours OverlaySpec " +
-				"Level / Within slots for nested-axis denominator truncation (E2-S11).",
+				"Level / Within slots for nested-axis denominator truncation.",
 		}
 	case types.OverlayKindShareOfRow:
 		return OverlayCapability{
@@ -1095,34 +1084,34 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Description: "Per-cell share-of-row ratio: cell / row_margin. CELL scope over a MATRIX " +
 				"(crosstab) host. Row cells sum to 1.0 in the absence of missing cells; renderers " +
 				"can present the layer as a 100%-stacked horizontal projection. Honours OverlaySpec " +
-				"Level / Within slots for nested-axis denominator truncation (E2-S11).",
+				"Level / Within slots for nested-axis denominator truncation.",
 		}
 	case types.OverlayKindShareOfTotal:
 		return OverlayCapability{
 			Kind: types.OverlayKindShareOfTotal,
 			Shapes: []types.OverlayShape{
-				// MATRIX (E2-S3): per-cell ratio cell / grand_total
-				// against a crosstab host.
+				// MATRIX: per-cell ratio cell / grand_total against a
+				// crosstab host.
 				types.OverlayShapeMatrix,
-				// SERIES (E3-S3): per-group ratio group_val /
-				// grand_total against a grouped Process host.
+				// SERIES: per-group ratio group_val / grand_total against
+				// a grouped Process host.
 				types.OverlayShapeSeries,
 			},
 			Scopes: []types.OverlayScope{
 				// CELL: paired with the MATRIX shape on a crosstab host.
 				types.OverlayScopeCell,
 				// GROUP: paired with the SERIES shape on a grouped
-				// Process host (E3-S3).
+				// Process host.
 				types.OverlayScopeGroup,
 			},
 			RefKinds: []string{"Margin"},
 			Fields:   []string{"level", "within"},
-			Description: "Share-of-grand-total ratio. Dual-shape overload: MATRIX dispatch (E2-S3) emits per-cell " +
+			Description: "Share-of-grand-total ratio. Dual-shape overload: MATRIX dispatch emits per-cell " +
 				"cell / grand_total against a CELL-scoped crosstab host, completing the matrix share triad " +
 				"(row / col / total) — the spec must populate Ref.Margin (grand-axis-locked even though the " +
 				"handler ignores the axis value) and declares the level / within fields for renderer-facing parity " +
-				"with the rest of the share family (the grand-axis denominator makes both slots inert at runtime, " +
-				"E2-S11). SERIES dispatch (E3-S3) emits per-group group_val / grand_total against a GROUP-scoped " +
+				"with the rest of the share family (the grand-axis denominator makes both slots inert at runtime). " +
+				"SERIES dispatch emits per-group group_val / grand_total against a GROUP-scoped " +
 				"grouped Process host with scale 1.0 (no ×100 — sibling to INDEX_VS_TOTAL but with the SHARE " +
 				"scaling so cells over a complete partition sum to 1.0 within ULP) — Ref MUST be empty " +
 				"(implicit-grand-total). Sibling SERIES kind to OVERLAY_INDEX_VS_TOTAL — shares the same " +
@@ -1145,7 +1134,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
 			// discriminated union.
 			RefKinds: []string{},
-			Description: "COMPOSE-host per-cell Welch t-test against the reference slot's matching cell (E7-S9). CELL scope " +
+			Description: "COMPOSE-host per-cell Welch t-test against the reference slot's matching cell. CELL scope " +
 				"over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the two-sided p-value as a float64. " +
 				"Each cell is treated as a sample mean; the variance defaults to 1.0 and the sample size defaults to 2 " +
 				"(`Params[\"sample_size\"]` accepts an integer override; `Params[\"variance_target\"]` / " +
@@ -1156,7 +1145,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"(var_ref/n_ref)²/(n_ref-1)); p_value = studentTTwoSidedP(t, df). Reuses the studentTTwoSidedP helper backing " +
 				"TEST_T so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) " +
 				"triple. Default-variance and default-sample-size policy: v1 ships well-defined defaults so the per-cell " +
-				"handler stays usable against a minimal Compose authoring surface; a future story may lift the per-cell " +
+				"handler stays usable against a minimal Compose authoring surface; future work may lift the per-cell " +
 				"(mean, variance, n) triple into a richer Compose authoring surface (the crosstab cell carrier could grow " +
 				"to carry sample statistics alongside the scalar mean). Inherently buffered — inferential overlays as a " +
 				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals).",
@@ -1175,7 +1164,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// discriminated union.
 			RefKinds: []string{},
 			Description: "COMPOSE-host per-group Welch t-test against the reference slot's matching group, against a SERIES " +
-				"(grouped Process) host (E7-S10). GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per " +
+				"(grouped Process) host. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per " +
 				"host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling " +
 				"of OVERLAY_T_CELL (the per-cell MATRIX-host Welch t-test) and twin to the SERIES arm of OVERLAY_INDEX_VS_REF " +
 				"/ OVERLAY_DELTA_VS_REF (descriptive series-shape Compose-only kinds). Each per-group target / reference value " +
@@ -1189,8 +1178,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's " +
 				"Statistic is NaN. Degenerate inputs (se == 0, n < 2) produce NaN p-values with the same warning. Inherently " +
 				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
-				"Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches " +
-				"(E7-S5..S8).",
+				"Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches.",
 		}
 	case types.OverlayKindYoY:
 		return OverlayCapability{
@@ -1201,22 +1189,21 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeGroup,
 			},
-			// YoY is the windowed-axis ref family the kind consumes (E4-S7
-			// foundation; first consumer of the empty `Ref.YoY` marker). The
-			// empty marker struct tags the family — the v1 frequency value
-			// lives on OverlaySpec.Params["frequency"] (the YoY's own
-			// override) or falls back to req.Groups[0].Params["frequency"]
-			// (the canonical GROUP_DATE authoring slot) per the WIN_*
-			// operator convention.
+			// YoY is the windowed-axis ref family the kind consumes — first
+			// consumer of the empty `Ref.YoY` marker. The empty marker
+			// struct tags the family — the v1 frequency value lives on
+			// OverlaySpec.Params["frequency"] (the YoY's own override) or
+			// falls back to req.Groups[0].Params["frequency"] (the
+			// canonical GROUP_DATE authoring slot) per the WIN_* operator
+			// convention.
 			RefKinds: []string{"YoY"},
 			Description: "Per-point year-over-year ratio against the same period one year prior in an ordered SERIES " +
 				"(grouped Process) host whose grouper is GROUP_DATE: point_value / prior_year_value * 100. " +
 				"GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host " +
-				"order, each carrying the YoY ratio on Summary.Statistic. Sixth windowed-Process overlay in the " +
-				"catalog (E4-S7; siblings: OVERLAY_INDEX_VS_PRIOR / E4-S4, OVERLAY_INDEX_VS_BASELINE / E4-S2, " +
-				"OVERLAY_DELTA_VS_BASELINE / E4-S3, OVERLAY_INDEX_VS_ROLLING_MEAN / E4-S5, " +
-				"OVERLAY_ZSCORE_VS_ROLLING / E4-S6) and the first consumer of the empty Ref.YoY marker arm of the " +
-				"OverlayRef discriminated union. The frequency value (annual | quarterly | monthly | weekly | daily | " +
+				"order, each carrying the YoY ratio on Summary.Statistic. Member of the windowed-Process overlay " +
+				"family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / " +
+				"OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_ZSCORE_VS_ROLLING, and the first consumer of the empty " +
+				"Ref.YoY marker arm of the OverlayRef discriminated union. The frequency value (annual | quarterly | monthly | weekly | daily | " +
 				"hourly) lives on OverlaySpec.Params[\"frequency\"] (the YoY's own override) or falls back to " +
 				"req.Groups[0].Params[\"frequency\"] (the canonical GROUP_DATE authoring slot). Per-frequency stride: " +
 				"annual ⇒ i-1, quarterly ⇒ i-4, monthly ⇒ i-12, weekly ⇒ i-52 (calendar-week aligned; no day-of-week " +
@@ -1258,7 +1245,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"margin axes (row / column / grand). Output is unitless deviation; renderers centre " +
 				"diverging colour ramps on baseline=0. The margin centroid honours OverlaySpec " +
 				"Level / Within slots for nested-axis denominator truncation; the SD denominator " +
-				"continues to fold over the full per-axis slice (E2-S11).",
+				"continues to fold over the full per-axis slice.",
 		}
 	case types.OverlayKindZScoreVsPop:
 		return OverlayCapability{
@@ -1270,22 +1257,21 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				types.OverlayScopeGroup,
 			},
 			// Population is the FACET-host comparison-population ref family
-			// (E5-S1 foundation; E5-S2 INDEX_VS_POP first consumer; E5-S3
-			// ZSCORE_VS_POP second consumer). The capability row declares
-			// the consumed Ref-arm so MCP / manifest clients see the kind
-			// requires Ref.Population to be populated; the per-kind
-			// validator (descriptor.validateOverlayZScoreVsPop) lands in
-			// E5-S6 / E5-S7 (this story is the runtime handler only).
+			// shared with INDEX_VS_POP / CHISQ_VS_POP / KS_VS_POP. The
+			// capability row declares the consumed Ref-arm so MCP /
+			// manifest clients see the kind requires Ref.Population to be
+			// populated; descriptor.validateOverlayZScoreVsPop gates the
+			// shape at predict time.
 			RefKinds: []string{"Population"},
 			Description: "Per-value population-comparison z-score against a FACET host: (subset_freq - pop_freq) / sd_pop. " +
 				"GROUP scope over a FACET (FacetSchema) host with SERIES payload — one SeriesEntry per host value in " +
 				"payload order, each carrying the z-score on Summary.Statistic. Sibling streamable FACET-host kind to " +
-				"OVERLAY_INDEX_VS_POP (E5-S2); pairs with INDEX_VS_POP as the two streamable Facet overlay kinds — the viz " +
+				"OVERLAY_INDEX_VS_POP; pairs with INDEX_VS_POP as the two streamable Facet overlay kinds — the viz " +
 				"developer requesting both together gets two parallel series layers from a single Facet pass. " +
 				"Categorical fast path (host.Kind == \"discrete\"): walks host.Discrete.Values in payload order " +
 				"(descending by count, ties ascending by value-string — the canonical FacetSchema sort); each entry emits " +
 				"(subset_freq - pop_freq) / sd_pop where sd_pop is the population standard deviation across the " +
-				"population's per-category frequencies (sourced from FacetPopulationView.DiscreteFrequencyStdev — the S1 " +
+				"population's per-category frequencies (sourced from FacetPopulationView.DiscreteFrequencyStdev — the " +
 				"resolver's additive accessor reading the Welford-Pébaÿ accumulator that FacetSchema already folded; " +
 				"single-pass, allocation-free, byte-equal to the WelfordStdDev recurrence). Numeric path (host.Kind == " +
 				"\"numeric\"): walks host.Numeric.Histogram.Bins when the host requested a histogram AND the population " +
@@ -1305,7 +1291,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"INDEX_VS_POP's zero-denominator arm because subtraction by zero is well-defined). Ref.Population MUST be " +
 				"populated (the cohort name lives on Ref.Population.Cohort); any other ref-family pointer (Margin / " +
 				"Sibling / BaselineIndex / Prior / RollingMean / YoY / Stage / Slot) fires " +
-				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time (per-kind validator lands in E5-S6 / E5-S7). " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. " +
 				"Level / Within MUST be zero (population comparison is a single-value lookup, not an axis prefix); " +
 				"non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the implicit-ref family. Scope must be " +
 				"GROUP. Streamable — host streaming carriers are unchanged; the overlay reads finalized state only. " +
@@ -1322,19 +1308,20 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeGroup,
 			},
-			// RollingMean is the windowed-axis ref family the kind consumes
-			// (sibling to E4-S5 INDEX_VS_ROLLING_MEAN — both kinds share the
-			// same ref-arm). The empty marker struct tags the family — the
-			// v1 window value lives on OverlaySpec.Params["window"] per the
-			// WIN_* operator convention.
+			// RollingMean is the windowed-axis ref family the kind
+			// consumes, shared with OVERLAY_INDEX_VS_ROLLING_MEAN — both
+			// kinds share the same ref-arm. The empty marker struct tags
+			// the family — the v1 window value lives on
+			// OverlaySpec.Params["window"] per the WIN_* operator
+			// convention.
 			RefKinds: []string{"RollingMean"},
 			Description: "Per-point windowed standardized z-score against the rolling-window mean + SAMPLE standard deviation " +
 				"(sqrt(M2 / (count - 1)), n-1 denominator) of the W immediately preceding points of an ordered SERIES " +
 				"(grouped Process) host: zscore = (point_value - rolling_mean(W)) / rolling_sd(W). GROUP scope over a " +
 				"SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the " +
-				"z-score on Summary.Statistic. Fifth windowed-Process overlay in the catalog (E4-S6; siblings: " +
-				"OVERLAY_INDEX_VS_PRIOR / E4-S4, OVERLAY_INDEX_VS_BASELINE / E4-S2, OVERLAY_DELTA_VS_BASELINE / E4-S3, " +
-				"OVERLAY_INDEX_VS_ROLLING_MEAN / E4-S5) and the second consumer of the Ref.RollingMean arm of the " +
+				"z-score on Summary.Statistic. Member of the windowed-Process overlay family alongside " +
+				"OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / " +
+				"OVERLAY_INDEX_VS_ROLLING_MEAN, and the second consumer of the Ref.RollingMean arm of the " +
 				"OverlayRef discriminated union (sibling windowed-rolling kind to INDEX_VS_ROLLING_MEAN — both kinds " +
 				"carry the window width on Params[\"window\"]). " +
 				"Variance choice (SAMPLE, NOT population) — KEY CONTRAST with OVERLAY_ZSCORE_VS_TOTAL: the rolling z-score " +
@@ -1389,7 +1376,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"sd = sqrt(M2 / N) (population variance) folded across the N present per-group " +
 				"aggregated values. GROUP scope over a SERIES (grouped Process) host with SERIES " +
 				"payload — one SeriesEntry per host group key in host order, each carrying the " +
-				"z-score on Summary.Statistic. Third and final streamable overlay in the E3 " +
+				"z-score on Summary.Statistic. Third and final streamable overlay in the " +
 				"grouped-Process subset (sibling to OVERLAY_INDEX_VS_TOTAL and the SERIES dispatch " +
 				"of OVERLAY_SHARE_OF_TOTAL) — the Welford accumulator (count + mean + M2) is three " +
 				"f64s carried alongside the per-group accumulators inside the streaming Process " +
@@ -1416,8 +1403,8 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// ComposeOverlaySpec slot-label pair, not via the OverlayRef
 			// discriminated union.
 			RefKinds: []string{},
-			Description: "COMPOSE-host per-cell two-sample z-test on the means against the reference slot's matching cell " +
-				"(E1-S14). CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the " +
+			Description: "COMPOSE-host per-cell two-sample z-test on the means against the reference slot's matching cell. " +
+				"CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the " +
 				"two-sided p-value as a float64. Each cell is treated as a sample mean; the variance defaults to 1.0 " +
 				"and the sample size defaults to 2 (`Params[\"sample_size\"]` accepts an integer override; " +
 				"`Params[\"variance_target\"]` / `Params[\"variance_ref\"]` / `Params[\"sample_size_target\"]` / " +
@@ -1428,7 +1415,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"backing TEST_Z_TWO_SAMPLE so the overlay and the row-test surface produce identical p-values for " +
 				"the same (mean, variance, n) triple. Default-variance and default-sample-size policy: v1 ships " +
 				"well-defined defaults so the per-cell handler stays usable against a minimal Compose authoring " +
-				"surface; a future story may lift the per-cell (mean, variance, n) triple into a richer Compose " +
+				"surface; future work may lift the per-cell (mean, variance, n) triple into a richer Compose " +
 				"authoring surface (the crosstab cell carrier could grow to carry sample statistics alongside the " +
 				"scalar mean). Inherently buffered — inferential overlays as a family stay buffered until a " +
 				"streamable-test path is plumbed (PRD §2 Non-Goals).",
@@ -1447,7 +1434,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			// discriminated union.
 			RefKinds: []string{},
 			Description: "COMPOSE-host per-group two-sample z-test on the means against the reference slot's matching group, " +
-				"against a SERIES (grouped Process) host (E1-S15). GROUP scope over a SERIES host with SERIES payload — " +
+				"against a SERIES (grouped Process) host. GROUP scope over a SERIES host with SERIES payload — " +
 				"one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. " +
 				"Series-shape sibling of OVERLAY_Z_CELL (the per-cell MATRIX-host z-test) and twin to the SERIES arm of " +
 				"OVERLAY_T_VS_REF (Welch t-test sibling on the same fold-and-finalise shape; different distribution — " +
@@ -1462,7 +1449,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n < 2) " +
 				"produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay " +
 				"buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + " +
-				"schema match + dict drift all run BEFORE the handler dispatches (E7-S5..S8).",
+				"schema match + dict drift all run BEFORE the handler dispatches.",
 		}
 	}
 	return OverlayCapability{Kind: kind}

@@ -8,17 +8,16 @@ import (
 )
 
 // OVERLAY_CHISQ_VS_POP — single scalar χ² goodness-of-fit statistic
-// against a FACET host (E5-S4).
+// against a FACET host.
 //
-// First inferential FACET-host kind in the catalog. Pairs with the
-// MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as
-// the canonical χ² family — the viz developer renders the SCALAR
-// statistic as a goodness-of-fit badge near the facet header. Sibling
-// FACET-host kinds shipped earlier in E5: OVERLAY_INDEX_VS_POP / E5-S2
-// (descriptive per-value index, streamable), OVERLAY_ZSCORE_VS_POP /
-// E5-S3 (descriptive per-value z-score, streamable). CHISQ_VS_POP
-// closes the descriptive→inferential transition by emitting a single
-// scalar statistic instead of a per-value series.
+// Inferential FACET-host kind. Pairs with the MATRIX-host CHISQ
+// family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ²
+// family — the viz developer renders the SCALAR statistic as a
+// goodness-of-fit badge near the facet header. Sibling FACET-host
+// kinds: OVERLAY_INDEX_VS_POP (descriptive per-value index,
+// streamable), OVERLAY_ZSCORE_VS_POP (descriptive per-value z-score,
+// streamable). CHISQ_VS_POP emits a single scalar statistic instead
+// of a per-value series.
 //
 // Math:
 //
@@ -33,9 +32,9 @@ import (
 // Discrete arm only: χ² goodness-of-fit requires categorical buckets to
 // form the observed × expected contingency. A numeric host (no discrete
 // payload) emits a coded PROCESSING_INTERNAL error carrying
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — the validator (lands in
-// E5-S6 / E5-S7) will reject numeric hosts at predict time so this
-// runtime arm is defense in depth.
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — the validator rejects
+// numeric hosts at predict time so this runtime arm is defense in
+// depth.
 //
 // Reuses the χ² survival helper backing TEST_CHISQ and the MATRIX-host
 // CHISQ family (`chiSquareSurvival` in processing/test_stat.go) so the
@@ -87,8 +86,8 @@ import (
 // PROCESSING_INTERNAL error carrying PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
 // in the Details map — mirrors the INDEX_VS_POP / ZSCORE_VS_POP guard.
 // Numeric host (no discrete payload) fails with the same code — the
-// per-kind validator (lands in E5-S6 / E5-S7) rejects numeric hosts at
-// predict time; this runtime arm is defense in depth.
+// per-kind validator rejects numeric hosts at predict time; this
+// runtime arm is defense in depth.
 func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedError(
@@ -114,10 +113,10 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 			})
 	}
 
-	// Discrete-arm only. The per-kind validator (E5-S6 / E5-S7) rejects
-	// numeric hosts at predict time; this runtime arm is defense in
-	// depth — a numeric host (no Discrete payload) fails with the same
-	// code the validator would emit.
+	// Discrete-arm only. The per-kind validator rejects numeric hosts
+	// at predict time; this runtime arm is defense in depth — a numeric
+	// host (no Discrete payload) fails with the same code the
+	// validator would emit.
 	if host.Kind != "discrete" || host.Discrete == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_INTERNAL,

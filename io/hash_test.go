@@ -112,18 +112,6 @@ func TestConvertJob_IncludeOverlays_HashChanges(t *testing.T) {
 	}
 }
 
-// TestExportJob_Hash_IncludeOverlaysNilByteIdentity locks the
-// additive contract: adding IncludeOverlays must NOT change the hash
-// for any existing overlay-free ExportJob. The slot is omitempty so
-// json.Marshal omits it when nil, and the canonical-hash pipeline
-// produces byte-identical output to the pre-E9-S7 implementation.
-//
-// The captured constant below is the hash for the pinned fixture
-// computed against the canonical-hash routine. Any change that
-// alters this hash means the additive extension broke byte-identity
-// for callers that have already pinned cache keys against earlier
-// Pulse versions — bump CanonicalHash with a migration plan rather
-// than silently re-hashing.
 func TestExportJob_Hash_IncludeOverlaysNilByteIdentity(t *testing.T) {
 	job := &ExportJob{
 		Source:   "a.pulse",

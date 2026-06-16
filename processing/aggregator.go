@@ -539,7 +539,7 @@ func (a *zscoreAggregator) aggregateValues(vals []float64) (float64, error) {
 // aggregator declares ComponentsMergeability=None — the median cannot
 // be computed incrementally without sorting the full value set, so the
 // streaming path defers Components() emission until terminal buffered
-// flush (E4-S4 wiring).
+// flush.
 //
 // frozenN / frozenMedian / frozenPositionLow / frozenPositionHigh
 // mirror the post-Aggregate state so Components() returns a stable
@@ -847,7 +847,7 @@ func (a *distinctCountAggregator) aggregateValues(vals []float64) (float64, erro
 // scalar return. The aggregator declares ComponentsMergeability=None
 // — incrementing percentiles without a sorted view is not defensible,
 // so the streaming path defers Components() emission until terminal
-// buffered flush (E4-S4 wiring).
+// buffered flush.
 //
 // frozen* mirrors hold the post-Aggregate state so Components()
 // returns a stable snapshot. frozenFinalized distinguishes
@@ -1032,7 +1032,7 @@ func (a *nullCountAggregator) Components() (map[string]any, error) {
 	return nil, nil
 }
 
-// --- Welford-family Components implementations (E1-S6) -----------
+// --- Welford-family Components implementations -------------------
 //
 // The Welford-family aggregators — variance, stddev, skewness, kurtosis
 // — share a common shape: streaming Finalize captures (n, mean, m2,
@@ -1176,7 +1176,7 @@ func (a *zscoreAggregator) Components() (map[string]any, error) {
 	}, nil
 }
 
-// --- Map-state Components implementations (E1-S7) ----------------
+// --- Map-state Components implementations ------------------------
 //
 // The three map-state aggregators — AGG_DISTINCT_COUNT, AGG_MODE,
 // AGG_FREQUENCY — maintain a per-value count map (or set) for their
@@ -1254,15 +1254,13 @@ func (a *frequencyAggregator) Components() (map[string]any, error) {
 	}, nil
 }
 
-// --- Order-stat Components implementations (E1-S9) ---------------
+// --- Order-stat Components implementations -----------------------
 //
 // AGG_MEDIAN and AGG_PERCENTILE are the canonical non-mergeable
 // aggregators — they require a sorted view of the full value set
 // (ComponentsMergeability=None). Streaming chunks deliberately omit
 // per-chunk Components emission and emit only at terminal buffered
-// flush (the streaming-path per-chunk omission lands in E4-S4; this
-// story implements the buffered emission + documents the contract).
-// Both Components implementations read frozen mirrors stamped by
+// flush. Both Components implementations read frozen mirrors stamped by
 // aggregateValues, so the buffered path's processRecords exit
 // produces a stable snapshot.
 
@@ -1314,19 +1312,19 @@ var (
 	_ MetaAggregator = (*rangeAggregator)(nil)
 	_ MetaAggregator = (*nullCountAggregator)(nil)
 
-	// Welford-family compile-time locks (E1-S6).
+	// Welford-family compile-time locks.
 	_ MetaAggregator = (*varianceAggregator)(nil)
 	_ MetaAggregator = (*stdDevAggregator)(nil)
 	_ MetaAggregator = (*skewnessAggregator)(nil)
 	_ MetaAggregator = (*kurtosisAggregator)(nil)
 	_ MetaAggregator = (*zscoreAggregator)(nil)
 
-	// Map-state compile-time locks (E1-S7).
+	// Map-state compile-time locks.
 	_ MetaAggregator = (*distinctCountAggregator)(nil)
 	_ MetaAggregator = (*modeAggregator)(nil)
 	_ MetaAggregator = (*frequencyAggregator)(nil)
 
-	// Order-stat compile-time locks (E1-S9).
+	// Order-stat compile-time locks.
 	_ MetaAggregator = (*medianAggregator)(nil)
 	_ MetaAggregator = (*percentileAggregator)(nil)
 )

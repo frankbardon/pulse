@@ -8,49 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E1-S12 byte-equal parity gate: TEST_WELCH ↔ OVERLAY_T_CELL +
-// OVERLAY_T_VS_REF. The Welch p-value the overlay surface emits MUST
-// be bit-for-bit identical to the p-value TEST_WELCH (alias of TEST_T)
-// computes for the same (mean, variance, n) inputs.
-//
-// Both surfaces share the same plumbing by construction:
-//
-//   - TEST_WELCH (processing/test_t.go finalizeTwoSample) consumes per-
-//     group welfordBucket state, computes `va/na + vb/nb` SE, the
-//     Welch-Satterthwaite df recurrence, and finishes through
-//     studentTTwoSidedP.
-//   - AGG_WELFORD (processing/aggregator_welford.go) emits the SAME
-//     welfordBucket state as a WelfordTriple {Mean, Variance, N}.
-//   - applyTCell / applyTVsRef consume a triple-bearing cell pair and
-//     route into welchTTest (processing/overlay_compose_handlers.go),
-//     which performs the SAME `va/na + vb/nb` SE, the SAME df
-//     recurrence, and finishes through studentTTwoSidedP.
-//
-// The parity test exploits this: it drives one welfordBucket per group
-// over a synthesized 4-group × 50-row data set, snapshots the final
-// triple, builds a triple-bearing crosstab cell pair from those exact
-// triples, and asserts `math.Float64bits(p_overlay) == math.Float64bits
-// (p_native)` for every (target, ref) tuple. Sourcing both surfaces
-// from the same welfordBucket end-state guarantees bit-for-bit
-// equivalence — any drift would imply welchTTest and tTestRow.
-// finalizeTwoSample diverged.
-//
-// Coverage:
-//
-//   - TestOverlayTCell_ParityWithTestWelch (MATRIX-host): 10+ distinct
-//     (mean, variance, n) input tuples driven through both surfaces.
-//   - TestOverlayTVsRef_ParityWithTestWelch (SERIES-host): the same
-//     parity check against the OVERLAY_T_VS_REF series handler.
-//   - TestOverlayTCell_DegenerateNaNParity: N=1 + Variance=0 degenerate
-//     arms produce matching NaN p-values across both surfaces (welch
-//     gate triggers PULSE_TEST_VARIANCE_ZERO / PULSE_TEST_INSUFFICIENT_N
-//     while overlay surfaces NaN + PULSE_OVERLAY_REF_ZERO; the test
-//     pins NaN parity where the row test succeeds and the overlay
-//     would also succeed, and pins both-side failure where both reject).
-//
-// Naming convention: "respondent cohort" / "consumer survey" terminology
-// only — no customer brand names anywhere in this file.
-
 // parityTuple is one row in the parity table. Each tuple drives two
 // independent group streams (target + reference) through a welfordBucket
 // pair so the resulting (mean, variance, n) triples can be fed into
@@ -205,16 +162,6 @@ func overlayWelchPFromTriplesSeries(t *testing.T, target, ref WelfordTriple) (fl
 	return *stat, true
 }
 
-// makeSingleCellTripleResponse builds a 1×1 MATRIX-shape Response whose
-// single cell carries the supplied WelfordTriple. Used by the
-// OVERLAY_T_CELL parity probe so the per-cell handler sees an
-// unambiguous (target_triple, ref_triple) pair on (r0, c0).
-//
-// E3-S7 migration: also populates Response.Components.Crosstab.
-// CellComponents[0][0] with the matching `{n, mean, variance}` map so
-// the migrated handler can consume the universal Components surface.
-// The legacy WelfordTriple in MatrixCell.Value stays — E3-S8 removes
-// the writer side.
 func makeSingleCellTripleResponse(triple WelfordTriple) *types.Response {
 	cells := [][]types.MatrixCell{{{Value: triple, Present: true}}}
 	return &types.Response{
@@ -313,15 +260,6 @@ func parityTuples() []parityTuple {
 	}
 }
 
-// TestOverlayTCell_ParityWithTestWelch is the headline E1-S12 byte-
-// equal parity gate. For each of 10+ (mean, variance, n) tuples the
-// row-test surface (TEST_WELCH via newTTestRow) and the overlay
-// surface (applyTCell via WelfordTriple cells) must produce the same
-// float64 p-value at math.Float64bits granularity.
-//
-// Both surfaces source their (mean, variance, n) from the SAME
-// welfordBucket instance per group so any divergence at the bit level
-// would imply welchTTest and tTestRow.finalizeTwoSample drifted.
 func TestOverlayTCell_ParityWithTestWelch(t *testing.T) {
 	tuples := parityTuples()
 	if len(tuples) < 10 {
@@ -359,10 +297,6 @@ func TestOverlayTCell_ParityWithTestWelch(t *testing.T) {
 	}
 }
 
-// TestOverlayTVsRef_ParityWithTestWelch is the SERIES-host sub-test
-// (E1-S12 acceptance criterion: "OVERLAY_T_VS_REF parity sub-test
-// included"). Same tuples, same welfordBucket-sourced triples, same
-// byte-equal assertion — but routes through the series handler.
 func TestOverlayTVsRef_ParityWithTestWelch(t *testing.T) {
 	tuples := parityTuples()
 	for _, tc := range tuples {
@@ -441,20 +375,6 @@ func TestOverlayTCell_DegenerateNaNParity(t *testing.T) {
 	}
 }
 
-// TestOverlayTCell_HelpersReused is the "no duplication" gate from the
-// E1-S12 acceptance criteria. The overlay handler MUST consume
-// welchTTest (the canonical Welch implementation in
-// processing/overlay_compose_handlers.go) and the welchTTest helper
-// MUST consume studentTTwoSidedP (the canonical t-CDF helper in
-// processing/welford.go). We verify behavioural equivalence at
-// boundary inputs: welchTTest's output for a fixed (mean, var, n)
-// pair MUST equal what tTestRow.finalizeTwoSample emits for the same
-// inputs driven through the same welfordBucket. The bit-equal
-// assertion in TestOverlayTCell_ParityWithTestWelch implicitly
-// enforces this; this test stresses the entry-point reuse with a
-// targeted single-tuple probe so a refactor that duplicates the
-// recurrence (instead of reusing the canonical helper) breaks here
-// first.
 func TestOverlayTCell_HelpersReused(t *testing.T) {
 	stream := makeParityStream(10.0, 2.0, 50)
 	refStream := makeParityStream(9.5, 2.0, 50)

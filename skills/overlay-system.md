@@ -38,10 +38,10 @@ Per-kind math in `op-overlay-*` atomics. `types.AllOverlayKinds()`:
 Each host has a finalize hook walking `Request.Overlays`.
 
 - **MATRIX (Crosstab)** — `processing/crosstab.go applyOverlaysToResponse`. Share triad + margin compare + matrix inferential + parity + vs-ref.
-- **SERIES (windowed Process)** — `service/series_overlay.go` per-group fold (E3-S6).
-- **FACET** — `service.applyFacetOverlays` at buffered exit (E5-S6); `Ref.Population` recursion produces the comparison FacetResult.
-- **CHAIN** — `service.applyChainOverlays` post-stage (E6-S3); per-stage `Stages[i].Overlays` untouched, whole-chain on `ChainResponse.Overlays`. Shape divergence ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`.
-- **FORMULA** — `OVERLAY_FORMULA` (E8-S2) evaluates expr-lang against earlier layers; refs resolve by `Name`.
+- **SERIES (windowed Process)** — `service/series_overlay.go` per-group fold.
+- **FACET** — `service.applyFacetOverlays` at buffered exit; `Ref.Population` recursion produces the comparison FacetResult.
+- **CHAIN** — `service.applyChainOverlays` post-stage; per-stage `Stages[i].Overlays` untouched, whole-chain on `ChainResponse.Overlays`. Shape divergence ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`.
+- **FORMULA** — `OVERLAY_FORMULA` evaluates expr-lang against earlier layers; refs resolve by `Name`.
 
 Compose post-slot fold (`service/compose_overlay.go`) gates slot-label, key alignment, schema, dict-prefix drift; `OverlayOptions.DictPrefixFast` ⇒ prefix probe.
 
@@ -58,7 +58,7 @@ Routing is dispatcher-stamped, service-distributed. `processing/overlay_chain_di
 
 ## Parity overlays — Welford migration (v0.20.0)
 
-The four parity kinds (`OVERLAY_T_CELL`, `OVERLAY_Z_CELL`, `OVERLAY_T_VS_REF`, `OVERLAY_Z_VS_REF`) read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` (populated by `AGG_WELFORD` via `MetaAggregator`). Legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` is **removed in v0.20.0** (E3-S7/S8); `MatrixCell.Value` carries the scalar mean. Absent the triple, handlers fall back to `Params`-supplied `{mean, variance, n}`. P-values byte-equal to `TEST_WELCH` / `TEST_Z_TWO_SAMPLE`. Canonical per-cell parametric: `AGG_WELFORD` cell + parity kind.
+The four parity kinds (`OVERLAY_T_CELL`, `OVERLAY_Z_CELL`, `OVERLAY_T_VS_REF`, `OVERLAY_Z_VS_REF`) read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` (populated by `AGG_WELFORD` via `MetaAggregator`). Legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` is **removed in v0.20.0**; `MatrixCell.Value` carries the scalar mean. Absent the triple, handlers fall back to `Params`-supplied `{mean, variance, n}`. P-values byte-equal to `TEST_WELCH` / `TEST_Z_TWO_SAMPLE`. Canonical per-cell parametric: `AGG_WELFORD` cell + parity kind.
 
 ## Adding a new kind
 

@@ -10,11 +10,11 @@ import (
 // OVERLAY_INDEX_VS_SIBLING — per-group ratio index against a sibling
 // group named in `Ref.Sibling`, scaled to ×100.
 //
-// E3-S5 scope:
+// Behaviour:
 //
-//   - Second sibling-reference SERIES-host handler in the catalog
-//     (alphabetised between INDEX_VS_MARGIN and INDEX_VS_TOTAL).
-//     Registered in processing/overlay_series.go's
+//   - Sibling-reference SERIES-host handler (alphabetised between
+//     INDEX_VS_MARGIN and INDEX_VS_TOTAL). Registered in
+//     processing/overlay_series.go's
 //     seriesOverlayHandlers dispatch table; the dispatch route is the
 //     post-host-finalize entry point. Buffered (per kind-catalog-v1
 //     "Streaming-capable subset"): the streaming Process pass cannot
@@ -49,7 +49,7 @@ import (
 // Absent-group policy: a host that did not produce a value for group
 // i (resolver returns `(0, false)`) surfaces a SeriesEntry whose
 // Summary leaves Statistic unset — the canonical "present slot, empty
-// summary" shape from the E3-S1 SERIES dispatch contract. Absent
+// summary" shape from the SERIES dispatch contract. Absent
 // groups do NOT participate in the index computation. The sibling
 // group's own entry surfaces a statistic of `100.0` when present
 // (self-vs-self under the ratio scaling).
@@ -79,7 +79,7 @@ import (
 //     present=true with value==0 drives the zero-sibling NaN path
 //     (analogous to INDEX_VS_TOTAL's zero-grand-total branch).
 //  2. Walk the host once and emit one SeriesEntry per host ordinal in
-//     host order — the parallel-slice contract (FR-A2) the E3-S1
+//     host order — the parallel-slice contract (FR-A2) the SERIES
 //     dispatch established. Present groups carry Statistic =
 //     `(value / sibling_val) * 100.0`; absent groups carry a nil
 //     Statistic.
@@ -87,7 +87,7 @@ import (
 // Cost: O(groups) per layer for the resolver pass (single scan over
 // the host's group-key list) + O(groups) for the emission pass =
 // O(groups). Acceptable because the kind is buffered by construction —
-// the streaming-Process orchestrator (E3-S6) does NOT short-circuit
+// the streaming-Process orchestrator does NOT short-circuit
 // this path through a streaming accumulator.
 //
 // Defense in depth: the descriptor validator rejects ref / scope
@@ -168,7 +168,7 @@ func applyIndexVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.O
 
 	// Pass 2: per-host-ordinal entry emission. Absent groups carry a
 	// nil Summary.Statistic (canonical "present slot, empty summary"
-	// shape from E3-S1). Present groups carry Statistic = (value /
+	// shape). Present groups carry Statistic = (value /
 	// sibling_val) * 100; in the unknown-sibling or zero-sibling paths
 	// every present group carries NaN.
 	emitNaN := unknownSibling || zeroSibling

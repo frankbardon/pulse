@@ -220,12 +220,6 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 	}
 }
 
-// TestRegressionExamplesCount asserts there are exactly 16 regression
-// examples (the Phase 6 ecological one plus the 10 added in Phase 8 plus
-// the 5 modifier-axis examples added in E5-S2 — bootstrap resampling,
-// forward / backward selection, poisson / gamma GLM families). New
-// regression examples should bump this count and document the addition
-// in the regression mdBook chapter.
 func TestRegressionExamplesCount(t *testing.T) {
 	matches, err := filepath.Glob(filepath.Join("examples", "regression", "*.json"))
 	if err != nil {

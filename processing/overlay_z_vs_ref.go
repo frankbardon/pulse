@@ -8,29 +8,28 @@ import (
 )
 
 // applyZVsRef is the COMPOSE-host SERIES-shape runtime handler for
-// OVERLAY_Z_VS_REF (E1-S18). Per-group two-sample z-test on the means
-// against the reference slot's matching group. Series sibling of
+// OVERLAY_Z_VS_REF. Per-group two-sample z-test on the means against
+// the reference slot's matching group. Series sibling of
 // `OVERLAY_Z_CELL` — same Welch-style SE recurrence, same
 // `standardNormalCDF` finaliser, same default-variance /
 // default-sample-size policy. Mirrors the SERIES arm of
 // `applyTVsRef` (overlay_compose_handlers_series.go) — only the
 // finaliser swaps from `studentTTwoSidedP` to `standardNormalCDF`.
 //
-// Components-source (E3-S7): when a target row OR a reference row
-// carries a `map[string]any{"mean", "variance", "n", ...}` value
-// column — the components-source emission from AGG_WELFORD via the
-// MetaAggregator path — the handler reads `(mean, variance, n)` off
-// the map and bypasses the per-side `Params` defaults for that
-// group. Scalar rows fall back to the Params defaults
-// (`variance_target` / `variance_ref` default 1.0,
-// `sample_size_target` / `sample_size_ref` default 2). Mixed rows
-// (one triple, one scalar) pull `(variance, n)` from each side
-// independently per the additive contract. Triple-aware row encoding
-// / lookup routes through `encodeSeriesRowAnyMap` +
-// `buildSeriesRowLookupAnyMap` so the SERIES arm and the MATRIX arm
-// of the Z parity pair stay symmetric with the T parity pair
-// (E3-S7). The legacy processing.WelfordTriple type-assertion on the
-// row's value column is no longer performed.
+// Components-source: when a target row OR a reference row carries a
+// `map[string]any{"mean", "variance", "n", ...}` value column — the
+// components-source emission from AGG_WELFORD via the MetaAggregator
+// path — the handler reads `(mean, variance, n)` off the map and
+// bypasses the per-side `Params` defaults for that group. Scalar rows
+// fall back to the Params defaults (`variance_target` /
+// `variance_ref` default 1.0, `sample_size_target` /
+// `sample_size_ref` default 2). Mixed rows (one triple, one scalar)
+// pull `(variance, n)` from each side independently per the additive
+// contract. Triple-aware row encoding / lookup routes through
+// `encodeSeriesRowAnyMap` + `buildSeriesRowLookupAnyMap` so the SERIES
+// arm and the MATRIX arm of the Z parity pair stay symmetric with the
+// T parity pair. The legacy processing.WelfordTriple type-assertion on
+// the row's value column is no longer performed.
 //
 // Math (per host group `i`):
 //

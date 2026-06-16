@@ -23,10 +23,9 @@ import (
 // N contiguous segments at record-stride boundaries and fans out one
 // goroutine per segment.
 //
-// Story scope (E3-S2): decode only. Each worker fires a per-record
-// callback supplied by the orchestrator. No partial-state aggregation,
-// no merge. E3-S3 will replace the orchestrator's append-to-slice
-// callback with per-worker partial accumulators.
+// Scope: decode only. Each worker fires a per-record callback supplied
+// by the orchestrator. Partial-state aggregation and the merge fold
+// live in parallel_reduce.go.
 //
 // Non-applicable cases:
 //
@@ -66,17 +65,17 @@ type DecodeCallback func(rec *processing.Record) error
 //
 // workerIdx is the worker's 0-based index (0..workers-1) and is stable
 // for the lifetime of the parallel run — partial-state implementations
-// in E3-S3 can key per-worker accumulators on it. recordCount is the
+// can key per-worker accumulators on it. recordCount is the
 // number of records the worker will receive (not the cohort total),
 // useful when the callback wants to pre-size a slice or accumulator.
 type DecodeCallbackFactory func(workerIdx, recordCount int) DecodeCallback
 
 // canParallelDecode is the eligibility predicate for the buffered
 // Process path's segment-aware parallel decode. It is the single
-// integration site E3-S4 uses to gate the broader (non-crosstab) Process
+// integration site that gates the broader (non-crosstab) Process
 // dispatch — every condition the parallel reducer needs is checked here
 // in one place so the dispatch site can stay a single if-statement and
-// so future stories that broaden the gate (e.g. extending mergeability
+// so future changes that broaden the gate (e.g. extending mergeability
 // to crosstab cells) have one function to amend.
 //
 // Eligibility is the AND of:
@@ -378,12 +377,13 @@ func parallelDecodeMmap(
 // completion order. We pay the per-worker slice allocation today so
 // the stitching is deterministic.
 //
-// E3-S3 will replace this helper (and its append-into-slice callback)
-// with a per-worker partial-state accumulator that merges directly into
-// the orchestrator's processing.Processor. The factory signature
-// already supports that: the closure constructs the accumulator, the
-// returned callback updates it, and a post-Wait merge fold collapses
-// partials in worker-index order.
+// The reducer in parallel_reduce.go is the mergeable-arm replacement
+// for this helper's append-into-slice callback: a per-worker
+// partial-state accumulator that merges directly into the
+// orchestrator's processing.Processor via the same factory signature
+// (the closure constructs the accumulator, the returned callback
+// updates it, and a post-Wait merge fold collapses partials in
+// worker-index order).
 func materializeRecordsParallel(
 	ctx context.Context,
 	pctx *parallelDecodeContext,

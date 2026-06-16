@@ -264,13 +264,6 @@ func TestMCPSchemaBinding_CrosstabNormalizeWithin(t *testing.T) {
 	}
 }
 
-// TestMCPSchemaBinding_OverlayKindEnum verifies the bound pulse_process
-// schema exposes Request.Overlays[].kind with the Request-facade-narrowed
-// enum drawn from descriptor.OverlayCapabilities() minus the kinds whose
-// Ref family is exclusively addressed on another facade (Compose slot
-// labels, Chain StageRefs, Facet population cohorts). E10-S5 split the
-// global overlay enum into per-facade enums; the process tool surfaces
-// the Request-facade subset.
 func TestMCPSchemaBinding_OverlayKindEnum(t *testing.T) {
 	schemas, err := Bind(makeSchema())
 	if err != nil {

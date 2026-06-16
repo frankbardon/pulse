@@ -6,46 +6,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// E7-S15: Compose-overlay INTEGRATION TIER.
-//
-// This file is the cross-cutting integration layer atop the per-handler
-// unit tests landed by E7-S6..S14. Two structural goals drive the
-// layout:
-//
-//   1. Provide a shared `composeOverlayCase` table-driven helper so
-//      adding a new Compose-only OverlayKind costs ONE ROW, not a new
-//      file. The runner drives `processing.ApplyComposeOverlays` (the
-//      chassis surface) against caller-built `[]*types.Response` slot
-//      payloads and runs a caller-supplied `Expect` callback against
-//      the resulting (layers, warnings) tuple.
-//
-//   2. Land the canonical-name acceptance gates for E7-S15:
-//        TestOverlay_ComposeIndexVsRef_Matrix
-//        TestOverlay_ComposeChisqVsRef
-//        TestOverlay_PropZCell_KnownAnswer
-//        TestOverlay_TCell_KnownAnswer
-//        TestOverlay_PropZPanel_PairwiseSig
-//        TestOverlay_PanelIndexVsRef_MultiLayer
-//        TestValidateOverlay_KeySetDivergent
-//        TestValidateOverlay_SchemaDivergent
-//        TestValidateOverlay_SlotNotCrosstab
-//        TestOverlay_DictDrift_PrefixFastOpt
-//      Each is wired through the shared helper where the input fits the
-//      `ApplyComposeOverlays` surface; the divergence aliases delegate
-//      to the per-kind helpers they assert against.
-//
-// Why integration through `processing.ApplyComposeOverlays` and not
-// `service.Compose`: per E7-S4 the facade still returns []*Response and
-// the layer slice is computed but discarded. The facade-rewire to
-// `*types.ComposedResponse{Responses, Overlays}` ships as a follow-up
-// once the per-kind handlers register (this story acknowledges the gap
-// in its description). For E7-S15 the integration boundary is the
-// chassis function itself — driving it with hand-built per-slot
-// `*types.Response` payloads exercises the resolver, key-alignment,
-// schema-match, dict-drift, dispatch, and per-handler arithmetic in one
-// composable surface. End-to-end-through-service moves to E7-S16+ once
-// the facade rewire lands.
-
 // composeOverlayCase is the table-driven runner input for COMPOSE-host
 // overlay integration tests. Each row is one Compose-overlay scenario:
 // build the per-slot Responses, declare the spec, run
@@ -147,20 +107,6 @@ func fourSlotMatrix3x3(ref, t0, t1, t2 *types.Response) func() ([]*types.Respons
 	}
 }
 
-// TestOverlay_ComposeIndexVsRef_Matrix is the canonical-name acceptance
-// gate for the E7-S15 MATRIX-host INDEX_VS_REF integration scenario:
-// two slots both producing crosstabs, the matrix INDEX overlay
-// declared against them, and an expected per-cell payload of `target /
-// ref * 100`. Drives the shared `runComposeOverlayCase` helper so
-// adding sibling kinds is a one-row change.
-//
-// The facade rewire (Compose → *ComposedResponse{..., Overlays}) is
-// still deferred (per the E7-S4 note in service/compose_overlay.go), so
-// the integration boundary is `processing.ApplyComposeOverlays` rather
-// than `service.Compose` itself. Once the facade rewire lands the
-// helper's BuildSlots step swaps to drive `service.Compose` and read
-// `ComposedResponse.Overlays`; the per-row Expect contract stays byte-
-// identical.
 func TestOverlay_ComposeIndexVsRef_Matrix(t *testing.T) {
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 20, 30},
@@ -207,13 +153,6 @@ func TestOverlay_ComposeIndexVsRef_Matrix(t *testing.T) {
 	})
 }
 
-// TestOverlay_ComposeChisqVsRef is the canonical-name acceptance gate
-// for the E7-S15 whole-matrix χ² scalar-p integration scenario. Drives
-// the shared helper against the same fixture the per-handler unit test
-// uses (target [[10..90]] vs uniform-20 ref ⇒ χ² statistic = 120,
-// df = 8) and asserts the SCALAR-shape payload plus Summary slots
-// (Statistic + Parameters + PValue) land on the integration surface
-// identically to the direct-handler call.
 func TestOverlay_ComposeChisqVsRef(t *testing.T) {
 	ref := makeMatrixFromValues([3][3]float64{
 		{20, 20, 20},
@@ -344,13 +283,6 @@ func TestOverlay_TCell_KnownAnswer(t *testing.T) {
 	})
 }
 
-// TestOverlay_PropZPanel_PairwiseSig is the canonical-name acceptance
-// alias for the 3-target pairwise-z-panel scenario landed by E7-S11.
-// Fixture mirrors `TestApplyPropZPanel_PairwiseSig_3Targets`. The
-// chassis helper resolves the 4 slot labels (baseline + t0 + t1 + t2),
-// emits ONE layer (PROP_Z_PANEL is a single-layer kind despite being
-// multi-target), and the Expect asserts the pair-index ordering across
-// the flattened upper-triangular result.
 func TestOverlay_PropZPanel_PairwiseSig(t *testing.T) {
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
@@ -412,13 +344,6 @@ func TestOverlay_PropZPanel_PairwiseSig(t *testing.T) {
 	})
 }
 
-// TestOverlay_PanelIndexVsRef_MultiLayer is the canonical-name
-// acceptance alias for the multi-layer panel-index scenario landed by
-// E7-S12. PANEL_INDEX_VS_REF is the FIRST multi-layer Compose-only
-// kind — a single spec with 3 targets emits 3 OverlayLayer entries in
-// the parent layers slice. Fixture mirrors
-// `TestApplyPanelIndexVsRef_MultiLayer_3Targets_Matrix`; the chassis
-// helper exercises the multi-layer dispatch table.
 func TestOverlay_PanelIndexVsRef_MultiLayer(t *testing.T) {
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 20, 30},
@@ -476,18 +401,6 @@ func TestOverlay_PanelIndexVsRef_MultiLayer(t *testing.T) {
 	})
 }
 
-// TestValidateOverlay_KeySetDivergent is the canonical-name alias for
-// the cross-slot key-set alignment gate. The detailed per-axis
-// variations live in compose_overlay_keyalign_test.go
-// (`TestValidateOverlay_KeySetDivergent_Matrix`,
-// `TestValidateOverlay_KeySetDivergent_Series`); this alias exercises
-// the canonical name through the shared helper so the acceptance gate
-// pattern maps 1:1 to the E7-S15 story title.
-//
-// Builds a ref matrix with axis keys {r0,r1,r2} × {c0,c1,c2} and a
-// target with diverging axis keys {r0,r1,XX} × {c0,c1,c2}. The chassis
-// surfaces PULSE_OVERLAY_KEY_SET_DIVERGENT before dispatching to the
-// per-kind handler.
 func TestValidateOverlay_KeySetDivergent(t *testing.T) {
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 2, 3},
@@ -553,22 +466,6 @@ func TestValidateOverlay_SchemaDivergent(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_SlotNotCrosstab is the canonical-name alias for
-// the slot-shape match gate. The detailed variation lives in
-// compose_overlay_schemamatch_test.go
-// (`TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget`).
-// This alias exercises the canonical name through the chassis: a
-// MATRIX-required kind (INDEX_VS_REF, scope=CELL) against a SERIES-
-// shape target surfaces PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT — the cross-
-// shape mismatch gate.
-//
-// Note: the chassis surfaces SHAPE_DIVERGENT (not SLOT_NOT_CROSSTAB)
-// when ref+target carry different shapes, since
-// `kindRequiresMatrix(INDEX_VS_REF) = false` today. The canonical-
-// alias contract for E7-S15 is "any cross-slot non-matrix mismatch
-// surfaces a coded error before per-kind dispatch" — both codes
-// satisfy that gate. The detailed code separation lives in the per-
-// gate sibling test.
 func TestValidateOverlay_SlotNotCrosstab(t *testing.T) {
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 2, 3},
@@ -594,15 +491,6 @@ func TestValidateOverlay_SlotNotCrosstab(t *testing.T) {
 	}
 }
 
-// TestOverlay_DictDrift_PrefixFastOpt is the canonical-name acceptance
-// alias for the categorical dict-prefix fast-path opt-in landed by
-// E7-S8. The detailed per-axis variations live in
-// compose_overlay_dictprobe_test.go
-// (`TestOverlay_DictDrift_PrefixFastOpt_MatchingPrefix`,
-// `..._MismatchedPrefix`, etc.). This alias exercises the canonical
-// name through the chassis with a happy-path matching-prefix scenario
-// (ref + target share dict prefix ⇒ probe accepts ⇒ INDEX_VS_REF math
-// runs cleanly).
 func TestOverlay_DictDrift_PrefixFastOpt(t *testing.T) {
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 20, 30},
@@ -641,18 +529,6 @@ func TestOverlay_DictDrift_PrefixFastOpt(t *testing.T) {
 	}
 }
 
-// TestComposeOverlayIntegration_AllKinds_Smoke is the table-driven
-// integration smoke gate over every Compose-only OverlayKind landed by
-// E7. Each row exercises the chassis dispatch + per-kind handler
-// arithmetic via the shared runComposeOverlayCase helper. Adding a new
-// kind costs ONE ROW (NOT a new file) per the E7-S15 acceptance
-// criterion.
-//
-// Row contract: each row builds a self-consistent ref + target (+
-// targets[]) payload such that the per-handler arithmetic produces a
-// finite, deterministic, hand-computable expected value. The Expect
-// callback runs the canonical-shape check (Matrix vs Scalar) plus a
-// kind-specific value assertion.
 func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 	// Shared base fixture: every MATRIX-host row uses these payloads as
 	// the canonical ref + target. The values are chosen so each per-
@@ -905,22 +781,6 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 	}
 }
 
-// TestComposeOverlayDispatch_ZKinds_RouteToHandlers is the E1-S19
-// integration smoke test: assert that the two Z-overlay dispatch rows
-// (OverlayKindZCell → applyZCell, OverlayKindZVsRef → applyZVsRef)
-// actually route through ApplyComposeOverlays end-to-end. Without this
-// wiring the kinds register at the type / streamability / capability
-// layer but never execute — the chassis silently falls through to the
-// applyComposeStub handler and emits a zero-payload layer.
-//
-// The matrix arm (Z_CELL) and series arm (Z_VS_REF) each get one row.
-// Each row exercises a deterministic two-sample input pair (mean_target
-// = 10, mean_ref = 9, default variance = 1.0, default n = 2) so the
-// computed z-statistic is z = 1.0 and the two-sided p-value through
-// standardNormalCDF(|z|) ≈ 0.3173. The arithmetic is parity with the
-// per-handler unit tests in overlay_z_cell_test.go +
-// overlay_z_vs_ref_test.go — the integration goal here is the dispatch
-// routing, not the math.
 func TestComposeOverlayDispatch_ZKinds_RouteToHandlers(t *testing.T) {
 	t.Run("z_cell_matrix_dispatches", func(t *testing.T) {
 		ref := makeMatrixFromValues([3][3]float64{

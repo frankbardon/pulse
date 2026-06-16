@@ -300,12 +300,6 @@ func TestApplyIndexVsStage_ScalarZeroRefNaN(t *testing.T) {
 	}
 }
 
-// TestApplyIndexVsStage_ShapeDivergenceWarning covers the shape-
-// divergence defence: target carries matrix shape, reference carries
-// series shape. The handler emits a single warning under the canonical
-// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT code (landed with E6-S6)
-// and surfaces an empty payload that inherits the target's shape
-// (matrix).
 func TestApplyIndexVsStage_ShapeDivergenceWarning(t *testing.T) {
 	target := matrixResponse(
 		[]types.AxisKey{{"r0"}},
@@ -359,15 +353,6 @@ func TestApplyIndexVsStage_DispatchReplacesStub(t *testing.T) {
 	}
 }
 
-// TestApplyIndexVsStage_SpecOrderPreserved is the cross-cutting
-// regression covering the S3-S4 contract: a two-spec
-// ChainRequest.Overlays (one INDEX_VS_STAGE, one DELTA_VS_STAGE
-// — both now backed by real handlers as of E6-S5) walked through
-// ApplyChainOverlays must produce two layers in matching index
-// order with the first carrying real INDEX arithmetic. The DELTA
-// layer's payload shape is asserted in overlay_delta_vs_stage_test.go's
-// SpecOrderPreserved test; this test only enforces the INDEX side and
-// the spec-order contract so it stays focused on E6-S4's scope.
 func TestApplyIndexVsStage_SpecOrderPreserved(t *testing.T) {
 	target := seriesResponse([]map[string]any{{"group": "us", "sum": 120.0}})
 	ref := seriesResponse([]map[string]any{{"group": "us", "sum": 100.0}})
@@ -400,9 +385,6 @@ func TestApplyIndexVsStage_SpecOrderPreserved(t *testing.T) {
 	if layers[1].Kind != types.OverlayKindDeltaVsStage {
 		t.Errorf("layers[1].Kind = %q, want %q", layers[1].Kind, types.OverlayKindDeltaVsStage)
 	}
-	// The INDEX layer must carry a real series entry with a Statistic;
-	// the DELTA stub still emits an empty payload (E6-S5 will replace
-	// applyChainStub for DELTA_VS_STAGE).
 	if layers[0].Payload.Series == nil || len(layers[0].Payload.Series.Entries) != 1 {
 		t.Fatalf("INDEX layer should have one series entry, got %+v", layers[0].Payload)
 	}

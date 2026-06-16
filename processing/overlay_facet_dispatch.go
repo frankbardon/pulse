@@ -8,26 +8,25 @@ import (
 // FACET-host overlay fold engine — runtime side of the Facet overlay
 // catalog.
 //
-// E5-S2 scope: structural pre-req for the four Facet overlay kinds the
-// E5 epic ships (`OVERLAY_INDEX_VS_POP` / E5-S2, `OVERLAY_ZSCORE_VS_POP`
-// / E5-S3, `OVERLAY_CHISQ_VS_POP` / E5-S4, `OVERLAY_KS_VS_POP` /
-// E5-S5). The MATRIX-host overlay path (`overlay.go`) folds against a
-// crosstab; the SERIES-host overlay path (`overlay_series.go`) folds
-// against a grouped Process result. This file is its parallel for a
-// FACET host — a finalised `*types.FacetResult` plus a resolver-built
-// `FacetPopulationView` (E5-S1 foundation) the per-kind handler reads
-// against to emit the per-value population-comparison projection.
+// Structural chassis for the four Facet overlay kinds —
+// `OVERLAY_INDEX_VS_POP`, `OVERLAY_ZSCORE_VS_POP`,
+// `OVERLAY_CHISQ_VS_POP`, `OVERLAY_KS_VS_POP`. The MATRIX-host
+// overlay path (`overlay.go`) folds against a crosstab; the
+// SERIES-host overlay path (`overlay_series.go`) folds against a
+// grouped Process result. This file is its parallel for a FACET host
+// — a finalised `*types.FacetResult` plus a resolver-built
+// `FacetPopulationView` the per-kind handler reads against to emit
+// the per-value population-comparison projection.
 //
-// What this file lands (per the E5-S2 acceptance criteria):
+// What this file lands:
 //
 //   - facetOverlayHandler is the per-kind execution signature for the
 //     FACET host path. Handlers receive the spec, the host FacetField,
 //     and the resolver's population view and return a fully-shaped
 //     OverlayLayer plus warnings.
 //
-//   - facetOverlayHandlers is the per-kind dispatch table. E5-S2 lands
-//     `OVERLAY_INDEX_VS_POP`; E5-S3 / E5-S4 / E5-S5 add the other three
-//     kinds.
+//   - facetOverlayHandlers is the per-kind dispatch table for the
+//     four Facet kinds.
 //
 //   - ApplyOverlaysFacet walks `specs` in matching order, dispatches
 //     each via facetOverlayHandlers, and returns one OverlayLayer per
@@ -36,19 +35,16 @@ import (
 //     PULSE_OVERLAY_KIND_UNKNOWN details shape the MATRIX / SERIES
 //     paths emit.
 //
-// Service-side wiring (per the E5-S2 acceptance "Streaming finalize
-// hook engaged when host Facet streams"): the service layer
-// (`service/facet_rich.go`) will call ApplyOverlaysFacet at the
-// FacetSchema streaming finalize point — once the per-value `(value,
-// count)` map is folded into the FacetField.Discrete.Values slice
-// (categorical) or the Welford summary + histogram + percentile slots
-// are populated (numeric) the overlay reads the already-finalized host
-// state. The wiring itself lands in E5-S6; this file ships the
-// dispatch + the handler so the service-side call has somewhere to
-// land.
+// Service-side wiring: the service layer (`service/facet_rich.go`)
+// calls ApplyOverlaysFacet at the FacetSchema streaming finalize
+// point — once the per-value `(value, count)` map is folded into the
+// FacetField.Discrete.Values slice (categorical) or the Welford
+// summary + histogram + percentile slots are populated (numeric), the
+// overlay reads the already-finalized host state.
 //
-// Streamability discipline: FACET handlers may be streamable (E5-S2 /
-// E5-S3 / E5-S4) or buffered (E5-S5 walks the percentile sort). The
+// Streamability discipline: FACET handlers may be streamable
+// (INDEX_VS_POP / ZSCORE_VS_POP / CHISQ_VS_POP) or buffered
+// (KS_VS_POP walks the percentile sort). The
 // dispatch entry does NOT commit to a memory model at fold-entry —
 // that decision rides on the per-kind handler. ApplyOverlaysFacet is
 // purely structural; it does not inspect
@@ -83,9 +79,9 @@ import (
 type facetOverlayHandler func(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error)
 
 // facetOverlayHandlers is the per-kind dispatch table for the FACET
-// host path. Stories E5-S2 / E5-S3 / E5-S4 / E5-S5 register the real
-// handlers (and add the matching kind constants + capability rows +
-// skill mentions per the CLAUDE.md Update Demand row for overlays).
+// host path. Each kind brings matching kind constants + capability
+// rows + skill mentions per the CLAUDE.md Update Demand row for
+// overlays.
 //
 // Tests register synthetic handlers by writing into this map and
 // using `t.Cleanup` to restore the prior state — the test stub
@@ -99,35 +95,32 @@ type facetOverlayHandler func(spec *types.OverlaySpec, host *types.FacetField, p
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
-	// OVERLAY_CHISQ_VS_POP (E5-S4): single scalar χ² goodness-of-fit
-	// statistic against a FACET host. First inferential FACET-host
-	// kind — buffered per PRD §2 Non-Goals ("Streaming overlay path
-	// for inferential kinds"). Pairs with the MATRIX-host CHISQ family
+	// OVERLAY_CHISQ_VS_POP: single scalar χ² goodness-of-fit
+	// statistic against a FACET host. Inferential FACET-host kind —
+	// buffered per PRD §2 Non-Goals ("Streaming overlay path for
+	// inferential kinds"). Pairs with the MATRIX-host CHISQ family
 	// (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ²
 	// family — viz developer renders the SCALAR statistic as a
 	// goodness-of-fit badge near the facet header. Handler:
 	// applyChiSqVsPop in processing/overlay_chisq_vs_pop.go.
 	types.OverlayKindChiSqVsPop: applyChiSqVsPop,
-	// OVERLAY_INDEX_VS_POP (E5-S2): per-value population-comparison
-	// index against a FACET host (categorical fast path or numeric
-	// histogram path). First streamable FACET-host kind in the
-	// catalog. Handler: applyIndexVsPop in
-	// processing/overlay_index_vs_pop.go.
+	// OVERLAY_INDEX_VS_POP: per-value population-comparison index
+	// against a FACET host (categorical fast path or numeric
+	// histogram path). Streamable FACET-host kind. Handler:
+	// applyIndexVsPop in processing/overlay_index_vs_pop.go.
 	types.OverlayKindIndexVsPop: applyIndexVsPop,
-	// OVERLAY_KS_VS_POP (E5-S5): single scalar Kolmogorov-Smirnov
-	// distance + asymptotic p-value against a FACET host. Fourth and
-	// final FACET-host kind in the catalog — second inferential FACET
-	// kind (sibling to OVERLAY_CHISQ_VS_POP). KS is the numeric-arm
+	// OVERLAY_KS_VS_POP: single scalar Kolmogorov-Smirnov distance +
+	// asymptotic p-value against a FACET host. Inferential FACET kind
+	// sibling to OVERLAY_CHISQ_VS_POP. KS is the numeric-arm
 	// distributional-shift indicator (CHISQ_VS_POP is the discrete-arm
 	// equivalent — the two kinds partition the inferential FACET surface
 	// by host arm). Buffered per PRD §2 Non-Goals ("Streaming overlay
 	// path for inferential kinds"). Handler: applyKSVsPop in
 	// processing/overlay_ks_vs_pop.go.
 	types.OverlayKindKSVsPop: applyKSVsPop,
-	// OVERLAY_ZSCORE_VS_POP (E5-S3): per-value population-comparison
-	// z-score against a FACET host. Sibling streamable FACET-host kind
-	// to OVERLAY_INDEX_VS_POP — pairs as the two streamable Facet
-	// overlay kinds. Handler: applyZScoreVsPop in
+	// OVERLAY_ZSCORE_VS_POP: per-value population-comparison z-score
+	// against a FACET host. Sibling streamable FACET-host kind to
+	// OVERLAY_INDEX_VS_POP. Handler: applyZScoreVsPop in
 	// processing/overlay_zscore_vs_pop.go.
 	types.OverlayKindZScoreVsPop: applyZScoreVsPop,
 }
@@ -158,8 +151,8 @@ var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
 //     itself surfaces `PULSE_OVERLAY_REF_UNKNOWN` for the unknown-
 //     field case BEFORE this dispatch is reached.
 //
-// Defense in depth: the descriptor.ValidateOverlays gate (E5-S6) will
-// reject bad kinds at predict time, so a missing dispatch entry
+// Defense in depth: the descriptor.ValidateOverlays gate rejects
+// bad kinds at predict time, so a missing dispatch entry
 // should never reach the runtime in practice; nonetheless
 // ApplyOverlaysFacet guards against an unknown kind and returns a
 // CodedError whose details carry errors.PULSE_OVERLAY_KIND_UNKNOWN so
@@ -167,7 +160,7 @@ var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
 // flagged. The Level / Within belt-and-suspenders runtime gate the
 // MATRIX path runs at `validateOverlayLevelWithinRuntime` does NOT
 // fire here — FACET kinds in v1 do not engage prefix-bucket
-// denominators, and the per-kind E5-S2..S5 handlers add their own
+// denominators, and the per-kind handlers add their own
 // gates when their math requires it.
 func ApplyOverlaysFacet(specs []types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {

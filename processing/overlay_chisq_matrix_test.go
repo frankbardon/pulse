@@ -132,11 +132,6 @@ func TestOverlay_ChiSqMatrix_StatMatchesGonum(t *testing.T) {
 	}
 }
 
-// TestOverlay_ChiSqMatrix_ExpectedLowEmitsWarn verifies the canonical
-// χ² low-expected-count heuristic: when any expected cell count is
-// below 5 the handler emits a PULSE_OVERLAY_EXPECTED_LOW warning (stub
-// code today; E2-S10 promotes to canonical). Uses a small 2 × 2
-// contingency with row/col margins that drive expected counts to ~2.5.
 func TestOverlay_ChiSqMatrix_ExpectedLowEmitsWarn(t *testing.T) {
 	// 2×2 with small counts. Row margins = 5 each, col margins = 5 each,
 	// grand = 10. Expected cells = 5 × 5 / 10 = 2.5 (all below 5).
@@ -169,7 +164,7 @@ func TestOverlay_ChiSqMatrix_ExpectedLowEmitsWarn(t *testing.T) {
 			len(warnings), warnings)
 	}
 	if got, want := warnings[0].Code, "PULSE_OVERLAY_EXPECTED_LOW"; got != want {
-		t.Fatalf("warning Code = %q, want %q (stub code; E2-S10 promotes)", got, want)
+		t.Fatalf("warning Code = %q, want %q (stub code)", got, want)
 	}
 	// Details should carry the count of low-expected cells (all 4 in
 	// this contingency since every expected = 2.5).

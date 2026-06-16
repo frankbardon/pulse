@@ -9,22 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_INDEX_VS_POP runtime handler
-// (processing/overlay_index_vs_pop.go) + the FACET-host dispatch
-// (processing/overlay_facet_dispatch.go).
-//
-// E5-S2 scope: runtime handler only — the service-side wiring lands in
-// E5-S6 and the descriptor-side validator lands in E5-S6 / E5-S10. The
-// tests below exercise the math + the streaming-finalize-shape
-// guarantee (the handler reads only POST-FINALIZE state) + the
-// zero-pop_freq + missing-population + numeric-histogram paths.
-
-// indexVsPopSpec builds a minimal OverlaySpec carrying the
-// OVERLAY_INDEX_VS_POP kind + a GROUP scope + a populated Population
-// reference. The cohort name on the Population ref is informational —
-// the resolver matches the FacetResult shape directly, not the cohort
-// path; the field exists so the predict-time validator (E5-S6) can
-// enforce the "Ref.Population must be populated" rule.
 func indexVsPopSpec() *types.OverlaySpec {
 	return &types.OverlaySpec{
 		Kind:  types.OverlayKindIndexVsPop,
@@ -115,11 +99,6 @@ func TestApplyIndexVsPop_DiscreteBasic(t *testing.T) {
 	}
 }
 
-// TestApplyIndexVsPop_ZeroPopFreq exercises the E5-S2 acceptance
-// criterion: "on pop_freq == 0 emit warning code
-// PULSE_OVERLAY_REF_ZERO and skip the index entry". One value present
-// in the subset is absent from the population; the handler emits a
-// warning per affected entry and leaves the entry's Statistic unset.
 func TestApplyIndexVsPop_ZeroPopFreq(t *testing.T) {
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
@@ -251,14 +230,6 @@ func TestApplyIndexVsPop_NumericHistogram(t *testing.T) {
 	}
 }
 
-// TestApplyIndexVsPop_NumericNoHistogram asserts that a numeric host
-// without a histogram emits an empty layer without warning. The host
-// shape carries only Welford summary stats (mean / sd / count) which
-// the per-value index cannot compare against — callers requesting
-// INDEX_VS_POP against a numeric field MUST set
-// IncludeHistogram=true on the FacetRequest. This test documents the
-// behavior so E5-S6's service-side validation can fire the matching
-// predict-time gate.
 func TestApplyIndexVsPop_NumericNoHistogram(t *testing.T) {
 	hostNum := &types.FacetNumeric{
 		Count: 100, Sum: 5000, Mean: 50, Min: 0, Max: 100,

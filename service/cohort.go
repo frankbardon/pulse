@@ -18,10 +18,9 @@ type ShardEntry struct {
 	// (e.g. "20190101.pulse"). Equals the zip entry name.
 	Filename string
 
-	// RecordCount is the number of records carried by the shard. S1
-	// leaves this at zero; S2 populates it either from the
-	// `_schema.pulse` aggregate metadata or from a first-read peek of
-	// the shard's own header.
+	// RecordCount is the number of records carried by the shard.
+	// Populated either from the `_schema.pulse` aggregate metadata or
+	// from a first-read peek of the shard's own header.
 	RecordCount int64
 }
 

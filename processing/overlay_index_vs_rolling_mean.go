@@ -12,26 +12,26 @@ import (
 // arithmetic mean of the W immediately preceding points of an ordered
 // SERIES (grouped Process) host.
 //
-// E4-S5 scope:
+// Behaviour:
 //
-//   - Fourth windowed-Process overlay in the catalog (siblings: E4-S2
-//     INDEX_VS_BASELINE, E4-S3 DELTA_VS_BASELINE, E4-S4 INDEX_VS_PRIOR).
-//     Registered in processing/overlay_series.go's seriesOverlayHandlers
-//     dispatch table; the dispatch route is the buffered post-host-
-//     finalize entry point for the SERIES overlay engine.
-//   - First kind to consume the `Ref.RollingMean` arm of the OverlayRef
+//   - Windowed-Process overlay sibling of INDEX_VS_BASELINE /
+//     DELTA_VS_BASELINE / INDEX_VS_PRIOR. Registered in
+//     processing/overlay_series.go's seriesOverlayHandlers dispatch
+//     table; the dispatch route is the buffered post-host-finalize
+//     entry point for the SERIES overlay engine.
+//   - Consumes the `Ref.RollingMean` arm of the OverlayRef
 //     discriminated union. The arm is an empty marker — the window
 //     width lives on `OverlaySpec.Params["window"]` per the `WIN_*`
 //     operator convention (`skills/window-design.md`).
 //   - Per-point math: `index_i = point_value_i / mean(W prior present
-//     points) * 100`. The window is bounded so naive arithmetic mean is
-//     numerically fine (no Welford recurrence required); the carrier
-//     still STORES the Welford triple (count, mean, M2) so E4-S6
-//     ZSCORE_VS_ROLLING can lift `sqrt(M2 / (count - 1))` from the same
-//     ring buffer without re-folding.
+//     points) * 100`. The window is bounded so naive arithmetic mean
+//     is numerically fine (no Welford recurrence required); the
+//     carrier still STORES the Welford triple (count, mean, M2) so
+//     ZSCORE_VS_ROLLING can lift `sqrt(M2 / (count - 1))` from the
+//     same ring buffer without re-folding.
 //
-// Forward-design for E4-S6 ZSCORE_VS_ROLLING: this story's handler only
-// reads the mean from the rolling carrier. The carrier struct
+// Forward-design for ZSCORE_VS_ROLLING: this handler only reads the
+// mean from the rolling carrier. The carrier struct
 // (`rollingCarrier` below) stores the Welford count + mean + M2 trio so
 // the sibling story can compute the rolling SD via
 // `sqrt(M2 / (count - 1))` (sample SD) or `sqrt(M2 / count)` (population
@@ -84,8 +84,8 @@ import (
 //     grep-clean against the structural defense ban.
 
 // rollingCarrier is the per-group rolling-window accumulator shared by
-// the OVERLAY_INDEX_VS_ROLLING_MEAN handler (this story) and reserved
-// for the OVERLAY_ZSCORE_VS_ROLLING handler (E4-S6). Stores a ring
+// the OVERLAY_INDEX_VS_ROLLING_MEAN handler and shared with the
+// OVERLAY_ZSCORE_VS_ROLLING handler. Stores a ring
 // buffer of the last `window` PRESENT values plus a Welford-Pébaÿ
 // (count, mean, M2) triple updated alongside each push/evict so the
 // sibling story can read SD = `sqrt(M2 / (count - 1))` without
@@ -93,8 +93,8 @@ import (
 // reserved overhead (+1 f64 per group per layer).
 //
 // The carrier is intentionally NOT a streaming-pass primitive in v1 —
-// it lives entirely on the buffered post-host-finalize handler. When a
-// future story lifts the rolling carrier into the streaming fold the
+// it lives entirely on the buffered post-host-finalize handler. When
+// future work lifts the rolling carrier into the streaming fold the
 // SAME struct can ride alongside the per-group accumulators.
 type rollingCarrier struct {
 	window int

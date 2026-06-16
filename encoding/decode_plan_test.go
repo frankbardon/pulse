@@ -101,9 +101,6 @@ func TestBuildDecodePlan_EmptyRetainedCoversFullStride(t *testing.T) {
 	}
 }
 
-// TestBuildDecodePlan_FullRetainedNoSkips verifies AC 5: a full retained
-// set produces zero SkipBytes segments. The output is equivalent to the
-// per-field walk and will become the equivalence baseline in E2-S3.
 func TestBuildDecodePlan_FullRetainedNoSkips(t *testing.T) {
 	schema := &Schema{
 		Fields: []Field{

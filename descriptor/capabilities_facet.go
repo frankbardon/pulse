@@ -32,9 +32,9 @@ type FacetCapability struct {
 	// SupportsOverlays reports whether FacetRequest.Overlays is
 	// honoured. When true, the SupportedOverlayKinds slice enumerates
 	// the FACET-host overlay catalog kinds the endpoint dispatches.
-	// Bumped at E5-S6 when the four FACET-host kinds wired into
-	// FacetSchema's buffered exit (OVERLAY_INDEX_VS_POP /
-	// OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP).
+	// Four FACET-host kinds wire into FacetSchema's buffered exit:
+	// OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP
+	// / OVERLAY_KS_VS_POP.
 	SupportsOverlays bool `json:"supports_overlays,omitempty"`
 
 	// SupportedOverlayKinds enumerates the FACET-host overlay kinds the

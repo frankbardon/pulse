@@ -9,28 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Tests for the OVERLAY_CHISQ_VS_POP runtime handler
-// (processing/overlay_chisq_vs_pop.go) + the FACET-host dispatch
-// (processing/overlay_facet_dispatch.go).
-//
-// E5-S4 scope: runtime handler only — the service-side wiring lands in
-// E5-S6 / E5-S10 and the descriptor-side validator lands in E5-S6 /
-// E5-S7. The tests below exercise:
-//
-//   - The canonical 4-category known-answer χ² (acceptance criterion
-//     "Unit test covers a known-answer χ² against canonical 4-category
-//     distribution") against an analytical χ² statistic.
-//   - The expected-counts-scaled-to-subset-N invariant.
-//   - The low-expected-cells warning code (PULSE_OVERLAY_EXPECTED_LOW —
-//     shared with the crosstab Fisher exact path per PRD FR-J1).
-//   - The streamability-row assertion (Streamable=false; inferential
-//     ⇒ always buffered).
-//   - The buffered exit hook (the handler runs against finalized
-//     state — it does not re-traverse host records).
-//   - Defense-in-depth nil-host / nil-pop / numeric-host arms.
-//   - Degenerate-cohort fall-through to NaN statistic + NaN p-value
-//     with PULSE_OVERLAY_REF_ZERO.
-
 // chiSqVsPopSpec builds a minimal OverlaySpec carrying the
 // OVERLAY_CHISQ_VS_POP kind + a GROUP scope + a populated Population
 // reference. Mirrors zscoreVsPopSpec() / indexVsPopSpec().
@@ -337,12 +315,6 @@ func TestApplyChiSqVsPop_EmptyPopulationDegenerate(t *testing.T) {
 	}
 }
 
-// TestApplyChiSqVsPop_NumericHostRejected pins the discrete-arm-only
-// contract: a numeric host (no Discrete payload) returns a coded
-// PROCESSING_INTERNAL error carrying
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Defense in depth — the
-// per-kind validator (E5-S6/S7) will reject numeric hosts at predict
-// time.
 func TestApplyChiSqVsPop_NumericHostRejected(t *testing.T) {
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},

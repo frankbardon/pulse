@@ -7,52 +7,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Shared assertion helpers for the processing/overlay_*_test.go family.
-//
-// E2-S12 consolidation: the 10 per-kind overlay test files
-// (overlay_chisq_col_test.go, overlay_chisq_matrix_test.go,
-// overlay_chisq_row_test.go, overlay_delta_vs_margin_test.go,
-// overlay_fisher_exact_cell_test.go, overlay_share_of_col_test.go,
-// overlay_share_of_row_test.go, overlay_share_of_total_test.go,
-// overlay_zscore_vs_margin_test.go, plus the index-vs-margin family in
-// overlay_test.go) all assert on the same overlay-layer shapes:
-//
-//   - "matrix cell at (i, j) is within tol of an expected float"
-//   - "series entry at axisIdx has Statistic / PValue within tol"
-//   - "scalar layer's Summary carries Statistic + PValue within tol"
-//   - "warnings slice contains exactly N entries with a given code"
-//   - "warnings slice is empty"
-//
-// Centralising the assertion patterns gives E3+ overlay handlers a
-// single source of truth. The intent is that new per-kind tests call
-// these helpers with their hand-computed expected values rather than
-// reinventing the inline float comparison + present-flag dance every
-// time.
-//
-// File-name convention: the trailing `_test.go` is what keeps these
-// helpers out of the production build — Go's standard test convention
-// only compiles `*_test.go` files into the test binary. Story E2-S12
-// names the file `processing/overlay_test_helpers.go` for prose
-// reasons; the implementation uses the canonical `_test.go` suffix so
-// the file is automatically gated to the test binary (no build tag /
-// no manual guard required). The same package (`processing`, NOT
-// `processing_test`) keeps the helpers reachable from every existing
-// per-kind test file without an import cycle and leaves the door open
-// for a future internal-fixture helper that exercises the unexported
-// overlayHandlers dispatch table.
-//
-// Conventions for callers:
-//
-//   - Pass an explicit tolerance (eps / tol). Default for the overlay
-//     family is 1e-9 for plain float ratios, 1e-4 for χ² statistics
-//     against survival tables, 5e-4 for p-values.
-//   - Use t.Helper() inside the helper so failure lines point at the
-//     caller, not the helper internals.
-//   - All helpers fatal via t.Fatalf — the existing per-kind tests use
-//     t.Fatalf consistently. Switch to t.Errorf only when a helper is
-//     called inside a per-(i, j) loop and the caller wants to see every
-//     mismatch rather than the first.
-
 // assertMatrixCellWithinTol asserts that layer.Payload.Matrix.Cells[rowIdx][colIdx]
 // is present, its Value is a float64, and that value is within tol of
 // want. Used by share/index/delta/zscore CELL-scope tests where the

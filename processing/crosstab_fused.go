@@ -21,15 +21,15 @@ import (
 //
 // Output contract: Finalize() returns a *types.Response byte-equal to
 // the buffered RunCrosstab output for any (spec, schema, ext, record
-// stream) the E4-S1 gate accepts — same MatrixPayload / long-shape Data
-// row order, same normalization and divide-by-zero policy, same margin
-// recomputation rule. The orchestrator (E4-S4, on the parent epic) is
-// responsible for dispatching to the fused path only when CanFuseCrosstab
-// holds; the defensive guards in this file echo that gate so a
-// mis-routed request fails fast with a typed CodedError instead of
-// producing a diverging result.
+// stream) the CanFuseCrosstab gate accepts — same MatrixPayload /
+// long-shape Data row order, same normalization and divide-by-zero
+// policy, same margin recomputation rule. The orchestrator is
+// responsible for dispatching to the fused path only when
+// CanFuseCrosstab holds; the defensive guards in this file echo that
+// gate so a mis-routed request fails fast with a typed CodedError
+// instead of producing a diverging result.
 //
-// Hot-path representation (E4-S4P): rather than addressing cell and
+// Hot-path representation: rather than addressing cell and
 // margin accumulators through a string-keyed map per record, the state
 // interns each axis composite key into a per-axis integer index the
 // first time it is observed and stores accumulators in a 2D slice
@@ -89,7 +89,7 @@ type FusedCrosstabState struct {
 	// it routes a record into the cell.
 	cells [][]OnlineAggregator
 
-	// E3-S2: per-cell record-count matrix indexed by [rowIdx][colIdx],
+	// Per-cell record-count matrix indexed by [rowIdx][colIdx],
 	// kept in lockstep with `cells` above so cellCounts[r][c] mirrors the
 	// number of records routed through cells[r][c]. Incremented in the
 	// hot loop alongside cell.UpdateRow; the same intern-growth path
@@ -101,7 +101,7 @@ type FusedCrosstabState struct {
 	cellCounts      [][]int
 	includedRecords int
 
-	// E3-S3: per-cell null-input counter matrix indexed by
+	// Per-cell null-input counter matrix indexed by
 	// [rowIdx][colIdx], kept in lockstep with `cells` and `cellCounts`.
 	// Incremented in Update when the record's cell-field value is null
 	// (NumericValue returns ok=false) AND both axis composite keys
@@ -119,7 +119,7 @@ type FusedCrosstabState struct {
 	colMargins  []OnlineAggregator
 	grandMargin OnlineAggregator
 
-	// E3-S4: per-margin record-count + null-input bookkeeping. Tracked
+	// Per-margin record-count + null-input bookkeeping. Tracked
 	// alongside each rowMargins / colMargins / grandMargin UpdateRow
 	// call so the Finalize-time CrosstabComponents.RowMarginCounts /
 	// ColumnMarginCounts / GrandTotalCount + RowMarginComponents /
@@ -364,7 +364,7 @@ func newOnlineCell(factory AggregatorFactory, agg *types.Aggregation, schema *en
 
 // AssertCanFuse is the defensive companion check the orchestrator calls
 // before driving the state with records. The static gate
-// (CanFuseCrosstab, landing in E4-S1) is the load-bearing check; this
+// (CanFuseCrosstab) is the load-bearing check; this
 // method echoes the most failure-prone subset so a stale gate that
 // drifts past a newly added request slot still fails fast with a typed
 // error rather than producing a divergent fused result.
@@ -438,10 +438,10 @@ func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) in
 	// The new row is sized to the current column count so existing
 	// (rowIdx<idx, colIdx) cells remain at their indices.
 	s.cells = append(s.cells, make([]OnlineAggregator, len(s.colKeys)))
-	// E3-S2: cellCounts grows in lockstep with cells so the buffered and
+	// cellCounts grows in lockstep with cells so the buffered and
 	// fused paths can later read the same (r, c) coordinates.
 	s.cellCounts = append(s.cellCounts, make([]int, len(s.colKeys)))
-	// E3-S3: cellNNull grows in lockstep with cellCounts so the per-cell
+	// cellNNull grows in lockstep with cellCounts so the per-cell
 	// universal floor (n, n_null) is addressable by the same (r, c)
 	// coordinates regardless of whether the column was interned before or
 	// after the row.
@@ -453,7 +453,7 @@ func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) in
 			s.rowMargins = make([]OnlineAggregator, 0, 16)
 		}
 		s.rowMargins = append(s.rowMargins, nil)
-		// E3-S4: per-row count + null bookkeeping in lockstep with the
+		// Per-row count + null bookkeeping in lockstep with the
 		// margin accumulator slice so Finalize can address every margin
 		// slot by rowIdx without re-scanning records.
 		s.rowMarginCount = append(s.rowMarginCount, 0)
@@ -480,12 +480,12 @@ func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) in
 	for i := range s.cells {
 		s.cells[i] = append(s.cells[i], nil)
 	}
-	// E3-S2: cellCounts matches the cells matrix shape — extend each
+	// cellCounts matches the cells matrix shape — extend each
 	// existing row by one zero-initialised column slot.
 	for i := range s.cellCounts {
 		s.cellCounts[i] = append(s.cellCounts[i], 0)
 	}
-	// E3-S3: cellNNull mirrors the cellCounts shape — extend each
+	// cellNNull mirrors the cellCounts shape — extend each
 	// existing row by one zero-initialised column slot so the per-cell
 	// null counter is addressable for every observed (rowIdx, colIdx).
 	for i := range s.cellNNull {
@@ -496,7 +496,7 @@ func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) in
 			s.colMargins = make([]OnlineAggregator, 0, 16)
 		}
 		s.colMargins = append(s.colMargins, nil)
-		// E3-S4: per-column count + null bookkeeping in lockstep.
+		// Per-column count + null bookkeeping in lockstep.
 		s.colMarginCount = append(s.colMarginCount, 0)
 		s.colMarginNNull = append(s.colMarginNNull, 0)
 	}
@@ -587,7 +587,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		if err := s.grandMargin.UpdateRow(rec, s.cellField); err != nil {
 			return err
 		}
-		// E3-S4: grand-margin universal-floor counters. Routed through
+		// Grand-margin universal-floor counters. Routed through
 		// the same NumericValue probe used by the cell + buffered paths
 		// so n_null is byte-equal across paths.
 		s.grandMarginCount++
@@ -616,7 +616,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			if err := mar.UpdateRow(rec, s.cellField); err != nil {
 				return err
 			}
-			// E3-S4: row-margin universal-floor counters. NumericValue
+			// Row-margin universal-floor counters. NumericValue
 			// probe mirrors the cell-path null tracking so the buffered
 			// runCellAggregation walk and the fused Update loop emit
 			// byte-equal (n, n_null) on the row margin.
@@ -654,7 +654,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			if err := mar.UpdateRow(rec, s.cellField); err != nil {
 				return err
 			}
-			// E3-S4: column-margin universal-floor counters in lockstep
+			// Column-margin universal-floor counters in lockstep
 			// with the margin accumulator update.
 			s.colMarginCount[colIdx]++
 			if _, ok := rec.NumericValue(s.cellField); !ok {
@@ -689,7 +689,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		if err := cell.UpdateRow(rec, s.cellField); err != nil {
 			return err
 		}
-		// E3-S2: per-cell record-count tracking sits in the same
+		// Per-cell record-count tracking sits in the same
 		// instruction sequence as the aggregator UpdateRow — a single
 		// pointer-add into the matrix slot. includedRecords mirrors the
 		// running sum so Finalize can populate
@@ -697,7 +697,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		// second matrix pass.
 		s.cellCounts[rowIdx][colIdx]++
 		s.includedRecords++
-		// E3-S3: per-cell null-input counter. NumericValue probe mirrors
+		// Per-cell null-input counter. NumericValue probe mirrors
 		// the buffered runCellAggregation walk — a record whose
 		// cell-field value is null contributes to cellNNull but still
 		// counts toward cellCounts (every record routed to the cell
@@ -841,7 +841,7 @@ func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
 // row" (null axis key) without a sentinel error; a non-nil error
 // surfaces a typed CodedError unchanged.
 //
-// E3-S5: the side effect populates the grouper's liveBuckets map (or
+// The side effect populates the grouper's liveBuckets map (or
 // the per-grouper equivalent) so the Finalize-time MetaGrouper
 // Components() call returns the cohort-wide buckets emission. The
 // alternative — re-running each grouper at Finalize against a
@@ -915,7 +915,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	// accumulators and stay out of the emitted map (which the renderer
 	// treats as Present=false).
 	//
-	// E3-S3: finalizeCells also emits the per-cell components map
+	// finalizeCells also emits the per-cell components map
 	// alongside the (rich/scalar) value and present flag. The components
 	// map is built at Finalize time only (no allocation in the per-record
 	// hot loop) — for each cell with at least one record, the orchestrator
@@ -949,7 +949,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		}
 		grandValue = v
 		grandPresent = true
-		// E3-S4: grand-total components — universal floor (n = non-null
+		// Grand-total components — universal floor (n = non-null
 		// inputs to the cell field, n_null = null inputs) merged with the
 		// cell aggregator's MetaAggregator.Components() output. Mirrors
 		// the buffered grand-margin emission so the buffered/fused
@@ -1073,7 +1073,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	rowPart := &CrosstabAxisPartition{Keys: rowKeys, Tuples: tuplesForKeys(rowKeys, rowTuples)}
 	colPart := &CrosstabAxisPartition{Keys: colKeys, Tuples: tuplesForKeys(colKeys, colTuples)}
 
-	// E3-S2: convert the insertion-order [rowIdx][colIdx] cellCounts
+	// Convert the insertion-order [rowIdx][colIdx] cellCounts
 	// matrix to a {(rowKey, colKey) → count} map keyed by composite axis
 	// key string. populateCrosstabComponents then re-projects it into a
 	// matrix indexed by the sorted rowKeys / colKeys above so the layout
@@ -1113,7 +1113,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 			partialColDenom, partialColDenomPresent, s.colNormLevel)
 	}
 
-	// E3-S2: emit per-cell record-count matrix on Response.Components.
+	// Emit per-cell record-count matrix on Response.Components.
 	// Layout indexed identically to MatrixPayload.Cells via the sorted
 	// rowKeys / colKeys above. excludedRecords = filteredRows -
 	// includedRecords; includedRecords is the running sum maintained in
@@ -1122,7 +1122,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	if excludedRecords < 0 {
 		excludedRecords = 0
 	}
-	// E3-S4: margin counts + components flow only when the display flag
+	// Margin counts + components flow only when the display flag
 	// is set — the normalization-only path computed the accumulators but
 	// the consumer-facing emission is gated by the display flag (matches
 	// MatrixPayload.RowMargins / ColumnMargins / GrandTotal).
@@ -1144,7 +1144,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		grandMarginCountSlot = s.grandMarginCount
 		grandMarginComponentsSlot = grandComponentsMap
 	}
-	// E3-S5: per-axis grouper components emission. Each axis grouper
+	// Per-axis grouper components emission. Each axis grouper
 	// already accumulated liveBuckets via the streamableKeyForRow side-
 	// effect path during Update; we call Components() now to capture the
 	// per-axis-position bucket emission and project it onto the sorted
@@ -1206,7 +1206,7 @@ func (s *FusedCrosstabState) axisComponents(chain []StreamableGrouper) ([]map[st
 // dropped from the present set — matches the buffered path's behaviour
 // where a (rowKey, colKey) pair with no records lands no cell value.
 //
-// E3-S3: also emits the per-cell components map (keyed by composite
+// Also emits the per-cell components map (keyed by composite
 // axis-key pair) — Finalize-time emission so the hot decode loop pays
 // no allocation cost for the component bookkeeping. For each cell with
 // at least one record routed, the orchestrator calls
@@ -1241,7 +1241,7 @@ func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[cross
 			ck := crosstabCellKey{row: rKey, col: s.colKeys[cIdx]}
 			values[ck] = v
 			present[ck] = true
-			// E3-S3: per-cell components emission. n = records routed
+			// Per-cell components emission. n = records routed
 			// to (r, c) minus null inputs; n_null = null inputs. Matches
 			// the buffered path's runCellAggregation walk byte-for-byte.
 			nNull := s.cellNNull[rIdx][cIdx]
@@ -1261,7 +1261,7 @@ func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[cross
 // consume. Nil entries (rows present in the interner but never reached
 // a row-margin update) are dropped.
 //
-// E3-S4: also emits the per-row-margin counts + components maps. The
+// Also emits the per-row-margin counts + components maps. The
 // counts ride on the same {(rowKey) → count} shape populateCrosstab-
 // Components projects into RowMarginCounts; the components map carries
 // the universal floor merged with the MetaAggregator output via

@@ -10,44 +10,41 @@ import (
 // OVERLAY_SHARE_OF_TOTAL (SERIES-host dispatch) — per-group share of the
 // host series' grand total: `group_val / grand_total` per group, scale
 // 1.0 (no ×100 — emits the raw share so cells over a complete partition
-// sum to 1.0 within ULP).
+// sum to 1.0 within ULP). Per-group math: `share_i = group_val[i] /
+// grand_total` where `grand_total = Σ_j group_val[j]` over POST-FILTER
+// host groups (AGG_SUM semantics — the resolver gates absent groups so
+// the accumulator never reads pre-filter row counts).
 //
-// E3-S3 scope:
+// Sibling SERIES-host handler to OVERLAY_INDEX_VS_TOTAL. Same
+// grand-total accumulator (`computeSeriesGrandTotal` in
+// processing/overlay_series.go) — the streaming-Process orchestrator
+// keeps ONE grand-total f64 alongside the per-group accumulators
+// regardless of how many SHARE / INDEX overlays a Request carries.
+// Distinct dispatch from INDEX_VS_TOTAL even though the math overlaps;
+// the catalog keeps SHARE and INDEX as separate kind names
+// ("readable kind names beat scale-param overloading at JSON-authoring
+// time"), so the runtime dispatch stays distinct too — callers cannot
+// confuse `share` with `index / 100`.
 //
-//   - Sibling SERIES-host handler to OVERLAY_INDEX_VS_TOTAL (E3-S2).
-//     Same grand-total accumulator (`computeSeriesGrandTotal` in
-//     processing/overlay_series.go) — the streaming-Process orchestrator
-//     (E3-S6) keeps ONE grand-total f64 alongside the per-group
-//     accumulators regardless of how many SHARE / INDEX overlays a
-//     Request carries.
-//   - Per-group math: `share_i = group_val[i] / grand_total` where
-//     `grand_total = Σ_j group_val[j]` over POST-FILTER host groups
-//     (AGG_SUM semantics — the resolver gates absent groups so the
-//     accumulator never reads pre-filter row counts). Distinct dispatch
-//     from INDEX_VS_TOTAL even though the math overlaps; the kind-
-//     catalog-v1 interview's resolved-decision rule on the catalog kept
-//     SHARE and INDEX as separate kind names ("readable kind names beat
-//     scale-param overloading at JSON-authoring time"), so the runtime
-//     dispatch stays distinct too — callers cannot confuse `share` with
-//     `index / 100`.
-//   - Zero-grand-total path: when `grand_total == 0` (or NaN) the handler
-//     emits ONE PULSE_OVERLAY_REF_ZERO warning and populates every
-//     present entry's Summary.Statistic with NaN per the OverlayPayload
-//     convention. Mirrors INDEX_VS_TOTAL.
-//   - Absent-group policy: a host that did not produce a value for group
-//     i surfaces a SeriesEntry whose Summary leaves Statistic unset (the
-//     canonical "present slot, empty summary" shape established by the
-//     E3-S1 SERIES dispatch contract). Absent groups do NOT contribute to
-//     the grand total.
+// Zero-grand-total path: when `grand_total == 0` (or NaN) the handler
+// emits ONE PULSE_OVERLAY_REF_ZERO warning and populates every present
+// entry's Summary.Statistic with NaN per the OverlayPayload convention.
+// Mirrors INDEX_VS_TOTAL.
 //
-// Streaming finalize hook: same shape as INDEX_VS_TOTAL — the streaming-
-// Process orchestrator wiring lands in E3-S6, and the inner per-record
-// hook stays one grand-total accumulator inside the streaming fold. This
-// file ships the SERIES-host POST-FINALIZE entry; given a finalized
+// Absent-group policy: a host that did not produce a value for group i
+// surfaces a SeriesEntry whose Summary leaves Statistic unset (the
+// canonical "present slot, empty summary" shape established by the
+// SERIES dispatch contract). Absent groups do NOT contribute to the
+// grand total.
+//
+// Streaming finalize hook: same shape as INDEX_VS_TOTAL — the
+// streaming-Process orchestrator's inner per-record hook stays one
+// grand-total accumulator inside the streaming fold. This file ships
+// the SERIES-host POST-FINALIZE entry; given a finalized
 // SeriesHostView, the handler divides each group value by the running
-// grand total. The streaming-vs-buffered byte-identity test asserts that
-// running this handler against a streaming vs a buffered host produces
-// byte-identical SeriesPayload output.
+// grand total. The streaming-vs-buffered byte-identity test asserts
+// that running this handler against a streaming vs a buffered host
+// produces byte-identical SeriesPayload output.
 //
 // Layer-level Summary uses `baseline = 1.0` (renderers center diverging
 // colour ramps on 1.0 because shares sum to 1.0 across a complete
@@ -69,7 +66,7 @@ import (
 // two-pass shape mirrors INDEX_VS_TOTAL — pass 1 folds the grand total
 // via the shared `computeSeriesGrandTotal` helper, pass 2 emits one
 // SeriesEntry per host ordinal in host order (the parallel-slice
-// contract from E3-S1).
+// contract from the SERIES dispatch).
 //
 // Zero-grand-total path: `grand_total == 0` (which covers every-group-
 // absent, every-group-zero, and arithmetic underflow) yields one
@@ -100,11 +97,10 @@ func applyShareOfTotalSeries(spec *types.OverlaySpec, host *SeriesHostView) (typ
 	groupCount := host.GroupCount()
 
 	// Pass 1: running grand-total accumulator via the shared SERIES
-	// helper. Sibling kind OVERLAY_INDEX_VS_TOTAL (E3-S2) walks the same
-	// helper so a Request carrying BOTH overlays folds the grand-total
-	// ONCE at the streaming layer (the E3-S6 orchestrator wiring keeps
-	// ONE accumulator alongside the per-group accumulators regardless of
-	// overlay count).
+	// helper. Sibling kind OVERLAY_INDEX_VS_TOTAL walks the same helper
+	// so a Request carrying BOTH overlays folds the grand-total ONCE at
+	// the streaming layer (the orchestrator wiring keeps ONE accumulator
+	// alongside the per-group accumulators regardless of overlay count).
 	grandTotal, presentMask, values := computeSeriesGrandTotal(host)
 
 	// Zero-grand-total path: emit one PULSE_OVERLAY_REF_ZERO warning and
@@ -128,8 +124,9 @@ func applyShareOfTotalSeries(spec *types.OverlaySpec, host *SeriesHostView) (typ
 
 	// Pass 2: per-host-ordinal entry emission. Absent groups carry a nil
 	// Summary.Statistic (canonical "present slot, empty summary" shape
-	// from E3-S1). Present groups carry Statistic = value / grand_total;
-	// in the zero-grand-total path every present group carries NaN.
+	// from the SERIES dispatch contract). Present groups carry
+	// Statistic = value / grand_total; in the zero-grand-total path
+	// every present group carries NaN.
 	entries := make([]types.SeriesEntry, 0, groupCount)
 	var (
 		minV float64

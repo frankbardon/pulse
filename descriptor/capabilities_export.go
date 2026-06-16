@@ -8,7 +8,7 @@ package descriptor
 // chosen target.
 //
 // OverlaySupport is the canonical embedding-shape label declared by
-// research/export-embedding-shape.md and wired by E9-S2..S6:
+// research/export-embedding-shape.md:
 //
 //   - "sidecar"        — the format carries a top-level
 //     LIST<STRUCT> column-family appended to the
@@ -59,11 +59,11 @@ type ExportCapability struct {
 
 // exportCapability returns the canonical ExportCapability entry. The
 // per-format overlay-embedding labels mirror the dispatcher wiring
-// landed by E9-S2..S6 (Arrow + Parquet sidecar, Excel sheets, NDJSON
-// trailing block, CSV / TSV warn-and-skip). jsonarray and tsv share
-// the warn-and-skip shape with CSV — neither format carries an
-// extension surface beyond the host stream so embedded overlays would
-// not round-trip through a vanilla reader.
+// (Arrow + Parquet sidecar, Excel sheets, NDJSON trailing block, CSV /
+// TSV warn-and-skip). jsonarray and tsv share the warn-and-skip shape
+// with CSV — neither format carries an extension surface beyond the
+// host stream so embedded overlays would not round-trip through a
+// vanilla reader.
 //
 // Sorted alphabetically by Name so the golden manifest stays stable.
 func exportCapability() ExportCapability {

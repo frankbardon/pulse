@@ -133,7 +133,7 @@ func (it *shardIter) openShard(idx int) error {
 		return errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard %q schema", name))
 	}
-	// Schema cohesion is validated at insert time (S2); on the read
+	// Schema cohesion is validated at insert time; on the read
 	// path the canonical schema is authoritative.
 	it.reader = encoding.NewRecordReader(r, it.schema)
 	return nil

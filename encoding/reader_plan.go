@@ -23,7 +23,7 @@ import (
 // keep == nil and plan == nil both fall back to the existing full-decode
 // behaviour. Passing keep == nil with a non-nil plan widens every
 // DecodeFields segment to "keep all members" (useful for golden parity
-// tests in E2-S3).
+// tests).
 //
 // Behaviour invariants matched against the per-field readRecord loop:
 //   - Caller-supplied maps are cleared in place before population.

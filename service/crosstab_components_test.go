@@ -15,16 +15,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// E3-S2 — Response.Components.Crosstab.CellCounts emission tests on both
-// the buffered and fused crosstab paths. The cell builder records the
-// per-(r, c) record count alongside each aggregator update; the matrix
-// shape mirrors MatrixPayload.Cells coordinate-for-coordinate so
-// consumers can dereference both via the same (rowKeys[i], colKeys[j])
-// position. ExcludedRecords counts the rows that resolved no axis key
-// (or where one axis key was null) and were therefore dropped from the
-// cell-count matrix. IncludedRecords + ExcludedRecords == filtered row
-// count by construction.
-
 // cellCountsForRegionSegment returns the expected CellCounts matrix for
 // the canonical crosstabRecords fixture (3 regions x 2 segments).
 //
@@ -466,15 +456,6 @@ func TestCrosstabComponents_SumInvariant(t *testing.T) {
 		})
 	}
 }
-
-// --- E3-S3: CellComponents emission tests ---------------------------
-//
-// CellComponents[r][c] carries the per-cell aggregator components map:
-// universal floor {n, n_null} merged with the cell aggregator's
-// MetaAggregator.Components() output. Empty cells (Matrix.Cells[r][c]
-// Present=false because no record landed) emit nil at the same
-// coordinate so consumers can distinguish "no data" from "data with
-// floor-only payload".
 
 // crosstabCTOrFail dereferences resp.Components.Crosstab and t.Fatals
 // when nil. Used by every CellComponents test to assert the shell
@@ -984,18 +965,6 @@ func manifestAggOperatorKeysForCT(t *testing.T, name string) []string {
 	return out
 }
 
-// --- E3-S4: margin counts + margin components emission ----------------
-//
-// Margins (row / column / grand) emit their record-count vector +
-// per-margin components map only when the matching display flag is set
-// on CrosstabSpec.Margins. The components map mirrors the per-cell
-// shape: universal floor {n, n_null} merged with the cell aggregator's
-// MetaAggregator.Components() output. When MatrixPayload.RowMargins is
-// nil (display flag off, even under normalize=row which computes the
-// margin internally), the corresponding Components.Crosstab fields stay
-// nil/empty (omitempty) so the additive byte-identity contract holds
-// against the pre-margin-emission baseline.
-
 // TestCrosstabComponents_MarginsPresent_AllSlotsPopulated checks the
 // happy path: a crosstab with row + column + grand display flags emits
 // non-nil RowMarginCounts / RowMarginComponents / ColumnMarginCounts /
@@ -1383,18 +1352,6 @@ func TestCrosstabComponents_MarginCounts_BufferedVsFused_ParityByteEqual(t *test
 	}
 }
 
-// --- E3-S5: per-axis grouper components emission ---------------------
-//
-// RowKeyComponents[r] / ColumnKeyComponents[c] carry the per-axis grouper
-// bucket emission for the matching axis key. Single-axis crosstabs surface
-// the bucket map directly (so consumers can read e.g.
-// `RowKeyComponents[r]["count"]` against a GROUP_CATEGORY axis). Multi-axis
-// crosstabs wrap each axis position's bucket inside an `axes` slice keyed
-// by the axis field name so consumers can identify which position
-// contributed which bucket. Vector length matches
-// MatrixPayload.RowKeys / ColumnKeys; buffered + fused paths emit
-// byte-equal output.
-
 // TestCrosstabComponents_RowKeyComponents_SingleAxis_BucketLayout verifies
 // the single-axis common case: each RowKeyComponents[r] entry is the
 // MetaGrouper bucket map (carrying {key, label, count} for GROUP_CATEGORY)
@@ -1703,44 +1660,6 @@ func TestCrosstabComponents_RowKeyComponents_BufferedVsFused_ParityByteEqual(t *
 	}
 }
 
-// --- E3-S10: consolidated parity sweep -------------------------------
-//
-// TestCrosstabComponents_BufferedVsFused_SweepParity is the single
-// consolidated buffered-vs-fused parity gate. It exercises the matrix
-// of (cell aggregator family) × (axis grouper pairing) the earlier per-
-// slot parity tests left for the wrap-up story (E3-S10):
-//
-//   - Aggregator families on the cell:
-//   - scalar:        AGG_SUM
-//   - Welford:       AGG_VARIANCE
-//   - map-state:     AGG_FREQUENCY  (fused-eligible: mergeable +
-//     scalar margin + non-MapValued)
-//   - order-stat:    AGG_MEDIAN     (non-mergeable → fused gate
-//     rejects, both runs take the buffered path,
-//     components emit only on terminal flush — this
-//     locks the same-path invariant)
-//   - Axis pairings on the (rows × columns) crosstab:
-//   - GROUP_CATEGORY × GROUP_CATEGORY  (canonical)
-//   - GROUP_RANGE    × GROUP_CATEGORY  (numeric row binning)
-//   - GROUP_CATEGORY × GROUP_DATE      (date column binning)
-//
-// For every (aggregator, pairing) combination the test asserts:
-//
-//   - reflect.DeepEqual on every Components.Crosstab sub-slice
-//     (CellCounts, CellComponents, RowKeyComponents, ColumnKeyComponents,
-//     IncludedRecords, ExcludedRecords). Margin slots are off by default
-//     here — margins have their own dedicated parity tests (above) so
-//     this sweep stays focused on cell + axis-key shape parity.
-//
-// Empty / zero-row axes are guarded — every combo must produce at least
-// one populated cell on the fixture so the parity diff is meaningful.
-//
-// AGG_SET_UNION + GROUP_SET_VALUE are NOT swept here. The set-family
-// cell aggregator + set-axis grouper run on a distinct field type
-// (FieldTypeSetU8) that the canonical (region/segment/value/date)
-// fixture does not carry; their parity is covered by the dedicated
-// processing/crosstab_set_test.go suite which exercises the buffered
-// path directly via Processor.RunCrosstab.
 func TestCrosstabComponents_BufferedVsFused_SweepParity(t *testing.T) {
 	cfg := writeSweepCohort(t, "ct_sweep.pulse")
 	ctx := context.Background()

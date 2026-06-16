@@ -38,9 +38,9 @@ import (
 // already encode (`omitempty` omits the zero value on the wire). Used
 // by the share / index / delta / zscore handler dispatch to skip the
 // per-cell prefix-bucket precompute when the caller is on the legacy
-// path — preserves the E1 / E2-S1..S9 overlay-handler byte-identity
-// guarantee (story E2-S11 acceptance criterion: "Default Level=0,
-// Within=0 MUST be byte-equivalent to the no-Level/no-Within path").
+// path — preserves the overlay-handler byte-identity guarantee that
+// Default Level=0, Within=0 MUST be byte-equivalent to the
+// no-Level/no-Within path.
 //
 // Returns true when either slot is positive (non-zero). Negative slots
 // (predict gate would reject; runtime gate would also reject) are
@@ -65,7 +65,7 @@ func OverlayLevelEnabled(spec *types.OverlaySpec) bool {
 //
 // Returns axisDepth (= no truncation, full leaf) when Level <= 0, so
 // the zero-default code path produces leaf-margin denominators byte-
-// identical to the pre-S11 handler output.
+// identical to the pre-Level/Within handler output.
 //
 // Out-of-range (Level >= axisDepth) is caught by the runtime
 // validateOverlayLevelWithinRuntime gate before this function is
@@ -97,7 +97,7 @@ func SameAxisPrefixDepth(axisDepth, level int) int {
 //
 // Returns 0 (= no cross-axis fixing) when Within <= 0, so the zero-
 // default code path produces leaf-margin denominators byte-identical
-// to the pre-S11 handler output (the SHARE_OF_ROW denominator stays
+// to the pre-Level/Within handler output (the SHARE_OF_ROW denominator stays
 // "row margin sums across all columns").
 //
 // The non-zero return is a prefix LENGTH (count of opposite-axis
