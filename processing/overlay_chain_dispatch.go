@@ -236,6 +236,22 @@ func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Respons
 		l := layer
 		layers = append(layers, &l)
 		if len(ws) > 0 {
+			// Stamp the originating overlay spec index on every warning
+			// so the service-layer barrier hook (service.applyChainOverlays)
+			// can route each warning to the matching `OverlayLayer.Warnings`
+			// slot deterministically. The dispatcher is the natural owner
+			// of the spec index — per-kind handlers receive (target, ref)
+			// stage indices but not their own spec position, so stamping
+			// here keeps the per-handler signature stable while making the
+			// flat warning slice routable downstream. E3-S1 (Compose)
+			// mirrors this convention so the eventual shared helper
+			// (E3-S2+) can group both surfaces uniformly.
+			for j := range ws {
+				if ws[j].Details == nil {
+					ws[j].Details = map[string]any{}
+				}
+				ws[j].Details["overlay_index"] = i
+			}
 			warnings = append(warnings, ws...)
 		}
 	}
