@@ -346,7 +346,7 @@ both mergeable (`AGG_SUM` / `AGG_COUNT` / `AGG_AVERAGE` / `AGG_VARIANCE`)
 and non-mergeable (`AGG_MEDIAN`) paths. The crosstab fused / buffered
 pair drives a 200-field × 10K-row wide cohort with a `region × segment`
 crosstab over `AGG_COUNT(value)` and full margins. Each cell is the
-median of three `b.Loop()` runs captured at E5-S5 close.
+median of three `b.Loop()` runs.
 
 | Bench | ms/op | MB/op | allocs/op |
 |---|---:|---:|---:|
@@ -359,14 +359,13 @@ These are the canonical post-Components-always-on baselines and the
 regression frontier for future PRs — sustained `> +5%` regressions on
 any line warrant investigation.
 
-The "+5% delta vs no-Components" relative gate that E5-S5 originally
-specified (`BenchmarkProcess_NoComponents` vs `_WithComponents` and the
-matching crosstab pair) requires a `pulse.Options.DisableComponents`
-knob that does NOT exist in the current build — Components emission is
-unconditional once the operator declares a `ComponentSchema`. Locking
-absolute baselines is the practical regression frontier today; if a
-disable knob lands later, add the paired `_NoComponents` sub-cases and
-flip the gate from absolute to relative.
+A "+5% delta vs no-Components" relative gate (`BenchmarkProcess_NoComponents`
+vs `_WithComponents` and the matching crosstab pair) would require a
+`pulse.Options.DisableComponents` knob that does NOT exist in the current
+build — Components emission is unconditional once the operator declares a
+`ComponentSchema`. Locking absolute baselines is the practical regression
+frontier today; if a disable knob lands later, add the paired
+`_NoComponents` sub-cases and flip the gate from absolute to relative.
 
 Reproduce with:
 

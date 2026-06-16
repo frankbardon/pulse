@@ -21,7 +21,7 @@ Compose-only. Overlays decorate the host result; they do not emit `Response.Comp
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab on both reference + target slot. Schema-match (E7-S7) + key-alignment (E7-S6) gates apply at the slot barrier. `OverlayOptions.DictPrefixFast` enables byte-equal dictionary prefix probe.
+COMPOSE — MATRIX crosstab on both reference + target slot. Schema-match + key-alignment gates apply at the slot barrier. `OverlayOptions.DictPrefixFast` enables byte-equal dictionary prefix probe.
 
 ## Output
 

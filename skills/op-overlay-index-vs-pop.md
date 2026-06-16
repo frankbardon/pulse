@@ -21,7 +21,7 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host result; they do not
 
 ## Host shape
 
-FACET — `FacetResult` (discrete arm or numeric arm with `IncludeHistogram=true`). First FACET-host overlay (E5-S2). Population view resolved via `processing.FacetPopulationView`.
+FACET — `FacetResult` (discrete arm or numeric arm with `IncludeHistogram=true`). Population view resolved via `processing.FacetPopulationView`.
 
 ## Output
 
