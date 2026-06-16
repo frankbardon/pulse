@@ -2976,6 +2976,15 @@ type OverlayLayer struct {
 	// Summary carries optional renderer-friendly metadata. Omitted
 	// when the layer reported nothing useful.
 	Summary *OverlaySummary `json:"summary,omitempty"`
+
+	// Warnings carries per-layer diagnostics emitted by the overlay
+	// handler. Additive slot — empty in the per-Request overlay path
+	// (existing handlers do not produce warnings via this carrier
+	// today). Populated by the Compose-host fold (E2) and the
+	// Chain-host barrier (E3) when the previously-discarded warning
+	// slices get wired through. `omitempty` keeps overlay-free
+	// marshals byte-identical to pre-E1-S2 output.
+	Warnings []OverlayWarning `json:"warnings,omitempty"`
 }
 
 // OverlayWarning is the in-process diagnostic emitted by an overlay
