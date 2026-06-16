@@ -8,7 +8,7 @@ against a `.pulse` file and prints the result. It's the most-used
 leaf in the binary.
 
 > **LLM agents using MCP:** the equivalent surface is the
-> `pulse_process` MCP tool — see `skills/getting-started.md` and
+> `pulse_process` MCP tool — see `skills/session-bootstrap.md` and
 > `skills/aggregation-guide.md` for request authoring guidance.
 
 ## Synopsis

@@ -161,8 +161,8 @@ new entry so interface drift is caught at build time.
 **`ComponentsFunc` closure.** Used primarily by `pulse.Options.Extensions`
 registrations where you cannot extend the aggregator type. The closure
 receives the constructed aggregator instance and returns the
-operator-specific keys map. See the [extension-points
-skill](https://github.com/frankbardon/pulse/blob/main/skills/extension-points.md)
+operator-specific keys map. See
+[Extension Points](extension-points.md)
 for the full extension recipe and the probe-validation contract
 (`PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA`,
 `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH`).

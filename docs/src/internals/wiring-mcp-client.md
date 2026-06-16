@@ -66,8 +66,7 @@ section that describes the inspect trigger, the multi-file limitation
 (latest inspect wins), and the transport-support caveat (stdio
 sessions in mcp-go v0.52.0 do not implement `SessionWithTools`, so
 binding is a no-op there; SSE and Streamable HTTP transports honour
-it) — lives in the [MCP integration
-skill](https://github.com/frankbardon/pulse/blob/main/skills/mcp-integration.md).
+it) — lives in [Adding an MCP tool](adding-mcp-tool.md).
 
 ## Verification
 

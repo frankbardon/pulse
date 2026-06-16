@@ -73,7 +73,7 @@ type ProcessChainCapability struct {
 
 // processChainCapability returns the canonical ProcessChainCapability
 // entry. Static today; bumps require updating
-// skills/contributor-workflow.md and CLAUDE.md.
+// skills/process-chain.md and CLAUDE.md.
 func processChainCapability() ProcessChainCapability {
 	return ProcessChainCapability{
 		Name:      "process_chain",

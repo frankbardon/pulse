@@ -147,12 +147,12 @@ pulse api predict --request req.json --json | \
 | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`      | Edit the schema description; re-import |
 | `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | The feature operator references the target column; reorganise the pipeline |
 
-The full code-by-code recovery playbook lives in
-`skills/error-code-reference.md` and at
-[Troubleshooting](../ops/troubleshooting.md).
+The full code-by-code recovery playbook is reachable per-code via
+the MCP `pulse_errors_lookup` tool or the `pulse errors lookup CODE`
+CLI; see also [Troubleshooting](../ops/troubleshooting.md).
 
 ## Related
 
 - [`pulse api process`](api-process.md) — executes a validated request
 - [Library: pulse.Predict](../library/overview.md) — Go counterpart
-- `skills/debugging-with-predict.md` — LLM-side iteration recipe
+- [Debugging Predict](../internals/debugging-predict.md) — LLM-side iteration recipe

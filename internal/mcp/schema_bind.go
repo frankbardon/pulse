@@ -10,7 +10,7 @@ package mcp
 // The bound variants reuse the global tool names; mcp-go's session-scoped
 // tools override globals for that session. Multi-file binding is not
 // supported in v1: the latest inspect wins. A documented limitation; see
-// skills/mcp-integration.md.
+// docs/src/internals/adding-mcp-tool.md.
 //
 // JSON Schema limitations note: per-element correlation between an
 // operator-type enum and the field-name enum (e.g. "AGG_SUM permitted only

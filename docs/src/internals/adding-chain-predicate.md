@@ -50,7 +50,7 @@ divergence the rule exists to prevent.
 
 ## 5. Allowlist skim
 
-Skim `skills/getting-started.md` and `skills/mcp-integration.md` for
+Skim `skills/session-bootstrap.md` and `skills/process-chain.md` for
 any operator allowlist that needs adjustment in prose.
 
 ## 6. Whole-chain overlays (E6)

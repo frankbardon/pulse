@@ -93,7 +93,7 @@ streaming behaviour, parity overlay reads — lives in the
 [response-components
 skill](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md);
 extension-side parity lives in
-[extension-points](https://github.com/frankbardon/pulse/blob/main/skills/extension-points.md).
+[Extension Points](extension-points.md).
 
 ## 6. Update the aggregation-guide skill
 

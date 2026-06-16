@@ -7,10 +7,10 @@ Pulse is a self-describing tabular data processing engine. Ships as Go library (
 - **Library-first.** `pulse.go` facade (`New`, `Open`, `Process`, `Compose`, `Import`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `ProcessStream`, `ProcessChain`, `CountRecords`, `ComposeParallel`) is the public API. CLI never contains business logic.
 - **Self-describing.** Every `.pulse` file carries its schema in the header. `descriptor/` provides `manifest`, `predict`, `inspect` — no-execute operations.
 - **Skill-augmented.** `skills/` embeds 25 markdown skills via `//go:embed`. LLM agents call `skills.List()` / `skills.Get(name)` for domain guidance.
-- **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators (AGG/ATTR/FILTER/GROUP/WIN/FEAT/TEST/SYNTH) + expr functions + lookup tables. First-class — predict, manifest, MCP, runtime treat identically to built-ins. See `skills/extension-points.md`.
+- **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators (AGG/ATTR/FILTER/GROUP/WIN/FEAT/TEST/SYNTH) + expr functions + lookup tables. First-class — predict, manifest, MCP, runtime treat identically to built-ins. See `docs/src/internals/extension-points.md`.
 - **Nexus relationship.** Pulse standalone. Nexus discovers via `pulse manifest --json` + loads embedded skills. No reverse dependency.
 
-For recipes (adding operators, I/O formats, MCP tools, error codes, field types; porting; debugging predict; regenerating goldens; wiring MCP client) read `skills/contributor-workflow.md`. Long-form reference docs live under `.claude/reference/` — see "Reference Docs" at the bottom.
+For recipes (adding operators, I/O formats, MCP tools, error codes, field types; porting; debugging predict; regenerating goldens; wiring MCP client) read the mdBook Internals chapter under `docs/src/internals/` (adding-aggregator.md, adding-attribute.md, adding-filterer.md, adding-grouper.md, adding-window.md, adding-feature.md, adding-test.md, adding-synth-distribution.md, adding-mcp-tool.md, adding-io-format.md, adding-field-type.md, adding-error-code.md, adding-chain-predicate.md, adding-facet-capability.md, regenerating-goldens.md, debugging-predict.md, wiring-mcp-client.md, extension-points.md). Long-form reference docs live under `.claude/reference/` — see "Reference Docs" at the bottom.
 
 ## The Update Demand
 
@@ -30,15 +30,15 @@ This is the compressed surface — the full per-contract trigger table lives at 
 | A registered regression (`REG_*`) or modifier | `skills/regression-modeling.md` + `descriptor/capabilities_regressions.go` | `TestSkillsCoverAllRegressions`, `TestManifestRegressionsComplete` |
 | A registered synth distribution | `skills/synthetic-data.md` + `descriptor/capabilities_distributions.go` | `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
 | An error code (add/remove/rename) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
-| A CLI leaf (add/remove/flag) | `skills/getting-started.md` + `skills/contributor-workflow.md` if internal | `TestSkillsCoverAllCliLeaves` |
+| A CLI leaf (add/remove/flag) | `skills/session-bootstrap.md` (CLI leaf list) + `docs/src/cli/` page for the leaf | `TestSkillsCoverAllCliLeaves` |
 | A `--json` envelope or `format_version` value (currently `"1.0"`) | CLAUDE.md "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
 | A `.pulse` file format change (header, field type) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
 | A new non-skippable CI gate | CLAUDE.md "Non-Skippable CI Gates" list | `TestClaudeMdMentionsAllNonSkippableGates` |
-| An environment variable | CLAUDE.md "Build / Env" + `skills/getting-started.md` | `TestClaudeMdMentionsAllEnvVars` |
-| A registered MCP tool (add/remove) | `skills/mcp-integration.md` + `internal/mcp/mcptools/meta.go` | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
+| An environment variable | CLAUDE.md "Build / Env" + `skills/session-bootstrap.md` | `TestClaudeMdMentionsAllEnvVars` |
+| A registered MCP tool (add/remove) | `docs/src/internals/adding-mcp-tool.md` + `internal/mcp/mcptools/meta.go` | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
 | `Response.Components` shape change | CLAUDE.md "Output Format Contract" + `skills/response-components.md` | `TestClaudeMdMentionsComponentsContract`, `TestSkillsCoverComponentsContract` |
 | Per-operator `ComponentSchema` change | skill file for that category + `descriptor/capabilities_*.go` + `internal/mcp/mcptools/meta.go` | `TestManifestComponentSchemasComplete`, `TestSkillsCoverAllOperatorComponents`, `TestComponentsUniversalFloor` |
-| Extension registration `ComponentSchema` | `skills/extension-points.md` + Update Demand table | `TestExtensions_ComponentSchemaParity` |
+| Extension registration `ComponentSchema` | `docs/src/internals/extension-points.md` + Update Demand table | `TestExtensions_ComponentSchemaParity` |
 | Shard archive layout (entry names, `_schema.pulse` block, magic dispatch, dict prefix rule) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded) | `TestShardArchiveLayoutDocumented`, `TestSkillsCoverShardingTopics` |
 | Any Request slot, Response slot, capability block, or Execution-mode wiring | See `.claude/reference/update-demand.md` for the per-slot trigger row | per-slot test suites cited there |
 
@@ -106,7 +106,7 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 **Shard archive variant.** `.pulse` path resolves to either single-file layout above or **shard archive** — uncompressed Zip64 (Method 0, store-only) whose first four bytes are zip magic `PK\x03\x04` instead of `PULSE` magic. Single-file byte format **unchanged**; magic-byte dispatch at `pulse.Open` selects shape. Shard archive carries reserved `_schema.pulse` entry (header-only canonical schema + SHRD trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Per-shard cohesion: structural strict (byte-equal at insert), descriptions tolerant. Categorical dictionaries grow under union-merge semantics; divergent incoming shards byte-rewritten with remapped indices. Width overflow → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. Stricter prefix-only validator (`PULSE_SHARD_DICT_DIVERGENCE`) retained for `pulse shard verify`. Anchor syntax `archive.pulse#shard.pulse` opens one shard as one-shard cohort. Caller-owned concurrency. Full detail in `skills/cohort-schema-design.md` (Sharded cohorts).
 
-**Projected buffered decode.** `pulse.Options.ProjectBufferedFields` enables per-request field projection on the streaming iterator. `processing.NeededFields(req, schema, ext)` walks every request slot and returns a `FieldSet`; the iterator turns retained set into a cached `encoding.DecodePlan` via `Schema.BuildDecodePlan(retained)`. Plan segments: `SkipBytes{N}` (one discard over N bytes) and `DecodeFields{Fields}`. Bit-packed runs stay grouped; null-bitmap whole-or-skip. Extension operators without `FieldInputs` widen retained set to `*`. Bench: ~7× speedup, ~14× fewer allocs on a 4-field projection of a 200-field cohort. Detail: `skills/cohort-schema-design.md` + `skills/extension-points.md` + `.claude/reference/execution-modes.md`.
+**Projected buffered decode.** `pulse.Options.ProjectBufferedFields` enables per-request field projection on the streaming iterator. `processing.NeededFields(req, schema, ext)` walks every request slot and returns a `FieldSet`; the iterator turns retained set into a cached `encoding.DecodePlan` via `Schema.BuildDecodePlan(retained)`. Plan segments: `SkipBytes{N}` (one discard over N bytes) and `DecodeFields{Fields}`. Bit-packed runs stay grouped; null-bitmap whole-or-skip. Extension operators without `FieldInputs` widen retained set to `*`. Bench: ~7× speedup, ~14× fewer allocs on a 4-field projection of a 200-field cohort. Detail: `skills/cohort-schema-design.md` + `docs/src/internals/extension-points.md` + `.claude/reference/execution-modes.md`.
 
 ### Smart defaults
 
@@ -178,12 +178,12 @@ Full contract: `skills/response-components.md`.
 
 Heavy detail lives in `.claude/reference/execution-modes.md` and the named skill. CLAUDE.md keeps gate-relevant pointers only.
 
-- **Streaming Process** (`pulse.ProcessStream`, `pulse api process --stream`) — four orchestrator modes; forced-buffered list at `skills/getting-started.md`.
-- **Projected buffered decode** — see "Byte-layout invariants" above + `skills/extension-points.md`.
+- **Streaming Process** (`pulse.ProcessStream`, `pulse api process --stream`) — four orchestrator modes; forced-buffered list at `skills/streaming-and-watching.md` and `.claude/reference/execution-modes.md`.
+- **Projected buffered decode** — see "Byte-layout invariants" above + `docs/src/internals/extension-points.md`.
 - **Parallel Compose** (`pulse.ComposeParallel`, `pulse api compose --parallel N`) — `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}`; post-slot Compose-overlay fold at `service/compose_overlay.go`. See `skills/compose-requests.md`.
 - **Parallel shards** (`pulse.Options.ShardWorkers`) — bounded per-shard pool inside `Process`; mergeable-only via `processing.CanMergeRequest`. See `skills/cohort-schema-design.md`.
 - **Parallel buffered Process** (`pulse.Options.DecodeWorkers`) — bounded per-segment pool over single-file mmap'd cohorts; threshold `parallelDecodeRecordThreshold = 100_000`. See `skills/cohort-schema-design.md`.
-- **ProcessChain** (`pulse.ProcessChain`, `pulse_process_chain`, `pulse api process-chain`) — source-rooted linear chain; mergeable-only at v1; dual-slot overlay design (per-stage + whole-chain). See `skills/contributor-workflow.md`.
+- **ProcessChain** (`pulse.ProcessChain`, `pulse_process_chain`, `pulse api process-chain`) — source-rooted linear chain; mergeable-only at v1; dual-slot overlay design (per-stage + whole-chain). See `skills/process-chain.md`.
 - **Pushdown hash join** (`Request.Joins []*JoinSpec`) — v1 = exactly one inner join per Request. See `skills/join-design.md`.
 - **Crosstab** (`Request.Crosstab`, `Response.Crosstab`) — composed row×column grid; margins recompute from raw rows; `normalize_level` / `normalize_within` compose. See `skills/crosstab-guide.md`.
 - **Fused crosstab** (`processing.CanFuseCrosstab`, `processing.StreamableGrouper.KeyFor`) — in-decode streaming alternative; ~30–47% faster on benches. See `skills/crosstab-guide.md` (Fused mergeable path) + `skills/grouper-design.md`.
@@ -212,14 +212,14 @@ Descriptor contracts:
 
 Skill-coverage:
 - `TestSkillsCoverAllComponents` — every aggregator/attribute/filterer/grouper in registries mentioned in its target skill.
-- `TestSkillsCoverAllCliLeaves` — every CLI leaf appears in `skills/getting-started.md`.
+- `TestSkillsCoverAllCliLeaves` — every CLI leaf appears in `skills/session-bootstrap.md`.
 - `TestSkillsCoverAllFieldTypes` — every field type appears in `skills/cohort-schema-design.md`.
 - `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator appears in `skills/window-operations.md`.
-- `TestSkillsCoverAllMCPTools` — every registered MCP tool appears in `skills/mcp-integration.md`.
+- `TestSkillsCoverAllMCPTools` — every registered MCP tool appears in `skills/session-bootstrap.md`.
 - `TestSkillsCoverAllSynthDistributions` — every distribution kind appears in `skills/synthetic-data.md`.
 - `TestSkillsCoverAllRegressions` — every `REG_*` operator appears in `skills/regression-modeling.md`.
 - `TestSkillsCoverAllOverlayKinds` — every overlay kind in `types.AllOverlayKinds()` appears in `skills/overlay-system.md`.
-- `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section and `skills/contributor-workflow.md` mentions sharding.
+- `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section and `docs/src/internals/managing-shard-archives.md` mentions sharding.
 - `TestSkillsCoverAllOperatorComponents` — every operator's component keys appear in its target skill.
 
 Other load-bearing contract gates (not prefix-matched, enforced by their own packages): `TestManifestOperatorsComplete`, `TestManifestStreamableMatchesTypes`, `TestManifestTestsComplete`, `TestManifestPostTestsComplete`, `TestManifestDistributionsComplete`, `TestManifestRegressionsComplete`, `TestManifestErrorCodesComplete`, `TestManifest_ErrorCodesSlim`, `TestManifestMCPToolsComplete`, `TestManifestExamplesPopulated`, `TestManifest_SkillsNotEmpty`, `TestManifestFacetCapability`, `TestManifestComponentSchemasComplete`, `TestCodesHaveFixups`, `TestRegistryStreamabilityMatchesTypes`, `TestPredict_Streamable_MatchesRuntime`, `TestStreamability_*Known`, `TestStreamability_ComponentsMergeabilityKnown`, `TestCanStreamRequest_RegressionMatrix`, `TestCohortTypeCrossRefsDeterministic`, `TestDefaults_Applied`, `TestComponentsUniversalFloor`, `TestExamples_*`, `TestMCPSchemaBinding_*`, `TestErrorsLookup_*`, `TestExtensions_*`, `TestExtensions_ComponentSchemaParity`, `TestExtensions_MissingComponentSchema`, `TestShardArchive*`, `TestProcessChain_*`, `TestValidateChain_*`, `TestJoin_*`, `TestValidateJoin_*`, `TestFacetSchema_*`, `TestValidateFacet_*`, `TestCountRecords_*`, `TestNeededFields_*`, `TestProjection_*`, `TestReadRecordProjected_*`.
@@ -258,7 +258,7 @@ Hermetic testing: `fs.NewMemMap()` returns a `Config` backed by `afero.NewMemMap
 - **Snapshot pattern:** `descriptor.ExtensionsSnapshot` — read-only projection passed into `descriptor.PredictOptions.Extensions` and `mcp.BindSessionToolsWithExtensions`. Built by `pulse.New` via `buildExtensionsSnapshot`. Descriptor stays free of `service/` and `processing/` imports.
 - **FieldInputs hook:** every operator registration accepts optional `FieldInputs FieldInputsFunc`. Used by `processing.NeededFields` for projection. Absent → retained set widens to `*` (full-decode fallback).
 
-Surface: `extensions.go`, `extensions_validate.go`, `extensions_probe.go`, `extensions_runtime.go`, `extensions_snapshot.go`. Runtime overlay: `processing/extensions.go`. Full recipe: `skills/extension-points.md`.
+Surface: `extensions.go`, `extensions_validate.go`, `extensions_probe.go`, `extensions_runtime.go`, `extensions_snapshot.go`. Runtime overlay: `processing/extensions.go`. Full recipe: `docs/src/internals/extension-points.md`.
 
 ## Skill Pack
 
@@ -286,16 +286,16 @@ applies_to: process, compose, predict
 | Statistical test (`TEST_*`) | `skills/statistical-testing.md` |
 | Regression (`REG_*`) | `skills/regression-modeling.md` |
 | Synth distribution | `skills/synthetic-data.md` |
-| CLI leaf | `skills/getting-started.md` |
+| CLI leaf | `skills/session-bootstrap.md` |
 | Field type | `skills/cohort-schema-design.md` |
-| MCP tool | `skills/mcp-integration.md` |
+| MCP tool | `skills/session-bootstrap.md` |
 | Facet endpoint | `skills/facet-design.md` |
 | Join | `skills/join-design.md` |
 | Label binding / display overlay | `skills/label-display.md` |
 | Crosstab / cross-tabulation | `skills/crosstab-guide.md` |
 | Overlay (`OVERLAY_*`) | `skills/overlay-system.md` |
 | Error code | `errors/fixup_metadata.go` (via `pulse_errors_lookup`) |
-| Extension API surface | `skills/extension-points.md` |
+| Extension API surface | `docs/src/internals/extension-points.md` |
 | Request hashing / StreamResult / Watch / FilterToFileWithRequest / manifest annotations | `skills/streaming-and-watching.md` |
 
 Current registered counts: 28 aggregators, 11 attributes, 11 filterers, 7 groupers, 10 windows, 9 features, 20 tests, 12 synth distributions, 3 regressions.

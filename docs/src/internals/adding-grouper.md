@@ -125,8 +125,8 @@ behaviour by mergeability class, the orchestrator-owned floor, the
 extension-side parity contract — lives in the [response-components
 skill](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md).
 Embedder extensions implement the same `MetaGrouper` interface via
-`ComponentsFunc` or directly; see [extension-points
-skill](https://github.com/frankbardon/pulse/blob/main/skills/extension-points.md).
+`ComponentsFunc` or directly; see
+[Extension Points](extension-points.md).
 
 ## 7. The `Include` inclusion-list slot
 

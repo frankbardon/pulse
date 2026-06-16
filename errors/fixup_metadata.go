@@ -755,7 +755,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Extensions", "*", "ComponentSchema", "Keys"},
-				Hint:   "Add the undeclared emitted keys to ComponentSchema.Keys (with the matching JSONType + Mergeability), or remove them from the ComponentsFunc emission. See skills/extension-points.md for the per-category contract.",
+				Hint:   "Add the undeclared emitted keys to ComponentSchema.Keys (with the matching JSONType + Mergeability), or remove them from the ComponentsFunc emission. See docs/src/internals/extension-points.md for the per-category contract.",
 			},
 			{
 				Action: FixupRemoveParam,
@@ -770,7 +770,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Extensions", "*", "ComponentSchema"},
-				Hint:   "Add a ComponentSchema with the keys + Mergeability that the ComponentsFunc emits, or drop the ComponentsFunc to fall back to the floor-only path. See skills/extension-points.md for examples.",
+				Hint:   "Add a ComponentSchema with the keys + Mergeability that the ComponentsFunc emits, or drop the ComponentsFunc to fall back to the floor-only path. See docs/src/internals/extension-points.md for examples.",
 			},
 		},
 	},
@@ -1297,7 +1297,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "formula"},
-				Hint:     "Re-read the formula string with the parser message in mind (Details.parse_error names the offending position or token). Common fixes: balance every '(' with a matching ')', terminate every '\"' string literal, and confirm operators are valid expr-lang operators (+, -, *, /, %, **, ==, !=, <, <=, >, >=, &&, ||, !). The expr-lang grammar is documented under skills/extension-points.md (the same evaluator backs ATTR_FORMULA and FILTER_EXPRESSION, so any expression that parses there parses here).",
+				Hint:     "Re-read the formula string with the parser message in mind (Details.parse_error names the offending position or token). Common fixes: balance every '(' with a matching ')', terminate every '\"' string literal, and confirm operators are valid expr-lang operators (+, -, *, /, %, **, ==, !=, <, <=, >, >=, &&, ||, !). The expr-lang grammar is documented under docs/src/internals/extension-points.md (the same evaluator backs ATTR_FORMULA and FILTER_EXPRESSION, so any expression that parses there parses here).",
 				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}},
 			},
 		},
@@ -1308,7 +1308,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "formula"},
-				Hint:     "Ensure the formula's top-level expression evaluates to a numeric value (float64 / float32 / int / int64) or a bool (bool widens to 0.0 / 1.0). If the formula uses a custom function registered via pulse.Options.Extensions.ExprFunctions, verify the function returns a numeric Go type rather than a string, slice, or composite type — see skills/extension-points.md for the ExprFunctions contract. If the formula uses lookup() against a LookupTables registration, verify the row value column is numeric.",
+				Hint:     "Ensure the formula's top-level expression evaluates to a numeric value (float64 / float32 / int / int64) or a bool (bool widens to 0.0 / 1.0). If the formula uses a custom function registered via pulse.Options.Extensions.ExprFunctions, verify the function returns a numeric Go type rather than a string, slice, or composite type — see docs/src/internals/extension-points.md for the ExprFunctions contract. If the formula uses lookup() against a LookupTables registration, verify the row value column is numeric.",
 				Examples: []any{map[string]any{"formula": "cell / margin_row"}, map[string]any{"formula": "(value - prior) / prior"}},
 			},
 		},
@@ -1319,7 +1319,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "formula"},
-				Hint:     "Check the allowed identifier set for shape Details.host_shape against Details.allowed (variables) or Details.allowed_funcs (functions) — the per-shape namespace table lives in the FORMULA section of skills/overlay-system.md. If the identifier was meant to be a custom function, register it via pulse.Options.Extensions.ExprFunctions before calling pulse.New (see skills/extension-points.md for the registration recipe — naming policy ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_*$ applies to operators, not to expr functions; expr function names are free-form). If the identifier was meant to be a variable not in the per-shape table, register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. Compose `slot.<label>.<field>` identifiers only resolve on Compose-host overlays (FacetRequest.Overlays / ComposedRequest.Overlays), not on Request.Overlays.",
+				Hint:     "Check the allowed identifier set for shape Details.host_shape against Details.allowed (variables) or Details.allowed_funcs (functions) — the per-shape namespace table lives in the FORMULA section of skills/overlay-system.md. If the identifier was meant to be a custom function, register it via pulse.Options.Extensions.ExprFunctions before calling pulse.New (see docs/src/internals/extension-points.md for the registration recipe — naming policy ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_*$ applies to operators, not to expr functions; expr function names are free-form). If the identifier was meant to be a variable not in the per-shape table, register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. Compose `slot.<label>.<field>` identifiers only resolve on Compose-host overlays (FacetRequest.Overlays / ComposedRequest.Overlays), not on Request.Overlays.",
 				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}, map[string]any{"formula": "(slot.us.cell - slot.uk.cell) / slot.world.cell"}},
 			},
 		},

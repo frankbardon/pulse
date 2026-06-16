@@ -9,7 +9,8 @@ commands and for the environment variables Pulse reads.
 
 > **LLM agents using MCP:** there is no LLM-facing skill for the CLI
 > surface. Agents go via MCP tools (`pulse_process`, `pulse_inspect`,
-> ...) — see `skills/mcp-integration.md`.
+> ...) — see [`pulse mcp`](mcp.md) and
+> [Adding an MCP tool](../internals/adding-mcp-tool.md).
 
 ## Global flags
 
@@ -141,4 +142,4 @@ description, flag list, and an examples block where applicable.
 | Per-command synopsis & examples | [CLI Tour](../getting-started/cli-tour.md) and each `cli/` page |
 | Library-side equivalents | [Library Embedding](../library/overview.md) |
 | MCP-side equivalents | [How LLMs Use Pulse](../mcp/index.md) |
-| Envelope and error code semantics | [Troubleshooting](../ops/troubleshooting.md) and `skills/error-code-reference.md` |
+| Envelope and error code semantics | [Troubleshooting](../ops/troubleshooting.md) and the `pulse_errors_lookup` MCP tool / `pulse errors lookup CODE` CLI |

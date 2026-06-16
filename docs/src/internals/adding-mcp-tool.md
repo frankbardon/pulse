@@ -49,11 +49,11 @@ implement `SessionWithTools`, so binding is a no-op there. SSE and
 Streamable HTTP transports honour it. See the MCP integration skill
 for the configuration recipe.
 
-## 4. Update the mcp-integration skill
+## 4. Update the session-bootstrap skill
 
-Add a section in `skills/mcp-integration.md` under "Tool surface"
-covering the tool's purpose, request shape, response shape, and (if
-applicable) the Schema-bound enums it exposes after `pulse_inspect`.
+Add a section to `skills/session-bootstrap.md` covering the new
+tool's purpose, request shape, response shape, and (if applicable)
+the Schema-bound enums it exposes after `pulse_inspect`.
 `TestSkillsCoverAllMCPTools` enforces presence by name.
 
 ## 5. Run the gates
