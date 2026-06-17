@@ -967,6 +967,22 @@ type Request struct {
 	// scope compatibility live in the overlay catalog (see
 	// types/overlay.go).
 	Overlays []OverlaySpec `json:"overlays,omitempty"`
+
+	// DisableComponents overrides the engine-level
+	// pulse.Options.DisableComponents setting for this single request.
+	// nil (the default) inherits the engine setting. Explicit `true`
+	// suppresses Response.Components regardless of the engine default;
+	// explicit `false` forces components on regardless of the engine
+	// default. Use a pointer so the unset state is distinguishable from
+	// `false` — the standard tri-state override pattern.
+	//
+	// When the resolved decision is "disabled", Response.Components stays
+	// nil and the wire form is byte-identical to the pre-Components
+	// baseline; format_version is not bumped. The gate sits at the
+	// processor's attach helpers, so the MetaAggregator.Components and
+	// MetaGrouper.Components construction work is skipped — not
+	// built-then-discarded.
+	DisableComponents *bool `json:"disable_components,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.

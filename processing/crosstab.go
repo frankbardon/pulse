@@ -804,30 +804,36 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		grandMarginCountSlot = grandMarginCount
 		grandMarginComponentsSlot = grandMarginComponents
 	}
-	// Per-axis grouper components for the row + column axes. Each
-	// axis grouper is instantiated fresh and exercised against the full
-	// filtered set so MetaGrouper.Components() reflects the cohort-wide
-	// bucket emission for that axis position. Buckets are then projected
-	// onto the sorted RowKeys / ColumnKeys via projectAxisKeyComponents
-	// so RowKeyComponents[r] / ColumnKeyComponents[c] are indexed in
-	// lockstep with MatrixPayload.RowKeys / ColumnKeys.
-	rowAxisComponents, err := p.axisComponentsFor(spec.Rows, filtered)
-	if err != nil {
-		return nil, err
+	// Components emission block — gated by the processor's
+	// disableComponents flag. The axis grouper instantiation +
+	// MetaGrouper.Components walk is expensive on wide cohorts, so the
+	// gate skips that work entirely rather than building then discarding.
+	if !p.disableComponents {
+		// Per-axis grouper components for the row + column axes. Each
+		// axis grouper is instantiated fresh and exercised against the full
+		// filtered set so MetaGrouper.Components() reflects the cohort-wide
+		// bucket emission for that axis position. Buckets are then projected
+		// onto the sorted RowKeys / ColumnKeys via projectAxisKeyComponents
+		// so RowKeyComponents[r] / ColumnKeyComponents[c] are indexed in
+		// lockstep with MatrixPayload.RowKeys / ColumnKeys.
+		rowAxisComponents, err := p.axisComponentsFor(spec.Rows, filtered)
+		if err != nil {
+			return nil, err
+		}
+		colAxisComponents, err := p.axisComponentsFor(spec.Columns, filtered)
+		if err != nil {
+			return nil, err
+		}
+		rowKeyComponents := projectAxisKeyComponents(spec.Rows, rowPart.Tuples, rowAxisComponents)
+		colKeyComponents := projectAxisKeyComponents(spec.Columns, colPart.Tuples, colAxisComponents)
+		populateCrosstabComponents(resp, rowPart.Keys, colPart.Keys,
+			cellCounts, cellComponents,
+			rowMarginCountsSlot, rowMarginComponentsSlot,
+			colMarginCountsSlot, colMarginComponentsSlot,
+			grandMarginCountSlot, grandMarginComponentsSlot, spec.Margins.Grand,
+			includedRecords, excludedRecords,
+			rowKeyComponents, colKeyComponents)
 	}
-	colAxisComponents, err := p.axisComponentsFor(spec.Columns, filtered)
-	if err != nil {
-		return nil, err
-	}
-	rowKeyComponents := projectAxisKeyComponents(spec.Rows, rowPart.Tuples, rowAxisComponents)
-	colKeyComponents := projectAxisKeyComponents(spec.Columns, colPart.Tuples, colAxisComponents)
-	populateCrosstabComponents(resp, rowPart.Keys, colPart.Keys,
-		cellCounts, cellComponents,
-		rowMarginCountsSlot, rowMarginComponentsSlot,
-		colMarginCountsSlot, colMarginComponentsSlot,
-		grandMarginCountSlot, grandMarginComponentsSlot, spec.Margins.Grand,
-		includedRecords, excludedRecords,
-		rowKeyComponents, colKeyComponents)
 
 	// Tier-2 post-tests run over the materialized cell rows. Margin rows
 	// are excluded — they are emission-time annotations, not statistical

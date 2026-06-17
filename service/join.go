@@ -86,6 +86,7 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	s.applyDefaults(&clone, joinedSchema)
 
 	proc := processing.NewProcessorWithExtensions(joinedSchema, s.extensions)
+	proc.SetDisableComponents(s.effectiveDisableComponents(req))
 	resp, err := proc.Process(ctx, &clone, join)
 	if err != nil {
 		return nil, err

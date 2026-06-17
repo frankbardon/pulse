@@ -143,7 +143,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if err != nil {
 		return nil, err
 	}
-	resp, err := finalizeMergedPartial(req, schema, merged, len(shards))
+	resp, err := finalizeMergedPartial(req, schema, merged, len(shards), s.effectiveDisableComponents(req))
 	if err != nil {
 		return nil, err
 	}
@@ -506,7 +506,13 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 // into Response.Components.Run.ShardCount and stays at 0 for
 // single-file cohorts so the omitempty wire shape is byte-identical
 // against the single-cohort baseline.
-func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int) (*types.Response, error) {
+//
+// disableComponents mirrors the engine-level
+// pulse.Options.DisableComponents (with per-request override) — when
+// true, attachMergedRunComponents is a no-op and Response.Components
+// stays nil so the merged-shard wire form is byte-identical to the
+// pre-Components baseline.
+func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, disableComponents bool) (*types.Response, error) {
 	_ = schema
 	resp := &types.Response{
 		Metadata: &types.ResponseMetadata{
@@ -531,7 +537,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		if len(merged.aggs) > 0 {
 			resp.Data = []map[string]any{row}
 		}
-		attachMergedRunComponents(resp, merged, shardCount)
+		attachMergedRunComponents(resp, merged, shardCount, disableComponents)
 		return resp, nil
 	}
 
@@ -562,7 +568,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		}
 		resp.Data = data
 	}
-	attachMergedRunComponents(resp, merged, shardCount)
+	attachMergedRunComponents(resp, merged, shardCount, disableComponents)
 	return resp, nil
 }
 
@@ -572,8 +578,13 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 // buffered reducer that reuses the same merge state) can populate the
 // typed cohort counters without reaching into the processing package's
 // unexported helper.
-func attachMergedRunComponents(resp *types.Response, merged *shardPartial, shardCount int) {
-	if resp == nil || merged == nil {
+//
+// No-op when disableComponents is true — the caller's gate (the
+// effective engine + per-request decision) suppresses Response.Components
+// entirely, so this helper leaves resp.Components at nil for
+// byte-identical wire output against the pre-Components baseline.
+func attachMergedRunComponents(resp *types.Response, merged *shardPartial, shardCount int, disableComponents bool) {
+	if resp == nil || merged == nil || disableComponents {
 		return
 	}
 	if resp.Components == nil {

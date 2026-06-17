@@ -57,6 +57,7 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 	if err != nil {
 		return nil, err
 	}
+	state.disableComponents = p.disableComponents
 	// Defensive: echo the static gate's exclusions so a stale dispatch
 	// shortcut that drifts past a newly added request slot fails fast
 	// here rather than producing a divergent fused result.

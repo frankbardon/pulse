@@ -39,6 +39,7 @@ func apiProcessCmd() *cli.Command {
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
 			&cli.BoolFlag{Name: "strict", Usage: "Promote request-validation warnings into hard errors (e.g. numeric aggregation on a categorical field)"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized (post-defaults) request on the envelope under \"request\". Streaming output skips this — NDJSON has no envelope."},
+			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components (per-aggregator / per-grouper / per-filterer / crosstab / run constituent-parts metadata). Wire form is byte-identical to the pre-Components baseline."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
@@ -47,6 +48,7 @@ func apiProcessCmd() *cli.Command {
 			noDefaults := cmd.Bool("no-defaults")
 			strict := cmd.Bool("strict")
 			echoRequest := cmd.Bool("echo-request")
+			noComponents := cmd.Bool("no-components")
 
 			req, err := loadRequest(reqPath)
 			if err != nil {
@@ -56,7 +58,7 @@ func apiProcessCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, Strict: strict, EchoRequest: echoRequest})
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, Strict: strict, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
@@ -138,12 +140,14 @@ func apiProcessChainCmd() *cli.Command {
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized ChainRequest on the envelope under \"request\". Each stage's Request reflects the per-stage post-defaults form captured during execution."},
+			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components on every per-stage Response. Wire form is byte-identical to the pre-Components baseline."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
 			jsonOut := cmd.Bool("json")
 			noDefaults := cmd.Bool("no-defaults")
 			echoRequest := cmd.Bool("echo-request")
+			noComponents := cmd.Bool("no-components")
 
 			chain, err := loadChainRequest(reqPath)
 			if err != nil {
@@ -153,7 +157,7 @@ func apiProcessChainCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, EchoRequest: echoRequest})
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
@@ -193,6 +197,7 @@ func apiComposeCmd() *cli.Command {
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized ComposedRequest on the envelope under \"request\". Each slot reflects its post-defaults form. Streaming output skips this."},
+			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components on every per-slot Response in ComposedResponse.Responses. Wire form is byte-identical to the pre-Components baseline."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
@@ -202,6 +207,7 @@ func apiComposeCmd() *cli.Command {
 			noFailFast := cmd.Bool("no-fail-fast")
 			noDefaults := cmd.Bool("no-defaults")
 			echoRequest := cmd.Bool("echo-request")
+			noComponents := cmd.Bool("no-components")
 
 			composed, err := loadComposedRequest(reqPath)
 			if err != nil {
@@ -211,7 +217,7 @@ func apiComposeCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, EchoRequest: echoRequest})
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
