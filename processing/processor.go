@@ -51,9 +51,30 @@ func (p ProcessPath) String() string {
 // It handles filtering, attribute computation, grouping, and aggregation
 // over record iterators backed by .pulse encoded data.
 type Processor struct {
-	schema   *encoding.Schema
-	lastPath ProcessPath
-	exts     *ExtensionRegistry
+	schema            *encoding.Schema
+	lastPath          ProcessPath
+	exts              *ExtensionRegistry
+	disableComponents bool
+}
+
+// SetDisableComponents toggles Response.Components emission for this
+// processor instance. When true, every attach helper (aggregation,
+// grouper, filterer, run, crosstab) early-returns before constructing
+// any per-operator components map — the MetaAggregator.Components /
+// MetaGrouper.Components calls are skipped entirely. Service-layer
+// callers compute the effective decision (per-request override against
+// the engine default) and flip this flag before invoking Process. See
+// pulse.Options.DisableComponents and types.Request.DisableComponents
+// for the full contract.
+func (p *Processor) SetDisableComponents(disabled bool) {
+	p.disableComponents = disabled
+}
+
+// DisableComponents reports the current setting. Exposed so the
+// crosstab / fused-crosstab dispatch paths (which build their own
+// emission helper) can consult it.
+func (p *Processor) DisableComponents() bool {
+	return p.disableComponents
 }
 
 // NewProcessor creates a new Processor for the given schema. The
@@ -604,40 +625,46 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		Regressions: regressionResults,
 	}
 
-	// Emit AggregationComponents per slot. Universal floor (n,
-	// nNull) is the orchestrator-tracked per-record bookkeeping; the
-	// operator-specific map rides off the MetaAggregator sibling when
-	// the aggregator implements it. Aggregators without MetaAggregator
-	// fall through to a floor-only entry (Operator left nil), which
-	// marshals as omitempty so the wire form stays byte-identical
-	// against the pre-MetaAggregator baseline.
-	for _, fe := range finalized {
-		entry, err := buildAggregationComponents(fe.online, fe.agg, fe.n, fe.nNull)
-		if err != nil {
-			return nil, err
+	// Components emission block — opt-out via
+	// pulse.Options.DisableComponents / Request.DisableComponents. The
+	// gate sits on the build+attach pair so the MetaAggregator.Components
+	// construction work is skipped, not built then discarded.
+	if !p.disableComponents {
+		// Emit AggregationComponents per slot. Universal floor (n,
+		// nNull) is the orchestrator-tracked per-record bookkeeping; the
+		// operator-specific map rides off the MetaAggregator sibling when
+		// the aggregator implements it. Aggregators without MetaAggregator
+		// fall through to a floor-only entry (Operator left nil), which
+		// marshals as omitempty so the wire form stays byte-identical
+		// against the pre-MetaAggregator baseline.
+		for _, fe := range finalized {
+			entry, err := buildAggregationComponents(fe.online, fe.agg, fe.n, fe.nNull)
+			if err != nil {
+				return nil, err
+			}
+			attachAggregationComponents(resp, entry)
 		}
-		attachAggregationComponents(resp, entry)
-	}
 
-	// Emit FiltererComponents per slot from the per-record
-	// counter walk. Empty filter chains stay nil so the omitempty
-	// wire shape is byte-identical.
-	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+		// Emit FiltererComponents per slot from the per-record
+		// counter walk. Empty filter chains stay nil so the omitempty
+		// wire shape is byte-identical.
+		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
 
-	// Emit RunComponents — typed cohort-level counters.
-	// NullRecords pulls from the FIRST aggregator's per-record nNull
-	// counter (the primary-field convention locked in
-	// run_components.go); single-pass streaming has no shard concept,
-	// so ShardCount stays 0 and PartialCohortReason stays empty.
-	var nullRecords int64
-	if len(finalized) > 0 {
-		nullRecords = int64(finalized[0].nNull)
+		// Emit RunComponents — typed cohort-level counters.
+		// NullRecords pulls from the FIRST aggregator's per-record nNull
+		// counter (the primary-field convention locked in
+		// run_components.go); single-pass streaming has no shard concept,
+		// so ShardCount stays 0 and PartialCohortReason stays empty.
+		var nullRecords int64
+		if len(finalized) > 0 {
+			nullRecords = int64(finalized[0].nNull)
+		}
+		attachRunComponents(resp, RunCountersInput{
+			TotalRecords:    totalRows,
+			FilteredRecords: filteredRows,
+			NullRecords:     nullRecords,
+		})
 	}
-	attachRunComponents(resp, RunCountersInput{
-		TotalRecords:    totalRows,
-		FilteredRecords: filteredRows,
-		NullRecords:     nullRecords,
-	})
 	return resp, nil
 }
 
@@ -886,34 +913,39 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		PostTests: postResults,
 	}
 
-	// Streaming grouped path emits one GrouperComponents entry
-	// per Group slot (single-grouper today). Bucket counts ride off
-	// the grouper's live state (populated by KeyForRow per filter-
-	// passing row); TotalN sums the bucket counts; NNull falls out of
-	// filteredRows minus TotalN — every post-filter record that did
-	// NOT land in a bucket (null field value, include-filter rejection,
-	// empty set mask, etc.). The grouper instance is the same object
-	// KeyForRow drove against, so MetaGrouper.Components() reads off
-	// the same map.
-	streamEntry, gerr := buildStreamingGrouperComponents(grouperInstance, grp, int(filteredRows))
-	if gerr != nil {
-		return nil, gerr
+	// Components emission block — gated by the processor's
+	// disableComponents flag (see attachAggregationComponents for the
+	// full opt-out contract).
+	if !p.disableComponents {
+		// Streaming grouped path emits one GrouperComponents entry
+		// per Group slot (single-grouper today). Bucket counts ride off
+		// the grouper's live state (populated by KeyForRow per filter-
+		// passing row); TotalN sums the bucket counts; NNull falls out of
+		// filteredRows minus TotalN — every post-filter record that did
+		// NOT land in a bucket (null field value, include-filter rejection,
+		// empty set mask, etc.). The grouper instance is the same object
+		// KeyForRow drove against, so MetaGrouper.Components() reads off
+		// the same map.
+		streamEntry, gerr := buildStreamingGrouperComponents(grouperInstance, grp, int(filteredRows))
+		if gerr != nil {
+			return nil, gerr
+		}
+		attachGrouperComponents(resp, streamEntry)
+
+		// Emit FiltererComponents per slot. Empty filter chains
+		// stay nil so the omitempty wire shape is byte-identical.
+		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+
+		// Emit RunComponents — typed cohort-level counters. The
+		// streaming-grouped path has no shard concept (records flow off a
+		// single iterator regardless of the underlying cohort topology), so
+		// ShardCount stays 0 and PartialCohortReason stays empty.
+		attachRunComponents(resp, RunCountersInput{
+			TotalRecords:    totalRows,
+			FilteredRecords: filteredRows,
+			NullRecords:     primaryNullRecords,
+		})
 	}
-	attachGrouperComponents(resp, streamEntry)
-
-	// Emit FiltererComponents per slot. Empty filter chains
-	// stay nil so the omitempty wire shape is byte-identical.
-	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
-
-	// Emit RunComponents — typed cohort-level counters. The
-	// streaming-grouped path has no shard concept (records flow off a
-	// single iterator regardless of the underlying cohort topology), so
-	// ShardCount stays 0 and PartialCohortReason stays empty.
-	attachRunComponents(resp, RunCountersInput{
-		TotalRecords:    totalRows,
-		FilteredRecords: filteredRows,
-		NullRecords:     primaryNullRecords,
-	})
 
 	// SERIES-host overlay hook. Streaming grouped exit calls into the
 	// same post-finalize wiring as the buffered processRecords path.
@@ -1147,38 +1179,43 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		PostTests: postResults,
 	}
 
-	// Emit AggregationComponents per slot for the two-pass
-	// streaming path. Mirrors the single-pass streaming exit (see
-	// processStreaming above).
-	for i := range entries {
-		e := &entries[i]
-		entry, err := buildAggregationComponents(e.online, e.agg, e.n, e.nNull)
-		if err != nil {
-			return nil, err
+	// Components emission block — gated by the processor's
+	// disableComponents flag (see attachAggregationComponents for the
+	// full opt-out contract).
+	if !p.disableComponents {
+		// Emit AggregationComponents per slot for the two-pass
+		// streaming path. Mirrors the single-pass streaming exit (see
+		// processStreaming above).
+		for i := range entries {
+			e := &entries[i]
+			entry, err := buildAggregationComponents(e.online, e.agg, e.n, e.nNull)
+			if err != nil {
+				return nil, err
+			}
+			attachAggregationComponents(resp, entry)
 		}
-		attachAggregationComponents(resp, entry)
-	}
 
-	// Emit FiltererComponents per slot. Counters were
-	// populated during pass 1 (pass 2 re-runs the filter funcs for
-	// gating but skips the counter increment so totals match the
-	// observed record set, not pass-1+pass-2 visits).
-	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+		// Emit FiltererComponents per slot. Counters were
+		// populated during pass 1 (pass 2 re-runs the filter funcs for
+		// gating but skips the counter increment so totals match the
+		// observed record set, not pass-1+pass-2 visits).
+		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
 
-	// Emit RunComponents — typed cohort-level counters.
-	// NullRecords pulls from the FIRST aggregator's per-record nNull
-	// counter (mirrors processStreaming above); two-pass streaming has
-	// no shard concept so ShardCount stays 0 and PartialCohortReason
-	// stays empty.
-	var nullRecords int64
-	if len(entries) > 0 {
-		nullRecords = int64(entries[0].nNull)
+		// Emit RunComponents — typed cohort-level counters.
+		// NullRecords pulls from the FIRST aggregator's per-record nNull
+		// counter (mirrors processStreaming above); two-pass streaming has
+		// no shard concept so ShardCount stays 0 and PartialCohortReason
+		// stays empty.
+		var nullRecords int64
+		if len(entries) > 0 {
+			nullRecords = int64(entries[0].nNull)
+		}
+		attachRunComponents(resp, RunCountersInput{
+			TotalRecords:    totalRows,
+			FilteredRecords: filteredRows,
+			NullRecords:     nullRecords,
+		})
 	}
-	attachRunComponents(resp, RunCountersInput{
-		TotalRecords:    totalRows,
-		FilteredRecords: filteredRows,
-		NullRecords:     nullRecords,
-	})
 	return resp, nil
 }
 
@@ -1306,7 +1343,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		}
 	} else if len(req.Aggregations) > 0 {
 		var row map[string]any
-		row, aggComponents, err = p.aggregateWithComponents(req.Aggregations, filtered, true)
+		row, aggComponents, err = p.aggregateWithComponents(req.Aggregations, filtered, !p.disableComponents)
 		if err != nil {
 			return nil, err
 		}
@@ -1374,58 +1411,66 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		Regressions: regressionResults,
 	}
 
-	// Attach per-slot AggregationComponents emitted by
-	// aggregateWithComponents. The grouped buffered path leaves
-	// aggComponents nil (per-group components emission is reserved
-	// for a later story); the ungrouped buffered exit and the two
-	// streaming exits all flow through the same attach helper so the
-	// shape of Response.Components.Aggregations stays uniform.
-	for _, entry := range aggComponents {
-		attachAggregationComponents(resp, entry)
-	}
+	// Components emission block — gated by the processor's
+	// disableComponents flag (see attachAggregationComponents for the
+	// full opt-out contract). aggregateWithComponents above already
+	// received !p.disableComponents as its collectComponents argument,
+	// so aggComponents is nil when this gate trips and the build cost
+	// upstream was skipped too.
+	if !p.disableComponents {
+		// Attach per-slot AggregationComponents emitted by
+		// aggregateWithComponents. The grouped buffered path leaves
+		// aggComponents nil (per-group components emission is reserved
+		// for a later story); the ungrouped buffered exit and the two
+		// streaming exits all flow through the same attach helper so the
+		// shape of Response.Components.Aggregations stays uniform.
+		for _, entry := range aggComponents {
+			attachAggregationComponents(resp, entry)
+		}
 
-	// Attach per-slot GrouperComponents emitted by
-	// processGrouped. The ungrouped path leaves grpComponents nil so
-	// nothing is appended; the grouped exit always appends exactly
-	// one entry per Request.Groups slot (the single-grouper limit
-	// matches processGrouped today).
-	for _, entry := range grpComponents {
-		attachGrouperComponents(resp, entry)
-	}
+		// Attach per-slot GrouperComponents emitted by
+		// processGrouped. The ungrouped path leaves grpComponents nil so
+		// nothing is appended; the grouped exit always appends exactly
+		// one entry per Request.Groups slot (the single-grouper limit
+		// matches processGrouped today).
+		for _, entry := range grpComponents {
+			attachGrouperComponents(resp, entry)
+		}
 
-	// Attach per-slot FiltererComponents. The buffered
-	// applyFiltersWithCounters returned one counter triple per
-	// declared filterer slot; build + attach mirrors the streaming
-	// exits in processStreaming / processStreamingGrouped /
-	// processStreamingTwoPass. Empty filter chains leave
-	// filterCounters nil so the omitempty wire shape stays
-	// byte-identical.
-	attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+		// Attach per-slot FiltererComponents. The buffered
+		// applyFiltersWithCounters returned one counter triple per
+		// declared filterer slot; build + attach mirrors the streaming
+		// exits in processStreaming / processStreamingGrouped /
+		// processStreamingTwoPass. Empty filter chains leave
+		// filterCounters nil so the omitempty wire shape stays
+		// byte-identical.
+		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
 
-	// Emit RunComponents — typed cohort-level counters.
-	// NullRecords resolution: prefer the FIRST aggregator's nNull from
-	// aggComponents (already computed by aggregateWithComponents's
-	// per-field floor cache); fall back to the FIRST grouper's NNull
-	// when no aggregators were declared; fall back to a buffered scan
-	// of the post-filter record slice when neither carries a primary
-	// field. The buffered processRecords path has no shard concept
-	// (the iterator already merged shard archives into a flat record
-	// slice at this point) so ShardCount stays 0 and
-	// PartialCohortReason stays empty.
-	var nullRecords int64
-	switch {
-	case len(aggComponents) > 0:
-		nullRecords = int64(aggComponents[0].NNull)
-	case len(grpComponents) > 0:
-		nullRecords = int64(grpComponents[0].NNull)
-	default:
-		nullRecords = countNullsBuffered(filtered, primaryNullFieldName(req))
+		// Emit RunComponents — typed cohort-level counters.
+		// NullRecords resolution: prefer the FIRST aggregator's nNull from
+		// aggComponents (already computed by aggregateWithComponents's
+		// per-field floor cache); fall back to the FIRST grouper's NNull
+		// when no aggregators were declared; fall back to a buffered scan
+		// of the post-filter record slice when neither carries a primary
+		// field. The buffered processRecords path has no shard concept
+		// (the iterator already merged shard archives into a flat record
+		// slice at this point) so ShardCount stays 0 and
+		// PartialCohortReason stays empty.
+		var nullRecords int64
+		switch {
+		case len(aggComponents) > 0:
+			nullRecords = int64(aggComponents[0].NNull)
+		case len(grpComponents) > 0:
+			nullRecords = int64(grpComponents[0].NNull)
+		default:
+			nullRecords = countNullsBuffered(filtered, primaryNullFieldName(req))
+		}
+		attachRunComponents(resp, RunCountersInput{
+			TotalRecords:    totalRows,
+			FilteredRecords: int64(len(filtered)),
+			NullRecords:     nullRecords,
+		})
 	}
-	attachRunComponents(resp, RunCountersInput{
-		TotalRecords:    totalRows,
-		FilteredRecords: int64(len(filtered)),
-		NullRecords:     nullRecords,
-	})
 
 	// SERIES-host overlay hook. Wraps the finalized per-group
 	// Response.Data as a SeriesHostView and dispatches each
@@ -1618,6 +1663,14 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 	// derived directly from the bucket map; the operator-specific
 	// keys ride off MetaGrouper.Components() when the grouper
 	// implements it.
+	//
+	// Skip the build entirely when components emission is disabled —
+	// MetaGrouper.Components is non-trivial work and the caller's gate
+	// drops the slice on the floor anyway. processRecords passes the
+	// returned slice through its own disableComponents gate.
+	if p.disableComponents {
+		return data, nil, nil
+	}
 	entry, gerr := buildGrouperComponents(grouper, grp, groups, len(records))
 	if gerr != nil {
 		return nil, nil, gerr
@@ -1846,6 +1899,12 @@ func buildAggregationComponents(agg any, slot *types.Aggregation, n, nNull int) 
 // every execution path (buffered, streaming, two-pass) populates the
 // components shell identically — an additive omitempty payload that
 // marshals to a no-op when the slice ends up empty.
+//
+// Callers MUST guard the build+attach call sequence with a check on
+// the processor's disableComponents flag — the guard sits at the
+// per-execution-path emission block so the upstream
+// MetaAggregator.Components / build work is skipped too, not built
+// then discarded.
 func attachAggregationComponents(resp *types.Response, entry types.AggregationComponents) {
 	if resp.Components == nil {
 		resp.Components = &types.ResponseComponents{}
@@ -1949,6 +2008,10 @@ func buildStreamingGrouperComponents(grouper any, slot *types.Group, totalFilter
 // execution path (buffered processGrouped, streaming
 // processStreamingGrouped) so an additive omitempty payload marshals
 // to a no-op when the slice ends up empty.
+//
+// Callers MUST guard the build+attach call sequence with a check on
+// the processor's disableComponents flag; see attachAggregationComponents
+// for the full opt-out contract.
 func attachGrouperComponents(resp *types.Response, entry types.GrouperComponents) {
 	if resp.Components == nil {
 		resp.Components = &types.ResponseComponents{}

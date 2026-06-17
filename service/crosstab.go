@@ -118,6 +118,7 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	}
 
 	proc := processing.NewProcessorWithExtensions(cohort.Schema(), s.extensions)
+	proc.SetDisableComponents(s.effectiveDisableComponents(req))
 	resp, err := proc.RunCrosstab(ctx, req, records)
 	if err != nil {
 		return nil, err

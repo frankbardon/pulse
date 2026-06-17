@@ -17,11 +17,12 @@ import (
 
 // Service is the orchestration layer connecting filesystem, encoding, and processing.
 type Service struct {
-	fs              *fs.Config
-	disableDefaults bool
-	projectBuffered bool
-	extensions      *processing.ExtensionRegistry
-	extensionsSnap  *descriptor.ExtensionsSnapshot
+	fs                *fs.Config
+	disableDefaults   bool
+	disableComponents bool
+	projectBuffered   bool
+	extensions        *processing.ExtensionRegistry
+	extensionsSnap    *descriptor.ExtensionsSnapshot
 
 	// shardWorkers caps the per-shard parallel worker pool the Process
 	// path spawns when a request is mergeable per
@@ -94,6 +95,31 @@ func New(fsConfig *fs.Config) *Service {
 // only what the runtime mutates before Process / Compose execution.
 func (s *Service) SetDisableDefaults(disabled bool) {
 	s.disableDefaults = disabled
+}
+
+// SetDisableComponents toggles the engine-level default for
+// Response.Components emission. When true, every Process /
+// Compose / ProcessChain / Facet response on this service skips the
+// Components block unless the per-request Request.DisableComponents
+// pointer forces the opposite decision. See pulse.Options.DisableComponents
+// for the full contract.
+func (s *Service) SetDisableComponents(disabled bool) {
+	s.disableComponents = disabled
+}
+
+// DisableComponents reports the engine-level setting.
+func (s *Service) DisableComponents() bool {
+	return s.disableComponents
+}
+
+// effectiveDisableComponents resolves the per-request override against
+// the engine default. Request.DisableComponents nil ⇒ inherit; explicit
+// pointer ⇒ override (true forces off, false forces on).
+func (s *Service) effectiveDisableComponents(req *types.Request) bool {
+	if req != nil && req.DisableComponents != nil {
+		return *req.DisableComponents
+	}
+	return s.disableComponents
 }
 
 // SetProjectBufferedFields enables buffered-decode field projection.
@@ -546,6 +572,7 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	s.applyProjection(iter, req, cohort.Schema())
 
 	proc := processing.NewProcessorWithExtensions(cohort.Schema(), s.extensions)
+	proc.SetDisableComponents(s.effectiveDisableComponents(req))
 	resp, err := proc.Process(ctx, req, iter)
 	if err != nil {
 		return nil, err

@@ -255,5 +255,6 @@ func snapshotRequest(req *types.Request) *types.Request {
 func (s *Service) runChainStage(ctx context.Context, req *types.Request, schema *encoding.Schema, records []*processing.Record) (*types.Response, error) {
 	iter := processing.NewSliceIterator(records)
 	proc := processing.NewProcessorWithExtensions(schema, s.extensions)
+	proc.SetDisableComponents(s.effectiveDisableComponents(req))
 	return proc.Process(ctx, req, iter)
 }

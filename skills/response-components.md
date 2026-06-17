@@ -151,6 +151,51 @@ catalog scan is one fetch).
 Fetch from MCP via `pulse_manifest` (cached for the session) or from CLI
 via `pulse manifest --json | jq .components_schemas`.
 
+## Opting out
+
+`Response.Components` is on by default but two switches turn it off:
+
+- `pulse.Options.DisableComponents bool` — engine-level default applied to every
+  request the instance runs. False (the default) keeps current behaviour.
+- `types.Request.DisableComponents *bool` — per-request override. `nil`
+  inherits the engine default; explicit `true` forces off, explicit `false`
+  forces on. The pointer form distinguishes "inherit" from "explicit false"
+  so a single request can re-enable components on an engine that ships them
+  off, and vice versa.
+
+Effective rule: `effective = req.DisableComponents != nil ? *req.DisableComponents : opts.DisableComponents`.
+
+When the effective decision is "disabled", `Response.Components` stays `nil`
+and the wire form is byte-identical to the pre-Components baseline —
+`format_version` is NOT bumped. The gate sits at the per-execution-path
+emission block (every `processStreaming` / `processStreamingGrouped` /
+`processStreamingTwoPass` / `processRecords` exit, plus `RunCrosstab` and
+`FusedCrosstabState.Finalize`), so the `MetaAggregator.Components` /
+`MetaGrouper.Components` construction work is skipped entirely — not
+built then discarded. The single-file parallel-buffered and per-shard
+parallel reducers gate at `service.attachMergedRunComponents` via a
+`disableComponents` parameter threaded through `finalizeMergedPartial`.
+
+CLI surface: `--no-components` on `pulse api process`, `pulse api process-chain`,
+and `pulse api compose`. Per-request override via the request JSON's
+`"disable_components": true` / `false` field wins over the CLI flag.
+
+`pulse.ProcessStream`: when components are disabled, the bufferedRowIter
+inherits the nil block from the underlying buffered `Process` call, so
+`.Components()` returns `nil` on terminal flush. Streaming consumers
+that always read `.Components()` MUST tolerate the `nil` return.
+
+Compose: each `ComposedRequest.Requests[i]` carries its own per-request
+override (the engine default applies across the batch when no per-slot
+override is set). The Compose-host overlay fold treats per-slot
+Components as read-only, so dropping the slot does not interact with
+Compose-overlay diagnostics on `Overlays[i].Warnings`.
+
+MCP tools do not surface this knob (matches the `DisableDefaults` /
+`EchoRequest` precedent — Options-level knobs stay out of the tool
+parameter surface). Embedders that wrap MCP set the option at
+`pulse.New()` time.
+
 ## Mergeability
 
 `ComponentsMergeability` (defined in `types/streamability.go`, re-exported

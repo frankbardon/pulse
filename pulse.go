@@ -130,6 +130,22 @@ type Options struct {
 	// governs only what the runtime mutates on the live request.
 	DisableDefaults bool
 
+	// DisableComponents suppresses the Response.Components block emitted
+	// by every Process / Compose / ProcessChain / Facet response —
+	// per-aggregator, per-grouper, per-filterer, crosstab, and run-wide
+	// constituent metadata. Defaults to false (components emitted).
+	//
+	// When true, Response.Components stays nil and the wire form is
+	// byte-identical to the pre-Components baseline; format_version is
+	// not bumped. The gate sits at the processor's attach helpers and
+	// the per-shard merge path, so the MetaAggregator.Components and
+	// MetaGrouper.Components construction work is skipped entirely —
+	// not built-then-discarded.
+	//
+	// Per-request override via Request.DisableComponents (*bool): nil
+	// inherits this engine setting; explicit true / false wins.
+	DisableComponents bool
+
 	// ImportsDir overrides the managed-imports directory. Defaults to
 	// imports.DefaultImportsDir (resolved relative to the Pulse fs
 	// root). Honoured before the PULSE_IMPORTS_DIR env var.
@@ -339,6 +355,7 @@ func New(opts Options) (*Pulse, error) {
 
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
+	svc.SetDisableComponents(opts.DisableComponents)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields)
 	svc.SetExtensions(buildRuntimeExtensions(opts.Extensions))
 	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))

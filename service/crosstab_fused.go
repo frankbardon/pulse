@@ -39,6 +39,7 @@ func (s *Service) processCrosstabFused(ctx context.Context, cohort *Cohort, path
 	s.applyCrosstabProjection(iter, req, cohort.Schema())
 
 	proc := processing.NewProcessorWithExtensions(cohort.Schema(), s.extensions)
+	proc.SetDisableComponents(s.effectiveDisableComponents(req))
 	resp, err := proc.RunCrosstabFused(ctx, req, iter)
 	if err != nil {
 		return nil, err

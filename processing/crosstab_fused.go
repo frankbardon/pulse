@@ -48,6 +48,13 @@ type FusedCrosstabState struct {
 	schema *encoding.Schema
 	exts   *ExtensionRegistry
 
+	// disableComponents mirrors Processor.disableComponents — set by
+	// RunCrosstabFused before Update / Finalize drains the iterator so
+	// the Components-emission tail in Finalize can be skipped under the
+	// pulse.Options.DisableComponents / Request.DisableComponents
+	// opt-out. Default false (components emitted, current behavior).
+	disableComponents bool
+
 	// Cell aggregator wiring. cellFactory is the constructor used to
 	// lazily build a per-cell OnlineAggregator the first time a record
 	// lands in that cell. cellField + cellLabel + cellAgg are the spec
@@ -1144,31 +1151,36 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		grandMarginCountSlot = s.grandMarginCount
 		grandMarginComponentsSlot = grandComponentsMap
 	}
-	// Per-axis grouper components emission. Each axis grouper
-	// already accumulated liveBuckets via the streamableKeyForRow side-
-	// effect path during Update; we call Components() now to capture the
-	// per-axis-position bucket emission and project it onto the sorted
-	// rowKeys / colKeys. The fused path constructs row / column tuple
-	// vectors aligned with the sorted axis-key order via tuplesForKeys
-	// above; projectAxisKeyComponents then walks each tuple position to
-	// index the matching bucket from the per-position Components map.
-	rowAxisComponents, err := s.axisComponents(s.rowGroupers)
-	if err != nil {
-		return nil, err
+	// Components emission block — gated by disableComponents (mirrors
+	// the processor flag set by RunCrosstabFused). Skipping here drops
+	// the MetaGrouper.Components walk + projection work entirely.
+	if !s.disableComponents {
+		// Per-axis grouper components emission. Each axis grouper
+		// already accumulated liveBuckets via the streamableKeyForRow side-
+		// effect path during Update; we call Components() now to capture the
+		// per-axis-position bucket emission and project it onto the sorted
+		// rowKeys / colKeys. The fused path constructs row / column tuple
+		// vectors aligned with the sorted axis-key order via tuplesForKeys
+		// above; projectAxisKeyComponents then walks each tuple position to
+		// index the matching bucket from the per-position Components map.
+		rowAxisComponents, err := s.axisComponents(s.rowGroupers)
+		if err != nil {
+			return nil, err
+		}
+		colAxisComponents, err := s.axisComponents(s.colGroupers)
+		if err != nil {
+			return nil, err
+		}
+		rowKeyComponents := projectAxisKeyComponents(s.spec.Rows, rowPart.Tuples, rowAxisComponents)
+		colKeyComponents := projectAxisKeyComponents(s.spec.Columns, colPart.Tuples, colAxisComponents)
+		populateCrosstabComponents(resp, rowKeys, colKeys,
+			cellCountsMap, cellComponentsMap,
+			rowMarginCountsSlot, rowMarginComponentsSlot,
+			colMarginCountsSlot, colMarginComponentsSlot,
+			grandMarginCountSlot, grandMarginComponentsSlot, s.spec.Margins.Grand,
+			s.includedRecords, excludedRecords,
+			rowKeyComponents, colKeyComponents)
 	}
-	colAxisComponents, err := s.axisComponents(s.colGroupers)
-	if err != nil {
-		return nil, err
-	}
-	rowKeyComponents := projectAxisKeyComponents(s.spec.Rows, rowPart.Tuples, rowAxisComponents)
-	colKeyComponents := projectAxisKeyComponents(s.spec.Columns, colPart.Tuples, colAxisComponents)
-	populateCrosstabComponents(resp, rowKeys, colKeys,
-		cellCountsMap, cellComponentsMap,
-		rowMarginCountsSlot, rowMarginComponentsSlot,
-		colMarginCountsSlot, colMarginComponentsSlot,
-		grandMarginCountSlot, grandMarginComponentsSlot, s.spec.Margins.Grand,
-		s.includedRecords, excludedRecords,
-		rowKeyComponents, colKeyComponents)
 
 	return resp, nil
 }
