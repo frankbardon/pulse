@@ -5,7 +5,7 @@ go 1.26.1
 require (
 	github.com/apache/arrow-go/v18 v18.6.0
 	github.com/expr-lang/expr v1.17.8
-	github.com/mark3labs/mcp-go v0.54.1
+	github.com/mark3labs/mcp-go v0.55.0
 	github.com/spf13/afero v1.15.0
 	github.com/urfave/cli/v3 v3.10.0
 	github.com/xuri/excelize/v2 v2.10.1
