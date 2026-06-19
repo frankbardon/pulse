@@ -1,0 +1,2474 @@
+{
+  "$defs": {
+    "Aggregation": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
+        "type": {
+          "$ref": "#/$defs/AggregationType"
+        }
+      },
+      "required": [
+        "field",
+        "type"
+      ],
+      "type": "object"
+    },
+    "AggregationComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_null": {
+          "type": "integer"
+        },
+        "operator": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "required": [
+        "n",
+        "n_null"
+      ],
+      "type": "object"
+    },
+    "AggregationType": {
+      "enum": [
+        "AGG_AVERAGE",
+        "AGG_CI_LOWER",
+        "AGG_CI_UPPER",
+        "AGG_COUNT",
+        "AGG_DISTINCT_COUNT",
+        "AGG_FREQUENCY",
+        "AGG_KURTOSIS",
+        "AGG_MAX",
+        "AGG_MEDIAN",
+        "AGG_MIN",
+        "AGG_MODE",
+        "AGG_NULL_COUNT",
+        "AGG_PERCENTILE",
+        "AGG_RANGE",
+        "AGG_RATIO",
+        "AGG_SET_CARDINALITY_AVG",
+        "AGG_SET_CARDINALITY_SUM",
+        "AGG_SET_DISTINCT_VALUES",
+        "AGG_SET_FREQUENCY",
+        "AGG_SET_INTERSECTION",
+        "AGG_SET_UNION",
+        "AGG_SKEWNESS",
+        "AGG_STDDEV",
+        "AGG_SUM",
+        "AGG_VARIANCE",
+        "AGG_WEIGHTED_MEAN",
+        "AGG_WELFORD",
+        "AGG_ZSCORE"
+      ],
+      "type": "string"
+    },
+    "Attribute": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": "number"
+        },
+        "expression": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "l1_ratio": {
+          "type": "number"
+        },
+        "label": {
+          "type": "string"
+        },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
+        "penalty": {
+          "type": "string"
+        },
+        "predictors": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "target": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/AttributeType"
+        }
+      },
+      "required": [
+        "field",
+        "type"
+      ],
+      "type": "object"
+    },
+    "AttributeType": {
+      "enum": [
+        "ATTR_DATE_PART",
+        "ATTR_FORMULA",
+        "ATTR_NORMALIZED",
+        "ATTR_PERCENTILE",
+        "ATTR_REG_FITTED",
+        "ATTR_REG_LEVERAGE",
+        "ATTR_REG_RESIDUAL",
+        "ATTR_SET_HAS",
+        "ATTR_SET_POPCOUNT",
+        "ATTR_TSCORE",
+        "ATTR_ZSCORE"
+      ],
+      "type": "string"
+    },
+    "AxisHeader": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "fields",
+        "types"
+      ],
+      "type": "object"
+    },
+    "ChainOverlaySpec": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/OverlayKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "ref": {
+          "$ref": "#/$defs/StageRef"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/StageRef"
+        }
+      },
+      "required": [
+        "kind",
+        "ref",
+        "scope",
+        "target"
+      ],
+      "type": "object"
+    },
+    "ChainRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "cohort": {
+          "$ref": "#/$defs/Cohort"
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/ChainOverlaySpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "stages": {
+          "items": {
+            "$ref": "#/$defs/ChainStage"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "cohort",
+        "stages"
+      ],
+      "type": "object"
+    },
+    "ChainResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "final": {
+          "$ref": "#/$defs/Response"
+        },
+        "normalized_request": {
+          "$ref": "#/$defs/ChainRequest"
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/OverlayLayer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "stages": {
+          "items": {
+            "$ref": "#/$defs/Response"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "final",
+        "stages"
+      ],
+      "type": "object"
+    },
+    "ChainStage": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/Request"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "type": "object"
+    },
+    "Cohort": {
+      "additionalProperties": false,
+      "properties": {
+        "data_dir": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "filename"
+      ],
+      "type": "object"
+    },
+    "ComposeOverlaySpec": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/OverlayKind"
+        },
+        "level": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/OverlayOptions"
+        },
+        "params": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "within": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "reference"
+      ],
+      "type": "object"
+    },
+    "ComposedRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/ComposeOverlaySpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "requests": {
+          "items": {
+            "$ref": "#/$defs/Request"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "requests"
+      ],
+      "type": "object"
+    },
+    "ComposedResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/OverlayLayer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "responses": {
+          "items": {
+            "$ref": "#/$defs/Response"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "responses"
+      ],
+      "type": "object"
+    },
+    "CrosstabComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "cell_components": {
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "cell_counts": {
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "column_key_components": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "column_margin_components": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "column_margin_counts": {
+          "items": {
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "excluded_records": {
+          "type": "integer"
+        },
+        "grand_total_components": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "grand_total_count": {
+          "type": "integer"
+        },
+        "included_records": {
+          "type": "integer"
+        },
+        "row_key_components": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "row_margin_components": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "row_margin_counts": {
+          "items": {
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "CrosstabMargins": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "type": "boolean"
+        },
+        "grand": {
+          "type": "boolean"
+        },
+        "rows": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "CrosstabResult": {
+      "additionalProperties": false,
+      "properties": {
+        "matrix": {
+          "$ref": "#/$defs/MatrixPayload"
+        },
+        "shape": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "shape"
+      ],
+      "type": "object"
+    },
+    "CrosstabSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "cell": {
+          "$ref": "#/$defs/Aggregation"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/Group"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "margins": {
+          "$ref": "#/$defs/CrosstabMargins"
+        },
+        "normalize": {
+          "type": "string"
+        },
+        "normalize_level": {
+          "type": "integer"
+        },
+        "normalize_within": {
+          "type": "integer"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/Group"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "shape": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cell",
+        "columns",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "Envelope": {
+      "additionalProperties": false,
+      "properties": {
+        "data": true,
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/EnvelopeEntry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "format_version": {
+          "type": "string"
+        },
+        "request": true,
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/EnvelopeEntry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "data",
+        "errors",
+        "format_version",
+        "warnings"
+      ],
+      "type": "object"
+    },
+    "EnvelopeEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "FacetDiscrete": {
+      "additionalProperties": false,
+      "properties": {
+        "distinct_count": {
+          "type": "integer"
+        },
+        "truncated_at": {
+          "type": "integer"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/$defs/FacetValueCount"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "distinct_count",
+        "values"
+      ],
+      "type": "object"
+    },
+    "FacetField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "discrete": {
+          "$ref": "#/$defs/FacetDiscrete"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "null_count": {
+          "type": "integer"
+        },
+        "numeric": {
+          "$ref": "#/$defs/FacetNumeric"
+        },
+        "type_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "null_count",
+        "type_name"
+      ],
+      "type": "object"
+    },
+    "FacetHistogram": {
+      "additionalProperties": false,
+      "properties": {
+        "bins": {
+          "items": {
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "max": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "bins",
+        "max",
+        "min"
+      ],
+      "type": "object"
+    },
+    "FacetNumeric": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "histogram": {
+          "$ref": "#/$defs/FacetHistogram"
+        },
+        "max": {
+          "type": "number"
+        },
+        "mean": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "percentiles": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "stddev": {
+          "type": "number"
+        },
+        "sum": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "count",
+        "max",
+        "mean",
+        "min",
+        "stddev",
+        "sum"
+      ],
+      "type": "object"
+    },
+    "FacetRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "additive_fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "cohort": {
+          "$ref": "#/$defs/Cohort"
+        },
+        "discrete_top_k": {
+          "type": "integer"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "filterers": {
+          "items": {
+            "$ref": "#/$defs/Filterer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "histogram_bins": {
+          "type": "integer"
+        },
+        "histogram_range": {
+          "items": {
+            "type": "number"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "include_histogram": {
+          "type": "boolean"
+        },
+        "labels": {
+          "items": {
+            "$ref": "#/$defs/LabelBinding"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "numeric_percentiles": {
+          "items": {
+            "type": "number"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/OverlaySpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "fields"
+      ],
+      "type": "object"
+    },
+    "FacetResult": {
+      "additionalProperties": false,
+      "properties": {
+        "additive": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FacetField"
+          },
+          "type": "object"
+        },
+        "fields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FacetField"
+          },
+          "type": "object"
+        },
+        "filtered_records": {
+          "type": "integer"
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/OverlayLayer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "total_records": {
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "fields",
+        "filtered_records",
+        "total_records"
+      ],
+      "type": "object"
+    },
+    "FacetValueCount": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "count",
+        "value"
+      ],
+      "type": "object"
+    },
+    "Feature": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
+        "type": {
+          "$ref": "#/$defs/FeatureType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "FeatureType": {
+      "enum": [
+        "FEAT_BUCKETIZE",
+        "FEAT_DATE_FEATURES",
+        "FEAT_FREQUENCY_ENCODE",
+        "FEAT_LOG",
+        "FEAT_ONE_HOT",
+        "FEAT_POLY",
+        "FEAT_SQRT",
+        "FEAT_TARGET_ENCODE",
+        "FEAT_TRAIN_TEST_SPLIT"
+      ],
+      "type": "string"
+    },
+    "Filterer": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/FiltererType"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "FiltererComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "n_in": {
+          "type": "integer"
+        },
+        "n_null_input": {
+          "type": "integer"
+        },
+        "n_out": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "n_in",
+        "n_null_input",
+        "n_out"
+      ],
+      "type": "object"
+    },
+    "FiltererType": {
+      "enum": [
+        "FILTER_EXCLUDE",
+        "FILTER_EXPRESSION",
+        "FILTER_FALSE",
+        "FILTER_INCLUDE",
+        "FILTER_NULL",
+        "FILTER_RANGE",
+        "FILTER_SET_CONTAINS_ALL",
+        "FILTER_SET_CONTAINS_ANY",
+        "FILTER_SET_CONTAINS_NONE",
+        "FILTER_SET_EQUALS",
+        "FILTER_TRUE"
+      ],
+      "type": "string"
+    },
+    "FrameSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "following": {
+          "type": "integer"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "preceding": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "type": "object"
+    },
+    "Group": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "interval": {
+          "type": "number"
+        },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
+        "type": {
+          "$ref": "#/$defs/GroupType"
+        }
+      },
+      "required": [
+        "field",
+        "type"
+      ],
+      "type": "object"
+    },
+    "GroupType": {
+      "enum": [
+        "GROUP_CATEGORY",
+        "GROUP_DATE",
+        "GROUP_QUANTILE",
+        "GROUP_RANGE",
+        "GROUP_ROUNDED",
+        "GROUP_SET_PER_ELEMENT",
+        "GROUP_SET_VALUE"
+      ],
+      "type": "string"
+    },
+    "GrouperComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "n_null": {
+          "type": "integer"
+        },
+        "operator": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "total_n": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "JoinSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "as": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "on": {
+          "items": {
+            "$ref": "#/$defs/OnPair"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "right": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "on",
+        "right"
+      ],
+      "type": "object"
+    },
+    "LabelBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "table"
+      ],
+      "type": "object"
+    },
+    "MatrixCell": {
+      "additionalProperties": false,
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "value": true
+      },
+      "required": [
+        "present"
+      ],
+      "type": "object"
+    },
+    "MatrixPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "cell_label": {
+          "type": "string"
+        },
+        "cells": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/MatrixCell"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "column_header": {
+          "$ref": "#/$defs/AxisHeader"
+        },
+        "column_keys": {
+          "items": {
+            "items": true,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "column_margins": {
+          "items": {
+            "$ref": "#/$defs/MatrixCell"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "grand_total": {
+          "$ref": "#/$defs/MatrixCell"
+        },
+        "normalize_applied": {
+          "type": "string"
+        },
+        "row_header": {
+          "$ref": "#/$defs/AxisHeader"
+        },
+        "row_keys": {
+          "items": {
+            "items": true,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "row_margins": {
+          "items": {
+            "$ref": "#/$defs/MatrixCell"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "cell_label",
+        "cells",
+        "column_header",
+        "column_keys",
+        "grand_total",
+        "normalize_applied",
+        "row_header",
+        "row_keys"
+      ],
+      "type": "object"
+    },
+    "OnPair": {
+      "additionalProperties": false,
+      "properties": {
+        "left_field": {
+          "type": "string"
+        },
+        "right_field": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "left_field",
+        "right_field"
+      ],
+      "type": "object"
+    },
+    "OrderKey": {
+      "additionalProperties": false,
+      "properties": {
+        "desc": {
+          "type": "boolean"
+        },
+        "field": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
+    "Output": {
+      "additionalProperties": false,
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "include_nil": {
+          "type": "boolean"
+        },
+        "pretty": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "format"
+      ],
+      "type": "object"
+    },
+    "OverlayBaselineIndexRef": {
+      "additionalProperties": false,
+      "properties": {
+        "column": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "position": {
+          "type": "integer"
+        },
+        "row": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "OverlayKind": {
+      "enum": [
+        "OVERLAY_CHISQ_COL",
+        "OVERLAY_CHISQ_MATRIX",
+        "OVERLAY_CHISQ_ROW",
+        "OVERLAY_CHISQ_VS_POP",
+        "OVERLAY_CHISQ_VS_REF",
+        "OVERLAY_DELTA_VS_BASELINE",
+        "OVERLAY_DELTA_VS_MARGIN",
+        "OVERLAY_DELTA_VS_REF",
+        "OVERLAY_DELTA_VS_SIBLING",
+        "OVERLAY_DELTA_VS_STAGE",
+        "OVERLAY_FISHER_EXACT_CELL",
+        "OVERLAY_FORMULA",
+        "OVERLAY_INDEX_VS_BASELINE",
+        "OVERLAY_INDEX_VS_MARGIN",
+        "OVERLAY_INDEX_VS_POP",
+        "OVERLAY_INDEX_VS_PRIOR",
+        "OVERLAY_INDEX_VS_REF",
+        "OVERLAY_INDEX_VS_ROLLING_MEAN",
+        "OVERLAY_INDEX_VS_SIBLING",
+        "OVERLAY_INDEX_VS_STAGE",
+        "OVERLAY_INDEX_VS_TOTAL",
+        "OVERLAY_KS_VS_POP",
+        "OVERLAY_PANEL_INDEX_VS_REF",
+        "OVERLAY_PROP_Z_CELL",
+        "OVERLAY_PROP_Z_PANEL",
+        "OVERLAY_RANK",
+        "OVERLAY_SHARE_OF_COL",
+        "OVERLAY_SHARE_OF_ROW",
+        "OVERLAY_SHARE_OF_TOTAL",
+        "OVERLAY_T_CELL",
+        "OVERLAY_T_VS_REF",
+        "OVERLAY_YOY",
+        "OVERLAY_ZSCORE_VS_MARGIN",
+        "OVERLAY_ZSCORE_VS_POP",
+        "OVERLAY_ZSCORE_VS_ROLLING",
+        "OVERLAY_ZSCORE_VS_TOTAL",
+        "OVERLAY_Z_CELL",
+        "OVERLAY_Z_VS_REF"
+      ],
+      "type": "string"
+    },
+    "OverlayLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/OverlayKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/OverlayPayload"
+        },
+        "ref": {
+          "$ref": "#/$defs/OverlayRef"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "summary": {
+          "$ref": "#/$defs/OverlaySummary"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/OverlayWarning"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "payload",
+        "ref",
+        "scope"
+      ],
+      "type": "object"
+    },
+    "OverlayMarginRef": {
+      "additionalProperties": false,
+      "properties": {
+        "axis": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "axis"
+      ],
+      "type": "object"
+    },
+    "OverlayOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "dict_prefix_fast": {
+          "type": "boolean"
+        },
+        "max_panel_targets": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "OverlayPayload": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "shape": {
+                "const": "matrix"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "matrix"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "shape": {
+                "const": "scalar"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "scalar"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "shape": {
+                "const": "series"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "series"
+            ]
+          }
+        }
+      ],
+      "description": "Discriminated union keyed by shape; the matching arm (scalar/series/matrix) is required for the declared shape.",
+      "properties": {
+        "matrix": {
+          "$ref": "#/$defs/MatrixPayload"
+        },
+        "scalar": {
+          "type": "number"
+        },
+        "series": {
+          "$ref": "#/$defs/SeriesPayload"
+        },
+        "shape": {
+          "enum": [
+            "matrix",
+            "scalar",
+            "series"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "shape"
+      ],
+      "type": "object"
+    },
+    "OverlayPopulationRef": {
+      "additionalProperties": false,
+      "properties": {
+        "cohort": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "OverlayPriorRef": {
+      "additionalProperties": false,
+      "properties": {
+        "lag": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "OverlayRef": {
+      "additionalProperties": false,
+      "description": "Discriminated union: at most one arm is populated per spec. An empty Ref is valid for implicit-margin kinds.",
+      "maxProperties": 1,
+      "properties": {
+        "baseline_index": {
+          "$ref": "#/$defs/OverlayBaselineIndexRef"
+        },
+        "margin": {
+          "$ref": "#/$defs/OverlayMarginRef"
+        },
+        "population": {
+          "$ref": "#/$defs/OverlayPopulationRef"
+        },
+        "prior": {
+          "$ref": "#/$defs/OverlayPriorRef"
+        },
+        "rolling_mean": {
+          "$ref": "#/$defs/OverlayRollingMeanRef"
+        },
+        "sibling": {
+          "$ref": "#/$defs/OverlaySiblingRef"
+        },
+        "slot": {
+          "$ref": "#/$defs/OverlaySlotRef"
+        },
+        "stage": {
+          "$ref": "#/$defs/StageRef"
+        },
+        "yoy": {
+          "$ref": "#/$defs/OverlayYoYRef"
+        }
+      },
+      "type": "object"
+    },
+    "OverlayRollingMeanRef": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "OverlaySiblingRef": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "OverlaySlotRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "OverlaySpec": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/OverlayKind"
+        },
+        "level": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
+        "ref": {
+          "$ref": "#/$defs/OverlayRef"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "within": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "ref",
+        "scope"
+      ],
+      "type": "object"
+    },
+    "OverlaySummary": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {
+          "type": "number"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "max": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "p_value": {
+          "type": "number"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "statistic": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "OverlayWarning": {
+      "additionalProperties": false,
+      "properties": {
+        "Code": {
+          "type": "string"
+        },
+        "Details": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "Message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "Code",
+        "Details",
+        "Message"
+      ],
+      "type": "object"
+    },
+    "OverlayYoYRef": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "RegressionResult": {
+      "additionalProperties": false,
+      "properties": {
+        "adj_r2": {
+          "type": "number"
+        },
+        "alpha": {
+          "type": "number"
+        },
+        "coefficients": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "converged_iters": {
+          "type": "integer"
+        },
+        "credible_intervals": {
+          "additionalProperties": {
+            "items": {
+              "type": "number"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "criterion": {
+          "type": "string"
+        },
+        "deviance": {
+          "type": "number"
+        },
+        "family": {
+          "type": "string"
+        },
+        "l1_ratio": {
+          "type": "number"
+        },
+        "link": {
+          "type": "string"
+        },
+        "n_obs": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "null_deviance": {
+          "type": "number"
+        },
+        "p_values": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "penalty": {
+          "type": "string"
+        },
+        "prior": {
+          "type": "string"
+        },
+        "pseudo_r2": {
+          "type": "number"
+        },
+        "r2": {
+          "type": "number"
+        },
+        "resample": {
+          "type": "string"
+        },
+        "residual_std_err": {
+          "type": "number"
+        },
+        "selected_features": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "selection": {
+          "type": "string"
+        },
+        "std_errors": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "type": {
+          "$ref": "#/$defs/RegressionType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "RegressionSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": "number"
+        },
+        "bootstrap_iters": {
+          "type": "integer"
+        },
+        "credible_level": {
+          "type": "number"
+        },
+        "criterion": {
+          "type": "string"
+        },
+        "family": {
+          "type": "string"
+        },
+        "l1_ratio": {
+          "type": "number"
+        },
+        "link": {
+          "type": "string"
+        },
+        "max_iters": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "penalty": {
+          "type": "string"
+        },
+        "predictors": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "prior": {
+          "type": "string"
+        },
+        "prior_mu": {
+          "items": {
+            "type": "number"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "prior_precision": {
+          "type": "number"
+        },
+        "prior_rate": {
+          "type": "number"
+        },
+        "prior_shape": {
+          "type": "number"
+        },
+        "resample": {
+          "type": "string"
+        },
+        "rng_seed": {
+          "type": "integer"
+        },
+        "selection": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "tol": {
+          "type": "number"
+        },
+        "type": {
+          "$ref": "#/$defs/RegressionType"
+        }
+      },
+      "required": [
+        "target",
+        "type"
+      ],
+      "type": "object"
+    },
+    "RegressionType": {
+      "enum": [
+        "REG_BAYES_LINEAR",
+        "REG_GLM",
+        "REG_OLS"
+      ],
+      "type": "string"
+    },
+    "Request": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregations": {
+          "items": {
+            "$ref": "#/$defs/Aggregation"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "attributes": {
+          "items": {
+            "$ref": "#/$defs/Attribute"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "cohort": {
+          "$ref": "#/$defs/Cohort"
+        },
+        "crosstab": {
+          "$ref": "#/$defs/CrosstabSpec"
+        },
+        "disable_components": {
+          "type": "boolean"
+        },
+        "features": {
+          "items": {
+            "$ref": "#/$defs/Feature"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "filterers": {
+          "items": {
+            "$ref": "#/$defs/Filterer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/Group"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "joins": {
+          "items": {
+            "$ref": "#/$defs/JoinSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "labels": {
+          "items": {
+            "$ref": "#/$defs/LabelBinding"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "outputs": {
+          "items": {
+            "$ref": "#/$defs/Output"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/OverlaySpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "post_tests": {
+          "items": {
+            "$ref": "#/$defs/Test"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "regressions": {
+          "items": {
+            "$ref": "#/$defs/RegressionSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "sort": {
+          "items": {
+            "$ref": "#/$defs/OrderKey"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tests": {
+          "items": {
+            "$ref": "#/$defs/Test"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "windows": {
+          "items": {
+            "$ref": "#/$defs/Window"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Response": {
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "$ref": "#/$defs/ResponseComponents"
+        },
+        "crosstab": {
+          "$ref": "#/$defs/CrosstabResult"
+        },
+        "data": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "metadata": {
+          "$ref": "#/$defs/ResponseMetadata"
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/OverlayLayer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "post_tests": {
+          "items": {
+            "$ref": "#/$defs/TestResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "regressions": {
+          "items": {
+            "$ref": "#/$defs/RegressionResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tests": {
+          "items": {
+            "$ref": "#/$defs/TestResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ResponseWarning"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ResponseComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregations": {
+          "items": {
+            "$ref": "#/$defs/AggregationComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "crosstab": {
+          "$ref": "#/$defs/CrosstabComponents"
+        },
+        "filterers": {
+          "items": {
+            "$ref": "#/$defs/FiltererComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "groupers": {
+          "items": {
+            "$ref": "#/$defs/GrouperComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "run": {
+          "$ref": "#/$defs/RunComponents"
+        }
+      },
+      "type": "object"
+    },
+    "ResponseMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "cohort_file": {
+          "type": "string"
+        },
+        "filtered_rows": {
+          "type": "integer"
+        },
+        "total_rows": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "filtered_rows",
+        "total_rows"
+      ],
+      "type": "object"
+    },
+    "ResponseWarning": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "RunComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "filtered_records": {
+          "type": "integer"
+        },
+        "null_records": {
+          "type": "integer"
+        },
+        "partial_cohort_reason": {
+          "type": "string"
+        },
+        "shard_count": {
+          "type": "integer"
+        },
+        "total_records": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "filtered_records",
+        "null_records",
+        "total_records"
+      ],
+      "type": "object"
+    },
+    "SampleRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "cohort": {
+          "$ref": "#/$defs/Cohort"
+        },
+        "labels": {
+          "items": {
+            "$ref": "#/$defs/LabelBinding"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "n": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "n"
+      ],
+      "type": "object"
+    },
+    "SeriesEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "items": true,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "summary": {
+          "$ref": "#/$defs/OverlaySummary"
+        }
+      },
+      "required": [
+        "key",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "SeriesPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/SeriesEntry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "entries"
+      ],
+      "type": "object"
+    },
+    "StageRef": {
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Test": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": "number"
+        },
+        "cols": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "field2": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "order_by": {
+          "items": {
+            "$ref": "#/$defs/OrderKey"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
+        "rows": {
+          "type": "string"
+        },
+        "split_by": {
+          "type": "string"
+        },
+        "subject_field": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/TestType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "TestResult": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": "number"
+        },
+        "details": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "df": {
+          "type": "number"
+        },
+        "label": {
+          "type": "string"
+        },
+        "p_value": {
+          "type": "number"
+        },
+        "reject_null": {
+          "type": "boolean"
+        },
+        "statistic": {
+          "type": "number"
+        },
+        "type": {
+          "$ref": "#/$defs/TestType"
+        },
+        "variant": {
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "alpha",
+        "p_value",
+        "reject_null",
+        "statistic",
+        "type"
+      ],
+      "type": "object"
+    },
+    "TestType": {
+      "enum": [
+        "TEST_ANOVA_F",
+        "TEST_ANOVA_RM",
+        "TEST_ANOVA_WELCH",
+        "TEST_BROWN_FORSYTHE",
+        "TEST_CHISQ",
+        "TEST_FISHER_EXACT",
+        "TEST_KENDALL_TAU",
+        "TEST_KRUSKAL_WALLIS",
+        "TEST_KS",
+        "TEST_MANN_WHITNEY_U",
+        "TEST_PAIRED_T",
+        "TEST_PEARSON_R",
+        "TEST_PROP_Z",
+        "TEST_SHAPIRO_WILK",
+        "TEST_SPEARMAN_R",
+        "TEST_T",
+        "TEST_TREND",
+        "TEST_TUKEY_HSD",
+        "TEST_WELCH",
+        "TEST_WILCOXON_SR",
+        "TEST_Z_TWO_SAMPLE"
+      ],
+      "type": "string"
+    },
+    "Window": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "frame": {
+          "$ref": "#/$defs/FrameSpec"
+        },
+        "label": {
+          "type": "string"
+        },
+        "order_by": {
+          "items": {
+            "$ref": "#/$defs/OrderKey"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
+        "partition_by": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/WindowType"
+        }
+      },
+      "required": [
+        "order_by",
+        "type"
+      ],
+      "type": "object"
+    },
+    "WindowType": {
+      "enum": [
+        "WIN_DENSE_RANK",
+        "WIN_EWMA",
+        "WIN_LAG",
+        "WIN_LEAD",
+        "WIN_MOVING_AVG",
+        "WIN_PCT_CHANGE",
+        "WIN_RANK",
+        "WIN_ROW_NUMBER",
+        "WIN_RUNNING_AVG",
+        "WIN_RUNNING_SUM"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://frankbardon.github.io/pulse/payload-schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "JSON Schema for every public Pulse payload. Validate a request against #/$defs/Request (or ComposedRequest / ChainRequest / FacetRequest / SampleRequest); all --json output is #/$defs/Envelope. format_version 1.1.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/ChainRequest"
+    },
+    {
+      "$ref": "#/$defs/ChainResponse"
+    },
+    {
+      "$ref": "#/$defs/ComposedRequest"
+    },
+    {
+      "$ref": "#/$defs/ComposedResponse"
+    },
+    {
+      "$ref": "#/$defs/Envelope"
+    },
+    {
+      "$ref": "#/$defs/FacetRequest"
+    },
+    {
+      "$ref": "#/$defs/FacetResult"
+    },
+    {
+      "$ref": "#/$defs/Request"
+    },
+    {
+      "$ref": "#/$defs/Response"
+    },
+    {
+      "$ref": "#/$defs/SampleRequest"
+    }
+  ],
+  "title": "Pulse payload contract"
+}
+// golden-hash: 68cb49b2bad697d46046ffe22bec016e5748e52ff490fcdabec562b57c6a22ed

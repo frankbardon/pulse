@@ -17,6 +17,7 @@
 - [api sample](cli/api-sample.md)
 - [api facet](cli/api-facet.md)
 - [manifest](cli/manifest.md)
+- [schema](cli/schema.md)
 - [synth from-schema](cli/synth-from-schema.md)
 - [synth from-profile](cli/synth-from-profile.md)
 - [profile create](cli/profile-create.md)
@@ -46,6 +47,10 @@
 # MCP Integration
 
 - [Server, Tools, Resources](mcp/index.md)
+
+# Payload Contract
+
+- [JSON Schema](contract/payload-schema.md)
 
 # Examples Library
 

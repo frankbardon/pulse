@@ -6,6 +6,7 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/docs.yml"
+      - "descriptor/testdata/payload-schema.json"
   workflow_dispatch:
 
 permissions:
@@ -30,6 +31,15 @@ jobs:
 
       - name: Build documentation
         run: mdbook build docs
+
+      # Publish the payload JSON Schema at the site root so its $id
+      # (https://frankbardon.github.io/pulse/payload-schema.json) resolves.
+      # The committed golden carries a trailing `// golden-hash:` line for
+      # tamper detection; strip it so the served file is valid JSON. The
+      # golden is regenerated + verified by `make test` on every PR, so no
+      # Go toolchain is needed here.
+      - name: Publish payload schema
+        run: sed '/^\/\/ golden-hash:/d' descriptor/testdata/payload-schema.json > docs/book/payload-schema.json
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

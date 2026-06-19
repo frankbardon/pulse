@@ -55,6 +55,7 @@ func buildApp() *cli.Command {
 			pcli.ExamplesCommand(),
 			pcli.ErrorsCommand(),
 			pcli.MCPCommand(),
+			pcli.SchemaCommand(),
 			pcli.SynthCommand(),
 			pcli.ProfileCommand(),
 			pcli.ShardCommand(),

@@ -122,6 +122,44 @@ func TestServer_ListResources_IncludesCohortAndSkill(t *testing.T) {
 	if !uris["pulse-skill://session-bootstrap"] {
 		t.Errorf("expected skill resource pulse-skill://session-bootstrap, got %v", uris)
 	}
+	if !uris["pulse://schema"] {
+		t.Errorf("expected payload-schema resource pulse://schema, got %v", uris)
+	}
+}
+
+func TestServer_ReadSchemaResource(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	c, cancel := startInProcessClient(t, p)
+	defer cancel()
+
+	req := mcpgo.ReadResourceRequest{}
+	req.Params.URI = "pulse://schema"
+
+	out, err := c.ReadResource(context.Background(), req)
+	if err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+	if len(out.Contents) == 0 {
+		t.Fatal("expected schema contents")
+	}
+	text, ok := out.Contents[0].(mcpgo.TextResourceContents)
+	if !ok {
+		t.Fatalf("expected TextResourceContents, got %T", out.Contents[0])
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(text.Text), &doc); err != nil {
+		t.Fatalf("schema resource is not valid JSON: %v", err)
+	}
+	if _, ok := doc["$schema"]; !ok {
+		t.Errorf("schema resource missing $schema key")
+	}
+	if _, ok := doc["$defs"]; !ok {
+		t.Errorf("schema resource missing $defs key")
+	}
 }
 
 func TestServer_CallPredict_RoundTrip(t *testing.T) {

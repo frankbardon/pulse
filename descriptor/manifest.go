@@ -222,6 +222,7 @@ func commands() []Command {
 		{Name: "inspect", Description: "Inspect a .pulse file header and schema", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "predict", Description: "Validate a request without executing", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "manifest", Description: "Output the root manifest", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "schema", Description: "Output the JSON Schema for request/response payloads", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "mcp", Description: "Serve the Model Context Protocol over stdio", Annotations: CommandAnnotations{Streamable: true, Deterministic: false, Expensive: false}},
 		{Name: "synth", Description: "Generate synthetic .pulse cohorts from a schema or profile", Annotations: CommandAnnotations{Streamable: true, Deterministic: false, Expensive: true}},
 		{Name: "profile", Description: "Capture statistical summaries of cohorts for synthesis", Annotations: CommandAnnotations{Streamable: true, Deterministic: true, Expensive: true}},
