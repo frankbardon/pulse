@@ -76,6 +76,15 @@
         }
       },
       {
+        "name": "schema",
+        "description": "Output the JSON Schema for request/response payloads",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "mcp",
         "description": "Serve the Model Context Protocol over stdio",
         "annotations": {
@@ -8908,4 +8917,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 30f8386ba26e8fc4baa97b5385fb10d1fe3f61b915a4e008fbd603cc6bb09bdb
+// golden-hash: d5012369448e3115b09ffae99aaadc24fadeb84b0129b2cd486bc17f205e7ab5

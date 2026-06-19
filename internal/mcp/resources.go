@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/skills"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -26,6 +27,33 @@ const SkillURIScheme = "pulse-skill://"
 func registerResources(s *server.MCPServer, p *pulse.Pulse) {
 	registerSkillResources(s)
 	registerCohortResources(s, p)
+	registerSchemaResource(s)
+}
+
+// SchemaResourceURI is the static resource URI exposing the payload JSON
+// Schema. It is a reserved name under the cohort scheme (no .pulse suffix,
+// so it never collides with a cohort file) — the same contract published
+// at the github.io docs URL and emitted by `pulse schema`.
+const SchemaResourceURI = CohortURIScheme + "schema"
+
+// registerSchemaResource exposes descriptor.BuildPayloadSchema() as a
+// static MCP resource so agents can fetch the request/response contract
+// in-session alongside pulse_manifest. A resource (not a tool) keeps the
+// tool surface unchanged.
+func registerSchemaResource(s *server.MCPServer) {
+	res := mcpgo.NewResource(SchemaResourceURI, "payload-schema",
+		mcpgo.WithMIMEType("application/json"),
+		mcpgo.WithResourceDescription("JSON Schema (draft 2020-12) for every public Pulse request/response payload"),
+	)
+	s.AddResource(res, func(ctx context.Context, req mcpgo.ReadResourceRequest) ([]mcpgo.ResourceContents, error) {
+		return []mcpgo.ResourceContents{
+			mcpgo.TextResourceContents{
+				URI:      req.Params.URI,
+				MIMEType: "application/json",
+				Text:     string(descriptor.BuildPayloadSchema()),
+			},
+		}, nil
+	})
 }
 
 func registerSkillResources(s *server.MCPServer) {

@@ -36,7 +36,8 @@ This is the compressed surface — the full per-contract trigger table lives at 
 | A registered field type | `skills/type-<kebab>.md` (atomic skill) + CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
 | An example tag for a registered operator | `examples/<category>/*.json` `_meta.operators` (tag the operator string in at least one example body; overlay kinds tag via `overlays[].kind`) | `TestEveryOperatorHasAnExampleTag`, `TestExamples_OperatorsMatchBody` |
 | An error code (add/remove/rename) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
-| A `--json` envelope or `format_version` value (currently `"1.1"`) | CLAUDE.md "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
+| A `--json` envelope or `format_version` value (currently `"1.1"`) | CLAUDE.md "Output Format Contract" + the payload schema `$id` version (`descriptor.PayloadSchemaFormatVersion`, regenerate `descriptor/testdata/payload-schema.json`) | `TestClaudeMdMentionsFormatVersion`, `TestPayloadSchema_VersionMatchesEnvelope` |
+| The public payload contract: any `types` request/response struct slot reachable from a payload, a registry enum surfaced in the schema (`types.All*Types` / `AllOverlayKinds` / `AllRegressionTypes`), or a strict-union shape (`OverlayRef` / `OverlayPayload`) | regenerate `descriptor/testdata/payload-schema.json` (`go test ./descriptor/ -run TestPayloadSchemaGolden -update`) + `descriptor/schema.go` (only if enum/union wiring changes) + `docs/src/contract/payload-schema.md` | `TestPayloadSchemaGolden`, `TestPayloadSchema_EnumsMatchRegistry`, `TestPayloadSchema_VersionMatchesEnvelope`, `TestGoldensNotHandEdited` |
 | A `.pulse` file format change (header, field type) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
 | A new non-skippable CI gate | CLAUDE.md "Non-Skippable CI Gates" list | `TestClaudeMdMentionsAllNonSkippableGates` |
 | An environment variable | CLAUDE.md "Build / Env" + `skills/session-bootstrap.md` | `TestClaudeMdMentionsAllEnvVars` |
@@ -75,9 +76,9 @@ pulse/
 
 `pulse.go` re-exports `types.Request` → `pulse.Request`, `types.Response` → `pulse.Response`, `types.ComposedRequest` → `pulse.ComposedRequest`, plus `synth.Spec`/`Result`/`Options`/`Profile`/`ProfileOptions`.
 
-CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `api {process,compose,facet,process-chain}`.
+CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `schema`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `api {process,compose,facet,process-chain}`. `pulse schema` prints the payload JSON Schema raw (built by `descriptor.BuildPayloadSchema`); not envelope-wrapped.
 
-`internal/mcp/` registers ten tools (one per facade method plus `pulse_facet_schema`) and two resource schemes (`pulse://`, `pulse-skill://`).
+`internal/mcp/` registers ten tools (one per facade method plus `pulse_facet_schema`) and two resource schemes (`pulse://`, `pulse-skill://`). The reserved static resource `pulse://schema` serves the payload JSON Schema (`descriptor.BuildPayloadSchema`) — a resource, not a tool, so the tool surface is unchanged.
 
 Docs at <https://frankbardon.github.io/pulse/>. Skills under `skills/` are the LLM surface.
 
@@ -186,6 +187,10 @@ Full contract: `skills/response-components.md`.
 - **No `fmt.Sprintf`-built JSON.** Use `encoding/json`. Grep-gated by `TestDescriptorNoFmtSprintf`.
 - **No hand-built XML/CDATA.** Use `encoding/xml`.
 - Use `descriptor.NewEnvelope(data)` for the standard envelope.
+
+### Payload JSON Schema
+
+`descriptor.BuildPayloadSchema()` returns the formal, deterministic JSON Schema (draft 2020-12) for every public payload — the request envelopes (`#/$defs/Request`, `ComposedRequest`, `ChainRequest`, `FacetRequest`, `SampleRequest`), the result shapes (`Response`, `ComposedResponse`, `ChainResponse`, `FacetResult`), and the universal output `Envelope` (its `data` slot is intentionally open — it wraps any operation). Generated three ways so it cannot drift: reflection over the `types` structs, registry-injected enums (the operator/overlay-kind/regression discriminants pull from `types.All*Types()` / `AllOverlayKinds()` / `AllRegressionTypes()`), and hand-tuned strict unions (`OverlayRef` at-most-one-arm via `maxProperties`, `OverlayPayload` shape-discriminated via `allOf`/`if`-`then`). v1 boundaries: operator `params` (`json.RawMessage`) stay an open object (no central per-operator input-param source) and the small closed mode enums (`OverlayScope`/`OverlayShape`/`CrosstabNormalize`/…) stay plain strings (no registry helper). Golden at `descriptor/testdata/payload-schema.json`; `$id` version held equal to the envelope `format_version`. Reachable three ways: `pulse schema` (raw, not envelope-wrapped), the `pulse://schema` MCP resource, and the published file at `https://frankbardon.github.io/pulse/payload-schema.json` (copied into `docs/book/` by the docs workflow, hash line stripped). Full prose: `docs/src/contract/payload-schema.md`.
 
 ### Manifest payload
 
