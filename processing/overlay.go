@@ -65,13 +65,34 @@ import (
 type CrosstabHostView struct {
 	// payload is the underlying matrix the host produced. Read-only.
 	payload *types.MatrixPayload
+
+	// components is the matching Response.Components.Crosstab block, when
+	// the host produced one. Nil when components were disabled
+	// (Options.DisableComponents / per-request override) or the host path
+	// did not emit them. Overlays that need universal-floor counters
+	// (cell n, weight sums), Welford triples, or margin counts read them
+	// through the CrosstabComponents accessors; payload-only overlays
+	// (share, index, χ², Fisher) ignore this field. Read-only.
+	components *types.CrosstabComponents
 }
 
 // NewCrosstabHostView wraps a MatrixPayload as a host view. payload
 // must be non-nil; the view does not copy the payload, callers must
-// not mutate it during overlay execution.
+// not mutate it during overlay execution. The components block is left
+// nil — use NewCrosstabHostViewWithComponents for overlays that read
+// per-cell counters / Welford triples.
 func NewCrosstabHostView(payload *types.MatrixPayload) *CrosstabHostView {
 	return &CrosstabHostView{payload: payload}
+}
+
+// NewCrosstabHostViewWithComponents wraps a MatrixPayload together with
+// its Response.Components.Crosstab block. comps may be nil (components
+// disabled); component-reading handlers surface
+// PULSE_OVERLAY_COMPONENTS_REQUIRED in that case rather than dividing by
+// a zero sample size. The view does not copy either pointer; callers
+// must not mutate them during overlay execution.
+func NewCrosstabHostViewWithComponents(payload *types.MatrixPayload, comps *types.CrosstabComponents) *CrosstabHostView {
+	return &CrosstabHostView{payload: payload, components: comps}
 }
 
 // Payload returns the underlying MatrixPayload pointer so handlers
@@ -254,17 +275,21 @@ type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types
 // (types/overlay.go + types/overlay_streamability.go), add the runtime
 // handler in this package, and add the dispatch entry here.
 var overlayHandlers = map[types.OverlayKind]overlayHandler{
-	types.OverlayKindChiSqCol:        applyChiSqCol,
-	types.OverlayKindChiSqMatrix:     applyChiSqMatrix,
-	types.OverlayKindChiSqRow:        applyChiSqRow,
-	types.OverlayKindDeltaVsMargin:   applyDeltaVsMargin,
-	types.OverlayKindFisherExactCell: applyFisherExactCell,
-	types.OverlayKindFormula:         applyFormula,
-	types.OverlayKindIndexVsMargin:   applyIndexVsMargin,
-	types.OverlayKindShareOfCol:      applyShareOfCol,
-	types.OverlayKindShareOfRow:      applyShareOfRow,
-	types.OverlayKindShareOfTotal:    applyShareOfTotal,
-	types.OverlayKindZScoreVsMargin:  applyZScoreVsMargin,
+	types.OverlayKindChiSqCol:          applyChiSqCol,
+	types.OverlayKindChiSqMatrix:       applyChiSqMatrix,
+	types.OverlayKindChiSqRow:          applyChiSqRow,
+	types.OverlayKindDeltaVsMargin:     applyDeltaVsMargin,
+	types.OverlayKindFisherExactCell:   applyFisherExactCell,
+	types.OverlayKindFormula:           applyFormula,
+	types.OverlayKindIndexVsMargin:     applyIndexVsMargin,
+	types.OverlayKindPairwiseProbitT:   applyPairwiseProbitT,
+	types.OverlayKindPairwisePropZ:     applyPairwisePropZ,
+	types.OverlayKindPairwiseTwoMeansZ: applyPairwiseTwoMeansZ,
+	types.OverlayKindPairwiseWelchT:    applyPairwiseWelchT,
+	types.OverlayKindShareOfCol:        applyShareOfCol,
+	types.OverlayKindShareOfRow:        applyShareOfRow,
+	types.OverlayKindShareOfTotal:      applyShareOfTotal,
+	types.OverlayKindZScoreVsMargin:    applyZScoreVsMargin,
 }
 
 // ApplyOverlays executes every spec in specs against the host view

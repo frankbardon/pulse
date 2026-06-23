@@ -900,7 +900,17 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 		// quietly skip so we never panic on a nil host view.
 		return nil
 	}
-	host := NewCrosstabHostView(resp.Crosstab.Matrix)
+	// Thread the per-cell components block (universal-floor counters,
+	// Welford triples, margin counts) into the host view so component-
+	// reading overlays (the OVERLAY_PAIRWISE_* family) can resolve sample
+	// sizes and Welford moments. Nil when components were disabled — those
+	// handlers surface PULSE_OVERLAY_COMPONENTS_REQUIRED rather than
+	// silently dividing by a zero n. Payload-only overlays ignore it.
+	var crosstabComps *types.CrosstabComponents
+	if resp.Components != nil {
+		crosstabComps = resp.Components.Crosstab
+	}
+	host := NewCrosstabHostViewWithComponents(resp.Crosstab.Matrix, crosstabComps)
 	// When the Processor carries a live ExtensionRegistry the
 	// FORMULA dispatch arm of ApplyOverlaysWithExtensions threads the
 	// registry's ExprFunctions into the compile-time `[]expr.Option`

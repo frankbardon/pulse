@@ -145,6 +145,24 @@ func OverlayCapabilities() []OverlayCapability {
 // rather than silently dropped — types.AllOverlayKinds() is the
 // authoritative iteration surface, and the per-kind switch below is
 // expected to grow in lock-step.
+// pairwiseDescription composes the shared OVERLAY_PAIRWISE_* manifest
+// blurb around the per-kind test sentence so the four entries stay
+// consistent on the catalog surface.
+func pairwiseDescription(test string) string {
+	return "Intra-matrix axis-pairwise " + test + ". " +
+		"ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — " +
+		"the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own " +
+		"axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) " +
+		"index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other " +
+		"axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test " +
+		"degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts " +
+		"pairs to same-bucket comparisons; n_source selects the sample-size leg (cell n / margins / n_within / " +
+		"weight sum); n_within_depth pins the within-group denominator; p_source picks percentage vs proportion " +
+		"cell values. Reads Response.Components.Crosstab — a components-disabled host fires " +
+		"PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are " +
+		"the embedder's presentation concern. Buffered (inferential)."
+}
+
 func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 	switch kind {
 	case types.OverlayKindChiSqCol:
@@ -489,6 +507,38 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"emits PULSE_OVERLAY_EXPECTED_LOW per cell when the Cochran rule fires on the 2×2 (any " +
 				"expected < 1 OR ≥ 20% of expected counts < 5), flagging cells where the cheaper χ² " +
 				"approximation would be unreliable and Fisher's exact is structurally required.",
+		}
+	case types.OverlayKindPairwiseProbitT:
+		return OverlayCapability{
+			Kind:        types.OverlayKindPairwiseProbitT,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
+			RefKinds:    []string{},
+			Description: pairwiseDescription("probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail on df = n_i + n_j - 2; reuses the Student-t survival helper backing TEST_T)"),
+		}
+	case types.OverlayKindPairwisePropZ:
+		return OverlayCapability{
+			Kind:        types.OverlayKindPairwisePropZ,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
+			RefKinds:    []string{},
+			Description: pairwiseDescription("pooled-SE two-proportion z-test (reuses the twoProportionZ helper backing OVERLAY_PROP_Z_CELL / TEST_PROP_Z, so p-values match byte-for-byte)"),
+		}
+	case types.OverlayKindPairwiseTwoMeansZ:
+		return OverlayCapability{
+			Kind:        types.OverlayKindPairwiseTwoMeansZ,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
+			RefKinds:    []string{},
+			Description: pairwiseDescription("two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"),
+		}
+	case types.OverlayKindPairwiseWelchT:
+		return OverlayCapability{
+			Kind:        types.OverlayKindPairwiseWelchT,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
+			RefKinds:    []string{},
+			Description: pairwiseDescription("Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"),
 		}
 	case types.OverlayKindFormula:
 		return OverlayCapability{

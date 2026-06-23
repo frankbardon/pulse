@@ -697,6 +697,16 @@ const (
 	// non-MATRIX host (Request.Crosstab is nil).
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
 
+	// PULSE_OVERLAY_COMPONENTS_REQUIRED indicates an overlay kind that
+	// reads Response.Components.Crosstab (per-cell n / weight sums /
+	// Welford triples / margin counts) ran against a host built with
+	// components disabled. The OVERLAY_PAIRWISE_* family raises this at
+	// handler entry: without the components block there is no sample-size
+	// leg to divide by. Re-run with components enabled (clear
+	// DisableComponents / the per-request override) so the host carries
+	// the counters the pairwise test needs.
+	PULSE_OVERLAY_COMPONENTS_REQUIRED Code = "PULSE_OVERLAY_COMPONENTS_REQUIRED"
+
 	// PULSE_OVERLAY_SCOPE_UNSUPPORTED indicates an OverlaySpec named a
 	// scope that is not yet supported for the chosen Kind.
 	// OVERLAY_INDEX_VS_MARGIN currently supports Scope=CELL only.
@@ -1152,6 +1162,7 @@ var allCodes = []Code{
 	PULSE_REQUEST_UNKNOWN_FIELD,
 	PULSE_OVERLAY_KIND_UNKNOWN,
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+	PULSE_OVERLAY_COMPONENTS_REQUIRED,
 	PULSE_OVERLAY_SCOPE_UNSUPPORTED,
 	PULSE_OVERLAY_REF_ZERO,
 	PULSE_OVERLAY_EXPECTED_LOW,

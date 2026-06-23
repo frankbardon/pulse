@@ -86,6 +86,10 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 				Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow},
 			},
 		},
+		{Name: "pairwise_probit_t", Kind: types.OverlayKindPairwiseProbitT, Scope: types.OverlayScopeRow},
+		{Name: "pairwise_prop_z", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeRow},
+		{Name: "pairwise_two_means_z", Kind: types.OverlayKindPairwiseTwoMeansZ, Scope: types.OverlayScopeRow},
+		{Name: "pairwise_welch_t", Kind: types.OverlayKindPairwiseWelchT, Scope: types.OverlayScopeRow},
 	}
 
 	matrixHostKinds := map[types.OverlayKind]bool{}
@@ -504,6 +508,26 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 			Kind:  types.OverlayKindFisherExactCell,
 			Scope: types.OverlayScopeCell,
 		},
+		types.OverlayKindPairwiseProbitT: {
+			Name:  "pairwise_probit_t",
+			Kind:  types.OverlayKindPairwiseProbitT,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwisePropZ: {
+			Name:  "pairwise_prop_z",
+			Kind:  types.OverlayKindPairwisePropZ,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwiseTwoMeansZ: {
+			Name:  "pairwise_two_means_z",
+			Kind:  types.OverlayKindPairwiseTwoMeansZ,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwiseWelchT: {
+			Name:  "pairwise_welch_t",
+			Kind:  types.OverlayKindPairwiseWelchT,
+			Scope: types.OverlayScopeRow,
+		},
 		types.OverlayKindFormula: {
 			Name:   "formula",
 			Kind:   types.OverlayKindFormula,
@@ -698,6 +722,26 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 			Name:  "fisher_exact_cell",
 			Kind:  types.OverlayKindFisherExactCell,
 			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindPairwiseProbitT: {
+			Name:  "pairwise_probit_t",
+			Kind:  types.OverlayKindPairwiseProbitT,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwisePropZ: {
+			Name:  "pairwise_prop_z",
+			Kind:  types.OverlayKindPairwisePropZ,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwiseTwoMeansZ: {
+			Name:  "pairwise_two_means_z",
+			Kind:  types.OverlayKindPairwiseTwoMeansZ,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwiseWelchT: {
+			Name:  "pairwise_welch_t",
+			Kind:  types.OverlayKindPairwiseWelchT,
+			Scope: types.OverlayScopeRow,
 		},
 		// MATRIX-host descriptive — no Ref family (formula sources its
 		// per-shape namespace from the host payload).
@@ -1127,6 +1171,26 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 			Name:  "fisher_exact_cell",
 			Kind:  types.OverlayKindFisherExactCell,
 			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindPairwiseProbitT: {
+			Name:  "pairwise_probit_t",
+			Kind:  types.OverlayKindPairwiseProbitT,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwisePropZ: {
+			Name:  "pairwise_prop_z",
+			Kind:  types.OverlayKindPairwisePropZ,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwiseTwoMeansZ: {
+			Name:  "pairwise_two_means_z",
+			Kind:  types.OverlayKindPairwiseTwoMeansZ,
+			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwiseWelchT: {
+			Name:  "pairwise_welch_t",
+			Kind:  types.OverlayKindPairwiseWelchT,
+			Scope: types.OverlayScopeRow,
 		},
 		types.OverlayKindFormula: {
 			Name:   "formula",

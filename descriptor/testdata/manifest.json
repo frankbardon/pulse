@@ -4807,7 +4807,7 @@
         ]
       }
     ],
-    "error_codes_count": 145,
+    "error_codes_count": 146,
     "error_domains": [
       "CLI",
       "DATA",
@@ -4905,6 +4905,7 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
+      "PULSE_OVERLAY_COMPONENTS_REQUIRED",
       "PULSE_OVERLAY_DICT_PREFIX_DRIFT",
       "PULSE_OVERLAY_EXPECTED_LOW",
       "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED",
@@ -6354,6 +6355,22 @@
         "description": "Kolmogorov-Smirnov distance + p-value comparing host Facet NUMERIC distribution against the resolved population."
       },
       {
+        "name": "op-overlay-pairwise-probit-t",
+        "description": "Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail)."
+      },
+      {
+        "name": "op-overlay-pairwise-prop-z",
+        "description": "Intra-matrix axis-pairwise pooled-SE two-proportion z-test (row-vs-row or col-vs-col within one crosstab)."
+      },
+      {
+        "name": "op-overlay-pairwise-two-means-z",
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df)."
+      },
+      {
+        "name": "op-overlay-pairwise-welch-t",
+        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells."
+      },
+      {
         "name": "op-overlay-panel-index-vs-ref",
         "description": "Compose-host multi-reference index — indexes every target slot against a shared reference; emits one layer per target."
       },
@@ -6794,7 +6811,7 @@
         "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 160,
+    "examples_count": 162,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -7412,6 +7429,58 @@
         ],
         "buffered": true,
         "description": "Single scalar Kolmogorov-Smirnov distance D = sup_x |F_subset(x) - F_pop(x)| plus an asymptotic p-value comparing the host Facet subset NUMERIC distribution against the resolved population NUMERIC distribution. GROUP scope over a FACET (FacetSchema) host with SCALAR payload — the layer carries the KS statistic plus the asymptotic p-value via OverlaySummary{Statistic, PValue, Parameters{\"n_subset\", \"n_pop\"}}. Fourth and final FACET-host overlay in the catalog (siblings: OVERLAY_INDEX_VS_POP descriptive, OVERLAY_ZSCORE_VS_POP descriptive, OVERLAY_CHISQ_VS_POP inferential discrete-arm only). KS is the canonical NUMERIC-arm distributional-shift indicator — it pairs with CHISQ_VS_POP as the two inferential FACET-host kinds, partitioning the inferential FACET surface by host arm (CHISQ for categorical, KS for numeric). The viz developer renders the SCALAR statistic as a distributional-shift indicator near the facet header. Math: D = sup_x |F_subset(x) - F_pop(x)|; en = sqrt(n_subset * n_pop / (n_subset + n_pop)); p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D) — the same Kolmogorov-survival helper backing TEST_KS (processing/test_stat.go), so the overlay and the row-test surface produce identical p-values for the same D + N. NUMERIC ARM ONLY: KS is undefined on categorical distributions (no continuous CDF to compare). A categorical host (no numeric payload) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime; the per-kind validator rejects categorical hosts at predict time so the runtime arm is belt-and-braces. Distinct from CHISQ_VS_POP which is DISCRETE-arm only and rejects numeric hosts with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Population-sample availability: the resolver exposes only summary state for numeric fields (Welford mean/stdev/count, optional percentile map, optional histogram) — raw population values were folded into Welford state and discarded. The handler picks the highest-precision reconstruction available: (1) HISTOGRAM PATH (preferred) when host AND population each surface a histogram with matching Min/Max/bucket count — aligns bucket edges and computes sup-CDF-difference over the bucket-fraction CDF on both sides; (2) PERCENTILE FALLBACK when both arms surface a percentile map but histograms are absent or mismatched — turns each percentile entry into a CDF sample point and computes sup-CDF-difference over the common percentile labels (lower precision than histograms but well-defined); (3) WELFORD-ONLY DEGENERATE when neither histograms nor percentiles are available — emits NaN + NaN with one PULSE_OVERLAY_REF_ZERO warning whose Details document which knobs were missing on the FacetRequest. KS precision is bounded by histogram bucket width (path 1) or percentile-label resolution (path 2) because the population view does not retain raw values; future work may lift the resolver to retain raw sorted population values when a KS overlay is requested, at which point the handler can call ksTwoSampleD on raw arms directly (additive change). INHERENTLY BUFFERED per PRD §2 Non-Goals (\"Streaming overlay path for inferential kinds\") — the empirical-CDF construction requires sorted values on both sides; an online folded shape would widen the streaming carrier beyond v1's single-state lag accumulator. Degenerate inputs: empty host (n_subset == 0) OR empty population (n_pop == 0) emits NaN + NaN with PULSE_OVERLAY_REF_ZERO; histogram arms with mismatched edges (different Min/Max/bucket count) fall through to the percentile fallback if available, else emit PULSE_OVERLAY_REF_ZERO carrying the mismatching shape Details. Ref.Population MUST be populated (the cohort name lives on Ref.Population.Cohort); any other ref-family pointer (Margin / Sibling / BaselineIndex / Prior / RollingMean / YoY / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Level / Within MUST be zero (population comparison is a single-statistic lookup, not an axis prefix); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the implicit-ref family. Scope must be GROUP. Renderer-facing shape: viz developer reads OverlayPayload.Scalar for the KS distance D and OverlaySummary for the (statistic, p-value) pair — large D and small p-value flag \"the subset distribution shape diverges from the population\". The layer-level Baseline stays unset (inferential overlays do not surface a ratio centerpoint; mirrors CHISQ_VS_POP)."
+      },
+      {
+        "kind": "OVERLAY_PAIRWISE_PROBIT_T",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "column",
+          "row"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail on df = n_i + n_j - 2; reuses the Student-t survival helper backing TEST_T). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg (cell n / margins / n_within / weight sum); n_within_depth pins the within-group denominator; p_source picks percentage vs proportion cell values. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
+      },
+      {
+        "kind": "OVERLAY_PAIRWISE_PROP_Z",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "column",
+          "row"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Intra-matrix axis-pairwise pooled-SE two-proportion z-test (reuses the twoProportionZ helper backing OVERLAY_PROP_Z_CELL / TEST_PROP_Z, so p-values match byte-for-byte). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg (cell n / margins / n_within / weight sum); n_within_depth pins the within-group denominator; p_source picks percentage vs proportion cell values. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
+      },
+      {
+        "kind": "OVERLAY_PAIRWISE_TWO_MEANS_Z",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "column",
+          "row"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg (cell n / margins / n_within / weight sum); n_within_depth pins the within-group denominator; p_source picks percentage vs proportion cell values. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
+      },
+      {
+        "kind": "OVERLAY_PAIRWISE_WELCH_T",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "column",
+          "row"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg (cell n / margins / n_within / weight sum); n_within_depth pins the within-group denominator; p_source picks percentage vs proportion cell values. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
       },
       {
         "kind": "OVERLAY_PANEL_INDEX_VS_REF",
@@ -8917,4 +8986,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d5012369448e3115b09ffae99aaadc24fadeb84b0129b2cd486bc17f205e7ab5
+// golden-hash: bbb0c2ebe3dfcdbc1008a2acc6c7febe9c0b217ff13bbf21ddc49505de1a5d8c
