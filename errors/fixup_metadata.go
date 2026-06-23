@@ -1228,6 +1228,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_COMPONENTS_REQUIRED: {
+		Message: "An overlay kind that reads per-cell components (n / weight sums / Welford triples / margin counts) ran against a host built with components disabled. The OVERLAY_PAIRWISE_* family needs the components block to resolve each pair leg's sample size.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"DisableComponents"},
+				Hint:     "Re-run with components enabled: clear Options.DisableComponents (and any per-request disable_components override) so Response.Components.Crosstab carries the cell n / Welford triples the pairwise overlay divides by.",
+				Examples: []any{false},
+			},
+		},
+	},
 	PULSE_OVERLAY_SCOPE_UNSUPPORTED: {
 		Message: "An OverlaySpec named a Scope that is not supported for the chosen Kind. OVERLAY_INDEX_VS_MARGIN currently supports Scope=cell only; row / column / total / matrix / group land in later releases alongside the matching payload shapes.",
 		Fixups: []Fixup{

@@ -80,12 +80,16 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// grand-total accumulator is one f64 alongside the per-group
 		// accumulators inside the streaming Process fold; no second pass
 		// over records.
-		OverlayKindIndexVsTotal:    true,
-		OverlayKindKSVsPop:         false,
-		OverlayKindPanelIndexVsRef: true,
-		OverlayKindPropZCell:       false,
-		OverlayKindPropZPanel:      false,
-		OverlayKindRank:            false,
+		OverlayKindIndexVsTotal:      true,
+		OverlayKindKSVsPop:           false,
+		OverlayKindPanelIndexVsRef:   true,
+		OverlayKindPairwiseProbitT:   false,
+		OverlayKindPairwisePropZ:     false,
+		OverlayKindPairwiseTwoMeansZ: false,
+		OverlayKindPairwiseWelchT:    false,
+		OverlayKindPropZCell:         false,
+		OverlayKindPropZPanel:        false,
+		OverlayKindRank:              false,
 		// SHARE_OF_COL shares INDEX_VS_MARGIN's buffered footprint — its
 		// column-margin denominator is recomputed by the buffered
 		// crosstab orchestrator before ApplyOverlays runs.

@@ -44,6 +44,86 @@ var chiSqRowSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeRow: true,
 }
 
+// pairwiseSupportedScopes are the axis-pairing scopes the OVERLAY_PAIRWISE_*
+// family accepts: ROW pairs row indices for each column, COLUMN pairs
+// column indices for each row.
+var pairwiseSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeRow:    true,
+	types.OverlayScopeColumn: true,
+}
+
+// validateOverlayPairwise validates the shared contract for every
+// OVERLAY_PAIRWISE_* kind: implicit-margin (empty Ref), MATRIX host,
+// ROW / COLUMN scope, and well-formed Params (decodable, known n_source /
+// p_source modes, non-negative pair_along_dim / n_within_depth). The
+// per-cell components requirement (PULSE_OVERLAY_COMPONENTS_REQUIRED) and
+// the Welford-shape requirement are runtime conditions — they depend on
+// the materialised host, not the request shape, so the handler raises
+// them, not predict.
+func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref must be empty — the pairwise test compares two slots of the
+	// host matrix inline; no external reference family applies.
+	if spec.Ref.Margin != nil ||
+		spec.Ref.Sibling != nil ||
+		spec.Ref.BaselineIndex != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" must leave Ref empty (intra-matrix pairwise: the test compares two slots of the host matrix along the scope axis)",
+			map[string]any{"index": index, "kind": string(spec.Kind)})
+		return
+	}
+
+	// Host must be MATRIX-shaped — the pair axis is a host crosstab axis.
+	if req == nil || req.Crosstab == nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
+			map[string]any{"index": index, "kind": string(spec.Kind)})
+		return
+	}
+
+	// Scope must be ROW or COLUMN — it names the pair axis.
+	if !pairwiseSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: row, column)",
+			map[string]any{"index": index, "kind": string(spec.Kind), "scope": string(spec.Scope)})
+		return
+	}
+
+	// Params must decode and name known modes / non-negative depths.
+	params, err := types.DecodePairwiseParams(spec.Params)
+	if err != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(spec.Kind)+" has malformed Params: "+err.Error(),
+			map[string]any{"index": index, "kind": string(spec.Kind)})
+		return
+	}
+	if !types.ValidPairwiseNSource(params.NSource) {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(spec.Kind)+" has unknown n_source: "+params.NSource,
+			map[string]any{"index": index, "kind": string(spec.Kind), "n_source": params.NSource})
+		return
+	}
+	if !types.ValidPairwisePSource(params.PSource) {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(spec.Kind)+" has unknown p_source: "+params.PSource,
+			map[string]any{"index": index, "kind": string(spec.Kind), "p_source": params.PSource})
+		return
+	}
+	if params.PairAlongDim != nil && *params.PairAlongDim < 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(spec.Kind)+" pair_along_dim must be >= 0",
+			map[string]any{"index": index, "kind": string(spec.Kind), "pair_along_dim": *params.PairAlongDim})
+		return
+	}
+	if params.NWithinDepth < 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(spec.Kind)+" n_within_depth must be >= 0",
+			map[string]any{"index": index, "kind": string(spec.Kind), "n_within_depth": params.NWithinDepth})
+	}
+}
+
 // chiSqColSupportedScopes is the supported scope set for
 // OVERLAY_CHISQ_COL. The per-column χ² goodness-of-fit test is a COLUMN-
 // scoped inferential overlay (mechanical column-axis twin of
@@ -835,6 +915,11 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayDeltaVsSibling(env, req, spec, index)
 	case types.OverlayKindFisherExactCell:
 		validateOverlayFisherExactCell(env, req, spec, index)
+	case types.OverlayKindPairwiseProbitT,
+		types.OverlayKindPairwisePropZ,
+		types.OverlayKindPairwiseTwoMeansZ,
+		types.OverlayKindPairwiseWelchT:
+		validateOverlayPairwise(env, req, spec, index)
 	case types.OverlayKindFormula:
 		validateFormulaOverlay(env, req, spec, opts, index)
 	case types.OverlayKindIndexVsBaseline:

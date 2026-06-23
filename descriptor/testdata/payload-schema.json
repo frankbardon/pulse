@@ -1337,6 +1337,10 @@
         "OVERLAY_INDEX_VS_STAGE",
         "OVERLAY_INDEX_VS_TOTAL",
         "OVERLAY_KS_VS_POP",
+        "OVERLAY_PAIRWISE_PROBIT_T",
+        "OVERLAY_PAIRWISE_PROP_Z",
+        "OVERLAY_PAIRWISE_TWO_MEANS_Z",
+        "OVERLAY_PAIRWISE_WELCH_T",
         "OVERLAY_PANEL_INDEX_VS_REF",
         "OVERLAY_PROP_Z_CELL",
         "OVERLAY_PROP_Z_PANEL",
@@ -2471,4 +2475,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 68cb49b2bad697d46046ffe22bec016e5748e52ff490fcdabec562b57c6a22ed
+// golden-hash: d19c448d71bebb613474a0a068359491ad8aa3889a9c59f00c4427c0a60b2a36

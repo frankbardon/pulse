@@ -278,6 +278,15 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// barrier in service.Compose / service.ComposeParallel (the same
 	// chassis precedent every COMPOSE kind uses).
 	OverlayKindPanelIndexVsRef: true,
+	// The OVERLAY_PAIRWISE_* family is inherently buffered — per-Request
+	// intra-matrix axis-pairwise significance tests that fold the host's
+	// materialised cells, per-cell components (n / Welford triples), and
+	// margin counts. Inferential kinds stay buffered per PRD §2 Non-Goals
+	// regardless of host streamability.
+	OverlayKindPairwiseProbitT:   false,
+	OverlayKindPairwisePropZ:     false,
+	OverlayKindPairwiseTwoMeansZ: false,
+	OverlayKindPairwiseWelchT:    false,
 	// OVERLAY_PROP_Z_CELL is inherently buffered — COMPOSE-only kind,
 	// per-cell two-proportion z-test against the reference slot's
 	// matching cell. Reuses the standardNormalCDF helper backing

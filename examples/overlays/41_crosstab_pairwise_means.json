@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab of region x segment with an AGG_WELFORD cell (the streaming {mean, variance, n} triple on revenue) decorated with the intra-matrix axis-pairwise mean overlays OVERLAY_PAIRWISE_WELCH_T and OVERLAY_PAIRWISE_TWO_MEANS_Z at ROW scope: each tests one region's mean revenue against another within each segment column, reading the Welford triple from Response.Components.Crosstab.CellComponents. WELCH_T uses the Welch standard error plus Satterthwaite degrees of freedom and a Student-t tail (reuses studentTTwoSidedP backing TEST_T / TEST_WELCH); TWO_MEANS_Z uses the same standard error with a normal-CDF tail and no df adjustment. The PAIR axis of the emitted MATRIX payload carries one entry per region pair keyed by the two region labels; each cell holds the pair's two-sided p-value at that segment. A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. The family emits RAW p-values only; direction and thresholds are the embedder's presentation concern.",
+    "name": "crosstab-pairwise-means",
+    "operators": [
+      "AGG_WELFORD",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay",
+      "hypothesis-test",
+      "two-sample",
+      "parametric",
+      "welch",
+      "welford-triple"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_WELFORD",
+      "field": "revenue",
+      "label": "revenue_triple"
+    }
+  },
+  "overlays": [
+    {
+      "name": "region_welch_t",
+      "kind": "OVERLAY_PAIRWISE_WELCH_T",
+      "scope": "row"
+    },
+    {
+      "name": "region_two_means_z",
+      "kind": "OVERLAY_PAIRWISE_TWO_MEANS_Z",
+      "scope": "row"
+    }
+  ]
+}

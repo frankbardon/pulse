@@ -1955,6 +1955,93 @@ const (
 	// streamable-test path is plumbed (PRD §2 Non-Goals).
 	OverlayKindPropZPanel OverlayKind = "OVERLAY_PROP_Z_PANEL"
 
+	// The OVERLAY_PAIRWISE_* family is the intra-matrix axis-pairwise
+	// significance catalog: per-Request (NOT Compose-host) overlays that
+	// test one host-matrix slot against another ALONG a single axis of the
+	// SAME materialised crosstab. Where OVERLAY_PROP_Z_PANEL pairs across
+	// Compose SLOTS, this family pairs across the host's own row (or
+	// column) indices — "test brand A vs brand B within each audience
+	// column" against one Process result. ROW scope pairs row indices for
+	// each column; COLUMN scope pairs column indices for each row.
+	//
+	// Output — MATRIX payload, pair × opposite-axis grid of scalar
+	// two-sided p-values. The PAIR axis is one dimension of the emitted
+	// MatrixPayload (one entry per evaluated `(i, j)` index pair, key =
+	// the 2-tuple of the compared legs' axis-key values for display); the
+	// OPPOSITE axis is the host's other axis verbatim. Cell `(pair, opp)`
+	// carries the pair's p-value at that opposite-axis position, or is
+	// absent when either leg was unreadable / degenerate. Pairs are
+	// emitted in canonical order (every `(i, j)` with `i < j`, bucketed
+	// when `Params.pair_along_dim` is set) so consumers zip the grid
+	// against their own re-derived pair list positionally.
+	//
+	// Division of labour: this family emits RAW p-values only. Direction
+	// (which leg is greater), significance thresholds, min-n flags, and
+	// any domain-specific row/column exclusion are presentation concerns
+	// the embedder applies — every input needed for them (the host cells,
+	// the per-cell n) is already on the response, so the overlay does not
+	// re-encode them.
+	//
+	// Params (`OverlaySpec.Params`, all optional):
+	//   - pair_along_dim (int): restrict pairs to "all dims agree except
+	//     this one" buckets on the pair axis (e.g. pair audiences within
+	//     each wave×card-pref bucket). Omitted = every pair-axis index vs
+	//     every other.
+	//   - n_source (string): where the sample-size leg is read —
+	//     "cell_n_unweighted" (default; CellComponents["n"]),
+	//     "cell_value_weighted" (cell value as count),
+	//     "row_margin_n" / "column_margin_n" (margin counts),
+	//     "n_within" (CellCounts slab over n_within_depth),
+	//     "cell_weight_sum" (CellComponents["sum_weights"]).
+	//   - n_within_depth (int): with n_source=n_within, fixes the first
+	//     depth+1 pair-axis dims in the denominator (mirrors
+	//     CrosstabSpec.NormalizeWithin).
+	//   - p_source (string): "cell_value_pct" (default; cell value is a
+	//     0..100 percentage, divided by 100) or "cell_value" (already a
+	//     0..1 proportion). Ignored by the Welford-input kinds.
+	//
+	// Components requirement: every kind reads Response.Components.Crosstab
+	// (cell n, weight sums, Welford triples, margin counts). A host built
+	// with components disabled fires PULSE_OVERLAY_COMPONENTS_REQUIRED.
+	//
+	// Buffered. Inferential overlays stay buffered until a streamable-test
+	// path is plumbed (PRD §2 Non-Goals).
+
+	// OverlayKindPairwiseProbitT is the intra-matrix axis-pairwise probit
+	// t-test (syndicated meaningfulness / uniqueness family). Per opposite-
+	// axis position it transforms each leg's proportion through Φ⁻¹ and
+	// tests the difference: t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)
+	// against Student-t with df = n_i + n_j - 2, two-sided. Reuses the
+	// Student-t survival helper backing TEST_T. Reads proportion + n per
+	// leg (p_source / n_source). See the OVERLAY_PAIRWISE_* family note.
+	OverlayKindPairwiseProbitT OverlayKind = "OVERLAY_PAIRWISE_PROBIT_T"
+
+	// OverlayKindPairwisePropZ is the intra-matrix axis-pairwise pooled-SE
+	// two-proportion z-test (custom / A&U / syndicated top2box family). Per
+	// opposite-axis position it tests leg i vs leg j via the same
+	// twoProportionZ helper backing OVERLAY_PROP_Z_CELL, so p-values match
+	// byte-for-byte. Reads proportion + n per leg (p_source / n_source).
+	// See the OVERLAY_PAIRWISE_* family note.
+	OverlayKindPairwisePropZ OverlayKind = "OVERLAY_PAIRWISE_PROP_Z"
+
+	// OverlayKindPairwiseTwoMeansZ is the intra-matrix axis-pairwise
+	// two-means z-test on AGG_WELFORD cells (AU Q137/Q140/Q141 family). Per
+	// opposite-axis position it tests mean_i vs mean_j using the Welford
+	// triple {mean, variance, n} on CellComponents with a normal-CDF tail
+	// (no df adjustment): z = (m_i - m_j) / sqrt(v_i/n_i + v_j/n_j). Reuses
+	// standardNormalCDF. A non-Welford host fails fast with
+	// PULSE_OVERLAY_SHAPE_MISMATCH. See the OVERLAY_PAIRWISE_* family note.
+	OverlayKindPairwiseTwoMeansZ OverlayKind = "OVERLAY_PAIRWISE_TWO_MEANS_Z"
+
+	// OverlayKindPairwiseWelchT is the intra-matrix axis-pairwise
+	// Welch–Satterthwaite t-test on AGG_WELFORD cells (AU Q99 family). Per
+	// opposite-axis position it tests mean_i vs mean_j using the Welford
+	// triple {mean, variance, n} with the Welch SE and Satterthwaite df,
+	// two-sided via the Student-t survival helper backing TEST_T /
+	// TEST_WELCH. A non-Welford host fails fast with
+	// PULSE_OVERLAY_SHAPE_MISMATCH. See the OVERLAY_PAIRWISE_* family note.
+	OverlayKindPairwiseWelchT OverlayKind = "OVERLAY_PAIRWISE_WELCH_T"
+
 	// OverlayKindPanelIndexVsRef is the COMPOSE-host multi-reference
 	// dual-shape ratio index — indexes EVERY target slot against the
 	// SHARED reference slot and emits ONE OverlayLayer per target. The
@@ -2296,6 +2383,10 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindIndexVsStage,
 		OverlayKindIndexVsTotal,
 		OverlayKindKSVsPop,
+		OverlayKindPairwiseProbitT,
+		OverlayKindPairwisePropZ,
+		OverlayKindPairwiseTwoMeansZ,
+		OverlayKindPairwiseWelchT,
 		OverlayKindPanelIndexVsRef,
 		OverlayKindPropZCell,
 		OverlayKindPropZPanel,
