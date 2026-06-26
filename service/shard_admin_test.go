@@ -16,8 +16,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// --- Test fixtures ---
-
 // adminScoreSchema is the test schema used across shard-admin gates: a
 // u32 id plus an f64 score. Matches the layout used by shard_iter_test
 // so payloads round-trip identically.
@@ -59,8 +57,6 @@ func adminTwoSimpleShards(t *testing.T, fsys afero.Fs) (schema *encoding.Schema,
 	return schema, shardA, shardB
 }
 
-// --- TestShardArchiveReservedName ---
-//
 // CreateShardArchive and AddShard must reject any source path whose
 // basename equals the reserved `_schema.pulse` entry. The error code is
 // PULSE_SHARD_RESERVED_NAME and surfaces at the precheck (no I/O).
@@ -109,8 +105,6 @@ func TestShardArchiveReservedName(t *testing.T) {
 	}
 }
 
-// --- TestShardArchiveNameCollision ---
-//
 // Both Create (two source paths sharing a basename) and Add (incoming
 // basename matches an entry already in the archive) must raise
 // PULSE_SHARD_NAME_COLLISION.
@@ -155,8 +149,6 @@ func TestShardArchiveNameCollision(t *testing.T) {
 	}
 }
 
-// --- TestShardArchiveAnchorSyntax ---
-//
 // `pulse.Open("archive.pulse#shard.pulse")` must:
 //   - return a one-shard cohort whose schema comes from the anchored
 //     shard's own header,
@@ -256,8 +248,6 @@ func TestShardArchiveAnchorSyntax(t *testing.T) {
 	}
 }
 
-// --- TestShardArchiveAddCrashRecovery ---
-//
 // AddShard's atomic temp+rename contract: a successful Add leaves no
 // residual temp file at the canonical archive's directory, the archive
 // is well-formed, and the prior bytes are not corrupted during the
@@ -416,8 +406,6 @@ type failingRenameFs struct {
 func (f *failingRenameFs) Rename(oldname, newname string) error {
 	return &os.PathError{Op: "rename", Path: newname, Err: io.ErrUnexpectedEOF}
 }
-
-// --- Optional: round-trip Create → Open → Process correctness ---
 
 // TestShardArchiveCreateRoundTrip confirms that a freshly-created
 // archive's contents read back identically to the union of the source

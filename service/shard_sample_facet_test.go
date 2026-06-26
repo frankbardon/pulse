@@ -10,8 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// --- Sample union semantics ---
-
 func TestShardArchiveSampleGlobalOffsetLimit(t *testing.T) {
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
@@ -134,8 +132,6 @@ func TestShardArchiveSample_SingleFileUnchanged(t *testing.T) {
 	}
 }
 
-// --- Facet (simple distinct-values) union semantics ---
-
 // TestShardArchiveFacet_CategoricalUsesCanonicalDict confirms the
 // categorical fast path reads from the canonical schema's dictionary
 // (which is the union of every shard's dict thanks to the append-only
@@ -245,8 +241,6 @@ func TestShardArchiveFacet_SingleFileUnchanged(t *testing.T) {
 		t.Errorf("got=%v want=[red green blue]", got)
 	}
 }
-
-// --- FacetSchema union semantics ---
 
 func TestShardArchiveFacetSchemaMatches(t *testing.T) {
 	schema, shards, concat := canonicalThreeShards()
@@ -474,8 +468,6 @@ func TestShardArchiveFacetSchema_SingleFileUnchanged(t *testing.T) {
 		t.Errorf("score count = %d, want 12", resp.Fields["score"].Numeric.Count)
 	}
 }
-
-// --- helpers ---
 
 // sameStringSet compares two slices ignoring order.
 func sameStringSet(a, b []string) bool {
