@@ -770,16 +770,13 @@ func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 // Scalar fallback: when one side has no CellComponents triple and
 // MatrixCell.Value is a scalar float64, the handler falls back to the
 // Params-default path (`variance_target`, `variance_ref`,
-// `sample_size_target`, `sample_size_ref`) — additive contract,
-// byte-identical to the pre-Components scalar baseline.
+// `sample_size_target`, `sample_size_ref`) — additive contract.
 //
 // Mixed cell shapes (one triple, one scalar) are blocked upstream by
 // the compose schema-match gate. The handler still emits a defensive
 // PULSE_OVERLAY_SCHEMA_DIVERGENT if a mixed pair slips through.
 //
-// MatrixCell.Value type-assertion on processing.WelfordTriple is no
-// longer performed — the universal Components surface owns the triple
-// payload.
+// The universal Components surface owns the triple payload.
 func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)

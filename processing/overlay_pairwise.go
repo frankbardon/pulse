@@ -134,8 +134,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	// Attach the per-reason skip diagnostics to the layer's own carrier
 	// (in addition to the returned slice the orchestrator promotes to
 	// Response.Warnings) so a per-Request consumer that reads layers
-	// directly — e.g. Orbit's stat-test marker pass — can associate each
-	// skip with its originating spec.
+	// directly can associate each skip with its originating spec.
 	warns := tally.warnings(spec)
 	layer.Warnings = warns
 	return layer, warns, nil
@@ -403,8 +402,6 @@ func joinPipe(parts []string) string {
 	return out
 }
 
-// ----- per-pair Compute kernels (ported from Orbit service/stats) -----
-
 // pairwisePropZKernel is the pooled-SE two-proportion z-test. Reuses the
 // shared twoProportionZ helper so p-values match OVERLAY_PROP_Z_CELL.
 func pairwisePropZKernel(in pwInputs) (float64, string, bool) {
@@ -510,8 +507,7 @@ func clipUnit(x, lo, hi float64) float64 {
 }
 
 // standardNormalPPF returns Φ⁻¹(p) via the Beasley-Springer-Moro rational
-// approximation (~1e-9 across the support). Ported from Orbit's stats
-// package so the probit kernel matches byte-for-byte. ±Inf at p∈{0,1};
+// approximation (~1e-9 across the support). ±Inf at p∈{0,1};
 // the probit kernel clips p before calling.
 func standardNormalPPF(p float64) float64 {
 	a := [...]float64{
@@ -553,12 +549,9 @@ func standardNormalPPF(p float64) float64 {
 	}
 }
 
-// ----- skip aggregation -----
-
 // pairwiseTally aggregates per-(pair, opposite) skips by reason code into
 // one warning per code carrying the count and a sample opposite-axis
-// index, mirroring Orbit's skipTally — avoids one warning per degenerate
-// cell on a wide matrix.
+// index — avoids one warning per degenerate cell on a wide matrix.
 type pairwiseTally struct {
 	order  []string
 	counts map[string]int

@@ -28,8 +28,7 @@ import (
 // contract. Triple-aware row encoding / lookup routes through
 // `encodeSeriesRowAnyMap` + `buildSeriesRowLookupAnyMap` so the SERIES
 // arm and the MATRIX arm of the Z parity pair stay symmetric with the
-// T parity pair. The legacy processing.WelfordTriple type-assertion on
-// the row's value column is no longer performed.
+// T parity pair.
 //
 // Math (per host group `i`):
 //

@@ -262,10 +262,7 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 // triple directly and bypasses the Params defaults. The overlay
 // p-value matches TEST_WELCH / TEST_T against the same (mean,
 // variance, n) inputs byte-equal. When both value columns are scalar
-// numeric the handler falls back to the Params-default path
-// (byte-identical to the pre-Components scalar baseline). The legacy
-// processing.WelfordTriple type-assertion on the row's value column
-// is no longer performed.
+// numeric the handler falls back to the Params-default path.
 //
 // Mixed value-column shapes (one triple, one scalar) are blocked
 // upstream by the compose schema-match gate. The handler
