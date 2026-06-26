@@ -46,16 +46,15 @@ func writeBoundTestCohort(t *testing.T, fs afero.Fs, path string, schema *encodi
 	}
 }
 
-// decodeRequestSchema pulls the request sub-schema out of the bound JSON
-// Schema body produced by Bind for action tools.
+// decodeRequestSchema returns the bound JSON Schema body produced by Bind for
+// an action tool. Under the canonical structured contract the body IS the typed
+// request schema at the top level — there is no {request: ...} wrapper.
 func decodeRequestSchema(t *testing.T, raw json.RawMessage) map[string]any {
 	t.Helper()
-	var outer map[string]any
-	if err := json.Unmarshal(raw, &outer); err != nil {
-		t.Fatalf("unmarshal outer: %v", err)
+	var req map[string]any
+	if err := json.Unmarshal(raw, &req); err != nil {
+		t.Fatalf("unmarshal request schema: %v", err)
 	}
-	props, _ := outer["properties"].(map[string]any)
-	req, _ := props["request"].(map[string]any)
 	return req
 }
 
@@ -133,13 +132,12 @@ func processToolFromList(t *testing.T, cs *mcpsdk.ClientSession) *mcpsdk.Tool {
 	return nil
 }
 
-// requestSubSchema extracts the inner request object schema from a tool's
-// InputSchema (a map[string]any once round-tripped over the wire).
+// requestSubSchema returns the request object schema from a tool's InputSchema
+// (a map[string]any once round-tripped over the wire). Under the structured
+// contract the InputSchema IS the request schema — no {request: ...} wrapper.
 func requestSubSchema(tool *mcpsdk.Tool) map[string]any {
 	sch, _ := tool.InputSchema.(map[string]any)
-	props, _ := sch["properties"].(map[string]any)
-	req, _ := props["request"].(map[string]any)
-	return req
+	return sch
 }
 
 // TestMCPSchemaBinding_RemovesInvalidFields verifies that

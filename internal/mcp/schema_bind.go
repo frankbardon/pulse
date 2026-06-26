@@ -184,12 +184,10 @@ func buildProcessChainSchemaWithExtensions(c fieldClassification, snap *descript
 	if err != nil {
 		return nil, err
 	}
-	var innerOuter map[string]any
-	if err := json.Unmarshal(inner, &innerOuter); err != nil {
+	var reqSchema map[string]any
+	if err := json.Unmarshal(inner, &reqSchema); err != nil {
 		return nil, err
 	}
-	props, _ := innerOuter["properties"].(map[string]any)
-	reqSchema := props["request"]
 
 	stageItem := map[string]any{
 		"type":        "object",
@@ -227,15 +225,8 @@ func buildProcessChainSchemaWithExtensions(c fieldClassification, snap *descript
 		"additionalProperties": true,
 	}
 
-	outer := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"request": requestObject,
-		},
-		"required":             []string{"request"},
-		"additionalProperties": true,
-	}
-	return json.Marshal(outer)
+	// Structured contract: ChainRequest fields at the top level.
+	return json.Marshal(requestObject)
 }
 
 // buildFacetSchemaRequestSchema describes the pulse_facet_schema tool
@@ -308,15 +299,8 @@ func buildFacetSchemaRequestSchema(c fieldClassification, snap *descriptor.Exten
 	if labels := buildLabelsSchema(c, snap); labels != nil {
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
-	outer := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"request": requestObject,
-		},
-		"required":             []string{"request"},
-		"additionalProperties": true,
-	}
-	return json.Marshal(outer)
+	// Structured contract: FacetRequest fields at the top level.
+	return json.Marshal(requestObject)
 }
 
 // extensionNames returns the operator-name slice for a category from
@@ -554,15 +538,11 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
 
-	outer := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"request": requestObject,
-		},
-		"required":             []string{"request"},
-		"additionalProperties": true,
-	}
-	return json.Marshal(outer)
+	// Canonical structured contract (E2-S2): the tool input IS the typed
+	// Request at the top level — no {request: ...} wrapper. Field-name
+	// enum injection therefore lands on the same paths the reflected
+	// base schema advertises.
+	return json.Marshal(requestObject)
 }
 
 // crosstabSchema returns the JSON Schema for the Crosstab section. Row
@@ -982,36 +962,28 @@ func buildComposeSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 	if err != nil {
 		return nil, err
 	}
-	var innerOuter map[string]any
-	if err := json.Unmarshal(inner, &innerOuter); err != nil {
+	// inner is the structured Request schema; nest it under requests[].
+	var reqSchema map[string]any
+	if err := json.Unmarshal(inner, &reqSchema); err != nil {
 		return nil, err
 	}
-	// Extract the request sub-schema so we can nest it under requests[].
-	props, _ := innerOuter["properties"].(map[string]any)
-	reqSchema := props["request"]
 
+	// Structured contract: ComposedRequest fields (requests, overlays) at the
+	// top level — no {request: ...} wrapper.
 	outer := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"request": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"requests": map[string]any{
-						"type":  "array",
-						"items": reqSchema,
-					},
-					// ComposedRequest.Overlays carries the Compose-only
-					// catalog (slot-label-bound kinds + FORMULA). The
-					// per-Request inherited Overlays slot lives inside
-					// `requests[].request.overlays` via the inlined
-					// request schema and stays Request-facade-scoped.
-					"overlays": overlaysSchemaForFacade(overlayFacadeCompose, snap),
-				},
-				"required":             []string{"requests"},
-				"additionalProperties": true,
+			"requests": map[string]any{
+				"type":  "array",
+				"items": reqSchema,
 			},
+			// ComposedRequest.Overlays carries the Compose-only catalog
+			// (slot-label-bound kinds + FORMULA). The per-Request inherited
+			// Overlays slot lives inside `requests[].overlays` via the
+			// inlined request schema and stays Request-facade-scoped.
+			"overlays": overlaysSchemaForFacade(overlayFacadeCompose, snap),
 		},
-		"required":             []string{"request"},
+		"required":             []string{"requests"},
 		"additionalProperties": true,
 	}
 	return json.Marshal(outer)
@@ -1135,7 +1107,8 @@ func enumStringField(values []string, description string) map[string]any {
 	return out
 }
 
-// BindSessionTools is the entry point used by handleInspect. Given a
+// BindSessionTools is the entry point used by bindSessionFromPath (the
+// inspect/import bind hook). Given a
 // schema, it derives per-tool JSON Schemas and re-registers the action
 // tools on the server by name with the enum-constrained variants. Over
 // stdio the server has a single session, so a same-name Server.AddTool
@@ -1205,16 +1178,25 @@ type boundHandlers struct {
 
 // boundHandlersFor constructs the per-tool handler set for the bound
 // variants from the live Pulse facade. The handlers are byte-identical to
-// the globally registered ones — only the advertised input schema changes
-// on re-registration.
+// the globally registered ones (they wrap the same core descriptor Invoke) —
+// only the advertised input schema changes on re-registration. The bound
+// action tools never themselves trigger the bind hook, so a nil server and
+// bindOnOpen=false are passed to coreHandler.
 func boundHandlersFor(p *pulse.Pulse) boundHandlers {
+	mk := func(name string) mcpsdk.ToolHandler {
+		d, ok := coreDescriptor(name)
+		if !ok {
+			return nil
+		}
+		return coreHandler(nil, p, false, d)
+	}
 	return boundHandlers{
-		process:      handleProcess(p),
-		predict:      handlePredict(p),
-		compose:      handleCompose(p),
-		sample:       handleSample(p),
-		facet:        handleFacet(p),
-		facetSchema:  handleFacetSchema(p),
-		processChain: handleProcessChain(p),
+		process:      mk(toolmeta.ToolProcess),
+		predict:      mk(toolmeta.ToolPredict),
+		compose:      mk(toolmeta.ToolCompose),
+		sample:       mk(toolmeta.ToolSample),
+		facet:        mk(toolmeta.ToolFacet),
+		facetSchema:  mk(toolmeta.ToolFacetSchema),
+		processChain: mk(toolmeta.ToolProcessChain),
 	}
 }

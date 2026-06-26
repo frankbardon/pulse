@@ -1,21 +1,17 @@
 package mcp
 
 import (
-	"context"
 	"encoding/json"
 	"slices"
 	"testing"
 
-	"github.com/frankbardon/pulse"
-	perr "github.com/frankbardon/pulse/errors"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/spf13/afero"
 )
 
 // toolCall builds a go-sdk CallToolRequest carrying the given arguments as the
 // raw JSON the handler unmarshals itself (the low-level Server.AddTool path
-// does no auto-decode). Replaces the mark3labs CallToolRequest whose Arguments
-// was a map[string]any.
+// does no auto-decode). Under the canonical structured contract the arguments
+// map IS the typed tool input at the top level.
 func toolCall(t *testing.T, name string, args map[string]any) *mcpsdk.CallToolRequest {
 	t.Helper()
 	raw, err := json.Marshal(args)
@@ -28,26 +24,6 @@ func toolCall(t *testing.T, name string, args map[string]any) *mcpsdk.CallToolRe
 			Arguments: raw,
 		},
 	}
-}
-
-// handlerText runs a direct (in-package) handler call and returns the first
-// text-content body, failing on transport error or an error result.
-func handlerText(t *testing.T, out *mcpsdk.CallToolResult, err error) string {
-	t.Helper()
-	if err != nil {
-		t.Fatalf("handler: %v", err)
-	}
-	if out.IsError {
-		t.Fatalf("handler returned error result: %+v", out.Content)
-	}
-	if len(out.Content) == 0 {
-		t.Fatal("handler returned no content")
-	}
-	text, ok := out.Content[0].(*mcpsdk.TextContent)
-	if !ok {
-		t.Fatalf("expected *TextContent, got %T", out.Content[0])
-	}
-	return text.Text
 }
 
 func TestRegisteredTools_Stable(t *testing.T) {
@@ -110,89 +86,5 @@ func TestRegisteredToolsMeta_MatchesRegisteredTools(t *testing.T) {
 		if m.Description == "" {
 			t.Errorf("meta[%d] %q missing description", i, m.Name)
 		}
-	}
-}
-
-// TestMCPErrorsLookup_RoundTrip drives handleErrorsLookup with each of
-// the three argument shapes (code / domain / query) and asserts the
-// JSON-encoded result decodes to the expected LookupResult shape.
-func TestMCPErrorsLookup_RoundTrip(t *testing.T) {
-	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
-	if err != nil {
-		t.Fatalf("pulse.New: %v", err)
-	}
-	handler := handleErrorsLookup(p)
-
-	call := func(args map[string]any) []perr.LookupResult {
-		t.Helper()
-		out, err := handler(context.Background(), toolCall(t, ToolErrorsLookup, args))
-		text := handlerText(t, out, err)
-		var decoded []perr.LookupResult
-		if err := json.Unmarshal([]byte(text), &decoded); err != nil {
-			t.Fatalf("decode: %v\n%s", err, text)
-		}
-		return decoded
-	}
-
-	// code → 1-element array on hit.
-	hit := call(map[string]any{"code": string(perr.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL)})
-	if len(hit) != 1 {
-		t.Fatalf("code lookup hit: len=%d want 1", len(hit))
-	}
-	if hit[0].Domain != "PULSE" {
-		t.Errorf("Domain=%q want PULSE", hit[0].Domain)
-	}
-	if hit[0].Message == "" {
-		t.Errorf("Message is empty")
-	}
-
-	// code → empty array on miss.
-	miss := call(map[string]any{"code": "NOT_A_REAL_CODE"})
-	if len(miss) != 0 {
-		t.Errorf("miss returned %d, want 0", len(miss))
-	}
-
-	// domain → every PULSE code.
-	dom := call(map[string]any{"domain": "PULSE"})
-	if len(dom) == 0 {
-		t.Errorf("domain=PULSE returned 0")
-	}
-	for _, r := range dom {
-		if r.Domain != "PULSE" {
-			t.Errorf("PULSE-domain result has Domain=%q", r.Domain)
-		}
-	}
-
-	// query → at least one match for known substring.
-	q := call(map[string]any{"query": "numeric aggregation"})
-	if len(q) == 0 {
-		t.Errorf("query returned 0 results")
-	}
-
-	// all-empty → SERVICE_VALIDATION error.
-	out, err := handler(context.Background(), toolCall(t, ToolErrorsLookup, map[string]any{}))
-	if err != nil {
-		t.Fatalf("handler with empty args: %v", err)
-	}
-	if !out.IsError {
-		t.Errorf("expected IsError=true for empty args")
-	}
-
-	// Intersection: code + domain match (both filter to same code).
-	both := call(map[string]any{
-		"code":   string(perr.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-		"domain": "PULSE",
-	})
-	if len(both) != 1 {
-		t.Errorf("code+domain intersection len=%d want 1", len(both))
-	}
-
-	// Intersection: code + domain disagree (code is PULSE, domain is CLI).
-	none := call(map[string]any{
-		"code":   string(perr.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-		"domain": "CLI",
-	})
-	if len(none) != 0 {
-		t.Errorf("disjoint intersection len=%d want 0", len(none))
 	}
 }

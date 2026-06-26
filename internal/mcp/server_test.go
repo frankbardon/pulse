@@ -222,20 +222,17 @@ func TestServer_CallPredict_RoundTrip(t *testing.T) {
 	c, cancel := startInProcessClient(t, p)
 	defer cancel()
 
-	requestBody, err := json.Marshal(map[string]any{
-		"cohort": map[string]any{"filename": "demo.pulse"},
-		"aggregations": []map[string]any{
-			{"type": "AGG_AVERAGE", "field": "score", "label": "avg_score"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
-
+	// Canonical structured contract: the request fields ride at the top level
+	// of the tool arguments — no {request: <json-string>} wrapper.
 	ctx := context.Background()
 	out, err := c.CallTool(ctx, &mcpsdk.CallToolParams{
-		Name:      mcp.ToolPredict,
-		Arguments: map[string]any{"request": string(requestBody)},
+		Name: mcp.ToolPredict,
+		Arguments: map[string]any{
+			"cohort": map[string]any{"filename": "demo.pulse"},
+			"aggregations": []map[string]any{
+				{"type": "AGG_AVERAGE", "field": "score", "label": "avg_score"},
+			},
+		},
 	})
 	if err != nil {
 		t.Fatalf("CallTool predict: %v", err)
