@@ -3,10 +3,9 @@
 // New() and ServeStdio() to expose Pulse over stdio for MCP clients.
 //
 // Migration in progress (mcp-library-surface): the server is built on
-// github.com/modelcontextprotocol/go-sdk. Tool, resource, and prompt
-// registration are ported per-file in later stories (E1-S2/S3/S4); until then
-// the registration source files carry a `//go:build ignore` constraint and are
-// excluded from the build. NewWithOptions constructs a bare server skeleton.
+// github.com/modelcontextprotocol/go-sdk. Tools (E1-S2), resources, and prompts
+// (E1-S3) are ported; the schema-bind-on-inspect surface (schema_bind.go) lands
+// in E1-S4 and still carries a `//go:build ignore` constraint until then.
 package mcp
 
 import (
@@ -54,8 +53,11 @@ func NewWithOptions(p *pulse.Pulse, opts Options) *mcpsdk.Server {
 	// All 19 built-in tools register here on the go-sdk server (E1-S2).
 	registerTools(s, p, opts.BindOnOpen)
 
-	// TODO(E1-S3): registerResources(s, p) + registerPrompts(s) — port
-	//   resources.go and prompts.go.
+	// Resource surface (payload schema + pulse:// / pulse-skill:// schemes) and
+	// the prompt surface (pulse-bootstrap / pulse-author-request) — E1-S3.
+	registerResources(s, p)
+	registerPrompts(s)
+
 	// TODO(E1-S4): schema-bind-on-inspect — port schema_bind.go. The
 	//   bind-on-inspect hook (bindSessionFromPath) is a no-op until then;
 	//   opts.BindOnOpen is threaded through registerTools so the wiring is

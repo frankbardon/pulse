@@ -1,18 +1,9 @@
-//go:build ignore
-
-// TODO(E1-S2/S3/S4): not yet ported to github.com/modelcontextprotocol/go-sdk.
-// This file still targets mark3labs/mcp-go and is excluded from the build by
-// the constraint above. Handler logic is preserved verbatim; the per-file
-// migration stories (tools/strict_decode/import_tools -> E1-S2; resources/
-// prompts -> E1-S3; schema_bind -> E1-S4) remove this constraint as they port.
-
 package mcp
 
 import (
 	"context"
 
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Prompt name constants. Exposed via the MCP prompts/list capability so
@@ -31,30 +22,31 @@ const (
 	DescPromptAuthorRequest = "Guided workflow for authoring a Pulse request as JSON against a cohort's schema. Takes one argument: `question` — the analytical question being answered. Produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
 )
 
+// promptRoleUser is the MCP "user" message role. go-sdk types Role as a bare
+// string and does not export a constant, so we pin it here.
+const promptRoleUser mcpsdk.Role = "user"
+
 // registerPrompts attaches the prompts/list + prompts/get capability to the
 // MCP server. The bootstrap prompt is the primary signal we use to steer
 // remote LLM clients away from inferring request shapes from external
 // documentation or source code — and toward the manifest + example library.
-func registerPrompts(s *server.MCPServer) {
-	s.AddPrompt(
-		mcpgo.NewPrompt(
-			PromptBootstrap,
-			mcpgo.WithPromptDescription(DescPromptBootstrap),
-		),
-		bootstrapPromptHandler,
-	)
+func registerPrompts(s *mcpsdk.Server) {
+	s.AddPrompt(&mcpsdk.Prompt{
+		Name:        PromptBootstrap,
+		Description: DescPromptBootstrap,
+	}, bootstrapPromptHandler)
 
-	s.AddPrompt(
-		mcpgo.NewPrompt(
-			PromptAuthorRequest,
-			mcpgo.WithPromptDescription(DescPromptAuthorRequest),
-			mcpgo.WithArgument("question",
-				mcpgo.ArgumentDescription("The analytical question being answered. Used to drive example-library and skill-pack discovery."),
-				mcpgo.RequiredArgument(),
-			),
-		),
-		authorRequestPromptHandler,
-	)
+	s.AddPrompt(&mcpsdk.Prompt{
+		Name:        PromptAuthorRequest,
+		Description: DescPromptAuthorRequest,
+		Arguments: []*mcpsdk.PromptArgument{
+			{
+				Name:        "question",
+				Description: "The analytical question being answered. Used to drive example-library and skill-pack discovery.",
+				Required:    true,
+			},
+		},
+	}, authorRequestPromptHandler)
 }
 
 // bootstrapPromptBody is the canonical "how to use Pulse" preamble. Hand-
@@ -86,17 +78,20 @@ The operator catalog, request-shape contracts, and runnable examples ship with t
 Fall back to ` + "`pulse_skills_get`" + ` for the operator family you need, then assemble the request from the manifest's operator metadata. Still do not infer from external sources — every operator-shape question can be answered locally.
 `
 
-func bootstrapPromptHandler(_ context.Context, _ mcpgo.GetPromptRequest) (*mcpgo.GetPromptResult, error) {
-	return &mcpgo.GetPromptResult{
+func bootstrapPromptHandler(_ context.Context, _ *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
+	return &mcpsdk.GetPromptResult{
 		Description: DescPromptBootstrap,
-		Messages: []mcpgo.PromptMessage{
-			mcpgo.NewPromptMessage(mcpgo.RoleUser, mcpgo.NewTextContent(bootstrapPromptBody)),
+		Messages: []*mcpsdk.PromptMessage{
+			{Role: promptRoleUser, Content: &mcpsdk.TextContent{Text: bootstrapPromptBody}},
 		},
 	}, nil
 }
 
-func authorRequestPromptHandler(_ context.Context, req mcpgo.GetPromptRequest) (*mcpgo.GetPromptResult, error) {
-	question := req.Params.Arguments["question"]
+func authorRequestPromptHandler(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
+	var question string
+	if req != nil && req.Params != nil {
+		question = req.Params.Arguments["question"]
+	}
 	body := "Author a Pulse request for this analytical question:\n\n" +
 		"> " + question + "\n\n" +
 		"Follow this discovery flow:\n\n" +
@@ -107,10 +102,10 @@ func authorRequestPromptHandler(_ context.Context, req mcpgo.GetPromptRequest) (
 		"5. Submit the assembled request to `pulse_predict` to validate. If validation passes, submit it to `pulse_process` to execute. If validation fails with structured suggestions, apply the suggested fixups and retry `pulse_predict`.\n" +
 		"6. On any error code in the response, call `pulse_errors_lookup` for the prescribed fix.\n\n" +
 		"Do not infer request shapes from external documentation or source code — the manifest + example library are authoritative for this deployment."
-	return &mcpgo.GetPromptResult{
+	return &mcpsdk.GetPromptResult{
 		Description: DescPromptAuthorRequest,
-		Messages: []mcpgo.PromptMessage{
-			mcpgo.NewPromptMessage(mcpgo.RoleUser, mcpgo.NewTextContent(body)),
+		Messages: []*mcpsdk.PromptMessage{
+			{Role: promptRoleUser, Content: &mcpsdk.TextContent{Text: body}},
 		},
 	}, nil
 }
