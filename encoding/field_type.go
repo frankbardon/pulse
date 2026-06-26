@@ -5,7 +5,7 @@ import "fmt"
 // FieldType identifies the data type stored in a schema field.
 type FieldType byte
 
-// All 13 field types supported by the .pulse format. Nullability is
+// All field types supported by the .pulse format. Nullability is
 // orthogonal to type — any field can be marked nullable via
 // encoding.Field.Nullable and the per-record null bitmap carries the
 // actual null state.

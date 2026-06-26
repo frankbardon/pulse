@@ -14,8 +14,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// --- helpers ---
-
 // buildSinglePulse returns the bytes of a minimal valid single-file
 // .pulse cohort (header + schema, zero records).
 func buildSinglePulse(t *testing.T) []byte {
@@ -66,8 +64,6 @@ func buildArchive(t *testing.T, schemaPayload []byte, entries map[string][]byte,
 	return buf.Bytes()
 }
 
-// --- IsArchive tests ---
-
 func TestArchive_IsArchive_DetectsZipMagic(t *testing.T) {
 	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
 		"a.pulse": buildSinglePulse(t),
@@ -115,8 +111,6 @@ func TestArchive_IsArchive_EmptyFile(t *testing.T) {
 		t.Errorf("IsArchive on empty file = true, want false")
 	}
 }
-
-// --- OpenArchive tests ---
 
 func TestArchive_OpenArchive_ParsesCentralDirectory(t *testing.T) {
 	schema := buildSinglePulse(t)
@@ -183,8 +177,6 @@ func TestArchive_OpenArchive_CorruptEOCD(t *testing.T) {
 		t.Errorf("expected PULSE_ARCHIVE_CORRUPT, got: %v", err)
 	}
 }
-
-// --- Entry access tests ---
 
 func TestArchive_Open_MissingEntry(t *testing.T) {
 	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
@@ -425,16 +417,12 @@ func TestArchive_Open_PopulatesRecordCounts(t *testing.T) {
 	}
 }
 
-// --- ReservedSchemaName constant ---
-
 func TestArchive_ReservedSchemaName(t *testing.T) {
 	if encoding.ReservedSchemaName != "_schema.pulse" {
 		t.Errorf("ReservedSchemaName = %q, want %q",
 			encoding.ReservedSchemaName, "_schema.pulse")
 	}
 }
-
-// --- TestShardArchiveMagicDispatch: non-skippable CI gate ---
 
 // TestShardArchiveMagicDispatch is a non-skippable CI gate verifying
 // that service.Service.Open (the same dispatch behind pulse.Open)
@@ -507,8 +495,6 @@ func TestShardArchiveMagicDispatch(t *testing.T) {
 	}
 }
 
-// --- TestShardArchiveMissingEntry: non-skippable CI gate ---
-
 // TestShardArchiveMissingEntry verifies that an Archive whose central
 // directory references an entry name not actually present in the byte
 // stream surfaces PULSE_SHARD_MISSING when callers ask for it via
@@ -554,8 +540,6 @@ func TestShardArchiveMissingEntry(t *testing.T) {
 	}
 }
 
-// --- TestShardArchiveCorruptEOCD: non-skippable CI gate ---
-
 // TestShardArchiveCorruptEOCD verifies that a Pulse shard archive whose
 // end-of-central-directory record cannot be parsed surfaces
 // PULSE_ARCHIVE_CORRUPT — distinct from PULSE_ARCHIVE_MAGIC_INVALID
@@ -600,8 +584,7 @@ func TestShardArchiveCorruptEOCD(t *testing.T) {
 	}
 }
 
-// --- TestShardArchiveBackwardsCompat: non-skippable CI gate ---
-
+// TestShardArchiveBackwardsCompat is a non-skippable CI gate.
 func TestShardArchiveBackwardsCompat(t *testing.T) {
 	cfg := fs.NewMemMap()
 
