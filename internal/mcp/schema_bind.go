@@ -34,7 +34,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/mcp/mcptools"
+	"github.com/frankbardon/pulse/mcp/toolmeta"
 	"github.com/frankbardon/pulse/types"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -132,38 +132,38 @@ func BindWithExtensions(schema *encoding.Schema, snap *descriptor.ExtensionsSnap
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolProcess] = reqBody
-	out[mcptools.ToolPredict] = reqBody
+	out[toolmeta.ToolProcess] = reqBody
+	out[toolmeta.ToolPredict] = reqBody
 
 	composeBody, err := buildComposeSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolCompose] = composeBody
+	out[toolmeta.ToolCompose] = composeBody
 
 	sampleBody, err := buildSampleSchema(c)
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolSample] = sampleBody
+	out[toolmeta.ToolSample] = sampleBody
 
 	facetBody, err := buildFacetSchema(c)
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolFacet] = facetBody
+	out[toolmeta.ToolFacet] = facetBody
 
 	facetSchemaBody, err := buildFacetSchemaRequestSchema(c, snap)
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolFacetSchema] = facetSchemaBody
+	out[toolmeta.ToolFacetSchema] = facetSchemaBody
 
 	chainBody, err := buildProcessChainSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolProcessChain] = chainBody
+	out[toolmeta.ToolProcessChain] = chainBody
 
 	return out, nil
 }
@@ -1168,13 +1168,13 @@ func BindSessionToolsWithExtensions(s *mcpsdk.Server, schema *encoding.Schema, s
 		description string
 		handler     mcpsdk.ToolHandler
 	}{
-		{mcptools.ToolProcess, mcptools.DescProcess + " (schema-bound)", handlers.process},
-		{mcptools.ToolPredict, mcptools.DescPredict + " (schema-bound)", handlers.predict},
-		{mcptools.ToolCompose, mcptools.DescCompose + " (schema-bound)", handlers.compose},
-		{mcptools.ToolSample, mcptools.DescSample + " (schema-bound)", handlers.sample},
-		{mcptools.ToolFacet, mcptools.DescFacet + " (schema-bound)", handlers.facet},
-		{mcptools.ToolFacetSchema, mcptools.DescFacetSchema + " (schema-bound)", handlers.facetSchema},
-		{mcptools.ToolProcessChain, mcptools.DescProcessChain + " (schema-bound)", handlers.processChain},
+		{toolmeta.ToolProcess, toolmeta.DescProcess + " (schema-bound)", handlers.process},
+		{toolmeta.ToolPredict, toolmeta.DescPredict + " (schema-bound)", handlers.predict},
+		{toolmeta.ToolCompose, toolmeta.DescCompose + " (schema-bound)", handlers.compose},
+		{toolmeta.ToolSample, toolmeta.DescSample + " (schema-bound)", handlers.sample},
+		{toolmeta.ToolFacet, toolmeta.DescFacet + " (schema-bound)", handlers.facet},
+		{toolmeta.ToolFacetSchema, toolmeta.DescFacetSchema + " (schema-bound)", handlers.facetSchema},
+		{toolmeta.ToolProcessChain, toolmeta.DescProcessChain + " (schema-bound)", handlers.processChain},
 	} {
 		raw, ok := schemas[entry.name]
 		if !ok || entry.handler == nil {

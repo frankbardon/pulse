@@ -87,7 +87,7 @@ Any host that speaks the MCP stdio transport can launch `pulse mcp` the same way
 
 ### Tool surface
 
-Fifteen tools, registered at server start. Names and order match `internal/mcp/mcptools/meta.go`.
+Fifteen tools, registered at server start. Names and order match `mcp/toolmeta/meta.go`.
 
 | Tool | Purpose |
 |---|---|

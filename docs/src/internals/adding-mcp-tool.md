@@ -21,8 +21,8 @@ the handler in `RegisteredTools()` (`internal/mcp/tools.go`).
 
 ## 2. Register tool metadata
 
-Add the tool's name + description in `internal/mcp/mcptools/meta.go`.
-The `mcptools` package is imported by `descriptor/` (which assembles
+Add the tool's name + description in `mcp/toolmeta/meta.go`.
+The `mcp/toolmeta` package is imported by `descriptor/` (which assembles
 the manifest), so this is the leaf-metadata package that lets the
 descriptor surface the tool without importing `internal/mcp`.
 

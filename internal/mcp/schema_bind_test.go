@@ -10,7 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/mcp/mcptools"
+	"github.com/frankbardon/pulse/mcp/toolmeta"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )
@@ -153,7 +153,7 @@ func TestMCPSchemaBinding_RemovesInvalidFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
 	}
-	raw, ok := schemas[mcptools.ToolProcess]
+	raw, ok := schemas[toolmeta.ToolProcess]
 	if !ok {
 		t.Fatal("missing process schema")
 	}
@@ -180,7 +180,7 @@ func TestMCPSchemaBinding_AllFieldsInFiltererEnum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
 	}
-	raw := schemas[mcptools.ToolProcess]
+	raw := schemas[toolmeta.ToolProcess]
 	req := decodeRequestSchema(t, raw)
 
 	filterFields := enumOf(req, "filterers", "field")
@@ -205,7 +205,7 @@ func TestMCPSchemaBinding_SampleAndFacetFieldEnum(t *testing.T) {
 	}
 
 	// pulse_facet: field has an enum of all field names.
-	facetRaw, ok := schemas[mcptools.ToolFacet]
+	facetRaw, ok := schemas[toolmeta.ToolFacet]
 	if !ok {
 		t.Fatal("missing facet schema")
 	}
@@ -221,7 +221,7 @@ func TestMCPSchemaBinding_SampleAndFacetFieldEnum(t *testing.T) {
 	}
 
 	// pulse_sample: no enum on field; path is present.
-	sampleRaw, ok := schemas[mcptools.ToolSample]
+	sampleRaw, ok := schemas[toolmeta.ToolSample]
 	if !ok {
 		t.Fatal("missing sample schema")
 	}
@@ -243,7 +243,7 @@ func TestMCPSchemaBinding_CrosstabNormalizeLevel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
 	}
-	raw, ok := schemas[mcptools.ToolProcess]
+	raw, ok := schemas[toolmeta.ToolProcess]
 	if !ok {
 		t.Fatal("missing process schema")
 	}
@@ -282,7 +282,7 @@ func TestMCPSchemaBinding_CrosstabNormalizeWithin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
 	}
-	raw, ok := schemas[mcptools.ToolProcess]
+	raw, ok := schemas[toolmeta.ToolProcess]
 	if !ok {
 		t.Fatal("missing process schema")
 	}
@@ -317,7 +317,7 @@ func TestMCPSchemaBinding_OverlayKindEnum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
 	}
-	raw, ok := schemas[mcptools.ToolProcess]
+	raw, ok := schemas[toolmeta.ToolProcess]
 	if !ok {
 		t.Fatal("missing process schema")
 	}

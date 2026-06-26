@@ -8,73 +8,73 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	perr "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/mcp/mcptools"
+	"github.com/frankbardon/pulse/mcp/toolmeta"
 	"github.com/frankbardon/pulse/skills"
 	"github.com/frankbardon/pulse/types"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Tool name and description constants are sourced from the mcptools
-// sub-package so the descriptor manifest can mirror them without taking
-// a dependency on this package (which imports the root pulse package
-// and would create an import cycle).
+// Tool name and description constants are sourced from the public
+// mcp/toolmeta leaf package so the descriptor manifest can mirror them
+// without taking a dependency on this package (which imports the root
+// pulse package and would create an import cycle).
 const (
-	ToolInspect        = mcptools.ToolInspect
-	ToolPredict        = mcptools.ToolPredict
-	ToolProcess        = mcptools.ToolProcess
-	ToolProcessChain   = mcptools.ToolProcessChain
-	ToolCompose        = mcptools.ToolCompose
-	ToolSample         = mcptools.ToolSample
-	ToolFacet          = mcptools.ToolFacet
-	ToolFacetSchema    = mcptools.ToolFacetSchema
-	ToolSkillsList     = mcptools.ToolSkillsList
-	ToolSkillsGet      = mcptools.ToolSkillsGet
-	ToolManifest       = mcptools.ToolManifest
-	ToolExamplesSearch = mcptools.ToolExamplesSearch
-	ToolExamplesGet    = mcptools.ToolExamplesGet
-	ToolErrorsLookup   = mcptools.ToolErrorsLookup
-	ToolImport         = mcptools.ToolImport
-	ToolDrop           = mcptools.ToolDrop
-	ToolImportsList    = mcptools.ToolImportsList
-	ToolLabelTables    = mcptools.ToolLabelTables
-	ToolLabelResolve   = mcptools.ToolLabelResolve
+	ToolInspect        = toolmeta.ToolInspect
+	ToolPredict        = toolmeta.ToolPredict
+	ToolProcess        = toolmeta.ToolProcess
+	ToolProcessChain   = toolmeta.ToolProcessChain
+	ToolCompose        = toolmeta.ToolCompose
+	ToolSample         = toolmeta.ToolSample
+	ToolFacet          = toolmeta.ToolFacet
+	ToolFacetSchema    = toolmeta.ToolFacetSchema
+	ToolSkillsList     = toolmeta.ToolSkillsList
+	ToolSkillsGet      = toolmeta.ToolSkillsGet
+	ToolManifest       = toolmeta.ToolManifest
+	ToolExamplesSearch = toolmeta.ToolExamplesSearch
+	ToolExamplesGet    = toolmeta.ToolExamplesGet
+	ToolErrorsLookup   = toolmeta.ToolErrorsLookup
+	ToolImport         = toolmeta.ToolImport
+	ToolDrop           = toolmeta.ToolDrop
+	ToolImportsList    = toolmeta.ToolImportsList
+	ToolLabelTables    = toolmeta.ToolLabelTables
+	ToolLabelResolve   = toolmeta.ToolLabelResolve
 
-	DescInspect        = mcptools.DescInspect
-	DescPredict        = mcptools.DescPredict
-	DescProcess        = mcptools.DescProcess
-	DescProcessChain   = mcptools.DescProcessChain
-	DescCompose        = mcptools.DescCompose
-	DescSample         = mcptools.DescSample
-	DescFacet          = mcptools.DescFacet
-	DescFacetSchema    = mcptools.DescFacetSchema
-	DescSkillsList     = mcptools.DescSkillsList
-	DescSkillsGet      = mcptools.DescSkillsGet
-	DescManifest       = mcptools.DescManifest
-	DescExamplesSearch = mcptools.DescExamplesSearch
-	DescExamplesGet    = mcptools.DescExamplesGet
-	DescErrorsLookup   = mcptools.DescErrorsLookup
-	DescImport         = mcptools.DescImport
-	DescDrop           = mcptools.DescDrop
-	DescImportsList    = mcptools.DescImportsList
-	DescLabelTables    = mcptools.DescLabelTables
-	DescLabelResolve   = mcptools.DescLabelResolve
+	DescInspect        = toolmeta.DescInspect
+	DescPredict        = toolmeta.DescPredict
+	DescProcess        = toolmeta.DescProcess
+	DescProcessChain   = toolmeta.DescProcessChain
+	DescCompose        = toolmeta.DescCompose
+	DescSample         = toolmeta.DescSample
+	DescFacet          = toolmeta.DescFacet
+	DescFacetSchema    = toolmeta.DescFacetSchema
+	DescSkillsList     = toolmeta.DescSkillsList
+	DescSkillsGet      = toolmeta.DescSkillsGet
+	DescManifest       = toolmeta.DescManifest
+	DescExamplesSearch = toolmeta.DescExamplesSearch
+	DescExamplesGet    = toolmeta.DescExamplesGet
+	DescErrorsLookup   = toolmeta.DescErrorsLookup
+	DescImport         = toolmeta.DescImport
+	DescDrop           = toolmeta.DescDrop
+	DescImportsList    = toolmeta.DescImportsList
+	DescLabelTables    = toolmeta.DescLabelTables
+	DescLabelResolve   = toolmeta.DescLabelResolve
 )
 
 // ToolMeta is the canonical (name, description) record for one registered
-// MCP tool. Alias of mcptools.ToolMeta so callers do not need to import
+// MCP tool. Alias of toolmeta.ToolMeta so callers do not need to import
 // the sub-package directly.
-type ToolMeta = mcptools.ToolMeta
+type ToolMeta = toolmeta.ToolMeta
 
 // RegisteredToolsMeta returns the canonical list of MCP tools with their
 // description strings.
 func RegisteredToolsMeta() []ToolMeta {
-	return mcptools.Meta()
+	return toolmeta.Meta()
 }
 
 // RegisteredTools returns the canonical list of MCP tool names exposed by
 // this server. Order is stable for deterministic documentation scans.
 func RegisteredTools() []string {
-	return mcptools.Names()
+	return toolmeta.Names()
 }
 
 // registerTools mounts every built-in MCP tool onto the go-sdk server via the
