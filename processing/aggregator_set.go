@@ -75,8 +75,6 @@ func resolveMaskLabels(mask uint64, dict *encoding.Dictionary) []string {
 	return out
 }
 
-// --- AGG_SET_UNION -------------------------------------------------
-//
 // Bitwise OR across rows. Result = mask of every bit set in any row.
 // Rich value = resolved labels sorted by bit order (ascending).
 
@@ -166,8 +164,6 @@ func (a *setUnionAggregator) Components() (map[string]any, error) {
 	}, nil
 }
 
-// --- AGG_SET_INTERSECTION ------------------------------------------
-//
 // Bitwise AND across rows. Result = mask of bits set in every
 // contributing row. seen tracks whether any non-null row arrived;
 // empty input returns the zero mask.
@@ -287,8 +283,6 @@ func (a *setIntersectionAggregator) Components() (map[string]any, error) {
 	}, nil
 }
 
-// --- AGG_SET_FREQUENCY ---------------------------------------------
-//
 // Per-bit count: how many rows had bit i set. Rich value = map from
 // resolved label to row count, omitting labels with zero count.
 // Scalar fallback = max-bin count (highest single-label frequency),
@@ -481,8 +475,6 @@ func (a *setFrequencyAggregator) Components() (map[string]any, error) {
 	}, nil
 }
 
-// --- AGG_SET_CARDINALITY_SUM ---------------------------------------
-//
 // Sum of popcounts across contributing rows. Scalar; summable; no rich
 // value.
 
@@ -554,8 +546,6 @@ func (a *setCardinalitySumAggregator) MergeOnline(other OnlineAggregator) error 
 	return nil
 }
 
-// --- AGG_SET_CARDINALITY_AVG ---------------------------------------
-//
 // Average popcount per contributing row. Merge via summed totals and
 // counts (mean-reducible margin). Empty input returns 0.
 
@@ -655,8 +645,6 @@ func (a *setCardinalityAvgAggregator) MergeOnline(other OnlineAggregator) error 
 	return nil
 }
 
-// --- AGG_SET_DISTINCT_VALUES ---------------------------------------
-//
 // Distinct exact mask values seen — treats each (possibly empty)
 // combination as atomic. Mergeable via set union of seen masks.
 

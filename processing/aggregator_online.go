@@ -21,8 +21,6 @@ import (
 // so the streaming output matches the buffered (two-pass) output to
 // float64 precision on well-conditioned inputs.
 
-// --- Count (online) ---
-
 func (a *countAggregator) UpdateRow(r *Record, field string) error {
 	if _, ok := r.NumericValue(field); ok {
 		a.n++
@@ -35,8 +33,6 @@ func (a *countAggregator) Finalize() (float64, error) {
 	a.n = 0
 	return out, nil
 }
-
-// --- Sum (online) ---
 
 func (a *sumAggregator) UpdateRow(r *Record, field string) error {
 	if v, ok := r.NumericValue(field); ok {
@@ -51,8 +47,6 @@ func (a *sumAggregator) Finalize() (float64, error) {
 	a.sum = 0
 	return out, nil
 }
-
-// --- Average (online) ---
 
 func (a *averageAggregator) UpdateRow(r *Record, field string) error {
 	if v, ok := r.NumericValue(field); ok {
@@ -73,8 +67,6 @@ func (a *averageAggregator) Finalize() (float64, error) {
 	a.sum, a.n = 0, 0
 	return out, nil
 }
-
-// --- Min (online) ---
 
 func (a *minAggregator) UpdateRow(r *Record, field string) error {
 	v, ok := r.NumericValue(field)
@@ -99,8 +91,6 @@ func (a *minAggregator) Finalize() (float64, error) {
 	return out, nil
 }
 
-// --- Max (online) ---
-
 func (a *maxAggregator) UpdateRow(r *Record, field string) error {
 	v, ok := r.NumericValue(field)
 	if !ok {
@@ -123,8 +113,6 @@ func (a *maxAggregator) Finalize() (float64, error) {
 	a.max, a.seen = 0, false
 	return out, nil
 }
-
-// --- Range (online) ---
 
 func (a *rangeAggregator) UpdateRow(r *Record, field string) error {
 	v, ok := r.NumericValue(field)
@@ -156,8 +144,6 @@ func (a *rangeAggregator) Finalize() (float64, error) {
 	return out, nil
 }
 
-// --- Variance (online, Welford) ---
-//
 // Welford's algorithm:
 //   n      += 1
 //   delta   = x - mean
@@ -190,8 +176,6 @@ func (a *varianceAggregator) Finalize() (float64, error) {
 	return out, nil
 }
 
-// --- StdDev (online, Welford → sqrt) ---
-
 func (a *stdDevAggregator) UpdateRow(r *Record, field string) error {
 	v, ok := r.NumericValue(field)
 	if !ok {
@@ -216,8 +200,6 @@ func (a *stdDevAggregator) Finalize() (float64, error) {
 	return out, nil
 }
 
-// --- Skewness (online, Welford-Pébaÿ central moments through M3) ---
-//
 // Uses the standard recurrences for higher central moments:
 //   delta     = x - mean
 //   delta_n   = delta / n
@@ -266,8 +248,6 @@ func (a *skewnessAggregator) Finalize() (float64, error) {
 	return out, nil
 }
 
-// --- Kurtosis (online, Welford-Pébaÿ through M4) ---
-//
 // Recurrences (extending the M3 recurrence):
 //   delta     = x - mean
 //   delta_n   = delta / n
@@ -317,8 +297,6 @@ func (a *kurtosisAggregator) Finalize() (float64, error) {
 	return out, nil
 }
 
-// --- DistinctCount (online: running set) ---
-
 func (a *distinctCountAggregator) UpdateRow(r *Record, field string) error {
 	v, ok := r.NumericValue(field)
 	if !ok {
@@ -341,8 +319,6 @@ func (a *distinctCountAggregator) Finalize() (float64, error) {
 	a.set = nil
 	return out, nil
 }
-
-// --- Frequency (online: running histogram, returns max count) ---
 
 func (a *frequencyAggregator) UpdateRow(r *Record, field string) error {
 	v, ok := r.NumericValue(field)
@@ -390,8 +366,6 @@ func (a *frequencyAggregator) Finalize() (float64, error) {
 	a.counts = nil
 	return float64(maxCount), nil
 }
-
-// --- Mode (online: running histogram, returns smallest most-frequent value) ---
 
 func (a *modeAggregator) UpdateRow(r *Record, field string) error {
 	v, ok := r.NumericValue(field)
@@ -441,8 +415,6 @@ func (a *modeAggregator) Finalize() (float64, error) {
 	return result, nil
 }
 
-// --- NullCount (online) ---
-
 func (a *nullCountAggregator) UpdateRow(r *Record, field string) error {
 	if _, ok := r.NumericValue(field); !ok {
 		a.nNull++
@@ -456,8 +428,6 @@ func (a *nullCountAggregator) Finalize() (float64, error) {
 	return out, nil
 }
 
-// --- Mergeable implementations (per-shard parallel reduce) ---
-//
 // MergeOnline folds another aggregator instance's state into the
 // receiver. Implementations assume the other instance was constructed
 // from the same Aggregation spec; the per-shard parallel orchestrator

@@ -21,8 +21,6 @@ import (
 // in a follow-up once a `CohortAwareAggregator` interface or a global
 // pre-pass hook exists.
 
-// --- AGG_WEIGHTED_MEAN ---------------------------------------------
-
 type weightedMeanParams struct {
 	WeightField string `json:"weight_field"`
 }
@@ -198,8 +196,6 @@ func (a *weightedMeanAggregator) MergeOnline(other OnlineAggregator) error {
 	return nil
 }
 
-// --- AGG_RATIO ------------------------------------------------------
-
 type ratioParams struct {
 	NumeratorField   string `json:"numerator_field"`
 	DenominatorField string `json:"denominator_field"`
@@ -343,8 +339,6 @@ func (a *ratioAggregator) MergeOnline(other OnlineAggregator) error {
 	a.den += b.den
 	return nil
 }
-
-// --- AGG_CI_LOWER / AGG_CI_UPPER (normal method) --------------------
 
 type ciParams struct {
 	Confidence float64 `json:"confidence"`
