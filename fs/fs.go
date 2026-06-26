@@ -60,12 +60,10 @@ func New(opts ...Option) (*Config, error) {
 		opt(cfg)
 	}
 
-	// If a custom FS was injected, use it directly.
 	if cfg.fs != nil {
 		return cfg, nil
 	}
 
-	// Default to OsFs rooted at the data directory.
 	if cfg.dataDir == "" {
 		return nil, errors.New("data directory required: set WithDataDir or use Default()")
 	}
