@@ -213,7 +213,7 @@ func axisStreamable(axis []*types.Group, schema *encoding.Schema, ext *Extension
 			// Construction failure surfaces as a buffered fallback —
 			// the buffered path's RunCrosstab will surface the same
 			// error with a richer code, and the gate just needs to
-			// decline fusion. Mirror the legacy reason shape.
+			// decline fusion. Mirror the reason shape the other branches return.
 			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
 		}
 		if _, ok := instance.(StreamableGrouper); !ok {

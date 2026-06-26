@@ -9,7 +9,7 @@
 // still need to verify a reference cell is `Present` at the matching
 // (row_key, col_key) tuple before falling through to the scalar +
 // Params additive contract. The lookup carries the raw cell payload
-// untouched — the migrated handler reads scalar fallback values via
+// untouched — the handler reads scalar fallback values via
 // `scalarFromCell` only when CellComponents is absent.
 package processing
 
@@ -21,7 +21,7 @@ import (
 // a `(rowKey, colKey) → MatrixCell` lookup table that PRESERVES the
 // raw cell payload (Value + Present). Used by OVERLAY_T_CELL /
 // OVERLAY_Z_CELL to gate cell presence on the reference side; the
-// migrated handlers consume `(mean, variance, n)` from
+// handlers consume `(mean, variance, n)` from
 // Response.Components.Crosstab.CellComponents[r][c] (looked up by the
 // matching (r, c) coordinate via `buildMatrixCellCoordLookup`) and
 // fall back to the scalar arm via `scalarFromCell` when the

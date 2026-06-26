@@ -387,8 +387,6 @@ func toFloat64(v any) float64 {
 	return math.NaN()
 }
 
-// ---------- value extractors shared across post-test impls ----------
-
 func floatFromRow(row map[string]any, field string, idx int) (float64, error) {
 	v, ok := row[field]
 	if !ok {

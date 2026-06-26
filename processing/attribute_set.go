@@ -13,8 +13,6 @@ import (
 // RowLocalAttribute: a single row's set mask determines the derived
 // value, no population pass required.
 
-// --- ATTR_SET_POPCOUNT ---------------------------------------------
-//
 // Derive scalar uint8 per row = popcount(mask). Null input rows yield
 // 0 (consistent with other row-local attribute paths that surface 0
 // for null inputs through Compute).
@@ -60,8 +58,6 @@ func (a *setPopcountAttribute) Row(r *Record, field string) (float64, error) {
 	return float64(bits.OnesCount64(m)), nil
 }
 
-// --- ATTR_SET_HAS ---------------------------------------------------
-//
 // Derive bool (0/1) per row = whether the named label's bit is set.
 // Resolved at construction via the field's dictionary so per-row work
 // is a single bitwise op against a precomputed bit position.

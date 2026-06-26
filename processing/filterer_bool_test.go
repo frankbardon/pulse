@@ -36,8 +36,6 @@ func buildFilter(t *testing.T, ft types.FiltererType, field string, values []str
 	return builder.Build(&types.Filterer{Type: ft, Field: field, Values: values}, schema)
 }
 
-// --- Strict mode ---
-
 func TestFilterer_True_Strict_PackedBool(t *testing.T) {
 	schema := boolSchema()
 	fn, err := buildFilter(t, types.FILTER_TRUE, "flag", nil, schema)
@@ -147,8 +145,6 @@ func TestFilterer_True_StrictExplicit(t *testing.T) {
 		t.Fatalf("explicit strict should build: %v", err)
 	}
 }
-
-// --- Truthy (opt-in JS coercion) ---
 
 func TestFilterer_True_Truthy_Numeric(t *testing.T) {
 	schema := boolSchema()

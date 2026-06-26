@@ -42,8 +42,6 @@ func resolveSetGrouperDict(grp *types.Group, schema *encoding.Schema) (*encoding
 	return f.Dictionary, nil
 }
 
-// --- GROUP_SET_VALUE ------------------------------------------------
-//
 // Atomic mask = bucket. Key stringified as sorted label list
 // (pipe-delimited). Empty mask = "" key, matching how other groupers
 // stringify the zero value.
@@ -217,8 +215,6 @@ func (g *setValueGrouper) Components() (map[string]any, error) {
 	}, nil
 }
 
-// --- GROUP_SET_PER_ELEMENT ------------------------------------------
-//
 // Per-bit fan-out. One row → one bucket per set bit. Empty-mask rows
 // contribute to zero buckets (consistent with skipping nulls). The
 // same record pointer is shared across all destination buckets — the

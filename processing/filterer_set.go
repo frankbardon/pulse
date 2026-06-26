@@ -61,8 +61,6 @@ func buildSetQueryMask(filter *types.Filterer, schema *encoding.Schema) (uint64,
 	return mask, nil
 }
 
-// --- FILTER_SET_CONTAINS_ANY ----------------------------------------
-//
 // Keep rows where the set shares at least one bit with the query mask.
 
 type setContainsAnyFilterer struct{}
@@ -87,8 +85,6 @@ func (f *setContainsAnyFilterer) Build(filter *types.Filterer, schema *encoding.
 	}, nil
 }
 
-// --- FILTER_SET_CONTAINS_ALL ----------------------------------------
-//
 // Keep rows where every bit in the query mask is also set in the row.
 
 type setContainsAllFilterer struct{}
@@ -110,8 +106,6 @@ func (f *setContainsAllFilterer) Build(filter *types.Filterer, schema *encoding.
 	}, nil
 }
 
-// --- FILTER_SET_CONTAINS_NONE ---------------------------------------
-//
 // Keep rows where the row shares no bits with the query mask. Null
 // rows pass (consistent with FILTER_EXCLUDE).
 
@@ -134,8 +128,6 @@ func (f *setContainsNoneFilterer) Build(filter *types.Filterer, schema *encoding
 	}, nil
 }
 
-// --- FILTER_SET_EQUALS ----------------------------------------------
-//
 // Keep rows whose mask exactly matches the query mask. Useful with
 // GROUP_SET_VALUE for atomic-combination filtering.
 

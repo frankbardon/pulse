@@ -20,8 +20,6 @@ import (
 // the row-source differs (result rows vs raw records) but the
 // statistic and p-value derivation are identical.
 
-// ---------- TEST_PAIRED_T tier-2 ----------
-
 // pairedTPost: one-sample t-test on per-row diff d = field − field2
 // across result rows. Use case: before/after metrics that surface as
 // two columns per group row (e.g. pre_mean vs post_mean produced by
@@ -101,8 +99,6 @@ func (p *pairedTPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		},
 	}, nil
 }
-
-// ---------- TEST_SPEARMAN_R tier-2 ----------
 
 // spearmanRPost: rank-based correlation between two result columns.
 // Mid-rank each column independently then compute Pearson r on the
@@ -207,8 +203,6 @@ func (s *spearmanRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	}
 	return res, nil
 }
-
-// ---------- TEST_KENDALL_TAU tier-2 ----------
 
 // kendallTauPost: concordance-based correlation (τ-b) between two
 // result columns. O(n²) pair count over result rows.
@@ -340,8 +334,6 @@ func (k *kendallTauPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	return res, nil
 }
 
-// ---------- TEST_WILCOXON_SR tier-2 ----------
-
 // wilcoxonSRPost: paired nonparametric on (field, field2) across
 // result rows. Drops zero diffs; mid-ranks |d| with tie correction.
 // Same asymptotic z formula as tier-1.
@@ -455,8 +447,6 @@ func (w *wilcoxonSRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	}
 	return res, nil
 }
-
-// ---------- TEST_ANOVA_WELCH tier-2 ----------
 
 // anovaWelchPost: heteroscedasticity-robust one-way ANOVA over result
 // rows partitioned by split_by. Pulls per-group n, mean, and variance
@@ -591,8 +581,6 @@ func (a *anovaWelchPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	}, nil
 }
 
-// ---------- TEST_BROWN_FORSYTHE tier-2 ----------
-
 // brownForsythePost: median-based variance homogeneity on result rows
 // grouped by split_by. Computes per-group median, then runs one-way
 // ANOVA on |x_ij − median_i|. Result rows carry the raw values (not
@@ -706,8 +694,6 @@ func (b *brownForsythePost) Run(rows []map[string]any) (*types.TestResult, error
 	}, nil
 }
 
-// ---------- TEST_SHAPIRO_WILK tier-2 ----------
-
 // shapiroWilkPost: normality test on a result column. Optional
 // split_by emits per-group results. Same Shapiro-Francia approximation
 // as tier-1.
@@ -810,8 +796,6 @@ func (s *shapiroWilkPost) Run(rows []map[string]any) (*types.TestResult, error) 
 	res.Warnings = append(res.Warnings, headlineWarn...)
 	return res, nil
 }
-
-// ---------- TEST_KS tier-2 ----------
 
 // ksPost: two-sample Kolmogorov-Smirnov over result rows partitioned
 // by split_by. Same Smirnov asymptotic p as tier-1.

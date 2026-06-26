@@ -13,8 +13,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// --- ZScore Attribute ---
-
 // zscoreAttribute computes (x - mean) / stddev per row using
 // population mean/stddev derived in pass 1 via Welford-Pébaÿ. Implements
 // TwoPassAttribute so the streaming path can avoid buffering the
@@ -89,8 +87,6 @@ func (a *zscoreAttribute) Compute(records []*Record, field string) ([]float64, e
 	return result, nil
 }
 
-// --- TScore Attribute ---
-
 // tscoreAttribute emits z*10+50 per row using population mean/stddev
 // from a Welford pass 1. Implements TwoPassAttribute.
 type tscoreAttribute struct {
@@ -159,8 +155,6 @@ func (a *tscoreAttribute) Compute(records []*Record, field string) ([]float64, e
 	return result, nil
 }
 
-// --- Normalized Attribute ---
-
 // normalizedAttribute emits (x-min)/(max-min) per row using population
 // min/max from a Welford-shaped pass 1. Implements TwoPassAttribute.
 type normalizedAttribute struct {
@@ -227,8 +221,6 @@ func (a *normalizedAttribute) Compute(records []*Record, field string) ([]float6
 	}
 	return result, nil
 }
-
-// --- Formula Attribute ---
 
 type formulaAttribute struct {
 	expression string
@@ -309,8 +301,6 @@ func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 	}
 }
 
-// --- Percentile Attribute ---
-
 type percentileAttribute struct{}
 
 func newPercentileAttribute(_ *types.Attribute, _ *encoding.Schema) (AttributeComputer, error) {
@@ -353,8 +343,6 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 	}
 	return result, nil
 }
-
-// --- DatePart Attribute ---
 
 // datePartParams holds the configuration for ATTR_DATE_PART.
 type datePartParams struct {

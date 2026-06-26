@@ -11,8 +11,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// --- Include Filter ---
-
 type includeFilterer struct{}
 
 func newIncludeFilterer() FiltererBuilder {
@@ -50,8 +48,6 @@ func (f *includeFilterer) Build(filter *types.Filterer, schema *encoding.Schema)
 		return valueSet[v], nil
 	}, nil
 }
-
-// --- Exclude Filter ---
 
 type excludeFilterer struct{}
 
@@ -91,8 +87,6 @@ func (f *excludeFilterer) Build(filter *types.Filterer, schema *encoding.Schema)
 	}, nil
 }
 
-// --- Range Filter ---
-
 type rangeFilterer struct{}
 
 func newRangeFilterer() FiltererBuilder {
@@ -124,8 +118,6 @@ func (f *rangeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (
 		return v >= minVal && v <= maxVal, nil
 	}, nil
 }
-
-// --- Expression Filter ---
 
 type expressionFilterer struct {
 	exts *ExtensionRegistry
@@ -172,8 +164,6 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	}, nil
 }
 
-// --- Null Filter ---
-
 // nullFilterer keeps or drops records based on the null state of one
 // field. Mode is carried in Filterer.Values[0] as "is_null" /
 // "is_not_null" — no struct change required on Filterer for this small
@@ -213,8 +203,6 @@ func (f *nullFilterer) Build(filter *types.Filterer, _ *encoding.Schema) (Filter
 		return present, nil
 	}, nil
 }
-
-// --- Boolean (FILTER_TRUE / FILTER_FALSE) ---
 
 // boolFilterer keeps records whose Field is logically true (want=true) or
 // logically false (want=false). Default (strict) mode requires Field to

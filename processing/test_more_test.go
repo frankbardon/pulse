@@ -9,8 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ---------- TEST_CHISQ ----------
-
 // TestChiSquare_2x2_Independence verifies a hand-computed reference:
 //
 //	         A    B   total
@@ -79,8 +77,6 @@ func TestChiSquare_DegenerateContingency(t *testing.T) {
 		t.Errorf("error = %v, want PULSE_TEST_CONTINGENCY_DEGENERATE", err)
 	}
 }
-
-// ---------- TEST_ANOVA_F ----------
 
 // TestAnovaF_KnownStatistic verifies a hand-computed reference:
 // three groups [3..7], [4..8], [5..9] each n=5 with sample variance 2.5.
@@ -164,8 +160,6 @@ func TestAnovaF_LargeEffectRejects(t *testing.T) {
 	}
 }
 
-// ---------- TEST_KS ----------
-
 // TestKS_FullySeparatedSamples: two disjoint ranges → D=1, p very small.
 func TestKS_FullySeparatedSamples(t *testing.T) {
 	schema := twoSampleFixtureSchema()
@@ -225,8 +219,6 @@ func TestKS_IdenticalDistributions(t *testing.T) {
 	}
 }
 
-// ---------- Tier-2 ANOVA from summary ----------
-
 // TestAnovaPost_MatchesRowAnova: feeding the per-group summary stats
 // from the row-test fixture into anovaPost reproduces the same F/p.
 func TestAnovaPost_MatchesRowAnova(t *testing.T) {
@@ -259,8 +251,6 @@ func TestAnovaPost_MatchesRowAnova(t *testing.T) {
 		t.Errorf("variant = %s, want one_way_from_summary", res.Variant)
 	}
 }
-
-// ---------- Tier-2 TEST_TREND (Mann-Kendall) ----------
 
 // TestTrendPost_MonotonicIncreasing: strict monotone series → S = n(n-1)/2.
 // For n=8: S = 28, Var(S) = 65.33, Z = 27/sqrt(65.33) ≈ 3.34, p ≈ 0.0008.
@@ -349,8 +339,6 @@ func TestTrendPost_OrderingApplied(t *testing.T) {
 	}
 }
 
-// ---------- helpers ----------
-
 func chiSquareFixtureSchema() *encoding.Schema {
 	kindDict := encoding.NewDictionary()
 	outcomeDict := encoding.NewDictionary()
@@ -371,8 +359,6 @@ func chiSquareTestRecord(t *testing.T, schema *encoding.Schema, kind, outcome st
 		"outcome": float64(outcomeID),
 	})
 }
-
-// ---------- Tier-2 TEST_PEARSON_R ----------
 
 // TestPearsonRPost_PerfectPositive: y = 2x + 3 over 5 result rows; r must
 // be exactly 1 (clamped from float drift). p ≈ 0, df = n − 2.

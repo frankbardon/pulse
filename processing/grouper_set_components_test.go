@@ -9,8 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// --- GROUP_SET_VALUE -----------------------------------------------
-
 // makeSetU16Schema builds a one-field schema with a set_u16 column
 // whose dictionary holds nine fruits — exercises the set_u16 wire
 // width as a sibling fixture to makeSetTestSchema (set_u8).
@@ -289,8 +287,6 @@ func TestGrouper_SetValue_Components_SetU16Field(t *testing.T) {
 		t.Errorf("bucket labels = %v, want %v", labels, wantLabels)
 	}
 }
-
-// --- GROUP_SET_PER_ELEMENT -----------------------------------------
 
 func TestGrouper_SetPerElement_Components_EmptyCohort(t *testing.T) {
 	schema := makeSetTestSchema(t)

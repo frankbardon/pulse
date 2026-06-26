@@ -1257,8 +1257,8 @@ func populateCrosstabComponents(resp *types.Response,
 		// pair, distinguishing "no data" (nil) from "data with empty
 		// operator payload" (non-nil map with floor only). The outer
 		// matrix is allocated only when cellComponents is non-nil so
-		// legacy callsites that pre-date CellComponents emit a
-		// CellCounts-only payload.
+		// callsites that omit CellComponents emit a CellCounts-only
+		// payload.
 		if cellComponents != nil {
 			compMatrix := make([][]map[string]any, len(rowKeys))
 			for i, rk := range rowKeys {

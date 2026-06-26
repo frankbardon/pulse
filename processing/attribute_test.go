@@ -22,8 +22,6 @@ func makeAttribute(t *testing.T, attrType types.AttributeType, field string, sch
 	return attr
 }
 
-// --- ZScore Attribute ---
-
 func TestAttribute_ZScore_Basic(t *testing.T) {
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_ZSCORE, "score", schema, "")
@@ -78,8 +76,6 @@ func TestAttribute_ZScore_SingleValue(t *testing.T) {
 	}
 }
 
-// --- TScore Attribute ---
-
 func TestAttribute_TScore_Basic(t *testing.T) {
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_TSCORE, "score", schema, "")
@@ -101,8 +97,6 @@ func TestAttribute_TScore_Basic(t *testing.T) {
 		t.Errorf("tscore[0] = %f, want 35.0", result[0])
 	}
 }
-
-// --- Normalized Attribute ---
 
 func TestAttribute_Normalized_Basic(t *testing.T) {
 	schema := numericSchema()
@@ -144,8 +138,6 @@ func TestAttribute_Normalized_AllSame(t *testing.T) {
 		}
 	}
 }
-
-// --- Formula Attribute ---
 
 func TestAttribute_Formula_Basic(t *testing.T) {
 	schema := numericSchema()
@@ -215,8 +207,6 @@ func TestFormulaAttribute_CategoricalInOperator(t *testing.T) {
 	}
 }
 
-// --- Percentile Attribute ---
-
 func TestAttribute_Percentile_Basic(t *testing.T) {
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_PERCENTILE, "score", schema, "")
@@ -247,8 +237,6 @@ func TestAttribute_RankRemoved(t *testing.T) {
 		t.Error("ATTR_RANK still registered; expected removal in favor of WIN_RANK")
 	}
 }
-
-// --- DatePart Attribute ---
 
 func dateSchema() *encoding.Schema {
 	return &encoding.Schema{

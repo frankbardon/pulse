@@ -24,8 +24,6 @@ func makeGrouper(t *testing.T, groupType types.GroupType, field string, interval
 	return g
 }
 
-// --- Category Grouper ---
-
 func TestGrouper_Category_NumericField(t *testing.T) {
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_CATEGORY, "age", 0, schema)
@@ -110,8 +108,6 @@ func TestGrouper_Category_NullHandling(t *testing.T) {
 	}
 }
 
-// --- Rounded Grouper ---
-
 func TestGrouper_Rounded_Basic(t *testing.T) {
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_ROUNDED, "age", 10, schema)
@@ -168,8 +164,6 @@ func TestGrouper_Rounded_Empty(t *testing.T) {
 		t.Errorf("group count = %d, want 0", len(groups))
 	}
 }
-
-// --- Range Grouper ---
 
 func TestGrouper_Range_Basic(t *testing.T) {
 	schema := numericSchema()
@@ -330,8 +324,6 @@ func TestGrouper_Range_NullHandling(t *testing.T) {
 		t.Errorf("group count = %d, want 1 (nulls skipped), groups: %v", len(groups), groupKeys(groups))
 	}
 }
-
-// --- Quantile Grouper ---
 
 func TestGrouper_Quantile_Quartiles(t *testing.T) {
 	schema := numericSchema()
@@ -517,8 +509,6 @@ func TestGrouper_Quantile_KeyPrefixes(t *testing.T) {
 		})
 	}
 }
-
-// --- Date Grouper ---
 
 func epochDays(year int, month time.Month, day int) float64 {
 	return float64(time.Date(year, month, day, 0, 0, 0, 0, time.UTC).Unix() / 86400)

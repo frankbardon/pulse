@@ -33,8 +33,7 @@ import (
 // `n` keys are missing or non-numeric.
 //
 // Callers route a (false, false) outcome through the scalar + Params
-// fallback path the legacy WelfordTriple consumer used for the
-// scalar-cell case.
+// fallback path for the scalar-cell case.
 func extractCellComponentsTriple(resp *types.Response, r, c int) (mean, variance, n float64, ok bool) {
 	if resp == nil || resp.Components == nil || resp.Components.Crosstab == nil {
 		return 0, 0, 0, false
@@ -93,7 +92,7 @@ func componentsNumeric(m map[string]any, key string) (float64, bool) {
 }
 
 // seriesRowComponents carries the per-row triple-aware value for the
-// ref lookup map used by the migrated OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF
+// ref lookup map used by the OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF
 // SERIES handlers. Exactly one of (HasScalar, HasTriple) is true when
 // the entry is addressable; both false means the row had no numeric /
 // map-shaped value column.
@@ -195,7 +194,7 @@ func tripleProbe(v any) (map[string]any, float64, float64, float64, bool) {
 }
 
 // matrixCellCoord is the (r, c) integer-pair returned by
-// buildMatrixCellCoordLookup so the migrated MATRIX-shape parity
+// buildMatrixCellCoordLookup so the MATRIX-shape parity
 // overlay handlers can recover the reference response's CellComponents
 // index from its (row_key, col_key) tuple. Same shape as the existing
 // matrixCellLookupKey but the value carries the index pair, not the
