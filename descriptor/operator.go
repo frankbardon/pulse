@@ -150,7 +150,7 @@ type DistributionMeta struct {
 }
 
 // MCPTool describes a single registered MCP tool. One entry per
-// internal/mcp.RegisteredTools() value.
+// gosdk.RegisteredTools() value.
 type MCPTool struct {
 	// Name is the tool identifier (e.g. "pulse_predict").
 	Name string `json:"name"`

@@ -15,7 +15,7 @@ import (
 // func(ctx, *pulse.Pulse, In) (Out, error) per registered MCP tool. Each
 // handler calls the public facade exclusively and returns the facade's
 // errors verbatim — coded errors are never flattened to strings here; the
-// adapter (internal/mcp / mcp/gosdk) renders a *errors.CodedError as the
+// adapter (mcp/gosdk) renders a *errors.CodedError as the
 // structured {code, message, details} envelope. The type-erased
 // ToolDescriptor.Invoke (tools.go) wraps these with strict unmarshal.
 

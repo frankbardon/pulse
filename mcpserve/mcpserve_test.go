@@ -14,7 +14,7 @@ import (
 
 // TestServe_InitializeRoundTrip drives the public facade end-to-end: it sends
 // an MCP initialize request over an in-memory transport and asserts the
-// server identifies itself. This proves Serve wires internal/mcp through to a
+// server identifies itself. This proves Serve wires the mcp/gosdk adapter through to a
 // working JSON-RPC loop.
 func TestServe_InitializeRoundTrip(t *testing.T) {
 	p, err := pulse.New(pulse.Options{DataDir: t.TempDir()})

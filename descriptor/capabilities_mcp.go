@@ -8,7 +8,7 @@ import (
 
 // mcpToolCapabilities mirrors toolmeta.Meta() into the manifest payload.
 // Sorted by name for deterministic output. We depend on the public leaf
-// mcp/toolmeta package (not internal/mcp itself) to avoid an import
+// mcp/toolmeta package (not the SDK adapter itself) to avoid an import
 // cycle with the root pulse package.
 // TestManifestMCPToolsComplete enforces coverage.
 func mcpToolCapabilities() []MCPTool {

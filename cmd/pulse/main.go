@@ -54,7 +54,7 @@ func buildApp() *cli.Command {
 			pcli.SkillsCommand(),
 			pcli.ExamplesCommand(),
 			pcli.ErrorsCommand(),
-			pcli.MCPCommand(),
+			pcli.MCPCommand(version),
 			pcli.SchemaCommand(),
 			pcli.SynthCommand(),
 			pcli.ProfileCommand(),

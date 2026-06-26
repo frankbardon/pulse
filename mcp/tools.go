@@ -15,7 +15,7 @@ import (
 // threaded in explicitly.
 //
 // Version is the server/build identity string. No built-in tool surfaces it
-// today, but the adapter (internal/mcp / mcp/gosdk) reads it to populate the
+// today, but the adapter (mcp/gosdk) reads it to populate the
 // MCP server's Implementation.Version rather than a package-level constant.
 // Reserved here so the single Config value is the one place runtime identity
 // is injected.

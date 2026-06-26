@@ -7,8 +7,8 @@
 // The package is pure data: it imports no MCP SDK and no execution package,
 // which lets descriptor source the tool list without producing an import
 // cycle (descriptor is itself imported by the MCP layer, which depends on
-// the root pulse package). TestRegisteredToolsMeta_MatchesRegisteredTools in
-// internal/mcp asserts the values stay in lockstep with server registration.
+// the root pulse package). The mcp/gosdk adapter's RegisteredTools() mirrors
+// Names(), keeping these values in lockstep with server registration.
 package toolmeta
 
 // Tool name constants. Kept in alphabetical-by-constant order so the
@@ -67,7 +67,7 @@ type ToolMeta struct {
 }
 
 // Meta returns the canonical list of MCP tool metadata. Order matches
-// internal/mcp.RegisteredTools() for deterministic documentation scans.
+// gosdk.RegisteredTools() for deterministic documentation scans.
 func Meta() []ToolMeta {
 	return []ToolMeta{
 		{Name: ToolInspect, Description: DescInspect},
