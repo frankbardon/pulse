@@ -51,15 +51,17 @@ func NewWithOptions(p *pulse.Pulse, opts Options) *mcpsdk.Server {
 		Version: SpecVersion,
 	}, nil)
 
-	// TODO(E1-S2): registerTools(s, p, opts.BindOnOpen) — port tools.go,
-	//   strict_decode.go, import_tools.go off the legacy SDK onto go-sdk.
+	// All 19 built-in tools register here on the go-sdk server (E1-S2).
+	registerTools(s, p, opts.BindOnOpen)
+
 	// TODO(E1-S3): registerResources(s, p) + registerPrompts(s) — port
 	//   resources.go and prompts.go.
-	// TODO(E1-S4): schema-bind-on-inspect — port schema_bind.go.
+	// TODO(E1-S4): schema-bind-on-inspect — port schema_bind.go. The
+	//   bind-on-inspect hook (bindSessionFromPath) is a no-op until then;
+	//   opts.BindOnOpen is threaded through registerTools so the wiring is
+	//   ready when the binder lands.
 	// The handler logic for the above lives in the build-ignored source files
 	// in this package and is migrated verbatim by the cited stories.
-	_ = p
-	_ = opts
 
 	return s
 }

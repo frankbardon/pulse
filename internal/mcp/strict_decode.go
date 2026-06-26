@@ -1,11 +1,3 @@
-//go:build ignore
-
-// TODO(E1-S2/S3/S4): not yet ported to github.com/modelcontextprotocol/go-sdk.
-// This file still targets mark3labs/mcp-go and is excluded from the build by
-// the constraint above. Handler logic is preserved verbatim; the per-file
-// migration stories (tools/strict_decode/import_tools -> E1-S2; resources/
-// prompts -> E1-S3; schema_bind -> E1-S4) remove this constraint as they port.
-
 package mcp
 
 import (
@@ -16,7 +8,6 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
 )
 
 // requestSlotKeys is the set of valid top-level JSON keys on a
@@ -211,15 +202,4 @@ func checkUnknownKeysChain(body []byte) *perr.CodedError {
 		}
 	}
 	return nil
-}
-
-// codedErrorResult wraps a CodedError as an MCP error result, serialising
-// the full {code, message, details} envelope so the caller receives the
-// structured suggestion payload rather than a bare string.
-func codedErrorResult(ce *perr.CodedError) *mcpgo.CallToolResult {
-	body, err := json.Marshal(ce)
-	if err != nil {
-		return mcpgo.NewToolResultError(ce.Error())
-	}
-	return mcpgo.NewToolResultError(string(body))
 }
