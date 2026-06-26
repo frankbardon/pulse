@@ -9,8 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ---------- TEST_PAIRED_T ----------
-
 // TestPairedT_KnownStatistic verifies a hand-computed reference. Paired
 // samples with constant +1 delta over 5 pairs: mean_diff=1, var=0, so
 // constant delta produces zero-variance error — instead use a small
@@ -95,8 +93,6 @@ func TestPairedT_NullPairDropped(t *testing.T) {
 	}
 }
 
-// ---------- TEST_PROP_Z ----------
-
 // TestPropZ_KnownStatistic verifies a hand-computed reference. Standard
 // textbook two-proportion z example:
 //
@@ -171,8 +167,6 @@ func TestPropZ_RequiresSuccessParam(t *testing.T) {
 		t.Errorf("error = %v, want PULSE_TEST_SUCCESS_VALUE_MISSING", err)
 	}
 }
-
-// ---------- TEST_PEARSON_R ----------
 
 // TestPearsonR_PerfectPositive: r = 1 on y = 2x + 3.
 func TestPearsonR_PerfectPositive(t *testing.T) {

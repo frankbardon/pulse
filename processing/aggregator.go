@@ -12,8 +12,9 @@ import (
 )
 
 // float64BufPool reuses []float64 working buffers across aggregations.
-// Buffers obtained from getFloat64Buf must be returned via putFloat64Buf
-// after use. Returned buffers have length 0; capacity is preserved.
+// Buffers obtained from acquireFloat64Buf must be returned via
+// releaseFloat64Buf after use. Returned buffers have length 0; capacity is
+// preserved.
 var float64BufPool = sync.Pool{
 	New: func() any {
 		// Pool stores *[]float64 to avoid allocating a slice header on each Put.
@@ -22,9 +23,8 @@ var float64BufPool = sync.Pool{
 	},
 }
 
-// acquireFloat64Buf retrieves a buffer pointer from the pool with at least
-// the requested capacity. The slice's length is 0. The returned pointer must
-// be returned via releaseFloat64Buf.
+// Returns a pool buffer with length 0 and cap ≥ minCap. Caller must return it
+// via releaseFloat64Buf.
 func acquireFloat64Buf(minCap int) *[]float64 {
 	bp := float64BufPool.Get().(*[]float64)
 	buf := (*bp)[:0]
@@ -35,8 +35,6 @@ func acquireFloat64Buf(minCap int) *[]float64 {
 	return bp
 }
 
-// releaseFloat64Buf returns a buffer pointer to the pool. The buffer's
-// underlying capacity is preserved; the length is reset to 0.
 func releaseFloat64Buf(bp *[]float64) {
 	if bp == nil {
 		return
@@ -58,9 +56,8 @@ func newCollectCache() *collectCache {
 	return &collectCache{bufs: make(map[string]*[]float64)}
 }
 
-// get returns the cached non-null float64 slice for field, populating the
-// cache on first access. The returned slice must NOT be mutated by the
-// caller; sort-dependent aggregators must copy first.
+// The returned slice must NOT be mutated; sort-dependent aggregators must
+// copy first.
 func (c *collectCache) get(records []*Record, field string) []float64 {
 	if c == nil {
 		return collectValues(records, field)
@@ -80,7 +77,6 @@ func (c *collectCache) get(records []*Record, field string) []float64 {
 	return buf
 }
 
-// release returns every buffer held by the cache to the pool.
 func (c *collectCache) release() {
 	if c == nil {
 		return
@@ -113,7 +109,6 @@ func collectValues(records []*Record, field string) []float64 {
 	return vals
 }
 
-// mean computes the arithmetic mean of a float64 slice.
 func mean(vals []float64) float64 {
 	if len(vals) == 0 {
 		return 0
@@ -125,7 +120,6 @@ func mean(vals []float64) float64 {
 	return sum / float64(len(vals))
 }
 
-// populationVariance computes population variance.
 func populationVariance(vals []float64) float64 {
 	if len(vals) == 0 {
 		return 0
@@ -139,7 +133,6 @@ func populationVariance(vals []float64) float64 {
 	return sumSq / float64(len(vals))
 }
 
-// populationStdDev computes population standard deviation.
 func populationStdDev(vals []float64) float64 {
 	return math.Sqrt(populationVariance(vals))
 }
@@ -178,8 +171,6 @@ func sumDeviationPowers(vals []float64, m float64, wantM4 bool) (m2, m3, m4 floa
 	return m2, m3, m4
 }
 
-// --- Count ---
-
 // countAggregator counts non-null values for a field. The streaming path
 // uses the n field; the buffered path ignores it (collectValues + len).
 //
@@ -202,8 +193,6 @@ func (a *countAggregator) Aggregate(records []*Record, field string) (float64, e
 func (a *countAggregator) aggregateValues(vals []float64) (float64, error) {
 	return float64(len(vals)), nil
 }
-
-// --- Sum ---
 
 // sumAggregator sums non-null values. The sum field is the running
 // accumulator on the streaming path; the buffered path stamps it via
@@ -232,8 +221,6 @@ func (a *sumAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenSum = sum
 	return sum, nil
 }
-
-// --- Average ---
 
 // averageAggregator tracks running sum and count for streaming mean.
 // frozenSum mirrors the final sum so Components() survives Finalize's
@@ -264,8 +251,6 @@ func (a *averageAggregator) aggregateValues(vals []float64) (float64, error) {
 	}
 	return sum / float64(len(vals)), nil
 }
-
-// --- Min ---
 
 // frozenMin survives Finalize's reset so Components() returns the same
 // value an immediately-prior Finalize emitted; the buffered path
@@ -300,8 +285,6 @@ func (a *minAggregator) aggregateValues(vals []float64) (float64, error) {
 	return m, nil
 }
 
-// --- Max ---
-
 // frozenMax mirrors max post-Finalize for Components().
 type maxAggregator struct {
 	max       float64
@@ -332,8 +315,6 @@ func (a *maxAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenMax = m
 	return m, nil
 }
-
-// --- StdDev ---
 
 // stdDevAggregator tracks Welford's running mean and M2 for streaming
 // computation. Buffered path ignores these and uses populationStdDev.
@@ -367,8 +348,6 @@ func (a *stdDevAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenM2 = sumSquaredDeviations(vals, a.frozenMean)
 	return populationStdDev(vals), nil
 }
-
-// --- Range ---
 
 // frozenMin/frozenMax mirror the bracketing extrema post-Finalize so
 // Components() can emit them; the buffered path populates via
@@ -406,8 +385,6 @@ func (a *rangeAggregator) aggregateValues(vals []float64) (float64, error) {
 	return maxV - minV, nil
 }
 
-// --- Frequency ---
-//
 // frequencyAggregator's scalar return is the modal count; Components()
 // adds the per-value cardinality plus the modal value (smallest-value
 // tie-break, matching AGG_MODE's deterministic ordering). frozenDistinct
@@ -469,8 +446,6 @@ func (a *frequencyAggregator) aggregateValues(vals []float64) (float64, error) {
 	return float64(maxCount), nil
 }
 
-// --- ZScore (aggregator) ---
-
 // zscoreAggregator is the buffered-only AGG_ZSCORE: it folds every
 // non-null value into a population mean and stddev, then returns the
 // mean of the standardized scores (always 0 by definition; emitted for
@@ -528,8 +503,6 @@ func (a *zscoreAggregator) aggregateValues(vals []float64) (float64, error) {
 	return zSum / float64(len(vals)), nil
 }
 
-// --- Median ---
-//
 // medianAggregator's scalar return is the median of the non-null
 // values for the named field. Components() surfaces the sorted-
 // position indices used to bracket the median (position_low /
@@ -594,8 +567,6 @@ func (a *medianAggregator) aggregateValues(vals []float64) (float64, error) {
 	return a.frozenMedian, nil
 }
 
-// --- Variance ---
-
 // varianceAggregator uses Welford's online recurrence in the streaming
 // path. Buffered path uses populationVariance and does not read these.
 //
@@ -629,8 +600,6 @@ func (a *varianceAggregator) aggregateValues(vals []float64) (float64, error) {
 	return populationVariance(vals), nil
 }
 
-// --- Mode ---
-//
 // modeAggregator's scalar return is the smallest-value tie-break
 // winner among values sharing the maximal count. Components() adds
 // the modal count, the distinct-value cardinality, and the tie_count
@@ -697,8 +666,6 @@ func (a *modeAggregator) aggregateValues(vals []float64) (float64, error) {
 	return result, nil
 }
 
-// --- Skewness ---
-
 // skewnessAggregator uses the Welford-Pébaÿ recurrence through M3 for
 // online streaming. Buffered path is independent.
 //
@@ -746,8 +713,6 @@ func (a *skewnessAggregator) aggregateValues(vals []float64) (float64, error) {
 	}
 	return sum / n, nil
 }
-
-// --- Kurtosis ---
 
 // kurtosisAggregator uses the Welford-Pébaÿ recurrence through M4.
 //
@@ -798,8 +763,6 @@ func (a *kurtosisAggregator) aggregateValues(vals []float64) (float64, error) {
 	return sum/n - 3, nil
 }
 
-// --- Distinct Count ---
-//
 // distinctCountAggregator's scalar return is the cardinality of the
 // per-value set. Components() surfaces the same cardinality under the
 // {cardinality} key. frozenCardinality mirrors the post-Aggregate /
@@ -835,8 +798,6 @@ func (a *distinctCountAggregator) aggregateValues(vals []float64) (float64, erro
 	return float64(len(set)), nil
 }
 
-// --- Percentile ---
-//
 // percentileAggregator's scalar return is the configured percentile
 // (default p50) of the non-null values for the named field, resolved
 // via linear interpolation between the bracketing positions in the
@@ -929,8 +890,6 @@ func (a *percentileAggregator) aggregateValues(vals []float64) (float64, error) 
 	return a.frozenValue, nil
 }
 
-// --- Null Count ---
-
 // nullCountAggregator counts records whose value for the named field is
 // null (inverse of countAggregator, which counts non-null entries). The
 // buffered path subtracts the non-null count from the total record
@@ -958,8 +917,6 @@ func (a *nullCountAggregator) Aggregate(records []*Record, field string) (float6
 	return float64(nNull), nil
 }
 
-// --- MetaAggregator implementations (per-operator components map) ---
-//
 // Each Components() returns ONLY the operator-specific keys declared in
 // descriptor/capabilities_aggregators.go. The universal floor ({n,
 // n_null}) is filled by the orchestrator from per-record bookkeeping,
@@ -1032,8 +989,6 @@ func (a *nullCountAggregator) Components() (map[string]any, error) {
 	return nil, nil
 }
 
-// --- Welford-family Components implementations -------------------
-//
 // The Welford-family aggregators — variance, stddev, skewness, kurtosis
 // — share a common shape: streaming Finalize captures (n, mean, m2,
 // [m3, m4]) into frozen mirrors before resetting the live state; the
@@ -1176,8 +1131,6 @@ func (a *zscoreAggregator) Components() (map[string]any, error) {
 	}, nil
 }
 
-// --- Map-state Components implementations ------------------------
-//
 // The three map-state aggregators — AGG_DISTINCT_COUNT, AGG_MODE,
 // AGG_FREQUENCY — maintain a per-value count map (or set) for their
 // primary computation; Components() surfaces summary stats over that
@@ -1254,8 +1207,6 @@ func (a *frequencyAggregator) Components() (map[string]any, error) {
 	}, nil
 }
 
-// --- Order-stat Components implementations -----------------------
-//
 // AGG_MEDIAN and AGG_PERCENTILE are the canonical non-mergeable
 // aggregators — they require a sorted view of the full value set
 // (ComponentsMergeability=None). Streaming chunks deliberately omit

@@ -322,7 +322,6 @@ func reportFirstCellDiff(t *testing.T, a, b *types.MatrixPayload) {
 func buildHugeRequestCohort(t *testing.T, fieldCount, rowCount, brandCardinality, feelCardinality int) (*encoding.Schema, []byte) {
 	t.Helper()
 
-	// --- Named-field dictionaries. ---
 	brandDict := encoding.NewDictionary()
 	for i := range brandCardinality {
 		if _, err := brandDict.Add(fmt.Sprintf("brand_%02d", i)); err != nil {
@@ -341,8 +340,8 @@ func buildHugeRequestCohort(t *testing.T, fieldCount, rowCount, brandCardinality
 	// keeps the parse cheap while still exercising every decode path.
 	padCatDicts := make([]*encoding.Dictionary, 0)
 
-	// --- Schema layout. Named fields first so they sit at predictable
-	// offsets, then pad with mixed types up to fieldCount. ---
+	// Named fields first so they sit at predictable offsets, then pad
+	// with mixed types up to fieldCount.
 	fields := make([]encoding.Field, 0, fieldCount)
 	byteOffset := 0
 	add := func(f encoding.Field) {
@@ -398,7 +397,6 @@ func buildHugeRequestCohort(t *testing.T, fieldCount, rowCount, brandCardinality
 
 	schema := &encoding.Schema{Fields: fields}
 
-	// --- Record payload. ---
 	stride := schema.RecordByteSize()
 	out := bytes.NewBuffer(make([]byte, 0, rowCount*stride))
 

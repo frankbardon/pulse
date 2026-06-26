@@ -362,11 +362,9 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 				},
 			}
 
-			// --- runtime side --------------------------------------
 			runtimeEntry := runProcessAndExpectOneAggSlot(t, fix.svc, req)
 			runtimeKeys := mapKeysSorted(runtimeEntry.Operator)
 
-			// --- predict side --------------------------------------
 			// Build a header-only .pulse bytes buffer the descriptor
 			// path can validate against. The in-memory fs already
 			// carries the schema; just re-marshal a header-only blob

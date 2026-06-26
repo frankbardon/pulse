@@ -59,8 +59,6 @@ func (a *anchorOverlay) Stat(name string) (os.FileInfo, error) {
 // Name reports the overlay's identity for diagnostic output.
 func (a *anchorOverlay) Name() string { return "anchorOverlay(" + a.Fs.Name() + ")" }
 
-// --- afero.File backing an in-memory shard payload ---
-
 type anchorFile struct {
 	name string
 	r    *bytes.Reader

@@ -23,7 +23,7 @@ type ProcessPath int
 const (
 	// PathUnknown is the zero value; set before the first Process call.
 	PathUnknown ProcessPath = iota
-	// PathBuffered is the legacy materialize-then-aggregate path. It is
+	// PathBuffered is the materialize-then-aggregate path. It is
 	// always correct and is the fallback whenever streaming would be
 	// unsafe (groups, attributes, non-online aggregators, expression
 	// filters that need the full set, etc.).
@@ -109,7 +109,7 @@ func (p *Processor) LastPath() ProcessPath {
 //     folds the row into its running state. Memory is O(distinct values)
 //     for FREQUENCY/MODE/DISTINCT_COUNT and O(1) for everything else.
 //
-//  2. Buffered: the legacy path. Every record is collected into a slice
+//  2. Buffered: the fallback path. Every record is collected into a slice
 //     first, then filters, attributes, grouping, and aggregations run
 //     over the materialized set. Memory is O(rows). Always correct.
 //
@@ -1828,24 +1828,18 @@ func dispatchAggregatorResult(agg any, scalar float64) (any, error) {
 
 // dispatchAggregatorCellResult is the MatrixCell.Value-bound sibling of
 // dispatchAggregatorResult. It preserves the Rich-or-scalar lift for
-// every aggregator EXCEPT AGG_WELFORD: WelfordTriple is now an internal
-// statistical-moment carrier owned by Components.Crosstab.CellComponents
-// and no longer rides MatrixCell.Value. For
-// AGG_WELFORD specifically the cell builder writes the scalar mean
-// (matching welfordAggregator.Aggregate / Finalize) so the cell payload
-// stays a plain float64 — overlay handlers source `(mean, variance, n)`
-// from CellComponents under the post-Welford-extract contract.
+// every aggregator EXCEPT AGG_WELFORD: WelfordTriple is an internal
+// statistical-moment carrier owned by Components.Crosstab.CellComponents,
+// not a MatrixCell.Value payload. For AGG_WELFORD specifically the cell
+// builder writes the scalar mean (matching welfordAggregator.Aggregate /
+// Finalize) so the cell payload stays a plain float64 — overlay handlers
+// source `(mean, variance, n)` from CellComponents.
 //
 // All other RichAggregator payloads (map[string]int from
 // AGG_SET_FREQUENCY, []string from AGG_SET_UNION / AGG_SET_INTERSECTION,
 // future families) continue to ride MatrixCell.Value untouched — this
 // carve-out is type-name-specific to the WelfordTriple shape and stays
 // orthogonal to other rich families.
-//
-// The WelfordTriple type itself is retained (still emitted by
-// RichAggregator for non-crosstab Response.Data rows via
-// dispatchAggregatorResult); only its MatrixCell.Value payload role
-// is gone.
 func dispatchAggregatorCellResult(agg any, scalar float64) (any, error) {
 	if rich, ok := agg.(RichAggregator); ok {
 		v, err := rich.Rich()

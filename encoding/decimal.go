@@ -441,7 +441,7 @@ func EncodeDecimal128(d Decimal128) [16]byte {
 }
 
 // DecodeDecimal128 deserializes 16 bytes of two's-complement little-endian
-// integer into a Decimal128. Null state is now carried by the per-record
+// integer into a Decimal128. Null state is carried by the per-record
 // bitmap (see encoding.Schema.HasBitmap), so this function does not flag
 // null values.
 func DecodeDecimal128(buf [16]byte) Decimal128 {

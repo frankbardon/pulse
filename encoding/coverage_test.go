@@ -14,8 +14,6 @@ type errWriter struct{}
 
 func (errWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
 
-// --- WriteBit / WriteNibble coverage ---
-
 func TestWriteBit(t *testing.T) {
 	var buf bytes.Buffer
 	if err := WriteBit(&buf, 0, true); err != nil {
@@ -60,8 +58,6 @@ func TestWriteNibble(t *testing.T) {
 	}
 }
 
-// --- WriteFieldValue for packed types returns error ---
-
 func TestWriteFieldValue_PackedBool(t *testing.T) {
 	var buf bytes.Buffer
 	err := WriteFieldValue(&buf, FieldTypePackedBool, 0)
@@ -96,8 +92,6 @@ func TestReadFieldValue_U4(t *testing.T) {
 		t.Fatal("expected error for u4 (bit-packed)")
 	}
 }
-
-// --- IO error paths ---
 
 func TestWriteHeader_IOError(t *testing.T) {
 	err := WriteHeader(errWriter{})
@@ -178,8 +172,6 @@ func TestDictionary_ReadFrom_TruncatedStringLen(t *testing.T) {
 		t.Fatal("expected error for truncated string length")
 	}
 }
-
-// --- Schema IO error paths ---
 
 func TestWriteSchema_IOError(t *testing.T) {
 	s := &Schema{Fields: []Field{{Name: "x", Type: FieldTypeU8}}}
@@ -277,8 +269,6 @@ func TestReadSchema_TruncatedCsvIdx(t *testing.T) {
 	}
 }
 
-// --- WriteSchema with categorical but nil dictionary ---
-
 func TestWriteSchema_CategoricalNilDict(t *testing.T) {
 	s := &Schema{
 		Fields: []Field{
@@ -303,8 +293,6 @@ func TestWriteSchema_CategoricalNilDict(t *testing.T) {
 	}
 }
 
-// --- ReadBit/ReadNibble IO errors ---
-
 func TestReadBit_Empty(t *testing.T) {
 	_, err := ReadBit(bytes.NewReader(nil), 0)
 	if err == nil {
@@ -318,8 +306,6 @@ func TestReadNibble_Empty(t *testing.T) {
 		t.Fatal("expected error on empty reader")
 	}
 }
-
-// --- Dictionary WriteTo with string length > 0 and IO error ---
 
 type limitWriter struct {
 	n   int
@@ -378,8 +364,6 @@ func TestWriteDescription_BodyIOError(t *testing.T) {
 		t.Fatal("expected IO error on body write")
 	}
 }
-
-// --- WriteSchema error paths deeper in ---
 
 func TestWriteSchema_FieldCountIOError(t *testing.T) {
 	err := WriteSchema(errWriter{}, &Schema{Fields: []Field{{Name: "x", Type: FieldTypeU8}}})

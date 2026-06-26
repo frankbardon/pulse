@@ -181,10 +181,8 @@ func compareDecodeResults(t *testing.T, schema *Schema, raw []byte, retained []s
 	}
 }
 
-// ---------------------------------------------------------------------------
 // Per-type schemas (one schema per supported field type, both nullable
 // and non-nullable variants where the type supports it).
-// ---------------------------------------------------------------------------
 
 // perTypeFixture wraps a schema with a fixed-seed record generator so
 // each fixture sees the same edge-case coverage.
@@ -537,9 +535,7 @@ func generatePerTypeRecords(t *testing.T, f perTypeFixture, seed int64) [][]byte
 	return out
 }
 
-// ---------------------------------------------------------------------------
 // Big mixed schema (every supported field type, plus nullable variants).
-// ---------------------------------------------------------------------------
 
 // bigMixedSchema returns a 26-field schema that combines:
 //   - every numeric type (nonnull + nullable variants for u32/f64/date)
@@ -651,10 +647,6 @@ func generateBigSchemaRecords(t *testing.T, schema *Schema, seed int64) [][]byte
 	}
 	return out
 }
-
-// ---------------------------------------------------------------------------
-// Test entry points.
-// ---------------------------------------------------------------------------
 
 // TestDecodePlan_Equivalence_PerType iterates one schema per supported
 // field type, generates 1000 records per schema, and asserts every 2^N

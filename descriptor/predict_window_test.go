@@ -402,8 +402,6 @@ func TestPredictWindow_LagWithOffsetParams(t *testing.T) {
 	}
 }
 
-// --- Sort validation ---
-
 func TestPredictSort_SchemaField(t *testing.T) {
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)

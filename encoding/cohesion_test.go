@@ -33,8 +33,6 @@ func baseSchema(t *testing.T) *encoding.Schema {
 	}
 }
 
-// ---------- Structural cohesion ----------
-
 func TestShardArchiveStructuralCohesion(t *testing.T) {
 	t.Run("identical schemas pass with no warnings", func(t *testing.T) {
 		canonical := baseSchema(t)
@@ -116,8 +114,6 @@ func TestShardArchiveDescriptionDivergenceWarns(t *testing.T) {
 		t.Errorf("warning details[field] = %v, want \"id\"", got)
 	}
 }
-
-// ---------- Dictionary prefix rule ----------
 
 func TestShardArchiveDictPrefixRule(t *testing.T) {
 	t.Run("incoming is prefix of canonical: accept, no change", func(t *testing.T) {
@@ -226,8 +222,6 @@ func TestShardArchiveDictWidthOverflow(t *testing.T) {
 	_, err := encoding.ValidateDictPrefixRule(canonical, incoming)
 	assertCode(t, err, errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW)
 }
-
-// ---------- helpers ----------
 
 func assertCode(t *testing.T, err error, want errors.Code) {
 	t.Helper()

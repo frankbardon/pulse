@@ -10,8 +10,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ---------- Filterer round-trip --------------------------------------
-
 // keepHighFilter implements FiltererBuilder + FilterFunc — keeps rows
 // whose "score" field is > 5.
 type keepHighFilter struct{}
@@ -56,8 +54,6 @@ func TestExtensions_FiltererRoundTrip(t *testing.T) {
 		t.Errorf("filtered count = %v, want 2", got)
 	}
 }
-
-// ---------- Grouper round-trip ---------------------------------------
 
 // parityGrouper buckets records into "even" / "odd" by floor(score) %
 // 2. Implements Grouper + StreamingGrouper so it works in both
@@ -130,8 +126,6 @@ func TestExtensions_GrouperRoundTrip(t *testing.T) {
 	}
 }
 
-// ---------- Window round-trip ----------------------------------------
-
 // constComputer writes a constant 7 into the labeled column for every
 // row, ignoring partitions.
 type constComputer struct{}
@@ -178,8 +172,6 @@ func TestExtensions_WindowRoundTrip(t *testing.T) {
 		t.Errorf("window output = %v, want 7.0", got)
 	}
 }
-
-// ---------- Feature round-trip ---------------------------------------
 
 // doubleFeature emits "double" = 2 * score for every record. Buffered-
 // only (no StreamingComputer) so feature.Apply runs over the materialised
@@ -229,8 +221,6 @@ func TestExtensions_FeatureRoundTrip(t *testing.T) {
 		t.Errorf("doubled_sum = %v, want %v", got, (2+3)*2.0)
 	}
 }
-
-// ---------- Test (tier-1) round-trip ---------------------------------
 
 // constRowTest emits a sentinel TestResult after consuming every row.
 type constRowTest struct {
@@ -282,8 +272,6 @@ func TestExtensions_TestRoundTrip_Tier1(t *testing.T) {
 		t.Errorf("custom test statistic = %v, want 1.23", resp.Tests[0].Statistic)
 	}
 }
-
-// ---------- Test (tier-2) round-trip ---------------------------------
 
 // constPostTest emits a sentinel after running over the materialised
 // post-window row set.

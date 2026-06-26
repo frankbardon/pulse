@@ -380,8 +380,6 @@ func TestDefaults_NilInputs(t *testing.T) {
 	}
 }
 
-// --- helpers ---
-
 func schemaForType(name string, ft encoding.FieldType) *encoding.Schema {
 	field := encoding.Field{Name: name, Type: ft, Description: "Test field with a description long enough to pass the low-quality check."}
 	if ft.IsCategorical() {

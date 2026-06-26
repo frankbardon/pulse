@@ -117,8 +117,6 @@ func (n *nullableSampler) next(rng *rand.Rand) (any, bool) {
 	return v, false
 }
 
-// --- numeric distributions ---
-
 type uniformSampler struct{ min, max float64 }
 
 func newUniformSampler(f FieldSpec) (sampler, error) {
@@ -358,8 +356,6 @@ func newConstantSampler(f FieldSpec) (sampler, error) {
 func (c *constantSampler) next(_ *rand.Rand) (any, bool) {
 	return c.val, false
 }
-
-// --- categorical / date / regex distributions ---
 
 type weightedCategoricalSampler struct {
 	values []string

@@ -180,8 +180,6 @@ func TestShardArchiveVerify(t *testing.T) {
 	})
 }
 
-// --- helpers ---
-
 type synthShard struct {
 	Name    string
 	Schema  *encoding.Schema

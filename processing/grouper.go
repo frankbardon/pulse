@@ -107,8 +107,6 @@ func streamableGroup(g StreamableGrouper, records []*Record) (map[string][]*Reco
 	return groups, nil
 }
 
-// --- Category Grouper ---
-
 type categoryGrouper struct {
 	schema  *encoding.Schema
 	field   string
@@ -238,8 +236,6 @@ func (g *categoryGrouper) Components() (map[string]any, error) {
 		"buckets":   buckets,
 	}, nil
 }
-
-// --- Rounded Grouper ---
 
 // roundedBucketStat tracks the per-bucket aggregates Components()
 // emits for GROUP_ROUNDED: the rounded scalar value (low) and the
@@ -378,8 +374,6 @@ func (g *roundedGrouper) Components() (map[string]any, error) {
 		"buckets":   buckets,
 	}, nil
 }
-
-// --- Range Grouper ---
 
 // rangeBucketStat tracks the per-bucket aggregates Components() emits
 // for GROUP_RANGE: the half-open [low, high) boundaries and the row
@@ -577,8 +571,6 @@ func (g *rangeGrouper) Components() (map[string]any, error) {
 		"overflow_count":  g.overflowCount,
 	}, nil
 }
-
-// --- Quantile Grouper ---
 
 // quantileBucketStat tracks the per-bucket aggregates Components()
 // emits for GROUP_QUANTILE: the [low, high] value range and the row
@@ -786,8 +778,6 @@ func (g *quantileGrouper) Components() (map[string]any, error) {
 		"buckets":     buckets,
 	}, nil
 }
-
-// --- Date Grouper ---
 
 type dateGroupParams struct {
 	Component    string `json:"component"`

@@ -411,8 +411,6 @@ func TestFilterToFile_ShardArchive_BadExpressionFailsBeforeWrite(t *testing.T) {
 	}
 }
 
-// --- helpers ---
-
 func readShardOrFatal(t *testing.T, arch *encoding.Archive, name string) []byte {
 	t.Helper()
 	rc, err := arch.Open(name)

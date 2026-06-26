@@ -13,8 +13,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// --- test helpers ---
-
 // writePulseFile writes a complete .pulse file (header + schema + records) to a buffer.
 func writePulseFile(t *testing.T, schema *encoding.Schema, records [][]uint64) []byte {
 	t.Helper()
@@ -71,8 +69,6 @@ func floatClose(a, b, eps float64) bool {
 	return math.Abs(a-b) < eps
 }
 
-// --- Open tests ---
-
 func TestService_OpenCohort(t *testing.T) {
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
@@ -124,8 +120,6 @@ func TestService_OpenCohort_InvalidFormat(t *testing.T) {
 		t.Fatal("expected error for invalid format")
 	}
 }
-
-// --- Process tests ---
 
 func TestService_Process(t *testing.T) {
 	schema := testSchema()
@@ -332,8 +326,6 @@ func TestService_Process_NilCohort(t *testing.T) {
 	}
 }
 
-// --- Sample tests ---
-
 func TestService_Sample(t *testing.T) {
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
@@ -372,8 +364,6 @@ func TestService_Sample_MoreThanAvailable(t *testing.T) {
 		t.Errorf("sample count = %d, want 5", len(rows))
 	}
 }
-
-// --- Facet tests ---
 
 func TestService_Facet(t *testing.T) {
 	dict := encoding.NewDictionary()
@@ -446,8 +436,6 @@ func TestService_Facet_UnknownField(t *testing.T) {
 	}
 }
 
-// --- Cohort method tests ---
-
 func TestCohort_Records(t *testing.T) {
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
@@ -514,8 +502,6 @@ func TestCohort_RecordCount_EmptySchema(t *testing.T) {
 	}
 }
 
-// --- DataDir resolution ---
-
 func TestService_Process_WithDataDir(t *testing.T) {
 	schema := testSchema()
 	cfg := fs.NewMemMap()
@@ -547,8 +533,6 @@ func TestService_Process_WithDataDir(t *testing.T) {
 		t.Errorf("n = %v, want 5.0", resp.Data[0]["n"])
 	}
 }
-
-// --- Compose validation ---
 
 func TestService_Compose_Empty(t *testing.T) {
 	cfg := fs.NewMemMap()
@@ -626,8 +610,6 @@ func TestService_Process_DisableDefaults(t *testing.T) {
 		t.Errorf("Type mutated despite DisableDefaults: %q", req.Aggregations[0].Type)
 	}
 }
-
-// --- F32 type coverage ---
 
 func TestService_Process_F32Field(t *testing.T) {
 	schema := &encoding.Schema{

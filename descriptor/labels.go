@@ -120,7 +120,6 @@ func ValidateLabels(
 	return augmentNames
 }
 
-// lookupField returns the named field and a found-bool.
 func lookupField(schema *encoding.Schema, name string) (*encoding.Field, bool) {
 	for i := range schema.Fields {
 		if schema.Fields[i].Name == name {

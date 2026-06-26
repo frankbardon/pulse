@@ -385,8 +385,6 @@ func (s *Service) ExtractShard(ctx context.Context, archivePath, shardBasename s
 	return rc, nil
 }
 
-// ---- helpers ----
-
 // validateBasenames runs the reserved-name and uniqueness checks over
 // the caller-supplied shard paths. Returns the first failure
 // encountered. Order-stable so test output is deterministic.

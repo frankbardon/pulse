@@ -198,7 +198,6 @@ func assertFiltererSlot(t *testing.T, label string, got types.FiltererComponents
 //     the empty record set still flows.
 //   - FILTER_SET_*: nulls drop for ANY / ALL / EQUALS and pass for NONE.
 func TestService_Process_FiltererComponents(t *testing.T) {
-	// --- FILTER_INCLUDE -------------------------------------------------
 	t.Run("FILTER_INCLUDE/small", func(t *testing.T) {
 		svc := nullableScoreCohort(t, "fcomp_include_small.pulse")
 		req := &types.Request{
@@ -246,7 +245,6 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 		assertFiltererSlot(t, "FILTER_INCLUDE/all-null", got[0], 5, 0, 5)
 	})
 
-	// --- FILTER_EXCLUDE -------------------------------------------------
 	t.Run("FILTER_EXCLUDE/small", func(t *testing.T) {
 		svc := nullableScoreCohort(t, "fcomp_exclude_small.pulse")
 		req := &types.Request{
@@ -292,7 +290,6 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 		assertFiltererSlot(t, "FILTER_EXCLUDE/all-null", got[0], 5, 5, 5)
 	})
 
-	// --- FILTER_RANGE ---------------------------------------------------
 	t.Run("FILTER_RANGE/small", func(t *testing.T) {
 		svc := nullableScoreCohort(t, "fcomp_range_small.pulse")
 		req := &types.Request{
@@ -337,7 +334,6 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 		assertFiltererSlot(t, "FILTER_RANGE/all-null", got[0], 5, 0, 5)
 	})
 
-	// --- FILTER_EXPRESSION ---------------------------------------------
 	t.Run("FILTER_EXPRESSION/small", func(t *testing.T) {
 		svc := nullableScoreCohort(t, "fcomp_expr_small.pulse")
 		req := &types.Request{
@@ -369,7 +365,6 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 		assertFiltererSlot(t, "FILTER_EXPRESSION/empty", got[0], 5, 0, 0)
 	})
 
-	// --- FILTER_NULL ----------------------------------------------------
 	t.Run("FILTER_NULL/is_not_null/small", func(t *testing.T) {
 		svc := nullableScoreCohort(t, "fcomp_null_isnot_small.pulse")
 		req := &types.Request{
@@ -417,7 +412,6 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 		assertFiltererSlot(t, "FILTER_NULL/is_null/all-null", got[0], 5, 5, 5)
 	})
 
-	// --- FILTER_TRUE / FILTER_FALSE (truthy mode) ----------------------
 	// Strict mode requires a packed_bool field; truthy mode coerces any
 	// non-null numeric. We exercise truthy so the small/empty/all-null
 	// matrix lines up against the score cohort.
@@ -482,7 +476,6 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 		assertFiltererSlot(t, "FILTER_FALSE/truthy/all-null", got[0], 5, 5, 5)
 	})
 
-	// --- FILTER_SET_CONTAINS_ANY --------------------------------------
 	t.Run("FILTER_SET_CONTAINS_ANY/small", func(t *testing.T) {
 		svc := nullableSetCohort(t, "fcomp_setany_small.pulse")
 		req := &types.Request{
@@ -514,7 +507,6 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 		assertFiltererSlot(t, "FILTER_SET_CONTAINS_ANY/all-null", got[0], 5, 0, 5)
 	})
 
-	// --- FILTER_SET_CONTAINS_ALL --------------------------------------
 	t.Run("FILTER_SET_CONTAINS_ALL/small", func(t *testing.T) {
 		svc := nullableSetCohort(t, "fcomp_setall_small.pulse")
 		req := &types.Request{
@@ -545,7 +537,6 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 		assertFiltererSlot(t, "FILTER_SET_CONTAINS_ALL/all-null", got[0], 5, 0, 5)
 	})
 
-	// --- FILTER_SET_CONTAINS_NONE --------------------------------------
 	t.Run("FILTER_SET_CONTAINS_NONE/small", func(t *testing.T) {
 		svc := nullableSetCohort(t, "fcomp_setnone_small.pulse")
 		req := &types.Request{
@@ -578,7 +569,6 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 		assertFiltererSlot(t, "FILTER_SET_CONTAINS_NONE/all-null", got[0], 5, 5, 5)
 	})
 
-	// --- FILTER_SET_EQUALS --------------------------------------------
 	t.Run("FILTER_SET_EQUALS/small", func(t *testing.T) {
 		svc := nullableSetCohort(t, "fcomp_seteq_small.pulse")
 		req := &types.Request{

@@ -8,8 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ---------- TEST_ANOVA_WELCH ----------
-
 // TestAnovaWelch_KnownStatistic uses the classic three-group example
 // with unequal variances:
 //
@@ -73,8 +71,6 @@ func TestAnovaWelch_RejectsOnMeanShift(t *testing.T) {
 	}
 }
 
-// ---------- TEST_BROWN_FORSYTHE ----------
-
 // TestBrownForsythe_HomogeneousVariance verifies that equal-variance
 // groups produce a non-significant F.
 func TestBrownForsythe_HomogeneousVariance(t *testing.T) {
@@ -121,8 +117,6 @@ func TestBrownForsythe_UnequalVariance(t *testing.T) {
 		t.Fatalf("Finalize: %v", err)
 	}
 }
-
-// ---------- TEST_ANOVA_RM ----------
 
 // TestAnovaRM_Balanced uses a hand-built 4-subject × 3-condition table
 // with small per-cell noise so SS_error > 0. Treatment effect (+2, +4)

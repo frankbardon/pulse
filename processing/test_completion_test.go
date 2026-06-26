@@ -8,8 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ---------- TEST_FISHER_EXACT ----------
-
 // TestFisherExact_KnownPValue verifies a hand-computed Fisher exact
 // p-value on the classic teaching example:
 //
@@ -80,8 +78,6 @@ func TestFisherExact_RejectsLargerTable(t *testing.T) {
 	}
 }
 
-// ---------- TEST_SHAPIRO_WILK ----------
-
 // TestShapiroWilk_AcceptsNormal verifies the test does not reject on
 // a clearly normal sample (n=20 from a fixed grid).
 func TestShapiroWilk_AcceptsNormal(t *testing.T) {
@@ -131,8 +127,6 @@ func TestShapiroWilk_RejectsSkewed(t *testing.T) {
 		t.Errorf("Shapiro-Wilk failed to reject a right-skewed sample; W=%g, p=%g", res.Statistic, res.PValue)
 	}
 }
-
-// ---------- TEST_TUKEY_HSD (post test) ----------
 
 // TestTukeyHSD_KnownStatistic verifies hand-computed Tukey HSD on a
 // 3-group case. Per-group means (10, 15, 20) with n=10 each;
@@ -195,8 +189,6 @@ func TestTukeyHSD_RejectsKLT3(t *testing.T) {
 		t.Fatalf("expected SPLIT_GROUPS_LT_2 for k=2")
 	}
 }
-
-// ---------- studentized range sanity ----------
 
 // TestStudentizedRange_NormalRangeCDF verifies known reference values
 // for the inner range-of-k-normals CDF. For k=2: R = |Z₂−Z₁|, which is

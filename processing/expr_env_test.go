@@ -14,8 +14,6 @@ import (
 // branches (variadic, multi-return, error, non-func, type conversion,
 // nil arg) that are easier to exercise here.
 
-// ---- reflectiveExprTrampoline -----------------------------------------
-
 func TestReflectiveTrampoline_NonFunction(t *testing.T) {
 	fn := reflectiveExprTrampoline("not-a-function")
 	_, err := fn()
@@ -139,8 +137,6 @@ func TestReflectiveTrampoline_TooManyReturns(t *testing.T) {
 	}
 }
 
-// ---- asExprFunc -------------------------------------------------------
-
 func TestAsExprFunc_CanonicalDynamicShapePassThrough(t *testing.T) {
 	dynamic := func(args ...any) (any, error) {
 		if len(args) == 0 {
@@ -169,8 +165,6 @@ func TestAsExprFunc_TypedFunctionViaTrampoline(t *testing.T) {
 		t.Errorf("got %v, want hi!", v)
 	}
 }
-
-// ---- lookupBuiltin ----------------------------------------------------
 
 func TestLookupBuiltin_NoArgsError(t *testing.T) {
 	r := &ExtensionRegistry{
@@ -242,8 +236,6 @@ func TestLookupBuiltin_FuncBackedError(t *testing.T) {
 		t.Errorf("err = %v; expected PULSE_LOOKUP_MISS wrap", err)
 	}
 }
-
-// ---- ExprOptions ------------------------------------------------------
 
 // setExprHelperCount is the number of always-on set helpers contributed
 // by ExprOptions (contains / has_any / has_all / has_none / popcount /

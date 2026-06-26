@@ -13,8 +13,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// --- GROUP_CATEGORY ------------------------------------------------
-
 // makeCategoricalSchemaWithDictSize builds a categoricalSchema-style
 // schema whose dictionary carries dictSize entries. Used to exercise
 // the dict_size key across the u8 (<256) and u32 (>65535) width
@@ -212,8 +210,6 @@ func TestGrouper_Category_Components_WideDict_U32(t *testing.T) {
 		t.Errorf("buckets len = %d, want 2", len(buckets))
 	}
 }
-
-// --- GROUP_DATE ----------------------------------------------------
 
 // dateGrouperWithComponent constructs a dateGrouper with the supplied
 // component via the grouper factory. Mirrors makeGrouper but accepts
@@ -692,8 +688,6 @@ func TestGrouper_Range_Components_SingleBucket(t *testing.T) {
 	}
 }
 
-// --- GROUP_ROUNDED -------------------------------------------------
-
 func TestGrouper_Rounded_Components_EmptyCohort(t *testing.T) {
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_ROUNDED, "score", 5, schema)
@@ -828,8 +822,6 @@ func TestGrouper_Rounded_Components_FloatInterval(t *testing.T) {
 		}
 	}
 }
-
-// --- GROUP_QUANTILE ------------------------------------------------
 
 func TestGrouper_Quantile_Components_EmptyCohort(t *testing.T) {
 	// Empty input: Group() still runs (frozen state stamped), but
@@ -1003,8 +995,6 @@ func TestGrouper_Quantile_Components_NonStandardCount(t *testing.T) {
 		}
 	}
 }
-
-// --- shared helpers -------------------------------------------------
 
 // mapKeysSortedAny returns the sorted key set of m, mirroring the
 // helper from service/process_components_test.go but local to
@@ -1190,7 +1180,6 @@ func allGroupParityFixturesNullHeavy(t *testing.T) map[types.GroupType]groupPari
 }
 
 func TestMetaGrouper_AllOps_ManifestParity(t *testing.T) {
-	// --- small (populated) cohort -----------------------------------
 	t.Run("small", func(t *testing.T) {
 		fixtures := allGroupParityFixtures(t)
 		for _, op := range types.AllGroupTypes() {
@@ -1243,7 +1232,6 @@ func TestMetaGrouper_AllOps_ManifestParity(t *testing.T) {
 		}
 	})
 
-	// --- empty cohort -----------------------------------------------
 	// Empty inputs: every grouper still emits its schema-declared keys
 	// per the per-family contract (buckets/edges/etc. as empty slices).
 	// Floor (TotalN, NNull) collapses to 0/0. The Operator key set must

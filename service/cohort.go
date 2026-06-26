@@ -89,7 +89,6 @@ func (c *Cohort) RecordCount() (int64, error) {
 	return remaining / int64(recordSize), nil
 }
 
-// recordByteSize computes the byte size of a single record for the schema.
 func recordByteSize(schema *encoding.Schema) int {
 	size := 0
 	for _, f := range schema.Fields {

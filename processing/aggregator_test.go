@@ -60,8 +60,6 @@ func floatClose(a, b, eps float64) bool {
 	return math.Abs(a-b) < eps
 }
 
-// --- Average ---
-
 func TestAggregator_Average_Basic(t *testing.T) {
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_AVERAGE, "score", schema)
@@ -119,8 +117,6 @@ func TestAggregator_Average_NullHandling(t *testing.T) {
 	}
 }
 
-// --- Sum ---
-
 func TestAggregator_Sum_Basic(t *testing.T) {
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SUM, "score", schema)
@@ -162,8 +158,6 @@ func TestAggregator_Sum_SingleValue(t *testing.T) {
 		t.Errorf("sum = %f, want 99.0", result)
 	}
 }
-
-// --- Count ---
 
 func TestAggregator_Count_Basic(t *testing.T) {
 	schema := numericSchema()
@@ -208,8 +202,6 @@ func TestAggregator_Count_NullHandling(t *testing.T) {
 	}
 }
 
-// --- StdDev ---
-
 func TestAggregator_StdDev_Basic(t *testing.T) {
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_STDDEV, "score", schema)
@@ -253,8 +245,6 @@ func TestAggregator_StdDev_Empty(t *testing.T) {
 	}
 }
 
-// --- Min ---
-
 func TestAggregator_Min_Basic(t *testing.T) {
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MIN, "score", schema)
@@ -296,8 +286,6 @@ func TestAggregator_Min_Empty(t *testing.T) {
 		t.Errorf("min of empty = %f, want 0", result)
 	}
 }
-
-// --- Max ---
 
 func TestAggregator_Max_Basic(t *testing.T) {
 	schema := numericSchema()
@@ -341,8 +329,6 @@ func TestAggregator_Max_Empty(t *testing.T) {
 	}
 }
 
-// --- Range ---
-
 func TestAggregator_Range_Basic(t *testing.T) {
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_RANGE, "score", schema)
@@ -385,8 +371,6 @@ func TestAggregator_Range_Empty(t *testing.T) {
 	}
 }
 
-// --- ZScore ---
-
 func TestAggregator_ZScore_Basic(t *testing.T) {
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_ZSCORE, "score", schema)
@@ -417,8 +401,6 @@ func TestAggregator_ZScore_Empty(t *testing.T) {
 	}
 }
 
-// --- Frequency ---
-
 func TestAggregator_Frequency_Basic(t *testing.T) {
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_FREQUENCY, "score", schema)
@@ -447,8 +429,6 @@ func TestAggregator_Frequency_Empty(t *testing.T) {
 		t.Errorf("frequency of empty = %f, want 0", result)
 	}
 }
-
-// --- Median ---
 
 func TestAggregator_Median_Basic(t *testing.T) {
 	schema := numericSchema()
@@ -520,8 +500,6 @@ func TestAggregator_Median_NullHandling(t *testing.T) {
 		t.Errorf("median = %f, want 20.0", result)
 	}
 }
-
-// --- Variance ---
 
 func TestAggregator_Variance_Basic(t *testing.T) {
 	schema := numericSchema()
@@ -599,8 +577,6 @@ func TestAggregator_Variance_MatchesStdDevSquared(t *testing.T) {
 		t.Errorf("variance (%f) != stddev^2 (%f)", variance, stddev*stddev)
 	}
 }
-
-// --- Mode ---
 
 func TestAggregator_Mode_Basic(t *testing.T) {
 	schema := numericSchema()
@@ -688,8 +664,6 @@ func TestAggregator_Mode_NullHandling(t *testing.T) {
 		t.Errorf("mode = %f, want 10.0", result)
 	}
 }
-
-// --- Skewness ---
 
 func TestAggregator_Skewness_Symmetric(t *testing.T) {
 	schema := numericSchema()
@@ -795,8 +769,6 @@ func TestAggregator_Skewness_NullHandling(t *testing.T) {
 	}
 }
 
-// --- Kurtosis ---
-
 func TestAggregator_Kurtosis_Uniform(t *testing.T) {
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_KURTOSIS, "score", schema)
@@ -891,8 +863,6 @@ func TestAggregator_Kurtosis_NullHandling(t *testing.T) {
 	}
 }
 
-// --- Distinct Count ---
-
 func TestAggregator_DistinctCount_Basic(t *testing.T) {
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_DISTINCT_COUNT, "score", schema)
@@ -963,8 +933,6 @@ func TestAggregator_DistinctCount_NullHandling(t *testing.T) {
 		t.Errorf("distinct count = %f, want 2.0", result)
 	}
 }
-
-// --- Percentile ---
 
 func TestAggregator_Percentile_P50(t *testing.T) {
 	schema := numericSchema()
@@ -1139,8 +1107,6 @@ func makePercentileAggregator(t *testing.T, field string, schema *encoding.Schem
 	}
 	return agg
 }
-
-// --- Categorical ---
 
 func TestAggregator_OnCategoricalField(t *testing.T) {
 	schema := categoricalSchema()

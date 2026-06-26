@@ -26,8 +26,6 @@ func makeFilterFunc(t *testing.T, filterType types.FiltererType, field string, v
 	return fn
 }
 
-// --- Include Filter ---
-
 func TestFilterer_Include_Basic(t *testing.T) {
 	schema := numericSchema()
 	fn := makeFilterFunc(t, types.FILTER_INCLUDE, "score", []string{"10", "20"}, "", schema)
@@ -64,8 +62,6 @@ func TestFilterer_Include_NullHandling(t *testing.T) {
 		t.Error("expected null record to fail include filter")
 	}
 }
-
-// --- Exclude Filter ---
 
 func TestFilterer_Exclude_Basic(t *testing.T) {
 	schema := numericSchema()
@@ -104,8 +100,6 @@ func TestFilterer_Exclude_NullHandling(t *testing.T) {
 		t.Error("expected null record to pass exclude filter")
 	}
 }
-
-// --- Range Filter ---
 
 func TestFilterer_Range_Basic(t *testing.T) {
 	schema := numericSchema()
@@ -147,8 +141,6 @@ func TestFilterer_Range_NullHandling(t *testing.T) {
 		t.Error("expected null record to fail range filter")
 	}
 }
-
-// --- Expression Filter ---
 
 func TestFilterer_Expression_Basic(t *testing.T) {
 	schema := numericSchema()

@@ -205,9 +205,8 @@ func decimal128FromPulse(d encoding.Decimal128) decimal128.Num {
 }
 
 // FormatValue renders a single element of an Arrow array as a string suitable
-// for emission through the pio.Reader interface. Lifted from the original
-// io/parquet implementation. Null handling is the caller's responsibility:
-// FormatValue assumes idx is a non-null position.
+// for emission through the pio.Reader interface. Null handling is the caller's
+// responsibility: FormatValue assumes idx is a non-null position.
 //
 // Formatting rules:
 //   - Integers: base-10, unsigned where possible.

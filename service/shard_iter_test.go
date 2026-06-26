@@ -13,8 +13,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// --- shard-archive test helpers ---
-
 // writeSinglePulse writes a complete single-file .pulse (header +
 // schema + records) for use either as a flat cohort or as a shard
 // payload inside an archive.
@@ -146,8 +144,6 @@ func setupShardArchive(t *testing.T, path string, schema *encoding.Schema, shard
 	return New(cfg), cfg
 }
 
-// --- TestShardArchiveProcessSums ---
-//
 // Required CI gate per the sharding design contract: associative+
 // commutative ops over the shard archive are byte-equal to the same
 // ops over a concatenated single-file cohort; AGG_MEAN is ULP-tolerant

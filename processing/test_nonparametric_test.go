@@ -8,8 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ---------- shared rank helpers ----------
-
 // TestMidRanks_NoTies verifies that unique values receive consecutive
 // 1-based ranks in input order.
 func TestMidRanks_NoTies(t *testing.T) {
@@ -44,8 +42,6 @@ func TestMidRanks_Ties(t *testing.T) {
 		t.Errorf("ties: got %v, want [2 3]", ties)
 	}
 }
-
-// ---------- TEST_MANN_WHITNEY_U ----------
 
 // TestMannWhitney_KnownStatistic verifies the hand-computed Mann-Whitney
 // statistic on the classic teaching example
@@ -103,8 +99,6 @@ func TestMannWhitney_SplitGroupsLT2(t *testing.T) {
 		t.Fatalf("expected SPLIT_GROUPS_LT_2 error")
 	}
 }
-
-// ---------- TEST_WILCOXON_SR ----------
 
 // TestWilcoxon_KnownStatistic verifies the hand-computed Wilcoxon
 // signed-rank statistic on a small worked example:
@@ -178,8 +172,6 @@ func TestWilcoxon_DropsZeroDiff(t *testing.T) {
 	}
 }
 
-// ---------- TEST_KRUSKAL_WALLIS ----------
-
 // TestKruskalWallis_KnownStatistic uses the classic 3-group example:
 //
 //	A: 17, 16, 20, 28, 41
@@ -220,8 +212,6 @@ func TestKruskalWallis_KnownStatistic(t *testing.T) {
 		t.Errorf("PValue: got %g, want ~0.042", res.PValue)
 	}
 }
-
-// ---------- TEST_SPEARMAN_R ----------
 
 // TestSpearman_PerfectRank verifies ρ=1 on a strictly increasing pair.
 func TestSpearman_PerfectRank(t *testing.T) {
@@ -273,8 +263,6 @@ func TestSpearman_KnownTies(t *testing.T) {
 		t.Errorf("ρ: got %g, want ~0.9747", res.Statistic)
 	}
 }
-
-// ---------- TEST_KENDALL_TAU ----------
 
 // TestKendallTau_NoTies verifies a hand-computed τ:
 //

@@ -8,8 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ---------- TEST_Z_TWO_SAMPLE ----------
-
 // TestZTwoSample_KnownStatistic verifies the two-sample z statistic against
 // the same fixture used by TestTTest_TwoSample_Welch:
 //

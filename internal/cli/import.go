@@ -262,7 +262,6 @@ func importSchemaTemplateCmd() *cli.Command {
 	}
 }
 
-// makeImportReader creates a reader for the given format.
 func makeImportReader(format string, fs afero.Fs, path string, sheet string) (pio.Reader, error) {
 	switch format {
 	case "csv":
@@ -288,7 +287,6 @@ func makeImportReader(format string, fs afero.Fs, path string, sheet string) (pi
 	}
 }
 
-// loadSchemaFromFile reads and parses a JSON schema file.
 func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {
 	data, err := afero.ReadFile(fs, path)
 	if err != nil {

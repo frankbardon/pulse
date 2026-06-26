@@ -22,13 +22,11 @@ func TestOsFs_ReadWrite(t *testing.T) {
 
 	afs := cfg.Fs()
 
-	// Write a file.
 	content := []byte("hello pulse")
 	if err := afero.WriteFile(afs, "test.txt", content, 0644); err != nil {
 		t.Fatalf("WriteFile error: %v", err)
 	}
 
-	// Read it back.
 	got, err := afero.ReadFile(afs, "test.txt")
 	if err != nil {
 		t.Fatalf("ReadFile error: %v", err)
@@ -49,13 +47,11 @@ func TestMemMapFs_ReadWrite(t *testing.T) {
 	cfg := fs.NewMemMap()
 	afs := cfg.Fs()
 
-	// Write a file.
 	content := []byte("in-memory data")
 	if err := afero.WriteFile(afs, "data.txt", content, 0644); err != nil {
 		t.Fatalf("WriteFile error: %v", err)
 	}
 
-	// Read it back.
 	got, err := afero.ReadFile(afs, "data.txt")
 	if err != nil {
 		t.Fatalf("ReadFile error: %v", err)
@@ -64,7 +60,6 @@ func TestMemMapFs_ReadWrite(t *testing.T) {
 		t.Errorf("ReadFile = %q, want %q", string(got), "in-memory data")
 	}
 
-	// Stat should work.
 	info, err := afs.Stat("data.txt")
 	if err != nil {
 		t.Fatalf("Stat error: %v", err)
@@ -78,7 +73,6 @@ func TestMemMapFs_ReadWrite(t *testing.T) {
 func TestCustomFs_Injection(t *testing.T) {
 	custom := afero.NewMemMapFs()
 
-	// Pre-populate the custom FS.
 	if err := afero.WriteFile(custom, "preexisting.txt", []byte("already here"), 0644); err != nil {
 		t.Fatalf("WriteFile error: %v", err)
 	}
@@ -88,7 +82,6 @@ func TestCustomFs_Injection(t *testing.T) {
 		t.Fatalf("New() error: %v", err)
 	}
 
-	// Should be able to read the preexisting file.
 	got, err := afero.ReadFile(cfg.Fs(), "preexisting.txt")
 	if err != nil {
 		t.Fatalf("ReadFile error: %v", err)
@@ -134,7 +127,6 @@ func TestDataDirMissing(t *testing.T) {
 
 // TestNoGcsReferences greps the fs package to ensure no GCS-related code.
 func TestNoGcsReferences(t *testing.T) {
-	// Get all .go files in the fs/ directory.
 	fsDir := filepath.Join(".")
 	entries, err := os.ReadDir(fsDir)
 	if err != nil {
@@ -152,7 +144,6 @@ func TestNoGcsReferences(t *testing.T) {
 		t.Skip("no .go source files found")
 	}
 
-	// Search for GCS-related terms.
 	gcsTerms := []string{"gcs", "GcsFs", "CacheOnReadFs", "ForwardFs", "cloud.google", "storage.Client"}
 	for _, term := range gcsTerms {
 		args := append([]string{"-l", "-i", term}, goFiles...)
@@ -209,7 +200,6 @@ func TestOsFs_BasePath(t *testing.T) {
 
 	afs := cfg.Fs()
 
-	// Create a subdirectory.
 	if err := afs.MkdirAll("sub/dir", 0755); err != nil {
 		t.Fatalf("MkdirAll error: %v", err)
 	}

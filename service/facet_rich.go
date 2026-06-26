@@ -359,8 +359,6 @@ func allPass(fns []processing.FilterFunc, r *processing.Record) bool {
 	return true
 }
 
-// --- Categorical accumulator (dictionary fast path) ---
-
 type categoricalAccumulator struct {
 	field    *encoding.Field
 	counts   map[uint32]int64
@@ -410,8 +408,6 @@ func (a *categoricalAccumulator) finalize(req *types.FacetRequest) (*types.Facet
 		},
 	}, warning, nil
 }
-
-// --- Boolean accumulator (true/false counts) ---
 
 type boolAccumulator struct {
 	field    *encoding.Field
@@ -463,8 +459,6 @@ func (a *boolAccumulator) finalize(req *types.FacetRequest) (*types.FacetField, 
 		},
 	}, warning, nil
 }
-
-// --- Numeric accumulator (Welford online + optional histogram + buffered percentiles) ---
 
 type numericAccumulator struct {
 	field          *encoding.Field

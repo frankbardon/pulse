@@ -9,8 +9,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ---------- Tier-2 TEST_PAIRED_T ----------
-
 // TestPairedTPost_KnownDiff: constant lift of 2.0 per row → mean_diff = 2,
 // variance = 0 (every diff is 2.0) actually surfaces zero-variance.
 // Use slightly noisy lift so the test exercises the happy path.
@@ -68,8 +66,6 @@ func TestPairedTPost_ZeroVariance(t *testing.T) {
 	}
 }
 
-// ---------- Tier-2 TEST_SPEARMAN_R ----------
-
 func TestSpearmanRPost_PerfectMonotone(t *testing.T) {
 	post, _ := newSpearmanRPost(&types.Test{
 		Type: types.TEST_SPEARMAN_R, Field: "x", Field2: "y",
@@ -115,8 +111,6 @@ func TestSpearmanRPost_AgreesWithRowVariant(t *testing.T) {
 	}
 }
 
-// ---------- Tier-2 TEST_KENDALL_TAU ----------
-
 func TestKendallTauPost_PerfectMonotone(t *testing.T) {
 	post, _ := newKendallTauPost(&types.Test{
 		Type: types.TEST_KENDALL_TAU, Field: "x", Field2: "y",
@@ -146,8 +140,6 @@ func TestKendallTauPost_RequiresFields(t *testing.T) {
 		t.Fatal("expected error for missing field2")
 	}
 }
-
-// ---------- Tier-2 TEST_WILCOXON_SR ----------
 
 func TestWilcoxonSRPost_AllPositiveDiffs(t *testing.T) {
 	post, _ := newWilcoxonSRPost(&types.Test{
@@ -202,8 +194,6 @@ func TestWilcoxonSRPost_DropsZeroDiffs(t *testing.T) {
 	}
 }
 
-// ---------- Tier-2 TEST_ANOVA_WELCH ----------
-
 func TestAnovaWelchPost_KnownStatistic(t *testing.T) {
 	post, err := newAnovaWelchPost(&types.Test{
 		Type:    types.TEST_ANOVA_WELCH,
@@ -241,8 +231,6 @@ func TestAnovaWelchPost_RequiresParams(t *testing.T) {
 		t.Fatal("expected error for missing n_col/variance_col")
 	}
 }
-
-// ---------- Tier-2 TEST_BROWN_FORSYTHE ----------
 
 func TestBrownForsythePost_UnequalVariances(t *testing.T) {
 	post, _ := newBrownForsythePost(&types.Test{
@@ -285,8 +273,6 @@ func TestBrownForsythePost_EqualVariances(t *testing.T) {
 		t.Errorf("reject_null = true (F=%g, p=%g); want false for equal variances", res.Statistic, res.PValue)
 	}
 }
-
-// ---------- Tier-2 TEST_SHAPIRO_WILK ----------
 
 func TestShapiroWilkPost_NormalSample(t *testing.T) {
 	post, _ := newShapiroWilkPost(&types.Test{
@@ -336,8 +322,6 @@ func TestShapiroWilkPost_InsufficientN(t *testing.T) {
 		t.Fatal("expected error for n < 3")
 	}
 }
-
-// ---------- Tier-2 TEST_KS ----------
 
 func TestKSPost_FullySeparated(t *testing.T) {
 	post, _ := newKSPost(&types.Test{Type: types.TEST_KS, Field: "x", SplitBy: "g"}, nil)

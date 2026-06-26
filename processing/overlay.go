@@ -335,8 +335,7 @@ func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 // become reachable from `OVERLAY_FORMULA` Params["formula"] expressions
 // via the same `ExprOptions()` slice that ATTR_FORMULA / FILTER_EXPRESSION
 // already consume. Non-FORMULA kinds ignore the registry; the per-kind
-// runtime handler signature is intentionally NOT widened so the existing
-// 11 handlers stay byte-identical to their pre-FORMULA implementations.
+// runtime handler signature is intentionally NOT widened.
 //
 // The buffered crosstab exit (`applyOverlaysToResponse`) routes
 // every Request-host overlay fold through this entry point and forwards

@@ -324,8 +324,6 @@ func TestProfile_ThenSynth_RoundTripsCategoricalShape(t *testing.T) {
 	}
 }
 
-// --- helpers ---
-
 func smallSpec(rows int) *synth.Spec {
 	return &synth.Spec{
 		RowCount: rows,

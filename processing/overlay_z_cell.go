@@ -22,9 +22,8 @@ import (
 // triple directly from the components map and bypasses the Params
 // fallback for that cell pair. Mixed cells (one triple, one scalar)
 // fall back to the scalar+Params path on the scalar side and use the
-// triple's (variance, n) on the triple side. MatrixCell.Value
-// type-assertion on processing.WelfordTriple is no longer performed —
-// the universal Components surface owns the triple payload.
+// triple's (variance, n) on the triple side. The universal Components
+// surface owns the triple payload.
 //
 // Math (per cell, post-extraction of mean/variance/n on each side):
 //
@@ -228,9 +227,8 @@ func extractCellWelchInputsFromComponents(resp *types.Response, cell types.Matri
 
 // extractCellWelchInputsScalar is the scalar-fallback arm. Treats a
 // scalar MatrixCell.Value as the cell mean and supplies the Params
-// defaults for `(variance, n)`. Mirrors the legacy scalar branch
-// byte-equal so the additive contract for non-triple cells stays
-// intact.
+// defaults for `(variance, n)`, keeping the additive contract for
+// non-triple cells intact.
 func extractCellWelchInputsScalar(cell types.MatrixCell, varDefault, nDefault float64) (mean, variance, n float64, ok bool) {
 	if !cell.Present {
 		return 0, 0, 0, false
