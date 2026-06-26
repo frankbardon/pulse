@@ -4,8 +4,8 @@
 //
 // Migration in progress (mcp-library-surface): the server is built on
 // github.com/modelcontextprotocol/go-sdk. Tools (E1-S2), resources, and prompts
-// (E1-S3) are ported; the schema-bind-on-inspect surface (schema_bind.go) lands
-// in E1-S4 and still carries a `//go:build ignore` constraint until then.
+// (E1-S3), and the schema-bind-on-inspect surface (schema_bind.go, E1-S4) are
+// all ported.
 package mcp
 
 import (
@@ -58,12 +58,11 @@ func NewWithOptions(p *pulse.Pulse, opts Options) *mcpsdk.Server {
 	registerResources(s, p)
 	registerPrompts(s)
 
-	// TODO(E1-S4): schema-bind-on-inspect — port schema_bind.go. The
-	//   bind-on-inspect hook (bindSessionFromPath) is a no-op until then;
-	//   opts.BindOnOpen is threaded through registerTools so the wiring is
-	//   ready when the binder lands.
-	// The handler logic for the above lives in the build-ignored source files
-	// in this package and is migrated verbatim by the cited stories.
+	// Schema-bind-on-inspect (schema_bind.go): the inspect/import handlers
+	// call bindSessionFromPath, which re-registers the action tools by name
+	// with enum-constrained variants for this stdio session. opts.BindOnOpen
+	// (threaded through registerTools) gates the behaviour; when false, only
+	// the unbound global tools remain.
 
 	return s
 }

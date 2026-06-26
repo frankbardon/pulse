@@ -51,7 +51,7 @@ func handleImport(s *mcpsdk.Server, p *pulse.Pulse, bindOnOpen bool) mcpsdk.Tool
 
 		// Bind the session's action tools against the new handle's
 		// schema, mirroring handleInspect. Best-effort: failures fall
-		// back to the global (unbound) tools. (Deferred to E1-S4.)
+		// back to the global (unbound) tools.
 		bindSessionFromPath(ctx, s, p, bindOnOpen, res.Path)
 
 		return jsonResult(res)

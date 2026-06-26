@@ -1,11 +1,3 @@
-//go:build ignore
-
-// TODO(E1-S2/S3/S4): not yet ported to github.com/modelcontextprotocol/go-sdk.
-// This file still targets mark3labs/mcp-go and is excluded from the build by
-// the constraint above. Handler logic is preserved verbatim; the per-file
-// migration stories (tools/strict_decode/import_tools -> E1-S2; resources/
-// prompts -> E1-S3; schema_bind -> E1-S4) remove this constraint as they port.
-
 package mcp
 
 // schema_bind.go derives session-scoped tool variants whose JSON Schemas
@@ -15,10 +7,18 @@ package mcp
 // action tools so the LLM picks field names from a typed list instead of
 // free-texting them.
 //
-// The bound variants reuse the global tool names; mcp-go's session-scoped
-// tools override globals for that session. Multi-file binding is not
-// supported in v1: the latest inspect wins. A documented limitation; see
-// docs/src/internals/adding-mcp-tool.md.
+// go-sdk has no per-session tool override — the Server holds one global
+// tool set keyed by name. Over stdio that is exactly what we want: one
+// process = one session = one Server, so re-registering a tool by name
+// (Server.AddTool replaces same-name entries) mutates this session's view
+// and go-sdk auto-emits notifications/tools/list_changed to the connected
+// client. Multi-file binding is not supported in v1: the latest inspect
+// wins. A documented limitation; see docs/src/internals/adding-mcp-tool.md.
+//
+// Concurrency note: divergent schemas across CONCURRENT sessions would
+// require one Server per session (the HTTP StreamableHTTPHandler getServer
+// factory pattern). That is an HTTP consumer's concern and is not handled
+// here — the stdio server this package serves has a single session.
 //
 // JSON Schema limitations note: per-element correlation between an
 // operator-type enum and the field-name enum (e.g. "AGG_SUM permitted only
@@ -31,12 +31,12 @@ import (
 	"encoding/json"
 	"sort"
 
+	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/mcp/mcptools"
 	"github.com/frankbardon/pulse/types"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // fieldClassification slots schema fields into the coarse categories the
@@ -1136,30 +1136,37 @@ func enumStringField(values []string, description string) map[string]any {
 }
 
 // BindSessionTools is the entry point used by handleInspect. Given a
-// schema, it derives per-tool JSON Schemas and registers them as
-// session-scoped tools that override the global variants for the
-// current session. mcp-go fires notifications/tools/list_changed on
-// success.
-func BindSessionTools(s *server.MCPServer, sessionID string, schema *encoding.Schema, handlers boundHandlers) error {
-	return BindSessionToolsWithExtensions(s, sessionID, schema, nil, handlers)
+// schema, it derives per-tool JSON Schemas and re-registers the action
+// tools on the server by name with the enum-constrained variants. Over
+// stdio the server has a single session, so a same-name Server.AddTool
+// replaces the base tool for this session and go-sdk auto-emits
+// notifications/tools/list_changed.
+func BindSessionTools(s *mcpsdk.Server, schema *encoding.Schema, handlers boundHandlers) error {
+	return BindSessionToolsWithExtensions(s, schema, nil, handlers)
 }
 
 // BindSessionToolsWithExtensions mirrors BindSessionTools but routes
 // an extensions snapshot into the per-tool JSON Schemas so
 // embedder-registered operator names appear in the enum lists.
-func BindSessionToolsWithExtensions(s *server.MCPServer, sessionID string, schema *encoding.Schema, snap *descriptor.ExtensionsSnapshot, handlers boundHandlers) error {
-	if s == nil || sessionID == "" || schema == nil {
+//
+// Mechanism (go-sdk): Server.AddTool with an existing tool name replaces
+// the prior registration in the server's single global tool set and fires
+// notifications/tools/list_changed to the connected client. There is no
+// per-session tool map in go-sdk; that is correct for stdio, where one
+// Server serves exactly one session. RemoveTools is unnecessary here — the
+// same-name AddTool swap fully replaces the base tool's schema.
+func BindSessionToolsWithExtensions(s *mcpsdk.Server, schema *encoding.Schema, snap *descriptor.ExtensionsSnapshot, handlers boundHandlers) error {
+	if s == nil || schema == nil {
 		return nil
 	}
 	schemas, err := BindWithExtensions(schema, snap)
 	if err != nil {
 		return err
 	}
-	bound := make([]server.ServerTool, 0, len(schemas))
 	for _, entry := range []struct {
 		name        string
 		description string
-		handler     server.ToolHandlerFunc
+		handler     mcpsdk.ToolHandler
 	}{
 		{mcptools.ToolProcess, mcptools.DescProcess + " (schema-bound)", handlers.process},
 		{mcptools.ToolPredict, mcptools.DescPredict + " (schema-bound)", handlers.predict},
@@ -1170,16 +1177,16 @@ func BindSessionToolsWithExtensions(s *server.MCPServer, sessionID string, schem
 		{mcptools.ToolProcessChain, mcptools.DescProcessChain + " (schema-bound)", handlers.processChain},
 	} {
 		raw, ok := schemas[entry.name]
-		if !ok {
+		if !ok || entry.handler == nil {
 			continue
 		}
-		tool := mcpgo.NewToolWithRawSchema(entry.name, entry.description, raw)
-		bound = append(bound, server.ServerTool{Tool: tool, Handler: entry.handler})
+		s.AddTool(&mcpsdk.Tool{
+			Name:        entry.name,
+			Description: entry.description,
+			InputSchema: raw,
+		}, entry.handler)
 	}
-	if len(bound) == 0 {
-		return nil
-	}
-	return s.AddSessionTools(sessionID, bound...)
+	return nil
 }
 
 // boundHandlers carries the per-tool handler closures so BindSessionTools
@@ -1187,11 +1194,27 @@ func BindSessionToolsWithExtensions(s *server.MCPServer, sessionID string, schem
 // handlers verbatim — the wire-shape stays identical; only the input
 // schema changes.
 type boundHandlers struct {
-	process      server.ToolHandlerFunc
-	predict      server.ToolHandlerFunc
-	compose      server.ToolHandlerFunc
-	sample       server.ToolHandlerFunc
-	facet        server.ToolHandlerFunc
-	facetSchema  server.ToolHandlerFunc
-	processChain server.ToolHandlerFunc
+	process      mcpsdk.ToolHandler
+	predict      mcpsdk.ToolHandler
+	compose      mcpsdk.ToolHandler
+	sample       mcpsdk.ToolHandler
+	facet        mcpsdk.ToolHandler
+	facetSchema  mcpsdk.ToolHandler
+	processChain mcpsdk.ToolHandler
+}
+
+// boundHandlersFor constructs the per-tool handler set for the bound
+// variants from the live Pulse facade. The handlers are byte-identical to
+// the globally registered ones — only the advertised input schema changes
+// on re-registration.
+func boundHandlersFor(p *pulse.Pulse) boundHandlers {
+	return boundHandlers{
+		process:      handleProcess(p),
+		predict:      handlePredict(p),
+		compose:      handleCompose(p),
+		sample:       handleSample(p),
+		facet:        handleFacet(p),
+		facetSchema:  handleFacetSchema(p),
+		processChain: handleProcessChain(p),
+	}
 }

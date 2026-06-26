@@ -231,18 +231,25 @@ func registerTools(s *mcpsdk.Server, p *pulse.Pulse, bindOnOpen bool) {
 }
 
 // bindSessionFromPath is the schema-bind-on-inspect hook shared by the inspect
-// and import handlers. Porting the session-scoped, enum-constrained tool
-// variants (schema_bind.go) is E1-S4; until then this is a deliberate no-op so
-// inspect/import still function against the global (unbound) tool schemas.
+// and import handlers. On a successful inspect/import it re-opens the cohort at
+// path, derives enum-constrained JSON Schemas from its field classification,
+// and re-registers the action tools on the server by name with those bound
+// variants. Over stdio the server has a single session, so the same-name
+// Server.AddTool swap (inside BindSessionToolsWithExtensions) replaces the base
+// tools for this session and go-sdk auto-emits notifications/tools/list_changed.
 //
-// TODO(E1-S4): port schema_bind.go and re-register bound action-tool variants
-// here against the cohort schema at path, mirroring the legacy behavior.
+// Best-effort: silently degrades to the global (unbound) tools when bindOnOpen
+// is off, the server is nil, or the cohort cannot be re-opened. Multi-file is
+// latest-inspect-wins (v1 limitation; see schema_bind.go).
 func bindSessionFromPath(ctx context.Context, s *mcpsdk.Server, p *pulse.Pulse, bindOnOpen bool, path string) {
-	_ = ctx
-	_ = s
-	_ = p
-	_ = bindOnOpen
-	_ = path
+	if !bindOnOpen || s == nil || p == nil || path == "" {
+		return
+	}
+	cohort, err := p.Open(ctx, path)
+	if err != nil {
+		return
+	}
+	_ = BindSessionToolsWithExtensions(s, cohort.Schema(), p.Service().ExtensionsSnapshot(), boundHandlersFor(p))
 }
 
 func handleInspect(s *mcpsdk.Server, p *pulse.Pulse, bindOnOpen bool) mcpsdk.ToolHandler {
@@ -257,10 +264,10 @@ func handleInspect(s *mcpsdk.Server, p *pulse.Pulse, bindOnOpen bool) mcpsdk.Too
 			return errorResult(err.Error()), nil
 		}
 
-		// On a successful inspect, register session-scoped bound tool
-		// variants whose JSON Schemas embed enum constraints on field-
-		// name parameters. Best-effort: failure to bind degrades gracefully
-		// to the global (unbound) tools. (Deferred to E1-S4.)
+		// On a successful inspect, re-register bound tool variants whose
+		// JSON Schemas embed enum constraints on field-name parameters.
+		// Best-effort: failure to bind degrades gracefully to the global
+		// (unbound) tools.
 		bindSessionFromPath(ctx, s, p, bindOnOpen, path)
 
 		return jsonResult(result)
