@@ -35,8 +35,6 @@ func runPredictForSuggestions(t *testing.T, schema *encoding.Schema, req *types.
 	return result.Suggestions
 }
 
-// ----- Source 1: field name typos ---------------------------------------
-
 func TestPredict_Suggestions_TypoMatchesNearestField(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -99,8 +97,6 @@ func TestPredict_Suggestions_NoTypoWhenFieldExists(t *testing.T) {
 	}
 }
 
-// ----- Source 2: operator/type mismatches -------------------------------
-
 func TestPredict_Suggestions_NumericAggOnCategorical(t *testing.T) {
 	dict := makeDictionary(t, "A", "B", "C")
 	schema := &encoding.Schema{
@@ -162,8 +158,6 @@ func TestPredict_Suggestions_DecimalAggMismatch(t *testing.T) {
 	}
 }
 
-// ----- Source 3: date misuse ---------------------------------------------
-
 func TestPredict_Suggestions_GroupCategoryOnDate(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -185,8 +179,6 @@ func TestPredict_Suggestions_GroupCategoryOnDate(t *testing.T) {
 		t.Errorf("Confidence = %v, want 0.9", s.Confidence)
 	}
 }
-
-// ----- Source 4: missing required params --------------------------------
 
 func TestPredict_Suggestions_WindowMissingOrderBy(t *testing.T) {
 	schema := &encoding.Schema{
@@ -257,8 +249,6 @@ func TestPredict_Suggestions_PercentileWithParamSilent(t *testing.T) {
 		t.Errorf("did not expect missing-percentile suggestion when param is supplied; got %+v", s)
 	}
 }
-
-// ----- Source 5: streamability hints ------------------------------------
 
 func TestPredict_Suggestions_StreamabilityAlternative(t *testing.T) {
 	schema := &encoding.Schema{
@@ -359,8 +349,6 @@ func TestPredict_Suggestions_StreamabilityGroupQuantile(t *testing.T) {
 	}
 }
 
-// ----- Envelope / JSON shape --------------------------------------------
-
 func TestPredict_Suggestions_EmptySliceJSON(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -384,8 +372,6 @@ func TestPredict_Suggestions_EmptySliceJSON(t *testing.T) {
 		t.Errorf("suggestions should never be null in JSON output; got %s", string(buf))
 	}
 }
-
-// ----- Levenshtein helper ----------------------------------------------
 
 func TestLevenshtein(t *testing.T) {
 	cases := []struct {

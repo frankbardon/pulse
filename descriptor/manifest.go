@@ -309,7 +309,6 @@ func sortByName(ops []Operator) []Operator {
 	return out
 }
 
-// sortTestsByName sorts a TestMeta slice lexically by Name.
 func sortTestsByName(ts []TestMeta) []TestMeta {
 	out := make([]TestMeta, len(ts))
 	copy(out, ts)
@@ -331,7 +330,6 @@ func partitionTier(all []TestMeta) (tier1, tier2 []TestMeta) {
 	return sortTestsByName(tier1), sortTestsByName(tier2)
 }
 
-// sortDistributions sorts a DistributionMeta slice lexically by Name.
 func sortDistributions(ds []DistributionMeta) []DistributionMeta {
 	out := make([]DistributionMeta, len(ds))
 	copy(out, ds)
@@ -339,7 +337,6 @@ func sortDistributions(ds []DistributionMeta) []DistributionMeta {
 	return out
 }
 
-// sortRegressions sorts a RegressionMeta slice lexically by Name.
 func sortRegressions(rs []RegressionMeta) []RegressionMeta {
 	out := make([]RegressionMeta, len(rs))
 	copy(out, rs)

@@ -8,8 +8,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// --- fixtures -------------------------------------------------------
-
 // scalarSumRequest is the SCALAR fixture: a single AGG_SUM with no
 // grouper. inferComposeSlotShape → OverlayShapeScalar.
 func scalarSumRequest(label string, field string) *types.Request {
@@ -111,8 +109,6 @@ func seriesRangeGroupedRequest(label, field, groupField string) *types.Request {
 	}
 }
 
-// --- helper sync gates ---------------------------------------------
-
 // TestKindRequiresMatrixCompose_MatchesProcessing pins the descriptor
 // catalog (kindRequiresMatrixCompose) against the processing original
 // (processing.KindRequiresMatrix exposed via the schema match helper).
@@ -144,8 +140,6 @@ func TestComposeDescriptorDefaultLabel_MatchesProcessingHelper(t *testing.T) {
 	}
 }
 
-// --- inferComposeSlotShape -----------------------------------------
-
 func TestInferComposeSlotShape_Matrix(t *testing.T) {
 	req := matrixCrosstabRequest("r", "row", "col")
 	got := inferComposeSlotShape(req)
@@ -176,8 +170,6 @@ func TestInferComposeSlotShape_NilReturnsScalar(t *testing.T) {
 		t.Errorf("inferComposeSlotShape(nil) = %q, want scalar", got)
 	}
 }
-
-// --- ValidateCompose gates -----------------------------------------
 
 // TestValidateCompose_HappyPath_NoDivergence exercises the
 // always-green path: three SERIES slots with identical schema and a
