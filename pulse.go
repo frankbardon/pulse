@@ -496,9 +496,7 @@ func (p *Pulse) ProcessStream(ctx context.Context, req *Request) (RowIter, error
 //   - Overlays []OverlayLayer — one layer per OverlaySpec in
 //     req.Overlays, in declaration order. The Compose-host overlay
 //     fold (service.applyComposeOverlays) writes layers post-execution;
-//     when req.Overlays is empty the slot is nil/omitempty and the
-//     returned envelope is byte-identical to the legacy raw-Response
-//     payload.
+//     when req.Overlays is empty the slot is nil/omitempty.
 //   - Overlays[i].Warnings []OverlayWarning — per-overlay diagnostics
 //     emitted by the handler (cohesion failures, missing host
 //     coordinates, threshold breaches). Empty when the layer produced

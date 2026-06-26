@@ -144,9 +144,8 @@ func buildExtensionsSnapshot(ext Extensions) *descriptor.ExtensionsSnapshot {
 // parseNamespace extracts the namespace token from a registration
 // name. Embedder-registered names match the
 // <CATEGORY>_<NAMESPACE>_<NAME> pattern; the second segment is the
-// namespace. For built-in names that omit a namespace (legacy
-// two-segment form) or for synth distribution names that may not
-// follow the regex, returns "".
+// namespace. For built-in names that omit a namespace or for synth
+// distribution names that may not follow the regex, returns "".
 func parseNamespace(name string) string {
 	groups := extensionNameRegex.FindStringSubmatch(name)
 	if len(groups) >= 3 {

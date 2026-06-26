@@ -283,8 +283,6 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 //
 // Aggregate across core packages >= 80%.
 func TestPerPackageCoverageFloors(t *testing.T) {
-	// Document the expected coverage floors. This test passes unconditionally
-	// as a placeholder until coverage profiling infrastructure is added.
 	floors := map[string]int{
 		"encoding":   95,
 		"descriptor": 95,
