@@ -599,7 +599,6 @@ func apiPredictCmd() *cli.Command {
 	}
 }
 
-// loadRequest reads and parses a JSON request file.
 func loadRequest(path string) (*types.Request, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -612,7 +611,6 @@ func loadRequest(path string) (*types.Request, error) {
 	return &req, nil
 }
 
-// loadComposedRequest reads and parses a JSON composed request file.
 func loadComposedRequest(path string) (*types.ComposedRequest, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -625,7 +623,6 @@ func loadComposedRequest(path string) (*types.ComposedRequest, error) {
 	return &req, nil
 }
 
-// loadChainRequest reads and parses a JSON chain request file.
 func loadChainRequest(path string) (*types.ChainRequest, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
