@@ -263,7 +263,7 @@ func inferColumnTypeWithOpts(colName string, values []string, minPct int,
 		return ft, hasNulls, delim, nil, nil
 	}
 
-	// Categorical fallback (existing).
+	// Categorical fallback.
 	uniqueVals := uniqueCount(nonNullValues)
 	totalNonNull := len(nonNullValues)
 	if uniqueVals == totalNonNull && totalNonNull >= minSampleRows {
@@ -426,7 +426,6 @@ func allBool(values []string) bool {
 	return true
 }
 
-// allInteger checks if all values parse as integers.
 func allInteger(values []string) bool {
 	for _, v := range values {
 		_, err := strconv.ParseInt(v, 10, 64)
@@ -441,7 +440,6 @@ func allInteger(values []string) bool {
 	return true
 }
 
-// intRange returns the min and max of integer values (as int64).
 func intRange(values []string) (int64, int64) {
 	minVal := int64(math.MaxInt64)
 	maxVal := int64(math.MinInt64)
@@ -462,7 +460,6 @@ func intRange(values []string) (int64, int64) {
 	return minVal, maxVal
 }
 
-// allFloat checks if all values parse as float64.
 func allFloat(values []string) bool {
 	for _, v := range values {
 		_, err := strconv.ParseFloat(v, 64)
@@ -494,7 +491,6 @@ var dateFormats = []string{
 	"02-Jan-2006",
 }
 
-// allDate checks if all values parse as dates.
 func allDate(values []string) bool {
 	for _, v := range values {
 		if !parseDate(v) {
@@ -513,7 +509,6 @@ func parseDate(v string) bool {
 	return false
 }
 
-// uniqueCount returns the number of distinct strings.
 func uniqueCount(values []string) int {
 	seen := make(map[string]struct{}, len(values))
 	for _, v := range values {

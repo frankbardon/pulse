@@ -16,8 +16,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ---------- Reader ----------
-
 // Reader reads Arrow IPC (Feather V2) data and implements pio.Reader and
 // pio.ResetReader. The full file is materialized in memory at init time —
 // see the package doc for the rationale.
@@ -289,8 +287,6 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 
 	return &encoding.Schema{Fields: fields}, nil
 }
-
-// ---------- Writer ----------
 
 // defaultRecordBatchSize is the target number of rows per Arrow record batch.
 // Each batch of this many rows is flushed via FileWriter.Write.

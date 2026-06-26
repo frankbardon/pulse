@@ -42,8 +42,6 @@ func defaultOptions() options {
 	return options{workers: 1}
 }
 
-// ---------- Reader ----------
-
 // Reader reads Parquet data and implements the io.Reader and io.ResetReader interfaces.
 type Reader struct {
 	data    []byte
@@ -304,8 +302,6 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 
 	return &encoding.Schema{Fields: fields}, nil
 }
-
-// ---------- Writer ----------
 
 // defaultRowGroupSize is the target number of rows per Parquet row group.
 // Each batch of this many rows is flushed as its own row group via the
@@ -581,17 +577,13 @@ func (w *Writer) Bytes() []byte {
 	return w.buf.Bytes()
 }
 
-// ---------- Type Mapping ----------
-//
 // Type-mapping helpers live in io/arrow as parrow.TypeToPulse and
 // parrow.TypeFromPulse so the Parquet and Arrow IPC paths share a single
-// source of truth. The thin wrappers below preserve the historical local
-// names (used by parquet's tests) without re-implementing the logic.
+// source of truth. The thin wrappers below delegate to them.
 
 // arrowTypeToPulse delegates to the shared io/arrow type map. Nullability
-// is carried by encoding.Field.Nullable, not by the type itself; this
-// helper exists for backward source-level symmetry with the older
-// signature and ignores the nullable argument.
+// is carried by encoding.Field.Nullable, not by the type itself; the
+// nullable argument is accepted for signature symmetry and ignored.
 func arrowTypeToPulse(dt arrow.DataType, _ bool) encoding.FieldType {
 	return parrow.TypeToPulse(dt)
 }
