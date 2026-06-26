@@ -18,8 +18,14 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// nopWriteCloser adapts an io.Writer to io.WriteCloser; go-sdk's IOTransport
+// owns its streams via Close, but Serve's caller owns the lifetime of out.
+type nopWriteCloser struct{ io.Writer }
+
+func (nopWriteCloser) Close() error { return nil }
 
 // Options configures the served MCP server. It mirrors internal/mcp.Options.
 type Options struct {
@@ -36,7 +42,11 @@ type Options struct {
 // verbatim.
 func Serve(ctx context.Context, p *pulse.Pulse, opts Options, in io.Reader, out io.Writer) error {
 	srv := mcp.NewWithOptions(p, mcp.Options{BindOnOpen: opts.BindOnOpen})
-	return server.NewStdioServer(srv).Listen(ctx, in, out)
+	transport := &mcpsdk.IOTransport{
+		Reader: io.NopCloser(in),
+		Writer: nopWriteCloser{out},
+	}
+	return srv.Run(ctx, transport)
 }
 
 // ServeStdio is Serve over the process's stdin/stdout — the transport MCP
