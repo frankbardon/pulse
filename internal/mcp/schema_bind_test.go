@@ -1,11 +1,3 @@
-//go:build ignore
-
-// TODO(E1-S2/S3/S4): not yet ported to github.com/modelcontextprotocol/go-sdk.
-// This file still targets mark3labs/mcp-go and is excluded from the build by
-// the constraint above. Handler logic is preserved verbatim; the per-file
-// migration stories (tools/strict_decode/import_tools -> E1-S2; resources/
-// prompts -> E1-S3; schema_bind -> E1-S4) remove this constraint as they port.
-
 package mcp
 
 import (
@@ -13,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/mcp/mcptools"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )
 
@@ -100,6 +92,54 @@ func enumOf(req map[string]any, arrayKey, innerKey string) []string {
 		out = append(out, s)
 	}
 	return out
+}
+
+// connectBindClient connects an in-memory client session to srv. Mirrors the
+// mcp_test harness but lives in-package so the bind-on-inspect tests can drive
+// the single-Server post-serve AddTool swap and observe it via tools/list.
+func connectBindClient(t *testing.T, srv *mcpsdk.Server) (*mcpsdk.ClientSession, func()) {
+	t.Helper()
+	ctx := context.Background()
+	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
+	ss, err := srv.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server.Connect: %v", err)
+	}
+	c := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "pulse-bind-test", Version: "1.0.0"}, nil)
+	cs, err := c.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		_ = ss.Close()
+		t.Fatalf("client.Connect: %v", err)
+	}
+	return cs, func() {
+		_ = cs.Close()
+		_ = ss.Close()
+	}
+}
+
+// processToolFromList returns the pulse_process tool descriptor from a
+// tools/list result, or nil if absent.
+func processToolFromList(t *testing.T, cs *mcpsdk.ClientSession) *mcpsdk.Tool {
+	t.Helper()
+	out, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	for _, tl := range out.Tools {
+		if tl.Name == ToolProcess {
+			return tl
+		}
+	}
+	return nil
+}
+
+// requestSubSchema extracts the inner request object schema from a tool's
+// InputSchema (a map[string]any once round-tripped over the wire).
+func requestSubSchema(tool *mcpsdk.Tool) map[string]any {
+	sch, _ := tool.InputSchema.(map[string]any)
+	props, _ := sch["properties"].(map[string]any)
+	req, _ := props["request"].(map[string]any)
+	return req
 }
 
 // TestMCPSchemaBinding_RemovesInvalidFields verifies that
@@ -342,42 +382,12 @@ func TestMCPSchemaBinding_OverlayKindEnum(t *testing.T) {
 	}
 }
 
-// fakeSessionWithTools implements server.SessionWithTools so we can drive
-// AddSessionTools end-to-end without depending on transport-specific
-// session implementations (stdio and in-process sessions don't implement
-// SessionWithTools in mcp-go v0.52.0; sse and streamable_http do). The
-// fake keeps test surface narrow and stable across mcp-go versions.
-type fakeSessionWithTools struct {
-	id            string
-	tools         map[string]server.ServerTool
-	notifications chan mcpgo.JSONRPCNotification
-	initialized   bool
-}
-
-func newFakeSession(id string) *fakeSessionWithTools {
-	return &fakeSessionWithTools{
-		id:            id,
-		tools:         map[string]server.ServerTool{},
-		notifications: make(chan mcpgo.JSONRPCNotification, 100),
-		initialized:   true,
-	}
-}
-
-func (s *fakeSessionWithTools) Initialize()       {}
-func (s *fakeSessionWithTools) Initialized() bool { return s.initialized }
-func (s *fakeSessionWithTools) NotificationChannel() chan<- mcpgo.JSONRPCNotification {
-	return s.notifications
-}
-func (s *fakeSessionWithTools) SessionID() string                                  { return s.id }
-func (s *fakeSessionWithTools) GetSessionTools() map[string]server.ServerTool      { return s.tools }
-func (s *fakeSessionWithTools) SetSessionTools(tools map[string]server.ServerTool) { s.tools = tools }
-
 // TestMCPSchemaBinding_InspectSucceedsRegistersBindings drives the
-// handleInspect path against a registered SessionWithTools and asserts
-// that the bound action tools land in the session's tool map. The
-// in-process MCP client used elsewhere in the test suite uses a session
-// type that does not implement SessionWithTools, so we register a
-// minimal fake directly with the server.
+// handleInspect path end-to-end over an in-memory client/session and
+// asserts the action tools are re-registered with the enum-constrained
+// (schema-bound) variants. go-sdk has no per-session tool map; over the
+// single in-memory session the inspect handler's same-name Server.AddTool
+// swap replaces the base tools and the change is observable via tools/list.
 func TestMCPSchemaBinding_InspectSucceedsRegistersBindings(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	writeBoundTestCohort(t, fs, "bound.pulse", makeSchema())
@@ -387,55 +397,61 @@ func TestMCPSchemaBinding_InspectSucceedsRegistersBindings(t *testing.T) {
 		t.Fatalf("pulse.New: %v", err)
 	}
 	srv := NewWithOptions(p, Options{BindOnOpen: true})
+	cs, cancel := connectBindClient(t, srv)
+	defer cancel()
 
-	sess := newFakeSession("test-bind")
 	ctx := context.Background()
-	if err := srv.RegisterSession(ctx, sess); err != nil {
-		t.Fatalf("RegisterSession: %v", err)
-	}
-	defer srv.UnregisterSession(ctx, sess.SessionID())
 
-	// Trigger handleInspect via direct tool dispatch on the server, with
-	// the session attached to the context (handleInspect reads it via
-	// server.ClientSessionFromContext).
-	ctx = srv.WithContext(ctx, sess)
-	req := mcpgo.CallToolRequest{}
-	req.Params.Name = ToolInspect
-	req.Params.Arguments = map[string]any{"path": "bound.pulse"}
-	out := srv.HandleMessage(ctx, marshalToolCall(t, req))
-	if out == nil {
-		t.Fatal("HandleMessage returned nil response")
+	// Before inspect: the base pulse_process tool is unbound (its request
+	// argument is a plain JSON string, not an enum-constrained object).
+	if before := processToolFromList(t, cs); before == nil {
+		t.Fatal("pulse_process missing from initial tools/list")
+	} else if strings.Contains(before.Description, "(schema-bound)") {
+		t.Fatalf("pulse_process should be unbound before inspect: %q", before.Description)
 	}
 
-	// Session must now carry bound variants of the action tools.
-	sessionTools := sess.GetSessionTools()
-	if len(sessionTools) == 0 {
-		t.Fatal("session has no bound tools after inspect")
+	// Trigger the bind-on-inspect hook.
+	if _, err := cs.CallTool(ctx, &mcpsdk.CallToolParams{
+		Name:      ToolInspect,
+		Arguments: map[string]any{"path": "bound.pulse"},
+	}); err != nil {
+		t.Fatalf("CallTool inspect: %v", err)
 	}
-	for _, name := range []string{ToolProcess, ToolPredict, ToolCompose, ToolSample, ToolFacet} {
-		entry, ok := sessionTools[name]
+
+	// After inspect: every action tool carries the (schema-bound) variant.
+	out, err := cs.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListTools after inspect: %v", err)
+	}
+	byName := map[string]*mcpsdk.Tool{}
+	for _, tl := range out.Tools {
+		byName[tl.Name] = tl
+	}
+	for _, name := range []string{
+		ToolProcess, ToolPredict, ToolCompose, ToolSample, ToolFacet, ToolFacetSchema, ToolProcessChain,
+	} {
+		tl, ok := byName[name]
 		if !ok {
-			t.Errorf("session missing bound tool %q", name)
+			t.Errorf("action tool %q missing after inspect", name)
 			continue
 		}
-		raw, err := json.Marshal(entry.Tool)
-		if err != nil {
-			t.Fatalf("marshal bound tool %q: %v", name, err)
+		if !strings.Contains(tl.Description, "(schema-bound)") {
+			t.Errorf("action tool %q not re-registered as schema-bound: %q", name, tl.Description)
 		}
-		var decoded map[string]any
-		if err := json.Unmarshal(raw, &decoded); err != nil {
-			t.Fatalf("unmarshal bound tool %q: %v", name, err)
-		}
-		sch, _ := decoded["inputSchema"].(map[string]any)
-		props, _ := sch["properties"].(map[string]any)
-		if len(props) == 0 {
-			t.Errorf("bound tool %q has empty input schema properties", name)
-		}
+	}
+
+	// The bound pulse_process exposes the cohort's field names as an enum
+	// on aggregations[].field — the load-bearing constraint of the feature.
+	req := requestSubSchema(byName[ToolProcess])
+	aggFields := enumOf(req, "aggregations", "field")
+	if !slices.Contains(aggFields, "score") {
+		t.Errorf("bound pulse_process aggregations.field enum missing 'score': %v", aggFields)
 	}
 }
 
 // TestMCPSchemaBinding_BindOnOpenFalse verifies that BindOnOpen=false
-// suppresses session-tool registration on inspect.
+// suppresses the schema-bound re-registration on inspect: the action
+// tools keep their base (unbound) descriptors after a successful inspect.
 func TestMCPSchemaBinding_BindOnOpenFalse(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	writeBoundTestCohort(t, fs, "unbound.pulse", makeSchema())
@@ -445,41 +461,27 @@ func TestMCPSchemaBinding_BindOnOpenFalse(t *testing.T) {
 		t.Fatalf("pulse.New: %v", err)
 	}
 	srv := NewWithOptions(p, Options{BindOnOpen: false})
+	cs, cancel := connectBindClient(t, srv)
+	defer cancel()
 
-	sess := newFakeSession("test-unbound")
 	ctx := context.Background()
-	if err := srv.RegisterSession(ctx, sess); err != nil {
-		t.Fatalf("RegisterSession: %v", err)
+	if _, err := cs.CallTool(ctx, &mcpsdk.CallToolParams{
+		Name:      ToolInspect,
+		Arguments: map[string]any{"path": "unbound.pulse"},
+	}); err != nil {
+		t.Fatalf("CallTool inspect: %v", err)
 	}
-	defer srv.UnregisterSession(ctx, sess.SessionID())
 
-	ctx = srv.WithContext(ctx, sess)
-	req := mcpgo.CallToolRequest{}
-	req.Params.Name = ToolInspect
-	req.Params.Arguments = map[string]any{"path": "unbound.pulse"}
-	_ = srv.HandleMessage(ctx, marshalToolCall(t, req))
-
-	if got := sess.GetSessionTools(); len(got) != 0 {
-		t.Errorf("BindOnOpen=false: session tools should be empty, got %d", len(got))
+	tl := processToolFromList(t, cs)
+	if tl == nil {
+		t.Fatal("pulse_process missing from tools/list")
 	}
-}
-
-// marshalToolCall encodes a CallToolRequest as a JSON-RPC tools/call
-// message so we can drive srv.HandleMessage directly.
-func marshalToolCall(t *testing.T, req mcpgo.CallToolRequest) json.RawMessage {
-	t.Helper()
-	body := map[string]any{
-		"jsonrpc": "2.0",
-		"id":      1,
-		"method":  "tools/call",
-		"params": map[string]any{
-			"name":      req.Params.Name,
-			"arguments": req.Params.Arguments,
-		},
+	if strings.Contains(tl.Description, "(schema-bound)") {
+		t.Errorf("BindOnOpen=false: pulse_process should stay unbound, got %q", tl.Description)
 	}
-	raw, err := json.Marshal(body)
-	if err != nil {
-		t.Fatalf("marshal tool call: %v", err)
+	// The unbound request argument is a plain string, so there is no
+	// aggregations field enum.
+	if req := requestSubSchema(tl); enumOf(req, "aggregations", "field") != nil {
+		t.Errorf("BindOnOpen=false: pulse_process must not carry a bound field enum")
 	}
-	return raw
 }

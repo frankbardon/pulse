@@ -1,11 +1,3 @@
-//go:build ignore
-
-// TODO(E1-S2/S3/S4): not yet ported to github.com/modelcontextprotocol/go-sdk.
-// This file still targets mark3labs/mcp-go and is excluded from the build by
-// the constraint above. Handler logic is preserved verbatim; the per-file
-// migration stories (tools/strict_decode/import_tools -> E1-S2; resources/
-// prompts -> E1-S3; schema_bind -> E1-S4) remove this constraint as they port.
-
 package mcp
 
 import (
@@ -15,7 +7,6 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/imports"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/spf13/afero"
 )
 
@@ -35,28 +26,15 @@ func newMCPImportTestPulse(t *testing.T) (*pulse.Pulse, afero.Fs) {
 
 func TestImport_MCPHandler_CSV(t *testing.T) {
 	p, afs := newMCPImportTestPulse(t)
-	handler := handleImport(nil, p, false, boundHandlers{})
-	call := mcpgo.CallToolRequest{}
-	call.Params.Name = ToolImport
-	call.Params.Arguments = map[string]any{
+	handler := handleImport(nil, p, false)
+	out, err := handler(context.Background(), toolCall(t, ToolImport, map[string]any{
 		"source": "data.csv",
 		"ttl":    "24h",
-	}
-
-	out, err := handler(context.Background(), call)
-	if err != nil {
-		t.Fatalf("handleImport: %v", err)
-	}
-	if out.IsError {
-		t.Fatalf("handler returned error: %+v", out.Content)
-	}
-	text, ok := out.Content[0].(mcpgo.TextContent)
-	if !ok {
-		t.Fatalf("expected TextContent, got %T", out.Content[0])
-	}
+	}))
+	text := handlerText(t, out, err)
 	var res imports.Result
-	if err := json.Unmarshal([]byte(text.Text), &res); err != nil {
-		t.Fatalf("unmarshal: %v\n%s", err, text.Text)
+	if err := json.Unmarshal([]byte(text), &res); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, text)
 	}
 	if res.Handle != "data" || res.Path != "imports/data.pulse" || !res.Managed {
 		t.Errorf("result = %+v, want managed handle 'data' at imports/data.pulse", res)
@@ -71,11 +49,8 @@ func TestImport_MCPHandler_CSV(t *testing.T) {
 
 func TestImport_MCPHandler_MissingSource_ReturnsError(t *testing.T) {
 	p, _ := newMCPImportTestPulse(t)
-	handler := handleImport(nil, p, false, boundHandlers{})
-	call := mcpgo.CallToolRequest{}
-	call.Params.Arguments = map[string]any{}
-
-	out, err := handler(context.Background(), call)
+	handler := handleImport(nil, p, false)
+	out, err := handler(context.Background(), toolCall(t, ToolImport, map[string]any{}))
 	if err != nil {
 		t.Fatalf("handleImport: %v", err)
 	}
@@ -86,14 +61,11 @@ func TestImport_MCPHandler_MissingSource_ReturnsError(t *testing.T) {
 
 func TestImport_MCPHandler_InvalidTTL_ReturnsError(t *testing.T) {
 	p, _ := newMCPImportTestPulse(t)
-	handler := handleImport(nil, p, false, boundHandlers{})
-	call := mcpgo.CallToolRequest{}
-	call.Params.Arguments = map[string]any{
+	handler := handleImport(nil, p, false)
+	out, err := handler(context.Background(), toolCall(t, ToolImport, map[string]any{
 		"source": "data.csv",
 		"ttl":    "weekly",
-	}
-
-	out, err := handler(context.Background(), call)
+	}))
 	if err != nil {
 		t.Fatalf("handleImport: %v", err)
 	}
@@ -109,10 +81,7 @@ func TestDrop_MCPHandler_RoundTrip(t *testing.T) {
 		t.Fatalf("ImportFile: %v", err)
 	}
 	handler := handleDrop(p)
-	call := mcpgo.CallToolRequest{}
-	call.Params.Arguments = map[string]any{"handle": "data"}
-
-	out, err := handler(context.Background(), call)
+	out, err := handler(context.Background(), toolCall(t, ToolDrop, map[string]any{"handle": "data"}))
 	if err != nil {
 		t.Fatalf("handleDrop: %v", err)
 	}
@@ -127,10 +96,7 @@ func TestDrop_MCPHandler_RoundTrip(t *testing.T) {
 func TestDrop_MCPHandler_UnknownHandle_Errors(t *testing.T) {
 	p, _ := newMCPImportTestPulse(t)
 	handler := handleDrop(p)
-	call := mcpgo.CallToolRequest{}
-	call.Params.Arguments = map[string]any{"handle": "ghost"}
-
-	out, err := handler(context.Background(), call)
+	out, err := handler(context.Background(), toolCall(t, ToolDrop, map[string]any{"handle": "ghost"}))
 	if err != nil {
 		t.Fatalf("handleDrop: %v", err)
 	}
@@ -145,23 +111,11 @@ func TestImportsList_MCPHandler(t *testing.T) {
 		t.Fatalf("ImportFile: %v", err)
 	}
 	handler := handleImportsList(p)
-	call := mcpgo.CallToolRequest{}
-	call.Params.Arguments = map[string]any{}
-
-	out, err := handler(context.Background(), call)
-	if err != nil {
-		t.Fatalf("handleImportsList: %v", err)
-	}
-	if out.IsError {
-		t.Fatalf("list returned error: %+v", out.Content)
-	}
-	text, ok := out.Content[0].(mcpgo.TextContent)
-	if !ok {
-		t.Fatalf("expected TextContent, got %T", out.Content[0])
-	}
+	out, err := handler(context.Background(), toolCall(t, ToolImportsList, map[string]any{}))
+	text := handlerText(t, out, err)
 	var entries []imports.Entry
-	if err := json.Unmarshal([]byte(text.Text), &entries); err != nil {
-		t.Fatalf("unmarshal: %v\n%s", err, text.Text)
+	if err := json.Unmarshal([]byte(text), &entries); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, text)
 	}
 	if len(entries) != 1 || entries[0].Handle != "data" {
 		t.Errorf("entries = %+v, want one entry for handle 'data'", entries)

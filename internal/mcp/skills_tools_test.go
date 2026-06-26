@@ -1,11 +1,3 @@
-//go:build ignore
-
-// TODO(E1-S2/S3/S4): not yet ported to github.com/modelcontextprotocol/go-sdk.
-// This file still targets mark3labs/mcp-go and is excluded from the build by
-// the constraint above. Handler logic is preserved verbatim; the per-file
-// migration stories (tools/strict_decode/import_tools -> E1-S2; resources/
-// prompts -> E1-S3; schema_bind -> E1-S4) remove this constraint as they port.
-
 package mcp
 
 import (
@@ -15,36 +7,20 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/skills"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
 )
 
 func TestPulseSkillsList_BackwardCompatFields(t *testing.T) {
 	handler := handleSkillsList()
-	req := mcpgo.CallToolRequest{}
-	req.Params.Name = ToolSkillsList
-
-	out, err := handler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("handleSkillsList: %v", err)
-	}
-	if out.IsError {
-		t.Fatalf("handler returned error result: %+v", out.Content)
-	}
-	if len(out.Content) == 0 {
-		t.Fatal("handler returned no content")
-	}
-	text, ok := out.Content[0].(mcpgo.TextContent)
-	if !ok {
-		t.Fatalf("expected TextContent, got %T", out.Content[0])
-	}
+	out, err := handler(context.Background(), toolCall(t, ToolSkillsList, map[string]any{}))
+	text := handlerText(t, out, err)
 
 	// Decode into a map slice so we can prove omitempty at the JSON level.
 	// Decoding straight into []skills.Metadata would hide whether the new
 	// fields actually appeared on the wire — Go would zero-fill them either
 	// way. The omitempty contract lives in the JSON, not in the struct.
 	var raw []map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(text.Text), &raw); err != nil {
-		t.Fatalf("decode: %v\n%s", err, text.Text)
+	if err := json.Unmarshal([]byte(text), &raw); err != nil {
+		t.Fatalf("decode: %v\n%s", err, text)
 	}
 
 	if len(raw) == 0 {
@@ -53,7 +29,7 @@ func TestPulseSkillsList_BackwardCompatFields(t *testing.T) {
 
 	// Also keep the typed view for content-level checks below.
 	var typed []skills.Metadata
-	if err := json.Unmarshal([]byte(text.Text), &typed); err != nil {
+	if err := json.Unmarshal([]byte(text), &typed); err != nil {
 		t.Fatalf("decode typed: %v", err)
 	}
 	if len(typed) != len(raw) {
@@ -80,7 +56,6 @@ func TestPulseSkillsList_BackwardCompatFields(t *testing.T) {
 	additive := []string{"kind", "category", "operator", "covers", "examples_tags"}
 
 	for i, entry := range raw {
-		entry := entry
 		name := string(entry["name"])
 		// Use the JSON-encoded name as the subtest label so failures point
 		// at the row that broke.
@@ -162,32 +137,15 @@ func TestPulseSkillsGet_BackwardCompatBody(t *testing.T) {
 	}
 
 	for _, meta := range list {
-		meta := meta
 		t.Run(meta.Name, func(t *testing.T) {
-			req := mcpgo.CallToolRequest{}
-			req.Params.Name = ToolSkillsGet
-			req.Params.Arguments = map[string]any{"name": meta.Name}
-
-			out, err := handler(context.Background(), req)
-			if err != nil {
-				t.Fatalf("handler: %v", err)
-			}
-			if out.IsError {
-				t.Fatalf("handler returned error result for %q: %+v", meta.Name, out.Content)
-			}
-			if len(out.Content) == 0 {
-				t.Fatalf("handler returned no content for %q", meta.Name)
-			}
-			text, ok := out.Content[0].(mcpgo.TextContent)
-			if !ok {
-				t.Fatalf("expected TextContent, got %T", out.Content[0])
-			}
-			if text.Text == "" {
+			out, err := handler(context.Background(), toolCall(t, ToolSkillsGet, map[string]any{"name": meta.Name}))
+			text := handlerText(t, out, err)
+			if text == "" {
 				t.Fatalf("empty body for skill %q", meta.Name)
 			}
 			// Historical contract: bodies start with the YAML frontmatter
 			// fence so downstream agents can parse the metadata in-band.
-			if !strings.HasPrefix(text.Text, "---\n") {
+			if !strings.HasPrefix(text, "---\n") {
 				t.Errorf("skill %q body does not start with YAML frontmatter fence", meta.Name)
 			}
 		})
@@ -207,12 +165,8 @@ func TestPulseSkillsGet_MissingNameError(t *testing.T) {
 		{"wrong_type", map[string]any{"name": 42}},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			req := mcpgo.CallToolRequest{}
-			req.Params.Name = ToolSkillsGet
-			req.Params.Arguments = tc.args
-			out, err := handler(context.Background(), req)
+			out, err := handler(context.Background(), toolCall(t, ToolSkillsGet, tc.args))
 			if err != nil {
 				t.Fatalf("handler: %v", err)
 			}

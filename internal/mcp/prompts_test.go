@@ -1,11 +1,3 @@
-//go:build ignore
-
-// TODO(E1-S2/S3/S4): not yet ported to github.com/modelcontextprotocol/go-sdk.
-// This file still targets mark3labs/mcp-go and is excluded from the build by
-// the constraint above. Handler logic is preserved verbatim; the per-file
-// migration stories (tools/strict_decode/import_tools -> E1-S2; resources/
-// prompts -> E1-S3; schema_bind -> E1-S4) remove this constraint as they port.
-
 package mcp_test
 
 import (
@@ -16,7 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/mcp"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )
 
@@ -30,7 +22,7 @@ func TestServer_ListPrompts_RoundTrip(t *testing.T) {
 	defer cancel()
 
 	ctx := context.Background()
-	out, err := c.ListPrompts(ctx, mcpgo.ListPromptsRequest{})
+	out, err := c.ListPrompts(ctx, nil)
 	if err != nil {
 		t.Fatalf("ListPrompts: %v", err)
 	}
@@ -59,9 +51,7 @@ func TestServer_GetPrompt_Bootstrap(t *testing.T) {
 	defer cancel()
 
 	ctx := context.Background()
-	req := mcpgo.GetPromptRequest{}
-	req.Params.Name = mcp.PromptBootstrap
-	res, err := c.GetPrompt(ctx, req)
+	res, err := c.GetPrompt(ctx, &mcpsdk.GetPromptParams{Name: mcp.PromptBootstrap})
 	if err != nil {
 		t.Fatalf("GetPrompt(bootstrap): %v", err)
 	}
@@ -87,10 +77,10 @@ func TestServer_GetPrompt_AuthorRequest(t *testing.T) {
 	defer cancel()
 
 	ctx := context.Background()
-	req := mcpgo.GetPromptRequest{}
-	req.Params.Name = mcp.PromptAuthorRequest
-	req.Params.Arguments = map[string]string{"question": "regression of revenue on advertising spend by region"}
-	res, err := c.GetPrompt(ctx, req)
+	res, err := c.GetPrompt(ctx, &mcpsdk.GetPromptParams{
+		Name:      mcp.PromptAuthorRequest,
+		Arguments: map[string]string{"question": "regression of revenue on advertising spend by region"},
+	})
 	if err != nil {
 		t.Fatalf("GetPrompt(author-request): %v", err)
 	}
@@ -106,11 +96,11 @@ func TestServer_GetPrompt_AuthorRequest(t *testing.T) {
 	}
 }
 
-func extractText(t *testing.T, msg mcpgo.PromptMessage) string {
+func extractText(t *testing.T, msg *mcpsdk.PromptMessage) string {
 	t.Helper()
-	tc, ok := msg.Content.(mcpgo.TextContent)
+	tc, ok := msg.Content.(*mcpsdk.TextContent)
 	if !ok {
-		t.Fatalf("expected TextContent, got %T", msg.Content)
+		t.Fatalf("expected *TextContent, got %T", msg.Content)
 	}
 	return tc.Text
 }

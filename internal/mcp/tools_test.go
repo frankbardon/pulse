@@ -1,11 +1,3 @@
-//go:build ignore
-
-// TODO(E1-S2/S3/S4): not yet ported to github.com/modelcontextprotocol/go-sdk.
-// This file still targets mark3labs/mcp-go and is excluded from the build by
-// the constraint above. Handler logic is preserved verbatim; the per-file
-// migration stories (tools/strict_decode/import_tools -> E1-S2; resources/
-// prompts -> E1-S3; schema_bind -> E1-S4) remove this constraint as they port.
-
 package mcp
 
 import (
@@ -16,9 +8,47 @@ import (
 
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )
+
+// toolCall builds a go-sdk CallToolRequest carrying the given arguments as the
+// raw JSON the handler unmarshals itself (the low-level Server.AddTool path
+// does no auto-decode). Replaces the mark3labs CallToolRequest whose Arguments
+// was a map[string]any.
+func toolCall(t *testing.T, name string, args map[string]any) *mcpsdk.CallToolRequest {
+	t.Helper()
+	raw, err := json.Marshal(args)
+	if err != nil {
+		t.Fatalf("marshal args: %v", err)
+	}
+	return &mcpsdk.CallToolRequest{
+		Params: &mcpsdk.CallToolParamsRaw{
+			Name:      name,
+			Arguments: raw,
+		},
+	}
+}
+
+// handlerText runs a direct (in-package) handler call and returns the first
+// text-content body, failing on transport error or an error result.
+func handlerText(t *testing.T, out *mcpsdk.CallToolResult, err error) string {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	if out.IsError {
+		t.Fatalf("handler returned error result: %+v", out.Content)
+	}
+	if len(out.Content) == 0 {
+		t.Fatal("handler returned no content")
+	}
+	text, ok := out.Content[0].(*mcpsdk.TextContent)
+	if !ok {
+		t.Fatalf("expected *TextContent, got %T", out.Content[0])
+	}
+	return text.Text
+}
 
 func TestRegisteredTools_Stable(t *testing.T) {
 	got := RegisteredTools()
@@ -95,26 +125,11 @@ func TestMCPErrorsLookup_RoundTrip(t *testing.T) {
 
 	call := func(args map[string]any) []perr.LookupResult {
 		t.Helper()
-		req := mcpgo.CallToolRequest{}
-		req.Params.Name = ToolErrorsLookup
-		req.Params.Arguments = args
-		out, err := handler(context.Background(), req)
-		if err != nil {
-			t.Fatalf("handler: %v", err)
-		}
-		if out.IsError {
-			t.Fatalf("handler returned error result: %+v", out.Content)
-		}
-		if len(out.Content) == 0 {
-			t.Fatal("handler returned no content")
-		}
-		text, ok := out.Content[0].(mcpgo.TextContent)
-		if !ok {
-			t.Fatalf("expected TextContent, got %T", out.Content[0])
-		}
+		out, err := handler(context.Background(), toolCall(t, ToolErrorsLookup, args))
+		text := handlerText(t, out, err)
 		var decoded []perr.LookupResult
-		if err := json.Unmarshal([]byte(text.Text), &decoded); err != nil {
-			t.Fatalf("decode: %v\n%s", err, text.Text)
+		if err := json.Unmarshal([]byte(text), &decoded); err != nil {
+			t.Fatalf("decode: %v\n%s", err, text)
 		}
 		return decoded
 	}
@@ -155,10 +170,7 @@ func TestMCPErrorsLookup_RoundTrip(t *testing.T) {
 	}
 
 	// all-empty → SERVICE_VALIDATION error.
-	req := mcpgo.CallToolRequest{}
-	req.Params.Name = ToolErrorsLookup
-	req.Params.Arguments = map[string]any{}
-	out, err := handler(context.Background(), req)
+	out, err := handler(context.Background(), toolCall(t, ToolErrorsLookup, map[string]any{}))
 	if err != nil {
 		t.Fatalf("handler with empty args: %v", err)
 	}

@@ -1,11 +1,3 @@
-//go:build ignore
-
-// TODO(E1-S2/S3/S4): not yet ported to github.com/modelcontextprotocol/go-sdk.
-// This file still targets mark3labs/mcp-go and is excluded from the build by
-// the constraint above. Handler logic is preserved verbatim; the per-file
-// migration stories (tools/strict_decode/import_tools -> E1-S2; resources/
-// prompts -> E1-S3; schema_bind -> E1-S4) remove this constraint as they port.
-
 package mcp
 
 import (
@@ -17,7 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )
 
@@ -149,20 +141,16 @@ func TestHandleProcess_UnknownKeyRejected(t *testing.T) {
 	reqBody := `{"cohort":{"filename":"demo.pulse"},"groupers":[{"type":"GROUP_CATEGORY","field":"region"}]}`
 
 	handler := handleProcess(p)
-	call := mcpgo.CallToolRequest{}
-	call.Params.Name = ToolProcess
-	call.Params.Arguments = map[string]any{"request": reqBody}
-
-	out, err := handler(context.Background(), call)
+	out, err := handler(context.Background(), toolCall(t, ToolProcess, map[string]any{"request": reqBody}))
 	if err != nil {
 		t.Fatalf("handler returned transport error: %v", err)
 	}
 	if !out.IsError {
 		t.Fatal("expected IsError result for misnamed key, got success")
 	}
-	text, ok := out.Content[0].(mcpgo.TextContent)
+	text, ok := out.Content[0].(*mcpsdk.TextContent)
 	if !ok {
-		t.Fatalf("expected TextContent, got %T", out.Content[0])
+		t.Fatalf("expected *TextContent, got %T", out.Content[0])
 	}
 	var decoded struct {
 		Code    string `json:"code"`
