@@ -70,15 +70,18 @@ pulse/
 ├── skills/                 # //go:embed markdown skill pack
 ├── examples/               # //go:embed runnable request examples
 ├── synth/                  # Synthetic data generator
+├── mcp/                    # SDK-free MCP core (typed In/Out, reflected schemas, handlers, bind)
+│   ├── gosdk/              # go-sdk adapter — the ONLY package importing the MCP SDK
+│   └── toolmeta/           # Leaf tool name+description metadata (descriptor + core import it)
 ├── docs/                   # mdBook source (GitHub Pages)
-└── internal/{cli,mcp}/     # CLI internals + MCP server
+└── internal/cli/           # CLI internals
 ```
 
 `pulse.go` re-exports `types.Request` → `pulse.Request`, `types.Response` → `pulse.Response`, `types.ComposedRequest` → `pulse.ComposedRequest`, plus `synth.Spec`/`Result`/`Options`/`Profile`/`ProfileOptions`.
 
 CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `schema`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `api {process,compose,facet,process-chain}`. `pulse schema` prints the payload JSON Schema raw (built by `descriptor.BuildPayloadSchema`); not envelope-wrapped.
 
-`internal/mcp/` registers ten tools (one per facade method plus `pulse_facet_schema`) and two resource schemes (`pulse://`, `pulse-skill://`). The reserved static resource `pulse://schema` serves the payload JSON Schema (`descriptor.BuildPayloadSchema`) — a resource, not a tool, so the tool surface is unchanged.
+The MCP layer is split: `mcp/` is the SDK-free core (typed In/Out structs, reflected JSON schemas, typed handlers over `*pulse.Pulse`, `ToolDescriptor`, `Tools(cfg)`, strict-decode, bind classification — imports no MCP SDK, gated by `TestMCPCore_NoSDKImport`); `mcp/gosdk/` is the only package importing `github.com/modelcontextprotocol/go-sdk`, and its `Register(server, p, cfg)` mounts the core catalog onto a caller-supplied server; `mcp/toolmeta/` is the leaf name+description metadata imported by both `descriptor` and the core. The former internal MCP server tree has been removed — `pulse mcp` builds a bare go-sdk server and calls `gosdk.Register`. The registry registers one tool per facade method plus skills/examples/errors/import/label tools (the manifest is the source-of-truth count; do not hardcode it) and two resource schemes (`pulse://`, `pulse-skill://`). The reserved static resource `pulse://schema` serves the payload JSON Schema (`descriptor.BuildPayloadSchema`) — a resource, not a tool, so the tool surface is unchanged. MCP tool I/O is the structured typed shape: payload tools take the structured request at top level, outputs are typed-wrapped, coded errors surface as `{code, message, details}`.
 
 Docs at <https://frankbardon.github.io/pulse/>. Skills under `skills/` are the LLM surface.
 

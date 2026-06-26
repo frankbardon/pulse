@@ -1,6 +1,6 @@
 ---
 name: pulse-backend
-description: Use for Go work in processing/, service/, descriptor/, types/, errors/, synth/, internal/mcp/, or the public facade (pulse.go, extensions*.go, *_request.go, watch.go, stream.go, label_*.go). Adds or edits aggregators, attributes, filterers, groupers, windows, features, tests, regressions, synth distributions, orchestration, predict/manifest/inspect, error codes, MCP tools, or the public API. Returns files touched, registry/types updated, Update Demand companions written (skill + CLAUDE.md), tests added, and gates passing.
+description: Use for Go work in processing/, service/, descriptor/, types/, errors/, synth/, mcp/ (mcp/gosdk/, mcp/toolmeta/), or the public facade (pulse.go, extensions*.go, *_request.go, watch.go, stream.go, label_*.go). Adds or edits aggregators, attributes, filterers, groupers, windows, features, tests, regressions, synth distributions, orchestration, predict/manifest/inspect, error codes, MCP tools, or the public API. Returns files touched, registry/types updated, Update Demand companions written (skill + CLAUDE.md), tests added, and gates passing.
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 

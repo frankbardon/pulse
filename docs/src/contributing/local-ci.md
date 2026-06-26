@@ -78,7 +78,7 @@ go test . -run 'TestClaudeMd|TestUpdateDemandTable'
 | A synth distribution | `go test ./skills/ -run TestSkillsCoverAllSynthDistributions && go test ./descriptor/ -run TestManifestDistributionsComplete` |
 | A regression operator | `go test ./skills/ -run TestSkillsCoverAllRegressions && go test ./descriptor/ -run TestManifestRegressionsComplete` |
 | An error code | `go test ./errors/ -run 'TestCodesHaveFixups\|TestErrorsLookup' && go test ./descriptor/ -run 'TestManifestErrorCodesComplete\|TestManifest_ErrorCodesSlim'` |
-| An MCP tool | `go test ./skills/ -run TestSkillsCoverAllMCPTools && go test ./descriptor/ -run TestManifestMCPToolsComplete && go test ./internal/mcp/ -run TestMCPSchemaBinding` |
+| An MCP tool | `go test ./skills/ -run TestSkillsCoverAllMCPTools && go test ./descriptor/ -run TestManifestMCPToolsComplete && go test ./mcp/ -run TestMCPSchemaBinding` |
 | A field type | `go test ./skills/ -run TestSkillsCoverAllFieldTypes && go test ./encoding/...` |
 | The Update Demand table or a contract listed in it | `go test . -run TestUpdateDemandTableCovers` |
 

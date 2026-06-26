@@ -30,11 +30,11 @@ pulse/
 ├── skills/                 # Embedded markdown skill pack (//go:embed)
 │   ├── index.json          # Manifest of all bundled skills
 │   └── *.md                # Individual skill files with YAML frontmatter
-├── mcp/                    # Public MCP library surface
-│   └── toolmeta/           # Leaf metadata package (tool names + descriptions) consumed by descriptor + internal/mcp
+├── mcp/                    # Public SDK-free MCP core (typed In/Out, reflected schemas, handlers, bind)
+│   ├── gosdk/              # go-sdk adapter — the only package importing the MCP SDK; gosdk.Register
+│   └── toolmeta/           # Leaf metadata package (tool names + descriptions) consumed by descriptor + core
 ├── synth/                  # Synthetic data generator (from-schema, from-profile)
 ├── docs/                   # mdBook source for this site (published to GitHub Pages)
 └── internal/
-    ├── cli/                # CLI internals (descriptor walker, json action)
-    └── mcp/                # MCP server: tool + resource handlers wrapping pulse.Pulse
+    └── cli/                # CLI internals (descriptor walker, json action)
 ```

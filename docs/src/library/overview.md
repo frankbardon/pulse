@@ -31,8 +31,9 @@ Sub-packages you'll commonly touch:
 | `github.com/frankbardon/pulse/synth`      | Synthetic data generator and profile types |
 | `github.com/frankbardon/pulse/skills`     | Embedded skill pack — `skills.List()`, `skills.Get(name)` |
 
-The `internal/` subtree (`internal/cli`, `internal/mcp`) is exactly
-that — internal. Don't import it.
+The `internal/` subtree (`internal/cli`) is exactly that — internal.
+Don't import it. The MCP server is public: `mcp/` is the SDK-free core
+and `mcp/gosdk/` is the go-sdk adapter (`gosdk.Register`).
 
 ## The facade
 
