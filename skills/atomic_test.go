@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/mcp/mcptools"
+	"github.com/frankbardon/pulse/mcp/toolmeta"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
@@ -205,7 +205,7 @@ func stripFrontmatter(md string) string {
 //     AllGroupTypes / AllWindowTypes / AllFeatureTypes / AllTestTypes /
 //     AllRegressionTypes / AllOverlayKinds
 //   - synth.AllDistributions
-//   - mcptools.Names
+//   - toolmeta.Names
 //   - encoding field-type constants (the canonical 17)
 //
 // Hardcoded extras (not exposed by an `All*` function):
@@ -309,7 +309,7 @@ func TestOperatorHasAtomicSkill(t *testing.T) {
 
 	// MCP tools: strip the leading `pulse_` namespace prefix and apply the
 	// standard kebab conversion to the remainder.
-	for _, name := range mcptools.Names() {
+	for _, name := range toolmeta.Names() {
 		add("mcp-tool", name, "tool-", strings.TrimPrefix(name, "pulse_"))
 	}
 

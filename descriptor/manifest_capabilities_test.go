@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/mcp/mcptools"
+	"github.com/frankbardon/pulse/mcp/toolmeta"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
@@ -343,14 +343,14 @@ func TestManifest_ErrorCodesSlim(t *testing.T) {
 }
 
 // TestManifestMCPToolsComplete asserts that every name in
-// mcptools.Names() has an MCPTool entry.
+// toolmeta.Names() has an MCPTool entry.
 func TestManifestMCPToolsComplete(t *testing.T) {
 	m := BuildManifest()
 	set := make(map[string]MCPTool, len(m.MCPTools))
 	for _, mt := range m.MCPTools {
 		set[mt.Name] = mt
 	}
-	for _, name := range mcptools.Names() {
+	for _, name := range toolmeta.Names() {
 		mt, ok := set[name]
 		if !ok {
 			t.Errorf("MCP tool %q missing from manifest", name)

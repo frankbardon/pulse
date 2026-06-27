@@ -1,23 +1,22 @@
 package mcp
 
-// schema_bind.go derives session-scoped tool variants whose JSON Schemas
-// embed enum constraints on field-name parameters. The trigger is a
-// successful pulse_inspect call: once the server has learned the schema of
-// a .pulse file in this session, we register bound variants of the
-// action tools so the LLM picks field names from a typed list instead of
-// free-texting them.
+// bind.go is the SDK-free half of schema-bind-on-inspect: given a cohort
+// schema (and an optional embedder extensions snapshot) it derives the
+// per-tool JSON Schemas whose field-name / operator-type enums are
+// constrained to that cohort. The result is a name→json.RawMessage map the
+// go-sdk adapter (mcp/gosdk) feeds into a per-session Server.AddTool swap.
 //
-// The bound variants reuse the global tool names; mcp-go's session-scoped
-// tools override globals for that session. Multi-file binding is not
-// supported in v1: the latest inspect wins. A documented limitation; see
-// docs/src/internals/adding-mcp-tool.md.
+// Everything here is pure: it imports only the Pulse domain packages
+// (encoding, descriptor, types) plus the leaf toolmeta. No MCP SDK — the
+// import firewall (firewall_test.go) keeps it that way. The per-session
+// server mutation that consumes these schemas lives in the adapter, not here.
 //
 // JSON Schema limitations note: per-element correlation between an
 // operator-type enum and the field-name enum (e.g. "AGG_SUM permitted only
-// for numeric fields") is hard to express across array elements. The v1
-// cut applies enums on field names and on the operator-type catalogues,
-// and relies on Type-level descriptions to convey operator compatibility.
-// Strict correlation enforcement remains the job of predict.
+// for numeric fields") is hard to express across array elements. The v1 cut
+// applies enums on field names and on the operator-type catalogues, and
+// relies on Type-level descriptions to convey operator compatibility. Strict
+// correlation enforcement remains the job of predict.
 
 import (
 	"encoding/json"
@@ -25,10 +24,8 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/mcp/mcptools"
+	"github.com/frankbardon/pulse/mcp/toolmeta"
 	"github.com/frankbardon/pulse/types"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 // fieldClassification slots schema fields into the coarse categories the
@@ -98,18 +95,17 @@ func stringSlice[T ~string](in []T) []string {
 	return out
 }
 
-// Bind returns per-tool JSON Schemas keyed by tool name with no
-// embedder extensions applied. Equivalent to BindWithExtensions with
-// a nil snapshot.
+// Bind returns per-tool JSON Schemas keyed by tool name with no embedder
+// extensions applied. Equivalent to BindWithExtensions with a nil snapshot.
 func Bind(schema *encoding.Schema) (map[string]json.RawMessage, error) {
 	return BindWithExtensions(schema, nil)
 }
 
-// BindWithExtensions returns per-tool JSON Schemas keyed by tool
-// name, merging any embedder-registered operator names into the
-// per-category enums so LLM agents can author requests that
-// reference custom operators. Empty schemas are omitted so the
-// caller can decide which tools to override.
+// BindWithExtensions returns per-tool JSON Schemas keyed by tool name,
+// merging any embedder-registered operator names into the per-category
+// enums so LLM agents can author requests that reference custom operators.
+// Empty schemas are omitted so the caller can decide which tools to
+// override. SDK-free: the go-sdk adapter consumes the returned map.
 func BindWithExtensions(schema *encoding.Schema, snap *descriptor.ExtensionsSnapshot) (map[string]json.RawMessage, error) {
 	if schema == nil {
 		return nil, nil
@@ -124,64 +120,54 @@ func BindWithExtensions(schema *encoding.Schema, snap *descriptor.ExtensionsSnap
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolProcess] = reqBody
-	out[mcptools.ToolPredict] = reqBody
+	out[toolmeta.ToolProcess] = reqBody
+	out[toolmeta.ToolPredict] = reqBody
 
 	composeBody, err := buildComposeSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolCompose] = composeBody
+	out[toolmeta.ToolCompose] = composeBody
 
 	sampleBody, err := buildSampleSchema(c)
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolSample] = sampleBody
+	out[toolmeta.ToolSample] = sampleBody
 
 	facetBody, err := buildFacetSchema(c)
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolFacet] = facetBody
+	out[toolmeta.ToolFacet] = facetBody
 
 	facetSchemaBody, err := buildFacetSchemaRequestSchema(c, snap)
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolFacetSchema] = facetSchemaBody
+	out[toolmeta.ToolFacetSchema] = facetSchemaBody
 
 	chainBody, err := buildProcessChainSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
 	}
-	out[mcptools.ToolProcessChain] = chainBody
+	out[toolmeta.ToolProcessChain] = chainBody
 
 	return out, nil
 }
 
 // buildProcessChainSchemaWithExtensions describes the pulse_process_chain
-// tool with the per-cohort enum constraints applied to every stage's
-// inner Request shape. ChainRequest.Stages[].Request inherits the same
-// Request schema the pulse_process facade emits — stage 0's request
-// supplies the source cohort, later stages ignore their inner cohort
-// field and consume the prior stage's synthesised in-memory cohort.
-// The outer ChainRequest.Overlays slot carries the whole-chain overlay
-// catalog (CHAIN-host kinds bound by StageRef pointers).
+// tool with the per-cohort enum constraints applied to every stage's inner
+// Request shape.
 func buildProcessChainSchemaWithExtensions(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
-	// Reuse the per-stage Request body the pulse_process facade emits
-	// so per-cohort field enums + extension-merged operator enums
-	// flow into every stage automatically.
 	inner, err := buildRequestSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
 	}
-	var innerOuter map[string]any
-	if err := json.Unmarshal(inner, &innerOuter); err != nil {
+	var reqSchema map[string]any
+	if err := json.Unmarshal(inner, &reqSchema); err != nil {
 		return nil, err
 	}
-	props, _ := innerOuter["properties"].(map[string]any)
-	reqSchema := props["request"]
 
 	stageItem := map[string]any{
 		"type":        "object",
@@ -212,28 +198,17 @@ func buildProcessChainSchemaWithExtensions(c fieldClassification, snap *descript
 				"description": "Ordered list of chain stages. Mergeable-only at v1; see Manifest.ProcessChain for the per-stage catalog gate.",
 				"items":       stageItem,
 			},
-			// ChainRequest.Overlays carries the whole-chain catalog.
 			"overlays": overlaysSchemaForFacade(overlayFacadeChain, snap),
 		},
 		"required":             []string{"stages"},
 		"additionalProperties": true,
 	}
 
-	outer := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"request": requestObject,
-		},
-		"required":             []string{"request"},
-		"additionalProperties": true,
-	}
-	return json.Marshal(outer)
+	return json.Marshal(requestObject)
 }
 
-// buildFacetSchemaRequestSchema describes the pulse_facet_schema tool
-// with field enums constrained to the bound cohort. The fields,
-// additive_fields, and per-filterer field references all draw from the
-// schema's field list; filterer types reuse the global filterer enum.
+// buildFacetSchemaRequestSchema describes the pulse_facet_schema tool with
+// field enums constrained to the bound cohort.
 func buildFacetSchemaRequestSchema(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
 	filterTypes := mergeEnumNames(stringSlice(types.AllFiltererTypes()), snap, "filterer")
 	requestObject := map[string]any{
@@ -288,10 +263,6 @@ func buildFacetSchemaRequestSchema(c fieldClassification, snap *descriptor.Exten
 				"maxItems":    2,
 				"description": "[min, max] bounds for fixed-width histogram binning. Required when include_histogram=true.",
 			},
-			// FacetRequest.Overlays accepts the four population-comparison
-			// FACET-host kinds (Ref.Population resolves to a separate
-			// cohort). Other kinds are routed onto their respective
-			// facades.
 			"overlays": overlaysSchemaForFacade(overlayFacadeFacet, snap),
 		},
 		"required":             []string{"fields"},
@@ -300,20 +271,11 @@ func buildFacetSchemaRequestSchema(c fieldClassification, snap *descriptor.Exten
 	if labels := buildLabelsSchema(c, snap); labels != nil {
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
-	outer := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"request": requestObject,
-		},
-		"required":             []string{"request"},
-		"additionalProperties": true,
-	}
-	return json.Marshal(outer)
+	return json.Marshal(requestObject)
 }
 
-// extensionNames returns the operator-name slice for a category from
-// the snapshot, or nil when no snapshot is registered. Used by the
-// enum-merging helper below.
+// extensionNames returns the operator-name slice for a category from the
+// snapshot, or nil when no snapshot is registered.
 func extensionNames(snap *descriptor.ExtensionsSnapshot, category string) []string {
 	if snap == nil {
 		return nil
@@ -350,9 +312,7 @@ func extensionNames(snap *descriptor.ExtensionsSnapshot, category string) []stri
 }
 
 // mergeEnumNames merges built-in names with extension names from the
-// snapshot, sorting the combined list and removing duplicates. The
-// result is the enum used for a category's `type` field in the
-// schema-bound tool schema.
+// snapshot, sorting the combined list and removing duplicates.
 func mergeEnumNames(builtin []string, snap *descriptor.ExtensionsSnapshot, category string) []string {
 	customs := extensionNames(snap, category)
 	if len(customs) == 0 {
@@ -374,8 +334,8 @@ func mergeEnumNames(builtin []string, snap *descriptor.ExtensionsSnapshot, categ
 	return out
 }
 
-// orderKeySchema is the shared schema for OrderKey entries used by
-// windows and tier-1/tier-2 tests. enumFields constrains the field name.
+// orderKeySchema is the shared schema for OrderKey entries used by windows
+// and tier-1/tier-2 tests.
 func orderKeySchema(enumFields []string) map[string]any {
 	field := map[string]any{
 		"type":        "string",
@@ -399,9 +359,7 @@ func orderKeySchema(enumFields []string) map[string]any {
 }
 
 // buildRequestSchemaWithExtensions produces a JSON Schema describing
-// types.Request with per-field enums for the bound cohort and
-// optionally with embedder-registered operator names merged into
-// each category enum.
+// types.Request with per-field enums for the bound cohort.
 func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
 	aggTypes := mergeEnumNames(stringSlice(types.AllAggregationTypes()), snap, "aggregator")
 	attrTypes := mergeEnumNames(stringSlice(types.AllAttributeTypes()), snap, "attribute")
@@ -546,21 +504,10 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.Ex
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
 
-	outer := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"request": requestObject,
-		},
-		"required":             []string{"request"},
-		"additionalProperties": true,
-	}
-	return json.Marshal(outer)
+	return json.Marshal(requestObject)
 }
 
-// crosstabSchema returns the JSON Schema for the Crosstab section. Row
-// and column axis groupers reuse the same Group shape as the top-level
-// groups array; the cell aggregation reuses the Aggregation shape; the
-// normalize / shape enums are constrained to known values.
+// crosstabSchema returns the JSON Schema for the Crosstab section.
 func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[string]any {
 	groupItem := map[string]any{
 		"type": "object",
@@ -634,41 +581,8 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 	}
 }
 
-// overlayFacade identifies which MCP tool surface a per-facade
-// overlay_kind enum belongs to. Each facade carries a constrained slice
-// of the universal overlay catalog so LLM authors see only the kinds
-// that are addressable on the bound tool's request shape:
-//
-//   - overlayFacadeRequest  — pulse_process / pulse_predict.
-//     Request.Overlays accepts the in-Request
-//     catalog: MATRIX-host kinds layered on a
-//     crosstab (`Request.Crosstab`) plus
-//     SERIES-host kinds layered on a grouped
-//     Process / Window result (`Request.Groups`).
-//     Excludes COMPOSE-only (slot-label-bound)
-//     / CHAIN-only (StageRef-bound) / FACET-only
-//     (population-bound) kinds — those address
-//     a different request shape and surface on
-//     their own facade.
-//   - overlayFacadeCompose  — pulse_compose. ComposedRequest.Overlays
-//     accepts COMPOSE-only kinds whose Ref +
-//     Targets resolve to slot labels in the
-//     parent ComposedRequest (`ComposeOverlaySpec`).
-//     FORMULA crosses over (in-Request AND
-//     Compose surfaces per the kind's catalog
-//     row); RANK rides the same slot-label
-//     plumbing as the comparison family even
-//     though the rank computation reads only
-//     the target matrix.
-//   - overlayFacadeFacet    — pulse_facet / pulse_facet_schema.
-//     FacetRequest.Overlays accepts only the
-//     four population-comparison kinds whose
-//     Ref.Population resolves to a separate
-//     cohort cohort.
-//   - overlayFacadeChain    — pulse_process_chain. ChainRequest.Overlays
-//     accepts the two whole-chain kinds whose
-//     Ref + Target are StageRef values pointing
-//     at stages of the parent ChainRequest.
+// overlayFacade identifies which MCP tool surface a per-facade overlay_kind
+// enum belongs to.
 type overlayFacade int
 
 const (
@@ -678,15 +592,8 @@ const (
 	overlayFacadeChain
 )
 
-// composeOnlyOverlayKinds enumerates the overlay kinds that resolve
-// their Reference / Targets via ComposeOverlaySpec slot labels rather
-// than the in-Request OverlayRef discriminated union. The list is the
-// authoritative source the per-facade classifier consults; each entry's
-// capability row at descriptor.overlayCapabilityFor carries a matching
-// "COMPOSE-only kind" comment so the catalog audit stays grep-clean.
-// Sorted alphabetically by constant so the slice itself is golden
-// across edits — but the per-facade enum surfaces the names through
-// sortedDedupe, so list order is not load-bearing for the enum output.
+// composeOnlyOverlayKinds enumerates the overlay kinds that resolve their
+// Reference / Targets via ComposeOverlaySpec slot labels.
 func composeOnlyOverlayKinds() []string {
 	return []string{
 		string(types.OverlayKindChiSqVsRef),
@@ -703,10 +610,8 @@ func composeOnlyOverlayKinds() []string {
 	}
 }
 
-// chainOnlyOverlayKinds enumerates the overlay kinds whose Ref +
-// Target are StageRef values pointing at stages of a ChainRequest.
-// Mirrors descriptor.processChainCapability().OverlayKinds — single
-// source of truth for the whole-chain catalog membership.
+// chainOnlyOverlayKinds enumerates the overlay kinds whose Ref + Target are
+// StageRef values pointing at stages of a ChainRequest.
 func chainOnlyOverlayKinds() []string {
 	return []string{
 		string(types.OverlayKindDeltaVsStage),
@@ -715,9 +620,7 @@ func chainOnlyOverlayKinds() []string {
 }
 
 // facetOnlyOverlayKinds enumerates the overlay kinds whose Ref.Population
-// resolves to a separate cohort. Mirrors
-// descriptor.facetCapability().SupportedOverlayKinds — single source of
-// truth for the FACET-host catalog membership.
+// resolves to a separate cohort.
 func facetOnlyOverlayKinds() []string {
 	return []string{
 		string(types.OverlayKindChiSqVsPop),
@@ -727,38 +630,9 @@ func facetOnlyOverlayKinds() []string {
 	}
 }
 
-// overlayKindEnumForFacade returns the per-facade overlay_kind enum
-// drawn from descriptor.OverlayCapabilities() filtered by facade
-// membership, with embedder-registered kinds (snap.OverlayKinds)
-// merged in via the same dedupe + alphabetise convention the operator
-// enums use.
-//
-// Classification rules (per acceptance criteria):
-//
-//   - Request facade   — every kind NOT in the compose / facet / chain
-//     lists. Includes the MATRIX-host crosstab kinds
-//     (INDEX_VS_MARGIN, SHARE_OF_ROW/COL/TOTAL,
-//     DELTA_VS_MARGIN, ZSCORE_VS_MARGIN, CHISQ_MATRIX,
-//     CHISQ_ROW, CHISQ_COL, FISHER_EXACT_CELL) plus
-//     the SERIES-host grouped / windowed kinds
-//     (INDEX_VS_TOTAL, INDEX_VS_SIBLING,
-//     DELTA_VS_SIBLING, ZSCORE_VS_TOTAL, SHARE_OF_TOTAL
-//     series arm, INDEX_VS_PRIOR, INDEX_VS_BASELINE,
-//     DELTA_VS_BASELINE, INDEX_VS_ROLLING_MEAN,
-//     ZSCORE_VS_ROLLING, YOY) and FORMULA (cross-shape).
-//   - Compose facade   — the compose-only catalog plus FORMULA. The kind
-//     catalog rows note FORMULA's Compose surface
-//     directly; it stays on the Request enum too
-//     because its in-Request surface also ships.
-//   - Facet facade     — exactly the four FACET-host kinds.
-//   - Chain facade     — exactly the two CHAIN-host kinds.
-//
-// Extension-registered kinds (snap.OverlayKinds) appear on the Request
-// facade enum today (lowest-risk fallback). The registration surface
-// is not yet implemented and the per-kind facade tag does not exist
-// yet — once registrations carry a per-kind facade tag, extension
-// kinds can be routed through the matching arm. snapshot-less paths
-// return the built-in catalog only.
+// overlayKindEnumForFacade returns the per-facade overlay_kind enum drawn
+// from descriptor.OverlayCapabilities() filtered by facade membership, with
+// embedder-registered kinds merged in.
 func overlayKindEnumForFacade(facade overlayFacade, snap *descriptor.ExtensionsSnapshot) []string {
 	composeSet := stringSetFrom(composeOnlyOverlayKinds())
 	chainSet := stringSetFrom(chainOnlyOverlayKinds())
@@ -770,18 +644,10 @@ func overlayKindEnumForFacade(facade overlayFacade, snap *descriptor.ExtensionsS
 		name := string(c.Kind)
 		switch facade {
 		case overlayFacadeRequest:
-			// Request facade carries every kind that is NOT
-			// exclusively addressed via a slot-label /
-			// stage-index / population-cohort ref family — i.e.
-			// every in-Request kind. FORMULA stays here too
-			// (Request.Overlays is a documented FORMULA surface).
 			if composeSet[name] || chainSet[name] || facetSet[name] {
 				continue
 			}
 		case overlayFacadeCompose:
-			// Compose facade carries the compose-only catalog
-			// plus FORMULA (cross-facade surface per the kind's
-			// catalog row).
 			if !(composeSet[name] || c.Kind == types.OverlayKindFormula) {
 				continue
 			}
@@ -796,19 +662,13 @@ func overlayKindEnumForFacade(facade overlayFacade, snap *descriptor.ExtensionsS
 		}
 		out = append(out, name)
 	}
-	// Extension-registered kinds — today every extension kind lands on
-	// the Request-facade enum (the lowest-risk fallback while the
-	// registration surface evolves). Routing by a per-kind facade tag
-	// becomes possible once registrations carry one.
 	if facade == overlayFacadeRequest {
 		out = append(out, extensionNames(snap, "overlay")...)
 	}
 	return sortedDedupe(out)
 }
 
-// stringSetFrom builds a membership set from a slice. Helper kept tight
-// because the per-facade classifier reads from three of these tables
-// every call.
+// stringSetFrom builds a membership set from a slice.
 func stringSetFrom(in []string) map[string]bool {
 	out := make(map[string]bool, len(in))
 	for _, s := range in {
@@ -817,11 +677,8 @@ func stringSetFrom(in []string) map[string]bool {
 	return out
 }
 
-// sortedDedupe alphabetises and deduplicates a slice in place-free
-// fashion, returning a new slice. Per-facade enums consume this so the
-// emitted JSON Schema is byte-stable across calls — the per-call enum
-// MUST be deterministic so the schema-bound MCP cache key remains
-// stable.
+// sortedDedupe alphabetises and deduplicates a slice, returning a new slice.
+// Per-facade enums consume this so the emitted JSON Schema is byte-stable.
 func sortedDedupe(in []string) []string {
 	if len(in) == 0 {
 		return in
@@ -839,19 +696,8 @@ func sortedDedupe(in []string) []string {
 	return out
 }
 
-// overlaysSchemaForFacade returns the JSON Schema fragment describing
-// the Overlays array on the named facade's request shape. Each entry
-// is an OverlaySpec (Request / Facet) or a ComposeOverlaySpec /
-// ChainOverlaySpec (Compose / Chain); the `kind` enum is the per-
-// facade catalog returned by overlayKindEnumForFacade. scope and ref
-// (or reference / targets / stage) carry the on-wire union
-// discriminator one level deeper — the per-kind validation surface
-// lives in predict, not in the schema.
-//
-// Scaffolding only: this surface mirrors the per-facade Spec shape
-// but does NOT attempt per-kind correlation in JSON Schema (the same
-// limitation noted at the top of this file for operator-type /
-// field-type pairs). The enum on `kind` is the load-bearing addition.
+// overlaysSchemaForFacade returns the JSON Schema fragment describing the
+// Overlays array on the named facade's request shape.
 func overlaysSchemaForFacade(facade overlayFacade, snap *descriptor.ExtensionsSnapshot) map[string]any {
 	kinds := overlayKindEnumForFacade(facade, snap)
 	kindField := map[string]any{
@@ -911,9 +757,6 @@ func overlaysSchemaForFacade(facade overlayFacade, snap *descriptor.ExtensionsSn
 			},
 		}
 	default:
-		// Request + Facet facades reuse the canonical OverlaySpec
-		// shape (types/overlay.go) — Ref is the discriminated union
-		// pointer family rather than a slot label.
 		return map[string]any{
 			"type":        "array",
 			"description": "Overlay layer specifications. Each entry produces one OverlayLayer in the response's matching Overlays slot. See types.OverlaySpec.",
@@ -935,8 +778,8 @@ func overlaysSchemaForFacade(facade overlayFacade, snap *descriptor.ExtensionsSn
 	}
 }
 
-// testsArraySchema returns the JSON Schema for a tests/post_tests array
-// with field references constrained by classification.
+// testsArraySchema returns the JSON Schema for a tests/post_tests array with
+// field references constrained by classification.
 func testsArraySchema(c fieldClassification, testTypes []string) map[string]any {
 	return map[string]any{
 		"type": "array",
@@ -961,56 +804,34 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 	}
 }
 
-// buildComposeSchema describes a ComposedRequest by wrapping the bound
-// Request schema in a requests array. Each entry inherits the same
-// per-cohort enum constraints — multi-file batches that target a
-// different cohort will still pass the schema check (the enum is a
-// "best-known" guide) but predict will catch field-name mismatches.
-// buildComposeSchemaWithExtensions mirrors buildRequestSchema with
-// the extension snapshot routed through so the nested request shape
-// includes custom operator names in its enums.
+// buildComposeSchemaWithExtensions describes a ComposedRequest by wrapping
+// the bound Request schema in a requests array.
 func buildComposeSchemaWithExtensions(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
 	inner, err := buildRequestSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
 	}
-	var innerOuter map[string]any
-	if err := json.Unmarshal(inner, &innerOuter); err != nil {
+	var reqSchema map[string]any
+	if err := json.Unmarshal(inner, &reqSchema); err != nil {
 		return nil, err
 	}
-	// Extract the request sub-schema so we can nest it under requests[].
-	props, _ := innerOuter["properties"].(map[string]any)
-	reqSchema := props["request"]
 
 	outer := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"request": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"requests": map[string]any{
-						"type":  "array",
-						"items": reqSchema,
-					},
-					// ComposedRequest.Overlays carries the Compose-only
-					// catalog (slot-label-bound kinds + FORMULA). The
-					// per-Request inherited Overlays slot lives inside
-					// `requests[].request.overlays` via the inlined
-					// request schema and stays Request-facade-scoped.
-					"overlays": overlaysSchemaForFacade(overlayFacadeCompose, snap),
-				},
-				"required":             []string{"requests"},
-				"additionalProperties": true,
+			"requests": map[string]any{
+				"type":  "array",
+				"items": reqSchema,
 			},
+			"overlays": overlaysSchemaForFacade(overlayFacadeCompose, snap),
 		},
-		"required":             []string{"request"},
+		"required":             []string{"requests"},
 		"additionalProperties": true,
 	}
 	return json.Marshal(outer)
 }
 
-// buildSampleSchema describes the pulse_sample tool params. count stays a
-// number; path is unconstrained because sample doesn't read schema.
+// buildSampleSchema describes the pulse_sample tool params.
 func buildSampleSchema(c fieldClassification) (json.RawMessage, error) {
 	outer := map[string]any{
 		"type": "object",
@@ -1021,8 +842,6 @@ func buildSampleSchema(c fieldClassification) (json.RawMessage, error) {
 		"required":             []string{"path"},
 		"additionalProperties": true,
 	}
-	// Sample doesn't reference field names. Classification is unused but
-	// kept in signature for symmetry with the other builders.
 	_ = c
 	return json.Marshal(outer)
 }
@@ -1050,11 +869,7 @@ func buildFacetSchema(c fieldClassification) (json.RawMessage, error) {
 }
 
 // buildLabelsSchema returns the JSON Schema fragment for a Request /
-// FacetRequest Labels slot, constrained to the cohort's categorical
-// fields and the snapshot's registered label tables. Returns nil
-// when there are no categorical fields OR no registered tables — in
-// either case the slot is non-functional and omitting it from the
-// schema is more honest than advertising an empty enum.
+// FacetRequest Labels slot.
 func buildLabelsSchema(c fieldClassification, snap *descriptor.ExtensionsSnapshot) map[string]any {
 	if len(c.Categorical) == 0 {
 		return nil
@@ -1094,9 +909,7 @@ func buildLabelsSchema(c fieldClassification, snap *descriptor.ExtensionsSnapsho
 	}
 }
 
-// labelTableNames extracts table names from the snapshot in sorted
-// order. Returns nil when the snapshot is empty so callers can skip
-// adding a useless empty enum.
+// labelTableNames extracts table names from the snapshot in sorted order.
 func labelTableNames(snap *descriptor.ExtensionsSnapshot) []string {
 	if snap == nil || len(snap.LabelTables) == 0 {
 		return nil
@@ -1109,11 +922,8 @@ func labelTableNames(snap *descriptor.ExtensionsSnapshot) []string {
 	return out
 }
 
-// enumStringField returns a property schema for a string with an enum
-// drawn from values. When values is empty (no fields of this category in
-// the cohort), the enum is omitted so the schema stays valid — predict
-// will still reject the request, but the schema doesn't list an empty
-// enum which some validators reject outright.
+// enumStringField returns a property schema for a string with an enum drawn
+// from values. When values is empty the enum is omitted.
 func enumStringField(values []string, description string) map[string]any {
 	out := map[string]any{
 		"type": "string",
@@ -1125,65 +935,4 @@ func enumStringField(values []string, description string) map[string]any {
 		out["enum"] = values
 	}
 	return out
-}
-
-// BindSessionTools is the entry point used by handleInspect. Given a
-// schema, it derives per-tool JSON Schemas and registers them as
-// session-scoped tools that override the global variants for the
-// current session. mcp-go fires notifications/tools/list_changed on
-// success.
-func BindSessionTools(s *server.MCPServer, sessionID string, schema *encoding.Schema, handlers boundHandlers) error {
-	return BindSessionToolsWithExtensions(s, sessionID, schema, nil, handlers)
-}
-
-// BindSessionToolsWithExtensions mirrors BindSessionTools but routes
-// an extensions snapshot into the per-tool JSON Schemas so
-// embedder-registered operator names appear in the enum lists.
-func BindSessionToolsWithExtensions(s *server.MCPServer, sessionID string, schema *encoding.Schema, snap *descriptor.ExtensionsSnapshot, handlers boundHandlers) error {
-	if s == nil || sessionID == "" || schema == nil {
-		return nil
-	}
-	schemas, err := BindWithExtensions(schema, snap)
-	if err != nil {
-		return err
-	}
-	bound := make([]server.ServerTool, 0, len(schemas))
-	for _, entry := range []struct {
-		name        string
-		description string
-		handler     server.ToolHandlerFunc
-	}{
-		{mcptools.ToolProcess, mcptools.DescProcess + " (schema-bound)", handlers.process},
-		{mcptools.ToolPredict, mcptools.DescPredict + " (schema-bound)", handlers.predict},
-		{mcptools.ToolCompose, mcptools.DescCompose + " (schema-bound)", handlers.compose},
-		{mcptools.ToolSample, mcptools.DescSample + " (schema-bound)", handlers.sample},
-		{mcptools.ToolFacet, mcptools.DescFacet + " (schema-bound)", handlers.facet},
-		{mcptools.ToolFacetSchema, mcptools.DescFacetSchema + " (schema-bound)", handlers.facetSchema},
-		{mcptools.ToolProcessChain, mcptools.DescProcessChain + " (schema-bound)", handlers.processChain},
-	} {
-		raw, ok := schemas[entry.name]
-		if !ok {
-			continue
-		}
-		tool := mcpgo.NewToolWithRawSchema(entry.name, entry.description, raw)
-		bound = append(bound, server.ServerTool{Tool: tool, Handler: entry.handler})
-	}
-	if len(bound) == 0 {
-		return nil
-	}
-	return s.AddSessionTools(sessionID, bound...)
-}
-
-// boundHandlers carries the per-tool handler closures so BindSessionTools
-// can attach them to the bound variants. We reuse the existing global
-// handlers verbatim — the wire-shape stays identical; only the input
-// schema changes.
-type boundHandlers struct {
-	process      server.ToolHandlerFunc
-	predict      server.ToolHandlerFunc
-	compose      server.ToolHandlerFunc
-	sample       server.ToolHandlerFunc
-	facet        server.ToolHandlerFunc
-	facetSchema  server.ToolHandlerFunc
-	processChain server.ToolHandlerFunc
 }

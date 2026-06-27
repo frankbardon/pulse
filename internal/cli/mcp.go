@@ -6,14 +6,21 @@ import (
 	"os"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/internal/mcp"
+	"github.com/frankbardon/pulse/mcp/gosdk"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	cli "github.com/urfave/cli/v3"
 )
 
-// MCPCommand returns the mcp command leaf. Running it serves the MCP
-// protocol over stdio so AI clients (Claude Desktop, Claude Code, etc.)
-// can discover and call Pulse tools.
-func MCPCommand() *cli.Command {
+// mcpServerName is the MCP server identity reported during initialize. The
+// version is threaded in from the build (see MCPCommand) rather than read from
+// a package global.
+const mcpServerName = "pulse"
+
+// MCPCommand returns the mcp command leaf. Running it serves the MCP protocol
+// over stdio so AI clients (Claude Desktop, Claude Code, etc.) can discover and
+// call Pulse tools. version is the build identity, threaded into both the
+// advertised server Implementation.Version and the adapter Config.
+func MCPCommand(version string) *cli.Command {
 	return &cli.Command{
 		Name:  "mcp",
 		Usage: "Run the Model Context Protocol server over stdio",
@@ -46,8 +53,22 @@ func MCPCommand() *cli.Command {
 
 			bindOnOpen := cmd.Bool("bind-on-open")
 			fmt.Fprintf(os.Stderr, "pulse mcp: serving over stdio (data dir: %s, bind-on-open: %v)\n", dataDir, bindOnOpen)
-			srv := mcp.NewWithOptions(p, mcp.Options{BindOnOpen: bindOnOpen})
-			if err := mcp.ServeStdio(srv); err != nil {
+
+			// Construct a bare go-sdk server and mount the full Pulse surface
+			// through the single registration path (the gosdk adapter), then
+			// serve over stdio. NewServer panics on a nil Implementation; the
+			// literal below is always valid.
+			srv := mcpsdk.NewServer(&mcpsdk.Implementation{
+				Name:    mcpServerName,
+				Version: version,
+			}, nil)
+			if err := gosdk.Register(srv, p, gosdk.Config{
+				Version:       version,
+				BindOnInspect: bindOnOpen,
+			}); err != nil {
+				return fmt.Errorf("registering mcp surface: %w", err)
+			}
+			if err := srv.Run(ctx, &mcpsdk.StdioTransport{}); err != nil {
 				return fmt.Errorf("mcp server: %w", err)
 			}
 			return nil

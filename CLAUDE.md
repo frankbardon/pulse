@@ -31,8 +31,8 @@ This is the compressed surface — the full per-contract trigger table lives at 
 | A registered synth distribution | `skills/op-synth-<kebab>.md` (atomic skill) + `descriptor/capabilities_distributions.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
 | A registered overlay kind (`OVERLAY_*`) | `skills/op-overlay-<kebab>.md` (atomic skill) + `types/overlay.go` (`AllOverlayKinds`) | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllOverlayKinds` |
 | `OverlayLayer.Warnings` slot shape or the dispatcher-stamped `Details["overlay_index"]` routing key | `skills/overlay-system.md` (Per-layer warnings section) + `types/overlay.go` + `processing/overlay_chain_dispatch.go` + `processing/overlay_compose_dispatch.go` + `service/chain.go` + `service/compose_overlay.go` | `TestOverlayLayer_WarningsFreeByteIdentical`, `TestComposedResponse_OverlayFreeByteIdentical`, `TestSkillsCoverAllOverlayKinds` |
-| `ComposedResponse` shape (`Responses`/`Overlays` slots) OR the `Pulse.Compose` / `Pulse.ComposeParallel` facade return type OR the `pulse api compose --json` `data` envelope wrapping | CLAUDE.md "Output Format Contract" (`--json` envelope + Compose envelope block) + `skills/compose-requests.md` + `skills/tool-compose.md` + `skills/session-bootstrap.md` (step 7 Compose return shape) + `skills/overlay-system.md` (Compose-host fold) + `skills/streaming-and-watching.md` (Compose streaming vs. overlays) + `docs/src/cli/api-compose.md` + `types/types.go` (`ComposedResponse`) + `descriptor/envelope.go` (`format_version`) + `internal/mcp/mcptools/meta.go` (`DescCompose`) + `internal/cli/api.go` (Compose handler) | `TestClaudeMdMentionsFormatVersion`, `TestComposedResponse_OverlayFreeByteIdentical` |
-| A registered MCP tool (add/remove) | `skills/tool-<kebab>.md` (atomic skill; strip `pulse_` prefix) + `internal/mcp/mcptools/meta.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
+| `ComposedResponse` shape (`Responses`/`Overlays` slots) OR the `Pulse.Compose` / `Pulse.ComposeParallel` facade return type OR the `pulse api compose --json` `data` envelope wrapping | CLAUDE.md "Output Format Contract" (`--json` envelope + Compose envelope block) + `skills/compose-requests.md` + `skills/tool-compose.md` + `skills/session-bootstrap.md` (step 7 Compose return shape) + `skills/overlay-system.md` (Compose-host fold) + `skills/streaming-and-watching.md` (Compose streaming vs. overlays) + `docs/src/cli/api-compose.md` + `types/types.go` (`ComposedResponse`) + `descriptor/envelope.go` (`format_version`) + `mcp/toolmeta/meta.go` (`DescCompose`) + `internal/cli/api.go` (Compose handler) | `TestClaudeMdMentionsFormatVersion`, `TestComposedResponse_OverlayFreeByteIdentical` |
+| A registered MCP tool (add/remove) | `skills/tool-<kebab>.md` (atomic skill; strip `pulse_` prefix) + `mcp/toolmeta/meta.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
 | A registered field type | `skills/type-<kebab>.md` (atomic skill) + CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
 | An example tag for a registered operator | `examples/<category>/*.json` `_meta.operators` (tag the operator string in at least one example body; overlay kinds tag via `overlays[].kind`) | `TestEveryOperatorHasAnExampleTag`, `TestExamples_OperatorsMatchBody` |
 | An error code (add/remove/rename) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + Fixups | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
@@ -42,7 +42,7 @@ This is the compressed surface — the full per-contract trigger table lives at 
 | A new non-skippable CI gate | CLAUDE.md "Non-Skippable CI Gates" list | `TestClaudeMdMentionsAllNonSkippableGates` |
 | An environment variable | CLAUDE.md "Build / Env" + `skills/session-bootstrap.md` | `TestClaudeMdMentionsAllEnvVars` |
 | `Response.Components` shape change | CLAUDE.md "Output Format Contract" + `skills/response-components.md` | `TestClaudeMdMentionsComponentsContract` |
-| Per-operator `ComponentSchema` change | the operator's atomic skill (per category above) + `descriptor/capabilities_*.go` + `internal/mcp/mcptools/meta.go` | `TestManifestComponentSchemasComplete`, `TestSkillsCoverAllOperatorComponents`, `TestComponentsUniversalFloor` |
+| Per-operator `ComponentSchema` change | the operator's atomic skill (per category above) + `descriptor/capabilities_*.go` + `mcp/toolmeta/meta.go` | `TestManifestComponentSchemasComplete`, `TestSkillsCoverAllOperatorComponents`, `TestComponentsUniversalFloor` |
 | Extension registration `ComponentSchema` | `docs/src/internals/extension-points.md` + Update Demand table | `TestExtensions_ComponentSchemaParity` |
 | Shard archive layout (entry names, `_schema.pulse` block, magic dispatch, dict prefix rule) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded) | `TestShardArchiveLayoutDocumented`, `TestSkillsCoverShardingTopics` |
 | Any Request slot, Response slot, capability block, or Execution-mode wiring | See `.claude/reference/update-demand.md` for the per-slot trigger row | per-slot test suites cited there |
@@ -70,15 +70,18 @@ pulse/
 ├── skills/                 # //go:embed markdown skill pack
 ├── examples/               # //go:embed runnable request examples
 ├── synth/                  # Synthetic data generator
+├── mcp/                    # SDK-free MCP core (typed In/Out, reflected schemas, handlers, bind)
+│   ├── gosdk/              # go-sdk adapter — the ONLY package importing the MCP SDK
+│   └── toolmeta/           # Leaf tool name+description metadata (descriptor + core import it)
 ├── docs/                   # mdBook source (GitHub Pages)
-└── internal/{cli,mcp}/     # CLI internals + MCP server
+└── internal/cli/           # CLI internals
 ```
 
 `pulse.go` re-exports `types.Request` → `pulse.Request`, `types.Response` → `pulse.Response`, `types.ComposedRequest` → `pulse.ComposedRequest`, plus `synth.Spec`/`Result`/`Options`/`Profile`/`ProfileOptions`.
 
 CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `schema`, `mcp`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `api {process,compose,facet,process-chain}`. `pulse schema` prints the payload JSON Schema raw (built by `descriptor.BuildPayloadSchema`); not envelope-wrapped.
 
-`internal/mcp/` registers ten tools (one per facade method plus `pulse_facet_schema`) and two resource schemes (`pulse://`, `pulse-skill://`). The reserved static resource `pulse://schema` serves the payload JSON Schema (`descriptor.BuildPayloadSchema`) — a resource, not a tool, so the tool surface is unchanged.
+The MCP layer is split: `mcp/` is the SDK-free core (typed In/Out structs, reflected JSON schemas, typed handlers over `*pulse.Pulse`, `ToolDescriptor`, `Tools(cfg)`, strict-decode, bind classification — imports no MCP SDK, gated by `TestMCPCore_NoSDKImport`); `mcp/gosdk/` is the only package importing `github.com/modelcontextprotocol/go-sdk`, and its `Register(server, p, cfg)` mounts the core catalog onto a caller-supplied server; `mcp/toolmeta/` is the leaf name+description metadata imported by both `descriptor` and the core. The former internal MCP server tree has been removed — `pulse mcp` builds a bare go-sdk server and calls `gosdk.Register`. The registry registers one tool per facade method plus skills/examples/errors/import/label tools (the manifest is the source-of-truth count; do not hardcode it) and two resource schemes (`pulse://`, `pulse-skill://`). The reserved static resource `pulse://schema` serves the payload JSON Schema (`descriptor.BuildPayloadSchema`) — a resource, not a tool, so the tool surface is unchanged. MCP tool I/O is the structured typed shape: payload tools take the structured request at top level, outputs are typed-wrapped, coded errors surface as `{code, message, details}`.
 
 Docs at <https://frankbardon.github.io/pulse/>. Skills under `skills/` are the LLM surface.
 
@@ -194,7 +197,7 @@ Full contract: `skills/response-components.md`.
 
 ### Manifest payload
 
-`descriptor.BuildManifest()` returns deterministic LLM-bootstrap blob — one fetch per session, client-cached. Reachable via `pulse manifest --json` and `pulse_manifest`. Top-level: `format_version`, `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim), `mcp_tools`, `cohort_types`, `skills`, `extensions`, plus capability blocks `Facet`, `Join`, `ProcessChain`, `Crosstab`, `Overlays`. Sort-stable; golden-checked at `descriptor/testdata/manifest.json`. Capability declarations: `descriptor/capabilities_*.go`. MCP tool metadata: `internal/mcp/mcptools/meta.go`.
+`descriptor.BuildManifest()` returns deterministic LLM-bootstrap blob — one fetch per session, client-cached. Reachable via `pulse manifest --json` and `pulse_manifest`. Top-level: `format_version`, `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim), `mcp_tools`, `cohort_types`, `skills`, `extensions`, plus capability blocks `Facet`, `Join`, `ProcessChain`, `Crosstab`, `Overlays`. Sort-stable; golden-checked at `descriptor/testdata/manifest.json`. Capability declarations: `descriptor/capabilities_*.go`. MCP tool metadata: `mcp/toolmeta/meta.go`.
 
 ### Predict / Inspect contracts
 
@@ -243,7 +246,7 @@ Skill-coverage (atomic-skill convention):
 - `TestSkillsCoverAllComponents` — every registered aggregator/attribute/filterer/grouper/feature has a matching `skills/op-<category>-<kebab>.md` atomic skill file.
 - `TestSkillsCoverAllFieldTypes` — every `FieldType` has a matching `skills/type-<kebab>.md` atomic skill file (in addition to listing in `skills/cohort-schema-design.md`).
 - `TestSkillsCoverAllWindowTypes` — every `WIN_*` operator has a matching `skills/op-win-<kebab>.md` atomic skill file.
-- `TestSkillsCoverAllMCPTools` — every tool registered via `mcptools.Meta()` has a matching `skills/tool-<kebab-name-minus-pulse-prefix>.md` atomic skill file.
+- `TestSkillsCoverAllMCPTools` — every tool registered via `toolmeta.Meta()` has a matching `skills/tool-<kebab-name-minus-pulse-prefix>.md` atomic skill file.
 - `TestSkillsCoverAllSynthDistributions` — every distribution kind in `synth.AllDistributions()` has a matching `skills/op-synth-<kebab>.md` atomic skill file.
 - `TestSkillsCoverAllRegressions` — every constant in `types.AllRegressionTypes()` has a matching `skills/op-reg-<kebab>.md` atomic skill file.
 - `TestSkillsCoverAllOverlayKinds` — every constant in `types.AllOverlayKinds()` has a matching `skills/op-overlay-<kebab>.md` atomic skill file.

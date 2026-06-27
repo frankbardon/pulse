@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/internal/mcp/mcptools"
+	"github.com/frankbardon/pulse/mcp/toolmeta"
 	"github.com/frankbardon/pulse/skills"
 )
 
@@ -15,7 +15,7 @@ func TestSkillsCoverAllMCPTools(t *testing.T) {
 	for _, m := range skills.List() {
 		skillSet[m.Name] = true
 	}
-	for _, name := range mcptools.Names() {
+	for _, name := range toolmeta.Names() {
 		stem := "tool-" + strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(name, "pulse_")), "_", "-")
 		if !skillSet[stem] {
 			t.Errorf("MCP tool %q: missing atomic skill skills/%s.md", name, stem)

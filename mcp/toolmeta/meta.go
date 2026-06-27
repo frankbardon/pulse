@@ -1,15 +1,15 @@
-// Package mcptools holds the metadata table for the MCP tools registered
-// by internal/mcp. It exists solely so the descriptor package can mirror
-// (name, description) records into the manifest payload without taking a
-// dependency on internal/mcp itself — which in turn depends on the root
-// pulse package, producing an import cycle if descriptor imported it
-// directly.
+// Package toolmeta holds the metadata table for the MCP tools registered
+// by the Pulse MCP layer. It is the single public source of truth for tool
+// identity — name + description records — imported by BOTH the descriptor
+// package (to mirror records into the manifest payload) and the MCP core
+// (for its catalog), without either taking a dependency on the other.
 //
-// Tool name constants and descriptions are duplicated minimally here;
-// internal/mcp consumes the same constants for server registration so
-// the values stay in lockstep. TestRegisteredToolsMeta_MatchesRegisteredTools
-// in internal/mcp asserts the alignment.
-package mcptools
+// The package is pure data: it imports no MCP SDK and no execution package,
+// which lets descriptor source the tool list without producing an import
+// cycle (descriptor is itself imported by the MCP layer, which depends on
+// the root pulse package). The mcp/gosdk adapter's RegisteredTools() mirrors
+// Names(), keeping these values in lockstep with server registration.
+package toolmeta
 
 // Tool name constants. Kept in alphabetical-by-constant order so the
 // Meta() slice can be sorted by Name for deterministic manifest output
@@ -67,7 +67,7 @@ type ToolMeta struct {
 }
 
 // Meta returns the canonical list of MCP tool metadata. Order matches
-// internal/mcp.RegisteredTools() for deterministic documentation scans.
+// gosdk.RegisteredTools() for deterministic documentation scans.
 func Meta() []ToolMeta {
 	return []ToolMeta{
 		{Name: ToolInspect, Description: DescInspect},

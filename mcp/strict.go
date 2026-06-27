@@ -8,7 +8,6 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
 )
 
 // requestSlotKeys is the set of valid top-level JSON keys on a
@@ -203,15 +202,4 @@ func checkUnknownKeysChain(body []byte) *perr.CodedError {
 		}
 	}
 	return nil
-}
-
-// codedErrorResult wraps a CodedError as an MCP error result, serialising
-// the full {code, message, details} envelope so the caller receives the
-// structured suggestion payload rather than a bare string.
-func codedErrorResult(ce *perr.CodedError) *mcpgo.CallToolResult {
-	body, err := json.Marshal(ce)
-	if err != nil {
-		return mcpgo.NewToolResultError(ce.Error())
-	}
-	return mcpgo.NewToolResultError(string(body))
 }

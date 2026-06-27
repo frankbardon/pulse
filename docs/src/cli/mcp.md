@@ -45,9 +45,11 @@ the LLM's choices and prevents typos at parameter-binding time.
 Default: `true`. Pass `--bind-on-open=false` if your client binds
 tool schemas itself.
 
-The binding logic lives in
-[`internal/mcp/schema_bind.go`](https://github.com/frankbardon/pulse/blob/main/internal/mcp/schema_bind.go);
-see [Adding an MCP tool](../internals/adding-mcp-tool.md) for the
+The binding logic lives in the SDK-free core
+[`mcp/bind.go`](https://github.com/frankbardon/pulse/blob/main/mcp/bind.go)
+(the per-session server mutation that consumes it lives in the go-sdk
+adapter, `mcp/gosdk/bind.go`); see
+[Adding an MCP tool](../internals/adding-mcp-tool.md) for the
 LLM-facing implications.
 
 ## Wiring it into Claude Desktop

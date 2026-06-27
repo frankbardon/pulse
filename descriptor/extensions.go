@@ -119,7 +119,7 @@ type ExtensionsSnapshot struct {
 	// pulse.Options.Extensions.OverlayKinds registration surface
 	// (referenced in types/overlay.go) is not yet implemented; this
 	// snapshot slot exists so the MCP per-facade schema binders
-	// (internal/mcp/schema_bind.go) can merge custom kind names
+	// (mcp/gosdk/bind.go) can merge custom kind names
 	// into the per-facade overlay_kind enum the moment the
 	// registration surface lands — no churn on the binder when the
 	// runtime catches up. Today the slot is populated by tests

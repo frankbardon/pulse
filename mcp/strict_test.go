@@ -1,16 +1,11 @@
 package mcp
 
 import (
-	"context"
-	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
-	"github.com/spf13/afero"
 )
 
 func TestJsonObjectKeys_RequestSlots(t *testing.T) {
@@ -130,43 +125,15 @@ func TestCheckUnknownKeysChain_TagsStage(t *testing.T) {
 	}
 }
 
-// TestHandleProcess_UnknownKeyRejected proves the wiring: a request with
-// the misnamed "groupers" key is rejected at the handler before
-// execution, with an actionable error rather than a silent drop.
-func TestHandleProcess_UnknownKeyRejected(t *testing.T) {
-	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
-	if err != nil {
-		t.Fatalf("pulse.New: %v", err)
+// TestStrictRequestDecode_RejectsUnknownKey proves the decode wrapper used by
+// Invoke surfaces the coded error verbatim before the typed unmarshal.
+func TestStrictRequestDecode_RejectsUnknownKey(t *testing.T) {
+	_, err := strictRequestDecode([]byte(`{"groupers":[]}`))
+	if err == nil {
+		t.Fatal("expected unknown-key error")
 	}
-	reqBody := `{"cohort":{"filename":"demo.pulse"},"groupers":[{"type":"GROUP_CATEGORY","field":"region"}]}`
-
-	handler := handleProcess(p)
-	call := mcpgo.CallToolRequest{}
-	call.Params.Name = ToolProcess
-	call.Params.Arguments = map[string]any{"request": reqBody}
-
-	out, err := handler(context.Background(), call)
-	if err != nil {
-		t.Fatalf("handler returned transport error: %v", err)
-	}
-	if !out.IsError {
-		t.Fatal("expected IsError result for misnamed key, got success")
-	}
-	text, ok := out.Content[0].(mcpgo.TextContent)
-	if !ok {
-		t.Fatalf("expected TextContent, got %T", out.Content[0])
-	}
-	var decoded struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal([]byte(text.Text), &decoded); err != nil {
-		t.Fatalf("error result is not a CodedError JSON: %v\n%s", err, text.Text)
-	}
-	if decoded.Code != string(perr.PULSE_REQUEST_UNKNOWN_FIELD) {
-		t.Errorf("code = %q, want PULSE_REQUEST_UNKNOWN_FIELD", decoded.Code)
-	}
-	if !strings.Contains(decoded.Message, `"groups"`) {
-		t.Errorf("message should name the correct slot 'groups': %s", decoded.Message)
+	ce, ok := err.(*perr.CodedError)
+	if !ok || ce.Code != perr.PULSE_REQUEST_UNKNOWN_FIELD {
+		t.Fatalf("err = %v, want PULSE_REQUEST_UNKNOWN_FIELD coded error", err)
 	}
 }

@@ -41,7 +41,7 @@ as a `SERVICE_VALIDATION` error or an advisory warning.
 
 ## 5. MCP JSON Schema builder
 
-Update the JSON Schema builder in `internal/mcp/schema_bind.go` —
+Update the JSON Schema builder in `mcp/bind.go` —
 the `buildFacetSchemaRequestSchema` function — so the LLM sees the
 new fields in the `pulse_facet_schema` tool surface.
 `TestMCPSchemaBinding_SampleAndFacetFieldEnum` enforces parity.
@@ -59,7 +59,7 @@ contract.
 ```bash
 go test ./skills/ ./examples/ ./descriptor/
 go test ./service/ -run TestFacet
-go test ./internal/mcp/ -run TestMCPSchemaBinding
+go test ./mcp/ -run TestMCPSchemaBinding
 ```
 
 The Update Demand row for facet-capability changes covers all of

@@ -87,7 +87,7 @@ Any host that speaks the MCP stdio transport can launch `pulse mcp` the same way
 
 ### Tool surface
 
-Fifteen tools, registered at server start. Names and order match `internal/mcp/mcptools/meta.go`.
+Fifteen tools, registered at server start. Names and order match `mcp/toolmeta/meta.go`.
 
 | Tool | Purpose |
 |---|---|
@@ -178,12 +178,12 @@ What gets constrained on bound `pulse_process` / `pulse_predict` / `pulse_compos
 | `tests[].type` | Full test catalogue (`TEST_*`) |
 | `pulse_facet` `field` arg | All cohort field names |
 
-**Trigger and lifecycle.** Binding fires on a successful `pulse_inspect`. `mcp-go` auto-fires `notifications/tools/list_changed` on `AddSessionTools`; the host refreshes its tool list and picks up the bound schemas on the next list. Bound tools share names with the global tools — session-scoped variants override globals for that session.
+**Trigger and lifecycle.** Binding fires on a successful `pulse_inspect`. The go-sdk server auto-fires `notifications/tools/list_changed` on the post-serve `AddTool` / `RemoveTools` swap; the host refreshes its tool list and picks up the bound schemas on the next list. Bound tools share names with the global tools — the session-scoped variants override globals for that session.
 
 **Limitations.**
 - *Multi-file sessions:* the latest inspect wins. Track multiple cohorts client-side.
 - *No per-element type ↔ field correlation:* JSON Schema can't easily express "if `aggregations[i].type == AGG_SUM` then `aggregations[i].field` must be numeric." Operator–type compatibility lives in the `type` property description; strict validation remains `pulse_predict`'s job.
-- *Transport support:* binding requires a session that implements `SessionWithTools`. SSE / Streamable HTTP transports work; on stdio, binding is a no-op fallback and the global (unbound) schemas remain in effect. The manifest's `accepts_types` table is still authoritative, so authoring is not blocked — just less ergonomic.
+- *Transport support:* binding mutates the single stdio-session server post-serve (`AddTool` / `RemoveTools` auto-emit `list_changed`), so stdio — the transport `pulse mcp` ships — honours it. There is no per-session schema override for a shared HTTP server, a documented limitation. The manifest's `accepts_types` table is still authoritative, so authoring is never blocked regardless of transport.
 - *Empty enums omitted:* when the cohort has zero fields in a category (e.g. no geo fields), the enum is omitted entirely rather than emitted as `[]`.
 
 Disable binding entirely with `--bind-on-open=false`.
@@ -200,8 +200,8 @@ Embedders can override per-instance via `pulse.Options{DataDir, ImportsDir, Impo
 
 ## Transport caveats
 
-- **Stdio.** The default and only transport `pulse mcp` ships today. Schema binding is a no-op (see Limitations). Stdout is the JSON-RPC channel; stderr is the log channel — never write structured output to stdout outside the protocol.
-- **SSE / Streamable HTTP.** Not exposed by the `mcp` CLI leaf yet. The underlying `mcp-go` server supports them; embedders can call `mcp.NewWithOptions(p, ...)` and serve via `mcp-go`'s SSE / streamable HTTP entry points directly.
+- **Stdio.** The default and only transport `pulse mcp` ships today. Schema bind-on-inspect works on the single stdio session (see Limitations). Stdout is the JSON-RPC channel; stderr is the log channel — never write structured output to stdout outside the protocol.
+- **Streamable HTTP.** Not exposed by the `mcp` CLI leaf yet. The underlying go-sdk server supports it; embedders build their own `go-sdk` server and call `gosdk.Register(server, p, cfg)` (or use `mcpserve.Serve`), then serve over the transport of their choice. Bind-on-inspect has no per-session override on a shared HTTP server (see Limitations).
 
 ## Troubleshooting
 
