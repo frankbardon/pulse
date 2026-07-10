@@ -11,7 +11,7 @@ examples_tags: [cardinality-analysis, cohort-analysis]
 
 ## Params
 
-None. `Group.Label` overrides output column name; `Group.Include []string` allow-lists composite keys (pipe-joined sorted labels, e.g. `"AMEX|VISA"`).
+None. `Group.Label` overrides output column name; `Group.Include []string` allow-lists composite keys (pipe-joined sorted labels, e.g. `"AMEX|VISA"`) and sets emission order.
 
 ## Inputs
 
@@ -22,6 +22,8 @@ None. `Group.Label` overrides output column name; `Group.Include []string` allow
 ## Output
 
 String bucket key per row (e.g. `"AMEX|VISA"`). Empty-mask rows land under an empty-key bucket — a valid distinct selection from null.
+
+Non-empty `Include` is order-significant: buckets emit in listed composite-key order (`Data` + `Components.buckets`); empty/absent keeps prior alphabetical order (byte-identical). Zero-record entries dropped.
 
 ## Components
 

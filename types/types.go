@@ -774,9 +774,19 @@ type Group struct {
 	//                             independently; the row contributes
 	//                             only to surviving labels.
 	//
-	// Empty / nil Include means "no inclusion filter" (preserves the
-	// pre-Include byte-identical bucket set). Other grouper types
-	// ignore Include — predict / runtime gates flag misuse.
+	// A non-empty Include is order-significant: output buckets emit in
+	// the order values are listed here — across both the plain grouped
+	// payload (Response.Data rows and Response.Components buckets) and
+	// each crosstab axis independently (an axis without Include keeps
+	// its prior alphabetical / dict-index order). Include values that
+	// match zero records are still dropped, never emitted as empty
+	// buckets.
+	//
+	// Empty / nil Include means "no inclusion filter" and preserves the
+	// prior alphabetical bucket order (dict-index order for
+	// GROUP_SET_PER_ELEMENT) — byte-identical to the pre-Include output.
+	// Other grouper types ignore Include — predict / runtime gates flag
+	// misuse.
 	Include []string `json:"include,omitempty"`
 }
 

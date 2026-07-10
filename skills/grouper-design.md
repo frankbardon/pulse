@@ -24,7 +24,7 @@ With N entries (N ≥ 2), the engine forms the cartesian **key product**: each r
 - **`Request.Crosstab`** projects two named groupers onto a row × column matrix in `Response.Crosstab`.
 - **Plain `Request.Groups`** emits one flat row per composite key under `Response.Data`.
 
-Multi-grouper composition is the canonical cross-tabulation mechanism; reach for `Crosstab` only when margins + normalisation matter (`crosstab-guide`).
+Multi-grouper composition is the canonical cross-tab mechanism; reach for `Crosstab` only when margins + normalisation matter (`crosstab-guide`).
 
 ## Smart defaults
 
@@ -45,6 +45,8 @@ Defaults never cross categories. Predict reports filled slots under `data.defaul
 
 Supported by `GROUP_CATEGORY` (label string), `GROUP_SET_VALUE` (pipe-joined composite key), `GROUP_SET_PER_ELEMENT` (each fan-out label independently). Others ignore `Include` — use `FILTER_INCLUDE` on the source field instead. Streamability preserved — O(1) membership inside `KeyFor` / `KeysForRow`.
 
+**Order-significant.** A non-empty `Include` also fixes emission order: buckets appear in listed order (plain grouped `Data` + `Components.buckets`, and each crosstab axis independently — an axis without `include` keeps alpha/dict order). Empty / nil `Include` preserves the prior alphabetical (or `GROUP_SET_PER_ELEMENT` dict-index) order — byte-identical. Zero-record include values are still dropped. Centralized in `orderKeysByInclude` (plain grouped) + `orderCompositeKeysByAxisInclude` (crosstab axes), shared by buffered + fused.
+
 ## Fused crosstab eligibility (`processing.CanFuseCrosstab`)
 
 The fused path computes a row × column matrix in-decode (~30–47% faster than buffered RunCrosstab). Activates when BOTH axis groupers implement `processing.StreamableGrouper` AND the aggregator family is mergeable. `processing.CanFuseCrosstab(req, schema, ext)` is the gate.
@@ -64,15 +66,7 @@ Mergeability axis:
 - **`Mergeable`** — `GROUP_CATEGORY`, `GROUP_DATE`, `GROUP_RANGE`, `GROUP_ROUNDED`, `GROUP_SET_VALUE`, `GROUP_SET_PER_ELEMENT`. Components fold across streaming chunks via `ComponentsDelta`.
 - **`None`** — `GROUP_QUANTILE` (`BufferedComponents=true`). Cutpoints need the sorted full input; components emit only on terminal buffered flush.
 
-Three worked GROUP examples:
-
-- `GROUP_CATEGORY` (Mergeable) — floor + `dict_size` + `buckets` (`{key, label, count}`).
-- `GROUP_RANGE` (Mergeable) — floor + `interval` + `range_min` + `range_max` + `n_buckets` + `edges` + `buckets` (`{key, low, high, count}`) + `underflow_count` + `overflow_count`.
-- `GROUP_QUANTILE` (None — terminal-only) — floor + `n_quantiles` + `method` + `edges` + `buckets`.
-
-`GROUP_DATE`: `granularity` + `range_start` + `range_end` + `n_buckets` + `buckets`. `GROUP_ROUNDED`: `precision` + `edges` + `buckets`. `GROUP_SET_VALUE`: `n_empty_mask` + `buckets`. `GROUP_SET_PER_ELEMENT`: `total_label_observations` (may exceed `total_n` — each row fans into one bucket per selected label) + `buckets`.
-
-Full Components contract — typed shells, streaming chunk behaviour — lives in `response-components`.
+Per-operator key lists live in the atomic `op-group-*` skills and `ComponentSchema` (e.g. `GROUP_QUANTILE` is `None` — terminal-only; `GROUP_SET_PER_ELEMENT`'s `total_label_observations` may exceed `total_n`). Full Components contract — typed shells, streaming chunk behaviour — lives in `response-components`.
 
 ## Gotchas
 

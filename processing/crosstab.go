@@ -77,7 +77,14 @@ func (p *Processor) PartitionByAxis(axis []*types.Group, records []*Record) (*Cr
 	for k := range buckets {
 		headKeys = append(headKeys, k)
 	}
-	sort.Strings(headKeys)
+	// Per-axis-position ordering: this recursion level owns exactly one
+	// axis position (grp == axis[0]). Order its present head keys by that
+	// position's own include list when supplied, else alphabetically —
+	// the no-include path funnels through sort.Strings inside
+	// orderKeysByInclude, preserving byte-identity. Each deeper recursion
+	// level orders its own position independently, so per-axis
+	// independence falls out of the recursion for free.
+	headKeys = orderKeysByInclude(buildIncludeFilter(grp.Include), headKeys)
 
 	out := &CrosstabAxisPartition{
 		Records: make(map[string][]*Record, len(buckets)),
@@ -115,6 +122,108 @@ func (p *Processor) PartitionByAxis(axis []*types.Group, records []*Record) (*Cr
 // separator is internal — callers should not parse the output.
 func CompositeAxisKey(parts []string) string {
 	return strings.Join(parts, crosstabAxisKeySep)
+}
+
+// orderCompositeKeysByAxisInclude orders a flat slice of composite axis
+// keys by tuple position, honoring each axis position's include list.
+//
+// Decomposition contract (so the buffered PartitionByAxis recursion and
+// the fused Finalize path agree byte-for-byte):
+//
+//   - keys[i] is the composite key CompositeAxisKey(component-strings of
+//     tuples[i]) — i.e. keys and tuples are PARALLEL, one entry per axis
+//     tuple, in any input order.
+//   - tuples[i] is the per-position component vector for keys[i]; each
+//     element is the string a grouper emitted at that axis position
+//     (types.AxisKey elements are `any` but always string per the
+//     Grouper.Group contract). len(tuples[i]) == len(axis).
+//   - axis[p] is the *types.Group at position p; axis[p].Include drives
+//     the position-p ordering. When Include is empty/nil that position
+//     sorts alphabetically (the byte-identity no-include path, funneled
+//     through orderKeysByInclude / sort.Strings).
+//
+// Ordering is lexicographic across positions: position 0 is the primary
+// sort key, position 1 breaks ties within a position-0 bucket, etc.
+// Within each position, member keys sort by their include index (first
+// occurrence) and non-members / include-less positions sort
+// alphabetically. This is exactly the ordering PartitionByAxis's
+// per-level orderKeysByInclude produces, so a fused caller that decomposes
+// its rowKeys/colKeys into (keys, tuples) reuses this helper to match the
+// buffered output without re-deriving the recursion.
+//
+// keys is not mutated — a fresh ordered slice is returned. A nil / empty
+// axis (or fewer axis positions than tuple components) falls back to
+// sort.Strings on whatever positions remain unconstrained. Entries whose
+// tuple is shorter than the axis are ordered by the positions they do
+// carry, then alphabetically by composite key as a final defensive tie-
+// break.
+func orderCompositeKeysByAxisInclude(keys []string, tuples []types.AxisKey, axis []*types.Group) []string {
+	out := make([]string, len(keys))
+	copy(out, keys)
+	if len(keys) != len(tuples) {
+		// Parallel-slice contract violated — fall back to deterministic
+		// alphabetical ordering rather than index a mismatched tuple.
+		sort.Strings(out)
+		return out
+	}
+
+	// Pre-build one include filter per axis position. A nil filter
+	// (no Include) makes that position alphabetical via the same
+	// orderKeysByInclude comparator the single-axis path uses.
+	filters := make([]*includeFilter, len(axis))
+	for p, grp := range axis {
+		filters[p] = buildIncludeFilter(grp.Include)
+	}
+
+	// Track each key's parallel tuple so the comparator can read
+	// per-position components after the stable sort permutes out.
+	tupleOf := make(map[string]types.AxisKey, len(keys))
+	for i, k := range keys {
+		tupleOf[k] = tuples[i]
+	}
+
+	component := func(tup types.AxisKey, p int) (string, bool) {
+		if p >= len(tup) {
+			return "", false
+		}
+		s, ok := tup[p].(string)
+		return s, ok
+	}
+
+	sort.SliceStable(out, func(a, b int) bool {
+		ta, tb := tupleOf[out[a]], tupleOf[out[b]]
+		for p := 0; p < len(axis); p++ {
+			ca, aok := component(ta, p)
+			cb, bok := component(tb, p)
+			switch {
+			case !aok && !bok:
+				continue
+			case aok != bok:
+				// The tuple that carries this position sorts first.
+				return aok
+			}
+			if ca == cb {
+				continue
+			}
+			f := filters[p]
+			ia, iamem := f.index(ca)
+			ib, ibmem := f.index(cb)
+			switch {
+			case iamem && ibmem:
+				return ia < ib
+			case iamem != ibmem:
+				// members sort before non-member stragglers
+				return iamem
+			default:
+				// include-less position or both non-members: alphabetical
+				return ca < cb
+			}
+		}
+		// All axis positions tie — defensive alphabetical composite-key
+		// tie-break for stability.
+		return out[a] < out[b]
+	})
+	return out
 }
 
 // axisComponentsFor builds the per-axis-position grouper components for

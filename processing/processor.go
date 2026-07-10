@@ -3,7 +3,6 @@ package processing
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -863,14 +862,17 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		}
 	}
 
-	// Stable-emit by sorted bucket key so row order is deterministic
-	// across runs regardless of Go's map-iteration randomness or
-	// streaming-vs-buffered codepath choice.
+	// Stable-emit by bucket key so row order is deterministic across runs
+	// regardless of Go's map-iteration randomness or streaming-vs-buffered
+	// codepath choice. grouperInstance is the same object KeyForRow /
+	// KeysForRow drove against, so its include filter (if any) yields the
+	// identical include order as the buffered path; no include → sort.Strings.
+	// An explicit req.Sort below still overrides this default ordering.
 	keys := make([]string, 0, len(buckets))
 	for k := range buckets {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	keys = orderKeysByInclude(includeFilterOf(grouperInstance), keys)
 
 	data := make([]map[string]any, 0, len(keys))
 	for _, key := range keys {
@@ -1633,13 +1635,17 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 		return nil, nil, err
 	}
 
-	// Stable-emit by sorted group key so row order is deterministic
-	// across runs regardless of Go's map-iteration randomness.
+	// Stable-emit by group key so row order is deterministic across runs
+	// regardless of Go's map-iteration randomness. When the grouper carries
+	// an active Group.Include list, keys emit in include order; otherwise
+	// orderKeysByInclude funnels through sort.Strings (byte-identical to the
+	// pre-Include alphabetical default). An explicit req.Sort below still
+	// overrides this default ordering.
 	keys := make([]string, 0, len(groups))
 	for k := range groups {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	keys = orderKeysByInclude(includeFilterOf(grouper), keys)
 
 	data := make([]map[string]any, 0, len(keys))
 	for _, key := range keys {

@@ -694,3 +694,140 @@ func normalizeWithinRecords(schema *encoding.Schema) []*Record {
 		mk(1, 1, 2, 1), // high: 1
 	}
 }
+
+// TestFusedCrosstab_EquivalenceVsBuffered is the E2-S2 guard: with a
+// per-axis Include list on one axis and no Include on the other, the
+// fused crosstab must reproduce the buffered path's include-ordered axis
+// keys byte-for-byte. assertMatrixEqual deep-compares the order-sensitive
+// RowKeys / ColumnKeys / Cells, so any drift between the buffered
+// PartitionByAxis include recursion (E2-S1) and the fused Finalize
+// ordering surfaces here. Covers a matrix case, a no-include control, and
+// a normalize-level partial-margin case whose leading row position carries
+// Include (exercising buildPartialAxisFromKeys).
+func TestFusedCrosstab_EquivalenceVsBuffered(t *testing.T) {
+	// Region dict natural (dictionary/alphabetical) order differs from the
+	// Include order below, so an unordered fused path would visibly diverge
+	// from buffered.
+	t.Run("IncludeRowsNoIncludeColumns", func(t *testing.T) {
+		schema := fusedCrosstabSchema(t)
+		recs := fusedCrosstabRecords(schema)
+		req := &types.Request{
+			Crosstab: &types.CrosstabSpec{
+				Rows: []*types.Group{
+					// Include order south -> north -> east, none of which is
+					// the natural sort order (east, north, south).
+					{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"south", "north", "east"}},
+				},
+				Columns: []*types.Group{
+					// No Include: alphabetical (retail, wholesale).
+					{Type: types.GROUP_CATEGORY, Field: "segment"},
+				},
+				Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "sum"},
+				Shape:   types.CrosstabShapeMatrix,
+				Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+			},
+		}
+		want := runBufferedCrosstab(t, schema, req, recs)
+		got := runFusedCrosstab(t, schema, req, recs)
+		if want.Crosstab == nil || got.Crosstab == nil {
+			t.Fatalf("missing Crosstab: want=%v got=%v", want.Crosstab, got.Crosstab)
+		}
+		assertMatrixEqual(t, want.Crosstab.Matrix, got.Crosstab.Matrix)
+		assertMetadataEqual(t, want.Metadata, got.Metadata)
+
+		// Explicit include-order assertion (independent of the buffered
+		// reference): rows must appear in Include order, not dictionary order.
+		gotRows := make([]string, 0, len(got.Crosstab.Matrix.RowKeys))
+		for _, rk := range got.Crosstab.Matrix.RowKeys {
+			gotRows = append(gotRows, rk[0].(string))
+		}
+		wantRows := []string{"south", "north", "east"}
+		if !reflect.DeepEqual(gotRows, wantRows) {
+			t.Errorf("fused RowKeys order = %v; want Include order %v", gotRows, wantRows)
+		}
+	})
+
+	// No-include control: byte-identity with the pre-Include flat-sort path.
+	t.Run("NoIncludeControl", func(t *testing.T) {
+		schema := fusedCrosstabSchema(t)
+		recs := fusedCrosstabRecords(schema)
+		req := &types.Request{
+			Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+				Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "sum"},
+				Shape:   types.CrosstabShapeMatrix,
+				Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+			},
+		}
+		want := runBufferedCrosstab(t, schema, req, recs)
+		got := runFusedCrosstab(t, schema, req, recs)
+		assertMatrixEqual(t, want.Crosstab.Matrix, got.Crosstab.Matrix)
+		assertMetadataEqual(t, want.Metadata, got.Metadata)
+
+		gotRows := make([]string, 0, len(got.Crosstab.Matrix.RowKeys))
+		for _, rk := range got.Crosstab.Matrix.RowKeys {
+			gotRows = append(gotRows, rk[0].(string))
+		}
+		wantRows := []string{"east", "north", "south"} // alphabetical
+		if !reflect.DeepEqual(gotRows, wantRows) {
+			t.Errorf("no-include fused RowKeys = %v; want alphabetical %v", gotRows, wantRows)
+		}
+	})
+
+	// Normalize-level partial margin: a 2-grouper row axis whose leading
+	// (region) position carries Include, NormalizeLevel=0 selects the region
+	// prefix as denominator. buildPartialAxisFromKeys must order the partial
+	// (region-only) margin axis by the leading position's Include list to
+	// match buffered's PartitionByAxis(Rows[:1]) ordering. Matrix shape.
+	t.Run("NormalizeLevelIncludeLeadingPosition", func(t *testing.T) {
+		schema := fusedCrosstabSchema(t)
+		recs := fusedCrosstabRecords(schema)
+		zero := 0
+		req := &types.Request{
+			Crosstab: &types.CrosstabSpec{
+				Rows: []*types.Group{
+					{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"south", "north", "east"}},
+					{Type: types.GROUP_CATEGORY, Field: "segment"},
+				},
+				Columns:        []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+				Cell:           &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+				Shape:          types.CrosstabShapeMatrix,
+				Normalize:      types.CrosstabNormalizeRow,
+				NormalizeLevel: &zero,
+				Margins:        types.CrosstabMargins{Rows: true},
+			},
+		}
+		want := runBufferedCrosstab(t, schema, req, recs)
+		got := runFusedCrosstab(t, schema, req, recs)
+		assertMatrixEqual(t, want.Crosstab.Matrix, got.Crosstab.Matrix)
+		assertMetadataEqual(t, want.Metadata, got.Metadata)
+	})
+
+	// Normalize-level partial margin in long shape: exercises
+	// buildPartialAxisFromKeys through the long-row emitter, where partial
+	// margin rows are appended in the ordered partial-axis sequence.
+	t.Run("NormalizeLevelLongShapeIncludeLeadingPosition", func(t *testing.T) {
+		schema := fusedCrosstabSchema(t)
+		recs := fusedCrosstabRecords(schema)
+		zero := 0
+		req := &types.Request{
+			Crosstab: &types.CrosstabSpec{
+				Rows: []*types.Group{
+					{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"south", "north", "east"}},
+					{Type: types.GROUP_CATEGORY, Field: "segment"},
+				},
+				Columns:        []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+				Cell:           &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+				Shape:          types.CrosstabShapeLong,
+				Normalize:      types.CrosstabNormalizeRow,
+				NormalizeLevel: &zero,
+				Margins:        types.CrosstabMargins{Rows: true, Grand: true},
+			},
+		}
+		want := runBufferedCrosstab(t, schema, req, recs)
+		got := runFusedCrosstab(t, schema, req, recs)
+		assertLongRowsEqual(t, want.Data, got.Data)
+		assertMetadataEqual(t, want.Metadata, got.Metadata)
+	})
+}
