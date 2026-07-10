@@ -59,7 +59,7 @@ type setValueBucketStat struct {
 type setValueGrouper struct {
 	field   string
 	dict    *encoding.Dictionary
-	include map[string]struct{}
+	include *includeFilter
 
 	// liveBuckets mirrors the post-Group / post-KeyForRow state so
 	// Components() can emit per-bucket mask + count + decoded labels
@@ -197,7 +197,9 @@ func (g *setValueGrouper) Components() (map[string]any, error) {
 	for k := range g.liveBuckets {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	// Include order when an Include list is active (composite keys like
+	// "MC|VISA"), otherwise sort.Strings (byte-identity for no-include).
+	keys = orderKeysByInclude(g.include, keys)
 
 	buckets := make([]map[string]any, 0, len(keys))
 	for _, k := range keys {
@@ -214,6 +216,9 @@ func (g *setValueGrouper) Components() (map[string]any, error) {
 		"buckets":      buckets,
 	}, nil
 }
+
+// IncludeFilter implements IncludeOrdered.
+func (g *setValueGrouper) IncludeFilter() *includeFilter { return g.include }
 
 // Per-bit fan-out. One row → one bucket per set bit. Empty-mask rows
 // contribute to zero buckets (consistent with skipping nulls). The
@@ -234,7 +239,7 @@ type setPerElementBucketStat struct {
 
 type setPerElementGrouper struct {
 	dict    *encoding.Dictionary
-	include map[string]struct{}
+	include *includeFilter
 
 	// liveBuckets mirrors the post-Group / post-KeysForRow state per
 	// label so Components() can emit per-label counts + dict indices
@@ -315,11 +320,11 @@ func (g *setPerElementGrouper) KeysForRow(r *Record, field string) ([]string, bo
 		return nil, false, nil
 	}
 	labels, indices := resolveMaskLabelsWithIndices(m, g.dict)
-	if g.include != nil {
+	if g.include.active() {
 		keptLabels := labels[:0]
 		keptIndices := indices[:0]
 		for i, l := range labels {
-			if _, ok := g.include[l]; ok {
+			if _, ok := g.include.index(l); ok {
 				keptLabels = append(keptLabels, l)
 				keptIndices = append(keptIndices, indices[i])
 			}
@@ -385,11 +390,31 @@ func (g *setPerElementGrouper) Components() (map[string]any, error) {
 	for _, stat := range g.liveBuckets {
 		stats = append(stats, stat)
 	}
-	// Sort by dict_index ascending so emission order matches the
-	// bit-walk every set-family operator (Rich, AGG_SET_*) emits in.
-	sort.SliceStable(stats, func(i, j int) bool {
-		return stats[i].dictIndex < stats[j].dictIndex
-	})
+	if g.include.active() {
+		// Include active — emit per-label buckets in include order (labels
+		// are the include entries). Non-members are already filtered at
+		// KeysForRow, so every present label is a member; the defensive
+		// tail in orderKeysByInclude would only fire under contract drift.
+		labels := make([]string, len(stats))
+		byLabel := make(map[string]setPerElementBucketStat, len(stats))
+		for i, stat := range stats {
+			labels[i] = stat.label
+			byLabel[stat.label] = stat
+		}
+		labels = orderKeysByInclude(g.include, labels)
+		ordered := make([]setPerElementBucketStat, 0, len(labels))
+		for _, l := range labels {
+			ordered = append(ordered, byLabel[l])
+		}
+		stats = ordered
+	} else {
+		// No include — sort by dict_index ascending so emission order
+		// matches the bit-walk every set-family operator (Rich, AGG_SET_*)
+		// emits in. Byte-identity for the no-include path.
+		sort.SliceStable(stats, func(i, j int) bool {
+			return stats[i].dictIndex < stats[j].dictIndex
+		})
+	}
 
 	totalObs := 0
 	buckets := make([]map[string]any, 0, len(stats))
@@ -408,9 +433,15 @@ func (g *setPerElementGrouper) Components() (map[string]any, error) {
 	}, nil
 }
 
+// IncludeFilter implements IncludeOrdered.
+func (g *setPerElementGrouper) IncludeFilter() *includeFilter { return g.include }
+
 // Compile-time interface locks. Catch interface drift at build time
 // and keep the MetaGrouper wiring grep-discoverable.
 var (
 	_ MetaGrouper = (*setValueGrouper)(nil)
 	_ MetaGrouper = (*setPerElementGrouper)(nil)
+
+	_ IncludeOrdered = (*setValueGrouper)(nil)
+	_ IncludeOrdered = (*setPerElementGrouper)(nil)
 )

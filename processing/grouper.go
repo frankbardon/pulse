@@ -48,29 +48,111 @@ func isGrouperKeyNull(err error) bool {
 	return err == ErrGrouperKeyNull
 }
 
-// buildIncludeFilter materialises Group.Include into a membership set.
+// includeFilter is the ordered replacement for the order-discarding
+// membership map that Group.Include used to compile down to. pos maps
+// each accepted key to its FIRST occurrence index in the Group.Include
+// slice — later duplicates are ignored, so a key buckets once, at its
+// first position. A nil *includeFilter means "accept-all", preserving
+// byte-identity against the pre-Include bucket set.
+type includeFilter struct {
+	pos map[string]int
+}
+
+// buildIncludeFilter materialises Group.Include into an ordered filter.
 // Empty / nil Include returns nil — callers MUST treat nil as
 // "accept-all" to preserve byte-identity against the pre-Include
-// bucket set.
-func buildIncludeFilter(include []string) map[string]struct{} {
+// bucket set. Duplicate values keep their first-occurrence index.
+func buildIncludeFilter(include []string) *includeFilter {
 	if len(include) == 0 {
 		return nil
 	}
-	out := make(map[string]struct{}, len(include))
-	for _, v := range include {
-		out[v] = struct{}{}
+	pos := make(map[string]int, len(include))
+	for i, v := range include {
+		if _, seen := pos[v]; !seen {
+			pos[v] = i
+		}
 	}
-	return out
+	return &includeFilter{pos: pos}
+}
+
+// active reports whether the filter constrains membership. A nil filter
+// (accept-all) is inactive.
+func (f *includeFilter) active() bool {
+	return f != nil && len(f.pos) > 0
+}
+
+// index returns the include-order position of key and whether key is a
+// member. A nil / inactive filter reports (0, false) — callers use
+// active() to decide whether membership matters.
+func (f *includeFilter) index(key string) (int, bool) {
+	if f == nil {
+		return 0, false
+	}
+	i, ok := f.pos[key]
+	return i, ok
 }
 
 // includeAccepts reports whether key passes the include filter. nil
 // filter accepts every key; non-nil rejects keys outside the set.
-func includeAccepts(filter map[string]struct{}, key string) bool {
-	if filter == nil {
+func includeAccepts(filter *includeFilter, key string) bool {
+	if !filter.active() {
 		return true
 	}
-	_, ok := filter[key]
+	_, ok := filter.pos[key]
 	return ok
+}
+
+// IncludeOrdered is the optional sibling of Grouper for groupers that
+// carry a Group.Include inclusion list and can surface it as an ordered
+// filter. GROUP_CATEGORY / GROUP_SET_VALUE / GROUP_SET_PER_ELEMENT
+// implement it; every other built-in grouper (and any extension grouper
+// that does not opt in) is treated as accept-all by includeFilterOf.
+type IncludeOrdered interface {
+	Grouper
+	// IncludeFilter returns the grouper's ordered include filter, or nil
+	// when no Include list was supplied (accept-all).
+	IncludeFilter() *includeFilter
+}
+
+// includeFilterOf extracts the ordered include filter from a grouper,
+// returning nil for groupers that don't implement IncludeOrdered
+// (extension groupers fall through to sort.Strings via orderKeysByInclude).
+func includeFilterOf(g Grouper) *includeFilter {
+	if io, ok := g.(IncludeOrdered); ok {
+		return io.IncludeFilter()
+	}
+	return nil
+}
+
+// orderKeysByInclude returns keys ordered for bucket emission. A nil /
+// inactive filter funnels through sort.Strings — the byte-identity
+// guarantee for the no-include path. An active filter sorts present
+// member keys by their include index (first-occurrence order); any
+// non-member straggler (which should not occur once KeyFor filters
+// non-members, but is guarded defensively) sorts alphabetically after
+// all members. keys is not mutated — a fresh slice is returned.
+func orderKeysByInclude(f *includeFilter, keys []string) []string {
+	out := make([]string, len(keys))
+	copy(out, keys)
+	if !f.active() {
+		sort.Strings(out)
+		return out
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		ii, iok := f.index(out[i])
+		ji, jok := f.index(out[j])
+		switch {
+		case iok && jok:
+			return ii < ji
+		case iok != jok:
+			// members sort before non-member stragglers
+			return iok
+		default:
+			// both non-members: defensive alphabetical tail
+			return out[i] < out[j]
+		}
+	})
+	return out
 }
 
 // streamableGroup is the shared Group() implementation for streamable
@@ -110,7 +192,7 @@ func streamableGroup(g StreamableGrouper, records []*Record) (map[string][]*Reco
 type categoryGrouper struct {
 	schema  *encoding.Schema
 	field   string
-	include map[string]struct{}
+	include *includeFilter
 
 	// liveBuckets mirrors the post-Group / post-KeyForRow state so
 	// Components() can emit per-bucket counts without re-scanning the
@@ -214,14 +296,16 @@ func (g *categoryGrouper) Components() (map[string]any, error) {
 		}
 	}
 
-	// Sort bucket keys for deterministic emission. An empty live map
-	// collapses to an empty buckets slice — not nil, since downstream
-	// JSON consumers prefer a concrete `[]` over `null`.
+	// Order bucket keys for deterministic emission — include order when
+	// an Include list is active, otherwise sort.Strings (byte-identity
+	// for the no-include path). An empty live map collapses to an empty
+	// buckets slice — not nil, since downstream JSON consumers prefer a
+	// concrete `[]` over `null`.
 	keys := make([]string, 0, len(g.liveBuckets))
 	for k := range g.liveBuckets {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	keys = orderKeysByInclude(g.include, keys)
 
 	buckets := make([]map[string]any, 0, len(keys))
 	for _, k := range keys {
@@ -236,6 +320,9 @@ func (g *categoryGrouper) Components() (map[string]any, error) {
 		"buckets":   buckets,
 	}, nil
 }
+
+// IncludeFilter implements IncludeOrdered.
+func (g *categoryGrouper) IncludeFilter() *includeFilter { return g.include }
 
 // roundedBucketStat tracks the per-bucket aggregates Components()
 // emits for GROUP_ROUNDED: the rounded scalar value (low) and the
@@ -1121,4 +1208,9 @@ var (
 	_ MetaGrouper = (*rangeGrouper)(nil)
 	_ MetaGrouper = (*roundedGrouper)(nil)
 	_ MetaGrouper = (*quantileGrouper)(nil)
+
+	// IncludeOrdered locks — only the include-capable groupers surface
+	// an ordered filter; every other grouper falls through to sort.Strings
+	// via includeFilterOf returning nil.
+	_ IncludeOrdered = (*categoryGrouper)(nil)
 )
