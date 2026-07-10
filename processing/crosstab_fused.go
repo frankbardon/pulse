@@ -3,7 +3,6 @@ package processing
 import (
 	stderrors "errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -895,16 +894,19 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		s.totalRows = s.filteredRows
 	}
 
-	// Deterministic key emission order: sort by composite axis key. The
-	// buffered RunCrosstab does the same via PartitionByAxis (sort.Strings
-	// on the bucket keys), so the fused output matches byte-for-byte.
-	// We sort the row/col axis index permutations so we can walk the
-	// slice in the canonical (string-key) order without materializing
-	// every cell into a string-keyed map.
-	rowKeys := append([]string(nil), s.rowKeys...)
-	sort.Strings(rowKeys)
-	colKeys := append([]string(nil), s.colKeys...)
-	sort.Strings(colKeys)
+	// Deterministic key emission order: order by per-axis-position include
+	// list, falling through to alphabetical when a position carries no
+	// Include. The buffered RunCrosstab does the same via PartitionByAxis's
+	// per-level orderKeysByInclude recursion; the fused path reproduces that
+	// as a flat multi-key sort over the decomposed (key, tuple) pairs using
+	// the shared orderCompositeKeysByAxisInclude helper, so the two outputs
+	// match byte-for-byte. With no Include on any position the helper funnels
+	// through sort.Strings, preserving byte-identity with the prior flat sort.
+	// We order the row/col axis key permutations so we can walk the slice in
+	// the canonical order without materializing every cell into a string-keyed
+	// map.
+	rowKeys := orderCompositeKeysByAxisInclude(s.rowKeys, s.rowAxis, s.spec.Rows)
+	colKeys := orderCompositeKeysByAxisInclude(s.colKeys, s.colAxis, s.spec.Columns)
 
 	// Build per-key tuple lookup for the downstream MatrixPayload /
 	// long-shape emitters.
@@ -1447,8 +1449,8 @@ func buildLongRowsFused(spec *types.CrosstabSpec,
 	// per-grouper key tuple at each level by splitting the composite key
 	// on crosstabAxisKeySep — partition shape isn't preserved on the
 	// fused path because we never partition by raw records.
-	partialRowPart := buildPartialAxisFromKeys(partialRowMargins, rowNormLevel)
-	partialColPart := buildPartialAxisFromKeys(partialColMargins, colNormLevel)
+	partialRowPart := buildPartialAxisFromKeys(partialRowMargins, rowNormLevel, spec.Rows)
+	partialColPart := buildPartialAxisFromKeys(partialColMargins, colNormLevel, spec.Columns)
 	return buildLongRows(spec,
 		rowPart, colPart,
 		cellValues, cellPresent,
@@ -1464,7 +1466,14 @@ func buildLongRowsFused(spec *types.CrosstabSpec,
 // Keys + Tuples populated, derived from a partial-margin map's keys.
 // Used by buildLongRowsFused to feed the existing buffered emitter
 // without exposing the fused state's internal representation.
-func buildPartialAxisFromKeys(margins map[string]float64, level int) *CrosstabAxisPartition {
+//
+// axis is the full row/column axis spec; partial keys span the leading
+// level+1 positions, so ordering is applied against axis[:level+1] to
+// honor each leading position's Include list. The buffered path derives
+// the same partial axis via PartitionByAxis(spec.Rows[:level+1], …),
+// whose per-level orderKeysByInclude produces this exact order — so the
+// fused partial margins stay byte-equal to buffered.
+func buildPartialAxisFromKeys(margins map[string]float64, level int, axis []*types.Group) *CrosstabAxisPartition {
 	if len(margins) == 0 || level < 0 {
 		return nil
 	}
@@ -1472,8 +1481,24 @@ func buildPartialAxisFromKeys(margins map[string]float64, level int) *CrosstabAx
 	for k := range margins {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
 	tuples := make([]types.AxisKey, 0, len(keys))
+	for _, k := range keys {
+		parts := strings.Split(k, crosstabAxisKeySep)
+		tuple := make(types.AxisKey, 0, len(parts))
+		for _, p := range parts {
+			tuple = append(tuple, p)
+		}
+		tuples = append(tuples, tuple)
+	}
+	// Restrict the ordering axis to the leading level+1 positions the
+	// partial keys actually span; guard against an over-long level.
+	leading := axis
+	if level+1 <= len(axis) {
+		leading = axis[:level+1]
+	}
+	keys = orderCompositeKeysByAxisInclude(keys, tuples, leading)
+	// Rebuild tuples parallel to the newly ordered keys.
+	tuples = tuples[:0]
 	for _, k := range keys {
 		parts := strings.Split(k, crosstabAxisKeySep)
 		tuple := make(types.AxisKey, 0, len(parts))
