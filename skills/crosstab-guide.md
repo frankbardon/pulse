@@ -25,6 +25,8 @@ Defaults: `shape: matrix`, `normalize: none`. Result: `Response.Crosstab.Matrix`
 
 `rows`, `columns` are each `[]Group`. Any grouper, either axis. Multiple per axis = nested headers; sorted composite-key order. Empty axes / missing cell ⇒ `PULSE_CROSSTAB_EMPTY_ROWS` / `_EMPTY_COLUMNS` / `_MISSING_CELL`.
 
+**Include ordering per axis.** Each axis honors its own `Group.Include` order independently: an axis with a non-empty `include` emits keys in listed order; an axis without `include` keeps alphabetical order; on a nested axis ordering is applied per key position. Buffered + fused agree via `orderCompositeKeysByAxisInclude`. Zero-record include values are still dropped.
+
 `cell` is one `Aggregation` — every `AGG_*`. Scalar cells (`MatrixCell.Value: float64`) are common. Rich variants: `AGG_SET_FREQUENCY` (`map[string]int`), set union/intersection (rich `[]string`), `AGG_WELFORD` (`{n,mean,variance,m2}` via `CellComponents` — the legacy `processing.WelfordTriple` smuggle in `MatrixCell.Value` is removed in v0.20.0). Rich + non-`none` normalize ⇒ `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED`; use `AGG_SET_CARDINALITY_SUM`/`_AVG` for normalised set columns.
 
 ## Margins recompute from raw rows

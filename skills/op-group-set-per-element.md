@@ -11,7 +11,7 @@ examples_tags: [cardinality-analysis, cohort-analysis]
 
 ## Params
 
-None. `Group.Label` overrides output column name; `Group.Include []string` allow-lists fan-out labels (each evaluated independently).
+None. `Group.Label` overrides output column name; `Group.Include []string` allow-lists fan-out labels (individual labels, each evaluated independently) and sets emission order.
 
 ## Inputs
 
@@ -22,6 +22,8 @@ None. `Group.Label` overrides output column name; `Group.Include []string` allow
 ## Output
 
 String key per selected label per row. Smart default for `set_*` fields. Implements `MultiKeyStreamingGrouper` — one key per bit set in the mask.
+
+Non-empty `Include` is order-significant: buckets emit in `Include` order (individual labels), overriding dict-index for `Data` + `Components.buckets`; empty/absent keeps prior dict-index order (byte-identical). Zero-record labels dropped.
 
 ## Components
 

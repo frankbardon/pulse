@@ -34,6 +34,21 @@ func groupSchema(merge ComponentsMergeability, extra ...ComponentKey) ComponentS
 
 // grouperCapabilities returns the metadata for every registered
 // GrouperFactory.
+//
+// Group.Include ordering note: for the three groupers that honour
+// Group.Include (GROUP_CATEGORY on the label string, GROUP_SET_VALUE on
+// the pipe-joined composite key, GROUP_SET_PER_ELEMENT on each individual
+// fan-out label) a non-empty Include is order-significant — output buckets
+// emit in the order values are listed in Include, across both the plain
+// grouped payload (Response.Data + Response.Components buckets) and each
+// crosstab axis independently (an axis without Include keeps the prior
+// alphabetical / dict-index order). An empty or absent Include preserves
+// the prior alphabetical (dict-index for GROUP_SET_PER_ELEMENT) order and
+// is byte-identical to the pre-Include output. Include values that match
+// zero records are still dropped, never emitted as empty buckets. This is
+// a runtime emission-ordering property only — no ComponentSchema key,
+// capability shape, or manifest field changes, so the descriptor surface
+// (and its goldens) is unaffected.
 func grouperCapabilities() []Operator {
 	return []Operator{
 		{
