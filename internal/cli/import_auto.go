@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/imports"
 	cli "github.com/urfave/cli/v3"
 )
@@ -71,6 +73,10 @@ func importAutoCmd() *cli.Command {
 			}
 			if res.Managed {
 				writeText(cmd.Writer, "Imported %d rows into managed handle %q at %s\n", res.RowsImported, res.Handle, res.Path)
+				if len(res.PromotedFields) > 0 {
+					writeText(cmd.Writer, "%s: fields promoted to nullable (null found past the inference sample): %s\n",
+						errors.PULSE_IMPORT_NULL_PROMOTED, strings.Join(res.PromotedFields, ", "))
+				}
 				if res.ExpiresAt != nil {
 					writeText(cmd.Writer, "Expires: %s\n", res.ExpiresAt.Format("2006-01-02 15:04:05 MST"))
 				} else {

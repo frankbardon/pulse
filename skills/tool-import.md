@@ -21,10 +21,11 @@ Bring an external dataset into Pulse — CSV, TSV, NDJSON, JSON array, Parquet, 
 
 ## Output
 
-`descriptor.Envelope` wrapping the import record: `handle`, `managed_path`, `format`, `row_count`, `expires_at`, `managed` (bool). Description-quality warnings emit `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (errors under `--strict`). Description > 1000 bytes → `PULSE_IMPORT_DESCRIPTION_TOO_LONG`.
+`descriptor.Envelope` wrapping the import record: `handle`, `managed_path`, `format`, `row_count`, `expires_at`, `managed` (bool), plus `promoted_fields` (`[]string`, omitted when empty). Description-quality warnings emit `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (errors under `--strict`). Description > 1000 bytes → `PULSE_IMPORT_DESCRIPTION_TOO_LONG`.
 
 ## Gotchas
 
+- Inference samples only the first N rows for nullability. A null past the sample promotes its field to nullable (reported in `promoted_fields` + a `PULSE_IMPORT_NULL_PROMOTED` warning) instead of failing — but an explicit schema keeps a null in a declared non-nullable field as `PULSE_IMPORT_ROW_ERROR`.
 - TTL `pin` is the only way to disable expiry — there is no "forever" duration.
 - Pulse-format passthrough skips the copy + sidecar (`managed=false`). `pulse_drop` is a no-op on passthroughs.
 - Side effect on MCP success: session-scoped tool rebinding from the new cohort (same as `tool-inspect`).

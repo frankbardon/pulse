@@ -54,6 +54,8 @@ When at least one field is `Nullable: true`, every record carries a trailing bit
 
 The bitmap is the sole null mechanism. No type has an inline sentinel — `decimal128` all-zero bits is decimal zero, not null. Null-skip semantics for sum/mean/percentile are central.
 
+**Inferred imports promote on out-of-sample nulls.** Schema inference reads only the first `--sample-rows` (default 500) rows to decide nullability. If a null (`""`/`null`/`na`/`n/a`) lands in a column past that window, the importer promotes the field to nullable and continues rather than failing — emitting a `PULSE_IMPORT_NULL_PROMOTED` warning listing the promoted fields (also on `ImportReport.PromotedFields` / the managed `Result.promoted_fields`). This applies to every inferred text/columnar import (csv, tsv, ndjson, jsonarray, parquet, arrow, excel). An **explicit `--schema`** is a contract: a null in a field you declared non-nullable stays a `PULSE_IMPORT_ROW_ERROR`. To avoid promotion surprises, mark sometimes-missing fields `"nullable": true` in the schema, or raise `--sample-rows`.
+
 ## Bit-packed runs
 
 `u4` and `packed_bool` report `ByteSize() == 0` and share bytes with adjacent packed fields. Place packed fields together for optimal layout. Reordering can change byte offsets even when types are unchanged.

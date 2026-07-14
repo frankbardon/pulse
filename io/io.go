@@ -82,10 +82,18 @@ type OverlayWarningEmitter interface {
 }
 
 // ImportReport summarizes the result of an import operation.
+//
+// PromotedFields names the columns an inferred import widened to nullable
+// because a null cell fell outside the bounded inference sample window
+// (see ImportJob.InferredSchema). Empty for explicit-schema imports and
+// for inferred imports with no out-of-sample nulls. Each promotion also
+// surfaces a PULSE_IMPORT_NULL_PROMOTED warning to callers that thread
+// coded warnings.
 type ImportReport struct {
-	RowsImported int
-	Schema       *encoding.Schema
-	RowErrors    []RowError
+	RowsImported   int
+	Schema         *encoding.Schema
+	RowErrors      []RowError
+	PromotedFields []string
 }
 
 // ExportReport summarizes the result of an export operation.
@@ -153,6 +161,16 @@ type ImportJob struct {
 	// entries (explicit-schema imports or non-set columns) fall back
 	// to DefaultSetDelimiter ("|").
 	SetDelimiters map[string]string
+	// InferredSchema marks a supplied Schema as inference-originated so
+	// the row pass promotes non-nullable fields to nullable on an
+	// out-of-sample null instead of failing the row (see Run). When
+	// Schema is nil this is implied — Run infers the schema and always
+	// promotes. Set it explicitly only when handing Run a pre-built
+	// schema that came from inference (e.g. ConvertJob's KeepPulseAt
+	// re-import) so it inherits the same tolerance. Leave false for a
+	// user-authored explicit schema, where a null in a declared
+	// non-nullable field must stay a PULSE_IMPORT_ROW_ERROR.
+	InferredSchema bool
 }
 
 // NewImportJob creates an ImportJob with default settings.

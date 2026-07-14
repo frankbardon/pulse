@@ -23,6 +23,16 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
 
+	// An inferred import (no user-authored schema) tolerates out-of-sample
+	// nulls: a null cell in a column the bounded inference sample marked
+	// non-nullable promotes that field to nullable rather than failing the
+	// row. Schema == nil is the common case; ImportJob.InferredSchema lets a
+	// caller (ConvertJob's KeepPulseAt re-import) opt a pre-built inferred
+	// schema into the same tolerance. A user-authored explicit schema keeps
+	// the strict PULSE_IMPORT_ROW_ERROR — the declared nullability is a
+	// contract, not a guess.
+	inferredSchema := schema == nil || j.InferredSchema
+
 	// Infer schema if not provided.
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
@@ -83,10 +93,34 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// appended to the main buffer after the schema is written, since the
 	// schema must precede records and dictionaries are populated as rows
 	// are converted.
+	// Field bytes and per-record null bitmaps are encoded into two parallel
+	// buffers. Keeping them separate lets an inferred import promote a field
+	// to nullable mid-pass (see the null branch below): the null bitmap is
+	// always ceil(field_count/8) bytes regardless of how many fields are
+	// nullable, so promotion never re-lays-out the fixed field stride. At
+	// finalize the two buffers are interleaved into the record region iff the
+	// final schema carries any nullable field — byte-identical to inlining
+	// the bitmap after each record, and a no-op (field bytes only) when no
+	// field is nullable.
 	var recordsBuf bytes.Buffer
+	var bitmapBuf bytes.Buffer
 	var rowErrors []RowError
 	rowsImported := 0
 	rowNum := 0
+
+	// fullBitmapSize is the per-record bitmap width once any field is
+	// nullable. Computed from field count (not nullable count) so it is
+	// stable under mid-pass promotion. writeBitmap decides whether to emit a
+	// bitmap per record: always for inferred imports (a later promotion may
+	// need it) and for explicit schemas that already declare a nullable
+	// field.
+	fullBitmapSize := (len(schema.Fields) + 7) / 8
+	writeBitmap := inferredSchema || schema.HasBitmap()
+
+	// promoted[i] records that field i was widened to nullable because of an
+	// out-of-sample null; surfaced via ImportReport.PromotedFields and a
+	// PULSE_IMPORT_NULL_PROMOTED warning.
+	promoted := make([]bool, len(schema.Fields))
 
 	// Reusable per-row scratch slices. Narrow types share the uint64 slice;
 	// wide types (decimal128) write 16 raw bytes via a parallel slice.
@@ -95,7 +129,6 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	wideBytes := make([][16]byte, len(schema.Fields))
 	wideUsed := make([]bool, len(schema.Fields))
 	nullMask := make([]bool, len(schema.Fields))
-	bitmapSize := schema.BitmapByteSize()
 
 	err := j.Source.ReadRows(ctx, func(row []string) error {
 		select {
@@ -121,16 +154,28 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 			nullCell := isNullToken(raw)
 			if nullCell {
 				if !f.Nullable {
-					rowErrors = append(rowErrors, RowError{
-						Row: rowNum,
-						Err: errors.NewCodedErrorWithDetails(
-							errors.PULSE_IMPORT_ROW_ERROR,
-							fmt.Sprintf("row %d, column %q: null value in non-nullable field", rowNum, f.Name),
-							map[string]any{"row": rowNum, "column": f.Name},
-						),
-					})
-					rowOK = false
-					break
+					if !inferredSchema {
+						// Explicit schema declared this field non-nullable —
+						// a null here is a contract violation, not a guess.
+						rowErrors = append(rowErrors, RowError{
+							Row: rowNum,
+							Err: errors.NewCodedErrorWithDetails(
+								errors.PULSE_IMPORT_ROW_ERROR,
+								fmt.Sprintf("row %d, column %q: null value in non-nullable field", rowNum, f.Name),
+								map[string]any{"row": rowNum, "column": f.Name},
+							),
+						})
+						rowOK = false
+						break
+					}
+					// Inferred schema: the bounded sample missed this null.
+					// Promote the field to nullable and carry on. The field
+					// stride is unchanged and every record already reserves a
+					// bitmap byte for index i (writeBitmap is true for inferred
+					// imports), so prior records — whose bit i is 0 because
+					// they were non-null — stay valid.
+					schema.Fields[i].Nullable = true
+					promoted[i] = true
 				}
 				nullMask[i] = true
 				if isWideFieldType(f.Type) {
@@ -199,18 +244,19 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 			}
 		}
 
-		// Per-record null bitmap, if schema has any nullable field.
-		if bitmapSize > 0 {
-			bitmap := make([]byte, bitmapSize)
-			for i, f := range schema.Fields {
-				if !f.Nullable {
-					continue
-				}
+		// Per-record null bitmap into the parallel buffer. Emitted whenever a
+		// bitmap may be needed (writeBitmap); interleaved into the record
+		// region at finalize only if the final schema is nullable. A cell is
+		// only ever null-masked for a nullable field (explicit non-nullable
+		// nulls break the row above), so setting bit i for nullMask[i] is safe.
+		if writeBitmap {
+			bitmap := make([]byte, fullBitmapSize)
+			for i := range schema.Fields {
 				if nullMask[i] {
 					encoding.BitmapSetNull(bitmap, i)
 				}
 			}
-			if err := encoding.WriteBitmap(&recordsBuf, bitmap); err != nil {
+			if err := encoding.WriteBitmap(&bitmapBuf, bitmap); err != nil {
 				return err
 			}
 		}
@@ -222,15 +268,29 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		return nil, err
 	}
 
-	// Now write schema (dictionaries are populated).
+	// Now write schema (dictionaries are populated, promotions applied).
 	if err := encoding.WriteSchema(&buf, schema); err != nil {
 		return nil, err
 	}
 
 	// Append the encoded records. No record count prefix — the format is
-	// header + schema + records per §5.3. Record count is derived from
-	// file size and per-record byte size.
-	if _, err := buf.Write(recordsBuf.Bytes()); err != nil {
+	// header + schema + records per §5.3. Record count is derived from file
+	// size and per-record byte size. Interleave the parallel bitmap buffer
+	// after each record's field bytes iff the final schema is nullable;
+	// otherwise the field bytes stand alone (zero-overhead path).
+	if schema.HasBitmap() {
+		recs := recordsBuf.Bytes()
+		bms := bitmapBuf.Bytes()
+		fieldStride := schema.RecordByteSize() - fullBitmapSize
+		for k := 0; k < rowsImported; k++ {
+			if _, err := buf.Write(recs[k*fieldStride : (k+1)*fieldStride]); err != nil {
+				return nil, err
+			}
+			if _, err := buf.Write(bms[k*fullBitmapSize : (k+1)*fullBitmapSize]); err != nil {
+				return nil, err
+			}
+		}
+	} else if _, err := buf.Write(recordsBuf.Bytes()); err != nil {
 		return nil, err
 	}
 
@@ -239,10 +299,19 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		return nil, err
 	}
 
+	// Collect promoted field names in schema order for the report + warning.
+	var promotedFields []string
+	for i := range schema.Fields {
+		if promoted[i] {
+			promotedFields = append(promotedFields, schema.Fields[i].Name)
+		}
+	}
+
 	return &ImportReport{
-		RowsImported: rowsImported,
-		Schema:       schema,
-		RowErrors:    rowErrors,
+		RowsImported:   rowsImported,
+		Schema:         schema,
+		RowErrors:      rowErrors,
+		PromotedFields: promotedFields,
 	}, nil
 }
 
@@ -250,6 +319,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	schema := j.Schema
 	var warnings []InferenceWarning
+	inferredSchema := schema == nil || j.InferredSchema
 
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
@@ -269,14 +339,39 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		}
 	}
 
-	// Count rows.
+	// Count rows. Predict already walks every row, so for an inferred
+	// schema it also finalizes nullability here: a null cell outside the
+	// bounded inference sample promotes its field to nullable so the
+	// reported schema matches what Run would write. Free — no extra read.
 	rowCount := 0
+	promoted := make([]bool, len(schema.Fields))
 	err := j.Source.ReadRows(ctx, func(row []string) error {
 		rowCount++
+		if inferredSchema {
+			for i := range schema.Fields {
+				if schema.Fields[i].Nullable {
+					continue
+				}
+				colIdx := schema.Fields[i].CsvColumnIdx
+				if colIdx < len(row) && isNullToken(strings.TrimSpace(row[colIdx])) {
+					schema.Fields[i].Nullable = true
+					promoted[i] = true
+				}
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	for i := range schema.Fields {
+		if promoted[i] {
+			warnings = append(warnings, InferenceWarning{
+				Column:  schema.Fields[i].Name,
+				Message: "null found outside the inference sample window; field promoted to nullable",
+			})
+		}
 	}
 
 	return &PredictReport{

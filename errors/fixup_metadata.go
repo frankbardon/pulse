@@ -290,6 +290,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_NULL_PROMOTED: {
+		Message: "Warning-class — an inferred import found a null cell in a column that the bounded inference sample had marked non-nullable, so the field was promoted to nullable and the import continued. Details carry `promoted_fields` (the field names widened to nullable). The written .pulse is correct; this warning only records that the sample missed the null. Never fires for explicit --schema imports, where a null in a declared non-nullable field stays a PULSE_IMPORT_ROW_ERROR.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "To suppress: raise --sample-rows so the inference window covers the null, or supply an explicit --schema marking the field \"nullable\": true. No action is required to accept the import — the promoted field is already correct.",
+			},
+		},
+	},
 	PULSE_EXPORT_ROW_ERROR: {
 		Message: "A row could not be exported due to a per-cell value-to-string conversion failure.",
 		Fixups: []Fixup{
