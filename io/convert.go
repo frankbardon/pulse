@@ -14,6 +14,10 @@ import (
 func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
+	// When convert infers the schema, the intermediate .pulse re-import must
+	// inherit the same out-of-sample null tolerance (promote-on-null) — the
+	// schema handed to importJob is a guess, not a user contract.
+	inferredSchema := j.Schema == nil
 
 	// Infer schema if not provided.
 	if schema == nil {
@@ -95,11 +99,12 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		}
 		// We will write the pulse file after streaming.
 		importJob = &ImportJob{
-			Source:     nil, // not used directly
-			Target:     j.KeepPulseAt,
-			Schema:     schema,
-			SampleRows: j.SampleRows,
-			FS:         fs,
+			Source:         nil, // not used directly
+			Target:         j.KeepPulseAt,
+			Schema:         schema,
+			SampleRows:     j.SampleRows,
+			FS:             fs,
+			InferredSchema: inferredSchema,
 		}
 	}
 

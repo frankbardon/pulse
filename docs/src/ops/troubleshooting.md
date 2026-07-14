@@ -91,6 +91,27 @@ Import-time failures. The two most common:
   Blocks](../format/dictionaries.md).
 - `PULSE_IMPORT_DESCRIPTION_TOO_LONG` — schema field description
   exceeds 1000 bytes. Trim it.
+- `PULSE_IMPORT_ROW_ERROR: null value in non-nullable field` — a null
+  cell (`""` / `null` / `na` / `n/a`) landed in a field your **explicit
+  `--schema`** declared non-nullable. Mark the field `"nullable": true`
+  in the schema JSON and re-import. (Inferred imports never raise this —
+  see the promotion warning below.)
+
+## `PULSE_IMPORT_NULL_PROMOTED`
+
+A warning, not an error. During an **inferred** import (no `--schema`),
+schema inference samples only the first `--sample-rows` (default 500)
+rows to decide nullability. If a null appears in a column past that
+window, Pulse promotes the field to nullable and finishes the import
+rather than failing — listing the promoted fields in the warning and in
+`promoted_fields` on the managed-import result. The written `.pulse` is
+correct.
+
+**Fix (optional):** to make the schema exact up front, raise
+`--sample-rows` so the sample covers the null, or generate and edit a
+schema with [`pulse import schema-template`](../getting-started/first-cohort.md)
+(which already reports the accurate `nullable` flag) and re-import with
+`--schema`.
 
 ## `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`
 

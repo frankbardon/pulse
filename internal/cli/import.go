@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 	parrow "github.com/frankbardon/pulse/io/arrow"
 	"github.com/frankbardon/pulse/io/csv"
@@ -121,6 +123,10 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	writeText(cmd.Writer, "Imported %d rows to %s\n", report.RowsImported, output)
 	if len(report.RowErrors) > 0 {
 		writeText(cmd.Writer, "Warnings: %d row errors\n", len(report.RowErrors))
+	}
+	if len(report.PromotedFields) > 0 {
+		writeText(cmd.Writer, "%s: fields promoted to nullable (null found past the inference sample): %s\n",
+			errors.PULSE_IMPORT_NULL_PROMOTED, strings.Join(report.PromotedFields, ", "))
 	}
 	return nil
 }
@@ -245,6 +251,7 @@ func importSchemaTemplateCmd() *cli.Command {
 				Name        string `json:"name"`
 				Type        string `json:"type"`
 				Description string `json:"description"`
+				Nullable    bool   `json:"nullable"`
 			}
 			tmpl := make([]fieldTemplate, len(report.Schema.Fields))
 			for i, f := range report.Schema.Fields {
@@ -252,6 +259,7 @@ func importSchemaTemplateCmd() *cli.Command {
 					Name:        f.Name,
 					Type:        f.Type.String(),
 					Description: "",
+					Nullable:    f.Nullable,
 				}
 			}
 
@@ -297,6 +305,7 @@ func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {
 		Name        string `json:"name"`
 		Type        string `json:"type"`
 		Description string `json:"description"`
+		Nullable    bool   `json:"nullable"`
 		Precision   uint8  `json:"precision,omitempty"`
 		Scale       uint8  `json:"scale,omitempty"`
 	}
@@ -315,6 +324,7 @@ func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {
 		field := encoding.Field{
 			Name:         f.Name,
 			Type:         ft,
+			Nullable:     f.Nullable,
 			ByteOffset:   byteOffset,
 			CsvColumnIdx: i,
 			Description:  f.Description,

@@ -2,6 +2,7 @@ package io
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -59,6 +60,44 @@ func TestConvertJob_KeepPulse(t *testing.T) {
 	exists, _ := afero.Exists(fs, "intermediate.pulse")
 	if !exists {
 		t.Error("intermediate.pulse was not written")
+	}
+}
+
+// TestConvertJob_KeepPulse_PromotesOutOfSampleNull is the RISK-2 regression:
+// convert infers the schema, then re-imports it to KeepPulseAt. A null past the
+// inference sample must not hard-error the intermediate .pulse write — the
+// re-import inherits promote-on-null via ImportJob.InferredSchema.
+func TestConvertJob_KeepPulse_PromotesOutOfSampleNull(t *testing.T) {
+	var rows [][]string
+	for i := range 60 {
+		v := "7"
+		if i == 59 {
+			v = "" // out-of-sample null
+		}
+		rows = append(rows, []string{strconv.Itoa(i), v})
+	}
+	source := newMockReader([]string{"id", "v"}, rows)
+	target := &collectWriter{}
+	fs := afero.NewMemMapFs()
+
+	job := NewConvertJob(source, target)
+	job.KeepPulseAt = "kept.pulse"
+	job.FS = fs
+	job.SampleRows = 50 // force the last-row null out of the sample window
+
+	if _, err := job.Run(context.Background()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	_, _, nulls := decodeAll(t, fs, "kept.pulse")
+	if len(nulls) != 60 {
+		t.Fatalf("decoded %d records, want 60", len(nulls))
+	}
+	if nulls[0]["v"] {
+		t.Errorf("record 0 v = null, want present")
+	}
+	if !nulls[59]["v"] {
+		t.Errorf("record 59 v = present, want null")
 	}
 }
 

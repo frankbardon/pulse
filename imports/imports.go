@@ -92,6 +92,12 @@ type Result struct {
 	ExpiresAt    *time.Time       `json:"expires_at,omitempty"`
 	TTLSeconds   int64            `json:"ttl_seconds,omitempty"`
 	Schema       *encoding.Schema `json:"-"`
+	// PromotedFields names columns an inferred import widened to nullable
+	// because a null fell outside the inference sample window. Empty for
+	// explicit-schema imports and clean inferred imports. Mirrors
+	// io.ImportReport.PromotedFields; each also rides a
+	// PULSE_IMPORT_NULL_PROMOTED warning.
+	PromotedFields []string `json:"promoted_fields,omitempty"`
 }
 
 // Sidecar is the JSON payload written next to a managed .pulse file.

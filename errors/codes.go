@@ -131,6 +131,17 @@ const (
 	// PULSE_IMPORT_ROW_ERROR indicates a per-row import error.
 	PULSE_IMPORT_ROW_ERROR Code = "PULSE_IMPORT_ROW_ERROR"
 
+	// PULSE_IMPORT_NULL_PROMOTED is a WARNING-class code emitted when an
+	// inferred import (no explicit --schema) encounters a null cell in a
+	// column that inference had marked non-nullable — because the null
+	// fell outside the bounded inference sample window. The importer
+	// promotes the field to nullable and continues rather than failing
+	// the row; the code records which fields were promoted so callers can
+	// widen the inference sample or supply an explicit schema. Never
+	// emitted for explicit-schema imports, where a null in a declared
+	// non-nullable field remains a PULSE_IMPORT_ROW_ERROR.
+	PULSE_IMPORT_NULL_PROMOTED Code = "PULSE_IMPORT_NULL_PROMOTED"
+
 	// PULSE_EXPORT_ROW_ERROR indicates a per-row export error.
 	PULSE_EXPORT_ROW_ERROR Code = "PULSE_EXPORT_ROW_ERROR"
 
@@ -1069,6 +1080,7 @@ var allCodes = []Code{
 	// PULSE
 	PULSE_IMPORT_SCHEMA_AMBIGUOUS,
 	PULSE_IMPORT_ROW_ERROR,
+	PULSE_IMPORT_NULL_PROMOTED,
 	PULSE_EXPORT_ROW_ERROR,
 	PULSE_EXPORT_FIELD_UNKNOWN,
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW,

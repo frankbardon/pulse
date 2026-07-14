@@ -127,7 +127,7 @@ func enumValues() map[reflect.Type][]string {
 		reflect.TypeFor[types.FeatureType]():     stringify(types.AllFeatureTypes()),
 		reflect.TypeFor[types.TestType]():        stringify(types.AllTestTypes()),
 		reflect.TypeFor[types.OverlayKind]():     stringify(types.AllOverlayKinds()),
-		reflect.TypeFor[types.RegressionType](): stringify(types.AllRegressionTypes()),
+		reflect.TypeFor[types.RegressionType]():  stringify(types.AllRegressionTypes()),
 	}
 	return m
 }

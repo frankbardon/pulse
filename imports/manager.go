@@ -372,14 +372,15 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 	_, _ = m.Sweep(ctx)
 
 	res := &Result{
-		Handle:       handle,
-		Path:         target,
-		Format:       pformat.Pulse,
-		Managed:      true,
-		RowsImported: report.RowsImported,
-		ImportedAt:   now,
-		TTLSeconds:   sidecar.TTLSeconds,
-		Schema:       report.Schema,
+		Handle:         handle,
+		Path:           target,
+		Format:         pformat.Pulse,
+		Managed:        true,
+		RowsImported:   report.RowsImported,
+		ImportedAt:     now,
+		TTLSeconds:     sidecar.TTLSeconds,
+		Schema:         report.Schema,
+		PromotedFields: report.PromotedFields,
 	}
 	if !sidecar.ExpiresAt.IsZero() {
 		exp := sidecar.ExpiresAt
