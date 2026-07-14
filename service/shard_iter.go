@@ -171,7 +171,16 @@ func (it *shardIter) Next() bool {
 			if it.reusedRec == nil {
 				it.reusedRec = processing.NewReusableRecord(it.schema)
 			}
-			err := it.reader.ReadRecordReused(it.reusedRec)
+			// Plan-aware reused decode honors projection under reuse, the
+			// same as streamingIterator: a nil plan is byte-identical to
+			// ReadRecordReused, a non-nil plan seeks past unprojected
+			// on-wire ranges instead of decoding every field.
+			var err error
+			if it.plan != nil {
+				err = it.reader.ReadRecordReusedWithPlan(it.reusedRec, it.project, it.plan)
+			} else {
+				err = it.reader.ReadRecordReused(it.reusedRec)
+			}
 			if err == io.EOF {
 				// Advance to the next shard and keep going.
 				it.reader = nil

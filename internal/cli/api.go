@@ -40,6 +40,7 @@ func apiProcessCmd() *cli.Command {
 			&cli.BoolFlag{Name: "strict", Usage: "Promote request-validation warnings into hard errors (e.g. numeric aggregation on a categorical field)"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized (post-defaults) request on the envelope under \"request\". Streaming output skips this — NDJSON has no envelope."},
 			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components (per-aggregator / per-grouper / per-filterer / crosstab / run constituent-parts metadata). Wire form is byte-identical to the pre-Components baseline."},
+			&cli.BoolFlag{Name: "no-project", Usage: "Disable buffered-decode field projection; force full-record decode. Projection is on by default and output-transparent (same result, only faster), so this is an opt-out for debugging or full-map decode."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
@@ -49,6 +50,7 @@ func apiProcessCmd() *cli.Command {
 			strict := cmd.Bool("strict")
 			echoRequest := cmd.Bool("echo-request")
 			noComponents := cmd.Bool("no-components")
+			noProject := cmd.Bool("no-project")
 
 			req, err := loadRequest(reqPath)
 			if err != nil {
@@ -58,7 +60,7 @@ func apiProcessCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, Strict: strict, EchoRequest: echoRequest})
+			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, DisableProjection: noProject, Strict: strict, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())

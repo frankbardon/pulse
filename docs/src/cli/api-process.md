@@ -15,6 +15,7 @@ leaf in the binary.
 
 ```
 pulse api process --request FILE [--json] [--stream] [--no-defaults]
+                                 [--no-components] [--no-project]
                                  [--strict] [--echo-request]
 ```
 
@@ -26,6 +27,8 @@ pulse api process --request FILE [--json] [--stream] [--no-defaults]
 | `--json`          |      | bool   | false      | Emit the result wrapped in the JSON envelope |
 | `--stream`        |      | bool   | false      | Stream rows as NDJSON (one per line) instead of buffering |
 | `--no-defaults`   |      | bool   | false      | Disable smart operator-type inference; require explicit `Type` on every aggregation and grouper |
+| `--no-components` |      | bool   | false      | Suppress `Response.Components` (per-aggregator / per-grouper / per-filterer / crosstab / run constituent-parts metadata). Wire form is byte-identical to the pre-Components baseline |
+| `--no-project`    |      | bool   | false      | Disable buffered-decode field projection; force full-record decode. Projection is on by default and output-transparent (same result, only faster), so this is an opt-out for debugging or full-map decode |
 | `--strict`        |      | bool   | false      | Promote request-validation warnings (e.g. numeric aggregation on a categorical field) into hard errors |
 | `--echo-request`  |      | bool   | false      | Include the normalized (post-defaults) request on `envelope.request`. Ignored under `--stream` because NDJSON has no envelope |
 
@@ -97,6 +100,19 @@ type at request time. `--no-defaults` (or
 `pulse.Options{DisableDefaults: true}`) turns this off and requires
 every slot to be source-of-truth. The full defaults table is documented
 on [`pulse api predict`](api-predict.md#smart-defaults).
+
+## Field projection
+
+Buffered-decode field projection is **on by default** and
+output-transparent: the engine decodes only the source fields the
+request actually reads, so the result payload is byte-identical to a
+full decode — just faster and lighter per record (measured ~7× on a
+narrow projection of a wide cohort). `--no-project` (or
+`pulse.Options{DisableProjection: true}`) forces a full-record decode;
+use it only for debugging or when you need every field materialised.
+`pulse.Options.ProjectBufferedFields` is retained but deprecated (a
+harmless no-op). This flag is scoped to `pulse api process` in v1 —
+`pulse api process-chain` and `pulse api compose` do not expose it yet.
 
 ## Output
 

@@ -226,6 +226,88 @@ func TestProjection_ProjectsToNarrowSet(t *testing.T) {
 	}
 }
 
+// TestProjection_ReuseBranchHonorsPlan drives the streaming iterator in
+// BOTH reuse and projection mode — the path E1-S2 fixes. Before the fix
+// the reuse branch called ReadRecordReused directly and ignored it.plan,
+// so projection bought nothing under reuse (every field decoded). This
+// test asserts the reuse+projection path decodes ONLY the retained field
+// and leaves the rest unpopulated, per record.
+func TestProjection_ReuseBranchHonorsPlan(t *testing.T) {
+	schema := wideSchema()
+	cfg := setupTestFS(t, "wide.pulse", schema, wideRecords())
+	svc := New(cfg)
+	svc.SetProjectBufferedFields(true)
+
+	iter := newStreamingIterator(cfg.Fs(), "wide.pulse", schema)
+	defer iter.Close()
+	iter.SetReuse(true) // force the reuse branch (the fixed path)
+	svc.applyProjection(iter, &types.Request{
+		Cohort: &types.Cohort{Filename: "wide.pulse"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "y"},
+		},
+	}, schema)
+	if iter.project == nil || iter.plan == nil {
+		t.Fatalf("expected projection filter + plan installed on iter")
+	}
+
+	// y is the 16-bit field positioned AFTER a heterogeneous u32/f64/
+	// categorical/f64 run; it decodes correctly only when the skipped
+	// bytes stay cursor-aligned under the reuse+plan path.
+	rows := 0
+	for i := uint64(0); iter.Next(); i++ {
+		rec := iter.Record()
+		got, ok := rec.NumericValue("y")
+		if !ok {
+			t.Fatalf("record %d: 'y' not populated under reuse+projection", i)
+		}
+		want := float64(i % 65535)
+		if got != want {
+			t.Fatalf("record %d: y = %v, want %v (cursor misaligned under reuse+plan)", i, got, want)
+		}
+		if _, ok := rec.NumericValue("id"); ok {
+			t.Errorf("record %d: 'id' populated but projection dropped it under reuse", i)
+		}
+		if _, ok := rec.NumericValue("v"); ok {
+			t.Errorf("record %d: 'v' populated but projection dropped it under reuse", i)
+		}
+		rows++
+	}
+	if err := iter.Err(); err != nil {
+		t.Fatalf("iteration error: %v", err)
+	}
+	if rows != len(wideRecords()) {
+		t.Fatalf("iterated %d rows, want %d", rows, len(wideRecords()))
+	}
+}
+
+// TestProjection_ReuseBranchMatchesFullDecode is the end-to-end
+// acceptance check: a buffered Process with projection ON returns the
+// SAME result as projection OFF on a wide cohort, for a mergeable request
+// that goes through the reuse branch (EnableReuse is invoked on the
+// mergeable streaming Process path).
+func TestProjection_ReuseBranchMatchesFullDecode(t *testing.T) {
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "wide.pulse"},
+		// AGG_SUM/AGG_COUNT are mergeable ⇒ the processor opts the
+		// iterator into reuse via EnableReuse, exercising the fixed
+		// reuse+plan branch.
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "y", Label: "sum_y"},
+			{Type: types.AGG_COUNT, Field: "y", Label: "n"},
+		},
+	}
+	full, proj := runBoth(t, req)
+	if !reflect.DeepEqual(full.Data, proj.Data) {
+		t.Fatalf("reuse-branch projection != full decode:\n full: %v\n proj: %v",
+			full.Data, proj.Data)
+	}
+	if !reflect.DeepEqual(full.Components, proj.Components) {
+		t.Fatalf("reuse-branch projection components != full decode:\n full: %v\n proj: %v",
+			full.Components, proj.Components)
+	}
+}
+
 func TestProjection_WideRequestSkipsProjection(t *testing.T) {
 	// A request touching every field shouldn't install projection (no
 	// point — full decode would do the same work without the filter

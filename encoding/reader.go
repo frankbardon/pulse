@@ -10,6 +10,13 @@ import (
 type RecordReader struct {
 	r      io.Reader
 	schema *Schema
+
+	// recBuf is a reusable per-record scratch buffer owned by the
+	// RecordReader. ReadRecordReused reads the whole record stride into
+	// this buffer with a single io.ReadFull, then decodes each field from
+	// a running cursor subslice — eliminating the per-field io.ReadFull
+	// that dominates wide-schema decode. Grown on demand, never shrunk.
+	recBuf []byte
 }
 
 // NewRecordReader creates a RecordReader. The reader must be positioned
