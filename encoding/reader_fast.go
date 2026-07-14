@@ -27,39 +27,62 @@ type ReusableRecord interface {
 //
 // Hot path semantics:
 //   - Caller MUST consume the populated rec before the next call.
-//   - Fixed-size numeric fields are decoded via a single stack-resident
-//     [16]byte scratch + binary.LittleEndian, avoiding the per-field
-//     allocation of binary.Read's internal buffer.
-//   - Bit-packed and 16-byte fields fall back to the existing typed
-//     readers.
+//   - The whole record stride (Schema.RecordByteSize(), including the
+//     trailing null bitmap) is read into a reusable per-RecordReader
+//     buffer with a SINGLE io.ReadFull, then every field is decoded from
+//     a running cursor subslice of that buffer — no per-field read, no
+//     copy. This eliminates the per-field io.ReadFull that dominates
+//     wide-schema decode.
+//   - Fields are walked in schema order with a running byte cursor, NOT by
+//     Field.ByteOffset (bit-packed layout is cursor-driven; stored offsets
+//     are unreliable). Each bit-packed field (u4, packed_bool) occupies a
+//     whole on-wire byte, matching ReadBit/ReadNibble semantics.
+//   - A short read at end-of-stream surfaces io.EOF exactly as before via
+//     mapEOF; a partial trailing record surfaces as io.EOF as well
+//     (io.ReadFull maps a nonzero short read to io.ErrUnexpectedEOF, which
+//     mapEOF normalizes to io.EOF).
 func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 	rec.ClearForRow()
-	var scratch [16]byte
+
+	stride := rr.schema.RecordByteSize()
+	if cap(rr.recBuf) < stride {
+		rr.recBuf = make([]byte, stride)
+	}
+	buf := rr.recBuf[:stride]
+	if _, err := io.ReadFull(rr.r, buf); err != nil {
+		return mapEOF(err)
+	}
+
+	cursor := 0
 	for _, field := range rr.schema.Fields {
 		switch field.Type {
 		case FieldTypePackedBool:
-			v, err := ReadBit(rr.r, uint(field.BitPosition))
-			if err != nil {
-				return mapEOF(err)
-			}
-			if v {
+			// One whole byte on-wire; bit selected by BitPosition.
+			b := buf[cursor]
+			cursor++
+			if (b>>uint(field.BitPosition))&1 == 1 {
 				rec.SetNumeric(field.Name, 1)
 			} else {
 				rec.SetNumeric(field.Name, 0)
 			}
 
 		case FieldTypeU4:
-			v, err := ReadNibble(rr.r, field.BitPosition > 0)
-			if err != nil {
-				return mapEOF(err)
+			// One whole byte on-wire; high nibble when BitPosition > 0.
+			b := buf[cursor]
+			cursor++
+			var v uint8
+			if field.BitPosition > 0 {
+				v = b >> 4
+			} else {
+				v = b & 0x0F
 			}
 			rec.SetNumeric(field.Name, float64(v))
 
 		case FieldTypeDecimal128:
-			d, err := ReadDecimal128(rr.r)
-			if err != nil {
-				return mapEOF(err)
-			}
+			var raw [16]byte
+			copy(raw[:], buf[cursor:cursor+16])
+			cursor += 16
+			d := DecodeDecimal128(raw)
 			rec.SetNumeric(field.Name, d.Float64(field.Scale))
 			rec.SetWideField(field.Name, d)
 
@@ -69,22 +92,19 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 				return errors.NewCodedError(errors.ENCODING_INVALID,
 					fmt.Sprintf("unknown field type %d", field.Type))
 			}
-			if _, err := io.ReadFull(rr.r, scratch[:n]); err != nil {
-				return mapEOF(err)
-			}
-			rec.SetNumeric(field.Name, decodeFixed(field.Type, scratch[:n]))
+			sub := buf[cursor : cursor+n]
+			cursor += n
+			rec.SetNumeric(field.Name, decodeFixed(field.Type, sub))
 			if field.Type.IsSet() {
-				rec.SetWideField(field.Name, decodeSetMask(field.Type, scratch[:n]))
+				rec.SetWideField(field.Name, decodeSetMask(field.Type, sub))
 			}
 		}
 	}
 
 	// Trailing null bitmap, if the schema declares any nullable field.
+	// It occupies the last bmSize bytes of the stride we already read.
 	if bmSize := rr.schema.BitmapByteSize(); bmSize > 0 {
-		bitmap, err := ReadBitmap(rr.r, bmSize)
-		if err != nil {
-			return mapEOF(err)
-		}
+		bitmap := buf[cursor : cursor+bmSize]
 		for i, field := range rr.schema.Fields {
 			if !field.Nullable {
 				continue
