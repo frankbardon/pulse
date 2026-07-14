@@ -505,8 +505,13 @@ callback:
 type FieldInputsFunc func(raw json.RawMessage) []string
 ```
 
-When `pulse.Options.ProjectBufferedFields` is enabled, the runtime
-walks each request before opening the streaming iterator and calls
+Buffered-decode projection is **default-on** (output-transparent —
+same result, only faster; opt out with `pulse.Options{DisableProjection: true}`
+or the `--no-project` CLI flag on `pulse api process` only —
+`process-chain` / `compose` do not expose it in v1). `pulse.Options.ProjectBufferedFields`
+is retained but deprecated (a harmless no-op). While projection is
+active, the runtime walks each request before opening the streaming
+iterator and calls
 `processing.NeededFields(req, schema, ext)` to compute the set of
 source fields the operators actually read. Built-in operators are
 fully introspectable from their spec (`Field`, `Field2`,
@@ -516,7 +521,8 @@ operators registered through this surface are opaque by default —
 without a `FieldInputs` hook, the projection extractor widens the
 retained set to "every field" so the runtime stays correct.
 
-To opt into projection, register `FieldInputs` and return every
+To let projection narrow past your custom operator (instead of
+widening to "every field"), register `FieldInputs` and return every
 schema field the operator reads beyond its spec's explicit
 references:
 
