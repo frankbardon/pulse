@@ -146,6 +146,22 @@ type Options struct {
 	// inherits this engine setting; explicit true / false wins.
 	DisableComponents bool
 
+	// DisableProjection turns off buffered-decode field projection.
+	//
+	// Projection is ON by default because it is output-transparent: the
+	// runtime walks each request to compute the set of schema fields the
+	// operators actually read (processing.NeededFields) and skips map
+	// writes for fields outside that set. The result payload is identical
+	// — only faster and lighter on per-record memory. Extension operators
+	// without a registered FieldInputs hook widen the projection to the
+	// full schema, so the default is always safe (worst case degenerates
+	// to the full-decode behaviour).
+	//
+	// Set DisableProjection: true to force full-record decode (every
+	// schema field populated in the record map regardless of what the
+	// request references). Defaults to false (projection enabled).
+	DisableProjection bool
+
 	// ImportsDir overrides the managed-imports directory. Defaults to
 	// imports.DefaultImportsDir (resolved relative to the Pulse fs
 	// root). Honoured before the PULSE_IMPORTS_DIR env var.
@@ -223,19 +239,9 @@ type Options struct {
 	Strict bool
 
 	// ProjectBufferedFields enables buffered-decode field projection.
-	// When true the runtime walks each request to compute the set of
-	// schema fields the operators actually read (processing.NeededFields)
-	// and skips map writes for fields outside that set. Per-record
-	// memory drops proportional to the projection ratio. Decode CPU
-	// is unchanged.
 	//
-	// Defaults to false to preserve byte-identical behavior with the
-	// pre-projection codepath. Embedders with wide cohorts (many
-	// fields) and narrow requests (few referenced) see the largest
-	// win. Extension operators without a registered FieldInputs hook
-	// widen the projection automatically, so enabling this flag is
-	// always safe — the worst case degenerates to the full-decode
-	// behaviour.
+	// Deprecated: projection is on by default; retained for compat.
+	// Setting true is a harmless no-op; use DisableProjection to opt out.
 	ProjectBufferedFields bool
 
 	// LabelTablesDir points at a directory of JSON files that the
@@ -356,7 +362,7 @@ func New(opts Options) (*Pulse, error) {
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
 	svc.SetDisableComponents(opts.DisableComponents)
-	svc.SetProjectBufferedFields(opts.ProjectBufferedFields)
+	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
 	svc.SetExtensions(buildRuntimeExtensions(opts.Extensions))
 	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))
 	svc.SetShardWorkers(opts.ShardWorkers)
