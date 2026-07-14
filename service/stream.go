@@ -172,7 +172,18 @@ func (it *streamingIterator) Next() bool {
 		if it.reusedRec == nil {
 			it.reusedRec = processing.NewReusableRecord(it.schema)
 		}
-		err := it.reader.ReadRecordReused(it.reusedRec)
+		// Plan-aware reused decode honors projection under reuse: when a
+		// DecodePlan is installed (it.project + it.plan built at
+		// SetProjection time), walk the plan so unprojected on-wire ranges
+		// seek past instead of decoding. When no plan is installed
+		// (full-decode reuse), ReadRecordReusedWithPlan(nil plan) is
+		// byte-identical to ReadRecordReused.
+		var err error
+		if it.plan != nil {
+			err = it.reader.ReadRecordReusedWithPlan(it.reusedRec, it.project, it.plan)
+		} else {
+			err = it.reader.ReadRecordReused(it.reusedRec)
+		}
 		if err == io.EOF {
 			it.done = true
 			return false
