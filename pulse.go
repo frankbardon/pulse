@@ -1012,6 +1012,63 @@ func (p *Pulse) BuildIndex(ctx context.Context, path string, keyFields []string)
 	return res, err
 }
 
+// VerifyIndexResult re-exports service.VerifyIndexResult — the outcome
+// of a Service.VerifyIndex freshness check.
+type VerifyIndexResult = service.VerifyIndexResult
+
+// IndexFreshnessReason re-exports service.IndexFreshnessReason — why
+// VerifyIndex reached its Fresh/stale verdict
+// ("stat_mismatch"/"fingerprint_match"/"fingerprint_mismatch").
+type IndexFreshnessReason = service.IndexFreshnessReason
+
+// VerifyIndex reports whether the sidecar point-lookup index built for
+// keyFields against the cohort at path is still fresh, using the
+// size+mtime fast-path before paying for a full content-hash recompute.
+// Delegates to service.Service.VerifyIndex — see that method's doc
+// comment for the full fast-path decision tree. Returns
+// PULSE_INDEX_MISSING when no sidecar exists for keyFields and
+// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+func (p *Pulse) VerifyIndex(ctx context.Context, path string, keyFields []string) (*VerifyIndexResult, error) {
+	res, err := p.svc.VerifyIndex(ctx, path, keyFields)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return res, err
+}
+
+// IndexInfo re-exports service.IndexInfo — one entry in a
+// Service.ListIndexes result: a sidecar's derived path, its ordered
+// key column names, and its distinct-key / indexed-record summary.
+type IndexInfo = service.IndexInfo
+
+// ListIndexes enumerates every sidecar point-lookup index built
+// against the cohort at path. Delegates to service.Service.ListIndexes
+// — see that method's doc comment for the directory-glob + sidecar-read
+// discovery algorithm. Returns an empty (non-nil) slice, not an error,
+// when no sidecar indexes have been built yet. Returns
+// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+func (p *Pulse) ListIndexes(ctx context.Context, path string) ([]IndexInfo, error) {
+	res, err := p.svc.ListIndexes(ctx, path)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return res, err
+}
+
+// DropIndex removes the sidecar point-lookup index built for keyFields
+// against the cohort at path. Delegates to service.Service.DropIndex —
+// see that method's doc comment for the non-interactive
+// (no-confirmation-prompt) contract. Returns PULSE_INDEX_MISSING when
+// no sidecar exists at the derived path and
+// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+func (p *Pulse) DropIndex(ctx context.Context, path string, keyFields []string) error {
+	err := p.svc.DropIndex(ctx, path, keyFields)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return err
+}
+
 // ExamplesSearch returns summaries from the embedded request-example
 // library matching the given filters. An empty filter is treated as
 // "no constraint" for that dimension. Query is case-insensitive
