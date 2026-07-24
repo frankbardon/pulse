@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
@@ -24,6 +25,7 @@ func APICommand() *cli.Command {
 			apiSampleCmd(),
 			apiFacetCmd(),
 			apiPredictCmd(),
+			apiLookupCmd(),
 		},
 	}
 }
@@ -598,6 +600,153 @@ func apiPredictCmd() *cli.Command {
 			}
 			return nil
 		},
+	}
+}
+
+// apiLookupCmd implements `pulse api lookup` — the CLI leaf for
+// Pulse.Lookup. This settles the "dedicated `pulse lookup` vs `pulse
+// api lookup`" question raised in E4-S3: lookup joins process / compose
+// / facet / sample / process-chain under the `pulse api` group because,
+// like facet, it is a request/response operation against a cohort
+// (execute-and-return), not a corpus-management verb the way `pulse
+// index {build,list,verify,drop}` is. `pulse api` stays the single home
+// for "run this request shape against a cohort and get a result back".
+//
+// Two ways to supply the request, mirroring apiFacetCmd's dual-mode
+// precedent: the ergonomic flag form (--input, repeatable --key
+// field=value for single or composite keys, --return, --mode) for the
+// common case, or a full LookupRequest JSON file via --request/-r
+// (flags layer on top of the file, same precedence as loadFacetRequest).
+func apiLookupCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "lookup",
+		Usage: "Look up row(s) by an indexed key against a cohort's prebuilt sidecar index (see `pulse index build`)",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path"},
+			&cli.StringSliceFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key column=value pair to match; repeat for a composite key in the same column order the sidecar index was built with (e.g. --key region=EU --key date=2026-01-01)"},
+			&cli.StringFlag{Name: "return", Usage: "Comma-separated field names to project into the result row(s); omit for every schema field"},
+			&cli.StringFlag{Name: "mode", Usage: "Multiplicity mode when the key matches more than one row: assert-unique (default; errors PULSE_LOOKUP_AMBIGUOUS), first, or all"},
+			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full LookupRequest JSON file (flags layer on top of the file)"},
+			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved LookupRequest on the envelope under \"request\"."},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			input := cmd.String("input")
+			keyArgs := cmd.StringSlice("key")
+			returnCols := cmd.String("return")
+			mode := cmd.String("mode")
+			reqPath := cmd.String("request")
+			jsonOut := cmd.Bool("json")
+			echoRequest := cmd.Bool("echo-request")
+
+			req, err := loadLookupRequest(reqPath, input, keyArgs, returnCols, mode)
+			if err != nil {
+				return cliError(cmd, jsonOut, "CLI_INPUT", err.Error())
+			}
+
+			p, err := newPulse()
+			if err != nil {
+				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+			}
+
+			result, err := p.Lookup(ctx, req)
+			if err != nil {
+				return indexCliError(cmd, jsonOut, err)
+			}
+
+			if jsonOut {
+				var echoed any
+				if echoRequest {
+					echoed = req
+				}
+				return writeEnvelopeWithRequest(cmd.Writer, result, echoed)
+			}
+			return writeJSON(cmd.Writer, result)
+		},
+	}
+}
+
+// loadLookupRequest constructs a LookupRequest either by parsing the
+// supplied --request JSON file or by composing one from the per-flag
+// shortcuts, mirroring loadFacetRequest's precedence: flag values layer
+// on top of (override) the file shape, so "--request foo.json --mode
+// first" works as expected.
+func loadLookupRequest(path, input string, keyArgs []string, returnCols, mode string) (*pulse.LookupRequest, error) {
+	req := &pulse.LookupRequest{}
+	if path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("reading lookup request file: %w", err)
+		}
+		if err := json.Unmarshal(data, req); err != nil {
+			return nil, fmt.Errorf("parsing lookup request JSON: %w", err)
+		}
+	}
+	if input != "" {
+		if req.Cohort == nil {
+			req.Cohort = &types.Cohort{Filename: input}
+		} else if req.Cohort.Filename == "" {
+			req.Cohort.Filename = input
+		}
+	}
+	if len(keyArgs) > 0 {
+		keys, err := parseLookupKeys(keyArgs)
+		if err != nil {
+			return nil, err
+		}
+		req.Keys = keys
+	}
+	if returnCols != "" {
+		req.ReturnColumns = splitIndexKeyFields(returnCols)
+	}
+	if mode != "" {
+		multiplicity, err := translateLookupMode(mode)
+		if err != nil {
+			return nil, err
+		}
+		req.Multiplicity = multiplicity
+	}
+	if req.Cohort == nil {
+		return nil, fmt.Errorf("lookup request requires a cohort (--input or request.cohort)")
+	}
+	if len(req.KeyComponents()) == 0 {
+		return nil, fmt.Errorf("lookup request requires at least one --key field=value (or request.keys / request.field+value)")
+	}
+	return req, nil
+}
+
+// parseLookupKeys turns a slice of repeated CLI --key arguments (each
+// "field=value") into the ordered []types.LookupKey tuple LookupRequest
+// probes with. Order is preserved verbatim — composite lookups are
+// order-significant end to end, matching Service.BuildIndex's keyFields
+// ordering (see types.LookupKey's doc comment).
+func parseLookupKeys(args []string) ([]types.LookupKey, error) {
+	keys := make([]types.LookupKey, 0, len(args))
+	for _, arg := range args {
+		field, value, ok := strings.Cut(arg, "=")
+		if !ok || field == "" {
+			return nil, fmt.Errorf("invalid --key %q, want field=value", arg)
+		}
+		keys = append(keys, types.LookupKey{Field: field, Value: value})
+	}
+	return keys, nil
+}
+
+// translateLookupMode translates the CLI's hyphenated --mode spelling
+// into the wire-form types.LookupMultiplicity value ("assert_unique" |
+// "first" | "all"). Accepts the underscore spelling too, since that is
+// also a valid --request JSON payload value round-tripped through this
+// flag.
+func translateLookupMode(mode string) (types.LookupMultiplicity, error) {
+	switch mode {
+	case "assert-unique", "assert_unique":
+		return types.LookupMultiplicityAssertUnique, nil
+	case "first":
+		return types.LookupMultiplicityFirst, nil
+	case "all":
+		return types.LookupMultiplicityAll, nil
+	default:
+		return "", fmt.Errorf("invalid --mode %q, want assert-unique|first|all", mode)
 	}
 }
 
