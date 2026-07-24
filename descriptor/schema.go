@@ -73,10 +73,12 @@ func BuildPayloadSchema() json.RawMessage {
 		{reflect.TypeFor[types.ChainRequest](), "process-chain request"},
 		{reflect.TypeFor[types.FacetRequest](), "facet request"},
 		{reflect.TypeFor[types.SampleRequest](), "sample request"},
+		{reflect.TypeFor[types.LookupRequest](), "point-lookup request"},
 		{reflect.TypeFor[types.Response](), "process / predict result"},
 		{reflect.TypeFor[types.ComposedResponse](), "compose result"},
 		{reflect.TypeFor[types.ChainResponse](), "process-chain result"},
 		{reflect.TypeFor[types.FacetResult](), "facet result"},
+		{reflect.TypeFor[types.LookupResult](), "point-lookup result"},
 		{reflect.TypeFor[Envelope](), "universal --json output envelope (data wraps the operation result)"},
 	}
 

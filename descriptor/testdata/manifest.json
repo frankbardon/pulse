@@ -49,6 +49,15 @@
         }
       },
       {
+        "name": "lookup",
+        "description": "Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "inspect",
         "description": "Inspect a .pulse file header and schema",
         "annotations": {
@@ -168,6 +177,42 @@
       {
         "name": "shard extract",
         "description": "Extract a shard's standalone .pulse bytes to stdout",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "index build",
+        "description": "Build a point-lookup sidecar index for one or more key columns",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
+      },
+      {
+        "name": "index list",
+        "description": "List every sidecar point-lookup index built for a cohort",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "index verify",
+        "description": "Report whether a cohort's sidecar point-lookup index is still fresh",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "index drop",
+        "description": "Remove a cohort's sidecar point-lookup index",
         "annotations": {
           "streamable": false,
           "deterministic": true,
@@ -9000,4 +9045,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 792c92d7b8219d49d9ef09175126205d61ffa8e146801071d463f04aa4e8b1b7
+// golden-hash: e25a545407fd4a1e2a874d6fb6f10e1ab2f9c3e9a6f5ded273aa89181cc3fd1c
