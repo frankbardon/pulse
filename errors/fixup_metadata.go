@@ -1599,4 +1599,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_LOOKUP_AMBIGUOUS: {
+		Message: "The requested key matched more than one row in the cohort, but LookupRequest.Multiplicity is (or defaults to) \"assert_unique\", which fails rather than silently picking one match. This is the default mode precisely so a duplicate-key surprise never returns a single, arbitrary row without the caller knowing more than one candidate exists.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Keys"},
+				Hint:     "Add another key column (or a composite Keys tuple) that uniquely identifies the record you want — e.g. combine the ambiguous field with an id/timestamp column and rebuild the sidecar index for that composite key via `pulse index build <cohort> --key <field1> --key <field2>`.",
+				Examples: []any{[]any{map[string]any{"field": "region", "value": "east"}, map[string]any{"field": "id", "value": "4"}}},
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Multiplicity"},
+				Hint:     "If duplicate matches are expected and acceptable, opt into a non-failing mode explicitly: set Multiplicity to \"first\" to take the lowest row-id deterministically, or \"all\" to get every matching row back in LookupResult.Rows.",
+				Examples: []any{"first", "all"},
+			},
+		},
+	},
 }

@@ -1,33 +1,27 @@
 package types
 
-// LookupMultiplicity names how a LookupRequest should behave when the
-// sidecar index's matched bucket entry carries more than one row-id
-// (a duplicate key value in the source cohort). The field is defined
-// now — and carried on the wire — so the eventual multiplicity engine
-// (E2-S2) is purely additive: no LookupRequest shape churn, no wire
-// break, just a handler that finally branches on this value.
-//
-// v1 (E1-S4) does NOT branch on Multiplicity at all: service.Lookup
-// always takes IndexEntry.RowIDs[0], regardless of the declared mode
-// or how many row-ids the matched entry actually carries. Treat this
-// field as reserved/stubbed until E2-S2 ships.
+// LookupMultiplicity names how a LookupRequest behaves when the sidecar
+// index's matched bucket entry carries more than one row-id (a
+// duplicate key value in the source cohort). service.Lookup branches on
+// this value — see the mode docs below.
 type LookupMultiplicity string
 
 const (
-	// LookupMultiplicityAssertUnique is the conceptual default (see
-	// LookupRequest.Multiplicity doc) — the eventual E2-S2 behavior
-	// will fail the lookup when a matched key resolves to more than
-	// one row-id. Not enforced in v1.
+	// LookupMultiplicityAssertUnique is the default (the zero value —
+	// an unset Multiplicity resolves to this mode). service.Lookup
+	// fails with errors.PULSE_LOOKUP_AMBIGUOUS when the matched key
+	// resolves to more than one row-id; a single match still succeeds
+	// normally.
 	LookupMultiplicityAssertUnique LookupMultiplicity = "assert_unique"
 
-	// LookupMultiplicityFirst will, once E2-S2 lands, explicitly opt
-	// into "take the first row-id" without the assert-unique failure
-	// mode. This is v1's actual (unconditional) runtime behavior for
-	// every Multiplicity value, including the zero value.
+	// LookupMultiplicityFirst explicitly opts into "take the lowest
+	// row-id" without the assert-unique failure mode — never errors on
+	// a multi-row match. Row order is ascending row-id, so "first"
+	// picks deterministically.
 	LookupMultiplicityFirst LookupMultiplicity = "first"
 
-	// LookupMultiplicityAll will, once E2-S2 lands, return every
-	// matched row-id's record in LookupResult.Rows instead of a single
+	// LookupMultiplicityAll returns every matched row-id's record in
+	// LookupResult.Rows, ascending row-id order, instead of a single
 	// entry.
 	LookupMultiplicityAll LookupMultiplicity = "all"
 )
@@ -99,10 +93,9 @@ type LookupRequest struct {
 	// decoded record), matching Sample's no-projection default.
 	ReturnColumns []string `json:"return_columns,omitempty"`
 
-	// Multiplicity is reserved for E2-S2's duplicate-key handling
-	// modes (see LookupMultiplicity). Carried on the wire today but
-	// not honored by service.Lookup — every lookup behaves as
-	// LookupMultiplicityFirst regardless of this value.
+	// Multiplicity selects how service.Lookup behaves when the matched
+	// key resolves to more than one row-id (see LookupMultiplicity).
+	// The zero value defaults to LookupMultiplicityAssertUnique.
 	Multiplicity LookupMultiplicity `json:"multiplicity,omitempty"`
 }
 
@@ -129,12 +122,13 @@ func (r *LookupRequest) KeyComponents() []LookupKey {
 type LookupResult struct {
 	// Rows carries the matched row(s), each resolved via
 	// Record.AllValues() and projected down to LookupRequest.ReturnColumns
-	// (or every schema field when ReturnColumns is empty). A slice
-	// (rather than a single map) so E2-S2's LookupMultiplicityAll mode
-	// is additive — v1 always populates exactly one entry on a hit.
+	// (or every schema field when ReturnColumns is empty). Exactly one
+	// entry under LookupMultiplicityAssertUnique (the default) or
+	// LookupMultiplicityFirst; 1..N entries, ascending row-id order,
+	// under LookupMultiplicityAll.
 	Rows []map[string]any `json:"rows"`
 
 	// Warnings carries per-lookup diagnostics. Empty in v1 — reserved
-	// for the eventual multiplicity/staleness diagnostics E2 adds.
+	// for the eventual staleness diagnostics a later story adds.
 	Warnings []string `json:"warnings,omitempty"`
 }

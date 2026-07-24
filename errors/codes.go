@@ -1039,6 +1039,18 @@ const (
 	// literal value that failed to resolve.
 	PULSE_LOOKUP_NOT_FOUND Code = "PULSE_LOOKUP_NOT_FOUND"
 
+	// PULSE_LOOKUP_AMBIGUOUS indicates a LookupRequest resolved to a
+	// sidecar IndexEntry whose RowIDs carries more than one row-id (a
+	// duplicate key value in the source cohort) while the effective
+	// LookupRequest.Multiplicity is LookupMultiplicityAssertUnique — the
+	// default when the field is left unset. Distinct from
+	// PULSE_LOOKUP_NOT_FOUND (zero matches); this is the "too many
+	// matches for assert-unique" case. Never fires under
+	// LookupMultiplicityFirst / LookupMultiplicityAll — both modes
+	// accept a multi-row match by design. Details carry the cohort path,
+	// key fields, literal values, and the matched row count.
+	PULSE_LOOKUP_AMBIGUOUS Code = "PULSE_LOOKUP_AMBIGUOUS"
+
 	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED is a WARNING-class code
 	// emitted by the CSV (and TSV) export adapter when an overlay-bearing
 	// Response is exported to a flat tabular format that cannot encode
@@ -1218,6 +1230,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
 	PULSE_INDEX_MISSING,
 	PULSE_LOOKUP_NOT_FOUND,
+	PULSE_LOOKUP_AMBIGUOUS,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

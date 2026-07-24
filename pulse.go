@@ -966,16 +966,19 @@ type LookupRequest = types.LookupRequest
 type LookupResult = types.LookupResult
 
 // LookupMultiplicity re-exports types.LookupMultiplicity — the
-// (currently stubbed; see E2-S2) duplicate-key handling mode on
-// LookupRequest.
+// duplicate-key handling mode on LookupRequest (assert-unique by
+// default; opt into "first" or "all" for a key that may match more
+// than one row).
 type LookupMultiplicity = types.LookupMultiplicity
 
-// Lookup resolves a single-key point lookup against the cohort named in
-// req.Cohort, using the prebuilt sidecar index for req.Field (see
-// BuildIndex). Returns PULSE_INDEX_MISSING when no sidecar index exists
-// for req.Field, or PULSE_LOOKUP_NOT_FOUND when the index exists but
-// req.Value has no matching entry. See service.Service.Lookup for the
-// full algorithm.
+// Lookup resolves a point lookup (single-key or composite, via
+// req.Keys) against the cohort named in req.Cohort, using the prebuilt
+// sidecar index (see BuildIndex). Returns PULSE_INDEX_MISSING when no
+// sidecar index exists for the requested key fields, PULSE_LOOKUP_NOT_FOUND
+// when the index exists but no record matches, or PULSE_LOOKUP_AMBIGUOUS
+// when more than one record matches and req.Multiplicity is (or
+// defaults to) LookupMultiplicityAssertUnique. See service.Service.Lookup
+// for the full algorithm.
 func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, error) {
 	if req == nil {
 		return nil, fmt.Errorf("pulse: lookup requires a request")

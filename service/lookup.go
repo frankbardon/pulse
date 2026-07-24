@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -30,9 +31,15 @@ import (
 // layout, even when the same set of columns/values is supplied.
 //
 // Multiplicity: when the matched bucket entry carries more than one
-// row-id (a duplicate key value in the source cohort), Lookup always
-// takes RowIDs[0] — see types.LookupMultiplicity's doc comment. The
-// full assert-unique / first / all mode matrix is E2-S2's scope.
+// row-id (a duplicate key value in the source cohort), req.Multiplicity
+// selects the behavior — see types.LookupMultiplicity's doc comment.
+// The zero value (unset) and LookupMultiplicityAssertUnique both mean
+// "assert unique": Lookup fails with PULSE_LOOKUP_AMBIGUOUS when more
+// than one row-id matches. LookupMultiplicityFirst takes the lowest
+// row-id deterministically; LookupMultiplicityAll returns every
+// matching row. Row order (both "first"'s pick and "all"'s slice
+// order) is always ascending row-id — the sidecar bucket's RowIDs slice
+// is not itself guaranteed sorted, so Lookup sorts a copy before use.
 func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.LookupResult, error) {
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a request")
@@ -119,8 +126,34 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 			"no record matches the requested key",
 			map[string]any{"cohort": path, "fields": keyFieldNames, "values": literals})
 	}
-	// v1: always take the first row-id — see types.LookupMultiplicity.
-	rowID := entry.RowIDs[0]
+
+	// Stable order = ascending row-id. entry.RowIDs is not guaranteed
+	// sorted by the writer side, so sort a copy before applying the
+	// multiplicity mode.
+	rowIDs := append([]uint64(nil), entry.RowIDs...)
+	sort.Slice(rowIDs, func(i, j int) bool { return rowIDs[i] < rowIDs[j] })
+
+	mode := req.Multiplicity
+	if mode == "" {
+		mode = types.LookupMultiplicityAssertUnique
+	}
+	switch mode {
+	case types.LookupMultiplicityAssertUnique:
+		if len(rowIDs) > 1 {
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_AMBIGUOUS,
+				"key matched more than one row under assert-unique multiplicity",
+				map[string]any{"cohort": path, "fields": keyFieldNames, "values": literals, "match_count": len(rowIDs)})
+		}
+		rowIDs = rowIDs[:1]
+	case types.LookupMultiplicityFirst:
+		rowIDs = rowIDs[:1]
+	case types.LookupMultiplicityAll:
+		// keep every matching row-id, ascending order already applied.
+	default:
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"unknown lookup multiplicity mode",
+			map[string]any{"multiplicity": string(mode)})
+	}
 
 	raw, err := afero.ReadFile(fsys, path)
 	if err != nil {
@@ -144,23 +177,27 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	}
 	keep := encoding.FieldFilter(func(name string) bool { return wantCols[name] })
 
-	values := make(map[string]float64)
-	nulls := make(map[string]bool)
-	wide := make(map[string]any)
-	if err := loc.ReadRecordAt(reader, rowID, values, nulls, wide, keep, plan); err != nil {
-		return nil, err
-	}
-
-	rec := processing.NewRecordWithWide(schema, values, nulls, wide)
-	all := rec.AllValues()
-	row := make(map[string]any, len(returnCols))
-	for _, name := range returnCols {
-		if v, present := all[name]; present {
-			row[name] = v
+	rows := make([]map[string]any, 0, len(rowIDs))
+	for _, rowID := range rowIDs {
+		values := make(map[string]float64)
+		nulls := make(map[string]bool)
+		wide := make(map[string]any)
+		if err := loc.ReadRecordAt(reader, rowID, values, nulls, wide, keep, plan); err != nil {
+			return nil, err
 		}
+
+		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
+		all := rec.AllValues()
+		row := make(map[string]any, len(returnCols))
+		for _, name := range returnCols {
+			if v, present := all[name]; present {
+				row[name] = v
+			}
+		}
+		rows = append(rows, row)
 	}
 
-	return &types.LookupResult{Rows: []map[string]any{row}}, nil
+	return &types.LookupResult{Rows: rows}, nil
 }
 
 // resolveLookupReturnColumns validates req.ReturnColumns against schema

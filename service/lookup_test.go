@@ -334,6 +334,181 @@ func TestLookup_WrongArity_MismatchesIndexKeySpec(t *testing.T) {
 	}
 }
 
+// buildRegionIndexFixture builds the "region" sidecar index against
+// indexTestRecords, whose region column has deliberate duplicates:
+// north -> row ids {1,3}, south -> row ids {2,5}, east -> row id {4}
+// (see indexTestRecords' inline comments — id order matches row order).
+func buildRegionIndexFixture(t *testing.T) *Service {
+	t.Helper()
+	schema := indexTestSchema()
+	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
+	svc := New(cfg)
+	if _, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"region"}); err != nil {
+		t.Fatalf("BuildIndex(region): %v", err)
+	}
+	return svc
+}
+
+func TestLookup_Multiplicity(t *testing.T) {
+	tests := []struct {
+		name         string
+		multiplicity types.LookupMultiplicity
+		field        string
+		value        string
+		wantIDs      []float64 // expected "id" values in Rows, in order
+		wantErrCode  errors.Code
+	}{
+		{
+			name:         "default (unset) assert-unique on duplicate key errors AMBIGUOUS",
+			multiplicity: "",
+			field:        "region",
+			value:        "north",
+			wantErrCode:  errors.PULSE_LOOKUP_AMBIGUOUS,
+		},
+		{
+			name:         "explicit assert-unique on duplicate key errors AMBIGUOUS",
+			multiplicity: types.LookupMultiplicityAssertUnique,
+			field:        "region",
+			value:        "south",
+			wantErrCode:  errors.PULSE_LOOKUP_AMBIGUOUS,
+		},
+		{
+			name:         "first on duplicate key returns lowest row-id (id=1)",
+			multiplicity: types.LookupMultiplicityFirst,
+			field:        "region",
+			value:        "north",
+			wantIDs:      []float64{1},
+		},
+		{
+			name:         "all on duplicate key returns every match ascending row-id (id=1,3)",
+			multiplicity: types.LookupMultiplicityAll,
+			field:        "region",
+			value:        "north",
+			wantIDs:      []float64{1, 3},
+		},
+		{
+			name:         "all on the other duplicate key returns id=2,5",
+			multiplicity: types.LookupMultiplicityAll,
+			field:        "region",
+			value:        "south",
+			wantIDs:      []float64{2, 5},
+		},
+		{
+			name:         "unique key: default assert-unique returns exactly one row",
+			multiplicity: "",
+			field:        "region",
+			value:        "east",
+			wantIDs:      []float64{4},
+		},
+		{
+			name:         "unique key: first returns exactly one row",
+			multiplicity: types.LookupMultiplicityFirst,
+			field:        "region",
+			value:        "east",
+			wantIDs:      []float64{4},
+		},
+		{
+			name:         "unique key: all returns exactly one row",
+			multiplicity: types.LookupMultiplicityAll,
+			field:        "region",
+			value:        "east",
+			wantIDs:      []float64{4},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := buildRegionIndexFixture(t)
+			res, err := svc.Lookup(context.Background(), &types.LookupRequest{
+				Cohort:        &types.Cohort{Filename: "cohort.pulse"},
+				Field:         tt.field,
+				Value:         tt.value,
+				Multiplicity:  tt.multiplicity,
+				ReturnColumns: []string{"id"},
+			})
+
+			if tt.wantErrCode != "" {
+				if err == nil {
+					t.Fatalf("expected error %s, got nil (res=%+v)", tt.wantErrCode, res)
+				}
+				if !errors.HasCode(err, tt.wantErrCode) {
+					t.Fatalf("expected %s, got: %v", tt.wantErrCode, err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Lookup: %v", err)
+			}
+			if len(res.Rows) != len(tt.wantIDs) {
+				t.Fatalf("Rows count = %d, want %d (%+v)", len(res.Rows), len(tt.wantIDs), res.Rows)
+			}
+			for i, want := range tt.wantIDs {
+				got, ok := res.Rows[i]["id"].(float64)
+				if !ok {
+					t.Fatalf("Rows[%d][id] missing or wrong type: %+v", i, res.Rows[i])
+				}
+				if got != want {
+					t.Errorf("Rows[%d][id] = %v, want %v", i, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestLookup_MultiplicityAll_ReturnColumnProjectionApplies(t *testing.T) {
+	svc := buildRegionIndexFixture(t)
+
+	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort:        &types.Cohort{Filename: "cohort.pulse"},
+		Field:         "region",
+		Value:         "north",
+		Multiplicity:  types.LookupMultiplicityAll,
+		ReturnColumns: []string{"score"},
+	})
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	if len(res.Rows) != 2 {
+		t.Fatalf("Rows count = %d, want 2", len(res.Rows))
+	}
+	for i, row := range res.Rows {
+		if len(row) != 1 {
+			t.Fatalf("Rows[%d] has %d keys, want exactly 1 (projection): %+v", i, len(row), row)
+		}
+		if _, ok := row["score"]; !ok {
+			t.Fatalf("Rows[%d] missing projected column %q: %+v", i, "score", row)
+		}
+		if _, ok := row["id"]; ok {
+			t.Fatalf("Rows[%d] carries unprojected column %q: %+v", i, "id", row)
+		}
+	}
+	// id=1 -> score 10.0, id=3 -> score 30.0, ascending row-id order.
+	if got := res.Rows[0]["score"].(float64); got != 10.0 {
+		t.Errorf("Rows[0][score] = %v, want 10.0", got)
+	}
+	if got := res.Rows[1]["score"].(float64); got != 30.0 {
+		t.Errorf("Rows[1][score] = %v, want 30.0", got)
+	}
+}
+
+func TestLookup_UnknownMultiplicityMode(t *testing.T) {
+	svc := buildRegionIndexFixture(t)
+
+	_, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort:       &types.Cohort{Filename: "cohort.pulse"},
+		Field:        "region",
+		Value:        "east",
+		Multiplicity: types.LookupMultiplicity("bogus_mode"),
+	})
+	if err == nil {
+		t.Fatal("expected error for unknown multiplicity mode")
+	}
+	if !errors.HasCode(err, errors.SERVICE_VALIDATION) {
+		t.Errorf("expected SERVICE_VALIDATION, got: %v", err)
+	}
+}
+
 func TestLookup_CategoricalValueNotInDictionary(t *testing.T) {
 	svc := buildLookupFixture(t)
 	if _, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"region"}); err != nil {
