@@ -990,6 +990,28 @@ func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, 
 	return resp, err
 }
 
+// BuildIndexResult re-exports service.BuildIndexResult — the outcome
+// of a successful point-lookup sidecar index build: the derived
+// sidecar path (see encoding.SidecarIndexPath) plus the in-memory
+// encoding.Index that was serialized there.
+type BuildIndexResult = service.BuildIndexResult
+
+// BuildIndex builds a point-lookup sidecar index for the cohort at
+// path over the ordered key columns named in keyFields (a single
+// element is the degenerate single-key case; more than one produces a
+// composite key, in column order). Delegates to service.Service.BuildIndex
+// for the full algorithm and error surface — see that method's doc
+// comment for the scan/bucket/write contract, the
+// PULSE_INDEX_UNSUPPORTED_SHARDED shard-archive rejection, and the
+// PROCESSING_CONFIG disallowed-key-type rejection.
+func (p *Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*BuildIndexResult, error) {
+	res, err := p.svc.BuildIndex(ctx, path, keyFields)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return res, err
+}
+
 // ExamplesSearch returns summaries from the embedded request-example
 // library matching the given filters. An empty filter is treated as
 // "no constraint" for that dimension. Query is case-insensitive
