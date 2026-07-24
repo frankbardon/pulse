@@ -116,6 +116,7 @@ func invokers(_ Config) map[string]InvokeFunc {
 		toolmeta.ToolSample:         makeInvoke(lenientDecode[SampleIn], HandleSample),
 		toolmeta.ToolFacet:          makeInvoke(lenientDecode[FacetIn], HandleFacet),
 		toolmeta.ToolFacetSchema:    makeInvoke(lenientDecode[FacetSchemaIn], HandleFacetSchema),
+		toolmeta.ToolLookup:         makeInvoke(lenientDecode[LookupIn], HandleLookup),
 		toolmeta.ToolSkillsList:     makeInvoke(lenientDecode[SkillsListIn], HandleSkillsList),
 		toolmeta.ToolSkillsGet:      makeInvoke(lenientDecode[SkillsGetIn], HandleSkillsGet),
 		toolmeta.ToolManifest:       makeInvoke(lenientDecode[ManifestIn], HandleManifest),

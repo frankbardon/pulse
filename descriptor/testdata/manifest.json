@@ -5020,6 +5020,10 @@
         "description": "List the registered label tables (ID→display-name dictionaries for categorical fields). Returns each table's name, row count, and whether it is enumerable (reverse-searchable). Use this to discover which categorical dimensions can be resolved by name (e.g. brand, category, region) before calling pulse_label_resolve. Output surfaces already render these labels automatically; this tool and pulse_label_resolve are for the INPUT direction — turning a user-supplied name into the raw categorical key a filter / grouper needs."
       },
       {
+        "name": "pulse_lookup",
+        "description": "Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on \u003e1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built, PULSE_INDEX_UNSUPPORTED_SHARDED for shard-archive cohorts, and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key."
+      },
+      {
         "name": "pulse_manifest",
         "description": "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
@@ -6715,6 +6719,10 @@
       {
         "name": "tool-label-tables",
         "description": "List registered label tables — ID→display-name dictionaries for categorical fields."
+      },
+      {
+        "name": "tool-lookup",
+        "description": "Resolve a point lookup against a cohort's prebuilt sidecar index."
       },
       {
         "name": "tool-manifest",
@@ -8992,4 +9000,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c76b33aae44e1e052af8de2954d3dc944b900c5f5e8210c2df84d2acb0b2f2ae
+// golden-hash: 792c92d7b8219d49d9ef09175126205d61ffa8e146801071d463f04aa4e8b1b7
