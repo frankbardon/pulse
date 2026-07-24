@@ -40,6 +40,11 @@ import (
 // matching row. Row order (both "first"'s pick and "all"'s slice
 // order) is always ascending row-id — the sidecar bucket's RowIDs slice
 // is not itself guaranteed sorted, so Lookup sorts a copy before use.
+//
+// Shard archive cohorts (detected via the cheap leading-magic-bytes
+// dispatch Service.Open already performs) are rejected with
+// PULSE_INDEX_UNSUPPORTED_SHARDED — sharded point-lookup is out of
+// scope for v1. See Service.BuildIndex's doc comment for why.
 func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.LookupResult, error) {
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a request")
@@ -64,6 +69,11 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	cohort, err := s.Open(ctx, path)
 	if err != nil {
 		return nil, err
+	}
+	if len(cohort.Shards()) > 0 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_UNSUPPORTED_SHARDED,
+			"point-lookup does not support shard archive cohorts",
+			map[string]any{"cohort": path})
 	}
 	schema := cohort.Schema()
 

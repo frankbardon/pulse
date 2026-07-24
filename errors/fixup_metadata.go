@@ -1625,4 +1625,13 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_INDEX_UNSUPPORTED_SHARDED: {
+		Message: "Point-lookup index build, lookup, and verify only support single-file .pulse cohorts in v1 — the target resolved to a shard archive (leading bytes matched the zip magic \"PK\\x03\\x04\" rather than the single-file \"PULSE\" magic). Row-id addressing (the sidecar's bucket entries point directly at a record's byte offset within one contiguous file) only has meaning for a single contiguous record region, which a multi-shard archive does not present. Sharded point-lookup support is a future/follow-up, not planned for this v1.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Point-lookup against a sharded cohort is not supported in v1 — there is no per-archive workaround that indexes across shards. If you only need to look up within a SINGLE shard, extract it as a standalone single-file cohort via the anchor syntax (`archive.pulse#shard.pulse`) and build/query the index against that anchor path instead — the anchor opens the named shard as if it were its own single-file `.pulse` cohort, so `pulse index build \"archive.pulse#shard.pulse\" --key <field>` and subsequent lookups work exactly as they do against any single-file cohort. This does not give you a cross-shard index; it only lets you index one shard at a time.",
+			},
+		},
+	},
 }

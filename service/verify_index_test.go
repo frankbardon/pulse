@@ -218,3 +218,16 @@ func TestVerifyIndex_EmptyKeyFieldsRejected(t *testing.T) {
 		t.Errorf("expected SERVICE_VALIDATION, got: %v", err)
 	}
 }
+
+func TestVerifyIndex_ShardArchiveRejected(t *testing.T) {
+	schema, shards, _ := canonicalThreeShards()
+	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
+
+	_, err := svc.VerifyIndex(context.Background(), "arch.pulse", []string{"id"})
+	if err == nil {
+		t.Fatal("expected error verifying an index against a shard archive")
+	}
+	if !errors.HasCode(err, errors.PULSE_INDEX_UNSUPPORTED_SHARDED) {
+		t.Errorf("expected PULSE_INDEX_UNSUPPORTED_SHARDED, got: %v", err)
+	}
+}

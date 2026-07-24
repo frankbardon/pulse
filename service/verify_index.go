@@ -83,6 +83,11 @@ type VerifyIndexResult struct {
 // explicit, caller-initiated Service.BuildIndex call (surfaced as
 // `pulse index build`). This method underpins the `pulse index verify`
 // CLI leaf (a later story).
+//
+// Shard archive cohorts (detected via the cheap leading-magic-bytes
+// dispatch Service.Open already performs) are rejected with
+// PULSE_INDEX_UNSUPPORTED_SHARDED — sharded point-lookup is out of
+// scope for v1. See Service.BuildIndex's doc comment for why.
 func (s *Service) VerifyIndex(ctx context.Context, path string, keyFields []string) (*VerifyIndexResult, error) {
 	if len(keyFields) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
@@ -92,6 +97,11 @@ func (s *Service) VerifyIndex(ctx context.Context, path string, keyFields []stri
 	cohort, err := s.Open(ctx, path)
 	if err != nil {
 		return nil, err
+	}
+	if len(cohort.Shards()) > 0 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_UNSUPPORTED_SHARDED,
+			"point-lookup index verify does not support shard archive cohorts",
+			map[string]any{"cohort": path})
 	}
 
 	fsys := cohort.fs

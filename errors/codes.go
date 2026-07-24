@@ -1067,6 +1067,20 @@ const (
 	// index_path.
 	PULSE_INDEX_STALE Code = "PULSE_INDEX_STALE"
 
+	// PULSE_INDEX_UNSUPPORTED_SHARDED indicates a point-lookup
+	// operation (Service.BuildIndex, Service.Lookup, or
+	// Service.VerifyIndex) targeted a shard-archive cohort (first four
+	// bytes match encoding.ZipMagic, "PK\x03\x04") rather than a
+	// single-file `.pulse` cohort. Sharded cohorts are out of scope for
+	// point-lookup v1: row-id addressing (encoding.RecordLocator.Offset)
+	// only has meaning for a single contiguous record region, which a
+	// multi-shard archive does not present. Detected cheaply — via the
+	// same leading-magic-bytes dispatch service.Service.Open already
+	// performs to distinguish single-file vs archive cohorts, not an
+	// added scan. Details carry the cohort path. Distinct from
+	// PULSE_INDEX_MISSING (single-file cohort, no sidecar built yet).
+	PULSE_INDEX_UNSUPPORTED_SHARDED Code = "PULSE_INDEX_UNSUPPORTED_SHARDED"
+
 	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED is a WARNING-class code
 	// emitted by the CSV (and TSV) export adapter when an overlay-bearing
 	// Response is exported to a flat tabular format that cannot encode
@@ -1248,6 +1262,7 @@ var allCodes = []Code{
 	PULSE_LOOKUP_NOT_FOUND,
 	PULSE_LOOKUP_AMBIGUOUS,
 	PULSE_INDEX_STALE,
+	PULSE_INDEX_UNSUPPORTED_SHARDED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

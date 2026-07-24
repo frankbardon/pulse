@@ -647,3 +647,52 @@ func TestLookup_CategoricalValueNotInDictionary(t *testing.T) {
 		t.Errorf("expected PROCESSING_CONFIG, got: %v", err)
 	}
 }
+
+// TestLookup_AnchorSyntaxSingleShardWorkaround verifies the workaround
+// the PULSE_INDEX_UNSUPPORTED_SHARDED fixup points at: anchoring a
+// single shard out of an archive (`archive.pulse#shard.pulse`) opens
+// it as a single-file cohort, so BuildIndex + Lookup work against the
+// anchor path exactly as they do against any single-file `.pulse`
+// cohort — even though the archive itself is rejected.
+func TestLookup_AnchorSyntaxSingleShardWorkaround(t *testing.T) {
+	schema, shards, _ := canonicalThreeShards()
+	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
+
+	anchorPath := "arch.pulse#a.pulse"
+	if _, err := svc.BuildIndex(context.Background(), anchorPath, []string{"id"}); err != nil {
+		t.Fatalf("BuildIndex(anchor): %v", err)
+	}
+
+	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort:        &types.Cohort{Filename: anchorPath},
+		Field:         "id",
+		Value:         "2",
+		ReturnColumns: []string{"score"},
+	})
+	if err != nil {
+		t.Fatalf("Lookup(anchor): %v", err)
+	}
+	if len(res.Rows) != 1 {
+		t.Fatalf("Rows = %d, want 1", len(res.Rows))
+	}
+	if got := res.Rows[0]["score"].(float64); got != 20.0 {
+		t.Errorf("score = %v, want 20.0 (id=2 is in shard a.pulse)", got)
+	}
+}
+
+func TestLookup_ShardArchiveRejected(t *testing.T) {
+	schema, shards, _ := canonicalThreeShards()
+	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
+
+	_, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort: &types.Cohort{Filename: "arch.pulse"},
+		Field:  "id",
+		Value:  "3",
+	})
+	if err == nil {
+		t.Fatal("expected error looking up against a shard archive")
+	}
+	if !errors.HasCode(err, errors.PULSE_INDEX_UNSUPPORTED_SHARDED) {
+		t.Errorf("expected PULSE_INDEX_UNSUPPORTED_SHARDED, got: %v", err)
+	}
+}

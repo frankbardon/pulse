@@ -524,7 +524,7 @@ func TestBuildIndex_ShardArchiveRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error building an index against a shard archive")
 	}
-	if !errors.HasCode(err, errors.SERVICE_VALIDATION) {
-		t.Errorf("expected SERVICE_VALIDATION, got: %v", err)
+	if !errors.HasCode(err, errors.PULSE_INDEX_UNSUPPORTED_SHARDED) {
+		t.Errorf("expected PULSE_INDEX_UNSUPPORTED_SHARDED, got: %v", err)
 	}
 }

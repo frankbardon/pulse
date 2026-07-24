@@ -47,13 +47,13 @@ type BuildIndexResult struct {
 // null component is unindexable, so the whole row is skipped rather
 // than partially indexed).
 //
-// Scope gaps intentionally left for later stories (see story notes):
-//   - Shard archive cohorts are rejected with SERVICE_VALIDATION (an
-//     existing, already-registered code) rather than a dedicated
-//     shard-rejection code — that dedicated code is a later story's
-//     job. Row-id addressing (RecordLocator.Offset) only has meaning
-//     for a single contiguous record region, which a multi-shard
-//     archive does not present.
+// Shard archive cohorts (detected via the cheap leading-magic-bytes
+// dispatch service.Service.Open already performs — encoding.ZipMagic
+// vs encoding.MagicBytes, no added scan) are rejected with
+// PULSE_INDEX_UNSUPPORTED_SHARDED. Row-id addressing
+// (RecordLocator.Offset) only has meaning for a single contiguous
+// record region, which a multi-shard archive does not present.
+// Sharded point-lookup support is out of scope for v1.
 //
 // Key field types are gated by processing.IsIndexKeyableFieldType — see
 // that predicate's doc comment for the full, settled keyable-type
@@ -73,8 +73,8 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 	schema := cohort.Schema()
 
 	if len(cohort.Shards()) > 0 {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"point-lookup index build does not support shard archive cohorts yet",
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_UNSUPPORTED_SHARDED,
+			"point-lookup index build does not support shard archive cohorts",
 			map[string]any{"cohort": path})
 	}
 
