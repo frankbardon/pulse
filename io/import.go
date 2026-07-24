@@ -7,7 +7,6 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -500,15 +499,16 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary, 
 		return math.Float64bits(f), nil
 
 	case encoding.FieldTypeDate:
-		for _, layout := range dateFormats {
-			t, err := time.Parse(layout, raw)
-			if err == nil {
-				// Store as days since Unix epoch.
-				days := t.Unix() / 86400
-				return uint64(uint32(days)), nil
-			}
+		// Delegates to encoding.ParseDate — the single source of truth
+		// shared with processing.ResolveLookupKeyBytes (point-lookup
+		// literal resolution) so a date literal converts to the same
+		// on-wire epoch-day uint32 whether it arrives via import or via
+		// a lookup request.
+		days, err := encoding.ParseDate(raw)
+		if err != nil {
+			return 0, err
 		}
-		return 0, fmt.Errorf("cannot parse date: %q", raw)
+		return uint64(days), nil
 
 	case encoding.FieldTypePackedBool:
 		return parseBoolValue(raw)

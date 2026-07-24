@@ -347,10 +347,10 @@ func TestBuildIndex_UnsupportedKeyFieldType(t *testing.T) {
 // compositeIndexTestSchema extends indexTestSchema with a fourth keyable
 // column ("period", u16) so composite (2- and 3-column) key stories have
 // a third distinct field to combine with id/score/region. "period"
-// stands in for a second dimension conceptually like "date" without
-// exercising the excluded FieldTypeDate (see
-// processing.IsIndexKeyableFieldType's doc comment — date/decimal128
-// exact-key resolution is E2-S3's scope).
+// stands in for a second dimension conceptually like "date"; date's own
+// exact-key resolution is covered directly by the E2-S3 date/decimal128
+// build+lookup tests (see index_build_e2s3_test.go and, at the unit
+// level, processing/index_key_test.go).
 func compositeIndexTestSchema() *encoding.Schema {
 	regionDict := encoding.NewDictionary()
 	regionDict.Add("north") // id 0

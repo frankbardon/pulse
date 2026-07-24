@@ -54,11 +54,12 @@ type BuildIndexResult struct {
 //     job. Row-id addressing (RecordLocator.Offset) only has meaning
 //     for a single contiguous record region, which a multi-shard
 //     archive does not present.
-//   - Key field types beyond processing.IsIndexKeyableFieldType (most
-//     notably date and decimal128 — see that predicate's doc comment
-//     for why they're excluded even though Date could key exactly
-//     today) are rejected with PROCESSING_CONFIG; the full
-//     keyable-type policy is E2-S3's job.
+//
+// Key field types are gated by processing.IsIndexKeyableFieldType — see
+// that predicate's doc comment for the full, settled keyable-type
+// policy (E2-S3). Rejected types (currently only set_*) fail fast here
+// with PROCESSING_CONFIG and processing.IndexKeyRejectionMessage's
+// type-specific explanation, before any record is scanned.
 func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []string) (*BuildIndexResult, error) {
 	if len(keyFields) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
@@ -88,7 +89,7 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 		}
 		if !processing.IsIndexKeyableFieldType(field.Type) {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-				"field type is not supported as a point-lookup index key",
+				processing.IndexKeyRejectionMessage(field.Type),
 				map[string]any{"field": name, "type": field.Type.String()})
 		}
 		keys = append(keys, encoding.IndexKeySpec{Name: field.Name, Type: field.Type})
