@@ -106,15 +106,22 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 		return nil, err
 	}
 
+	sourceSize, sourceModTime, err := statCohortFile(fsys, path)
+	if err != nil {
+		return nil, err
+	}
+
 	buckets, err := scanBuildBuckets(fsys, path, schema, fields)
 	if err != nil {
 		return nil, err
 	}
 
 	idx := &encoding.Index{
-		Fingerprint: fp,
-		Keys:        keys,
-		Buckets:     buckets,
+		Fingerprint:   fp,
+		Keys:          keys,
+		Buckets:       buckets,
+		SourceSize:    sourceSize,
+		SourceModTime: sourceModTime,
 	}
 
 	indexPath := encoding.SidecarIndexPath(path, keyFields)
@@ -144,6 +151,20 @@ func computeCohortFingerprint(fsys afero.Fs, path string) (encoding.Fingerprint,
 		return encoding.Fingerprint{}, err
 	}
 	return fp, nil
+}
+
+// statCohortFile stats path on fsys via afero (never raw os) and
+// returns the size + modification time (Unix nanoseconds) snapshot
+// embedded in the sidecar index — the source-stat pair
+// Service.VerifyIndex compares against on a later freshness check
+// before paying for a full content hash.
+func statCohortFile(fsys afero.Fs, path string) (size uint64, modTimeUnixNano int64, err error) {
+	info, err := fsys.Stat(path)
+	if err != nil {
+		return 0, 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("stat cohort file for index build: %s", path))
+	}
+	return uint64(info.Size()), info.ModTime().UnixNano(), nil
 }
 
 // scanBuildBuckets performs the single full sequential scan the build

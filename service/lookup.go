@@ -105,6 +105,26 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 		return nil, err
 	}
 
+	// Read-path staleness check: a CHEAP size+mtime stat comparison, not
+	// a full content hash. Hashing the whole .pulse on every Lookup would
+	// defeat the point of an O(1) point lookup (multi-second per call on a
+	// multi-GB cohort). The stat check catches the common mutation cases
+	// — a re-import/re-export/rewrite changes the file size and/or mtime —
+	// at effectively zero cost. The intentional residual gap is an
+	// in-place edit that preserves BOTH size and mtime: Lookup will not
+	// catch that (by design), but `pulse index verify` / Service.VerifyIndex
+	// is the authoritative content check and recomputes the full SHA-256
+	// fingerprint to confirm freshness conclusively.
+	currentSize, currentModTime, err := statCohortFile(fsys, path)
+	if err != nil {
+		return nil, err
+	}
+	if currentSize != idx.SourceSize || currentModTime != idx.SourceModTime {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_STALE,
+			"sidecar point-lookup index is stale: the cohort file's size or modification time no longer matches the snapshot taken at index build",
+			map[string]any{"cohort": path, "fields": keyFieldNames, "index_path": indexPath})
+	}
+
 	if len(idx.Keys) != len(components) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"lookup key component count does not match the sidecar index's key-spec",

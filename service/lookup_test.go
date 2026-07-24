@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
 )
 
 // buildLookupFixture writes the shared cohort fixture and its "id"
@@ -112,6 +114,122 @@ func TestLookup_Miss_NoMatchingKey(t *testing.T) {
 	}
 	if !errors.HasCode(err, errors.PULSE_LOOKUP_NOT_FOUND) {
 		t.Errorf("expected PULSE_LOOKUP_NOT_FOUND, got: %v", err)
+	}
+}
+
+func TestLookup_FreshIndex_PassesUnchanged(t *testing.T) {
+	// A fresh index (no mutation to the cohort since BuildIndex) must
+	// pass Lookup unchanged — the staleness check must never reject a
+	// genuinely fresh sidecar.
+	svc := buildLookupFixture(t)
+
+	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort:        &types.Cohort{Filename: "cohort.pulse"},
+		Field:         "id",
+		Value:         "3",
+		ReturnColumns: []string{"score"},
+	})
+	if err != nil {
+		t.Fatalf("Lookup on a fresh index must not error: %v", err)
+	}
+	if got := res.Rows[0]["score"].(float64); got != 30.0 {
+		t.Errorf("score = %v, want 30.0", got)
+	}
+}
+
+func TestLookup_StaleIndex_ErrorsIndexStale(t *testing.T) {
+	// Mutating the .pulse file after BuildIndex must make the next
+	// Lookup against it hard-error rather than silently returning
+	// (possibly wrong) rows scanned via stale row-ids. The read-path
+	// staleness check is a cheap size+mtime stat comparison (NOT a full
+	// content hash — that would defeat the O(1) lookup); a re-import /
+	// rewrite that changes the file size is caught by that check.
+	schema := indexTestSchema()
+	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
+	svc := New(cfg)
+	if _, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"id"}); err != nil {
+		t.Fatalf("BuildIndex(id): %v", err)
+	}
+
+	// Rewrite the cohort with an extra trailing byte so the file size
+	// differs from the sidecar's recorded SourceSize — the stat
+	// fast-path catches this without hashing the content.
+	raw, err := afero.ReadFile(cfg.Fs(), "cohort.pulse")
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if err := afero.WriteFile(cfg.Fs(), "cohort.pulse", append(raw, 0x00), 0644); err != nil {
+		t.Fatalf("WriteFile (mutated cohort): %v", err)
+	}
+
+	_, err = svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort: &types.Cohort{Filename: "cohort.pulse"},
+		Field:  "id",
+		Value:  "1",
+	})
+	if err == nil {
+		t.Fatal("expected error looking up against a stale index")
+	}
+	if !errors.HasCode(err, errors.PULSE_INDEX_STALE) {
+		t.Errorf("expected PULSE_INDEX_STALE, got: %v", err)
+	}
+}
+
+// TestLookup_StaleIndex_ResidualGap_InPlaceEditSameSizeAndMTime locks
+// the documented read-path trade-off: Lookup's staleness check is a
+// cheap size+mtime stat comparison (to preserve O(1) reads), so an
+// in-place edit that preserves BOTH the file size AND its mtime slips
+// past Lookup — while Service.VerifyIndex, the authoritative content
+// check, still catches it via a full SHA-256 recompute. Both halves of
+// the contract are asserted so the intentional gap can never silently
+// widen or close without a test change.
+func TestLookup_StaleIndex_ResidualGap_InPlaceEditSameSizeAndMTime(t *testing.T) {
+	schema := indexTestSchema()
+	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
+	svc := New(cfg)
+	buildRes, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"id"})
+	if err != nil {
+		t.Fatalf("BuildIndex(id): %v", err)
+	}
+
+	// In-place content edit: same byte length (flip the last byte),
+	// then force the mtime back to exactly the sidecar's recorded
+	// snapshot so BOTH stat components match despite the content change.
+	raw, err := afero.ReadFile(cfg.Fs(), "cohort.pulse")
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	mutated := append([]byte(nil), raw...)
+	mutated[len(mutated)-1] ^= 0xFF
+	if err := afero.WriteFile(cfg.Fs(), "cohort.pulse", mutated, 0644); err != nil {
+		t.Fatalf("WriteFile (in-place mutation): %v", err)
+	}
+	origMTime := time.Unix(0, buildRes.Index.SourceModTime)
+	if err := cfg.Fs().Chtimes("cohort.pulse", origMTime, origMTime); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	// Lookup's cheap stat check does NOT catch this by design — the
+	// lookup proceeds as if the index were fresh (no PULSE_INDEX_STALE).
+	if _, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort: &types.Cohort{Filename: "cohort.pulse"},
+		Field:  "id",
+		Value:  "1",
+	}); errors.HasCode(err, errors.PULSE_INDEX_STALE) {
+		t.Fatalf("Lookup should NOT flag PULSE_INDEX_STALE for a size+mtime-preserving in-place edit (residual gap by design); got: %v", err)
+	}
+
+	// VerifyIndex IS authoritative — its full content hash catches the
+	// divergence the stat fast-path missed.
+	res, err := svc.VerifyIndex(context.Background(), "cohort.pulse", []string{"id"})
+	if err != nil {
+		t.Fatalf("VerifyIndex: %v", err)
+	}
+	if res.Fresh {
+		t.Error("VerifyIndex.Fresh = true, want false — the full hash must catch the in-place content edit")
+	}
+	if res.Reason != IndexFreshnessReasonFingerprintMismatch {
+		t.Errorf("VerifyIndex.Reason = %q, want %q", res.Reason, IndexFreshnessReasonFingerprintMismatch)
 	}
 }
 
@@ -311,9 +429,11 @@ func TestLookup_WrongArity_MismatchesIndexKeySpec(t *testing.T) {
 	}
 
 	corrupted := &encoding.Index{
-		Fingerprint: res.Index.Fingerprint,
-		Keys:        res.Index.Keys[:1], // truncated key-spec: 1 entry, not 2
-		Buckets:     res.Index.Buckets,
+		Fingerprint:   res.Index.Fingerprint,
+		Keys:          res.Index.Keys[:1], // truncated key-spec: 1 entry, not 2
+		Buckets:       res.Index.Buckets,
+		SourceSize:    res.Index.SourceSize,    // preserve stat snapshot so the
+		SourceModTime: res.Index.SourceModTime, // read-path staleness check passes
 	}
 	if err := encoding.WriteIndexFile(cfg.Fs(), res.IndexPath, corrupted); err != nil {
 		t.Fatalf("WriteIndexFile (corrupted sidecar): %v", err)

@@ -23,7 +23,17 @@ var IndexMagicBytes = [8]byte{'P', 'U', 'L', 'S', 'E', 'I', 'D', 'X'}
 // version. Independent of encoding.FormatVersion (the .pulse envelope
 // version) — this is a separate, standalone sidecar format that
 // versions on its own schedule.
-const IndexFormatVersion byte = 0x01
+//
+// v2 (current) appends a trailing source-stat snapshot (size + mtime)
+// after the bucket block — see Index.SourceSize / Index.SourceModTime
+// and the WriteIndex format comment. v1 sidecars (no trailing stat
+// snapshot) are no longer readable: ReadIndexHeader rejects any
+// version byte other than the current one with ENCODING_INVALID,
+// forcing an explicit `pulse index build` rebuild rather than a
+// silent partial read. There is no in-place migration path — sidecars
+// are cheap, deterministic rebuild artifacts, never hand-authored or
+// long-lived across binary versions.
+const IndexFormatVersion byte = 0x02
 
 // IndexHeaderSize is the total byte size of the sidecar index header
 // (magic + version), mirroring HeaderSize for the .pulse envelope.
@@ -86,15 +96,35 @@ type IndexBucket struct {
 
 // Index is the full in-memory representation of a point-lookup sidecar
 // index: the .pulse Fingerprint it was built from, the ordered key
-// spec, and the fixed-size hash-bucket table (len(Buckets) is the
-// table's bucket count). Encoding/decoding here is pure codec —
-// populating an Index from a live cohort and serving lookups against
-// one are later stories' responsibility; this package stays free of
-// service/processing imports.
+// spec, the fixed-size hash-bucket table (len(Buckets) is the table's
+// bucket count), and a source-stat snapshot (SourceSize /
+// SourceModTime) taken at build time. Encoding/decoding here is pure
+// codec — populating an Index from a live cohort and serving lookups
+// against one are later stories' responsibility; this package stays
+// free of service/processing imports.
 type Index struct {
 	Fingerprint Fingerprint
 	Keys        []IndexKeySpec
 	Buckets     []IndexBucket
+
+	// SourceSize is the byte length of the source .pulse file, as
+	// reported by the filesystem at build time. Paired with
+	// SourceModTime to give a freshness check (Service.VerifyIndex) a
+	// cheap fast-path that avoids re-hashing the whole cohort: if
+	// either value no longer matches the current file's stat, the
+	// cohort has definitely changed and the index is definitely stale
+	// — no need to pay for a full content hash to know that. A
+	// matching size+mtime pair is NOT by itself sufficient proof of
+	// freshness (mtime resolution and pathological same-size rewrites
+	// both make silent false negatives possible), so a match always
+	// falls through to a full Fingerprint recompute for a conclusive
+	// answer. See Service.Lookup / Service.VerifyIndex.
+	SourceSize uint64
+
+	// SourceModTime is the source .pulse file's modification time, as
+	// Unix nanoseconds, at build time. See SourceSize's doc comment for
+	// the fast-path contract this pairs with.
+	SourceModTime int64
 }
 
 // HashKey returns the 64-bit FNV-1a digest of raw key bytes. Builders
@@ -156,9 +186,9 @@ func ReadIndexHeader(r io.Reader) error {
 
 // WriteIndex serializes idx to w.
 //
-// Format:
+// Format (v2):
 //
-//	9-byte header: magic "PULSEIDX" + version 0x01
+//	9-byte header: magic "PULSEIDX" + version 0x02
 //	32-byte fingerprint: raw SHA-256 digest
 //	key-spec block:
 //	  u16 key_count
@@ -171,6 +201,9 @@ func ReadIndexHeader(r io.Reader) error {
 //	      u16 key_len + raw key bytes
 //	      u32 row_id_count
 //	      per row_id: u64 (little-endian)
+//	trailing source-stat snapshot (v2):
+//	  u64 source_size
+//	  i64 source_mod_time_unix_nano
 func WriteIndex(w io.Writer, idx *Index) error {
 	if err := WriteIndexHeader(w); err != nil {
 		return err
@@ -183,6 +216,12 @@ func WriteIndex(w io.Writer, idx *Index) error {
 	}
 	if err := writeIndexBuckets(w, idx.Buckets); err != nil {
 		return err
+	}
+	if err := binary.Write(w, binary.LittleEndian, idx.SourceSize); err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_IO, "writing index source size")
+	}
+	if err := binary.Write(w, binary.LittleEndian, idx.SourceModTime); err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_IO, "writing index source mod time")
 	}
 	return nil
 }
@@ -258,6 +297,13 @@ func ReadIndex(r io.Reader) (*Index, error) {
 		return nil, err
 	}
 	idx.Buckets = buckets
+
+	if err := binary.Read(r, binary.LittleEndian, &idx.SourceSize); err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading index source size")
+	}
+	if err := binary.Read(r, binary.LittleEndian, &idx.SourceModTime); err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading index source mod time")
+	}
 
 	return idx, nil
 }

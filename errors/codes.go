@@ -1051,6 +1051,22 @@ const (
 	// key fields, literal values, and the matched row count.
 	PULSE_LOOKUP_AMBIGUOUS Code = "PULSE_LOOKUP_AMBIGUOUS"
 
+	// PULSE_INDEX_STALE indicates the sidecar point-lookup index's
+	// embedded content-hash Fingerprint no longer matches the current
+	// `.pulse` cohort file's content. The cohort was mutated (re-imported,
+	// re-exported, or otherwise rewritten) after the sidecar was built,
+	// so the row-ids the sidecar's hash buckets point at may no longer
+	// address the same records — serving a lookup against it risks
+	// returning silently wrong rows. Service.Lookup hard-errors rather
+	// than falling back to a full scan or auto-rebuilding; the sidecar
+	// must be rebuilt explicitly via `pulse index build` before lookups
+	// against these key fields can resume. Distinct from
+	// PULSE_INDEX_MISSING (no sidecar exists at all) and from
+	// PULSE_LOOKUP_NOT_FOUND (the sidecar is fresh but the key has no
+	// match). Details carry the cohort path, key fields, and the derived
+	// index_path.
+	PULSE_INDEX_STALE Code = "PULSE_INDEX_STALE"
+
 	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED is a WARNING-class code
 	// emitted by the CSV (and TSV) export adapter when an overlay-bearing
 	// Response is exported to a flat tabular format that cannot encode
@@ -1231,6 +1247,7 @@ var allCodes = []Code{
 	PULSE_INDEX_MISSING,
 	PULSE_LOOKUP_NOT_FOUND,
 	PULSE_LOOKUP_AMBIGUOUS,
+	PULSE_INDEX_STALE,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

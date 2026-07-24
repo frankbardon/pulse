@@ -1616,4 +1616,13 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_INDEX_STALE: {
+		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Rebuild the sidecar index against the current cohort content: `pulse index build <cohort> --key <field>` (or the equivalent Service.BuildIndex(ctx, path, keyFields) library call, or a quick freshness check first via `pulse index verify <cohort> --key <field>` / Service.VerifyIndex). Re-run the lookup once the rebuild completes.",
+			},
+		},
+	},
 }
