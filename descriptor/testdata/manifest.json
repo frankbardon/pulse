@@ -4807,7 +4807,7 @@
         ]
       }
     ],
-    "error_codes_count": 147,
+    "error_codes_count": 149,
     "error_domains": [
       "CLI",
       "DATA",
@@ -4889,6 +4889,7 @@
       "PULSE_IMPORT_SET_OVERFLOW",
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
+      "PULSE_INDEX_MISSING",
       "PULSE_JOIN_FIELD_COLLISION",
       "PULSE_JOIN_FIELD_UNKNOWN",
       "PULSE_JOIN_KEYS_EMPTY",
@@ -4904,6 +4905,7 @@
       "PULSE_LABEL_TABLE_NOT_ENUMERABLE",
       "PULSE_LABEL_TABLE_UNKNOWN",
       "PULSE_LOOKUP_MISS",
+      "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
       "PULSE_OVERLAY_COMPONENTS_REQUIRED",
@@ -8987,4 +8989,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5a0c136e2f0c199220fe986142420cae299c97fc63b92c63df4247951299ff76
+// golden-hash: da691c962388eaa95e27e037b0a72e3f514a25ecda7779464d330b27425f2bbb

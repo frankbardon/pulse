@@ -1573,4 +1573,30 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+
+	// ---------- PULSE: point-lookup index (E1) ----------
+	PULSE_INDEX_MISSING: {
+		Message: "No sidecar point-lookup index was found on disk for the requested LookupRequest.Field. Point lookups probe a prebuilt sidecar index (encoding.SidecarIndexPath derives its path from the cohort file and key field) rather than scanning the cohort — the index must be built once before any Lookup call against that field can succeed.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Build the sidecar index for this field first: `pulse index build <cohort> --key <field>` (or the equivalent Service.BuildIndex(ctx, path, []string{field}) library call). Re-run the lookup once the sidecar file exists at the derived `<cohort>.<keyhash>.idx` path.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Field"},
+				Hint:   "Alternatively, point the lookup at a field that already has a built sidecar index — list existing sidecars alongside the cohort file (same directory, `.idx` suffix) to see which key fields are ready.",
+			},
+		},
+	},
+	PULSE_LOOKUP_NOT_FOUND: {
+		Message: "The sidecar point-lookup index was found and read successfully, but LookupRequest.Value has no matching entry in the resolved hash bucket — no record in the cohort carries that key value for LookupRequest.Field.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Value"},
+				Hint:   "Verify the literal Value is spelled/typed exactly as it appears in the source data (categorical values are case-sensitive dictionary lookups; numeric values must parse to the same on-wire representation as the indexed field). If the cohort was re-imported or the key column's data changed since the index was built, rebuild the sidecar via `pulse index build` — a stale index silently returns not-found for keys added after the last build.",
+			},
+		},
+	},
 }

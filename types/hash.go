@@ -318,3 +318,11 @@ func (r *ChainRequest) Hash() string {
 	}
 	return CanonicalHash("chain", r)
 }
+
+// Hash returns the canonical content hash of the LookupRequest.
+func (r *LookupRequest) Hash() string {
+	if r == nil {
+		return CanonicalHash("lookup", (*LookupRequest)(nil))
+	}
+	return CanonicalHash("lookup", r)
+}

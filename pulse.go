@@ -957,6 +957,36 @@ func (p *Pulse) FacetSchema(ctx context.Context, req *FacetRequest) (*FacetResul
 	return resp, err
 }
 
+// LookupRequest re-exports types.LookupRequest so callers can use
+// pulse.LookupRequest as the input to Lookup.
+type LookupRequest = types.LookupRequest
+
+// LookupResult re-exports types.LookupResult — the response from
+// Lookup.
+type LookupResult = types.LookupResult
+
+// LookupMultiplicity re-exports types.LookupMultiplicity — the
+// (currently stubbed; see E2-S2) duplicate-key handling mode on
+// LookupRequest.
+type LookupMultiplicity = types.LookupMultiplicity
+
+// Lookup resolves a single-key point lookup against the cohort named in
+// req.Cohort, using the prebuilt sidecar index for req.Field (see
+// BuildIndex). Returns PULSE_INDEX_MISSING when no sidecar index exists
+// for req.Field, or PULSE_LOOKUP_NOT_FOUND when the index exists but
+// req.Value has no matching entry. See service.Service.Lookup for the
+// full algorithm.
+func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, error) {
+	if req == nil {
+		return nil, fmt.Errorf("pulse: lookup requires a request")
+	}
+	resp, err := p.svc.Lookup(ctx, req)
+	if err == nil && req.Cohort != nil {
+		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	}
+	return resp, err
+}
+
 // ExamplesSearch returns summaries from the embedded request-example
 // library matching the given filters. An empty filter is treated as
 // "no constraint" for that dimension. Query is case-insensitive

@@ -1019,6 +1019,26 @@ const (
 	// can surface both the offending size and the cap.
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
 
+	// PULSE_INDEX_MISSING indicates a LookupRequest named a field with
+	// no sidecar point-lookup index on disk at the path
+	// encoding.SidecarIndexPath derives (the same path
+	// Service.BuildIndex writes to). Distinct from PULSE_LOOKUP_NOT_FOUND
+	// (the index exists but the requested key has no match) and from
+	// PULSE_LOOKUP_MISS / PULSE_LOOKUP_TABLE_UNKNOWN (the unrelated
+	// expr-runtime lookup-table feature). Details carry the cohort
+	// path, the offending field, and the derived index_path so callers
+	// can build it directly.
+	PULSE_INDEX_MISSING Code = "PULSE_INDEX_MISSING"
+
+	// PULSE_LOOKUP_NOT_FOUND indicates a LookupRequest's key value has
+	// no matching entry in the sidecar point-lookup index's resolved
+	// hash bucket — the index itself was present and readable
+	// (otherwise PULSE_INDEX_MISSING fires first), but no
+	// IndexEntry.Key in the bucket is byte-equal to the resolved
+	// on-wire key bytes. Details carry the cohort path, field, and
+	// literal value that failed to resolve.
+	PULSE_LOOKUP_NOT_FOUND Code = "PULSE_LOOKUP_NOT_FOUND"
+
 	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED is a WARNING-class code
 	// emitted by the CSV (and TSV) export adapter when an overlay-bearing
 	// Response is exported to a flat tabular format that cannot encode
@@ -1196,6 +1216,8 @@ var allCodes = []Code{
 	PULSE_OVERLAY_DICT_PREFIX_DRIFT,
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
+	PULSE_INDEX_MISSING,
+	PULSE_LOOKUP_NOT_FOUND,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

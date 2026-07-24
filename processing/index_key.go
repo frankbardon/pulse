@@ -2,9 +2,12 @@ package processing
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 )
 
 // IsIndexKeyableFieldType reports whether ft may be used as a
@@ -73,21 +76,84 @@ func KeyFieldOnWireBytes(record *Record, field *encoding.Field) ([]byte, bool) {
 		return nil, false
 	}
 
-	switch field.Type {
+	return numericOnWireBytes(v, field.Type), true
+}
+
+// numericOnWireBytes re-encodes a float64-carried record value as the
+// exact on-wire byte representation for the given field type. Shared by
+// KeyFieldOnWireBytes (decoded-record → on-wire, the index build path)
+// and ResolveLookupKeyBytes (request literal → on-wire, the lookup
+// probe path) so the two directions can never diverge on encoding
+// choice — a build-time key and a lookup-time key derived from the same
+// logical value are always byte-equal.
+func numericOnWireBytes(v float64, ft encoding.FieldType) []byte {
+	switch ft {
 	case encoding.FieldTypeF32:
 		buf := make([]byte, 4)
 		binary.LittleEndian.PutUint32(buf, math.Float32bits(float32(v)))
-		return buf, true
+		return buf
 	case encoding.FieldTypeF64:
 		buf := make([]byte, 8)
 		binary.LittleEndian.PutUint64(buf, math.Float64bits(v))
-		return buf, true
+		return buf
 	default:
 		// Plain unsigned-integer on-wire encodings: u8/u16/u32/u64 and
 		// categorical_u8/u16/u32 (the dictionary ID IS the on-wire
 		// value already carried by NumericValue).
-		return encodeUintOnWire(uint64(v), field.Type.ByteSize()), true
+		return encodeUintOnWire(uint64(v), ft.ByteSize())
 	}
+}
+
+// ResolveLookupKeyBytes resolves a caller-supplied literal string value
+// (LookupRequest.Value) to the exact on-wire byte representation used
+// inside a sidecar index's IndexEntry.Key — the inverse of
+// KeyFieldOnWireBytes, which resolves from an already-decoded Record
+// rather than a request-supplied literal. Mirrors the categorical-vs-
+// numeric branch includeFilterer.Build uses when resolving a filter
+// literal (processing/filterer.go): categorical field types resolve
+// through field.Dictionary.IDFor and re-encode the dictionary ID at the
+// field's on-wire width; numeric field types parse the literal as a
+// float64 and re-encode via numericOnWireBytes — the same helper
+// KeyFieldOnWireBytes uses — so a build-time on-wire key and a
+// lookup-time on-wire key derived from the same logical value are
+// always byte-equal.
+//
+// Returns a PROCESSING_CONFIG coded error when field is nil, when
+// field.Type fails IsIndexKeyableFieldType (this rejects date and
+// decimal128 today — see that predicate's doc comment for why; exact
+// date/decimal128 literal resolution is E2-S3's scope), when a
+// categorical literal has no matching dictionary entry, or when a
+// numeric literal fails to parse as a float.
+func ResolveLookupKeyBytes(field *encoding.Field, literal string) ([]byte, error) {
+	if field == nil {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			"lookup key field not found in schema")
+	}
+	if !IsIndexKeyableFieldType(field.Type) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			"field type is not supported as a point-lookup index key",
+			map[string]any{"field": field.Name, "type": field.Type.String()})
+	}
+
+	if field.Type.IsCategorical() {
+		if field.Dictionary == nil {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("categorical lookup field %q has no dictionary", field.Name))
+		}
+		id, ok := field.Dictionary.IDFor(literal)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("lookup value %q not found in dictionary for field %q", literal, field.Name))
+		}
+		return encodeUintOnWire(uint64(id), field.Type.ByteSize()), nil
+	}
+
+	v, err := strconv.ParseFloat(literal, 64)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
+			fmt.Sprintf("parsing lookup value %q for field %q", literal, field.Name))
+	}
+	return numericOnWireBytes(v, field.Type), nil
 }
 
 // encodeUintOnWire re-encodes v as a little-endian byte slice of the
