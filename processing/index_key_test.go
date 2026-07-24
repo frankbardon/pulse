@@ -109,3 +109,147 @@ func TestResolveLookupKeyBytes_NilField(t *testing.T) {
 		t.Errorf("expected PROCESSING_CONFIG, got: %v", err)
 	}
 }
+
+func compositeTestFields() (*encoding.Field, *encoding.Field) {
+	dict := encoding.NewDictionary()
+	dict.Add("north") // id 0
+	dict.Add("south") // id 1
+	region := &encoding.Field{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict}
+	period := &encoding.Field{Name: "period", Type: encoding.FieldTypeU16}
+	return region, period
+}
+
+func TestCompositeKeyFieldOnWireBytes_TwoColumn_ConcatenatesInOrder(t *testing.T) {
+	region, period := compositeTestFields()
+	schema := &encoding.Schema{Fields: []encoding.Field{*region, *period}}
+	rec := NewRecord(schema, map[string]float64{"region": 1, "period": 2022})
+
+	got, ok := CompositeKeyFieldOnWireBytes(rec, []*encoding.Field{region, period})
+	if !ok {
+		t.Fatal("CompositeKeyFieldOnWireBytes: not ok")
+	}
+	// region (1 byte, dict id 1) + period (2 bytes LE, 2022).
+	period16 := uint16(2022)
+	want := []byte{1, byte(period16), byte(period16 >> 8)}
+	if string(got) != string(want) {
+		t.Errorf("got % x, want % x", got, want)
+	}
+}
+
+func TestCompositeKeyFieldOnWireBytes_OrderSignificant(t *testing.T) {
+	region, period := compositeTestFields()
+	schema := &encoding.Schema{Fields: []encoding.Field{*region, *period}}
+	rec := NewRecord(schema, map[string]float64{"region": 1, "period": 2022})
+
+	ab, ok := CompositeKeyFieldOnWireBytes(rec, []*encoding.Field{region, period})
+	if !ok {
+		t.Fatal("CompositeKeyFieldOnWireBytes(region,period): not ok")
+	}
+	ba, ok := CompositeKeyFieldOnWireBytes(rec, []*encoding.Field{period, region})
+	if !ok {
+		t.Fatal("CompositeKeyFieldOnWireBytes(period,region): not ok")
+	}
+	if string(ab) == string(ba) {
+		t.Fatalf("reversed-order composite keys must not be byte-equal: AB=% x BA=% x", ab, ba)
+	}
+	if len(ab) != len(ba) {
+		t.Fatalf("reversed-order composite keys should still be same total width: AB=%d BA=%d", len(ab), len(ba))
+	}
+}
+
+func TestCompositeKeyFieldOnWireBytes_AnyNullComponentSkipsRow(t *testing.T) {
+	region, period := compositeTestFields()
+	region.Nullable = true
+	schema := &encoding.Schema{Fields: []encoding.Field{*region, *period}}
+	rec := NewRecordWithWide(schema, map[string]float64{"period": 2022}, map[string]bool{"region": true}, nil)
+
+	_, ok := CompositeKeyFieldOnWireBytes(rec, []*encoding.Field{region, period})
+	if ok {
+		t.Fatal("expected not-ok when any composite key component is null")
+	}
+}
+
+func TestCompositeKeyFieldOnWireBytes_EmptyFieldsNotOK(t *testing.T) {
+	_, ok := CompositeKeyFieldOnWireBytes(&Record{}, nil)
+	if ok {
+		t.Fatal("expected not-ok for an empty fields slice")
+	}
+}
+
+func TestCompositeKeyFieldOnWireBytes_SingleColumnMatchesKeyFieldOnWireBytes(t *testing.T) {
+	field := &encoding.Field{Name: "id", Type: encoding.FieldTypeU32}
+	schema := &encoding.Schema{Fields: []encoding.Field{*field}}
+	rec := NewRecord(schema, map[string]float64{"id": 3})
+
+	composite, ok := CompositeKeyFieldOnWireBytes(rec, []*encoding.Field{field})
+	if !ok {
+		t.Fatal("CompositeKeyFieldOnWireBytes: not ok")
+	}
+	single, ok := KeyFieldOnWireBytes(rec, field)
+	if !ok {
+		t.Fatal("KeyFieldOnWireBytes: not ok")
+	}
+	if string(composite) != string(single) {
+		t.Errorf("1-element composite key = % x, want byte-identical single key = % x", composite, single)
+	}
+}
+
+func TestResolveCompositeLookupKeyBytes_MatchesRecordResolvedBytes(t *testing.T) {
+	region, period := compositeTestFields()
+	schema := &encoding.Schema{Fields: []encoding.Field{*region, *period}}
+	rec := NewRecord(schema, map[string]float64{"region": 1, "period": 2022})
+
+	fromRecord, ok := CompositeKeyFieldOnWireBytes(rec, []*encoding.Field{region, period})
+	if !ok {
+		t.Fatal("CompositeKeyFieldOnWireBytes: not ok")
+	}
+
+	fromLiteral, err := ResolveCompositeLookupKeyBytes([]*encoding.Field{region, period}, []string{"south", "2022"})
+	if err != nil {
+		t.Fatalf("ResolveCompositeLookupKeyBytes: %v", err)
+	}
+
+	if string(fromRecord) != string(fromLiteral) {
+		t.Errorf("record-resolved bytes % x != literal-resolved bytes % x; build-time and lookup-time composite keys must be byte-equal", fromRecord, fromLiteral)
+	}
+}
+
+func TestResolveCompositeLookupKeyBytes_OrderSignificant(t *testing.T) {
+	region, period := compositeTestFields()
+
+	ab, err := ResolveCompositeLookupKeyBytes([]*encoding.Field{region, period}, []string{"south", "2022"})
+	if err != nil {
+		t.Fatalf("ResolveCompositeLookupKeyBytes(region,period): %v", err)
+	}
+	ba, err := ResolveCompositeLookupKeyBytes([]*encoding.Field{period, region}, []string{"2022", "south"})
+	if err != nil {
+		t.Fatalf("ResolveCompositeLookupKeyBytes(period,region): %v", err)
+	}
+	if string(ab) == string(ba) {
+		t.Fatalf("reversed-order composite keys must not be byte-equal: AB=% x BA=% x", ab, ba)
+	}
+}
+
+func TestResolveCompositeLookupKeyBytes_ArityMismatch(t *testing.T) {
+	region, period := compositeTestFields()
+
+	_, err := ResolveCompositeLookupKeyBytes([]*encoding.Field{region, period}, []string{"south"})
+	if err == nil {
+		t.Fatal("expected error when literals count does not match fields count")
+	}
+	if !errors.HasCode(err, errors.PROCESSING_CONFIG) {
+		t.Errorf("expected PROCESSING_CONFIG, got: %v", err)
+	}
+}
+
+func TestResolveCompositeLookupKeyBytes_PropagatesPerFieldError(t *testing.T) {
+	region, period := compositeTestFields()
+
+	_, err := ResolveCompositeLookupKeyBytes([]*encoding.Field{region, period}, []string{"nowhere", "2022"})
+	if err == nil {
+		t.Fatal("expected error for a categorical literal absent from the dictionary")
+	}
+	if !errors.HasCode(err, errors.PROCESSING_CONFIG) {
+		t.Errorf("expected PROCESSING_CONFIG, got: %v", err)
+	}
+}

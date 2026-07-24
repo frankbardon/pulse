@@ -21,30 +21,31 @@ type BuildIndexResult struct {
 }
 
 // BuildIndex scans the single-file cohort at path exactly once,
-// resolves each record's value for the single key column keyFields[0]
-// to its exact on-wire bytes (processing.KeyFieldOnWireBytes), groups
-// row-ids by key into hash buckets (encoding.BucketIndex /
-// encoding.HashKey — the same hash the E1-S4 lookup probe will use),
-// computes the source .pulse file's content-hash fingerprint
+// resolves each record's ordered-tuple composite key across every
+// column named in keyFields to its exact on-wire bytes
+// (processing.CompositeKeyFieldOnWireBytes — the ordered concatenation
+// of each key column's on-wire bytes; a single-element keyFields is the
+// degenerate 1-tuple case and byte-identical to the E1 single-key
+// path), groups row-ids by key into hash buckets (encoding.BucketIndex
+// / encoding.HashKey — the same hash the lookup probe uses), computes
+// the source .pulse file's content-hash fingerprint
 // (encoding.ComputeFingerprint), and writes the sidecar via
 // encoding.WriteIndexFile at the path encoding.SidecarIndexPath
-// derives.
-//
-// Single key column only — keyFields must have exactly one element.
-// Composite (multi-column) keys are E2-S1's scope; the surrounding
-// plumbing here (IndexKeySpec is already a slice, SidecarIndexPath is
-// already N-column-general) does not need to change to support that
-// story, only this validation gate needs relaxing.
+// derives. keyFields may name any number of columns >= 1; key column
+// ORDER is significant — building on ["a","b"] and ["b","a"] produces
+// two distinct sidecar files at two distinct derived paths, with
+// distinct composite key byte layouts.
 //
 // Row-ids are the record's 0-based sequential position in the cohort
 // (row 0 is the first record after the header + schema), matching
-// encoding.RecordLocator's Offset(i) addressing — a later O(1) lookup
-// (E1-S4) can feed a bucket's row-id straight into RecordLocator
-// without any translation.
+// encoding.RecordLocator's Offset(i) addressing — lookup feeds a
+// bucket's row-id straight into RecordLocator without any translation.
 //
-// Rows whose key-column value is null are skipped — not indexed, not
-// a build error (processing.KeyFieldOnWireBytes returns ok=false for
-// a null value; there is nothing to bucket).
+// Rows where ANY key column's value is null are skipped entirely — not
+// indexed, not a build error (processing.CompositeKeyFieldOnWireBytes
+// returns ok=false when any component is null; a composite key with a
+// null component is unindexable, so the whole row is skipped rather
+// than partially indexed).
 //
 // Scope gaps intentionally left for later stories (see story notes):
 //   - Shard archive cohorts are rejected with SERVICE_VALIDATION (an
@@ -62,11 +63,6 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 	if len(keyFields) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"index build requires at least one key column")
-	}
-	if len(keyFields) != 1 {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"composite (multi-column) index keys are not supported yet; pass exactly one key column",
-			map[string]any{"key_fields": keyFields})
 	}
 
 	cohort, err := s.Open(ctx, path)
@@ -98,7 +94,6 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 		keys = append(keys, encoding.IndexKeySpec{Name: field.Name, Type: field.Type})
 		fields = append(fields, field)
 	}
-	keyField := fields[0]
 
 	fsys := cohort.fs
 	if fsys == nil {
@@ -110,7 +105,7 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 		return nil, err
 	}
 
-	buckets, err := scanBuildBuckets(fsys, path, schema, keyField)
+	buckets, err := scanBuildBuckets(fsys, path, schema, fields)
 	if err != nil {
 		return nil, err
 	}
@@ -153,8 +148,10 @@ func computeCohortFingerprint(fsys afero.Fs, path string) (encoding.Fingerprint,
 // scanBuildBuckets performs the single full sequential scan the build
 // contract requires: every record is visited exactly once (no early
 // stop, unlike Sample's offset+limit loop), in row-id order, and the
-// on-wire key bytes for keyField are resolved once per row via
-// processing.KeyFieldOnWireBytes.
+// on-wire composite key bytes for keyFields are resolved once per row
+// via processing.CompositeKeyFieldOnWireBytes — the ordered-tuple
+// concatenation of every key column's on-wire bytes. keyFields with a
+// single element degenerates to the E1 single-key path exactly.
 //
 // Entries are accumulated in an ordered map keyed by the string form
 // of the raw key bytes (fast O(1) "have we seen this key already"
@@ -170,7 +167,7 @@ func computeCohortFingerprint(fsys afero.Fs, path string) (encoding.Fingerprint,
 // buckets. Load factor ~1 keeps the average bucket at 0-1 entries,
 // matching IndexBucket's doc comment ("a well-distributed build
 // populates each bucket with zero or one entries on average").
-func scanBuildBuckets(fsys afero.Fs, path string, schema *encoding.Schema, keyField *encoding.Field) ([]encoding.IndexBucket, error) {
+func scanBuildBuckets(fsys afero.Fs, path string, schema *encoding.Schema, keyFields []*encoding.Field) ([]encoding.IndexBucket, error) {
 	iter := newStreamingIterator(fsys, path, schema)
 	defer iter.Close()
 
@@ -184,7 +181,7 @@ func scanBuildBuckets(fsys afero.Fs, path string, schema *encoding.Schema, keyFi
 	var rowID uint64
 	for iter.Next() {
 		rec := iter.Record()
-		keyBytes, ok := processing.KeyFieldOnWireBytes(rec, keyField)
+		keyBytes, ok := processing.CompositeKeyFieldOnWireBytes(rec, keyFields)
 		if ok {
 			k := string(keyBytes)
 			e, seen := byKey[k]

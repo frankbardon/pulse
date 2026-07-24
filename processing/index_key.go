@@ -79,6 +79,36 @@ func KeyFieldOnWireBytes(record *Record, field *encoding.Field) ([]byte, bool) {
 	return numericOnWireBytes(v, field.Type), true
 }
 
+// CompositeKeyFieldOnWireBytes resolves the composite on-wire key bytes
+// for record across every field in fields, in order — the ordered-tuple
+// concatenation of each field's exact on-wire byte representation
+// (KeyFieldOnWireBytes), one after another. Key column ORDER is
+// significant: fields [a, b] and [b, a] produce different byte strings
+// (and therefore different hash buckets) even when both name the same
+// two columns, because a composite key is a byte-concatenation, not a
+// set. The single-key path (E1) is the degenerate 1-tuple case —
+// calling this with a 1-element fields slice is byte-identical to
+// calling KeyFieldOnWireBytes directly.
+//
+// Returns (nil, false) when fields is empty or when ANY field's value
+// is null on this record — a composite key with a null component is
+// unindexable, so the whole row is skipped rather than partially
+// indexed (mirrors KeyFieldOnWireBytes's single-field null contract).
+func CompositeKeyFieldOnWireBytes(record *Record, fields []*encoding.Field) ([]byte, bool) {
+	if len(fields) == 0 {
+		return nil, false
+	}
+	var buf []byte
+	for _, f := range fields {
+		b, ok := KeyFieldOnWireBytes(record, f)
+		if !ok {
+			return nil, false
+		}
+		buf = append(buf, b...)
+	}
+	return buf, true
+}
+
 // numericOnWireBytes re-encodes a float64-carried record value as the
 // exact on-wire byte representation for the given field type. Shared by
 // KeyFieldOnWireBytes (decoded-record → on-wire, the index build path)
@@ -154,6 +184,38 @@ func ResolveLookupKeyBytes(field *encoding.Field, literal string) ([]byte, error
 			fmt.Sprintf("parsing lookup value %q for field %q", literal, field.Name))
 	}
 	return numericOnWireBytes(v, field.Type), nil
+}
+
+// ResolveCompositeLookupKeyBytes resolves an ordered set of caller-
+// supplied literal values (literals[i] paired with fields[i]) to the
+// on-wire composite key bytes — the ordered-tuple concatenation of each
+// field's ResolveLookupKeyBytes result, in fields order. The inverse of
+// CompositeKeyFieldOnWireBytes: a build-time composite key and a
+// lookup-time composite key derived from the same ordered logical
+// values are always byte-equal, because both route every scalar
+// component through the same numericOnWireBytes / dictionary-ID
+// encoding.
+//
+// Returns a PROCESSING_CONFIG coded error when len(fields) !=
+// len(literals) (arity mismatch — callers validate this against the
+// loaded sidecar index's key-spec before calling, so this is a
+// defense-in-depth guard, not the primary arity check) or when any
+// per-field ResolveLookupKeyBytes call fails.
+func ResolveCompositeLookupKeyBytes(fields []*encoding.Field, literals []string) ([]byte, error) {
+	if len(fields) != len(literals) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			"lookup key component count does not match key field count",
+			map[string]any{"fields": len(fields), "literals": len(literals)})
+	}
+	var buf []byte
+	for i, f := range fields {
+		b, err := ResolveLookupKeyBytes(f, literals[i])
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, b...)
+	}
+	return buf, nil
 }
 
 // encodeUintOnWire re-encodes v as a little-endian byte slice of the

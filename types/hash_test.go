@@ -137,6 +137,37 @@ func TestLookupRequest_Hash_Deterministic(t *testing.T) {
 	}
 }
 
+func TestLookupRequest_Hash_CompositeKeysDeterministicAndOrderSignificant(t *testing.T) {
+	a := &LookupRequest{
+		Cohort: &Cohort{Filename: "cohort.pulse"},
+		Keys: []LookupKey{
+			{Field: "region", Value: "east"},
+			{Field: "period", Value: "2023"},
+		},
+	}
+	b := &LookupRequest{
+		Cohort: &Cohort{Filename: "cohort.pulse"},
+		Keys: []LookupKey{
+			{Field: "region", Value: "east"},
+			{Field: "period", Value: "2023"},
+		},
+	}
+	if a.Hash() != b.Hash() {
+		t.Fatal("LookupRequest hash unstable across structurally identical composite-key requests")
+	}
+
+	swapped := &LookupRequest{
+		Cohort: &Cohort{Filename: "cohort.pulse"},
+		Keys: []LookupKey{
+			{Field: "period", Value: "2023"},
+			{Field: "region", Value: "east"},
+		},
+	}
+	if a.Hash() == swapped.Hash() {
+		t.Fatal("LookupRequest hash must differ when composite Keys order differs")
+	}
+}
+
 func TestCanonicalHash_OverlayFreeByteIdentity(t *testing.T) {
 	const captured = "a4e259f7ed18dcbcb3e78b76066bcbee"
 	r := &Request{

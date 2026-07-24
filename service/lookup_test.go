@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -176,6 +177,160 @@ func TestLookup_NilRequest(t *testing.T) {
 	}
 	if !errors.HasCode(err, errors.SERVICE_VALIDATION) {
 		t.Errorf("expected SERVICE_VALIDATION, got: %v", err)
+	}
+}
+
+// buildCompositeLookupFixture writes the compositeIndexTestSchema/
+// Records fixture and its "(region,period)" composite sidecar index in
+// one step.
+func buildCompositeLookupFixture(t *testing.T, keyFields []string) *Service {
+	t.Helper()
+	schema := compositeIndexTestSchema()
+	cfg := setupTestFS(t, "cohort.pulse", schema, compositeIndexTestRecords())
+	svc := New(cfg)
+	if _, err := svc.BuildIndex(context.Background(), "cohort.pulse", keyFields); err != nil {
+		t.Fatalf("BuildIndex(%v): %v", keyFields, err)
+	}
+	return svc
+}
+
+func TestLookup_CompositeTwoColumn_Hit(t *testing.T) {
+	svc := buildCompositeLookupFixture(t, []string{"region", "period"})
+
+	// (region=east, period=2023) matches only row index 3 -> id 4.
+	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort: &types.Cohort{Filename: "cohort.pulse"},
+		Keys: []types.LookupKey{
+			{Field: "region", Value: "east"},
+			{Field: "period", Value: "2023"},
+		},
+		ReturnColumns: []string{"id"},
+	})
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	if got := res.Rows[0]["id"].(float64); got != 4.0 {
+		t.Errorf("id = %v, want 4.0 (region=east,period=2023 -> row index 3)", got)
+	}
+}
+
+func TestLookup_CompositeThreeColumn_Hit(t *testing.T) {
+	svc := buildCompositeLookupFixture(t, []string{"id", "region", "period"})
+
+	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort: &types.Cohort{Filename: "cohort.pulse"},
+		Keys: []types.LookupKey{
+			{Field: "id", Value: "3"},
+			{Field: "region", Value: "north"},
+			{Field: "period", Value: "2021"},
+		},
+		ReturnColumns: []string{"score"},
+	})
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	if got := res.Rows[0]["score"].(float64); got != 30.0 {
+		t.Errorf("score = %v, want 30.0 (id=3,region=north,period=2021 -> row index 2)", got)
+	}
+}
+
+func TestLookup_CompositeKeyOrderSignificant(t *testing.T) {
+	// Build the index on (region, period) only — NOT (period, region).
+	svc := buildCompositeLookupFixture(t, []string{"region", "period"})
+
+	// Supplying the same two values in the OPPOSITE order derives a
+	// different (non-existent) sidecar path, since key column order is
+	// part of the index's identity end to end.
+	_, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort: &types.Cohort{Filename: "cohort.pulse"},
+		Keys: []types.LookupKey{
+			{Field: "period", Value: "2023"},
+			{Field: "region", Value: "east"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error: (period,region) order was never built, only (region,period)")
+	}
+	if !errors.HasCode(err, errors.PULSE_INDEX_MISSING) {
+		t.Errorf("expected PULSE_INDEX_MISSING for the swapped-order request, got: %v", err)
+	}
+
+	// The correctly-ordered request against the same built index still hits.
+	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort: &types.Cohort{Filename: "cohort.pulse"},
+		Keys: []types.LookupKey{
+			{Field: "region", Value: "east"},
+			{Field: "period", Value: "2023"},
+		},
+		ReturnColumns: []string{"id"},
+	})
+	if err != nil {
+		t.Fatalf("Lookup (correct order): %v", err)
+	}
+	if got := res.Rows[0]["id"].(float64); got != 4.0 {
+		t.Errorf("id = %v, want 4.0", got)
+	}
+}
+
+func TestLookup_SingleKeyPath_StillWorks(t *testing.T) {
+	// E1 single-key shape (Field/Value, no Keys) must still behave
+	// unchanged after the composite generalization.
+	svc := buildLookupFixture(t)
+
+	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort:        &types.Cohort{Filename: "cohort.pulse"},
+		Field:         "id",
+		Value:         "3",
+		ReturnColumns: []string{"score"},
+	})
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	if got := res.Rows[0]["score"].(float64); got != 30.0 {
+		t.Errorf("score = %v, want 30.0", got)
+	}
+}
+
+func TestLookup_WrongArity_MismatchesIndexKeySpec(t *testing.T) {
+	// Build a real composite index on (region, period) via BuildIndex,
+	// so its on-disk key-spec (idx.Keys) genuinely has 2 entries at the
+	// naturally-derived sidecar path. Then overwrite that same path with
+	// a manually-constructed Index whose Keys slice has been truncated
+	// to 1 entry — simulating a stale/corrupted/hand-placed sidecar
+	// whose key-spec no longer matches its own path's field-name-derived
+	// arity. A request supplying 2 key components (matching the path)
+	// must then be rejected against the index's ACTUAL (loaded) 1-entry
+	// key-spec, not the path-implied arity.
+	schema := compositeIndexTestSchema()
+	cfg := setupTestFS(t, "cohort.pulse", schema, compositeIndexTestRecords())
+	svc := New(cfg)
+
+	res, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"region", "period"})
+	if err != nil {
+		t.Fatalf("BuildIndex(region,period): %v", err)
+	}
+
+	corrupted := &encoding.Index{
+		Fingerprint: res.Index.Fingerprint,
+		Keys:        res.Index.Keys[:1], // truncated key-spec: 1 entry, not 2
+		Buckets:     res.Index.Buckets,
+	}
+	if err := encoding.WriteIndexFile(cfg.Fs(), res.IndexPath, corrupted); err != nil {
+		t.Fatalf("WriteIndexFile (corrupted sidecar): %v", err)
+	}
+
+	_, err = svc.Lookup(context.Background(), &types.LookupRequest{
+		Cohort: &types.Cohort{Filename: "cohort.pulse"},
+		Keys: []types.LookupKey{
+			{Field: "region", Value: "east"},
+			{Field: "period", Value: "2023"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for a request whose key-component count does not match the loaded index's key-spec")
+	}
+	if !errors.HasCode(err, errors.PROCESSING_CONFIG) {
+		t.Errorf("expected PROCESSING_CONFIG, got: %v", err)
 	}
 }
 

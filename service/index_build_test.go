@@ -344,17 +344,161 @@ func TestBuildIndex_UnsupportedKeyFieldType(t *testing.T) {
 	}
 }
 
-func TestBuildIndex_CompositeKeyRejected(t *testing.T) {
-	schema := indexTestSchema()
-	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
+// compositeIndexTestSchema extends indexTestSchema with a fourth keyable
+// column ("period", u16) so composite (2- and 3-column) key stories have
+// a third distinct field to combine with id/score/region. "period"
+// stands in for a second dimension conceptually like "date" without
+// exercising the excluded FieldTypeDate (see
+// processing.IsIndexKeyableFieldType's doc comment — date/decimal128
+// exact-key resolution is E2-S3's scope).
+func compositeIndexTestSchema() *encoding.Schema {
+	regionDict := encoding.NewDictionary()
+	regionDict.Add("north") // id 0
+	regionDict.Add("south") // id 1
+	regionDict.Add("east")  // id 2
+
+	return &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 4, CsvColumnIdx: 1},
+			{Name: "region", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 12, CsvColumnIdx: 2, Dictionary: regionDict},
+			{Name: "period", Type: encoding.FieldTypeU16, ByteOffset: 13, CsvColumnIdx: 3},
+		},
+	}
+}
+
+// compositeIndexTestRecords pairs with compositeIndexTestSchema. Rows 0
+// and 2 share (region="north", period=2021); rows 1 and 4 share
+// (region="south", period=2022) — deliberate composite-key duplicates
+// so multimap behavior over a 2-column key is exercised the same way
+// indexTestRecords exercises it for a single categorical column.
+func compositeIndexTestRecords() [][]uint64 {
+	return [][]uint64{
+		{1, math.Float64bits(10.0), 0, 2021}, // north, 2021
+		{2, math.Float64bits(20.0), 1, 2022}, // south, 2022
+		{3, math.Float64bits(30.0), 0, 2021}, // north, 2021 (dup (region,period))
+		{4, math.Float64bits(40.0), 2, 2023}, // east, 2023
+		{5, math.Float64bits(50.0), 1, 2022}, // south, 2022 (dup (region,period))
+	}
+}
+
+func TestBuildIndex_CompositeTwoColumn_BuildsAndKeys(t *testing.T) {
+	schema := compositeIndexTestSchema()
+	cfg := setupTestFS(t, "cohort.pulse", schema, compositeIndexTestRecords())
 	svc := New(cfg)
 
-	_, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"id", "region"})
-	if err == nil {
-		t.Fatal("expected error for composite (multi-column) key request")
+	res, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"region", "period"})
+	if err != nil {
+		t.Fatalf("BuildIndex(region,period): %v", err)
 	}
-	if !errors.HasCode(err, errors.SERVICE_VALIDATION) {
-		t.Errorf("expected SERVICE_VALIDATION, got: %v", err)
+
+	idx := res.Index
+	if len(idx.Keys) != 2 || idx.Keys[0].Name != "region" || idx.Keys[1].Name != "period" {
+		t.Fatalf("Keys = %+v, want [{region} {period}] in that order", idx.Keys)
+	}
+
+	// region is categorical_u8 (1 byte) + period is u16 (2 bytes) -> 3-byte composite key.
+	found := 0
+	for _, b := range idx.Buckets {
+		for _, e := range b.Entries {
+			if len(e.Key) != 3 {
+				t.Fatalf("composite key width = %d, want 3 (1-byte region + 2-byte period)", len(e.Key))
+			}
+			regionID := e.Key[0]
+			period := uint16(e.Key[1]) | uint16(e.Key[2])<<8
+			if regionID == 0 && period == 2021 {
+				found++
+				if len(e.RowIDs) != 2 || e.RowIDs[0] != 0 || e.RowIDs[1] != 2 {
+					t.Errorf("(north,2021) RowIDs = %v, want [0 2]", e.RowIDs)
+				}
+			}
+		}
+	}
+	if found != 1 {
+		t.Fatalf("expected exactly one bucket entry for (north,2021), found %d", found)
+	}
+}
+
+func TestBuildIndex_CompositeThreeColumn_BuildsAndKeys(t *testing.T) {
+	schema := compositeIndexTestSchema()
+	cfg := setupTestFS(t, "cohort.pulse", schema, compositeIndexTestRecords())
+	svc := New(cfg)
+
+	res, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"id", "region", "period"})
+	if err != nil {
+		t.Fatalf("BuildIndex(id,region,period): %v", err)
+	}
+
+	idx := res.Index
+	if len(idx.Keys) != 3 {
+		t.Fatalf("Keys = %+v, want 3 entries", idx.Keys)
+	}
+	wantNames := []string{"id", "region", "period"}
+	for i, name := range wantNames {
+		if idx.Keys[i].Name != name {
+			t.Fatalf("Keys[%d].Name = %q, want %q (order significant)", i, idx.Keys[i].Name, name)
+		}
+	}
+
+	// id (4 bytes u32) + region (1 byte categorical_u8) + period (2 bytes u16) = 7 bytes.
+	total := 0
+	for _, b := range idx.Buckets {
+		for _, e := range b.Entries {
+			if len(e.Key) != 7 {
+				t.Fatalf("composite key width = %d, want 7", len(e.Key))
+			}
+			total += len(e.RowIDs)
+		}
+	}
+	if total != len(compositeIndexTestRecords()) {
+		t.Errorf("total indexed row-ids = %d, want %d (id makes every composite key unique)", total, len(compositeIndexTestRecords()))
+	}
+}
+
+func TestBuildIndex_CompositeKeyOrderSignificant(t *testing.T) {
+	schema := compositeIndexTestSchema()
+	cfg := setupTestFS(t, "cohort.pulse", schema, compositeIndexTestRecords())
+	svc := New(cfg)
+
+	resAB, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"region", "period"})
+	if err != nil {
+		t.Fatalf("BuildIndex(region,period): %v", err)
+	}
+	resBA, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"period", "region"})
+	if err != nil {
+		t.Fatalf("BuildIndex(period,region): %v", err)
+	}
+
+	if resAB.IndexPath == resBA.IndexPath {
+		t.Fatalf("(region,period) and (period,region) must derive distinct sidecar paths, both got %q", resAB.IndexPath)
+	}
+
+	// Find the (north,2021) entry in each and confirm the byte layout is reversed:
+	// AB = [region_byte, period_lo, period_hi]; BA = [period_lo, period_hi, region_byte].
+	var abKey, baKey []byte
+	for _, b := range resAB.Index.Buckets {
+		for _, e := range b.Entries {
+			if e.Key[0] == 0 { // region byte first in AB order
+				period := uint16(e.Key[1]) | uint16(e.Key[2])<<8
+				if period == 2021 {
+					abKey = e.Key
+				}
+			}
+		}
+	}
+	for _, b := range resBA.Index.Buckets {
+		for _, e := range b.Entries {
+			period := uint16(e.Key[0]) | uint16(e.Key[1])<<8 // period first in BA order
+			if period == 2021 && e.Key[2] == 0 {
+				baKey = e.Key
+			}
+		}
+	}
+	if abKey == nil || baKey == nil {
+		t.Fatalf("expected to find (north,2021) entry in both builds: abKey=%v baKey=%v", abKey, baKey)
+	}
+	if bytes.Equal(abKey, baKey) {
+		t.Fatalf("order-reversed composite keys must not be byte-equal: AB=% x BA=% x", abKey, baKey)
 	}
 }
 

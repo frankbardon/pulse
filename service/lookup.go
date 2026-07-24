@@ -12,13 +12,22 @@ import (
 	"github.com/spf13/afero"
 )
 
-// Lookup resolves a single-key point lookup against the cohort named in
-// req.Cohort: derive the sidecar index path for req.Field (the same
-// derivation Service.BuildIndex used to write it), load the sidecar,
-// resolve req.Value to on-wire key bytes, probe the hash bucket for a
-// byte-equal entry, and — on a hit — read the matching record via
-// encoding.RecordLocator.ReadRecordAt with a single reused DecodePlan
-// projected to req.ReturnColumns.
+// Lookup resolves a point lookup against the cohort named in
+// req.Cohort, keyed on the ordered tuple req.KeyComponents() returns
+// (either req.Keys verbatim, for a composite/multi-column key, or the
+// req.Field/req.Value single-key convenience path — see
+// types.LookupRequest.KeyComponents): derive the sidecar index path for
+// the ordered key-field names (the same derivation Service.BuildIndex
+// used to write it), load the sidecar, validate the request's
+// key-component count matches the loaded index's key-spec, resolve
+// every component's literal to on-wire key bytes and concatenate them
+// in order, probe the hash bucket for a byte-equal entry, and — on a
+// hit — read the matching record via encoding.RecordLocator.ReadRecordAt
+// with a single reused DecodePlan projected to req.ReturnColumns.
+//
+// Key column order is significant: KeyComponents in a different order
+// derives a different sidecar path and a different composite key byte
+// layout, even when the same set of columns/values is supplied.
 //
 // Multiplicity: when the matched bucket entry carries more than one
 // row-id (a duplicate key value in the source cohort), Lookup always
@@ -31,8 +40,17 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	if req.Cohort == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a cohort")
 	}
-	if req.Field == "" {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a non-empty field")
+	components := req.KeyComponents()
+	if len(components) == 0 {
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
+			"lookup requires at least one key field (Field or Keys)")
+	}
+	keyFieldNames := make([]string, len(components))
+	for i, c := range components {
+		if c.Field == "" {
+			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a non-empty field")
+		}
+		keyFieldNames[i] = c.Field
 	}
 
 	path := resolveCohortPath(req.Cohort)
@@ -42,11 +60,15 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	}
 	schema := cohort.Schema()
 
-	keyField := schema.Field(req.Field)
-	if keyField == nil {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"lookup key field not found in schema",
-			map[string]any{"field": req.Field})
+	keyFields := make([]*encoding.Field, len(components))
+	for i, name := range keyFieldNames {
+		f := schema.Field(name)
+		if f == nil {
+			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"lookup key field not found in schema",
+				map[string]any{"field": name})
+		}
+		keyFields[i] = f
 	}
 
 	returnCols, err := resolveLookupReturnColumns(schema, req.ReturnColumns)
@@ -59,7 +81,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 		fsys = s.fs.Fs()
 	}
 
-	indexPath := encoding.SidecarIndexPath(path, []string{req.Field})
+	indexPath := encoding.SidecarIndexPath(path, keyFieldNames)
 	exists, err := afero.Exists(fsys, indexPath)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
@@ -67,8 +89,8 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	}
 	if !exists {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_MISSING,
-			"no sidecar point-lookup index found for this field",
-			map[string]any{"cohort": path, "field": req.Field, "index_path": indexPath})
+			"no sidecar point-lookup index found for these key fields",
+			map[string]any{"cohort": path, "fields": keyFieldNames, "index_path": indexPath})
 	}
 
 	idx, err := encoding.ReadIndexFile(fsys, indexPath)
@@ -76,7 +98,17 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 		return nil, err
 	}
 
-	keyBytes, err := processing.ResolveLookupKeyBytes(keyField, req.Value)
+	if len(idx.Keys) != len(components) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			"lookup key component count does not match the sidecar index's key-spec",
+			map[string]any{"cohort": path, "requested": len(components), "index_key_count": len(idx.Keys)})
+	}
+
+	literals := make([]string, len(components))
+	for i, c := range components {
+		literals[i] = c.Value
+	}
+	keyBytes, err := processing.ResolveCompositeLookupKeyBytes(keyFields, literals)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +117,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	if !ok || len(entry.RowIDs) == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_NOT_FOUND,
 			"no record matches the requested key",
-			map[string]any{"cohort": path, "field": req.Field, "value": req.Value})
+			map[string]any{"cohort": path, "fields": keyFieldNames, "values": literals})
 	}
 	// v1: always take the first row-id — see types.LookupMultiplicity.
 	rowID := entry.RowIDs[0]
