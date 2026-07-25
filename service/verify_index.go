@@ -62,8 +62,9 @@ type VerifyIndexResult struct {
 // keyFields against the cohort at path is still fresh, using a
 // size+mtime fast-path before paying for a full content-hash recompute:
 //
-//  1. Load the sidecar (encoding.ReadIndexFile at the path
-//     encoding.SidecarIndexPath derives). PULSE_INDEX_MISSING if absent.
+//  1. Load the sidecar's metadata only (encoding.ReadIndexMetaFile at
+//     the path encoding.SidecarIndexPath derives — never the bucket
+//     data, which freshness never needs). PULSE_INDEX_MISSING if absent.
 //  2. Stat the CURRENT cohort file and compare its size + modification
 //     time against the sidecar's recorded Index.SourceSize /
 //     Index.SourceModTime (captured by Service.BuildIndex at build
@@ -121,7 +122,7 @@ func (s *Service) VerifyIndex(ctx context.Context, path string, keyFields []stri
 			map[string]any{"cohort": path, "fields": keyFields, "index_path": indexPath})
 	}
 
-	idx, err := encoding.ReadIndexFile(fsys, indexPath)
+	meta, err := encoding.ReadIndexMetaFile(fsys, indexPath)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +132,7 @@ func (s *Service) VerifyIndex(ctx context.Context, path string, keyFields []stri
 		return nil, err
 	}
 
-	if currentSize != idx.SourceSize || currentModTime != idx.SourceModTime {
+	if currentSize != meta.SourceSize || currentModTime != meta.SourceModTime {
 		return &VerifyIndexResult{
 			IndexPath: indexPath,
 			Fresh:     false,
@@ -145,7 +146,7 @@ func (s *Service) VerifyIndex(ctx context.Context, path string, keyFields []stri
 		return nil, err
 	}
 
-	if fp != idx.Fingerprint {
+	if fp != meta.Fingerprint {
 		return &VerifyIndexResult{
 			IndexPath: indexPath,
 			Fresh:     false,
