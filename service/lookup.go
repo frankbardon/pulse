@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -19,12 +20,22 @@ import (
 // req.Field/req.Value single-key convenience path — see
 // types.LookupRequest.KeyComponents): derive the sidecar index path for
 // the ordered key-field names (the same derivation Service.BuildIndex
-// used to write it), load the sidecar, validate the request's
-// key-component count matches the loaded index's key-spec, resolve
+// used to write it), read only the sidecar's cheap bucket-data-free
+// prefix (encoding.ReadIndexMeta) to validate the request's
+// key-component count and run the read-path staleness check, resolve
 // every component's literal to on-wire key bytes and concatenate them
-// in order, probe the hash bucket for a byte-equal entry, and — on a
-// hit — read the matching record via encoding.RecordLocator.ReadRecordAt
-// with a single reused DecodePlan projected to req.ReturnColumns.
+// in order, seek directly to and parse the ONE hash bucket the key
+// resolves to (encoding.ReadBucketByKey) for a byte-equal entry, and —
+// on a hit — read the matching record(s) via encoding.RecordLocator
+// .ReadRecordAt with a single reused DecodePlan projected to
+// req.ReturnColumns, seeking straight to each matched record's byte
+// offset rather than decoding the cohort from the start.
+//
+// This is an O(1) operation in the cohort's record count: neither the
+// sidecar index nor the cohort payload is ever read in full. Only the
+// bucket-data-free index prefix, the one resolved bucket, and the
+// matched record(s) (plus the fixed header+schema prefix each file
+// carries) are read.
 //
 // Key column order is significant: KeyComponents in a different order
 // derives a different sidecar path and a different composite key byte
@@ -110,7 +121,18 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 			map[string]any{"cohort": path, "fields": keyFieldNames, "index_path": indexPath})
 	}
 
-	idx, err := encoding.ReadIndexFile(fsys, indexPath)
+	// O(1) index read: only the bucket-data-free prefix (fingerprint,
+	// key-spec, source-stat snapshot, bucket count + offset-table
+	// anchor) is parsed here — never the offset table's other entries,
+	// never any bucket's data. See encoding.ReadIndexMeta's doc comment.
+	sidecarFile, err := fsys.Open(indexPath)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("opening sidecar index file: %s", indexPath))
+	}
+	defer sidecarFile.Close()
+
+	meta, err := encoding.ReadIndexMeta(sidecarFile)
 	if err != nil {
 		return nil, err
 	}
@@ -129,16 +151,16 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	if err != nil {
 		return nil, err
 	}
-	if currentSize != idx.SourceSize || currentModTime != idx.SourceModTime {
+	if currentSize != meta.SourceSize || currentModTime != meta.SourceModTime {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_STALE,
 			"sidecar point-lookup index is stale: the cohort file's size or modification time no longer matches the snapshot taken at index build",
 			map[string]any{"cohort": path, "fields": keyFieldNames, "index_path": indexPath})
 	}
 
-	if len(idx.Keys) != len(components) {
+	if len(meta.Keys) != len(components) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"lookup key component count does not match the sidecar index's key-spec",
-			map[string]any{"cohort": path, "requested": len(components), "index_key_count": len(idx.Keys)})
+			map[string]any{"cohort": path, "requested": len(components), "index_key_count": len(meta.Keys)})
 	}
 
 	literals := make([]string, len(components))
@@ -150,7 +172,15 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 		return nil, err
 	}
 
-	entry, ok := findIndexEntry(idx, keyBytes)
+	// Single-bucket seek read: resolves keyBytes to its hash bucket and
+	// parses only that bucket's self-delimited data — never the whole
+	// bucket-offset table, never any other bucket.
+	bucket, err := encoding.ReadBucketByKey(sidecarFile, meta, keyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	entry, ok := findBucketEntry(bucket, keyBytes)
 	if !ok || len(entry.RowIDs) == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_NOT_FOUND,
 			"no record matches the requested key",
@@ -185,16 +215,17 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 			map[string]any{"multiplicity": string(mode)})
 	}
 
-	raw, err := afero.ReadFile(fsys, path)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("reading cohort file for lookup: %s", path))
-	}
-	reader := bytes.NewReader(raw)
-	loc, err := encoding.NewRecordLocator(reader, schema)
+	// O(1) record read: open the cohort file once and derive the
+	// RecordLocator's geometry from the header+schema prefix (bounded by
+	// field count, never row count) plus the already-known total file
+	// size — the record region itself is never read up front. Every
+	// matched row-id then seeks directly to its own record via the same
+	// open handle and a single reused DecodePlan.
+	cohortFile, loc, err := openRecordLocator(fsys, path, schema, currentSize)
 	if err != nil {
 		return nil, err
 	}
+	defer cohortFile.Close()
 
 	plan, err := schema.BuildDecodePlan(returnCols)
 	if err != nil {
@@ -212,7 +243,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 		values := make(map[string]float64)
 		nulls := make(map[string]bool)
 		wide := make(map[string]any)
-		if err := loc.ReadRecordAt(reader, rowID, values, nulls, wide, keep, plan); err != nil {
+		if err := loc.ReadRecordAt(cohortFile, rowID, values, nulls, wide, keep, plan); err != nil {
 			return nil, err
 		}
 
@@ -254,21 +285,80 @@ func resolveLookupReturnColumns(schema *encoding.Schema, requested []string) ([]
 	return out, nil
 }
 
-// findIndexEntry probes idx's hash bucket for keyBytes and scans the
-// bucket's entries for a byte-equal Key — mirrors the read-side half of
-// the encoding.BucketIndex / encoding.HashKey contract that
+// findBucketEntry scans one already-resolved bucket's entries for a
+// byte-equal Key — mirrors the read-side half of the
+// encoding.BucketIndex / encoding.HashKey contract that
 // Service.BuildIndex's write side already exercises. Returns
-// (nil-entry, false) when idx has zero buckets (empty index) or no
-// entry in the resolved bucket matches keyBytes exactly.
-func findIndexEntry(idx *encoding.Index, keyBytes []byte) (encoding.IndexEntry, bool) {
-	if len(idx.Buckets) == 0 {
+// (nil-entry, false) when bucket is nil/empty (an empty index, or a
+// hash collision-free miss) or no entry matches keyBytes exactly.
+func findBucketEntry(bucket *encoding.IndexBucket, keyBytes []byte) (encoding.IndexEntry, bool) {
+	if bucket == nil {
 		return encoding.IndexEntry{}, false
 	}
-	bi := encoding.BucketIndex(keyBytes, uint32(len(idx.Buckets)))
-	for _, e := range idx.Buckets[bi].Entries {
+	for _, e := range bucket.Entries {
 		if bytes.Equal(e.Key, keyBytes) {
 			return e, true
 		}
 	}
 	return encoding.IndexEntry{}, false
+}
+
+// openRecordLocator opens path on fsys via a FRESH handle and derives
+// an encoding.RecordLocator's geometry — RecordRegionStart, Stride,
+// TotalRecords — without reading the record region itself: it reads
+// only the header+schema prefix (bounded by field count, never row
+// count — the same prefix Service.Open already streamed once to parse
+// schema) to measure exactly how many bytes that prefix consumes on
+// this file, then derives TotalRecords analytically from schema's fixed
+// record stride and the caller-supplied totalSize (the stat-based size
+// the read-path staleness check already obtained, so no second stat is
+// needed here).
+//
+// Returns the open file positioned at the start of the record region;
+// callers reuse it directly as the io.ReadSeeker RecordLocator
+// .ReadRecordAt seeks against (its seeks are always absolute, so the
+// returned file's cursor position on entry is irrelevant to correctness
+// — the record region is never decoded from the start). Callers own the
+// returned file's lifecycle (defer Close).
+func openRecordLocator(fsys afero.Fs, path string, schema *encoding.Schema, totalSize uint64) (afero.File, *encoding.RecordLocator, error) {
+	f, err := fsys.Open(path)
+	if err != nil {
+		return nil, nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("opening cohort file for lookup record read: %s", path))
+	}
+
+	if err := encoding.ReadHeader(f); err != nil {
+		f.Close()
+		return nil, nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("invalid pulse file: %s", path))
+	}
+	if _, err := encoding.ReadSchema(f); err != nil {
+		f.Close()
+		return nil, nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("reading schema from: %s", path))
+	}
+
+	recordRegionStart, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		f.Close()
+		return nil, nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("measuring record region start: %s", path))
+	}
+
+	stride := int64(schema.RecordByteSize())
+	var totalRecords uint64
+	if stride > 0 {
+		available := int64(totalSize) - recordRegionStart
+		if available > 0 {
+			totalRecords = uint64(available / stride)
+		}
+	}
+
+	loc := &encoding.RecordLocator{
+		Schema:            schema,
+		RecordRegionStart: recordRegionStart,
+		Stride:            stride,
+		TotalRecords:      totalRecords,
+	}
+	return f, loc, nil
 }
