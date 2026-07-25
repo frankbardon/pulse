@@ -112,6 +112,7 @@ pulse api lookup --input sales.pulse \
 
 ## Related
 
+- [Point Lookup & Index Management](../library/point-lookup.md) — the Go library equivalent (`Pulse.Lookup` / `Pulse.BuildIndex` / `Pulse.VerifyIndex` / `Pulse.ListIndexes` / `Pulse.DropIndex`)
 - [`pulse index`](index.md) — build / list / verify / drop the sidecar index this command reads
 - [`pulse api process`](api-process.md) — full scan with `FILTER_*` for non-exact-key or `set_*` membership queries
 - [.pulse File Format → Header Layout](../format/header.md) — the cohort layout the sidecar sits alongside, unchanged

@@ -37,6 +37,7 @@
 - [Request Hashing](library/request-hashing.md)
 - [Watch & WatchDir](library/watch.md)
 - [Deterministic FilterToFile](library/filter-to-file.md)
+- [Point Lookup & Index Management](library/point-lookup.md)
 
 # .pulse File Format
 
