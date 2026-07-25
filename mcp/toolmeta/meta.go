@@ -23,6 +23,7 @@ const (
 	ToolSample         = "pulse_sample"
 	ToolFacet          = "pulse_facet"
 	ToolFacetSchema    = "pulse_facet_schema"
+	ToolLookup         = "pulse_lookup"
 	ToolSkillsList     = "pulse_skills_list"
 	ToolSkillsGet      = "pulse_skills_get"
 	ToolManifest       = "pulse_manifest"
@@ -46,6 +47,7 @@ const (
 	DescSample         = "Return up to N rows from a cohort. Diagnostic / preview tool — use after running a request when you want to eyeball the underlying data."
 	DescFacet          = "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use when you need the unique-value set of one column (e.g., before authoring a FILTER_INCLUDE). For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive contribution counts, prefer pulse_facet_schema."
 	DescFacetSchema    = "Multi-field rich facet endpoint. Returns per-field summaries (discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming statistics — count, sum, min, max, mean, stddev — for numeric fields), with optional NumericPercentiles (forces buffered per-field sort), IncludeHistogram + HistogramRange + HistogramBins for fixed-width binning, DiscreteTopK truncation, and AdditiveFields contribution counts that strip the field's own filter clauses so the LLM/UI can report 'if I added value V to my filter on F, this is the population that survives'. Filterers reuse the standard FILTER_* surface. Use this instead of repeated pulse_facet calls when summarising more than one field, when you need counts (not just distinct values), or when building a faceted UI."
+	DescLookup         = "Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on >1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built, PULSE_INDEX_UNSUPPORTED_SHARDED for shard-archive cohorts, and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key."
 	DescSkillsList     = "List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Use this before authoring requests when you need domain guidance for a less common operator; fetch the markdown body via pulse_skills_get."
 	DescSkillsGet      = "Fetch the markdown body of a named skill. The skill pack is the authoritative reference for HOW to use operators (params, gotchas, recipes) — prefer skills over external documentation, blog posts, or source-code inspection, which may be out of date for this Pulse deployment."
 	DescManifest       = "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
@@ -78,6 +80,7 @@ func Meta() []ToolMeta {
 		{Name: ToolSample, Description: DescSample},
 		{Name: ToolFacet, Description: DescFacet},
 		{Name: ToolFacetSchema, Description: DescFacetSchema},
+		{Name: ToolLookup, Description: DescLookup},
 		{Name: ToolSkillsList, Description: DescSkillsList},
 		{Name: ToolSkillsGet, Description: DescSkillsGet},
 		{Name: ToolManifest, Description: DescManifest},

@@ -134,6 +134,11 @@ type ProcessChainIn = types.ChainRequest
 // FacetSchemaIn is the input contract for pulse_facet_schema.
 type FacetSchemaIn = types.FacetRequest
 
+// LookupIn is the input contract for pulse_lookup — the structured point-
+// lookup request (cohort, key components, return columns, multiplicity) at
+// top level.
+type LookupIn = types.LookupRequest
+
 // --- Outputs ------------------------------------------------------------------
 
 // InspectOut is the output contract for pulse_inspect.
@@ -153,6 +158,10 @@ type ProcessChainOut = types.ChainResponse
 
 // FacetSchemaOut is the output contract for pulse_facet_schema.
 type FacetSchemaOut = types.FacetResult
+
+// LookupOut is the output contract for pulse_lookup — wraps the matched
+// row(s) (Rows) plus any diagnostic Warnings.
+type LookupOut = types.LookupResult
 
 // ManifestOut is the output contract for pulse_manifest (the slim manifest is
 // the same struct as the full one).

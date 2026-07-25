@@ -1131,6 +1131,86 @@
       ],
       "type": "object"
     },
+    "LookupKey": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "value"
+      ],
+      "type": "object"
+    },
+    "LookupRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "cohort": {
+          "$ref": "#/$defs/Cohort"
+        },
+        "field": {
+          "type": "string"
+        },
+        "keys": {
+          "items": {
+            "$ref": "#/$defs/LookupKey"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "multiplicity": {
+          "type": "string"
+        },
+        "return_columns": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "LookupResult": {
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "rows"
+      ],
+      "type": "object"
+    },
     "MatrixCell": {
       "additionalProperties": false,
       "properties": {
@@ -2464,6 +2544,12 @@
       "$ref": "#/$defs/FacetResult"
     },
     {
+      "$ref": "#/$defs/LookupRequest"
+    },
+    {
+      "$ref": "#/$defs/LookupResult"
+    },
+    {
       "$ref": "#/$defs/Request"
     },
     {
@@ -2475,4 +2561,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: d19c448d71bebb613474a0a068359491ad8aa3889a9c59f00c4427c0a60b2a36
+// golden-hash: 7f43cb351f15a261d4b1a70d01d10c9e52b2a93f7c0e3ca5f04030a948000c5f

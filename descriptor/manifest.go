@@ -219,6 +219,7 @@ func commands() []Command {
 		{Name: "process-chain", Description: "Execute a source-rooted linear chain of mergeable processing stages", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
 		{Name: "sample", Description: "Return sample rows from a cohort", Annotations: CommandAnnotations{Streamable: true, Deterministic: false, Expensive: false}},
 		{Name: "facet", Description: "Return distinct values for a field", Annotations: CommandAnnotations{Streamable: true, Deterministic: true, Expensive: false}},
+		{Name: "lookup", Description: "Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "inspect", Description: "Inspect a .pulse file header and schema", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "predict", Description: "Validate a request without executing", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "manifest", Description: "Output the root manifest", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
@@ -233,6 +234,10 @@ func commands() []Command {
 		{Name: "shard compact", Description: "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
 		{Name: "shard verify", Description: "Re-validate every shard's header + cohesion against the canonical schema", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
 		{Name: "shard extract", Description: "Extract a shard's standalone .pulse bytes to stdout", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "index build", Description: "Build a point-lookup sidecar index for one or more key columns", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "index list", Description: "List every sidecar point-lookup index built for a cohort", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "index verify", Description: "Report whether a cohort's sidecar point-lookup index is still fresh", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "index drop", Description: "Remove a cohort's sidecar point-lookup index", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 	}
 }
 

@@ -23,9 +23,10 @@ The CLI and MCP surfaces emit byte-identical output to the published file.
 The document is a `$defs` bundle. The root `oneOf` lists the entry points:
 
 - **Requests** — `#/$defs/Request` (process / predict), `ComposedRequest`
-  (compose), `ChainRequest` (process-chain), `FacetRequest`, `SampleRequest`.
+  (compose), `ChainRequest` (process-chain), `FacetRequest`, `SampleRequest`,
+  `LookupRequest` (point lookup).
 - **Results** — `#/$defs/Response`, `ComposedResponse`, `ChainResponse`,
-  `FacetResult`.
+  `FacetResult`, `LookupResult`.
 - **Envelope** — `#/$defs/Envelope`, the universal `--json` wrapper. Its
   `data` slot is intentionally open: it carries whatever the operation
   returned (a `Response`, the manifest, a predict result, an inspect

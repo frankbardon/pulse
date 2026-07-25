@@ -957,6 +957,135 @@ func (p *Pulse) FacetSchema(ctx context.Context, req *FacetRequest) (*FacetResul
 	return resp, err
 }
 
+// LookupRequest re-exports types.LookupRequest so callers can use
+// pulse.LookupRequest as the input to Lookup.
+type LookupRequest = types.LookupRequest
+
+// LookupResult re-exports types.LookupResult — the response from
+// Lookup.
+type LookupResult = types.LookupResult
+
+// LookupMultiplicity re-exports types.LookupMultiplicity — the
+// duplicate-key handling mode on LookupRequest (assert-unique by
+// default; opt into "first" or "all" for a key that may match more
+// than one row).
+type LookupMultiplicity = types.LookupMultiplicity
+
+// LookupKey re-exports types.LookupKey — one ordered key column/value
+// pair in a composite LookupRequest.Keys tuple, so callers can build a
+// composite key without importing the types package.
+type LookupKey = types.LookupKey
+
+// LookupMultiplicity mode constants, re-exported so callers can set
+// LookupRequest.Multiplicity without importing the types package.
+const (
+	// LookupMultiplicityAssertUnique errors PULSE_LOOKUP_AMBIGUOUS when
+	// the key matches more than one row. It is the zero-value default.
+	LookupMultiplicityAssertUnique = types.LookupMultiplicityAssertUnique
+	// LookupMultiplicityFirst returns the lowest-row-id match.
+	LookupMultiplicityFirst = types.LookupMultiplicityFirst
+	// LookupMultiplicityAll returns every match, ascending row-id order.
+	LookupMultiplicityAll = types.LookupMultiplicityAll
+)
+
+// Lookup resolves a point lookup (single-key or composite, via
+// req.Keys) against the cohort named in req.Cohort, using the prebuilt
+// sidecar index (see BuildIndex). Returns PULSE_INDEX_MISSING when no
+// sidecar index exists for the requested key fields, PULSE_LOOKUP_NOT_FOUND
+// when the index exists but no record matches, or PULSE_LOOKUP_AMBIGUOUS
+// when more than one record matches and req.Multiplicity is (or
+// defaults to) LookupMultiplicityAssertUnique. See service.Service.Lookup
+// for the full algorithm.
+func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, error) {
+	if req == nil {
+		return nil, fmt.Errorf("pulse: lookup requires a request")
+	}
+	resp, err := p.svc.Lookup(ctx, req)
+	if err == nil && req.Cohort != nil {
+		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	}
+	return resp, err
+}
+
+// BuildIndexResult re-exports service.BuildIndexResult — the outcome
+// of a successful point-lookup sidecar index build: the derived
+// sidecar path (see encoding.SidecarIndexPath) plus the in-memory
+// encoding.Index that was serialized there.
+type BuildIndexResult = service.BuildIndexResult
+
+// BuildIndex builds a point-lookup sidecar index for the cohort at
+// path over the ordered key columns named in keyFields (a single
+// element is the degenerate single-key case; more than one produces a
+// composite key, in column order). Delegates to service.Service.BuildIndex
+// for the full algorithm and error surface — see that method's doc
+// comment for the scan/bucket/write contract, the
+// PULSE_INDEX_UNSUPPORTED_SHARDED shard-archive rejection, and the
+// PROCESSING_CONFIG disallowed-key-type rejection.
+func (p *Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*BuildIndexResult, error) {
+	res, err := p.svc.BuildIndex(ctx, path, keyFields)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return res, err
+}
+
+// VerifyIndexResult re-exports service.VerifyIndexResult — the outcome
+// of a Service.VerifyIndex freshness check.
+type VerifyIndexResult = service.VerifyIndexResult
+
+// IndexFreshnessReason re-exports service.IndexFreshnessReason — why
+// VerifyIndex reached its Fresh/stale verdict
+// ("stat_mismatch"/"fingerprint_match"/"fingerprint_mismatch").
+type IndexFreshnessReason = service.IndexFreshnessReason
+
+// VerifyIndex reports whether the sidecar point-lookup index built for
+// keyFields against the cohort at path is still fresh, using the
+// size+mtime fast-path before paying for a full content-hash recompute.
+// Delegates to service.Service.VerifyIndex — see that method's doc
+// comment for the full fast-path decision tree. Returns
+// PULSE_INDEX_MISSING when no sidecar exists for keyFields and
+// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+func (p *Pulse) VerifyIndex(ctx context.Context, path string, keyFields []string) (*VerifyIndexResult, error) {
+	res, err := p.svc.VerifyIndex(ctx, path, keyFields)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return res, err
+}
+
+// IndexInfo re-exports service.IndexInfo — one entry in a
+// Service.ListIndexes result: a sidecar's derived path, its ordered
+// key column names, and its distinct-key / indexed-record summary.
+type IndexInfo = service.IndexInfo
+
+// ListIndexes enumerates every sidecar point-lookup index built
+// against the cohort at path. Delegates to service.Service.ListIndexes
+// — see that method's doc comment for the directory-glob + sidecar-read
+// discovery algorithm. Returns an empty (non-nil) slice, not an error,
+// when no sidecar indexes have been built yet. Returns
+// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+func (p *Pulse) ListIndexes(ctx context.Context, path string) ([]IndexInfo, error) {
+	res, err := p.svc.ListIndexes(ctx, path)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return res, err
+}
+
+// DropIndex removes the sidecar point-lookup index built for keyFields
+// against the cohort at path. Delegates to service.Service.DropIndex —
+// see that method's doc comment for the non-interactive
+// (no-confirmation-prompt) contract. Returns PULSE_INDEX_MISSING when
+// no sidecar exists at the derived path and
+// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+func (p *Pulse) DropIndex(ctx context.Context, path string, keyFields []string) error {
+	err := p.svc.DropIndex(ctx, path, keyFields)
+	if err == nil {
+		p.touchManaged(ctx, path)
+	}
+	return err
+}
+
 // ExamplesSearch returns summaries from the embedded request-example
 // library matching the given filters. An empty filter is treated as
 // "no constraint" for that dimension. Query is case-insensitive

@@ -49,6 +49,15 @@
         }
       },
       {
+        "name": "lookup",
+        "description": "Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "inspect",
         "description": "Inspect a .pulse file header and schema",
         "annotations": {
@@ -168,6 +177,42 @@
       {
         "name": "shard extract",
         "description": "Extract a shard's standalone .pulse bytes to stdout",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "index build",
+        "description": "Build a point-lookup sidecar index for one or more key columns",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
+      },
+      {
+        "name": "index list",
+        "description": "List every sidecar point-lookup index built for a cohort",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "index verify",
+        "description": "Report whether a cohort's sidecar point-lookup index is still fresh",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "index drop",
+        "description": "Remove a cohort's sidecar point-lookup index",
         "annotations": {
           "streamable": false,
           "deterministic": true,
@@ -4807,7 +4852,7 @@
         ]
       }
     ],
-    "error_codes_count": 147,
+    "error_codes_count": 152,
     "error_domains": [
       "CLI",
       "DATA",
@@ -4889,6 +4934,9 @@
       "PULSE_IMPORT_SET_OVERFLOW",
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
+      "PULSE_INDEX_MISSING",
+      "PULSE_INDEX_STALE",
+      "PULSE_INDEX_UNSUPPORTED_SHARDED",
       "PULSE_JOIN_FIELD_COLLISION",
       "PULSE_JOIN_FIELD_UNKNOWN",
       "PULSE_JOIN_KEYS_EMPTY",
@@ -4903,7 +4951,9 @@
       "PULSE_LABEL_LOOKUP_MISS",
       "PULSE_LABEL_TABLE_NOT_ENUMERABLE",
       "PULSE_LABEL_TABLE_UNKNOWN",
+      "PULSE_LOOKUP_AMBIGUOUS",
       "PULSE_LOOKUP_MISS",
+      "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
       "PULSE_OVERLAY_COMPONENTS_REQUIRED",
@@ -5013,6 +5063,10 @@
       {
         "name": "pulse_label_tables",
         "description": "List the registered label tables (ID→display-name dictionaries for categorical fields). Returns each table's name, row count, and whether it is enumerable (reverse-searchable). Use this to discover which categorical dimensions can be resolved by name (e.g. brand, category, region) before calling pulse_label_resolve. Output surfaces already render these labels automatically; this tool and pulse_label_resolve are for the INPUT direction — turning a user-supplied name into the raw categorical key a filter / grouper needs."
+      },
+      {
+        "name": "pulse_lookup",
+        "description": "Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on \u003e1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built, PULSE_INDEX_UNSUPPORTED_SHARDED for shard-archive cohorts, and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key."
       },
       {
         "name": "pulse_manifest",
@@ -6710,6 +6764,10 @@
       {
         "name": "tool-label-tables",
         "description": "List registered label tables — ID→display-name dictionaries for categorical fields."
+      },
+      {
+        "name": "tool-lookup",
+        "description": "Resolve a point lookup against a cohort's prebuilt sidecar index."
       },
       {
         "name": "tool-manifest",
@@ -8987,4 +9045,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5a0c136e2f0c199220fe986142420cae299c97fc63b92c63df4247951299ff76
+// golden-hash: e25a545407fd4a1e2a874d6fb6f10e1ab2f9c3e9a6f5ded273aa89181cc3fd1c

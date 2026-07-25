@@ -54,7 +54,7 @@ When at least one field is `Nullable: true`, every record carries a trailing bit
 
 The bitmap is the sole null mechanism. No type has an inline sentinel — `decimal128` all-zero bits is decimal zero, not null. Null-skip semantics for sum/mean/percentile are central.
 
-**Inferred imports promote on out-of-sample nulls.** Schema inference reads only the first `--sample-rows` (default 500) rows to decide nullability. If a null (`""`/`null`/`na`/`n/a`) lands in a column past that window, the importer promotes the field to nullable and continues rather than failing — emitting a `PULSE_IMPORT_NULL_PROMOTED` warning listing the promoted fields (also on `ImportReport.PromotedFields` / the managed `Result.promoted_fields`). This applies to every inferred text/columnar import (csv, tsv, ndjson, jsonarray, parquet, arrow, excel). An **explicit `--schema`** is a contract: a null in a field you declared non-nullable stays a `PULSE_IMPORT_ROW_ERROR`. To avoid promotion surprises, mark sometimes-missing fields `"nullable": true` in the schema, or raise `--sample-rows`.
+**Inferred imports promote on out-of-sample nulls.** Schema inference reads only the first `--sample-rows` (default 500) rows to decide nullability. A null (`""`/`null`/`na`/`n/a`) past that window promotes the field to nullable and continues rather than failing — emitting `PULSE_IMPORT_NULL_PROMOTED` (also `ImportReport.PromotedFields` / `Result.promoted_fields`). Applies to every inferred text/columnar import (csv, tsv, ndjson, jsonarray, parquet, arrow, excel). An **explicit `--schema`** is a contract: a null in a declared-non-nullable field stays `PULSE_IMPORT_ROW_ERROR`. Avoid surprises: mark sometimes-missing fields `"nullable": true`, or raise `--sample-rows`.
 
 ## Bit-packed runs
 
@@ -107,8 +107,27 @@ Materializing ops (percentile / median aggs, `ATTR_PERCENTILE`, `GROUP_QUANTILE`
 
 No concurrent-writer protection. Two writers race; last writer wins. Readers snapshot at open. Caller owns single-writer architecture or external advisory lock.
 
+## Sidecar index
+
+`Pulse.Lookup` / `pulse index build` use a **separate file** next to the cohort — `cohort.pulse.<keyhash>.idx` — the `.pulse` byte layout above stays untouched. Format **v3**:
+
+1. 9-byte header: magic `PULSEIDX` + version `0x03` (own magic/version, distinct from `encoding.MagicBytes`/`FormatVersion`).
+2. 32-byte SHA-256 source fingerprint.
+3. Key-spec: ordered key columns + field types.
+4. `SourceSize` (u64) + `SourceModTime` (i64 Unix ns) — staleness snapshot.
+5. `u32 bucket_count`.
+6. Fixed-width `bucket_count × u64` bucket-offset table — each entry directly addressable, enabling O(1) single-bucket seek.
+7. Self-delimited bucket data: FNV-1a hash buckets → `[]uint64` row-id multimap.
+
+A lookup hashes the key to one bucket, seeks to that bucket's offset entry, seeks to its data, then seeks straight to each matched record via `RecordLocator` — never a full-cohort or full-index read. Staleness on the read path is an O(1) size+mtime stat (mismatch → `PULSE_INDEX_STALE`); `pulse index verify` recomputes the authoritative full SHA-256 fingerprint instead.
+
+**Keyable-type policy** (`processing.IsIndexKeyableFieldType`): ALLOW `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (bit-pattern equality — `-0.0`/NaN caveat), `date`, `decimal128` (exact mantissa, no float round-trip), `categorical_*` (dictionary ID), `packed_bool`. REJECT `set_*` — no single unambiguous equality value; use `FILTER_SET` instead.
+
+**Constraints:** single-file cohorts only — shards → `PULSE_INDEX_UNSUPPORTED_SHARDED` (`archive.pulse#shard.pulse` anchor is a tested single-shard workaround). Equality-only, full-key required, composite-key order significant end to end. Errors: `PULSE_INDEX_MISSING`, `PULSE_INDEX_STALE`, `PULSE_INDEX_UNSUPPORTED_SHARDED`, `PULSE_LOOKUP_NOT_FOUND`, `PULSE_LOOKUP_AMBIGUOUS`.
+
 ## Cross-links
 
 - `financial-cohorts` — `decimal128` rules.
 - `response-components` — `data.components.run.shard_count` + `partial_cohort_reason`.
 - `aggregation-guide` / `grouper-design` / `attribute-composition` — `set_*` operator surfaces.
+- `tool-lookup` — point-lookup MCP surface built on this sidecar format.

@@ -122,7 +122,7 @@ func TestRegister_MountsAllSurfaces(t *testing.T) {
 	defer cancel()
 	ctx := context.Background()
 
-	// All 19 tools.
+	// All 20 tools.
 	toolsOut, err := c.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatalf("ListTools: %v", err)
@@ -137,8 +137,8 @@ func TestRegister_MountsAllSurfaces(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("tool list mismatch\n got: %v\nwant: %v", got, want)
 	}
-	if len(want) != 19 {
-		t.Fatalf("expected 19 registered tools, got %d", len(want))
+	if len(want) != 20 {
+		t.Fatalf("expected 20 registered tools, got %d", len(want))
 	}
 
 	// Self-description tools MUST be present in the mounted catalog. A

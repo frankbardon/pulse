@@ -125,6 +125,20 @@ func HandleFacetSchema(ctx context.Context, p *pulse.Pulse, in FacetSchemaIn) (F
 	return *res, nil
 }
 
+// HandleLookup runs pulse_lookup: resolves a point lookup (single-key or
+// composite) against a cohort's prebuilt sidecar index. Delegates to
+// Pulse.Lookup only; coded errors (PULSE_INDEX_MISSING, PULSE_INDEX_STALE,
+// PULSE_INDEX_UNSUPPORTED_SHARDED, PULSE_LOOKUP_NOT_FOUND,
+// PULSE_LOOKUP_AMBIGUOUS) surface verbatim.
+func HandleLookup(ctx context.Context, p *pulse.Pulse, in LookupIn) (LookupOut, error) {
+	req := in
+	res, err := p.Lookup(ctx, &req)
+	if err != nil {
+		return LookupOut{}, err
+	}
+	return *res, nil
+}
+
 // HandleManifest runs pulse_manifest: the slim bootstrap blob. Prose
 // descriptions live in skills and are fetched via pulse_skills_get;
 // duplicating them in the per-session bootstrap is the bloat --slim avoids.

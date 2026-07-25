@@ -103,6 +103,71 @@ func TestCanonicalHash_SynthSpec_StableShape(t *testing.T) {
 	}
 }
 
+func TestLookupRequest_Hash_Deterministic(t *testing.T) {
+	a := &LookupRequest{
+		Cohort:        &Cohort{Filename: "cohort.pulse"},
+		Field:         "id",
+		Value:         "3",
+		ReturnColumns: []string{"score", "region"},
+	}
+	b := &LookupRequest{
+		Cohort:        &Cohort{Filename: "cohort.pulse"},
+		Field:         "id",
+		Value:         "3",
+		ReturnColumns: []string{"score", "region"},
+	}
+	if a.Hash() != b.Hash() {
+		t.Fatalf("LookupRequest hash unstable across structurally identical requests")
+	}
+	if a.Hash() == "" {
+		t.Fatal("LookupRequest.Hash() returned empty string")
+	}
+
+	c := &LookupRequest{
+		Cohort: &Cohort{Filename: "cohort.pulse"},
+		Field:  "id",
+		Value:  "4", // differs
+	}
+	if a.Hash() == c.Hash() {
+		t.Fatal("LookupRequest hash must differ when Value differs")
+	}
+
+	if (*LookupRequest)(nil).Hash() == "" {
+		t.Fatal("nil LookupRequest.Hash() must still return a stable non-empty hash")
+	}
+}
+
+func TestLookupRequest_Hash_CompositeKeysDeterministicAndOrderSignificant(t *testing.T) {
+	a := &LookupRequest{
+		Cohort: &Cohort{Filename: "cohort.pulse"},
+		Keys: []LookupKey{
+			{Field: "region", Value: "east"},
+			{Field: "period", Value: "2023"},
+		},
+	}
+	b := &LookupRequest{
+		Cohort: &Cohort{Filename: "cohort.pulse"},
+		Keys: []LookupKey{
+			{Field: "region", Value: "east"},
+			{Field: "period", Value: "2023"},
+		},
+	}
+	if a.Hash() != b.Hash() {
+		t.Fatal("LookupRequest hash unstable across structurally identical composite-key requests")
+	}
+
+	swapped := &LookupRequest{
+		Cohort: &Cohort{Filename: "cohort.pulse"},
+		Keys: []LookupKey{
+			{Field: "period", Value: "2023"},
+			{Field: "region", Value: "east"},
+		},
+	}
+	if a.Hash() == swapped.Hash() {
+		t.Fatal("LookupRequest hash must differ when composite Keys order differs")
+	}
+}
+
 func TestCanonicalHash_OverlayFreeByteIdentity(t *testing.T) {
 	const captured = "a4e259f7ed18dcbcb3e78b76066bcbee"
 	r := &Request{

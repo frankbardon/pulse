@@ -1573,4 +1573,65 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+
+	// ---------- PULSE: point-lookup index (E1) ----------
+	PULSE_INDEX_MISSING: {
+		Message: "No sidecar point-lookup index was found on disk for the requested LookupRequest.Field. Point lookups probe a prebuilt sidecar index (encoding.SidecarIndexPath derives its path from the cohort file and key field) rather than scanning the cohort — the index must be built once before any Lookup call against that field can succeed.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Build the sidecar index for this field first: `pulse index build <cohort> --key <field>` (or the equivalent Service.BuildIndex(ctx, path, []string{field}) library call). Re-run the lookup once the sidecar file exists at the derived `<cohort>.<keyhash>.idx` path.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Field"},
+				Hint:   "Alternatively, point the lookup at a field that already has a built sidecar index — list existing sidecars alongside the cohort file (same directory, `.idx` suffix) to see which key fields are ready.",
+			},
+		},
+	},
+	PULSE_LOOKUP_NOT_FOUND: {
+		Message: "The sidecar point-lookup index was found and read successfully, but LookupRequest.Value has no matching entry in the resolved hash bucket — no record in the cohort carries that key value for LookupRequest.Field.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Value"},
+				Hint:   "Verify the literal Value is spelled/typed exactly as it appears in the source data (categorical values are case-sensitive dictionary lookups; numeric values must parse to the same on-wire representation as the indexed field). If the cohort was re-imported or the key column's data changed since the index was built, rebuild the sidecar via `pulse index build` — a stale index silently returns not-found for keys added after the last build.",
+			},
+		},
+	},
+	PULSE_LOOKUP_AMBIGUOUS: {
+		Message: "The requested key matched more than one row in the cohort, but LookupRequest.Multiplicity is (or defaults to) \"assert_unique\", which fails rather than silently picking one match. This is the default mode precisely so a duplicate-key surprise never returns a single, arbitrary row without the caller knowing more than one candidate exists.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Keys"},
+				Hint:     "Add another key column (or a composite Keys tuple) that uniquely identifies the record you want — e.g. combine the ambiguous field with an id/timestamp column and rebuild the sidecar index for that composite key via `pulse index build <cohort> --key <field1> --key <field2>`.",
+				Examples: []any{[]any{map[string]any{"field": "region", "value": "east"}, map[string]any{"field": "id", "value": "4"}}},
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Multiplicity"},
+				Hint:     "If duplicate matches are expected and acceptable, opt into a non-failing mode explicitly: set Multiplicity to \"first\" to take the lowest row-id deterministically, or \"all\" to get every matching row back in LookupResult.Rows.",
+				Examples: []any{"first", "all"},
+			},
+		},
+	},
+	PULSE_INDEX_STALE: {
+		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Rebuild the sidecar index against the current cohort content: `pulse index build <cohort> --key <field>` (or the equivalent Service.BuildIndex(ctx, path, keyFields) library call, or a quick freshness check first via `pulse index verify <cohort> --key <field>` / Service.VerifyIndex). Re-run the lookup once the rebuild completes.",
+			},
+		},
+	},
+	PULSE_INDEX_UNSUPPORTED_SHARDED: {
+		Message: "Point-lookup index build, lookup, and verify only support single-file .pulse cohorts in v1 — the target resolved to a shard archive (leading bytes matched the zip magic \"PK\\x03\\x04\" rather than the single-file \"PULSE\" magic). Row-id addressing (the sidecar's bucket entries point directly at a record's byte offset within one contiguous file) only has meaning for a single contiguous record region, which a multi-shard archive does not present. Sharded point-lookup support is a future/follow-up, not planned for this v1.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Point-lookup against a sharded cohort is not supported in v1 — there is no per-archive workaround that indexes across shards. If you only need to look up within a SINGLE shard, extract it as a standalone single-file cohort via the anchor syntax (`archive.pulse#shard.pulse`) and build/query the index against that anchor path instead — the anchor opens the named shard as if it were its own single-file `.pulse` cohort, so `pulse index build \"archive.pulse#shard.pulse\" --key <field>` and subsequent lookups work exactly as they do against any single-file cohort. This does not give you a cross-shard index; it only lets you index one shard at a time.",
+			},
+		},
+	},
 }

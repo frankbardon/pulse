@@ -8,8 +8,8 @@ import (
 )
 
 // TestSchemasReflectForEveryTool asserts that init-time reflection produced a
-// non-empty, valid-JSON input and output schema for every one of the 19
-// registered tools, with no reflection error (and therefore no init panic).
+// non-empty, valid-JSON input and output schema for every registered tool,
+// with no reflection error (and therefore no init panic).
 func TestSchemasReflectForEveryTool(t *testing.T) {
 	if len(reflectErrors) != 0 {
 		for k, err := range reflectErrors {
