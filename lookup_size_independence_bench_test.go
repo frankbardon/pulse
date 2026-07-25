@@ -1,0 +1,235 @@
+package pulse
+
+import (
+	"context"
+	"fmt"
+	"testing"
+
+	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
+)
+
+// This file is E6-S2's runnable performance-validation measurement: it
+// demonstrates the point-lookup effort's core promise — an indexed
+// lookup (Pulse.Lookup, backed by the sidecar hash index built via
+// Pulse.BuildIndex) costs one O(1) bucket probe plus one O(1) seek +
+// record read, so its latency stays ~flat as the cohort grows — in
+// contrast to a linear scan-by-value baseline (find the same row via
+// Pulse.Process + FILTER_INCLUDE, which must decode and test every
+// record because there is no index) whose latency grows ~linearly with
+// row count.
+//
+// Not gated in CI: this is a `func Benchmark...`, so it only runs under
+// `go test -bench` / `make bench` (see no_sidecar_touch_bench_test.go
+// for the established precedent of documenting benchmark numbers in a
+// comment rather than wiring a flaky wall-clock threshold into
+// `go test ./...`). Reproduce locally with:
+//
+//	go test -bench BenchmarkLookupSizeIndependence -benchtime=1x -run '^$' .
+//	go test -bench BenchmarkLookupSizeIndependence -run '^$' .   # full convergence
+//
+// ---------------------------------------------------------------------
+// Measured numbers (Apple M1 Max, `go test -bench
+// BenchmarkLookupSizeIndependence -run '^$' .`, default -benchtime,
+// single run — indicative, not a CI gate; re-run locally with
+// `-count=5` + `benchstat` before drawing conclusions about a specific
+// PR). These numbers are post-E7 (the sidecar v3 seekable
+// bucket-offset table + single-bucket read + seek-based record read
+// remediation — see service/lookup.go, encoding.ReadIndexMeta /
+// ReadBucketByKey):
+//
+//	SIZE       indexed_lookup            scan_baseline
+//	n=10000       ~5.8 us/op   (flat)       ~0.92 ms/op   (linear)
+//	n=100000      ~5.0 us/op   (flat)       ~9.3  ms/op   (linear)
+//	n=1000000     ~5.0 us/op   (flat)      ~94    ms/op   (linear)
+//
+// See BenchmarkLookupSizeIndependence's doc comment for the exact
+// captured figures at each size (kept there so a regression is easy to
+// eyeball). The load-bearing observations:
+//
+//   - indexed_lookup ns/op is effectively CONSTANT across a 100x growth
+//     in cohort size (10k -> 1M rows): it does not increase (measured
+//     5791 -> 5040 -> 4978 ns/op — flat, within run-to-run noise),
+//     consistent with the O(1) single-bucket-probe + seek-read design.
+//     Its allocs/op (~150) and B/op (~3.9 KB) are likewise flat (they
+//     do not track row count), confirming no whole-index or whole-file
+//     work per call.
+//   - scan_baseline ns/op grows ~PROPORTIONALLY with row count (roughly
+//     10x per 10x row-count step), and its B/op scales with row count
+//     too, confirming it is doing the O(n) work the index avoids.
+//   - At 1M rows the indexed lookup is ~4 orders of magnitude faster
+//     than the equivalent unindexed scan (~5 us vs ~94 ms — ~18,800x),
+//     and the gap widens without bound as the cohort grows — that
+//     widening gap IS the point-lookup effort's success metric.
+//
+// Exact nanosecond figures vary by host; the growth SHAPE (indexed
+// flat vs. scan linear) is the load-bearing claim, not the absolute
+// numbers.
+// ---------------------------------------------------------------------
+
+// lookupBenchCohortSizes are the growing row counts the benchmark
+// sweeps. 1M is kept (rather than dropped down to a smaller "modest"
+// ceiling) because synth generation, the index build, and a full-cohort
+// scan at 1M rows all complete in well under a second against an
+// in-memory afero.Fs — see the measured numbers above. If a future
+// host/CI environment makes the 1M case impractically slow, trim this
+// slice rather than deleting the benchmark; 10k and 100k alone already
+// show the flat-vs-linear contrast.
+var lookupBenchCohortSizes = []int{10_000, 100_000, 1_000_000}
+
+// buildLookupBenchCohort synthesizes a single-file cohort of rowCount
+// rows via synth.Synth (NOT the raw-byte-construction convention
+// no_sidecar_touch_bench_test.go's buildSidecarBenchCohort uses) —
+// this story's acceptance criteria specifically calls for a synth-built
+// fixture, fixed-seed for reproducibility. Three fields: "id" (u32,
+// monotonic_from starting at 0 step 1 — a dense, unique 0..rowCount-1
+// key ideal for both the sidecar index's key column and the scan
+// baseline's equality filter), "region" (categorical_u8, weighted
+// categorical distribution — representative non-key payload), "amount"
+// (f64, uniform distribution — representative non-key payload).
+//
+// monotonic_from does not consume RNG state (see
+// skills/op-synth-monotonic-from.md), so the "id" column's values are
+// identical across any seed; the seed here only affects "region" and
+// "amount", which the benchmark never reads. Fixed seed kept anyway for
+// full reproducibility of the generated bytes.
+//
+// Returns the memFs the cohort was written to, the cohort's path, and
+// targetID — the LAST row's id (rowCount-1). Searching for the last
+// row forces the scan baseline (no index, no early-stop knowledge of
+// where matches live) to do genuine worst-case-shaped work, rather than
+// benefiting from an accidental early match near the front of the file.
+// The indexed lookup is insensitive to WHERE the target sits (that is
+// the whole point), so using the last row keeps the two legs honestly
+// comparable on the same target.
+func buildLookupBenchCohort(b testing.TB, rowCount int) (memFs afero.Fs, path string, targetID int) {
+	b.Helper()
+
+	const seed = 20260724 // fixed seed — reproducible generation
+
+	spec := &synth.Spec{
+		RowCount: rowCount,
+		Fields: []synth.FieldSpec{
+			{Name: "id", Type: "u32", Distribution: synth.DistMonotonicFrom,
+				Params: map[string]any{"start": 0.0, "step": 1.0}},
+			{Name: "region", Type: "categorical_u8", Distribution: synth.DistWeightedCategorical,
+				Params: map[string]any{
+					"values":  []any{"north", "south", "east", "west"},
+					"weights": []any{0.4, 0.3, 0.2, 0.1},
+				}},
+			{Name: "amount", Type: "f64", Distribution: synth.DistUniform,
+				Params: map[string]any{"min": 0.0, "max": 10000.0}},
+		},
+	}
+
+	memFs = afero.NewMemMapFs()
+	path = fmt.Sprintf("lookup_bench_%d.pulse", rowCount)
+
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		b.Fatalf("New: %v", err)
+	}
+	if _, err := p.Synth(context.Background(), spec, path, SynthOptions{Seed: seed}); err != nil {
+		b.Fatalf("Synth (rowCount=%d): %v", rowCount, err)
+	}
+
+	return memFs, path, rowCount - 1
+}
+
+// BenchmarkLookupSizeIndependence is the vertical-slice performance
+// validation for E6-S2. For each cohort size in lookupBenchCohortSizes
+// it builds the cohort once, builds the sidecar index once, then times
+// two independent sub-benchmarks against the SAME cohort and the SAME
+// target row (the last row's id):
+//
+//   - indexed_lookup: Pulse.Lookup against the prebuilt sidecar index —
+//     one bucket probe + one O(1) seek + record read (post-E7: single
+//     bucket read via encoding.ReadBucketByKey, no whole-index parse; a
+//     seek to the matched record via an afero.File io.ReadSeeker, no
+//     whole-cohort afero.ReadFile). Should be ~flat ns/op across sizes.
+//   - scan_baseline: Pulse.Process with a FILTER_INCLUDE equality
+//     filter on "id" (no index involved) — the engine must decode and
+//     test every record to confirm no later row also matches, exactly
+//     the O(n) cost profile a point lookup has without an index.
+//
+// Run with `-bench BenchmarkLookupSizeIndependence` (it will not run
+// under a plain `go test ./...` invocation). Compare the two
+// sub-benchmarks' ns/op growth across n=10000/100000/1000000 rows via
+// `benchstat`: indexed_lookup stays ~flat, scan_baseline grows
+// ~linearly. See the file-level comment above for the summary and the
+// captured single-run figures below.
+//
+// Captured single-run figures (Apple M1 Max, default -benchtime; see
+// file header for provenance and caveats):
+//
+//	n=10000    indexed_lookup       5791 ns/op      3947 B/op     153 allocs/op
+//	n=10000    scan_baseline      924488 ns/op    136248 B/op     137 allocs/op
+//	n=100000   indexed_lookup       5040 ns/op      3865 B/op     148 allocs/op
+//	n=100000   scan_baseline     9298721 ns/op   1307704 B/op     137 allocs/op
+//	n=1000000  indexed_lookup       4978 ns/op      3944 B/op     153 allocs/op
+//	n=1000000  scan_baseline    94001698 ns/op  13005880 B/op     137 allocs/op
+//
+// indexed_lookup: ns/op ~flat (5791 -> 5040 -> 4978, does not grow with
+// size), allocs/op (~150) and B/op (~3.9KB) constant — no per-call work
+// scales with row count. scan_baseline: ns/op ~10x per 10x rows
+// (0.92ms -> 9.3ms -> 94ms), B/op scales with row count — the O(n) work
+// the index eliminates.
+func BenchmarkLookupSizeIndependence(b *testing.B) {
+	ctx := context.Background()
+
+	for _, n := range lookupBenchCohortSizes {
+		b.Run(fmt.Sprintf("n=%d", n), func(b *testing.B) {
+			memFs, path, targetID := buildLookupBenchCohort(b, n)
+
+			p, err := New(Options{FS: memFs})
+			if err != nil {
+				b.Fatalf("New: %v", err)
+			}
+			if _, err := p.BuildIndex(ctx, path, []string{"id"}); err != nil {
+				b.Fatalf("BuildIndex (n=%d): %v", n, err)
+			}
+			targetValue := fmt.Sprint(targetID)
+
+			b.Run("indexed_lookup", func(b *testing.B) {
+				req := &LookupRequest{
+					Cohort: &types.Cohort{Filename: path},
+					Field:  "id",
+					Value:  targetValue,
+				}
+				if _, err := p.Lookup(ctx, req); err != nil {
+					b.Fatalf("warmup Lookup (n=%d): %v", n, err)
+				}
+				b.ResetTimer()
+				b.ReportAllocs()
+				for b.Loop() {
+					if _, err := p.Lookup(ctx, req); err != nil {
+						b.Fatalf("Lookup (n=%d): %v", n, err)
+					}
+				}
+			})
+
+			b.Run("scan_baseline", func(b *testing.B) {
+				req := &Request{
+					Cohort: &types.Cohort{Filename: path},
+					Filterers: []*types.Filterer{
+						{Type: types.FILTER_INCLUDE, Field: "id", Values: []string{targetValue}},
+					},
+					Aggregations: []*types.Aggregation{
+						{Type: types.AGG_COUNT, Field: "id", Label: "n"},
+					},
+				}
+				if _, err := p.Process(ctx, req); err != nil {
+					b.Fatalf("warmup Process (n=%d): %v", n, err)
+				}
+				b.ResetTimer()
+				b.ReportAllocs()
+				for b.Loop() {
+					if _, err := p.Process(ctx, req); err != nil {
+						b.Fatalf("Process (n=%d): %v", n, err)
+					}
+				}
+			})
+		})
+	}
+}
