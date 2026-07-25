@@ -82,12 +82,12 @@ if _, err := p.BuildIndex(ctx, "sales.pulse", []string{"region", "date"}); err !
 
 result, err := p.Lookup(ctx, &pulse.LookupRequest{
     Cohort: &types.Cohort{Filename: "sales.pulse"},
-    Keys: []types.LookupKey{
+    Keys: []pulse.LookupKey{
         {Field: "region", Value: "EU"},
         {Field: "date", Value: "2026-01-01"},
     },
     ReturnColumns: []string{"order_id", "revenue"},
-    Multiplicity:  types.LookupMultiplicityAll,
+    Multiplicity:  pulse.LookupMultiplicityAll,
 })
 if err != nil {
     log.Fatal(err)
@@ -108,15 +108,14 @@ every schema field (`LookupResult.Rows[i]` is a full
 `Multiplicity` controls what happens when the matched key resolves to
 more than one row-id (a duplicate key value in the source cohort):
 
-`pulse.LookupMultiplicity` re-exports the *type* only; the mode
-constants themselves live in `types` (`pulse.LookupRequest.Multiplicity`
-takes a `types.LookupMultiplicity` value):
+The mode type and its constants are re-exported on the `pulse` package,
+so you never need to import `types` to set `LookupRequest.Multiplicity`:
 
 | Constant | Wire value | Behavior |
 |---|---|---|
-| `types.LookupMultiplicityAssertUnique` | `assert_unique` | **Default** (zero value). Fails with `PULSE_LOOKUP_AMBIGUOUS` on more than one match; a single match succeeds normally. |
-| `types.LookupMultiplicityFirst` | `first` | Takes the lowest row-id, never errors on a multi-row match. |
-| `types.LookupMultiplicityAll` | `all` | Returns every matched row in `Rows`, ascending row-id order. |
+| `pulse.LookupMultiplicityAssertUnique` | `assert_unique` | **Default** (zero value). Fails with `PULSE_LOOKUP_AMBIGUOUS` on more than one match; a single match succeeds normally. |
+| `pulse.LookupMultiplicityFirst` | `first` | Takes the lowest row-id, never errors on a multi-row match. |
+| `pulse.LookupMultiplicityAll` | `all` | Returns every matched row in `Rows`, ascending row-id order. |
 
 ```go
 result, err := p.Lookup(ctx, &pulse.LookupRequest{

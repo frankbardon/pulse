@@ -971,6 +971,23 @@ type LookupResult = types.LookupResult
 // than one row).
 type LookupMultiplicity = types.LookupMultiplicity
 
+// LookupKey re-exports types.LookupKey — one ordered key column/value
+// pair in a composite LookupRequest.Keys tuple, so callers can build a
+// composite key without importing the types package.
+type LookupKey = types.LookupKey
+
+// LookupMultiplicity mode constants, re-exported so callers can set
+// LookupRequest.Multiplicity without importing the types package.
+const (
+	// LookupMultiplicityAssertUnique errors PULSE_LOOKUP_AMBIGUOUS when
+	// the key matches more than one row. It is the zero-value default.
+	LookupMultiplicityAssertUnique = types.LookupMultiplicityAssertUnique
+	// LookupMultiplicityFirst returns the lowest-row-id match.
+	LookupMultiplicityFirst = types.LookupMultiplicityFirst
+	// LookupMultiplicityAll returns every match, ascending row-id order.
+	LookupMultiplicityAll = types.LookupMultiplicityAll
+)
+
 // Lookup resolves a point lookup (single-key or composite, via
 // req.Keys) against the cohort named in req.Cohort, using the prebuilt
 // sidecar index (see BuildIndex). Returns PULSE_INDEX_MISSING when no
