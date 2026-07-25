@@ -25,7 +25,7 @@ The canonical order for an LLM driving Pulse over MCP. Do this once per session;
 
 6. **`pulse_predict`** — validate the adapted Request against the schema. Read `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons`. Iterate until clean.
 
-7. **`pulse_process`** (or `pulse_compose` / `pulse_process_chain` / `pulse_facet` / `pulse_facet_schema` / `pulse_sample`) — execute. Returns `{format_version, data, errors, warnings}` plus the additive `data.components` family. `format_version` is `"1.1"`. For `pulse_compose` `data` is a `ComposedResponse` `{responses[], overlays[]}` — not the legacy `[]*Response`; per-slot Components rides each `responses[i]`, overlay diagnostics ride `overlays[i].warnings`.
+7. **`pulse_process`** (or `pulse_compose` / `pulse_process_chain` / `pulse_facet` / `pulse_facet_schema` / `pulse_sample` / `pulse_lookup`) — execute. Returns `{format_version, data, errors, warnings}` plus the additive `data.components` family. `format_version` is `"1.1"`. For `pulse_compose` `data` is a `ComposedResponse` `{responses[], overlays[]}` — not the legacy `[]*Response`; per-slot Components rides each `responses[i]`, overlay diagnostics ride `overlays[i].warnings`.
 
 8. **`pulse_errors_lookup`** — on any non-empty `errors[]` entry. Resolves `code` to canonical `message` + structured `fixups[]`. Do not paraphrase from memory — the lookup is authoritative.
 
@@ -47,6 +47,7 @@ When a manifest operator name or response key surfaces a topic, derive the skill
 | `synth_distributions[i].kind` | `synthetic-data` |
 | `cohort_types[i].name` (field type) | `cohort-schema-design` |
 | `mcp_tools[i].name` | `mcp-integration` |
+| `pulse_lookup` / CLI `pulse index {build,list,verify,drop}` / `pulse api lookup` | `tool-lookup` (MCP surface), `cohort-schema-design` (sidecar format) |
 | `error_codes[i]` | `pulse_errors_lookup` (not a skill — the tool is the surface) |
 | Request slot: `Joins` | `join-design` |
 | Request slot: `Crosstab` | `crosstab-guide` |

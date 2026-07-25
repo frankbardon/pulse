@@ -16,6 +16,8 @@
 - [api predict](cli/api-predict.md)
 - [api sample](cli/api-sample.md)
 - [api facet](cli/api-facet.md)
+- [api lookup](cli/api-lookup.md)
+- [index](cli/index.md)
 - [manifest](cli/manifest.md)
 - [schema](cli/schema.md)
 - [synth from-schema](cli/synth-from-schema.md)

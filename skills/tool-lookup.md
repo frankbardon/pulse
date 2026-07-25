@@ -8,33 +8,34 @@ applies_to: mcp
 
 ## When to use
 
-O(1) row addressing by key instead of a full scan — when you know the exact key value(s) and want the matching row(s) fast. Requires a sidecar index already built for the target field(s) (via `pulse index build` or `Service.BuildIndex`); `pulse_lookup` never builds one itself. Prefer `pulse_process` / `pulse_sample` for anything that is not an exact-key match.
+O(1) row addressing by exact key, not a scan — requires a sidecar index already built (`pulse index build` / `Service.BuildIndex`); this tool never builds one. Prefer `pulse_process` / `pulse_sample` for non-exact-key work.
 
 ## Input
 
-Structured `types.LookupRequest` at top level:
+`types.LookupRequest`:
 
-- `cohort` (required): same shape as every other request's `cohort` slot.
-- `field` / `value` (strings): single-key convenience path — the schema field name and literal key value as text.
-- `keys` (`[{field, value}]`): ordered composite-key path. Takes precedence over `field`/`value` when non-empty. Order MUST match the index's build-time key-field order.
-- `return_columns` (`string[]`, optional): fields to project into each row. Empty = every schema field.
-- `multiplicity` (string enum, optional, default `"assert_unique"`): `assert_unique` errors on >1 match; `first` deterministically returns the lowest row-id without erroring; `all` returns every matching row, ascending row-id.
+- `cohort` (required).
+- `field` / `value`: single-key convenience path.
+- `keys` (`[{field, value}]`): ordered composite-key path, wins over `field`/`value`. Order MUST match the index's build-time key order — `[region, date]` != `[date, region]`.
+- `return_columns` (`string[]`, optional): project these fields; empty = every schema field.
+- `multiplicity` (default `assert_unique`): `assert_unique` errors on >1 match; `first` returns lowest row-id; `all` returns every match, ascending row-id.
+
+**Keyable types:** ALLOW `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (bit-pattern equality — `-0.0`/NaN caveat), `date`, `decimal128` (exact mantissa), `categorical_*` (dictionary ID), `packed_bool`. REJECT `set_*` (ambiguous mask equality) — use `FILTER_SET` instead.
 
 ## Output
 
-`LookupOut` (`types.LookupResult`): `rows` — matched row(s) as field-name→value maps, projected per `return_columns`; `warnings` — reserved, empty in v1.
+`types.LookupResult`: `rows` — matched row(s), field→value maps projected per `return_columns`; `warnings` — reserved, empty in v1.
 
 ## Gotchas
 
-- No index, no lookup: `PULSE_INDEX_MISSING` when no sidecar exists for the requested key field(s). Build one first.
-- `PULSE_INDEX_STALE` when the cohort changed since the index was built — rebuild.
-- `PULSE_INDEX_UNSUPPORTED_SHARDED` for shard-archive cohorts — point lookup is single-file only.
-- `PULSE_LOOKUP_NOT_FOUND` — index is fresh but no record matches the key.
-- `PULSE_LOOKUP_AMBIGUOUS` — default `multiplicity` (`assert_unique`) rejects a key that resolves to more than one row; opt into `first` or `all` if duplicate keys are expected.
-- `keys` order is significant end to end — it must mirror the order `Service.BuildIndex` was called with, not just the same field set.
+- `PULSE_INDEX_MISSING` — no sidecar for the key field(s); build one.
+- `PULSE_INDEX_STALE` — cohort changed since build (O(1) size+mtime check; `verify` is the authoritative full-hash check). Rebuild.
+- `PULSE_INDEX_UNSUPPORTED_SHARDED` — shard archives unsupported; `archive.pulse#shard.pulse` anchor works around it.
+- `PULSE_LOOKUP_NOT_FOUND` — fresh index, no matching record.
+- `PULSE_LOOKUP_AMBIGUOUS` — default `assert_unique` rejects >1-row matches; opt into `first`/`all` for duplicates.
+- Perf shape: indexed lookup is flat O(1) (~5µs, 10k→1M rows); scan is linear — gap widens with size.
 
 ## See
 
 - `request-envelope` — cohort slot shape shared across request types.
-- `response-components` — `Run` counters do not apply to lookup (single/O(1) reads).
-- `cohort-schema-design` — sidecar index file format and staleness detection.
+- `cohort-schema-design` — sidecar byte format (v3), keyable-type policy, staleness.
