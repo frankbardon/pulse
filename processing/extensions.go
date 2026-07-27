@@ -58,6 +58,14 @@ type ExtensionRegistry struct {
 	// by the user-facing table name.
 	LabelTables map[string]LabelTable
 
+	// RangeTables are the named labeled-date-range sets a
+	// GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter may
+	// reference by name. Mirrors pulse.RangeTable. Indexed by the
+	// user-facing table name. Each entry's ranges are validated at
+	// pulse.New time via CompileDateRanges; operator→table resolution
+	// consumes this map.
+	RangeTables map[string]RangeTable
+
 	// FieldInputs is the per-(category, name) field-introspection
 	// callback consulted by the buffered-projection extractor
 	// (NeededFields). When the registry contains an entry for an
@@ -91,6 +99,26 @@ type LookupTable struct {
 type LabelTable struct {
 	Rows   map[string]string
 	Lookup func(key string) (string, bool, error)
+}
+
+// RangeTable is the runtime-side mirror of pulse.RangeTable. It holds
+// the ordered labeled date-range specs registered under a table name.
+// The specs are validated at pulse.New time; a consumer resolving a
+// table by name compiles them into a *DateRangeSet via CompileDateRanges
+// (validation is idempotent — the compile cannot fail post-registration).
+type RangeTable struct {
+	Ranges []DateRangeSpec
+}
+
+// LookupRangeTable returns the RangeTable registered under name, and the
+// standard "found" signal. Nil-safe: a nil registry or absent name
+// returns ok=false.
+func (r *ExtensionRegistry) LookupRangeTable(name string) (RangeTable, bool) {
+	if r == nil {
+		return RangeTable{}, false
+	}
+	t, ok := r.RangeTables[name]
+	return t, ok
 }
 
 // ExtensionAware is the optional interface that AttributeComputer /

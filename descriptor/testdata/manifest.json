@@ -7062,7 +7062,8 @@
       "synth_distributions": [],
       "expr_functions": [],
       "lookup_tables": [],
-      "label_tables": []
+      "label_tables": [],
+      "range_tables": []
     },
     "facet": {
       "name": "facet_schema",
@@ -9195,4 +9196,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 195262ee9b27bfd8e207efd598c0397325f757e25ced8f0cd7b3a8a29d0af509
+// golden-hash: e6e5cee5ee1607a9e60fdf696f0a2bf80e21a57bc4afbd551a7dfdffff4ae05c

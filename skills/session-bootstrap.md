@@ -90,6 +90,10 @@ Do not infer Components shape from memory or external documentation — it is bo
 3. Apply returned `fixups[]`. Re-`pulse_predict`. Iterate.
 4. Re-`pulse_process` only when predict is clean.
 
+## Environment
+
+Auxiliary tables can be auto-registered from disk at `pulse.New` time so they appear in the cached manifest `extensions` block: `PULSE_LABEL_TABLES_DIR` loads output-time label tables, `PULSE_RANGE_TABLES_DIR` loads named labeled-date-range tables (`{label,start,end}` sets referenced by `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`). Registered tables surface under `manifest.extensions.{label_tables,range_tables}`; check there before assuming a named table exists.
+
 ## Cross-links
 
 - `request-envelope` — envelope shape, slot keys, smart defaults, streamability flag.

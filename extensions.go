@@ -99,6 +99,18 @@ type Extensions struct {
 	// pulse.New and do not affect filter / formula / sort semantics —
 	// only end-user output rendering.
 	LabelTables map[string]LabelTable
+
+	// RangeTables expose named sets of labeled date ranges so a
+	// GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter can
+	// reference an ordered {label, start, end} bucketing by name
+	// instead of authoring it inline per request. Each table is
+	// validated at pulse.New time via the shared range-compilation
+	// pass (the same overlap / duplicate-label / empty / invalid-
+	// boundary rules the inline path enforces); a table that nothing
+	// references is valid and simply visible in the manifest. Tables
+	// are read-only after pulse.New. Operator→table resolution is
+	// wired separately; this slot only registers the tables.
+	RangeTables map[string]RangeTable
 }
 
 // ParamMeta describes one operator-specific parameter for manifest
@@ -397,6 +409,28 @@ type LabelTable struct {
 	// from Lookup surfaces as PULSE_LABEL_LOOKUP_MISS with the
 	// embedder's message attached.
 	Lookup func(key string) (label string, ok bool, err error)
+}
+
+// RangeTable is a named, ordered set of labeled date ranges. It is the
+// reusable, register-once form of the inline range list authored on a
+// GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter: a caller
+// registers the table under a name and references it by that name from
+// any number of requests.
+//
+// Ranges are the ordered {label, start, end} entries. Start / End are
+// ISO date literals (nil / empty means an open bound; both bounds are
+// inclusive). The set is validated at pulse.New time via the shared
+// range-compilation pass — overlap, duplicate label, empty set, and
+// unparseable / inverted boundaries each surface the matching
+// PULSE_RANGE_* code. Order is preserved as authored; the compiler
+// sorts internally for deterministic matching.
+type RangeTable struct {
+	// Description is an optional human-readable summary surfaced in the
+	// manifest projection.
+	Description string
+	// Ranges is the ordered list of labeled date ranges. Must be
+	// non-empty and pass the shared validation pass.
+	Ranges []DateRangeSpec
 }
 
 // reservedExtensionNamespaces is the set of namespace segments

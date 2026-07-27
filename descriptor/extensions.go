@@ -23,6 +23,7 @@ type ExtensionsManifest struct {
 	ExprFunctions      []ExprFunctionMeta `json:"expr_functions"`
 	LookupTables       []LookupTableMeta  `json:"lookup_tables"`
 	LabelTables        []LabelTableMeta   `json:"label_tables"`
+	RangeTables        []RangeTableMeta   `json:"range_tables"`
 }
 
 // OperatorMeta is the manifest projection for an embedder-registered
@@ -79,6 +80,16 @@ type LabelTableMeta struct {
 	HasRowsData bool   `json:"has_rows_data"`
 }
 
+// RangeTableMeta is the manifest projection of a registered labeled-
+// date-range table. RangeCount surfaces how many {label, start, end}
+// entries the table carries without exposing the boundaries themselves,
+// mirroring how LabelTableMeta.HasRowsData characterises a label table.
+type RangeTableMeta struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	RangeCount  int    `json:"range_count"`
+}
+
 // ExtensionsSnapshot is the immutable read-only view that the service
 // hands to descriptor.BuildManifestWithExtensions and predict. It
 // carries everything the manifest + predict surfaces need without
@@ -96,6 +107,7 @@ type ExtensionsSnapshot struct {
 	ExprFunctions      []ExprFunctionMeta
 	LookupTables       []LookupTableMeta
 	LabelTables        []LabelTableMeta
+	RangeTables        []RangeTableMeta
 
 	// ComponentSchemas projects per-extension ComponentSchema
 	// declarations keyed by registered operator name. The map carries
@@ -153,6 +165,7 @@ func emptyExtensionsManifest() ExtensionsManifest {
 		ExprFunctions:      []ExprFunctionMeta{},
 		LookupTables:       []LookupTableMeta{},
 		LabelTables:        []LabelTableMeta{},
+		RangeTables:        []RangeTableMeta{},
 	}
 }
 
@@ -175,6 +188,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) ExtensionsManifest
 		ExprFunctions:      sortExprFunctionMeta(snap.ExprFunctions),
 		LookupTables:       sortLookupTableMeta(snap.LookupTables),
 		LabelTables:        sortLabelTableMeta(snap.LabelTables),
+		RangeTables:        sortRangeTableMeta(snap.RangeTables),
 	}
 	if out.Aggregators == nil {
 		out.Aggregators = []OperatorMeta{}
@@ -208,6 +222,9 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) ExtensionsManifest
 	}
 	if out.LabelTables == nil {
 		out.LabelTables = []LabelTableMeta{}
+	}
+	if out.RangeTables == nil {
+		out.RangeTables = []RangeTableMeta{}
 	}
 	return out
 }
@@ -247,6 +264,16 @@ func sortLabelTableMeta(in []LabelTableMeta) []LabelTableMeta {
 		return nil
 	}
 	out := make([]LabelTableMeta, len(in))
+	copy(out, in)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+func sortRangeTableMeta(in []RangeTableMeta) []RangeTableMeta {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]RangeTableMeta, len(in))
 	copy(out, in)
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out

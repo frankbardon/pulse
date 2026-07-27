@@ -138,6 +138,13 @@ func buildExtensionsSnapshot(ext Extensions) *descriptor.ExtensionsSnapshot {
 			HasRowsData: t.Rows != nil,
 		})
 	}
+	for name, t := range ext.RangeTables {
+		snap.RangeTables = append(snap.RangeTables, descriptor.RangeTableMeta{
+			Name:        name,
+			Description: t.Description,
+			RangeCount:  len(t.Ranges),
+		})
+	}
 	return snap
 }
 

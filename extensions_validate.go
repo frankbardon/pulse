@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
@@ -136,6 +137,9 @@ func validateExtensions(ext Extensions) error {
 		return err
 	}
 	if err := validateLabelTables(ext.LabelTables); err != nil {
+		return err
+	}
+	if err := validateRangeTables(ext.RangeTables); err != nil {
 		return err
 	}
 	if err := validateComponentSchemas(ext); err != nil {
@@ -572,6 +576,40 @@ func validateLabelTables(tables map[string]LabelTable) error {
 				fmt.Sprintf("label table %q must set exactly one of Rows or Lookup (got rows=%v lookup=%v)", name, hasRows, hasFn),
 				map[string]any{"category": "label_table", "name": name, "has_rows": hasRows, "has_lookup": hasFn},
 			)
+		}
+	}
+	return nil
+}
+
+// validateRangeTables asserts every registered range table has a
+// non-empty name and that its ordered {label, start, end} entries pass
+// the shared range-compilation validation (empty set, overlapping
+// ranges, duplicate labels, and unparseable / inverted boundaries each
+// surface the matching PULSE_RANGE_* code). A table that nothing
+// references is still validated here — registration is the contract, not
+// usage. The compiled set is discarded: this pass validates only, and
+// the runtime recompiles from the specs when a consumer resolves the
+// table by name.
+func validateRangeTables(tables map[string]RangeTable) error {
+	for name, t := range tables {
+		if strings.TrimSpace(name) == "" {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				"range table has empty name",
+				map[string]any{"category": "range_table"},
+			)
+		}
+		if _, err := processing.CompileDateRanges(t.Ranges); err != nil {
+			// CompileDateRanges emits the PULSE_RANGE_* coded error; wrap
+			// it with the offending table name for actionable diagnostics.
+			if ce, ok := err.(*errors.CodedError); ok {
+				if ce.Details == nil {
+					ce.Details = map[string]any{}
+				}
+				ce.Details["range_table"] = name
+				return ce
+			}
+			return err
 		}
 	}
 	return nil
