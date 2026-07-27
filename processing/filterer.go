@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -116,6 +117,73 @@ func (f *rangeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (
 			return false, nil
 		}
 		return v >= minVal && v <= maxVal, nil
+	}, nil
+}
+
+// dateRangesFilterParams is the wire shape of FILTER_DATE_RANGES params.
+// Ranges is the inline labeled-range source (the only source wired in
+// this story; a named Table reference arrives in a later story and is
+// decoded-but-ignored so an inline+table mix does not fail unmarshal).
+// The label is irrelevant to keep/drop, but the ranges are still fully
+// validated (overlap/duplicate/empty/invalid) via CompileDateRanges.
+type dateRangesFilterParams struct {
+	Ranges []DateRangeSpec `json:"ranges"`
+	// Table is reserved for the named range-table source (later story).
+	Table string `json:"table,omitempty"`
+}
+
+// dateRangesFilterer keeps rows whose `date` Field day-integer falls
+// inside any of a validated labeled date-range set (the E1-S1 shared
+// model). Rows outside every range are dropped, and null/missing dates
+// are dropped. Matching is row-local, so the filter is streamable and
+// keeps facet/process/sample single-pass.
+type dateRangesFilterer struct{}
+
+func newDateRangesFilterer() FiltererBuilder {
+	return &dateRangesFilterer{}
+}
+
+func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
+	if filter.Field == "" {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			"FILTER_DATE_RANGES requires a Field")
+	}
+
+	// Field must be a date-typed column. Validate against the schema when
+	// present (the runtime always supplies one); a nil schema skips the
+	// check (probe path with no field).
+	if schema != nil {
+		if fld := schema.Field(filter.Field); fld != nil && fld.Type != encoding.FieldTypeDate {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("FILTER_DATE_RANGES requires a date field, got %q on field %q", fld.Type, filter.Field))
+		}
+	}
+
+	var params dateRangesFilterParams
+	if len(filter.Params) > 0 {
+		if err := json.Unmarshal(filter.Params, &params); err != nil {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("invalid FILTER_DATE_RANGES params: %v", err))
+		}
+	}
+
+	// Inline ranges only in this story. CompileDateRanges emits
+	// PULSE_RANGE_EMPTY when Ranges is absent/empty and the four range
+	// validation coded errors otherwise. The label plays no role in
+	// keep/drop but is validated all the same.
+	set, err := CompileDateRanges(params.Ranges)
+	if err != nil {
+		return nil, err
+	}
+
+	field := filter.Field
+	return func(record *Record) (bool, error) {
+		v, ok := record.NumericValue(field)
+		if !ok {
+			return false, nil // null/missing date → drop
+		}
+		_, matched := set.Match(uint32(v))
+		return matched, nil
 	}, nil
 }
 

@@ -2038,6 +2038,37 @@
       ],
       "filterers": [
         {
+          "name": "FILTER_DATE_RANGES",
+          "category": "filterer",
+          "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). Null dates and out-of-range rows are dropped.",
+          "params": null,
+          "accepts_types": [
+            "date"
+          ],
+          "emits_type_note": "record-level predicate (no emitted column)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
+        },
+        {
           "name": "FILTER_EXCLUDE",
           "category": "filterer",
           "description": "Drop records whose field value appears in the supplied Values list.",
@@ -5639,6 +5670,7 @@
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
+          "FILTER_DATE_RANGES",
           "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_FALSE",
@@ -6310,6 +6342,10 @@
         "description": "Deterministic split-assignment column (0=train, 1=val, 2=test) for ML workflows."
       },
       {
+        "name": "op-filter-date-ranges",
+        "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges."
+      },
+      {
         "name": "op-filter-exclude",
         "description": "Drop records whose field value appears in the supplied Values list."
       },
@@ -6934,7 +6970,7 @@
         "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 163,
+    "examples_count": 164,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -8913,6 +8949,26 @@
         }
       },
       "filterers": {
+        "FILTER_DATE_RANGES": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "FILTER_EXCLUDE": {
           "keys": [
             {
@@ -9139,4 +9195,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c94c9030e383433fb6d9f72997b6b36251d708012d2b9bf25df4613a894178cc
+// golden-hash: 195262ee9b27bfd8e207efd598c0397325f757e25ced8f0cd7b3a8a29d0af509

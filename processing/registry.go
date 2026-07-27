@@ -63,6 +63,8 @@ var filtererRegistry = map[types.FiltererType]FiltererFactory{
 	types.FILTER_TRUE:       newTrueFilterer,
 	types.FILTER_FALSE:      newFalseFilterer,
 
+	types.FILTER_DATE_RANGES: newDateRangesFilterer,
+
 	types.FILTER_SET_CONTAINS_ANY:  newSetContainsAnyFilterer,
 	types.FILTER_SET_CONTAINS_ALL:  newSetContainsAllFilterer,
 	types.FILTER_SET_CONTAINS_NONE: newSetContainsNoneFilterer,

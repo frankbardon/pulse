@@ -501,7 +501,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 					{Type: types.AGG_COUNT, Field: ffix.companionField, Label: "n"},
 				},
 				Filterers: []*types.Filterer{
-					{Type: op, Field: ffix.field, Values: ffix.values, Expression: ffix.expression},
+					{Type: op, Field: ffix.field, Values: ffix.values, Expression: ffix.expression, Params: ffix.params},
 				},
 			}
 			env := descriptor.PredictFromBytes(hdr, predictReq, nil)
@@ -545,7 +545,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 					{Type: types.AGG_COUNT, Field: ffix.companionField, Label: "n"},
 				},
 				Filterers: []*types.Filterer{
-					{Type: op, Field: ffix.field, Values: ffix.values, Expression: ffix.expression},
+					{Type: op, Field: ffix.field, Values: ffix.values, Expression: ffix.expression, Params: ffix.params},
 				},
 			}
 			resp, err := ffix.svc.Process(context.Background(), runReq)
@@ -716,6 +716,7 @@ type filterServiceFixture struct {
 	companionField string
 	values         []string
 	expression     string
+	params         json.RawMessage
 }
 
 // allFilterServiceFixtures builds one fixture per registered filterer
@@ -754,7 +755,33 @@ func allFilterServiceFixtures(t *testing.T) map[types.FiltererType]filterService
 	setCfg := setupTestFS(t, "predict_fil_tags.pulse", setSchema, setRecords)
 	setSvc := New(setCfg)
 
+	// Date cohort: f64 score + date waveDate, 5 rows — drives
+	// FILTER_DATE_RANGES (the only date-typed filterer).
+	dateSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "waveDate", Type: encoding.FieldTypeDate, ByteOffset: 8, CsvColumnIdx: 1},
+		},
+	}
+	dateRecords := [][]uint64{
+		{math.Float64bits(10.0), 19000}, // 2022-01-08
+		{math.Float64bits(20.0), 19031}, // 2022-02-08
+		{math.Float64bits(30.0), 19059}, // 2022-03-08
+		{math.Float64bits(40.0), 19090}, // 2022-04-08
+		{math.Float64bits(50.0), 19120}, // 2022-05-08
+	}
+	dateCfg := setupTestFS(t, "predict_fil_dates.pulse", dateSchema, dateRecords)
+	dateSvc := New(dateCfg)
+
 	return map[types.FiltererType]filterServiceFixture{
+		types.FILTER_DATE_RANGES: {
+			svc:            dateSvc,
+			schema:         dateSchema,
+			cohortName:     "predict_fil_dates.pulse",
+			field:          "waveDate",
+			companionField: "score",
+			params:         json.RawMessage(`{"ranges":[{"label":"q1","start":"2022-01-01","end":"2022-03-31"},{"label":"q2","start":"2022-04-01","end":"2022-06-30"}]}`),
+		},
 		types.FILTER_INCLUDE: {
 			svc:            scoreSvc,
 			schema:         scoreSchema,

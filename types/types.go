@@ -177,11 +177,20 @@ const (
 	// FILTER_SET_EQUALS keeps records whose set mask exactly equals the
 	// resolved query mask.
 	FILTER_SET_EQUALS FiltererType = "FILTER_SET_EQUALS"
+
+	// FILTER_DATE_RANGES keeps records whose `date` Field falls inside any
+	// of a validated set of labeled date ranges (the shared E1-S1 model),
+	// dropping every other row and every null date. Ranges ride the
+	// structured Params slot (`{ranges: [{label, start, end}]}`); the
+	// label is irrelevant to keep/drop but is still fully validated
+	// (overlap/duplicate/empty/invalid). Row-local; streamable.
+	FILTER_DATE_RANGES FiltererType = "FILTER_DATE_RANGES"
 )
 
 // AllFiltererTypes returns all defined filterer types.
 func AllFiltererTypes() []FiltererType {
 	return []FiltererType{
+		FILTER_DATE_RANGES,
 		FILTER_EXCLUDE,
 		FILTER_EXPRESSION,
 		FILTER_FALSE,
@@ -752,6 +761,12 @@ type Filterer struct {
 
 	// Expression is a runtime expression for FILTER_EXPRESSION type.
 	Expression string `json:"expression,omitempty"`
+
+	// Params holds type-specific configuration as raw JSON. Used by
+	// filterers whose configuration cannot ride Values []string — e.g.
+	// FILTER_DATE_RANGES, which carries a structured inline `ranges`
+	// array of {label, start, end} objects.
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // Group defines a grouping operation to partition results.

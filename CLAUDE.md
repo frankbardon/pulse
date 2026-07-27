@@ -133,6 +133,8 @@ When a request slot names a field but omits `Type`, engine infers from schema ty
 
 `GROUP_DATE_RANGES` is an explicit-only `date` grouper (never a smart default): it buckets each row by an inline set of labeled `{label, start, end}` date ranges (E1-S1 shared model, `processing.CompileDateRanges`) and emits the matching range's label as the bucket key; out-of-range rows land in a configurable unmatched bucket (default label `"unmatched"`). Streamable + mergeable. Inline `ranges` source only today (named `table:` source lands later); absent/empty `ranges` → `PULSE_RANGE_EMPTY`, non-`date` field → `PROCESSING_CONFIG`.
 
+`FILTER_DATE_RANGES` keeps rows whose `date` `Field` day-integer falls inside any range of the same E1-S1 labeled-range set (`processing.CompileDateRanges`); every out-of-range row and every null/missing date is dropped. The range `label` is irrelevant to keep/drop but the range set is still fully validated (`PULSE_RANGE_EMPTY` / `_OVERLAP` / `_DUPLICATE_LABEL` / `_INVALID`); non-`date` field → `PROCESSING_CONFIG`. Row-local streamable, so it is auto-available to `process`, `sample`, and `facet` (via `FacetRequest.Filterers`) single-pass. Structured ranges cannot ride `Values []string`, so `types.Filterer` carries a new additive `Params json.RawMessage` slot (`{"ranges":[{label,start,end}]}`) — payload-reachable (regenerate `descriptor/testdata/payload-schema.json`), additive `omitempty`, `format_version` stays `"1.1"`. Inline `ranges` source only today (named `table:` lands later).
+
 ## Output Format Contract
 
 ### `--json` envelope

@@ -117,6 +117,15 @@ func filtererCapabilities() []Operator {
 			ComponentSchema: filterSchema(Mergeable),
 		},
 		{
+			Name:            string(types.FILTER_DATE_RANGES),
+			Category:        "filterer",
+			Description:     "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). Null dates and out-of-range rows are dropped.",
+			AcceptsTypes:    []string{"date"},
+			EmitsTypeNote:   "record-level predicate (no emitted column)",
+			Streamable:      true,
+			ComponentSchema: filterSchema(Mergeable),
+		},
+		{
 			Name:            string(types.FILTER_SET_CONTAINS_ANY),
 			Category:        "filterer",
 			Description:     "Keep records where the set field shares at least one bit with the supplied Values labels.",

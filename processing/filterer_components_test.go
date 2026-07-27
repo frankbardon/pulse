@@ -2,6 +2,7 @@ package processing
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"testing"
 
@@ -47,6 +48,7 @@ type filtererParityFixture struct {
 	field      string
 	values     []string
 	expression string
+	params     json.RawMessage
 
 	smallRecs []*Record
 	smallWant [3]int // {NIn, NOut, NNullInput}
@@ -105,7 +107,35 @@ func allFiltererParityFixtures(t *testing.T) map[types.FiltererType]filtererPari
 		makeNullSetRecord(setSchema),
 	}
 
+	dtSchema := dateSchema()
+	// enrolled days: launch, launch-edge, growth, and two out-of-range.
+	smallDates := makeRecords(dtSchema, "enrolled", []float64{
+		epochDays(2024, 2, 1),  // launch — keep
+		epochDays(2024, 3, 31), // launch upper edge — keep
+		epochDays(2024, 5, 1),  // growth — keep
+		epochDays(2023, 6, 1),  // pre-range — drop
+		epochDays(2025, 1, 1),  // post-range — drop
+	})
+	allNullDates := nullRecordsOn(dtSchema, "enrolled", 5)
+	launchGrowthParams := json.RawMessage(`{"ranges":[` +
+		`{"label":"launch","start":"2024-01-01","end":"2024-03-31"},` +
+		`{"label":"growth","start":"2024-04-01","end":"2024-09-30"}]}`)
+
 	return map[types.FiltererType]filtererParityFixture{
+		types.FILTER_DATE_RANGES: {
+			schema:    dtSchema,
+			field:     "enrolled",
+			params:    launchGrowthParams,
+			smallRecs: smallDates,
+			// Three of five dates land inside launch/growth.
+			smallWant: [3]int{5, 3, 0},
+			emptyRecs: smallDates,
+			// emptyCaseOverrides sharpens params to a range admitting none.
+			emptyWant: [3]int{5, 0, 0},
+			nullRecs:  allNullDates,
+			// Null dates drop and count as null-input.
+			nullWant: [3]int{5, 0, 5},
+		},
 		types.FILTER_INCLUDE: {
 			schema:    numSchema,
 			field:     "score",
@@ -271,11 +301,15 @@ func allFiltererParityFixtures(t *testing.T) map[types.FiltererType]filtererPari
 func emptyCaseOverrides() map[types.FiltererType]struct {
 	values     []string
 	expression string
+	params     json.RawMessage
 } {
 	return map[types.FiltererType]struct {
 		values     []string
 		expression string
+		params     json.RawMessage
 	}{
+		// A range set that admits none of the smallDates cohort.
+		types.FILTER_DATE_RANGES:       {params: json.RawMessage(`{"ranges":[{"label":"none","start":"2019-01-01","end":"2019-12-31"}]}`)},
 		types.FILTER_INCLUDE:           {values: []string{"999"}},
 		types.FILTER_EXCLUDE:           {values: []string{"10", "20", "30", "40", "50"}},
 		types.FILTER_RANGE:             {values: []string{"100", "200"}},
@@ -347,6 +381,7 @@ func TestMetaFilterer_AllOps_ManifestParity(t *testing.T) {
 				Field:      fix.field,
 				Values:     fix.values,
 				Expression: fix.expression,
+				Params:     fix.params,
 			}
 			got := runFilterParity(t, fix.schema, slot, fix.smallRecs)
 			if got.NIn != fix.smallWant[0] {
@@ -381,9 +416,12 @@ func TestMetaFilterer_AllOps_ManifestParity(t *testing.T) {
 				Type:  op,
 				Field: fix.field,
 			}
-			if op == types.FILTER_EXPRESSION {
+			switch {
+			case op == types.FILTER_EXPRESSION:
 				slot.Expression = ov.expression
-			} else {
+			case ov.params != nil:
+				slot.Params = ov.params
+			default:
 				slot.Values = ov.values
 			}
 			got := runFilterParity(t, fix.schema, slot, fix.emptyRecs)
@@ -423,6 +461,7 @@ func TestMetaFilterer_AllOps_ManifestParity(t *testing.T) {
 				Field:      fix.field,
 				Values:     fix.values,
 				Expression: fix.expression,
+				Params:     fix.params,
 			}
 			if op == types.FILTER_NULL {
 				slot.Values = []string{"is_null"}

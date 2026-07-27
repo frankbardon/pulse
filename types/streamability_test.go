@@ -102,13 +102,14 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 
 func TestStreamability_FilterersKnown(t *testing.T) {
 	expected := map[FiltererType]bool{
-		FILTER_INCLUDE:    true,
-		FILTER_EXCLUDE:    true,
-		FILTER_RANGE:      true,
-		FILTER_EXPRESSION: true,
-		FILTER_NULL:       true,
-		FILTER_TRUE:       true,
-		FILTER_FALSE:      true,
+		FILTER_INCLUDE:     true,
+		FILTER_EXCLUDE:     true,
+		FILTER_RANGE:       true,
+		FILTER_EXPRESSION:  true,
+		FILTER_NULL:        true,
+		FILTER_TRUE:        true,
+		FILTER_FALSE:       true,
+		FILTER_DATE_RANGES: true,
 
 		FILTER_SET_CONTAINS_ANY:  true,
 		FILTER_SET_CONTAINS_ALL:  true,
