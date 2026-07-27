@@ -131,6 +131,22 @@ type ExtensionAware interface {
 	SetExtensions(r *ExtensionRegistry)
 }
 
+// ApplyGrouperExtensions injects the live registry into a freshly
+// constructed grouper when it implements ExtensionAware. Unlike filterers
+// (which have a factory→SetExtensions→Build lifecycle), grouper factories
+// return a ready Grouper with no post-construction Build step, so this hook
+// is threaded through every grouper construction site. It is the mechanism
+// GROUP_DATE_RANGES uses to resolve a named `table:` source (the grouper
+// factory signature cannot reach the ExtensionRegistry). No-op for every
+// grouper that does not implement ExtensionAware, so existing groupers are
+// unaffected. Nil-registry-safe; returns g for call-site convenience.
+func ApplyGrouperExtensions(g Grouper, exts *ExtensionRegistry) Grouper {
+	if aware, ok := g.(ExtensionAware); ok {
+		aware.SetExtensions(exts)
+	}
+	return g
+}
+
 // BuildFilters compiles a slice of types.Filterer into runtime
 // FilterFuncs against the given schema. Mirrors the per-Processor
 // helper so non-Processor consumers (FacetSchema, Sample variants) can

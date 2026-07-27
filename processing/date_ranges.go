@@ -2,6 +2,8 @@ package processing
 
 import (
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -184,4 +186,56 @@ func CompileDateRanges(specs []DateRangeSpec) (*DateRangeSet, error) {
 	}
 
 	return &DateRangeSet{ranges: ranges}, nil
+}
+
+// dateRangeSourceAmbiguity enforces the inline-XOR-table source contract
+// shared by GROUP_DATE_RANGES and FILTER_DATE_RANGES: exactly one of an
+// inline `ranges` array or a named `table` reference must be present.
+// Both present, or neither present, returns PULSE_RANGE_SOURCE_AMBIGUOUS;
+// an exactly-one selection returns nil. The check needs no registry, so
+// callers can surface it at construction time before any table lookup.
+func dateRangeSourceAmbiguity(operator string, hasInline, hasTable bool) error {
+	switch {
+	case hasInline && hasTable:
+		return errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_SOURCE_AMBIGUOUS,
+			operator+": specify exactly one of inline `ranges` or a named `table`, not both",
+			map[string]any{"operator": operator})
+	case !hasInline && !hasTable:
+		return errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_SOURCE_AMBIGUOUS,
+			operator+": one of inline `ranges` or a named `table` is required",
+			map[string]any{"operator": operator})
+	default:
+		return nil
+	}
+}
+
+// resolveDateRangeSpecs selects the labeled date-range specs for a
+// GROUP_DATE_RANGES / FILTER_DATE_RANGES operator from exactly one of an
+// inline `ranges` array or a named `table` reference. It enforces the
+// inline-XOR-table source contract (dateRangeSourceAmbiguity) and, for a
+// named source, resolves the table against the live ExtensionRegistry —
+// an unregistered name returns PULSE_RANGE_TABLE_UNKNOWN. The returned
+// specs are compiled by the caller through the same CompileDateRanges path
+// used for the inline source, so match/validate behaviour is identical
+// regardless of which source was named.
+//
+// exts is nil-safe: a nil registry (or one without the named table) yields
+// PULSE_RANGE_TABLE_UNKNOWN rather than a panic.
+func resolveDateRangeSpecs(operator string, inline []DateRangeSpec, table string, exts *ExtensionRegistry) ([]DateRangeSpec, error) {
+	table = strings.TrimSpace(table)
+	hasInline := len(inline) > 0
+	hasTable := table != ""
+	if err := dateRangeSourceAmbiguity(operator, hasInline, hasTable); err != nil {
+		return nil, err
+	}
+	if hasInline {
+		return inline, nil
+	}
+	rt, ok := exts.LookupRangeTable(table)
+	if !ok {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_TABLE_UNKNOWN,
+			operator+": unknown range table "+strconv.Quote(table),
+			map[string]any{"operator": operator, "table": table})
+	}
+	return rt.Ranges, nil
 }

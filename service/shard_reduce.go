@@ -240,6 +240,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		if err != nil {
 			return nil, err
 		}
+		processing.ApplyGrouperExtensions(grp, s.extensions)
 		sg, ok := grp.(processing.StreamingGrouper)
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,

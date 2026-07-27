@@ -11,7 +11,9 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Params
 
-`Params.ranges` (`[]{label,start,end}`): inline labeled ranges. `start`/`end` are ISO literals (`YYYY-MM-DD`); omit/null either for an open bound. Bounds inclusive. Fully validated. Ranges ride `Params json.RawMessage` — not `Values []string`.
+Exactly one range source in `Params json.RawMessage` (not `Values []string`) — inline `ranges` XOR named `table`:
+- `ranges` (`[]{label,start,end}`): inline labeled ranges. `start`/`end` are ISO literals (`YYYY-MM-DD`); omit/null either for an open bound. Bounds inclusive. Fully validated.
+- `table` (string): name of a registered `RangeTable` (`Options.Extensions.RangeTables` / `PULSE_RANGE_TABLES_DIR`); resolves to the same range set.
 
 ## Inputs
 
@@ -28,9 +30,9 @@ Floor only. Universal `{n_in, n_out, n_null_input}` per `response-components`. M
 ## Gotchas
 
 - Null/missing date → dropped.
-- Empty `ranges` → `PULSE_RANGE_EMPTY`; overlap/dup → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL`; bad literal or start>end → `PULSE_RANGE_INVALID`.
+- Exactly one of `ranges` / `table`; both or neither → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table name → `PULSE_RANGE_TABLE_UNKNOWN`.
+- Overlap/dup → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL`; bad literal or start>end → `PULSE_RANGE_INVALID`.
 - Row-local streamable — auto-available to `facet` (`FacetRequest.Filterers`) and `sample`, single-pass.
-- Named `table:` source not wired here (inline only).
 
 ## See
 

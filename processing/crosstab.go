@@ -68,6 +68,7 @@ func (p *Processor) PartitionByAxis(axis []*types.Group, records []*Record) (*Cr
 	if err != nil {
 		return nil, err
 	}
+	ApplyGrouperExtensions(grouper, p.exts)
 	buckets, err := grouper.Group(records, grp.Field)
 	if err != nil {
 		return nil, err
@@ -262,6 +263,7 @@ func (p *Processor) axisComponentsFor(axis []*types.Group, filtered []*Record) (
 		if err != nil {
 			return nil, err
 		}
+		ApplyGrouperExtensions(grouper, p.exts)
 		// Run the grouper against the full filtered set so liveBuckets
 		// reflects every key the axis observed across the cohort. The
 		// returned partition map is discarded — the cell-partition pass

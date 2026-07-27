@@ -121,14 +121,17 @@ func (f *rangeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (
 }
 
 // dateRangesFilterParams is the wire shape of FILTER_DATE_RANGES params.
-// Ranges is the inline labeled-range source (the only source wired in
-// this story; a named Table reference arrives in a later story and is
-// decoded-but-ignored so an inline+table mix does not fail unmarshal).
-// The label is irrelevant to keep/drop, but the ranges are still fully
-// validated (overlap/duplicate/empty/invalid) via CompileDateRanges.
+// Exactly one of Ranges (inline labeled ranges) or Table (a named,
+// pre-registered range table) is the source; supplying both or neither
+// is rejected with PULSE_RANGE_SOURCE_AMBIGUOUS. Whichever source is
+// named, the resolved ranges run through the same CompileDateRanges
+// validation (overlap/duplicate/empty/invalid) and Match path. The label
+// is irrelevant to keep/drop.
 type dateRangesFilterParams struct {
-	Ranges []DateRangeSpec `json:"ranges"`
-	// Table is reserved for the named range-table source (later story).
+	Ranges []DateRangeSpec `json:"ranges,omitempty"`
+	// Table names a range table registered via Options.Extensions.RangeTables
+	// or the PULSE_RANGE_TABLES_DIR loader; resolved against the injected
+	// ExtensionRegistry. Unknown name → PULSE_RANGE_TABLE_UNKNOWN.
 	Table string `json:"table,omitempty"`
 }
 
@@ -136,11 +139,29 @@ type dateRangesFilterParams struct {
 // inside any of a validated labeled date-range set (the E1-S1 shared
 // model). Rows outside every range are dropped, and null/missing dates
 // are dropped. Matching is row-local, so the filter is streamable and
-// keeps facet/process/sample single-pass.
-type dateRangesFilterer struct{}
+// keeps facet/process/sample single-pass. It implements ExtensionAware so
+// the runtime can inject the live registry for named-table resolution.
+type dateRangesFilterer struct {
+	exts *ExtensionRegistry
+}
 
 func newDateRangesFilterer() FiltererBuilder {
 	return &dateRangesFilterer{}
+}
+
+// ExtensionAware locks — both filterers consume the injected registry
+// (expression filter: expr functions / lookup tables; date-ranges filter:
+// named range tables). Catch interface drift at build time.
+var (
+	_ ExtensionAware = (*dateRangesFilterer)(nil)
+	_ ExtensionAware = (*expressionFilterer)(nil)
+)
+
+// SetExtensions implements ExtensionAware so the Processor / BuildFilters
+// can inject the live registry before Build, making named range tables
+// resolvable.
+func (f *dateRangesFilterer) SetExtensions(r *ExtensionRegistry) {
+	f.exts = r
 }
 
 func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
@@ -167,11 +188,16 @@ func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 		}
 	}
 
-	// Inline ranges only in this story. CompileDateRanges emits
-	// PULSE_RANGE_EMPTY when Ranges is absent/empty and the four range
-	// validation coded errors otherwise. The label plays no role in
-	// keep/drop but is validated all the same.
-	set, err := CompileDateRanges(params.Ranges)
+	// Select exactly one source (inline `ranges` XOR named `table`) and
+	// resolve a named table against the injected registry. The resolved
+	// specs then run through the same CompileDateRanges validation path as
+	// inline — behaviour is identical regardless of source. The label plays
+	// no role in keep/drop but is validated all the same.
+	specs, err := resolveDateRangeSpecs("FILTER_DATE_RANGES", params.Ranges, params.Table, f.exts)
+	if err != nil {
+		return nil, err
+	}
+	set, err := CompileDateRanges(specs)
 	if err != nil {
 		return nil, err
 	}

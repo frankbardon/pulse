@@ -11,9 +11,12 @@ examples_tags: [time-series, cohort-analysis]
 
 ## Params
 
+Exactly one range source — inline `ranges` XOR named `table`:
+
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `ranges` | array | (required) | Ordered `{label, start, end}` list. ISO dates; omitted bound = open. Inclusive; non-overlapping, distinct labels. |
+| `ranges` | array | (one source) | Ordered `{label, start, end}` list. ISO dates; omitted bound = open. Inclusive; non-overlapping, distinct labels. |
+| `table` | string | (one source) | Name of a registered `RangeTable` (`Options.Extensions.RangeTables` / `PULSE_RANGE_TABLES_DIR`); resolved to the same range set. |
 | `unmatched_label` | string | `unmatched` | Bucket for out-of-range rows; must not equal a range label. |
 
 ## Inputs
@@ -40,7 +43,7 @@ Mergeability `Mergeable`; `Streamable=true`.
 
 ## Gotchas
 
-- Inline `ranges` only (named `table:` is later). Absent/empty → `PULSE_RANGE_EMPTY`.
+- Exactly one of `ranges` / `table`; both or neither → `PULSE_RANGE_SOURCE_AMBIGUOUS`. Unknown table name → `PULSE_RANGE_TABLE_UNKNOWN`.
 - Non-`date` field → `PROCESSING_CONFIG`.
 - Overlap / dup label / bad boundary → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL` / `_INVALID`.
 - `Group.Include` not honoured.

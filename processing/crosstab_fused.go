@@ -339,6 +339,7 @@ func buildStreamableAxis(axis []*types.Group, schema *encoding.Schema, ext *Exte
 		if err != nil {
 			return nil, err
 		}
+		ApplyGrouperExtensions(instance, ext)
 		streamable, ok := instance.(StreamableGrouper)
 		if !ok {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,

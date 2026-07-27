@@ -6,6 +6,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -1201,16 +1202,20 @@ func (g *dateGrouper) Components() (map[string]any, error) {
 }
 
 // dateRangesGroupParams is the wire shape of GROUP_DATE_RANGES params.
-// Ranges is the inline labeled-range source (the only source wired in
-// this story; a named Table reference arrives in a later story and is
-// accepted but ignored here). UnmatchedLabel overrides the default
-// "unmatched" bucket label for rows that fall outside every range.
+// Exactly one of Ranges (inline labeled ranges) or Table (a named,
+// pre-registered range table) is the source; supplying both or neither is
+// rejected with PULSE_RANGE_SOURCE_AMBIGUOUS. Whichever source is named,
+// the resolved ranges run through the same CompileDateRanges + Match path.
+// UnmatchedLabel overrides the default "unmatched" bucket label for rows
+// that fall outside every range.
 type dateRangesGroupParams struct {
-	Ranges         []DateRangeSpec `json:"ranges"`
+	Ranges         []DateRangeSpec `json:"ranges,omitempty"`
 	UnmatchedLabel string          `json:"unmatched_label,omitempty"`
-	// Table is reserved for the named range-table source (later story).
-	// It is decoded so an inline+table mix does not fail json.Unmarshal,
-	// but has no effect on the inline path.
+	// Table names a range table registered via Options.Extensions.RangeTables
+	// or the PULSE_RANGE_TABLES_DIR loader. Because a grouper factory cannot
+	// reach the ExtensionRegistry at construction (signature is (grp, schema)),
+	// a named table is resolved lazily via the ExtensionAware SetExtensions
+	// hook; an unknown name surfaces PULSE_RANGE_TABLE_UNKNOWN.
 	Table string `json:"table,omitempty"`
 }
 
@@ -1226,6 +1231,15 @@ type dateRangesGrouper struct {
 	set            *DateRangeSet
 	order          []string // supplied range labels, in author order
 	unmatchedLabel string
+
+	// tableName is non-empty when the grouper's source is a named range
+	// table (rather than inline ranges). Resolution is deferred to
+	// SetExtensions because the grouper factory cannot reach the registry.
+	tableName string
+	// resolveErr holds a deferred table-resolution error (unknown table or
+	// a validation failure). It is surfaced at KeyFor time — the grouper has
+	// no post-construction Build step to return it from.
+	resolveErr error
 
 	// liveBuckets mirrors the post-Group / post-KeyForRow per-bucket row
 	// counts so Components() can emit counts without re-scanning. KeyFor
@@ -1253,40 +1267,79 @@ func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, e
 		}
 	}
 
-	// Inline ranges only in this story. CompileDateRanges emits
-	// PULSE_RANGE_EMPTY when Ranges is absent/empty and the four range
-	// validation coded errors otherwise.
-	set, err := CompileDateRanges(params.Ranges)
-	if err != nil {
-		return nil, err
-	}
-
 	unmatched := defaultUnmatchedRangeLabel
 	if params.UnmatchedLabel != "" {
 		unmatched = params.UnmatchedLabel
 	}
+	g := &dateRangesGrouper{
+		field:          grp.Field,
+		unmatchedLabel: unmatched,
+	}
 
-	// Preserve the caller's supplied label order for bucket emission —
-	// CompileDateRanges sorts by lower bound internally, so we cannot use
-	// set.Labels(). Reject a collision between the unmatched label and a
-	// supplied range label: it would silently merge out-of-range rows
-	// into a real range bucket.
-	order := make([]string, 0, len(params.Ranges))
-	for i := range params.Ranges {
-		label := params.Ranges[i].Label
-		if label == unmatched {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("GROUP_DATE_RANGES unmatched_label %q collides with a range label", unmatched))
+	// Source selection: exactly one of inline `ranges` or a named `table`.
+	// The both/neither ambiguity check needs no registry, so it surfaces at
+	// construction. The inline path also resolves eagerly here (preserving
+	// construction-time validation of overlap/duplicate/invalid ranges). A
+	// named table cannot be resolved yet — the grouper factory has no
+	// registry — so it is deferred to SetExtensions (ExtensionAware).
+	hasInline := len(params.Ranges) > 0
+	hasTable := strings.TrimSpace(params.Table) != ""
+	if err := dateRangeSourceAmbiguity("GROUP_DATE_RANGES", hasInline, hasTable); err != nil {
+		return nil, err
+	}
+	if hasInline {
+		if err := g.applyRanges(params.Ranges); err != nil {
+			return nil, err
+		}
+	} else {
+		g.tableName = strings.TrimSpace(params.Table)
+	}
+
+	return g, nil
+}
+
+// applyRanges compiles a resolved spec slice into the grouper's live range
+// set and preserves the author-order label list for bucket emission
+// (CompileDateRanges sorts by lower bound internally, so set.Labels() is
+// not author order). It also rejects a collision between the unmatched
+// label and any range label — that would silently merge out-of-range rows
+// into a real bucket. Shared by the eager inline path (factory) and the
+// deferred named-table path (SetExtensions).
+func (g *dateRangesGrouper) applyRanges(specs []DateRangeSpec) error {
+	set, err := CompileDateRanges(specs)
+	if err != nil {
+		return err
+	}
+	order := make([]string, 0, len(specs))
+	for i := range specs {
+		label := specs[i].Label
+		if label == g.unmatchedLabel {
+			return errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("GROUP_DATE_RANGES unmatched_label %q collides with a range label", g.unmatchedLabel))
 		}
 		order = append(order, label)
 	}
+	g.set = set
+	g.order = order
+	return nil
+}
 
-	return &dateRangesGrouper{
-		field:          grp.Field,
-		set:            set,
-		order:          order,
-		unmatchedLabel: unmatched,
-	}, nil
+// SetExtensions implements ExtensionAware. For a named-table grouper it
+// resolves the table against the live registry and compiles it into the
+// live range set. Any failure (unknown table, or a validation error) is
+// stashed in resolveErr and surfaced at KeyFor — the grouper has no
+// post-construction Build step to return it from. Inline-source groupers
+// (already resolved in the factory) are a no-op.
+func (g *dateRangesGrouper) SetExtensions(r *ExtensionRegistry) {
+	if g.tableName == "" || g.set != nil || g.resolveErr != nil {
+		return
+	}
+	specs, err := resolveDateRangeSpecs("GROUP_DATE_RANGES", nil, g.tableName, r)
+	if err != nil {
+		g.resolveErr = err
+		return
+	}
+	g.resolveErr = g.applyRanges(specs)
 }
 
 // KeyFor implements StreamableGrouper.KeyFor. Resolves the record's day
@@ -1294,6 +1347,16 @@ func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, e
 // miss returns the unmatched bucket label. Null/missing dates return
 // the ErrGrouperKeyNull sentinel.
 func (g *dateRangesGrouper) KeyFor(r *Record) (string, error) {
+	// A named-table grouper resolves its range set lazily via SetExtensions.
+	// Surface a deferred resolution error (unknown table / invalid table)
+	// here, and guard the wiring bug where SetExtensions was never called.
+	if g.resolveErr != nil {
+		return "", g.resolveErr
+	}
+	if g.set == nil {
+		return "", errors.NewCodedError(errors.PROCESSING_INTERNAL,
+			"GROUP_DATE_RANGES: range table not resolved (SetExtensions was not called for a table-backed grouper)")
+	}
 	v, ok := r.NumericValue(g.field)
 	if !ok {
 		return "", ErrGrouperKeyNull
@@ -1376,6 +1439,9 @@ var (
 
 	_ StreamableGrouper = (*dateRangesGrouper)(nil)
 	_ StreamingGrouper  = (*dateRangesGrouper)(nil)
+	// ExtensionAware: the named-table source resolves lazily via the
+	// injected registry (see SetExtensions).
+	_ ExtensionAware = (*dateRangesGrouper)(nil)
 
 	// IncludeOrdered locks — only the include-capable groupers surface
 	// an ordered filter; every other grouper falls through to sort.Strings

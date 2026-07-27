@@ -216,7 +216,11 @@ func TestGrouper_DateRanges_NonDateField(t *testing.T) {
 	}
 }
 
-func TestGrouper_DateRanges_EmptyRanges(t *testing.T) {
+// TestGrouper_DateRanges_NoSource asserts that naming neither an inline
+// `ranges` array nor a `table` is the ambiguous-source error (exactly one
+// source is required). An explicitly-empty `ranges` array counts as "no
+// inline source" for source selection.
+func TestGrouper_DateRanges_NoSource(t *testing.T) {
 	schema := dateSchema()
 	factory := grouperRegistry[types.GROUP_DATE_RANGES]
 	cases := []json.RawMessage{
@@ -226,8 +230,8 @@ func TestGrouper_DateRanges_EmptyRanges(t *testing.T) {
 	}
 	for _, params := range cases {
 		_, err := factory(&types.Group{Type: types.GROUP_DATE_RANGES, Field: "enrolled", Params: params}, schema)
-		if got := codeOf(t, err); got != errors.PULSE_RANGE_EMPTY {
-			t.Errorf("params %s: error code = %v, want PULSE_RANGE_EMPTY", params, got)
+		if got := codeOf(t, err); got != errors.PULSE_RANGE_SOURCE_AMBIGUOUS {
+			t.Errorf("params %s: error code = %v, want PULSE_RANGE_SOURCE_AMBIGUOUS", params, got)
 		}
 	}
 }

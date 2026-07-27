@@ -4938,7 +4938,7 @@
         ]
       }
     ],
-    "error_codes_count": 156,
+    "error_codes_count": 158,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5070,6 +5070,8 @@
       "PULSE_RANGE_EMPTY",
       "PULSE_RANGE_INVALID",
       "PULSE_RANGE_OVERLAP",
+      "PULSE_RANGE_SOURCE_AMBIGUOUS",
+      "PULSE_RANGE_TABLE_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_SHARD_DESCRIPTION_DIVERGENCE",
       "PULSE_SHARD_DICT_DIVERGENCE",
@@ -9196,4 +9198,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e6e5cee5ee1607a9e60fdf696f0a2bf80e21a57bc4afbd551a7dfdffff4ae05c
+// golden-hash: 30ecfe620bf6526582c87851a5ff5bb60730be0f7e50ed19dad465c2357f4d6d

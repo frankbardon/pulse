@@ -1022,6 +1022,24 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_RANGE_SOURCE_AMBIGUOUS: {
+		Message: "A GROUP_DATE_RANGES / FILTER_DATE_RANGES operator must name exactly one range source; supplying both an inline `ranges` array and a named `table`, or neither, is ambiguous.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Hint:   "In the operator's Params, provide exactly one of: an inline `ranges` array of {label, start, end} entries, or a `table` naming a registered range table. Remove one when both are present, or add one when neither is.",
+			},
+		},
+	},
+	PULSE_RANGE_TABLE_UNKNOWN: {
+		Message: "A GROUP_DATE_RANGES / FILTER_DATE_RANGES operator referenced a range table by a name that is not registered.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Set Params.table to a table registered via Options.Extensions.RangeTables or the PULSE_RANGE_TABLES_DIR loader, or register the referenced table before running the request.",
+			},
+		},
+	},
 	PULSE_LABEL_FIELD_UNKNOWN: {
 		Message: "A LabelBinding references a field name not present in the cohort schema.",
 		Fixups: []Fixup{

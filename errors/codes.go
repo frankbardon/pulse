@@ -568,6 +568,18 @@ const (
 	// rejected. Details carry the two offending labels.
 	PULSE_RANGE_OVERLAP Code = "PULSE_RANGE_OVERLAP"
 
+	// PULSE_RANGE_SOURCE_AMBIGUOUS indicates a GROUP_DATE_RANGES /
+	// FILTER_DATE_RANGES operator did not name exactly one range source.
+	// Exactly one of an inline `ranges` array or a named `table` reference
+	// is required: supplying both, or neither, is ambiguous and rejected.
+	PULSE_RANGE_SOURCE_AMBIGUOUS Code = "PULSE_RANGE_SOURCE_AMBIGUOUS"
+
+	// PULSE_RANGE_TABLE_UNKNOWN indicates a GROUP_DATE_RANGES /
+	// FILTER_DATE_RANGES operator referenced a range table by a name that
+	// is not registered (via Options.Extensions.RangeTables or the
+	// PULSE_RANGE_TABLES_DIR loader). Details carry the offending name.
+	PULSE_RANGE_TABLE_UNKNOWN Code = "PULSE_RANGE_TABLE_UNKNOWN"
+
 	// PULSE_LABEL_FIELD_UNKNOWN indicates a LabelBinding references a
 	// field name not present in the cohort schema.
 	PULSE_LABEL_FIELD_UNKNOWN Code = "PULSE_LABEL_FIELD_UNKNOWN"
@@ -1244,6 +1256,8 @@ var allCodes = []Code{
 	PULSE_RANGE_INVALID,
 	PULSE_RANGE_DUPLICATE_LABEL,
 	PULSE_RANGE_OVERLAP,
+	PULSE_RANGE_SOURCE_AMBIGUOUS,
+	PULSE_RANGE_TABLE_UNKNOWN,
 	PULSE_LABEL_FIELD_UNKNOWN,
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL,
 	PULSE_LABEL_TABLE_UNKNOWN,

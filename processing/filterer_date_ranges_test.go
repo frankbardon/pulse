@@ -138,9 +138,9 @@ func TestFilter_DateRanges_Validation(t *testing.T) {
 			wantErr: errors.PROCESSING_CONFIG,
 		},
 		{
-			name:    "empty ranges",
+			name:    "no source (neither ranges nor table)",
 			filter:  &types.Filterer{Type: types.FILTER_DATE_RANGES, Field: "enrolled", Params: dateRangesFilterParamsJSON(t, nil)},
-			wantErr: errors.PULSE_RANGE_EMPTY,
+			wantErr: errors.PULSE_RANGE_SOURCE_AMBIGUOUS,
 		},
 		{
 			name: "overlapping ranges",
