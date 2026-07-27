@@ -36,6 +36,13 @@ type MemberSet = processing.MemberSet
 // can inspect drop counts after loading an include-set file.
 type LoadMemberSetResult = processing.LoadMemberSetResult
 
+// DateRangeSpec is the public alias for processing.DateRangeSpec — the
+// wire-level shape of a single labeled date range ({label, start, end}).
+// It is the shared model authored inline on a GROUP_DATE_RANGES grouper
+// or FILTER_DATE_RANGES filter and registered in an Extensions.RangeTables
+// entry. Start / End are ISO date literals; nil / empty is an open bound.
+type DateRangeSpec = processing.DateRangeSpec
+
 // LoadMemberSetFromReader is the public alias for the underlying
 // processing-package loader. It reads newline-delimited values from r
 // and returns the best MemberSet impl for the named field on schema
@@ -260,6 +267,24 @@ type Options struct {
 	// PULSE_EXTENSION_DUPLICATE.
 	LabelTablesDir string
 
+	// RangeTablesDir points at a directory of JSON files that the
+	// engine auto-registers as RangeTables at pulse.New time. Empty
+	// disables the loader (the only source of RangeTables is then
+	// Options.Extensions.RangeTables, set programmatically).
+	//
+	// File format: each *.json file is a bare array of range objects
+	// [{"label":"Q1","start":"2024-01-01","end":"2024-03-31"}, ...] or
+	// a wrapped object {"description": "...", "ranges": [ ... ]}. The
+	// filename without the .json extension becomes the registered
+	// table name.
+	//
+	// Honoured after PULSE_RANGE_TABLES_DIR — the programmatic value
+	// wins. A table name declared both programmatically and on disk is
+	// a hard error at pulse.New; the registered ranges are then
+	// validated via the shared range-compilation pass, surfacing the
+	// matching PULSE_RANGE_* code on any structural failure.
+	RangeTablesDir string
+
 	// EchoRequest causes execution paths and descriptor operations to
 	// populate descriptor.Envelope.Request with the *normalized* request
 	// that was executed — smart defaults resolved, per-stage forms
@@ -317,6 +342,9 @@ func (p *Pulse) Service() *service.Service { return p.svc }
 // New creates a new Pulse instance with the given options.
 func New(opts Options) (*Pulse, error) {
 	if err := loadLabelTablesFromDir(&opts); err != nil {
+		return nil, err
+	}
+	if err := loadRangeTablesFromDir(&opts); err != nil {
 		return nil, err
 	}
 	if err := validateExtensions(opts.Extensions); err != nil {

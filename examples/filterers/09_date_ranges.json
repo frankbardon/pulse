@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "filterers",
+    "description": "Keep only orders whose order_date falls inside the launch or growth fiscal phases using FILTER_DATE_RANGES inline labeled ranges, then summarize the kept cohort.",
+    "name": "filter_date_ranges_phases",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "FILTER_DATE_RANGES"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "total"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_DATE_RANGES",
+      "field": "order_date",
+      "params": {
+        "ranges": [
+          { "label": "launch", "start": "2024-01-01", "end": "2024-03-31" },
+          { "label": "growth", "start": "2024-04-01", "end": "2024-09-30" }
+        ]
+      }
+    }
+  ]
+}

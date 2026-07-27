@@ -690,6 +690,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	if err != nil {
 		return nil, err
 	}
+	ApplyGrouperExtensions(grouperInstance, p.exts)
 	streamGrp, _ := grouperInstance.(StreamingGrouper)
 	multiGrp, _ := grouperInstance.(MultiKeyStreamingGrouper)
 	if streamGrp == nil && multiGrp == nil {
@@ -1629,6 +1630,7 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 	if err != nil {
 		return nil, nil, err
 	}
+	ApplyGrouperExtensions(grouper, p.exts)
 
 	groups, err := grouper.Group(records, grp.Field)
 	if err != nil {

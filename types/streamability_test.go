@@ -102,13 +102,14 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 
 func TestStreamability_FilterersKnown(t *testing.T) {
 	expected := map[FiltererType]bool{
-		FILTER_INCLUDE:    true,
-		FILTER_EXCLUDE:    true,
-		FILTER_RANGE:      true,
-		FILTER_EXPRESSION: true,
-		FILTER_NULL:       true,
-		FILTER_TRUE:       true,
-		FILTER_FALSE:      true,
+		FILTER_INCLUDE:     true,
+		FILTER_EXCLUDE:     true,
+		FILTER_RANGE:       true,
+		FILTER_EXPRESSION:  true,
+		FILTER_NULL:        true,
+		FILTER_TRUE:        true,
+		FILTER_FALSE:       true,
+		FILTER_DATE_RANGES: true,
 
 		FILTER_SET_CONTAINS_ANY:  true,
 		FILTER_SET_CONTAINS_ALL:  true,
@@ -131,11 +132,12 @@ func TestStreamability_FilterersKnown(t *testing.T) {
 
 func TestStreamability_GroupsKnown(t *testing.T) {
 	expected := map[GroupType]bool{
-		GROUP_CATEGORY: true,
-		GROUP_ROUNDED:  true,
-		GROUP_RANGE:    true,
-		GROUP_QUANTILE: false,
-		GROUP_DATE:     false,
+		GROUP_CATEGORY:    true,
+		GROUP_ROUNDED:     true,
+		GROUP_RANGE:       true,
+		GROUP_DATE_RANGES: true,
+		GROUP_QUANTILE:    false,
+		GROUP_DATE:        false,
 
 		GROUP_SET_VALUE:       true,
 		GROUP_SET_PER_ELEMENT: true,

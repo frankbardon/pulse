@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -116,6 +117,99 @@ func (f *rangeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (
 			return false, nil
 		}
 		return v >= minVal && v <= maxVal, nil
+	}, nil
+}
+
+// dateRangesFilterParams is the wire shape of FILTER_DATE_RANGES params.
+// Exactly one of Ranges (inline labeled ranges) or Table (a named,
+// pre-registered range table) is the source; supplying both or neither
+// is rejected with PULSE_RANGE_SOURCE_AMBIGUOUS. Whichever source is
+// named, the resolved ranges run through the same CompileDateRanges
+// validation (overlap/duplicate/empty/invalid) and Match path. The label
+// is irrelevant to keep/drop.
+type dateRangesFilterParams struct {
+	Ranges []DateRangeSpec `json:"ranges,omitempty"`
+	// Table names a range table registered via Options.Extensions.RangeTables
+	// or the PULSE_RANGE_TABLES_DIR loader; resolved against the injected
+	// ExtensionRegistry. Unknown name → PULSE_RANGE_TABLE_UNKNOWN.
+	Table string `json:"table,omitempty"`
+}
+
+// dateRangesFilterer keeps rows whose `date` Field day-integer falls
+// inside any of a validated labeled date-range set (the E1-S1 shared
+// model). Rows outside every range are dropped, and null/missing dates
+// are dropped. Matching is row-local, so the filter is streamable and
+// keeps facet/process/sample single-pass. It implements ExtensionAware so
+// the runtime can inject the live registry for named-table resolution.
+type dateRangesFilterer struct {
+	exts *ExtensionRegistry
+}
+
+func newDateRangesFilterer() FiltererBuilder {
+	return &dateRangesFilterer{}
+}
+
+// ExtensionAware locks — both filterers consume the injected registry
+// (expression filter: expr functions / lookup tables; date-ranges filter:
+// named range tables). Catch interface drift at build time.
+var (
+	_ ExtensionAware = (*dateRangesFilterer)(nil)
+	_ ExtensionAware = (*expressionFilterer)(nil)
+)
+
+// SetExtensions implements ExtensionAware so the Processor / BuildFilters
+// can inject the live registry before Build, making named range tables
+// resolvable.
+func (f *dateRangesFilterer) SetExtensions(r *ExtensionRegistry) {
+	f.exts = r
+}
+
+func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
+	if filter.Field == "" {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			"FILTER_DATE_RANGES requires a Field")
+	}
+
+	// Field must be a date-typed column. Validate against the schema when
+	// present (the runtime always supplies one); a nil schema skips the
+	// check (probe path with no field).
+	if schema != nil {
+		if fld := schema.Field(filter.Field); fld != nil && fld.Type != encoding.FieldTypeDate {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("FILTER_DATE_RANGES requires a date field, got %q on field %q", fld.Type, filter.Field))
+		}
+	}
+
+	var params dateRangesFilterParams
+	if len(filter.Params) > 0 {
+		if err := json.Unmarshal(filter.Params, &params); err != nil {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("invalid FILTER_DATE_RANGES params: %v", err))
+		}
+	}
+
+	// Select exactly one source (inline `ranges` XOR named `table`) and
+	// resolve a named table against the injected registry. The resolved
+	// specs then run through the same CompileDateRanges validation path as
+	// inline — behaviour is identical regardless of source. The label plays
+	// no role in keep/drop but is validated all the same.
+	specs, err := resolveDateRangeSpecs("FILTER_DATE_RANGES", params.Ranges, params.Table, f.exts)
+	if err != nil {
+		return nil, err
+	}
+	set, err := CompileDateRanges(specs)
+	if err != nil {
+		return nil, err
+	}
+
+	field := filter.Field
+	return func(record *Record) (bool, error) {
+		v, ok := record.NumericValue(field)
+		if !ok {
+			return false, nil // null/missing date → drop
+		}
+		_, matched := set.Match(uint32(v))
+		return matched, nil
 	}, nil
 }
 

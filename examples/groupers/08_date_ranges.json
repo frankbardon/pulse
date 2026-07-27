@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "category": "groupers",
+    "description": "Bucket orders into named fiscal phases using GROUP_DATE_RANGES inline labeled ranges; out-of-range rows land in the unmatched bucket.",
+    "name": "group_date_ranges_phases",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "GROUP_DATE_RANGES"
+    ],
+    "tags": [
+      "time-series",
+      "cohort-analysis"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "total"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE_RANGES",
+      "field": "order_date",
+      "params": {
+        "ranges": [
+          { "label": "launch", "start": "2024-01-01", "end": "2024-03-31" },
+          { "label": "growth", "start": "2024-04-01", "end": "2024-09-30" },
+          { "label": "steady", "start": "2024-10-01" }
+        ],
+        "unmatched_label": "pre_launch"
+      }
+    }
+  ]
+}

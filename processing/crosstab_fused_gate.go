@@ -216,6 +216,7 @@ func axisStreamable(axis []*types.Group, schema *encoding.Schema, ext *Extension
 			// decline fusion. Mirror the reason shape the other branches return.
 			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
 		}
+		ApplyGrouperExtensions(instance, ext)
 		if _, ok := instance.(StreamableGrouper); !ok {
 			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
 		}

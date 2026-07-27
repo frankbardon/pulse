@@ -260,3 +260,62 @@ func TestInvoke_CodedErrorVerbatim(t *testing.T) {
 		t.Errorf("code = %s, want PULSE_REQUEST_UNKNOWN_FIELD", ce.Code)
 	}
 }
+
+// TestHandleRangeTables_ListsRegistered asserts the discovery tool returns
+// each registered range table's name, range count, and ordered ranges.
+func TestHandleRangeTables_ListsRegistered(t *testing.T) {
+	s := func(v string) *string { return &v }
+	p, err := pulse.New(pulse.Options{
+		FS: afero.NewMemMapFs(),
+		Extensions: pulse.Extensions{
+			RangeTables: map[string]pulse.RangeTable{
+				"quarters": {
+					Description: "fiscal quarters",
+					Ranges: []pulse.DateRangeSpec{
+						{Label: "Q1", Start: s("2024-01-01"), End: s("2024-03-31")},
+						{Label: "Q2", Start: s("2024-04-01"), End: s("2024-06-30")},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	out, err := HandleRangeTables(context.Background(), p, RangeTablesIn{})
+	if err != nil {
+		t.Fatalf("HandleRangeTables: %v", err)
+	}
+	if len(out.Tables) != 1 {
+		t.Fatalf("expected 1 table, got %d", len(out.Tables))
+	}
+	tbl := out.Tables[0]
+	if tbl.Name != "quarters" {
+		t.Errorf("name = %q, want quarters", tbl.Name)
+	}
+	if tbl.RangeCount != 2 || len(tbl.Ranges) != 2 {
+		t.Fatalf("range count = %d / ranges = %d, want 2/2", tbl.RangeCount, len(tbl.Ranges))
+	}
+	if tbl.Ranges[0].Label != "Q1" || tbl.Ranges[1].Label != "Q2" {
+		t.Errorf("range labels = %q,%q; want Q1,Q2", tbl.Ranges[0].Label, tbl.Ranges[1].Label)
+	}
+}
+
+// TestHandleRangeTables_EmptyRegistry asserts the empty case returns an
+// empty non-nil list, NOT an error.
+func TestHandleRangeTables_EmptyRegistry(t *testing.T) {
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	out, err := HandleRangeTables(context.Background(), p, RangeTablesIn{})
+	if err != nil {
+		t.Fatalf("HandleRangeTables: %v", err)
+	}
+	if out.Tables == nil {
+		t.Fatalf("Tables = nil; want empty non-nil slice")
+	}
+	if len(out.Tables) != 0 {
+		t.Errorf("Tables = %v; want empty", out.Tables)
+	}
+}

@@ -147,6 +147,7 @@ func (s *Service) reduceParallelBuffered(
 			if err != nil {
 				buildErr = err
 			} else {
+				processing.ApplyGrouperExtensions(grp, s.extensions)
 				sg, ok := grp.(processing.StreamingGrouper)
 				if !ok {
 					buildErr = errors.NewCodedError(errors.PROCESSING_INTERNAL,

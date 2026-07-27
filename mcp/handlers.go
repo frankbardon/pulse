@@ -258,6 +258,18 @@ func HandleLabelTables(_ context.Context, p *pulse.Pulse, _ LabelTablesIn) (Labe
 	return LabelTablesOut{Tables: tables}, nil
 }
 
+// HandleRangeTables runs pulse_range_tables: the INPUT-direction discovery
+// tool for named labeled-date-range sets consumed by GROUP_DATE_RANGES /
+// FILTER_DATE_RANGES. Returns an empty list (never an error) when no range
+// tables are registered.
+func HandleRangeTables(_ context.Context, p *pulse.Pulse, _ RangeTablesIn) (RangeTablesOut, error) {
+	tables := p.RangeTables()
+	if tables == nil {
+		tables = []pulse.RangeTableInfo{}
+	}
+	return RangeTablesOut{Tables: tables}, nil
+}
+
 // HandleLabelResolve runs pulse_label_resolve: reverse-resolves a name to
 // the raw categorical key(s) a filter / grouper expects.
 func HandleLabelResolve(_ context.Context, p *pulse.Pulse, in LabelResolveIn) (LabelResolveOut, error) {

@@ -128,6 +128,7 @@ func invokers(_ Config) map[string]InvokeFunc {
 		toolmeta.ToolImportsList:    makeInvoke(lenientDecode[ImportsListIn], HandleImportsList),
 		toolmeta.ToolLabelTables:    makeInvoke(lenientDecode[LabelTablesIn], HandleLabelTables),
 		toolmeta.ToolLabelResolve:   makeInvoke(lenientDecode[LabelResolveIn], HandleLabelResolve),
+		toolmeta.ToolRangeTables:    makeInvoke(lenientDecode[RangeTablesIn], HandleRangeTables),
 	}
 }
 

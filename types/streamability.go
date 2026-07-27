@@ -211,7 +211,7 @@ const (
 // we exercise in goldens today.
 func (t GroupType) Mergeable() bool {
 	switch t {
-	case GROUP_CATEGORY, GROUP_RANGE,
+	case GROUP_CATEGORY, GROUP_RANGE, GROUP_DATE_RANGES,
 		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
 	case GROUP_ROUNDED, GROUP_QUANTILE, GROUP_DATE:
@@ -254,6 +254,7 @@ func (t FiltererType) Streamable() bool {
 		FILTER_EXPRESSION,
 		FILTER_NULL,
 		FILTER_TRUE, FILTER_FALSE,
+		FILTER_DATE_RANGES,
 		FILTER_SET_CONTAINS_ANY, FILTER_SET_CONTAINS_ALL,
 		FILTER_SET_CONTAINS_NONE, FILTER_SET_EQUALS:
 		return true
@@ -271,7 +272,7 @@ func (t FiltererType) Streamable() bool {
 // streaming iterator can flip the gate without re-deriving the rule.
 func (t GroupType) Streamable() bool {
 	switch t {
-	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE,
+	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE, GROUP_DATE_RANGES,
 		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
 	case GROUP_QUANTILE, GROUP_DATE:

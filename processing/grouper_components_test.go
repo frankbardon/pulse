@@ -1112,6 +1112,12 @@ func allGroupParityFixtures(t *testing.T) map[types.GroupType]groupParityFixture
 			params:  json.RawMessage(`{"component":"month"}`),
 			records: dtRecs,
 		},
+		types.GROUP_DATE_RANGES: {
+			schema:  dtSchema,
+			field:   "enrolled",
+			params:  json.RawMessage(`{"ranges":[{"label":"march","start":"2024-03-01","end":"2024-03-31"},{"label":"april","start":"2024-04-01","end":"2024-04-30"}]}`),
+			records: dtRecs,
+		},
 		types.GROUP_RANGE:           {schema: numSchema, field: "score", interval: 10, records: numRecs},
 		types.GROUP_ROUNDED:         {schema: numSchema, field: "score", interval: 10, records: numRecs},
 		types.GROUP_QUANTILE:        {schema: numSchema, field: "score", interval: 4, records: numRecs},
@@ -1171,6 +1177,7 @@ func allGroupParityFixturesNullHeavy(t *testing.T) map[types.GroupType]groupPari
 	return map[types.GroupType]groupParityFixture{
 		types.GROUP_CATEGORY:        {schema: catSchema, field: "brand", records: catNullRecs},
 		types.GROUP_DATE:            {schema: dtSchema, field: "enrolled", params: json.RawMessage(`{"component":"month"}`), records: dtNullRecs},
+		types.GROUP_DATE_RANGES:     {schema: dtSchema, field: "enrolled", params: json.RawMessage(`{"ranges":[{"label":"march","start":"2024-03-01","end":"2024-03-31"},{"label":"april","start":"2024-04-01","end":"2024-04-30"}]}`), records: dtNullRecs},
 		types.GROUP_RANGE:           {schema: numSchema, field: "score", interval: 10, records: numNullRecs},
 		types.GROUP_ROUNDED:         {schema: numSchema, field: "score", interval: 10, records: numNullRecs},
 		types.GROUP_QUANTILE:        {schema: numSchema, field: "score", interval: 4, records: numNullRecs},

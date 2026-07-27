@@ -944,6 +944,9 @@
         "field": {
           "type": "string"
         },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
         "type": {
           "$ref": "#/$defs/FiltererType"
         },
@@ -987,6 +990,7 @@
     },
     "FiltererType": {
       "enum": [
+        "FILTER_DATE_RANGES",
         "FILTER_EXCLUDE",
         "FILTER_EXPRESSION",
         "FILTER_FALSE",
@@ -1054,6 +1058,7 @@
       "enum": [
         "GROUP_CATEGORY",
         "GROUP_DATE",
+        "GROUP_DATE_RANGES",
         "GROUP_QUANTILE",
         "GROUP_RANGE",
         "GROUP_ROUNDED",
@@ -2561,4 +2566,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 7f43cb351f15a261d4b1a70d01d10c9e52b2a93f7c0e3ca5f04030a948000c5f
+// golden-hash: 28be7b3834dacd0b6815df8179e1bbba429e47d35d958f8f41ab51b9fbcff222

@@ -94,6 +94,7 @@ func init() {
 	register(toolmeta.ToolImportsList, d(toolmeta.ToolImportsList), reflect.TypeFor[ImportsListIn](), reflect.TypeFor[ImportsListOut]())
 	register(toolmeta.ToolLabelTables, d(toolmeta.ToolLabelTables), reflect.TypeFor[LabelTablesIn](), reflect.TypeFor[LabelTablesOut]())
 	register(toolmeta.ToolLabelResolve, d(toolmeta.ToolLabelResolve), reflect.TypeFor[LabelResolveIn](), reflect.TypeFor[LabelResolveOut]())
+	register(toolmeta.ToolRangeTables, d(toolmeta.ToolRangeTables), reflect.TypeFor[RangeTablesIn](), reflect.TypeFor[RangeTablesOut]())
 }
 
 // Schemas returns the reflected descriptor for every registered tool in stable
