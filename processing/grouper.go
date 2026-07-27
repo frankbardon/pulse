@@ -1200,14 +1200,182 @@ func (g *dateGrouper) Components() (map[string]any, error) {
 	}, nil
 }
 
+// dateRangesGroupParams is the wire shape of GROUP_DATE_RANGES params.
+// Ranges is the inline labeled-range source (the only source wired in
+// this story; a named Table reference arrives in a later story and is
+// accepted but ignored here). UnmatchedLabel overrides the default
+// "unmatched" bucket label for rows that fall outside every range.
+type dateRangesGroupParams struct {
+	Ranges         []DateRangeSpec `json:"ranges"`
+	UnmatchedLabel string          `json:"unmatched_label,omitempty"`
+	// Table is reserved for the named range-table source (later story).
+	// It is decoded so an inline+table mix does not fail json.Unmarshal,
+	// but has no effect on the inline path.
+	Table string `json:"table,omitempty"`
+}
+
+const defaultUnmatchedRangeLabel = "unmatched"
+
+// dateRangesGrouper buckets each date row by a validated labeled
+// date-range set (the E1-S1 shared model). The bucket key is the
+// matching range's label; rows outside every range land in the
+// configured unmatched bucket. A per-record range→label lookup is
+// fully row-local, so the grouper is streamable + mergeable.
+type dateRangesGrouper struct {
+	field          string
+	set            *DateRangeSet
+	order          []string // supplied range labels, in author order
+	unmatchedLabel string
+
+	// liveBuckets mirrors the post-Group / post-KeyForRow per-bucket row
+	// counts so Components() can emit counts without re-scanning. KeyFor
+	// itself does NOT touch it (fused crosstab path) — mirrors the
+	// categoryGrouper rationale.
+	liveBuckets map[string]int
+}
+
+func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
+	// Field must be a date-typed column. Validate against the schema when
+	// present (the runtime always supplies one); a nil schema (e.g. a
+	// probe with no field) skips the check.
+	if schema != nil {
+		if f := schema.Field(grp.Field); f != nil && f.Type != encoding.FieldTypeDate {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("GROUP_DATE_RANGES requires a date field, got %q on field %q", f.Type, grp.Field))
+		}
+	}
+
+	var params dateRangesGroupParams
+	if len(grp.Params) > 0 {
+		if err := json.Unmarshal(grp.Params, &params); err != nil {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("invalid GROUP_DATE_RANGES params: %v", err))
+		}
+	}
+
+	// Inline ranges only in this story. CompileDateRanges emits
+	// PULSE_RANGE_EMPTY when Ranges is absent/empty and the four range
+	// validation coded errors otherwise.
+	set, err := CompileDateRanges(params.Ranges)
+	if err != nil {
+		return nil, err
+	}
+
+	unmatched := defaultUnmatchedRangeLabel
+	if params.UnmatchedLabel != "" {
+		unmatched = params.UnmatchedLabel
+	}
+
+	// Preserve the caller's supplied label order for bucket emission —
+	// CompileDateRanges sorts by lower bound internally, so we cannot use
+	// set.Labels(). Reject a collision between the unmatched label and a
+	// supplied range label: it would silently merge out-of-range rows
+	// into a real range bucket.
+	order := make([]string, 0, len(params.Ranges))
+	for i := range params.Ranges {
+		label := params.Ranges[i].Label
+		if label == unmatched {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("GROUP_DATE_RANGES unmatched_label %q collides with a range label", unmatched))
+		}
+		order = append(order, label)
+	}
+
+	return &dateRangesGrouper{
+		field:          grp.Field,
+		set:            set,
+		order:          order,
+		unmatchedLabel: unmatched,
+	}, nil
+}
+
+// KeyFor implements StreamableGrouper.KeyFor. Resolves the record's day
+// integer against the range set; a match returns the range label, a
+// miss returns the unmatched bucket label. Null/missing dates return
+// the ErrGrouperKeyNull sentinel.
+func (g *dateRangesGrouper) KeyFor(r *Record) (string, error) {
+	v, ok := r.NumericValue(g.field)
+	if !ok {
+		return "", ErrGrouperKeyNull
+	}
+	if label, matched := g.set.Match(uint32(v)); matched {
+		return label, nil
+	}
+	return g.unmatchedLabel, nil
+}
+
+// KeyForRow is the StreamingGrouper adapter on top of KeyFor. Folds the
+// row into the live components state so MetaGrouper.Components() has a
+// populated per-bucket map after the streaming iteration terminates.
+func (g *dateRangesGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
+	key, ok, err := keyForOrSkip(g, r)
+	if err != nil || !ok {
+		return key, ok, err
+	}
+	if g.liveBuckets == nil {
+		g.liveBuckets = make(map[string]int)
+	}
+	g.liveBuckets[key]++
+	return key, ok, nil
+}
+
+func (g *dateRangesGrouper) Group(records []*Record, field string) (map[string][]*Record, error) {
+	groups, err := streamableGroup(g, records)
+	if err != nil {
+		return nil, err
+	}
+	// Mirror the bucket population into liveBuckets so Components() can
+	// emit per-bucket counts on the buffered path.
+	g.liveBuckets = make(map[string]int, len(groups))
+	for k, v := range groups {
+		g.liveBuckets[k] = len(v)
+	}
+	return groups, nil
+}
+
+// Components implements MetaGrouper. Returns the per-grouper schema
+// declared in descriptor/capabilities_groupers.go for GROUP_DATE_RANGES:
+// {n_ranges, unmatched_label, buckets: [{key, label, count}]}. Buckets
+// emit in supplied range order (author order), followed by the
+// unmatched bucket when any out-of-range rows were observed. Every
+// configured range emits a bucket even at zero count so the customer's
+// labels are always present. The universal floor ({total_n, n_null}) is
+// filled by the orchestrator — Components() returns operator keys only.
+func (g *dateRangesGrouper) Components() (map[string]any, error) {
+	buckets := make([]map[string]any, 0, len(g.order)+1)
+	for _, label := range g.order {
+		buckets = append(buckets, map[string]any{
+			"key":   label,
+			"label": label,
+			"count": g.liveBuckets[label],
+		})
+	}
+	if n := g.liveBuckets[g.unmatchedLabel]; n > 0 {
+		buckets = append(buckets, map[string]any{
+			"key":   g.unmatchedLabel,
+			"label": g.unmatchedLabel,
+			"count": n,
+		})
+	}
+	return map[string]any{
+		"n_ranges":        len(g.order),
+		"unmatched_label": g.unmatchedLabel,
+		"buckets":         buckets,
+	}, nil
+}
+
 // Compile-time interface locks. Catch interface drift at build time
 // and keep the MetaGrouper wiring grep-discoverable.
 var (
 	_ MetaGrouper = (*categoryGrouper)(nil)
 	_ MetaGrouper = (*dateGrouper)(nil)
+	_ MetaGrouper = (*dateRangesGrouper)(nil)
 	_ MetaGrouper = (*rangeGrouper)(nil)
 	_ MetaGrouper = (*roundedGrouper)(nil)
 	_ MetaGrouper = (*quantileGrouper)(nil)
+
+	_ StreamableGrouper = (*dateRangesGrouper)(nil)
+	_ StreamingGrouper  = (*dateRangesGrouper)(nil)
 
 	// IncludeOrdered locks — only the include-capable groupers surface
 	// an ordered filter; every other grouper falls through to sort.Strings

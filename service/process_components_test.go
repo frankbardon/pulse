@@ -659,6 +659,14 @@ func allGroupServiceFixtures(t *testing.T) map[types.GroupType]groupServiceFixtu
 			companionField: "score",
 			params:         json.RawMessage(`{"component":"month"}`),
 		},
+		types.GROUP_DATE_RANGES: {
+			svc:            dateSvc,
+			schema:         dateSchema,
+			cohortName:     "predict_dates.pulse",
+			field:          "waveDate",
+			companionField: "score",
+			params:         json.RawMessage(`{"ranges":[{"label":"q1","start":"2022-01-01","end":"2022-03-31"},{"label":"q2","start":"2022-04-01","end":"2022-06-30"}]}`),
+		},
 		types.GROUP_QUANTILE: {
 			svc:            scoreSvc,
 			schema:         scoreSchema,

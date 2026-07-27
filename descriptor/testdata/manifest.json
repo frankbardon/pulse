@@ -2654,6 +2654,61 @@
           }
         },
         {
+          "name": "GROUP_DATE_RANGES",
+          "category": "grouper",
+          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order.",
+          "params": [
+            {
+              "name": "ranges",
+              "type": "array",
+              "required": true,
+              "description": "Ordered list of {label, start, end} labeled date ranges. start/end are ISO date literals; an omitted/empty bound is open. Bounds are inclusive; ranges must be non-overlapping with distinct labels."
+            },
+            {
+              "name": "unmatched_label",
+              "type": "string",
+              "required": false,
+              "default": "unmatched",
+              "description": "Bucket label for rows outside every configured range. Must not collide with a range label."
+            }
+          ],
+          "accepts_types": [
+            "date"
+          ],
+          "emits_type_note": "labeled range key per row (the matching range's label, or the unmatched label)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "n_ranges",
+                "type": "int",
+                "description": "Number of configured labeled date ranges."
+              },
+              {
+                "name": "unmatched_label",
+                "type": "string",
+                "description": "Bucket label used for rows outside every configured range."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records in supplied range order (unmatched last when observed); each entry carries {key, label, count}."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
+        },
+        {
           "name": "GROUP_QUANTILE",
           "category": "grouper",
           "description": "Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100).",
@@ -5595,6 +5650,7 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_DATE",
+          "GROUP_DATE_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -6306,6 +6362,10 @@
         "description": "Partition date records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar."
       },
       {
+        "name": "op-group-date-ranges",
+        "description": "Bucket date records by inline labeled date ranges; the range label becomes the bucket key."
+      },
+      {
         "name": "op-group-quantile",
         "description": "Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100)."
       },
@@ -6874,7 +6934,7 @@
         "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 162,
+    "examples_count": 163,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -8651,6 +8711,36 @@
           ],
           "mergeability": "mergeable"
         },
+        "GROUP_DATE_RANGES": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "n_ranges",
+              "type": "int",
+              "description": "Number of configured labeled date ranges."
+            },
+            {
+              "name": "unmatched_label",
+              "type": "string",
+              "description": "Bucket label used for rows outside every configured range."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records in supplied range order (unmatched last when observed); each entry carries {key, label, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "GROUP_QUANTILE": {
           "keys": [
             {
@@ -9049,4 +9139,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: af77cb698eeb2d15a820d196f90517728e55c29ad969578e1e1b0c9967075fb9
+// golden-hash: c94c9030e383433fb6d9f72997b6b36251d708012d2b9bf25df4613a894178cc

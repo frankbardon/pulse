@@ -1054,6 +1054,7 @@
       "enum": [
         "GROUP_CATEGORY",
         "GROUP_DATE",
+        "GROUP_DATE_RANGES",
         "GROUP_QUANTILE",
         "GROUP_RANGE",
         "GROUP_ROUNDED",
@@ -2561,4 +2562,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 7f43cb351f15a261d4b1a70d01d10c9e52b2a93f7c0e3ca5f04030a948000c5f
+// golden-hash: c5f4b605cd2439e2880ca72a659eec914a492d0a981843e72404dbf88700ddea

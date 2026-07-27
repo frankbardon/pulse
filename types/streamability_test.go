@@ -131,11 +131,12 @@ func TestStreamability_FilterersKnown(t *testing.T) {
 
 func TestStreamability_GroupsKnown(t *testing.T) {
 	expected := map[GroupType]bool{
-		GROUP_CATEGORY: true,
-		GROUP_ROUNDED:  true,
-		GROUP_RANGE:    true,
-		GROUP_QUANTILE: false,
-		GROUP_DATE:     false,
+		GROUP_CATEGORY:    true,
+		GROUP_ROUNDED:     true,
+		GROUP_RANGE:       true,
+		GROUP_DATE_RANGES: true,
+		GROUP_QUANTILE:    false,
+		GROUP_DATE:        false,
 
 		GROUP_SET_VALUE:       true,
 		GROUP_SET_PER_ELEMENT: true,

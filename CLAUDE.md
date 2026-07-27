@@ -131,6 +131,8 @@ When a request slot names a field but omits `Type`, engine infers from schema ty
 
 `Field.Nullable` orthogonal — never changes inferred operator. Defaults apply only when `Field` set and `Type` empty; never override explicit `Type`; never cross categories; never default tests, filter expressions, attributes, windows, features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
 
+`GROUP_DATE_RANGES` is an explicit-only `date` grouper (never a smart default): it buckets each row by an inline set of labeled `{label, start, end}` date ranges (E1-S1 shared model, `processing.CompileDateRanges`) and emits the matching range's label as the bucket key; out-of-range rows land in a configurable unmatched bucket (default label `"unmatched"`). Streamable + mergeable. Inline `ranges` source only today (named `table:` source lands later); absent/empty `ranges` → `PULSE_RANGE_EMPTY`, non-`date` field → `PROCESSING_CONFIG`.
+
 ## Output Format Contract
 
 ### `--json` envelope

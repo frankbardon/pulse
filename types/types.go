@@ -206,6 +206,13 @@ const (
 	GROUP_QUANTILE GroupType = "GROUP_QUANTILE"
 	GROUP_DATE     GroupType = "GROUP_DATE"
 
+	// GROUP_DATE_RANGES buckets each date row by a validated set of
+	// labeled date ranges (inline {label, start, end} specs). The bucket
+	// key is the matching range's label; rows outside every range land in
+	// a configurable unmatched bucket (default label "unmatched").
+	// Streamable + mergeable (each row maps independently to one bucket).
+	GROUP_DATE_RANGES GroupType = "GROUP_DATE_RANGES"
+
 	// GROUP_SET_VALUE treats the set mask as an atomic value. Each
 	// distinct mask is its own bucket; the bucket key is the sorted
 	// pipe-delimited label list (e.g. "AMEX|VISA"). One row → one
@@ -226,6 +233,7 @@ func AllGroupTypes() []GroupType {
 	return []GroupType{
 		GROUP_CATEGORY,
 		GROUP_DATE,
+		GROUP_DATE_RANGES,
 		GROUP_QUANTILE,
 		GROUP_RANGE,
 		GROUP_ROUNDED,
