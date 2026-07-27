@@ -104,6 +104,9 @@ type ImportsListIn struct{}
 // LabelTablesIn is the (empty) input contract for pulse_label_tables.
 type LabelTablesIn struct{}
 
+// RangeTablesIn is the (empty) input contract for pulse_range_tables.
+type RangeTablesIn struct{}
+
 // LabelResolveIn is the input contract for pulse_label_resolve.
 type LabelResolveIn struct {
 	Table string `json:"table" jsonschema:"Label table name (from pulse_label_tables, e.g. 'brand')"`
@@ -222,4 +225,9 @@ type LabelTablesOut struct {
 // LabelResolveOut is the output contract for pulse_label_resolve.
 type LabelResolveOut struct {
 	Matches []pulse.LabelMatch `json:"matches" jsonschema:"Ranked (key, value, score) resolution candidates"`
+}
+
+// RangeTablesOut is the output contract for pulse_range_tables.
+type RangeTablesOut struct {
+	Tables []pulse.RangeTableInfo `json:"tables" jsonschema:"Registered range tables (name, range count, ordered labeled date ranges)"`
 }

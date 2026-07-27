@@ -5177,6 +5177,10 @@
         "description": "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators (AGG_COUNT/SUM/AVERAGE/MIN/MAX/RANGE/VARIANCE/STDDEV/DISTINCT_COUNT/NULL_COUNT), mergeable groupers (GROUP_CATEGORY, GROUP_RANGE), and row-local attributes (ATTR_FORMULA, ATTR_DATE_PART). Windows, features, statistical tests, regressions, two-pass attributes, AGG_FREQUENCY, AGG_MODE, and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE — fall back to pulse_compose / per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
       },
       {
+        "name": "pulse_range_tables",
+        "description": "List the registered range tables (named, reusable sets of labeled date ranges — e.g. fiscal quarters, marketing campaigns, product-launch windows). Returns each table's name, range count, and the ordered {label, start, end} ranges themselves (ISO date literals; empty start/end is an open bound). Use this to discover which named date-range partitions exist before authoring a GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter that references the table by name — the INPUT direction, turning a table name into the usable range set. Returns an empty list (never an error) when no range tables are registered; tables are supplied programmatically via Options.Extensions.RangeTables or loaded from the PULSE_RANGE_TABLES_DIR directory at pulse.New time."
+      },
+      {
         "name": "pulse_sample",
         "description": "Return up to N rows from a cohort. Diagnostic / preview tool — use after running a request when you want to eyeball the underlying data."
       },
@@ -6886,6 +6890,10 @@
       {
         "name": "tool-process-chain",
         "description": "Linear chain of stages; stage N+1 consumes stage N's output rows."
+      },
+      {
+        "name": "tool-range-tables",
+        "description": "List registered range tables — named, reusable sets of labeled date ranges."
       },
       {
         "name": "tool-sample",
@@ -9198,4 +9206,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 30ecfe620bf6526582c87851a5ff5bb60730be0f7e50ed19dad465c2357f4d6d
+// golden-hash: c89aa4dc62684bb30bebc9ac7dc0dd57a4f1b61684a2addf32a5e707d4d48141

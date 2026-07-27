@@ -35,6 +35,7 @@ const (
 	ToolImportsList    = "pulse_imports_list"
 	ToolLabelTables    = "pulse_label_tables"
 	ToolLabelResolve   = "pulse_label_resolve"
+	ToolRangeTables    = "pulse_range_tables"
 )
 
 // Description constants for the registered tools.
@@ -58,6 +59,7 @@ const (
 	DescDrop           = "Drop a managed-import handle from the pool, deleting the .pulse file and its sidecar. Errors with PULSE_IMPORT_SOURCE_MISSING when the handle is unknown. Pulse-format passthroughs are unaffected (they were never managed)."
 	DescImportsList    = "List every managed-import handle currently in the pool with its sidecar metadata: source path, source format, imported_at, expires_at, ttl, expired flag, pinned flag. Sweep is not invoked — expired entries are flagged via Expired so callers can render them and decide whether to drop or extend."
 	DescLabelTables    = "List the registered label tables (ID→display-name dictionaries for categorical fields). Returns each table's name, row count, and whether it is enumerable (reverse-searchable). Use this to discover which categorical dimensions can be resolved by name (e.g. brand, category, region) before calling pulse_label_resolve. Output surfaces already render these labels automatically; this tool and pulse_label_resolve are for the INPUT direction — turning a user-supplied name into the raw categorical key a filter / grouper needs."
+	DescRangeTables    = "List the registered range tables (named, reusable sets of labeled date ranges — e.g. fiscal quarters, marketing campaigns, product-launch windows). Returns each table's name, range count, and the ordered {label, start, end} ranges themselves (ISO date literals; empty start/end is an open bound). Use this to discover which named date-range partitions exist before authoring a GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter that references the table by name — the INPUT direction, turning a table name into the usable range set. Returns an empty list (never an error) when no range tables are registered; tables are supplied programmatically via Options.Extensions.RangeTables or loaded from the PULSE_RANGE_TABLES_DIR directory at pulse.New time."
 	DescLabelResolve   = "Reverse-resolve a human-readable name — including a minor misspelling — to the raw categorical key(s) a Pulse filter or grouper expects. Labels are output-only — filter / group / sort keys operate on the raw categorical value — so when a user names a brand, category, region, etc., call this to get the key before authoring a FILTER_INCLUDE or GROUP_CATEGORY. Args: table (a name from pulse_label_tables), query (the name to search; typo-tolerant), and optional limit (default 10). Returns {key, value, score} ranked by score, a confidence in [0,1]: 1.0 exact (or exact-key), ~0.9+ prefix/near-typo, lower is fuzzy (edit-distance + trigram). Matching normalizes case and punctuation. Decision rule: if the top score is high (>=0.9) and clearly ahead of the next, use it; if the best score is low or several are close, present the top names to the user and ask which they meant rather than guessing. An empty query returns the first rows (browse mode, score 0)."
 )
 
@@ -92,6 +94,7 @@ func Meta() []ToolMeta {
 		{Name: ToolImportsList, Description: DescImportsList},
 		{Name: ToolLabelTables, Description: DescLabelTables},
 		{Name: ToolLabelResolve, Description: DescLabelResolve},
+		{Name: ToolRangeTables, Description: DescRangeTables},
 	}
 }
 
