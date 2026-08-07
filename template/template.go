@@ -30,7 +30,10 @@
 // that, keeping the package dependency-light and execution-free.
 package template
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"slices"
+)
 
 // Target names the public request root a rendered template decodes into.
 // It is a closed enum, spelled lowercase on the wire; the value selects
@@ -80,12 +83,7 @@ func AllTargets() []Target {
 // Valid reports whether t is one of the five recognised targets. The empty
 // string is not valid: a template must state its target explicitly.
 func (t Target) Valid() bool {
-	for _, k := range allTargets {
-		if t == k {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allTargets, t)
 }
 
 // String returns the on-the-wire spelling of the target.
@@ -160,12 +158,7 @@ func AllVarTypes() []VarType {
 // Valid reports whether v is one of the nine recognised variable types.
 // The empty string is not valid: every variable must state its type.
 func (v VarType) Valid() bool {
-	for _, k := range allVarTypes {
-		if v == k {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allVarTypes, v)
 }
 
 // IsScalar reports whether v denotes a single JSON scalar and is therefore

@@ -21,19 +21,46 @@ import (
 // file path) is the one positioned to name it. Every error raised after
 // the decode succeeds carries errors.DetailTemplate.
 //
-// Unknown top-level keys are tolerated on the document wrapper. The strict
-// unknown-field decode is applied to the RENDERED body against its target
-// request type, not to the wrapper.
+// The document wrapper is decoded strictly: an unknown key on the wrapper,
+// or on a variable declaration, is PULSE_TEMPLATE_INVALID. A typo'd
+// "varaibles" would otherwise parse cleanly into a template with zero
+// variables and fail much later — or worse, render a request with every
+// marker unresolved — which is exactly the silent-failure class this whole
+// surface exists to eliminate.
+//
+// The strictness stops at `body`. The body stays raw JSON here and is
+// strict-decoded against its target request type after rendering, since
+// before substitution it is not a request and its markers are not request
+// fields.
 func Parse(data []byte) (*Template, error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+
 	var t Template
-	if err := json.Unmarshal(data, &t); err != nil {
+	if err := dec.Decode(&t); err != nil {
 		return nil, errors.WrapCodedError(err, errors.PULSE_TEMPLATE_INVALID,
-			"template document is not valid JSON: "+err.Error())
+			parseFaultMessage(err))
+	}
+	if dec.More() {
+		return nil, errors.NewCodedError(errors.PULSE_TEMPLATE_INVALID,
+			"template document carries trailing content after the closing brace; a template file holds exactly one JSON object")
 	}
 	if err := Validate(&t); err != nil {
 		return nil, err
 	}
 	return &t, nil
+}
+
+// parseFaultMessage distinguishes an unknown wrapper key from genuinely
+// malformed bytes, so the remedy in the message matches the fault. The
+// encoding/json decoder reports the former with a stable "json: unknown
+// field" prefix and no dedicated error type to assert on.
+func parseFaultMessage(err error) string {
+	if strings.HasPrefix(err.Error(), "json: unknown field ") {
+		return "template document carries an unrecognised key (" + err.Error() +
+			"); a template holds only `name`, `description`, `target`, `variables`, and `body`"
+	}
+	return "template document is not valid JSON: " + err.Error()
 }
 
 // Validate runs declaration validation over a template document. It checks
@@ -48,8 +75,8 @@ func Parse(data []byte) (*Template, error) {
 //   - enum without values                → PULSE_TEMPLATE_INVALID
 //   - list without items, with nested
 //     items, or with non-scalar items    → PULSE_TEMPLATE_INVALID
-//   - a default whose JSON type
-//     contradicts its declared type      → PULSE_TEMPLATE_INVALID
+//   - a default that fails the declared
+//     type's acceptance rule             → PULSE_TEMPLATE_INVALID
 //
 // Two things are deliberately NOT faults here. Required together with a
 // default is legal: the default resolves the variable, so the pair can
@@ -57,11 +84,16 @@ func Parse(data []byte) (*Template, error) {
 // unmarshaled directly in Go may leave it empty, because naming is the
 // store's job (it derives the name from the file's path).
 //
-// Value-level checks that depend on a resolved value — an enum default's
-// membership, a date default's parse, a period default's ranges-XOR-table
-// shape — belong to variable resolution, which runs the identical type
-// check over defaults and caller-supplied values alike and reports
-// PULSE_TEMPLATE_VAR_* codes. Validate stops at JSON kind.
+// Default checking is fully semantic, not merely JSON-kind deep: an enum
+// default is membership-checked against `values`, a date default is
+// parsed, and a period default's ranges-XOR-table shape is enforced. It
+// runs the identical checkValue used on caller-supplied values at render
+// — only the provenance differs, and provenance is what selects the code.
+// A bad default is a template AUTHOR error, so it is always
+// PULSE_TEMPLATE_INVALID rather than a PULSE_TEMPLATE_VAR_* code, and
+// catching it here is what makes fail-fast-at-registration real: a
+// template with an unparseable date default must not lie in wait until
+// someone renders it.
 //
 // Every returned error carries the template under errors.DetailTemplate
 // and, when the fault is variable-scoped, the variable under
@@ -187,8 +219,13 @@ func validateVarType(t *Template, v *Variable) error {
 }
 
 // validateDefault checks a declared default against its own variable's
-// declared type at JSON-kind granularity. An absent default, and an
-// explicit JSON null, are both "no default" and check nothing.
+// declared type, using the same acceptance rule a caller-supplied value
+// goes through at render. An absent default, and an explicit JSON null,
+// are both "no default" and check nothing.
+//
+// The fromDefault provenance is what turns every fault checkValue can
+// raise into PULSE_TEMPLATE_INVALID: the fault is in the document, not in
+// anybody's call.
 func validateDefault(t *Template, v *Variable) error {
 	raw := bytes.TrimSpace(v.Default)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
@@ -204,26 +241,7 @@ func validateDefault(t *Template, v *Variable) error {
 		return invalidVar(t, v.Name, "template variable "+strconv.Quote(v.Name)+
 			" has an undecodable `default`: "+err.Error())
 	}
-
-	if v.Type == VarList {
-		elems, ok := value.([]any)
-		if !ok {
-			return defaultKindMismatch(t, v, v.Type, value)
-		}
-		for _, e := range elems {
-			if !kindMatches(v.Items, e) {
-				return invalidVar(t, v.Name, "template variable "+strconv.Quote(v.Name)+
-					" has a `default` list element that is not "+describeKind(v.Items)+
-					", contradicting its declared `items` type "+strconv.Quote(v.Items.String()))
-			}
-		}
-		return nil
-	}
-
-	if !kindMatches(v.Type, value) {
-		return defaultKindMismatch(t, v, v.Type, value)
-	}
-	return nil
+	return checkValue(t, v, value, fromDefault)
 }
 
 // decodeJSON decodes raw JSON into an any tree with UseNumber, so an
@@ -242,8 +260,9 @@ func decodeJSON(raw []byte) (any, error) {
 // kindMatches reports whether a decoded JSON value satisfies the JSON kind
 // a declared type accepts. It is kind-level only: a VarDate string is not
 // parsed, a VarEnum string is not membership-checked, and a VarPeriod
-// object's ranges-XOR-table shape is not inspected. Those are value-level
-// checks owned by variable resolution.
+// object's ranges-XOR-table shape is not inspected. Those value-level
+// checks layer on top of it in checkValue (vars.go), which is the single
+// acceptance rule for defaults and caller-supplied values alike.
 func kindMatches(vt VarType, value any) bool {
 	switch vt {
 	case VarString, VarField, VarDate, VarEnum:
@@ -321,14 +340,6 @@ func observedKind(value any) string {
 	default:
 		return "an unrecognised JSON value"
 	}
-}
-
-// defaultKindMismatch builds the canonical declared-vs-supplied default
-// mismatch error.
-func defaultKindMismatch(t *Template, v *Variable, want VarType, got any) error {
-	return invalidVar(t, v.Name, "template variable "+strconv.Quote(v.Name)+
-		" is declared "+strconv.Quote(want.String())+" but its `default` is "+observedKind(got)+
-		"; a default must be "+describeKind(want))
 }
 
 // targetList renders the valid target spellings for error prose.
