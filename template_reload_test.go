@@ -3,10 +3,12 @@ package pulse
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/template"
 )
 
 // touchTmpl pushes a template file's modification time forward, so a
@@ -208,7 +210,7 @@ func TestReloadTemplates(t *testing.T) {
 		}
 	})
 
-	t.Run("a malformed file appearing later is reported with its path", func(t *testing.T) {
+	t.Run("a malformed file appearing later is listed broken, not returned as an error", func(t *testing.T) {
 		dir := t.TempDir()
 		writeTmpl(t, dir, "revenue.json", tmplDoc("original"))
 
@@ -217,20 +219,113 @@ func TestReloadTemplates(t *testing.T) {
 		path := writeTmpl(t, dir, "broken.json", `{"target": "request", "body": {`)
 		touchTmpl(t, path)
 
-		err := p.ReloadTemplates()
-		if err == nil {
-			t.Fatal("ReloadTemplates() = nil error, want the fault for a malformed file")
+		// E3-S2: a per-file document fault must NOT come back from the
+		// reload. Returning it here would tell the caller its whole
+		// catalog failed over one file it may not even use.
+		if err := p.ReloadTemplates(); err != nil {
+			t.Fatalf("ReloadTemplates() = %v, want nil — one malformed file must not mask an otherwise-healthy catalog", err)
 		}
+
+		// It surfaces through the listing instead, naming the file to open.
+		var broken *template.Summary
+		listing := p.ListTemplates()
+		for i := range listing {
+			if listing[i].Name == "broken" {
+				broken = &listing[i]
+				break
+			}
+		}
+		if broken == nil {
+			t.Fatal("ListTemplates() carries no entry for the malformed file; a broken file nobody can see is a broken file nobody fixes")
+		}
+		if !broken.Broken {
+			t.Error("ListTemplates() entry for the malformed file has Broken = false, want true")
+		}
+		if !strings.Contains(broken.Error, path) {
+			t.Errorf("Summary.Error = %q, want it to name the offending file %q", broken.Error, path)
+		}
+		if broken.Target != "" {
+			t.Errorf("Summary.Target = %q, want empty — the file never parsed, so it must not look fetchable", broken.Target)
+		}
+
+		// A file that never parsed has no last-good to serve, so asking
+		// for it by name is the fault, with its path.
+		_, err := p.GetTemplate("broken")
 		ce := codedErr(t, err, perr.PULSE_TEMPLATE_INVALID)
 		if got := ce.Details["path"]; got != path {
 			t.Errorf("details[path] = %v, want %q", got, path)
 		}
 
-		// The healthy template is untouched — a failed reload leaves the
-		// last good catalog in place rather than emptying it. E3-S2
-		// narrows this to per-file degradation.
+		// And the healthy template is entirely unaffected.
 		if got := renderedDescription(t, p, "revenue"); got != "original" {
-			t.Errorf("GetTemplate(revenue).Description = %q, want %q after a failed reload", got, "original")
+			t.Errorf("GetTemplate(revenue).Description = %q, want %q", got, "original")
+		}
+	})
+
+	t.Run("a template that breaks after New keeps rendering its last-good content", func(t *testing.T) {
+		dir := t.TempDir()
+		path := writeTmpl(t, dir, "revenue.json", facadeDoc("original", "request", requestBody))
+		writeTmpl(t, dir, "sibling.json", tmplDoc("sibling"))
+
+		p := newPulse(t, Options{TemplateDirs: []string{dir}})
+
+		req, err := p.RenderTemplateRequest("revenue", map[string]any{"metric": "amount"})
+		if err != nil {
+			t.Fatalf("RenderTemplateRequest(revenue) = %v", err)
+		}
+		if len(req.Aggregations) != 1 || req.Aggregations[0].Field != "amount" {
+			t.Fatalf("rendered request = %+v, want one aggregation over \"amount\"", req)
+		}
+
+		// The file is broken mid-edit.
+		if err := os.WriteFile(path, []byte(`{"target": "request", "body": {`), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+		touchTmpl(t, path)
+		if err := p.ReloadTemplates(); err != nil {
+			t.Fatalf("ReloadTemplates() = %v, want nil", err)
+		}
+
+		// It still renders — the last-good parse. A running system keeps
+		// running through a half-written save.
+		req, err = p.RenderTemplateRequest("revenue", map[string]any{"metric": "amount"})
+		if err != nil {
+			t.Fatalf("RenderTemplateRequest(revenue) = %v, want the last-good render", err)
+		}
+		if len(req.Aggregations) != 1 || req.Aggregations[0].Field != "amount" {
+			t.Errorf("rendered request = %+v, want the last-good aggregation over \"amount\"", req)
+		}
+		if got := renderedDescription(t, p, "sibling"); got != "sibling" {
+			t.Errorf("GetTemplate(sibling).Description = %q, want %q", got, "sibling")
+		}
+
+		// Repairing it swaps the new content in and clears the marker.
+		const repaired = `{
+  "description": "repaired",
+  "target": "request",
+  "variables": [{"name": "metric", "type": "field", "required": true}],
+  "body": {"cohort": {"filename": "other.pulse"},
+    "aggregations": [{"type": "AGG_MEAN", "field": {"$var": "metric"}}]}
+}`
+		if err := os.WriteFile(path, []byte(repaired), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+		touchTmpl(t, path)
+		if err := p.ReloadTemplates(); err != nil {
+			t.Fatalf("ReloadTemplates() = %v, want nil", err)
+		}
+
+		req, err = p.RenderTemplateRequest("revenue", map[string]any{"metric": "amount"})
+		if err != nil {
+			t.Fatalf("RenderTemplateRequest(revenue) = %v after the repair", err)
+		}
+		if req.Cohort == nil || req.Cohort.Filename != "other.pulse" {
+			t.Errorf("rendered cohort = %+v, want the repaired file's \"other.pulse\"", req.Cohort)
+		}
+		for _, sum := range p.ListTemplates() {
+			if sum.Broken {
+				t.Errorf("ListTemplates() still reports %q broken after the repair", sum.Name)
+			}
 		}
 	})
 

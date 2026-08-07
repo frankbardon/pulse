@@ -3,6 +3,7 @@ package template_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -357,36 +358,79 @@ func TestStore_ReloadOnNilStoreIsANoOp(t *testing.T) {
 	}
 }
 
-// TestStore_ReloadReportsWalkFaults asserts Reload is the reporting path.
-// Lookups swallow a rescan fault on purpose — one file mid-save must not
-// fail an unrelated template — so the explicit call is where an operator
-// finds out, and it must not silently succeed.
-func TestStore_ReloadReportsWalkFaults(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "revenue.json", validTemplate("original"))
+// TestStore_ReloadSplitsFileFaultsFromWalkFaults pins WHICH faults Reload
+// reports, which E3-S2 reversed for one of the two.
+//
+// A per-file document fault is not reported: a malformed template is one
+// file's problem, and returning an error for it would tell the caller its
+// whole catalog failed when every other template is fine. It surfaces
+// through the listing instead.
+//
+// A whole-walk fault still is reported. A configured root that has become a
+// regular file is a misconfiguration rather than a transient edit, and
+// there is no per-file scope to degrade it to.
+func TestStore_ReloadSplitsFileFaultsFromWalkFaults(t *testing.T) {
+	t.Run("a malformed file does not fail the reload", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, dir, "revenue.json", validTemplate("original"))
 
-	s := newStore(t, dir)
+		s := newStore(t, dir)
 
-	path := writeFile(t, dir, "broken.json", `{"target": "request", "body": {`)
-	touch(t, path, time.Second)
+		path := writeFile(t, dir, "broken.json", `{"target": "request", "body": {`)
+		touch(t, path, time.Second)
 
-	err := s.Reload()
-	if err == nil {
-		t.Fatal("Reload() = nil error, want the walk fault for a malformed file")
-	}
-	if !perr.HasCode(err, perr.PULSE_TEMPLATE_INVALID) {
-		t.Fatalf("Reload() = %v, want PULSE_TEMPLATE_INVALID", err)
-	}
+		if err := s.Reload(); err != nil {
+			t.Fatalf("Reload() = %v, want nil — one malformed file must not mask an otherwise healthy catalog", err)
+		}
 
-	// The failed walk left the previous index in place rather than
-	// emptying the store: one bad file must not take the catalog down.
-	// E3-S2 narrows this to per-file degradation.
-	if got := description(t, s, "revenue"); got != "original" {
-		t.Errorf("Get(revenue).Description = %q, want %q — a failed walk must not discard the last good index", got, "original")
-	}
-	if _, err := s.Get("revenue"); err != nil {
-		t.Errorf("Get(revenue) = %v after a failed reload, want the last good template", err)
-	}
+		// Reported through the listing rather than the return value.
+		sum, ok := summaryFor(s, "broken")
+		if !ok {
+			t.Fatalf("List() = %v, want an entry for the broken file", listedNames(s))
+		}
+		if !sum.Broken {
+			t.Error("Summary(broken).Broken = false, want true — the listing is where brokenness is visible")
+		}
+		if !strings.Contains(sum.Error, path) {
+			t.Errorf("Summary(broken).Error = %q, want it to name %q", sum.Error, path)
+		}
+
+		// The healthy sibling is untouched.
+		if got := description(t, s, "revenue"); got != "original" {
+			t.Errorf("Get(revenue).Description = %q, want %q — a broken sibling must not disturb it", got, "original")
+		}
+	})
+
+	t.Run("a root that is not a directory fails the reload", func(t *testing.T) {
+		root := t.TempDir()
+		dir := filepath.Join(root, "templates")
+		writeFile(t, dir, "revenue.json", validTemplate("original"))
+
+		s := newStore(t, dir)
+
+		// The directory is replaced by a regular file of the same name.
+		if err := os.RemoveAll(dir); err != nil {
+			t.Fatalf("RemoveAll: %v", err)
+		}
+		if err := os.WriteFile(dir, []byte("not a directory"), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		err := s.Reload()
+		if err == nil {
+			t.Fatal("Reload() = nil error, want the walk fault for a root that is not a directory")
+		}
+		if !strings.Contains(err.Error(), dir) {
+			t.Errorf("Reload() = %v, want the offending root named", err)
+		}
+
+		// A failed walk leaves the previous index entirely in place: a
+		// store that emptied itself over a misconfigured root would take
+		// every template down with it.
+		if got := description(t, s, "revenue"); got != "original" {
+			t.Errorf("Get(revenue).Description = %q, want %q — a failed walk must not discard the last good index", got, "original")
+		}
+	})
 }
 
 // TestStore_ConcurrentLookupDuringRescan is the -race guard for the rescan

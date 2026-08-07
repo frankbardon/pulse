@@ -306,6 +306,27 @@ type Summary struct {
 	// are recorded here rather than discarded, so a layered setup is
 	// visible instead of mysterious. Empty when nothing is shadowed.
 	Shadows []string `json:"shadows,omitempty"`
+
+	// Broken reports that the source file at Path failed to parse or
+	// validate on the most recent scan.
+	//
+	// It is the only place a post-startup breakage is visible. A template
+	// that parsed once and has since been broken keeps ANSWERING with its
+	// last-good parse — a half-written editor save must not take a running
+	// system down — so nothing about fetching it would reveal the fault.
+	// This flag is what lets an operator find the bad file without
+	// rendering every template in the catalog one at a time.
+	//
+	// A Broken entry whose Target is empty never parsed at all: the file
+	// was already malformed the first time the store saw it, so there is
+	// no last-good copy and no declaration to project. That entry is
+	// listed to be SEEN, not fetched — asking for it by name returns
+	// PULSE_TEMPLATE_INVALID.
+	Broken bool `json:"broken,omitempty"`
+
+	// Error is the parse or validation fault behind Broken, already
+	// naming the source file. Empty when Broken is false.
+	Error string `json:"error,omitempty"`
 }
 
 // Summarize projects the template into a Summary, attaching the source

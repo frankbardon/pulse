@@ -316,6 +316,13 @@ type Options struct {
 	// added, changed, and removed are picked up without restarting the
 	// process. ReloadTemplates forces that walk immediately for callers
 	// who need determinism rather than eventual visibility.
+	//
+	// Breakage after startup degrades per file rather than globally: a
+	// template whose file becomes malformed keeps serving its last-good
+	// parse, and the broken state surfaces on ListTemplates rather than
+	// failing the catalog. That split is deliberate — at startup a broken
+	// document is a deploy error, and afterwards it is almost always a
+	// half-written editor save.
 	TemplateDirs []string
 
 	// EchoRequest causes execution paths and descriptor operations to
@@ -1221,6 +1228,16 @@ func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
 // gets no summary of its own — it is not renderable, and a listing whose
 // entries cannot all be fetched would be a trap.
 //
+// Broken is how a post-startup breakage becomes visible. A template file
+// that has stopped parsing since it was loaded keeps ANSWERING GetTemplate
+// with its last-good copy, so nothing about fetching it would reveal the
+// fault; the flag, with the fault text in Error, is what lets an operator
+// find the bad file without rendering all fifty templates one at a time. A
+// broken entry with an empty Target never parsed at all — the file was
+// already malformed the first time the engine saw it — so it is listed to be
+// SEEN rather than fetched, and asking for it by name returns
+// PULSE_TEMPLATE_INVALID.
+//
 // Always returns a non-nil slice (possibly empty) for safe JSON marshaling.
 // An engine with no template directories configured lists nothing; that is
 // an ordinary deployment, not a fault.
@@ -1255,11 +1272,24 @@ func (p *Pulse) ListTemplates() []template.Summary {
 // carried over rather than re-read, so calling this on an unchanged
 // directory costs syscalls and no JSON parsing.
 //
-// Returns whatever the walk raises — an unreadable directory, an
-// unreadable file, or a document that no longer parses — with the
-// offending path named. A failed walk leaves the previously loaded
-// templates in place: one file going briefly bad must not take the rest of
-// the catalog down with it.
+// A file going bad after startup degrades PER FILE and does not come back
+// from this call. A template that parsed once and whose file later becomes
+// malformed keeps serving its last-good parse, every other template is
+// untouched, and this returns nil: an error here would tell a caller its
+// whole catalog failed over one half-written editor save. The broken state
+// is observable through ListTemplates instead — Summary.Broken with the
+// fault in Summary.Error — and through GetTemplate for a name that never
+// parsed at all. Repairing the file clears it on the next rescan. An
+// unreadable file degrades the same way; it is also one file.
+//
+// What this DOES return is a whole-walk fault: a configured root that
+// exists but is not a directory, or a directory that cannot be walked.
+// Those are misconfigurations rather than transient edits, and a failed
+// walk leaves the previously loaded templates entirely in place.
+//
+// Startup keeps the opposite rule: pulse.New still fails outright on a
+// malformed template, because at startup a broken document is a deploy
+// error the operator should see immediately rather than a keystroke.
 //
 // An engine with no template directories configured has nothing to rescan
 // and returns nil.
@@ -1279,7 +1309,10 @@ func (p *Pulse) ReloadTemplates() error {
 //
 // An unregistered name — including every name on an engine with no template
 // directories configured — is PULSE_TEMPLATE_NOT_FOUND carrying the
-// requested name in its details.
+// requested name in its details. A name whose file has broken since it was
+// loaded still resolves, to the last-good parse (see ReloadTemplates); only
+// a name that has NEVER parsed is PULSE_TEMPLATE_INVALID here, naming the
+// path so the operator knows which file to open.
 //
 // The returned template is the engine's own copy and must be treated as
 // read-only; rendering never mutates it.

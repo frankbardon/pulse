@@ -114,6 +114,34 @@ const templateRescanInterval = time.Second
 // Reload forces the walk immediately, ignoring the interval, for callers
 // who need determinism rather than eventual visibility.
 //
+// # Degradation
+//
+// Construction and rescan judge a broken document differently, on purpose.
+//
+// At CONSTRUCTION a malformed file is a deploy error and fails outright:
+// the operator is standing there, and starting a process over a directory
+// the author has not finished is worse than not starting.
+//
+// After construction a malformed file is almost always a transient edit —
+// a half-written save, a typo mid-keystroke — and the degradation is
+// strictly PER FILE:
+//
+//   - A template that parsed before and no longer does keeps serving its
+//     LAST-GOOD parse. A running system keeps running.
+//   - A file that has never parsed has no last-good, so its name resolves
+//     to PULSE_TEMPLATE_INVALID naming the path.
+//   - Every other template in the store is untouched, including siblings in
+//     the same directory.
+//   - Reload does NOT report a per-file document fault. Returning one would
+//     mask an otherwise healthy catalog behind one operator's keystroke.
+//     Brokenness is observable through List instead: the affected entry
+//     reports Summary.Broken with the fault in Summary.Error.
+//   - Repairing the file clears the broken state on the next rescan.
+//
+// Root-level faults stay whole-walk errors and Reload still reports them: a
+// configured root that exists but is not a directory is a misconfiguration,
+// not a transient edit, and there is no per-file scope to degrade to.
+//
 // # Concurrency
 //
 // Every exported method is safe for concurrent use, and the zero-value nil
@@ -132,7 +160,22 @@ type Store struct {
 	// maps to one candidate per root that carries it; the winner is
 	// chosen at lookup, not at insert. Replaced wholesale by a rescan
 	// rather than mutated in place.
+	//
+	// An entry here is always a document that parsed. When a file breaks
+	// after startup its last-good entry stays in this map, which is what
+	// makes the degradation local.
 	byName map[string][]*fileEntry
+
+	// faults indexes, by derived name, every candidate file the most
+	// recent scan could not turn into a template. It is the sibling of
+	// byName rather than a flag on fileEntry because an unchanged entry
+	// is carried across snapshots BY POINTER — two snapshots share it,
+	// so nothing may write to one after construction.
+	//
+	// A name can appear in both maps at once: that is precisely the
+	// "serving last-good while the file on disk is broken" state, and it
+	// is what Summary.Broken reports. Replaced wholesale by a rescan.
+	faults map[string][]*fileFault
 
 	// lastScan is when byName was last built from disk, on the store's
 	// own clock. It is what the rescan interval is measured against, and
@@ -189,6 +232,74 @@ type fileEntry struct {
 	tmpl *Template
 }
 
+// fileFault is one discovered template file the scan could not turn into a
+// template: the same provenance a fileEntry carries, plus the coded error
+// that stopped it.
+//
+// It is a separate record rather than a field on fileEntry for one concrete
+// reason: an unchanged fileEntry is carried into the next snapshot by
+// POINTER, so two snapshots share it and marking one "broken" would reach
+// backwards into a snapshot a reader may still be holding. A fault is
+// therefore always freshly built and lives in its own map.
+//
+// Like fileEntry it is immutable once built, and it records the file
+// identity it observed so a rescan can recognise a file that is still the
+// same broken bytes and skip re-reading it.
+type fileFault struct {
+	// name is the derived lookup name the file would have had.
+	name string
+
+	// path is the source file that failed.
+	path string
+
+	// rootIndex is the position of the owning root, so faults arbitrate
+	// in the same precedence order entries do.
+	rootIndex int
+
+	// size and modTime are the file's identity as of the scan that
+	// diagnosed it. A rescan that finds both unchanged reuses the fault
+	// rather than re-reading bytes already known to be bad, which is what
+	// keeps a directory holding one broken file from re-parsing it on
+	// every rescan forever.
+	size    int64
+	modTime time.Time
+
+	// err is the coded fault, already carrying the path and the derived
+	// name in its details. It is returned verbatim by Get when the name
+	// has no last-good entry to serve instead.
+	err error
+}
+
+// prevSnapshot is the previous scan's state, keyed by source path, handed
+// to the next scan so it can answer two questions per candidate file: "is
+// this the exact file I already parsed?" and "is this the exact file I
+// already diagnosed as broken?".
+type prevSnapshot struct {
+	// entries is the last-good parse per path. A file that has broken
+	// since is still in here — that is what serving last-good reads.
+	entries map[string]*fileEntry
+
+	// faults is the previous scan's diagnosis per path.
+	faults map[string]*fileFault
+}
+
+// entryFor returns the last-good entry for path, or nil. Nil-safe, so the
+// first scan can pass a nil snapshot.
+func (p *prevSnapshot) entryFor(path string) *fileEntry {
+	if p == nil {
+		return nil
+	}
+	return p.entries[path]
+}
+
+// faultFor returns the previous diagnosis for path, or nil. Nil-safe.
+func (p *prevSnapshot) faultFor(path string) *fileFault {
+	if p == nil {
+		return nil
+	}
+	return p.faults[path]
+}
+
 // NewStore walks dirs in order and returns a store over every *.json
 // template found beneath them. Roots earlier in the slice take precedence
 // over later ones.
@@ -202,11 +313,12 @@ type fileEntry struct {
 // "no template directories configured" is a normal deployment, not a fault.
 func NewStore(dirs []string) (*Store, error) {
 	s := &Store{dirs: slices.Clone(dirs), clock: time.Now}
-	res, err := scanDirs(s.dirs, nil)
+	res, err := scanDirs(s.dirs, nil, true)
 	if err != nil {
 		return nil, err
 	}
 	s.byName = res.byName
+	s.faults = res.faults
 	s.scans = 1
 	s.parses = res.parsed
 	s.lastScan = s.now()
@@ -227,6 +339,13 @@ func NewStore(dirs []string) (*Store, error) {
 // a template added to a directory after startup resolves here without a
 // restart. Reload forces that walk immediately.
 //
+// A name whose file has broken since it was last parsed still resolves —
+// to the last-good parse. A running system keeps running through a
+// half-written save, and the broken state is reported by List rather than
+// by failing this call. Only a name with NO last-good parse — a file that
+// was already malformed the first time the store saw it — surfaces the
+// fault here, as PULSE_TEMPLATE_INVALID naming the path.
+//
 // The returned template is the store's own copy and must be treated as
 // read-only; rendering never mutates it.
 func (s *Store) Get(name string) (*Template, error) {
@@ -238,10 +357,16 @@ func (s *Store) Get(name string) (*Template, error) {
 	defer s.mu.RUnlock()
 
 	winner, _ := s.winnerLocked(name)
-	if winner == nil {
-		return nil, notFound(name)
+	if winner != nil {
+		return winner.tmpl, nil
 	}
-	return winner.tmpl, nil
+	// No last-good parse to fall back on. If the name is known but
+	// broken, say so — reporting "not found" for a file the operator can
+	// see in the directory is the single most misleading answer available.
+	if fault := s.faultLocked(name); fault != nil {
+		return nil, fault.err
+	}
+	return nil, notFound(name)
 }
 
 // List returns one summary per registered name, sorted by name, so the
@@ -257,6 +382,14 @@ func (s *Store) Get(name string) (*Template, error) {
 // templateRescanInterval, so a listing reflects the directories rather than
 // the moment the process started.
 //
+// The listing is also where brokenness is visible. A file that has stopped
+// parsing since it was loaded keeps answering Get with its last-good copy,
+// so nothing else in the store would reveal it; its summary carries
+// Broken=true and the fault text in Error, which is what lets an operator
+// find the bad file without rendering all fifty templates one at a time. A
+// file that has NEVER parsed is listed the same way but with no declaration
+// to project — no Target, no Variables — so it is visibly not fetchable.
+//
 // Returns nil for a nil store.
 func (s *Store) List() []Summary {
 	if s == nil {
@@ -267,19 +400,52 @@ func (s *Store) List() []Summary {
 	defer s.mu.RUnlock()
 
 	names := slices.Sorted(maps.Keys(s.byName))
+	for name := range s.faults {
+		if _, served := s.byName[name]; !served {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+
 	out := make([]Summary, 0, len(names))
 	for _, name := range names {
 		winner, shadowed := s.winnerLocked(name)
 		if winner == nil {
+			// Broken on first appearance: there is no parse to project,
+			// so the entry exists in the listing purely to be seen.
+			if fault := s.faultLocked(name); fault != nil {
+				out = append(out, brokenSummary(name, fault))
+			}
 			continue
 		}
 		paths := make([]string, 0, len(shadowed))
 		for _, e := range shadowed {
 			paths = append(paths, e.path)
 		}
-		out = append(out, winner.tmpl.Summarize(winner.path, paths))
+		sum := winner.tmpl.Summarize(winner.path, paths)
+		// Only a fault on the SERVING file makes this entry broken. A
+		// broken file in a lower-precedence root is shadowed by a
+		// healthy one and describes nothing anybody can reach.
+		if fault := s.faultForPathLocked(name, winner.path); fault != nil {
+			sum.Broken = true
+			sum.Error = fault.err.Error()
+		}
+		out = append(out, sum)
 	}
 	return out
+}
+
+// brokenSummary projects a name that has no parse at all — a file malformed
+// the first time the store saw it. Target and Variables stay zero because
+// there is no declaration to read them from, which is the listing's way of
+// saying "visible, not fetchable".
+func brokenSummary(name string, fault *fileFault) Summary {
+	return Summary{
+		Name:   name,
+		Path:   fault.path,
+		Broken: true,
+		Error:  fault.err.Error(),
+	}
 }
 
 // Dirs returns the configured roots in precedence order, as a copy. It
@@ -305,10 +471,20 @@ func (s *Store) Dirs() []string {
 // flaky in the bad one; a test that calls Reload asserts the same
 // behaviour deterministically.
 //
-// Returns whatever the walk raises — an unreadable directory, an
-// unreadable file, or a document that no longer parses. A failed walk
-// leaves the previous index in place: a store that emptied itself because
-// one file went briefly bad would take every other template down with it.
+// It deliberately does NOT report a per-file document fault. A template
+// that stopped parsing is one file's problem: the store keeps serving that
+// name's last-good parse, every other template is untouched, and an error
+// here would tell a caller its whole catalog failed when 49 of 50 templates
+// are fine. Brokenness surfaces through List instead — Summary.Broken with
+// the fault in Summary.Error — and through Get for a name that has no
+// last-good parse to serve. The same applies to an unreadable file: it is
+// one file, and it degrades like one.
+//
+// What it does return is a whole-walk fault: a configured root that exists
+// but is not a directory, or a directory that cannot be walked. Those are
+// misconfigurations rather than transient edits, and there is no per-file
+// scope to degrade to. A failed walk leaves the previous index entirely in
+// place.
 //
 // A nil store has nothing to walk and returns nil, so "no template
 // directories configured" needs no nil check at the call site.
@@ -320,13 +496,12 @@ func (s *Store) Reload() error {
 }
 
 // refreshQuietly is the lookup-path rescan: it rescans when the snapshot
-// has aged out and discards any fault the walk raises.
+// has aged out and discards the whole-walk fault a broken ROOT raises.
 //
 // Swallowing is the point. A lookup for one template must not fail because
-// an unrelated file in the directory is mid-save — the previous index is
-// still a complete, valid answer, and failing here would convert one
-// operator's editor keystroke into an outage for every other template.
-// Reload is the path that reports.
+// the configured directory momentarily could not be walked — the previous
+// index is still a complete, valid answer. Per-file document faults never
+// reach here at all: the scan records them and carries on.
 func (s *Store) refreshQuietly() {
 	_ = s.refresh(false)
 }
@@ -354,16 +529,19 @@ func (s *Store) refresh(force bool) error {
 	// what stops a burst of concurrent lookups from each starting one.
 	s.lastScan = now
 	dirs := slices.Clone(s.dirs)
-	prev := indexByPath(s.byName)
+	prev := s.snapshotLocked()
 	s.mu.Unlock()
 
-	res, err := scanDirs(dirs, prev)
+	// Not strict: past construction a broken document degrades to a
+	// recorded fault rather than aborting the walk.
+	res, err := scanDirs(dirs, prev, false)
 	if err != nil {
 		return err
 	}
 
 	s.mu.Lock()
 	s.byName = res.byName
+	s.faults = res.faults
 	s.scans++
 	s.parses += res.parsed
 	s.mu.Unlock()
@@ -390,17 +568,26 @@ func (s *Store) now() time.Time {
 	return s.clock()
 }
 
-// indexByPath re-keys an index by source file so a rescan can ask "is this
-// exact file still the one I parsed?" of each candidate it walks. Callers
-// hold at least the read lock.
-func indexByPath(byName map[string][]*fileEntry) map[string]*fileEntry {
-	out := make(map[string]*fileEntry, len(byName))
-	for _, entries := range byName {
+// snapshotLocked re-keys the current index by source file so the next scan
+// can ask "is this exact file still the one I parsed?" — and "is it still
+// the one I already diagnosed as broken?" — of each candidate it walks.
+// Callers hold at least the read lock.
+func (s *Store) snapshotLocked() *prevSnapshot {
+	prev := &prevSnapshot{
+		entries: make(map[string]*fileEntry, len(s.byName)),
+		faults:  make(map[string]*fileFault, len(s.faults)),
+	}
+	for _, entries := range s.byName {
 		for _, e := range entries {
-			out[e.path] = e
+			prev.entries[e.path] = e
 		}
 	}
-	return out
+	for _, faults := range s.faults {
+		for _, f := range faults {
+			prev.faults[f.path] = f
+		}
+	}
+	return prev
 }
 
 // winnerLocked resolves precedence for name, returning the winning entry
@@ -426,15 +613,57 @@ func (s *Store) winnerLocked(name string) (winner *fileEntry, shadowed []*fileEn
 	return ordered[0], ordered[1:]
 }
 
+// faultLocked returns the highest-precedence fault recorded for name, or
+// nil when every file carrying that name parsed. Callers must hold at least
+// the read lock.
+//
+// Precedence is resolved exactly as it is for entries — earliest root, then
+// path — so a name broken in two roots reports the same file the winning
+// entry would have come from rather than whichever the walk reached first.
+func (s *Store) faultLocked(name string) *fileFault {
+	faults := s.faults[name]
+	if len(faults) == 0 {
+		return nil
+	}
+	best := faults[0]
+	for _, f := range faults[1:] {
+		if f.rootIndex < best.rootIndex || (f.rootIndex == best.rootIndex && f.path < best.path) {
+			best = f
+		}
+	}
+	return best
+}
+
+// faultForPathLocked returns the fault recorded for one specific file under
+// name, or nil. It is what makes a listing entry broken only when the file
+// it is actually SERVING is the broken one. Callers must hold at least the
+// read lock.
+func (s *Store) faultForPathLocked(name, path string) *fileFault {
+	for _, f := range s.faults[name] {
+		if f.path == path {
+			return f
+		}
+	}
+	return nil
+}
+
 // scanResult is one completed walk of the configured roots: the index it
 // produced, plus how many files it had to actually read and parse rather
 // than carry over unchanged.
 type scanResult struct {
 	byName map[string][]*fileEntry
 
+	// faults holds, by derived name, every candidate file this walk could
+	// not turn into a template. Only a tolerant (non-strict) walk ever
+	// populates it — a strict walk stops at the first fault instead.
+	faults map[string][]*fileFault
+
 	// parsed counts files read from disk and parsed by this walk. It is
 	// the measure of what a rescan cost — in the steady state it is zero,
 	// which is the whole point of pairing the walk with a change check.
+	// A file read and found broken counts too: the bytes were read and
+	// the parse was attempted, and pretending otherwise would make the
+	// instrument lie about the cost of a broken directory.
 	parsed uint64
 }
 
@@ -442,11 +671,22 @@ type scanResult struct {
 // visited in precedence order so the index is built in that order too, but
 // nothing downstream depends on it — rootIndex is what precedence reads.
 //
-// prev is the previous walk's index keyed by path, or nil for the first
+// prev is the previous walk's state keyed by path, or nil for the first
 // walk. Any file in it whose size and modification time still match is
-// carried into the new index without being re-read.
-func scanDirs(dirs []string, prev map[string]*fileEntry) (scanResult, error) {
-	res := scanResult{byName: make(map[string][]*fileEntry)}
+// carried into the new index without being re-read — that holds for a file
+// already known good AND for one already known broken.
+//
+// strict selects the two degradation regimes. A strict walk (construction)
+// aborts on the first document fault, so pulse.New fails fast with the
+// offending path named. A tolerant walk (rescan) records the fault, carries
+// that file's last-good parse forward if it has one, and keeps walking, so
+// one file mid-save cannot take the catalog down. Root-level faults abort
+// either way: there is no per-file scope to degrade a broken root to.
+func scanDirs(dirs []string, prev *prevSnapshot, strict bool) (scanResult, error) {
+	res := scanResult{
+		byName: make(map[string][]*fileEntry),
+		faults: make(map[string][]*fileFault),
+	}
 	seenPaths := make(map[string]struct{})
 
 	for i, dir := range dirs {
@@ -469,17 +709,24 @@ func scanDirs(dirs []string, prev map[string]*fileEntry) (scanResult, error) {
 					"each configured template root must be a directory of *.json template files",
 				map[string]any{detailPath: dir})
 		}
-		if err := scanDir(dir, i, prev, &res, seenPaths); err != nil {
+		if err := scanDir(dir, i, prev, &res, seenPaths, strict); err != nil {
 			return scanResult{}, err
 		}
 	}
 	return res, nil
 }
 
-// scanDir walks one root, appending every valid template it finds. The walk
-// stops at the first fault: a template directory holding a broken document
-// is a directory whose owner needs to know now.
-func scanDir(dir string, rootIndex int, prev map[string]*fileEntry, res *scanResult, seenPaths map[string]struct{}) error {
+// scanDir walks one root, appending every template it finds.
+//
+// A strict walk stops at the first fault: at construction, a template
+// directory holding a broken document is a directory whose owner needs to
+// know now, before the process starts serving from it.
+//
+// A tolerant walk never stops for a document fault. It records the fault
+// against the file's derived name, carries that file's previous last-good
+// parse into the new index when it has one, and moves on — which is what
+// confines a half-written save to the one name it belongs to.
+func scanDir(dir string, rootIndex int, prev *prevSnapshot, res *scanResult, seenPaths map[string]struct{}, strict bool) error {
 	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return ioError(path, "walking template directory", walkErr)
@@ -489,7 +736,15 @@ func scanDir(dir string, rootIndex int, prev map[string]*fileEntry, res *scanRes
 		}
 		name, err := templateName(dir, path)
 		if err != nil {
-			return err
+			if strict {
+				return err
+			}
+			// A file with no derivable name (".json", "finance/.json")
+			// has no key to record a fault under and no name anybody
+			// could ever look it up by, so post-startup it is skipped
+			// exactly like a README. Construction still rejects it,
+			// where the operator can act on it.
+			return nil
 		}
 		if _, dup := seenPaths[path]; dup {
 			// The same root listed twice would otherwise shadow itself
@@ -505,19 +760,93 @@ func scanDir(dir string, rootIndex int, prev map[string]*fileEntry, res *scanRes
 		// identity of the bytes ReadFile will actually return.
 		info, err := os.Stat(path)
 		if err != nil {
-			return ioError(path, "reading template file", err)
+			if strict {
+				return ioError(path, "reading template file", err)
+			}
+			// No identity to record, so this fault is never reusable and
+			// the file is re-stat'd next time. That is correct: a file
+			// that vanished between the walk and the stat is gone, and a
+			// file whose permissions changed will be retried.
+			res.degrade(prev, &fileFault{
+				name:      name,
+				path:      path,
+				rootIndex: rootIndex,
+				err:       ioError(path, "reading template file", err),
+			})
+			return nil
+		}
+
+		// A file whose bytes are byte-identical to ones already diagnosed
+		// as broken is still broken. Reusing the diagnosis is what stops a
+		// single unrepaired file from being re-read and re-parsed on every
+		// rescan for as long as the process runs.
+		if !strict {
+			if fault := unchangedFault(prev, path, name, rootIndex, info); fault != nil {
+				res.degrade(prev, fault)
+				return nil
+			}
 		}
 
 		entry := unchangedEntry(prev, path, name, rootIndex, info)
 		if entry == nil {
-			if entry, err = loadEntry(path, name, rootIndex, info); err != nil {
-				return err
-			}
+			entry, err = loadEntry(path, name, rootIndex, info)
 			res.parsed++
+			if err != nil {
+				if strict {
+					return err
+				}
+				res.degrade(prev, &fileFault{
+					name:      name,
+					path:      path,
+					rootIndex: rootIndex,
+					size:      info.Size(),
+					modTime:   info.ModTime(),
+					err:       err,
+				})
+				return nil
+			}
 		}
 		res.byName[name] = append(res.byName[name], entry)
 		return nil
 	})
+}
+
+// degrade records a per-file fault and, when the same file has a last-good
+// parse from an earlier walk, carries that parse into the new index so the
+// name keeps resolving.
+//
+// The carried value is the SAME *fileEntry pointer the previous snapshot
+// held. That is safe precisely because a fileEntry is immutable after
+// construction, and it is why brokenness is tracked in a sibling map rather
+// than as a flag on the entry: a flag would be a write into a value another
+// snapshot — and a reader mid-lookup — is still holding.
+func (r *scanResult) degrade(prev *prevSnapshot, fault *fileFault) {
+	r.faults[fault.name] = append(r.faults[fault.name], fault)
+	if last := prev.entryFor(fault.path); last != nil {
+		r.byName[fault.name] = append(r.byName[fault.name], last)
+	}
+}
+
+// unchangedFault returns the previous walk's diagnosis for path when the
+// file on disk is still exactly the bytes that produced it, and nil when it
+// must be read again.
+//
+// It is unchangedEntry's mirror image and uses the same identity pair for
+// the same reason. The asymmetry is that a fault with no recorded identity
+// (a stat that failed, so there was nothing to record) never matches, which
+// makes retrying such a file the default.
+func unchangedFault(prev *prevSnapshot, path, name string, rootIndex int, info os.FileInfo) *fileFault {
+	old := prev.faultFor(path)
+	if old == nil {
+		return nil
+	}
+	if old.name != name || old.rootIndex != rootIndex {
+		return nil
+	}
+	if old.size != info.Size() || !old.modTime.Equal(info.ModTime()) {
+		return nil
+	}
+	return old
 }
 
 // unchangedEntry returns the previous walk's entry for path when the file
@@ -538,9 +867,9 @@ func scanDir(dir string, rootIndex int, prev map[string]*fileEntry, res *scanRes
 // while the configured roots are fixed, but reusing an entry whose
 // provenance had drifted would mislabel a template rather than merely
 // serve it stale, so the check is cheap insurance.
-func unchangedEntry(prev map[string]*fileEntry, path, name string, rootIndex int, info os.FileInfo) *fileEntry {
-	old, ok := prev[path]
-	if !ok {
+func unchangedEntry(prev *prevSnapshot, path, name string, rootIndex int, info os.FileInfo) *fileEntry {
+	old := prev.entryFor(path)
+	if old == nil {
 		return nil
 	}
 	if old.name != name || old.rootIndex != rootIndex {

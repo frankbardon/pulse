@@ -50,3 +50,26 @@ func (s *Store) ParseCount() uint64 {
 	defer s.mu.RUnlock()
 	return s.parses
 }
+
+// BrokenCount reports how many candidate files the most recent scan could
+// not turn into a template.
+//
+// It is the instrument behind the per-file degradation contract: "the store
+// is aware of exactly one broken file" is not observable from List alone,
+// because a broken file that is shadowed by a healthy one in a
+// higher-precedence root deliberately does not surface in the listing. It
+// also proves the state CLEARS on repair rather than merely stopping being
+// reported.
+//
+// It lives here rather than on Store for the same reason ScanCount does: it
+// is a claim about the store's internal bookkeeping, and a public counter
+// would be a permanent API surface bought to serve a test.
+func (s *Store) BrokenCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n := 0
+	for _, faults := range s.faults {
+		n += len(faults)
+	}
+	return n
+}
