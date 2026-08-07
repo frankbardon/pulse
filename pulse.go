@@ -22,6 +22,7 @@ import (
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/service"
 	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/template"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -285,6 +286,31 @@ type Options struct {
 	// matching PULSE_RANGE_* code on any structural failure.
 	RangeTablesDir string
 
+	// TemplateDirs is the ordered list of directory roots the engine
+	// scans for request templates at pulse.New time. Empty disables the
+	// loader entirely — no store is built, and template lookups answer
+	// PULSE_TEMPLATE_NOT_FOUND.
+	//
+	// File format: every *.json file beneath a root is a template
+	// document. A template's name is its path relative to its OWN root,
+	// minus the .json extension, forward-slash separated — a file at
+	// <root>/finance/revenue.json is named "finance/revenue" — so
+	// subdirectories namespace for free and the root's own location never
+	// leaks into the name.
+	//
+	// Roots are a precedence list and the FIRST root wins: the same name
+	// under a later root is shadowed, not rejected, which is what lets a
+	// site override directory sit ahead of a shipped default. A root that
+	// does not exist is skipped (an absent optional layer is not a
+	// fault); a root that exists but is not a directory is an error.
+	//
+	// Honoured before PULSE_TEMPLATES_DIR — the programmatic value wins,
+	// and the env var (roots separated by os.PathListSeparator) is
+	// consulted only when this slice is empty. The store is built
+	// eagerly, so a malformed template fails pulse.New with the offending
+	// file named.
+	TemplateDirs []string
+
 	// EchoRequest causes execution paths and descriptor operations to
 	// populate descriptor.Envelope.Request with the *normalized* request
 	// that was executed — smart defaults resolved, per-stage forms
@@ -332,6 +358,12 @@ type Pulse struct {
 	svc     *service.Service
 	fsys    afero.Fs
 	imports *imports.Manager
+
+	// templates is the request-template store built from
+	// Options.TemplateDirs (or PULSE_TEMPLATES_DIR). Nil when no template
+	// directories are configured — a nil *template.Store is usable, so
+	// call sites need no nil check.
+	templates *template.Store
 }
 
 // Service returns the underlying service handle. Exposed so tests
@@ -347,6 +379,12 @@ func New(opts Options) (*Pulse, error) {
 	if err := loadRangeTablesFromDir(&opts); err != nil {
 		return nil, err
 	}
+	// Built eagerly: a malformed template must fail startup with its path
+	// named, not the first render that reaches it.
+	templates, err := loadTemplateStore(&opts)
+	if err != nil {
+		return nil, err
+	}
 	if err := validateExtensions(opts.Extensions); err != nil {
 		return nil, err
 	}
@@ -358,7 +396,6 @@ func New(opts Options) (*Pulse, error) {
 	}
 
 	var fsCfg *fs.Config
-	var err error
 
 	if opts.FS != nil {
 		// Custom FS provided: use it directly.
@@ -411,9 +448,10 @@ func New(opts Options) (*Pulse, error) {
 	}
 
 	return &Pulse{
-		svc:     svc,
-		fsys:    fsCfg.Fs(),
-		imports: importsMgr,
+		svc:       svc,
+		fsys:      fsCfg.Fs(),
+		imports:   importsMgr,
+		templates: templates,
 	}, nil
 }
 
