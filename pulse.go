@@ -310,6 +310,12 @@ type Options struct {
 	// consulted only when this slice is empty. The store is built
 	// eagerly, so a malformed template fails pulse.New with the offending
 	// file named.
+	//
+	// The roots stay live after startup: a lookup re-walks them when its
+	// cached snapshot has aged past the store's rescan interval, so files
+	// added, changed, and removed are picked up without restarting the
+	// process. ReloadTemplates forces that walk immediately for callers
+	// who need determinism rather than eventual visibility.
 	TemplateDirs []string
 
 	// EchoRequest causes execution paths and descriptor operations to
@@ -1224,6 +1230,41 @@ func (p *Pulse) ListTemplates() []template.Summary {
 		return []template.Summary{}
 	}
 	return out
+}
+
+// ReloadTemplates rescans every configured template directory immediately
+// and swaps in the result.
+//
+// It is an escape hatch, not the mechanism. Templates hot-reload on their
+// own: a lookup whose cached snapshot has aged past the store's rescan
+// interval re-walks the directories first, so a file dropped into a
+// scanned directory becomes renderable, a changed file starts serving its
+// new content, and a deleted one stops resolving — all without restarting
+// the process. The interval is a package constant rather than an Option,
+// because a dial nobody can set better than the store can is a permanent
+// public surface bought for nothing.
+//
+// What the interval cannot give is determinism. A newly written file can
+// be invisible for up to that interval, which is fine for an operator
+// editing a directory and wrong for a deployment step that writes a
+// template and must render it on the next line, or for a test that would
+// otherwise have to sleep. ReloadTemplates covers exactly that case.
+//
+// A rescan is a directory walk plus one stat per candidate file; a file
+// whose size and modification time both match the copy already parsed is
+// carried over rather than re-read, so calling this on an unchanged
+// directory costs syscalls and no JSON parsing.
+//
+// Returns whatever the walk raises — an unreadable directory, an
+// unreadable file, or a document that no longer parses — with the
+// offending path named. A failed walk leaves the previously loaded
+// templates in place: one file going briefly bad must not take the rest of
+// the catalog down with it.
+//
+// An engine with no template directories configured has nothing to rescan
+// and returns nil.
+func (p *Pulse) ReloadTemplates() error {
+	return p.templates.Reload()
 }
 
 // GetTemplate returns the parsed declaration registered under name —
