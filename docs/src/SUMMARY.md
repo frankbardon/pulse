@@ -38,6 +38,7 @@
 - [Watch & WatchDir](library/watch.md)
 - [Deterministic FilterToFile](library/filter-to-file.md)
 - [Point Lookup & Index Management](library/point-lookup.md)
+- [Request Templating](library/request-templating.md)
 
 # .pulse File Format
 

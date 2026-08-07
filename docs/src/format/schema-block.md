@@ -76,8 +76,8 @@ descriptions (empty, under 10 characters, or generic words like
 upgraded to an error under `--strict`.
 
 When the description is empty, `pulse cohort inspect` synthesises a
-fallback string ("Categorical field: <name>" or "Numeric field:
-<name>") with `description_source = "synthesized"`. The original
+fallback string (`Categorical field: <name>` or `Numeric field:
+<name>`) with `description_source = "synthesized"`. The original
 bytes on disk remain empty.
 
 ## Reader behaviour
