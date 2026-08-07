@@ -4938,7 +4938,7 @@
         ]
       }
     ],
-    "error_codes_count": 158,
+    "error_codes_count": 167,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5083,6 +5083,15 @@
       "PULSE_SHARD_SCHEMA_MISMATCH",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
+      "PULSE_TEMPLATE_INVALID",
+      "PULSE_TEMPLATE_NOT_FOUND",
+      "PULSE_TEMPLATE_RENDER_INVALID",
+      "PULSE_TEMPLATE_TARGET_UNKNOWN",
+      "PULSE_TEMPLATE_UNRESOLVED",
+      "PULSE_TEMPLATE_VAR_ENUM",
+      "PULSE_TEMPLATE_VAR_MISSING",
+      "PULSE_TEMPLATE_VAR_TYPE",
+      "PULSE_TEMPLATE_VAR_UNKNOWN",
       "PULSE_TEST_BALANCED_DESIGN_REQUIRED",
       "PULSE_TEST_CONTINGENCY_DEGENERATE",
       "PULSE_TEST_CORRELATION_UNDEFINED",
@@ -6802,6 +6811,10 @@
       {
         "name": "request-envelope",
         "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability, and the v0.20.0 Response.Components additive field. Use when authoring or adapting any Pulse Request."
+      },
+      {
+        "name": "request-templating",
+        "description": "Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang."
       },
       {
         "name": "response-components",
@@ -9206,4 +9219,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c89aa4dc62684bb30bebc9ac7dc0dd57a4f1b61684a2addf32a5e707d4d48141
+// golden-hash: 8319dbaa27e3c86fe1c16ba7065ae1d33e028a8a83818b6d12b1819f8ac55bd3

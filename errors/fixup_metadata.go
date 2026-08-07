@@ -1688,4 +1688,97 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_TEMPLATE_NOT_FOUND: {
+		Message: "No template is registered under the requested name. Names come from templates declared programmatically or loaded from a template directory (filename minus .json); lookup is exact and case-sensitive.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Template"},
+				Hint:   "List the registered template names and re-issue the render with one of them; if the template is meant to come from disk, confirm the file sits in the configured template directory with a .json extension and that the directory is actually being loaded.",
+			},
+		},
+	},
+	PULSE_TEMPLATE_INVALID: {
+		Message: "A template document failed declaration validation: malformed JSON, a missing or empty name, a body that is not a JSON object, a duplicate variable name, or an uninterpretable variable declaration. The document is rejected at registration so it can never be rendered.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Fix the offending template document named in the error details: give it a non-empty unique name, a JSON-object body, and one declaration per variable name. Re-register (or reload the template directory) once the document parses.",
+			},
+		},
+	},
+	PULSE_TEMPLATE_TARGET_UNKNOWN: {
+		Message: "A template's target is absent or does not name one of the five public request roots, or a target-specific facade method was handed a template declaring a different target. Targets are spelled lowercase on the wire — request, composed, chain, facet, sample — and the target selects the type the rendered JSON decodes into, so it cannot be inferred from the body.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Target"},
+				Hint:     "Set the template's target to exactly one of the lowercase wire spellings — request (types.Request), composed (types.ComposedRequest), chain (types.ChainRequest), facet (types.FacetRequest), sample (types.SampleRequest) — picking the one whose shape the template body already writes. The Go type name is not the wire value: \"ComposedRequest\" is rejected, \"composed\" is accepted. When the details carry expected_target the target is valid but the calling method cannot return it — RenderTemplateRequest handles only \"request\", so call RenderTemplate(name, vars) instead and read the Rendered pointer the declared target names.",
+				Examples: []any{"request", "composed", "chain", "facet", "sample"},
+			},
+		},
+	},
+	PULSE_TEMPLATE_VAR_MISSING: {
+		Message: "A variable declared required resolved to no value at render time: the caller supplied nothing for it and its declaration carries no default.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Variables", "*"},
+				Hint:   "Supply a value for the variable named in the error details under the render call's variables map, or give that variable a default in the template declaration so it resolves without a caller-supplied value.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Hint:   "If the variable is genuinely optional, drop required from its declaration — an optional variable with no value simply leaves its guarded slot out of the rendered request.",
+			},
+		},
+	},
+	PULSE_TEMPLATE_VAR_UNKNOWN: {
+		Message: "The caller supplied a variable the template does not declare. Unknown variables are rejected rather than ignored, because silently dropping one yields a request that looks parameterised but is not.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Variables", "*"},
+				Hint:   "Remove the unexpected key from the render call's variables map (a typo against a declared name is the usual cause — compare it against the template's declared variable list), or add a declaration for it to the template if the template really should accept it.",
+			},
+		},
+	},
+	PULSE_TEMPLATE_VAR_TYPE: {
+		Message: "A supplied value — or a declaration's own default — does not match the variable's declared type.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Variables", "*"},
+				Hint:   "Send the value in the declared type rather than a coercible near-miss (a number as a JSON number, not a quoted string; a boolean as true/false, not \"true\"), or widen the variable's declared type in the template to the type you actually pass.",
+			},
+		},
+	},
+	PULSE_TEMPLATE_VAR_ENUM: {
+		Message: "A supplied value is not a member of an enum variable's declared values set. Membership is exact and case-sensitive.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Variables", "*"},
+				Hint:   "Replace the value with one of the permitted members listed in the error details, matching case exactly, or add the new member to the variable's values set in the template declaration.",
+			},
+		},
+	},
+	PULSE_TEMPLATE_UNRESOLVED: {
+		Message: "An unguarded variable marker survived substitution — a marker in the template body had no value to substitute. Rendering fails rather than emitting a request that carries a literal marker string.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Variables", "*"},
+				Hint:   "Declare the marker named in the error details as a template variable and supply a value (or a default) for it; if the marker is meant to be a literal, escape it in the template body so substitution leaves it alone.",
+			},
+		},
+	},
+	PULSE_TEMPLATE_RENDER_INVALID: {
+		Message: "Substitution succeeded but the rendered JSON failed strict decode into the template's target request type — typically an unknown field in the body, or a substituted value landing in a slot whose type it does not fit.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Correct the template body against the target request type's shape: drop or rename the unknown field the decode fault names, and make sure each variable marker sits in a slot whose type matches the variable's declared type. Render with the same variables again to confirm.",
+			},
+		},
+	},
 }

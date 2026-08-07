@@ -92,7 +92,13 @@ Do not infer Components shape from memory or external documentation — it is bo
 
 ## Environment
 
-Auxiliary tables can be auto-registered from disk at `pulse.New` time so they appear in the cached manifest `extensions` block: `PULSE_LABEL_TABLES_DIR` loads output-time label tables, `PULSE_RANGE_TABLES_DIR` loads named labeled-date-range tables (`{label,start,end}` sets referenced by `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`). Registered tables surface under `manifest.extensions.{label_tables,range_tables}`; check there before assuming a named table exists.
+Directories auto-loaded from disk at `pulse.New` time:
+
+- `PULSE_LABEL_TABLES_DIR` — output-time label tables.
+- `PULSE_RANGE_TABLES_DIR` — named labeled-date-range tables (`{label,start,end}` sets referenced by `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`).
+- `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render via `RenderTemplate` / `RenderTemplateRequest`, then predict the rendered request. See the `request-templating` skill.
+
+Both table kinds surface under `manifest.extensions.{label_tables,range_tables}` — check there before assuming a named table exists. Templates are not manifest-projected; enumerate them with `ListTemplates` (`Summary.Broken` flags a file that has gone malformed since load).
 
 ## Cross-links
 

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/service"
 	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/template"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -285,6 +287,44 @@ type Options struct {
 	// matching PULSE_RANGE_* code on any structural failure.
 	RangeTablesDir string
 
+	// TemplateDirs is the ordered list of directory roots the engine
+	// scans for request templates at pulse.New time. Empty disables the
+	// loader entirely — no store is built, and template lookups answer
+	// PULSE_TEMPLATE_NOT_FOUND.
+	//
+	// File format: every *.json file beneath a root is a template
+	// document. A template's name is its path relative to its OWN root,
+	// minus the .json extension, forward-slash separated — a file at
+	// <root>/finance/revenue.json is named "finance/revenue" — so
+	// subdirectories namespace for free and the root's own location never
+	// leaks into the name.
+	//
+	// Roots are a precedence list and the FIRST root wins: the same name
+	// under a later root is shadowed, not rejected, which is what lets a
+	// site override directory sit ahead of a shipped default. A root that
+	// does not exist is skipped (an absent optional layer is not a
+	// fault); a root that exists but is not a directory is an error.
+	//
+	// Honoured before PULSE_TEMPLATES_DIR — the programmatic value wins,
+	// and the env var (roots separated by os.PathListSeparator) is
+	// consulted only when this slice is empty. The store is built
+	// eagerly, so a malformed template fails pulse.New with the offending
+	// file named.
+	//
+	// The roots stay live after startup: a lookup re-walks them when its
+	// cached snapshot has aged past the store's rescan interval, so files
+	// added, changed, and removed are picked up without restarting the
+	// process. ReloadTemplates forces that walk immediately for callers
+	// who need determinism rather than eventual visibility.
+	//
+	// Breakage after startup degrades per file rather than globally: a
+	// template whose file becomes malformed keeps serving its last-good
+	// parse, and the broken state surfaces on ListTemplates rather than
+	// failing the catalog. That split is deliberate — at startup a broken
+	// document is a deploy error, and afterwards it is almost always a
+	// half-written editor save.
+	TemplateDirs []string
+
 	// EchoRequest causes execution paths and descriptor operations to
 	// populate descriptor.Envelope.Request with the *normalized* request
 	// that was executed — smart defaults resolved, per-stage forms
@@ -332,6 +372,12 @@ type Pulse struct {
 	svc     *service.Service
 	fsys    afero.Fs
 	imports *imports.Manager
+
+	// templates is the request-template store built from
+	// Options.TemplateDirs (or PULSE_TEMPLATES_DIR). Nil when no template
+	// directories are configured — a nil *template.Store is usable, so
+	// call sites need no nil check.
+	templates *template.Store
 }
 
 // Service returns the underlying service handle. Exposed so tests
@@ -347,6 +393,12 @@ func New(opts Options) (*Pulse, error) {
 	if err := loadRangeTablesFromDir(&opts); err != nil {
 		return nil, err
 	}
+	// Built eagerly: a malformed template must fail startup with its path
+	// named, not the first render that reaches it.
+	templates, err := loadTemplateStore(&opts)
+	if err != nil {
+		return nil, err
+	}
 	if err := validateExtensions(opts.Extensions); err != nil {
 		return nil, err
 	}
@@ -358,7 +410,6 @@ func New(opts Options) (*Pulse, error) {
 	}
 
 	var fsCfg *fs.Config
-	var err error
 
 	if opts.FS != nil {
 		// Custom FS provided: use it directly.
@@ -411,9 +462,10 @@ func New(opts Options) (*Pulse, error) {
 	}
 
 	return &Pulse{
-		svc:     svc,
-		fsys:    fsCfg.Fs(),
-		imports: importsMgr,
+		svc:       svc,
+		fsys:      fsCfg.Fs(),
+		imports:   importsMgr,
+		templates: templates,
 	}, nil
 }
 
@@ -1158,6 +1210,206 @@ func (p *Pulse) ErrorsByDomain(domain string) []ErrorMetadata {
 // nothing matches.
 func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
 	return errors.Search(query)
+}
+
+// ListTemplates returns one summary per registered request template,
+// sorted by name so the order is deterministic across runs and platforms.
+//
+// Each Summary projects everything a caller needs to CHOOSE a template and
+// build a form for it — name, description, target, declared variable names,
+// and the source file it was loaded from — without carrying the body. The
+// full declarations (types, defaults, enum values) come from GetTemplate.
+//
+// Shadows names the source paths of same-named templates the listed entry
+// takes precedence over. Template directories are an ordered precedence
+// list and the first root wins; the losing entries are reported here rather
+// than discarded, which is what makes "why is my override not taking
+// effect?" answerable from the listing alone. A shadowed entry deliberately
+// gets no summary of its own — it is not renderable, and a listing whose
+// entries cannot all be fetched would be a trap.
+//
+// Broken is how a post-startup breakage becomes visible. A template file
+// that has stopped parsing since it was loaded keeps ANSWERING GetTemplate
+// with its last-good copy, so nothing about fetching it would reveal the
+// fault; the flag, with the fault text in Error, is what lets an operator
+// find the bad file without rendering all fifty templates one at a time. A
+// broken entry with an empty Target never parsed at all — the file was
+// already malformed the first time the engine saw it — so it is listed to be
+// SEEN rather than fetched, and asking for it by name returns
+// PULSE_TEMPLATE_INVALID.
+//
+// Always returns a non-nil slice (possibly empty) for safe JSON marshaling.
+// An engine with no template directories configured lists nothing; that is
+// an ordinary deployment, not a fault.
+func (p *Pulse) ListTemplates() []template.Summary {
+	out := p.templates.List()
+	if out == nil {
+		return []template.Summary{}
+	}
+	return out
+}
+
+// ReloadTemplates rescans every configured template directory immediately
+// and swaps in the result.
+//
+// It is an escape hatch, not the mechanism. Templates hot-reload on their
+// own: a lookup whose cached snapshot has aged past the store's rescan
+// interval re-walks the directories first, so a file dropped into a
+// scanned directory becomes renderable, a changed file starts serving its
+// new content, and a deleted one stops resolving — all without restarting
+// the process. The interval is a package constant rather than an Option,
+// because a dial nobody can set better than the store can is a permanent
+// public surface bought for nothing.
+//
+// What the interval cannot give is determinism. A newly written file can
+// be invisible for up to that interval, which is fine for an operator
+// editing a directory and wrong for a deployment step that writes a
+// template and must render it on the next line, or for a test that would
+// otherwise have to sleep. ReloadTemplates covers exactly that case.
+//
+// A rescan is a directory walk plus one stat per candidate file; a file
+// whose size and modification time both match the copy already parsed is
+// carried over rather than re-read, so calling this on an unchanged
+// directory costs syscalls and no JSON parsing.
+//
+// A file going bad after startup degrades PER FILE and does not come back
+// from this call. A template that parsed once and whose file later becomes
+// malformed keeps serving its last-good parse, every other template is
+// untouched, and this returns nil: an error here would tell a caller its
+// whole catalog failed over one half-written editor save. The broken state
+// is observable through ListTemplates instead — Summary.Broken with the
+// fault in Summary.Error — and through GetTemplate for a name that never
+// parsed at all. Repairing the file clears it on the next rescan. An
+// unreadable file degrades the same way; it is also one file.
+//
+// What this DOES return is a whole-walk fault: a configured root that
+// exists but is not a directory, or a directory that cannot be walked.
+// Those are misconfigurations rather than transient edits, and a failed
+// walk leaves the previously loaded templates entirely in place.
+//
+// Startup keeps the opposite rule: pulse.New still fails outright on a
+// malformed template, because at startup a broken document is a deploy
+// error the operator should see immediately rather than a keystroke.
+//
+// An engine with no template directories configured has nothing to rescan
+// and returns nil.
+func (p *Pulse) ReloadTemplates() error {
+	return p.templates.Reload()
+}
+
+// GetTemplate returns the parsed declaration registered under name —
+// target, description, and the full Variable list — so a caller can build a
+// form (or a prompt) from the declaration alone before rendering.
+//
+// Lookup is exact and case-sensitive, and the name is the derived one:
+// a template's path relative to its own directory root, minus the .json
+// extension, forward-slash separated. A file at <root>/finance/revenue.json
+// is named "finance/revenue" — not "finance/revenue.json" and not the
+// absolute path.
+//
+// An unregistered name — including every name on an engine with no template
+// directories configured — is PULSE_TEMPLATE_NOT_FOUND carrying the
+// requested name in its details. A name whose file has broken since it was
+// loaded still resolves, to the last-good parse (see ReloadTemplates); only
+// a name that has NEVER parsed is PULSE_TEMPLATE_INVALID here, naming the
+// path so the operator knows which file to open.
+//
+// The returned template is the engine's own copy and must be treated as
+// read-only; rendering never mutates it.
+func (p *Pulse) GetTemplate(name string) (*template.Template, error) {
+	return p.templates.Get(name)
+}
+
+// RenderTemplate resolves the named template and renders it against the
+// supplied variable map, returning the substituted JSON plus the typed
+// request it decoded into. It is the general form, covering all five
+// targets; RenderTemplateRequest is the shorthand for the common one.
+//
+// Exactly one of Rendered's typed pointers is populated, selected by
+// Rendered.Target — read that pointer (or Rendered.Typed()) and hand it to
+// the matching execution method: Process, Compose, ProcessChain,
+// FacetSchema, SampleWithRequest. There are deliberately no per-execution-
+// mode convenience wrappers: N execution modes would mean N wrappers to
+// keep in sync forever, for no capability gain.
+//
+// Rendered.JSON is the rendered body before decode, retained because
+// re-marshaling the typed value would not reproduce it — every request
+// struct is dense with omitempty, so a slot that rendered to an explicit
+// zero would silently vanish from a round trip.
+//
+// Errors are the PULSE_TEMPLATE_* family, surfaced with their codes and
+// details intact: PULSE_TEMPLATE_NOT_FOUND for an unknown name, then
+// whatever the render raises — PULSE_TEMPLATE_VAR_MISSING /
+// _VAR_UNKNOWN / _VAR_TYPE / _VAR_ENUM for the variable map,
+// PULSE_TEMPLATE_UNRESOLVED for a marker with nothing to substitute, and
+// PULSE_TEMPLATE_RENDER_INVALID when the substituted JSON does not fit the
+// target request type.
+//
+// Rendering never opens a cohort: a template that renders is well-formed
+// against the request SHAPE. Whether it is executable against a particular
+// cohort stays Predict's question.
+func (p *Pulse) RenderTemplate(name string, vars map[string]any) (*template.Rendered, error) {
+	tmpl, err := p.templates.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	return template.Render(tmpl, vars)
+}
+
+// RenderTemplateRequest renders the named template and returns the typed
+// *Request directly. It is the 95% path — the caller hands the result
+// straight to Process, Predict, or ProcessStream.
+//
+// It is RenderTemplate restricted to the "request" target. A template
+// declaring any other target is PULSE_TEMPLATE_TARGET_UNKNOWN: the target
+// is a valid one, just not one this method can return, so the message names
+// both the target the template actually declares and RenderTemplate as the
+// method that handles it. Every other fault is RenderTemplate's, unchanged.
+func (p *Pulse) RenderTemplateRequest(name string, vars map[string]any) (*Request, error) {
+	rendered, err := p.RenderTemplate(name, vars)
+	if err != nil {
+		return nil, err
+	}
+	if rendered.Target != template.TargetRequest {
+		return nil, wrongTemplateTarget(name, rendered.Target)
+	}
+	return rendered.Request, nil
+}
+
+// wrongTemplateTarget builds the fault for RenderTemplateRequest called on
+// a template whose target is not "request". The template is fine and so is
+// the render — the call is the mismatch — so the message leads with the
+// target the document declares and points at the method that returns it.
+func wrongTemplateTarget(name string, target template.Target) error {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_TEMPLATE_TARGET_UNKNOWN,
+		"template "+strconv.Quote(name)+" declares target "+strconv.Quote(target.String())+
+			", so RenderTemplateRequest cannot return it: that method returns *types.Request and "+
+			"only handles the \"request\" target. Call RenderTemplate("+strconv.Quote(name)+
+			", vars) instead and read the Rendered."+renderedFieldFor(target)+" pointer (or "+
+			"Rendered.Typed()), then hand it to the matching execution method.",
+		map[string]any{
+			errors.DetailTemplate: name,
+			"target":              target.String(),
+			"expected_target":     template.TargetRequest.String(),
+		})
+}
+
+// renderedFieldFor names the template.Rendered field a target populates, so
+// the wrong-target message can tell the caller exactly which pointer to
+// read rather than making them look it up.
+func renderedFieldFor(target template.Target) string {
+	switch target {
+	case template.TargetComposed:
+		return "Composed"
+	case template.TargetChain:
+		return "Chain"
+	case template.TargetFacet:
+		return "Facet"
+	case template.TargetSample:
+		return "Sample"
+	default:
+		return "Request"
+	}
 }
 
 // Manifest returns the root Pulse self-description. The manifest is
