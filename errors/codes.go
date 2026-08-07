@@ -1166,6 +1166,13 @@ const (
 	// target selects the type the rendered JSON strict-decodes into, so
 	// it cannot be inferred. Details carry the template under
 	// DetailTemplate and the offending target value.
+	//
+	// Also raised when a target-specific facade method is handed a
+	// template declaring a different one — RenderTemplateRequest returns
+	// *types.Request and so accepts only the "request" target. The
+	// declared target is valid, just not one that method can produce;
+	// details then also carry expected_target, and the message names the
+	// general RenderTemplate as the method that handles it.
 	PULSE_TEMPLATE_TARGET_UNKNOWN Code = "PULSE_TEMPLATE_TARGET_UNKNOWN"
 
 	// PULSE_TEMPLATE_VAR_MISSING indicates a variable declared

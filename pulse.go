@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1196,6 +1197,145 @@ func (p *Pulse) ErrorsByDomain(domain string) []ErrorMetadata {
 // nothing matches.
 func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
 	return errors.Search(query)
+}
+
+// ListTemplates returns one summary per registered request template,
+// sorted by name so the order is deterministic across runs and platforms.
+//
+// Each Summary projects everything a caller needs to CHOOSE a template and
+// build a form for it — name, description, target, declared variable names,
+// and the source file it was loaded from — without carrying the body. The
+// full declarations (types, defaults, enum values) come from GetTemplate.
+//
+// Shadows names the source paths of same-named templates the listed entry
+// takes precedence over. Template directories are an ordered precedence
+// list and the first root wins; the losing entries are reported here rather
+// than discarded, which is what makes "why is my override not taking
+// effect?" answerable from the listing alone. A shadowed entry deliberately
+// gets no summary of its own — it is not renderable, and a listing whose
+// entries cannot all be fetched would be a trap.
+//
+// Always returns a non-nil slice (possibly empty) for safe JSON marshaling.
+// An engine with no template directories configured lists nothing; that is
+// an ordinary deployment, not a fault.
+func (p *Pulse) ListTemplates() []template.Summary {
+	out := p.templates.List()
+	if out == nil {
+		return []template.Summary{}
+	}
+	return out
+}
+
+// GetTemplate returns the parsed declaration registered under name —
+// target, description, and the full Variable list — so a caller can build a
+// form (or a prompt) from the declaration alone before rendering.
+//
+// Lookup is exact and case-sensitive, and the name is the derived one:
+// a template's path relative to its own directory root, minus the .json
+// extension, forward-slash separated. A file at <root>/finance/revenue.json
+// is named "finance/revenue" — not "finance/revenue.json" and not the
+// absolute path.
+//
+// An unregistered name — including every name on an engine with no template
+// directories configured — is PULSE_TEMPLATE_NOT_FOUND carrying the
+// requested name in its details.
+//
+// The returned template is the engine's own copy and must be treated as
+// read-only; rendering never mutates it.
+func (p *Pulse) GetTemplate(name string) (*template.Template, error) {
+	return p.templates.Get(name)
+}
+
+// RenderTemplate resolves the named template and renders it against the
+// supplied variable map, returning the substituted JSON plus the typed
+// request it decoded into. It is the general form, covering all five
+// targets; RenderTemplateRequest is the shorthand for the common one.
+//
+// Exactly one of Rendered's typed pointers is populated, selected by
+// Rendered.Target — read that pointer (or Rendered.Typed()) and hand it to
+// the matching execution method: Process, Compose, ProcessChain,
+// FacetSchema, SampleWithRequest. There are deliberately no per-execution-
+// mode convenience wrappers: N execution modes would mean N wrappers to
+// keep in sync forever, for no capability gain.
+//
+// Rendered.JSON is the rendered body before decode, retained because
+// re-marshaling the typed value would not reproduce it — every request
+// struct is dense with omitempty, so a slot that rendered to an explicit
+// zero would silently vanish from a round trip.
+//
+// Errors are the PULSE_TEMPLATE_* family, surfaced with their codes and
+// details intact: PULSE_TEMPLATE_NOT_FOUND for an unknown name, then
+// whatever the render raises — PULSE_TEMPLATE_VAR_MISSING /
+// _VAR_UNKNOWN / _VAR_TYPE / _VAR_ENUM for the variable map,
+// PULSE_TEMPLATE_UNRESOLVED for a marker with nothing to substitute, and
+// PULSE_TEMPLATE_RENDER_INVALID when the substituted JSON does not fit the
+// target request type.
+//
+// Rendering never opens a cohort: a template that renders is well-formed
+// against the request SHAPE. Whether it is executable against a particular
+// cohort stays Predict's question.
+func (p *Pulse) RenderTemplate(name string, vars map[string]any) (*template.Rendered, error) {
+	tmpl, err := p.templates.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	return template.Render(tmpl, vars)
+}
+
+// RenderTemplateRequest renders the named template and returns the typed
+// *Request directly. It is the 95% path — the caller hands the result
+// straight to Process, Predict, or ProcessStream.
+//
+// It is RenderTemplate restricted to the "request" target. A template
+// declaring any other target is PULSE_TEMPLATE_TARGET_UNKNOWN: the target
+// is a valid one, just not one this method can return, so the message names
+// both the target the template actually declares and RenderTemplate as the
+// method that handles it. Every other fault is RenderTemplate's, unchanged.
+func (p *Pulse) RenderTemplateRequest(name string, vars map[string]any) (*Request, error) {
+	rendered, err := p.RenderTemplate(name, vars)
+	if err != nil {
+		return nil, err
+	}
+	if rendered.Target != template.TargetRequest {
+		return nil, wrongTemplateTarget(name, rendered.Target)
+	}
+	return rendered.Request, nil
+}
+
+// wrongTemplateTarget builds the fault for RenderTemplateRequest called on
+// a template whose target is not "request". The template is fine and so is
+// the render — the call is the mismatch — so the message leads with the
+// target the document declares and points at the method that returns it.
+func wrongTemplateTarget(name string, target template.Target) error {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_TEMPLATE_TARGET_UNKNOWN,
+		"template "+strconv.Quote(name)+" declares target "+strconv.Quote(target.String())+
+			", so RenderTemplateRequest cannot return it: that method returns *types.Request and "+
+			"only handles the \"request\" target. Call RenderTemplate("+strconv.Quote(name)+
+			", vars) instead and read the Rendered."+renderedFieldFor(target)+" pointer (or "+
+			"Rendered.Typed()), then hand it to the matching execution method.",
+		map[string]any{
+			errors.DetailTemplate: name,
+			"target":              target.String(),
+			"expected_target":     template.TargetRequest.String(),
+		})
+}
+
+// renderedFieldFor names the template.Rendered field a target populates, so
+// the wrong-target message can tell the caller exactly which pointer to
+// read rather than making them look it up.
+func renderedFieldFor(target template.Target) string {
+	switch target {
+	case template.TargetComposed:
+		return "Composed"
+	case template.TargetChain:
+		return "Chain"
+	case template.TargetFacet:
+		return "Facet"
+	case template.TargetSample:
+		return "Sample"
+	default:
+		return "Request"
+	}
 }
 
 // Manifest returns the root Pulse self-description. The manifest is
