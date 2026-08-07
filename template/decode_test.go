@@ -2,10 +2,15 @@ package template_test
 
 import (
 	"encoding/json"
+	"go/parser"
+	"go/token"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -548,6 +553,12 @@ func TestRender_NilTemplate(t *testing.T) {
 // fsCapablePackages are the standard-library and third-party packages
 // that can open a file, a directory, or a socket. None of them may be a
 // direct import of any package on the render path.
+//
+// Since the store landed, template/ as a whole does reach the filesystem —
+// discovering template files on disk is the store's entire job. The
+// invariant is therefore enforced per FILE rather than per package: only
+// the files on fsCapableFiles may name one of these, and the render path's
+// files still may not.
 var fsCapablePackages = map[string]bool{
 	"os":                       true,
 	"os/exec":                  true,
@@ -561,6 +572,44 @@ var fsCapablePackages = map[string]bool{
 	modulePrefix + "/fs":       true,
 	modulePrefix + "/encoding": true,
 	modulePrefix + "/io":       true,
+}
+
+// packageImportsByFile parses every non-test .go file in dir and returns
+// its direct imports, keyed by base file name. It reads the source rather
+// than asking `go list` because the invariant it feeds is per-file: the
+// package as a whole is allowed to reach the filesystem, and only the store
+// is allowed to be the file that does.
+func packageImportsByFile(t *testing.T, dir string) map[string][]string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("reading package dir %s: %v", dir, err)
+	}
+	out := make(map[string][]string)
+	fset := token.NewFileSet()
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", name, err)
+		}
+		imports := make([]string, 0, len(f.Imports))
+		for _, spec := range f.Imports {
+			path, err := strconv.Unquote(spec.Path.Value)
+			if err != nil {
+				t.Fatalf("unquoting import %s in %s: %v", spec.Path.Value, name, err)
+			}
+			imports = append(imports, path)
+		}
+		out[name] = imports
+	}
+	if len(out) == 0 {
+		t.Fatalf("no non-test Go files found in %s — the filesystem lock cannot inspect an empty package", dir)
+	}
+	return out
 }
 
 // directImports returns a package's non-test import list.
@@ -582,14 +631,27 @@ func directImports(t *testing.T, pkg string) []string {
 	return imports
 }
 
+// fsCapableFiles are the template package's own source files permitted to
+// name a filesystem API. Template discovery reads directories and files, so
+// the store gets the exception — and it is the ONLY one. Adding a file here
+// is a deliberate act: it says "this file may open things", and everything
+// off the list stays structurally incapable of it.
+var fsCapableFiles = map[string]bool{
+	"store.go": true,
+}
+
 // TestRender_NoFilesystemAccess is the "render never opens a cohort file"
 // lock, asserted two ways.
 //
-// Structurally: neither template/ nor either package it is allowed to
-// depend on directly imports anything that can open a file. A render path
-// that cannot name a filesystem API cannot use one, and the import
-// firewall (TestTemplatePackage_ImportBoundary) already bars the packages
-// that could reach one indirectly.
+// Structurally: no file on the render path — and neither of the two
+// packages template/ is allowed to depend on — directly imports anything
+// that can open a file. A render path that cannot name a filesystem API
+// cannot use one, and the import firewall
+// (TestTemplatePackage_ImportBoundary) already bars the packages that could
+// reach one indirectly. The store is the sole exception, listed on
+// fsCapableFiles, and it sits entirely outside the render path: it loads
+// documents, and hands Render the same in-memory Template a caller could
+// have built in Go.
 //
 // Behaviourally: rendering a template whose cohort names a file that does
 // not exist succeeds, and creates nothing on disk. Field existence and
@@ -597,8 +659,19 @@ func directImports(t *testing.T, pkg string) []string {
 // document, not the data.
 func TestRender_NoFilesystemAccess(t *testing.T) {
 	t.Run("no filesystem-capable import on the render path", func(t *testing.T) {
+		for file, imports := range packageImportsByFile(t, ".") {
+			if fsCapableFiles[file] {
+				continue
+			}
+			for _, imp := range imports {
+				if fsCapablePackages[imp] {
+					t.Errorf("template/%s directly imports %q, which can open a file; "+
+						"the render path must stay filesystem-free (only %v may reach the filesystem)",
+						file, imp, slices.Sorted(maps.Keys(fsCapableFiles)))
+				}
+			}
+		}
 		for _, pkg := range []string{
-			modulePrefix + "/template",
 			modulePrefix + "/types",
 			modulePrefix + "/errors",
 		} {
