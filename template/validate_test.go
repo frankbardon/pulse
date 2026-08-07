@@ -765,7 +765,8 @@ func TestParse_UnknownWrapperKeysRejected(t *testing.T) {
 // request and its markers are not request fields, so it stays raw JSON
 // here and is strict-decoded against the target type only after rendering.
 func TestParse_BodyStaysUnstrict(t *testing.T) {
-	doc := `{"target":"request","body":{"cohort":{"filename":"sales.pulse"},"not_a_request_field":{"$var":"x"}}}`
+	doc := `{"target":"request","variables":[{"name":"x","type":"string"}],` +
+		`"body":{"cohort":{"filename":"sales.pulse"},"not_a_request_field":{"$var":"x"}}}`
 	if _, err := template.Parse([]byte(doc)); err != nil {
 		t.Errorf("Parse() = %v, want nil — body keys are not checked until the rendered strict decode", err)
 	}

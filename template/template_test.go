@@ -200,7 +200,9 @@ func TestTemplate_JSONRoundTripIsLossless(t *testing.T) {
 
 // TestTemplate_RoundTripPreservesBodyMarkers asserts the body survives the
 // round-trip verbatim, markers intact. The body is raw JSON precisely so
-// that an unrendered `$metric` is never mangled or resolved in transit.
+// that an unrendered `{"$var": "metric"}` marker, a `{{label}}`
+// interpolation token, and a `$when` guard are never mangled or resolved
+// in transit.
 func TestTemplate_RoundTripPreservesBodyMarkers(t *testing.T) {
 	data := readFixture(t)
 
@@ -213,7 +215,7 @@ func TestTemplate_RoundTripPreservesBodyMarkers(t *testing.T) {
 	if err := json.Unmarshal(tmpl.Body, &body); err != nil {
 		t.Fatalf("body is not a JSON object: %v", err)
 	}
-	for _, key := range []string{"cohort", "aggregations", "groupers"} {
+	for _, key := range []string{"cohort", "aggregations", "groups"} {
 		if _, ok := body[key]; !ok {
 			t.Errorf("body lost key %q in transit", key)
 		}
@@ -223,11 +225,15 @@ func TestTemplate_RoundTripPreservesBodyMarkers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	if !bytes.Contains(encoded, []byte(`"$metric"`)) {
-		t.Errorf("marshaled document dropped the $metric marker: %s", encoded)
-	}
-	if !bytes.Contains(encoded, []byte(`"$bucket"`)) {
-		t.Errorf("marshaled document dropped the $bucket marker: %s", encoded)
+	for _, fragment := range []string{
+		`{"$var":"metric"}`,
+		`{"$var":"bucket"}`,
+		`"$when":"segments"`,
+		`{{label}}`,
+	} {
+		if !bytes.Contains(encoded, []byte(fragment)) {
+			t.Errorf("marshaled document dropped the %s marker: %s", fragment, encoded)
+		}
 	}
 }
 

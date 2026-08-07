@@ -51,12 +51,14 @@
     }
   ],
   "body": {
+    "label": "{{label}} since {{since}}",
     "cohort": {"filename": "sales.pulse"},
     "aggregations": [
-      {"type": "AGG_SUM", "field": "$metric"}
+      {"type": "AGG_SUM", "field": {"$var": "metric"}}
     ],
-    "groupers": [
-      {"type": "GROUP_RANGE", "field": "$metric", "interval": "$bucket"}
+    "groups": [
+      {"type": "GROUP_RANGE", "field": {"$var": "metric"}, "interval": {"$var": "bucket"}},
+      {"$when": "segments", "type": "GROUP_CATEGORY", "field": "region", "include": {"$var": "segments"}}
     ]
   }
 }

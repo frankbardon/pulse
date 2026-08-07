@@ -3,7 +3,9 @@ package template
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -77,6 +79,12 @@ func parseFaultMessage(err error) string {
 //     items, or with non-scalar items    → PULSE_TEMPLATE_INVALID
 //   - a default that fails the declared
 //     type's acceptance rule             → PULSE_TEMPLATE_INVALID
+//   - a body marker, `$when` guard, or
+//     `{{token}}` naming an undeclared
+//     variable                           → PULSE_TEMPLATE_INVALID
+//   - a malformed body marker, guard, or
+//     interpolation token                → PULSE_TEMPLATE_INVALID
+//   - a `$when` on the root body         → PULSE_TEMPLATE_INVALID
 //
 // Two things are deliberately NOT faults here. Required together with a
 // default is legal: the default resolves the variable, so the pair can
@@ -95,6 +103,21 @@ func parseFaultMessage(err error) string {
 // template with an unparseable date default must not lie in wait until
 // someone renders it.
 //
+// The body is scanned too, but only for the three pieces of template
+// syntax it carries — slot markers, `$when` guards, and `{{token}}`
+// interpolation. Every name they reference must be DECLARED. A body that
+// says `{"$var": "metrc"}` when the template declares `metric` is a
+// template author's typo, so it is PULSE_TEMPLATE_INVALID and it fails
+// here, at registration, rather than lying in wait until someone renders.
+// That is a different failure from a declared-but-unresolved variable,
+// which is a render-time PULSE_TEMPLATE_UNRESOLVED and cannot be known
+// until a caller's variable map arrives.
+//
+// The scan does NOT check request semantics. Body keys, operator names,
+// and field names stay unvalidated here — before substitution the body is
+// not a request, and its keys are checked by the strict decode that runs
+// after rendering.
+//
 // Every returned error carries the template under errors.DetailTemplate
 // and, when the fault is variable-scoped, the variable under
 // errors.DetailVariable.
@@ -109,7 +132,10 @@ func Validate(t *Template) error {
 	if err := validateBody(t); err != nil {
 		return err
 	}
-	return validateVariables(t)
+	if err := validateVariables(t); err != nil {
+		return err
+	}
+	return validateBodyReferences(t)
 }
 
 // validateTarget enforces the closed target enum. Absent and unrecognised
@@ -242,6 +268,144 @@ func validateDefault(t *Template, v *Variable) error {
 			" has an undecodable `default`: "+err.Error())
 	}
 	return checkValue(t, v, value, fromDefault)
+}
+
+// validateBodyReferences walks the decoded body and checks every variable
+// reference against the declared set, plus the well-formedness of the
+// three markers themselves.
+//
+// It runs after validateVariables so the declared set is known to be
+// coherent, and it runs on EVERY validation — including the one Resolve
+// performs on the way into a render — so the author-error class can never
+// be reached by the render walk.
+//
+// Unlike the render walk, this scan descends into guarded objects. A guard
+// is a runtime condition; a typo'd variable name inside a block that
+// happens not to be selected today is still a typo, and hiding it until
+// the day someone supplies that variable is the opposite of fail-fast.
+func validateBodyReferences(t *Template) error {
+	body, err := decodeJSON(t.Body)
+	if err != nil {
+		// Unreachable: validateBody has already established the body
+		// decodes as a JSON object.
+		return invalidAt(t, bodyPath, "", "template body is not decodable JSON: "+err.Error())
+	}
+	if obj, ok := body.(map[string]any); ok {
+		if _, guarded := obj[guardKey]; guarded {
+			return invalidAt(t, bodyPath, "", rootGuardMessage)
+		}
+	}
+
+	declared := make(map[string]struct{}, len(t.Variables))
+	for _, v := range t.Variables {
+		if v != nil {
+			declared[v.Name] = struct{}{}
+		}
+	}
+	return (&bodyScan{t: t, declared: declared}).value(body, bodyPath)
+}
+
+// bodyScan is the declaration-time body walker. It mirrors the render
+// walk's syntax recognition exactly — both go through markerName,
+// guardVarName, and walkInterpolation — but it evaluates nothing and
+// resolves nothing, so it needs no caller-supplied variables.
+type bodyScan struct {
+	t        *Template
+	declared map[string]struct{}
+}
+
+// value dispatches on the node's JSON kind.
+func (s *bodyScan) value(v any, path string) error {
+	switch node := v.(type) {
+	case map[string]any:
+		return s.object(node, path)
+	case []any:
+		for i, e := range node {
+			if err := s.value(e, indexPath(path, i)); err != nil {
+				return err
+			}
+		}
+		return nil
+	case string:
+		return s.text(node, path)
+	default:
+		return nil
+	}
+}
+
+// object checks a marker, a guard, and every key, in that order.
+func (s *bodyScan) object(obj map[string]any, path string) error {
+	if isLoneMarkerKey(obj) {
+		return s.marker(obj[markerKey], path)
+	}
+
+	if raw, guarded := obj[guardKey]; guarded {
+		name, ok := guardVarName(raw)
+		if !ok {
+			return invalidGuardValue(s.t, path, raw)
+		}
+		if !s.isDeclared(name) {
+			return undeclaredRef(s.t, name, path, subjectGuard)
+		}
+	}
+
+	for _, key := range slices.Sorted(maps.Keys(obj)) {
+		if strings.Contains(key, interpOpen) {
+			return invalidAt(s.t, childPath(path, key), "", "template body at "+path+
+				" carries "+strconv.Quote(interpOpen)+" inside the object key "+strconv.Quote(key)+
+				"; interpolation applies to string VALUES only, and a key left unexpanded would "+
+				"reach the request verbatim")
+		}
+		if key == guardKey {
+			continue
+		}
+		if err := s.value(obj[key], childPath(path, key)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// marker checks a lone-`$var` object. The near-miss shapes — a non-string
+// value, an empty name — are rejected here rather than passed through as
+// literal data, because literal data carrying a `$var` key can only ever
+// fail the post-render strict decode with a far worse message.
+func (s *bodyScan) marker(raw any, path string) error {
+	name, ok := raw.(string)
+	if !ok {
+		return invalidAt(s.t, path, "", "template body at "+path+" carries a lone "+
+			strconv.Quote(markerKey)+" key whose value is "+observedKind(raw)+
+			"; a slot marker is {"+strconv.Quote(markerKey)+": \"<variable name>\"} with a string name")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return invalidAt(s.t, path, "", "template body at "+path+" carries a "+
+			strconv.Quote(markerKey)+" marker with an empty variable name")
+	}
+	if !s.isDeclared(name) {
+		return undeclaredRef(s.t, name, path, subjectMarker)
+	}
+	return nil
+}
+
+// text checks every interpolation token in a string value.
+func (s *bodyScan) text(str, path string) error {
+	if !strings.Contains(str, interpOpen) {
+		return nil
+	}
+	return walkInterpolation(s.t, str, path, func(string) {}, func(name string) error {
+		if !s.isDeclared(name) {
+			return undeclaredRef(s.t, name, path, subjectInterp)
+		}
+		return nil
+	})
+}
+
+// isDeclared reports whether the template declares name. Lookup is exact
+// and case-sensitive, matching Template.Variable.
+func (s *bodyScan) isDeclared(name string) bool {
+	_, ok := s.declared[name]
+	return ok
 }
 
 // decodeJSON decodes raw JSON into an any tree with UseNumber, so an
