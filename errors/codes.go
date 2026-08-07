@@ -1159,11 +1159,13 @@ const (
 
 	// PULSE_TEMPLATE_TARGET_UNKNOWN indicates a template's `target` is
 	// absent or names something other than one of the five public
-	// request roots (Request, ComposedRequest, ChainRequest,
-	// FacetRequest, SampleRequest). The target selects the type the
-	// rendered JSON strict-decodes into, so it cannot be inferred.
-	// Details carry the template under DetailTemplate and the offending
-	// target value.
+	// request roots. Targets are spelled lowercase on the wire —
+	// "request" (types.Request), "composed" (types.ComposedRequest),
+	// "chain" (types.ChainRequest), "facet" (types.FacetRequest),
+	// "sample" (types.SampleRequest) — never as the Go type name. The
+	// target selects the type the rendered JSON strict-decodes into, so
+	// it cannot be inferred. Details carry the template under
+	// DetailTemplate and the offending target value.
 	PULSE_TEMPLATE_TARGET_UNKNOWN Code = "PULSE_TEMPLATE_TARGET_UNKNOWN"
 
 	// PULSE_TEMPLATE_VAR_MISSING indicates a variable declared

@@ -1,0 +1,62 @@
+{
+  "description": "Revenue by region",
+  "target": "request",
+  "variables": [
+    {
+      "name": "metric",
+      "type": "field",
+      "description": "The revenue field to aggregate",
+      "required": true
+    },
+    {
+      "name": "bucket",
+      "type": "integer",
+      "default": 10
+    },
+    {
+      "name": "segments",
+      "type": "list",
+      "items": "string"
+    },
+    {
+      "name": "tier",
+      "type": "enum",
+      "values": ["gold", "silver", "bronze"],
+      "default": "gold"
+    },
+    {
+      "name": "window",
+      "type": "period"
+    },
+    {
+      "name": "since",
+      "type": "date",
+      "default": "2024-01-01"
+    },
+    {
+      "name": "rate",
+      "type": "number",
+      "default": 0.15
+    },
+    {
+      "name": "verbose",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "name": "label",
+      "type": "string",
+      "required": true,
+      "default": "all regions"
+    }
+  ],
+  "body": {
+    "cohort": {"filename": "sales.pulse"},
+    "aggregations": [
+      {"type": "AGG_SUM", "field": "$metric"}
+    ],
+    "groupers": [
+      {"type": "GROUP_RANGE", "field": "$metric", "interval": "$bucket"}
+    ]
+  }
+}

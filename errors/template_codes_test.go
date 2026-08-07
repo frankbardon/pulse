@@ -1,6 +1,7 @@
 package errors_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -149,6 +150,85 @@ func TestTemplateCodes_VarMissingProse(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Errorf("fixup hints %q do not mention %q", joined, want)
 		}
+	}
+}
+
+// TestTemplateCodes_TargetExamplesAreWireSpellings pins the accepted
+// target values advertised by PULSE_TEMPLATE_TARGET_UNKNOWN's fixup to the
+// lowercase on-the-wire spellings a template file actually writes. The Go
+// type names (Request, ComposedRequest, …) are NOT the wire values, and
+// advertising them would send a caller to a target the template layer
+// rejects. The list must stay in lockstep with template.AllTargets().
+func TestTemplateCodes_TargetExamplesAreWireSpellings(t *testing.T) {
+	res, ok := perr.Lookup("PULSE_TEMPLATE_TARGET_UNKNOWN")
+	if !ok {
+		t.Fatal("PULSE_TEMPLATE_TARGET_UNKNOWN not found")
+	}
+	if len(res.Fixups) != 1 {
+		t.Fatalf("expected exactly 1 fixup, got %d", len(res.Fixups))
+	}
+	fx := res.Fixups[0]
+
+	if got, want := fx.Path, []string{"Target"}; !slices.Equal(got, want) {
+		t.Errorf("fixup Path = %v, want %v (the Template.Target slot)", got, want)
+	}
+
+	want := []string{"request", "composed", "chain", "facet", "sample"}
+	if len(fx.Examples) != len(want) {
+		t.Fatalf("fixup Examples = %v, want %v", fx.Examples, want)
+	}
+	for i, w := range want {
+		got, ok := fx.Examples[i].(string)
+		if !ok {
+			t.Fatalf("fixup Examples[%d] = %v, want a string", i, fx.Examples[i])
+		}
+		if got != w {
+			t.Errorf("fixup Examples[%d] = %q, want %q", i, got, w)
+		}
+		if got != strings.ToLower(got) {
+			t.Errorf("fixup Examples[%d] = %q is not a lowercase wire spelling", i, got)
+		}
+	}
+
+	// The prose must name the spellings too — a caller reading the
+	// message alone should not be left guessing at capitalisation.
+	for _, w := range want {
+		if !strings.Contains(res.Message, w) {
+			t.Errorf("Message %q does not mention the %q target spelling", res.Message, w)
+		}
+	}
+}
+
+// TestTemplateCodes_VariableScopedFixupPaths asserts the variable-scoped
+// members point their fixup at the Variables slot rather than at some
+// other declaration field. The abstract path is what a caller (or an
+// agent) navigates to apply the remedy.
+func TestTemplateCodes_VariableScopedFixupPaths(t *testing.T) {
+	variableScoped := []perr.Code{
+		perr.PULSE_TEMPLATE_VAR_MISSING,
+		perr.PULSE_TEMPLATE_VAR_UNKNOWN,
+		perr.PULSE_TEMPLATE_VAR_TYPE,
+		perr.PULSE_TEMPLATE_VAR_ENUM,
+		perr.PULSE_TEMPLATE_UNRESOLVED,
+	}
+	want := []string{"Variables", "*"}
+	for _, code := range variableScoped {
+		t.Run(string(code), func(t *testing.T) {
+			m, ok := perr.MetadataFor(code)
+			if !ok {
+				t.Fatalf("code %s has no codeMetadata entry", code)
+			}
+			found := false
+			for _, f := range m.Fixups {
+				if slices.Equal(f.Path, want) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("code %s has no fixup pathed at %v", code, want)
+			}
+		})
 	}
 }
 

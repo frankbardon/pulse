@@ -1708,13 +1708,13 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEMPLATE_TARGET_UNKNOWN: {
-		Message: "A template's target is absent or does not name one of the five public request roots. The target selects the type the rendered JSON decodes into, so it cannot be inferred from the body.",
+		Message: "A template's target is absent or does not name one of the five public request roots. Targets are spelled lowercase on the wire — request, composed, chain, facet, sample — and the target selects the type the rendered JSON decodes into, so it cannot be inferred from the body.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
 				Path:     []string{"Target"},
-				Hint:     "Set the template's target to exactly one of the supported request roots — the one whose shape the template body already writes.",
-				Examples: []any{"Request", "ComposedRequest", "ChainRequest", "FacetRequest", "SampleRequest"},
+				Hint:     "Set the template's target to exactly one of the lowercase wire spellings — request (types.Request), composed (types.ComposedRequest), chain (types.ChainRequest), facet (types.FacetRequest), sample (types.SampleRequest) — picking the one whose shape the template body already writes. The Go type name is not the wire value: \"ComposedRequest\" is rejected, \"composed\" is accepted.",
+				Examples: []any{"request", "composed", "chain", "facet", "sample"},
 			},
 		},
 	},
