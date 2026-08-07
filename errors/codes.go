@@ -1140,6 +1140,92 @@ const (
 	// IncludeOverlays=false opt-out that suppresses the warning while
 	// keeping CSV output.
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED Code = "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED"
+
+	// PULSE_TEMPLATE_NOT_FOUND indicates a render was asked for a
+	// template name that is not registered — neither declared
+	// programmatically nor loaded from a template directory. Details
+	// carry the requested name under DetailTemplate.
+	PULSE_TEMPLATE_NOT_FOUND Code = "PULSE_TEMPLATE_NOT_FOUND"
+
+	// PULSE_TEMPLATE_INVALID indicates a template document failed
+	// declaration validation: malformed JSON, a missing or empty name, a
+	// body that is not a JSON object, a duplicate variable name, or a
+	// variable declaration the template layer cannot interpret. Raised
+	// when the template is registered, not when it is rendered, so a bad
+	// document never reaches a caller's render call. Details carry the
+	// offending template under DetailTemplate and, when the fault is
+	// variable-scoped, the variable under DetailVariable.
+	PULSE_TEMPLATE_INVALID Code = "PULSE_TEMPLATE_INVALID"
+
+	// PULSE_TEMPLATE_TARGET_UNKNOWN indicates a template's `target` is
+	// absent or names something other than one of the five public
+	// request roots (Request, ComposedRequest, ChainRequest,
+	// FacetRequest, SampleRequest). The target selects the type the
+	// rendered JSON strict-decodes into, so it cannot be inferred.
+	// Details carry the template under DetailTemplate and the offending
+	// target value.
+	PULSE_TEMPLATE_TARGET_UNKNOWN Code = "PULSE_TEMPLATE_TARGET_UNKNOWN"
+
+	// PULSE_TEMPLATE_VAR_MISSING indicates a variable declared
+	// `required` resolved to nothing at render: the caller supplied no
+	// value and the declaration carries no `default`. Distinct from
+	// PULSE_TEMPLATE_UNRESOLVED, which is the render-time marker that
+	// survived substitution. Details carry the template under
+	// DetailTemplate and the variable under DetailVariable.
+	PULSE_TEMPLATE_VAR_MISSING Code = "PULSE_TEMPLATE_VAR_MISSING"
+
+	// PULSE_TEMPLATE_VAR_UNKNOWN indicates the caller supplied a
+	// variable the template does not declare. Unknown variables are
+	// rejected rather than ignored — silently dropping one produces a
+	// request that looks parameterised but is not. Details carry the
+	// template under DetailTemplate and the offending name under
+	// DetailVariable.
+	PULSE_TEMPLATE_VAR_UNKNOWN Code = "PULSE_TEMPLATE_VAR_UNKNOWN"
+
+	// PULSE_TEMPLATE_VAR_TYPE indicates a supplied value — or a
+	// declaration's own `default` — does not match the variable's
+	// declared type. Details carry the template under DetailTemplate,
+	// the variable under DetailVariable, and the declared vs. supplied
+	// types.
+	PULSE_TEMPLATE_VAR_TYPE Code = "PULSE_TEMPLATE_VAR_TYPE"
+
+	// PULSE_TEMPLATE_VAR_ENUM indicates a supplied value is not a member
+	// of an `enum` variable's declared `values` set. Membership is exact
+	// and case-sensitive. Details carry the template under
+	// DetailTemplate, the variable under DetailVariable, the offending
+	// value, and the permitted set.
+	PULSE_TEMPLATE_VAR_ENUM Code = "PULSE_TEMPLATE_VAR_ENUM"
+
+	// PULSE_TEMPLATE_UNRESOLVED indicates an unguarded variable marker
+	// survived substitution — a `$var` or `{{token}}` in the template
+	// body had no value to substitute. Rendering hard-fails rather than
+	// emitting a request carrying a literal marker string. Details carry
+	// the template under DetailTemplate and the unresolved marker's
+	// variable name under DetailVariable.
+	PULSE_TEMPLATE_UNRESOLVED Code = "PULSE_TEMPLATE_UNRESOLVED"
+
+	// PULSE_TEMPLATE_RENDER_INVALID indicates substitution succeeded but
+	// the rendered JSON failed strict-decode into the template's target
+	// request type — typically an unknown field, or a substituted value
+	// landing in a slot whose type it does not fit. Details carry the
+	// template under DetailTemplate, the target type, and the decode
+	// fault.
+	PULSE_TEMPLATE_RENDER_INVALID Code = "PULSE_TEMPLATE_RENDER_INVALID"
+)
+
+// Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
+// error that can name a template does so under DetailTemplate; every one
+// that can name a variable does so under DetailVariable. Callers key off
+// these constants rather than re-spelling the strings.
+const (
+	// DetailTemplate is the CodedError.Details key carrying the name of
+	// the template a PULSE_TEMPLATE_* error refers to.
+	DetailTemplate = "template"
+
+	// DetailVariable is the CodedError.Details key carrying the name of
+	// the offending variable on the variable-scoped members of the
+	// PULSE_TEMPLATE_* family.
+	DetailVariable = "variable"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1309,6 +1395,15 @@ var allCodes = []Code{
 	PULSE_LOOKUP_AMBIGUOUS,
 	PULSE_INDEX_STALE,
 	PULSE_INDEX_UNSUPPORTED_SHARDED,
+	PULSE_TEMPLATE_NOT_FOUND,
+	PULSE_TEMPLATE_INVALID,
+	PULSE_TEMPLATE_TARGET_UNKNOWN,
+	PULSE_TEMPLATE_VAR_MISSING,
+	PULSE_TEMPLATE_VAR_UNKNOWN,
+	PULSE_TEMPLATE_VAR_TYPE,
+	PULSE_TEMPLATE_VAR_ENUM,
+	PULSE_TEMPLATE_UNRESOLVED,
+	PULSE_TEMPLATE_RENDER_INVALID,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.
