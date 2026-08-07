@@ -6813,6 +6813,10 @@
         "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability, and the v0.20.0 Response.Components additive field. Use when authoring or adapting any Pulse Request."
       },
       {
+        "name": "request-templating",
+        "description": "Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang."
+      },
+      {
         "name": "response-components",
         "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell"
       },
@@ -9215,4 +9219,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5c65b8c31d21585491ecb50184fafdab255cf94d9c4336800bb23f14694c2fec
+// golden-hash: 8319dbaa27e3c86fe1c16ba7065ae1d33e028a8a83818b6d12b1819f8ac55bd3
