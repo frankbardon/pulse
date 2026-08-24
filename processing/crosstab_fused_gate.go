@@ -62,6 +62,12 @@ import (
 //     decimal path); Pulse forces buffered for those today and the
 //     fused gate mirrors that constraint.
 //
+// req.Overlays is explicitly NOT an exclusion. Overlays decorate a
+// finalised response and consume no records, so RunCrosstabFused folds
+// them at its exit through the same applyOverlaysToResponse hook the
+// buffered exit uses. An overlay-carrying crosstab is fusable whenever
+// the rest of the request is.
+//
 // Returns (true, "") for an eligible request. Returns (false, reason)
 // for an ineligible one — the reason is intentionally short ("non-
 // mergeable cell aggregator (AGG_MEDIAN)", "stat tests force buffered",
@@ -131,20 +137,17 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 		return false, "stat tests force buffered"
 	}
 
-	// Overlays: the overlay fold runs against the finalised
-	// MatrixPayload from the buffered RunCrosstab path
-	// (processing/crosstab.go applyOverlaysToResponse). The fused exit
-	// (crosstab_fused_run.go RunCrosstabFused → FusedCrosstabState.
-	// Finalize) intentionally does NOT invoke that hook — the buffered
-	// path owns the overlay surface, with the fused mirror deferred.
-	// Reject any request carrying Overlays here so the dispatch in
-	// service/crosstab.go falls back to the buffered path and
-	// Response.Overlays is populated end-to-end. Registered
-	// OverlayKinds are non-streamable per types.OverlayStreamability,
-	// so this gate matches the predict-level streamability surface.
-	if len(req.Overlays) > 0 {
-		return false, "overlays force buffered"
-	}
+	// NOTE: req.Overlays is deliberately NOT an exclusion. The overlay
+	// fold (processing/crosstab.go applyOverlaysToResponse) consumes no
+	// records — it reads only the finalised resp.Crosstab.Matrix and
+	// resp.Components.Crosstab, both of which
+	// FusedCrosstabState.Finalize produces. RunCrosstabFused calls the
+	// same hook the buffered exit calls, so Response.Overlays is
+	// populated identically on either path. This does NOT make any
+	// OverlayKind streamable: types.OverlayStreamability answers
+	// whether a kind can be computed INSIDE the streaming pass, and a
+	// post-Finalize fold is not that — every row of that table stays
+	// false and nothing in the fused path reads it.
 
 	// ATTR_FORMULA with a non-empty expression bails the projection
 	// extractor when the expression is malformed; even when it parses,

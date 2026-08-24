@@ -34,6 +34,11 @@ import (
 // reuse is safe and shaves the per-record allocation cost on wide
 // cohorts.
 //
+// After Finalize the response is handed to applyOverlaysToResponse —
+// the same overlay fold the buffered RunCrosstab exit runs. The fold
+// consumes no records, so an overlay-carrying crosstab is fusable and
+// Response.Overlays is populated identically on either path.
+//
 // Errors surface the standard CodedError shapes. A gate drift that
 // allows a non-streamable grouper / non-online cell aggregator to reach
 // here surfaces as PROCESSING_INTERNAL via NewFusedCrosstabState or
@@ -123,5 +128,31 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 		}
 	}
 
-	return state.Finalize()
+	resp, err := state.Finalize()
+	if err != nil {
+		return nil, err
+	}
+
+	// Overlay fold — the same hook the buffered exit calls
+	// (processing/crosstab.go RunCrosstab → applyOverlaysToResponse).
+	// It consumes no records: the host view wraps the finalised
+	// resp.Crosstab.Matrix plus resp.Components.Crosstab, both of which
+	// Finalize has already produced. Result is identical to the
+	// buffered path — one OverlayLayer per spec in matching order, with
+	// every types.OverlayWarning promoted to types.ResponseWarning.
+	//
+	// Parity edge cases need no special-casing here: shape=long emits
+	// no Matrix so the hook no-ops exactly as it does buffered, and a
+	// components-disabled run leaves resp.Components nil so the
+	// component-reading OVERLAY_PAIRWISE_* handlers surface
+	// PULSE_OVERLAY_COMPONENTS_REQUIRED exactly as they do buffered.
+	//
+	// Called here rather than inside Finalize because Finalize has
+	// neither the *types.Request nor the ExtensionRegistry the fold
+	// needs; RunCrosstabFused has both.
+	if err := applyOverlaysToResponse(req, resp, p.exts); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }

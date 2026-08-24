@@ -607,3 +607,72 @@ func canonicaliseDataRows(t *testing.T, rows []map[string]any) []string {
 	}
 	return out
 }
+
+// TestCrosstabFused_OverlaysRouteFusedAndMatchBuffered is the E1-S1
+// end-to-end check. Before E1-S1 the gate carried an
+// "overlays force buffered" arm, so an overlay-carrying crosstab never
+// reached processCrosstabFused. It now does, and the fused response
+// must carry the same Response.Overlays / Response.Warnings the
+// buffered service produces for the identical request.
+func TestCrosstabFused_OverlaysRouteFusedAndMatchBuffered(t *testing.T) {
+	schema := crosstabSchema()
+	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
+	ctx := context.Background()
+
+	buildReq := func() *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: "ct.pulse"},
+			Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+				Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "value", Label: "total"},
+				Shape:   types.CrosstabShapeMatrix,
+				Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+			},
+			Overlays: []types.OverlaySpec{{
+				Name:  "row_index",
+				Kind:  types.OverlayKindIndexVsMargin,
+				Scope: types.OverlayScopeCell,
+				Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
+			}},
+		}
+	}
+
+	svcFused := New(cfg)
+	// The dispatch condition itself: the gate must now admit overlays.
+	if ok, reason := processing.CanFuseCrosstab(buildReq(), schema, svcFused.Extensions()); !ok {
+		t.Fatalf("CanFuseCrosstab rejected overlay-carrying request: %s", reason)
+	}
+	fusedResp, err := svcFused.Process(ctx, buildReq())
+	if err != nil {
+		t.Fatalf("Process (fused): %v", err)
+	}
+
+	svcBuf := New(cfg)
+	svcBuf.SetDisableCrosstabFusion(true)
+	bufResp, err := svcBuf.Process(ctx, buildReq())
+	if err != nil {
+		t.Fatalf("Process (buffered): %v", err)
+	}
+
+	if len(fusedResp.Overlays) != 1 {
+		t.Fatalf("fused response carries %d overlay layers, want 1", len(fusedResp.Overlays))
+	}
+
+	marshal := func(v any) string {
+		b, mErr := json.Marshal(v)
+		if mErr != nil {
+			t.Fatalf("json.Marshal: %v", mErr)
+		}
+		return string(b)
+	}
+	if want, got := marshal(bufResp.Overlays), marshal(fusedResp.Overlays); want != got {
+		t.Errorf("Overlays diverge:\n buffered=%s\n fused   =%s", want, got)
+	}
+	if want, got := marshal(bufResp.Warnings), marshal(fusedResp.Warnings); want != got {
+		t.Errorf("Warnings diverge:\n buffered=%s\n fused   =%s", want, got)
+	}
+	if want, got := marshal(bufResp.Crosstab), marshal(fusedResp.Crosstab); want != got {
+		t.Errorf("Crosstab host payload diverges:\n buffered=%s\n fused   =%s", want, got)
+	}
+}
