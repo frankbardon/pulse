@@ -64,12 +64,13 @@ type FusedCrosstabState struct {
 	cellField   string
 	cellFactory AggregatorFactory
 
-	// Axis grouper instances. Each entry is a field-bound StreamableGrouper
-	// constructed once at NewFusedCrosstabState time. KeyFor is called
-	// per record per axis in Update — the only per-record allocation is
-	// the composite-key string.
-	rowGroupers []StreamableGrouper
-	colGroupers []StreamableGrouper
+	// Axis grouper instances. Each entry is a fusedAxisGrouper —
+	// the constructed grouper plus its pre-resolved keying shape —
+	// built once at NewFusedCrosstabState time. The keying method is
+	// called per record per axis in Update; for a single-key axis the
+	// only per-record allocation is the composite-key string.
+	rowGroupers []fusedAxisGrouper
+	colGroupers []fusedAxisGrouper
 
 	// Per-axis key interners. rowIndex maps a composite axis key to the
 	// integer index assigned at first sight; rowKeys preserves insertion
@@ -184,7 +185,9 @@ type FusedCrosstabState struct {
 
 // NewFusedCrosstabState constructs a FusedCrosstabState. Validates the
 // spec against the gate's structural assumptions (every axis grouper
-// must implement StreamableGrouper, cell aggregator must be online) and
+// must implement one of the two per-record keying interfaces —
+// StreamableGrouper or MultiKeyStreamingGrouper — and the cell
+// aggregator must be online) and
 // pre-builds the per-axis grouper instances so the per-record hot path
 // can compute composite keys with a single method call per axis entry.
 //
@@ -312,17 +315,108 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 	return st, nil
 }
 
+// fusedAxisGrouper is one position on a fused crosstab axis: the
+// constructed grouper instance plus its pre-resolved per-record keying
+// shape, so the hot path branches on a nil check instead of repeating a
+// type assertion at every call site.
+//
+// Exactly one keying shape is authoritative per entry:
+//
+//   - single != nil — StreamableGrouper. The record maps to exactly one
+//     bucket key (GROUP_CATEGORY / RANGE / ROUNDED / DATE /
+//     DATE_RANGES / SET_VALUE and streamable extension groupers).
+//   - multi != nil — MultiKeyStreamingGrouper. The record fans into N
+//     bucket keys (GROUP_SET_PER_ELEMENT: one bucket per selected set
+//     bit), so no single KeyFor answer exists.
+//
+// When an instance satisfies BOTH interfaces the fan-out shape wins and
+// single is left nil, mirroring Processor.processStreamingGrouped which
+// prefers KeysForRow over KeyForRow when both are present. Leaving
+// single nil is deliberate: a reader that accidentally took the narrow
+// path on a fanning grouper would silently drop buckets, and a nil
+// dereference is a louder failure than wrong numbers. No built-in
+// grouper implements both; an extension grouper could.
+type fusedAxisGrouper struct {
+	// grouper is the constructed instance, retained so readers needing
+	// the Grouper-level optional interfaces (MetaGrouper for the
+	// Finalize-time Components() emission) can assert against one value
+	// regardless of the keying shape.
+	grouper Grouper
+
+	// single / multi are the pre-resolved keying shapes; see the type
+	// doc for the mutual-exclusion rule.
+	single StreamableGrouper
+	multi  MultiKeyStreamingGrouper
+
+	// field is the axis position's bound field name, taken from the
+	// *types.Group spec. StreamableGrouper implementations bind their
+	// field at factory time and ignore it; MultiKeyStreamingGrouper
+	// takes it as a KeysForRow argument, exactly as the buffered
+	// PartitionByAxis passes grp.Field to Grouper.Group.
+	field string
+}
+
+// fansOut reports whether this axis position multiplies one record into
+// N bucket keys. Callers routing records branch on this.
+func (a fusedAxisGrouper) fansOut() bool { return a.multi != nil }
+
+// keyForRow derives the single bucket key for rec at this axis
+// position. Only valid on a single-key entry — a fan-out entry has no
+// single key by construction and surfaces a typed error rather than
+// silently collapsing to its first key.
+//
+// Delegates to streamableKeyForRow so the KeyForRow side-effect path
+// (liveBuckets accumulation for MetaGrouper.Components) is preserved.
+func (a fusedAxisGrouper) keyForRow(rec *Record) (string, bool, error) {
+	if a.single == nil {
+		// Reached only when a fan-out axis is driven through the
+		// single-key derivation path. Multi-key key derivation and
+		// record routing are not implemented yet; a partial
+		// implementation that took only the first key would silently
+		// under-count every cell, so fail loudly instead.
+		return "", false, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"fused crosstab multi-key axis key derivation is not implemented",
+			map[string]any{"field": a.field})
+	}
+	return streamableKeyForRow(a.single, rec)
+}
+
+// classifyFusedAxisGrouper resolves the keying shape of an already
+// constructed (and extension-aware-hooked) grouper instance. Returns a
+// zero-value entry with both shapes nil when the instance implements
+// neither keying interface — callers treat that as ineligible.
+func classifyFusedAxisGrouper(instance Grouper, field string) fusedAxisGrouper {
+	entry := fusedAxisGrouper{grouper: instance, field: field}
+	if multi, ok := instance.(MultiKeyStreamingGrouper); ok {
+		entry.multi = multi
+		return entry
+	}
+	if single, ok := instance.(StreamableGrouper); ok {
+		entry.single = single
+	}
+	return entry
+}
+
 // buildStreamableAxis constructs the per-axis grouper chain. Every
-// instance is type-asserted to StreamableGrouper; a non-streamable
-// grouper (e.g. GROUP_QUANTILE) surfaces a typed CodedError so the
-// caller can dispatch back to the buffered RunCrosstab path. axisName
-// is the human-readable axis label ("rows" / "columns") used in the
-// error details.
-func buildStreamableAxis(axis []*types.Group, schema *encoding.Schema, ext *ExtensionRegistry, axisName string) ([]StreamableGrouper, error) {
+// instance must implement one of the two per-record keying interfaces —
+// StreamableGrouper (one key per record) or MultiKeyStreamingGrouper
+// (N keys per record, the GROUP_SET_PER_ELEMENT fan-out); the resolved
+// shape is recorded on the returned fusedAxisGrouper so the per-record
+// path never re-asserts. A grouper implementing neither (e.g.
+// GROUP_QUANTILE, which needs a finalize-time sorted view) surfaces a
+// typed CodedError so the caller can dispatch back to the buffered
+// RunCrosstab path. axisName is the human-readable axis label
+// ("rows" / "columns") used in the error details.
+//
+// Mirrors axisStreamable in crosstab_fused_gate.go — the gate probes
+// the same interfaces on a throwaway instance, this builds the
+// long-lived ones. The two must stay in lockstep: anything the gate
+// admits, this must construct.
+func buildStreamableAxis(axis []*types.Group, schema *encoding.Schema, ext *ExtensionRegistry, axisName string) ([]fusedAxisGrouper, error) {
 	if len(axis) == 0 {
 		return nil, nil
 	}
-	out := make([]StreamableGrouper, 0, len(axis))
+	out := make([]fusedAxisGrouper, 0, len(axis))
 	for i, grp := range axis {
 		if grp == nil {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
@@ -339,14 +433,17 @@ func buildStreamableAxis(axis []*types.Group, schema *encoding.Schema, ext *Exte
 		if err != nil {
 			return nil, err
 		}
+		// Must run BEFORE the interface assertion: a named range
+		// `table:` on GROUP_DATE_RANGES resolves lazily through the
+		// ExtensionAware hook, and the grouper is not usable until it has.
 		ApplyGrouperExtensions(instance, ext)
-		streamable, ok := instance.(StreamableGrouper)
-		if !ok {
+		entry := classifyFusedAxisGrouper(instance, grp.Field)
+		if entry.single == nil && entry.multi == nil {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
-				fmt.Sprintf("fused crosstab %s axis grouper %s does not implement StreamableGrouper", axisName, grp.Type),
+				fmt.Sprintf("fused crosstab %s axis grouper %s implements neither StreamableGrouper nor MultiKeyStreamingGrouper", axisName, grp.Type),
 				map[string]any{"axis": axisName, "position": i, "group_type": string(grp.Type)})
 		}
-		out = append(out, streamable)
+		out = append(out, entry)
 	}
 	return out, nil
 }
@@ -787,7 +884,7 @@ func (s *FusedCrosstabState) SetTotalRows(n int64) {
 // (1 element) and one partialKeys slice (1 element). Multi-grouper
 // axes allocate a length-`len(groupers)` tuple, a length-successDepth
 // partialKeys slice, and one composite-key string per depth.
-func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
+func axisKeyAndPartials(groupers []fusedAxisGrouper, rec *Record) (
 	fullKey string, fullTuple types.AxisKey,
 	partialKeys []string, successDepth int,
 	fullOk bool, err error,
@@ -800,7 +897,7 @@ func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
 		return "", nil, nil, 0, false, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"fused crosstab axis has zero groupers; spec validation should have rejected")
 	case 1:
-		key, ok, kerr := streamableKeyForRow(groupers[0], rec)
+		key, ok, kerr := groupers[0].keyForRow(rec)
 		if kerr != nil {
 			if stderrors.Is(kerr, ErrGrouperKeyNull) {
 				return "", nil, nil, 0, false, nil
@@ -815,7 +912,7 @@ func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
 	tuple := make(types.AxisKey, 0, len(groupers))
 	partials := make([]string, 0, len(groupers))
 	for _, g := range groupers {
-		key, ok, kerr := streamableKeyForRow(g, rec)
+		key, ok, kerr := g.keyForRow(rec)
 		if kerr != nil {
 			if stderrors.Is(kerr, ErrGrouperKeyNull) {
 				// Partial success: return whatever prefix resolved. The
@@ -838,7 +935,7 @@ func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
 	return partials[len(partials)-1], tuple, partials, len(partials), true, nil
 }
 
-// streamableKeyForRow drives a streamable axis grouper through its
+// streamableKeyForRow drives a SINGLE-KEY axis grouper through its
 // KeyForRow side-effect path when available so MetaGrouper.Components()
 // observes the per-axis-position bucket accumulation under the fused
 // crosstab path. Falls back to KeyFor for streamable groupers that do
@@ -847,6 +944,9 @@ func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
 // pair mirrors StreamingGrouper.KeyForRow: ok=false signals "skip the
 // row" (null axis key) without a sentinel error; a non-nil error
 // surfaces a typed CodedError unchanged.
+//
+// Callers go through fusedAxisGrouper.keyForRow rather than calling
+// this directly, so the fan-out shape cannot reach it.
 //
 // The side effect populates the grouper's liveBuckets map (or
 // the per-grouper equivalent) so the Finalize-time MetaGrouper
@@ -1159,8 +1259,9 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	// the MetaGrouper.Components walk + projection work entirely.
 	if !s.disableComponents {
 		// Per-axis grouper components emission. Each axis grouper
-		// already accumulated liveBuckets via the streamableKeyForRow side-
-		// effect path during Update; we call Components() now to capture the
+		// already accumulated liveBuckets via its keying side-effect
+		// path during Update (KeyForRow for single-key entries,
+		// KeysForRow for fan-out entries); we call Components() now to capture the
 		// per-axis-position bucket emission and project it onto the sorted
 		// rowKeys / colKeys. The fused path constructs row / column tuple
 		// vectors aligned with the sorted axis-key order via tuplesForKeys
@@ -1191,18 +1292,23 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 // axisComponents captures the per-axis-position MetaGrouper.Components()
 // emission for an ordered axis-grouper chain. Each grouper is queried
 // once after Update has drained the cohort, so liveBuckets reflects
-// every record routed through the axis (populated by streamableKeyForRow
-// during Update). Returns nil when the chain is empty; entries are nil
-// when the grouper does not implement MetaGrouper (extension groupers
-// without bucket-count emission). Used by Finalize to feed
+// every record routed through the axis (populated by the per-record
+// keying call during Update). Returns nil when the chain is empty;
+// entries are nil when the grouper does not implement MetaGrouper
+// (extension groupers without bucket-count emission). The MetaGrouper
+// assertion targets fusedAxisGrouper.grouper, so it resolves the same
+// way on single-key and fan-out entries. Used by Finalize to feed
 // projectAxisKeyComponents in lockstep with the buffered path.
-func (s *FusedCrosstabState) axisComponents(chain []StreamableGrouper) ([]map[string]any, error) {
+func (s *FusedCrosstabState) axisComponents(chain []fusedAxisGrouper) ([]map[string]any, error) {
 	if len(chain) == 0 {
 		return nil, nil
 	}
 	out := make([]map[string]any, len(chain))
 	for i, g := range chain {
-		meta, ok := g.(MetaGrouper)
+		// Assert against the retained Grouper instance, not the keying
+		// shape, so MetaGrouper resolves identically on single-key and
+		// fan-out entries.
+		meta, ok := g.grouper.(MetaGrouper)
 		if !ok {
 			continue
 		}

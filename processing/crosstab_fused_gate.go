@@ -33,15 +33,19 @@ import (
 //     by construction. The two non-recompute classes overlap exactly
 //     with the set of mergeable, scalar, cell-derived aggregators.
 //   - Every grouper on req.Crosstab.Rows ∪ req.Crosstab.Columns is
-//     constructable and the resulting instance implements
-//     StreamableGrouper (i.e. exposes a per-record KeyFor). The static
+//     constructable and the resulting instance implements ONE of the
+//     two per-record keying interfaces: StreamableGrouper (a per-record
+//     KeyFor, one bucket per record) or MultiKeyStreamingGrouper (a
+//     per-record KeysForRow, N buckets per record — the
+//     GROUP_SET_PER_ELEMENT fan-out). The static
 //     types.GroupType.Streamable() table is too narrow here — it tracks
 //     Process-level streamability rather than per-record key derivation
 //     (GROUP_DATE is non-streamable at the Process layer but does
 //     implement StreamableGrouper.KeyFor and is therefore fusable). We
-//     consult the actual interface via a factory-probe to widen the
+//     consult the actual interfaces via a factory-probe to widen the
 //     gate while still rejecting truly key-non-derivable groupers
-//     (GROUP_QUANTILE).
+//     (GROUP_QUANTILE, which needs a finalize-time sorted view and
+//     implements neither).
 //   - No req.Features — every FEAT_* operator forces a buffered
 //     pre-filter pass that the fused path skips.
 //   - No req.Attributes of type ATTR_FORMULA with a non-empty
@@ -113,12 +117,14 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 		}
 	}
 
-	// Every grouper on either axis must implement StreamableGrouper.
-	// Probe-construct via the registry's factory and assert the
-	// interface — this widens past the conservative
-	// types.GroupType.Streamable() table to admit per-record-keyable
-	// groupers like GROUP_DATE while still rejecting GROUP_QUANTILE
-	// (which has no per-record key derivation).
+	// Every grouper on either axis must implement StreamableGrouper or
+	// MultiKeyStreamingGrouper. Probe-construct via the registry's
+	// factory and assert the interfaces — this widens past the
+	// conservative types.GroupType.Streamable() table to admit
+	// per-record-keyable groupers like GROUP_DATE and per-record
+	// fan-out groupers like GROUP_SET_PER_ELEMENT, while still
+	// rejecting GROUP_QUANTILE (which has no per-record key
+	// derivation at all).
 	if reason, ok := axisStreamable(req.Crosstab.Rows, schema, ext, "row"); !ok {
 		return false, reason
 	}
@@ -189,16 +195,26 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 
 // axisStreamable probe-constructs each grouper on an axis via the
 // registry factory and asserts that the resulting instance implements
-// StreamableGrouper. The probe is cheap — built-in grouper factories
-// validate Params (e.g. GROUP_DATE's component / fiscal_offset) and
-// stash the field name, but do not touch records.
+// one of the two per-record keying interfaces — StreamableGrouper
+// (one bucket key per record) or MultiKeyStreamingGrouper (N bucket
+// keys per record, the GROUP_SET_PER_ELEMENT fan-out). Either shape is
+// admissible; only a grouper implementing neither is rejected. The
+// probe is cheap — built-in grouper factories validate Params (e.g.
+// GROUP_DATE's component / fiscal_offset) and stash the field name or
+// dictionary, but do not touch records.
 //
-// Returns ("", true) when every grouper is streamable. Returns
+// Kept in lockstep with buildStreamableAxis (crosstab_fused.go), which
+// probes the same interfaces to build the long-lived instances:
+// anything admitted here must construct there.
+//
+// Returns ("", true) when every grouper is keyable. Returns
 // (reason, false) on the first miss, with the reason in the same shape
 // the previous types.GroupType.Streamable()-based gate produced:
-// "non-streamable grouper on <axis> axis (<TYPE>)". An unknown grouper
-// type (factory miss) likewise disqualifies the request — the runtime
-// would have errored a moment later anyway.
+// "non-streamable grouper on <axis> axis (<TYPE>)". The reason wording
+// is retained verbatim — it is an internal diagnostic string, never a
+// coded error, and downstream tests key off its shape. An unknown
+// grouper type (factory miss) likewise disqualifies the request — the
+// runtime would have errored a moment later anyway.
 //
 // axisName is the human-readable axis label embedded in the reason
 // string ("row" / "column").
@@ -219,8 +235,13 @@ func axisStreamable(axis []*types.Group, schema *encoding.Schema, ext *Extension
 			// decline fusion. Mirror the reason shape the other branches return.
 			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
 		}
+		// Must run BEFORE the interface assertion: a named range
+		// `table:` on GROUP_DATE_RANGES resolves lazily through the
+		// ExtensionAware hook.
 		ApplyGrouperExtensions(instance, ext)
-		if _, ok := instance.(StreamableGrouper); !ok {
+		_, single := instance.(StreamableGrouper)
+		_, multi := instance.(MultiKeyStreamingGrouper)
+		if !single && !multi {
 			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
 		}
 	}

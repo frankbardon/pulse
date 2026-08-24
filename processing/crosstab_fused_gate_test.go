@@ -20,8 +20,21 @@ func crosstabFusedGateSchema() *encoding.Schema {
 			{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 10, Scale: 2},
 			{Name: "ts", Type: encoding.FieldTypeDate},
+			{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: crosstabFusedGateTagsDict()},
 		},
 	}
+}
+
+// crosstabFusedGateTagsDict returns the dictionary backing the "tags"
+// set field. GROUP_SET_PER_ELEMENT resolves its labels from it, so the
+// entries must be non-empty for the grouper factory to construct.
+func crosstabFusedGateTagsDict() *encoding.Dictionary {
+	d := encoding.NewDictionary()
+	for _, v := range []string{"VISA", "MC", "AMEX", "DISC"} {
+		// Add only fails on width overflow; four entries cannot overflow u8.
+		_, _ = d.Add(v)
+	}
+	return d
 }
 
 // happyPathCrosstabRequest returns a fused-eligible Crosstab request:
