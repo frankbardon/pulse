@@ -120,8 +120,15 @@ func catGroup(field string) *types.Group {
 // same records and asserts the wire forms agree. Buffered is the oracle:
 // the fused path is contracted to be byte-equal, so the assertion is
 // against the buffered output rather than hand-computed numbers.
+//
+// The fusion gate is asserted FIRST (E2-S4): a request the gate rejects
+// would take the buffered arm in production, so a parity assertion over
+// it proves nothing — the comparison has to be against a request that
+// really does fuse. Overlays and Warnings are diffed alongside the
+// matrix so the E1 fold stays covered under fan-out.
 func assertFusedBufferedParity(t *testing.T, schema *encoding.Schema, req *types.Request, recs []*Record) {
 	t.Helper()
+	assertFusableCrosstab(t, schema, req)
 	bufResp, err := runBufferedCrosstabWithComponents(t, schema, req, recs, false)
 	if err != nil {
 		t.Fatalf("buffered RunCrosstab: %v", err)
@@ -139,7 +146,24 @@ func assertFusedBufferedParity(t *testing.T, schema *encoding.Schema, req *types
 	if want, got := jsonOf(t, bufResp.Components), jsonOf(t, fusedResp.Components); want != got {
 		t.Errorf("Components diverge:\nbuffered: %s\nfused:    %s", want, got)
 	}
+	if want, got := jsonOf(t, bufResp.Overlays), jsonOf(t, fusedResp.Overlays); want != got {
+		t.Errorf("Overlays diverge:\nbuffered: %s\nfused:    %s", want, got)
+	}
+	if want, got := jsonOf(t, bufResp.Warnings), jsonOf(t, fusedResp.Warnings); want != got {
+		t.Errorf("Warnings diverge:\nbuffered: %s\nfused:    %s", want, got)
+	}
 	assertMetadataEqual(t, bufResp.Metadata, fusedResp.Metadata)
+}
+
+// assertFusableCrosstab fails the test unless the fusion gate admits
+// the request. Every parity assertion in this package funnels through
+// it so a comparison can never silently degrade into two buffered runs
+// agreeing with each other.
+func assertFusableCrosstab(t *testing.T, schema *encoding.Schema, req *types.Request) {
+	t.Helper()
+	if ok, reason := CanFuseCrosstab(req, schema, nil); !ok {
+		t.Fatalf("CanFuseCrosstab rejected the request under test: %s", reason)
+	}
 }
 
 // TestFusedCrosstab_FanOutRoutingMatchesBuffered is the E2-S3 oracle
