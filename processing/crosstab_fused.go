@@ -96,6 +96,20 @@ type FusedCrosstabState struct {
 	colKeys  []string
 	colAxis  []types.AxisKey
 
+	// Per-record interned-index scratch, reused across records. Update
+	// interns every full axis key the record fans into BEFORE touching a
+	// single cell, then walks the cartesian product of these two index
+	// slices. Two reasons the indices are staged rather than routed
+	// inline: interning a column key extends every existing row of the
+	// cells / cellCounts / cellNNull matrices, so addressing a cell while
+	// interning is still in flight would read a row that is about to
+	// grow; and the row-key slice returned by the keyer aliases scratch
+	// that must not be held across the column derivation. A single-key
+	// axis writes exactly one entry here, so the warm slices allocate
+	// once for the life of the state and never again.
+	rowIdxBuf []int
+	colIdxBuf []int
+
 	// Per-cell accumulator matrix indexed by [rowIdx][colIdx]. The slice
 	// grows column-wise as new columns are observed; existing rows are
 	// extended in lockstep so cells[rowIdx][colIdx] is well-defined for
@@ -714,14 +728,45 @@ func (s *FusedCrosstabState) internPartialColKey(key string) (int, error) {
 // builds the row partition over all filtered records with valid row
 // keys regardless of column key nullity (and vice versa). The grand
 // margin counts every filter-passing record regardless of any axis
-// nullity. Partial-depth (normalize_level) margins follow the same
-// per-axis gate: row partial-margin updates whenever the row axis key
-// is non-null. Cross-axis (normalize_within) margins update only when
+// nullity. Partial-depth (normalize_level) margins gate on PREFIX depth
+// rather than on full-axis resolution: the row partial-margin updates
+// whenever the row axis resolved past rowNormLevel, so a record whose
+// deeper row groupers are null still feeds the denominator — matching
+// buffered, whose denominator is PartitionByAxis(spec.Rows[:level+1],
+// filtered) and never looks past level. Cross-axis (normalize_within)
+// margins carry the same prefix-depth gate, and update only when
 // BOTH the row prefix at crossRowDepth AND the column prefix at
 // crossColDepth are non-null — mirroring the buffered joined-partition
 // behaviour at processing/crosstab.go::crossActive (lines ~410-448),
 // where the partition only contains records whose prefix groupers all
 // produce non-null keys.
+//
+// FAN-OUT ROUTING RULE. An axis carrying a MultiKeyStreamingGrouper
+// position (GROUP_SET_PER_ELEMENT today) resolves one record to a SET of
+// composite keys, so "the row this record belongs to" is not a single
+// answer. The rule, read off the buffered path rather than invented:
+// each accumulator updates once per distinct key AT THAT ACCUMULATOR'S
+// OWN DEPTH.
+//
+//	cells                            once per distinct (full row key,
+//	                                 full column key) pair — N*M under a
+//	                                 two-axis fan
+//	leaf row / column margins        once per distinct full axis key
+//	partial-depth (normalize_level)  once per deduped prefix key at that
+//	                                 level
+//	cross-axis (normalize_within)    once per deduped (row prefix, col
+//	                                 prefix) pair
+//	grand margin                     once per record — never multiplied
+//
+// The prefix dedup is load-bearing, not an optimisation: a partial-depth
+// margin corresponds to PartitionByAxis(spec.Rows[:level+1], filtered),
+// so a record whose fanning grouper sits BEYOND level lands in that
+// prefix partition exactly once regardless of how wide the fan behind it
+// is. fusedAxisKeys levels are duplicate-free at every depth by
+// construction, so prefixes(d) is already that set.
+//
+// A consequence is that margins are NOT additive on a fanning axis — see
+// the row-axis block below for why that is deliberate.
 func (s *FusedCrosstabState) Update(rec *Record) error {
 	if rec == nil {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
@@ -738,33 +783,19 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		return err
 	}
 
-	// E2-S2 routing shim. Derivation above now yields a SET of composite
-	// keys per axis; routing a record into every cell / margin of that
-	// set (cells per distinct full-key pair, margins per deduped prefix)
-	// is E2-S3 and lands in the block below. Until then the routing
-	// reads the first member of each key set, which is EXACT for a
-	// single-key axis — the set has exactly one member at every depth,
-	// so this path stays byte-identical to the pre-E2 implementation —
-	// and deliberately partial for a fan-out axis, which the fused gate
-	// admits as of E2-S1. A fan-out axis therefore lands its record in
-	// one of its buckets rather than all of them; it no longer errors,
-	// and per-position Components stay correct because keysForRow ran
-	// once per position with all its side effects.
-	rowOk, rowDepth := rowKeys.ok, rowKeys.depth
-	colOk, colDepth := colKeys.ok, colKeys.depth
-	var rowKey, colKey string
-	var rowTuple, colTuple types.AxisKey
-	if rowOk {
-		rowKey, rowTuple = rowKeys.keys()[0], rowKeys.tuples[0]
-	}
-	if colOk {
-		colKey, colTuple = colKeys.keys()[0], colKeys.tuples[0]
-	}
+	// One null probe per record rather than one per accumulator update.
+	// The value is a property of the record, not of the bucket it routes
+	// into, so hoisting it out keeps the fan-out from re-probing the same
+	// field N*M times. Identical to the per-update probe the single-key
+	// predecessor performed at each call site.
+	_, cellValuePresent := rec.NumericValue(s.cellField)
+	cellValueNull := !cellValuePresent
 
-	// Grand margin counts every filter-passing record regardless of axis
-	// nullity — mirrors the buffered RunCrosstab path where
-	// spec.NeedsGrandMargin aggregates over all of `filtered`, never
-	// touching the per-axis partitions.
+	// Grand margin counts every filter-passing record ONCE, regardless of
+	// axis nullity AND regardless of fan-out — it mirrors the buffered
+	// RunCrosstab path where spec.NeedsGrandMargin aggregates over all of
+	// `filtered`, never touching the per-axis partitions. See the
+	// non-additivity note on the row-axis block below.
 	if s.grandMargin != nil {
 		if err := s.grandMargin.UpdateRow(rec, s.cellField); err != nil {
 			return err
@@ -773,20 +804,39 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		// the same NumericValue probe used by the cell + buffered paths
 		// so n_null is byte-equal across paths.
 		s.grandMarginCount++
-		if _, ok := rec.NumericValue(s.cellField); !ok {
+		if cellValueNull {
 			s.grandMarginNNull++
 		}
 	}
 
-	// Row-axis updates (independent of column-axis nullity). A non-null
-	// composite row key is enough to intern the row and update its row
-	// margin; the buffered PartitionByAxis(spec.Rows, filtered) bucket for
-	// this row key contains every record with this row key, even those
-	// whose column key is null.
-	var rowIdx int
-	if rowOk {
-		rowIdx = s.internRowKey(rowKey, rowTuple)
-		if s.rowMargins != nil {
+	// Row-axis updates (independent of column-axis nullity). Every
+	// distinct full row key the record fans into is interned and gets one
+	// row-margin update: buffered PartitionByAxis(spec.Rows, filtered)
+	// appends the record to one bucket per composite key its grouper
+	// chain produces, and each of those buckets contains it exactly once
+	// (fusedAxisKeys levels are duplicate-free at every depth). A record
+	// whose column key is null still lands here, matching the buffered
+	// row partition.
+	//
+	// MARGIN NON-ADDITIVITY IS DELIBERATE. A record selecting 3 labels on
+	// a GROUP_SET_PER_ELEMENT axis is counted 3x across the row margins
+	// but exactly once in the grand margin, so row margins do NOT sum to
+	// the grand total on a fanning axis. That is precisely what the
+	// buffered path produces (its row buckets are a multiset cover of
+	// `filtered`, its grand bucket is `filtered` itself). Do not "fix" it
+	// here: making fused additive would mean the same request returns
+	// different numbers depending on which path the dispatcher chose,
+	// which is strictly worse than the wart. If the semantics are wrong
+	// they are wrong on both paths and need their own decision.
+	s.rowIdxBuf = s.rowIdxBuf[:0]
+	if rowKeys.ok {
+		rowTuples := rowKeys.tuples
+		for j, rowKey := range rowKeys.keys() {
+			rowIdx := s.internRowKey(rowKey, rowTuples[j])
+			s.rowIdxBuf = append(s.rowIdxBuf, rowIdx)
+			if s.rowMargins == nil {
+				continue
+			}
 			mar := s.rowMargins[rowIdx]
 			if mar == nil {
 				mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
@@ -803,12 +853,29 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			// runCellAggregation walk and the fused Update loop emit
 			// byte-equal (n, n_null) on the row margin.
 			s.rowMarginCount[rowIdx]++
-			if _, ok := rec.NumericValue(s.cellField); !ok {
+			if cellValueNull {
 				s.rowMarginNNull[rowIdx]++
 			}
 		}
-		if s.partialRowIndex != nil {
-			pkey := truncateCompositeKey(rowKey, s.rowNormLevel)
+	}
+
+	// Partial-depth (normalize_level) row margin: one update per DEDUPED
+	// prefix key at rowNormLevel, not one per leaf key. The buffered
+	// denominator is PartitionByAxis(spec.Rows[:level+1], filtered), so a
+	// record whose fanning position sits BEYOND the level lands in that
+	// prefix partition exactly once however wide the fan behind it is.
+	// fusedAxisKeys.prefixes returns the already-deduped level, which is
+	// exactly that set.
+	//
+	// The gate is the PREFIX depth, not full-axis resolution — the same
+	// rule the cross-axis margin below applies, and the same rule
+	// buffered applies: PartitionByAxis over Rows[:level+1] buckets every
+	// record whose first level+1 groupers resolve, including records
+	// whose deeper positions are null and which therefore appear in no
+	// leaf row bucket at all. Gating on rowKeys.ok would silently shrink
+	// the denominator relative to buffered.
+	if s.partialRowIndex != nil && rowKeys.depth > s.rowNormLevel {
+		for _, pkey := range rowKeys.prefixes(s.rowNormLevel) {
 			pIdx, perr := s.internPartialRowKey(pkey)
 			if perr != nil {
 				return perr
@@ -820,11 +887,16 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	}
 
 	// Column-axis updates (independent of row-axis nullity). Mirror story
-	// for the col margin and column partial-depth margin.
-	var colIdx int
-	if colOk {
-		colIdx = s.internColKey(colKey, colTuple)
-		if s.colMargins != nil {
+	// for the col margin, including the non-additivity note above.
+	s.colIdxBuf = s.colIdxBuf[:0]
+	if colKeys.ok {
+		colTuples := colKeys.tuples
+		for j, colKey := range colKeys.keys() {
+			colIdx := s.internColKey(colKey, colTuples[j])
+			s.colIdxBuf = append(s.colIdxBuf, colIdx)
+			if s.colMargins == nil {
+				continue
+			}
 			mar := s.colMargins[colIdx]
 			if mar == nil {
 				mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
@@ -839,12 +911,16 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			// Column-margin universal-floor counters in lockstep
 			// with the margin accumulator update.
 			s.colMarginCount[colIdx]++
-			if _, ok := rec.NumericValue(s.cellField); !ok {
+			if cellValueNull {
 				s.colMarginNNull[colIdx]++
 			}
 		}
-		if s.partialColIndex != nil {
-			pkey := truncateCompositeKey(colKey, s.colNormLevel)
+	}
+
+	// Column-axis partial-depth margin — prefix-depth gate, mirroring the
+	// row-axis block above.
+	if s.partialColIndex != nil && colKeys.depth > s.colNormLevel {
+		for _, pkey := range colKeys.prefixes(s.colNormLevel) {
 			pIdx, perr := s.internPartialColKey(pkey)
 			if perr != nil {
 				return perr
@@ -855,39 +931,59 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		}
 	}
 
-	// Cell update — only when BOTH axis composite keys are non-null. The
-	// cells matrix grows lazily via the interners above; if a row was
-	// interned for margin tracking but no record landed both keys, the
-	// (rowIdx, colIdx) slot stays nil and Finalize emits an absent cell.
-	if rowOk && colOk {
-		cell := s.cells[rowIdx][colIdx]
-		if cell == nil {
-			cell, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
-			if err != nil {
-				return err
+	// Cell updates — the cartesian product of the two interned index
+	// sets, one update per distinct (full row key, full column key) pair.
+	// A record fanning N ways on rows and M ways on columns touches N*M
+	// cells, which is what buffered produces: its outer loop walks the
+	// row partition (N buckets holding this record) and re-partitions
+	// each bucket by the column axis (M buckets each).
+	//
+	// Both index loops run AFTER every intern call above, so the cells /
+	// cellCounts / cellNNull matrices are already rectangular over the
+	// full interned index space by the time they are addressed:
+	// internColKey extends every existing row, internRowKey sizes the new
+	// row to the current column count, and neither is called from here.
+	// Interning first also keeps the matrix consistent when a single
+	// record interns several keys on both axes at once.
+	if len(s.rowIdxBuf) > 0 && len(s.colIdxBuf) > 0 {
+		for _, rowIdx := range s.rowIdxBuf {
+			cellRow := s.cells[rowIdx]
+			for _, colIdx := range s.colIdxBuf {
+				cell := cellRow[colIdx]
+				if cell == nil {
+					cell, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
+					if err != nil {
+						return err
+					}
+					cellRow[colIdx] = cell
+				}
+				if err := cell.UpdateRow(rec, s.cellField); err != nil {
+					return err
+				}
+				// Per-cell record-count tracking sits in the same
+				// instruction sequence as the aggregator UpdateRow — a
+				// single pointer-add into the matrix slot.
+				// includedRecords mirrors the running sum so Finalize can
+				// populate Components.Crosstab.IncludedRecords /
+				// ExcludedRecords without a second matrix pass. It is a
+				// sum over cells, exactly as buffered accumulates
+				// `includedRecords += len(bucket)` — so under fan-out it
+				// exceeds the filtered-record count and ExcludedRecords
+				// clamps to zero on BOTH paths.
+				s.cellCounts[rowIdx][colIdx]++
+				s.includedRecords++
+				// Per-cell null-input counter. NumericValue probe mirrors
+				// the buffered runCellAggregation walk — a record whose
+				// cell-field value is null contributes to cellNNull but
+				// still counts toward cellCounts (every record routed to
+				// the cell shows up in CellCounts; the (n, n_null) split
+				// splits it into non-null contributors vs. null inputs).
+				// cellCounts = cellNNull + cell.frozenN (the
+				// orchestrator-visible n).
+				if cellValueNull {
+					s.cellNNull[rowIdx][colIdx]++
+				}
 			}
-			s.cells[rowIdx][colIdx] = cell
-		}
-		if err := cell.UpdateRow(rec, s.cellField); err != nil {
-			return err
-		}
-		// Per-cell record-count tracking sits in the same
-		// instruction sequence as the aggregator UpdateRow — a single
-		// pointer-add into the matrix slot. includedRecords mirrors the
-		// running sum so Finalize can populate
-		// Components.Crosstab.IncludedRecords / ExcludedRecords without a
-		// second matrix pass.
-		s.cellCounts[rowIdx][colIdx]++
-		s.includedRecords++
-		// Per-cell null-input counter. NumericValue probe mirrors
-		// the buffered runCellAggregation walk — a record whose
-		// cell-field value is null contributes to cellNNull but still
-		// counts toward cellCounts (every record routed to the cell
-		// shows up in CellCounts; the (n, n_null) split splits it into
-		// non-null contributors vs. null inputs). cellCounts =
-		// cellNNull + cell.frozenN (the orchestrator-visible n).
-		if _, ok := rec.NumericValue(s.cellField); !ok {
-			s.cellNNull[rowIdx][colIdx]++
 		}
 	}
 
@@ -899,21 +995,29 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	// prefix at crossColDepth+1 succeeding. Note this is per-PREFIX (not
 	// full-axis) — a record whose deeper grouper is null but whose prefix
 	// groupers all succeed still contributes to the cross margin.
+	//
+	// Under fan-out the joined partition is the cartesian product of the
+	// two deduped prefix sets, so one update per (row prefix, col prefix)
+	// pair — again matching the buffered joined PartitionByAxis, whose
+	// recursion crosses the row-prefix buckets with the column-prefix
+	// buckets.
 	if s.crossActive {
-		if rowDepth > s.crossRowDepth && colDepth > s.crossColDepth {
-			rPart := rowKeys.prefixes(s.crossRowDepth)[0]
-			cPart := colKeys.prefixes(s.crossColDepth)[0]
-			ckey := crosstabCellKey{row: rPart, col: cPart}
-			mar, present := s.crossMargins[ckey]
-			if !present {
-				mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
-				if err != nil {
-					return err
+		if rowKeys.depth > s.crossRowDepth && colKeys.depth > s.crossColDepth {
+			for _, rPart := range rowKeys.prefixes(s.crossRowDepth) {
+				for _, cPart := range colKeys.prefixes(s.crossColDepth) {
+					ckey := crosstabCellKey{row: rPart, col: cPart}
+					mar, present := s.crossMargins[ckey]
+					if !present {
+						mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
+						if err != nil {
+							return err
+						}
+						s.crossMargins[ckey] = mar
+					}
+					if err := mar.UpdateRow(rec, s.cellField); err != nil {
+						return err
+					}
 				}
-				s.crossMargins[ckey] = mar
-			}
-			if err := mar.UpdateRow(rec, s.cellField); err != nil {
-				return err
 			}
 		}
 	}
