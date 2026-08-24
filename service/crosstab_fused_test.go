@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math"
 	"reflect"
 	"testing"
 
@@ -674,5 +675,171 @@ func TestCrosstabFused_OverlaysRouteFusedAndMatchBuffered(t *testing.T) {
 	}
 	if want, got := marshal(bufResp.Crosstab), marshal(fusedResp.Crosstab); want != got {
 		t.Errorf("Crosstab host payload diverges:\n buffered=%s\n fused   =%s", want, got)
+	}
+}
+
+// weightedCrosstabSchema is crosstabSchema plus an f64 weight column so
+// AGG_WEIGHTED_MEAN has a Params.weight_field target. Byte offsets are
+// explicit to mirror the sibling fixtures in this package.
+func weightedCrosstabSchema() *encoding.Schema {
+	regionDict := encoding.NewDictionary()
+	regionDict.Add("north")
+	regionDict.Add("south")
+	regionDict.Add("east")
+
+	segmentDict := encoding.NewDictionary()
+	segmentDict.Add("retail")
+	segmentDict.Add("wholesale")
+
+	return &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "region", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 0, CsvColumnIdx: 0, Dictionary: regionDict},
+			{Name: "segment", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 1, CsvColumnIdx: 1, Dictionary: segmentDict},
+			{Name: "value", Type: encoding.FieldTypeF64, ByteOffset: 2, CsvColumnIdx: 2},
+			{Name: "weight", Type: encoding.FieldTypeF64, ByteOffset: 10, CsvColumnIdx: 3},
+		},
+	}
+}
+
+// weightedCrosstabRecords puts three (value, weight) observations in each
+// of the six (region, segment) cells. Values stay inside 0..100 so the
+// default PAIRWISE_PROP_Z p_source (cell value as a percentage) is a
+// legal proportion; weights vary per cell so sum_weights is not constant.
+func weightedCrosstabRecords() [][]uint64 {
+	type obs struct {
+		region, segment uint64
+		value, weight   float64
+	}
+	fixture := []obs{
+		{0, 0, 40, 1}, {0, 0, 50, 3}, {0, 0, 60, 2},
+		{0, 1, 20, 2}, {0, 1, 30, 1}, {0, 1, 25, 5},
+		{1, 0, 55, 4}, {1, 0, 65, 1}, {1, 0, 60, 3},
+		{1, 1, 35, 1}, {1, 1, 45, 2}, {1, 1, 40, 4},
+		{2, 0, 70, 2}, {2, 0, 80, 2}, {2, 0, 75, 1},
+		{2, 1, 10, 3}, {2, 1, 15, 1}, {2, 1, 12, 2},
+	}
+	out := make([][]uint64, 0, len(fixture))
+	for _, o := range fixture {
+		out = append(out, []uint64{
+			o.region, o.segment,
+			math.Float64bits(o.value), math.Float64bits(o.weight),
+		})
+	}
+	return out
+}
+
+// TestCrosstabFused_PairwisePropZOverWeightedMeanEndToEnd is the E1-S2
+// service-layer companion to
+// processing.TestFusedCrosstab_PairwisePropZOverWeightedMeanMatchesBuffered.
+// The processing test drives the two orchestrators directly; this one
+// goes through Service.Process so the real dispatch in service/crosstab.go
+// picks the arm, with SetDisableCrosstabFusion(true) as the buffered
+// oracle.
+//
+// AGG_WEIGHTED_MEAN + OVERLAY_PAIRWISE_PROP_Z is the shape this effort
+// exists to unblock: a component-READING overlay over a weighted cell.
+// It only reaches processCrosstabFused because E1-S1 dropped the
+// "overlays force buffered" gate arm, so the gate assertion below is
+// load-bearing — without it the two Process calls would both be buffered
+// and the parity check would be vacuous.
+func TestCrosstabFused_PairwisePropZOverWeightedMeanEndToEnd(t *testing.T) {
+	schema := weightedCrosstabSchema()
+	cfg := setupTestFS(t, "wm.pulse", schema, weightedCrosstabRecords())
+	ctx := context.Background()
+
+	cases := []struct {
+		name    string
+		nSource string
+	}{
+		{"default_cell_n", ""},
+		{"cell_weight_sum", types.PairwiseNSourceCellWeightSum},
+		{"row_margin_n", types.PairwiseNSourceRowMarginN},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			params, err := json.Marshal(types.PairwiseOverlayParams{NSource: tc.nSource})
+			if err != nil {
+				t.Fatalf("marshal pairwise params: %v", err)
+			}
+			buildReq := func() *types.Request {
+				return &types.Request{
+					Cohort: &types.Cohort{Filename: "wm.pulse"},
+					Crosstab: &types.CrosstabSpec{
+						Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+						Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+						Cell: &types.Aggregation{
+							Type:   types.AGG_WEIGHTED_MEAN,
+							Field:  "value",
+							Label:  "wmean",
+							Params: json.RawMessage(`{"weight_field":"weight"}`),
+						},
+						Shape:   types.CrosstabShapeMatrix,
+						Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+					},
+					Overlays: []types.OverlaySpec{{
+						Name:   "pz",
+						Kind:   types.OverlayKindPairwisePropZ,
+						Scope:  types.OverlayScopeRow,
+						Params: params,
+					}},
+				}
+			}
+
+			svcFused := New(cfg)
+			if ok, reason := processing.CanFuseCrosstab(buildReq(), schema, svcFused.Extensions()); !ok {
+				t.Fatalf("CanFuseCrosstab rejected AGG_WEIGHTED_MEAN + PAIRWISE_PROP_Z: %s", reason)
+			}
+			fusedResp, err := svcFused.Process(ctx, buildReq())
+			if err != nil {
+				t.Fatalf("Process (fused): %v", err)
+			}
+
+			svcBuf := New(cfg)
+			svcBuf.SetDisableCrosstabFusion(true)
+			bufResp, err := svcBuf.Process(ctx, buildReq())
+			if err != nil {
+				t.Fatalf("Process (buffered): %v", err)
+			}
+
+			if len(fusedResp.Overlays) != 1 {
+				t.Fatalf("fused response carries %d overlay layers, want 1", len(fusedResp.Overlays))
+			}
+			// Non-vacuity: at least one real p-value, otherwise the
+			// comparisons below would agree on two empty matrices.
+			present := 0
+			if mx := fusedResp.Overlays[0].Payload.Matrix; mx != nil {
+				for _, row := range mx.Cells {
+					for _, cell := range row {
+						if cell.Present {
+							present++
+						}
+					}
+				}
+			}
+			if present == 0 {
+				t.Fatalf("PROP_Z layer produced zero present p-values; fixture no longer exercises the kernel")
+			}
+
+			marshal := func(v any) string {
+				b, mErr := json.Marshal(v)
+				if mErr != nil {
+					t.Fatalf("json.Marshal: %v", mErr)
+				}
+				return string(b)
+			}
+			if want, got := marshal(bufResp.Overlays), marshal(fusedResp.Overlays); want != got {
+				t.Errorf("Overlays diverge:\n buffered=%s\n fused   =%s", want, got)
+			}
+			if want, got := marshal(bufResp.Warnings), marshal(fusedResp.Warnings); want != got {
+				t.Errorf("Warnings diverge:\n buffered=%s\n fused   =%s", want, got)
+			}
+			if want, got := marshal(bufResp.Components), marshal(fusedResp.Components); want != got {
+				t.Errorf("Components diverge:\n buffered=%s\n fused   =%s", want, got)
+			}
+			if want, got := marshal(bufResp.Crosstab), marshal(fusedResp.Crosstab); want != got {
+				t.Errorf("Crosstab host payload diverges:\n buffered=%s\n fused   =%s", want, got)
+			}
+		})
 	}
 }
