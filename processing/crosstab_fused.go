@@ -72,6 +72,14 @@ type FusedCrosstabState struct {
 	rowGroupers []fusedAxisGrouper
 	colGroupers []fusedAxisGrouper
 
+	// Per-axis key derivation. rowKeyer / colKeyer wrap rowGroupers /
+	// colGroupers with the per-record scratch the cartesian-product
+	// derivation writes into. Two instances, not one, because Update
+	// holds the row result while it derives the column result and a
+	// fusedAxisKeys value aliases its producing keyer's scratch.
+	rowKeyer *fusedAxisKeyer
+	colKeyer *fusedAxisKeyer
+
 	// Per-axis key interners. rowIndex maps a composite axis key to the
 	// integer index assigned at first sight; rowKeys preserves insertion
 	// order so Finalize can re-emit sorted-by-string output without
@@ -263,6 +271,8 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 		cellFactory:  cellFactory,
 		rowGroupers:  rowGroupers,
 		colGroupers:  colGroupers,
+		rowKeyer:     newFusedAxisKeyer(rowGroupers),
+		colKeyer:     newFusedAxisKeyer(colGroupers),
 		rowIndex:     make(map[string]int, 64),
 		colIndex:     make(map[string]int, 64),
 		rowNormLevel: -1,
@@ -360,25 +370,70 @@ type fusedAxisGrouper struct {
 // N bucket keys. Callers routing records branch on this.
 func (a fusedAxisGrouper) fansOut() bool { return a.multi != nil }
 
-// keyForRow derives the single bucket key for rec at this axis
-// position. Only valid on a single-key entry — a fan-out entry has no
-// single key by construction and surfaces a typed error rather than
-// silently collapsing to its first key.
+// keysForRow derives EVERY bucket key rec contributes at this axis
+// position, in a single call. A single-key position appends its one key
+// to buf and returns it (so a single-key axis allocates nothing here
+// when the caller hands over a warm scratch slot); a fan-out position
+// returns the grouper's own key slice — one entry per selected set
+// element.
 //
-// Delegates to streamableKeyForRow so the KeyForRow side-effect path
-// (liveBuckets accumulation for MetaGrouper.Components) is preserved.
-func (a fusedAxisGrouper) keyForRow(rec *Record) (string, bool, error) {
+// ok=false means the position did not resolve for rec: a null / missing
+// field on a single-key grouper, or a null set (or a set that emptied
+// after Include filtering) on a fan-out grouper. Either way the axis
+// stops here, matching the buffered path where such a record lands in
+// no bucket of this position's partition and therefore in no composite
+// bucket downstream. ErrGrouperKeyNull is normalised into ok=false so
+// callers branch on one shape.
+//
+// The field argument is passed to the multi-key shape on purpose:
+// MultiKeyStreamingGrouper.KeysForRow takes the field name because
+// setPerElementGrouper is NOT field-bound — buffered PartitionByAxis
+// hands grp.Field to Grouper.Group the same way. StreamableGrouper
+// implementations bind their field at factory time, which is why
+// streamableKeyForRow passes "" instead. Do not copy that "" into the
+// multi path.
+//
+// Delegates the single-key case to streamableKeyForRow so the
+// KeyForRow side-effect path (liveBuckets accumulation for
+// MetaGrouper.Components) is preserved; the multi-key case has the
+// mirror side effect inside setPerElementGrouper.KeysForRow.
+func (a fusedAxisGrouper) keysForRow(rec *Record, buf []string) ([]string, bool, error) {
+	if a.multi != nil {
+		keys, ok, err := a.multi.KeysForRow(rec, a.field)
+		if err != nil {
+			if stderrors.Is(err, ErrGrouperKeyNull) {
+				return nil, false, nil
+			}
+			return nil, false, err
+		}
+		// An empty key slice with ok=true is not a valid
+		// MultiKeyStreamingGrouper response; treat it as ok=false rather
+		// than emitting a zero-width product level that would silently
+		// erase the axis.
+		if !ok || len(keys) == 0 {
+			return nil, false, nil
+		}
+		return keys, true, nil
+	}
 	if a.single == nil {
-		// Reached only when a fan-out axis is driven through the
-		// single-key derivation path. Multi-key key derivation and
-		// record routing are not implemented yet; a partial
-		// implementation that took only the first key would silently
-		// under-count every cell, so fail loudly instead.
-		return "", false, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
-			"fused crosstab multi-key axis key derivation is not implemented",
+		// Neither keying shape resolved. buildStreamableAxis rejects
+		// this at construction, so reaching here means an axis entry was
+		// assembled outside that path.
+		return nil, false, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"fused crosstab axis grouper implements neither keying interface",
 			map[string]any{"field": a.field})
 	}
-	return streamableKeyForRow(a.single, rec)
+	key, ok, err := streamableKeyForRow(a.single, rec)
+	if err != nil {
+		if stderrors.Is(err, ErrGrouperKeyNull) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	if !ok {
+		return nil, false, nil
+	}
+	return append(buf, key), true, nil
 }
 
 // classifyFusedAxisGrouper resolves the keying shape of an already
@@ -674,13 +729,36 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	}
 	s.filteredRows++
 
-	rowKey, rowTuple, rowPartialKeys, rowDepth, rowOk, err := axisKeyAndPartials(s.rowGroupers, rec)
+	rowKeys, err := s.rowKeyer.derive(rec)
 	if err != nil {
 		return err
 	}
-	colKey, colTuple, colPartialKeys, colDepth, colOk, err := axisKeyAndPartials(s.colGroupers, rec)
+	colKeys, err := s.colKeyer.derive(rec)
 	if err != nil {
 		return err
+	}
+
+	// E2-S2 routing shim. Derivation above now yields a SET of composite
+	// keys per axis; routing a record into every cell / margin of that
+	// set (cells per distinct full-key pair, margins per deduped prefix)
+	// is E2-S3 and lands in the block below. Until then the routing
+	// reads the first member of each key set, which is EXACT for a
+	// single-key axis — the set has exactly one member at every depth,
+	// so this path stays byte-identical to the pre-E2 implementation —
+	// and deliberately partial for a fan-out axis, which the fused gate
+	// admits as of E2-S1. A fan-out axis therefore lands its record in
+	// one of its buckets rather than all of them; it no longer errors,
+	// and per-position Components stay correct because keysForRow ran
+	// once per position with all its side effects.
+	rowOk, rowDepth := rowKeys.ok, rowKeys.depth
+	colOk, colDepth := colKeys.ok, colKeys.depth
+	var rowKey, colKey string
+	var rowTuple, colTuple types.AxisKey
+	if rowOk {
+		rowKey, rowTuple = rowKeys.keys()[0], rowKeys.tuples[0]
+	}
+	if colOk {
+		colKey, colTuple = colKeys.keys()[0], colKeys.tuples[0]
 	}
 
 	// Grand margin counts every filter-passing record regardless of axis
@@ -823,8 +901,8 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	// groupers all succeed still contributes to the cross margin.
 	if s.crossActive {
 		if rowDepth > s.crossRowDepth && colDepth > s.crossColDepth {
-			rPart := rowPartialKeys[s.crossRowDepth]
-			cPart := colPartialKeys[s.crossColDepth]
+			rPart := rowKeys.prefixes(s.crossRowDepth)[0]
+			cPart := colKeys.prefixes(s.crossColDepth)[0]
 			ckey := crosstabCellKey{row: rPart, col: cPart}
 			mar, present := s.crossMargins[ckey]
 			if !present {
@@ -860,79 +938,272 @@ func (s *FusedCrosstabState) SetTotalRows(n int64) {
 	s.totalRows = n
 }
 
-// axisKeyAndPartials computes the composite key + axis tuple for one
-// record across an ordered grouper chain, AND additionally returns the
-// per-depth prefix composite keys so callers can address partial-depth
-// (normalize_level) and cross-axis (normalize_within) margins without
-// re-splitting the composite key. partialKeys[i] is the composite key
-// formed by joining groupers[0..i] inclusive; len(partialKeys) ==
-// successDepth (the number of groupers that produced a non-null key
-// before the first null). When successDepth < len(groupers) the axis
-// composite key did not fully resolve and fullOk is false; partialKeys
-// still carries the prefix keys that DID resolve. When successDepth ==
-// len(groupers) the full composite key resolved and fullOk is true.
+// fusedAxisKeys is the per-record key-derivation result for one fused
+// crosstab axis.
 //
-// The buffered RunCrosstab path drops records whose row composite key
-// is null from the row partition but still buckets them in the column
-// partition (and vice versa). The fused path mirrors that by acting on
-// each axis independently — Update calls axisKeyAndPartials once per
-// axis and uses (fullOk_row, fullOk_col) and partial-depth keys to
-// dispatch updates to the cell, margin, partial-margin, and cross-
-// margin accumulators independently.
+// An axis carrying only single-key groupers resolves to exactly one
+// composite key. An axis carrying one or more MultiKeyStreamingGrouper
+// positions resolves to a SET of composite keys — the cartesian product
+// of every position's key set, taken in position order. That is not an
+// invention: buffered PartitionByAxis (processing/crosstab.go:48) calls
+// grouper.Group(records, field) for axis[0], recurses into axis[1:]
+// once per resulting bucket, and composes k + sep + childKey, so a
+// record selecting N labels at one position and M at another appears in
+// N*M composite buckets.
 //
-// Allocation profile: single-grouper axes allocate one types.AxisKey
-// (1 element) and one partialKeys slice (1 element). Multi-grouper
-// axes allocate a length-`len(groupers)` tuple, a length-successDepth
-// partialKeys slice, and one composite-key string per depth.
-func axisKeyAndPartials(groupers []fusedAxisGrouper, rec *Record) (
-	fullKey string, fullTuple types.AxisKey,
-	partialKeys []string, successDepth int,
-	fullOk bool, err error,
-) {
-	switch len(groupers) {
-	case 0:
+// levels[d] is the deduped set of composite keys formed by joining
+// positions 0..d inclusive; len(levels) == depth, the number of
+// positions that produced a key before the first unresolved one. The
+// full-axis key set is levels[depth-1] and is meaningful only when ok
+// is true (depth == len(groupers)). When ok is false the axis did not
+// fully resolve, and the prefix levels that DID resolve are still
+// returned so the partial-depth (normalize_level) and cross-axis
+// (normalize_within) margin consumers keep their inputs — the same
+// contract the single-key predecessor of this type carried.
+//
+// tuples is parallel to keys(): tuples[j] is the types.AxisKey
+// component tuple for keys()[j]. Populated only when ok.
+//
+// Lifetime: levels aliases scratch owned by the fusedAxisKeyer that
+// produced the value and is invalidated by the next derive call on THAT
+// keyer. The row axis and the column axis own separate keyers, so a
+// caller may hold both results at once — which Update does. The
+// types.AxisKey entries in tuples are freshly allocated per record
+// because the axis-key interner retains them.
+type fusedAxisKeys struct {
+	levels [][]string
+	tuples []types.AxisKey
+	depth  int
+	ok     bool
+}
+
+// keys returns the full-axis composite key set, or nil when the axis
+// did not fully resolve for this record.
+func (k fusedAxisKeys) keys() []string {
+	if !k.ok {
+		return nil
+	}
+	return k.levels[k.depth-1]
+}
+
+// prefixes returns the deduped composite prefix-key set at depth d
+// (positions 0..d inclusive). Callers must establish d < k.depth first;
+// the cross-axis margin gate in Update does exactly that.
+func (k fusedAxisKeys) prefixes(d int) []string { return k.levels[d] }
+
+// fusedAxisKeyer owns one axis's grouper chain plus the per-record
+// scratch its key sets are derived into. One keyer per axis.
+//
+// THE ONCE-PER-RECORD RULE. derive calls each position's keysForRow
+// exactly once per record and only then forms the cartesian product
+// from the resulting per-position key sets. This is structural rather
+// than incidental: the product is formed by expandAxisLevel, which
+// takes strings only — no Grouper, no *Record — so the product walk
+// cannot re-derive a position's keys even by accident.
+//
+// The rule is load-bearing for Components parity, not just for speed.
+// KeysForRow has a side effect: setPerElementGrouper.trackSetPerElementRow
+// folds one observation per selected label into liveBuckets, which
+// MetaGrouper.Components() emits at Finalize. Buffered builds those
+// counts by re-running each axis position's grouper independently over
+// the FULL filtered set (Processor.axisComponentsFor,
+// processing/crosstab.go:251), so each record must be observed exactly
+// once per position, cohort-wide. Deriving keys inside the product walk
+// would call KeysForRow once per parent key and inflate every bucket
+// count by the width of the fan in front of it — silently, because the
+// cell values would stay correct while Components.buckets[].count went
+// wrong.
+type fusedAxisKeyer struct {
+	groupers []fusedAxisGrouper
+
+	// levels / comp / parent are the per-depth scratch, all reused
+	// across records. levels[d] holds the composite keys at depth d;
+	// comp[d][j] is the key position d contributed to levels[d][j];
+	// parent[d][j] is the index of that element's parent in levels[d-1].
+	// The parent chain lets tupleFor rebuild a types.AxisKey with a
+	// single allocation per composite key instead of carrying a growing
+	// tuple slice through every level of the product.
+	levels [][]string
+	comp   [][]string
+	parent [][]int
+
+	// keyBuf is the one-element landing slot a single-key position
+	// writes its key into, so a single-key axis allocates nothing per
+	// record beyond the tuple the interner retains.
+	keyBuf [1]string
+
+	// dedup is the scratch a fan-out position's key slice is deduped
+	// into. Deduping per position (rather than over the assembled
+	// product) keeps every level duplicate-free by induction without a
+	// quadratic membership scan over the product.
+	dedup []string
+
+	// tuples is the reused outer slice for the per-record tuple set; the
+	// types.AxisKey elements themselves are freshly allocated.
+	tuples []types.AxisKey
+}
+
+// newFusedAxisKeyer wraps an already-constructed axis grouper chain with
+// its derivation scratch. The groupers slice is shared with the
+// FusedCrosstabState field it was built from; the keyer never mutates it.
+func newFusedAxisKeyer(groupers []fusedAxisGrouper) *fusedAxisKeyer {
+	k := &fusedAxisKeyer{groupers: groupers}
+	k.ensureDepth(len(groupers))
+	return k
+}
+
+// ensureDepth grows the per-depth scratch so indices 0..n-1 are
+// addressable. Called once at construction; the inner slices grow
+// themselves on first use and are reused thereafter.
+func (k *fusedAxisKeyer) ensureDepth(n int) {
+	for len(k.levels) < n {
+		k.levels = append(k.levels, nil)
+		k.comp = append(k.comp, nil)
+		k.parent = append(k.parent, nil)
+	}
+}
+
+// derive computes the composite key set for one record across the axis's
+// ordered grouper chain, plus the per-depth prefix key sets, plus the
+// types.AxisKey tuple for each full key.
+//
+// Null semantics are per position and unchanged from the single-key
+// predecessor: a position returning ok=false (or ErrGrouperKeyNull)
+// stops the walk, ok is false, and the prefix levels already built are
+// still returned. A fan-out position returning ok=false — a null set,
+// or a set that emptied after Include filtering — collapses the whole
+// axis exactly the same way, matching buffered, where such a record
+// lands in no bucket of that position's partition.
+func (k *fusedAxisKeyer) derive(rec *Record) (fusedAxisKeys, error) {
+	n := len(k.groupers)
+	if n == 0 {
 		// Empty axis is a programming bug — validateCrosstabSpec rejects
 		// zero-grouper axes up-front so reaching here means the gate
 		// drifted. Surface a typed error rather than a silent placement.
-		return "", nil, nil, 0, false, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+		return fusedAxisKeys{}, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"fused crosstab axis has zero groupers; spec validation should have rejected")
-	case 1:
-		key, ok, kerr := groupers[0].keyForRow(rec)
-		if kerr != nil {
-			if stderrors.Is(kerr, ErrGrouperKeyNull) {
-				return "", nil, nil, 0, false, nil
-			}
-			return "", nil, nil, 0, false, kerr
-		}
-		if !ok {
-			return "", nil, nil, 0, false, nil
-		}
-		return key, types.AxisKey{key}, []string{key}, 1, true, nil
 	}
-	tuple := make(types.AxisKey, 0, len(groupers))
-	partials := make([]string, 0, len(groupers))
-	for _, g := range groupers {
-		key, ok, kerr := g.keyForRow(rec)
-		if kerr != nil {
-			if stderrors.Is(kerr, ErrGrouperKeyNull) {
-				// Partial success: return whatever prefix resolved. The
-				// composite full key + tuple are empty since the full
-				// axis did not resolve.
-				return "", nil, partials, len(partials), false, nil
-			}
-			return "", nil, nil, 0, false, kerr
+
+	// Single-position single-key axis — the overwhelmingly common shape,
+	// and the successor of the old case-1 fast path. Skips the product
+	// machinery entirely and reuses the warm scratch, so the only
+	// per-record allocation left is the types.AxisKey the axis interner
+	// retains (2 allocs / 32 B, down from the pre-fan-out derivation's
+	// 3 / 48 B, which built a fresh partial-key slice per record too).
+	if n == 1 && !k.groupers[0].fansOut() {
+		keys, ok, err := k.groupers[0].keysForRow(rec, k.keyBuf[:0])
+		if err != nil {
+			return fusedAxisKeys{}, err
 		}
 		if !ok {
-			return "", nil, partials, len(partials), false, nil
+			return fusedAxisKeys{levels: k.levels[:0]}, nil
 		}
-		tuple = append(tuple, key)
-		if len(partials) == 0 {
-			partials = append(partials, key)
+		k.levels[0] = append(k.levels[0][:0], keys[0])
+		k.tuples = append(k.tuples[:0], types.AxisKey{keys[0]})
+		return fusedAxisKeys{levels: k.levels[:1], tuples: k.tuples, depth: 1, ok: true}, nil
+	}
+
+	depth := 0
+	for i := 0; i < n; i++ {
+		// Exactly one derivation call per position per record. Nothing
+		// below this line may call back into a grouper.
+		keys, ok, err := k.groupers[i].keysForRow(rec, k.keyBuf[:0])
+		if err != nil {
+			return fusedAxisKeys{}, err
+		}
+		if !ok {
+			break
+		}
+		if len(keys) > 1 {
+			k.dedup = dedupeAxisKeys(k.dedup[:0], keys)
+			keys = k.dedup
+		}
+		if i == 0 {
+			k.levels[0] = append(k.levels[0][:0], keys...)
+			// comp[0] aliases levels[0]: at depth 0 the composite key IS
+			// the component key. Re-aliased every record, so the [:0]
+			// reuse above stays correct.
+			k.comp[0] = k.levels[0]
 		} else {
-			partials = append(partials, partials[len(partials)-1]+crosstabAxisKeySep+key)
+			k.levels[i], k.comp[i], k.parent[i] = expandAxisLevel(
+				k.levels[i-1], keys,
+				k.levels[i][:0], k.comp[i][:0], k.parent[i][:0])
+		}
+		depth = i + 1
+	}
+
+	res := fusedAxisKeys{levels: k.levels[:depth], depth: depth, ok: depth == n}
+	if res.ok {
+		full := k.levels[depth-1]
+		k.tuples = k.tuples[:0]
+		for j := range full {
+			k.tuples = append(k.tuples, k.tupleFor(depth, j))
+		}
+		res.tuples = k.tuples
+	}
+	return res, nil
+}
+
+// tupleFor rebuilds the types.AxisKey for element j of the level at the
+// given depth by walking the parent chain back to depth 0. One
+// allocation per composite key, sized exactly.
+func (k *fusedAxisKeyer) tupleFor(depth, j int) types.AxisKey {
+	t := make(types.AxisKey, depth)
+	for d := depth - 1; d > 0; d-- {
+		t[d] = k.comp[d][j]
+		j = k.parent[d][j]
+	}
+	t[0] = k.comp[0][j]
+	return t
+}
+
+// expandAxisLevel forms one level of the axis cartesian product: every
+// composite key already accumulated in prev, crossed with every key the
+// next position produced. Parent-major order, so the emitted sequence
+// matches the buffered PartitionByAxis recursion, which walks axis[0]'s
+// buckets and recurses into axis[1:] within each one.
+//
+// It takes strings only — no Grouper, no *Record. That is deliberate:
+// it makes the once-per-record derivation rule an invariant of the code
+// shape rather than a convention a later edit could quietly break. See
+// fusedAxisKeyer for why the rule matters.
+//
+// prev is duplicate-free by induction and keys is deduped by the
+// caller, so the emitted level is duplicate-free without a quadratic
+// membership scan over the product. (Two entries could only collide if
+// a bucket key itself contained crosstabAxisKeySep, which is equally
+// ambiguous on the buffered path.)
+func expandAxisLevel(prev, keys, dstKeys, dstComp []string, dstParent []int) ([]string, []string, []int) {
+	for pi, parent := range prev {
+		for _, key := range keys {
+			dstKeys = append(dstKeys, parent+crosstabAxisKeySep+key)
+			dstComp = append(dstComp, key)
+			dstParent = append(dstParent, pi)
 		}
 	}
-	return partials[len(partials)-1], tuple, partials, len(partials), true, nil
+	return dstKeys, dstComp, dstParent
+}
+
+// dedupeAxisKeys appends the distinct members of keys to dst, preserving
+// first-seen order. Linear scan: a position's fan width is bounded by
+// the bound set field's dictionary size (<= 64 for set_u64, typically a
+// handful), so a map would cost more than it saves. Only called for
+// positions that returned more than one key, so single-key axes never
+// pay for it.
+func dedupeAxisKeys(dst []string, keys []string) []string {
+	for _, key := range keys {
+		duplicate := false
+		for _, seen := range dst {
+			if seen == key {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			dst = append(dst, key)
+		}
+	}
+	return dst
 }
 
 // streamableKeyForRow drives a SINGLE-KEY axis grouper through its
