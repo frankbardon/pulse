@@ -394,10 +394,12 @@ func (a fusedAxisGrouper) fansOut() bool { return a.multi != nil }
 // ok=false means the position did not resolve for rec: a null / missing
 // field on a single-key grouper, or a null set (or a set that emptied
 // after Include filtering) on a fan-out grouper. Either way the axis
-// stops here, matching the buffered path where such a record lands in
-// no bucket of this position's partition and therefore in no composite
-// bucket downstream. ErrGrouperKeyNull is normalised into ok=false so
-// callers branch on one shape.
+// stops KEYING here, matching the buffered path where such a record
+// lands in no bucket of this position's partition and therefore in no
+// composite bucket downstream. (The positions behind it are still
+// driven once for their liveBuckets side effect — see
+// fusedAxisKeyer.derive.) ErrGrouperKeyNull is normalised into ok=false
+// so callers branch on one shape.
 //
 // The field argument is passed to the multi-key shape on purpose:
 // MultiKeyStreamingGrouper.KeysForRow takes the field name because
@@ -1099,11 +1101,14 @@ func (k fusedAxisKeys) prefixes(d int) []string { return k.levels[d] }
 // scratch its key sets are derived into. One keyer per axis.
 //
 // THE ONCE-PER-RECORD RULE. derive calls each position's keysForRow
-// exactly once per record and only then forms the cartesian product
-// from the resulting per-position key sets. This is structural rather
-// than incidental: the product is formed by expandAxisLevel, which
-// takes strings only — no Grouper, no *Record — so the product walk
-// cannot re-derive a position's keys even by accident.
+// exactly once per record — at most once, and, when the axis carries a
+// MetaGrouper behind position 0, exactly once even for positions whose
+// key is discarded (see derive's trailing-position drive) — and only
+// then forms the cartesian product from the resulting per-position key
+// sets. This is structural rather than incidental: the product is
+// formed by expandAxisLevel, which takes strings only — no Grouper, no
+// *Record — so the product walk cannot re-derive a position's keys even
+// by accident.
 //
 // The rule is load-bearing for Components parity, not just for speed.
 // KeysForRow has a side effect: setPerElementGrouper.trackSetPerElementRow
@@ -1145,6 +1150,22 @@ type fusedAxisKeyer struct {
 	// tuples is the reused outer slice for the per-record tuple set; the
 	// types.AxisKey elements themselves are freshly allocated.
 	tuples []types.AxisKey
+
+	// driveUnresolvedTail says whether derive must keep calling the
+	// positions BEHIND the first unresolved one purely for their
+	// liveBuckets side effect (see derive's doc comment for why that is
+	// required for Components parity with buffered).
+	//
+	// Computed once at construction, never per record: the side effect
+	// is only observable through MetaGrouper.Components(), so if no
+	// position at index >= 1 implements MetaGrouper nothing will ever
+	// read the counts and the extra per-record calls are pure cost.
+	// Index 0 is excluded because position 0 is never behind anything —
+	// it is always driven by the keying walk itself. Every built-in
+	// grouper implements MetaGrouper, so in practice this is true for
+	// any axis with more than one position; it only turns off for an
+	// axis built entirely from extension groupers that emit no buckets.
+	driveUnresolvedTail bool
 }
 
 // newFusedAxisKeyer wraps an already-constructed axis grouper chain with
@@ -1153,6 +1174,12 @@ type fusedAxisKeyer struct {
 func newFusedAxisKeyer(groupers []fusedAxisGrouper) *fusedAxisKeyer {
 	k := &fusedAxisKeyer{groupers: groupers}
 	k.ensureDepth(len(groupers))
+	for i := 1; i < len(groupers); i++ {
+		if _, ok := groupers[i].grouper.(MetaGrouper); ok {
+			k.driveUnresolvedTail = true
+			break
+		}
+	}
 	return k
 }
 
@@ -1167,17 +1194,57 @@ func (k *fusedAxisKeyer) ensureDepth(n int) {
 	}
 }
 
-// derive computes the composite key set for one record across the axis's
-// ordered grouper chain, plus the per-depth prefix key sets, plus the
-// types.AxisKey tuple for each full key.
+// derive drives EVERY position of the axis for this record but keys only
+// the resolved prefix. It returns the composite key set across the
+// axis's ordered grouper chain, plus the per-depth prefix key sets, plus
+// the types.AxisKey tuple for each full key.
 //
 // Null semantics are per position and unchanged from the single-key
 // predecessor: a position returning ok=false (or ErrGrouperKeyNull)
-// stops the walk, ok is false, and the prefix levels already built are
-// still returned. A fan-out position returning ok=false — a null set,
-// or a set that emptied after Include filtering — collapses the whole
-// axis exactly the same way, matching buffered, where such a record
-// lands in no bucket of that position's partition.
+// stops the KEYING walk, ok is false, and the prefix levels already
+// built are still returned. A fan-out position returning ok=false — a
+// null set, or a set that emptied after Include filtering — collapses
+// the whole axis exactly the same way, matching buffered, where such a
+// record lands in no bucket of that position's partition. depth is
+// therefore the number of positions that resolved BEFORE the first
+// miss, and nothing a trailing position produces reaches the composite
+// key, the tuple set, or any prefix level.
+//
+// THE TRAILING-POSITION DRIVE. Keying stops at the first miss; the
+// WALK does not. Positions behind the first unresolved one are still
+// called once each, for their side effect alone. That is a Components
+// parity requirement, not an optimisation: a grouper's per-record
+// keying call folds one observation into its liveBuckets map, which
+// MetaGrouper.Components() emits at Finalize, and buffered builds those
+// same counts in Processor.axisComponentsFor (processing/crosstab.go)
+// by re-running EACH axis position independently over the full filtered
+// record set. On the buffered path a position therefore observes every
+// record whose own field resolves, regardless of what a DIFFERENT
+// position did — so stopping the fused walk outright would undercount
+// Components.crosstab.row_key_components[].axes[].bucket.count (and its
+// column equivalent) for every trailing position. Buffered pays
+// strictly more for the same numbers: a whole extra Group() pass per
+// position over the entire cohort, against one extra per-record call
+// here, only on records that already missed.
+//
+// The drive is skipped entirely when no position at index >= 1
+// implements MetaGrouper, since nothing would then read liveBuckets.
+// That decision is driveUnresolvedTail, computed once at construction —
+// never re-derived per record.
+//
+// ERROR PROPAGATION. A position driven purely for its side effect gets
+// the same error treatment as one driven for its key: ErrGrouperKeyNull
+// (and a plain ok=false) is absorbed as "unresolved", and any OTHER
+// error surfaces from derive unchanged. Errors are not swallowed just
+// because the caller no longer needs the key. Buffered has the same
+// semantics for the same reason — axisComponentsFor returns a failing
+// position's error even though it discards that position's partition —
+// and a request that fails on one path must not silently succeed on the
+// other.
+//
+// The once-per-record rule is unaffected: this changes how many
+// positions are called, never how many times each one is called. See
+// fusedAxisKeyer.
 func (k *fusedAxisKeyer) derive(rec *Record) (fusedAxisKeys, error) {
 	n := len(k.groupers)
 	if n == 0 {
@@ -1194,6 +1261,10 @@ func (k *fusedAxisKeyer) derive(rec *Record) (fusedAxisKeys, error) {
 	// per-record allocation left is the types.AxisKey the axis interner
 	// retains (2 allocs / 32 B, down from the pre-fan-out derivation's
 	// 3 / 48 B, which built a fresh partial-key slice per record too).
+	//
+	// The trailing-position drive does not apply here: a one-position
+	// axis has no position behind the miss, so an unresolved record
+	// simply returns and driveUnresolvedTail is false by construction.
 	if n == 1 && !k.groupers[0].fansOut() {
 		keys, ok, err := k.groupers[0].keysForRow(rec, k.keyBuf[:0])
 		if err != nil {
@@ -1216,6 +1287,13 @@ func (k *fusedAxisKeyer) derive(rec *Record) (fusedAxisKeys, error) {
 			return fusedAxisKeys{}, err
 		}
 		if !ok {
+			// Keying stops here, but the walk does not: the remaining
+			// positions are driven for their liveBuckets side effect so
+			// Components stays byte-equal to buffered. Their keys are
+			// discarded and never reach levels / comp / parent.
+			if err := k.driveTail(rec, i+1); err != nil {
+				return fusedAxisKeys{}, err
+			}
 			break
 		}
 		if len(keys) > 1 {
@@ -1246,6 +1324,33 @@ func (k *fusedAxisKeyer) derive(rec *Record) (fusedAxisKeys, error) {
 		res.tuples = k.tuples
 	}
 	return res, nil
+}
+
+// driveTail calls positions from..n-1 once each for their liveBuckets
+// side effect and throws their keys away. Called only after a position
+// reported unresolved, so these positions can no longer contribute to
+// the composite key; see derive's doc comment for why they must still
+// observe the record.
+//
+// Returns immediately when driveUnresolvedTail is false (no position
+// behind index 0 emits Components, so the side effect is unobservable)
+// or when there is no tail left to drive. A non-nil error from any
+// position surfaces unchanged — being driven for a side effect does not
+// downgrade a real failure.
+//
+// keyBuf is safe to reuse as the landing slot: every resolved level has
+// already copied its keys into levels / comp, so nothing downstream
+// aliases it.
+func (k *fusedAxisKeyer) driveTail(rec *Record, from int) error {
+	if !k.driveUnresolvedTail {
+		return nil
+	}
+	for j := from; j < len(k.groupers); j++ {
+		if _, _, err := k.groupers[j].keysForRow(rec, k.keyBuf[:0]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // tupleFor rebuilds the types.AxisKey for element j of the level at the

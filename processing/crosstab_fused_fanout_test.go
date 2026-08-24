@@ -108,37 +108,6 @@ func fanoutRecords(schema *encoding.Schema) []*Record {
 	return out
 }
 
-// fanoutRecordsEveryRowResolves is fanoutRecords minus the records that
-// leave the "tags" set unresolved (empty mask / null field).
-//
-// It exists for the cases whose ROW AXIS puts the fanning position at
-// index 0 with a further position behind it. There is a PRE-EXISTING
-// fused/buffered divergence, unrelated to fan-out, in that shape:
-// fusedAxisKeyer.derive stops the walk at the first unresolved position,
-// so a trailing position's grouper never observes records the leading
-// position rejected, and its MetaGrouper liveBuckets counts come up short
-// against buffered Processor.axisComponentsFor, which re-runs EVERY axis
-// position independently over the full filtered set. It reproduces with
-// two ordinary single-key groupers (GROUP_RANGE on a nullable field ahead
-// of GROUP_CATEGORY) and predates this epic, so it is not E2-S3's to fix
-// here; feeding these cases a cohort where the leading position always
-// resolves keeps the fan-out routing under test without asserting on a
-// known-divergent slot.
-func fanoutRecordsEveryRowResolves(schema *encoding.Schema) []*Record {
-	rows := []fanoutRow{
-		{region: 0, tags: tagVISA | tagMC | tagAMEX, chans: chWEB | chPOS, value: 10},
-		{region: 0, tags: tagVISA, chans: chWEB, value: 20},
-		{region: 1, tags: tagDISC, chans: 0, value: 50, nullChans: true},
-		{region: 1, tags: tagMC | tagDISC, chans: chWEB | chATM, nullValue: true},
-		{region: 0, tags: tagAMEX | tagDISC, chans: chWEB | chPOS | chATM, value: 7},
-	}
-	out := make([]*Record, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, r.build(schema))
-	}
-	return out
-}
-
 func setGroup(field string) *types.Group {
 	return &types.Group{Type: types.GROUP_SET_PER_ELEMENT, Field: field}
 }
@@ -183,8 +152,6 @@ func TestFusedCrosstab_FanOutRoutingMatchesBuffered(t *testing.T) {
 	cases := []struct {
 		name string
 		spec *types.CrosstabSpec
-		// recs overrides the shared cohort; nil means fanoutRecords.
-		recs func(*encoding.Schema) []*Record
 	}{
 		{
 			name: "row axis fans, column axis single-key",
@@ -235,7 +202,6 @@ func TestFusedCrosstab_FanOutRoutingMatchesBuffered(t *testing.T) {
 				Shape:   types.CrosstabShapeMatrix,
 				Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
 			},
-			recs: fanoutRecordsEveryRowResolves,
 		},
 		{
 			name: "fan with Include filtering",
@@ -289,7 +255,6 @@ func TestFusedCrosstab_FanOutRoutingMatchesBuffered(t *testing.T) {
 				NormalizeLevel: &zero,
 				Margins:        types.CrosstabMargins{Rows: true},
 			},
-			recs: fanoutRecordsEveryRowResolves,
 		},
 		{
 			name: "normalize_within with a fanning row axis",
@@ -330,11 +295,7 @@ func TestFusedCrosstab_FanOutRoutingMatchesBuffered(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			schema := fanoutCrosstabSchema(t)
-			build := tc.recs
-			if build == nil {
-				build = fanoutRecords
-			}
-			recs := build(schema)
+			recs := fanoutRecords(schema)
 			req := &types.Request{Crosstab: tc.spec}
 			assertFusedBufferedParity(t, schema, req, recs)
 		})
