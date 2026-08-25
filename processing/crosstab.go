@@ -978,8 +978,11 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	//     bail without touching resp.Overlays.
 	//   - Empty / nil req.Overlays leaves resp.Overlays nil — additive
 	//     byte-identity preserved against the pre-overlay baseline.
-	//   - The fused crosstab path (crosstab_fused.go) is intentionally
-	//     deferred.
+	//   - The fused crosstab path (crosstab_fused_run.go
+	//     RunCrosstabFused) calls this same hook on the response
+	//     FusedCrosstabState.Finalize returns, so an overlay-carrying
+	//     crosstab no longer forces the buffered path and both paths
+	//     emit identical Response.Overlays / Response.Warnings.
 	if err := applyOverlaysToResponse(req, resp, p.exts); err != nil {
 		return nil, err
 	}
@@ -992,6 +995,11 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // identity contract); no-op when the response did not produce a MATRIX
 // payload (long-shape host today — the validator already rejected this
 // at predict time, so reaching here is the defense-in-depth branch).
+//
+// Shared by both crosstab exits: the buffered RunCrosstab above and the
+// fused RunCrosstabFused (crosstab_fused_run.go). It reads only
+// resp.Crosstab.Matrix and resp.Components.Crosstab and consumes no
+// records, which is why an overlay-carrying request is fusable.
 //
 // On success, resp.Overlays carries one OverlayLayer per spec in
 // matching order and resp.Warnings is extended with one

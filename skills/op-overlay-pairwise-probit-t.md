@@ -40,7 +40,8 @@ Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Stud
 
 - `df <= 0` (n_i + n_j <= 2) or a non-finite t skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO` warning).
 - Emits RAW p-values only — direction / thresholds / min-n are the embedder's job.
-- Buffered (inferential).
+- `p_source` mismatch fails silently: `cell_value` over a 0..100 percentage cell pushes proportions outside `[0,1]` and every pair skips. See `op-overlay-pairwise-prop-z`.
+- Flagged buffered in `OverlayStreamability` (inferential); the HOST crosstab still FUSES when its cell aggregator is mergeable.
 
 ## See
 

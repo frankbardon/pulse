@@ -64,12 +64,21 @@ type FusedCrosstabState struct {
 	cellField   string
 	cellFactory AggregatorFactory
 
-	// Axis grouper instances. Each entry is a field-bound StreamableGrouper
-	// constructed once at NewFusedCrosstabState time. KeyFor is called
-	// per record per axis in Update — the only per-record allocation is
-	// the composite-key string.
-	rowGroupers []StreamableGrouper
-	colGroupers []StreamableGrouper
+	// Axis grouper instances. Each entry is a fusedAxisGrouper —
+	// the constructed grouper plus its pre-resolved keying shape —
+	// built once at NewFusedCrosstabState time. The keying method is
+	// called per record per axis in Update; for a single-key axis the
+	// only per-record allocation is the composite-key string.
+	rowGroupers []fusedAxisGrouper
+	colGroupers []fusedAxisGrouper
+
+	// Per-axis key derivation. rowKeyer / colKeyer wrap rowGroupers /
+	// colGroupers with the per-record scratch the cartesian-product
+	// derivation writes into. Two instances, not one, because Update
+	// holds the row result while it derives the column result and a
+	// fusedAxisKeys value aliases its producing keyer's scratch.
+	rowKeyer *fusedAxisKeyer
+	colKeyer *fusedAxisKeyer
 
 	// Per-axis key interners. rowIndex maps a composite axis key to the
 	// integer index assigned at first sight; rowKeys preserves insertion
@@ -86,6 +95,20 @@ type FusedCrosstabState struct {
 	colIndex map[string]int
 	colKeys  []string
 	colAxis  []types.AxisKey
+
+	// Per-record interned-index scratch, reused across records. Update
+	// interns every full axis key the record fans into BEFORE touching a
+	// single cell, then walks the cartesian product of these two index
+	// slices. Two reasons the indices are staged rather than routed
+	// inline: interning a column key extends every existing row of the
+	// cells / cellCounts / cellNNull matrices, so addressing a cell while
+	// interning is still in flight would read a row that is about to
+	// grow; and the row-key slice returned by the keyer aliases scratch
+	// that must not be held across the column derivation. A single-key
+	// axis writes exactly one entry here, so the warm slices allocate
+	// once for the life of the state and never again.
+	rowIdxBuf []int
+	colIdxBuf []int
 
 	// Per-cell accumulator matrix indexed by [rowIdx][colIdx]. The slice
 	// grows column-wise as new columns are observed; existing rows are
@@ -184,7 +207,9 @@ type FusedCrosstabState struct {
 
 // NewFusedCrosstabState constructs a FusedCrosstabState. Validates the
 // spec against the gate's structural assumptions (every axis grouper
-// must implement StreamableGrouper, cell aggregator must be online) and
+// must implement one of the two per-record keying interfaces —
+// StreamableGrouper or MultiKeyStreamingGrouper — and the cell
+// aggregator must be online) and
 // pre-builds the per-axis grouper instances so the per-record hot path
 // can compute composite keys with a single method call per axis entry.
 //
@@ -260,6 +285,8 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 		cellFactory:  cellFactory,
 		rowGroupers:  rowGroupers,
 		colGroupers:  colGroupers,
+		rowKeyer:     newFusedAxisKeyer(rowGroupers),
+		colKeyer:     newFusedAxisKeyer(colGroupers),
 		rowIndex:     make(map[string]int, 64),
 		colIndex:     make(map[string]int, 64),
 		rowNormLevel: -1,
@@ -312,17 +339,155 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 	return st, nil
 }
 
+// fusedAxisGrouper is one position on a fused crosstab axis: the
+// constructed grouper instance plus its pre-resolved per-record keying
+// shape, so the hot path branches on a nil check instead of repeating a
+// type assertion at every call site.
+//
+// Exactly one keying shape is authoritative per entry:
+//
+//   - single != nil — StreamableGrouper. The record maps to exactly one
+//     bucket key (GROUP_CATEGORY / RANGE / ROUNDED / DATE /
+//     DATE_RANGES / SET_VALUE and streamable extension groupers).
+//   - multi != nil — MultiKeyStreamingGrouper. The record fans into N
+//     bucket keys (GROUP_SET_PER_ELEMENT: one bucket per selected set
+//     bit), so no single KeyFor answer exists.
+//
+// When an instance satisfies BOTH interfaces the fan-out shape wins and
+// single is left nil, mirroring Processor.processStreamingGrouped which
+// prefers KeysForRow over KeyForRow when both are present. Leaving
+// single nil is deliberate: a reader that accidentally took the narrow
+// path on a fanning grouper would silently drop buckets, and a nil
+// dereference is a louder failure than wrong numbers. No built-in
+// grouper implements both; an extension grouper could.
+type fusedAxisGrouper struct {
+	// grouper is the constructed instance, retained so readers needing
+	// the Grouper-level optional interfaces (MetaGrouper for the
+	// Finalize-time Components() emission) can assert against one value
+	// regardless of the keying shape.
+	grouper Grouper
+
+	// single / multi are the pre-resolved keying shapes; see the type
+	// doc for the mutual-exclusion rule.
+	single StreamableGrouper
+	multi  MultiKeyStreamingGrouper
+
+	// field is the axis position's bound field name, taken from the
+	// *types.Group spec. StreamableGrouper implementations bind their
+	// field at factory time and ignore it; MultiKeyStreamingGrouper
+	// takes it as a KeysForRow argument, exactly as the buffered
+	// PartitionByAxis passes grp.Field to Grouper.Group.
+	field string
+}
+
+// fansOut reports whether this axis position multiplies one record into
+// N bucket keys. Callers routing records branch on this.
+func (a fusedAxisGrouper) fansOut() bool { return a.multi != nil }
+
+// keysForRow derives EVERY bucket key rec contributes at this axis
+// position, in a single call. A single-key position appends its one key
+// to buf and returns it (so a single-key axis allocates nothing here
+// when the caller hands over a warm scratch slot); a fan-out position
+// returns the grouper's own key slice — one entry per selected set
+// element.
+//
+// ok=false means the position did not resolve for rec: a null / missing
+// field on a single-key grouper, or a null set (or a set that emptied
+// after Include filtering) on a fan-out grouper. Either way the axis
+// stops KEYING here, matching the buffered path where such a record
+// lands in no bucket of this position's partition and therefore in no
+// composite bucket downstream. (The positions behind it are still
+// driven once for their liveBuckets side effect — see
+// fusedAxisKeyer.derive.) ErrGrouperKeyNull is normalised into ok=false
+// so callers branch on one shape.
+//
+// The field argument is passed to the multi-key shape on purpose:
+// MultiKeyStreamingGrouper.KeysForRow takes the field name because
+// setPerElementGrouper is NOT field-bound — buffered PartitionByAxis
+// hands grp.Field to Grouper.Group the same way. StreamableGrouper
+// implementations bind their field at factory time, which is why
+// streamableKeyForRow passes "" instead. Do not copy that "" into the
+// multi path.
+//
+// Delegates the single-key case to streamableKeyForRow so the
+// KeyForRow side-effect path (liveBuckets accumulation for
+// MetaGrouper.Components) is preserved; the multi-key case has the
+// mirror side effect inside setPerElementGrouper.KeysForRow.
+func (a fusedAxisGrouper) keysForRow(rec *Record, buf []string) ([]string, bool, error) {
+	if a.multi != nil {
+		keys, ok, err := a.multi.KeysForRow(rec, a.field)
+		if err != nil {
+			if stderrors.Is(err, ErrGrouperKeyNull) {
+				return nil, false, nil
+			}
+			return nil, false, err
+		}
+		// An empty key slice with ok=true is not a valid
+		// MultiKeyStreamingGrouper response; treat it as ok=false rather
+		// than emitting a zero-width product level that would silently
+		// erase the axis.
+		if !ok || len(keys) == 0 {
+			return nil, false, nil
+		}
+		return keys, true, nil
+	}
+	if a.single == nil {
+		// Neither keying shape resolved. buildStreamableAxis rejects
+		// this at construction, so reaching here means an axis entry was
+		// assembled outside that path.
+		return nil, false, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"fused crosstab axis grouper implements neither keying interface",
+			map[string]any{"field": a.field})
+	}
+	key, ok, err := streamableKeyForRow(a.single, rec)
+	if err != nil {
+		if stderrors.Is(err, ErrGrouperKeyNull) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	if !ok {
+		return nil, false, nil
+	}
+	return append(buf, key), true, nil
+}
+
+// classifyFusedAxisGrouper resolves the keying shape of an already
+// constructed (and extension-aware-hooked) grouper instance. Returns a
+// zero-value entry with both shapes nil when the instance implements
+// neither keying interface — callers treat that as ineligible.
+func classifyFusedAxisGrouper(instance Grouper, field string) fusedAxisGrouper {
+	entry := fusedAxisGrouper{grouper: instance, field: field}
+	if multi, ok := instance.(MultiKeyStreamingGrouper); ok {
+		entry.multi = multi
+		return entry
+	}
+	if single, ok := instance.(StreamableGrouper); ok {
+		entry.single = single
+	}
+	return entry
+}
+
 // buildStreamableAxis constructs the per-axis grouper chain. Every
-// instance is type-asserted to StreamableGrouper; a non-streamable
-// grouper (e.g. GROUP_QUANTILE) surfaces a typed CodedError so the
-// caller can dispatch back to the buffered RunCrosstab path. axisName
-// is the human-readable axis label ("rows" / "columns") used in the
-// error details.
-func buildStreamableAxis(axis []*types.Group, schema *encoding.Schema, ext *ExtensionRegistry, axisName string) ([]StreamableGrouper, error) {
+// instance must implement one of the two per-record keying interfaces —
+// StreamableGrouper (one key per record) or MultiKeyStreamingGrouper
+// (N keys per record, the GROUP_SET_PER_ELEMENT fan-out); the resolved
+// shape is recorded on the returned fusedAxisGrouper so the per-record
+// path never re-asserts. A grouper implementing neither (e.g.
+// GROUP_QUANTILE, which needs a finalize-time sorted view) surfaces a
+// typed CodedError so the caller can dispatch back to the buffered
+// RunCrosstab path. axisName is the human-readable axis label
+// ("rows" / "columns") used in the error details.
+//
+// Mirrors axisStreamable in crosstab_fused_gate.go — the gate probes
+// the same interfaces on a throwaway instance, this builds the
+// long-lived ones. The two must stay in lockstep: anything the gate
+// admits, this must construct.
+func buildStreamableAxis(axis []*types.Group, schema *encoding.Schema, ext *ExtensionRegistry, axisName string) ([]fusedAxisGrouper, error) {
 	if len(axis) == 0 {
 		return nil, nil
 	}
-	out := make([]StreamableGrouper, 0, len(axis))
+	out := make([]fusedAxisGrouper, 0, len(axis))
 	for i, grp := range axis {
 		if grp == nil {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
@@ -339,14 +504,17 @@ func buildStreamableAxis(axis []*types.Group, schema *encoding.Schema, ext *Exte
 		if err != nil {
 			return nil, err
 		}
+		// Must run BEFORE the interface assertion: a named range
+		// `table:` on GROUP_DATE_RANGES resolves lazily through the
+		// ExtensionAware hook, and the grouper is not usable until it has.
 		ApplyGrouperExtensions(instance, ext)
-		streamable, ok := instance.(StreamableGrouper)
-		if !ok {
+		entry := classifyFusedAxisGrouper(instance, grp.Field)
+		if entry.single == nil && entry.multi == nil {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
-				fmt.Sprintf("fused crosstab %s axis grouper %s does not implement StreamableGrouper", axisName, grp.Type),
+				fmt.Sprintf("fused crosstab %s axis grouper %s implements neither StreamableGrouper nor MultiKeyStreamingGrouper", axisName, grp.Type),
 				map[string]any{"axis": axisName, "position": i, "group_type": string(grp.Type)})
 		}
-		out = append(out, streamable)
+		out = append(out, entry)
 	}
 	return out, nil
 }
@@ -562,14 +730,45 @@ func (s *FusedCrosstabState) internPartialColKey(key string) (int, error) {
 // builds the row partition over all filtered records with valid row
 // keys regardless of column key nullity (and vice versa). The grand
 // margin counts every filter-passing record regardless of any axis
-// nullity. Partial-depth (normalize_level) margins follow the same
-// per-axis gate: row partial-margin updates whenever the row axis key
-// is non-null. Cross-axis (normalize_within) margins update only when
+// nullity. Partial-depth (normalize_level) margins gate on PREFIX depth
+// rather than on full-axis resolution: the row partial-margin updates
+// whenever the row axis resolved past rowNormLevel, so a record whose
+// deeper row groupers are null still feeds the denominator — matching
+// buffered, whose denominator is PartitionByAxis(spec.Rows[:level+1],
+// filtered) and never looks past level. Cross-axis (normalize_within)
+// margins carry the same prefix-depth gate, and update only when
 // BOTH the row prefix at crossRowDepth AND the column prefix at
 // crossColDepth are non-null — mirroring the buffered joined-partition
 // behaviour at processing/crosstab.go::crossActive (lines ~410-448),
 // where the partition only contains records whose prefix groupers all
 // produce non-null keys.
+//
+// FAN-OUT ROUTING RULE. An axis carrying a MultiKeyStreamingGrouper
+// position (GROUP_SET_PER_ELEMENT today) resolves one record to a SET of
+// composite keys, so "the row this record belongs to" is not a single
+// answer. The rule, read off the buffered path rather than invented:
+// each accumulator updates once per distinct key AT THAT ACCUMULATOR'S
+// OWN DEPTH.
+//
+//	cells                            once per distinct (full row key,
+//	                                 full column key) pair — N*M under a
+//	                                 two-axis fan
+//	leaf row / column margins        once per distinct full axis key
+//	partial-depth (normalize_level)  once per deduped prefix key at that
+//	                                 level
+//	cross-axis (normalize_within)    once per deduped (row prefix, col
+//	                                 prefix) pair
+//	grand margin                     once per record — never multiplied
+//
+// The prefix dedup is load-bearing, not an optimisation: a partial-depth
+// margin corresponds to PartitionByAxis(spec.Rows[:level+1], filtered),
+// so a record whose fanning grouper sits BEYOND level lands in that
+// prefix partition exactly once regardless of how wide the fan behind it
+// is. fusedAxisKeys levels are duplicate-free at every depth by
+// construction, so prefixes(d) is already that set.
+//
+// A consequence is that margins are NOT additive on a fanning axis — see
+// the row-axis block below for why that is deliberate.
 func (s *FusedCrosstabState) Update(rec *Record) error {
 	if rec == nil {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
@@ -577,19 +776,28 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	}
 	s.filteredRows++
 
-	rowKey, rowTuple, rowPartialKeys, rowDepth, rowOk, err := axisKeyAndPartials(s.rowGroupers, rec)
+	rowKeys, err := s.rowKeyer.derive(rec)
 	if err != nil {
 		return err
 	}
-	colKey, colTuple, colPartialKeys, colDepth, colOk, err := axisKeyAndPartials(s.colGroupers, rec)
+	colKeys, err := s.colKeyer.derive(rec)
 	if err != nil {
 		return err
 	}
 
-	// Grand margin counts every filter-passing record regardless of axis
-	// nullity — mirrors the buffered RunCrosstab path where
-	// spec.NeedsGrandMargin aggregates over all of `filtered`, never
-	// touching the per-axis partitions.
+	// One null probe per record rather than one per accumulator update.
+	// The value is a property of the record, not of the bucket it routes
+	// into, so hoisting it out keeps the fan-out from re-probing the same
+	// field N*M times. Identical to the per-update probe the single-key
+	// predecessor performed at each call site.
+	_, cellValuePresent := rec.NumericValue(s.cellField)
+	cellValueNull := !cellValuePresent
+
+	// Grand margin counts every filter-passing record ONCE, regardless of
+	// axis nullity AND regardless of fan-out — it mirrors the buffered
+	// RunCrosstab path where spec.NeedsGrandMargin aggregates over all of
+	// `filtered`, never touching the per-axis partitions. See the
+	// non-additivity note on the row-axis block below.
 	if s.grandMargin != nil {
 		if err := s.grandMargin.UpdateRow(rec, s.cellField); err != nil {
 			return err
@@ -598,20 +806,39 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		// the same NumericValue probe used by the cell + buffered paths
 		// so n_null is byte-equal across paths.
 		s.grandMarginCount++
-		if _, ok := rec.NumericValue(s.cellField); !ok {
+		if cellValueNull {
 			s.grandMarginNNull++
 		}
 	}
 
-	// Row-axis updates (independent of column-axis nullity). A non-null
-	// composite row key is enough to intern the row and update its row
-	// margin; the buffered PartitionByAxis(spec.Rows, filtered) bucket for
-	// this row key contains every record with this row key, even those
-	// whose column key is null.
-	var rowIdx int
-	if rowOk {
-		rowIdx = s.internRowKey(rowKey, rowTuple)
-		if s.rowMargins != nil {
+	// Row-axis updates (independent of column-axis nullity). Every
+	// distinct full row key the record fans into is interned and gets one
+	// row-margin update: buffered PartitionByAxis(spec.Rows, filtered)
+	// appends the record to one bucket per composite key its grouper
+	// chain produces, and each of those buckets contains it exactly once
+	// (fusedAxisKeys levels are duplicate-free at every depth). A record
+	// whose column key is null still lands here, matching the buffered
+	// row partition.
+	//
+	// MARGIN NON-ADDITIVITY IS DELIBERATE. A record selecting 3 labels on
+	// a GROUP_SET_PER_ELEMENT axis is counted 3x across the row margins
+	// but exactly once in the grand margin, so row margins do NOT sum to
+	// the grand total on a fanning axis. That is precisely what the
+	// buffered path produces (its row buckets are a multiset cover of
+	// `filtered`, its grand bucket is `filtered` itself). Do not "fix" it
+	// here: making fused additive would mean the same request returns
+	// different numbers depending on which path the dispatcher chose,
+	// which is strictly worse than the wart. If the semantics are wrong
+	// they are wrong on both paths and need their own decision.
+	s.rowIdxBuf = s.rowIdxBuf[:0]
+	if rowKeys.ok {
+		rowTuples := rowKeys.tuples
+		for j, rowKey := range rowKeys.keys() {
+			rowIdx := s.internRowKey(rowKey, rowTuples[j])
+			s.rowIdxBuf = append(s.rowIdxBuf, rowIdx)
+			if s.rowMargins == nil {
+				continue
+			}
 			mar := s.rowMargins[rowIdx]
 			if mar == nil {
 				mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
@@ -628,12 +855,29 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			// runCellAggregation walk and the fused Update loop emit
 			// byte-equal (n, n_null) on the row margin.
 			s.rowMarginCount[rowIdx]++
-			if _, ok := rec.NumericValue(s.cellField); !ok {
+			if cellValueNull {
 				s.rowMarginNNull[rowIdx]++
 			}
 		}
-		if s.partialRowIndex != nil {
-			pkey := truncateCompositeKey(rowKey, s.rowNormLevel)
+	}
+
+	// Partial-depth (normalize_level) row margin: one update per DEDUPED
+	// prefix key at rowNormLevel, not one per leaf key. The buffered
+	// denominator is PartitionByAxis(spec.Rows[:level+1], filtered), so a
+	// record whose fanning position sits BEYOND the level lands in that
+	// prefix partition exactly once however wide the fan behind it is.
+	// fusedAxisKeys.prefixes returns the already-deduped level, which is
+	// exactly that set.
+	//
+	// The gate is the PREFIX depth, not full-axis resolution — the same
+	// rule the cross-axis margin below applies, and the same rule
+	// buffered applies: PartitionByAxis over Rows[:level+1] buckets every
+	// record whose first level+1 groupers resolve, including records
+	// whose deeper positions are null and which therefore appear in no
+	// leaf row bucket at all. Gating on rowKeys.ok would silently shrink
+	// the denominator relative to buffered.
+	if s.partialRowIndex != nil && rowKeys.depth > s.rowNormLevel {
+		for _, pkey := range rowKeys.prefixes(s.rowNormLevel) {
 			pIdx, perr := s.internPartialRowKey(pkey)
 			if perr != nil {
 				return perr
@@ -645,11 +889,16 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	}
 
 	// Column-axis updates (independent of row-axis nullity). Mirror story
-	// for the col margin and column partial-depth margin.
-	var colIdx int
-	if colOk {
-		colIdx = s.internColKey(colKey, colTuple)
-		if s.colMargins != nil {
+	// for the col margin, including the non-additivity note above.
+	s.colIdxBuf = s.colIdxBuf[:0]
+	if colKeys.ok {
+		colTuples := colKeys.tuples
+		for j, colKey := range colKeys.keys() {
+			colIdx := s.internColKey(colKey, colTuples[j])
+			s.colIdxBuf = append(s.colIdxBuf, colIdx)
+			if s.colMargins == nil {
+				continue
+			}
 			mar := s.colMargins[colIdx]
 			if mar == nil {
 				mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
@@ -664,12 +913,16 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			// Column-margin universal-floor counters in lockstep
 			// with the margin accumulator update.
 			s.colMarginCount[colIdx]++
-			if _, ok := rec.NumericValue(s.cellField); !ok {
+			if cellValueNull {
 				s.colMarginNNull[colIdx]++
 			}
 		}
-		if s.partialColIndex != nil {
-			pkey := truncateCompositeKey(colKey, s.colNormLevel)
+	}
+
+	// Column-axis partial-depth margin — prefix-depth gate, mirroring the
+	// row-axis block above.
+	if s.partialColIndex != nil && colKeys.depth > s.colNormLevel {
+		for _, pkey := range colKeys.prefixes(s.colNormLevel) {
 			pIdx, perr := s.internPartialColKey(pkey)
 			if perr != nil {
 				return perr
@@ -680,39 +933,59 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		}
 	}
 
-	// Cell update — only when BOTH axis composite keys are non-null. The
-	// cells matrix grows lazily via the interners above; if a row was
-	// interned for margin tracking but no record landed both keys, the
-	// (rowIdx, colIdx) slot stays nil and Finalize emits an absent cell.
-	if rowOk && colOk {
-		cell := s.cells[rowIdx][colIdx]
-		if cell == nil {
-			cell, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
-			if err != nil {
-				return err
+	// Cell updates — the cartesian product of the two interned index
+	// sets, one update per distinct (full row key, full column key) pair.
+	// A record fanning N ways on rows and M ways on columns touches N*M
+	// cells, which is what buffered produces: its outer loop walks the
+	// row partition (N buckets holding this record) and re-partitions
+	// each bucket by the column axis (M buckets each).
+	//
+	// Both index loops run AFTER every intern call above, so the cells /
+	// cellCounts / cellNNull matrices are already rectangular over the
+	// full interned index space by the time they are addressed:
+	// internColKey extends every existing row, internRowKey sizes the new
+	// row to the current column count, and neither is called from here.
+	// Interning first also keeps the matrix consistent when a single
+	// record interns several keys on both axes at once.
+	if len(s.rowIdxBuf) > 0 && len(s.colIdxBuf) > 0 {
+		for _, rowIdx := range s.rowIdxBuf {
+			cellRow := s.cells[rowIdx]
+			for _, colIdx := range s.colIdxBuf {
+				cell := cellRow[colIdx]
+				if cell == nil {
+					cell, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
+					if err != nil {
+						return err
+					}
+					cellRow[colIdx] = cell
+				}
+				if err := cell.UpdateRow(rec, s.cellField); err != nil {
+					return err
+				}
+				// Per-cell record-count tracking sits in the same
+				// instruction sequence as the aggregator UpdateRow — a
+				// single pointer-add into the matrix slot.
+				// includedRecords mirrors the running sum so Finalize can
+				// populate Components.Crosstab.IncludedRecords /
+				// ExcludedRecords without a second matrix pass. It is a
+				// sum over cells, exactly as buffered accumulates
+				// `includedRecords += len(bucket)` — so under fan-out it
+				// exceeds the filtered-record count and ExcludedRecords
+				// clamps to zero on BOTH paths.
+				s.cellCounts[rowIdx][colIdx]++
+				s.includedRecords++
+				// Per-cell null-input counter. NumericValue probe mirrors
+				// the buffered runCellAggregation walk — a record whose
+				// cell-field value is null contributes to cellNNull but
+				// still counts toward cellCounts (every record routed to
+				// the cell shows up in CellCounts; the (n, n_null) split
+				// splits it into non-null contributors vs. null inputs).
+				// cellCounts = cellNNull + cell.frozenN (the
+				// orchestrator-visible n).
+				if cellValueNull {
+					s.cellNNull[rowIdx][colIdx]++
+				}
 			}
-			s.cells[rowIdx][colIdx] = cell
-		}
-		if err := cell.UpdateRow(rec, s.cellField); err != nil {
-			return err
-		}
-		// Per-cell record-count tracking sits in the same
-		// instruction sequence as the aggregator UpdateRow — a single
-		// pointer-add into the matrix slot. includedRecords mirrors the
-		// running sum so Finalize can populate
-		// Components.Crosstab.IncludedRecords / ExcludedRecords without a
-		// second matrix pass.
-		s.cellCounts[rowIdx][colIdx]++
-		s.includedRecords++
-		// Per-cell null-input counter. NumericValue probe mirrors
-		// the buffered runCellAggregation walk — a record whose
-		// cell-field value is null contributes to cellNNull but still
-		// counts toward cellCounts (every record routed to the cell
-		// shows up in CellCounts; the (n, n_null) split splits it into
-		// non-null contributors vs. null inputs). cellCounts =
-		// cellNNull + cell.frozenN (the orchestrator-visible n).
-		if _, ok := rec.NumericValue(s.cellField); !ok {
-			s.cellNNull[rowIdx][colIdx]++
 		}
 	}
 
@@ -724,21 +997,29 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	// prefix at crossColDepth+1 succeeding. Note this is per-PREFIX (not
 	// full-axis) — a record whose deeper grouper is null but whose prefix
 	// groupers all succeed still contributes to the cross margin.
+	//
+	// Under fan-out the joined partition is the cartesian product of the
+	// two deduped prefix sets, so one update per (row prefix, col prefix)
+	// pair — again matching the buffered joined PartitionByAxis, whose
+	// recursion crosses the row-prefix buckets with the column-prefix
+	// buckets.
 	if s.crossActive {
-		if rowDepth > s.crossRowDepth && colDepth > s.crossColDepth {
-			rPart := rowPartialKeys[s.crossRowDepth]
-			cPart := colPartialKeys[s.crossColDepth]
-			ckey := crosstabCellKey{row: rPart, col: cPart}
-			mar, present := s.crossMargins[ckey]
-			if !present {
-				mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
-				if err != nil {
-					return err
+		if rowKeys.depth > s.crossRowDepth && colKeys.depth > s.crossColDepth {
+			for _, rPart := range rowKeys.prefixes(s.crossRowDepth) {
+				for _, cPart := range colKeys.prefixes(s.crossColDepth) {
+					ckey := crosstabCellKey{row: rPart, col: cPart}
+					mar, present := s.crossMargins[ckey]
+					if !present {
+						mar, err = newOnlineCell(s.cellFactory, s.cellAgg, s.schema)
+						if err != nil {
+							return err
+						}
+						s.crossMargins[ckey] = mar
+					}
+					if err := mar.UpdateRow(rec, s.cellField); err != nil {
+						return err
+					}
 				}
-				s.crossMargins[ckey] = mar
-			}
-			if err := mar.UpdateRow(rec, s.cellField); err != nil {
-				return err
 			}
 		}
 	}
@@ -763,82 +1044,378 @@ func (s *FusedCrosstabState) SetTotalRows(n int64) {
 	s.totalRows = n
 }
 
-// axisKeyAndPartials computes the composite key + axis tuple for one
-// record across an ordered grouper chain, AND additionally returns the
-// per-depth prefix composite keys so callers can address partial-depth
-// (normalize_level) and cross-axis (normalize_within) margins without
-// re-splitting the composite key. partialKeys[i] is the composite key
-// formed by joining groupers[0..i] inclusive; len(partialKeys) ==
-// successDepth (the number of groupers that produced a non-null key
-// before the first null). When successDepth < len(groupers) the axis
-// composite key did not fully resolve and fullOk is false; partialKeys
-// still carries the prefix keys that DID resolve. When successDepth ==
-// len(groupers) the full composite key resolved and fullOk is true.
+// fusedAxisKeys is the per-record key-derivation result for one fused
+// crosstab axis.
 //
-// The buffered RunCrosstab path drops records whose row composite key
-// is null from the row partition but still buckets them in the column
-// partition (and vice versa). The fused path mirrors that by acting on
-// each axis independently — Update calls axisKeyAndPartials once per
-// axis and uses (fullOk_row, fullOk_col) and partial-depth keys to
-// dispatch updates to the cell, margin, partial-margin, and cross-
-// margin accumulators independently.
+// An axis carrying only single-key groupers resolves to exactly one
+// composite key. An axis carrying one or more MultiKeyStreamingGrouper
+// positions resolves to a SET of composite keys — the cartesian product
+// of every position's key set, taken in position order. That is not an
+// invention: buffered PartitionByAxis (processing/crosstab.go:48) calls
+// grouper.Group(records, field) for axis[0], recurses into axis[1:]
+// once per resulting bucket, and composes k + sep + childKey, so a
+// record selecting N labels at one position and M at another appears in
+// N*M composite buckets.
 //
-// Allocation profile: single-grouper axes allocate one types.AxisKey
-// (1 element) and one partialKeys slice (1 element). Multi-grouper
-// axes allocate a length-`len(groupers)` tuple, a length-successDepth
-// partialKeys slice, and one composite-key string per depth.
-func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
-	fullKey string, fullTuple types.AxisKey,
-	partialKeys []string, successDepth int,
-	fullOk bool, err error,
-) {
-	switch len(groupers) {
-	case 0:
+// levels[d] is the deduped set of composite keys formed by joining
+// positions 0..d inclusive; len(levels) == depth, the number of
+// positions that produced a key before the first unresolved one. The
+// full-axis key set is levels[depth-1] and is meaningful only when ok
+// is true (depth == len(groupers)). When ok is false the axis did not
+// fully resolve, and the prefix levels that DID resolve are still
+// returned so the partial-depth (normalize_level) and cross-axis
+// (normalize_within) margin consumers keep their inputs — the same
+// contract the single-key predecessor of this type carried.
+//
+// tuples is parallel to keys(): tuples[j] is the types.AxisKey
+// component tuple for keys()[j]. Populated only when ok.
+//
+// Lifetime: levels aliases scratch owned by the fusedAxisKeyer that
+// produced the value and is invalidated by the next derive call on THAT
+// keyer. The row axis and the column axis own separate keyers, so a
+// caller may hold both results at once — which Update does. The
+// types.AxisKey entries in tuples are freshly allocated per record
+// because the axis-key interner retains them.
+type fusedAxisKeys struct {
+	levels [][]string
+	tuples []types.AxisKey
+	depth  int
+	ok     bool
+}
+
+// keys returns the full-axis composite key set, or nil when the axis
+// did not fully resolve for this record.
+func (k fusedAxisKeys) keys() []string {
+	if !k.ok {
+		return nil
+	}
+	return k.levels[k.depth-1]
+}
+
+// prefixes returns the deduped composite prefix-key set at depth d
+// (positions 0..d inclusive). Callers must establish d < k.depth first;
+// the cross-axis margin gate in Update does exactly that.
+func (k fusedAxisKeys) prefixes(d int) []string { return k.levels[d] }
+
+// fusedAxisKeyer owns one axis's grouper chain plus the per-record
+// scratch its key sets are derived into. One keyer per axis.
+//
+// THE ONCE-PER-RECORD RULE. derive calls each position's keysForRow
+// exactly once per record — at most once, and, when the axis carries a
+// MetaGrouper behind position 0, exactly once even for positions whose
+// key is discarded (see derive's trailing-position drive) — and only
+// then forms the cartesian product from the resulting per-position key
+// sets. This is structural rather than incidental: the product is
+// formed by expandAxisLevel, which takes strings only — no Grouper, no
+// *Record — so the product walk cannot re-derive a position's keys even
+// by accident.
+//
+// The rule is load-bearing for Components parity, not just for speed.
+// KeysForRow has a side effect: setPerElementGrouper.trackSetPerElementRow
+// folds one observation per selected label into liveBuckets, which
+// MetaGrouper.Components() emits at Finalize. Buffered builds those
+// counts by re-running each axis position's grouper independently over
+// the FULL filtered set (Processor.axisComponentsFor,
+// processing/crosstab.go:251), so each record must be observed exactly
+// once per position, cohort-wide. Deriving keys inside the product walk
+// would call KeysForRow once per parent key and inflate every bucket
+// count by the width of the fan in front of it — silently, because the
+// cell values would stay correct while Components.buckets[].count went
+// wrong.
+type fusedAxisKeyer struct {
+	groupers []fusedAxisGrouper
+
+	// levels / comp / parent are the per-depth scratch, all reused
+	// across records. levels[d] holds the composite keys at depth d;
+	// comp[d][j] is the key position d contributed to levels[d][j];
+	// parent[d][j] is the index of that element's parent in levels[d-1].
+	// The parent chain lets tupleFor rebuild a types.AxisKey with a
+	// single allocation per composite key instead of carrying a growing
+	// tuple slice through every level of the product.
+	levels [][]string
+	comp   [][]string
+	parent [][]int
+
+	// keyBuf is the one-element landing slot a single-key position
+	// writes its key into, so a single-key axis allocates nothing per
+	// record beyond the tuple the interner retains.
+	keyBuf [1]string
+
+	// dedup is the scratch a fan-out position's key slice is deduped
+	// into. Deduping per position (rather than over the assembled
+	// product) keeps every level duplicate-free by induction without a
+	// quadratic membership scan over the product.
+	dedup []string
+
+	// tuples is the reused outer slice for the per-record tuple set; the
+	// types.AxisKey elements themselves are freshly allocated.
+	tuples []types.AxisKey
+
+	// driveUnresolvedTail says whether derive must keep calling the
+	// positions BEHIND the first unresolved one purely for their
+	// liveBuckets side effect (see derive's doc comment for why that is
+	// required for Components parity with buffered).
+	//
+	// Computed once at construction, never per record: the side effect
+	// is only observable through MetaGrouper.Components(), so if no
+	// position at index >= 1 implements MetaGrouper nothing will ever
+	// read the counts and the extra per-record calls are pure cost.
+	// Index 0 is excluded because position 0 is never behind anything —
+	// it is always driven by the keying walk itself. Every built-in
+	// grouper implements MetaGrouper, so in practice this is true for
+	// any axis with more than one position; it only turns off for an
+	// axis built entirely from extension groupers that emit no buckets.
+	driveUnresolvedTail bool
+}
+
+// newFusedAxisKeyer wraps an already-constructed axis grouper chain with
+// its derivation scratch. The groupers slice is shared with the
+// FusedCrosstabState field it was built from; the keyer never mutates it.
+func newFusedAxisKeyer(groupers []fusedAxisGrouper) *fusedAxisKeyer {
+	k := &fusedAxisKeyer{groupers: groupers}
+	k.ensureDepth(len(groupers))
+	for i := 1; i < len(groupers); i++ {
+		if _, ok := groupers[i].grouper.(MetaGrouper); ok {
+			k.driveUnresolvedTail = true
+			break
+		}
+	}
+	return k
+}
+
+// ensureDepth grows the per-depth scratch so indices 0..n-1 are
+// addressable. Called once at construction; the inner slices grow
+// themselves on first use and are reused thereafter.
+func (k *fusedAxisKeyer) ensureDepth(n int) {
+	for len(k.levels) < n {
+		k.levels = append(k.levels, nil)
+		k.comp = append(k.comp, nil)
+		k.parent = append(k.parent, nil)
+	}
+}
+
+// derive drives EVERY position of the axis for this record but keys only
+// the resolved prefix. It returns the composite key set across the
+// axis's ordered grouper chain, plus the per-depth prefix key sets, plus
+// the types.AxisKey tuple for each full key.
+//
+// Null semantics are per position and unchanged from the single-key
+// predecessor: a position returning ok=false (or ErrGrouperKeyNull)
+// stops the KEYING walk, ok is false, and the prefix levels already
+// built are still returned. A fan-out position returning ok=false — a
+// null set, or a set that emptied after Include filtering — collapses
+// the whole axis exactly the same way, matching buffered, where such a
+// record lands in no bucket of that position's partition. depth is
+// therefore the number of positions that resolved BEFORE the first
+// miss, and nothing a trailing position produces reaches the composite
+// key, the tuple set, or any prefix level.
+//
+// THE TRAILING-POSITION DRIVE. Keying stops at the first miss; the
+// WALK does not. Positions behind the first unresolved one are still
+// called once each, for their side effect alone. That is a Components
+// parity requirement, not an optimisation: a grouper's per-record
+// keying call folds one observation into its liveBuckets map, which
+// MetaGrouper.Components() emits at Finalize, and buffered builds those
+// same counts in Processor.axisComponentsFor (processing/crosstab.go)
+// by re-running EACH axis position independently over the full filtered
+// record set. On the buffered path a position therefore observes every
+// record whose own field resolves, regardless of what a DIFFERENT
+// position did — so stopping the fused walk outright would undercount
+// Components.crosstab.row_key_components[].axes[].bucket.count (and its
+// column equivalent) for every trailing position. Buffered pays
+// strictly more for the same numbers: a whole extra Group() pass per
+// position over the entire cohort, against one extra per-record call
+// here, only on records that already missed.
+//
+// The drive is skipped entirely when no position at index >= 1
+// implements MetaGrouper, since nothing would then read liveBuckets.
+// That decision is driveUnresolvedTail, computed once at construction —
+// never re-derived per record.
+//
+// ERROR PROPAGATION. A position driven purely for its side effect gets
+// the same error treatment as one driven for its key: ErrGrouperKeyNull
+// (and a plain ok=false) is absorbed as "unresolved", and any OTHER
+// error surfaces from derive unchanged. Errors are not swallowed just
+// because the caller no longer needs the key. Buffered has the same
+// semantics for the same reason — axisComponentsFor returns a failing
+// position's error even though it discards that position's partition —
+// and a request that fails on one path must not silently succeed on the
+// other.
+//
+// The once-per-record rule is unaffected: this changes how many
+// positions are called, never how many times each one is called. See
+// fusedAxisKeyer.
+func (k *fusedAxisKeyer) derive(rec *Record) (fusedAxisKeys, error) {
+	n := len(k.groupers)
+	if n == 0 {
 		// Empty axis is a programming bug — validateCrosstabSpec rejects
 		// zero-grouper axes up-front so reaching here means the gate
 		// drifted. Surface a typed error rather than a silent placement.
-		return "", nil, nil, 0, false, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+		return fusedAxisKeys{}, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"fused crosstab axis has zero groupers; spec validation should have rejected")
-	case 1:
-		key, ok, kerr := streamableKeyForRow(groupers[0], rec)
-		if kerr != nil {
-			if stderrors.Is(kerr, ErrGrouperKeyNull) {
-				return "", nil, nil, 0, false, nil
-			}
-			return "", nil, nil, 0, false, kerr
-		}
-		if !ok {
-			return "", nil, nil, 0, false, nil
-		}
-		return key, types.AxisKey{key}, []string{key}, 1, true, nil
 	}
-	tuple := make(types.AxisKey, 0, len(groupers))
-	partials := make([]string, 0, len(groupers))
-	for _, g := range groupers {
-		key, ok, kerr := streamableKeyForRow(g, rec)
-		if kerr != nil {
-			if stderrors.Is(kerr, ErrGrouperKeyNull) {
-				// Partial success: return whatever prefix resolved. The
-				// composite full key + tuple are empty since the full
-				// axis did not resolve.
-				return "", nil, partials, len(partials), false, nil
-			}
-			return "", nil, nil, 0, false, kerr
+
+	// Single-position single-key axis — the overwhelmingly common shape,
+	// and the successor of the old case-1 fast path. Skips the product
+	// machinery entirely and reuses the warm scratch, so the only
+	// per-record allocation left is the types.AxisKey the axis interner
+	// retains (2 allocs / 32 B, down from the pre-fan-out derivation's
+	// 3 / 48 B, which built a fresh partial-key slice per record too).
+	//
+	// The trailing-position drive does not apply here: a one-position
+	// axis has no position behind the miss, so an unresolved record
+	// simply returns and driveUnresolvedTail is false by construction.
+	if n == 1 && !k.groupers[0].fansOut() {
+		keys, ok, err := k.groupers[0].keysForRow(rec, k.keyBuf[:0])
+		if err != nil {
+			return fusedAxisKeys{}, err
 		}
 		if !ok {
-			return "", nil, partials, len(partials), false, nil
+			return fusedAxisKeys{levels: k.levels[:0]}, nil
 		}
-		tuple = append(tuple, key)
-		if len(partials) == 0 {
-			partials = append(partials, key)
+		k.levels[0] = append(k.levels[0][:0], keys[0])
+		k.tuples = append(k.tuples[:0], types.AxisKey{keys[0]})
+		return fusedAxisKeys{levels: k.levels[:1], tuples: k.tuples, depth: 1, ok: true}, nil
+	}
+
+	depth := 0
+	for i := 0; i < n; i++ {
+		// Exactly one derivation call per position per record. Nothing
+		// below this line may call back into a grouper.
+		keys, ok, err := k.groupers[i].keysForRow(rec, k.keyBuf[:0])
+		if err != nil {
+			return fusedAxisKeys{}, err
+		}
+		if !ok {
+			// Keying stops here, but the walk does not: the remaining
+			// positions are driven for their liveBuckets side effect so
+			// Components stays byte-equal to buffered. Their keys are
+			// discarded and never reach levels / comp / parent.
+			if err := k.driveTail(rec, i+1); err != nil {
+				return fusedAxisKeys{}, err
+			}
+			break
+		}
+		if len(keys) > 1 {
+			k.dedup = dedupeAxisKeys(k.dedup[:0], keys)
+			keys = k.dedup
+		}
+		if i == 0 {
+			k.levels[0] = append(k.levels[0][:0], keys...)
+			// comp[0] aliases levels[0]: at depth 0 the composite key IS
+			// the component key. Re-aliased every record, so the [:0]
+			// reuse above stays correct.
+			k.comp[0] = k.levels[0]
 		} else {
-			partials = append(partials, partials[len(partials)-1]+crosstabAxisKeySep+key)
+			k.levels[i], k.comp[i], k.parent[i] = expandAxisLevel(
+				k.levels[i-1], keys,
+				k.levels[i][:0], k.comp[i][:0], k.parent[i][:0])
 		}
+		depth = i + 1
 	}
-	return partials[len(partials)-1], tuple, partials, len(partials), true, nil
+
+	res := fusedAxisKeys{levels: k.levels[:depth], depth: depth, ok: depth == n}
+	if res.ok {
+		full := k.levels[depth-1]
+		k.tuples = k.tuples[:0]
+		for j := range full {
+			k.tuples = append(k.tuples, k.tupleFor(depth, j))
+		}
+		res.tuples = k.tuples
+	}
+	return res, nil
 }
 
-// streamableKeyForRow drives a streamable axis grouper through its
+// driveTail calls positions from..n-1 once each for their liveBuckets
+// side effect and throws their keys away. Called only after a position
+// reported unresolved, so these positions can no longer contribute to
+// the composite key; see derive's doc comment for why they must still
+// observe the record.
+//
+// Returns immediately when driveUnresolvedTail is false (no position
+// behind index 0 emits Components, so the side effect is unobservable)
+// or when there is no tail left to drive. A non-nil error from any
+// position surfaces unchanged — being driven for a side effect does not
+// downgrade a real failure.
+//
+// keyBuf is safe to reuse as the landing slot: every resolved level has
+// already copied its keys into levels / comp, so nothing downstream
+// aliases it.
+func (k *fusedAxisKeyer) driveTail(rec *Record, from int) error {
+	if !k.driveUnresolvedTail {
+		return nil
+	}
+	for j := from; j < len(k.groupers); j++ {
+		if _, _, err := k.groupers[j].keysForRow(rec, k.keyBuf[:0]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// tupleFor rebuilds the types.AxisKey for element j of the level at the
+// given depth by walking the parent chain back to depth 0. One
+// allocation per composite key, sized exactly.
+func (k *fusedAxisKeyer) tupleFor(depth, j int) types.AxisKey {
+	t := make(types.AxisKey, depth)
+	for d := depth - 1; d > 0; d-- {
+		t[d] = k.comp[d][j]
+		j = k.parent[d][j]
+	}
+	t[0] = k.comp[0][j]
+	return t
+}
+
+// expandAxisLevel forms one level of the axis cartesian product: every
+// composite key already accumulated in prev, crossed with every key the
+// next position produced. Parent-major order, so the emitted sequence
+// matches the buffered PartitionByAxis recursion, which walks axis[0]'s
+// buckets and recurses into axis[1:] within each one.
+//
+// It takes strings only — no Grouper, no *Record. That is deliberate:
+// it makes the once-per-record derivation rule an invariant of the code
+// shape rather than a convention a later edit could quietly break. See
+// fusedAxisKeyer for why the rule matters.
+//
+// prev is duplicate-free by induction and keys is deduped by the
+// caller, so the emitted level is duplicate-free without a quadratic
+// membership scan over the product. (Two entries could only collide if
+// a bucket key itself contained crosstabAxisKeySep, which is equally
+// ambiguous on the buffered path.)
+func expandAxisLevel(prev, keys, dstKeys, dstComp []string, dstParent []int) ([]string, []string, []int) {
+	for pi, parent := range prev {
+		for _, key := range keys {
+			dstKeys = append(dstKeys, parent+crosstabAxisKeySep+key)
+			dstComp = append(dstComp, key)
+			dstParent = append(dstParent, pi)
+		}
+	}
+	return dstKeys, dstComp, dstParent
+}
+
+// dedupeAxisKeys appends the distinct members of keys to dst, preserving
+// first-seen order. Linear scan: a position's fan width is bounded by
+// the bound set field's dictionary size (<= 64 for set_u64, typically a
+// handful), so a map would cost more than it saves. Only called for
+// positions that returned more than one key, so single-key axes never
+// pay for it.
+func dedupeAxisKeys(dst []string, keys []string) []string {
+	for _, key := range keys {
+		duplicate := false
+		for _, seen := range dst {
+			if seen == key {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			dst = append(dst, key)
+		}
+	}
+	return dst
+}
+
+// streamableKeyForRow drives a SINGLE-KEY axis grouper through its
 // KeyForRow side-effect path when available so MetaGrouper.Components()
 // observes the per-axis-position bucket accumulation under the fused
 // crosstab path. Falls back to KeyFor for streamable groupers that do
@@ -847,6 +1424,9 @@ func axisKeyAndPartials(groupers []StreamableGrouper, rec *Record) (
 // pair mirrors StreamingGrouper.KeyForRow: ok=false signals "skip the
 // row" (null axis key) without a sentinel error; a non-nil error
 // surfaces a typed CodedError unchanged.
+//
+// Callers go through fusedAxisGrouper.keyForRow rather than calling
+// this directly, so the fan-out shape cannot reach it.
 //
 // The side effect populates the grouper's liveBuckets map (or
 // the per-grouper equivalent) so the Finalize-time MetaGrouper
@@ -1159,8 +1739,9 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	// the MetaGrouper.Components walk + projection work entirely.
 	if !s.disableComponents {
 		// Per-axis grouper components emission. Each axis grouper
-		// already accumulated liveBuckets via the streamableKeyForRow side-
-		// effect path during Update; we call Components() now to capture the
+		// already accumulated liveBuckets via its keying side-effect
+		// path during Update (KeyForRow for single-key entries,
+		// KeysForRow for fan-out entries); we call Components() now to capture the
 		// per-axis-position bucket emission and project it onto the sorted
 		// rowKeys / colKeys. The fused path constructs row / column tuple
 		// vectors aligned with the sorted axis-key order via tuplesForKeys
@@ -1191,18 +1772,23 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 // axisComponents captures the per-axis-position MetaGrouper.Components()
 // emission for an ordered axis-grouper chain. Each grouper is queried
 // once after Update has drained the cohort, so liveBuckets reflects
-// every record routed through the axis (populated by streamableKeyForRow
-// during Update). Returns nil when the chain is empty; entries are nil
-// when the grouper does not implement MetaGrouper (extension groupers
-// without bucket-count emission). Used by Finalize to feed
+// every record routed through the axis (populated by the per-record
+// keying call during Update). Returns nil when the chain is empty;
+// entries are nil when the grouper does not implement MetaGrouper
+// (extension groupers without bucket-count emission). The MetaGrouper
+// assertion targets fusedAxisGrouper.grouper, so it resolves the same
+// way on single-key and fan-out entries. Used by Finalize to feed
 // projectAxisKeyComponents in lockstep with the buffered path.
-func (s *FusedCrosstabState) axisComponents(chain []StreamableGrouper) ([]map[string]any, error) {
+func (s *FusedCrosstabState) axisComponents(chain []fusedAxisGrouper) ([]map[string]any, error) {
 	if len(chain) == 0 {
 		return nil, nil
 	}
 	out := make([]map[string]any, len(chain))
 	for i, g := range chain {
-		meta, ok := g.(MetaGrouper)
+		// Assert against the retained Grouper instance, not the keying
+		// shape, so MetaGrouper resolves identically on single-key and
+		// fan-out entries.
+		meta, ok := g.grouper.(MetaGrouper)
 		if !ok {
 			continue
 		}

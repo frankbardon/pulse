@@ -11,23 +11,21 @@ examples_tags: [cardinality-analysis, cohort-analysis]
 
 ## Params
 
-None. `Group.Label` overrides output column name; `Group.Include []string` allow-lists fan-out labels (individual labels, each evaluated independently) and sets emission order.
+None. `Group.Label` renames the output column; `Group.Include` allow-lists fan-out labels (each matched independently) and fixes emission order.
 
 ## Inputs
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | `set_u8`/`set_u16`/`set_u32`/`set_u64` |
+| `Field` | `set_u8`/`u16`/`u32`/`u64` |
 
 ## Output
 
-String key per selected label per row. Smart default for `set_*` fields. Implements `MultiKeyStreamingGrouper` — one key per bit set in the mask.
-
-Non-empty `Include` is order-significant: buckets emit in `Include` order (individual labels), overriding dict-index for `Data` + `Components.buckets`; empty/absent keeps prior dict-index order (byte-identical). Zero-record labels dropped.
+One string key per set bit per row. Smart default for `set_*`. Implements `MultiKeyStreamingGrouper`. Non-empty `Include` overrides dict-index emission order; zero-record labels dropped.
 
 ## Components
 
-Universal floor `{total_n, n_null}` plus operator-specific:
+Floor `{total_n, n_null}` plus:
 
 | Key | Type | Notes |
 |---|---|---|
@@ -35,15 +33,15 @@ Universal floor `{total_n, n_null}` plus operator-specific:
 | `buckets` | []bucket | `{key, label, count, dict_index}` |
 
 - Mergeability: `Mergeable`
-- Streaming: `MultiKeyStreamingGrouper` — multi-key fan-out; NOT a fused-crosstab axis (use `GROUP_SET_VALUE` instead).
+- **Is** a fused-crosstab axis — admitted at any position, either or both axes.
 
 ## Gotchas
 
 - `sum(buckets[].count) > total_n` is CORRECT.
-- Empty-mask rows skipped; does NOT increment `n_null`. Null rows do.
-- `Group.Include` matches each fan-out label independently.
+- Empty-mask rows skipped; do NOT increment `n_null`. Null rows do.
+- Crosstab margins are non-additive: a 3-label row counts 3× across row margins, once in the grand total. Both paths agree.
 
 ## See
 
 - `pulse_examples_search tags=[cohort-analysis]`
-- Skills: `grouper-design`, `response-components`, `op-group-set-value`
+- Skills: `grouper-design`, `crosstab-guide`, `op-group-set-value`

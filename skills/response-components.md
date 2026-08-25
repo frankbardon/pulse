@@ -88,8 +88,12 @@ type ResponseComponents struct {
   aggregator components (`CellComponents[r][c]`), per-axis margin counts +
   components, grand-total counts + components, per-axis grouper components
   (`RowKeyComponents`, `ColumnKeyComponents`), and the sanity counters
-  `IncludedRecords` / `ExcludedRecords`. See `skills/crosstab-guide.md` for
-  the full indexing contract.
+  `IncludedRecords` / `ExcludedRecords`. **`CellCounts[r][c]` is a RECORD
+  count while the cell floor's `n` counts NON-NULL observations, so the
+  identity is `CellCounts[r][c] == n + n_null`** — do not read `CellCounts`
+  as the aggregator's sample size. The same split holds on the margin
+  counterparts. See `skills/crosstab-guide.md` for the full indexing
+  contract.
 
 - **`Filterers []FiltererComponents`** — one entry per `Request.Filterers`
   slot in matching declared order. Slot identity rides on `Label`. Universal

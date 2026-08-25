@@ -20,8 +20,21 @@ func crosstabFusedGateSchema() *encoding.Schema {
 			{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 10, Scale: 2},
 			{Name: "ts", Type: encoding.FieldTypeDate},
+			{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: crosstabFusedGateTagsDict()},
 		},
 	}
+}
+
+// crosstabFusedGateTagsDict returns the dictionary backing the "tags"
+// set field. GROUP_SET_PER_ELEMENT resolves its labels from it, so the
+// entries must be non-empty for the grouper factory to construct.
+func crosstabFusedGateTagsDict() *encoding.Dictionary {
+	d := encoding.NewDictionary()
+	for _, v := range []string{"VISA", "MC", "AMEX", "DISC"} {
+		// Add only fails on width overflow; four entries cannot overflow u8.
+		_, _ = d.Add(v)
+	}
+	return d
 }
 
 // happyPathCrosstabRequest returns a fused-eligible Crosstab request:
@@ -240,8 +253,79 @@ func TestCanFuseCrosstab_PostTestsForceBuffered(t *testing.T) {
 	}
 }
 
-func TestCanFuseCrosstab_OverlaysForceBuffered(t *testing.T) {
+// TestCanFuseCrosstab_OverlaysAdmitted pins the E1-S1 inversion: an
+// overlay-carrying request over a mergeable cell aggregator is fused-
+// eligible. The overlay fold consumes no records — RunCrosstabFused
+// calls applyOverlaysToResponse on the response Finalize returns — so
+// there is no reason to force the buffered path. The old
+// "overlays force buffered" arm is gone and must not come back.
+func TestCanFuseCrosstab_OverlaysAdmitted(t *testing.T) {
+	cases := []struct {
+		name    string
+		overlay types.OverlaySpec
+	}{
+		{
+			name: "index_vs_margin_cell",
+			overlay: types.OverlaySpec{
+				Kind:  types.OverlayKindIndexVsMargin,
+				Scope: types.OverlayScopeCell,
+				Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
+			},
+		},
+		{
+			name: "share_of_row_cell",
+			overlay: types.OverlaySpec{
+				Kind:  types.OverlayKindShareOfRow,
+				Scope: types.OverlayScopeCell,
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := happyPathCrosstabRequest()
+			req.Overlays = []types.OverlaySpec{tc.overlay}
+			ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
+			if !ok {
+				t.Fatalf("expected fused-eligible with overlays present, got reason %q", reason)
+			}
+			if reason != "" {
+				t.Fatalf("expected empty reason on success, got %q", reason)
+			}
+			if strings.Contains(reason, "overlay") {
+				t.Fatalf("overlay exclusion arm resurfaced: %q", reason)
+			}
+		})
+	}
+}
+
+// Multiple overlay specs on one request stay eligible too — the fold
+// walks the slice, it does not widen the decode bound.
+func TestCanFuseCrosstab_MultipleOverlaysAdmitted(t *testing.T) {
 	req := happyPathCrosstabRequest()
+	req.Overlays = []types.OverlaySpec{
+		{
+			Kind:  types.OverlayKindIndexVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
+		},
+		{
+			Kind:  types.OverlayKindIndexVsMargin,
+			Scope: types.OverlayScopeCell,
+			Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisColumn}},
+		},
+	}
+	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
+	if !ok {
+		t.Fatalf("expected fused-eligible with two overlays, got reason %q", reason)
+	}
+}
+
+// Overlays do not RESCUE an otherwise-ineligible request: a non-
+// mergeable cell aggregator still forces buffered even with an overlay
+// attached, so AGG_WELFORD-style pairwise kinds stay buffered for now.
+func TestCanFuseCrosstab_OverlaysDoNotOverrideOtherExclusions(t *testing.T) {
+	req := happyPathCrosstabRequest()
+	req.Crosstab.Cell = &types.Aggregation{Type: types.AGG_MEDIAN, Field: "score"}
 	req.Overlays = []types.OverlaySpec{
 		{
 			Kind:  types.OverlayKindIndexVsMargin,
@@ -251,9 +335,9 @@ func TestCanFuseCrosstab_OverlaysForceBuffered(t *testing.T) {
 	}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
 	if ok {
-		t.Fatalf("expected ineligible with overlays present")
+		t.Fatalf("expected ineligible with non-mergeable cell aggregator")
 	}
-	if !strings.Contains(reason, "overlays force buffered") {
+	if !strings.Contains(reason, "non-mergeable cell aggregator") {
 		t.Fatalf("unexpected reason %q", reason)
 	}
 }

@@ -40,7 +40,7 @@ Per pair: `a = v_i/n_i`, `b = v_j/n_j`; `se = sqrt(a + b)`; `z = (m_i - m_j) / s
 - Either leg with `n <= 1` skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO` warning).
 - Use `OVERLAY_PAIRWISE_WELCH_T` when small-sample df correction matters; this kind assumes the normal approximation.
 - Emits RAW p-values only — direction / thresholds are the embedder's job.
-- Buffered (inferential).
+- Buffered (inferential) — and so is the HOST. The `AGG_WELFORD` cell this kind reads is non-mergeable, so `CanFuseCrosstab` rejects the request on the cell-aggregator arm and the crosstab always runs buffered. Expected, not a regression (`TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays`).
 
 ## See
 
