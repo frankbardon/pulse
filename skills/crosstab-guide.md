@@ -19,63 +19,61 @@ covers: [Crosstab, CrosstabComponents]
 }}
 ```
 
-Defaults: `shape: matrix`, `normalize: none`. Result: `Response.Crosstab.Matrix` with `RowKeys`, `ColumnKeys`, `Cells`, margins, `GrandTotal`.
+Defaults: `shape: matrix`, `normalize: none`. Result: `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins, `GrandTotal`.
 
 ## Axes, cell
 
-`rows`, `columns` are each `[]Group`. Any grouper, either axis. Multiple per axis = nested headers; sorted composite-key order. Empty axes / missing cell ⇒ `PULSE_CROSSTAB_EMPTY_ROWS` / `_EMPTY_COLUMNS` / `_MISSING_CELL`.
+`rows`, `columns` are each `[]Group` — any grouper, either axis. Multiple per axis = nested headers, sorted composite-key order. Empty axes / missing cell ⇒ `PULSE_CROSSTAB_EMPTY_ROWS` / `_EMPTY_COLUMNS` / `_MISSING_CELL`.
 
-**Include ordering per axis.** Each axis honors its own `Group.Include` order independently: an axis with a non-empty `include` emits keys in listed order; an axis without `include` keeps alphabetical order; on a nested axis ordering is applied per key position. Buffered + fused agree via `orderCompositeKeysByAxisInclude`. Zero-record include values are still dropped.
+**Include ordering per axis.** Each axis honors its own `Group.Include` order independently — non-empty `include` emits keys in listed order (per key position on a nested axis), else alphabetical. Buffered + fused agree; zero-record include values drop.
 
-`cell` is one `Aggregation` — every `AGG_*`. Scalar cells (`MatrixCell.Value: float64`) are common. Rich variants: `AGG_SET_FREQUENCY` (`map[string]int`), set union/intersection (rich `[]string`), `AGG_WELFORD` (`{n,mean,variance,m2}` via `CellComponents` — the legacy `processing.WelfordTriple` smuggle in `MatrixCell.Value` is removed in v0.20.0). Rich + non-`none` normalize ⇒ `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED`; use `AGG_SET_CARDINALITY_SUM`/`_AVG` for normalised set columns.
+`cell` is one `Aggregation` — any `AGG_*`. Scalar cells (`MatrixCell.Value: float64`) are common. Rich variants: `AGG_SET_FREQUENCY` (`map[string]int`), set union/intersection (`[]string`), `AGG_WELFORD` (`{n,mean,variance,m2}` via `CellComponents`). Rich + non-`none` normalize ⇒ `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED`; use `AGG_SET_CARDINALITY_SUM`/`_AVG` instead.
 
 ## Margins recompute from raw rows
 
-Load-bearing: row / column / grand margins aggregate **raw rows for that margin**, NOT cell values. Mean / median / stddev / percentile margins are correct under this rule; cell-sum agreement holds only for true sums. Manifest classifies under `crosstab.{summable,mean_reducible,recompute}_aggregators`.
+Load-bearing: row / column / grand margins aggregate **raw rows for that margin**, NOT cell values. Mean / median / stddev / percentile margins are correct under this rule; cell-sum agreement holds only for true sums. Manifest: `crosstab.{summable,mean_reducible,recompute}_aggregators`.
 
 ## Normalize
 
-`none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. Normalize implies the matching margin even when `margins.*` is false for display.
+`none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. Normalize implies the matching margin even when `margins.*` is false.
 
-- `normalize_level: L` — same-axis rollup. Cells sharing the first `L+1` groupers sum to 1. Rejections: `_OUT_OF_RANGE`, `_WITHOUT_NESTED_AXIS`, `_INCOMPATIBLE` (with `total`).
-- `normalize_within: W` — fixes a prefix of the **opposite** axis inside the denominator; composes with `normalize_level`. Canonical: `rows=[brand]`, `columns=[wave,response]`, `normalize=row`, `normalize_within=0` — each cell is brand's wave-share going to that response. Rejections: `_WITHIN_OUT_OF_RANGE`, `_WITHIN_WITHOUT_AXIS`, `_WITHIN_INCOMPATIBLE`.
+- `normalize_level: L` — same-axis rollup; cells sharing the first `L+1` groupers sum to 1. Rejections: `_OUT_OF_RANGE`, `_WITHOUT_NESTED_AXIS`, `_INCOMPATIBLE` (with `total`).
+- `normalize_within: W` — fixes a prefix of the **opposite** axis in the denominator; composes with `normalize_level`. Canonical: `rows=[brand]`, `columns=[wave,response]`, `normalize=row`, `normalize_within=0` — each cell is brand's wave-share to that response. Rejections: `_WITHIN_OUT_OF_RANGE`, `_WITHIN_WITHOUT_AXIS`, `_WITHIN_INCOMPATIBLE`.
 
 ## Shape
 
-`matrix` (default) — `Response.Crosstab.Matrix`: headers, key tuples, dense `Cells`, margins, `NormalizeApplied`. `long` — one row per cell on `Response.Data`; margin rows tagged via `_margin: "row"|"column"|"grand"|"<axis>_at_<depth>"`. Lossless round-trip.
+`matrix` (default) — `Response.Crosstab.Matrix`: headers, key tuples, dense `Cells`, margins, `NormalizeApplied`. `long` — one row per cell on `Response.Data`, margin rows tagged `_margin: "row"|"column"|"grand"|"<axis>_at_<depth>"`. Lossless round-trip.
 
 ## Streamability
 
-Buffered when `shape: matrix`, any `margins`, any non-`none` `normalize`, or nested axes. The only streamable shape (long + no margins + `none`) still routes through the orchestrator in v1. `pulse predict --json` reports `StreamableReasons`.
+Buffered when `shape: matrix`, any `margins`, non-`none` `normalize`, or nested axes. The one streamable shape (long, no margins, `none`) still routes through the orchestrator in v1. `pulse predict --json` reports `StreamableReasons`.
 
 ### Fused mergeable path
 
-When the cell aggregator is mergeable + non-recompute AND every axis grouper implements `StreamableGrouper.KeyFor`, records fold directly into per-cell / per-margin online state in one decode pass. Memory `O(records) → O(cells + margins)`. Disqualifiers: recompute cell, `GROUP_QUANTILE` / `GROUP_SET_PER_ELEMENT`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 cell, `Request.Overlays`, opaque extension (no `FieldInputs`). Margins still recompute from raw rows. ~30–47% faster on benches. Buffered fallback runs auto field projection on the materialised set.
+When the cell aggregator is mergeable + non-recompute AND every axis grouper implements a per-record keying interface — `StreamableGrouper.KeyFor`, or `MultiKeyStreamingGrouper.KeysForRow` (`GROUP_SET_PER_ELEMENT` fan-out, admitted at ANY position, on either or both axes) — records fold into per-cell / per-margin online state in one decode pass. Memory `O(records) → O(cells + margins)`: ~30–47% faster, peak heap 8.8–20.8× lower across 25k→400k rows.
+
+`Request.Overlays` does NOT disqualify — `RunCrosstabFused` folds layers after `Finalize()` through the same `applyOverlaysToResponse` hook the buffered exit uses, so cells, components, layers and warnings are byte-identical across paths. Other disqualifiers: non-mergeable / recompute cell (incl. `AGG_WELFORD`), `GROUP_QUANTILE`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 cell, opaque extension (no `FieldInputs`).
+
+Margins still recompute from raw rows, and under a fan-out axis are non-additive on BOTH paths — a 3-label record counts 3× across row margins, once in the grand total.
 
 ## Components — `Response.Components.Crosstab`
 
-Coordinate-for-coordinate sibling of `MatrixPayload`:
+Mirrors `MatrixPayload`:
 
-- `CellComponents[r][c]` ↔ `Matrix.Cells[r][c]` — `Operator`-map per cell aggregator's `ComponentSchema`.
-- `CellCounts[r][c]` ↔ records routed to cell.
+- `CellComponents[r][c]` ↔ `Matrix.Cells[r][c]` — `Operator`-map per the cell aggregator's `ComponentSchema`. `CellCounts[r][c]` is the RECORD count routed to that cell, i.e. floor `n + n_null`.
 - `RowKeyComponents[r]` / `ColumnKeyComponents[c]` ↔ `Matrix.RowKeys[r]` / `Matrix.ColumnKeys[c]`.
-- `RowMarginCounts[r]` / `*Components[r]` ↔ `Matrix.RowMargins[r]`; column symmetric.
-- `GrandTotalCount` / `*Components` ↔ `Matrix.GrandTotal`.
+- `RowMarginCounts[r]` / `*Components[r]` ↔ `Matrix.RowMargins[r]` (column symmetric); `GrandTotalCount` / `*Components` ↔ `Matrix.GrandTotal`.
 
-Universal cell floor `{n, n_null}` (always `int`) on top of the cell aggregator's declared keys. Builder injects — operators must not declare `n`/`n_null`. Empty cells ⇒ `CellComponents[r][c] == nil` (null-check before read). Margin slots populated iff the matching `Matrix.*` slot is present.
+Universal cell floor `{n, n_null}` (`int`) sits on the cell aggregator's declared keys; the builder injects it, so operators must not declare `n`/`n_null`. Empty cells ⇒ `CellComponents[r][c] == nil` (null-check first). Margin slots populate iff the matching `Matrix.*` slot is present.
 
-Multi-grouper axis: `*KeyComponents[i]` carries `{axes:[{field, bucket}, …]}` in declaration order. Single-grouper axis carries the grouper-components map directly.
+Multi-grouper axis: `*KeyComponents[i]` carries `{axes:[{field, bucket}]}` in declaration order; single-grouper axis carries the grouper map directly.
 
-`AGG_WELFORD` cells emit `{n, mean, variance, m2}` into `CellComponents[r][c]` via the `MetaAggregator` path — load-bearing for parity overlays (`OVERLAY_T_CELL` / `OVERLAY_Z_CELL` / `OVERLAY_T_VS_REF` / `OVERLAY_Z_VS_REF`) after v0.20.0. Buffered + fused emit byte-identical `CellComponents`.
+`AGG_WELFORD` cells emit `{n, mean, variance, m2}` into `CellComponents[r][c]` via `MetaAggregator` — load-bearing for the parity overlays (`OVERLAY_T_CELL` / `_Z_CELL` / `_T_VS_REF` / `_Z_VS_REF`). `AGG_WELFORD` is non-mergeable → always buffered.
 
 ## Tests + overlays compose
 
-Tier-1 `tests` / tier-2 `post_tests` ride raw rows; the crosstab-conflict guard fires only for top-level groups+aggregations. Crosstab is also the v1 overlay host — share triad, margin-comparison (index/delta/zscore), inferential family, Compose vs-ref kinds. Specs ride `Request.Overlays`; layers ride `Response.Overlays[i]`. Buffered today.
+Tier-1 `tests` / tier-2 `post_tests` ride raw rows; the crosstab-conflict guard fires only for top-level groups+aggregations. Crosstab is also the v1 overlay host — share triad, margin comparison, inferential, Compose vs-ref, intra-matrix pairwise. Specs ride `Request.Overlays`, layers `Response.Overlays[i]`. An overlay-carrying crosstab FUSES unless the cell-aggregator arm pushes it back to buffered.
 
 ## See
 
-- `skills/response-components.md` — universal `Response.Components` contract.
-- `skills/overlay-system.md` — overlay framework + parity migration.
-- `skills/grouper-design.md` — fused-path eligibility per grouper.
-- `skills/aggregation-design.md` — margin reducibility per `AGG_*`.
-- `skills/statistical-testing.md` — picking `TEST_*` per cell aggregator.
+- `response-components`, `overlay-system`, `grouper-design` (fused eligibility), `aggregation-design` (margin reducibility), `statistical-testing`.

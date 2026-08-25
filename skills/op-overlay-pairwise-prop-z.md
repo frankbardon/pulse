@@ -11,7 +11,7 @@ examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 
 Overlays decorate the host result; they do not emit `Response.Components` (but this family READS them).
 
-Intra-matrix pairwise: tests one host-matrix slot against another ALONG one axis of the SAME crosstab — the per-Request counterpart to the Compose-host `OVERLAY_PROP_Z_PANEL` (which pairs across slots). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row.
+Intra-matrix pairwise: tests one host-matrix slot against another ALONG one axis of the SAME crosstab (the per-Request counterpart to Compose's `OVERLAY_PROP_Z_PANEL`). ROW scope pairs row indices per column; COLUMN scope pairs column indices per row.
 
 ## Params
 
@@ -37,7 +37,8 @@ MATRIX — `OverlayLayer.Payload.Shape = "matrix"`. The PAIR axis carries one en
 - Reuses `twoProportionZ` — p-values match `OVERLAY_PROP_Z_CELL` / `TEST_PROP_Z` byte-for-byte for the same (success, n) inputs.
 - Emits RAW p-values only. Direction (which leg is greater), thresholds, and min-n flags are the embedder's job — every input for them is already on the response (host cells, per-cell n).
 - Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` warning per reason.
-- Buffered (inferential).
+- **`p_source` mismatch fails silently and totally.** `cell_value` over a cell that is really a 0..100 percentage (e.g. `AGG_WEIGHTED_MEAN` of a pct field) drives the pooled proportion outside `[0,1]`, so EVERY pair skips on invalid pooled SE and the layer returns empty. Match the mode to the cell: `cell_value_pct` divides by 100.
+- Flagged buffered in `OverlayStreamability` (inferential), but the HOST crosstab still FUSES when its cell aggregator is mergeable — `AGG_WEIGHTED_MEAN` fuses, including over a `GROUP_SET_PER_ELEMENT` axis.
 
 ## See
 

@@ -316,13 +316,13 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// — sibling kind to OVERLAY_INDEX_VS_TOTAL, same grand-total
 	// accumulator (computeSeriesGrandTotal in
 	// processing/overlay_series.go), different scaling (raw share, no
-	// ×100). The MATRIX-host dispatch remains inherently buffered
-	// (the host crosstab path always recomputes margins from raw rows),
-	// but the MATRIX path is already gated through `canFuseCrosstab`'s
-	// "overlays force buffered" arm, so this flag describes the kind's
-	// INTRINSIC streaming capability — the streamable SERIES handler
-	// exists, and the MATRIX route falls back to buffered through the
-	// host gate, not this flag.
+	// ×100). The MATRIX-host dispatch is not an in-pass computation:
+	// the crosstab fold runs on the already-finalised matrix, on the
+	// buffered and the fused arm alike (CanFuseCrosstab does NOT
+	// exclude Request.Overlays). This flag therefore describes the
+	// kind's INTRINSIC streaming capability — the streamable SERIES
+	// handler exists — and says nothing about which crosstab arm the
+	// host request lands on; that is the host gate's decision.
 	OverlayKindShareOfTotal: true,
 	// OVERLAY_T_CELL is inherently buffered — COMPOSE-only kind,
 	// per-cell Welch t-test against the reference slot's matching cell.
