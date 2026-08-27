@@ -1781,4 +1781,26 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+
+	// ---------- PULSE (SPSS) ----------
+	PULSE_SPSS_DICT_INVALID: {
+		Message: "The SPSS .sav dictionary is structurally malformed: the file does not open with the $FL2/$FL3 magic, the layout code identifies neither byte order, a record carries an unknown type tag or an out-of-range field, or a record appears where the format does not allow it. The error details name the record and the byte offset at which the fault was detected.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Confirm the file really is an SPSS system file and not a .por, .zsav renamed, or an unrelated file with a .sav extension; open it in SPSS or PSPP and re-save it as a system file, then import the re-saved copy.",
+			},
+		},
+	},
+	PULSE_SPSS_DICT_TRUNCATED: {
+		Message: "The SPSS .sav file ends part way through its dictionary: a record claimed more bytes than the file contains, or the stream ran out before the record type 999 terminator. The bytes present parse cleanly as far as they go, which is what separates this from a malformed dictionary.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-transfer or re-export the file — a truncated .sav is almost always an interrupted copy, download, or export. Compare the byte size against the source before importing again.",
+			},
+		},
+	},
 }

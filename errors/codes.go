@@ -1220,6 +1220,24 @@ const (
 	// template under DetailTemplate, the target type, and the decode
 	// fault.
 	PULSE_TEMPLATE_RENDER_INVALID Code = "PULSE_TEMPLATE_RENDER_INVALID"
+
+	// PULSE_SPSS_DICT_INVALID indicates an SPSS `.sav` dictionary is
+	// structurally malformed: the file does not open with the `$FL2` /
+	// `$FL3` magic, the layout code identifies neither byte order, a
+	// record carries an unknown type tag or an out-of-range field, or a
+	// record appears where the format does not allow it. Details carry
+	// the offending record under DetailSPSSRecord and its byte offset
+	// under DetailSPSSOffset.
+	PULSE_SPSS_DICT_INVALID Code = "PULSE_SPSS_DICT_INVALID"
+
+	// PULSE_SPSS_DICT_TRUNCATED indicates an SPSS `.sav` file ends part
+	// way through the dictionary: a record claims more bytes than remain,
+	// or the stream runs out before the record type 999 terminator is
+	// reached. The bytes present are well formed as far as they go, which
+	// is what distinguishes this from PULSE_SPSS_DICT_INVALID. Details
+	// carry the record under DetailSPSSRecord and the byte offset the
+	// read ran past under DetailSPSSOffset.
+	PULSE_SPSS_DICT_TRUNCATED Code = "PULSE_SPSS_DICT_TRUNCATED"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -1235,6 +1253,22 @@ const (
 	// the offending variable on the variable-scoped members of the
 	// PULSE_TEMPLATE_* family.
 	DetailVariable = "variable"
+)
+
+// Detail map keys shared by the PULSE_SPSS_* family. Every SPSS parse
+// error names the record it was reading and the byte offset it was
+// reading at, so a caller can point at the exact spot in the file.
+const (
+	// DetailSPSSRecord is the CodedError.Details key carrying the SPSS
+	// record a PULSE_SPSS_* error was reading: "header", a decimal record
+	// type such as "2" or "999", or "unknown" when the tag itself is the
+	// problem.
+	DetailSPSSRecord = "record_type"
+
+	// DetailSPSSOffset is the CodedError.Details key carrying the 0-based
+	// byte offset into the `.sav` file at which a PULSE_SPSS_* error was
+	// detected.
+	DetailSPSSOffset = "offset"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1413,6 +1447,8 @@ var allCodes = []Code{
 	PULSE_TEMPLATE_VAR_ENUM,
 	PULSE_TEMPLATE_UNRESOLVED,
 	PULSE_TEMPLATE_RENDER_INVALID,
+	PULSE_SPSS_DICT_INVALID,
+	PULSE_SPSS_DICT_TRUNCATED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.
