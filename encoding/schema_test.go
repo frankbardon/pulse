@@ -2,13 +2,14 @@ package encoding
 
 import "testing"
 
-func TestFieldTypes_All17Present(t *testing.T) {
-	// Verify we have exactly 17 field types (0..16). Bytes 13–16 are the
+func TestFieldTypes_All18Present(t *testing.T) {
+	// Verify we have exactly 18 field types (0..17). Bytes 13–16 are the
 	// set_u8/u16/u32/u64 multi-select family added alongside the
 	// categorical family — same inline dictionary block, fixed-width
-	// bitmask payload.
-	if fieldTypeCount != 17 {
-		t.Fatalf("expected 17 field types, got %d", fieldTypeCount)
+	// bitmask payload. Byte 17 is datetime, an 8-byte epoch-seconds u64
+	// appended additively (no existing byte moved).
+	if fieldTypeCount != 18 {
+		t.Fatalf("expected 18 field types, got %d", fieldTypeCount)
 	}
 
 	types := []FieldType{
@@ -19,6 +20,7 @@ func TestFieldTypes_All17Present(t *testing.T) {
 		FieldTypeCategoricalU8, FieldTypeCategoricalU16, FieldTypeCategoricalU32,
 		FieldTypeDecimal128,
 		FieldTypeSetU8, FieldTypeSetU16, FieldTypeSetU32, FieldTypeSetU64,
+		FieldTypeDateTime,
 	}
 	if len(types) != int(fieldTypeCount) {
 		t.Fatalf("type list has %d entries, sentinel says %d", len(types), fieldTypeCount)
@@ -48,6 +50,11 @@ func TestFieldType_ByteSize(t *testing.T) {
 		{FieldTypeCategoricalU16, 2},
 		{FieldTypeCategoricalU32, 4},
 		{FieldTypeDecimal128, 16},
+		{FieldTypeSetU8, 1},
+		{FieldTypeSetU16, 2},
+		{FieldTypeSetU32, 4},
+		{FieldTypeSetU64, 8},
+		{FieldTypeDateTime, 8},
 	}
 	for _, tc := range cases {
 		if got := tc.ft.ByteSize(); got != tc.want {
@@ -74,6 +81,11 @@ func TestFieldType_String(t *testing.T) {
 		{FieldTypeCategoricalU16, "categorical_u16"},
 		{FieldTypeCategoricalU32, "categorical_u32"},
 		{FieldTypeDecimal128, "decimal128"},
+		{FieldTypeSetU8, "set_u8"},
+		{FieldTypeSetU16, "set_u16"},
+		{FieldTypeSetU32, "set_u32"},
+		{FieldTypeSetU64, "set_u64"},
+		{FieldTypeDateTime, "datetime"},
 		{FieldType(255), "unknown(255)"},
 	}
 	for _, tc := range cases {

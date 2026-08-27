@@ -20,7 +20,7 @@ func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 		return binary.Write(w, binary.LittleEndian, uint16(val))
 	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeSetU32:
 		return binary.Write(w, binary.LittleEndian, uint32(val))
-	case FieldTypeU64, FieldTypeSetU64:
+	case FieldTypeU64, FieldTypeSetU64, FieldTypeDateTime:
 		return binary.Write(w, binary.LittleEndian, val)
 	case FieldTypeF32:
 		return binary.Write(w, binary.LittleEndian, uint32(val))
@@ -55,7 +55,7 @@ func ReadFieldValue(r io.Reader, ft FieldType) (uint64, error) {
 		var v uint32
 		err := binary.Read(r, binary.LittleEndian, &v)
 		return uint64(v), err
-	case FieldTypeU64, FieldTypeSetU64:
+	case FieldTypeU64, FieldTypeSetU64, FieldTypeDateTime:
 		var v uint64
 		err := binary.Read(r, binary.LittleEndian, &v)
 		return v, err
