@@ -1607,6 +1607,33 @@ const (
 	// its flagged dictionary entries under DetailSPSSMissingCategories,
 	// and the count of flagged variables under DetailSPSSDistinct.
 	PULSE_SPSS_CATEGORICAL_USER_MISSING Code = "PULSE_SPSS_CATEGORICAL_USER_MISSING"
+
+	// PULSE_SPSS_MR_SET_NOT_DERIVED indicates an SPSS multiple-DICHOTOMY
+	// response set could not be given the derived `set_*` convenience
+	// column the mapping normally emits for one, and names why.
+	//
+	// It is a WARNING and never blocks an import, and that is a property
+	// of the mapping rather than a tolerance: the derived column is
+	// additive. Every constituent variable of the set is imported as its
+	// own ordinary column whether or not the set derives, so a set that
+	// does not derive costs ergonomics and never fidelity — there is
+	// nothing to lose by carrying on, and refusing the file would throw
+	// away data to protect a convenience.
+	//
+	// The reasons are all statements about what a Pulse `set_*` column
+	// can hold: more than the 64 constituents a set_u64 bitmask has bits
+	// for; a member variable no record type 2 declares; the same variable
+	// named twice, which would need one bit to be two; a counted value
+	// that will not compare against a numeric member; or a constituent
+	// whose Pulse field name cannot survive as a set dictionary entry —
+	// one containing the set-token delimiter "|", or one that IS a null
+	// sentinel token ("NA", "N/A", "NULL"), either of which would make
+	// the cell text ambiguous on the shared import path.
+	//
+	// Details name the set under DetailSPSSSet (including its leading
+	// '$'), the member count under DetailSPSSDistinct, and, where one
+	// member is at fault, that member under DetailSPSSVariable.
+	PULSE_SPSS_MR_SET_NOT_DERIVED Code = "PULSE_SPSS_MR_SET_NOT_DERIVED"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -1716,6 +1743,20 @@ const (
 	// which holds the SPSS CODES — so this is the value to exclude and
 	// not the label to read.
 	DetailSPSSMissingCategories = "missing_categories"
+
+	// DetailSPSSSet is the CodedError.Details key carrying the name of
+	// the SPSS multiple-response set a diagnostic refers to, INCLUDING
+	// its leading '$'.
+	//
+	// The '$' is kept because the set name is the identity of the
+	// definition in the source file and in the metadata sidecar's
+	// multiple_response_sets block. The DERIVED Pulse column drops it —
+	// a leading '$' is not a legal expr-lang identifier, so a field named
+	// "$media" would be unreachable from ATTR_FORMULA — and that name
+	// travels under DetailSPSSDerived instead. Reporting only one of the
+	// two would leave a reader unable to connect the column to its
+	// declaration.
+	DetailSPSSSet = "response_set"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1923,6 +1964,7 @@ var allCodes = []Code{
 	PULSE_SPSS_DERIVED_NAME_COLLISION,
 	PULSE_SPSS_MISSING_MODE_INVALID,
 	PULSE_SPSS_CATEGORICAL_USER_MISSING,
+	PULSE_SPSS_MR_SET_NOT_DERIVED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

@@ -4959,7 +4959,7 @@
         ]
       }
     ],
-    "error_codes_count": 196,
+    "error_codes_count": 197,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5124,6 +5124,7 @@
       "PULSE_SPSS_MAGIC_FLAG_MISMATCH",
       "PULSE_SPSS_MEASURE_LEVEL_MISMATCH",
       "PULSE_SPSS_MISSING_MODE_INVALID",
+      "PULSE_SPSS_MR_SET_NOT_DERIVED",
       "PULSE_SPSS_NULL_TOKEN_COLLISION",
       "PULSE_SPSS_TEMPORAL_PRECISION",
       "PULSE_SPSS_VALUE_COLLISION",
@@ -9384,4 +9385,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 60a0e43aa811c44b05182328a9b614bf8175289b09ffb207b5270c413d8a21df
+// golden-hash: 061f29662685b615d5dce476c8320b74c9e33bb28bca492f87b4ccb93b92f5dd

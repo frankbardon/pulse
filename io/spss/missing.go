@@ -472,11 +472,24 @@ func numericLabelIndex(labels []valueLabel, plan *dataPlan) map[string]string {
 // Nothing else may derive the layout independently — two derivations
 // that disagree would put a cell under the wrong field name.
 type outputSlot struct {
-	// col is the index into dictionary.vars and mapping.cols.
+	// col is the index into dictionary.vars and mapping.cols. It is -1 on
+	// a derived multiple-dichotomy set slot, which belongs to no single
+	// variable — every consumer that indexes by it must test mrSet first,
+	// and -1 rather than 0 is what makes forgetting to a panic instead of
+	// a silently wrong column.
 	col int
 
 	// sibling reports that this slot is the generated reason column.
 	sibling bool
+
+	// mrSet reports that this slot is a derived multiple-dichotomy set_*
+	// convenience column, indexed by mrIndex rather than by col. See
+	// mrset.go for why such a column is additive.
+	mrSet bool
+
+	// mrIndex is the index into mapping.mrSets / dataPlan.mrSets.
+	// Meaningful only when mrSet is set.
+	mrIndex int
 
 	// name is the Pulse field name of the slot.
 	name string
@@ -494,7 +507,7 @@ type outputSlot struct {
 // A sibling is placed immediately after the variable it belongs to rather
 // than in a block at the end, so a cohort's columns read in the order a
 // person thinks about them.
-func planOutputs(d *dictionary, opts mappingOptions) ([]outputSlot, error) {
+func planOutputs(d *dictionary, opts mappingOptions) ([]outputSlot, []*mrSetColumn, []*errors.CodedError, error) {
 	labels := valueLabelsByVariable(d)
 
 	// SPSS variable names are case-insensitive, so the collision index is
@@ -528,12 +541,74 @@ func planOutputs(d *dictionary, opts mappingOptions) ([]outputSlot, error) {
 		}
 		derived := name + MissingSiblingSuffix
 		if existing, clash := owner[strings.ToUpper(derived)]; clash {
-			return nil, derivedNameCollision(v, derived, existing)
+			return nil, nil, nil, derivedNameCollision(v, derived, existing)
 		}
 		owner[strings.ToUpper(derived)] = derived
 		out = append(out, outputSlot{col: i, sibling: true, name: derived})
 	}
-	return out, nil
+
+	// The derived multiple-dichotomy columns are placed last because they
+	// depend on the layout above: each one sits immediately after the LAST
+	// of its constituents, which is only knowable once every variable and
+	// every reason sibling has a position. The name index is threaded
+	// through so a set column cannot claim a name a variable or a sibling
+	// already holds.
+	sets, warnings := planMRSets(d, owner)
+	return placeMRSets(out, sets), sets, warnings, nil
+}
+
+// placeMRSets splices each derived set column into the layout immediately
+// after the LAST of its constituents.
+//
+// "After the last" rather than "after the first" or "at the end" is the only
+// placement that keeps two properties at once. A summary column must not
+// precede any of the parts it summarises — a reader meeting `media` before
+// `Q1A` would reasonably take the constituents for a decomposition of it
+// rather than the other way round — and the column should stay adjacent to
+// its battery rather than exiled to a block at the end, which is E4-S2's
+// rule for a reason sibling applied to a column with many sources. When the
+// constituents are contiguous, which is the ordinary case, the two rules
+// agree and the whole battery reads as a block followed by its summary.
+//
+// Sets are spliced in definition order, so two sets sharing a last
+// constituent land in the order the file declared them.
+func placeMRSets(out []outputSlot, sets []*mrSetColumn) []outputSlot {
+	if len(sets) == 0 {
+		return out
+	}
+	// after[i] is the set columns to emit once layout slot i has been
+	// emitted. Built by locating each set's last constituent slot.
+	after := make(map[int][]int, len(sets))
+	for si, s := range sets {
+		last := -1
+		for at, slot := range out {
+			if slot.mrSet || slot.col < 0 {
+				continue
+			}
+			for i := range s.elements {
+				if s.elements[i].col == slot.col && at > last {
+					last = at
+				}
+			}
+		}
+		if last < 0 {
+			// Unreachable: planMRSet refuses a set whose members do not
+			// all resolve, and every resolved member has a layout slot.
+			last = len(out) - 1
+		}
+		after[last] = append(after[last], si)
+	}
+
+	placed := make([]outputSlot, 0, len(out)+len(sets))
+	for at, slot := range out {
+		placed = append(placed, slot)
+		for _, si := range after[at] {
+			placed = append(placed, outputSlot{
+				col: -1, mrSet: true, mrIndex: si, name: sets[si].name,
+			})
+		}
+	}
+	return placed
 }
 
 // derivedNameCollision is the refusal for a generated column name a real

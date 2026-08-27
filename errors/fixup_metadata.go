@@ -2093,6 +2093,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_MR_SET_NOT_DERIVED: {
+		Message: "An SPSS multiple-DICHOTOMY response set did not get the derived `set_*` convenience column the import normally emits for one. This is informational and the import succeeded: the derived column is ADDITIVE, so every constituent variable of the set was imported as its own ordinary column either way. What is lost is ergonomics — FILTER_SET and GROUP_SET_PER_ELEMENT over one column — never data. The reason is one of: the set names more than 64 constituents (a set_u64 bitmask has 64 bits); it names a variable no record type 2 declares; it names the same variable twice, which would need one bit to be two; its counted value will not compare against a numeric member; or a constituent's Pulse field name contains the set-token delimiter `|` or IS a null sentinel token (`NA`, `N/A`, `NULL`), either of which would make the derived cell ambiguous. Details name the set under `response_set`, the member count under `distinct`, and any single offending member under `variable`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Groupers"},
+				Hint:   "Work from the constituents, which are all present. Each is an ordinary column, so GROUP_CATEGORY / AGG_FREQUENCY per constituent gives the same per-option counts a GROUP_SET_PER_ELEMENT fan-out over the derived column would have, one request slot per option instead of one.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "For an over-64 set, split it in SPSS (MRSETS /MDGROUP) into sub-sets of 64 or fewer constituents and re-save; each sub-set then derives its own set_* column. For a name that collides with the `|` delimiter or a null token, RENAME VARIABLES on the offending constituent and re-save.",
+			},
+		},
+	},
 	PULSE_SPSS_EXPORT_UNSUPPORTED: {
 		Message: "SPSS was requested as an OUTPUT format, but Pulse reads .sav / .zsav and does not yet write them: the reader is registered and the writer is not. The extension is recognised — that is why this is a specific error rather than an unknown-format one — so `pulse convert survey.sav out.csv` works while `pulse convert data.csv out.sav` stops here.",
 		Fixups: []Fixup{

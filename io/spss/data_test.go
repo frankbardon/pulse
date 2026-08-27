@@ -99,17 +99,33 @@ func TestReadHeader_PrefersTheLongName(t *testing.T) {
 	// ID and NAME declare long names in the extension fixture; SEX does
 	// not, so it falls back to its short name — the mixed case is the
 	// point.
-	want := []string{"RespondentId", "SEX", "FullName"}
+	//
+	// The extension fixture also declares two multiple-DICHOTOMY response
+	// sets over those same variables, so each contributes a derived
+	// `set_*` column after the last of its constituents (SEX for both).
+	// They are ADDITIVE: RespondentId, SEX and FullName are all still
+	// here, in order, which is the property E4-S4 exists to hold. The
+	// fixture's multiple-CATEGORY set contributes nothing.
+	want := []string{"RespondentId", "SEX", "media", "ext", "FullName"}
+	if len(cols) != len(want) {
+		t.Fatalf("ReadHeader = %q, want %q", cols, want)
+	}
 	for i := range want {
 		if cols[i] != want[i] {
 			t.Errorf("column %d = %q, want %q", i, cols[i], want[i])
 		}
 	}
 
-	// The data section is untouched by the extension records.
+	// The data section is untouched by the extension records; the two
+	// derived cells are a second reading of RespondentId and SEX, whose
+	// own columns are unchanged beside them. Case 1's SEX is
+	// system-missing, so it contributes no bit and no evidence the row was
+	// answered — $ext is over SEX alone, so that row's $ext cell is the
+	// empty string and imports as null, while $media still sees
+	// RespondentId present and not counted, which is an EMPTY MASK.
 	assertRows(t, readAll(t, r), [][]string{
-		{"1", "1", "ALICE"},
-		{"2", "", "BOB"},
+		{"1", "1", "RespondentId|SEX", "SEX", "ALICE"},
+		{"2", "", setEmptySelection, "", "BOB"},
 	})
 }
 

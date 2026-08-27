@@ -163,6 +163,13 @@ type dataPlan struct {
 	// a test working unchanged.
 	out []outputSlot
 
+	// mrSets are the derived multiple-dichotomy set_* columns, indexed by
+	// outputSlot.mrIndex. Like a reason sibling, such a column has no
+	// storage of its own: it is a second reading of its constituents'
+	// bytes, which stay in the cohort under their own field names. See
+	// mrset.go.
+	mrSets []*mrSetColumn
+
 	// stride is the byte width of one case: elementCount * 8.
 	stride int
 
@@ -288,6 +295,14 @@ func buildDataPlan(d *dictionary) (*dataPlan, error) {
 // could tell from data. See charset.go.
 func (p *dataPlan) decodeCase(c []byte, row []string) *errors.CodedError {
 	for i, slot := range p.layout() {
+		if slot.mrSet {
+			cell, err := p.renderMRSet(p.mrSets[slot.mrIndex], c)
+			if err != nil {
+				return err
+			}
+			row[i] = cell
+			continue
+		}
 		col := &p.cols[slot.col]
 		if slot.sibling {
 			row[i] = p.missingReason(col, c)
@@ -519,7 +534,16 @@ func trimStringDatum(b []byte) []byte {
 // user-missing values contributes a second, GENERATED column immediately
 // after its own — `<var>_missing`, carrying why each value is missing —
 // unless the reader was built with spss.WithMissingMode(spss.MissingNull).
-// See missing.go.
+// See missing.go. A multiple-DICHOTOMY response set contributes one more,
+// a `set_*` convenience column named after the set (without its leading
+// '$') placed after the last of its constituents — which are all still
+// here, because that column is additive. See mrset.go.
+//
+// The set-planning warnings this call raises are discarded: they are
+// memoised with the mapping, which raises the same ones, and Warnings
+// reads them from there. A header read is not where a diagnostic about
+// the mapping should first appear, and appending them here would double
+// them for any caller that reads the header and then the rows.
 func (r *Reader) ReadHeader() ([]string, error) {
 	d, err := r.loadDictionary()
 	if err != nil {
@@ -535,7 +559,7 @@ func (r *Reader) ReadHeader() ([]string, error) {
 	// guarantees the names returned here are the fields those two
 	// declare — a second derivation would silently disagree the first
 	// time the two rules drifted.
-	slots, err := planOutputs(d, r.opts)
+	slots, _, _, err := planOutputs(d, r.opts)
 	if err != nil {
 		return nil, err
 	}

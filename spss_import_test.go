@@ -582,3 +582,175 @@ func TestSPSS_CategoricalMissingCodesAreExcludable(t *testing.T) {
 		t.Error("excluding by the LABEL succeeded; the cohort dictionary holds SPSS codes, so this must be a loud PROCESSING_CONFIG rather than a no-op filter")
 	}
 }
+
+// TestSPSS_MultipleDichotomySetIsQueryableAndAdditive is E4-S4's acceptance
+// criterion taken to the artefact an analyst actually holds.
+//
+// The claim is deliberately two-sided and both sides are checked against one
+// imported cohort. The ERGONOMICS side is that FILTER_SET_* and
+// GROUP_SET_PER_ELEMENT work over the derived column, which is the whole
+// reason it is worth its schema width — asserting that the column exists
+// would not have proved it. The FIDELITY side is that the constituent
+// variables are still ordinary columns beside it and still separate "not
+// selected" from "not asked", which a bitmask cannot do and which a
+// destructive collapse would have silently thrown away.
+func TestSPSS_MultipleDichotomySetIsQueryableAndAdditive(t *testing.T) {
+	afs := afero.NewMemMapFs()
+	num := spsstest.Format{Type: spsstest.FormatF, Width: 1}
+	spec := spsstest.Spec{
+		Vars: []spsstest.Var{
+			{Name: "RESPID", Print: spsstest.Format{Type: spsstest.FormatF, Width: 8}},
+			{Name: "Q1A", Label: "Newspaper", Print: num},
+			{Name: "Q1B", Label: "Radio", Print: num},
+			{Name: "Q1C", Label: "TV", Print: num},
+		},
+		Cases: [][]spsstest.Value{
+			// Newspaper + TV.
+			{spsstest.Num(1), spsstest.Num(1), spsstest.Num(0), spsstest.Num(1)},
+			// TV only; Radio was never asked.
+			{spsstest.Num(2), spsstest.Num(0), spsstest.SysMis(), spsstest.Num(1)},
+			// Answered the battery, picked nothing.
+			{spsstest.Num(3), spsstest.Num(0), spsstest.Num(0), spsstest.Num(0)},
+			// Skipped the whole battery.
+			{spsstest.Num(4), spsstest.SysMis(), spsstest.SysMis(), spsstest.SysMis()},
+		},
+		MultipleResponseSets: []spsstest.MRSet{{
+			Name: "$media", Kind: spsstest.MRDichotomy, Label: "Media used",
+			CountedValue: "1", Vars: []string{"Q1A", "Q1B", "Q1C"},
+			Subtype: spsstest.SubtypeMRSets,
+		}},
+	}
+	seedSav(t, afs, "survey.sav", spec)
+
+	p, err := New(Options{FS: afs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+	res, err := p.ImportFile(ctx, ImportSpec{SourcePath: "survey.sav"})
+	if err != nil {
+		t.Fatalf("ImportFile: %v", err)
+	}
+
+	// The cohort is one column wider than the source dictionary, not three
+	// narrower. That difference IS the design decision.
+	info, err := p.Inspect(ctx, res.Path)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	types_ := map[string]string{}
+	for _, f := range info.Fields {
+		types_[f.Name] = f.Type
+	}
+	for _, name := range []string{"RESPID", "Q1A", "Q1B", "Q1C", "media"} {
+		if _, ok := types_[name]; !ok {
+			t.Fatalf("cohort has no field %q; fields = %v", name, types_)
+		}
+	}
+	if types_["media"] != "set_u8" {
+		t.Errorf("media type = %q, want set_u8", types_["media"])
+	}
+	for _, name := range []string{"Q1A", "Q1B", "Q1C"} {
+		if types_[name] != "f64" {
+			t.Errorf("constituent %q type = %q, want f64 — the derived column is additive, so its sources are untouched", name, types_[name])
+		}
+	}
+
+	count := func(t *testing.T, filterers []*types.Filterer) float64 {
+		t.Helper()
+		resp, err := p.Process(ctx, &Request{
+			Cohort:       &types.Cohort{Filename: res.Path},
+			Filterers:    filterers,
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "RESPID", Label: "n"}},
+		})
+		if err != nil {
+			t.Fatalf("Process: %v", err)
+		}
+		if len(resp.Data) != 1 {
+			t.Fatalf("Process returned %d row(s), want 1", len(resp.Data))
+		}
+		n, ok := resp.Data[0]["n"].(float64)
+		if !ok {
+			t.Fatalf("n = %#v, want a float64", resp.Data[0]["n"])
+		}
+		return n
+	}
+
+	// FILTER_SET over the derived column, naming elements by the
+	// dictionary entries — which are the constituent field names.
+	if got := count(t, nil); got != 4 {
+		t.Fatalf("unfiltered n = %v, want 4", got)
+	}
+	if got := count(t, []*types.Filterer{{
+		Type: types.FILTER_SET_CONTAINS_ANY, Field: "media", Values: []string{"Q1C"},
+	}}); got != 2 {
+		t.Errorf("CONTAINS_ANY[Q1C] n = %v, want 2 — respondents 1 and 2 picked TV", got)
+	}
+	if got := count(t, []*types.Filterer{{
+		Type: types.FILTER_SET_CONTAINS_ALL, Field: "media", Values: []string{"Q1A", "Q1C"},
+	}}); got != 1 {
+		t.Errorf("CONTAINS_ALL[Q1A,Q1C] n = %v, want 1 — only respondent 1 picked both", got)
+	}
+	// Nobody selected Radio, so its bit is clear on every row.
+	if got := count(t, []*types.Filterer{{
+		Type: types.FILTER_SET_CONTAINS_ANY, Field: "media", Values: []string{"Q1B"},
+	}}); got != 0 {
+		t.Errorf("CONTAINS_ANY[Q1B] n = %v, want 0 — nobody selected Radio", got)
+	}
+
+	// And the state the shared import path could not have carried in an
+	// empty cell: FILTER_SET_EQUALS with no values is the zero mask, and
+	// it keeps exactly the respondent who answered the battery and picked
+	// nothing. Respondent 4, who skipped it entirely, is NULL and is
+	// dropped — which is the distinction setEmptySelection exists for.
+	if got := count(t, []*types.Filterer{{
+		Type: types.FILTER_SET_EQUALS, Field: "media",
+	}}); got != 1 {
+		t.Errorf("EQUALS[] n = %v, want 1 — an empty mask is a real \"selected nothing\" answer and is not null", got)
+	}
+
+	// GROUP_SET_PER_ELEMENT fans each row out over its selected elements.
+	// This is the per-option base an MD battery exists to produce, and
+	// before the derived column it took one request slot per option.
+	resp, err := p.Process(ctx, &Request{
+		Cohort: &types.Cohort{Filename: res.Path},
+		Groups: []*types.Group{{
+			Type: types.GROUP_SET_PER_ELEMENT, Field: "media",
+		}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "RESPID", Label: "n"}},
+	})
+	if err != nil {
+		t.Fatalf("Process (GROUP_SET_PER_ELEMENT): %v", err)
+	}
+	got := map[string]float64{}
+	for _, row := range resp.Data {
+		key, _ := row["media"].(string)
+		n, _ := row["n"].(float64)
+		got[key] = n
+	}
+	for label, want := range map[string]float64{"Q1A": 1, "Q1C": 2} {
+		if got[label] != want {
+			t.Errorf("GROUP_SET_PER_ELEMENT bucket %q = %v, want %v (rows = %v)", label, got[label], want, resp.Data)
+		}
+	}
+
+	// And now the fidelity half, over the SAME cohort. Respondents 2 and 3
+	// are indistinguishable on Radio through the mask — neither selected it
+	// — but they differ in why, and the retained constituent says which is
+	// which. This is what a destructive collapse would have destroyed.
+	radio, err := p.Process(ctx, &Request{
+		Cohort: &types.Cohort{Filename: res.Path},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "Q1B", Label: "answered"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Process (Q1B): %v", err)
+	}
+	// Two of the four respondents were ASKED about Radio (respondents 1
+	// and 3); the other two were not, and are null in the constituent.
+	// AGG_COUNT counts non-null values.
+	if n, _ := radio.Data[0]["answered"].(float64); n != 2 {
+		t.Errorf("Q1B answered = %v, want 2 — the constituent must still separate \"asked and declined\" from \"never asked\", which the mask cannot", n)
+	}
+}

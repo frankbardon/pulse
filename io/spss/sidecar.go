@@ -685,17 +685,46 @@ type Category struct {
 // columns). An export drops derived columns and reconstructs the source
 // from the real ones, so it needs to know which is which without
 // pattern-matching on names.
+//
+// The two kinds need different amounts of help, and the difference is
+// which of them is the only home for what it holds. A `<var>_missing`
+// sibling is: its Reasons dictionary is the sole record of which SPSS
+// state each ID stands for, so the fold reads it. A multiple-dichotomy
+// set column is not: every value it shows is already in the cohort under
+// its constituents' own names, so the fold simply drops it, and Sources
+// plus SetName are enough to say what it was.
 type Derived struct {
 	// Name is the derived Pulse field name.
 	Name string `json:"name"`
 
 	// Kind says what derived it. E4-S2/S3/S4 own the vocabulary; the
 	// values this package emits are named constants —
-	// [DerivedKindNumericMissing] today.
+	// [DerivedKindNumericMissing] and [DerivedKindMultipleDichotomy].
 	Kind string `json:"kind"`
+
+	// SetName is the SPSS multiple-response set this column was derived
+	// from, INCLUDING its leading '$'. Non-empty only for
+	// [DerivedKindMultipleDichotomy].
+	//
+	// It is recorded rather than reconstructed from Name because the
+	// derivation drops the '$' — a leading sigil is not a legal
+	// expr-lang identifier, so a field named "$media" would be
+	// unreachable from ATTR_FORMULA — and because this is the key into
+	// the payload's MultipleResponseSets block, where the counted value
+	// and the set label live.
+	//
+	// Additive and `omitempty`: a document over a file with no derivable
+	// response set is byte-identical to the shape before the slot
+	// existed, and SidecarFormatVersion is unchanged.
+	SetName string `json:"set_name,omitempty"`
 
 	// Sources names the source variables it was derived FROM, by Pulse
 	// field name.
+	//
+	// For [DerivedKindMultipleDichotomy] the ORDER is load-bearing: it is
+	// bit order, so bit i of the mask and dictionary entry i are
+	// Sources[i]. For [DerivedKindNumericMissing] it is the single source
+	// variable.
 	Sources []string `json:"sources,omitempty"`
 
 	// Position is the 0-based column position in the cohort. Derived

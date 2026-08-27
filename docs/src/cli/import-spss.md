@@ -91,6 +91,8 @@ is **always** `null` for an SPSS import — see
 | system-missing (sysmis) | null (bitmap bit) | The one missing state the format has a sentinel for |
 | numeric user-missing values | null, plus a generated `<var>_missing` sibling column | See [Missing values](#missing-values) — the analytic column stays arithmetically clean and the reason is kept beside it |
 | categorical user-missing values (string, or a value-labelled numeric) | ordinary dictionary entries, flagged in the sidecar | See [Categorical user-missing codes](#categorical-user-missing-codes) — the value *is* the label, so nothing is lost and a sibling would be redundant |
+| multiple-**dichotomy** response set (records `7/5`, `7/7`, `7/19`) | every constituent variable **as its own column**, plus an extra `set_u8`/`u16`/`u32`/`u64` convenience column | See [Multiple-response sets](#multiple-response-sets) — the derived column is *additive*, because a bit cannot tell "not selected" from "not asked" |
+| multiple-**category** response set | N separate `categorical_*` columns, definition on the sidecar | Positional and duplicate-tolerant, so it is genuinely not a set |
 
 ## Missing values
 
@@ -192,7 +194,10 @@ registry naming each generated column, its cohort position, its source
 variable and its reason dictionary: reason ID ↔ text ↔ original SPSS code
 ↔ label. That registry is what lets an export drop the derived column and
 write the original codes back, rather than re-deriving the mapping and
-hoping it lands on the same answer.
+hoping it lands on the same answer. It is shared with the other derived
+kind — the multiple-dichotomy `set_*` columns of
+[Multiple-response sets](#multiple-response-sets), which need no reason
+dictionary because nothing they show is absent from the cohort.
 
 ## Categorical user-missing codes
 
@@ -289,6 +294,146 @@ the distinction. Pulse has no equivalent default for categoricals —
 `--spss-missing=null` governs sibling columns only, and a categorical
 column has none — because for a categorical, nulling the code destroys
 the value itself.
+
+## Multiple-response sets
+
+A survey's "select all that apply" question is stored in SPSS as a
+**multiple-response set**: a named definition listing N member variables.
+There are two flavours and they are not equivalent.
+
+- **Multiple dichotomy (MD).** N binary indicator variables. A member
+  holding the declared **counted value** means that option was selected.
+- **Multiple category (MC).** N variables each holding a code from a
+  shared value-label set. Positional, duplicate-tolerant, order-bearing —
+  genuinely N categorical columns and not a set. It imports as exactly
+  that; only its definition rides the sidecar.
+
+This is the one mapping in the whole adapter where SPSS *declares* what
+every other ingest path has to guess. A CSV importer looking at
+`"tv|radio"` runs `io/infer.go`'s delimited-token heuristic and votes; a
+`.sav` states the set outright. And Pulse has a type built for the shape:
+`set_u8`/`u16`/`u32`/`u64`, a fixed-width bitmask over an inline
+dictionary, with `FILTER_SET_*`, `GROUP_SET_PER_ELEMENT` and
+`AGG_SET_FREQUENCY` over it.
+
+### The derived column is additive — that is the whole design
+
+The obvious mapping is to *collapse*: replace the N indicators with one
+bitmask. Pulse does **not** do that, because it is lossy, and not in a
+corner case:
+
+| `Q1B` (Radio) | Means | Bit 1 |
+|---|---|---|
+| `0` | shown the option, did not pick it | clear |
+| `.` (sysmis) | never asked — skipped or filtered past | clear |
+
+Both are the same bit. Item non-response is not a rounding error in
+survey work — it drives weighting and it is reported — and once the
+constituents were gone nothing downstream could recover it.
+
+So an MD set produces **N + 1** columns. Every constituent variable is
+imported as its own ordinary column, with its own null bitmap bit and its
+own `<var>_missing` sibling where it declares one; the derived `set_*`
+column sits beside them, immediately after the **last** of its
+constituents.
+
+```bash
+pulse import spss -i survey.sav -o survey.pulse
+pulse cohort inspect survey.pulse --json
+```
+
+```json
+{
+  "fields": [
+    { "name": "RESPID", "type": "f64" },
+    { "name": "Q1A",    "type": "f64" },
+    { "name": "Q1B",    "type": "f64" },
+    { "name": "Q1C",    "type": "f64" },
+    { "name": "media",  "type": "set_u8",
+      "dictionary": { "values": ["Q1A", "Q1B", "Q1C"] } }
+  ]
+}
+```
+
+The constituents carry the **fidelity**; the derived column carries the
+**ergonomics**. The cost is schema width, which is the only currency the
+trade could have been paid in.
+
+```json
+{ "type": "FILTER_SET_CONTAINS_ANY", "field": "media", "values": ["Q1C"] }
+{ "type": "GROUP_SET_PER_ELEMENT",   "field": "media" }
+```
+
+One request slot for the per-option base, instead of one aggregation per
+option. And when the answer raises a question the mask cannot settle —
+"did the people without Radio decline it, or were they never asked?" —
+`Q1B` is still right there.
+
+### Rules worth knowing
+
+- **The dictionary holds constituent field NAMES**, not option labels.
+  Bit `i` ↔ entry `i` ↔ `Sources[i]` on the sidecar. Field names are
+  unique in a cohort, so the dictionary is injective for free; a variable
+  label may be empty, duplicated or contain a `|`. It also means a bit
+  names the column holding its own fidelity, which is the round trip the
+  additive design exists to make one step. The option labels are each
+  constituent's own `variables[].label` in the sidecar.
+- **The mask uses the DECLARED counted value.** Nothing assumes `1`. A
+  set declaring `2`, or a string set declaring `"YES"`, produces the mask
+  the file describes.
+- **A user-missing code is not a selection.** A refusal on a constituent
+  sets no bit and is not evidence the row was answered.
+- **The `$` is dropped from the field name.** `$media` becomes `media`,
+  because a leading sigil is not a legal expr-lang identifier and a field
+  named `$media` would be unreachable from `ATTR_FORMULA` /
+  `FILTER_EXPRESSION`. The full name is kept on the sidecar as
+  `derived[].set_name` and in `multiple_response_sets[].name`.
+- **Three row states, and the middle one has its own spelling.** A row
+  selecting nothing but having answered the battery is an **empty
+  mask** — a real "none of these" answer, distinct from null. A row whose
+  every constituent is missing is **null**: nothing is known.
+- **Over 64 constituents, no derived column.** A `set_u64` has 64 bits
+  and there is nothing wider. The import emits the constituents and warns
+  `PULSE_SPSS_MR_SET_NOT_DERIVED` naming the set.
+
+### When a set does not derive
+
+Every refusal is a **warning** and the import succeeds, because the
+derived column is additive: a set that does not derive costs ergonomics
+and never data. Failing an otherwise-readable file to protect a
+convenience column would be the wrong trade — which is why the same
+`PULSE_SPSS_DERIVED_NAME_COLLISION` code that is a *hard error* for a
+`<var>_missing` sibling is only a warning here.
+
+| Reason | Code |
+|---|---|
+| more than 64 constituents | `PULSE_SPSS_MR_SET_NOT_DERIVED` |
+| a member no record type 2 declares, or one named twice | `PULSE_SPSS_MR_SET_NOT_DERIVED` |
+| a counted value that will not compare against a numeric member | `PULSE_SPSS_MR_SET_NOT_DERIVED` |
+| a constituent whose name contains `\|` or *is* a null token (`NA`, `N/A`, `NULL`) | `PULSE_SPSS_MR_SET_NOT_DERIVED` |
+| the derived name is one a real variable already holds | `PULSE_SPSS_DERIVED_NAME_COLLISION` |
+
+### On the sidecar
+
+The set definitions ride `payload.multiple_response_sets` verbatim —
+name, kind, label, subtype, member short names, and (dichotomy only)
+`counted_value`. Each derived column gets a `payload.derived` entry of
+kind `multiple_dichotomy` carrying its cohort position, its `set_name`
+and its `sources` **in bit order**.
+
+It needs no reason dictionary, unlike a `<var>_missing` sibling: nothing
+it shows is absent from the cohort, so an export drops the column
+outright and re-emits the constituents.
+
+**Cross-checked against R — and there is nothing to check against.**
+Neither `haven` (ReadStat) nor `foreign::read.spss` exposes
+multiple-response set metadata at all, from subtype `7` or `19`; both
+read a fixture carrying both records cleanly and report only the member
+variables as ordinary columns. So Pulse's reading of record `7/19`'s
+extended `E` grammar rests on the PSPP specification alone. The residual
+risk is bounded by the additive design: a misread definition can only
+mis-derive or fail to derive a *convenience* column, and can never touch
+a constituent.
 
 ## Value labels: the cohort stores codes
 
@@ -690,7 +835,8 @@ intact, so pointing at it would send you to the wrong place.
 | `PULSE_SPSS_ZSAV_BLOCK_CORRUPT` | A ZSAV zlib block that will not inflate, or inflates to the wrong length — names the block — see above |
 | `PULSE_SPSS_DATA_TRUNCATED` | The data section ends mid-case, or a `253` command's value is missing |
 | `PULSE_SPSS_CATEGORICAL_OVERFLOW` | A labelled variable has more distinct codes than `categorical_u32` holds |
-| `PULSE_SPSS_DERIVED_NAME_COLLISION` | A generated `<var>_missing` column has the same name as a real variable — names both sides — see [Missing values](#missing-values) |
+| `PULSE_SPSS_DERIVED_NAME_COLLISION` | A generated column has the same name as a real variable — names both sides. A **hard error** for a `<var>_missing` sibling (see [Missing values](#missing-values)); a **warning** for a multiple-dichotomy `set_*` column, which is additive (see [Multiple-response sets](#multiple-response-sets)) |
+| `PULSE_SPSS_MR_SET_NOT_DERIVED` | A multiple-dichotomy set got no `set_*` convenience column — names the set and why. Warning only: every constituent is imported regardless — see [Multiple-response sets](#multiple-response-sets) |
 | `PULSE_SPSS_MISSING_MODE_INVALID` | `--spss-missing` was given a value other than `auto` or `null` |
 | `PULSE_SPSS_CATEGORICAL_USER_MISSING` | Informational: one or more categorical columns carry user-missing codes as ordinary dictionary entries — one diagnostic per file, naming every flagged variable and entry under `details.missing_categories` — see [Categorical user-missing codes](#categorical-user-missing-codes) |
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` | The declared character encoding resolves to no decoder — see [Character encoding](#character-encoding) |

@@ -351,6 +351,16 @@ type mapping struct {
 	// cell under the wrong field name the first time the two disagreed.
 	out []outputSlot
 
+	// mrSets are the derived multiple-DICHOTOMY set_* convenience
+	// columns, in definition order. Each is ADDITIVE: its constituent
+	// variables are all present in cols and out as ordinary columns, and
+	// they — not this column — are what carries the "not selected" vs.
+	// "not asked" distinction a bitmask cannot hold. See mrset.go.
+	//
+	// out is what says WHERE each one sits; this slice is what mrIndex
+	// indexes.
+	mrSets []*mrSetColumn
+
 	// plan carries the per-case geometry with each column's resolved
 	// kind applied, so decoding and mapping can never disagree about
 	// how a cell renders.
@@ -466,7 +476,7 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 	// where a generated sibling name colliding with a real variable is
 	// refused, which is a whole-file fault and should not wait until
 	// after the data has been walked.
-	out, err := planOutputs(d, opts)
+	out, sets, setWarnings, err := planOutputs(d, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -476,7 +486,7 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 	// the categorical widths and the temporal widening rules, and a
 	// refusal code counted as an ordinary datum corrupts all three.
 	for _, slot := range out {
-		if slot.sibling || kinds[slot.col] == kindCategorical {
+		if slot.sibling || slot.mrSet || kinds[slot.col] == kindCategorical {
 			continue
 		}
 		plan.cols[slot.col].missing = compileMissingTest(d.vars[slot.col])
@@ -488,7 +498,8 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 	}
 
 	m := &mapping{plan: plan, cases: cases, body: body, charset: d.charset,
-		out: out, cols: make([]columnMapping, len(d.vars))}
+		out: out, mrSets: sets, warnings: setWarnings,
+		cols: make([]columnMapping, len(d.vars))}
 	for i, v := range d.vars {
 		col, err := m.resolveColumn(i, v, kinds[i], labels[i], &stats[i], opts)
 		if err != nil {
@@ -522,6 +533,16 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 		plan.cols[slot.col].sibling = sib
 	}
 	plan.out = out
+	plan.mrSets = sets
+
+	// The derived set columns' nullability is the LAST thing resolved,
+	// because it is the one fact about them that the dictionary cannot
+	// state: a set cell is null only where every constituent of that one
+	// case was missing, which no per-column statistic can answer. See
+	// scanMRSetNulls.
+	if err := scanMRSetNulls(plan, sets, body, cases); err != nil {
+		return nil, err
+	}
 	return m, nil
 }
 
@@ -1123,6 +1144,26 @@ func (m *mapping) schema() *encoding.Schema {
 	fields := make([]encoding.Field, len(m.out))
 	offset := 0
 	for i, slot := range m.out {
+		if slot.mrSet {
+			set := m.mrSets[slot.mrIndex]
+			f := encoding.Field{
+				Name:         set.name,
+				Type:         set.fieldType,
+				Nullable:     set.nullable,
+				ByteOffset:   offset,
+				CsvColumnIdx: i,
+				Description:  set.description(),
+			}
+			dict := encoding.NewDictionary()
+			for _, v := range set.values() {
+				_, _ = dict.Add(v)
+			}
+			f.Dictionary = dict
+			fields[i] = f
+			offset += set.fieldType.ByteSize()
+			continue
+		}
+
 		c := &m.cols[slot.col]
 
 		name, ft, nullable, description := c.name, c.fieldType, c.nullable, c.description

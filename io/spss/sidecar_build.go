@@ -260,7 +260,7 @@ func cohortPositions(d *dictionary, m *mapping) []int {
 		return pos
 	}
 	for at, slot := range m.out {
-		if !slot.sibling && slot.col < len(pos) {
+		if !slot.sibling && !slot.mrSet && slot.col >= 0 && slot.col < len(pos) {
 			pos[slot.col] = at
 		}
 	}
@@ -275,13 +275,33 @@ func cohortPositions(d *dictionary, m *mapping) []int {
 // ID and finds the SPSS state it stands for, rather than re-deriving the
 // mapping from the missing specification and the value labels and hoping
 // it lands on the same answer this import did.
+//
+// A multiple-dichotomy set column needs no such dictionary, and the
+// asymmetry is the difference between the two derived kinds. A reason
+// sibling is the ONLY home for what it holds, so it has to carry enough
+// to be folded back. A set column holds nothing its sources do not: its
+// Sources are real cohort columns, in BIT order — bit i is Sources[i] —
+// so an export drops the column outright and re-emits the constituents.
+// SetName ties it back to the payload's multiple_response_sets entry,
+// which is where the counted value and the set label live.
 func buildDerived(m *mapping) []Derived {
 	if m == nil {
 		return nil
 	}
 	var out []Derived
 	for at, slot := range m.out {
-		if !slot.sibling || slot.col >= len(m.cols) {
+		if slot.mrSet {
+			set := m.mrSets[slot.mrIndex]
+			out = append(out, Derived{
+				Name:     set.name,
+				Kind:     DerivedKindMultipleDichotomy,
+				SetName:  set.setName,
+				Sources:  set.sources(),
+				Position: at,
+			})
+			continue
+		}
+		if !slot.sibling || slot.col < 0 || slot.col >= len(m.cols) {
 			continue
 		}
 		sib := m.cols[slot.col].sibling

@@ -784,11 +784,43 @@ func TestSidecar_CoversTheDictionaryElementsPulseCannotHold(t *testing.T) {
 		}
 	})
 
-	t.Run("derived registry slot is reserved and empty", func(t *testing.T) {
-		// E4-S1 derives nothing. The slot exists so E4-S2..S4 add
-		// entries rather than restructure the document.
-		if len(p.Derived) != 0 {
-			t.Errorf("derived = %v, want empty at E4-S1", p.Derived)
+	t.Run("derived registry records the multiple-dichotomy set column", func(t *testing.T) {
+		// The slot E4-S1 reserved, now populated. No variable in this
+		// fixture declares user-missing values, so the ONLY derived
+		// column is E4-S4's `set_*` convenience column for $brands —
+		// which is additive, so MD1 and MD2 are still their own
+		// variables above.
+		if len(p.Derived) != 1 {
+			t.Fatalf("derived = %v, want exactly the $brands set column", p.Derived)
+		}
+		d := p.Derived[0]
+		if d.Name != "brands" {
+			t.Errorf("derived name = %q, want %q (the set name with its '$' dropped)", d.Name, "brands")
+		}
+		if d.Kind != DerivedKindMultipleDichotomy {
+			t.Errorf("derived kind = %q, want %q", d.Kind, DerivedKindMultipleDichotomy)
+		}
+		if d.SetName != "$brands" {
+			t.Errorf("derived set_name = %q, want %q — the '$' is the identity of the definition", d.SetName, "$brands")
+		}
+		// Bit order: bit i is Sources[i].
+		if len(d.Sources) != 2 || d.Sources[0] != "MD1" || d.Sources[1] != "MD2" {
+			t.Errorf("derived sources = %v, want [MD1 MD2] in bit order", d.Sources)
+		}
+		// Placed after the LAST constituent, which is cohort position 4.
+		if d.Position != 5 {
+			t.Errorf("derived position = %d, want 5 (immediately after MD2)", d.Position)
+		}
+		// A set column needs no Reasons dictionary: everything it shows
+		// is already in its constituents.
+		if len(d.Reasons) != 0 {
+			t.Errorf("derived reasons = %v, want none for a set column", d.Reasons)
+		}
+		// The MC set contributes nothing derived — E4-S5 owns MC.
+		for _, e := range p.Derived {
+			if e.SetName == "$ranks" {
+				t.Errorf("a multiple-CATEGORY set derived a column: %+v", e)
+			}
 		}
 	})
 }
