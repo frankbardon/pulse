@@ -50,9 +50,9 @@ func buildSource(d *dictionary, m *mapping) Source {
 	// Identity against the stdlib constant the parser itself assigned,
 	// not a string comparison on String(), which is not a documented
 	// contract of binary.ByteOrder.
-	order := "little"
+	order := SourceByteOrderLittle
 	if d.byteOrder == binary.ByteOrder(binary.BigEndian) {
-		order = "big"
+		order = SourceByteOrderBig
 	}
 
 	declared := int64(d.header.caseCount)

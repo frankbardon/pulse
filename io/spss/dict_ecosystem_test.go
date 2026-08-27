@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -527,4 +528,192 @@ cat(h, "\n", g, "\n", sep="")
 			t.Errorf("%s reported\n  %q\nwant\n  %q", strings.TrimSuffix(prefix, "|"), line, want)
 		}
 	}
+}
+
+// TestRoundTrippedFile_ReadsIdenticallyInReadStatAndForeign is the strongest
+// check this effort can be given, and it is the E5-S7 acceptance criterion
+// pointed at something that is not us.
+//
+// Every round-trip assertion in roundtrip_test.go compares OUR reader against
+// OUR writer. A misreading shared by both halves passes all of them: a
+// dictionary emitted one element to the left, a value label bound to the
+// wrong variable, a missing specification whose sign was dropped — each would
+// come back through our own reader exactly as it went in, and the cohorts
+// would match.
+//
+// So the round-tripped artefact is handed to ReadStat (via R's haven) and to
+// the independent implementation in R's foreign, and what each reader sees in
+// the SOURCE file is compared against what the same reader sees in the file
+// that has been through the whole import -> export -> import -> export cycle.
+// Neither reader shares any code with anything here, and neither is told what
+// to expect: the expectation is the reader's OWN reading of the source.
+//
+// The file under test is the second export — the fixed point — rather than
+// the first, because a cycle that drifted would drift furthest there.
+//
+// Recorded result at E5-S7: haven 2.5.5 and foreign 0.8.91 each report an
+// identical rendering of the source and of the round-tripped file across all
+// 17 variables of the kitchen-sink fixture, including the numeric
+// user-missing codes and their na_values declarations, the na_range on the
+// range-specified variables, the value labels (including the ones declared
+// only on user-missing codes), the categorical codes, the DATE and DATETIME
+// instants, the MOYR raw seconds, the 600-byte very long string and the
+// re-padded short string.
+func TestRoundTrippedFile_ReadsIdenticallyInReadStatAndForeign(t *testing.T) {
+	bin := rEnvironment(t)
+
+	// Both byte orders. The big-endian arm is not decoration: a numeric
+	// missing-value slot is a flt64 in the SOURCE file's order and the
+	// emitted file is always little-endian, so a verbatim re-emission is
+	// the one fidelity loss in this matrix that OUR reader cannot see —
+	// it would regenerate the same reason column either way. ReadStat
+	// reports it as an na_values list of subnormals.
+	for _, order := range []struct {
+		name string
+		spec spsstest.Spec
+	}{
+		{"little-endian", kitchenSinkSpec()},
+		{"big-endian", bigEndian(kitchenSinkSpec())},
+	} {
+		t.Run(order.name, func(t *testing.T) {
+			roundTripThroughR(t, bin, order.spec)
+		})
+	}
+}
+
+// roundTripThroughR runs one fixture through the whole cycle and asks both
+// R readers whether the artefact reads the same as the source.
+func roundTripThroughR(t *testing.T, bin string, spec spsstest.Spec) {
+	t.Helper()
+
+	c := runCycle(t, spec, WriterOptions{})
+
+	dir := t.TempDir()
+	write := func(name string, data []byte) string {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			t.Fatalf("writing %s: %v", path, err)
+		}
+		return path
+	}
+	source := write("source.sav", c.source)
+	round := write("round.sav", c.again)
+
+	// Both files are rendered to one canonical string per reader, by a
+	// function that walks EVERY column rather than a hand-picked list: a
+	// comparison that named its columns would be silent about a variable
+	// that changed shape, which is one of the things this is here to catch.
+	//
+	// The renders are emitted rather than compared on the R side so a
+	// mismatch reports WHERE it differs. `foreign` is asked with
+	// use.missings=FALSE so it hands back the stored code rather than NA,
+	// which is the value under test.
+	script := `
+render_haven <- function(f) {
+  d <- haven::read_sav(f, user_na=TRUE)
+  parts <- paste0("names=", paste(names(d), collapse=","))
+  for (nm in names(d)) {
+    v <- d[[nm]]
+    if (is.character(v)) {
+      parts <- c(parts, paste0(nm, "=", paste(trimws(v), collapse="|")))
+    } else {
+      raw <- as.numeric(unclass(v))
+      parts <- c(parts, paste0(nm, "=", paste(ifelse(is.na(raw), "NA", sprintf("%.6f", raw)), collapse="|")))
+    }
+    labs <- attr(v, "labels")
+    if (!is.null(labs) && length(labs) > 0) {
+      o <- order(as.character(labs), names(labs))
+      parts <- c(parts, paste0(nm, "#", paste(paste0(as.character(labs)[o], ":", names(labs)[o]), collapse="|")))
+    }
+    nav <- attr(v, "na_values")
+    if (!is.null(nav) && length(nav) > 0) parts <- c(parts, paste0(nm, "!", paste(sort(as.character(nav)), collapse="|")))
+    nar <- attr(v, "na_range")
+    if (!is.null(nar) && length(nar) > 0) parts <- c(parts, paste0(nm, "~", paste(as.character(nar), collapse="|")))
+  }
+  paste(parts, collapse=";")
+}
+render_foreign <- function(f) {
+  d <- suppressWarnings(foreign::read.spss(f, to.data.frame=FALSE,
+                                           use.value.labels=FALSE, use.missings=FALSE))
+  parts <- paste0("names=", paste(names(d), collapse=","))
+  for (nm in names(d)) {
+    v <- d[[nm]]
+    if (is.character(v)) {
+      parts <- c(parts, paste0(nm, "=", paste(trimws(v), collapse="|")))
+    } else {
+      raw <- as.numeric(v)
+      parts <- c(parts, paste0(nm, "=", paste(ifelse(is.na(raw), "NA", sprintf("%.6f", raw)), collapse="|")))
+    }
+  }
+  lt <- attr(d, "label.table")
+  for (nm in sort(names(lt))) {
+    tab <- lt[[nm]]
+    if (is.null(tab) || length(tab) == 0) next
+    o <- order(as.character(tab), names(tab))
+    parts <- c(parts, paste0(nm, "#", paste(paste0(as.character(tab)[o], ":", names(tab)[o]), collapse="|")))
+  }
+  ms <- attr(d, "missings")
+  for (nm in sort(names(ms))) {
+    m <- ms[[nm]]
+    if (is.null(m) || m$type == "none") next
+    parts <- c(parts, paste0(nm, "!", m$type, ":", paste(as.character(m$value), collapse="|")))
+  }
+  paste(parts, collapse=";")
+}
+emit <- function(tag, fn, f) {
+  cat(tag, tryCatch(fn(f), error=function(e) paste("FAIL:", conditionMessage(e))), "\n", sep="")
+}
+emit("HAVEN-SOURCE|",   render_haven,   Sys.getenv("PULSE_SAV_SOURCE"))
+emit("HAVEN-ROUND|",    render_haven,   Sys.getenv("PULSE_SAV_ROUND"))
+emit("FOREIGN-SOURCE|", render_foreign, Sys.getenv("PULSE_SAV_SOURCE"))
+emit("FOREIGN-ROUND|",  render_foreign, Sys.getenv("PULSE_SAV_ROUND"))
+`
+	cmd := exec.Command(bin, "-e", script)
+	cmd.Env = append(os.Environ(),
+		"PULSE_SAV_SOURCE="+source, "PULSE_SAV_ROUND="+round)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("running Rscript: %v\n%s", err, out)
+	}
+	text := string(out)
+
+	for _, reader := range []string{"HAVEN", "FOREIGN"} {
+		src := strings.TrimPrefix(readerLine(text, reader+"-SOURCE|"), reader+"-SOURCE|")
+		got := strings.TrimPrefix(readerLine(text, reader+"-ROUND|"), reader+"-ROUND|")
+		switch {
+		case src == "":
+			t.Errorf("%s produced no reading of the source file:\n%s", reader, text)
+		case strings.HasPrefix(src, "FAIL:"):
+			t.Errorf("%s could not read the source fixture: %s", reader, src)
+		case strings.HasPrefix(got, "FAIL:"):
+			t.Errorf("%s could not read the round-tripped file: %s", reader, got)
+		case src != got:
+			t.Errorf("%s reads the round-tripped file differently from the source:\n%s",
+				reader, firstDifference(src, got))
+		default:
+			t.Logf("%s: %d characters of reading, identical across the cycle", reader, len(src))
+		}
+	}
+}
+
+// firstDifference reports the first ';'-separated segment on which two
+// renderings disagree. A whole-string diff of a seventeen-variable fixture
+// is unreadable, and an unreadable failure is one that gets deleted rather
+// than fixed.
+func firstDifference(want, got string) string {
+	a, b := strings.Split(want, ";"), strings.Split(got, ";")
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	for i := 0; i < n; i++ {
+		if a[i] != b[i] {
+			return "  segment " + strconv.Itoa(i) + "\n  source: " + a[i] + "\n  round:  " + b[i]
+		}
+	}
+	if len(a) != len(b) {
+		return "  the source rendered " + strconv.Itoa(len(a)) +
+			" segment(s) and the round trip " + strconv.Itoa(len(b))
+	}
+	return "  (the renderings differ but no segment does; check the separator)"
 }

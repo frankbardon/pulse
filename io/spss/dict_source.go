@@ -86,12 +86,15 @@ func dictionaryFromSidecar(req DictionaryRequest) (*outFile, error) {
 	}
 
 	for i := range p.Variables {
-		v, err := sidecarVariable(&p.Variables[i], req.Schema, byName, cohort, req.Sidecar.Path)
+		v, err := sidecarVariable(&p.Variables[i], req.Schema, byName, cohort, req.Sidecar.Path,
+			p.Source.ByteOrder == SourceByteOrderBig)
 		if err != nil {
 			return nil, err
 		}
 		f.vars = append(f.vars, v)
 	}
+
+	sidecarMissingLabels(f, p)
 
 	// Record 7/11 is positional over every variable, so it is all or
 	// nothing: it is emitted when the source carried one for any variable,
@@ -108,7 +111,7 @@ func dictionaryFromSidecar(req DictionaryRequest) (*outFile, error) {
 
 // sidecarVariable transcribes one recorded variable.
 func sidecarVariable(v *Variable, schema *encoding.Schema, byName map[string]int,
-	cohort, sidecar string,
+	cohort, sidecar string, sourceBigEndian bool,
 ) (*outVar, error) {
 	out := &outVar{
 		name:      v.Name,
@@ -140,7 +143,7 @@ func sidecarVariable(v *Variable, schema *encoding.Schema, byName map[string]int
 
 	out.segments = sidecarSegments(v)
 
-	if err := sidecarMissing(out, v, cohort, sidecar); err != nil {
+	if err := sidecarMissing(out, v, cohort, sidecar, sourceBigEndian); err != nil {
 		return nil, err
 	}
 
@@ -212,7 +215,7 @@ func sidecarSegments(v *Variable) []SegmentPlan {
 // goes out as record 7/22 instead. That is the same mechanical rule the
 // import applied in reverse, which is why the document does not record which
 // record a specification arrived on.
-func sidecarMissing(out *outVar, v *Variable, cohort, sidecar string) error {
+func sidecarMissing(out *outVar, v *Variable, cohort, sidecar string, sourceBigEndian bool) error {
 	m := v.Missing
 	if m == nil || len(m.Raw) == 0 {
 		return nil
@@ -232,6 +235,15 @@ func sidecarMissing(out *outVar, v *Variable, cohort, sidecar string) error {
 				errors.DetailSPSSVariable: v.Name,
 			})
 	}
+	// A NUMERIC slot is a flt64, so its bytes are in the SOURCE file's
+	// order — and these bytes are always little-endian (see the departures
+	// listed at the top of this file). Re-emitting a big-endian source's
+	// slots verbatim would declare eight bytes that decode here as some
+	// unrelated subnormal, so the variable would silently stop declaring
+	// anything missing at all. A STRING slot is characters and has no byte
+	// order, so it is never reversed.
+	swap := sourceBigEndian && v.DeclaredWidth == 0
+
 	slots := make([][elementSize]byte, 0, len(m.Raw))
 	for _, raw := range m.Raw {
 		var slot [elementSize]byte
@@ -239,6 +251,11 @@ func sidecarMissing(out *outVar, v *Variable, cohort, sidecar string) error {
 		// what SPSS pads a string datum with, so a padded missing value
 		// still compares equal to the datum it names.
 		copy(slot[:], padTo(string(raw), elementSize))
+		if swap {
+			for i, j := 0, elementSize-1; i < j; i, j = i+1, j-1 {
+				slot[i], slot[j] = slot[j], slot[i]
+			}
+		}
 		slots = append(slots, slot)
 	}
 
@@ -249,6 +266,60 @@ func sidecarMissing(out *outVar, v *Variable, cohort, sidecar string) error {
 	out.missingCode = m.Code
 	out.missingSlots = slots
 	return nil
+}
+
+// sidecarMissingLabels puts back the value labels a plain numeric variable
+// declared on its USER-MISSING codes.
+//
+// They are the one class of value label that does not travel through
+// [Variable.Categories]. A numeric variable whose labels sit only on its
+// missing codes — an income column labelled at 97/98/99 and nowhere else —
+// is not a coded variable, so the import maps it to a plain f64 and moves
+// the labels into the `<var>_missing` sibling's [Derived.Reasons], which is
+// the only place they survive. Reading [Variable.Categories] alone therefore
+// emits the file without them: the codes come back (foldRestore writes them
+// into the nulls) but the file no longer says what 97 MEANT, and a
+// re-import of it shows the reason column as bare numerals.
+//
+// So the labels are read from the registry, which is where the import put
+// them, and re-emitted as ordinary records 3/4 on the source variable. Only
+// a reason that recorded a label produces a pair — an unlabelled missing
+// code is legal SPSS and inventing a label for it would put a string in the
+// file the source never had — and the sysmis reason never does, because the
+// system-missing state is not a value a record type 3 can name.
+//
+// It is deliberately a no-op for every other derived kind and for a
+// variable that already carries categories: a categorical variable's
+// missing codes ARE dictionary entries, and sidecarCategories has already
+// emitted their labels.
+func sidecarMissingLabels(f *outFile, p *Payload) {
+	if len(p.Derived) == 0 {
+		return
+	}
+	byField := make(map[string]*outVar, len(f.vars))
+	for _, v := range f.vars {
+		byField[strings.ToLower(v.fieldName)] = v
+	}
+
+	for i := range p.Derived {
+		d := &p.Derived[i]
+		if d.Kind != DerivedKindNumericMissing || len(d.Sources) != 1 {
+			continue
+		}
+		out, ok := byField[strings.ToLower(d.Sources[0])]
+		if !ok || len(out.categories) > 0 {
+			continue
+		}
+		for _, r := range d.Reasons {
+			if r.Sysmis || r.Label == "" || r.Code == nil {
+				continue
+			}
+			out.labels = append(out.labels, outLabel{
+				numeric: float64(*r.Code),
+				label:   r.Label,
+			})
+		}
+	}
 }
 
 // sidecarCategories projects the recorded code / label / ID triple onto the

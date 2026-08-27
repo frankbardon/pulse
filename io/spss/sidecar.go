@@ -276,7 +276,13 @@ type Source struct {
 	// CreationTime is the header "hh:mm:ss" field.
 	CreationTime string `json:"creation_time,omitempty"`
 
-	// ByteOrder is "little" or "big".
+	// ByteOrder is [SourceByteOrderLittle] or [SourceByteOrderBig].
+	//
+	// It describes the SOURCE file's bytes, which matters on the write
+	// side for one thing beyond provenance: [Missing.Raw] holds flt64
+	// slots verbatim, so a big-endian source's slots have to be reversed
+	// before they are re-emitted into the always-little-endian file this
+	// package writes.
 	ByteOrder string `json:"byte_order"`
 
 	// LayoutCode is the header layout probe (2 or 3) the byte order was
@@ -316,6 +322,17 @@ type Source struct {
 	// carries no 7/4 — the common case.
 	MachineFloat *MachineFloat `json:"machine_float,omitempty"`
 }
+
+// The two spellings [Source.ByteOrder] takes. They are named because
+// both the import that writes them and the export that reads them have
+// to agree on the spelling, and a bare string literal in two files is
+// one typo away from a silently unswapped missing-value slot.
+const (
+	// SourceByteOrderLittle is a little-endian source file.
+	SourceByteOrderLittle = "little"
+	// SourceByteOrderBig is a big-endian source file.
+	SourceByteOrderBig = "big"
+)
 
 // MachineFloat is the record 7/4 payload.
 type MachineFloat struct {
