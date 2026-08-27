@@ -1824,12 +1824,27 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SPSS_COMPRESSION_UNSUPPORTED: {
-		Message: "The SPSS .sav dictionary parsed cleanly but its data section uses a compressed encoding this reader cannot yet decode — bytecode compression (the SPSS default) or ZSAV zlib block compression. Only the uncompressed encoding is read today. Reading a compressed data section as though it were uncompressed would produce plausible-looking garbage, so the import stops instead.",
+		Message: "The SPSS .sav dictionary parsed cleanly but its data section uses ZSAV zlib block compression, which this reader cannot yet decode. The uncompressed encoding and SPSS's default bytecode compression are both read; ZSAV — written by SPSS 21+ and always used for a .zsav file — is not. Reading those blocks as though they were data would produce plausible-looking garbage, so the import stops instead.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Source"},
-				Hint:   "Re-save the file without compression: in SPSS, File > Save As with the compression option cleared, or in PSPP `SAVE OUTFILE='plain.sav' /UNCOMPRESSED.` Import the uncompressed copy.",
+				Hint:   "Re-save the file as a plain .sav rather than a .zsav: in SPSS, File > Save As with type 'SPSS Statistics (*.sav)', or in PSPP `SAVE OUTFILE='plain.sav'.` — the resulting bytecode-compressed or uncompressed file imports directly.",
+			},
+		},
+	},
+	PULSE_SPSS_COMPRESSION_INVALID: {
+		Message: "The SPSS .sav file declares bytecode compression (the SPSS save default) but its command stream does not match the dictionary that precedes it: a command asked for an all-spaces string segment where the dictionary declares a numeric variable, or for the system-missing sentinel where it declares a string, or the header's compression bias is not a usable number. The stream has lost sync with the dictionary, so every element after that point would be read against the wrong variable. Decoding on would produce numbers rather than an error, so the import stops.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-export the file from SPSS or PSPP rather than repairing it by hand — a desynchronised command stream means the bytes on disk no longer describe the dictionary, and no reader can recover the intended values. `pulse errors lookup PULSE_SPSS_COMPRESSION_INVALID` prints the byte offset semantics; the reported offset is where the stream stopped agreeing.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If the file was produced by a non-SPSS writer, re-save it through SPSS or PSPP (`GET FILE='in.sav'. SAVE OUTFILE='out.sav'.`) so the data section is rewritten by a conforming encoder.",
 			},
 		},
 	},

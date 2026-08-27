@@ -34,6 +34,7 @@ const (
 	offCompression = 72
 	offWeightIndex = 76
 	offCaseCount   = 80
+	offBias        = 84
 )
 
 // parser walks the dictionary section of a `.sav` file.

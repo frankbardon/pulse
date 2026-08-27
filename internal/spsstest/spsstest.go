@@ -46,6 +46,21 @@
 // is what pins both the code values and the instant-versus-duration split the
 // reader's type mapping turns on.
 //
+// The bytecode-compressed data section was corroborated the same way during
+// E3-S1, and it is the construct that most needed it: a compressed fixture is
+// where a shared misreading of the spec would be invisible, because the
+// reader would be checked only against the encoder that mirrors its own
+// mistake. Handed a compressed fixture and its uncompressed twin built from
+// one spec, `foreign` and `haven` each recovered IDENTICAL values from both —
+// across one-byte integer commands at both ends of the compressible range
+// (-99 and 151), verbatim escapes (1e9, 1e300, 0.1 to full precision),
+// system-missing, all-spaces string segments, a three-segment 20-byte string,
+// and the block padding. Both also honoured a fixture declaring a
+// non-conventional compression bias (37 and 50 were tried), recovering the
+// same values as the bias-100 twin; `foreign` warns that the bias "is not the
+// usual value of 100", which is itself proof it read the header field rather
+// than assuming it. Nothing in the bytecode encoding rests on a guess.
+//
 // Three constructs got NO independent corroboration, because neither reader
 // interprets them: the subtype 19 'E' extended form, multiple-response
 // definitions carried on subtype 5, and the two-int32-per-variable form of
@@ -58,17 +73,30 @@
 //	Rscript -e 'print(foreign::read.spss("reference.sav", to.data.frame=FALSE))'
 //	Rscript -e 'print(haven::read_sav("reference.sav"))'
 //
+// For a compressed fixture, build the SAME spec twice — once with
+// Compression left at CompressionNone and once with CompressionBytecode —
+// and check that both readers report identical values from the two files.
+//
 // # Scope
 //
 // The file header, record type 2 variable records (numeric and string, with
 // string continuation records), record type 3/4 value labels, variable
 // labels, record type 6 documents, the record type 7 extension subtypes
-// listed on [Spec], the record type 999 dictionary terminator, and an
-// uncompressed data section. Little-endian only.
+// listed on [Spec], the record type 999 dictionary terminator, and a data
+// section in either the uncompressed or the bytecode-compressed encoding.
+// Little-endian only.
 //
-// Deliberately absent, each owned by a later story: bytecode compression,
-// ZSAV, non-ASCII codepages, very long strings (>255 bytes), big-endian
-// output and missing-value specs. The spec types carry the axes for those
+// Bytecode compression — SPSS's own save default — is emitted when
+// [Spec.Compression] asks for it, under whatever bias [Spec.CompressionBias]
+// declares. The encoder here is written from the specification and shares no
+// code with the reader under test, which is the whole point: a compressed and
+// an uncompressed fixture built from one spec carry the same logical cases
+// through two independent encodings, so a reader that agrees with both is
+// agreeing with something other than itself.
+//
+// Deliberately absent, each owned by a later story: ZSAV, non-ASCII
+// codepages, very long strings (>255 bytes), big-endian output and
+// missing-value specs. The spec types carry the axes for those
 // ([Compression], [ByteOrder], Var.Width) so they can be filled in without
 // reshaping the API.
 //
@@ -117,7 +145,9 @@ const (
 
 	// CompressionBias is the flt64 bias field in the header. The spec calls
 	// for 100 and readers assume it; it is written even when the data section
-	// is uncompressed, exactly as PSPP does.
+	// is uncompressed, exactly as PSPP does. [Spec.CompressionBias] overrides
+	// it, which is how a fixture proves a reader honours the declared bias
+	// rather than hardcoding this value.
 	CompressionBias = 100.0
 )
 
@@ -260,14 +290,16 @@ func (b ByteOrder) String() string {
 	}
 }
 
-// Compression selects the data-section encoding. v1 emits uncompressed only.
+// Compression selects the data-section encoding.
 type Compression int
 
 const (
 	// CompressionNone is the zero value: an uncompressed data section, 8 bytes
 	// per element.
 	CompressionNone Compression = iota
-	// CompressionBytecode is the SPSS default bytecode scheme. Not implemented yet.
+	// CompressionBytecode is the SPSS default bytecode scheme: blocks of
+	// eight command bytes, each command either standing for an element on
+	// its own or naming an eight-byte payload that trails the block.
 	CompressionBytecode
 	// CompressionZSAV is the zlib-blocked scheme used by SPSS 21+. Not implemented yet.
 	CompressionZSAV
@@ -725,9 +757,23 @@ type Spec struct {
 	// CreationTime overrides DefaultCreationTime ("hh:mm:ss", 8 bytes).
 	CreationTime string
 
-	// Compression selects the data-section encoding. Only CompressionNone (the
-	// zero value) is implemented.
+	// Compression selects the data-section encoding. CompressionNone (the
+	// zero value) and CompressionBytecode are implemented; CompressionZSAV
+	// is not.
 	Compression Compression
+
+	// CompressionBias overrides the header's flt64 bias field, which the
+	// bytecode encoding subtracts to recover an integer from a command
+	// byte. Zero means [CompressionBias], the conventional 100 every real
+	// writer emits.
+	//
+	// It exists so a fixture can be written whose command bytes decode
+	// correctly ONLY under the declared bias. A reader that hardcodes 100
+	// reads such a file as a plausible set of numbers offset by a
+	// constant, which no test against a bias-100 fixture can catch. The
+	// field is honoured for an uncompressed file too, because the header
+	// carries the bias either way and a reader must not care.
+	CompressionBias float64
 
 	// ByteOrder selects the file byte order. Only LittleEndian (the zero
 	// value) is implemented.

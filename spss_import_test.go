@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -101,6 +102,89 @@ func TestSPSS_ImportProducesQueryableCohort(t *testing.T) {
 	}
 	if len(resp.Data) == 0 {
 		t.Fatalf("Process returned no rows for an imported .sav cohort")
+	}
+}
+
+// TestSPSS_CompressedAndUncompressedProduceIdenticalCohorts is E3-S1's
+// acceptance criterion taken all the way to the artefact a user keeps.
+//
+// The two sources are one spec built twice, so they carry the same logical
+// cases through two genuinely different data-section encodings — a bytecode
+// command stream and a flat run of doubles. Comparing the resulting `.pulse`
+// files BYTE for byte, rather than comparing rendered rows, is what makes the
+// claim total: it covers the schema block, the inline categorical
+// dictionaries and their entry ORDER, the record data and the null bitmap all
+// at once, and no rounding or rendering rule can hide a difference inside a
+// cell.
+//
+// It is the strongest test in the story because the encoder it checks against
+// lives in internal/spsstest and shares no code with the decoder — a
+// misreading of the specification would have to be made twice, identically,
+// in two places, to pass.
+func TestSPSS_CompressedAndUncompressedProduceIdenticalCohorts(t *testing.T) {
+	specs := []struct {
+		name string
+		spec spsstest.Spec
+	}{
+		{"the reference fixture", spsstest.ReferenceSpec()},
+		{"the extension fixture", spsstest.ExtensionReferenceSpec()},
+		{"a non-conventional compression bias", func() spsstest.Spec {
+			s := spsstest.ReferenceSpec()
+			s.CompressionBias = 37
+			return s
+		}()},
+	}
+	for _, tc := range specs {
+		t.Run(tc.name, func(t *testing.T) {
+			afs := afero.NewMemMapFs()
+
+			plainSpec := tc.spec
+			plainSpec.Compression = spsstest.CompressionNone
+			plainSrc := seedSav(t, afs, "plain.sav", plainSpec)
+
+			packedSpec := tc.spec
+			packedSpec.Compression = spsstest.CompressionBytecode
+			packedSrc := seedSav(t, afs, "packed.sav", packedSpec)
+
+			// The premise: the two sources really are different files.
+			// Without this the byte-equality below would be trivial.
+			if bytes.Equal(plainSrc, packedSrc) {
+				t.Fatal("the two .sav sources are byte-identical; the compressed one is not exercising the decoder")
+			}
+
+			p, err := New(Options{FS: afs})
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			ctx := context.Background()
+
+			convert := func(src, dst string) {
+				t.Helper()
+				reader, err := pformat.NewReader(pformat.SPSS, afs, src, pformat.ReaderOptions{})
+				if err != nil {
+					t.Fatalf("NewReader(%s): %v", src, err)
+				}
+				job := pio.NewImportJob(reader, dst)
+				if _, err := p.Import(ctx, job); err != nil {
+					t.Fatalf("Import(%s): %v", src, err)
+				}
+			}
+			convert("plain.sav", "plain.pulse")
+			convert("packed.sav", "packed.pulse")
+
+			plainOut, err := afero.ReadFile(afs, "plain.pulse")
+			if err != nil {
+				t.Fatalf("read plain.pulse: %v", err)
+			}
+			packedOut, err := afero.ReadFile(afs, "packed.pulse")
+			if err != nil {
+				t.Fatalf("read packed.pulse: %v", err)
+			}
+			if !bytes.Equal(plainOut, packedOut) {
+				t.Errorf("the cohorts differ: %d bytes from the uncompressed source, %d from the compressed one",
+					len(plainOut), len(packedOut))
+			}
+		})
 	}
 }
 

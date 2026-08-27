@@ -63,6 +63,18 @@ type plan struct {
 	extensions []renderedExtension
 }
 
+// bias is the compression bias the header declares: the spec's own when it
+// sets one, else the conventional 100. It is resolved here rather than at
+// each use so the header field and the bytecode encoder can never disagree
+// about the number, which would produce a file that decodes to values offset
+// by a constant.
+func (p plan) bias() float64 {
+	if p.spec.CompressionBias != 0 {
+		return p.spec.CompressionBias
+	}
+	return CompressionBias
+}
+
 // renderedExtension is one record type 7 ready to emit.
 type renderedExtension struct {
 	subtype int32
@@ -94,8 +106,13 @@ func validate(spec Spec) (plan, error) {
 	if spec.ByteOrder != LittleEndian {
 		return p, fmt.Errorf("spsstest: %s output is not implemented; only little-endian is supported today", spec.ByteOrder)
 	}
-	if spec.Compression != CompressionNone {
-		return p, fmt.Errorf("spsstest: %s data sections are not implemented; only uncompressed is supported today", spec.Compression)
+	switch spec.Compression {
+	case CompressionNone, CompressionBytecode:
+	default:
+		return p, fmt.Errorf("spsstest: %s data sections are not implemented; uncompressed and bytecode are supported today", spec.Compression)
+	}
+	if spec.CompressionBias != 0 && (math.IsNaN(spec.CompressionBias) || math.IsInf(spec.CompressionBias, 0)) {
+		return p, fmt.Errorf("spsstest: compression bias %v is not a finite number", spec.CompressionBias)
 	}
 	if len(spec.Vars) == 0 {
 		return p, fmt.Errorf("spsstest: spec declares no variables; a system file needs at least one")
@@ -632,7 +649,7 @@ func writeHeader(e *enc, p plan) {
 	e.i32(int32(p.spec.Compression))
 	e.i32(p.weightIndex)
 	e.i32(p.ncases)
-	e.f64(CompressionBias) // written even when uncompressed, as PSPP does
+	e.f64(p.bias()) // written even when uncompressed, as PSPP does
 	e.ascii(stringOr(p.spec.CreationDate, DefaultCreationDate), headerCreationDateLen)
 	e.ascii(stringOr(p.spec.CreationTime, DefaultCreationTime), headerCreationTimeLen)
 	e.ascii(p.spec.FileLabel, headerFileLabelLen)
@@ -735,9 +752,18 @@ func writeTerminator(e *enc) {
 	e.i32(0) // filler
 }
 
-// writeData emits the uncompressed data section: every case in order, every
-// variable in order, 8 bytes per element.
+// writeData emits the data section in whichever encoding the spec asked for.
 func writeData(e *enc, p plan) {
+	if p.spec.Compression == CompressionBytecode {
+		writeBytecodeData(e, p)
+		return
+	}
+	writeUncompressedData(e, p)
+}
+
+// writeUncompressedData emits the uncompressed data section: every case in
+// order, every variable in order, 8 bytes per element.
+func writeUncompressedData(e *enc, p plan) {
 	for _, row := range p.spec.Cases {
 		for vi, val := range row {
 			v := p.vars[vi]
@@ -754,6 +780,147 @@ func writeData(e *enc, p plan) {
 			}
 		}
 	}
+}
+
+// Bytecode command bytes, per the specification. The emitter spells them out
+// here rather than sharing a table with the reader on purpose: this package
+// is the reader's ground truth, and a shared table would let one misreading
+// of the spec satisfy both halves and pass every test.
+const (
+	cmdPad    byte = 0
+	cmdIntMin byte = 1
+	cmdIntMax byte = 251
+	cmdEOF    byte = 252
+	cmdRaw    byte = 253
+	cmdSpaces byte = 254
+	cmdSysMis byte = 255
+
+	// cmdBlockSize is the number of command bytes that travel together
+	// ahead of their payloads.
+	cmdBlockSize = 8
+)
+
+// writeBytecodeData emits the data section in SPSS's default bytecode
+// encoding: blocks of eight command bytes, each block followed immediately by
+// the eight-byte payloads the commands in it asked for, in command order.
+//
+// The output is a pure function of the spec, exactly as the uncompressed path
+// is: which command each datum gets is decided by the datum and the bias
+// alone, so the same spec always yields the same bytes.
+func writeBytecodeData(e *enc, p plan) {
+	w := &bytecodeWriter{e: e, bias: p.bias()}
+	for _, row := range p.spec.Cases {
+		for vi, val := range row {
+			v := p.vars[vi]
+			switch {
+			case val.kind == kindSysMis:
+				w.command(cmdSysMis, nil)
+			case v.IsString():
+				writeStringSegments(w, val.str, v.segments())
+			default:
+				writeNumber(w, val.num)
+			}
+		}
+	}
+	// The end-of-file command, then whatever padding rounds the final
+	// block out to eight commands. Both are part of the encoding a real
+	// writer produces, so both are exercised here.
+	w.command(cmdEOF, nil)
+	w.flush()
+}
+
+// writeNumber emits one numeric element: a single command byte when the value
+// is a whole number the bias can carry, and the escape otherwise.
+func writeNumber(w *bytecodeWriter, v float64) {
+	if cmd, ok := numberCommand(v, w.bias); ok {
+		w.command(cmd, nil)
+		return
+	}
+	var b [ElementSize]byte
+	binary.LittleEndian.PutUint64(b[:], math.Float64bits(v))
+	w.command(cmdRaw, b[:])
+}
+
+// numberCommand reports the command byte encoding v under bias, and whether v
+// is encodable that way at all.
+//
+// The value must be a whole number and the SUM must land in [1, 251]. The
+// sum's own integrality is checked too, so a fractional bias makes every
+// value take the escape rather than rounding into a command byte that would
+// decode back to a different number.
+func numberCommand(v, bias float64) (byte, bool) {
+	if v != math.Trunc(v) {
+		// NaN fails here: Trunc(NaN) is NaN and NaN != NaN.
+		return 0, false
+	}
+	sum := v + bias
+	if sum != math.Trunc(sum) || math.IsInf(sum, 0) {
+		return 0, false
+	}
+	if sum < float64(cmdIntMin) || sum > float64(cmdIntMax) {
+		return 0, false
+	}
+	return byte(sum), true
+}
+
+// writeStringSegments emits a string value as its 8-byte segments: the
+// all-spaces command for a segment the padding filled entirely, the escape
+// for one carrying text.
+func writeStringSegments(w *bytecodeWriter, s string, segments int) {
+	room := segments * ElementSize
+	if len(s) > room {
+		// validate already rejected an over-wide datum, so this is
+		// defence in depth: it must report rather than panic on a
+		// negative pad, matching enc.ascii on the uncompressed path.
+		w.e.fail(fmt.Errorf("spsstest: %q is %d bytes but the field is %d", s, len(s), room))
+		return
+	}
+	padded := s + strings.Repeat(" ", room-len(s))
+	for i := 0; i < segments; i++ {
+		seg := padded[i*ElementSize : (i+1)*ElementSize]
+		if seg == "        " {
+			w.command(cmdSpaces, nil)
+			continue
+		}
+		w.command(cmdRaw, []byte(seg))
+	}
+}
+
+// bytecodeWriter buffers commands into blocks of eight and emits each block
+// followed by its payloads. That interleaving is the encoding: a payload
+// belongs to the block its command sat in, not to the position it would have
+// had in a flat stream.
+type bytecodeWriter struct {
+	e    *enc
+	bias float64
+	cmds []byte
+	data []byte
+}
+
+func (w *bytecodeWriter) command(cmd byte, payload []byte) {
+	w.cmds = append(w.cmds, cmd)
+	w.data = append(w.data, payload...)
+	if len(w.cmds) == cmdBlockSize {
+		w.emit()
+	}
+}
+
+// flush writes any partial block, padding it out with the ignore command.
+func (w *bytecodeWriter) flush() {
+	if len(w.cmds) == 0 {
+		return
+	}
+	w.emit()
+}
+
+func (w *bytecodeWriter) emit() {
+	for len(w.cmds) < cmdBlockSize {
+		w.cmds = append(w.cmds, cmdPad)
+	}
+	w.e.raw(w.cmds)
+	w.e.raw(w.data)
+	w.cmds = w.cmds[:0]
+	w.data = w.data[:0]
 }
 
 func roundUp(n, mult int) int { return (n + mult - 1) / mult * mult }
@@ -806,6 +973,15 @@ func (e *enc) ascii(s string, n int) {
 	}
 	e.buf.WriteString(s)
 	e.buf.WriteString(strings.Repeat(" ", n-len(s)))
+}
+
+// fail records the first error. Emission is sticky: once something has gone
+// wrong nothing further is written, and Build reports rather than returning
+// bytes that do not describe the spec.
+func (e *enc) fail(err error) {
+	if e.err == nil {
+		e.err = err
+	}
 }
 
 func (e *enc) zeros(n int) {

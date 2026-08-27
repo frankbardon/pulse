@@ -35,12 +35,13 @@
 // lands. Charset DECODING is not done here either — 7/20's name is recorded,
 // and nothing is transcoded with it.
 //
-// The data section is read in its uncompressed encoding only (see data.go);
-// dictionary.dataOffset is the byte offset of its first byte. A file whose
-// header declares bytecode or ZSAV compression parses its dictionary
-// normally and is then refused at ReadRows with
-// PULSE_SPSS_COMPRESSION_UNSUPPORTED, because a compressed data section read
-// as though it were uncompressed yields plausible numbers rather than an
+// The data section is read in its uncompressed encoding and in SPSS's default
+// bytecode compression (see data.go and bytecode.go); dictionary.dataOffset
+// is the byte offset of its first byte, and the header's compression flag and
+// bias say how to read what follows. A file whose header declares ZSAV zlib
+// block compression parses its dictionary normally and is then refused at
+// ReadRows with PULSE_SPSS_COMPRESSION_UNSUPPORTED, because a data section
+// read under the wrong encoding yields plausible numbers rather than an
 // error.
 //
 // # Errors and warnings

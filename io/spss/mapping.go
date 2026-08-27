@@ -311,6 +311,15 @@ type mapping struct {
 	// cases is the number of whole cases the scan walked.
 	cases int
 
+	// body is the data section resolved to its flat uncompressed form:
+	// cases * plan.stride bytes, starting at element zero of case zero.
+	// For an uncompressed file it aliases the file bytes; for a
+	// compressed one it is the expansion decodeBytecode produced. Holding
+	// it on the mapping is what keeps the compression flag from leaking
+	// past readCaseData — ReadRows addresses a case by stride from index
+	// zero either way.
+	body []byte
+
 	// warnings are the non-fatal mapping diagnostics. They are built
 	// once with the mapping and never re-raised, because the mapping is
 	// memoised for the life of the reader.
@@ -343,14 +352,11 @@ func defaultMappingOptions() mappingOptions {
 // about the whole column. A bounded sample would turn each of those into
 // the guess this reader exists to replace.
 func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, error) {
-	if err := checkCompression(d); err != nil {
-		return nil, err
-	}
 	plan, err := buildDataPlan(d)
 	if err != nil {
 		return nil, err
 	}
-	cases, err := caseSpan(d, data, plan)
+	body, cases, err := readCaseData(d, data, plan)
 	if err != nil {
 		return nil, err
 	}
@@ -361,9 +367,9 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 		kinds[i] = classify(v, len(labels[i]) > 0)
 	}
 
-	stats := scanCases(plan, kinds, data, d.dataOffset, cases)
+	stats := scanCases(plan, kinds, body, 0, cases)
 
-	m := &mapping{plan: plan, cases: cases, cols: make([]columnMapping, len(d.vars))}
+	m := &mapping{plan: plan, cases: cases, body: body, cols: make([]columnMapping, len(d.vars))}
 	for i, v := range d.vars {
 		col, err := m.resolveColumn(v, kinds[i], labels[i], &stats[i], opts)
 		if err != nil {

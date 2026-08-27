@@ -26,7 +26,7 @@ Bring an external dataset into Pulse — CSV, TSV, NDJSON, JSON array, Parquet, 
 ## Gotchas
 
 - **SPSS is schema-authoritative and import-only.** The `.sav` / `.zsav` dictionary DECLARES every column's type, nullability and categorical dictionary order, so inference is skipped entirely — sampling knobs inert, `promoted_fields` always empty. Its dictionaries hold the SPSS numeric **codes**, not the value labels (two codes may share one label, so a label-keyed dictionary would collapse them); resolve labels at output time with a LabelTable. No `pulse export spss` — an SPSS output target returns `PULSE_SPSS_EXPORT_UNSUPPORTED`.
-- **Most real `.sav` files fail today.** Bytecode compression is SPSS's save default and `.zsav` is always compressed; only the uncompressed data section is decoded, so anything else is `PULSE_SPSS_COMPRESSION_UNSUPPORTED`. Re-save with `/UNCOMPRESSED` and re-import.
+- **`.zsav` still fails.** Uncompressed and bytecode-compressed `.sav` (SPSS's save default) both read; ZSAV zlib block compression does not, so a `.zsav` is `PULSE_SPSS_COMPRESSION_UNSUPPORTED`. Re-save as a plain `.sav`. A compressed stream that disagrees with its own dictionary is `PULSE_SPSS_COMPRESSION_INVALID`, not a silent set of wrong numbers.
 - Non-fatal `PULSE_SPSS_*` diagnostics ride `source_warnings` / the envelope `warnings` array. Read them — they change what the cohort MEANS.
 - Inference samples only the first N rows for nullability. A null past the sample promotes its field to nullable (`promoted_fields` + `PULSE_IMPORT_NULL_PROMOTED`) instead of failing — but an explicit schema keeps such a null as `PULSE_IMPORT_ROW_ERROR`.
 - TTL `pin` is the only way to disable expiry — there is no "forever" duration.

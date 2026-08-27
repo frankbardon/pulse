@@ -1261,16 +1261,35 @@ const (
 	PULSE_SPSS_EXTENSION_INVALID Code = "PULSE_SPSS_EXTENSION_INVALID"
 
 	// PULSE_SPSS_COMPRESSION_UNSUPPORTED indicates an SPSS `.sav` file
-	// whose dictionary parsed cleanly but whose data section uses an
-	// encoding this reader cannot yet decode: bytecode compression (the
-	// SPSS default, header compression flag 1) or ZSAV zlib block
-	// compression (flag 2). Only the uncompressed encoding (flag 0) is
-	// read today. It is a hard error rather than a warning because a
-	// compressed data section read as though it were uncompressed
-	// produces plausible-looking garbage, and silently wrong numbers are
-	// worse than no numbers. Details carry "data" under DetailSPSSRecord
-	// and the first byte of the data section under DetailSPSSOffset.
+	// whose dictionary parsed cleanly but whose data section uses ZSAV
+	// zlib block compression (header compression flag 2), which this
+	// reader cannot yet decode. The uncompressed encoding (flag 0) and
+	// bytecode compression (flag 1, the SPSS save default) are both
+	// read. It is a hard error rather than a warning because a data
+	// section read under the wrong encoding produces plausible-looking
+	// garbage, and silently wrong numbers are worse than no numbers.
+	// Details carry "data" under DetailSPSSRecord and the first byte of
+	// the data section under DetailSPSSOffset.
 	PULSE_SPSS_COMPRESSION_UNSUPPORTED Code = "PULSE_SPSS_COMPRESSION_UNSUPPORTED"
+
+	// PULSE_SPSS_COMPRESSION_INVALID indicates an SPSS `.sav` file
+	// declares bytecode compression and its command stream is corrupt:
+	// a command that cannot apply to the element position it fell on
+	// (an all-spaces string segment where the dictionary declares a
+	// numeric, or the system-missing sentinel where it declares a
+	// string), or a compression bias the header states as a value
+	// arithmetic cannot use.
+	//
+	// It is distinct from PULSE_SPSS_DATA_TRUNCATED, which is a stream
+	// that ran out of bytes, and from
+	// PULSE_SPSS_COMPRESSION_UNSUPPORTED, which is an encoding this
+	// reader does not implement. This one is a stream that is present,
+	// complete enough to keep reading, and no longer describing the
+	// dictionary that precedes it — so continuing would emit numbers
+	// rather than an error. Details carry "data" under
+	// DetailSPSSRecord and the byte offset of the offending command
+	// under DetailSPSSOffset.
+	PULSE_SPSS_COMPRESSION_INVALID Code = "PULSE_SPSS_COMPRESSION_INVALID"
 
 	// PULSE_SPSS_DATA_TRUNCATED indicates an SPSS `.sav` data section
 	// ends part way through a case: the bytes after the record type 999
@@ -1630,6 +1649,7 @@ var allCodes = []Code{
 	PULSE_SPSS_EXTENSION_UNKNOWN,
 	PULSE_SPSS_EXTENSION_INVALID,
 	PULSE_SPSS_COMPRESSION_UNSUPPORTED,
+	PULSE_SPSS_COMPRESSION_INVALID,
 	PULSE_SPSS_DATA_TRUNCATED,
 	PULSE_SPSS_DATA_CASE_COUNT_MISMATCH,
 	PULSE_SPSS_CATEGORICAL_OVERFLOW,

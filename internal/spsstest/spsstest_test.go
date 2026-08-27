@@ -678,9 +678,14 @@ func TestBuild_Rejects(t *testing.T) {
 			"not implemented",
 		},
 		{
-			"bytecode compression not implemented",
-			Spec{Vars: []Var{{Name: "A"}}, Compression: CompressionBytecode},
+			"an unknown compression is not implemented",
+			Spec{Vars: []Var{{Name: "A"}}, Compression: Compression(9)},
 			"not implemented",
+		},
+		{
+			"a non-finite compression bias",
+			Spec{Vars: []Var{{Name: "A"}}, CompressionBias: math.Inf(1)},
+			"not a finite number",
 		},
 		{
 			"zsav not implemented",

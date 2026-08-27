@@ -58,8 +58,8 @@ const (
 	compressionZSAV     int32 = 2
 )
 
-// defaultSysmis is the system-missing sentinel every SPSS writer uses in an
-// uncompressed data section: the IEEE 754 double -DBL_MAX
+// defaultSysmis is the system-missing sentinel every SPSS writer uses: the
+// IEEE 754 double -DBL_MAX
 // (0xFFEFFFFFFFFFFFFF).
 //
 // A file MAY declare its own sentinel in the record 7/4 machine float info

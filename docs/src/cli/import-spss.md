@@ -16,9 +16,10 @@ straight to the encoder. Inference never runs.
 > **Read-only.** There is no `pulse export spss` and no SPSS writer.
 > An SPSS *output* target returns `PULSE_SPSS_EXPORT_UNSUPPORTED`.
 
-> **Uncompressed files only, today.** Bytecode compression is SPSS's own
-> save default and `.zsav` is always compressed, so most files taken
-> straight from SPSS fail with `PULSE_SPSS_COMPRESSION_UNSUPPORTED`. See
+> **`.zsav` is not readable yet.** Uncompressed and bytecode-compressed
+> `.sav` files — the latter being SPSS's own save default — both import.
+> ZSAV zlib block compression, which every `.zsav` uses, still fails with
+> `PULSE_SPSS_COMPRESSION_UNSUPPORTED`. See
 > [Compression](#compression) below.
 
 ## Synopsis
@@ -189,28 +190,82 @@ each.
 
 ## Compression
 
+A `.sav` data section arrives in one of three encodings, and the file
+header says which. Two of the three import.
+
+| Encoding | Header flag | Status |
+|---|---|---|
+| Uncompressed | 0 | Read |
+| Bytecode | 1 | Read — **this is what SPSS writes by default** |
+| ZSAV (zlib blocks) | 2 | `PULSE_SPSS_COMPRESSION_UNSUPPORTED` |
+
+Nothing needs to be passed to select one. The flag is read from the
+header and the right decoder runs:
+
 ```bash
 pulse import spss --input survey.sav --output survey.pulse
 ```
 
+A compressed and an uncompressed copy of the same data produce
+byte-identical cohorts.
+
+### How bytecode compression works
+
+The data section becomes a stream of blocks. Each block is **eight
+command bytes** followed immediately by the eight-byte payloads that
+those commands asked for:
+
+| Command | Means |
+|---|---|
+| `0` | Padding — occupies a command slot, produces no value. Fills out the final block. |
+| `1..251` | The whole number `command - bias`. The bias is read from the header; it is conventionally 100, giving the range −99…151. |
+| `252` | End of the data section. |
+| `253` | The next eight bytes of the stream are the value, verbatim. |
+| `254` | An all-spaces eight-byte string segment. |
+| `255` | System-missing. |
+
+The saving comes from survey data being mostly small whole numbers: one
+byte instead of eight. It is lossless — anything the commands cannot
+express falls through to `253` unchanged.
+
+### When a compressed file will not read
+
+```
+error: reading authoritative source schema: PULSE_SPSS_COMPRESSION_INVALID:
+spss: data section: the compressed stream asks for an all-spaces string
+segment (command 254) at element 1 of a case, where the dictionary declares
+a numeric element; the stream has lost sync with the dictionary
+[at byte offset 372 (0x174)]
+```
+
+`PULSE_SPSS_COMPRESSION_INVALID` means the command stream and the
+dictionary disagree — a command landed on an element position it cannot
+apply to. Every element after that point would be read against the wrong
+variable, so the import stops rather than emitting plausible numbers.
+Re-export the file from SPSS or PSPP; a desynchronised stream cannot be
+repaired by hand.
+
+A stream cut short — mid-case, or with a `253` whose eight bytes never
+arrived — is `PULSE_SPSS_DATA_TRUNCATED` instead.
+
+### ZSAV
+
 ```
 error: reading authoritative source schema: PULSE_SPSS_COMPRESSION_UNSUPPORTED:
-spss: data section: the file uses SPSS bytecode compression (header compression
-flag 1), which this reader cannot yet decode; only the uncompressed encoding is
-read today [at byte offset 372 (0x174)]
+spss: data section: the file uses ZSAV zlib block compression (header
+compression flag 2), which this reader cannot yet decode; the uncompressed
+and bytecode-compressed encodings are read today [at byte offset 372 (0x174)]
 ```
 
-Only the uncompressed data section is decoded today. Reading compressed
-bytes as though they were uncompressed would yield plausible-looking
-garbage, so the import stops instead.
-
-Workaround — re-save the file without compression, then import the copy:
+Re-save as a plain `.sav` and import the copy:
 
 ```
-SAVE OUTFILE='plain.sav' /UNCOMPRESSED.
+GET FILE='survey.zsav'.
+SAVE OUTFILE='survey.sav'.
 ```
 
-(In the SPSS GUI: File > Save As with the compression option cleared.)
+(In the SPSS GUI: File > Save As with type *SPSS Statistics (\*.sav)*.)
+The resulting file may be bytecode-compressed; that is fine.
 
 ## Fatal errors
 
@@ -218,8 +273,9 @@ SAVE OUTFILE='plain.sav' /UNCOMPRESSED.
 |---|---|
 | `PULSE_SPSS_DICT_INVALID` | The dictionary is malformed |
 | `PULSE_SPSS_DICT_TRUNCATED` | The file ends mid-dictionary |
-| `PULSE_SPSS_COMPRESSION_UNSUPPORTED` | Bytecode / ZSAV compression — see above |
-| `PULSE_SPSS_DATA_TRUNCATED` | The data section ends mid-case |
+| `PULSE_SPSS_COMPRESSION_UNSUPPORTED` | ZSAV zlib block compression — see above |
+| `PULSE_SPSS_COMPRESSION_INVALID` | A bytecode stream that disagrees with its own dictionary, or an unusable compression bias — see above |
+| `PULSE_SPSS_DATA_TRUNCATED` | The data section ends mid-case, or a `253` command's value is missing |
 | `PULSE_SPSS_CATEGORICAL_OVERFLOW` | A labelled variable has more distinct codes than `categorical_u32` holds |
 | `PULSE_SPSS_EXPORT_UNSUPPORTED` | An SPSS output target was requested — Pulse cannot write `.sav` |
 

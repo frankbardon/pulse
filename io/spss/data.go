@@ -10,10 +10,13 @@ package spss
 // record type 2 stream, is load-bearing here and the header's
 // nominal_case_size (a writer's claim) is not used at all.
 //
-// Only the uncompressed encoding is decoded today. Bytecode and ZSAV
-// compression are E3; until they land, a compressed file is refused with
-// PULSE_SPSS_COMPRESSION_UNSUPPORTED rather than read as though its command
-// bytes were doubles, which would yield plausible-looking garbage.
+// The uncompressed encoding and SPSS's default bytecode compression are both
+// decoded; see bytecode.go for the command table, and readCaseData for the
+// one place the header compression flag is acted on. Whichever encoding the
+// file used, everything below this point sees the same flat run of elements
+// at the same fixed stride. ZSAV zlib block compression is still refused with
+// PULSE_SPSS_COMPRESSION_UNSUPPORTED rather than read as though its blocks
+// were doubles, which would yield plausible-looking garbage.
 //
 // # Rendering to strings
 //
@@ -94,6 +97,14 @@ type dataPlan struct {
 	// stride is the byte width of one case: elementCount * 8.
 	stride int
 
+	// elemKinds says what the dictionary declares occupies each 8-byte
+	// element position within a case, one entry per element rather than
+	// one per variable. It is what the bytecode decoder checks each
+	// command against, and it is indexed by element position because
+	// that is the only coordinate a command stream has — the stream
+	// knows nothing of variables.
+	elemKinds []elementKind
+
 	// sysmis and sysmisBits are the system-missing sentinel in both
 	// forms. The bit comparison is what makes the check exact for a
 	// declared sentinel that is a NaN, where == is false against itself;
@@ -123,6 +134,7 @@ func buildDataPlan(d *dictionary) (*dataPlan, error) {
 	}
 
 	cols := make([]dataColumn, len(d.vars))
+	kinds := make([]elementKind, d.elementCount)
 	for i, v := range d.vars {
 		off := (int(v.index) - 1) * elementSize
 		span := v.segments * elementSize
@@ -138,11 +150,24 @@ func buildDataPlan(d *dictionary) (*dataPlan, error) {
 				v.fieldName(), width, span)
 		}
 		cols[i] = dataColumn{offset: off, span: span, width: width}
+
+		// Every element the variable occupies takes its kind. A
+		// string's continuation elements are string segments in
+		// their own right, which is exactly what the command check
+		// needs to know about them.
+		kind := elemNumeric
+		if width > 0 {
+			kind = elemString
+		}
+		for e := 0; e < v.segments; e++ {
+			kinds[int(v.index)-1+e] = kind
+		}
 	}
 
 	return &dataPlan{
 		cols:       cols,
 		stride:     stride,
+		elemKinds:  kinds,
 		sysmis:     d.sysmis,
 		sysmisBits: math.Float64bits(d.sysmis),
 		bo:         d.byteOrder,
@@ -312,13 +337,12 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	}
 	plan := m.plan
 	cases := m.cases
+	body := m.body
 
 	// Each pass rebuilds its own diagnostics rather than appending to the
 	// last pass's: an infer-then-import sequence reads the same file twice
 	// and would otherwise report every warning twice.
 	r.dataWarnings = nil
-
-	start := d.dataOffset
 
 	if declared, ok := declaredCaseCount(d); ok && declared != int64(cases) {
 		r.dataWarnings = append(r.dataWarnings, caseCountMismatch(d, declared, cases))
@@ -332,8 +356,8 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		default:
 		}
 
-		off := start + i*plan.stride
-		plan.decodeCase(r.data[off:off+plan.stride], row)
+		off := i * plan.stride
+		plan.decodeCase(body[off:off+plan.stride], row)
 
 		if err := fn(row); err != nil {
 			if err == pio.ErrStopIteration() {
@@ -415,28 +439,43 @@ func caseSpan(d *dictionary, data []byte, plan *dataPlan) (int, error) {
 	return avail / plan.stride, nil
 }
 
-// checkCompression refuses a data section this reader cannot decode.
+// readCaseData resolves the data section into the flat case bytes everything
+// downstream decodes, whatever encoding the file wrote it in.
 //
-// The dictionary of a compressed file parses identically to an uncompressed
-// one, so the flag is the ONLY thing separating a readable data section from
-// a stream of command bytes. Reading the latter as doubles produces numbers,
-// not an error, which is why this is a hard failure rather than a warning.
-func checkCompression(d *dictionary) error {
+// This is the ONE place the header compression flag is acted on, and it is a
+// dispatch rather than a refusal because the flag is also the only thing
+// separating a readable data section from a stream of command bytes: the
+// dictionary of a compressed file parses identically to an uncompressed one,
+// and reading command bytes as doubles produces numbers rather than an
+// error. Getting the branch wrong is therefore silent, which is why there is
+// exactly one branch point.
+//
+// The uncompressed case returns a SUBSLICE of the file bytes and copies
+// nothing — that encoding already is the flat form. A compressed case
+// materialises the expansion; see decodeBytecode for why it is materialised
+// rather than streamed.
+func readCaseData(d *dictionary, data []byte, plan *dataPlan) ([]byte, int, error) {
 	switch d.header.compression {
 	case compressionNone:
-		return nil
+		cases, err := caseSpan(d, data, plan)
+		if err != nil {
+			return nil, 0, err
+		}
+		return data[d.dataOffset : d.dataOffset+cases*plan.stride], cases, nil
 	case compressionBytecode:
-		return dataError(errors.PULSE_SPSS_COMPRESSION_UNSUPPORTED, d.dataOffset,
-			"the file uses SPSS bytecode compression (header compression flag %d), which this reader cannot yet decode; only the uncompressed encoding is read today",
-			d.header.compression)
+		return decodeBytecode(d, data, plan)
 	case compressionZSAV:
-		return dataError(errors.PULSE_SPSS_COMPRESSION_UNSUPPORTED, d.dataOffset,
-			"the file uses ZSAV zlib block compression (header compression flag %d), which this reader cannot yet decode; only the uncompressed encoding is read today",
+		// E3-S2 fills this branch in. Until it does the refusal is
+		// specific to ZSAV rather than to compression in general,
+		// because bytecode — the encoding that made that message
+		// worth writing — is read now.
+		return nil, 0, dataError(errors.PULSE_SPSS_COMPRESSION_UNSUPPORTED, d.dataOffset,
+			"the file uses ZSAV zlib block compression (header compression flag %d), which this reader cannot yet decode; the uncompressed and bytecode-compressed encodings are read today",
 			d.header.compression)
 	default:
 		// The header parse rejects any other value, so this is
 		// defence in depth rather than a reachable branch.
-		return dataError(errors.PULSE_SPSS_COMPRESSION_UNSUPPORTED, d.dataOffset,
+		return nil, 0, dataError(errors.PULSE_SPSS_COMPRESSION_UNSUPPORTED, d.dataOffset,
 			"the file declares compression flag %d, which this reader does not recognise",
 			d.header.compression)
 	}

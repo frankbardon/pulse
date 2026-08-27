@@ -512,43 +512,41 @@ func TestReadRows_FromAferoFilesystem(t *testing.T) {
 // TestReadRows_Compressed covers the out-of-scope encodings. Both must be
 // refused with a code that names the gap, because a compressed data section
 // read as though it were uncompressed produces numbers rather than an error.
-func TestReadRows_Compressed(t *testing.T) {
-	cases := []struct {
-		name string
-		flag uint32
-		want string
-	}{
-		{"bytecode", 1, "bytecode compression"},
-		{"zsav", 2, "ZSAV zlib block compression"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			raw := build(t, spsstest.ReferenceSpec())
-			binary.LittleEndian.PutUint32(raw[offCompression:offCompression+4], tc.flag)
+// TestReadRows_ZSAVRefused covers the one data-section encoding still
+// unimplemented. The refusal must now name ZSAV specifically: bytecode is
+// decoded, so a message about "compression" in general would send a user
+// looking for a problem that no longer exists.
+//
+// E3-S2 fills this branch in, and when it does this test is the one that
+// tells it the seam moved.
+func TestReadRows_ZSAVRefused(t *testing.T) {
+	raw := build(t, spsstest.ReferenceSpec())
+	binary.LittleEndian.PutUint32(raw[offCompression:offCompression+4], 2)
 
-			r := NewReaderFromBytes(raw)
-			// The dictionary is unaffected: only the data section is.
-			if _, err := r.ReadHeader(); err != nil {
-				t.Fatalf("ReadHeader on a compressed file: %v", err)
-			}
-
-			err := r.ReadRows(context.Background(), func([]string) error {
-				t.Error("a case was delivered from a compressed data section")
-				return nil
-			})
-			if err == nil {
-				t.Fatal("a compressed data section read without error")
-			}
-			ce := codedError(t, err)
-			if ce.Code != perr.PULSE_SPSS_COMPRESSION_UNSUPPORTED {
-				t.Fatalf("code = %s, want %s", ce.Code, perr.PULSE_SPSS_COMPRESSION_UNSUPPORTED)
-			}
-			if !strings.Contains(ce.Message, tc.want) {
-				t.Errorf("message = %q, want it to name %q", ce.Message, tc.want)
-			}
-			assertDetails(t, ce, len(raw))
-		})
+	r := NewReaderFromBytes(raw)
+	// The dictionary is unaffected: only the data section is.
+	if _, err := r.ReadHeader(); err != nil {
+		t.Fatalf("ReadHeader on a compressed file: %v", err)
 	}
+
+	err := r.ReadRows(context.Background(), func([]string) error {
+		t.Error("a case was delivered from a ZSAV data section")
+		return nil
+	})
+	if err == nil {
+		t.Fatal("a ZSAV data section read without error")
+	}
+	ce := codedError(t, err)
+	if ce.Code != perr.PULSE_SPSS_COMPRESSION_UNSUPPORTED {
+		t.Fatalf("code = %s, want %s", ce.Code, perr.PULSE_SPSS_COMPRESSION_UNSUPPORTED)
+	}
+	if !strings.Contains(ce.Message, "ZSAV zlib block compression") {
+		t.Errorf("message = %q, want it to name ZSAV", ce.Message)
+	}
+	if strings.Contains(ce.Message, "only the uncompressed encoding") {
+		t.Errorf("message = %q still claims only the uncompressed encoding is read; bytecode is decoded now", ce.Message)
+	}
+	assertDetails(t, ce, len(raw))
 }
 
 // TestReadRows_Truncated covers a data section that ends mid-case. Every
