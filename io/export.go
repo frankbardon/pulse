@@ -418,6 +418,19 @@ func countTrue(bs []bool) int {
 }
 
 // Predict validates the export without writing.
+//
+// It reads the source header and schema, estimates the record count, and —
+// when the Target implements the optional CohortValidator contract — asks the
+// target whether it could encode this cohort at all. A Target that is nil or
+// does not implement that interface is predicted exactly as it was before the
+// interface existed; see CohortValidator for why that promise is the whole
+// compatibility story here.
+//
+// A validating target's refusal is returned as the error, carrying the code
+// the real export would carry, and its non-fatal diagnostics land on
+// PredictReport.TargetWarnings. Predict remains a SOUND but INCOMPLETE
+// filter: a validator only answers from schema and sidecar facts, so passing
+// means no schema-level refusal was found, never that the export cannot fail.
 func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	if j.FS == nil {
 		return nil, fmt.Errorf("ExportJob.FS is required")
@@ -446,10 +459,37 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		estimatedRows = r.Len() / recordSize
 	}
 
-	return &PredictReport{
+	report := &PredictReport{
 		Schema:        schema,
 		EstimatedRows: estimatedRows,
-	}, nil
+	}
+
+	// Ask the target whether it could encode this cohort. The assertion
+	// fails for a nil Target and for every writer that does not implement
+	// the interface, and the report is then exactly the one this function
+	// has always returned.
+	//
+	// CohortSource is built from the same three job slots Run builds it
+	// from, so a validator sees the projection and label state the real
+	// export would hand it and can refuse them on the same terms. What it
+	// deliberately does NOT get is SetPulseSchema or WriteHeader: predict
+	// starts no write lifecycle on a writer it will never Close.
+	if cv, ok := j.Target.(CohortValidator); ok {
+		warns, err := cv.ValidateCohort(ctx, CohortSource{
+			FS:       j.FS,
+			Path:     j.Source,
+			Includes: j.Includes,
+			Labelled: j.LabelResolver != nil,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(warns) > 0 {
+			report.TargetWarnings = warns
+		}
+	}
+
+	return report, nil
 }
 
 // formatFieldValue converts a raw uint64 value back to a string representation.

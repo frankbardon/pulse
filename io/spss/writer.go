@@ -81,10 +81,11 @@ const rowPathCohort = "converted-rows.pulse"
 
 // Writer emits a `.sav` file.
 //
-// It satisfies pio.Writer, pio.SchemaAwareWriter, pio.CohortWriter and
-// pio.TargetWarningEmitter. See the file comment for why the last two are
-// there — the row-oriented contract alone cannot express what a `.sav`
-// variable's value is derived from.
+// It satisfies pio.Writer, pio.SchemaAwareWriter, pio.CohortWriter,
+// pio.CohortValidator and pio.TargetWarningEmitter. See the file comment for
+// why the middle two are there — the row-oriented contract alone cannot
+// express what a `.sav` variable's value is derived from, nor whether it
+// could be derived at all.
 //
 // A Writer is single-use: one Writer, one file. Close is where the bytes
 // land, matching every other adapter in io/.
@@ -119,13 +120,16 @@ type Writer struct {
 	warnings []*errors.CodedError
 }
 
-// Compile-time assertions. The last two are the whole point of this file:
+// Compile-time assertions. The last three are the whole point of this file:
 // a Writer that satisfied only pio.Writer would be handed rendered rows and
-// would have to guess at the values that decide SPSS fidelity.
+// would have to guess at the values that decide SPSS fidelity — and one that
+// dropped pio.CohortValidator would go back to being predicted as though it
+// could never refuse anything.
 var (
 	_ pio.Writer               = (*Writer)(nil)
 	_ pio.SchemaAwareWriter    = (*Writer)(nil)
 	_ pio.CohortWriter         = (*Writer)(nil)
+	_ pio.CohortValidator      = (*Writer)(nil)
 	_ pio.TargetWarningEmitter = (*Writer)(nil)
 )
 
@@ -190,6 +194,42 @@ func (w *Writer) WriteCohort(ctx context.Context, src pio.CohortSource) (int, er
 	return w.cases, nil
 }
 
+// ValidateCohort reports whether this cohort could be written as a `.sav`,
+// without writing one. pio.CohortValidator.
+//
+// It runs the writer's NON-DATA pass — the sidecar resolution, the dictionary
+// build, the name policy, the charset transcode, the derived fold and the
+// encoder's own column checks — and throws the result away. That is the same
+// code [Writer.WriteCohort] runs, called through the same helper rather than
+// re-implemented, so a refusal predicted here is by construction the refusal
+// the export returns: same check, same message, same code.
+//
+// What it CANNOT see is anything that needs a record. A value too wide for a
+// declared string, a character the target charset cannot encode, a
+// categorical ID the plan records no SPSS code for — every one of those is
+// found by the data pass, which is never entered. Predict is a sound but
+// incomplete filter, and that asymmetry is deliberate: refusing on a guess
+// would block exports that would have succeeded.
+//
+// It leaves the Writer untouched — no bytes, no recorded warnings, no
+// renames, and `done` unset — so validating is not a half-performed encode
+// and a Writer stays usable afterwards.
+func (w *Writer) ValidateCohort(ctx context.Context, src pio.CohortSource) ([]*errors.CodedError, error) {
+	if len(src.Includes) > 0 {
+		return nil, w.cannotProject("--include", strings.Join(src.Includes, ", "))
+	}
+	if src.Labelled {
+		return nil, w.cannotProject("--labels",
+			"a label binding rewrites or augments cells in the rendered row stream")
+	}
+	pass, err := w.planCohort(ctx, src.FS, src.Path)
+	if err != nil {
+		return nil, err
+	}
+	defer pass.close()
+	return pass.warnings, nil
+}
+
 // Warnings returns the encode's non-fatal diagnostics.
 // pio.TargetWarningEmitter.
 //
@@ -228,17 +268,58 @@ func (w *Writer) Bytes() []byte { return w.out }
 // The cohort path
 // ---------------------------------------------------------------------------
 
-// encodeCohort is E5-S1..S5 assembled: resolve the sidecar, build the
-// dictionary, encode every case, concatenate.
+// cohortPass is everything the writer knows about a cohort BEFORE it has read
+// a single record: the schema, the emitted dictionary, an encoder bound to
+// both, and the open record stream positioned at the first case.
+//
+// It is a type rather than five return values because it has two consumers
+// that must not drift apart — encodeCohort, which goes on to run the data
+// pass, and ValidateCohort, which closes it and reports. Splitting the pass
+// in two is what lets `pulse export predict` answer with the export's own
+// checks instead of a second implementation of them.
+type cohortPass struct {
+	schema *encoding.Schema
+	plan   *DictionaryPlan
+	enc    *DataEncoder
+	// r is positioned at the first record. Nil is not a valid pass.
+	r *bufio.Reader
+	// closeFn releases the cohort file. Always non-nil; call it exactly
+	// once, through close.
+	closeFn func() error
+	// renames and warnings are the plan's, lifted out so a consumer can
+	// decide whether to record them on the Writer. ValidateCohort does not.
+	renames  []NameRename
+	warnings []*errors.CodedError
+}
+
+func (p *cohortPass) close() {
+	if p != nil && p.closeFn != nil {
+		_ = p.closeFn()
+	}
+}
+
+// planCohort runs everything the encode does up to, but not including, the
+// first record: the sidecar resolution, the schema read, the dictionary build
+// and the encoder's own column checks.
+//
+// Every refusal reachable from schema and sidecar facts alone lives here —
+// a stale or unreadable sidecar, an illegal or colliding SPSS name, a name or
+// label the target charset cannot encode, a cohort column the derived
+// registry cannot account for, an unwritable compression mode. That is
+// precisely the set `pulse export predict` can answer, which is why this is a
+// seam rather than an inline prefix of encodeCohort.
 //
 // The schema comes from the COHORT rather than from SetPulseSchema even
 // though both are available, and deliberately: the record stream about to be
 // walked is laid out to the schema in the file, so reading it from there
 // makes the two agree by construction instead of by two callers staying in
 // step.
-func (w *Writer) encodeCohort(ctx context.Context, fs afero.Fs, path string) error {
+//
+// It mutates nothing on the Writer. A successful call hands back an OPEN
+// file; the caller owns closing it through [cohortPass.close].
+func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string) (*cohortPass, error) {
 	if fs == nil {
-		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
+		return nil, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
 			"spss: the .sav writer was given no filesystem to read the cohort from",
 			map[string]any{errors.DetailSPSSCohort: path})
 	}
@@ -247,27 +328,32 @@ func (w *Writer) encodeCohort(ctx context.Context, fs afero.Fs, path string) err
 	// refuse: a STALE sidecar stops the export outright. See LoadSidecar.
 	res, err := LoadSidecar(fs, path, w.opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	f, err := fs.Open(path)
 	if err != nil {
-		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
+		return nil, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
 			"spss: cannot open the cohort to export: "+err.Error(),
 			map[string]any{errors.DetailSPSSCohort: path})
 	}
-	defer f.Close()
+	// Every failure below has to close the file it was handed; only the
+	// success path transfers ownership to the returned pass.
+	fail := func(err error) (*cohortPass, error) {
+		_ = f.Close()
+		return nil, err
+	}
 
 	r := bufio.NewReader(f)
 	if err := encoding.ReadHeader(r); err != nil {
-		return err
+		return fail(err)
 	}
 	schema, err := encoding.ReadSchema(r)
 	if err != nil {
-		return err
+		return fail(err)
 	}
 	if err := w.checkAnnouncedSchema(schema, path); err != nil {
-		return err
+		return fail(err)
 	}
 
 	// Cases: -1 is the format's "unknown", which is legal and every reader
@@ -281,33 +367,55 @@ func (w *Writer) encodeCohort(ctx context.Context, fs afero.Fs, path string) err
 		Options:     w.opts,
 	})
 	if err != nil {
-		return err
+		return fail(err)
 	}
-	w.renames = plan.Renames
-	w.warnings = append(w.warnings, plan.Warnings...)
 
 	enc, err := NewDataEncoder(plan, schema)
 	if err != nil {
-		return err
+		return fail(err)
 	}
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fail(ctx.Err())
 	default:
 	}
-	if err := enc.WriteCohort(r); err != nil {
+
+	return &cohortPass{
+		schema:   schema,
+		plan:     plan,
+		enc:      enc,
+		r:        r,
+		closeFn:  f.Close,
+		renames:  plan.Renames,
+		warnings: plan.Warnings,
+	}, nil
+}
+
+// encodeCohort is E5-S1..S5 assembled: run the non-data pass, encode every
+// case, concatenate.
+func (w *Writer) encodeCohort(ctx context.Context, fs afero.Fs, path string) error {
+	pass, err := w.planCohort(ctx, fs, path)
+	if err != nil {
 		return err
 	}
-	data, err := enc.Finish()
+	defer pass.close()
+
+	w.renames = pass.renames
+	w.warnings = append(w.warnings, pass.warnings...)
+
+	if err := pass.enc.WriteCohort(pass.r); err != nil {
+		return err
+	}
+	data, err := pass.enc.Finish()
 	if err != nil {
 		return err
 	}
 
-	out := make([]byte, 0, len(plan.Bytes)+len(data))
-	out = append(out, plan.Bytes...)
+	out := make([]byte, 0, len(pass.plan.Bytes)+len(data))
+	out = append(out, pass.plan.Bytes...)
 	out = append(out, data...)
 	w.out = out
-	w.cases = int(enc.Cases())
+	w.cases = int(pass.enc.Cases())
 	w.done = true
 	return nil
 }

@@ -210,25 +210,70 @@ func finishExport(cmd *cli.Command, writer pio.Writer, report *pio.ExportReport,
 	return nil
 }
 
+// predictTargetPath is the path the throwaway predict writer is pointed at.
+//
+// It is never created. The writer is built on a MemMapFs that lives inside
+// the action and is never Closed, so no adapter's bytes reach any filesystem
+// — which is the whole point: `predict` must not leave an output file behind,
+// and the leaf declares no --output for it to leave one at.
+const predictTargetPath = "predict.out"
+
+// exportPredictCmd is `pulse export predict`.
+//
+// It reads --format so the prediction can be made against the TARGET the
+// export will actually use. Before E6-S1 the flag was declared and never
+// read: the leaf built an ExportJob with no Target at all and answered from
+// the source schema alone. That was harmless while every writer was
+// infallible at the target boundary — the text adapters stringify anything —
+// but the `.sav` writer can refuse, so predict was saying yes to exports that
+// then failed.
+//
+// Without --format the behaviour is unchanged and deliberately so: with no
+// target there is nothing to validate against, and the text output says as
+// much rather than implying a check that did not happen.
+//
+// The four `.sav` write knobs are mounted here for the same reason
+// `pulse convert predict` carries them — the answer depends on them.
+// --sanitise-names in particular turns a PULSE_SPSS_NAME_INVALID refusal into
+// a warning, so a predict that could not be told about it would refuse an
+// export that would have succeeded.
 func exportPredictCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "predict",
 		Usage: "Validate an export without writing output",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Output format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Output format to validate against (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss). Omit to validate the source cohort only, with no target-format check."},
+			&cli.BoolFlag{Name: "ignore-sidecar", Usage: ignoreSidecarFlagUsage},
+			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
+			&cli.StringFlag{Name: "charset", Usage: writeCharsetFlagUsage},
+			&cli.BoolFlag{Name: "sanitise-names", Usage: sanitiseNamesFlagUsage},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
+			format := cmd.String("format")
 			jsonOut := cmd.Bool("json")
 
 			fs := afero.NewOsFs()
 
-			// ExportJob.Predict only needs the source file; target writer isn't used.
 			job := &pio.ExportJob{
 				Source: input,
 				FS:     fs,
+			}
+
+			// The target writer exists only to be asked a question. It is
+			// built against a filesystem that dies with this call and is
+			// never Closed, so nothing it might emit can land anywhere.
+			if format != "" {
+				writer, err := newWriterForFormat(format, afero.NewMemMapFs(), predictTargetPath, writerOptionsFrom(cmd))
+				if err != nil {
+					if jsonOut {
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
+					}
+					return err
+				}
+				job.Target = writer
 			}
 
 			report, err := job.Predict(ctx)
@@ -240,11 +285,17 @@ func exportPredictCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, report)
+				return writeEnvelopeWithWarnings(cmd.Writer, report, report.TargetWarnings)
 			}
 
 			writeText(cmd.Writer, "Schema: %d fields\n", len(report.Schema.Fields))
 			writeText(cmd.Writer, "Estimated rows: %d\n", report.EstimatedRows)
+			if format == "" {
+				writeText(cmd.Writer, "Target: not checked (pass --format to validate against the format you will export to)\n")
+			} else {
+				writeText(cmd.Writer, "Target format: %s\n", format)
+			}
+			writeSourceWarnings(cmd.Writer, report.TargetWarnings)
 			return nil
 		},
 	}

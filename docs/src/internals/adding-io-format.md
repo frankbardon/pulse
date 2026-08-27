@@ -368,6 +368,76 @@ faithful re-emission from a reconstruction.
 > the time the job builds its report. Because the accessor is pure,
 > asking twice cannot double the set.
 
+### Predicting a refusal: `io.CohortValidator`
+
+`pulse export predict` was target-blind. `ExportJob.Predict` read the
+source header and schema, estimated the row count, and answered "this
+export is fine" regardless of the target — which was harmless only for
+as long as every writer was infallible at the target boundary. The text
+adapters stringify anything handed to them. `io/spss` is the first
+writer that can REFUSE, so predict was saying yes to exports that then
+failed.
+
+```go
+type CohortValidator interface {
+    Writer
+    ValidateCohort(ctx context.Context, src CohortSource) ([]*errors.CodedError, error)
+}
+```
+
+The returned slice is the non-fatal diagnostics the real export **would**
+raise; they land on `PredictReport.TargetWarnings`, the symmetric peer of
+`ExportReport.TargetWarnings`. A non-nil error is the refusal the real
+export **would** return, and it must carry the same code the export
+itself carries — a predicted `PULSE_SPSS_NAME_INVALID` that exported as
+something else would be worse than no prediction at all.
+
+**Dispatch.** `ExportJob.Predict` type-asserts the interface. A Target
+that is nil, or one that does not implement it, is predicted **exactly**
+as it was before the interface existed: no extra read, no new failure
+mode, the same `PredictReport`. That is the whole compatibility contract
+and `TestExportJob_Predict_NonValidatingTargetUnchanged` pins it.
+
+Unlike `CohortWriter`, a validator is reached **without** `SetPulseSchema`
+and **without** `WriteHeader` — predict starts no write lifecycle on a
+writer it will never `Close`. Everything a validator needs rides
+`CohortSource`: `FS` + `Path` locate the cohort and any format sidecar
+beside it, and `Includes` / `Labelled` carry the row-stream
+transformations so they can be refused here on the same terms
+`WriteCohort` refuses them.
+
+> **A validator may never refuse something the real export would accept.**
+> A false refusal blocks work that would have succeeded and the caller
+> has no way to appeal it. Where a verdict needs a record — a value whose
+> width overflows, a character the target charset cannot encode, a
+> dictionary ID with no source code behind it — warn, or stay silent.
+> Never guess. Predict is therefore a **sound but incomplete** filter.
+
+The refusal set is mostly reachable without records precisely because a
+`.pulse` cohort's records are fixed-width numerics: every string lives in
+the schema block's dictionaries. Name legality, charset encodability of
+the dictionary text, sidecar state, derived-column foldability and the
+`Includes` / `Labels` refusals are all schema + sidecar facts.
+
+**Implement it by re-running the write path's own checks, not by
+re-stating them.** `io/spss` splits its encode at the last point before
+the first record is read — `planCohort` returns the sidecar resolution,
+the built dictionary and a bound encoder — so `WriteCohort` goes on to
+the data pass and `ValidateCohort` closes the file and reports. One
+implementation, two callers; a check that moves cannot move in only one
+of them. Validation must also have no observable side effect: no output
+file, no mutation of the writer's own encode state, and safe to call
+before, after or instead of a write pass.
+
+**CLI wiring.** `internal/cli/export.go`'s predict leaf builds the target
+through `newWriterForFormat` against a **MemMapFs and a throwaway path**,
+and never `Close`s it, so no adapter's bytes can reach any filesystem.
+It mounts the target format's write flags too (`--sanitise-names` turns a
+`.sav` name refusal into a warning, so a predict that could not be told
+about it would refuse an export that would have succeeded), and with no
+`--format` it keeps the old target-blind behaviour and says so in the
+output.
+
 ## 5. Skill and doc update
 
 Add or update a skill that points users at the new format. Cohort-

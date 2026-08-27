@@ -31,7 +31,9 @@ source dictionary rather than inventing one.
 pulse export spss --input PATH.pulse --output PATH.sav
                   [--ignore-sidecar] [--uncompressed]
                   [--charset NAME] [--sanitise-names] [--json]
-pulse export predict --input PATH.pulse --format spss [--json]
+pulse export predict --input PATH.pulse --format spss
+                     [--ignore-sidecar] [--uncompressed]
+                     [--charset NAME] [--sanitise-names] [--json]
 pulse convert PATH.pulse OUT.sav
 pulse convert PATH.csv  OUT.sav
 ```
@@ -322,6 +324,92 @@ Anything else with no honest `.sav` form is
 substitution: a dictionary ID the plan records no SPSS code for, an ID two
 source values collapsed onto, a `set_*` column with an empty dictionary.
 
+Most of these are answerable before a single byte is written — see
+[Checking first](#checking-first-pulse-export-predict---format-spss).
+
+## Checking first: `pulse export predict --format spss`
+
+```bash
+pulse export predict --input survey.pulse --format spss --json
+```
+
+```json
+{
+  "format_version": "1.1",
+  "data": { "Schema": { "Fields": [ ... ] }, "EstimatedRows": 1200,
+            "TargetWarnings": [ ... ] },
+  "errors": [],
+  "warnings": [
+    { "code": "PULSE_SPSS_SIDECAR_ABSENT",
+      "message": "spss: no metadata sidecar beside survey.pulse; the .sav dictionary was synthesised from the .pulse schema" }
+  ]
+}
+```
+
+`predict` writes **nothing**. It declares no `--output`, and the throwaway
+writer it builds to ask the question is pointed at an in-memory
+filesystem it never flushes.
+
+**Pass the flags you will export with.** The four write knobs are mounted
+on this leaf too, and the answer depends on them: `--sanitise-names` in
+particular turns a `PULSE_SPSS_NAME_INVALID` refusal into a
+`PULSE_SPSS_NAME_SANITISED` warning, so a predict that could not be told
+about it would refuse an export that would have succeeded.
+
+**A refusal carries the export's own code**, not a `PREDICT_ERROR`
+placeholder, so it is usable with `pulse errors lookup`:
+
+```bash
+pulse export predict -i survey.pulse --format spss --json
+```
+
+```json
+{ "format_version": "1.1", "data": null,
+  "errors": [ { "code": "PULSE_SPSS_NAME_INVALID",
+                "message": "spss: the cohort field \"household income\" cannot be an SPSS variable name (' ')",
+                "details": { "spss_field": "household income" } } ],
+  "warnings": [] }
+```
+
+Running the export against that cohort fails with the same code. That
+parity is the point, and it is asserted end to end rather than assumed.
+
+### What predict can and cannot see
+
+It runs the writer's own **non-data pass** — the sidecar resolution, the
+dictionary build, the name policy, the charset transcode of the
+dictionary text, the derived fold and the encoder's column checks — and
+throws the result away. It never reads a record. That covers most of the
+refusal set, because a `.pulse` cohort's records are fixed-width numerics
+and every string lives in the schema block's dictionaries.
+
+| Reachable without records | Needs the data pass |
+|---|---|
+| `PULSE_SPSS_NAME_INVALID` / `_COLLISION` / `_SANITISED` | `PULSE_SPSS_WIDTH_OVERFLOW` on a value |
+| `PULSE_SPSS_SIDECAR_ABSENT` / `_STALE` / `_INVALID` / `_IGNORED` | `PULSE_SPSS_CHARSET_UNENCODABLE` in cell text |
+| `PULSE_SPSS_CHARSET_UNSUPPORTED` / `_UNENCODABLE` in dictionary text | `PULSE_SPSS_EXPORT_UNSUPPORTED` for a dictionary ID with no source code |
+| `PULSE_SPSS_COLUMN_UNMAPPED`, `PULSE_SPSS_DERIVED_UNFOLDABLE` | |
+| `PULSE_SPSS_EXPORT_UNSUPPORTED` for `--include` / `--labels` | |
+| `PULSE_SPSS_COMPRESSION_UNSUPPORTED` / `_INVALID` | |
+
+**So predict is a sound but incomplete filter.** A refusal is real; a pass
+means no schema-level refusal was found, not that the export cannot fail.
+It deliberately does not guess at the right-hand column — a false refusal
+would block an export that would have worked, with no way to appeal it.
+
+Without `--format` the leaf is target-blind exactly as it was before, and
+says so:
+
+```
+Schema: 12 fields
+Estimated rows: 1200
+Target: not checked (pass --format to validate against the format you will export to)
+```
+
+Predict against a **non-`.sav`** target is also unchanged: no other writer
+implements `io.CohortValidator` today, so `--format csv` reports the same
+schema and row estimate it always did.
+
 ## Converting from a text source
 
 ```bash
@@ -487,6 +575,6 @@ it; there is no partial or degraded path.
 - [`pulse import spss`](import-spss.md) — the read half, in full detail
 - [`pulse cohort inspect`](cohort-inspect.md) — see the cohort's schema and dictionaries before exporting
 - [`pulse manifest`](manifest.md) — `import.formats[]` declares `spss` with `export: true`; `export.formats[]` declares its `warn_and_skip` overlay support
-- [Adding an I/O Format](../internals/adding-io-format.md) — the `CohortWriter` / `TargetWarningEmitter` contracts this adapter implements
+- [Adding an I/O Format](../internals/adding-io-format.md) — the `CohortWriter` / `CohortValidator` / `TargetWarningEmitter` contracts this adapter implements
 - `skills/spss-cohorts.md` — the agent-facing SPSS surface, read and write
 - `skills/session-bootstrap.md` — the four write flags in the CLI flag map

@@ -158,6 +158,34 @@ func TestExportSPSS_HasEveryWriteFlag(t *testing.T) {
 	}
 }
 
+// TestExportPredict_HasTheTargetFlags. E6-S1 made `pulse export predict`
+// target-aware, and a flag that is not mounted cannot be passed: --format
+// unmounted leaves predict answering from the source cohort alone, and
+// --sanitise-names unmounted leaves it refusing an export that would have
+// succeeded, with no way for the caller to say otherwise.
+func TestExportPredict_HasTheTargetFlags(t *testing.T) {
+	var predict *cli.Command
+	for _, c := range ExportCommand().Commands {
+		if c.Name == "predict" {
+			predict = c
+		}
+	}
+	if predict == nil {
+		t.Fatal("`pulse export predict` is not mounted on the export command group")
+	}
+	for _, name := range []string{"format", "ignore-sidecar", "uncompressed", "charset", "sanitise-names"} {
+		assertHasFlag(t, predict, name)
+	}
+	// It declares no --output, and must not grow one: predict writes nothing.
+	for _, f := range predict.Flags {
+		for _, n := range f.Names() {
+			if n == "output" || n == "o" {
+				t.Errorf("`pulse export predict` declares a %q flag; it validates without writing", n)
+			}
+		}
+	}
+}
+
 // TestConvertHasTheWriteFlags mirrors the read side's own coverage: a
 // knob mounted on `export spss` alone would leave `pulse convert data.csv
 // out.sav` — the shortest path to a `.sav` — unable to ask for it.

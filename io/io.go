@@ -357,6 +357,72 @@ type CohortWriter interface {
 	WriteCohort(ctx context.Context, src CohortSource) (int, error)
 }
 
+// CohortValidator is an optional extension of Writer for targets that
+// can decide whether they COULD encode a cohort without encoding it.
+//
+// It exists because `pulse export predict` was target-blind. ExportJob.Predict
+// read the source header and schema and answered "this export is fine" no
+// matter what the target was, which was harmless only for as long as every
+// writer was infallible at the target boundary — CSV / TSV / NDJSON /
+// JSONArray stringify anything handed to them. io/spss is the first writer
+// that can REFUSE, so predict was claiming an export would work and the real
+// export was then failing. Predict has to be able to answer the question it
+// appears to answer.
+//
+// # Dispatch, and the promise to every other format
+//
+// ExportJob.Predict type-asserts this interface. A Target that is nil, or one
+// that does not implement it, is predicted EXACTLY as it was before the
+// interface existed: no extra read, no extra failure mode, the same
+// PredictReport. That is the whole compatibility contract and it is pinned by
+// TestExportJob_Predict_NonValidatingTargetUnchanged.
+//
+// Unlike CohortWriter, a validator is called WITHOUT SetPulseSchema and
+// WITHOUT WriteHeader — predict starts no write lifecycle on a writer it will
+// never Close. Everything a validator needs is reachable from CohortSource:
+// src.FS + src.Path locate the cohort (and any format sidecar riding beside
+// it), and Includes / Labelled carry the output-time transformations so they
+// can be refused here for the same reasons WriteCohort refuses them.
+//
+// # Return contract
+//
+// The returned slice is the non-fatal diagnostics the real export WOULD
+// raise; they land on PredictReport.TargetWarnings. A non-nil error is the
+// refusal the real export WOULD return, and must carry the same code the
+// export itself would — a predicted PULSE_SPSS_NAME_INVALID that exported as
+// something else would be worse than no prediction at all.
+//
+// # The one rule an implementation may not break
+//
+// A validator must never refuse something the real export would accept. A
+// false refusal is worse than the current silence: it blocks work that would
+// have succeeded, and there is no way for the caller to appeal it. Where a
+// verdict is not reachable without reading records — a value whose width
+// overflows, a character the target charset cannot encode, a dictionary ID
+// with no source code behind it — a validator warns, or stays silent. It
+// never guesses. Predict is therefore a sound but INCOMPLETE filter: passing
+// it means no schema-level refusal was found, not that the export cannot
+// fail.
+//
+// The refusal set is mostly reachable without records precisely because a
+// `.pulse` cohort's records are fixed-width numerics — every string lives in
+// the schema block's dictionaries. Name legality, charset encodability of the
+// dictionary text, sidecar state, derived-column foldability and the
+// Includes / Labels refusals are all schema + sidecar facts.
+//
+// # Obligations
+//
+// Validation must have no side effects the caller can observe: no output
+// file, no mutation of the writer's own encode state, and it must stay safe
+// to call before, after, or instead of a write pass.
+type CohortValidator interface {
+	Writer
+	// ValidateCohort reports whether the cohort described by src could be
+	// encoded, without encoding it. The slice is the warnings the real
+	// export would raise; a non-nil error is the refusal it would return.
+	ValidateCohort(ctx context.Context, src CohortSource) ([]*errors.CodedError, error)
+}
+
 // TargetWarningEmitter is an optional extension a Writer can implement
 // to surface non-fatal diagnostics the ENCODE raised, so the shared jobs
 // lift them onto ExportReport.TargetWarnings / ConvertReport.TargetWarnings
@@ -481,6 +547,19 @@ type PredictReport struct {
 	// predict against an authoritative source runs no inference, so
 	// Warnings is empty there and SourceWarnings is the only signal.
 	SourceWarnings []*errors.CodedError
+	// TargetWarnings carries the non-fatal diagnostics the TARGET
+	// Writer would raise if the export ran, lifted off the optional
+	// CohortValidator contract — today the PULSE_SPSS_SIDECAR_ABSENT /
+	// _IGNORED and PULSE_SPSS_NAME_SANITISED codes a `.sav` export
+	// raises before it reads a single record. Symmetric with
+	// ExportReport.TargetWarnings, and held apart from SourceWarnings
+	// for the same reason ConvertReport holds the two apart: one is
+	// about what was read, the other about what would be written.
+	//
+	// Nil for a predict whose target does not implement
+	// CohortValidator, which is every format but `.sav` today, and nil
+	// for a validating target that raised nothing.
+	TargetWarnings []*errors.CodedError
 }
 
 // ImportJob converts tabular source data into a .pulse file.
