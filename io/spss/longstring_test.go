@@ -901,6 +901,13 @@ func TestLongStringRecords_BindingFaults(t *testing.T) {
 
 // TestVLS_SubtypesNoLongerUnknown is the direct handoff from E2-S3: subtypes
 // 14, 21 and 22 warned as unrecognised, and must not any more.
+//
+// "Clean" here means no FAULT is reported. The fixture deliberately
+// declares a record 7/22 missing value on a string variable, which E4-S3
+// flags in the column's own dictionary and summarises once with the
+// informational PULSE_SPSS_CATEGORICAL_USER_MISSING — that diagnostic
+// says nothing is wrong, it says which entry to leave out of a base, so
+// it is expected here rather than excluded.
 func TestVLS_SubtypesNoLongerUnknown(t *testing.T) {
 	spec := longStringSpec(600, "hello", "declined")
 	spec.LongStringValueLabels = []spsstest.LongStringValueLabels{{
@@ -915,8 +922,17 @@ func TestVLS_SubtypesNoLongerUnknown(t *testing.T) {
 			t.Errorf("still unrecognised: %s", w.Message)
 		}
 	}
-	if len(warnings) != 0 {
-		t.Errorf("a clean very-long-string file should read without warnings:\n%s", warningText(warnings))
+	var faults []*errors.CodedError
+	for _, w := range warnings {
+		if w.Code != errors.PULSE_SPSS_CATEGORICAL_USER_MISSING {
+			faults = append(faults, w)
+		}
+	}
+	if len(faults) != 0 {
+		t.Errorf("a clean very-long-string file should read without fault warnings:\n%s", warningText(faults))
+	}
+	if !hasCode(warnings, errors.PULSE_SPSS_CATEGORICAL_USER_MISSING) {
+		t.Errorf("the record 7/22 missing value was not flagged on the categorical column:\n%s", warningText(warnings))
 	}
 }
 

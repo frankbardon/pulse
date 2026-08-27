@@ -1585,6 +1585,28 @@ const (
 	// hand the caller a schema they did not ask for. Details carry the
 	// offending value under DetailSPSSMissingMode.
 	PULSE_SPSS_MISSING_MODE_INVALID Code = "PULSE_SPSS_MISSING_MODE_INVALID"
+
+	// PULSE_SPSS_CATEGORICAL_USER_MISSING indicates one or more SPSS
+	// variables that mapped to a Pulse categorical column declare
+	// user-missing codes, and those codes were kept as ORDINARY
+	// dictionary entries rather than nulled or moved to a sibling.
+	//
+	// It is informational and never blocks an import: nothing was lost
+	// and nothing was changed. It exists because the loss it prevents is
+	// downstream rather than at import time — a percentage base computed
+	// over a coded question silently includes its "Refused" category
+	// unless the analyst excludes it, and an analyst who cannot see WHICH
+	// entry is the refusal cannot write that exclusion. The Pulse
+	// dictionary holds the SPSS CODES, so the value to exclude is "9",
+	// never "Refused".
+	//
+	// One diagnostic covers the whole file rather than one per variable:
+	// an all-categorical survey can have a missing code on every one of
+	// hundreds of variables, and a warning per variable would bury the
+	// signal it exists to carry. Details name every flagged variable and
+	// its flagged dictionary entries under DetailSPSSMissingCategories,
+	// and the count of flagged variables under DetailSPSSDistinct.
+	PULSE_SPSS_CATEGORICAL_USER_MISSING Code = "PULSE_SPSS_CATEGORICAL_USER_MISSING"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -1682,6 +1704,18 @@ const (
 	// user-missing handling mode a PULSE_SPSS_MISSING_MODE_INVALID
 	// refers to, exactly as the caller spelled it.
 	DetailSPSSMissingMode = "missing_mode"
+
+	// DetailSPSSMissingCategories is the CodedError.Details key carrying
+	// the user-missing dictionary entries of every CATEGORICAL column a
+	// PULSE_SPSS_CATEGORICAL_USER_MISSING diagnostic covers: a
+	// map[string][]string of Pulse field name to the dictionary entry
+	// texts that are missing-coded, in dictionary ID order.
+	//
+	// The entry texts are what an exclusion filter takes verbatim —
+	// FILTER_EXCLUDE resolves its Values through the field's dictionary,
+	// which holds the SPSS CODES — so this is the value to exclude and
+	// not the label to read.
+	DetailSPSSMissingCategories = "missing_categories"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1888,6 +1922,7 @@ var allCodes = []Code{
 	PULSE_SPSS_EXPORT_UNSUPPORTED,
 	PULSE_SPSS_DERIVED_NAME_COLLISION,
 	PULSE_SPSS_MISSING_MODE_INVALID,
+	PULSE_SPSS_CATEGORICAL_USER_MISSING,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

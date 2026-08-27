@@ -293,3 +293,47 @@ func assertHasFlag(t *testing.T, cmd *cli.Command, name string) {
 	}
 	t.Errorf("command %q has no --%s flag", cmd.Name, name)
 }
+
+// TestWriteEnvelopeWithWarnings_CarriesMissingCategories is E4-S3's
+// discoverability criterion at the surface a caller actually reads.
+//
+// PULSE_SPSS_CATEGORICAL_USER_MISSING is the only SPSS diagnostic whose
+// details are NESTED — a field name to flagged-dictionary-entries map
+// rather than a flat string — because the prose caps its list and the
+// details must not. A marshal that flattened or dropped it would leave
+// "which entry do I exclude?" answerable only by opening the sidecar.
+func TestWriteEnvelopeWithWarnings_CarriesMissingCategories(t *testing.T) {
+	var buf bytes.Buffer
+	warns := []*perrors.CodedError{
+		perrors.NewCodedErrorWithDetails(
+			perrors.PULSE_SPSS_CATEGORICAL_USER_MISSING,
+			`spss: 2 categorical columns declare user-missing codes`,
+			map[string]any{
+				perrors.DetailSPSSMissingCategories: map[string][]string{
+					"Q1": {"9"},
+					"Q2": {"8", "9"},
+				},
+				perrors.DetailSPSSDistinct: 2,
+			}),
+	}
+	if err := writeEnvelopeWithWarnings(&buf, map[string]int{"rows": 3}, warns); err != nil {
+		t.Fatalf("writeEnvelopeWithWarnings: %v", err)
+	}
+	var env descriptor.Envelope
+	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(env.Warnings) != 1 {
+		t.Fatalf("warnings = %d, want 1", len(env.Warnings))
+	}
+	raw, ok := env.Warnings[0].Details[perrors.DetailSPSSMissingCategories].(map[string]any)
+	if !ok {
+		t.Fatalf("details[%s] = %#v, want a nested object",
+			perrors.DetailSPSSMissingCategories, env.Warnings[0].Details[perrors.DetailSPSSMissingCategories])
+	}
+	q2, ok := raw["Q2"].([]any)
+	if !ok || len(q2) != 2 || q2[0] != "8" || q2[1] != "9" {
+		t.Errorf("details[%s][\"Q2\"] = %#v, want the two flagged entries in dictionary order",
+			perrors.DetailSPSSMissingCategories, raw["Q2"])
+	}
+}

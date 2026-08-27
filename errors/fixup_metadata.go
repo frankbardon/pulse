@@ -2078,6 +2078,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_CATEGORICAL_USER_MISSING: {
+		Message: "One or more SPSS variables that mapped to a Pulse categorical column declare user-missing codes, and those codes were kept as ordinary dictionary entries. This is informational — nothing was lost. For a categorical the value IS the label, so the code is already preserved losslessly in the column's own dictionary and no `<var>_missing` sibling is generated; a sibling there would be pure redundancy and would double the schema width of an all-categorical survey. The reason it is reported at all is that a percentage base computed over a coded question silently includes its refusal category unless the analyst excludes it. Details name every flagged variable and its flagged dictionary entries under `missing_categories`; the same flags ride the metadata sidecar as `variables[].categories[].missing`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Filterers"},
+				Hint:   "Exclude the missing codes from an analysis base with FILTER_EXCLUDE on the field, listing the dictionary ENTRIES from `missing_categories` — the cohort dictionary holds the SPSS codes, so the value is \"9\", never \"Refused\". A value not in the dictionary is a PROCESSING_CONFIG error, so a mistyped exclusion fails loudly rather than filtering nothing.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Filterers"},
+				Hint:   "No action is needed to keep them: the codes are ordinary values and every aggregation counts them. Leave the filterer off when the missing categories belong in the base.",
+			},
+		},
+	},
 	PULSE_SPSS_EXPORT_UNSUPPORTED: {
 		Message: "SPSS was requested as an OUTPUT format, but Pulse reads .sav / .zsav and does not yet write them: the reader is registered and the writer is not. The extension is recognised — that is why this is a specific error rather than an unknown-format one — so `pulse convert survey.sav out.csv` works while `pulse convert data.csv out.sav` stops here.",
 		Fixups: []Fixup{

@@ -90,7 +90,7 @@ is **always** `null` for an SPSS import — see
 | `DATETIME` / `TIME` / `DTIME` | `datetime` (epoch seconds) | A fractional-second / non-finite / out-of-`int64` value demotes the column to `f64` raw SPSS seconds with `PULSE_SPSS_TEMPORAL_PRECISION` |
 | system-missing (sysmis) | null (bitmap bit) | The one missing state the format has a sentinel for |
 | numeric user-missing values | null, plus a generated `<var>_missing` sibling column | See [Missing values](#missing-values) — the analytic column stays arithmetically clean and the reason is kept beside it |
-| categorical user-missing values (string, or a value-labelled numeric) | ordinary dictionary entries | The value *is* the label, so nothing is lost and a sibling would be redundant |
+| categorical user-missing values (string, or a value-labelled numeric) | ordinary dictionary entries, flagged in the sidecar | See [Categorical user-missing codes](#categorical-user-missing-codes) — the value *is* the label, so nothing is lost and a sibling would be redundant |
 
 ## Missing values
 
@@ -164,7 +164,8 @@ a filter.
 - **Categorical columns get no sibling.** A string variable, and a
   numeric one whose labels genuinely code it, keep their missing codes as
   ordinary dictionary entries: the value *is* the label, so nothing is
-  lost.
+  lost. See [Categorical user-missing codes](#categorical-user-missing-codes)
+  below — the asymmetry is deliberate.
 
 **The opt-out.** `--spss-missing=null` suppresses the sibling columns.
 The nulls are identical; what disappears is the reason.
@@ -192,6 +193,102 @@ variable and its reason dictionary: reason ID ↔ text ↔ original SPSS code
 ↔ label. That registry is what lets an export drop the derived column and
 write the original codes back, rather than re-deriving the mapping and
 hoping it lands on the same answer.
+
+## Categorical user-missing codes
+
+A **categorical** column takes the opposite treatment, and the asymmetry
+with the numeric case above is deliberate rather than an oversight.
+
+A numeric variable needs a `<var>_missing` sibling because there is
+nowhere else for the reason to live: `f64` has no dictionary, and the
+null bitmap is one bit that can say a value is absent but never why. A
+categorical variable already stores the SPSS code as a dictionary entry,
+so `Q1: 1=Yes, 2=No, 9=Refused` imports as a `categorical_u8` whose
+dictionary holds `"1"`, `"2"`, `"9"` — the refusal is preserved
+losslessly by the ordinary mapping and the row that was refused still
+says `9`. A sibling here would restate a value that is already present,
+and it would do it on **every** variable of an all-categorical survey: a
+200-question questionnaire whose items each carry a `Refused` code would
+double to 400 columns to carry no new information.
+
+So the codes stay, and Pulse records **which** entries are missing-coded
+instead. String variables — including record `7/22` long-string missing
+values — take exactly the same path, because a string maps to
+`categorical_*` where the value *is* the dictionary entry.
+
+**Two surfaces, answering different questions.**
+
+The metadata sidecar is the persistent, exact, per-entry record. Each
+flagged dictionary entry carries `"missing": true` alongside its code,
+label and Pulse ID:
+
+```json
+{
+  "name": "Q1",
+  "pulse_type": "categorical_u8",
+  "categories": [
+    { "id": 0, "value": "1", "code": 1, "label": "Yes",     "labelled": true, "observed": true },
+    { "id": 1, "value": "2", "code": 2, "label": "No",      "labelled": true, "observed": true },
+    { "id": 2, "value": "9", "code": 9, "label": "Refused", "labelled": true, "observed": true, "missing": true }
+  ]
+}
+```
+
+The flag is additive and `omitempty`, so a file declaring no categorical
+user-missing codes writes a document byte-identical to the shape before
+it existed; the sidecar's own `format_version` does not move.
+
+The import raises `PULSE_SPSS_CATEGORICAL_USER_MISSING` as the
+**import-time** signal — one informational diagnostic for the whole file,
+never one per variable, because an all-categorical survey would otherwise
+emit hundreds of lines and bury the thing they are meant to carry. It
+rides `SourceWarnings`, so it appears on the `--json` envelope's
+`warnings` array and as a `Warning [PULSE_SPSS_CATEGORICAL_USER_MISSING]`
+line on the text path. Its prose names the first few variables and their
+codes; `details.missing_categories` carries every one of them as a field
+name to flagged-entry map, uncapped.
+
+Nothing is wrong when it fires. It exists because the loss it prevents is
+downstream: a percentage base computed over a coded question silently
+includes its refusal category unless somebody excludes it.
+
+**The exclusion is over the CODE, not the label.** The cohort dictionary
+holds SPSS codes (see [Value labels](#value-labels-the-cohort-stores-codes)),
+so `"Refused"` appears nowhere in it:
+
+```json
+{ "type": "FILTER_EXCLUDE", "field": "Q1", "values": ["9"] }
+```
+
+`values: ["9"]` — the dictionary entry, which is exactly what
+`details.missing_categories` hands you. A value not in the dictionary is
+a `PROCESSING_CONFIG` error, so a label typed there fails loudly rather
+than filtering nothing.
+
+`--spss-missing` does not reach this arm. The flag governs sibling
+columns, and a categorical column has none, so its codes, its dictionary
+and its flags are identical under `auto` and `null` — two imports of one
+file must never disagree about what a field *is*.
+
+**Cross-checked against R.** The shape matches what an independent reader
+produces. `haven::read_sav(user_na = TRUE)` returns a
+`haven_labelled_spss` vector that **keeps the code in the data** and
+reports the missingness **separately**, on the `na_values` / `na_range`
+attributes, alongside the value labels — value kept, missingness stated
+beside it. `foreign::read.spss(use.value.labels = TRUE)` does the same by
+a different route: the missing code comes back as an ordinary factor
+level, with the codes on the `missings` attribute. That is exactly the
+division Pulse reproduces — the code is an ordinary dictionary entry, and
+`categories[].missing` is the separate statement about it. The contrast
+with the numeric arm holds on their side too: neither reader manufactures
+a second column, because neither is constrained to a one-bit null flag.
+
+The one deliberate divergence is the *default*: `haven`'s default
+(`user_na = FALSE`) turns every user-missing value into `NA`, dropping
+the distinction. Pulse has no equivalent default for categoricals —
+`--spss-missing=null` governs sibling columns only, and a categorical
+column has none — because for a categorical, nulling the code destroys
+the value itself.
 
 ## Value labels: the cohort stores codes
 
@@ -298,6 +395,7 @@ each.
 | `PULSE_SPSS_VALUE_COLLISION` | Two distinct SPSS values resolve to one dictionary entry (reachable causes: the shared import path trims cells, so `" X"` and `"X"` merge; or two user-missing codes share a value label, in which case the second reason falls back to its code — see [Missing values](#missing-values)) |
 | `PULSE_SPSS_MEASURE_LEVEL_MISMATCH` | A `scale`-level variable carries value labels, so it mapped to a categorical whose smart defaults are `AGG_FREQUENCY` / `GROUP_CATEGORY` rather than `AGG_SUM` / `GROUP_RANGE` |
 | `PULSE_SPSS_NULL_TOKEN_COLLISION` | A cell's text is a null sentinel (`""`, `NA`, `N/A`, `NULL`) and imports as null |
+| `PULSE_SPSS_CATEGORICAL_USER_MISSING` | Informational, once per file: categorical columns carry user-missing codes as ordinary dictionary entries — see [Categorical user-missing codes](#categorical-user-missing-codes) |
 | `PULSE_SPSS_EXTENSION_UNKNOWN` | A record type 7 extension subtype this reader does not interpret; its bytes are retained verbatim |
 | `PULSE_SPSS_EXTENSION_INVALID` | An interpreted subtype carried a payload of the wrong shape; framing stayed sound, only the interpretation is dropped |
 | `PULSE_SPSS_VERY_LONG_STRING_INVALID` | A record `7/14` segmentation could not be reassembled; the segments import as separate columns — see [Very long strings](#very-long-strings) |
@@ -594,6 +692,7 @@ intact, so pointing at it would send you to the wrong place.
 | `PULSE_SPSS_CATEGORICAL_OVERFLOW` | A labelled variable has more distinct codes than `categorical_u32` holds |
 | `PULSE_SPSS_DERIVED_NAME_COLLISION` | A generated `<var>_missing` column has the same name as a real variable — names both sides — see [Missing values](#missing-values) |
 | `PULSE_SPSS_MISSING_MODE_INVALID` | `--spss-missing` was given a value other than `auto` or `null` |
+| `PULSE_SPSS_CATEGORICAL_USER_MISSING` | Informational: one or more categorical columns carry user-missing codes as ordinary dictionary entries — one diagnostic per file, naming every flagged variable and entry under `details.missing_categories` — see [Categorical user-missing codes](#categorical-user-missing-codes) |
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` | The declared character encoding resolves to no decoder — see [Character encoding](#character-encoding) |
 | `PULSE_SPSS_CHARSET_INVALID` | A byte sequence is not decodable in the declared character encoding — names the variable and the value |
 | `PULSE_SPSS_EXPORT_UNSUPPORTED` | An SPSS output target was requested — Pulse cannot write `.sav` |

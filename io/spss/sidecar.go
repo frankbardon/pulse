@@ -653,6 +653,29 @@ type Category struct {
 	// False for a declared label nothing used, which still occupies its
 	// ID so the file's own code ordering survives.
 	Observed bool `json:"observed"`
+
+	// Missing reports that this entry's SPSS value is one of the
+	// variable's USER-MISSING codes.
+	//
+	// It is the categorical arm of the missing-value mapping, and the
+	// asymmetry with the numeric arm is deliberate. A numeric variable
+	// gets a `<var>_missing` sibling because f64 has no dictionary and
+	// the null bitmap is one bit — there is nowhere else for the reason
+	// to live. A categorical one already stores the code as a dictionary
+	// entry, so the information is present and losslessly addressable;
+	// what it lacks is a way to say WHICH entry is a missing code, and
+	// that is exactly this flag. Duplicating the code into a sibling
+	// would be pure redundancy and would double the schema width of an
+	// all-categorical survey file.
+	//
+	// It is `omitempty`, so a document over a file that declares no
+	// categorical user-missing codes is byte-identical to the shape
+	// before the flag existed. SidecarFormatVersion is unchanged.
+	//
+	// Two entries sharing an ID (a value collision) are flagged
+	// independently: the flag describes the SOURCE value, and one of a
+	// collided pair may be missing-coded while the other is not.
+	Missing bool `json:"missing,omitempty"`
 }
 
 // Derived is one column this import synthesised rather than read.

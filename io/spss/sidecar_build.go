@@ -426,6 +426,14 @@ func buildMissing(v variable) *Missing {
 // observed but unlabelled. Every one of those is a real state of a real
 // file, and collapsing any of them is the failure this slot exists to
 // prevent.
+//
+// Missing carries the categorical arm of the missing-value mapping: the
+// entry's SPSS value is one of the variable's user-missing codes, kept in
+// place rather than nulled or moved to a `<var>_missing` sibling, because
+// for a categorical the value IS the label and the code is already here.
+// The flag is what makes that choice usable — it is the only record of
+// WHICH entry to leave out of a percentage base. See
+// missing_categorical.go.
 func buildCategories(col *columnMapping) []Category {
 	if len(col.categories) == 0 {
 		return nil
@@ -439,6 +447,7 @@ func buildCategories(col *columnMapping) []Category {
 			Label:    c.label,
 			Labelled: c.labelled,
 			Observed: c.observed,
+			Missing:  c.missing,
 		}
 		if c.numeric {
 			code := Float(c.code)

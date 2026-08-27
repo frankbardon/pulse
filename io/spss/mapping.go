@@ -242,6 +242,13 @@ type categoryEntry struct {
 	// observed reports whether at least one case carried this value.
 	// False for a declared label nothing used.
 	observed bool
+
+	// missing reports that this entry's SPSS value is one of the
+	// variable's USER-MISSING codes. See missing_categorical.go for why
+	// a categorical column flags the code in place rather than
+	// duplicating it into a `<var>_missing` sibling the way the numeric
+	// arm does.
+	missing bool
 }
 
 // columnMapping is one SPSS variable's resolved Pulse column.
@@ -372,6 +379,14 @@ type mapping struct {
 	// measured in another encoding.
 	charset charsetInfo
 
+	// missingCategories accumulates, in cohort order, every CATEGORICAL
+	// column whose dictionary carries user-missing codes, with the entry
+	// texts that were flagged. It feeds the one file-level
+	// PULSE_SPSS_CATEGORICAL_USER_MISSING summary — see
+	// missing_categorical.go for why the diagnostic is per file and not
+	// per variable.
+	missingCategories []missingCategories
+
 	// warnings are the non-fatal mapping diagnostics. They are built
 	// once with the mapping and never re-raised, because the mapping is
 	// memoised for the life of the reader.
@@ -486,6 +501,11 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 		// declared field type in agreement.
 		plan.cols[i].kind = col.kind
 	}
+
+	// One informational summary for the whole file, raised after every
+	// column has resolved so it can be a single diagnostic rather than
+	// one per variable.
+	m.warnMissingCategories(m.missingCategories)
 
 	// Sibling resolution runs after every column has settled, because a
 	// sibling is named from its source column's FINAL Pulse field name.
@@ -887,6 +907,15 @@ func (m *mapping) resolveColumn(at int, v variable, kind columnKind,
 	case kindCategorical:
 		if err := m.resolveCategories(&col, v, labels, st, opts); err != nil {
 			return columnMapping{}, err
+		}
+		// The missing specification does not shape the dictionary — a
+		// refusal code is an ordinary entry with an ordinary ID — so the
+		// flagging pass runs after it and only annotates. See
+		// missing_categorical.go for why a categorical column flags in
+		// place where a numeric one grows a sibling.
+		if flagged := m.markMissingCategories(&col, v); len(flagged) > 0 {
+			m.missingCategories = append(m.missingCategories,
+				missingCategories{field: col.name, values: flagged})
 		}
 	}
 

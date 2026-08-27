@@ -5,6 +5,7 @@ import (
 	"context"
 	"testing"
 
+	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/spsstest"
 	pio "github.com/frankbardon/pulse/io"
 	pformat "github.com/frankbardon/pulse/io/format"
@@ -474,3 +475,110 @@ func (w *discardWriter) WriteRow([]any) error       { w.rows++; return nil }
 func (w *discardWriter) Close() error               { return nil }
 
 var _ pio.Writer = (*discardWriter)(nil)
+
+// TestSPSS_CategoricalMissingCodesAreExcludable is E4-S3's usability
+// criterion taken to the artefact an analyst actually holds.
+//
+// The categorical arm keeps a user-missing code as an ordinary dictionary
+// entry, which is lossless but not automatically useful: a percentage
+// base over a coded question silently includes its "Refused" category
+// unless someone excludes it. So the claim under test is that the idiom
+// the design assumed — FILTER_EXCLUDE on the flagged entry — actually
+// works against a real imported cohort.
+//
+// The trap it guards is that the cohort's dictionary holds SPSS CODES,
+// not labels (E2-S6). The value an analyst types is "9". Typing
+// "Refused" — the thing they can read — is PROCESSING_CONFIG, which is
+// the right failure: loud, not a filter that quietly matches nothing.
+func TestSPSS_CategoricalMissingCodesAreExcludable(t *testing.T) {
+	afs := afero.NewMemMapFs()
+	spec := spsstest.Spec{
+		Vars: []spsstest.Var{{
+			Name: "Q1", Label: "Satisfied?",
+			Print:   spsstest.Format{Type: spsstest.FormatF, Width: 1},
+			Missing: &spsstest.MissingValues{Discrete: []spsstest.Value{spsstest.Num(9)}},
+		}},
+		ValueLabels: []spsstest.ValueLabelSet{{
+			Vars: []string{"Q1"},
+			Labels: []spsstest.ValueLabel{
+				{Value: spsstest.Num(1), Label: "Yes"},
+				{Value: spsstest.Num(2), Label: "No"},
+				{Value: spsstest.Num(9), Label: "Refused"},
+			},
+		}},
+		Cases: [][]spsstest.Value{
+			{spsstest.Num(1)}, {spsstest.Num(1)}, {spsstest.Num(2)}, {spsstest.Num(9)},
+		},
+	}
+	seedSav(t, afs, "survey.sav", spec)
+
+	p, err := New(Options{FS: afs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+	res, err := p.ImportFile(ctx, ImportSpec{SourcePath: "survey.sav"})
+	if err != nil {
+		t.Fatalf("ImportFile: %v", err)
+	}
+
+	// The import-time signal reaches the caller, naming the code to
+	// exclude. Without it the flag is only in a JSON file beside the
+	// cohort, which nobody who does not already know to look will read.
+	var summary *perrors.CodedError
+	for _, w := range res.SourceWarnings {
+		if w.Code == perrors.PULSE_SPSS_CATEGORICAL_USER_MISSING {
+			summary = w
+		}
+	}
+	if summary == nil {
+		t.Fatalf("ImportResult.SourceWarnings carries no PULSE_SPSS_CATEGORICAL_USER_MISSING: %+v", res.SourceWarnings)
+	}
+	detail, ok := summary.Details[perrors.DetailSPSSMissingCategories].(map[string][]string)
+	if !ok || len(detail["Q1"]) != 1 || detail["Q1"][0] != "9" {
+		t.Fatalf("details[%s] = %v, want Q1 -> [\"9\"]", perrors.DetailSPSSMissingCategories, summary.Details[perrors.DetailSPSSMissingCategories])
+	}
+
+	count := func(t *testing.T, filterers []*types.Filterer) float64 {
+		t.Helper()
+		resp, err := p.Process(ctx, &Request{
+			Cohort:       &types.Cohort{Filename: res.Path},
+			Filterers:    filterers,
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "Q1", Label: "n"}},
+		})
+		if err != nil {
+			t.Fatalf("Process: %v", err)
+		}
+		if len(resp.Data) != 1 {
+			t.Fatalf("Process returned %d row(s), want 1", len(resp.Data))
+		}
+		n, ok := resp.Data[0]["n"].(float64)
+		if !ok {
+			t.Fatalf("n = %#v, want a float64", resp.Data[0]["n"])
+		}
+		return n
+	}
+
+	// Unfiltered the refusal is in the base — that is what makes the
+	// exclusion necessary rather than cosmetic.
+	if got := count(t, nil); got != 4 {
+		t.Errorf("unfiltered n = %v, want 4", got)
+	}
+	// The exclusion the warning tells the analyst to write, using the
+	// dictionary ENTRY from the details map verbatim.
+	if got := count(t, []*types.Filterer{{
+		Type: types.FILTER_EXCLUDE, Field: "Q1", Values: detail["Q1"],
+	}}); got != 3 {
+		t.Errorf("excluded n = %v, want 3 — FILTER_EXCLUDE on the flagged dictionary entry must drop the refusal", got)
+	}
+
+	// And the label is NOT the value: it is not in the dictionary, so it
+	// fails loudly rather than filtering nothing.
+	if _, err := p.Process(ctx, &Request{
+		Cohort:       &types.Cohort{Filename: res.Path},
+		Filterers:    []*types.Filterer{{Type: types.FILTER_EXCLUDE, Field: "Q1", Values: []string{"Refused"}}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "Q1", Label: "n"}},
+	}); err == nil {
+		t.Error("excluding by the LABEL succeeded; the cohort dictionary holds SPSS codes, so this must be a loud PROCESSING_CONFIG rather than a no-op filter")
+	}
+}
