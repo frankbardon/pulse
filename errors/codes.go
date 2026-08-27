@@ -1239,6 +1239,55 @@ const (
 	// read ran past under DetailSPSSOffset.
 	PULSE_SPSS_DICT_TRUNCATED Code = "PULSE_SPSS_DICT_TRUNCATED"
 
+	// PULSE_SPSS_FILE_EMPTY indicates an SPSS `.sav` source carries no
+	// bytes at all: a zero-length file, or an in-memory reader handed a
+	// nil or empty buffer. It is deliberately DISTINCT from
+	// PULSE_SPSS_DICT_TRUNCATED, which means a real file stops part way
+	// through a record — a zero-length file has no first record to be
+	// part way through, and the two have completely different causes (a
+	// touched-but-never-written path versus an interrupted transfer).
+	// Details carry "header" under DetailSPSSRecord and offset 0 under
+	// DetailSPSSOffset.
+	PULSE_SPSS_FILE_EMPTY Code = "PULSE_SPSS_FILE_EMPTY"
+
+	// PULSE_SPSS_ENDIANNESS_MISMATCH indicates an SPSS `.sav` file states
+	// its byte order twice and the two statements contradict each other:
+	// the header layout code reads as 2 or 3 in one order while the
+	// record 7/3 machine-integer endianness field names the other. It is
+	// an ERROR rather than a warning, unlike the sibling charset
+	// cross-check: every multi-byte field in the file — every count,
+	// every offset, every double — is read in whichever order wins, so
+	// choosing wrongly does not lose a label, it produces a whole file of
+	// plausible and incorrect numbers. Details carry the extension record
+	// under DetailSPSSRecord, the subtype under DetailSPSSSubtype and the
+	// record's byte offset under DetailSPSSOffset.
+	PULSE_SPSS_ENDIANNESS_MISMATCH Code = "PULSE_SPSS_ENDIANNESS_MISMATCH"
+
+	// PULSE_SPSS_MAGIC_FLAG_MISMATCH indicates an SPSS system file whose
+	// 4-byte magic and header compression flag disagree about whether it
+	// is a ZSAV: `$FL3` with compression flag 0 or 1, or `$FL2` with
+	// compression flag 2. It is a WARNING. The compression flag is the
+	// single dispatch point for how the data section is decoded, and it
+	// is the more specific statement of the two — the magic is a coarse
+	// generation label a re-saving tool can leave stale — so the flag
+	// wins and the file still reads. Details carry "header" under
+	// DetailSPSSRecord and the compression field's byte offset under
+	// DetailSPSSOffset.
+	PULSE_SPSS_MAGIC_FLAG_MISMATCH Code = "PULSE_SPSS_MAGIC_FLAG_MISMATCH"
+
+	// PULSE_SPSS_VALUE_LABELS_DROPPED indicates a record 3/4 value-label
+	// pair names variables it cannot be bound to — a set mixing variables
+	// of different type or width, a set attached to a string wider than
+	// the 8 bytes a record 3 value slot can hold, or an element index
+	// landing on a string continuation rather than on a variable. It is a
+	// WARNING that drops that one label set and imports everything else:
+	// a value label is display metadata, so refusing the file would cost
+	// the data to save the labels, and binding it anyway would mislabel
+	// values silently. Details carry the record under DetailSPSSRecord,
+	// the record type 4's byte offset under DetailSPSSOffset and the
+	// variable under DetailSPSSVariable where one is named.
+	PULSE_SPSS_VALUE_LABELS_DROPPED Code = "PULSE_SPSS_VALUE_LABELS_DROPPED"
+
 	// PULSE_SPSS_EXTENSION_UNKNOWN indicates an SPSS `.sav` dictionary
 	// carries a record type 7 extension subtype this reader does not
 	// interpret. It is a WARNING, never a parse failure: real SPSS
@@ -1760,6 +1809,10 @@ var allCodes = []Code{
 	PULSE_TEMPLATE_RENDER_INVALID,
 	PULSE_SPSS_DICT_INVALID,
 	PULSE_SPSS_DICT_TRUNCATED,
+	PULSE_SPSS_FILE_EMPTY,
+	PULSE_SPSS_ENDIANNESS_MISMATCH,
+	PULSE_SPSS_MAGIC_FLAG_MISMATCH,
+	PULSE_SPSS_VALUE_LABELS_DROPPED,
 	PULSE_SPSS_EXTENSION_UNKNOWN,
 	PULSE_SPSS_EXTENSION_INVALID,
 	PULSE_SPSS_VERY_LONG_STRING_INVALID,

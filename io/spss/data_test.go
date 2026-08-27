@@ -845,6 +845,17 @@ func TestBuildDataPlan_RejectsImpossibleGeometry(t *testing.T) {
 // safe; this proves the offsets that walk produces are used safely too. For
 // ANY input, ReadRows either succeeds or returns a coded PULSE_SPSS_* error,
 // and every row it delivers has exactly one entry per header column.
+//
+// E3-S5 widened it in three ways, each for a failure it could not previously
+// reach. PulseSchema is exercised BEFORE the rows, because the schema mapping
+// is where geometry derived from the dictionary — a case stride, a case
+// count, a decoded-size hint — is first used, and that is the shape of fault
+// the corruption sweep actually found (a record 7/16 count large enough to
+// overflow the decoded-size multiplication into a negative capacity). The
+// seed corpus spans both byte orders and all three compression modes, since
+// each derives its geometry differently. And the zero-length input is no
+// longer skipped: NewReaderFromBytes(nil) reports PULSE_SPSS_FILE_EMPTY now,
+// so it is an ordinary member of the invariant rather than an exception to it.
 func FuzzReadRows(f *testing.F) {
 	seeds := []spsstest.Spec{
 		spsstest.ReferenceSpec(),
@@ -858,6 +869,13 @@ func FuzzReadRows(f *testing.F) {
 			},
 		},
 	}
+	for _, bo := range []spsstest.ByteOrder{spsstest.LittleEndian, spsstest.BigEndian} {
+		for _, c := range []spsstest.Compression{
+			spsstest.CompressionNone, spsstest.CompressionBytecode, spsstest.CompressionZSAV,
+		} {
+			seeds = append(seeds, endianTwinSpec(bo, c))
+		}
+	}
 	for _, spec := range seeds {
 		b, err := spsstest.Build(spec)
 		if err != nil {
@@ -865,19 +883,15 @@ func FuzzReadRows(f *testing.F) {
 		}
 		f.Add(b)
 	}
+	f.Add([]byte(nil))
 	f.Add(make([]byte, headerSize))
 
 	f.Fuzz(func(t *testing.T, in []byte) {
-		if len(in) == 0 {
-			// NewReaderFromBytes(nil) is indistinguishable from a
-			// reader with no source at all, and reports that rather
-			// than a parse fault. That is the constructor's
-			// pre-existing contract (see
-			// TestReadRows_EmptyInputHasNoSource), not a decode
-			// question, so it is pinned there instead of here.
+		r := NewReaderFromBytes(in)
+		if _, err := r.PulseSchema(); err != nil {
+			assertSPSSCoded(t, err, len(in))
 			return
 		}
-		r := NewReaderFromBytes(in)
 		cols, err := r.ReadHeader()
 		if err != nil {
 			assertSPSSCoded(t, err, len(in))
@@ -895,41 +909,74 @@ func FuzzReadRows(f *testing.F) {
 	})
 }
 
-// TestReadRows_EmptyInputHasNoSource pins the one input the fuzzer skips.
-// A nil byte slice is indistinguishable from "no source was configured",
-// because that is exactly how NewReaderFromBytes stores it, so an empty
-// buffer reports a missing source rather than a parse fault. An empty FILE
-// is a different thing and does reach the parser.
-func TestReadRows_EmptyInputHasNoSource(t *testing.T) {
-	err := NewReaderFromBytes(nil).ReadRows(context.Background(), func([]string) error { return nil })
-	if err == nil || !strings.Contains(err.Error(), "no data source") {
-		t.Fatalf("err = %v, want a no-data-source error", err)
+// TestReadRows_EmptyInputIsCoded pins the zero-byte input on both
+// constructors. E2-S4 left NewReaderFromBytes(nil) reporting "no source
+// configured" — a plain error a caller could not switch on, and one that
+// described the READER rather than the file. Both paths now report
+// PULSE_SPSS_FILE_EMPTY, which is a claim about the source and is distinct
+// from PULSE_SPSS_DICT_TRUNCATED: a truncated file stopped part way through
+// a record, an empty one never had a first record.
+func TestReadRows_EmptyInputIsCoded(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		make func(t *testing.T) *Reader
+	}{
+		{"nil byte slice", func(*testing.T) *Reader { return NewReaderFromBytes(nil) }},
+		{"empty byte slice", func(*testing.T) *Reader { return NewReaderFromBytes([]byte{}) }},
+		{"zero-length file", func(t *testing.T) *Reader {
+			cfg := fs.NewMemMap()
+			if err := afero.WriteFile(cfg.Fs(), "empty.sav", nil, 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+			return NewReader(cfg.Fs(), "empty.sav")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.make(t).ReadRows(context.Background(), func([]string) error { return nil })
+			if err == nil {
+				t.Fatal("an empty source read without error")
+			}
+			ce := codedError(t, err)
+			if ce.Code != perr.PULSE_SPSS_FILE_EMPTY {
+				t.Fatalf("code = %s, want %s (%v)", ce.Code, perr.PULSE_SPSS_FILE_EMPTY, err)
+			}
+			assertDetails(t, ce, 0)
+		})
 	}
+}
 
-	cfg := fs.NewMemMap()
-	if err := afero.WriteFile(cfg.Fs(), "empty.sav", nil, 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	err = NewReader(cfg.Fs(), "empty.sav").ReadRows(context.Background(), func([]string) error { return nil })
+// TestNewReader_NoSourceIsCoded covers the one shape that is a caller fault
+// rather than a file fault: a Reader with neither a filesystem nor bytes.
+// It is still a coded error, so every failure out of this package is one a
+// caller can switch on.
+func TestNewReader_NoSourceIsCoded(t *testing.T) {
+	err := (&Reader{}).ReadRows(context.Background(), func([]string) error { return nil })
 	if err == nil {
-		t.Fatal("an empty file read without error")
+		t.Fatal("a sourceless reader read without error")
 	}
-	assertSPSSCoded(t, err, 0)
+	ce := codedError(t, err)
+	if ce.Code != perr.DATA_FILE {
+		t.Fatalf("code = %s, want %s (%v)", ce.Code, perr.DATA_FILE, err)
+	}
 }
 
 // assertSPSSCoded asserts an error is a coded member of the PULSE_SPSS_*
 // family carrying an in-range offset. A caller that cannot switch on the code
 // cannot tell "this is not a system file" from "this transfer was cut short".
+//
+// It delegates the family membership and the offset range check to
+// assertHardeningCoded, so there is one list of codes the reader is allowed
+// to fail with rather than two that can drift apart. The extra obligation it
+// adds is the byte offset in the MESSAGE: everything reaching this helper
+// came from a byte-addressed read, so a message that does not say where is a
+// diagnostic an operator cannot act on.
 func assertSPSSCoded(t *testing.T, err error, size int) {
 	t.Helper()
+	assertHardeningCoded(t, err, size, 0, 0)
 	ce := codedError(t, err)
-	switch ce.Code {
-	case perr.PULSE_SPSS_DICT_INVALID,
-		perr.PULSE_SPSS_DICT_TRUNCATED,
-		perr.PULSE_SPSS_DATA_TRUNCATED,
-		perr.PULSE_SPSS_COMPRESSION_UNSUPPORTED:
-	default:
-		t.Fatalf("code = %s, want a PULSE_SPSS_* code", ce.Code)
+	if !strings.Contains(ce.Message, "byte offset") &&
+		ce.Code != perr.PULSE_SPSS_CHARSET_UNSUPPORTED &&
+		ce.Code != perr.PULSE_SPSS_CHARSET_INVALID {
+		t.Errorf("message %q does not name a byte offset", ce.Message)
 	}
-	assertDetails(t, ce, size)
 }

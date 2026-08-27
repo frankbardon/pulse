@@ -24,10 +24,11 @@ func formatFromExt(path string) string {
 }
 
 // newReaderForFormat creates a reader for the given format.
-// Thin shim over pformat.NewReader preserving the CLI's
-// (format, fs, path, sheet) call signature.
-func newReaderForFormat(format string, fs afero.Fs, path string, sheet string) (pio.Reader, error) {
-	return pformat.NewReader(format, fs, path, pformat.ReaderOptions{Sheet: sheet})
+// Thin shim over pformat.NewReader; the options struct is passed through
+// rather than flattened, so a format gaining a knob does not move this
+// signature.
+func newReaderForFormat(format string, fs afero.Fs, path string, opts pformat.ReaderOptions) (pio.Reader, error) {
+	return pformat.NewReader(format, fs, path, opts)
 }
 
 // newWriterForFormat creates a writer for the given format. Writers

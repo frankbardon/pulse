@@ -207,11 +207,11 @@ func logicalIndex(vars []Var) map[string]logicalVar {
 // width, the label count, then each (value, label) pair with its own byte
 // length. The value is space-padded out to the variable's width, which is
 // what the format specifies — value_len and var_width are the same number.
-func renderLongStringValueLabels(spec Spec, logical map[string]logicalVar) ([]byte, error) {
+func renderLongStringValueLabels(spec Spec, logical map[string]logicalVar, bo binary.ByteOrder) ([]byte, error) {
 	if len(spec.LongStringValueLabels) == 0 {
 		return nil, nil
 	}
-	e := &enc{bo: binary.LittleEndian}
+	e := &enc{bo: bo}
 	for i, set := range spec.LongStringValueLabels {
 		v, ok := logical[strings.ToUpper(set.Var)]
 		if !ok {
@@ -257,11 +257,11 @@ func renderLongStringValueLabels(spec Spec, logical map[string]logicalVar) ([]by
 // format because SPSS compares only the first eight bytes of a long string
 // against a missing value, so a shorter value is space-padded and a longer
 // one is a spec error rather than a silent truncation.
-func renderLongStringMissingValues(spec Spec, logical map[string]logicalVar) ([]byte, error) {
+func renderLongStringMissingValues(spec Spec, logical map[string]logicalVar, bo binary.ByteOrder) ([]byte, error) {
 	if len(spec.LongStringMissingValues) == 0 {
 		return nil, nil
 	}
-	e := &enc{bo: binary.LittleEndian}
+	e := &enc{bo: bo}
 	for i, entry := range spec.LongStringMissingValues {
 		v, ok := logical[strings.ToUpper(entry.Var)]
 		if !ok {

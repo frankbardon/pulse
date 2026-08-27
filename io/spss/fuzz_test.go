@@ -68,10 +68,24 @@ func FuzzParseDictionary(f *testing.F) {
 			t.Fatalf("error is %T, not *errors.CodedError: %v", err, err)
 		}
 		switch ce.Code {
-		case perr.PULSE_SPSS_DICT_INVALID, perr.PULSE_SPSS_DICT_TRUNCATED:
+		case perr.PULSE_SPSS_DICT_INVALID, perr.PULSE_SPSS_DICT_TRUNCATED,
+			perr.PULSE_SPSS_FILE_EMPTY, perr.PULSE_SPSS_ENDIANNESS_MISMATCH:
+			// The byte-addressed family: every one of these is raised
+			// AT a position in the file, so every one of them must say
+			// which.
+			assertDetails(t, ce, len(in))
+		case perr.PULSE_SPSS_CHARSET_UNSUPPORTED, perr.PULSE_SPSS_CHARSET_INVALID:
+			// The charset family is reachable from a fuzzed dictionary
+			// — a mutated record 7/20, or a high byte in a name under
+			// the strict UTF-8 default — and is deliberately NOT
+			// byte-addressed: it names the charset and the offending
+			// value, because "position 2 of this variable's label" is
+			// what a caller can act on and a file offset is not.
+			if ce.Details[perr.DetailSPSSCharset] == nil {
+				t.Fatalf("%s carries no %q detail: %v", ce.Code, perr.DetailSPSSCharset, err)
+			}
 		default:
-			t.Fatalf("code = %s, want a PULSE_SPSS_DICT_* code", ce.Code)
+			t.Fatalf("code = %s, want a dictionary-parse code", ce.Code)
 		}
-		assertDetails(t, ce, len(in))
 	})
 }

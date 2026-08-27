@@ -420,15 +420,24 @@ func decodeBytecodeStream(d *dictionary, plan *dataPlan, src []byte, loc streamL
 // could possibly produce — one command byte is the cheapest an element gets,
 // so len(src) elements of 8 bytes bounds it — which keeps a corrupt or
 // hostile declaration from asking for an allocation the file cannot justify.
+//
+// The clamp is applied by DIVISION rather than by multiplying and comparing.
+// A record 7/16 count is a full int64 the file supplies, and
+// declared*stride overflows int64 for counts above about 2^58 — landing on a
+// NEGATIVE product, which sails past a "> max" test and reaches make() as a
+// negative capacity. E3-S5's dictionary corruption sweep found exactly that:
+// one byte flipped inside the 7/16 payload panicked the decoder with
+// "makeslice: cap out of range". Dividing first cannot overflow, so no
+// declared value reaches the multiplication unless its product is already
+// known to fit.
 func decodedSizeHint(d *dictionary, plan *dataPlan, srcLen int) int {
 	max := srcLen * elementSize
 	declared, ok := declaredCaseCount(d)
-	if !ok || declared <= 0 {
+	if !ok || declared <= 0 || plan.stride <= 0 {
 		return 0
 	}
-	want := declared * int64(plan.stride)
-	if want > int64(max) {
+	if declared > int64(max)/int64(plan.stride) {
 		return max
 	}
-	return int(want)
+	return int(declared * int64(plan.stride))
 }

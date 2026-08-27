@@ -55,30 +55,63 @@
 // touches. Emission is out of scope in the other direction: there is no
 // `.sav` or `.zsav` writer (PULSE_SPSS_EXPORT_UNSUPPORTED).
 //
+// # Byte order
+//
+// Both orders are read. The header layout code decides — it always holds 2
+// or 3, and neither byte-swaps into anything in range, so reading those four
+// bytes both ways identifies the file's order with no residual doubt.
+// Record 7/3 states the order a second time and is a corroboration only,
+// never a source: reading it already requires knowing the order. A clean
+// contradiction between the two is PULSE_SPSS_ENDIANNESS_MISMATCH, a hard
+// error, because byte order governs every count, offset and double in the
+// file and the wrong choice yields a whole file of plausible wrong numbers
+// rather than one bad field. See checkEndianness in dict_parse.go for the
+// full reasoning and for what is deliberately NOT a contradiction.
+//
+// The header magic and the compression flag are cross-checked too, but that
+// one WARNS (PULSE_SPSS_MAGIC_FLAG_MISMATCH) and the flag wins: the flag
+// describes the bytes, while the magic is a coarse generation label a
+// re-saving tool can leave stale.
+//
 // # Errors and warnings
 //
-// Every parse failure is a *errors.CodedError carrying
-// PULSE_SPSS_DICT_INVALID (structurally malformed) or
-// PULSE_SPSS_DICT_TRUNCATED (ran out of bytes), with the record and the byte
-// offset both in the message and in Details under errors.DetailSPSSRecord and
-// errors.DetailSPSSOffset. Malformed input never panics: every read is
-// bounds-checked before it happens.
+// Every parse failure is a *errors.CodedError. The byte-addressed family
+// carries the record and the byte offset both in the message and in Details
+// under errors.DetailSPSSRecord and errors.DetailSPSSOffset:
+// PULSE_SPSS_FILE_EMPTY (no bytes at all — held apart from truncation
+// because a file that was never written and a transfer that was cut short
+// have nothing in common but the symptom), PULSE_SPSS_DICT_INVALID
+// (structurally malformed) and PULSE_SPSS_DICT_TRUNCATED (ran out of bytes).
+// Malformed input never panics: every read is bounds-checked before it
+// happens, and that is verified by a corruption sweep over every byte of the
+// dictionary in every compression mode plus two fuzz targets, not asserted
+// here.
 //
-// Extension records are the one place the parser tolerates rather than
-// rejects. An unrecognised subtype yields one PULSE_SPSS_EXTENSION_UNKNOWN
-// warning on dictionary.warnings; a recognised subtype whose payload does not
-// match its shape yields PULSE_SPSS_EXTENSION_INVALID. Neither stops a parse,
-// because real SPSS versions emit subtypes no published description lists and
-// refusing such a file would reject data that is otherwise perfectly
-// readable. The line is drawn at record FRAMING: a size or count that would
+// Two places tolerate rather than reject.
+//
+// Extension records: an unrecognised subtype yields one
+// PULSE_SPSS_EXTENSION_UNKNOWN warning on dictionary.warnings; a recognised
+// subtype whose payload does not match its shape yields
+// PULSE_SPSS_EXTENSION_INVALID. Neither stops a parse, because real SPSS
+// versions emit subtypes no published description lists and refusing such a
+// file would reject data that is otherwise perfectly readable.
+//
+// Record 3/4 value-label BINDING: a set naming variables it cannot attach to
+// — mixed type or width, a string wider than the 8-byte value slot, an index
+// landing on a string continuation — is dropped with
+// PULSE_SPSS_VALUE_LABELS_DROPPED naming the variable, and the file imports.
+// A value label is display metadata, so refusing the file would cost the
+// data to save the labels.
+//
+// The line under both is record FRAMING: a size or count that would
 // desynchronise the walk is still a hard error, since resuming from a
 // desynchronised offset would produce a plausible dictionary describing
-// nothing in the file.
+// nothing in the file. A value-label element index below 1 or past the end
+// of the dictionary is on the hard side of that line too — it is damage
+// rather than dialect, and it puts the record's own framing in doubt.
 package spss
 
 import (
-	"fmt"
-
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
@@ -113,6 +146,14 @@ type Reader struct {
 
 	data []byte
 	dict *dictionary
+
+	// loaded records that the source has been read, which is what lets a
+	// ZERO-LENGTH source be distinguished from an unread one. A nil data
+	// slice is how NewReaderFromBytes stores an empty buffer and how a
+	// fresh path-backed Reader starts out, so the slice alone cannot tell
+	// "the caller handed us no bytes" from "we have not opened the file
+	// yet" — and those two answer with completely different errors.
+	loaded bool
 
 	// opts are the mapping tunables the functional options set.
 	opts mappingOptions
@@ -191,8 +232,14 @@ func NewReader(fs afero.Fs, path string, opts ...Option) *Reader {
 
 // NewReaderFromBytes creates a `.sav` reader over raw bytes, for callers that
 // already hold the file — tests included.
+//
+// A nil or empty slice IS a source: it is a source of no bytes, and it
+// reports PULSE_SPSS_FILE_EMPTY exactly as a zero-length file on disk does.
+// Before E3-S5 it reported "no source configured", which described the
+// reader rather than the input and was not a coded error a caller could
+// switch on.
 func NewReaderFromBytes(data []byte, opts ...Option) *Reader {
-	return newReader(&Reader{data: data}, opts)
+	return newReader(&Reader{data: data, loaded: true}, opts)
 }
 
 func newReader(r *Reader, opts []Option) *Reader {
@@ -206,18 +253,31 @@ func newReader(r *Reader, opts []Option) *Reader {
 }
 
 // init loads the file bytes, once.
+//
+// Every failure out of this package is a coded error, this one included: a
+// caller that has to string-match "no data source" cannot distinguish a
+// misconfigured reader from a file that will not open, and neither is
+// something an import report should surface as untyped prose. Filesystem
+// faults take DATA_FILE rather than a PULSE_SPSS_* code because nothing
+// about them is SPSS-specific — the file was never read, so its contents
+// have not been judged.
 func (r *Reader) init() error {
-	if r.data != nil {
+	if r.loaded {
 		return nil
 	}
 	if r.fs == nil {
-		return fmt.Errorf("spss.Reader: no data source")
+		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
+			"spss.Reader: no data source; construct one with NewReader(fs, path) or NewReaderFromBytes(data)",
+			map[string]any{"path": r.path})
 	}
 	data, err := afero.ReadFile(r.fs, r.path)
 	if err != nil {
-		return fmt.Errorf("spss.Reader: reading %s: %w", r.path, err)
+		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
+			"spss.Reader: reading "+r.path+": "+err.Error(),
+			map[string]any{"path": r.path})
 	}
 	r.data = data
+	r.loaded = true
 	return nil
 }
 
@@ -305,6 +365,7 @@ func (r *Reader) PulseSchema() (*encoding.Schema, error) {
 // likewise the end of a byte-backed reader's life.
 func (r *Reader) Close() error {
 	r.data = nil
+	r.loaded = false
 	r.dict = nil
 	r.mapped = nil
 	r.header = nil

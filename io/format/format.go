@@ -100,10 +100,31 @@ func FromExt(path string) string {
 	}
 }
 
-// ReaderOptions modulate reader construction. Currently only Excel
-// honours Sheet; other formats ignore it silently.
+// ReaderOptions modulate reader construction. Every field is honoured by
+// exactly one format and ignored silently by the rest: a single options
+// struct keeps the dispatch signature stable as formats gain knobs, which is
+// why Charset joins Sheet here rather than arriving as a parallel mechanism.
 type ReaderOptions struct {
+	// Sheet names the Excel worksheet to read. Empty selects the first.
+	// Ignored by every other format.
 	Sheet string
+
+	// Charset overrides the character encoding an SPSS `.sav` declares
+	// about itself, resolved by the same lookup the file's own record
+	// 7/20 name goes through ("windows-1252", "cp1252" and "1252" are one
+	// request). Empty leaves the file's declaration in force.
+	//
+	// It is the ONLY recourse for a file that is wrong about itself, and
+	// there are two common shapes: a dictionary transcoded by one tool and
+	// re-saved by another keeps a stale 7/20 name, and a pre-Unicode file
+	// declares nothing at all — the latter reads as strict UTF-8 by
+	// default and fails PULSE_SPSS_CHARSET_INVALID on its first 8-bit
+	// byte. Both are decisions only the caller can make, because the file
+	// has no further evidence to offer.
+	//
+	// Decoding only. The file's own declaration is still retained
+	// verbatim. Ignored by every format other than SPSS.
+	Charset string
 }
 
 // NewReader constructs a tabular Reader for the given format, reading
@@ -132,7 +153,11 @@ func NewReader(format string, fs afero.Fs, path string, opts ReaderOptions) (pio
 		}
 		return excel.NewReader(fs, path, excelOpts...), nil
 	case SPSS:
-		return spss.NewReader(fs, path), nil
+		var spssOpts []spss.Option
+		if opts.Charset != "" {
+			spssOpts = append(spssOpts, spss.WithCharset(opts.Charset))
+		}
+		return spss.NewReader(fs, path, spssOpts...), nil
 	case Pulse:
 		return nil, fmt.Errorf("format.NewReader: %q is the native format, no tabular reader needed", format)
 	case "":

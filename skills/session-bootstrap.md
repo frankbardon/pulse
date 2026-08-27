@@ -100,6 +100,13 @@ Directories auto-loaded from disk at `pulse.New` time:
 
 Both table kinds surface under `manifest.extensions.{label_tables,range_tables}` — check there before assuming a named table exists. Templates are not manifest-projected; enumerate them with `ListTemplates` (`Summary.Broken` flags a file that has gone malformed since load).
 
+## Source-format CLI flags
+
+Two per-format knobs the file itself cannot always answer. Both ride `format.ReaderOptions`; every other format ignores them.
+
+- `--sheet` (Excel) — `pulse import excel`, `import predict`, `import schema-template`. The `pulse_import` MCP tool carries it as `sheet`.
+- `--charset` (SPSS `.sav` / `.zsav`) — `pulse import spss`, `import predict`, `import schema-template`, `convert`, `convert predict`. Overrides the encoding the file declares about itself; decoding only, the declaration is still retained. Reach for it on `PULSE_SPSS_CHARSET_INVALID` or `PULSE_SPSS_CHARSET_UNSUPPORTED` — most often a file transcoded by one tool and re-saved by another keeps a stale record `7/20` name, or declares nothing and fails the strict UTF-8 default on its first 8-bit byte. **Not yet on `pulse import auto` or `pulse_import`** — use `pulse import spss` for a file that needs it.
+
 ## Cross-links
 
 - `request-envelope` — envelope shape, slot keys, smart defaults, streamability flag.

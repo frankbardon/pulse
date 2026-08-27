@@ -149,6 +149,7 @@
 package spsstest
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"strconv"
@@ -342,15 +343,23 @@ const (
 	MaxLongStringMissingValues = 3
 )
 
-// ByteOrder selects the file's byte order. v1 emits little-endian only;
-// BigEndian is declared so the axis exists and is rejected explicitly rather
-// than silently ignored.
+// ByteOrder selects the file's byte order. Both orders are emitted: every
+// multi-byte field in the header, in every record, in every extension
+// payload and in the data section — including the ZSAV block index and the
+// 8-byte escape payloads of the bytecode stream — is written in the selected
+// order, so a big-endian fixture is a whole file and not a big-endian header
+// with little-endian innards.
+//
+// The one thing that is NOT byte-ordered is the record 7/3 endianness field:
+// see [MachineIntegerInfo.Endianness], which is emitted verbatim because a
+// fixture that states a byte order contradicting its own bytes is exactly
+// what a reader's cross-check has to be tested against.
 type ByteOrder int
 
 const (
 	// LittleEndian is the zero value, so a zero Spec is a valid little-endian spec.
 	LittleEndian ByteOrder = iota
-	// BigEndian is not implemented yet.
+	// BigEndian writes every multi-byte field most-significant byte first.
 	BigEndian
 )
 
@@ -364,6 +373,27 @@ func (b ByteOrder) String() string {
 		return "ByteOrder(?)"
 	}
 }
+
+// binary returns the encoding/binary implementation of the order. It is
+// unexported: callers select an order with the [ByteOrder] constants and
+// never need the binary.ByteOrder itself.
+func (b ByteOrder) binary() binary.ByteOrder {
+	if b == BigEndian {
+		return binary.BigEndian
+	}
+	return binary.LittleEndian
+}
+
+// Endianness codes as record 7/3 states them. The field is the second
+// statement of something the header layout code already fixed, and the two
+// are allowed to disagree only in a fixture built to test that they are
+// checked.
+const (
+	// EndiannessBig is the record 7/3 code for a big-endian file.
+	EndiannessBig int32 = 1
+	// EndiannessLittle is the record 7/3 code for a little-endian file.
+	EndiannessLittle int32 = 2
+)
 
 // Compression selects the data-section encoding.
 type Compression int
@@ -670,7 +700,18 @@ type MachineIntegerInfo struct {
 	FloatingPointRep int32
 	// CompressionCode is 1 in every file the specification describes.
 	CompressionCode int32
-	// Endianness is 1 for big-endian, 2 for little-endian.
+	// Endianness is [EndiannessBig] (1) or [EndiannessLittle] (2).
+	//
+	// It is emitted VERBATIM and is never reconciled against
+	// [Spec.ByteOrder]. That is deliberate: the field is the file's
+	// second statement of a byte order the header layout code already
+	// fixed, so the only interesting thing a fixture can do with it is
+	// contradict the file it sits in, and a generator that refused to
+	// emit the contradiction would make the reader's cross-check
+	// untestable. A fixture meaning "an ordinary file of this byte
+	// order" should take its 7/3 payload from
+	// [DefaultMachineIntegerInfoFor] rather than filling this in by
+	// hand.
 	Endianness int32
 	// CharacterCode is the codepage: 2 or 3 for ASCII, 1252 for
 	// windows-1252, 65001 for UTF-8, and so on.
@@ -681,12 +722,28 @@ type MachineIntegerInfo struct {
 // declares. It is the value emitted when a Spec asks for 7/3 without
 // supplying one.
 func DefaultMachineIntegerInfo() MachineIntegerInfo {
+	return DefaultMachineIntegerInfoFor(LittleEndian)
+}
+
+// DefaultMachineIntegerInfoFor is [DefaultMachineIntegerInfo] with the
+// record 7/3 endianness field set to agree with bo.
+//
+// It exists so a big-endian fixture is one field change rather than a
+// hand-filled payload: taking DefaultMachineIntegerInfo into a big-endian
+// Spec would declare little-endian inside a big-endian file, which is a
+// real fixture but not the one an author who wrote "the ordinary defaults"
+// meant.
+func DefaultMachineIntegerInfoFor(bo ByteOrder) MachineIntegerInfo {
+	endian := EndiannessLittle
+	if bo == BigEndian {
+		endian = EndiannessBig
+	}
 	return MachineIntegerInfo{
 		VersionMajor: 1, VersionMinor: 0, VersionRevision: 0,
 		MachineCode:      -1,
 		FloatingPointRep: 1,
 		CompressionCode:  1,
-		Endianness:       2,
+		Endianness:       endian,
 		CharacterCode:    2,
 	}
 }
@@ -951,8 +1008,11 @@ type Spec struct {
 	// carries the bias either way and a reader must not care.
 	CompressionBias float64
 
-	// ByteOrder selects the file byte order. Only LittleEndian (the zero
-	// value) is implemented.
+	// ByteOrder selects the file byte order. LittleEndian is the zero
+	// value; BigEndian re-encodes every multi-byte field, so the same
+	// spec built both ways yields two files with the same logical
+	// content and no bytes in common outside the fixed-width text
+	// fields.
 	ByteOrder ByteOrder
 
 	// Documents are record type 6 document lines, emitted verbatim and

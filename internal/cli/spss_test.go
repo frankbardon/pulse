@@ -8,7 +8,9 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
+	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/spf13/afero"
+	cli "github.com/urfave/cli/v3"
 )
 
 // TestFormatFromExt_SPSS covers the extensions the convert leaf detects.
@@ -28,12 +30,14 @@ func TestFormatFromExt_SPSS(t *testing.T) {
 	}
 }
 
-// TestMakeImportReader_SPSS pins the import leaf's own switch. It is a
-// SEPARATE dispatch from io/format's — `pulse import spss` goes through
-// this one — so registering the format in one place and not the other
-// produces a subcommand that exists and immediately fails.
+// TestMakeImportReader_SPSS pins the import leaf's reader construction.
+// It used to be a SEPARATE dispatch from io/format's — registering a format
+// in one place and not the other produced a subcommand that existed and
+// immediately failed — and E3-S5 collapsed the duplicate onto
+// pformat.NewReader. The assertion is unchanged: what `pulse import spss`
+// builds must carry the two optional interfaces the import path keys off.
 func TestMakeImportReader_SPSS(t *testing.T) {
-	r, err := makeImportReader("spss", afero.NewMemMapFs(), "survey.sav", "")
+	r, err := makeImportReader("spss", afero.NewMemMapFs(), "survey.sav", pformat.ReaderOptions{})
 	if err != nil {
 		t.Fatalf("makeImportReader(spss): %v", err)
 	}
@@ -169,4 +173,85 @@ func TestWriteSourceWarnings_TextPath(t *testing.T) {
 	if !bytes.Contains([]byte(out), []byte("mapped to raw seconds")) {
 		t.Errorf("text output %q does not carry the message", out)
 	}
+}
+
+// TestImportSPSS_HasCharsetFlag closes the E3-S3 usability trap at the level
+// it was open. spss.WithCharset existed but was reachable only from Go: an
+// operator holding a legacy `.sav` that declares no encoding and carries any
+// 8-bit byte got PULSE_SPSS_CHARSET_INVALID with no recourse from the CLI at
+// all. The flag has to be MOUNTED, which is a different claim from the
+// option existing.
+func TestImportSPSS_HasCharsetFlag(t *testing.T) {
+	var spssCmd *cli.Command
+	for _, c := range ImportCommand().Commands {
+		if c.Name == "spss" {
+			spssCmd = c
+		}
+	}
+	if spssCmd == nil {
+		t.Fatal("`pulse import spss` is not mounted")
+	}
+	assertHasFlag(t, spssCmd, "charset")
+	// The common import flags must survive being extended.
+	for _, name := range []string{"input", "output", "schema", "sample-rows", "json"} {
+		assertHasFlag(t, spssCmd, name)
+	}
+}
+
+// TestCharsetFlagOnEverySPSSReachableLeaf covers the other verbs a `.sav`
+// can arrive through. A flag on `import spss` alone would leave `convert
+// survey.sav out.csv` — the shortest path from an SPSS file to something
+// readable — with no way to answer the same question.
+func TestCharsetFlagOnEverySPSSReachableLeaf(t *testing.T) {
+	convert := ConvertCommand()
+	assertHasFlag(t, convert, "charset")
+	for _, sub := range convert.Commands {
+		if sub.Name == "predict" {
+			assertHasFlag(t, sub, "charset")
+		}
+	}
+	for _, sub := range ImportCommand().Commands {
+		switch sub.Name {
+		case "predict", "schema-template":
+			assertHasFlag(t, sub, "charset")
+		}
+	}
+}
+
+// TestImportExcel_SheetFlagStillMounted guards the refactor that replaced
+// excel's hand-copied flag slice with withImportFlags. A shared slice that
+// got appended to in place would corrupt every other leaf's flags.
+func TestImportExcel_SheetFlagStillMounted(t *testing.T) {
+	var excelCmd, csvCmd *cli.Command
+	for _, c := range ImportCommand().Commands {
+		switch c.Name {
+		case "excel":
+			excelCmd = c
+		case "csv":
+			csvCmd = c
+		}
+	}
+	if excelCmd == nil || csvCmd == nil {
+		t.Fatal("the excel or csv import leaf is not mounted")
+	}
+	assertHasFlag(t, excelCmd, "sheet")
+	for _, f := range csvCmd.Flags {
+		for _, n := range f.Names() {
+			if n == "sheet" || n == "charset" {
+				t.Errorf("`pulse import csv` grew a %q flag; the shared importFlags slice was mutated in place", n)
+			}
+		}
+	}
+}
+
+func assertHasFlag(t *testing.T, cmd *cli.Command, name string) {
+	t.Helper()
+	for _, f := range cmd.Flags {
+		for _, n := range f.Names() {
+			if n == name {
+				return
+			}
+		}
+	}
+	t.Errorf("command %q has no --%s flag", cmd.Name, name)
 }

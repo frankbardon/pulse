@@ -124,16 +124,21 @@ output-time projection, never a property of the stored cohort; the
 
 ## Flags and what SPSS ignores
 
-`pulse import spss` takes the shared import flags — it adds none of its
-own.
+`pulse import spss` takes the shared import flags plus one of its own,
+`--charset`.
 
 | Flag | Alias | Effect on an SPSS import |
 |---|---|---|
 | `--input` | `-i` | required — the `.sav` / `.zsav` path |
 | `--output` | `-o` | required — the `.pulse` path to write |
 | `--schema` | | **wins outright.** An explicit schema file overrides the SPSS dictionary and the adapter's `PulseSchema()` is never called |
+| `--charset` | | override the encoding the file declares about itself — see [Character encoding](#character-encoding) |
 | `--sample-rows` | | **inert.** Nothing is sampled |
 | `--json` | | standard envelope |
+
+`--charset` is also on `pulse import predict`, `pulse import
+schema-template`, `pulse convert` and `pulse convert predict`, since a
+`.sav` can arrive through any of them. Every other format ignores it.
 
 The same inertness applies to the library and managed-import knobs that
 exist only to steer inference — `ImportJob.SampleRows`,
@@ -194,6 +199,8 @@ each.
 | `PULSE_SPSS_VERY_LONG_STRING_INVALID` | A record `7/14` segmentation could not be reassembled; the segments import as separate columns — see [Very long strings](#very-long-strings) |
 | `PULSE_SPSS_DATA_CASE_COUNT_MISMATCH` | The header's declared case count disagrees with the cases present |
 | `PULSE_SPSS_CHARSET_MISMATCH` | The file states its character encoding twice and the two disagree — see [Character encoding](#character-encoding) |
+| `PULSE_SPSS_MAGIC_FLAG_MISMATCH` | The 4-byte magic and the compression flag disagree about whether the file is a ZSAV — see [Byte order and damaged files](#byte-order-and-damaged-files) |
+| `PULSE_SPSS_VALUE_LABELS_DROPPED` | A record `3`/`4` value-label set names variables it cannot be bound to; that set is dropped and the data imports — see [Byte order and damaged files](#byte-order-and-damaged-files) |
 
 ## Character encoding
 
@@ -243,15 +250,25 @@ wrong — a dictionary transcoded by one tool and re-saved by another keeps
 its old `7/20` name. Only the caller can say which is right, so the
 library reader takes an override:
 
+```console
+$ pulse import spss -i survey.sav -o survey.pulse --charset windows-1252
+```
+
 ```go
 r := spss.NewReader(fs, "survey.sav", spss.WithCharset("windows-1252"))
 ```
 
 It changes **decoding only**; the file's own declaration is still
-retained, so a future export re-encodes into what the source said.
+retained, so a future export re-encodes into what the source said. The
+name goes through the same forgiving lookup the file's own declaration
+does, so `windows-1252`, `cp1252` and `1252` are one request; a name
+with no decoder behind it is `PULSE_SPSS_CHARSET_UNSUPPORTED` naming it.
 
-> There is no CLI charset override yet — `pulse import spss` always uses
-> the file's declaration. Use the library reader when you need one.
+The case that most needs the flag is the file that declares **nothing at
+all** — no `7/20`, no `7/3` — and carries an 8-bit byte. It falls to the
+UTF-8 default, which is strict, so it fails on the first such byte. The
+file has no further evidence to offer and only you can supply the
+answer.
 
 **A charset with no decoder is refused** rather than read as UTF-8:
 `PULSE_SPSS_CHARSET_UNSUPPORTED` names it. That covers an unregistered
@@ -463,6 +480,8 @@ intact, so pointing at it would send you to the wrong place.
 |---|---|
 | `PULSE_SPSS_DICT_INVALID` | The dictionary is malformed |
 | `PULSE_SPSS_DICT_TRUNCATED` | The file ends mid-dictionary |
+| `PULSE_SPSS_FILE_EMPTY` | The source has no bytes at all — a zero-length file, not a truncated one |
+| `PULSE_SPSS_ENDIANNESS_MISMATCH` | The header layout code and record `7/3` contradict each other about byte order — see [Byte order and damaged files](#byte-order-and-damaged-files) |
 | `PULSE_SPSS_COMPRESSION_UNSUPPORTED` | A compression flag the format does not define — all three defined encodings are read |
 | `PULSE_SPSS_COMPRESSION_INVALID` | A bytecode stream that disagrees with its own dictionary, or an unusable compression bias — see above |
 | `PULSE_SPSS_ZSAV_INVALID` | A ZSAV block index that does not describe its file — names the block — see above |
@@ -483,6 +502,91 @@ schema-mapping diagnostics carry `variable`.
 > convert), with the `PULSE_SPSS_*` code carried inside the `message`
 > string. Non-fatal `PULSE_SPSS_*` warnings do reach `warnings[].code`
 > structurally.
+
+## Byte order and damaged files
+
+### Either byte order reads
+
+A `.sav` is written in the byte order of the machine that wrote it, and
+Pulse reads both. The header **layout code** decides: it always holds
+`2` or `3`, and neither value byte-swaps into the other or into anything
+in range, so reading those four bytes both ways identifies the file's
+order with no residual doubt. That is what the field is for.
+
+Record `7/3` states the byte order a **second** time, as a numeric field
+(`1` big-endian, `2` little-endian). It is a corroboration and never a
+source — reading it at all already requires knowing the order. When the
+two contradict each other the import stops with
+`PULSE_SPSS_ENDIANNESS_MISMATCH`.
+
+That is a deliberately harsher answer than the sibling charset
+cross-check one field away, which warns and carries on. Byte order
+governs *every* multi-byte field in the file — every count, every offset,
+every double — so there is no partial damage to weigh: one reading yields
+a coherent file and the other yields numbers that are plausible and
+wrong. When the file's own two statements disagree, no evidence remains
+about which the writer meant.
+
+Shapes that are **not** a contradiction, and read normally: a file with
+no record `7/3` at all, an endianness field left at `0`, and any value
+outside `{1, 2}` (which raises `PULSE_SPSS_EXTENSION_INVALID` and is
+otherwise ignored — an unfilled field is not a claim).
+
+### Magic versus compression flag
+
+`$FL2` marks an ordinary system file and `$FL3` marks a ZSAV, but the
+**compression flag** is what actually decides how the data section is
+decoded. When the two disagree — `$FL3` with flag `0` or `1`, or `$FL2`
+with flag `2` — the flag wins, the file reads, and
+`PULSE_SPSS_MAGIC_FLAG_MISMATCH` warns.
+
+Warning rather than error, on the same reasoning as the charset
+cross-check: the flag describes the bytes, while the magic is a coarse
+generation label a re-saving tool can leave stale. And the failure mode
+is safe either way — the wrong decoder fails loudly on the first case
+rather than quietly succeeding.
+
+### Value labels that cannot be bound
+
+A record `3`/`4` pair can name variables it cannot legitimately attach
+to: a set mixing a numeric with a string, a set attached to a string
+wider than the 8 bytes a record `3` value slot holds (those belong in the
+record `7/21` extension), or an element index landing on a string
+continuation rather than on a variable. Each of those drops **that one
+label set** with `PULSE_SPSS_VALUE_LABELS_DROPPED` naming the variable,
+and imports everything else.
+
+The reasoning is that a value label is display metadata. Refusing the
+file would cost the data to save the labels; binding the set anyway
+would attach labels to values they do not describe — an 8-byte slot
+matched against a 20-byte string labels everything sharing a prefix —
+without saying so. Dropping loudly is the only option that loses nothing
+silently.
+
+Genuinely **corrupt** indices are still fatal. An element index below
+`1`, or past the end of the dictionary, cannot come from a writer reading
+the format differently, and it puts the record's framing in doubt:
+`PULSE_SPSS_DICT_INVALID`.
+
+### Damage has distinct codes
+
+Four different things can be wrong with a file, and they have four
+different fixes, so they get four different codes:
+
+| Code | What happened | What to do |
+|---|---|---|
+| `PULSE_SPSS_FILE_EMPTY` | zero bytes | the target was created and never written — check the export or the redirection |
+| `PULSE_SPSS_DICT_TRUNCATED` | stops mid-dictionary | re-transfer; compare byte sizes |
+| `PULSE_SPSS_DATA_TRUNCATED` | stops mid-case | re-transfer |
+| `PULSE_SPSS_DICT_INVALID` | structurally wrong — bad magic, unidentifiable byte order, unknown record tag, out-of-range field | this is not the file you think it is, or it is corrupt beyond a truncation |
+
+No input panics. Every read is bounds-checked before it happens, and
+that is verified rather than asserted: a corruption sweep overwrites
+every byte of the dictionary with all 256 values across all three
+compression modes, a truncation sweep cuts the file at every offset in
+each mode, and two fuzz targets (`FuzzParseDictionary`, `FuzzReadRows`)
+carry the invariant beyond single-byte edits. Every failure is a coded
+error a caller can switch on.
 
 ## Converting out
 

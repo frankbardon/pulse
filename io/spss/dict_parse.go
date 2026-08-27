@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
@@ -90,6 +91,16 @@ func parseDictionaryWithCharset(b []byte, override string) (*dictionary, error) 
 	// warning, because the record framing was already validated during the
 	// walk and a bad payload therefore cannot desynchronise anything.
 	p.applyExtensions(d)
+
+	// The record 7/3 endianness field is the file's SECOND statement of a
+	// byte order the header layout code already fixed. Checking it here —
+	// after the extension walk, before anything derived from the
+	// dictionary is built — is the last point at which a contradiction can
+	// still be reported instead of silently governing every number read
+	// from the file.
+	if err := p.checkEndianness(d); err != nil {
+		return nil, err
+	}
 
 	// The record 7/14 very-long-string fold is a SECOND pass over the
 	// interpreted extensions, not part of the first. Subtypes 7/11 and
@@ -221,9 +232,21 @@ func (p *parser) parseHeader(d *dictionary) error {
 	p.record = recordHeader
 	p.recordOff = 0
 
+	// bo is not established yet on any of the three failure paths below,
+	// but none of them reads a multi-byte field.
+	if len(p.b) == 0 {
+		// A zero-length source is reported apart from a truncated one on
+		// purpose. "Truncated" says a real file stops part way through a
+		// record, and points a caller at a transfer that was cut short; a
+		// file with no bytes has no first record to be part way through,
+		// and its cause is a target that was created and never written.
+		// Folding the two would answer the wrong question for whichever
+		// case actually happened.
+		p.bo = binary.LittleEndian
+		return p.coded(errors.PULSE_SPSS_FILE_EMPTY, 0,
+			"the source is empty; a system file is at least the %d-byte file header", headerSize)
+	}
 	if len(p.b) < headerSize {
-		// bo is not established yet, but no multi-byte field is read on
-		// this path.
 		p.bo = binary.LittleEndian
 		return p.truncated(len(p.b),
 			fmt.Sprintf("the %d-byte file header record is complete", headerSize))
@@ -301,14 +324,153 @@ func (p *parser) parseHeader(d *dictionary) error {
 	if h.caseCount < -1 {
 		return p.invalid(offCaseCount, "ncases is %d; it must be a non-negative count or -1 for unknown", h.caseCount)
 	}
+	p.checkMagicAgainstCompression(d, h)
 
 	d.header = h
 	return nil
 }
 
+// checkMagicAgainstCompression raises PULSE_SPSS_MAGIC_FLAG_MISMATCH when the
+// 4-byte magic and the compression flag disagree about whether the file is a
+// ZSAV.
+//
+// # Why this is a warning and not an error
+//
+// The two fields are not equally informative, which is the same shape as the
+// record 7/20 versus 7/3 charset disagreement and gets the same answer. The
+// compression flag says how the data section is ENCODED, and it is what the
+// reader dispatches on; the magic is a coarse generation label that says
+// which family of writer produced the file. A tool that inflates a `.zsav`
+// and rewrites the data section uncompressed has every reason to leave `$FL3`
+// in place, and such a file reads perfectly — rejecting it would lose the
+// data to enforce a label.
+//
+// This is the OPPOSITE call from the endianness cross-check three fields
+// away, and deliberately so. Byte order governs how every multi-byte field in
+// the file is READ, so getting it wrong yields a whole file of plausible
+// wrong numbers with nothing to notice; the compression flag governs only
+// which decoder runs, and the wrong decoder fails loudly on the first case
+// rather than quietly succeeding.
+//
+// The guess we are recording: no real writer is known to emit a mismatched
+// pair, so this warning fires on nothing we have ever seen. It exists because
+// the flag is the single dispatch point by design, and a file that carries
+// the ZSAV magic without the ZSAV flag should say so rather than pass
+// silently.
+func (p *parser) checkMagicAgainstCompression(d *dictionary, h fileHeader) {
+	zsavMagic := h.magic == magicZSAV
+	zsavFlag := h.compression == compressionZSAV
+	if zsavMagic == zsavFlag {
+		return
+	}
+	msg := "spss: the file opens with the magic " + strconv.Quote(h.magic) +
+		" but declares compression " + strconv.FormatInt(int64(h.compression), 10) +
+		"; " + strconv.Quote(magicZSAV) + " marks a ZSAV and pairs with compression 2, while " +
+		strconv.Quote(magicSAV) + " pairs with 0 (uncompressed) or 1 (bytecode). " +
+		"The compression flag decides how the data section is read, because it is the field " +
+		"that describes the bytes; the magic is a generation label a re-saving tool can leave stale"
+	d.warnings = append(d.warnings, errors.NewCodedErrorWithDetails(
+		errors.PULSE_SPSS_MAGIC_FLAG_MISMATCH, msg, map[string]any{
+			errors.DetailSPSSRecord: recordHeader,
+			errors.DetailSPSSOffset: offCompression,
+		}))
+}
+
 // isLayoutCode reports whether v is one of the two values the header layout
 // code is allowed to hold.
 func isLayoutCode(v uint32) bool { return v == 2 || v == 3 }
+
+// Record 7/3 endianness codes.
+const (
+	endiannessBig    int32 = 1
+	endiannessLittle int32 = 2
+)
+
+// checkEndianness reconciles the byte order the header layout code fixed with
+// the one record 7/3 declares.
+//
+// # Why the layout code drives and 7/3 only checks
+//
+// The layout code is unambiguous by construction: it holds 2 or 3, and
+// neither 2 nor 3 byte-swaps into the other or into anything in range
+// (2 swaps to 0x02000000). Reading it both ways therefore identifies the
+// file's order with no residual doubt, which is precisely why the format put
+// it there. Record 7/3 cannot do the same job, because reading ITS endianness
+// field already requires knowing the byte order — so it is a corroboration,
+// never a source.
+//
+// # Why a disagreement is an error
+//
+// The sibling charset cross-check (record 7/20 versus 7/3) is a warning: the
+// name wins, the number is routinely stale, and the cost of choosing wrongly
+// is mis-decoded text in some strings. Byte order is not like that. It
+// governs every count, every offset, every length prefix and every double in
+// the file, so there is no partial damage: one of the two readings produces a
+// coherent file and the other produces garbage that may still parse. When the
+// file's own two statements disagree, we cannot tell which reading the writer
+// meant, and "the layout code, obviously" is a guess that would silently
+// pick a whole file's worth of numbers. Fail loudly instead.
+//
+// # What is NOT a disagreement
+//
+// A missing record 7/3, an endianness field of 0, and any value outside
+// {1, 2} are all left alone. Only a clean statement of the OTHER order is a
+// contradiction. An out-of-range value is warned about under
+// PULSE_SPSS_EXTENSION_INVALID and otherwise ignored — it is a field a writer
+// failed to fill, not a claim about byte order. Note that a byte-swapped 1 or
+// 2 lands in exactly that bucket (they read as 16777216 and 33554432), so the
+// case where a reader has the order wrong reports as an unfillable field
+// rather than as a mismatch; the layout code already made that case
+// unreachable.
+func (p *parser) checkEndianness(d *dictionary) error {
+	mi := d.machineInteger
+	if !mi.present {
+		return nil
+	}
+	x, ok := d.rawExtension(extMachineInteger)
+	if !ok {
+		// Unreachable: machineInteger.present is set only from a record.
+		return nil
+	}
+
+	var declared binary.ByteOrder
+	switch mi.endianness {
+	case endiannessBig:
+		declared = binary.BigEndian
+	case endiannessLittle:
+		declared = binary.LittleEndian
+	default:
+		if mi.endianness != 0 {
+			p.warnExtension(d, errors.PULSE_SPSS_EXTENSION_INVALID, x, x.payloadOffset+24,
+				"the endianness field is %d; the format defines only %d (big-endian) and %d (little-endian), so it says nothing about the file's byte order and the header layout code stands alone",
+				mi.endianness, endiannessBig, endiannessLittle)
+		}
+		return nil
+	}
+	if declared == p.bo {
+		return nil
+	}
+
+	msg := "spss: the file states its byte order twice and the two disagree: the header layout code reads as " +
+		strconv.FormatInt(int64(d.header.layoutCode), 10) + " " + byteOrderName(p.bo) +
+		" while record 7/3 declares endianness " + strconv.FormatInt(int64(mi.endianness), 10) +
+		" (" + byteOrderName(declared) + "); byte order governs every multi-byte field in the file, " +
+		"so reading it the wrong way would produce a complete set of plausible and incorrect numbers " +
+		"rather than one bad field [at byte offset " + strconv.Itoa(x.offset) + "]"
+	return errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_ENDIANNESS_MISMATCH, msg, map[string]any{
+		errors.DetailSPSSRecord:  recordName(recTypeExtension),
+		errors.DetailSPSSSubtype: x.subtype,
+		errors.DetailSPSSOffset:  x.offset,
+	})
+}
+
+// byteOrderName renders a byte order for a diagnostic.
+func byteOrderName(bo binary.ByteOrder) string {
+	if bo == binary.ByteOrder(binary.BigEndian) {
+		return "big-endian"
+	}
+	return "little-endian"
+}
 
 // ---------------------------------------------------------------------------
 // Record walk
@@ -351,6 +513,18 @@ func (p *parser) parseRecords(d *dictionary) error {
 				return err
 			}
 		case recTypeLabelVars:
+			// Kept strict, reviewed in E3-S5. A record type 4 reaching the
+			// main loop means its record type 3 is not where the format
+			// puts it, and the record 3 is where the LABELS are — so the
+			// tolerant reading would import a binding with nothing to
+			// bind. The pairing is also what lets the record 4 be read
+			// inline (see parseValueLabelRecord): admitting a free-standing
+			// one would mean guessing, from the record type tag alone,
+			// whether the bytes ahead are a count or the next record.
+			//
+			// What this rejects that might be real: a writer batching
+			// several record 3s before their record 4s. No such writer is
+			// known, and PSPP's own reader requires the adjacency too.
 			return p.invalid(recordOff,
 				"a record type 4 appeared without an immediately preceding record type 3; the format binds them as a pair")
 		case recTypeDocument:
@@ -426,6 +600,19 @@ func (p *parser) parseVariableRecord(d *dictionary, pendingSegments *int) error 
 	// continuation's remaining fields are to be ignored, but "ignored"
 	// cannot mean "not present": if a writer set the flag it also wrote the
 	// payload, and skipping it would desynchronise every following record.
+	//
+	// Reviewed in E3-S5 and kept, with the guess recorded rather than
+	// resolved. No defensive fallback is possible here: the two readings
+	// diverge by a whole payload, so a reader that guessed wrong would not
+	// notice until some later record failed to frame, by which point it
+	// cannot tell whether the fault was here or there — and "retry the
+	// whole walk the other way" would silently accept whichever reading
+	// happened to parse, which is exactly the plausible-and-wrong outcome
+	// this package refuses everywhere else. Every fixture writes zeros in
+	// these fields on a continuation, so both readings agree on everything
+	// we can generate; a real writer that sets the flag and omits the
+	// payload would be caught as a framing error further down the walk,
+	// which is a loud failure rather than a wrong dictionary.
 	var label string
 	if hasLabelFlag == 1 {
 		label, err = p.parseVariableLabel()
@@ -610,6 +797,12 @@ func (p *parser) parseValueLabelRecord(d *dictionary) error {
 		return err
 	}
 	if rt != recTypeLabelVars {
+		// The other half of the adjacency rule, and kept strict for the
+		// same reason: without the record 4 the labels just read name no
+		// variables, and the parser has no second place to look for them.
+		// This is a FRAMING rule, which is the line E3-S5 drew — what the
+		// record 4 turns out to MEAN is tolerated (see resolveValueLabels),
+		// where it sits is not.
 		return p.invalid(nextOff,
 			"a record type 3 is followed by record type %d; the format requires the record type 4 naming its variables to follow immediately", rt)
 	}
@@ -737,13 +930,52 @@ func (p *parser) parseExtensionRecord(d *dictionary) error {
 //
 // It runs after the walk rather than inline because the format does not
 // promise that every variable record precedes every value-label record.
+//
+// # Where the strict line sits, and why it moved
+//
+// E2-S2 rejected the whole FILE for any binding fault here. E3-S5 splits
+// them, on the principle that a fault which desynchronises the walk is not
+// the same kind of thing as a fault in what a record MEANS:
+//
+//   - An element index below 1, or past the end of the dictionary, is
+//     CORRUPTION. It cannot be produced by a writer with a different reading
+//     of the format, only by damaged bytes, and damaged bytes here mean the
+//     record 4 payload is not what it claims — which puts everything around
+//     it in doubt. Still a hard PULSE_SPSS_DICT_INVALID.
+//
+//   - A set that names a real variable it cannot be BOUND to — a mixed-width
+//     set, a set on a string wider than the 8-byte value slot, an index
+//     landing on a string continuation — is a dialect problem, and it is one
+//     PSPP's own reader tolerates by skipping the record. The set is dropped
+//     with a PULSE_SPSS_VALUE_LABELS_DROPPED warning naming the variable, and
+//     the file imports.
+//
+// The trade being made, stated plainly: a value label is display metadata,
+// so dropping one costs presentation while rejecting the file costs the data.
+// The alternative — binding the set anyway — is the one option ruled out
+// entirely, because an 8-byte value slot matched against a 20-byte string
+// would label every value sharing a prefix, and a silently wrong label is
+// worse than an absent one.
+//
+// What a strict reading would still have rejected, now that it does not: a
+// pre-SPSS-13 file whose long-string value labels predate the record 7/21
+// extension, and a file whose VALUE LABELS command was applied across
+// variables of different declared widths. Neither is confirmed to exist in
+// the wild — we have no real-world corpus — so both are recorded here as
+// what the tolerance is FOR rather than as observed shapes.
+//
+// A dropped set is removed from d.valueLabels outright rather than flagged,
+// so no later pass — charset decoding, the mapping's projection onto
+// variables, the record 7/21 fold — has to know about the concept.
 func (p *parser) resolveValueLabels(d *dictionary) error {
+	kept := d.valueLabels[:0]
 	for i := range d.valueLabels {
 		set := &d.valueLabels[i]
 		p.record = recordName(recTypeLabelVars)
 		p.recordOff = set.varsOffset
 
 		width := -1
+		drop := false
 		for _, idx := range set.varIndices {
 			if idx < 1 {
 				return p.invalid(set.varsOffset,
@@ -755,25 +987,57 @@ func (p *parser) resolveValueLabels(d *dictionary) error {
 					"a record type 4 names dictionary element index %d, but the dictionary has only %d element(s)", idx, d.elementCount)
 			}
 			if !isFirst {
-				return p.invalid(set.varsOffset,
-					"a record type 4 names dictionary element index %d, which is a continuation element of the long string variable %q, not a variable", idx, v.name)
+				p.dropValueLabels(d, set, v.name,
+					"it names dictionary element index %d, which is a continuation element of the long string variable %q rather than a variable of its own",
+					idx, v.name)
+				drop = true
+				break
 			}
 			if v.isString() && v.width > maxShortStringWidth {
-				return p.invalid(set.varsOffset,
-					"a record type 4 attaches value labels to %q, a %d-byte string; strings wider than %d carry their value labels in the record 7/21 extension instead", v.name, v.width, maxShortStringWidth)
+				p.dropValueLabels(d, set, v.name,
+					"it attaches value labels to %q, a %d-byte string, and a record type 3 value slot holds only %d bytes; strings wider than that carry their value labels in the record 7/21 extension, which this reader does read",
+					v.name, v.width, maxShortStringWidth)
+				drop = true
+				break
 			}
 			if width == -1 {
 				width = v.width
 				continue
 			}
 			if v.width != width {
-				return p.invalid(set.varsOffset,
-					"a record type 4 mixes variables of width %d and %d (%q); every variable sharing one value-label set must have the same type and width", width, v.width, v.name)
+				p.dropValueLabels(d, set, v.name,
+					"it mixes variables of width %d and %d (%q), and the width is what decides whether each 8-byte value slot is read as a double or as text; one set cannot be read both ways",
+					width, v.width, v.name)
+				drop = true
+				break
 			}
 		}
+		if drop {
+			continue
+		}
 		set.width = width
+		kept = append(kept, *set)
 	}
+	d.valueLabels = kept
 	return nil
+}
+
+// dropValueLabels records one PULSE_SPSS_VALUE_LABELS_DROPPED warning. The
+// caller drops the set; this only says so.
+func (p *parser) dropValueLabels(d *dictionary, set *valueLabelSet, variable string, format string, args ...any) {
+	msg := "spss: the record 3/4 value-label set starting at byte offset " +
+		strconv.Itoa(set.offset) + " was dropped: " + fmt.Sprintf(format, args...) +
+		"; the variable's DATA is unaffected, only its labels [at byte offset " +
+		strconv.Itoa(set.varsOffset) + "]"
+	details := map[string]any{
+		errors.DetailSPSSRecord: recordName(recTypeLabelVars),
+		errors.DetailSPSSOffset: set.varsOffset,
+	}
+	if variable != "" {
+		details[errors.DetailSPSSVariable] = variable
+	}
+	d.warnings = append(d.warnings, errors.NewCodedErrorWithDetails(
+		errors.PULSE_SPSS_VALUE_LABELS_DROPPED, msg, details))
 }
 
 func roundUp(n, mult int) int { return (n + mult - 1) / mult * mult }

@@ -1803,6 +1803,51 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_FILE_EMPTY: {
+		Message: "The SPSS source contains no bytes at all — a zero-length .sav / .zsav file, or an in-memory reader constructed over a nil or empty buffer. There is no header to read, so this is reported separately from a truncated dictionary: a truncated file stopped part way through a record, while an empty one never had a first record.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Check the path points at the file you meant and that the export or download actually wrote it — a zero-length file is usually a created-but-never-filled target, a failed transfer, or a shell redirection that truncated the destination before the writer ran.",
+			},
+		},
+	},
+	PULSE_SPSS_ENDIANNESS_MISMATCH: {
+		Message: "The SPSS .sav file states its byte order twice and the two statements contradict each other. The header layout code identifies one order (it is always 2 or 3, so reading it both ways is unambiguous) while the record 7/3 machine-integer endianness field names the other. Unlike the charset cross-check this is a hard error, because byte order governs every multi-byte field in the file: picking the wrong one does not lose a label, it yields a complete file of plausible and wrong numbers.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-save the file from SPSS or PSPP. A file whose header and 7/3 record disagree was almost certainly rewritten in place by a tool that byte-swapped one and not the other, and the values it holds cannot be trusted even where they decode.",
+			},
+		},
+	},
+	PULSE_SPSS_MAGIC_FLAG_MISMATCH: {
+		Message: "The SPSS system file's 4-byte magic and its header compression flag disagree about whether the file is a ZSAV: $FL3 (the ZSAV magic) with compression flag 0 or 1, or $FL2 with compression flag 2. This is a warning and the file still reads — the compression flag is the operative statement, because it is what says how the data section is encoded, while the magic is a coarse generation label a re-saving tool can leave stale.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "No action is needed if the data imported correctly; the compression flag decided and it is the field that describes the bytes. If the import failed further on, re-save the file from SPSS or PSPP so the magic and the flag agree.",
+			},
+		},
+	},
+	PULSE_SPSS_VALUE_LABELS_DROPPED: {
+		Message: "A record 3/4 value-label pair in the SPSS .sav dictionary names variables it cannot be bound to: a set mixing variables of different type or width, a set attached to a string wider than the 8 bytes a record type 3 value slot holds (those belong in the record 7/21 extension), or an element index landing on a string continuation rather than on a variable. That one label set was dropped and the rest of the file imported normally. Value labels are display metadata, so refusing the whole file would cost the data to save the labels — and binding the set anyway would attach labels to the wrong values without saying so.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "The imported values are unaffected; only the labels for the variable named in the details are missing. Re-saving the file from a current SPSS or PSPP normally rewrites long-string value labels into the record 7/21 extension, which Pulse does read.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels"},
+				Hint:   "Supply the labels yourself if they matter: register a label table (Options.Extensions.LabelTables or PULSE_LABEL_TABLES_DIR) and reference it from the request's LabelBinding.Table.",
+			},
+		},
+	},
 	PULSE_SPSS_EXTENSION_UNKNOWN: {
 		Message: "The SPSS .sav dictionary carries a record type 7 extension subtype this reader does not interpret. This is a warning, not a failure: the record's framing was read so the dictionary walk stayed aligned, its bytes were retained verbatim, and the rest of the file parsed normally. Real SPSS versions emit subtypes the published format description does not list, so an unrecognised subtype is expected rather than exceptional.",
 		Fixups: []Fixup{

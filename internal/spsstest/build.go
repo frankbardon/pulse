@@ -21,7 +21,7 @@ func Build(spec Spec) ([]byte, error) {
 		return nil, err
 	}
 
-	e := &enc{bo: binary.LittleEndian}
+	e := &enc{bo: plan.spec.ByteOrder.binary()}
 	writeHeader(e, plan)
 	for i := range plan.vars {
 		writeVariableRecords(e, plan.vars[i])
@@ -151,8 +151,10 @@ func validate(spec Spec) (plan, error) {
 	}
 	p.spec = spec
 
-	if spec.ByteOrder != LittleEndian {
-		return p, fmt.Errorf("spsstest: %s output is not implemented; only little-endian is supported today", spec.ByteOrder)
+	switch spec.ByteOrder {
+	case LittleEndian, BigEndian:
+	default:
+		return p, fmt.Errorf("spsstest: ByteOrder %d is neither LittleEndian nor BigEndian", int(spec.ByteOrder))
 	}
 	switch spec.Compression {
 	case CompressionNone, CompressionBytecode, CompressionZSAV:
@@ -284,8 +286,15 @@ func planExtensions(spec Spec, vars []resolvedVar, byName map[string]resolvedVar
 ) ([]renderedExtension, error) {
 	var out []renderedExtension
 
+	// Extension payloads carry int32s and int64s, so they are as
+	// byte-ordered as the header is. Rendering them little-endian inside a
+	// big-endian file would produce records that frame correctly and decode
+	// to nonsense — the exact failure a whole-file byte order exists to
+	// avoid.
+	bo := spec.ByteOrder.binary()
+
 	if mi := spec.MachineIntegerInfo; mi != nil {
-		e := &enc{bo: binary.LittleEndian}
+		e := &enc{bo: bo}
 		for _, v := range []int32{mi.VersionMajor, mi.VersionMinor, mi.VersionRevision,
 			mi.MachineCode, mi.FloatingPointRep, mi.CompressionCode, mi.Endianness, mi.CharacterCode} {
 			e.i32(v)
@@ -294,7 +303,7 @@ func planExtensions(spec Spec, vars []resolvedVar, byName map[string]resolvedVar
 	}
 
 	if mf := spec.MachineFloatInfo; mf != nil {
-		e := &enc{bo: binary.LittleEndian}
+		e := &enc{bo: bo}
 		e.f64(mf.SysMis)
 		e.f64(mf.Highest)
 		e.f64(mf.Lowest)
@@ -314,7 +323,7 @@ func planExtensions(spec Spec, vars []resolvedVar, byName map[string]resolvedVar
 	}
 
 	if spec.DisplayParams {
-		e := &enc{bo: binary.LittleEndian}
+		e := &enc{bo: bo}
 		for _, v := range vars {
 			if v.Measure < MeasureUnset || v.Measure > MeasureScale {
 				return nil, fmt.Errorf("spsstest: %s has Measure %d, outside the 0..3 the record 7/11 measure field defines", v.Name, v.Measure)
@@ -355,7 +364,7 @@ func planExtensions(spec Spec, vars []resolvedVar, byName map[string]resolvedVar
 		if *spec.CaseCount64 < 0 {
 			return nil, fmt.Errorf("spsstest: CaseCount64 is %d; a case count cannot be negative", *spec.CaseCount64)
 		}
-		e := &enc{bo: binary.LittleEndian}
+		e := &enc{bo: bo}
 		e.i64(1) // the spec's constant leading field, and an endianness probe
 		e.i64(*spec.CaseCount64)
 		out = append(out, renderedExtension{subtype: SubtypeNumberOfCases, size: 8, payload: e.buf.Bytes()})
@@ -387,13 +396,13 @@ func planExtensions(spec Spec, vars []resolvedVar, byName map[string]resolvedVar
 		out = append(out, renderedExtension{subtype: SubtypeCharacterEncoding, size: 1, payload: []byte(spec.CharacterEncoding)})
 	}
 
-	if payload, err := renderLongStringValueLabels(spec, logical); err != nil {
+	if payload, err := renderLongStringValueLabels(spec, logical, bo); err != nil {
 		return nil, err
 	} else if len(payload) > 0 {
 		out = append(out, renderedExtension{subtype: SubtypeLongStringValueLabels, size: 1, payload: payload})
 	}
 
-	if payload, err := renderLongStringMissingValues(spec, logical); err != nil {
+	if payload, err := renderLongStringMissingValues(spec, logical, bo); err != nil {
 		return nil, err
 	} else if len(payload) > 0 {
 		out = append(out, renderedExtension{subtype: SubtypeLongStringMissing, size: 1, payload: payload})
@@ -917,7 +926,10 @@ func writeNumber(w *bytecodeWriter, v float64) {
 		return
 	}
 	var b [ElementSize]byte
-	binary.LittleEndian.PutUint64(b[:], math.Float64bits(v))
+	// The escape payload is a raw IEEE 754 double, so it is byte-ordered
+	// exactly as an uncompressed element would be. Compression changes how
+	// a datum is FRAMED, never how its bytes are laid out.
+	w.e.bo.PutUint64(b[:], math.Float64bits(v))
 	w.command(cmdRaw, b[:])
 }
 

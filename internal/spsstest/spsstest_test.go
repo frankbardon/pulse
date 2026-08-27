@@ -674,9 +674,9 @@ func TestBuild_Rejects(t *testing.T) {
 		{"variable label too long", base(Var{Name: "A", Label: strings.Repeat("x", MaxVarLabelLen+1)}), "over the 120-byte limit"},
 		{"non-ASCII variable label", base(Var{Name: "A", Label: "café"}), "printable 7-bit ASCII"},
 		{
-			"big-endian not implemented",
-			Spec{Vars: []Var{{Name: "A"}}, ByteOrder: BigEndian},
-			"not implemented",
+			"an unknown byte order is rejected",
+			Spec{Vars: []Var{{Name: "A"}}, ByteOrder: ByteOrder(9)},
+			"neither LittleEndian nor BigEndian",
 		},
 		{
 			"an unknown compression is not implemented",

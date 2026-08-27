@@ -1,8 +1,10 @@
 package format
 
 import (
+	"bytes"
 	"testing"
 
+	"github.com/frankbardon/pulse/internal/spsstest"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
@@ -108,6 +110,62 @@ func TestNewReader_Rejections(t *testing.T) {
 	for _, f := range []string{Pulse, "", "sav"} {
 		if _, err := NewReader(f, fs, "x", ReaderOptions{}); err == nil {
 			t.Errorf("NewReader(%q) = nil error, want an error", f)
+		}
+	}
+}
+
+// TestNewReader_SPSSCharsetOption pins the E3-S5 plumbing: ReaderOptions.
+// Charset must actually reach the SPSS reader, because a flag that parses
+// and is then dropped looks exactly like a charset that did not help.
+//
+// The assertion is behavioural rather than structural — a `.sav` carrying an
+// 8-bit byte and declaring no encoding fails under the strict UTF-8 default
+// and decodes under the override — since checking that an option was stored
+// would not prove it was consulted.
+func TestNewReader_SPSSCharsetOption(t *testing.T) {
+	raw, err := spsstest.Build(spsstest.Spec{
+		Vars:  []spsstest.Var{{Name: "A", Label: "cafX"}},
+		Cases: [][]spsstest.Value{{spsstest.Num(1)}},
+	})
+	if err != nil {
+		t.Fatalf("spsstest.Build: %v", err)
+	}
+	at := bytes.Index(raw, []byte("cafX"))
+	if at < 0 {
+		t.Fatal("the label is not in the emitted bytes")
+	}
+	raw[at+3] = 0xE9 // "café" in windows-1252; not valid UTF-8 alone
+
+	fs := afero.NewMemMapFs()
+	if err := afero.WriteFile(fs, "survey.sav", raw, 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	plain, err := NewReader(SPSS, fs, "survey.sav", ReaderOptions{})
+	if err != nil {
+		t.Fatalf("NewReader: %v", err)
+	}
+	if _, err := plain.ReadHeader(); err == nil {
+		t.Fatal("an undeclared 8-bit file read without an override; the default is strict UTF-8")
+	}
+
+	overridden, err := NewReader(SPSS, fs, "survey.sav", ReaderOptions{Charset: "windows-1252"})
+	if err != nil {
+		t.Fatalf("NewReader with charset: %v", err)
+	}
+	if _, err := overridden.ReadHeader(); err != nil {
+		t.Fatalf("ReaderOptions.Charset did not reach the reader: %v", err)
+	}
+}
+
+// TestNewReader_CharsetIgnoredElsewhere keeps the new field from changing
+// any other format's construction. Every field on ReaderOptions is honoured
+// by exactly one format and ignored silently by the rest.
+func TestNewReader_CharsetIgnoredElsewhere(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	for _, f := range []string{CSV, TSV, NDJSON, JSONArray, Parquet, Arrow, Excel} {
+		if _, err := NewReader(f, fs, "in."+f, ReaderOptions{Charset: "windows-1252"}); err != nil {
+			t.Errorf("NewReader(%q) with a charset: %v", f, err)
 		}
 	}
 }

@@ -706,8 +706,17 @@ func TestParseDictionary_SkipsDocumentAndExtensionRecords(t *testing.T) {
 	}
 }
 
-// TestParseDictionary_BigEndian exercises the layout-code endianness probe.
-// internal/spsstest emits little-endian only, so the fixture here is
+// TestParseDictionary_BigEndian exercises the layout-code endianness probe
+// against HAND-ASSEMBLED bytes.
+//
+// E3-S5 taught internal/spsstest to emit big-endian, and the whole-file
+// twin comparison in hardening_test.go is the stronger evidence. This one
+// is kept anyway and deliberately does not use the generator: the generator
+// and the parser are two readings of the same specification, and a fixture
+// built by hand from the spec text is the only check that survives both of
+// them being wrong the same way.
+//
+// The fixture is
 // hand-assembled: a header, one numeric variable and the terminator, every
 // multi-byte field big-endian.
 func TestParseDictionary_BigEndian(t *testing.T) {
@@ -786,8 +795,15 @@ func TestParseDictionary_Truncated(t *testing.T) {
 				t.Fatalf("truncated to %d bytes parsed successfully; the dictionary needs %d", n, full.dataOffset)
 			}
 			ce := codedError(t, err)
-			if ce.Code != perr.PULSE_SPSS_DICT_TRUNCATED {
-				t.Errorf("truncated to %d bytes: code = %s, want %s (%v)", n, ce.Code, perr.PULSE_SPSS_DICT_TRUNCATED, err)
+			// Truncating to nothing is not truncation, it is emptiness,
+			// and E3-S5 gives it its own code so a caller can tell an
+			// interrupted transfer from a file that was never written.
+			want := perr.PULSE_SPSS_DICT_TRUNCATED
+			if n == 0 {
+				want = perr.PULSE_SPSS_FILE_EMPTY
+			}
+			if ce.Code != want {
+				t.Errorf("truncated to %d bytes: code = %s, want %s (%v)", n, ce.Code, want, err)
 			}
 			assertDetails(t, ce, n)
 		default:
@@ -827,6 +843,13 @@ func TestParseDictionary_Malformed(t *testing.T) {
 		{
 			name:       "empty input",
 			mutate:     func(b []byte) []byte { return nil },
+			wantCode:   perr.PULSE_SPSS_FILE_EMPTY,
+			wantRecord: recordHeader,
+			wantMsg:    "the source is empty",
+		},
+		{
+			name:       "one byte short of the header",
+			mutate:     func(b []byte) []byte { return b[:headerSize-1] },
 			wantCode:   perr.PULSE_SPSS_DICT_TRUNCATED,
 			wantRecord: recordHeader,
 			wantMsg:    "file header record is complete",
@@ -1038,56 +1061,6 @@ func TestParseDictionary_Malformed(t *testing.T) {
 			wantMsg:    "indices are 1-based",
 		},
 		{
-			name: "a record type 4 naming a continuation element",
-			mutate: func(b []byte) []byte {
-				// Element 4 is NAME's continuation.
-				binary.LittleEndian.PutUint32(b[0x0168:], 4)
-				return b
-			},
-			wantCode:   perr.PULSE_SPSS_DICT_INVALID,
-			wantRecord: "4",
-			wantMsg:    "continuation element",
-		},
-		{
-			name: "a record type 4 mixing variable widths",
-			mutate: func(b []byte) []byte {
-				out := build(t, spsstest.Spec{
-					Vars: []spsstest.Var{{Name: "A"}, {Name: "B"}},
-					ValueLabels: []spsstest.ValueLabelSet{{
-						Vars:   []string{"A", "B"},
-						Labels: []spsstest.ValueLabel{{Value: spsstest.Num(1), Label: "one"}},
-					}},
-				})
-				// Retype B as a 4-byte string, so the shared set now mixes
-				// a numeric and a string.
-				binary.LittleEndian.PutUint32(out[headerSize+32+4:], 4)
-				return out
-			},
-			wantCode:   perr.PULSE_SPSS_DICT_INVALID,
-			wantRecord: "4",
-			wantMsg:    "same type and width",
-		},
-		{
-			name: "value labels attached to a long string",
-			mutate: func(b []byte) []byte {
-				out := build(t, spsstest.Spec{
-					Vars: []spsstest.Var{{Name: "A", Width: 8}},
-					ValueLabels: []spsstest.ValueLabelSet{{
-						Vars:   []string{"A"},
-						Labels: []spsstest.ValueLabel{{Value: spsstest.Text("x"), Label: "ex"}},
-					}},
-				})
-				// Widen A to 9 bytes without adding its continuation record:
-				// the widening is what the assertion is about, and the
-				// continuation-owed check would fire first, so add one.
-				binary.LittleEndian.PutUint32(out[headerSize+4:], 9)
-				return splice(out, headerSize+32, continuationRecord())
-			},
-			wantCode:   perr.PULSE_SPSS_DICT_INVALID,
-			wantRecord: "4",
-			wantMsg:    "record 7/21",
-		},
-		{
 			name: "a negative document line count",
 			mutate: func(b []byte) []byte {
 				return splice(b, termOff, i32le(int32(recTypeDocument), -1))
@@ -1193,6 +1166,150 @@ func TestParseDictionary_Malformed(t *testing.T) {
 				t.Errorf("Details[%q] = %v, want %q", perr.DetailSPSSRecord, got, tc.wantRecord)
 			}
 			assertDetails(t, ce, len(in))
+		})
+	}
+}
+
+// TestParseDictionary_ValueLabelBindingIsTolerated is the other half of
+// TestParseDictionary_Malformed: the three record 3/4 faults E2-S2 rejected
+// the whole file for, which E3-S5 downgraded to a dropped label set.
+//
+// Each case names a REAL variable the set cannot be bound to, as opposed to
+// an index that is simply corrupt — those stay hard errors and are still
+// covered above. The assertion is deliberately three-part, because any one
+// alone would let a wrong implementation through: the file must parse, the
+// offending set must be GONE (binding it anyway would mislabel values
+// silently, which is worse than the strict behaviour we replaced), and the
+// warning must name the variable so an operator can tell which labels are
+// missing.
+func TestParseDictionary_ValueLabelBindingIsTolerated(t *testing.T) {
+	ref := build(t, spsstest.ReferenceSpec())
+
+	cases := []struct {
+		name string
+		// in is the whole file, built fresh rather than mutated from ref
+		// where the fault needs a different variable shape.
+		in func(t *testing.T) []byte
+		// wantSets is how many record 3/4 sets survive.
+		wantSets int
+		wantVar  string
+		wantMsg  string
+	}{
+		{
+			name: "an index landing on a string continuation",
+			in: func(t *testing.T) []byte {
+				b := clone(ref)
+				// Element 4 is NAME's continuation; element 2 is SEX.
+				binary.LittleEndian.PutUint32(b[0x0168:], 4)
+				return b
+			},
+			wantSets: 0,
+			wantVar:  "NAME",
+			wantMsg:  "continuation element",
+		},
+		{
+			name: "a set mixing a numeric and a string",
+			in: func(t *testing.T) []byte {
+				out := build(t, spsstest.Spec{
+					Vars: []spsstest.Var{{Name: "A"}, {Name: "B"}},
+					ValueLabels: []spsstest.ValueLabelSet{{
+						Vars:   []string{"A", "B"},
+						Labels: []spsstest.ValueLabel{{Value: spsstest.Num(1), Label: "one"}},
+					}},
+				})
+				// Retype B as a 4-byte string, so the shared set now mixes
+				// a numeric and a string.
+				binary.LittleEndian.PutUint32(out[headerSize+32+4:], 4)
+				return out
+			},
+			wantSets: 0,
+			wantVar:  "B",
+			wantMsg:  "mixes variables of width",
+		},
+		{
+			name: "a set attached to a long string",
+			in: func(t *testing.T) []byte {
+				out := build(t, spsstest.Spec{
+					Vars: []spsstest.Var{{Name: "A", Width: 8}},
+					ValueLabels: []spsstest.ValueLabelSet{{
+						Vars:   []string{"A"},
+						Labels: []spsstest.ValueLabel{{Value: spsstest.Text("x"), Label: "ex"}},
+					}},
+				})
+				// Widen A to 9 bytes and add the continuation record the
+				// widening now owes, so the fault under test is the one
+				// that fires.
+				binary.LittleEndian.PutUint32(out[headerSize+4:], 9)
+				return splice(out, headerSize+32, continuationRecord())
+			},
+			wantSets: 0,
+			wantVar:  "A",
+			wantMsg:  "record 7/21",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := tc.in(t)
+			d, err := parseDictionary(in)
+			if err != nil {
+				t.Fatalf("parseDictionary failed; a binding fault must not reject the file: %v", err)
+			}
+			if got := len(d.valueLabels); got != tc.wantSets {
+				t.Errorf("value-label sets = %d, want %d; the unbindable set must be dropped, not bound", got, tc.wantSets)
+			}
+			var found *perr.CodedError
+			for _, w := range d.warnings {
+				if w.Code == perr.PULSE_SPSS_VALUE_LABELS_DROPPED {
+					found = w
+					break
+				}
+			}
+			if found == nil {
+				t.Fatalf("no %s warning; a dropped label set must say so (%d warning(s))",
+					perr.PULSE_SPSS_VALUE_LABELS_DROPPED, len(d.warnings))
+			}
+			if !strings.Contains(found.Message, tc.wantMsg) {
+				t.Errorf("message = %q, want it to contain %q", found.Message, tc.wantMsg)
+			}
+			if got := found.Details[perr.DetailSPSSVariable]; got != tc.wantVar {
+				t.Errorf("Details[%q] = %v, want %q", perr.DetailSPSSVariable, got, tc.wantVar)
+			}
+			assertDetails(t, found, len(in))
+		})
+	}
+}
+
+// TestParseDictionary_ValueLabelIndexCorruptionStaysStrict is the boundary of
+// the tolerance above. An index below 1 or past the end of the dictionary
+// cannot come from a writer reading the format differently — only from
+// damaged bytes — and damaged bytes in a record type 4 payload put the
+// record's framing in doubt, so those stay hard errors.
+func TestParseDictionary_ValueLabelIndexCorruptionStaysStrict(t *testing.T) {
+	ref := build(t, spsstest.ReferenceSpec())
+	for _, tc := range []struct {
+		name string
+		idx  int32
+		msg  string
+	}{
+		{"index zero", 0, "indices are 1-based"},
+		{"negative index", -1, "indices are 1-based"},
+		{"index past the dictionary", 99, "has only"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := clone(ref)
+			binary.LittleEndian.PutUint32(b[0x0168:], uint32(tc.idx))
+			_, err := parseDictionary(b)
+			if err == nil {
+				t.Fatal("parseDictionary succeeded; a corrupt element index is not a dialect")
+			}
+			ce := codedError(t, err)
+			if ce.Code != perr.PULSE_SPSS_DICT_INVALID {
+				t.Errorf("code = %s, want %s", ce.Code, perr.PULSE_SPSS_DICT_INVALID)
+			}
+			if !strings.Contains(ce.Message, tc.msg) {
+				t.Errorf("message = %q, want it to contain %q", ce.Message, tc.msg)
+			}
 		})
 	}
 }
