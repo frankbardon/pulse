@@ -39,5 +39,6 @@ Bring an external dataset into Pulse — CSV, TSV, NDJSON, JSON array, Parquet, 
 
 - `tool-drop` — remove a managed handle.
 - `tool-imports-list` — enumerate active handles.
-- `cohort-schema-design` — `.pulse` format produced by import, incl. the full SPSS mapping table.
+- `cohort-schema-design` — the `.pulse` format produced by import.
+- `spss-cohorts` — the full SPSS surface: type mapping, derived columns, missing-value split, metadata sidecar.
 - `pulse_errors_lookup` — per-code prose + fixups for the `PULSE_SPSS_*` family.

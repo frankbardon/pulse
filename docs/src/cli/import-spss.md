@@ -579,7 +579,26 @@ To see labels in output, register a **LabelTable** mapping code → label
 (`pulse.Options.LabelTables`, or a directory of JSON files pointed at by
 `PULSE_LABEL_TABLES_DIR`) and bind it per request. Labels are an
 output-time projection, never a property of the stored cohort; the
-`label-display` skill is the full surface.
+`label-display` skill is the full surface. The sidecar's `categories[]`
+block is where the code → label pairs came from, so it is the natural
+place to generate a label table from.
+
+> **Do not point `PULSE_LABEL_TABLES_DIR` at a directory of cohorts.**
+> The loader parses **every** `*.json` beneath that root as a label
+> table, and a file it cannot parse fails `pulse.New` outright rather
+> than being skipped:
+>
+> ```
+> pulse: parsing label table /data/cohorts/survey.pulse.spss.json:
+> json: cannot unmarshal object into Go value of type string
+> ```
+>
+> The SPSS metadata sidecar written next to every imported cohort
+> (`cohort.pulse.spss.json`) and the managed-import sidecar
+> (`cohort.pulse.meta.json`) both trip it. The behaviour predates SPSS
+> support, but the sidecar makes it far easier to hit — and it hits
+> precisely the person who came looking for labels. Keep label tables in
+> a directory of their own.
 
 ## Flags and what SPSS ignores
 
@@ -1083,5 +1102,7 @@ format; Pulse cannot write it yet
 - [`pulse cohort inspect`](cohort-inspect.md) — read the schema and dictionaries the import produced
 - [`pulse manifest`](manifest.md) — `import.formats[]` declares `spss` with `schema_source: "authoritative"` and `export: false`
 - [Adding an I/O Format](../internals/adding-io-format.md) — the `SchemaAwareReader` / `SourceWarningEmitter` contracts this adapter implements
-- `skills/cohort-schema-design.md` — the full SPSS mapping table and `.pulse` field-type matrix
+- `skills/spss-cohorts.md` — the agent-facing SPSS surface: mapping table, derived columns, missing-value split, metadata sidecar, diagnostics
+- `skills/cohort-schema-design.md` — the `.pulse` field-type matrix
+- `skills/label-display.md` — turning the stored codes into labels at output time
 - `skills/tool-import.md` — the `pulse_import` MCP surface

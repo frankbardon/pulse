@@ -46,6 +46,7 @@ When a manifest operator name or response key surfaces a topic, derive the skill
 | `OVERLAY_*` | `overlay-system` |
 | `synth_distributions[i].kind` | `synthetic-data` |
 | `cohort_types[i].name` (field type) | `cohort-schema-design` |
+| A `.sav` / `.zsav` source, or a cohort carrying a `.spss.json` sidecar | `spss-cohorts` |
 | `mcp_tools[i].name` | `mcp-integration` |
 | `pulse_lookup` / CLI `pulse index {build,list,verify,drop}` / `pulse api lookup` | `tool-lookup` (MCP surface), `cohort-schema-design` (sidecar format) |
 | `error_codes[i]` | `pulse_errors_lookup` (not a skill — the tool is the surface) |
@@ -94,7 +95,7 @@ Do not infer Components shape from memory or external documentation — it is bo
 
 Directories auto-loaded from disk at `pulse.New` time:
 
-- `PULSE_LABEL_TABLES_DIR` — output-time label tables.
+- `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Give it its own directory.** It parses *every* `*.json` beneath it as a label table and a file it cannot parse hard-fails `pulse.New`, so pointing it at a directory of cohorts trips over the `.spss.json` / `.meta.json` sidecars sitting there.
 - `PULSE_RANGE_TABLES_DIR` — named labeled-date-range tables (`{label,start,end}` sets referenced by `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`).
 - `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render via `RenderTemplate` / `RenderTemplateRequest`, then predict the rendered request. See the `request-templating` skill.
 

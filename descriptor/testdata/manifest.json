@@ -6914,6 +6914,10 @@
         "description": "Canonical MCP session order — manifest once, then examples → predict → process → errors_lookup. Skill-name derivation from operator names. Use first on every new MCP session."
       },
       {
+        "name": "spss-cohorts",
+        "description": "SPSS .sav / .zsav import — the schema-authoritative dictionary, derived columns (\u003cvar\u003e_missing siblings and multiple-dichotomy set_* columns), the numeric-vs-categorical missing-value split, codes-not-labels dictionaries, the metadata sidecar, and the PULSE_SPSS_* diagnostics. Read this when a cohort came from SPSS, or when a cohort has more columns than its source file had variables."
+      },
+      {
         "name": "statistical-testing",
         "description": "Tier-1 (`tests`) vs tier-2 (`post_tests`) pairing, assumption gates, ANOVA + post-hoc composition, p-value conventions. Topical design; per-TEST detail in atomic op-test-* skills."
       },
@@ -9385,4 +9389,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 061f29662685b615d5dce476c8320b74c9e33bb28bca492f87b4ccb93b92f5dd
+// golden-hash: 3edf9d2e66bd19786a5e0d56d739cf368db532422cb04d39e76ff530116c0c96

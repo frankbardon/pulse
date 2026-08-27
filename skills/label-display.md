@@ -32,6 +32,8 @@ LabelTables: map[string]pulse.LabelTable{
 
 `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (filename without `.json` = table name). Either flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic + disk-loaded can't share a name (`pulse.New` rejects).
 
+**Point it at a dedicated directory, never at your cohorts.** The loader parses *every* `*.json` under the root and a file it cannot parse is a hard `pulse.New` failure, not a skip — so a cohort directory containing an SPSS metadata sidecar (`cohort.pulse.spss.json`) or a managed-import sidecar (`cohort.pulse.meta.json`) fails startup with `pulse: parsing label table …`. It bites the workflow that needs labels most: an SPSS cohort stores codes, so you reach for a label table — and the sidecar holding the labels sits next to the cohort.
+
 ### 2. Attach a binding
 
 Each `LabelBinding` pairs a categorical field with a table and mode:
@@ -93,3 +95,4 @@ LLM clients discover label tables via two MCP tools. `pulse_label_tables` lists 
 - `skills/aggregation-design.md` — `AGG_FREQUENCY` / `AGG_MODE` label-key path.
 - `skills/facet-design.md` — surfacing labels on `FacetField` values.
 - `skills/tool-label-tables.md` / `skills/tool-label-resolve.md` — `pulse_label_tables` / `pulse_label_resolve` schemas.
+- `skills/spss-cohorts.md` — why an SPSS cohort stores codes, and where its labels live.
