@@ -753,10 +753,17 @@ func TestDataEncoder_RefusesRatherThanDegrades(t *testing.T) {
 			c: Case{{Num: 0}},
 		},
 		{
+			// The plan is corrupted AFTER the width recomputation that
+			// would have widened the variable to fit, which is the only way
+			// to reach putText's bound: applyCharsetWrite measures the
+			// encoded values and sizes the variable from them, so nothing
+			// a caller can hand the encoder overflows. The guard stays
+			// because the alternative to refusing is truncating.
 			name:   "a value wider than the variable it goes in",
 			schema: textSchema,
 			mutate: func(p *DictionaryPlan) {
 				p.Columns[0].Categories[0].Text = strings.Repeat("x", 99)
+				p.Columns[0].Categories[0].Encoded = []byte(strings.Repeat("x", 99))
 			},
 			c: Case{{Num: 0}},
 		},

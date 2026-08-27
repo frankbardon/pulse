@@ -1253,12 +1253,15 @@ func TestBuildDictionary_ProvenanceFieldsDescribeTheseBytes(t *testing.T) {
 	if !strings.Contains(d.header.productName, "pulse") {
 		t.Errorf("prod_name = %q, want it to name pulse", d.header.productName)
 	}
-	// The source declared cp1252; these bytes are UTF-8 until E5-S4 teaches
-	// the writer to transcode, and record 7/20 must describe the bytes.
-	if d.charsetName != writerCharsetName {
-		t.Errorf("record 7/20 declares %q, want %q — the declaration follows the bytes", d.charsetName, writerCharsetName)
+	// The source declared cp1252 and, since E5-S4, so do these bytes: the
+	// strings were encoded back into it before emission. The declaration
+	// still follows the bytes — what changed is that the bytes now follow
+	// the source. The SPELLING is the source's own, because record 7/20 is
+	// a quotation and not a normalisation.
+	if got := res.Document.Payload.Charset.DeclaredName; got != "cp1252" {
+		t.Fatalf("the fixture recorded source charset %q, want %q; the test is not exercising what it claims", got, "cp1252")
 	}
-	if got := res.Document.Payload.Charset.DeclaredName; got == "" {
-		t.Error("the fixture recorded no source charset; the test is not exercising what it claims")
+	if d.charsetName != "cp1252" {
+		t.Errorf("record 7/20 declares %q, want the source's own spelling %q", d.charsetName, "cp1252")
 	}
 }

@@ -17,8 +17,11 @@ package spss
 //   - Byte order, the header layout code and the record 7/3 endianness field
 //     describe THESE bytes, which are always little-endian.
 //   - prod_name identifies the program that wrote THESE bytes.
-//   - Record 7/20 declares the charset THESE bytes are in, which is UTF-8
-//     until E5-S4 teaches the writer to transcode.
+//   - Record 7/20 declares the charset THESE bytes are in — which, since
+//     E5-S4, IS the source's, because the strings are encoded back into it
+//     before emission. The one thing this file does about that is record
+//     what the source's charset was, so the transcode pass can resolve
+//     against it; everything else is charset_write.go's.
 
 import (
 	"strconv"
@@ -55,6 +58,12 @@ func dictionaryFromSidecar(req DictionaryRequest) (*outFile, error) {
 		varAttrs:   p.VariableAttributes,
 		mrSets:     p.MultipleResponseSets,
 		varSets:    p.VariableSets,
+
+		// The charset the SOURCE's strings were in. resolveWriteCharset
+		// resolves the ENCODER from the same document, so this is not the
+		// input to that decision; it is what the verbatim-passthrough check
+		// compares against when a caller has overridden the target.
+		sourceCharset: p.Charset.ResolvedName,
 	}
 	if p.Weight != nil {
 		f.weightName = p.Weight.Variable
@@ -347,24 +356,21 @@ func schemaIndex(s *encoding.Schema) map[string]int {
 	return out
 }
 
-// copyDocumentLines returns the record type 6 lines, each exactly 80 bytes.
+// copyDocumentLines returns the record type 6 lines.
 //
-// The import kept them untrimmed at their full fixed width precisely so this
-// step is a copy. A line that is nonetheless off-width is padded or cut here
-// rather than at emission time, so the record's line count and its byte
-// length cannot disagree.
+// The import kept them untrimmed at their full fixed 80-byte width precisely
+// so this step is a copy, and a copy is all it is: the length policy belongs
+// to applyCharsetWrite, which measures a line AFTER encoding it and refuses
+// one that overflows, and to writeDocumentRecord, which pads what is left
+// out to the fixed width. Cutting a line here would be cutting UTF-8 bytes
+// off a value whose width is a count of SOURCE-charset bytes — a rune-count
+// rule applied to a byte-count field, which is the exact confusion E5-S4
+// exists to remove.
 func copyDocumentLines(in []string) []string {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(in))
-	for _, line := range in {
-		if len(line) > documentLineLen {
-			line = line[:documentLineLen]
-		}
-		out = append(out, padRight(line, documentLineLen))
-	}
-	return out
+	return append([]string(nil), in...)
 }
 
 // measureCode maps the sidecar's measure spelling onto the record 7/11 code.

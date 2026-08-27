@@ -109,6 +109,32 @@ type WriterOptions struct {
 	// It does NOT select ZSAV. ZSAV emission is not implemented; asking
 	// for it is PULSE_SPSS_COMPRESSION_UNSUPPORTED.
 	Uncompressed bool
+
+	// Charset overrides the character encoding the emitted file's strings
+	// are written in, and the record 7/20 declaration that names it.
+	//
+	// The DEFAULT — an empty string — writes the file in the charset its
+	// SOURCE declared, in the source's own spelling, which is the whole
+	// point of the write-side transcode: emitting UTF-8 into a file whose
+	// header says windows-1252 corrupts every non-ASCII label. A cohort
+	// with no SPSS provenance, or one whose source declared no encoding,
+	// gets UTF-8.
+	//
+	// Setting it is the answer to two situations the default cannot serve.
+	// A cohort has been edited since it was imported and now holds text the
+	// source's legacy codepage cannot express, which is otherwise a hard
+	// PULSE_SPSS_CHARSET_UNENCODABLE — writing UTF-8 keeps the text, and
+	// modern SPSS, PSPP, haven and pyreadstat all read a UTF-8 `.sav`. Or
+	// the source MISLABELLED itself and was read through
+	// spss.WithCharset: that override changes decoding only and is
+	// deliberately not consulted here, because it says nothing about what
+	// the new file should declare, so a caller who wants it honoured on
+	// the way out states it again here.
+	//
+	// The spelling is quoted verbatim into record 7/20, so "cp1252" is
+	// declared as "cp1252". A name this package cannot write in is
+	// PULSE_SPSS_CHARSET_UNSUPPORTED, never a silent fall back to UTF-8.
+	Charset string
 }
 
 // Compression is the header compression flag these options select: SPSS

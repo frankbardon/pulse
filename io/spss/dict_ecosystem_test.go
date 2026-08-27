@@ -289,3 +289,83 @@ func readerLine(out, prefix string) string {
 	}
 	return ""
 }
+
+// TestEmittedNonUTF8File_ReadsInReadStatAndForeign is the strongest check
+// E5-S4 can be given, and it is the reason this file exists at all.
+//
+// Every other test of the transcode asks "does our reader agree with our
+// writer", and a writer that emitted UTF-8 under a windows-1252 declaration
+// would pass all of them: our reader would decode the bytes with the
+// declared codepage, get mojibake, and both halves would agree about it only
+// because the fixture happens to be Latin-1 and the wrong answer is still
+// valid text. An INDEPENDENT reader that honours record 7/20 cannot be
+// fooled that way — it either shows the right characters or it does not.
+//
+// Recorded result at E5-S4: both readers open the emitted windows-1252 file
+// and hand back the right text. haven 2.5.5 announces "re-encoding from
+// CP1252" and returns UTF-8 (`Zürich` as 5a c3 bc 72 69 63 68), with the
+// long variable name, the value labels and the string data all intact.
+// foreign 0.8.91 does NOT transcode on its own — it hands back the raw
+// codepage bytes and its own trimming then fails in a UTF-8 locale, which is
+// its documented behaviour and not a fault in the file — and returns exactly
+// the same text when told the encoding with reencode="CP1252". Both facts
+// together say the emitted bytes really are windows-1252 and the declaration
+// really does name them.
+func TestEmittedNonUTF8File_ReadsInReadStatAndForeign(t *testing.T) {
+	bin := rEnvironment(t)
+
+	fs, cohort, _ := importFixture(t, latin1Spec())
+	path := filepath.Join(t.TempDir(), "latin1.sav")
+	if err := os.WriteFile(path, exportCohort(t, fs, cohort, WriterOptions{}), 0o644); err != nil {
+		t.Fatalf("writing %s: %v", path, err)
+	}
+
+	// Each string is rendered as its UTF-8 BYTES on the R side. Comparing
+	// rendered characters would depend on the R session's locale; comparing
+	// bytes does not, and it is the byte-level claim that is being made.
+	script := `
+f <- Sys.getenv("PULSE_SAV")
+b <- function(x) paste(sapply(as.character(x), function(s) paste(charToRaw(enc2utf8(s)), collapse="")), collapse="|")
+h <- tryCatch({
+  d <- haven::read_sav(f)
+  paste0("HAVEN OK|", b(names(d)[1]), "|", b(trimws(as.character(d$CITY))), "|",
+         b(sort(names(attr(d$SEX, "labels")))))
+}, error=function(e) paste("HAVEN FAIL:", conditionMessage(e)))
+g <- tryCatch({
+  d <- suppressWarnings(foreign::read.spss(f, to.data.frame=FALSE, reencode="CP1252"))
+  paste0("FOREIGN OK|", b(names(d)[1]), "|", b(trimws(as.character(d$CITY))), "|",
+         b(sort(names(attr(d, "label.table")$SEX))))
+}, error=function(e) paste("FOREIGN FAIL:", conditionMessage(e)))
+cat(h, "\n", g, "\n", sep="")
+`
+	cmd := exec.Command(bin, "-e", script)
+	cmd.Env = append(os.Environ(), "PULSE_SAV="+path)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("running Rscript: %v\n%s", err, out)
+	}
+	text := string(out)
+	t.Logf("%s\n%s", path, strings.TrimSpace(text))
+
+	// "Identität", "Zürich"|"Genève", "Männlich"|"Weiblich" — as UTF-8
+	// bytes, which is what these characters are once a reader that honours
+	// the CP1252 declaration has done its job. A writer that had emitted
+	// UTF-8 under that declaration would produce a different string here,
+	// because the reader would decode each of those bytes separately.
+	//
+	// The value labels are sorted on the R side: haven keys them by value
+	// and foreign by label, so their natural orders differ, and the claim
+	// being made is about the CHARACTERS rather than about either reader's
+	// ordering.
+	const (
+		identitat = "4964656e746974c3a474"
+		cities    = "5ac3bc72696368|47656ec3a87665"
+		sexLabels = "4dc3a46e6e6c696368|576569626c696368"
+	)
+	for _, prefix := range []string{"HAVEN OK|", "FOREIGN OK|"} {
+		want := prefix + identitat + "|" + cities + "|" + sexLabels
+		if line := readerLine(text, prefix); line != want {
+			t.Errorf("%s reported\n  %q\nwant\n  %q", strings.TrimSuffix(prefix, "|"), line, want)
+		}
+	}
+}

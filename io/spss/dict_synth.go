@@ -136,11 +136,6 @@ func synthesiseField(s *encoding.Schema, at int, minter *nameMinter, f *outFile)
 		// See the file comment: the codes are the one thing this path is
 		// not entitled to invent.
 		width, entries := dictionaryWidth(fld.Dictionary)
-		if width > maxVeryLongStringWidth {
-			return nil, cannotExpress(fld.Name,
-				"its widest dictionary entry is "+strconv.Itoa(width)+" bytes, past the "+
-					strconv.Itoa(maxVeryLongStringWidth)+"-byte ceiling SPSS puts on a string variable")
-		}
 		v.width = width
 		v.print = Format{Code: fmtA, Width: stringFormatWidth(width)}
 		v.write = v.print
@@ -154,7 +149,18 @@ func synthesiseField(s *encoding.Schema, at int, minter *nameMinter, f *outFile)
 			// says so rather than presenting a guess as a fact.
 			v.categories[id] = CategoryCode{Text: text}
 		}
-		v.segments = stringSegments(minter, v.shortName, width)
+
+		// The width above is a count of UTF-8 bytes and the segments are
+		// deliberately left unlaid: both are decided by applyCharsetWrite,
+		// which measures the values in the charset the file is actually
+		// written in and lays out the segments that measurement needs. A
+		// dictionary entry is 7 bytes as UTF-8 and 6 as windows-1252, so
+		// laying out a very long string here would be segmenting the wrong
+		// value. widthDerived is what tells that pass this width is a
+		// derivation to be recomputed rather than a source's declaration to
+		// be preserved.
+		v.widthDerived = true
+		v.segments = nil
 
 	case fld.Type == encoding.FieldTypeDate:
 		v.print = Format{Code: fmtDATE, Width: 11}
@@ -315,7 +321,7 @@ func numericFormatWidth(w int) int { return clampWidth(w, numericFormatMaxWidth)
 // A logical width past 255 is NOT a truncation: such a variable is emitted
 // as several physical segments, each declaring its own width, and the
 // clamped 255 is exactly what the head segment declares. The value itself is
-// carried in full by the segmentation — see stringSegments.
+// carried in full by the segmentation — see resegment.
 func stringFormatWidth(w int) int { return clampWidth(w, stringFormatMaxWidth) }
 
 func clampWidth(w, max int) int {
@@ -347,46 +353,6 @@ func dictionaryWidth(d *encoding.Dictionary) (int, []string) {
 // numericSegment is the single-element physical layout of a numeric.
 func numericSegment(short string) []SegmentPlan {
 	return []SegmentPlan{{Name: short, Width: 0, Content: 0, Elements: 1}}
-}
-
-// stringSegments lays out a string of the given logical byte width.
-//
-// A width of 255 or less is one physical variable. Beyond that SPSS splits
-// the value across several, each declaring 255 but carrying only 252 bytes
-// of content — the last three are padding — with the record 7/14
-// declaration naming the head. The arithmetic is longstring.go's, shared
-// rather than restated so the writer and the reader cannot disagree about
-// where a value ends.
-func stringSegments(minter *nameMinter, short string, width int) []SegmentPlan {
-	n := vlsSegmentCount(width)
-	if n <= 1 {
-		return []SegmentPlan{{
-			Name:     short,
-			Width:    width,
-			Content:  width,
-			Elements: (width + elementSize - 1) / elementSize,
-		}}
-	}
-	out := make([]SegmentPlan, 0, n)
-	for i := 0; i < n; i++ {
-		w := vlsSegmentWidth(width, i)
-		// The head keeps the name already minted for the logical
-		// variable; the trailing segments go THROUGH the minter rather
-		// than merely being derived, because they occupy the same
-		// 8-byte name space as every other variable and records 7/5,
-		// 7/7, 7/14 and 7/19 all key by it.
-		name := short
-		if i > 0 {
-			name = minter.mint(vlsSegmentName(short, i))
-		}
-		out = append(out, SegmentPlan{
-			Name:     name,
-			Width:    w,
-			Content:  vlsSegmentContent(width, i),
-			Elements: (w + elementSize - 1) / elementSize,
-		})
-	}
-	return out
 }
 
 // vlsSegmentName is the short name of segment i of a very long string.
@@ -538,9 +504,16 @@ func checkFinalNames(f *outFile) error {
 //
 // PULSE_SPSS_EXPORT_UNSUPPORTED is the closest existing code and its
 // details already carry the offending name, but the fit is not exact — the
-// code was minted for "Pulse cannot write .sav at all". E5-S5 owns the
-// name-validation error family and E5-S4 the width-overflow one; both should
-// reclassify the cases they take over.
+// code was minted for "Pulse cannot write .sav at all".
+//
+// E5-S4 took the one case that was really a WIDTH question — a dictionary
+// entry past the 32767-byte ceiling SPSS puts on a string variable — and it
+// now raises PULSE_SPSS_WIDTH_OVERFLOW from applyCharsetWrite, where the
+// width is measured on the bytes that are actually written rather than on
+// their UTF-8 form. What is left here is entirely about NAMES: a name
+// carrying a record 7/13 delimiter, a name past 64 bytes, and two columns
+// that would answer to one name. E5-S5 owns the name-validation error family
+// and should reclassify all three.
 func cannotExpress(field, why string) error {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_EXPORT_UNSUPPORTED,
 		"spss: the cohort column "+strconv.Quote(field)+" cannot be expressed in a .sav dictionary: "+why,

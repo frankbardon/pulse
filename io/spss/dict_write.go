@@ -37,12 +37,20 @@ package spss
 // of the two header fields a streaming encoder may have to patch once the
 // case count is known.
 //
+// # Where the text is turned into bytes
+//
+// Every string this file emits has ALREADY been encoded into the file's own
+// charset by applyCharsetWrite (charset_write.go), which runs between the
+// front-end and emitDictionary. That is what lets the record emitter below
+// treat a Go string as a plain byte container: its len() calls, its
+// counted-string lengths and its fixed-width padding are byte arithmetic
+// over the bytes that are actually going out, with no charset knowledge
+// anywhere in it. The same pass recomputes every declared byte width the
+// encoding moved and lays out the physical segments that width needs, so the
+// [SegmentPlan] list this file walks is already true of the encoded value.
+//
 // Deliberately NOT done here, each owned by a later story:
 //
-//   - Charset re-encoding (E5-S4). Strings go out as UTF-8 and record 7/20
-//     declares UTF-8. Declaring the SOURCE charset while writing UTF-8 bytes
-//     would produce a file that is wrong rather than one that is merely less
-//     faithful, so the declaration follows the bytes until transcoding lands.
 //   - Name validation and derived-column fold-back (E5-S5). The sidecar path
 //     already emits exactly the source's variables, because the document's
 //     Variables list holds only those — the derived columns live in its
@@ -92,13 +100,12 @@ const (
 	// file, exactly as PSPP does.
 	writerCompressionBias = 100.0
 
-	// writerCharsetName is the record 7/20 declaration and
-	// writerCharsetCode the matching record 7/3 character_code.
-	//
-	// UTF-8 until E5-S4 teaches the writer to transcode. See the file
-	// comment: the declaration follows the bytes.
-	writerCharsetName = "UTF-8"
-	writerCharsetCode = 65001
+	// The record 7/20 charset declaration and the matching record 7/3
+	// character_code are NOT constants here: they are resolved per file by
+	// resolveWriteCharset, from the source's own declaration where there is
+	// one and from defaultCharsetName where there is not. See
+	// charset_write.go — the declaration follows the bytes, and since E5-S4
+	// the bytes follow the source.
 
 	// writerLayoutCode is the header endianness probe, written in the
 	// file's own byte order.
@@ -255,8 +262,20 @@ type CategoryCode struct {
 	Code float64
 
 	// Text is the SPSS string value, meaningful when the variable is a
-	// string.
+	// string. It is UTF-8, as every string in a Pulse cohort is.
 	Text string
+
+	// Encoded is Text in the EMITTED FILE's charset — the bytes the data
+	// encoder lays into a case, and the bytes the variable's declared width
+	// is measured in.
+	//
+	// It is precomputed rather than encoded per case for two reasons, and
+	// only one of them is speed. A dictionary holds every value the column
+	// can carry, so encoding it once at plan time means an unencodable
+	// character stops the export before a single byte of the file is
+	// written, instead of part way through the data section. Nil for an
+	// empty value and for a numeric variable.
+	Encoded []byte
 
 	// Known reports that the value came from a sidecar's recorded triple
 	// rather than from the cohort dictionary text. A synthesised plan sets
@@ -281,6 +300,11 @@ type ColumnPlan struct {
 	// Name is the variable's FINAL name: the record 7/13 long name where
 	// one exists, else the record type 2 short name.
 	//
+	// It is UTF-8, unlike the wire form of the same name that goes into
+	// the file. Every other string on this struct describes bytes; this
+	// one is what a diagnostic quotes and what a later pass matches a
+	// cohort column against, and neither of those wants codepage bytes.
+	//
 	// This is the name records 7/21 and 7/22 carry. ReadStat — the C reader
 	// behind haven, pyreadstat and most of the ecosystem — REFUSES a file
 	// whose 7/21 or 7/22 entry names a variable by its short name when a
@@ -288,8 +312,14 @@ type ColumnPlan struct {
 	// tools reject.
 	Name string
 
-	// ShortName is the 8-byte record type 2 name. Records 7/5, 7/7, 7/14
-	// and 7/19 key by it.
+	// ShortName is the 8-byte record type 2 name, as it was WRITTEN —
+	// encoded in the emitted file's charset. Records 7/5, 7/7, 7/14 and
+	// 7/19 key by it, and they key by the bytes.
+	//
+	// In practice it is 7-bit either way: a synthesised short name is
+	// folded to ASCII by the name minter and a source's own is ASCII by
+	// the format's rules, so the encode is an identity. It is documented
+	// as bytes because that is what it is, not because it usually differs.
 	ShortName string
 
 	// Index is the 1-based dictionary ELEMENT index of the variable's first
@@ -450,14 +480,27 @@ type DictionaryPlan struct {
 // outVar is one LOGICAL variable as the front-ends describe it and the
 // emitter writes it.
 type outVar struct {
-	name      string // final name
+	name      string // final name; wire bytes after applyCharsetWrite
+	utf8Name  string // final name as UTF-8, retained for diagnostics
 	shortName string
 	longName  string // emitted in record 7/13 when non-empty
 	label     string
 	hasLabel  bool
 
 	// width is 0 for numeric, else the LOGICAL byte width.
+	//
+	// It is the width BEFORE applyCharsetWrite, which recomputes it from
+	// the encoded values. See widthDerived.
 	width int
+
+	// widthDerived says the width above was derived from the cohort rather
+	// than recorded by a source file, which decides what the transcode pass
+	// may do with it: a derived width is recomputed exactly from the
+	// encoded values, a recorded one is only ever WIDENED to fit them.
+	// Narrowing a recorded width would change a declaration the source
+	// made; widening one cannot lose anything, because SPSS pads a value
+	// out to the declared width and the read path trims that padding off.
+	widthDerived bool
 
 	print, write Format
 
@@ -528,6 +571,17 @@ type outFile struct {
 	mrSets  []MRSet
 	varSets []VarSet
 
+	// charset is the encoder every string in this model has been put
+	// through, and the declaration records 7/20 and 7/3 make. Never nil by
+	// the time emitDictionary runs.
+	charset *charsetEncoder
+
+	// sourceCharset is the canonical name the SOURCE file's strings were
+	// in, "" when there was no source. It is held beside charset only so
+	// the verbatim-passthrough check can tell whether the retained record
+	// 7/10, 7/17 and 7/18 bytes still match what this file declares.
+	sourceCharset string
+
 	// displayParams reports whether a record 7/11 is emitted at all. It is
 	// false only when a sidecar records that the source carried none.
 	displayParams bool
@@ -573,6 +627,19 @@ func BuildDictionary(req DictionaryRequest) (*DictionaryPlan, error) {
 		f, err = dictionaryFromSidecar(req)
 	}
 	if err != nil {
+		return nil, err
+	}
+
+	// The transcode pass sits between the front-ends and the emitter, and
+	// it is not optional: until it has run, every string in the model is
+	// UTF-8 and every declared width is a count of UTF-8 bytes, which is
+	// the file's charset only by coincidence. See charset_write.go.
+	cs, err := resolveWriteCharset(req)
+	if err != nil {
+		return nil, err
+	}
+	f.charset = cs
+	if err := applyCharsetWrite(f); err != nil {
 		return nil, err
 	}
 
@@ -683,7 +750,8 @@ func (v *outVar) columnPlan() ColumnPlan {
 		idx = v.segments[0].Index
 	}
 	return ColumnPlan{
-		Name:         v.name,
+		// The UTF-8 name, not the wire one: see ColumnPlan.Name.
+		Name:         orDefault(v.utf8Name, v.name),
 		ShortName:    v.shortName,
 		Index:        idx,
 		Elements:     els,
@@ -909,7 +977,7 @@ func writeExtensionRecords(e *dictEncoder, f *outFile) int {
 	// rather than the source's.
 	mi := &dictEncoder{bo: e.bo}
 	for _, v := range []int32{0, 0, 0, 0, writerFloatingPointRep, writerCompressionCode,
-		writerEndiannessCode, writerCharsetCode} {
+		writerEndiannessCode, f.charset.declaredCode} {
 		mi.i32(v)
 	}
 	writeExtension(e, extMachineInteger, 4, mi.buf)
@@ -986,7 +1054,11 @@ func writeExtensionRecords(e *dictEncoder, f *outFile) int {
 		writeExtension(e, extMRSetsExtended, 1, []byte(text))
 	}
 
-	writeExtension(e, extCharacterEncoding, 1, []byte(writerCharsetName))
+	// 7/20 names the charset THESE bytes are in, which since E5-S4 is the
+	// charset the source declared — in the source's own spelling, because
+	// the record is a quotation and normalising it would make a
+	// byte-comparable round trip impossible for no gain.
+	writeExtension(e, extCharacterEncoding, 1, []byte(f.charset.declaredName))
 
 	if payload := renderLongStringValueLabels(e.bo, f); len(payload) > 0 {
 		writeExtension(e, extLongStringValueLabels, 1, payload)

@@ -2053,6 +2053,36 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_CHARSET_UNENCODABLE: {
+		Message: "A string held by the cohort contains a character that has no representation in the charset the emitted .sav declares, so the export stopped. It is reported rather than substituted: the encoders will replace an unsupported rune with '?' or 0x1A on request, and a substituted character is indistinguishable from data once it is on the wire — a windows-1252 label reading \"Z?rich\" has lost the name of a city and says nothing about having done so. The usual cause is a cohort edited since it was imported: text produced by a Pulse operation is UTF-8 and need not be expressible in the legacy codepage the source file declared. Details name the target charset, the variable and the offending value.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Charset"},
+				Hint:   "Write the file in a charset that can carry the text. Set spss.WriterOptions.Charset to \"UTF-8\" — modern SPSS, PSPP, haven and pyreadstat all read a UTF-8 .sav — and the emitted record 7/20 declares it, so the file stays self-describing.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Or change the value. The details carry the exact string; replace the offending character in the cohort (or in the source data) with one the target codepage defines.",
+			},
+		},
+	},
+	PULSE_SPSS_WIDTH_OVERFLOW: {
+		Message: "A string does not fit the fixed-width .sav field the format gives it, measured in the emitted file's charset. SPSS widths are BYTE counts and never rune counts, so transcoding changes them — \"Zurich\" with an umlaut is six bytes in windows-1252 and seven in UTF-8. String VARIABLES are widened automatically to fit; this error is what is left when the format fixes the width: the 32767-byte ceiling on a string variable, an eight-byte record type 2 short name, a value label past the 255 bytes its one-byte length field can count, the 64-byte header file label, or an 80-byte record type 6 document line. It is never a truncation — cutting the field would drop the tail of a value and, in a multi-byte charset, leave a half-character no reader can decode. Details carry the required width, the available width, the variable and the charset.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Charset"},
+				Hint:   "If the text is ASCII-compatible but the target charset is multi-byte, a different charset may fit: set spss.WriterOptions.Charset to \"UTF-8\" or to the single-byte codepage the text belongs to and the byte count drops.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Otherwise shorten the offending text in the cohort. The details name which field overflowed and by how much; a value label, a file label and a document line are all metadata that can be shortened without touching data.",
+			},
+		},
+	},
 	PULSE_SPSS_DERIVED_NAME_COLLISION: {
 		Message: "An SPSS variable declares user-missing values, so the import would generate a `<var>_missing` sibling column holding the REASON each value is missing — but the file already declares a variable of that name. Two fields of one name cannot be addressed unambiguously, and renaming either one silently would break the mapping back to the source, so the import stops. SPSS variable names are case-insensitive, so the comparison is too. Details name the generated sibling under `derived`, the variable it came from under `variable`, and the existing variable it collides with under `collides_with`.",
 		Fixups: []Fixup{

@@ -126,6 +126,21 @@ type charsetEntry struct {
 	name    string
 	enc     encoding.Encoding
 	aliases []string
+
+	// code is the record 7/3 character_code that names this charset: its
+	// Windows code page identifier.
+	//
+	// It exists for the WRITE side. A file states its encoding in two
+	// places and a writer has to fill in both, so the name->code
+	// direction is needed as well as the code->name one charsetForCode
+	// provides. It is a field rather than a lookup through the aliases
+	// (every entry happens to carry its number as one) because a
+	// declaration the emitted file makes about itself should not depend
+	// on a list whose job is to be tolerant of spellings.
+	//
+	// charsetCodeRoundTrips pins that charsetForCode(code) resolves back
+	// to this same entry, so the two directions cannot drift apart.
+	code int32
 }
 
 // charsetTable is the explicit, closed list of charset spellings this reader
@@ -142,61 +157,61 @@ type charsetEntry struct {
 // A UTF-8 entry carries a nil encoding on purpose: it is decoded by
 // validation rather than transformation (see charsetDecoder.decode).
 var charsetTable = []charsetEntry{
-	{name: "UTF-8", enc: nil, aliases: []string{"utf8", "utf-8", "65001", "cp65001", "unicode"}},
-	{name: "US-ASCII", enc: nil, aliases: []string{"ascii", "us-ascii", "ansi_x3.4-1968", "iso646-us", "ibm367", "cp367", "20127", "cp20127"}},
+	{name: "UTF-8", enc: nil, aliases: []string{"utf8", "utf-8", "65001", "cp65001", "unicode"}, code: 65001},
+	{name: "US-ASCII", enc: nil, aliases: []string{"ascii", "us-ascii", "ansi_x3.4-1968", "iso646-us", "ibm367", "cp367", "20127", "cp20127"}, code: 20127},
 
-	{name: "windows-1250", enc: charmap.Windows1250, aliases: []string{"cp1250", "1250", "ibm1250", "ms1250"}},
-	{name: "windows-1251", enc: charmap.Windows1251, aliases: []string{"cp1251", "1251", "ibm1251", "ms1251"}},
-	{name: "windows-1252", enc: charmap.Windows1252, aliases: []string{"cp1252", "1252", "ibm1252", "ms1252", "ansi"}},
-	{name: "windows-1253", enc: charmap.Windows1253, aliases: []string{"cp1253", "1253", "ibm1253", "ms1253"}},
-	{name: "windows-1254", enc: charmap.Windows1254, aliases: []string{"cp1254", "1254", "ibm1254", "ms1254"}},
-	{name: "windows-1255", enc: charmap.Windows1255, aliases: []string{"cp1255", "1255", "ibm1255", "ms1255"}},
-	{name: "windows-1256", enc: charmap.Windows1256, aliases: []string{"cp1256", "1256", "ibm1256", "ms1256"}},
-	{name: "windows-1257", enc: charmap.Windows1257, aliases: []string{"cp1257", "1257", "ibm1257", "ms1257"}},
-	{name: "windows-1258", enc: charmap.Windows1258, aliases: []string{"cp1258", "1258", "ibm1258", "ms1258"}},
-	{name: "windows-874", enc: charmap.Windows874, aliases: []string{"cp874", "874", "ibm874", "ms874", "tis-620", "iso-8859-11"}},
+	{name: "windows-1250", enc: charmap.Windows1250, aliases: []string{"cp1250", "1250", "ibm1250", "ms1250"}, code: 1250},
+	{name: "windows-1251", enc: charmap.Windows1251, aliases: []string{"cp1251", "1251", "ibm1251", "ms1251"}, code: 1251},
+	{name: "windows-1252", enc: charmap.Windows1252, aliases: []string{"cp1252", "1252", "ibm1252", "ms1252", "ansi"}, code: 1252},
+	{name: "windows-1253", enc: charmap.Windows1253, aliases: []string{"cp1253", "1253", "ibm1253", "ms1253"}, code: 1253},
+	{name: "windows-1254", enc: charmap.Windows1254, aliases: []string{"cp1254", "1254", "ibm1254", "ms1254"}, code: 1254},
+	{name: "windows-1255", enc: charmap.Windows1255, aliases: []string{"cp1255", "1255", "ibm1255", "ms1255"}, code: 1255},
+	{name: "windows-1256", enc: charmap.Windows1256, aliases: []string{"cp1256", "1256", "ibm1256", "ms1256"}, code: 1256},
+	{name: "windows-1257", enc: charmap.Windows1257, aliases: []string{"cp1257", "1257", "ibm1257", "ms1257"}, code: 1257},
+	{name: "windows-1258", enc: charmap.Windows1258, aliases: []string{"cp1258", "1258", "ibm1258", "ms1258"}, code: 1258},
+	{name: "windows-874", enc: charmap.Windows874, aliases: []string{"cp874", "874", "ibm874", "ms874", "tis-620", "iso-8859-11"}, code: 874},
 
-	{name: "ISO-8859-1", enc: charmap.ISO8859_1, aliases: []string{"iso8859-1", "iso_8859-1", "latin1", "l1", "cp819", "ibm819", "28591"}},
-	{name: "ISO-8859-2", enc: charmap.ISO8859_2, aliases: []string{"iso8859-2", "iso_8859-2", "latin2", "l2", "28592"}},
-	{name: "ISO-8859-3", enc: charmap.ISO8859_3, aliases: []string{"iso8859-3", "iso_8859-3", "latin3", "l3", "28593"}},
-	{name: "ISO-8859-4", enc: charmap.ISO8859_4, aliases: []string{"iso8859-4", "iso_8859-4", "latin4", "l4", "28594"}},
-	{name: "ISO-8859-5", enc: charmap.ISO8859_5, aliases: []string{"iso8859-5", "iso_8859-5", "cyrillic", "28595"}},
-	{name: "ISO-8859-6", enc: charmap.ISO8859_6, aliases: []string{"iso8859-6", "iso_8859-6", "arabic", "28596"}},
-	{name: "ISO-8859-7", enc: charmap.ISO8859_7, aliases: []string{"iso8859-7", "iso_8859-7", "greek", "28597"}},
-	{name: "ISO-8859-8", enc: charmap.ISO8859_8, aliases: []string{"iso8859-8", "iso_8859-8", "hebrew", "28598"}},
-	{name: "ISO-8859-9", enc: charmap.ISO8859_9, aliases: []string{"iso8859-9", "iso_8859-9", "latin5", "l5", "28599"}},
-	{name: "ISO-8859-10", enc: charmap.ISO8859_10, aliases: []string{"iso8859-10", "iso_8859-10", "latin6", "l6", "28600"}},
-	{name: "ISO-8859-13", enc: charmap.ISO8859_13, aliases: []string{"iso8859-13", "iso_8859-13", "latin7", "l7", "28603"}},
-	{name: "ISO-8859-14", enc: charmap.ISO8859_14, aliases: []string{"iso8859-14", "iso_8859-14", "latin8", "l8", "28604"}},
-	{name: "ISO-8859-15", enc: charmap.ISO8859_15, aliases: []string{"iso8859-15", "iso_8859-15", "latin9", "l9", "28605"}},
-	{name: "ISO-8859-16", enc: charmap.ISO8859_16, aliases: []string{"iso8859-16", "iso_8859-16", "latin10", "l10", "28606"}},
+	{name: "ISO-8859-1", enc: charmap.ISO8859_1, aliases: []string{"iso8859-1", "iso_8859-1", "latin1", "l1", "cp819", "ibm819", "28591"}, code: 28591},
+	{name: "ISO-8859-2", enc: charmap.ISO8859_2, aliases: []string{"iso8859-2", "iso_8859-2", "latin2", "l2", "28592"}, code: 28592},
+	{name: "ISO-8859-3", enc: charmap.ISO8859_3, aliases: []string{"iso8859-3", "iso_8859-3", "latin3", "l3", "28593"}, code: 28593},
+	{name: "ISO-8859-4", enc: charmap.ISO8859_4, aliases: []string{"iso8859-4", "iso_8859-4", "latin4", "l4", "28594"}, code: 28594},
+	{name: "ISO-8859-5", enc: charmap.ISO8859_5, aliases: []string{"iso8859-5", "iso_8859-5", "cyrillic", "28595"}, code: 28595},
+	{name: "ISO-8859-6", enc: charmap.ISO8859_6, aliases: []string{"iso8859-6", "iso_8859-6", "arabic", "28596"}, code: 28596},
+	{name: "ISO-8859-7", enc: charmap.ISO8859_7, aliases: []string{"iso8859-7", "iso_8859-7", "greek", "28597"}, code: 28597},
+	{name: "ISO-8859-8", enc: charmap.ISO8859_8, aliases: []string{"iso8859-8", "iso_8859-8", "hebrew", "28598"}, code: 28598},
+	{name: "ISO-8859-9", enc: charmap.ISO8859_9, aliases: []string{"iso8859-9", "iso_8859-9", "latin5", "l5", "28599"}, code: 28599},
+	{name: "ISO-8859-10", enc: charmap.ISO8859_10, aliases: []string{"iso8859-10", "iso_8859-10", "latin6", "l6", "28600"}, code: 28600},
+	{name: "ISO-8859-13", enc: charmap.ISO8859_13, aliases: []string{"iso8859-13", "iso_8859-13", "latin7", "l7", "28603"}, code: 28603},
+	{name: "ISO-8859-14", enc: charmap.ISO8859_14, aliases: []string{"iso8859-14", "iso_8859-14", "latin8", "l8", "28604"}, code: 28604},
+	{name: "ISO-8859-15", enc: charmap.ISO8859_15, aliases: []string{"iso8859-15", "iso_8859-15", "latin9", "l9", "28605"}, code: 28605},
+	{name: "ISO-8859-16", enc: charmap.ISO8859_16, aliases: []string{"iso8859-16", "iso_8859-16", "latin10", "l10", "28606"}, code: 28606},
 
-	{name: "KOI8-R", enc: charmap.KOI8R, aliases: []string{"koi8r", "cp20866", "20866"}},
-	{name: "KOI8-U", enc: charmap.KOI8U, aliases: []string{"koi8u", "cp21866", "21866"}},
-	{name: "macintosh", enc: charmap.Macintosh, aliases: []string{"mac", "macroman", "x-mac-roman", "cp10000", "10000"}},
+	{name: "KOI8-R", enc: charmap.KOI8R, aliases: []string{"koi8r", "cp20866", "20866"}, code: 20866},
+	{name: "KOI8-U", enc: charmap.KOI8U, aliases: []string{"koi8u", "cp21866", "21866"}, code: 21866},
+	{name: "macintosh", enc: charmap.Macintosh, aliases: []string{"mac", "macroman", "x-mac-roman", "cp10000", "10000"}, code: 10000},
 
-	{name: "IBM437", enc: charmap.CodePage437, aliases: []string{"cp437", "437", "oem-us", "pc-8"}},
-	{name: "IBM850", enc: charmap.CodePage850, aliases: []string{"cp850", "850"}},
-	{name: "IBM852", enc: charmap.CodePage852, aliases: []string{"cp852", "852"}},
-	{name: "IBM855", enc: charmap.CodePage855, aliases: []string{"cp855", "855"}},
-	{name: "IBM858", enc: charmap.CodePage858, aliases: []string{"cp858", "858"}},
-	{name: "IBM860", enc: charmap.CodePage860, aliases: []string{"cp860", "860"}},
-	{name: "IBM862", enc: charmap.CodePage862, aliases: []string{"cp862", "862"}},
-	{name: "IBM863", enc: charmap.CodePage863, aliases: []string{"cp863", "863"}},
-	{name: "IBM865", enc: charmap.CodePage865, aliases: []string{"cp865", "865"}},
-	{name: "IBM866", enc: charmap.CodePage866, aliases: []string{"cp866", "866"}},
+	{name: "IBM437", enc: charmap.CodePage437, aliases: []string{"cp437", "437", "oem-us", "pc-8"}, code: 437},
+	{name: "IBM850", enc: charmap.CodePage850, aliases: []string{"cp850", "850"}, code: 850},
+	{name: "IBM852", enc: charmap.CodePage852, aliases: []string{"cp852", "852"}, code: 852},
+	{name: "IBM855", enc: charmap.CodePage855, aliases: []string{"cp855", "855"}, code: 855},
+	{name: "IBM858", enc: charmap.CodePage858, aliases: []string{"cp858", "858"}, code: 858},
+	{name: "IBM860", enc: charmap.CodePage860, aliases: []string{"cp860", "860"}, code: 860},
+	{name: "IBM862", enc: charmap.CodePage862, aliases: []string{"cp862", "862"}, code: 862},
+	{name: "IBM863", enc: charmap.CodePage863, aliases: []string{"cp863", "863"}, code: 863},
+	{name: "IBM865", enc: charmap.CodePage865, aliases: []string{"cp865", "865"}, code: 865},
+	{name: "IBM866", enc: charmap.CodePage866, aliases: []string{"cp866", "866"}, code: 866},
 
 	// ISO-2022-JP is deliberately absent: it is a stateful escape-based
 	// encoding, so a run of 7-bit bytes does not mean ASCII, and the
 	// ASCII-superset requirement below rejects it. A `.sav` could not
 	// carry it anyway — the format's own 0x20 padding would be read as
 	// data in whatever mode the last escape sequence left.
-	{name: "Shift_JIS", enc: japanese.ShiftJIS, aliases: []string{"sjis", "shift-jis", "shift_jis", "ms_kanji", "cp932", "932", "windows-31j"}},
-	{name: "EUC-JP", enc: japanese.EUCJP, aliases: []string{"eucjp", "euc_jp", "cp20932", "20932"}},
-	{name: "EUC-KR", enc: korean.EUCKR, aliases: []string{"euckr", "euc_kr", "ks_c_5601-1987", "cp949", "949", "windows-949"}},
-	{name: "GBK", enc: simplifiedchinese.GBK, aliases: []string{"cp936", "936", "windows-936", "gb2312", "euc-cn"}},
-	{name: "GB18030", enc: simplifiedchinese.GB18030, aliases: []string{"gb-18030", "cp54936", "54936"}},
-	{name: "Big5", enc: traditionalchinese.Big5, aliases: []string{"big-5", "big5-hkscs", "cp950", "950", "windows-950"}},
+	{name: "Shift_JIS", enc: japanese.ShiftJIS, aliases: []string{"sjis", "shift-jis", "shift_jis", "ms_kanji", "cp932", "932", "windows-31j"}, code: 932},
+	{name: "EUC-JP", enc: japanese.EUCJP, aliases: []string{"eucjp", "euc_jp", "cp20932", "20932"}, code: 20932},
+	{name: "EUC-KR", enc: korean.EUCKR, aliases: []string{"euckr", "euc_kr", "ks_c_5601-1987", "cp949", "949", "windows-949"}, code: 949},
+	{name: "GBK", enc: simplifiedchinese.GBK, aliases: []string{"cp936", "936", "windows-936", "gb2312", "euc-cn"}, code: 936},
+	{name: "GB18030", enc: simplifiedchinese.GB18030, aliases: []string{"gb-18030", "cp54936", "54936"}, code: 54936},
+	{name: "Big5", enc: traditionalchinese.Big5, aliases: []string{"big-5", "big5-hkscs", "cp950", "950", "windows-950"}, code: 950},
 }
 
 // charsetIndex maps a normalised spelling to its table entry.
@@ -293,6 +308,23 @@ func charsetForCode(code int32) (string, bool) {
 		return "DEC-Kanji", true
 	}
 	return strconv.FormatInt(int64(code), 10), true
+}
+
+// charsetCodeFor is charsetForCode in reverse: the record 7/3
+// character_code that names the charset resolved under the given spelling,
+// or 0 when this package has no code for it.
+//
+// 0 is a legal answer and not a failure. The field is optional — a file
+// carrying no 7/3 at all leaves a reader to the 7/20 name, which is the more
+// expressive statement anyway — so emitting 0 says "unstated" rather than
+// stating something wrong. Guessing a nearby code would be worse than
+// silence: a reader that trusts the number over the name would then decode
+// with the guess.
+func charsetCodeFor(name string) int32 {
+	if e, ok := charsetIndex[normaliseCharsetName(name)]; ok {
+		return e.code
+	}
+	return 0
 }
 
 // ---------------------------------------------------------------------------

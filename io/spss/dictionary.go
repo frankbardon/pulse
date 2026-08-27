@@ -28,6 +28,15 @@ const (
 
 	// documentLineLen is the fixed width of one record type 6 line.
 	documentLineLen = 80
+
+	// fileLabelLen is the width of the header's file_label field.
+	fileLabelLen = 64
+
+	// maxValueLabelLen is the longest value label a record type 3 can
+	// carry: the label is counted by a SINGLE BYTE, so 255 is structural
+	// and not a policy. A wider string variable's labels ride record 7/21
+	// instead, whose length field is an int32 and has no such ceiling.
+	maxValueLabelLen = 255
 )
 
 // Record type tags.

@@ -1536,7 +1536,68 @@ const (
 	// A 7/3 code of 2 or 3 (ASCII) is therefore NOT a disagreement with
 	// any ASCII-superset name and never raises this. Details carry the
 	// charset actually used under DetailSPSSCharset.
+	//
+	// On the WRITE side it carries the same idea in the other direction:
+	// the emitted file's record 7/20 declares one charset while some
+	// payload it carries is in another. That happens in exactly one
+	// place — the records 7/10, 7/17 and 7/18 whose bytes the reader
+	// retains VERBATIM and never decodes, re-emitted verbatim into a
+	// file the caller asked to be written in a different charset. The
+	// bytes are the authoritative record of what the source said, so
+	// they are still emitted; the disagreement is reported rather than
+	// hidden. Pure-ASCII payloads are not a disagreement, because every
+	// charset this package supports encodes ASCII as itself.
 	PULSE_SPSS_CHARSET_MISMATCH Code = "PULSE_SPSS_CHARSET_MISMATCH"
+
+	// PULSE_SPSS_CHARSET_UNENCODABLE indicates a string held by a
+	// cohort being exported to `.sav` contains a character that has no
+	// representation in the charset the emitted file declares.
+	//
+	// It is the WRITE-side mirror of PULSE_SPSS_CHARSET_INVALID, and it
+	// exists for the same reason: golang.org/x/text will happily be
+	// asked to substitute — encoding.ReplaceUnsupported and the
+	// charmap EncodeRune sentinel 0x1A are both one call away — and a
+	// substituted character is indistinguishable from data once written.
+	// A `.sav` whose windows-1252 label reads "Z?rich" has lost the
+	// name of a city and says nothing about having done so. So the
+	// export stops, naming the variable, the offending value and the
+	// character.
+	//
+	// The usual cause is a cohort that has been edited since it was
+	// imported: text added by a Pulse operation is UTF-8 and need not be
+	// expressible in the legacy codepage the source file declared.
+	// Details carry the target charset under DetailSPSSCharset, the
+	// variable under DetailSPSSVariable where the fault is inside one,
+	// and the offending value under DetailSPSSValue.
+	PULSE_SPSS_CHARSET_UNENCODABLE Code = "PULSE_SPSS_CHARSET_UNENCODABLE"
+
+	// PULSE_SPSS_WIDTH_OVERFLOW indicates a string being written to a
+	// `.sav` does not fit the fixed-width field the format gives it,
+	// after it has been encoded into the emitted file's charset.
+	//
+	// SPSS widths are BYTE counts, never rune counts, so transcoding
+	// changes them: "Zürich" is six bytes in windows-1252 and seven in
+	// UTF-8. The writer therefore recomputes every declared width from
+	// the ENCODED bytes, and a value variable widens to fit. This code
+	// is what is left when widening is not available — a field whose
+	// width the format fixes:
+	//
+	//   - a string variable past the 32767-byte ceiling SPSS puts on one;
+	//   - a record type 2 short name past eight bytes;
+	//   - a value label past the 255 bytes its one-byte length field can
+	//     count;
+	//   - the 64-byte header file label, or an 80-byte record type 6
+	//     document line.
+	//
+	// It is an ERROR and never a truncation. Cutting a fixed-width field
+	// to fit would silently drop the tail of a value — and, with a
+	// multi-byte charset, would leave a half-character on the wire that
+	// no reader can decode. Details carry the variable under
+	// DetailSPSSVariable where one is at fault, the required byte width
+	// under DetailSPSSWidth, the available width under
+	// DetailSPSSDeclaredWidth and the target charset under
+	// DetailSPSSCharset.
+	PULSE_SPSS_WIDTH_OVERFLOW Code = "PULSE_SPSS_WIDTH_OVERFLOW"
 
 	// PULSE_SPSS_EXPORT_UNSUPPORTED indicates a caller asked for `.sav`
 	// (or `.zsav`) as an OUTPUT target — `pulse convert data.csv
@@ -1822,6 +1883,25 @@ const (
 	// the file's own spelling where it did not.
 	DetailSPSSCharset = "charset"
 
+	// DetailSPSSValue is the CodedError.Details key carrying the offending
+	// VALUE a PULSE_SPSS_CHARSET_UNENCODABLE diagnostic refers to: the
+	// whole string that could not be written, so the caller can find the
+	// row that holds it. It is held apart from DetailSPSSVariable, which
+	// names the column the value sits in.
+	DetailSPSSValue = "value"
+
+	// DetailSPSSWidth is the CodedError.Details key carrying the byte
+	// width a value REQUIRES after it has been encoded into the emitted
+	// file's charset. Reported with DetailSPSSDeclaredWidth, which
+	// carries what is available: a single number could not say which of
+	// the two moved.
+	DetailSPSSWidth = "width"
+
+	// DetailSPSSDeclaredWidth is the CodedError.Details key carrying the
+	// byte width a `.sav` field DECLARES or the format fixes it at, the
+	// companion of DetailSPSSWidth.
+	DetailSPSSDeclaredWidth = "declared_width"
+
 	// DetailSPSSDerived is the CodedError.Details key carrying the name
 	// of a DERIVED column — one the import synthesised rather than read
 	// from the file, such as a `<var>_missing` user-missing reason
@@ -2096,6 +2176,8 @@ var allCodes = []Code{
 	PULSE_SPSS_CHARSET_UNSUPPORTED,
 	PULSE_SPSS_CHARSET_INVALID,
 	PULSE_SPSS_CHARSET_MISMATCH,
+	PULSE_SPSS_CHARSET_UNENCODABLE,
+	PULSE_SPSS_WIDTH_OVERFLOW,
 	PULSE_SPSS_EXPORT_UNSUPPORTED,
 	PULSE_SPSS_DERIVED_NAME_COLLISION,
 	PULSE_SPSS_MISSING_MODE_INVALID,

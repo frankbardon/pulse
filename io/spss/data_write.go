@@ -336,13 +336,16 @@ func (e *DataEncoder) writeColumn(col *ColumnPlan, v CaseValue) error {
 			// A blank string IS the missing state of an SPSS string
 			// variable — the format has no sentinel for one — and it reads
 			// back as null, so the round trip is closed.
-			return e.putText(col, "")
+			return e.putText(col, nil, "")
 		}
 		entry, err := e.category(col, v.Num)
 		if err != nil {
 			return err
 		}
-		return e.putText(col, entry.Text)
+		// Encoded, not Text. The value goes on the wire in the file's own
+		// charset, and it was encoded once at plan time — see
+		// CategoryCode.Encoded and charset_write.go.
+		return e.putText(col, entry.Encoded, entry.Text)
 
 	case EncodeSetMember:
 		if v.Null {
@@ -406,20 +409,34 @@ func (e *DataEncoder) putSysmis(col *ColumnPlan) {
 	e.bo.PutUint64(e.caseBuf[at:at+elementSize], e.sysmisBits)
 }
 
-// putText lays a string value out across a variable's physical segments.
+// putText lays an ENCODED string value out across a variable's physical
+// segments. text is the same value as UTF-8, carried for the diagnostics.
 //
 // Each segment's region is space-filled first and the value's next Content
 // bytes copied over the front of it. The bytes between a segment's content
 // and its 8-byte round-up are padding a reader skips; SPSS writes spaces
 // there, so this does too, which also lets an all-blank segment compress to
 // one command byte.
-func (e *DataEncoder) putText(col *ColumnPlan, text string) error {
-	if len(text) > col.Width {
-		return cannotWrite(col, "the cohort holds a "+strconv.Itoa(len(text))+
-			"-byte value for a variable declared "+strconv.Itoa(col.Width)+
+//
+// The bytes arrive already encoded, and that ordering is the whole of E5-S4
+// on this path: a very long string is sliced on a fixed 252-byte stride, so
+// a multi-byte character can straddle a segment boundary, and the reader
+// joins the pieces before it decodes them (dataPlan.stringBytes). Segmenting
+// the UTF-8 form and encoding each piece would encode a partial character.
+// Encode whole, measure, then slice.
+//
+// The width check that remains is a bound, not a policy: applyCharsetWrite
+// has already recomputed col.Width from these very bytes, so nothing that
+// reaches here can overflow. It stays because the alternative to a refusal
+// is a silent truncation, and a plan and an encoder that had drifted apart
+// should say so rather than cut a value.
+func (e *DataEncoder) putText(col *ColumnPlan, encoded []byte, text string) error {
+	if len(encoded) > col.Width {
+		return cannotWrite(col, "the cohort holds a value that is "+strconv.Itoa(len(encoded))+
+			" byte(s) once encoded ("+strconv.Quote(text)+") for a variable declared "+strconv.Itoa(col.Width)+
 			" byte(s) wide; truncating it would cut a value, and a multi-byte character with it")
 	}
-	rest := text
+	rest := encoded
 	for i := range col.Segments {
 		sg := &col.Segments[i]
 		at := (int(sg.Index) - 1) * elementSize
@@ -434,7 +451,7 @@ func (e *DataEncoder) putText(col *ColumnPlan, text string) error {
 		copy(region, rest[:n])
 		rest = rest[n:]
 	}
-	if rest != "" {
+	if len(rest) > 0 {
 		return cannotWrite(col, "its segments have no room for the last "+strconv.Itoa(len(rest))+
 			" byte(s) of the value")
 	}
