@@ -510,6 +510,19 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary, 
 		}
 		return uint64(days), nil
 
+	case encoding.FieldTypeDateTime:
+		// Delegates to encoding.ParseDateTime — the single source of
+		// truth for datetime literals, shared with io/infer.go's
+		// allDateTime column probe, so any column inference classified
+		// as datetime is guaranteed to convert cell-for-cell here.
+		//
+		// The stored value is epoch SECONDS (naive UTC; a literal with
+		// no offset is read as UTC, one with an offset is normalised to
+		// the same instant and the offset discarded). Contrast the
+		// FieldTypeDate arm above, which stores epoch DAYS — the two
+		// representations are not interchangeable.
+		return encoding.ParseDateTime(raw)
+
 	case encoding.FieldTypePackedBool:
 		return parseBoolValue(raw)
 

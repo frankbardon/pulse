@@ -250,6 +250,16 @@ func inferColumnTypeWithOpts(colName string, values []string, minPct int,
 		}
 		return encoding.FieldTypeF64, hasNulls, "", nil, nil
 	}
+	// datetime is probed BEFORE date and the order is load-bearing.
+	// infer's own dateFormats list tolerates the ISO-8601 T-forms, so a
+	// column of full datetime literals would otherwise classify as
+	// `date` and silently lose its time-of-day at import. allDateTime
+	// is strict — it delegates to encoding.ParseDateTime, which rejects
+	// every date-only layout — so a date-only column falls straight
+	// through to the allDate probe below and still classifies as date.
+	if allDateTime(nonNullValues) {
+		return encoding.FieldTypeDateTime, hasNulls, "", nil, nil
+	}
 	if allDate(nonNullValues) {
 		return encoding.FieldTypeDate, hasNulls, "", nil, nil
 	}
@@ -494,6 +504,26 @@ var dateFormats = []string{
 func allDate(values []string) bool {
 	for _, v := range values {
 		if !parseDate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+// allDateTime reports whether every sampled cell is a full ISO-8601
+// datetime literal. Unlike allDate — which probes infer's own
+// best-effort dateFormats list — this delegates to encoding.ParseDateTime,
+// the same authority io/import.go's convertValue uses to produce the
+// on-wire epoch-seconds uint64. Sharing the one list is deliberate: a
+// column this classifies as datetime is thereby guaranteed to convert
+// cell-for-cell during the row pass, with no inference-vs-conversion
+// drift to strand rows in PULSE_IMPORT_ROW_ERROR.
+//
+// ParseDateTime rejects every date-only layout, so a column of plain
+// dates returns false here and reaches the allDate probe unchanged.
+func allDateTime(values []string) bool {
+	for _, v := range values {
+		if _, err := encoding.ParseDateTime(v); err != nil {
 			return false
 		}
 	}

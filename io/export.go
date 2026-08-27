@@ -427,6 +427,14 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 		t := time.Unix(days*86400, 0).UTC()
 		return t.Format("2006-01-02")
 
+	case encoding.FieldTypeDateTime:
+		// encoding.CanonicalDateTimeLayout — the exact inverse of the
+		// encoding.ParseDateTime call io/import.go's convertValue makes,
+		// so a datetime survives export → re-import byte-for-byte
+		// including its time-of-day. Always rendered in UTC, matching
+		// the naive-UTC storage policy.
+		return encoding.FormatDateTime(raw)
+
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		if dict != nil {
 			return dict.Resolve(uint32(raw))
