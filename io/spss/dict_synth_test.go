@@ -389,8 +389,8 @@ func TestSynthesise_SetWithNoDictionaryIsRefused(t *testing.T) {
 func TestSynthesise_NamesAreMintedAndTheRealNameSurvives(t *testing.T) {
 	fields := []encoding.Field{
 		{Name: "age", Type: encoding.FieldTypeU8},
-		{Name: "household income (gross)", Type: encoding.FieldTypeF64},
-		{Name: "2024_total", Type: encoding.FieldTypeF64},
+		{Name: "household.income", Type: encoding.FieldTypeF64},
+		{Name: "total_2024", Type: encoding.FieldTypeF64},
 		{Name: "ALLCAPS", Type: encoding.FieldTypeU8},
 		{Name: "respondent_number_one", Type: encoding.FieldTypeU32},
 		{Name: "respondent_number_two", Type: encoding.FieldTypeU32},
@@ -443,8 +443,10 @@ func TestSynthesise_NamesAreMintedAndTheRealNameSurvives(t *testing.T) {
 	}
 }
 
-// TestSynthesise_UnrepresentableNamesAreRefused covers the two names that
-// cannot be written down at all.
+// TestSynthesise_UnrepresentableNamesAreRefused covers the names a `.sav`
+// cannot carry, which since E5-S5 is a name-validation refusal rather than
+// the generic "cannot be expressed" code. dict_names_test.go owns the rule
+// itself; this checks that the synthesis front-end is behind it.
 func TestSynthesise_UnrepresentableNamesAreRefused(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -452,6 +454,8 @@ func TestSynthesise_UnrepresentableNamesAreRefused(t *testing.T) {
 	}{
 		{"an '=' is the record 7/13 delimiter", "gross=net"},
 		{"a tab is the record 7/13 separator", "gross\tnet"},
+		{"a space splits a record 7/7 member list", "household income"},
+		{"a leading digit cannot open an SPSS name", "2024_total"},
 		{"past the 64-byte SPSS name ceiling", strings.Repeat("a", 65)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -459,8 +463,8 @@ func TestSynthesise_UnrepresentableNamesAreRefused(t *testing.T) {
 				Schema: &encoding.Schema{Fields: []encoding.Field{{Name: tc.field, Type: encoding.FieldTypeF64}}},
 				Cases:  0,
 			})
-			if got := codeOf(t, err); got != perr.PULSE_SPSS_EXPORT_UNSUPPORTED {
-				t.Errorf("code = %s, want PULSE_SPSS_EXPORT_UNSUPPORTED", got)
+			if got := codeOf(t, err); got != perr.PULSE_SPSS_NAME_INVALID {
+				t.Errorf("code = %s, want PULSE_SPSS_NAME_INVALID", got)
 			}
 		})
 	}
@@ -482,8 +486,8 @@ func TestSynthesise_CollidingFinalNamesAreRefused(t *testing.T) {
 		}},
 		Cases: 0,
 	})
-	if got := codeOf(t, err); got != perr.PULSE_SPSS_EXPORT_UNSUPPORTED {
-		t.Errorf("code = %s, want PULSE_SPSS_EXPORT_UNSUPPORTED", got)
+	if got := codeOf(t, err); got != perr.PULSE_SPSS_NAME_COLLISION {
+		t.Errorf("code = %s, want PULSE_SPSS_NAME_COLLISION", got)
 	}
 }
 
@@ -495,7 +499,7 @@ func TestSynthesise_CollidingFinalNamesAreRefused(t *testing.T) {
 // cohort that was never SPSS-derived produces a dictionary that parses.
 func TestSynthesise_MixedCohortOpens(t *testing.T) {
 	plan := synthesise(t,
-		encoding.Field{Name: "respondent id", Type: encoding.FieldTypeU32, Description: "Respondent identifier"},
+		encoding.Field{Name: "respondent_id", Type: encoding.FieldTypeU32, Description: "Respondent identifier"},
 		encoding.Field{Name: "age", Type: encoding.FieldTypeU8, Nullable: true},
 		encoding.Field{Name: "income", Type: encoding.FieldTypeF64, Description: "Household income"},
 		encoding.Field{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dictOf(t, "north", "south")},

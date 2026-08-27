@@ -51,12 +51,12 @@ package spss
 //
 // Deliberately NOT done here, each owned by a later story:
 //
-//   - Name validation and derived-column fold-back (E5-S5). The sidecar path
-//     already emits exactly the source's variables, because the document's
-//     Variables list holds only those — the derived columns live in its
-//     separate Derived registry — but nothing here validates a name or folds
-//     a `<var>_missing` sibling back into a missing-value code.
 //   - ZSAV emission, which is out of scope for the whole effort.
+//
+// Name validation and derived-column fold-back are E5-S5's and live beside
+// this file rather than in it: validateNames (dict_names.go) runs between the
+// transcode and emission, and foldDerived (dict_fold.go) runs after emission,
+// because it audits DictionaryPlan.UnboundFields.
 
 import (
 	"encoding/binary"
@@ -380,6 +380,25 @@ type ColumnPlan struct {
 	// CountedValue is the numeric value meaning "selected", for
 	// EncodeSetMember.
 	CountedValue float64
+
+	// MissingField is the cohort field index of the `<var>_missing` reason
+	// sibling this variable folds back from, or -1 when it has none.
+	//
+	// It is the E5-S5 fold: the sibling emits no SPSS variable of its own,
+	// and what it does instead is decide what THIS variable writes wherever
+	// the cohort holds a null — the recorded user-missing code rather than
+	// the system-missing sentinel. Only a plain numeric variable can carry
+	// one; a categorical's missing codes never left its dictionary.
+	MissingField int
+
+	// MissingCodes maps that sibling's dictionary ID to the SPSS value to
+	// write, indexed by ID. Nil when MissingField is -1.
+	//
+	// It comes from the sidecar's recorded [Derived.Reasons] and is never
+	// re-derived from the missing specification plus the value labels: a
+	// second derivation that disagreed with the import's would produce a
+	// file that looks authoritative and names the wrong missing state.
+	MissingCodes []MissingCode
 }
 
 // SegmentPlan is one PHYSICAL record type 2 variable.
@@ -427,6 +446,17 @@ type DictionaryPlan struct {
 	Bias float64
 
 	// Sysmis is the system-missing sentinel the data section must use.
+	//
+	// It is resolved by READING Bytes back, not by reporting what the
+	// front-end intended, and that is the contract: a `.sav` may declare its
+	// own sentinel in record 7/4, a conforming reader ADOPTS a coherent
+	// declaration (see applyMachineFloat), and a sidecar-driven dictionary
+	// re-emits the source's 7/4 verbatim. A plan that reported the spec
+	// default over a file declaring something else would hand a data encoder
+	// a value that reads back as ORDINARY DATA in every null it was written
+	// into. Deriving it from the emitted bytes makes the plan and any reader
+	// of the file agree by construction rather than by two implementations
+	// of one rule staying in step.
 	Sysmis float64
 
 	// ElementCount is the 8-byte elements per case: the header's
@@ -643,6 +673,14 @@ func BuildDictionary(req DictionaryRequest) (*DictionaryPlan, error) {
 		return nil, err
 	}
 
+	// Name validation runs AFTER the transcode and BEFORE emission: after,
+	// because the 64-byte ceiling is a count of the bytes actually written;
+	// before, because a refusal should happen with no file emitted at all.
+	// See dict_names.go.
+	if err := validateNames(f); err != nil {
+		return nil, err
+	}
+
 	plan, err := emitDictionary(f)
 	if err != nil {
 		return nil, err
@@ -656,7 +694,40 @@ func BuildDictionary(req DictionaryRequest) (*DictionaryPlan, error) {
 		}
 	}
 	plan.UnboundFields = unboundFields(req.Schema, plan.Columns)
+
+	// The sentinel is taken from the bytes that were just written, so
+	// DictionaryPlan.Sysmis is what a reader of this file resolves and not
+	// what the front-end meant. See the field's own documentation.
+	if err := resolveEmittedSysmis(plan); err != nil {
+		return nil, err
+	}
+
+	// The derived-column fold is last: it audits UnboundFields, which is not
+	// known until every variable has been placed.
+	if err := foldDerived(req, plan); err != nil {
+		return nil, err
+	}
 	return plan, nil
+}
+
+// resolveEmittedSysmis reads the emitted dictionary back and adopts the
+// system-missing sentinel a reader of it will resolve.
+//
+// Parsing our own output is not a redundancy check bolted on; it is the only
+// way [DictionaryPlan.Sysmis] can be true of the file rather than true of the
+// model. A parse failure here is a dictionary this package emitted and cannot
+// read, which is a defect and not a caller error — it is reported rather than
+// swallowed, because the alternative is emitting a file whose data section
+// was encoded against a sentinel nothing else agrees with.
+func resolveEmittedSysmis(plan *DictionaryPlan) error {
+	d, err := parseDictionary(plan.Bytes)
+	if err != nil {
+		return errors.NewCodedError(errors.PULSE_SPSS_DICT_INVALID,
+			"spss.BuildDictionary: the emitted dictionary does not read back through this package's own parser, "+
+				"so the system-missing sentinel the data section must use cannot be resolved: "+err.Error())
+	}
+	plan.Sysmis = d.sysmis
+	return nil
 }
 
 // unboundFields lists the schema fields no emitted variable is written from.
@@ -766,6 +837,11 @@ func (v *outVar) columnPlan() ColumnPlan {
 		Categories:   append([]CategoryCode(nil), v.categories...),
 		SetBit:       v.setBit,
 		CountedValue: v.countedValue,
+
+		// -1 until foldDerived says otherwise. Zero would name cohort field
+		// 0 as every variable's reason sibling, which is exactly the kind of
+		// plausible-looking wrong value a zero value should never be.
+		MissingField: -1,
 	}
 }
 

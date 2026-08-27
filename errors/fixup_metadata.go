@@ -2068,6 +2068,56 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_NAME_INVALID: {
+		Message: "A name being written into a .sav dictionary is not one SPSS can carry. An SPSS variable name is at most 64 BYTES once encoded in the emitted file's charset, opens with a letter or one of '@', '#', '$', carries only letters, digits and '.', '_', '$', '#', '@', and does not end with '.'. Pulse field names are unconstrained, so a cohort that was not itself read from a .sav routinely holds a name this rule rejects — a space, a leading digit, a bracket. It is a refusal rather than a rename because every way an illegal name fails is quiet: record 7/13 is a tab-separated list of SHORT=LONG pairs with no escape, so a name carrying '=' or a tab re-parses as a different pair list and some other variable silently acquires this one's name. Non-ASCII letters are accepted; SPSS's reserved syntax keywords are not rejected. Details carry the offending name under `variable` and the cohort field under `cohort_field`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Rename the cohort field named in `cohort_field` to a legal SPSS identifier before exporting — letters, digits and '.', '_', '$', '#', '@', opening with a letter, 64 bytes or fewer. `pulse inspect` lists the cohort's field names.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Charset"},
+				Hint:   "If the fault is the 64-BYTE ceiling on a name that is 64 characters or fewer, the name is overflowing because of the charset it is being encoded into. Set spss.WriterOptions.Charset to a single-byte codepage that covers the text, or shorten the name.",
+			},
+		},
+	},
+	PULSE_SPSS_NAME_COLLISION: {
+		Message: "Two variables an SPSS export would emit answer to one name. SPSS variable names are unique without regard to case, so `Region` and `REGION` are one name and the second record 7/13 mapping for it is dropped, leaving a column in the file that no name reaches. The same fault applies one level down to the eight-byte record type 2 SHORT name, which records 7/5, 7/7, 7/14 and 7/19 key by. It is distinct from PULSE_SPSS_DERIVED_NAME_COLLISION, which is the import-side collision between a generated `<var>_missing` sibling and a variable the source file already declares. Details name the offending name under `variable` and the variable that claimed it first under `collides_with`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Rename one of the two cohort fields so the names differ by more than case. A set_* column is expanded into one indicator variable per dictionary entry, named for that entry, so a collision can also be between a dictionary entry and an ordinary field of the same name — rename either side.",
+			},
+		},
+	},
+	PULSE_SPSS_COLUMN_UNMAPPED: {
+		Message: "An SPSS export found a cohort column that no emitted variable is written from and that the metadata sidecar's derived-column registry does not account for. Such a column would leave the export silently — present in the .pulse file, absent from the .sav. The registry is what makes this decidable: an import synthesises columns the source dictionary never declared (a `<var>_missing` reason sibling, a multiple-dichotomy `set_*` convenience column) and names every one of them in the sidecar's `derived` block, so a column that is unbound and not in that block is data rather than an artefact. Details name the cohort field under `cohort_field`, the cohort under `cohort` and the sidecar under `sidecar`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "The usual cause is a sidecar that describes an older shape of the cohort. Re-import the source .sav so the sidecar and the cohort are written together, or export with spss.WriterOptions.IgnoreSidecar (--ignore-sidecar) to synthesise the dictionary from the .pulse schema alone, which emits every column as its own variable and drops nothing.",
+			},
+		},
+	},
+	PULSE_SPSS_DERIVED_UNFOLDABLE: {
+		Message: "The metadata sidecar's derived-column registry describes a column an SPSS export cannot fold back into the file it came from. Four shapes reach it: the entry's `kind` is outside this binary's vocabulary (a document written by a newer import, describing a column whose fold-back is genuinely unknown); the entry is under-populated for its kind, such as a `numeric_missing` entry with no `reasons` dictionary to restore missing codes from; the entry names a source column no emitted variable is written from, so consuming the derived column would discard what it held; or the entry names a column the export is also emitting as a variable, which is the document disagreeing with itself. It is a refusal because both guesses lose — emitting a derived column invents a variable the source never had, and dropping a real one discards data. Details name the derived column under `derived`, its source under `variable` and the sidecar under `sidecar`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"IgnoreSidecar"},
+				Hint:   "Export with spss.WriterOptions.IgnoreSidecar (--ignore-sidecar) to synthesise the dictionary from the .pulse schema alone. Nothing is folded, so nothing can fail to fold — every cohort column becomes its own SPSS variable, including the derived ones, at the cost of the source's recorded metadata.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If the sidecar was written by a newer Pulse than the one exporting, upgrade the exporting binary: an unrecognised derived `kind` describes a column this version has never heard of. Otherwise re-import the source .sav so the cohort and its sidecar are written together.",
+			},
+		},
+	},
 	PULSE_SPSS_WIDTH_OVERFLOW: {
 		Message: "A string does not fit the fixed-width .sav field the format gives it, measured in the emitted file's charset. SPSS widths are BYTE counts and never rune counts, so transcoding changes them — \"Zurich\" with an umlaut is six bytes in windows-1252 and seven in UTF-8. String VARIABLES are widened automatically to fit; this error is what is left when the format fixes the width: the 32767-byte ceiling on a string variable, an eight-byte record type 2 short name, a value label past the 255 bytes its one-byte length field can count, the 64-byte header file label, or an 80-byte record type 6 document line. It is never a truncation — cutting the field would drop the tail of a value and, in a multi-byte charset, leave a half-character no reader can decode. Details carry the required width, the available width, the variable and the charset.",
 		Fixups: []Fixup{

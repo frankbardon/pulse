@@ -1068,7 +1068,9 @@ func TestSynthesise_RoundTripsInAnyCharset(t *testing.T) {
 // being true, the eight-byte refusal above becomes reachable from a plain
 // synthesised export rather than only from a hand-set charset.
 func TestSynthesise_MintedShortNamesStayASCII(t *testing.T) {
-	plan := synthIn(t, "windows-1252", dictField(t, "Zürich Größe", "a"))
+	// The name is legal SPSS (E5-S5 refuses a space), and every byte past
+	// the first is still non-ASCII, which is what the minter has to fold.
+	plan := synthIn(t, "windows-1252", dictField(t, "Zürich_Größe", "a"))
 	col := plan.Columns[0]
 	if i := firstNonASCII(col.ShortName); i >= 0 {
 		t.Errorf("short name %q carries a non-ASCII byte at %d", col.ShortName, i)
@@ -1077,7 +1079,7 @@ func TestSynthesise_MintedShortNamesStayASCII(t *testing.T) {
 		t.Errorf("short name %q is %d bytes", col.ShortName, len(col.ShortName))
 	}
 	// The real name survives on record 7/13, which has no such limit.
-	if col.Name != "Zürich Größe" {
+	if col.Name != "Zürich_Größe" {
 		t.Errorf("final name = %q, want the cohort's own", col.Name)
 	}
 }

@@ -103,9 +103,6 @@ func synthesiseDictionary(req DictionaryRequest) (*outFile, error) {
 		}
 		f.vars = append(f.vars, vars...)
 	}
-	if err := checkFinalNames(f); err != nil {
-		return nil, err
-	}
 	return f, nil
 }
 
@@ -126,9 +123,7 @@ func synthesiseField(s *encoding.Schema, at int, minter *nameMinter, f *outFile)
 		fieldType: fld.Type,
 		setBit:    -1,
 	}
-	if err := mintNames(v, minter, fld.Name); err != nil {
-		return nil, err
-	}
+	mintNames(v, minter, fld.Name)
 
 	switch {
 	case fld.Type.HasDictionary():
@@ -230,9 +225,7 @@ func synthesiseSet(s *encoding.Schema, at int, minter *nameMinter, f *outFile) (
 			countedValue: synthSetCountedValue,
 		}
 		v.name = text
-		if err := mintNames(v, minter, text); err != nil {
-			return nil, err
-		}
+		mintNames(v, minter, text)
 		v.segments = numericSegment(v.shortName)
 		members = append(members, v)
 		shortNames = append(shortNames, v.shortName)
@@ -454,50 +447,11 @@ func sanitiseShortName(s string) string {
 // short name is upper-cased by construction, so without the 7/13 entry a
 // field called `age` would come back as `AGE`, and a round trip that changes
 // a field's name has broken every request that referenced it.
-func mintNames(v *outVar, minter *nameMinter, want string) error {
+func mintNames(v *outVar, minter *nameMinter, want string) {
 	v.shortName = minter.mint(want)
 	if want != v.shortName {
-		if strings.ContainsAny(want, "=\t\n") {
-			// '=' and tab are the record 7/13 payload's own delimiters and
-			// the format gives no escape for them, so such a name cannot
-			// be written down at all.
-			return cannotExpress(want,
-				"its name contains '=', a tab or a newline, which are the record 7/13 long-name payload's own delimiters and have no escape")
-		}
-		if len(want) > maxLongNameLen {
-			return cannotExpress(want,
-				"its name is "+strconv.Itoa(len(want))+" bytes, past the "+
-					strconv.Itoa(maxLongNameLen)+"-byte ceiling SPSS puts on a variable name")
-		}
 		v.longName = want
 	}
-	return nil
-}
-
-// maxLongNameLen is the widest variable name SPSS accepts.
-const maxLongNameLen = 64
-
-// checkFinalNames rejects a plan in which two variables would answer to one
-// name.
-//
-// It is a WRITE-side check on the synthesised path only, and it is not
-// E5-S5's validation pass: it catches the collision this file can CREATE —
-// a `set_*` member named for its dictionary entry landing on a name some
-// other column already has — rather than auditing names in general. Two
-// variables sharing a name is not survivable: record 7/13 drops the second
-// silently, and the file then holds a column no name reaches.
-func checkFinalNames(f *outFile) error {
-	seen := make(map[string]string, len(f.vars))
-	for _, v := range f.vars {
-		key := strings.ToUpper(v.name)
-		if prev, dup := seen[key]; dup {
-			return cannotExpress(v.name,
-				"another column ("+prev+") already emits a variable of that name, and SPSS variable names are "+
-					"case-insensitively unique; one of the two would be unreachable")
-		}
-		seen[key] = v.name
-	}
-	return nil
 }
 
 // cannotExpress reports a cohort column that has no `.sav` representation.
@@ -506,14 +460,18 @@ func checkFinalNames(f *outFile) error {
 // details already carry the offending name, but the fit is not exact — the
 // code was minted for "Pulse cannot write .sav at all".
 //
-// E5-S4 took the one case that was really a WIDTH question — a dictionary
-// entry past the 32767-byte ceiling SPSS puts on a string variable — and it
-// now raises PULSE_SPSS_WIDTH_OVERFLOW from applyCharsetWrite, where the
-// width is measured on the bytes that are actually written rather than on
-// their UTF-8 form. What is left here is entirely about NAMES: a name
-// carrying a record 7/13 delimiter, a name past 64 bytes, and two columns
-// that would answer to one name. E5-S5 owns the name-validation error family
-// and should reclassify all three.
+// The three cases that used to ride it and no longer do are worth naming,
+// because each moved to a code that fits. E5-S4 took the WIDTH question — a
+// dictionary entry past the 32767-byte ceiling SPSS puts on a string
+// variable — to PULSE_SPSS_WIDTH_OVERFLOW, raised from applyCharsetWrite
+// where the width is measured on the bytes actually written. E5-S5 took the
+// three NAME questions — a name carrying a record 7/13 delimiter, a name past
+// 64 bytes, and two columns that would answer to one name — to
+// PULSE_SPSS_NAME_INVALID and PULSE_SPSS_NAME_COLLISION, raised from
+// validateNames (dict_names.go) over BOTH front-ends rather than this one.
+//
+// What is left is the one thing that is neither: a `set_*` column with an
+// empty dictionary, which has no member variable for a response set to name.
 func cannotExpress(field, why string) error {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_EXPORT_UNSUPPORTED,
 		"spss: the cohort column "+strconv.Quote(field)+" cannot be expressed in a .sav dictionary: "+why,

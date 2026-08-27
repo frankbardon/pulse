@@ -1599,6 +1599,99 @@ const (
 	// DetailSPSSCharset.
 	PULSE_SPSS_WIDTH_OVERFLOW Code = "PULSE_SPSS_WIDTH_OVERFLOW"
 
+	// PULSE_SPSS_NAME_INVALID indicates a name being written into a `.sav`
+	// dictionary is not one SPSS can carry: it is empty, it is past the
+	// 64-byte ceiling once encoded in the emitted file's charset, it opens
+	// with something other than a letter, '@', '#' or '$', it carries a
+	// character outside the letters, digits and '.', '_', '$', '#', '@' an
+	// SPSS name is drawn from, or it ends with '.'.
+	//
+	// It is a WRITE-side boundary with no read-side twin, because Pulse
+	// names are permissive and SPSS names are not: `.pulse` validates
+	// nothing about a field name, so a cohort produced by synth, by a CSV
+	// import or by a processing run can carry a name no `.sav` can express,
+	// and nothing before this point would have noticed.
+	//
+	// It is a refusal rather than a rename because every way an illegal
+	// name fails is QUIET. Record 7/13 is a tab-separated list of
+	// `SHORT=LONG` pairs with no escape, so a name carrying '=' or a tab
+	// re-parses as a different, shorter pair list and some other variable
+	// silently acquires this one's name; record 7/7 is space-separated over
+	// the same namespace, so a space inside a name splits one set member
+	// into two that do not exist. Neither produces an unreadable file — both
+	// produce a well-formed one that says something the cohort did not.
+	//
+	// Non-ASCII letters are NOT rejected: SPSS in UTF-8 mode accepts them,
+	// and a file this reader has just read back can legitimately hold one.
+	// Neither are SPSS's reserved syntax keywords (ALL, BY, TO, WITH, …),
+	// which restrict the command language and not the file format. Details
+	// carry the offending name under DetailSPSSVariable and, when one
+	// column owns it, the cohort field under DetailSPSSField.
+	PULSE_SPSS_NAME_INVALID Code = "PULSE_SPSS_NAME_INVALID"
+
+	// PULSE_SPSS_NAME_COLLISION indicates two variables an SPSS export
+	// would emit answer to one name. SPSS variable names are unique
+	// without regard to case, so `Region` and `REGION` are one name and
+	// the second record 7/13 mapping for it is dropped — leaving a column
+	// in the file that no name reaches.
+	//
+	// It also covers the same fault one level down: two variables sharing
+	// an eight-byte record type 2 SHORT name, which records 7/5, 7/7, 7/14
+	// and 7/19 all key by, so each of those records would name only one of
+	// the two.
+	//
+	// It is distinct from PULSE_SPSS_DERIVED_NAME_COLLISION, which is the
+	// IMPORT-side collision between a generated `<var>_missing` sibling and
+	// a variable the source file already declares. This one is about the
+	// file being written. Details name both sides: the offending name under
+	// DetailSPSSVariable and the variable that claimed it first under
+	// DetailSPSSCollidesWith.
+	PULSE_SPSS_NAME_COLLISION Code = "PULSE_SPSS_NAME_COLLISION"
+
+	// PULSE_SPSS_COLUMN_UNMAPPED indicates an SPSS export found a cohort
+	// column that no emitted variable is written from and that the metadata
+	// sidecar's derived-column registry does not account for — a column
+	// about to leave the export silently, carried in the `.pulse` file and
+	// absent from the `.sav`.
+	//
+	// The registry is what makes the distinction decidable. An import
+	// synthesises columns the source dictionary never declared — a
+	// `<var>_missing` reason sibling and a multiple-dichotomy `set_*`
+	// convenience column — and those are CONSUMED on the way back out
+	// rather than emitted. Every one of them is named in the sidecar's
+	// `derived` block, so a column that is unbound and not in that block is
+	// not a derived column: it is data, and dropping it would be the quiet
+	// loss this export path exists to refuse.
+	//
+	// Details name the cohort field under DetailSPSSField, the cohort under
+	// DetailSPSSCohort and the sidecar under DetailSPSSSidecar.
+	PULSE_SPSS_COLUMN_UNMAPPED Code = "PULSE_SPSS_COLUMN_UNMAPPED"
+
+	// PULSE_SPSS_DERIVED_UNFOLDABLE indicates the metadata sidecar's
+	// derived-column registry describes a column an export cannot fold back
+	// into the file it came from.
+	//
+	// Four shapes reach it. The entry's `kind` is outside the vocabulary
+	// this binary knows — a document written by a NEWER import, describing
+	// a column whose fold-back is genuinely unknown, where both available
+	// guesses (emit it as a variable, or drop it) are silent data faults.
+	// The entry is under-populated for its kind: a `numeric_missing` entry
+	// without its `reasons` dictionary cannot restore a missing code
+	// without re-deriving the mapping and hoping it lands where the import
+	// did. The entry names a source column that no emitted variable is
+	// written from, so consuming the derived column would discard what it
+	// held. Or the entry names a column the export is ALSO emitting as a
+	// variable, which is a document disagreeing with itself about whether
+	// that column is synthetic.
+	//
+	// It is a refusal for the reason the registry exists: treating a
+	// derived column as real emits a phantom variable the source never had,
+	// and treating a real one as derived drops a respondent's data. Neither
+	// is visible in the output file. Details name the derived column under
+	// DetailSPSSDerived, its source under DetailSPSSVariable where the
+	// entry has one, and the sidecar under DetailSPSSSidecar.
+	PULSE_SPSS_DERIVED_UNFOLDABLE Code = "PULSE_SPSS_DERIVED_UNFOLDABLE"
+
 	// PULSE_SPSS_EXPORT_UNSUPPORTED indicates a caller asked for `.sav`
 	// (or `.zsav`) as an OUTPUT target — `pulse convert data.csv
 	// out.sav`, or an io.Writer construction for the spss format. SPSS
@@ -1866,6 +1959,16 @@ const (
 	// the two families never appear in the same Details map, and a
 	// caller reading either finds the name where it expects it.
 	DetailSPSSVariable = "variable"
+
+	// DetailSPSSField is the CodedError.Details key carrying the name of
+	// the `.pulse` COHORT FIELD a write-side diagnostic came from.
+	//
+	// It is held apart from DetailSPSSVariable because on the export side
+	// the two are not always the same string: a multiple-dichotomy set
+	// member's variable name is a dictionary ENTRY of the `set_*` column it
+	// was expanded from, so naming only the variable would not say which
+	// cohort column to rename.
+	DetailSPSSField = "cohort_field"
 
 	// DetailSPSSDistinct is the CodedError.Details key carrying the
 	// number of distinct values a variable contributes to a Pulse
@@ -2178,6 +2281,10 @@ var allCodes = []Code{
 	PULSE_SPSS_CHARSET_MISMATCH,
 	PULSE_SPSS_CHARSET_UNENCODABLE,
 	PULSE_SPSS_WIDTH_OVERFLOW,
+	PULSE_SPSS_NAME_INVALID,
+	PULSE_SPSS_NAME_COLLISION,
+	PULSE_SPSS_COLUMN_UNMAPPED,
+	PULSE_SPSS_DERIVED_UNFOLDABLE,
 	PULSE_SPSS_EXPORT_UNSUPPORTED,
 	PULSE_SPSS_DERIVED_NAME_COLLISION,
 	PULSE_SPSS_MISSING_MODE_INVALID,

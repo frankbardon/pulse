@@ -61,10 +61,18 @@ package spss
 // the derived `<var>_missing` siblings and `set_*` convenience columns — is
 // still DECODED, because the record stride demands it, and is then simply not
 // written anywhere. So a derived column can never leak out as an SPSS
-// variable, and E5-S5's fold-back does not have to filter the case stream
-// before the encoder sees it: it decides what a derived column MEANS for the
-// variable it belongs to, which is a question about plan construction, not
-// about this pass.
+// variable, and E5-S5's fold-back does not filter the case stream before the
+// encoder sees it: it decides what a derived column MEANS for the variable it
+// belongs to, which is a question about plan construction.
+//
+// This pass CONSUMES one half of that decision. A variable whose reason
+// sibling was folded carries [ColumnPlan.MissingField] and
+// [ColumnPlan.MissingCodes], and [DataEncoder.putNull] then writes the
+// recorded SPSS missing code into every null instead of the system-missing
+// sentinel — which is why [DataEncoder.writeColumn] takes the whole [Case]
+// rather than one cell. The other half needs nothing from here: a
+// multiple-dichotomy `set_*` column is dropped in favour of its constituents,
+// and "dropped" is already what an unbound field is.
 
 import (
 	"bytes"
@@ -261,6 +269,13 @@ func (e *DataEncoder) checkColumns() error {
 					" byte(s) but it declares a width of "+strconv.Itoa(col.Width))
 			}
 		}
+		// The folded reason sibling is bounded here, once, so putNull can
+		// index the case without a check on the per-case path.
+		if col.MissingField >= len(e.schema.Fields) {
+			return cannotWrite(col, "its user-missing reason column is cohort field index "+
+				strconv.Itoa(col.MissingField)+" but the schema has only "+
+				strconv.Itoa(len(e.schema.Fields))+" field(s)")
+		}
 	}
 	return nil
 }
@@ -287,7 +302,11 @@ func (e *DataEncoder) WriteCase(c Case) error {
 	}
 	for i := range e.plan.Columns {
 		col := &e.plan.Columns[i]
-		if err := e.writeColumn(col, c[col.Field]); err != nil {
+		// The whole case, not just this column's value: a variable with a
+		// folded `<var>_missing` sibling resolves what to write for a null
+		// from the SIBLING's cell, which is a different cohort field. See
+		// putNull and dict_fold.go.
+		if err := e.writeColumn(col, c); err != nil {
 			return err
 		}
 	}
@@ -302,22 +321,32 @@ func (e *DataEncoder) WriteCase(c Case) error {
 }
 
 // writeColumn lays one variable's value into the flat case buffer.
-func (e *DataEncoder) writeColumn(col *ColumnPlan, v CaseValue) error {
+//
+// c is the whole case rather than this column's cell because the three
+// numeric arms resolve a NULL through a different cohort field — the folded
+// `<var>_missing` sibling, when the variable has one.
+func (e *DataEncoder) writeColumn(col *ColumnPlan, c Case) error {
+	v := c[col.Field]
 	switch col.Encoding {
 	case EncodeNumeric:
-		e.putNumeric(col, v, v.Num)
+		return e.putNumeric(col, c, v.Num)
 
 	case EncodeDateDays:
 		// A `date` cell is whole epoch DAYS; SPSS counts SECONDS from its
 		// own epoch. Both halves of the conversion are exact in a double
 		// for every date the format can express.
-		e.putNumeric(col, v, v.Num*encoding.SecondsPerDay+float64(spssEpochOffsetSeconds))
+		return e.putNumeric(col, c, v.Num*encoding.SecondsPerDay+float64(spssEpochOffsetSeconds))
 
 	case EncodeDateTimeSeconds:
-		e.putNumeric(col, v, v.Num+float64(spssEpochOffsetSeconds))
+		return e.putNumeric(col, c, v.Num+float64(spssEpochOffsetSeconds))
 
 	case EncodeCategoricalCode:
 		if v.Null {
+			// No fold arm here on purpose: a value-labelled numeric is a
+			// CATEGORICAL in the cohort, and E4-S3 kept its user-missing
+			// codes as ordinary dictionary entries rather than moving them
+			// to a sibling. Nothing left the column, so nothing is restored
+			// into it — a null here really is system-missing.
 			e.putSysmis(col)
 			return nil
 		}
@@ -389,12 +418,68 @@ func (e *DataEncoder) category(col *ColumnPlan, id float64) (CategoryCode, error
 }
 
 // putNumeric writes a numeric variable's element, honouring the null bitmap.
-func (e *DataEncoder) putNumeric(col *ColumnPlan, v CaseValue, out float64) {
-	if v.Null {
-		e.putSysmis(col)
-		return
+//
+// out is the converted value the caller resolved; it is used only when the
+// cell is present, because a NULL resolves through putNull, which writes an
+// SPSS-side double that must not be converted a second time.
+func (e *DataEncoder) putNumeric(col *ColumnPlan, c Case, out float64) error {
+	if c[col.Field].Null {
+		return e.putNull(col, c)
 	}
 	e.putNumber(col, out)
+	return nil
+}
+
+// putNull writes what a null cohort cell means for this variable: the
+// user-missing code its folded `<var>_missing` sibling records, or the
+// system-missing sentinel when it has no sibling.
+//
+// This is the consuming half of the E4-S2 derivation. The import nulled the
+// analytic column at every user-missing position and put the REASON in a
+// sibling, because the `.pulse` null bitmap is one bit and cannot say WHY;
+// the export reads the sibling's stored dictionary ID, looks up the SPSS
+// state the sidecar recorded for it, and writes that state back. The mapping
+// is [ColumnPlan.MissingCodes], resolved once at plan time from
+// [Derived.Reasons] and never re-derived here.
+//
+// The code goes out RAW — [MissingCode.Code] is the source's own double, so
+// for a `date` or `datetime` variable it is already SPSS seconds. It is
+// deliberately not routed through the epoch conversion the present-value
+// path applies: the import never converted a missing code, so the export
+// must not either.
+func (e *DataEncoder) putNull(col *ColumnPlan, c Case) error {
+	if col.MissingField < 0 {
+		e.putSysmis(col)
+		return nil
+	}
+	sib := c[col.MissingField]
+	if sib.Null {
+		// A null sibling means "the value was PRESENT" — the empty reason
+		// is the sibling's own null bit, never a dictionary entry (see
+		// missing.go). A null source beside a null sibling is a state the
+		// import cannot produce, and it is written system-missing rather
+		// than refused: the cohort says the datum is missing and says
+		// nothing about why, which is exactly what the sentinel means.
+		e.putSysmis(col)
+		return nil
+	}
+	id := sib.Num
+	if id != math.Trunc(id) || id < 0 || id >= float64(len(col.MissingCodes)) {
+		return cannotWrite(col, "its user-missing reason column holds dictionary ID "+
+			strconv.FormatFloat(id, 'g', -1, 64)+" but the metadata sidecar records reasons for "+
+			strconv.Itoa(len(col.MissingCodes))+" ID(s); the missing state has no SPSS form")
+	}
+	code := col.MissingCodes[int(id)]
+	if !code.Known {
+		return cannotWrite(col, "its user-missing reason column holds dictionary ID "+
+			strconv.FormatFloat(id, 'g', -1, 64)+", which the metadata sidecar records no reason for")
+	}
+	if code.Sysmis {
+		e.putSysmis(col)
+		return nil
+	}
+	e.putNumber(col, code.Code)
+	return nil
 }
 
 // putNumber writes one double at a column's element.

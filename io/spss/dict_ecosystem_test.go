@@ -120,7 +120,7 @@ func TestEmittedDictionary_OpensInReadStatAndForeign(t *testing.T) {
 		"the hard records": write("hard.sav",
 			emit(t, DictionaryRequest{Schema: hardSchema, Sidecar: hardRes, Cases: 0, Compression: compressionNone})),
 		"synthesised": write("synth.sav", synthesise(t,
-			encoding.Field{Name: "respondent id", Type: encoding.FieldTypeU32, Description: "Respondent identifier"},
+			encoding.Field{Name: "respondent_id", Type: encoding.FieldTypeU32, Description: "Respondent identifier"},
 			encoding.Field{Name: "income", Type: encoding.FieldTypeF64, Description: "Household income"},
 			encoding.Field{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dictOf(t, "north", "south")},
 			encoding.Field{Name: "signed_up", Type: encoding.FieldTypeDate},
@@ -288,6 +288,80 @@ func readerLine(out, prefix string) string {
 		}
 	}
 	return ""
+}
+
+// TestEmittedFoldedFile_ReadsInReadStatAndForeign is the E5-S5 acceptance
+// criterion put to something that is not us.
+//
+// The cohort under test is the one that can go wrong quietly: it carries a
+// derived `<var>_missing` reason sibling and a derived `set_*` column, and
+// the emitted file must show an independent reader EXACTLY the three
+// variables the source `.sav` declared — no artefacts — with the user-missing
+// code 99 restored to its original numeric value and still declared missing.
+//
+// A reader of our own output cannot make this case: our reader re-applies the
+// missing specification and regenerates the sibling, so a file in which 99
+// had been flattened to system-missing would come back with a plausible
+// reason column either way. haven and foreign both surface the raw value and
+// the declared missing specification separately, which is what makes the
+// distinction visible.
+//
+// Recorded result at E5-S5: haven 2.5.5 reports names INCOME, Q1A, Q1B — no
+// INCOME_missing, no media — with the stored doubles 30000, 99, NA, na_values
+// = 99, and is.na() TRUE on the second case because the file declares 99
+// missing; foreign 0.8.91 (use.missings=FALSE) reports the same three columns
+// and the same values, and lists INCOME under its own `missings` attribute.
+func TestEmittedFoldedFile_ReadsInReadStatAndForeign(t *testing.T) {
+	bin := rEnvironment(t)
+
+	fs, cohort, _ := importFixture(t, bothKindsSpec())
+	path := filepath.Join(t.TempDir(), "folded.sav")
+	if err := os.WriteFile(path, exportCohort(t, fs, cohort, WriterOptions{}), 0o644); err != nil {
+		t.Fatalf("writing %s: %v", path, err)
+	}
+
+	script := `
+f <- Sys.getenv("PULSE_SAV")
+j <- function(x) paste(x, collapse="|")
+n <- function(x) j(ifelse(is.na(x), "NA", sprintf("%.4f", as.numeric(x))))
+h <- tryCatch({
+  d <- haven::read_sav(f, user_na=TRUE)
+  raw <- as.numeric(unclass(d$INCOME))
+  paste0("HAVEN OK|", j(names(d)), "|", n(raw), "|", j(is.na(d$INCOME)), "|",
+         j(as.character(attr(d$INCOME, "na_values"))))
+}, error=function(e) paste("HAVEN FAIL:", conditionMessage(e)))
+g <- tryCatch({
+  d <- suppressWarnings(foreign::read.spss(f, to.data.frame=FALSE, use.missings=FALSE))
+  paste0("FOREIGN OK|", j(names(d)), "|", n(d$INCOME), "|",
+         j(names(attr(d, "missings"))[sapply(attr(d, "missings"), function(m) m$type != "none")]))
+}, error=function(e) paste("FOREIGN FAIL:", conditionMessage(e)))
+cat(h, "\n", g, "\n", sep="")
+`
+	cmd := exec.Command(bin, "-e", script)
+	cmd.Env = append(os.Environ(), "PULSE_SAV="+path)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("running Rscript: %v\n%s", err, out)
+	}
+	text := string(out)
+	t.Logf("%s\n%s", path, strings.TrimSpace(text))
+
+	for prefix, want := range map[string]string{
+		// The variable list is the artefact check: three names, and
+		// neither INCOME_missing nor media among them. The values are the
+		// restore check: the stored double really is 99, not the
+		// system-missing sentinel. haven's is.na flags are the third
+		// column and are the DECLARATION check — the file still says 99 is
+		// missing, so haven reports the value as NA while carrying 99
+		// underneath, which is exactly what the source file did.
+		"HAVEN OK|":   "HAVEN OK|INCOME|Q1A|Q1B|30000.0000|99.0000|NA|FALSE|TRUE|TRUE|99",
+		"FOREIGN OK|": "FOREIGN OK|INCOME|Q1A|Q1B|30000.0000|99.0000|NA|INCOME",
+	} {
+		line := readerLine(text, prefix)
+		if line != want {
+			t.Errorf("%s reported\n  %q\nwant\n  %q", strings.TrimSuffix(prefix, "|"), line, want)
+		}
+	}
 }
 
 // TestEmittedNonUTF8File_ReadsInReadStatAndForeign is the strongest check
