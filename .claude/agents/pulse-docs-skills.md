@@ -30,7 +30,7 @@ You are the Pulse docs + skill writer. One job: keep skills/, CLAUDE.md, docs/, 
 - Every aggregator/attribute/filterer/grouper/window/feature/test/synth/regression must appear by name in its target skill. Coverage gates enforce.
 - `applies_to` only valid CLI leaves (`process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`). Invalid entries fail tests.
 - New env var → CLAUDE.md "Build / Env" subsection (`TestClaudeMdMentionsAllEnvVars`).
-- New CLI leaf → `skills/session-bootstrap.md` (`TestSkillsCoverAllCliLeaves`).
+- New CLI leaf → the command index in `docs/src/cli/flags.md` (this is what `TestSkillsCoverAllCliLeaves` actually checks — that the leaf path is named under `skills/` or `docs/src/`), plus `skills/session-bootstrap.md` when the leaf carries a flag an agent must know about.
 - New non-skippable gate with prefix-matched name → CLAUDE.md "Non-Skippable CI Gates" list.
 
 ## Same-PR rules

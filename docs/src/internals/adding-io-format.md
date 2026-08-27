@@ -281,6 +281,93 @@ exists to prevent. Readers that do not implement the interface write no
 extra file and take no extra stat, keeping every other format's import
 byte-identical.
 
+### Encoding from raw storage: `io.CohortWriter`
+
+`ExportJob.Run` decodes a cohort, renders each record into `[]any`, and
+hands the row to `Writer.WriteRow`. For most targets that is exactly
+right. For one class of target it is not, and the mismatch is not close
+enough to fake.
+
+`io/spss` is the case that forced the interface. A `.sav` variable's
+on-wire value is derived from a categorical's dictionary **ID**, a
+`set_*`'s mask **bits** and the **null bitmap** — and every one of those
+is gone by the time a row has been rendered. `formatFieldValue` resolves
+a categorical to its label text (and two SPSS codes may legitimately
+share one label), and a null renders as `""`, which a string categorical
+can hold as a real value. Rebuilding the storage from the text would be
+a guess in exactly the places fidelity is decided.
+
+```go
+type CohortSource struct {
+    FS       afero.Fs // ExportJob.FS — a hermetic MemMapFs export stays hermetic
+    Path     string   // the `.pulse` cohort path; also where a format sidecar rides
+    Includes []string // ExportJob.Includes verbatim
+    Labelled bool     // a label resolver is rewriting or augmenting cells
+}
+
+type CohortWriter interface {
+    Writer
+    WriteCohort(ctx context.Context, src CohortSource) (int, error)
+}
+```
+
+**Dispatch.** `ExportJob.Run` type-asserts the interface **after**
+`SetPulseSchema` and **after** `WriteHeader` — so a cohort writer still
+receives both, and the header is still the projection-aware column list —
+and then calls `WriteCohort` *instead of* its own row loop. Nothing is
+double-decoded: the row loop does not run, and `WriteRow` is never
+called on that path. Writers that do not implement it take the unchanged
+row path, byte for byte.
+
+**`Includes` and `Labelled` are carried so you can REFUSE them,** not
+because a cohort writer is expected to implement them. A writer that
+silently ignored `Includes` would answer `pulse export spss --include age`
+with a file carrying every column, which is the quiet wrong answer this
+whole surface exists to avoid. Return a coded error naming the option
+instead. The returned count becomes `ExportReport.RowsExported`.
+
+**A writer can implement both paths.** `io/spss` does: `WriteCohort` for
+an export whose source is a cohort, and a buffering `WriteRow` for
+`pulse convert data.csv out.sav`, where no cohort exists — it collects
+the rows, builds an intermediate cohort in memory through the ordinary
+import path, and encodes that. Buffering rather than streaming is
+inherent: an intermediate cohort cannot be written until the last row has
+been seen.
+
+### Encode-side diagnostics: `io.TargetWarningEmitter`
+
+The write-side mirror of `SourceWarningEmitter`, and distinct from
+`OverlayWarningEmitter`, which answers only the narrower question "were
+overlay layers dropped?":
+
+```go
+type TargetWarningEmitter interface {
+    Writer
+    Warnings() []*errors.CodedError
+}
+```
+
+`ExportJob.Run` and `ConvertJob.Run` collect **after** the write pass and
+lift the result onto `ExportReport.TargetWarnings` /
+`ConvertReport.TargetWarnings`. Implementations must be pure accessors —
+calling `Warnings()` must not itself trigger work, and calling it twice
+must not double the set. Writers implementing neither contribute `nil`,
+so every pre-existing report stays byte-identical.
+
+The canonical user is again `io/spss`, whose encode raises diagnostics
+that do not stop an export but change what the file MEANS: a metadata
+sidecar that was absent or deliberately ignored (so the dictionary was
+*synthesised* rather than reproduced), and every variable rename
+`--sanitise-names` performed. A user who never sees those cannot tell a
+faithful re-emission from a reconstruction.
+
+> **Re-read after `Close`.** `internal/cli/export.go` deliberately calls
+> `Warnings()` again after `writer.Close()` rather than trusting
+> `report.TargetWarnings`. A writer that buffers and encodes at `Close` —
+> which the `.sav` row path does — has raised none of its diagnostics by
+> the time the job builds its report. Because the accessor is pure,
+> asking twice cannot double the set.
+
 ## 5. Skill and doc update
 
 Add or update a skill that points users at the new format. Cohort-
@@ -298,11 +385,17 @@ and error tables, a real failure transcript) and register it in
 deliberately.
 
 `skills/session-bootstrap.md` only needs touching if the format adds a
-**CLI flag** (as `--sheet` did for Excel). Registering a new
-`pulse import <fmt>` subcommand alone does not: that file is the MCP
-session-order guide and carries no CLI leaf or format list. There is no
-automated CLI-leaf coverage gate today, so this judgement is the
-author's — see the follow-up note in `.claude/reference/update-demand.md`.
+**CLI flag** (as `--sheet` did for Excel, and as the four `.sav` write
+knobs did for SPSS). Registering a new `pulse import <fmt>` subcommand
+alone does not: that file is the MCP session-order guide and carries no
+format list.
+
+A new leaf **does** need a row in the command index in
+`docs/src/cli/flags.md`. `TestSkillsCoverAllCliLeaves`
+(`cmd/pulse/cli_leaves_test.go`) walks the real `buildApp()` command tree
+and fails if any runnable command path is named nowhere under `skills/`
+or `docs/src/`. It checks naming only — whether the prose is any good
+stays the author's judgement.
 
 ## 6. Convert and orchestration plumbing
 

@@ -121,6 +121,72 @@ entries. Pair with `--json` for programmatic consumption.
 deterministic RNG) and `--rows` (override the spec's row count). See
 the per-command pages.
 
+## Command index
+
+Every runnable leaf the binary exposes, with the page that documents it
+in depth. A leaf whose "Documented in" column names no dedicated page is
+covered by the surrounding topic page or by `--help`; the list itself is
+the contract, and `TestSkillsCoverAllCliLeaves` fails if a new leaf is
+added without naming it somewhere under `skills/` or `docs/src/`.
+
+| Leaf | Purpose | Documented in |
+|---|---|---|
+| `pulse api compose` | Execute multiple processing requests in batch | [api compose](api-compose.md) |
+| `pulse api facet` | Distinct values for a field, or a rich multi-field summary | [api facet](api-facet.md) |
+| `pulse api lookup` | Key-exact row read against a prebuilt sidecar index | [api lookup](api-lookup.md) |
+| `pulse api predict` | Validate a request against a cohort without executing | [api predict](api-predict.md) |
+| `pulse api process` | Execute a processing request against a cohort | [api process](api-process.md) |
+| `pulse api process-chain` | Source-rooted linear chain of mergeable stages | [api process](api-process.md) |
+| `pulse api sample` | Return sample rows from a cohort | [api sample](api-sample.md) |
+| `pulse cohort filter` | Filter a `.pulse` file to a new `.pulse` file | `--help` |
+| `pulse cohort inspect` | Inspect a `.pulse` header and schema | [cohort inspect](cohort-inspect.md) |
+| `pulse convert` | Convert between tabular formats, auto-detected from extensions | [import spss](import-spss.md), [export spss](export-spss.md) |
+| `pulse convert predict` | Validate a conversion without writing output | [export spss](export-spss.md) |
+| `pulse errors list` | List error codes by domain and/or substring | `--help` |
+| `pulse errors lookup` | Message + fixups for one error code | `--help` |
+| `pulse examples search` | Search the embedded request-example library | `--help` |
+| `pulse examples show` | Print a named example's runnable request JSON | `--help` |
+| `pulse export arrow` | Export `.pulse` to Arrow IPC | `--help` |
+| `pulse export csv` | Export `.pulse` to CSV | `--help` |
+| `pulse export excel` | Export `.pulse` to Excel | `--help` |
+| `pulse export jsonarray` | Export `.pulse` to a JSON array | `--help` |
+| `pulse export ndjson` | Export `.pulse` to NDJSON | `--help` |
+| `pulse export parquet` | Export `.pulse` to Parquet | `--help` |
+| `pulse export predict` | Validate an export without writing output | [export spss](export-spss.md) |
+| `pulse export spss` | Export `.pulse` to SPSS `.sav` | [export spss](export-spss.md) |
+| `pulse export tsv` | Export `.pulse` to TSV | `--help` |
+| `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
+| `pulse import auto` | Auto-detect a source format into the managed pool | `--help` |
+| `pulse import csv` | Import CSV into `.pulse` | `--help` |
+| `pulse import drop` | Remove a managed-import handle | `--help` |
+| `pulse import excel` | Import Excel into `.pulse` | `--help` |
+| `pulse import jsonarray` | Import a JSON array into `.pulse` | `--help` |
+| `pulse import list` | List managed-import handles and TTL status | `--help` |
+| `pulse import ndjson` | Import NDJSON into `.pulse` | `--help` |
+| `pulse import parquet` | Import Parquet into `.pulse` | `--help` |
+| `pulse import predict` | Validate an import without writing output | [import spss](import-spss.md) |
+| `pulse import schema-template` | Emit an editable schema template from input data | [import spss](import-spss.md) |
+| `pulse import spss` | Import SPSS `.sav` / `.zsav` into `.pulse` | [import spss](import-spss.md) |
+| `pulse import tsv` | Import TSV into `.pulse` | `--help` |
+| `pulse index build` | Build a point-lookup sidecar index | [index](index.md) |
+| `pulse index drop` | Remove a cohort's sidecar index (destructive, no prompt) | [index](index.md) |
+| `pulse index list` | List every sidecar index built for a cohort | [index](index.md) |
+| `pulse index verify` | Report whether a cohort's sidecar index is fresh | [index](index.md) |
+| `pulse mcp` | Run the MCP server over stdio | [mcp](mcp.md) |
+| `pulse profile create` | Create a profile JSON for an existing cohort | [profile create](profile-create.md) |
+| `pulse schema` | Print the payload JSON Schema (raw, not envelope-wrapped) | [schema](schema.md) |
+| `pulse shard add` | Append a shard to an existing archive | `--help` |
+| `pulse shard compact` | Rewrite an archive to reclaim orphan bytes | `--help` |
+| `pulse shard create` | Create a shard archive from single-file shards | `--help` |
+| `pulse shard extract` | Write a shard's standalone `.pulse` bytes to stdout | `--help` |
+| `pulse shard list` | List shards inside an archive | `--help` |
+| `pulse shard remove` | Remove a shard from an archive by basename | `--help` |
+| `pulse shard verify` | Re-validate every shard against the canonical schema | `--help` |
+| `pulse skills list` | List every embedded skill | `--help` |
+| `pulse skills show` | Print one skill's markdown | `--help` |
+| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile | [synth from-profile](synth-from-profile.md) |
+| `pulse synth from-schema` | Generate a cohort from a JSON schema/spec | [synth from-schema](synth-from-schema.md) |
+
 ## Help
 
 Every command supports `--help`:

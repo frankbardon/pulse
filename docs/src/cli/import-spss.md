@@ -13,10 +13,10 @@ variable's type, its missing-value rules and its value labels, so the
 adapter implements `io.SchemaAwareReader` and hands that dictionary
 straight to the encoder. Inference never runs.
 
-> **Writable too.** `pulse export spss -i cohort.pulse -o out.sav`
-> re-emits the `.sav`, reproducing the source dictionary from the
-> metadata sidecar this import writes. The write side is documented on
-> its own page; this one covers the read half.
+> **Writable too.** [`pulse export spss`](export-spss.md) re-emits the
+> `.sav`, reproducing the source dictionary from the metadata sidecar
+> this import writes. That page covers the write half; this one covers
+> the read half.
 
 > **Codepages decode.** Text is transcoded out of the charset the file
 > declares (record `7/20` / `7/3`) into UTF-8, and a byte that charset
@@ -1087,16 +1087,18 @@ pulse convert survey.sav survey.csv
 Converted 2 rows: survey.sav -> survey.csv
 ```
 
-The reverse is recognised and refused, deliberately — the extension *is*
-known, so a generic "unsupported format" would be misleading:
+The reverse direction writes a `.sav`:
 
 ```bash
 pulse convert data.csv out.sav
 ```
 
-This works. If the CSV's header carries names a `.sav` cannot express —
-a space, a bracket, a hyphen, a leading digit — it stops with
-`PULSE_SPSS_NAME_INVALID` rather than mangling them; add
+A text source has no cohort behind it, so the writer buffers the rows,
+builds an intermediate cohort in memory through the ordinary import path
+and exports that — an inferred schema and no metadata sidecar, which
+means synthesised SPSS names. If the CSV's header carries names a `.sav`
+cannot express — a space, a bracket, a hyphen, a leading digit — it stops
+with `PULSE_SPSS_NAME_INVALID` rather than mangling them; add
 `--sanitise-names` to rewrite them and have every rename reported:
 
 ```
@@ -1107,8 +1109,9 @@ name a .sav can carry as a variable: it contains ' ' at byte 9
 ## Related
 
 - [`pulse cohort inspect`](cohort-inspect.md) — read the schema and dictionaries the import produced
-- [`pulse manifest`](manifest.md) — `import.formats[]` declares `spss` with `schema_source: "authoritative"` and `export: false`
-- [Adding an I/O Format](../internals/adding-io-format.md) — the `SchemaAwareReader` / `SourceWarningEmitter` contracts this adapter implements
+- [`pulse manifest`](manifest.md) — `import.formats[]` declares `spss` with `schema_source: "authoritative"` and `export: true`
+- [`pulse export spss`](export-spss.md) — the write half: the sidecar read, the derived-column fold, the name boundary, the four write flags
+- [Adding an I/O Format](../internals/adding-io-format.md) — the `SchemaAwareReader` / `SourceWarningEmitter` / `SidecarEmitter` / `CohortWriter` / `TargetWarningEmitter` contracts this adapter implements
 - `skills/spss-cohorts.md` — the agent-facing SPSS surface: mapping table, derived columns, missing-value split, metadata sidecar, diagnostics
 - `skills/cohort-schema-design.md` — the `.pulse` field-type matrix
 - `skills/label-display.md` — turning the stored codes into labels at output time
