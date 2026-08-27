@@ -213,6 +213,23 @@ func (k elementKind) description() string {
 // The command stream
 // ---------------------------------------------------------------------------
 
+// streamLocator maps an index into a command stream onto the byte offset a
+// diagnostic should name in the file the user actually holds.
+//
+// It exists because the command stream is not always a window onto the file.
+// For a bytecode-compressed `.sav` it is: index i sits at file offset
+// dataOffset+i, and [fileLocator] says exactly that. For a ZSAV the stream is
+// the CONCATENATION of the inflated zlib blocks, so an index into it has no
+// file offset of its own — the nearest honest answer is where the block
+// holding it starts on disk, which is what zsavIndex.locator returns.
+type streamLocator func(i int) int
+
+// fileLocator is the identity mapping for a stream that IS a window onto the
+// file, starting at base.
+func fileLocator(base int) streamLocator {
+	return func(i int) int { return base + i }
+}
+
 // bytecodeStream reads commands and their payloads out of a data section.
 //
 // The interleaving is the whole subtlety: pos points at the next unread byte,
@@ -221,12 +238,13 @@ func (k elementKind) description() string {
 // same cursor, and a payload read that happens between two commands of one
 // block correctly consumes bytes that sit after the whole block.
 type bytecodeStream struct {
-	// src is the data section, from its first byte.
+	// src is the command stream, from its first byte.
 	src []byte
 
-	// base is the file offset of src[0], so a diagnostic can name an
-	// absolute offset into the file the user has.
-	base int
+	// loc turns an index into src into the file offset a diagnostic
+	// names. See streamLocator for why it is a function rather than a
+	// base offset.
+	loc streamLocator
 
 	// pos is the next unread byte of src.
 	pos int
@@ -239,12 +257,12 @@ type bytecodeStream struct {
 	blockPos int
 }
 
-func newBytecodeStream(src []byte, base int) *bytecodeStream {
-	return &bytecodeStream{src: src, base: base, idx: commandBlockSize}
+func newBytecodeStream(src []byte, loc streamLocator) *bytecodeStream {
+	return &bytecodeStream{src: src, loc: loc, idx: commandBlockSize}
 }
 
 // offset converts an index into src into a file offset.
-func (s *bytecodeStream) offset(i int) int { return s.base + i }
+func (s *bytecodeStream) offset(i int) int { return s.loc(i) }
 
 // next returns the next command that produces something, its file offset, and
 // whether there was one. Padding is consumed and skipped here rather than
@@ -307,12 +325,6 @@ func (s *bytecodeStream) payload() (b []byte, off int, ok bool) {
 //
 // It returns the expanded bytes and the number of whole cases in them.
 func decodeBytecode(d *dictionary, data []byte, plan *dataPlan) ([]byte, int, error) {
-	bias := d.header.bias
-	if !usableBias(bias) {
-		return nil, 0, dataError(errors.PULSE_SPSS_COMPRESSION_INVALID, d.dataOffset,
-			"the header declares a compression bias of %v, which is not a usable number; every integer command in the stream would decode to NaN",
-			bias)
-	}
 	if d.dataOffset > len(data) {
 		// Unreachable for a parsed dictionary; guarded because the
 		// slice below would panic rather than fail.
@@ -320,8 +332,26 @@ func decodeBytecode(d *dictionary, data []byte, plan *dataPlan) ([]byte, int, er
 			"the dictionary ends at byte offset %d but the file is only %d byte(s) long",
 			d.dataOffset, len(data))
 	}
+	return decodeBytecodeStream(d, plan, data[d.dataOffset:], fileLocator(d.dataOffset))
+}
 
-	st := newBytecodeStream(data[d.dataOffset:], d.dataOffset)
+// decodeBytecodeStream is the decoder proper: it expands one command stream,
+// wherever that stream came from.
+//
+// It is separate from [decodeBytecode] because a ZSAV data section is a
+// bytecode stream too — the zlib blocks inflate TO one, they do not replace
+// it — so ZSAV decoding is "inflate, then run this". src is the stream's
+// bytes and loc says how to name a position in them; everything else about
+// the expansion is identical, which is the point.
+func decodeBytecodeStream(d *dictionary, plan *dataPlan, src []byte, loc streamLocator) ([]byte, int, error) {
+	bias := d.header.bias
+	if !usableBias(bias) {
+		return nil, 0, dataError(errors.PULSE_SPSS_COMPRESSION_INVALID, d.dataOffset,
+			"the header declares a compression bias of %v, which is not a usable number; every integer command in the stream would decode to NaN",
+			bias)
+	}
+
+	st := newBytecodeStream(src, loc)
 	kinds := plan.elemKinds
 
 	var sysmis [elementSize]byte
@@ -356,7 +386,7 @@ func decodeBytecode(d *dictionary, data []byte, plan *dataPlan) ([]byte, int, er
 			if !ok {
 				return nil, 0, dataError(errors.PULSE_SPSS_DATA_TRUNCATED, poff,
 					"the compressed stream ends with a verbatim-value command (253) whose 8-byte value is missing; only %d byte(s) remain",
-					len(st.src)-(poff-st.base))
+					len(st.src)-st.pos)
 			}
 			out = append(out, b...)
 		case cmdSpaces:

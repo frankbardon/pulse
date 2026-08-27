@@ -509,42 +509,49 @@ func TestReadRows_FromAferoFilesystem(t *testing.T) {
 	})
 }
 
-// TestReadRows_Compressed covers the out-of-scope encodings. Both must be
-// refused with a code that names the gap, because a compressed data section
-// read as though it were uncompressed produces numbers rather than an error.
-// TestReadRows_ZSAVRefused covers the one data-section encoding still
-// unimplemented. The refusal must now name ZSAV specifically: bytecode is
-// decoded, so a message about "compression" in general would send a user
-// looking for a problem that no longer exists.
+// TestReadRows_UnknownCompressionRefused covers the one branch of
+// readCaseData that is not an encoding: a compression flag the format does
+// not define.
 //
-// E3-S2 fills this branch in, and when it does this test is the one that
-// tells it the seam moved.
-func TestReadRows_ZSAVRefused(t *testing.T) {
+// All three defined encodings are read now — uncompressed, bytecode and ZSAV
+// — so PULSE_SPSS_COMPRESSION_UNSUPPORTED is no longer about any of them. It
+// is reached by rewriting the header field past the range the header parse
+// accepts, which means this exercises the parse's own guard first and the
+// data-section refusal second. Both must fire, because a data section read
+// under an encoding nobody named produces plausible numbers rather than an
+// error.
+//
+// The seam E3-S1 left for ZSAV is gone: see zsav_test.go, where a `.zsav`
+// reads as a cohort identical to its uncompressed twin.
+func TestReadRows_UnknownCompressionRefused(t *testing.T) {
 	raw := build(t, spsstest.ReferenceSpec())
-	binary.LittleEndian.PutUint32(raw[offCompression:offCompression+4], 2)
+	binary.LittleEndian.PutUint32(raw[offCompression:offCompression+4], 7)
 
-	r := NewReaderFromBytes(raw)
-	// The dictionary is unaffected: only the data section is.
-	if _, err := r.ReadHeader(); err != nil {
-		t.Fatalf("ReadHeader on a compressed file: %v", err)
+	// The header parse is the first line of defence and rejects the flag
+	// outright, before any data section is reached.
+	if _, err := parseDictionary(raw); err == nil {
+		t.Fatal("a header declaring compression 7 parsed without error")
 	}
 
-	err := r.ReadRows(context.Background(), func([]string) error {
-		t.Error("a case was delivered from a ZSAV data section")
-		return nil
-	})
+	// readCaseData keeps its own refusal for the same flag, so a
+	// dictionary reaching it by any other route still fails loudly
+	// rather than falling through to a decode.
+	d := mustParse(t, build(t, spsstest.ReferenceSpec()))
+	d.header.compression = 7
+	p, err := buildDataPlan(d)
+	if err != nil {
+		t.Fatalf("buildDataPlan: %v", err)
+	}
+	_, _, err = readCaseData(d, raw, p)
 	if err == nil {
-		t.Fatal("a ZSAV data section read without error")
+		t.Fatal("an unrecognised compression flag read without error")
 	}
 	ce := codedError(t, err)
 	if ce.Code != perr.PULSE_SPSS_COMPRESSION_UNSUPPORTED {
 		t.Fatalf("code = %s, want %s", ce.Code, perr.PULSE_SPSS_COMPRESSION_UNSUPPORTED)
 	}
-	if !strings.Contains(ce.Message, "ZSAV zlib block compression") {
-		t.Errorf("message = %q, want it to name ZSAV", ce.Message)
-	}
-	if strings.Contains(ce.Message, "only the uncompressed encoding") {
-		t.Errorf("message = %q still claims only the uncompressed encoding is read; bytecode is decoded now", ce.Message)
+	if !strings.Contains(ce.Message, "all three are read") {
+		t.Errorf("message = %q, want it to say every defined encoding is read", ce.Message)
 	}
 	assertDetails(t, ce, len(raw))
 }

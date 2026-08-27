@@ -10,13 +10,14 @@ package spss
 // record type 2 stream, is load-bearing here and the header's
 // nominal_case_size (a writer's claim) is not used at all.
 //
-// The uncompressed encoding and SPSS's default bytecode compression are both
-// decoded; see bytecode.go for the command table, and readCaseData for the
-// one place the header compression flag is acted on. Whichever encoding the
-// file used, everything below this point sees the same flat run of elements
-// at the same fixed stride. ZSAV zlib block compression is still refused with
-// PULSE_SPSS_COMPRESSION_UNSUPPORTED rather than read as though its blocks
-// were doubles, which would yield plausible-looking garbage.
+// All three encodings the format defines are decoded: uncompressed, SPSS's
+// default bytecode compression (see bytecode.go for the command table), and
+// ZSAV zlib block compression (see zsav.go, which inflates the blocks and
+// then runs the SAME bytecode decoder over what comes out — ZSAV is two
+// layers, not a third encoding). readCaseData is the one place the header
+// compression flag is acted on. Whichever encoding the file used, everything
+// below this point sees the same flat run of elements at the same fixed
+// stride.
 //
 // # Rendering to strings
 //
@@ -465,18 +466,22 @@ func readCaseData(d *dictionary, data []byte, plan *dataPlan) ([]byte, int, erro
 	case compressionBytecode:
 		return decodeBytecode(d, data, plan)
 	case compressionZSAV:
-		// E3-S2 fills this branch in. Until it does the refusal is
-		// specific to ZSAV rather than to compression in general,
-		// because bytecode — the encoding that made that message
-		// worth writing — is read now.
-		return nil, 0, dataError(errors.PULSE_SPSS_COMPRESSION_UNSUPPORTED, d.dataOffset,
-			"the file uses ZSAV zlib block compression (header compression flag %d), which this reader cannot yet decode; the uncompressed and bytecode-compressed encodings are read today",
-			d.header.compression)
+		// ZSAV is TWO layers, not one: the zlib blocks inflate to a
+		// bytecode command stream, which is then decoded exactly as a
+		// flag-1 file's would be. decodeZSAV does the inflation and
+		// hands off; see zsav.go, where the nesting is spelled out,
+		// because a reader that assumed one layer would read command
+		// bytes as doubles and produce numbers from every file.
+		return decodeZSAV(d, data, plan)
 	default:
-		// The header parse rejects any other value, so this is
-		// defence in depth rather than a reachable branch.
+		// The header parse rejects any value outside 0..2, so this is
+		// defence in depth rather than a reachable branch. It is kept
+		// as the named refusal for a data-section encoding this
+		// reader cannot decode: all three the format defines are read
+		// today, so reaching it means a flag the format does not
+		// define got past the header check.
 		return nil, 0, dataError(errors.PULSE_SPSS_COMPRESSION_UNSUPPORTED, d.dataOffset,
-			"the file declares compression flag %d, which this reader does not recognise",
+			"the file declares compression flag %d, which this reader does not recognise; the format defines 0 (uncompressed), 1 (bytecode) and 2 (ZSAV zlib blocks), and all three are read",
 			d.header.compression)
 	}
 }

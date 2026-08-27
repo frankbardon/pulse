@@ -688,9 +688,14 @@ func TestBuild_Rejects(t *testing.T) {
 			"not a finite number",
 		},
 		{
-			"zsav not implemented",
-			Spec{Vars: []Var{{Name: "A"}}, Compression: CompressionZSAV},
+			"an unknown compression",
+			Spec{Vars: []Var{{Name: "A"}}, Compression: Compression(9)},
 			"not implemented",
+		},
+		{
+			"a negative ZSAV block size",
+			Spec{Vars: []Var{{Name: "A"}}, Compression: CompressionZSAV, ZSAVBlockSize: -8},
+			"is negative",
 		},
 		{
 			"file label over 64 bytes",

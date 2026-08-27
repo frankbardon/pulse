@@ -61,6 +61,20 @@
 // usual value of 100", which is itself proof it read the header field rather
 // than assuming it. Nothing in the bytecode encoding rests on a guess.
 //
+// ZSAV was cross-checked the same way during E3-S2, and the check was worth
+// running: R's `foreign` does NOT implement ZSAV at all and rejects every
+// `.zsav` on the "$FL3" magic alone ("not in any supported SPSS format"),
+// which is itself confirmation that the magic is the discriminator. `haven`
+// (ReadStat) does implement it, and read every ZSAV fixture this package
+// emits — the reference fixture, the every-command fixture, a multi-block
+// fixture cut at a 16-byte block size, and a fixture declaring a
+// non-conventional compression bias — recovering values, value labels and
+// variable labels IDENTICAL to each fixture's uncompressed twin (`all.equal`
+// on the two data frames). ReadStat also REJECTED both a fixture whose
+// trailer block count was rewritten and one with a single flipped byte inside
+// a compressed block, which proves the block index and the block payloads are
+// genuinely load-bearing rather than being read past.
+//
 // Three constructs got NO independent corroboration, because neither reader
 // interprets them: the subtype 19 'E' extended form, multiple-response
 // definitions carried on subtype 5, and the two-int32-per-variable form of
@@ -73,9 +87,15 @@
 //	Rscript -e 'print(foreign::read.spss("reference.sav", to.data.frame=FALSE))'
 //	Rscript -e 'print(haven::read_sav("reference.sav"))'
 //
+// For a ZSAV fixture use `haven` only — `foreign` cannot open one — and
+// compare against the uncompressed twin rather than reading values by eye:
+//
+//	Rscript -e 'print(all.equal(haven::read_sav("ref.sav"), haven::read_sav("ref.zsav")))'
+//
 // For a compressed fixture, build the SAME spec twice — once with
-// Compression left at CompressionNone and once with CompressionBytecode —
-// and check that both readers report identical values from the two files.
+// Compression left at CompressionNone and once with CompressionBytecode or
+// CompressionZSAV — and check that both readers report identical values from
+// the two files.
 //
 // # Scope
 //
@@ -94,11 +114,18 @@
 // through two independent encodings, so a reader that agrees with both is
 // agreeing with something other than itself.
 //
-// Deliberately absent, each owned by a later story: ZSAV, non-ASCII
-// codepages, very long strings (>255 bytes), big-endian output and
-// missing-value specs. The spec types carry the axes for those
-// ([Compression], [ByteOrder], Var.Width) so they can be filled in without
-// reshaping the API.
+// ZSAV — the zlib-blocked scheme SPSS 21+ writes into a `.zsav` — is emitted
+// when [Spec.Compression] asks for it. It is two layers, not a third
+// encoding: the bytecode stream above is cut into blocks of
+// [Spec.ZSAVBlockSize] bytes, each block deflated into its own zlib stream at
+// the pinned [ZSAVCompressionLevel], and a ZHEADER / ZTRAILER index records
+// every block's offset and size in both coordinate spaces. A ZSAV file also
+// carries the "$FL3" header magic instead of "$FL2".
+//
+// Deliberately absent, each owned by a later story: non-ASCII codepages, very
+// long strings (>255 bytes), big-endian output and missing-value specs. The
+// spec types carry the axes for those ([ByteOrder], Var.Width) so they can be
+// filled in without reshaping the API.
 //
 // Every extension record is optional per the format, and a spec that asks for
 // none emits none: [ReferenceSpec] still produces a file with no record type
@@ -149,6 +176,23 @@ const (
 	// it, which is how a fixture proves a reader honours the declared bias
 	// rather than hardcoding this value.
 	CompressionBias = 100.0
+
+	// ZSAVBlockSize is the uncompressed size of one ZSAV zlib block:
+	// 0x3ff000, the value every writer of the format uses and the one
+	// the ZTRAILER records. [Spec.ZSAVBlockSize] overrides it.
+	ZSAVBlockSize = 0x3ff000
+
+	// ZSAVCompressionLevel is the deflate level every ZSAV block is
+	// compressed at.
+	//
+	// It is pinned to a NUMBER rather than left at zlib.DefaultCompression
+	// on purpose. DefaultCompression is the sentinel -1, whose meaning is
+	// an implementation choice the standard library is free to change; a
+	// fixture whose bytes moved with the toolchain would break the
+	// byte-determinism this package promises, and it would break it
+	// silently, as a golden-hash mismatch nobody could explain from the
+	// diff.
+	ZSAVCompressionLevel = 6
 )
 
 // SysMisDouble is the system-missing sentinel as it appears in an
@@ -301,7 +345,13 @@ const (
 	// eight command bytes, each command either standing for an element on
 	// its own or naming an eight-byte payload that trails the block.
 	CompressionBytecode
-	// CompressionZSAV is the zlib-blocked scheme used by SPSS 21+. Not implemented yet.
+	// CompressionZSAV is the zlib-blocked scheme SPSS 21+ writes into a
+	// `.zsav`: the bytecode command stream, cut into blocks, each block
+	// deflated into its own zlib stream, with a ZHEADER / ZTRAILER index
+	// giving every block's offset and size compressed and uncompressed.
+	//
+	// It is TWO layers. The blocks do not hold case data; they hold the
+	// same command stream CompressionBytecode emits in the clear.
 	CompressionZSAV
 )
 
@@ -757,10 +807,28 @@ type Spec struct {
 	// CreationTime overrides DefaultCreationTime ("hh:mm:ss", 8 bytes).
 	CreationTime string
 
-	// Compression selects the data-section encoding. CompressionNone (the
-	// zero value) and CompressionBytecode are implemented; CompressionZSAV
-	// is not.
+	// Compression selects the data-section encoding. All three are
+	// implemented: CompressionNone (the zero value), CompressionBytecode
+	// and CompressionZSAV.
+	//
+	// CompressionZSAV also changes the header magic to "$FL3", which is
+	// what the format uses to mark a zlib-compressed file.
 	Compression Compression
+
+	// ZSAVBlockSize overrides the uncompressed block size a ZSAV data
+	// section is cut into, in bytes. Zero means [ZSAVBlockSize], the
+	// 0x3ff000 every real writer uses. Ignored unless Compression is
+	// CompressionZSAV.
+	//
+	// It exists so a fixture can carry a MULTI-BLOCK index without being
+	// four megabytes: at the conventional size every fixture in this
+	// package is one block, and a one-block index exercises none of the
+	// cumulative-offset arithmetic a reader has to get right. The
+	// block size is carried per file in the ZTRAILER, so a small value is
+	// well-formed rather than a trick — but the conventional value is the
+	// default precisely because a fixture handed to an outside reader
+	// should be as ordinary as possible.
+	ZSAVBlockSize int
 
 	// CompressionBias overrides the header's flt64 bias field, which the
 	// bytecode encoding subtracts to recover an integer from a command

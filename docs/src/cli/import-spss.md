@@ -16,10 +16,9 @@ straight to the encoder. Inference never runs.
 > **Read-only.** There is no `pulse export spss` and no SPSS writer.
 > An SPSS *output* target returns `PULSE_SPSS_EXPORT_UNSUPPORTED`.
 
-> **`.zsav` is not readable yet.** Uncompressed and bytecode-compressed
-> `.sav` files — the latter being SPSS's own save default — both import.
-> ZSAV zlib block compression, which every `.zsav` uses, still fails with
-> `PULSE_SPSS_COMPRESSION_UNSUPPORTED`. See
+> **`.zsav` imports directly.** All three data-section encodings read:
+> uncompressed, bytecode (SPSS's own save default) and ZSAV zlib blocks.
+> Nothing needs to be re-saved or converted first. See
 > [Compression](#compression) below.
 
 ## Synopsis
@@ -191,13 +190,13 @@ each.
 ## Compression
 
 A `.sav` data section arrives in one of three encodings, and the file
-header says which. Two of the three import.
+header says which. All three import.
 
-| Encoding | Header flag | Status |
-|---|---|---|
-| Uncompressed | 0 | Read |
-| Bytecode | 1 | Read — **this is what SPSS writes by default** |
-| ZSAV (zlib blocks) | 2 | `PULSE_SPSS_COMPRESSION_UNSUPPORTED` |
+| Encoding | Header flag | Header magic | Status |
+|---|---|---|---|
+| Uncompressed | 0 | `$FL2` | Read |
+| Bytecode | 1 | `$FL2` | Read — **this is what SPSS writes by default** |
+| ZSAV (zlib blocks) | 2 | `$FL3` | Read — **this is what a `.zsav` carries** |
 
 Nothing needs to be passed to select one. The flag is read from the
 header and the right decoder runs:
@@ -207,7 +206,7 @@ pulse import spss --input survey.sav --output survey.pulse
 ```
 
 A compressed and an uncompressed copy of the same data produce
-byte-identical cohorts.
+identical cohorts, whichever of the three encodings was used.
 
 ### How bytecode compression works
 
@@ -248,24 +247,62 @@ repaired by hand.
 A stream cut short — mid-case, or with a `253` whose eight bytes never
 arrived — is `PULSE_SPSS_DATA_TRUNCATED` instead.
 
-### ZSAV
+### How ZSAV works
+
+ZSAV is **two layers, not a third encoding**. The zlib blocks do not
+hold case data — they inflate to a *bytecode command stream*, exactly the
+one described above, which is then decoded exactly as it would be in a
+plain `.sav`. A reader that treated the inflated bytes as values would
+produce plausible numbers from every file, which is why the layering is
+spelled out rather than assumed.
+
+The blocks are described by an index at both ends of the data section:
+
+| Structure | Where | Carries |
+|---|---|---|
+| `ZHEADER` | first 24 bytes of the data section | its own offset, the trailer's offset, the trailer's length |
+| compressed blocks | after the `ZHEADER` | one independent zlib stream each |
+| `ZTRAILER` | end of the file | the bias (negated), a reserved zero, the uncompressed block size, the block count, then one 24-byte entry per block |
+
+Each entry gives its block's offset **and** size in two coordinate
+spaces — where the block actually sits in the file, and where it would
+sit if the file were not compressed. That redundancy is the point: the
+entries must tile the compressed region exactly, each block starting
+where the previous one ended, and Pulse checks every one of them
+*before* inflating anything. Inflating from an offset no writer ever
+wrote a stream at either fails or, worse, succeeds on something.
+
+### When a `.zsav` will not read
 
 ```
-error: reading authoritative source schema: PULSE_SPSS_COMPRESSION_UNSUPPORTED:
-spss: data section: the file uses ZSAV zlib block compression (header
-compression flag 2), which this reader cannot yet decode; the uncompressed
-and bytecode-compressed encodings are read today [at byte offset 372 (0x174)]
+error: reading authoritative source schema: PULSE_SPSS_ZSAV_INVALID:
+spss: data section: ZSAV block 3 of 40 declares compressed offset 1857,
+but the block before it ends at 1856; the compressed offsets must run on
+without a gap [at byte offset 4218 (0x107A)]
 ```
 
-Re-save as a plain `.sav` and import the copy:
+`PULSE_SPSS_ZSAV_INVALID` means the block index does not describe the
+file it sits in. The message **names the block**, and the same 1-based
+number is carried structurally under `details.block`, so a fault in one
+block of a thousand is actionable rather than a shrug. Re-export the
+file; a block index cannot be repaired by hand.
 
-```
-GET FILE='survey.zsav'.
-SAVE OUTFILE='survey.sav'.
-```
+`PULSE_SPSS_ZSAV_BLOCK_CORRUPT` is the other half: the index was
+coherent, the offsets were right, and the bytes at them are damaged — a
+block that will not inflate, fails its zlib checksum, or inflates to a
+size other than the one its entry declares. A short or long block is as
+fatal as one that fails outright, because the blocks concatenate into a
+single command stream and a wrong-length block shifts every later value
+onto the wrong variable. That one is usually a truncated download:
+compare the file's byte length against the source.
 
-(In the SPSS GUI: File > Save As with type *SPSS Statistics (\*.sav)*.)
-The resulting file may be bytecode-compressed; that is fine.
+A `.zsav` whose *inflated* stream disagrees with the dictionary raises
+the bytecode codes above (`PULSE_SPSS_COMPRESSION_INVALID`,
+`PULSE_SPSS_DATA_TRUNCATED`), not a ZSAV code — the zlib layer was
+intact, so pointing at it would send you to the wrong place.
+
+> **Read-only by design.** Pulse never writes ZSAV, and there is no
+> `pulse export spss` at all.
 
 ## Fatal errors
 
@@ -273,14 +310,17 @@ The resulting file may be bytecode-compressed; that is fine.
 |---|---|
 | `PULSE_SPSS_DICT_INVALID` | The dictionary is malformed |
 | `PULSE_SPSS_DICT_TRUNCATED` | The file ends mid-dictionary |
-| `PULSE_SPSS_COMPRESSION_UNSUPPORTED` | ZSAV zlib block compression — see above |
+| `PULSE_SPSS_COMPRESSION_UNSUPPORTED` | A compression flag the format does not define — all three defined encodings are read |
 | `PULSE_SPSS_COMPRESSION_INVALID` | A bytecode stream that disagrees with its own dictionary, or an unusable compression bias — see above |
+| `PULSE_SPSS_ZSAV_INVALID` | A ZSAV block index that does not describe its file — names the block — see above |
+| `PULSE_SPSS_ZSAV_BLOCK_CORRUPT` | A ZSAV zlib block that will not inflate, or inflates to the wrong length — names the block — see above |
 | `PULSE_SPSS_DATA_TRUNCATED` | The data section ends mid-case, or a `253` command's value is missing |
 | `PULSE_SPSS_CATEGORICAL_OVERFLOW` | A labelled variable has more distinct codes than `categorical_u32` holds |
 | `PULSE_SPSS_EXPORT_UNSUPPORTED` | An SPSS output target was requested — Pulse cannot write `.sav` |
 
 Parse-stage diagnostics (dictionary walk, data pass) carry `record_type`
-and `offset` details pinpointing where in the file they were raised;
+and `offset` details pinpointing where in the file they were raised, and
+the `PULSE_SPSS_ZSAV_*` pair additionally carries `block`;
 schema-mapping diagnostics carry `variable`.
 
 > On the `--json` path a **fatal** import error is currently reported

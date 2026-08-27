@@ -109,8 +109,9 @@ func TestSPSS_ImportProducesQueryableCohort(t *testing.T) {
 // acceptance criterion taken all the way to the artefact a user keeps.
 //
 // The two sources are one spec built twice, so they carry the same logical
-// cases through two genuinely different data-section encodings — a bytecode
-// command stream and a flat run of doubles. Comparing the resulting `.pulse`
+// cases through three genuinely different data-section encodings — a flat run
+// of doubles, a bytecode command stream, and that same stream deflated into
+// zlib blocks behind a ZHEADER / ZTRAILER index. Comparing the resulting `.pulse`
 // files BYTE for byte, rather than comparing rendered rows, is what makes the
 // claim total: it covers the schema block, the inline categorical
 // dictionaries and their entry ORDER, the record data and the null bitmap all
@@ -146,10 +147,24 @@ func TestSPSS_CompressedAndUncompressedProduceIdenticalCohorts(t *testing.T) {
 			packedSpec.Compression = spsstest.CompressionBytecode
 			packedSrc := seedSav(t, afs, "packed.sav", packedSpec)
 
-			// The premise: the two sources really are different files.
-			// Without this the byte-equality below would be trivial.
+			// The ZSAV arm cuts the stream into small blocks so the
+			// index spans several of them: at the conventional
+			// 0x3ff000 every fixture here is one block, and a
+			// one-block index exercises none of the cumulative
+			// offset arithmetic the decoder has to get right.
+			zsavSpec := tc.spec
+			zsavSpec.Compression = spsstest.CompressionZSAV
+			zsavSpec.ZSAVBlockSize = 16
+			zsavSrc := seedSav(t, afs, "zipped.zsav", zsavSpec)
+
+			// The premise: the three sources really are different
+			// files. Without this the byte-equality below would be
+			// trivial.
 			if bytes.Equal(plainSrc, packedSrc) {
-				t.Fatal("the two .sav sources are byte-identical; the compressed one is not exercising the decoder")
+				t.Fatal("the uncompressed and bytecode .sav sources are byte-identical; the compressed one is not exercising the decoder")
+			}
+			if bytes.Equal(packedSrc, zsavSrc) || bytes.Equal(plainSrc, zsavSrc) {
+				t.Fatal("the .zsav source is byte-identical to a .sav twin; it is not exercising the ZSAV decoder")
 			}
 
 			p, err := New(Options{FS: afs})
@@ -171,20 +186,86 @@ func TestSPSS_CompressedAndUncompressedProduceIdenticalCohorts(t *testing.T) {
 			}
 			convert("plain.sav", "plain.pulse")
 			convert("packed.sav", "packed.pulse")
+			convert("zipped.zsav", "zipped.pulse")
 
-			plainOut, err := afero.ReadFile(afs, "plain.pulse")
-			if err != nil {
-				t.Fatalf("read plain.pulse: %v", err)
+			read := func(path string) []byte {
+				t.Helper()
+				b, err := afero.ReadFile(afs, path)
+				if err != nil {
+					t.Fatalf("read %s: %v", path, err)
+				}
+				return b
 			}
-			packedOut, err := afero.ReadFile(afs, "packed.pulse")
-			if err != nil {
-				t.Fatalf("read packed.pulse: %v", err)
-			}
-			if !bytes.Equal(plainOut, packedOut) {
-				t.Errorf("the cohorts differ: %d bytes from the uncompressed source, %d from the compressed one",
-					len(plainOut), len(packedOut))
+			plainOut := read("plain.pulse")
+			for _, other := range []struct{ name, path string }{
+				{"bytecode", "packed.pulse"},
+				{"ZSAV", "zipped.pulse"},
+			} {
+				got := read(other.path)
+				if !bytes.Equal(plainOut, got) {
+					t.Errorf("the cohorts differ: %d bytes from the uncompressed source, %d from the %s one",
+						len(plainOut), len(got), other.name)
+				}
 			}
 		})
+	}
+}
+
+// TestSPSS_ZsavExtensionImportsThroughTheFacade is the `.zsav` half of the
+// end-to-end criterion. The extension is what a user actually types, and it
+// resolves to the same reader — so a `.zsav` must import through the plain
+// facade call with no format override, no re-save and no special handling.
+//
+// The E3-S1 seam is what this replaces: until now a `.zsav` reached the
+// reader, parsed its dictionary and then failed at the data section.
+func TestSPSS_ZsavExtensionImportsThroughTheFacade(t *testing.T) {
+	afs := afero.NewMemMapFs()
+	spec := spsstest.ReferenceSpec()
+	spec.Compression = spsstest.CompressionZSAV
+	raw := seedSav(t, afs, "survey.zsav", spec)
+	if string(raw[:4]) != "$FL3" {
+		t.Fatalf("the fixture opens with %q, not the ZSAV magic $FL3", raw[:4])
+	}
+
+	p, err := New(Options{FS: afs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+
+	res, err := p.ImportFile(ctx, ImportSpec{SourcePath: "survey.zsav"})
+	if err != nil {
+		t.Fatalf("ImportFile(.zsav): %v", err)
+	}
+	if res.RowsImported != 2 {
+		t.Errorf("RowsImported = %d, want 2", res.RowsImported)
+	}
+
+	entries, err := p.Imports(ctx)
+	if err != nil {
+		t.Fatalf("Imports: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Sidecar.SourceFormat != pformat.SPSS {
+		t.Fatalf("the .zsav extension did not resolve through io/format: %+v", entries)
+	}
+
+	// The dictionary still reaches the cohort intact through the extra
+	// layer: a ZSAV that inflated to the wrong bytes would show up here
+	// as a mistyped or dictionary-less field long before it showed up as
+	// a wrong number.
+	info, err := p.Inspect(ctx, res.Path)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	byName := map[string]string{}
+	for _, f := range info.Fields {
+		byName[f.Name] = f.Type
+	}
+	if got := byName["SEX"]; got != "categorical_u8" {
+		t.Errorf("SEX type = %q, want categorical_u8", got)
+	}
+	if got := byName["ID"]; got != "f64" {
+		t.Errorf("ID type = %q, want f64", got)
 	}
 }
 

@@ -63,6 +63,23 @@ type plan struct {
 	extensions []renderedExtension
 }
 
+// magicFor returns the 4-byte header magic a data-section encoding requires.
+func magicFor(c Compression) string {
+	if c == CompressionZSAV {
+		return "$FL3"
+	}
+	return "$FL2"
+}
+
+// zsavBlockSize is the uncompressed block size a ZSAV data section is cut
+// into: the spec's own when it sets one, else the conventional 0x3ff000.
+func (p plan) zsavBlockSize() int {
+	if p.spec.ZSAVBlockSize > 0 {
+		return p.spec.ZSAVBlockSize
+	}
+	return ZSAVBlockSize
+}
+
 // bias is the compression bias the header declares: the spec's own when it
 // sets one, else the conventional 100. It is resolved here rather than at
 // each use so the header field and the bytecode encoder can never disagree
@@ -107,9 +124,12 @@ func validate(spec Spec) (plan, error) {
 		return p, fmt.Errorf("spsstest: %s output is not implemented; only little-endian is supported today", spec.ByteOrder)
 	}
 	switch spec.Compression {
-	case CompressionNone, CompressionBytecode:
+	case CompressionNone, CompressionBytecode, CompressionZSAV:
 	default:
-		return p, fmt.Errorf("spsstest: %s data sections are not implemented; uncompressed and bytecode are supported today", spec.Compression)
+		return p, fmt.Errorf("spsstest: %s data sections are not implemented; uncompressed, bytecode and ZSAV are supported today", spec.Compression)
+	}
+	if spec.ZSAVBlockSize < 0 {
+		return p, fmt.Errorf("spsstest: ZSAVBlockSize %d is negative; use 0 for the conventional %d", spec.ZSAVBlockSize, ZSAVBlockSize)
 	}
 	if spec.CompressionBias != 0 && (math.IsNaN(spec.CompressionBias) || math.IsInf(spec.CompressionBias, 0)) {
 		return p, fmt.Errorf("spsstest: compression bias %v is not a finite number", spec.CompressionBias)
@@ -642,7 +662,11 @@ func stringOr(s, fallback string) string {
 
 // writeHeader emits the 176-byte file header record.
 func writeHeader(e *enc, p plan) {
-	e.ascii("$FL2", headerRecTypeLen) // $FL3 marks ZSAV, which is out of scope
+	// "$FL3" is the format's mark for a zlib-compressed file and "$FL2"
+	// covers the other two encodings. It is derived from the compression
+	// choice rather than declared, so the magic and the compression field
+	// can never disagree.
+	e.ascii(magicFor(p.spec.Compression), headerRecTypeLen)
 	e.ascii(stringOr(p.spec.ProductName, DefaultProductName), headerProdNameLen)
 	e.i32(2) // layout_code: written in file byte order, so it doubles as the endianness probe
 	e.i32(p.nominalCaseSize)
@@ -754,11 +778,14 @@ func writeTerminator(e *enc) {
 
 // writeData emits the data section in whichever encoding the spec asked for.
 func writeData(e *enc, p plan) {
-	if p.spec.Compression == CompressionBytecode {
+	switch p.spec.Compression {
+	case CompressionBytecode:
 		writeBytecodeData(e, p)
-		return
+	case CompressionZSAV:
+		writeZSAVData(e, p)
+	default:
+		writeUncompressedData(e, p)
 	}
-	writeUncompressedData(e, p)
 }
 
 // writeUncompressedData emits the uncompressed data section: every case in
@@ -808,6 +835,17 @@ const (
 // is: which command each datum gets is decided by the datum and the bias
 // alone, so the same spec always yields the same bytes.
 func writeBytecodeData(e *enc, p plan) {
+	writeBytecodeStream(e, p)
+}
+
+// writeBytecodeStream emits the command stream itself into any sink.
+//
+// It is split out from [writeBytecodeData] because ZSAV needs the same
+// stream, byte for byte, in a buffer instead of in the file: the zlib blocks
+// hold a bytecode stream, they do not replace it. Sharing the emitter is what
+// makes a bytecode fixture and a ZSAV fixture built from one spec carry
+// literally the same commands.
+func writeBytecodeStream(e *enc, p plan) {
 	w := &bytecodeWriter{e: e, bias: p.bias()}
 	for _, row := range p.spec.Cases {
 		for vi, val := range row {

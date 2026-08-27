@@ -1824,12 +1824,42 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SPSS_COMPRESSION_UNSUPPORTED: {
-		Message: "The SPSS .sav dictionary parsed cleanly but its data section uses ZSAV zlib block compression, which this reader cannot yet decode. The uncompressed encoding and SPSS's default bytecode compression are both read; ZSAV — written by SPSS 21+ and always used for a .zsav file — is not. Reading those blocks as though they were data would produce plausible-looking garbage, so the import stops instead.",
+		Message: "The SPSS .sav dictionary parsed cleanly but its data section declares a compression flag the format does not define. All three defined encodings import: uncompressed (flag 0), bytecode compression (flag 1, SPSS's save default) and ZSAV zlib blocks (flag 2, what a .zsav carries). Reading a data section under the wrong encoding would produce plausible-looking garbage, so an unrecognised flag stops the import instead of being guessed at.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Source"},
-				Hint:   "Re-save the file as a plain .sav rather than a .zsav: in SPSS, File > Save As with type 'SPSS Statistics (*.sav)', or in PSPP `SAVE OUTFILE='plain.sav'.` — the resulting bytecode-compressed or uncompressed file imports directly.",
+				Hint:   "Re-export the file from SPSS or PSPP — `SAVE OUTFILE='survey.sav'.` writes a bytecode-compressed file, `SAVE OUTFILE='survey.sav' /UNCOMPRESSED.` an uncompressed one, and `SAVE OUTFILE='survey.zsav' /ZCOMPRESSED.` a ZSAV. All three import.",
+			},
+		},
+	},
+	PULSE_SPSS_ZSAV_INVALID: {
+		Message: "The SPSS .zsav file's ZSAV block index does not describe the file it sits in. The index is the 24-byte ZHEADER at the head of the data section plus the ZTRAILER it points at, carrying one entry per zlib block with that block's offset and size in both compressed and uncompressed form. Those entries must tile the compressed region exactly — each block beginning where the previous one ended — and the trailer's length must match the block count it declares. The reported block number is where the tiling first broke. Nothing else in the file says where a block starts, so the reader cannot inflate past that point.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-export the file rather than repairing the index by hand: in SPSS, File > Save As with type 'SPSS Statistics (*.zsav)', or in PSPP `SAVE OUTFILE='survey.zsav' /ZCOMPRESSED.`. `pulse errors lookup PULSE_SPSS_ZSAV_INVALID` prints the block-index semantics.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If re-exporting is not possible, save an uncompressed copy instead — `SAVE OUTFILE='survey.sav' /UNCOMPRESSED.` — which drops the block index entirely.",
+			},
+		},
+	},
+	PULSE_SPSS_ZSAV_BLOCK_CORRUPT: {
+		Message: "One zlib block of the SPSS .zsav data section could not be inflated, or inflated to a size other than the one its block-index entry declares. The index itself was coherent — the offsets were right — so the bytes at them are damaged rather than mis-addressed. A block that yields the wrong number of bytes is as fatal as one that fails outright: the decompressed blocks are concatenated into a single command stream, so a short or long block shifts every value after it onto the wrong variable.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Fetch the file again — a damaged zlib block is normally a truncated or corrupted transfer. Compare the byte length against the source before re-importing.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If the source copy is itself damaged, re-export from SPSS or PSPP: `SAVE OUTFILE='survey.zsav' /ZCOMPRESSED.`, or `SAVE OUTFILE='survey.sav'.` for a bytecode-compressed .sav.",
 			},
 		},
 	},

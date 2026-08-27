@@ -49,11 +49,10 @@ const (
 	// `.zsav` maps here rather than to its own identifier because it is
 	// the same dictionary and the same data section under zlib block
 	// compression, not a different format. It resolves to the same
-	// reader, which reads the dictionary and then refuses the ZSAV data
-	// section with PULSE_SPSS_COMPRESSION_UNSUPPORTED — a specific,
-	// actionable answer that a "cannot detect format" error could not
-	// give. A plain `.sav` reads under either the uncompressed or the
-	// bytecode encoding, so the refusal is now specific to `.zsav`.
+	// reader, and it reads: all three data-section encodings the format
+	// defines are decoded — uncompressed, bytecode (the SPSS save
+	// default) and ZSAV zlib blocks — so the extension chosen at export
+	// time does not decide whether a file can be imported.
 	SPSS = "spss"
 )
 

@@ -1261,16 +1261,55 @@ const (
 	PULSE_SPSS_EXTENSION_INVALID Code = "PULSE_SPSS_EXTENSION_INVALID"
 
 	// PULSE_SPSS_COMPRESSION_UNSUPPORTED indicates an SPSS `.sav` file
-	// whose dictionary parsed cleanly but whose data section uses ZSAV
-	// zlib block compression (header compression flag 2), which this
-	// reader cannot yet decode. The uncompressed encoding (flag 0) and
-	// bytecode compression (flag 1, the SPSS save default) are both
-	// read. It is a hard error rather than a warning because a data
-	// section read under the wrong encoding produces plausible-looking
-	// garbage, and silently wrong numbers are worse than no numbers.
-	// Details carry "data" under DetailSPSSRecord and the first byte of
-	// the data section under DetailSPSSOffset.
+	// whose dictionary parsed cleanly but whose data section declares an
+	// encoding this reader cannot decode.
+	//
+	// All three encodings the format defines are read today —
+	// uncompressed (header compression flag 0), bytecode compression
+	// (flag 1, the SPSS save default) and ZSAV zlib block compression
+	// (flag 2, what a `.zsav` carries) — so this fires only for a
+	// compression flag the format does not define. It is retained as
+	// the named refusal for a data-section encoding the reader does not
+	// implement, because a data section read under the wrong encoding
+	// produces plausible-looking garbage and silently wrong numbers are
+	// worse than no numbers. Details carry "data" under
+	// DetailSPSSRecord and the first byte of the data section under
+	// DetailSPSSOffset.
 	PULSE_SPSS_COMPRESSION_UNSUPPORTED Code = "PULSE_SPSS_COMPRESSION_UNSUPPORTED"
+
+	// PULSE_SPSS_ZSAV_INVALID indicates an SPSS `.zsav` file whose ZSAV
+	// block index does not describe the file it sits in. The index is
+	// the 24-byte ZHEADER at the head of the data section plus the
+	// ZTRAILER it points at, which carries one 24-byte entry per zlib
+	// block: the block's offset and size both compressed and
+	// uncompressed. The entries must tile the compressed region exactly
+	// — each block starting where the previous one ended, in both
+	// coordinate spaces — and the trailer length must match the block
+	// count it declares.
+	//
+	// It is a hard error because the index is the only thing that says
+	// where a block begins: an entry that disagrees with its neighbours
+	// means the reader would inflate from a byte offset the writer
+	// never wrote a stream at. Details carry "data" under
+	// DetailSPSSRecord, a byte offset under DetailSPSSOffset, and —
+	// where one block is implicated — its 1-based position under
+	// DetailSPSSBlock.
+	PULSE_SPSS_ZSAV_INVALID Code = "PULSE_SPSS_ZSAV_INVALID"
+
+	// PULSE_SPSS_ZSAV_BLOCK_CORRUPT indicates one zlib block of an SPSS
+	// `.zsav` data section could not be inflated, or inflated to a size
+	// other than the one its block-index entry declares. The index
+	// itself was coherent, which is what distinguishes this from
+	// PULSE_SPSS_ZSAV_INVALID: the offsets were right and the bytes at
+	// them are damaged.
+	//
+	// A short or long inflation is as fatal as a zlib failure. The
+	// decompressed blocks are concatenated into one command stream, so
+	// a block that yields the wrong number of bytes shifts every
+	// element after it onto the wrong variable. Details carry "data"
+	// under DetailSPSSRecord, the block's compressed byte offset under
+	// DetailSPSSOffset and its 1-based position under DetailSPSSBlock.
+	PULSE_SPSS_ZSAV_BLOCK_CORRUPT Code = "PULSE_SPSS_ZSAV_BLOCK_CORRUPT"
 
 	// PULSE_SPSS_COMPRESSION_INVALID indicates an SPSS `.sav` file
 	// declares bytecode compression and its command stream is corrupt:
@@ -1438,6 +1477,14 @@ const (
 	// type 7 extension subtype a PULSE_SPSS_EXTENSION_* diagnostic refers
 	// to, as an int32.
 	DetailSPSSSubtype = "subtype"
+
+	// DetailSPSSBlock is the CodedError.Details key carrying the position
+	// of the ZSAV zlib block a PULSE_SPSS_ZSAV_* diagnostic refers to.
+	//
+	// It is 1-BASED, matching the number the message spells and the rest
+	// of the PULSE_SPSS_* family's "item N of M" prose. Subtract one to
+	// index the block-index entries themselves.
+	DetailSPSSBlock = "block"
 
 	// DetailSPSSDeclaredCases is the CodedError.Details key carrying the
 	// case count an SPSS `.sav` file DECLARES — the header ncases field,
@@ -1650,6 +1697,8 @@ var allCodes = []Code{
 	PULSE_SPSS_EXTENSION_INVALID,
 	PULSE_SPSS_COMPRESSION_UNSUPPORTED,
 	PULSE_SPSS_COMPRESSION_INVALID,
+	PULSE_SPSS_ZSAV_INVALID,
+	PULSE_SPSS_ZSAV_BLOCK_CORRUPT,
 	PULSE_SPSS_DATA_TRUNCATED,
 	PULSE_SPSS_DATA_CASE_COUNT_MISMATCH,
 	PULSE_SPSS_CATEGORICAL_OVERFLOW,

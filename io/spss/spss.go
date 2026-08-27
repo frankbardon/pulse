@@ -35,14 +35,19 @@
 // lands. Charset DECODING is not done here either — 7/20's name is recorded,
 // and nothing is transcoded with it.
 //
-// The data section is read in its uncompressed encoding and in SPSS's default
-// bytecode compression (see data.go and bytecode.go); dictionary.dataOffset
-// is the byte offset of its first byte, and the header's compression flag and
-// bias say how to read what follows. A file whose header declares ZSAV zlib
-// block compression parses its dictionary normally and is then refused at
-// ReadRows with PULSE_SPSS_COMPRESSION_UNSUPPORTED, because a data section
-// read under the wrong encoding yields plausible numbers rather than an
-// error.
+// All three data-section encodings the format defines are read:
+// uncompressed, SPSS's default bytecode compression (see data.go and
+// bytecode.go), and ZSAV zlib block compression (see zsav.go).
+// dictionary.dataOffset is the byte offset of the section's first byte, and
+// the header's compression flag and bias say how to read what follows.
+//
+// ZSAV is TWO layers rather than a third encoding: the zlib blocks, indexed
+// by the ZHEADER / ZTRAILER pair, inflate to a bytecode command stream, and
+// that stream is then decoded exactly as a flag-1 file's would be. Reading
+// the inflated bytes as anything else would produce plausible numbers rather
+// than an error, which is why the nesting is stated at every level it
+// touches. Emission is out of scope in the other direction: there is no
+// `.sav` or `.zsav` writer (PULSE_SPSS_EXPORT_UNSUPPORTED).
 //
 // # Errors and warnings
 //
