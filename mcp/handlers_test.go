@@ -1,13 +1,16 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/spsstest"
 	"github.com/frankbardon/pulse/mcp/toolmeta"
 	"github.com/frankbardon/pulse/skills"
 	"github.com/spf13/afero"
@@ -317,5 +320,111 @@ func TestHandleRangeTables_EmptyRegistry(t *testing.T) {
 	}
 	if len(out.Tables) != 0 {
 		t.Errorf("Tables = %v; want empty", out.Tables)
+	}
+}
+
+// undeclaredCharsetSav returns the bytes of a `.sav` declaring NO character
+// encoding — no record 7/20 name, no record 7/3 code — whose single text
+// datum carries the windows-1252 byte for "ü". The reader's default is
+// strict UTF-8, so the byte is undecodable and the file has no further
+// evidence to offer: only the caller can say what it means.
+func undeclaredCharsetSav(t *testing.T) []byte {
+	t.Helper()
+	raw, err := spsstest.Build(spsstest.Spec{
+		Vars:  []spsstest.Var{{Name: "CITY", Width: 6}},
+		Cases: [][]spsstest.Value{{spsstest.Text("Zurich")}},
+	})
+	if err != nil {
+		t.Fatalf("spsstest.Build: %v", err)
+	}
+	at := bytes.Index(raw, []byte("Zurich"))
+	if at < 0 {
+		t.Fatal("the fixture does not hold the datum")
+	}
+	raw[at+1] = 0xFC
+	return raw
+}
+
+// TestHandleImport_CharsetRescuesUndeclaredSav is the E6-S3 criterion at the
+// MCP surface. Before this slot existed an agent driving Pulse over MCP could
+// not import such a file by any means — the override was CLI-only
+// (`pulse import spss --charset`) or library-only (`spss.WithCharset`), and
+// pulse_import is the only import path MCP exposes.
+func TestHandleImport_CharsetRescuesUndeclaredSav(t *testing.T) {
+	p, afs := newImportTestPulse(t)
+	if err := afero.WriteFile(afs, "legacy.sav", undeclaredCharsetSav(t), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	ctx := context.Background()
+
+	// Without the override the import must fail, and fail with the code
+	// that names the problem — a bare error would also pass against a
+	// reader that had started substituting U+FFFD instead.
+	_, err := HandleImport(ctx, p, ImportIn{Source: "legacy.sav"})
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_SPSS_CHARSET_INVALID {
+		t.Fatalf("error = %v, want %s", err, perr.PULSE_SPSS_CHARSET_INVALID)
+	}
+
+	out, err := HandleImport(ctx, p, ImportIn{Source: "legacy.sav", Charset: "windows-1252"})
+	if err != nil {
+		t.Fatalf("HandleImport with charset: %v", err)
+	}
+	if !out.Managed || out.RowsImported != 1 {
+		t.Errorf("result = %+v, want a managed handle with 1 row", out)
+	}
+}
+
+// TestHandleImport_CharsetInertForCSV. The slot rides the shared
+// format.ReaderOptions struct exactly as sheet does, so a format with no
+// opinion about codepages must ignore it rather than reject it.
+func TestHandleImport_CharsetInertForCSV(t *testing.T) {
+	p, _ := newImportTestPulse(t)
+	out, err := HandleImport(context.Background(), p,
+		ImportIn{Source: "data.csv", Charset: "windows-1252"})
+	if err != nil {
+		t.Fatalf("HandleImport: %v — charset must be inert for CSV, not rejected", err)
+	}
+	if out.RowsImported != 3 {
+		t.Errorf("RowsImported = %d, want 3", out.RowsImported)
+	}
+}
+
+// TestImportSchema_CharsetIsSPSSOnlyAndMissingModeIsAbsent pins the input
+// contract an agent actually reads. The description has to say SPSS-only,
+// because the slot is silently ignored everywhere else and a caller who
+// believes it applies to CSV would be debugging a no-op. And there must be no
+// missing-mode slot: its default is the fidelity-preserving one and its only
+// alternative discards the `<var>_missing` siblings, so the deliberate way to
+// ask for that is `pulse import spss --spss-missing=null`, not a general
+// import tool.
+func TestImportSchema_CharsetIsSPSSOnlyAndMissingModeIsAbsent(t *testing.T) {
+	ts, ok := SchemaFor(toolmeta.ToolImport)
+	if !ok {
+		t.Fatalf("no reflected schema for %s", toolmeta.ToolImport)
+	}
+	var doc struct {
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(ts.InputSchema, &doc); err != nil {
+		t.Fatalf("unmarshal input schema: %v", err)
+	}
+	prop, ok := doc.Properties["charset"]
+	if !ok {
+		t.Fatal("the pulse_import input schema has no charset property")
+	}
+	if !strings.Contains(strings.ToUpper(prop.Description), "SPSS") {
+		t.Errorf("charset description does not say it is SPSS-only: %q", prop.Description)
+	}
+	for _, banned := range []string{"spss_missing", "spss-missing", "missing_mode"} {
+		if _, found := doc.Properties[banned]; found {
+			t.Errorf("the pulse_import input schema grew a %q property; "+
+				"the lossy missing mode is deliberately CLI-only", banned)
+		}
+	}
+	if !strings.Contains(ts.Description, "charset") {
+		t.Error("DescImport does not mention charset; an agent reading the tool description would not know the recourse exists")
 	}
 }

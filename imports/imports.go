@@ -60,6 +60,28 @@ type Spec struct {
 	// Sheet is honoured only for Excel sources; ignored otherwise.
 	Sheet string
 
+	// Charset overrides the character encoding an SPSS `.sav` / `.zsav`
+	// declares about itself, resolved by the same forgiving lookup the
+	// file's own record 7/20 name goes through. Ignored by every other
+	// format, exactly as Sheet is. Empty is not an instruction: it
+	// leaves the file's own declaration in force.
+	//
+	// It exists here because the managed pool is otherwise a dead end
+	// for a file that is wrong about itself. A pre-Unicode `.sav` that
+	// declares no encoding at all reads as strict UTF-8 and fails
+	// PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte, and the file
+	// has no further evidence to offer — only the caller can say what
+	// the bytes mean.
+	//
+	// There is deliberately NO SPSSMissing counterpart on this struct.
+	// That knob's default ("auto") is the fidelity-preserving mode and
+	// its only alternative SUPPRESSES information — the `<var>_missing`
+	// siblings recording why each numeric value is missing. A knob
+	// whose sole effect is to discard data does not belong on the
+	// auto-detect convenience path; `pulse import spss
+	// --spss-missing=null` is the deliberate way to ask for it.
+	Charset string
+
 	// Overwrite replaces an existing managed handle of the same name.
 	// Defaults to false (collision → PULSE_IMPORT_HANDLE_EXISTS).
 	Overwrite bool

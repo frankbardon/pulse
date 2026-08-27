@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
@@ -16,6 +17,15 @@ import (
 // importAutoCmd wraps pulse.ImportFile as the auto-detect CLI leaf.
 // Source format is inferred from the extension when --format is unset.
 // On success the managed handle is written to PULSE_DATA_DIR/imports/.
+//
+// It carries the per-format READ knobs a source file cannot always answer for
+// itself — --sheet for Excel, --charset for SPSS — because auto-detection is
+// about the format identifier, not about the questions the format still has.
+// Without --charset a pre-Unicode `.sav` that declares no encoding fails
+// PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte and the managed pool has
+// no way to accept it at all.
+//
+// --spss-missing is deliberately absent; see importAutoSpec.
 func importAutoCmd() *cli.Command {
 	return &cli.Command{
 		Name:      "auto",
@@ -26,6 +36,7 @@ func importAutoCmd() *cli.Command {
 			&cli.StringFlag{Name: "handle", Usage: "Managed handle name (defaults to source basename)"},
 			&cli.StringFlag{Name: "ttl", Value: "7d", Usage: "Lifetime in the managed pool: Go duration (24h, 30m), day form (7d), or \"pin\""},
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name (ignored for non-Excel)"},
+			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage + " (ignored for non-SPSS)"},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing managed handle"},
 			&cli.BoolFlag{Name: "json", Usage: "Emit the JSON envelope"},
 		},
@@ -53,14 +64,7 @@ func importAutoCmd() *cli.Command {
 				return err
 			}
 
-			res, err := p.ImportFile(ctx, pulse.ImportSpec{
-				SourcePath: source,
-				Format:     cmd.String("format"),
-				Handle:     cmd.String("handle"),
-				TTL:        ttl,
-				Sheet:      cmd.String("sheet"),
-				Overwrite:  cmd.Bool("overwrite"),
-			})
+			res, err := p.ImportFile(ctx, importAutoSpec(cmd, source, ttl))
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
@@ -88,6 +92,33 @@ func importAutoCmd() *cli.Command {
 			}
 			return nil
 		},
+	}
+}
+
+// importAutoSpec projects the `import auto` flags onto the managed-import
+// spec. It is a separate function so the projection is assertable: a flag that
+// parses and then never reaches the spec changes nothing and says nothing,
+// which is the exact failure --charset existed to end elsewhere.
+//
+// It sets no SPSSMissing, and the leaf mounts no --spss-missing flag. That is
+// a decision, not an oversight. The mode's default ("auto") is the
+// fidelity-preserving one: the analytic column is null at every user-missing
+// position AND a generated `<var>_missing` sibling records WHY. The only other
+// value, "null", drops those siblings — its sole effect is to discard
+// information. A knob like that does not belong on the auto-detect convenience
+// path, where the caller has not even named the format; `pulse import spss
+// --spss-missing=null` is where asking for it is an explicit act. --charset is
+// the opposite case: without it, a file that is wrong about its own encoding
+// cannot be imported here by any means.
+func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) pulse.ImportSpec {
+	return pulse.ImportSpec{
+		SourcePath: source,
+		Format:     cmd.String("format"),
+		Handle:     cmd.String("handle"),
+		TTL:        ttl,
+		Sheet:      cmd.String("sheet"),
+		Charset:    cmd.String("charset"),
+		Overwrite:  cmd.Bool("overwrite"),
 	}
 }
 

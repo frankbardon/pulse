@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
@@ -426,9 +428,107 @@ func TestCharsetFlagOnEverySPSSReachableLeaf(t *testing.T) {
 	}
 	for _, sub := range ImportCommand().Commands {
 		switch sub.Name {
-		case "predict", "schema-template":
+		case "predict", "schema-template", "auto":
 			assertHasFlag(t, sub, "charset")
 		}
+	}
+}
+
+// TestImportAuto_CharsetWithoutMissingMode pins the E6-S3 asymmetry so a
+// later reader does not "finish the job" by adding the other flag.
+//
+// --charset belongs here because without it a `.sav` that is wrong about its
+// own encoding cannot be imported through the managed pool by ANY means.
+// --spss-missing does not, because its default is the fidelity-preserving
+// mode and its only other value SUPPRESSES the `<var>_missing` siblings that
+// record why each numeric value is missing. A knob whose sole effect is to
+// discard information does not belong on the auto-detect convenience path;
+// `pulse import spss --spss-missing=null` is where asking for it is explicit.
+func TestImportAuto_CharsetWithoutMissingMode(t *testing.T) {
+	var auto *cli.Command
+	for _, c := range ImportCommand().Commands {
+		if c.Name == "auto" {
+			auto = c
+		}
+	}
+	if auto == nil {
+		t.Fatal("`pulse import auto` is not mounted on the import command group")
+	}
+	assertHasFlag(t, auto, "charset")
+	// ...and the per-format knob it already carried must survive.
+	assertHasFlag(t, auto, "sheet")
+
+	for _, f := range auto.Flags {
+		for _, n := range f.Names() {
+			if n == "spss-missing" {
+				t.Error("`pulse import auto` grew a --spss-missing flag; " +
+					"the fidelity-preserving default is the only mode this leaf offers on purpose")
+			}
+		}
+	}
+}
+
+// TestImportAutoSpec_MapsEveryFlag pins the projection of the `import auto`
+// flags onto the managed-import spec. A flag that parses and then never
+// reaches the spec changes nothing and reports nothing — the silent failure
+// this story exists to close, one level further in.
+func TestImportAutoSpec_MapsEveryFlag(t *testing.T) {
+	var got pulse.ImportSpec
+	cmd := &cli.Command{
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "format"},
+			&cli.StringFlag{Name: "handle"},
+			&cli.StringFlag{Name: "sheet"},
+			&cli.StringFlag{Name: "charset"},
+			&cli.BoolFlag{Name: "overwrite"},
+		},
+		Action: func(_ context.Context, c *cli.Command) error {
+			got = importAutoSpec(c, "legacy.sav", 42*time.Second)
+			return nil
+		},
+	}
+	args := []string{"x", "--format", "spss", "--handle", "legacy", "--sheet", "Sheet2",
+		"--charset", "windows-1252", "--overwrite"}
+	if err := cmd.Run(context.Background(), args); err != nil {
+		t.Fatalf("running: %v", err)
+	}
+	want := pulse.ImportSpec{
+		SourcePath: "legacy.sav",
+		Format:     "spss",
+		Handle:     "legacy",
+		TTL:        42 * time.Second,
+		Sheet:      "Sheet2",
+		Charset:    "windows-1252",
+		Overwrite:  true,
+	}
+	if got.SourcePath != want.SourcePath || got.Format != want.Format ||
+		got.Handle != want.Handle || got.TTL != want.TTL || got.Sheet != want.Sheet ||
+		got.Charset != want.Charset || got.Overwrite != want.Overwrite {
+		t.Errorf("importAutoSpec = %+v, want %+v", got, want)
+	}
+	// The spec has no missing-mode slot at all, so there is nothing here
+	// for a future flag to quietly land in.
+}
+
+// TestImportAutoSpec_UnsetCharsetIsNotAnOverride. An absent flag reads as
+// "", and "" must mean "leave the file's own declaration in force" all the
+// way down — the same contract ParseMissingMode("") already honours. An
+// empty string forwarded as an override would make every non-SPSS import
+// carry a codepage request and every SPSS import ignore its own record 7/20.
+func TestImportAutoSpec_UnsetCharsetIsNotAnOverride(t *testing.T) {
+	var got pulse.ImportSpec
+	cmd := &cli.Command{
+		Flags: []cli.Flag{&cli.StringFlag{Name: "charset"}},
+		Action: func(_ context.Context, c *cli.Command) error {
+			got = importAutoSpec(c, "data.csv", 0)
+			return nil
+		},
+	}
+	if err := cmd.Run(context.Background(), []string{"x"}); err != nil {
+		t.Fatalf("running: %v", err)
+	}
+	if got.Charset != "" {
+		t.Errorf("Charset = %q with no --charset given, want empty", got.Charset)
 	}
 }
 

@@ -156,7 +156,7 @@ added without naming it somewhere under `skills/` or `docs/src/`.
 | `pulse export spss` | Export `.pulse` to SPSS `.sav` | [export spss](export-spss.md) |
 | `pulse export tsv` | Export `.pulse` to TSV | `--help` |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool | `--help` |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

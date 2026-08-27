@@ -555,7 +555,13 @@ func (m *Manager) openReader(spec Spec, format string) (pio.Reader, error) {
 			fmt.Sprintf("source file %q not found", spec.SourcePath),
 			map[string]any{"source_path": spec.SourcePath})
 	}
-	return pformat.NewReader(format, readFs, spec.SourcePath, pformat.ReaderOptions{Sheet: spec.Sheet})
+	// SPSSMissing is left unset on purpose — Spec carries no counterpart
+	// (see its Charset doc for why), and format.NewReader reads the empty
+	// string as "leave the default in force", not as an override.
+	return pformat.NewReader(format, readFs, spec.SourcePath, pformat.ReaderOptions{
+		Sheet:   spec.Sheet,
+		Charset: spec.Charset,
+	})
 }
 
 // openPulseAbsoluteCopy handles the pulse-passthrough case when the

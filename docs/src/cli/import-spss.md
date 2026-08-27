@@ -33,7 +33,7 @@ straight to the encoder. Inference never runs.
 ```
 pulse import spss --input PATH --output PATH.pulse [--schema FILE] [--json]
 pulse import predict --input PATH [--format spss] [--json]
-pulse import auto PATH [--handle NAME] [--ttl DUR] [--json]
+pulse import auto PATH [--handle NAME] [--ttl DUR] [--charset NAME] [--json]
 pulse convert PATH.sav OUT.csv
 ```
 
@@ -626,6 +626,27 @@ place to generate a label table from.
 `pulse import schema-template`, `pulse convert` and `pulse convert
 predict`, since a `.sav` can arrive through any of them. Every other
 format ignores both.
+
+`--charset` — and only `--charset` — additionally reaches `pulse import
+auto` and the `pulse_import` MCP tool, where it is spelled `charset`:
+
+```console
+$ pulse import auto legacy.sav --charset windows-1252
+```
+
+**The asymmetry is deliberate.** `--charset` is the only recourse for a
+file that is wrong about itself, so without it a legacy `.sav` is
+unimportable through the managed pool — and over MCP, unimportable full
+stop, since `pulse_import` is the only import path MCP exposes.
+`--spss-missing` is the opposite shape: its default (`auto`) is the
+fidelity-preserving mode, and its only other value suppresses the
+`<var>_missing` siblings that record *why* each numeric value is
+missing. A knob whose sole effect is to discard information does not
+belong on an auto-detect convenience path or on a general-purpose tool;
+`pulse import spss --spss-missing=null` is where asking for it is an
+explicit act. Both surfaces send no missing-mode at all, and an unset
+mode means "leave the default in force" — never an override with the
+empty string.
 
 The same inertness applies to the library and managed-import knobs that
 exist only to steer inference — `ImportJob.SampleRows`,
