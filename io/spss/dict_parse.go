@@ -54,12 +54,12 @@ type parser struct {
 
 // parseDictionary decodes the dictionary section of a `.sav` file: the header
 // record, the record type 2 variable records with their string continuations,
-// the record 3/4 value-label pairs, and the record type 999 terminator.
+// the record 3/4 value-label pairs, the record type 6 documents, the record
+// type 7 extension subtypes, and the record type 999 terminator.
 //
-// Record types 6 (documents) and 7 (extensions) are stepped over correctly —
-// their length prefixes are read so the walk stays aligned — but they are not
-// interpreted. Extension subtypes are E2-S3's; documents have no Pulse home
-// yet.
+// Documents and extension payloads are retained verbatim whether or not they
+// are interpreted, and an extension subtype this reader does not know is a
+// warning on dictionary.warnings, never a parse failure.
 //
 // On return, dictionary.dataOffset is the offset of the first byte after the
 // terminator. The data section is untouched.
@@ -76,6 +76,12 @@ func parseDictionary(b []byte) (*dictionary, error) {
 	if err := p.resolveValueLabels(d); err != nil {
 		return nil, err
 	}
+	// Extensions are interpreted only after the whole record walk, so the
+	// subtypes keyed to the variable list (7/11, 7/13) do not depend on
+	// record order. Nothing here can fail: every extension fault is a
+	// warning, because the record framing was already validated during the
+	// walk and a bad payload therefore cannot desynchronise anything.
+	p.applyExtensions(d)
 	return d, nil
 }
 
@@ -317,11 +323,11 @@ func (p *parser) parseRecords(d *dictionary) error {
 			return p.invalid(recordOff,
 				"a record type 4 appeared without an immediately preceding record type 3; the format binds them as a pair")
 		case recTypeDocument:
-			if err := p.skipDocumentRecord(); err != nil {
+			if err := p.parseDocumentRecord(d); err != nil {
 				return err
 			}
 		case recTypeExtension:
-			if err := p.skipExtensionRecord(); err != nil {
+			if err := p.parseExtensionRecord(d); err != nil {
 				return err
 			}
 		case recTypeTerminator:
@@ -605,9 +611,14 @@ func (p *parser) parseValueLabelRecord(d *dictionary) error {
 	return nil
 }
 
-// skipDocumentRecord steps over a record type 6. Document text has no Pulse
-// home yet; the length prefix is still read so the walk stays aligned.
-func (p *parser) skipDocumentRecord() error {
+// parseDocumentRecord reads a record type 6 and keeps its lines verbatim.
+//
+// Nothing is trimmed or re-wrapped. A document line is a fixed-width 80-byte
+// field, so its trailing spaces are indistinguishable from padding; deciding
+// which they are is a guess, and the round trip that has to write these lines
+// back needs the bytes that were actually there. Presentation is the
+// caller's problem.
+func (p *parser) parseDocumentRecord(d *dictionary) error {
 	nOff := p.off
 	n, err := p.i32("the document record line count")
 	if err != nil {
@@ -616,14 +627,34 @@ func (p *parser) skipDocumentRecord() error {
 	if n < 0 {
 		return p.invalid(nOff, "the document record declares %d lines; it cannot be negative", n)
 	}
-	return p.skip(int64(n)*documentLineLen,
-		fmt.Sprintf("the %d document line(s) of %d bytes it declares", n, documentLineLen))
+	// A line count claiming more bytes than remain is a corrupt length, not
+	// an allocation request.
+	if int64(n)*documentLineLen > int64(p.remaining()) {
+		return p.truncated(p.off,
+			fmt.Sprintf("the %d document line(s) of %d bytes it declares", n, documentLineLen))
+	}
+	for i := int32(0); i < n; i++ {
+		raw, err := p.take(documentLineLen,
+			fmt.Sprintf("document line %d of %d", i+1, n))
+		if err != nil {
+			return err
+		}
+		d.documents = append(d.documents, string(raw))
+	}
+	return nil
 }
 
-// skipExtensionRecord steps over a record type 7 of any subtype. Interpreting
-// the subtypes is E2-S3's job; a dictionary is allowed to contain none of
-// them at all, so nothing here may require one.
-func (p *parser) skipExtensionRecord() error {
+// parseExtensionRecord reads a record type 7 of any subtype and keeps its
+// payload verbatim. Interpretation happens after the walk, in
+// applyExtensions.
+//
+// The record's FRAMING is validated strictly here — a negative or
+// overreaching size/count would desynchronise every following record, so it
+// is a hard error. The payload's CONTENT is never validated here, because a
+// dictionary is allowed to contain no extension records at all and any
+// number of subtypes this reader has never seen.
+func (p *parser) parseExtensionRecord(d *dictionary) error {
+	recordOff := p.recordOff
 	subtype, err := p.i32("the extension record subtype")
 	if err != nil {
 		return err
@@ -641,8 +672,28 @@ func (p *parser) skipExtensionRecord() error {
 		return p.invalid(sizeOff,
 			"extension subtype %d declares size %d and count %d; neither can be negative", subtype, size, count)
 	}
-	return p.skip(int64(size)*int64(count),
+	n := int64(size) * int64(count)
+	if n > int64(p.remaining()) {
+		return p.truncated(p.off,
+			fmt.Sprintf("the %d x %d payload bytes of extension subtype %d", count, size, subtype))
+	}
+	payloadOff := p.off
+	raw, err := p.take(int(n),
 		fmt.Sprintf("the %d x %d payload bytes of extension subtype %d", count, size, subtype))
+	if err != nil {
+		return err
+	}
+	d.extensions = append(d.extensions, extensionRecord{
+		subtype:       subtype,
+		size:          size,
+		count:         count,
+		offset:        recordOff,
+		payloadOffset: payloadOff,
+		// The payload is copied rather than aliased: it outlives the parse
+		// and a caller holding the source buffer must be free to reuse it.
+		payload: append([]byte(nil), raw...),
+	})
+	return nil
 }
 
 // ---------------------------------------------------------------------------

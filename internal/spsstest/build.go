@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -28,6 +29,8 @@ func Build(spec Spec) ([]byte, error) {
 	for _, set := range plan.valueLabels {
 		writeValueLabelRecords(e, set)
 	}
+	writeDocumentRecord(e, plan)
+	writeExtensionRecords(e, plan)
 	writeTerminator(e)
 	writeData(e, plan)
 
@@ -52,6 +55,19 @@ type plan struct {
 	// variable, or 0 when unweighted.
 	weightIndex int32
 	ncases      int32
+
+	// extensions are the record type 7 payloads, already rendered and
+	// already in emission order. Rendering them during validation is what
+	// lets a malformed set definition be reported as a spec error rather
+	// than emitted as bytes no reader can make sense of.
+	extensions []renderedExtension
+}
+
+// renderedExtension is one record type 7 ready to emit.
+type renderedExtension struct {
+	subtype int32
+	size    int32
+	payload []byte
 }
 
 type resolvedVar struct {
@@ -176,7 +192,305 @@ func validate(spec Spec) (plan, error) {
 	if spec.UnknownCaseCount {
 		p.ncases = -1
 	}
+
+	for i, line := range spec.Documents {
+		if len(line) > DocumentLineLen {
+			return p, fmt.Errorf("spsstest: Documents[%d] is %d bytes, over the %d-byte document line width; a document line is a fixed-width field, and wrapping it here would invent a line the caller did not write", i, len(line), DocumentLineLen)
+		}
+		if !isASCIIPrintable(line) {
+			return p, fmt.Errorf("spsstest: Documents[%d] is not printable 7-bit ASCII; non-ASCII document text needs a declared encoding (record 7/20) to be unambiguous", i)
+		}
+	}
+
+	ext, err := planExtensions(spec, p.vars, byName)
+	if err != nil {
+		return p, err
+	}
+	p.extensions = ext
 	return p, nil
+}
+
+// planExtensions renders every record type 7 the spec asks for, in ascending
+// subtype order, with RawExtensions last. The order is fixed rather than
+// caller-controlled so output stays byte-deterministic.
+func planExtensions(spec Spec, vars []resolvedVar, byName map[string]resolvedVar) ([]renderedExtension, error) {
+	var out []renderedExtension
+
+	if mi := spec.MachineIntegerInfo; mi != nil {
+		e := &enc{bo: binary.LittleEndian}
+		for _, v := range []int32{mi.VersionMajor, mi.VersionMinor, mi.VersionRevision,
+			mi.MachineCode, mi.FloatingPointRep, mi.CompressionCode, mi.Endianness, mi.CharacterCode} {
+			e.i32(v)
+		}
+		out = append(out, renderedExtension{subtype: SubtypeMachineInteger, size: 4, payload: e.buf.Bytes()})
+	}
+
+	if mf := spec.MachineFloatInfo; mf != nil {
+		e := &enc{bo: binary.LittleEndian}
+		e.f64(mf.SysMis)
+		e.f64(mf.Highest)
+		e.f64(mf.Lowest)
+		out = append(out, renderedExtension{subtype: SubtypeMachineFloat, size: 8, payload: e.buf.Bytes()})
+	}
+
+	if text, err := renderSetRecord(spec, SubtypeVariableSets, byName); err != nil {
+		return nil, err
+	} else if text != "" {
+		out = append(out, renderedExtension{subtype: SubtypeVariableSets, size: 1, payload: []byte(text)})
+	}
+
+	if text, err := renderSetRecord(spec, SubtypeMRSets, byName); err != nil {
+		return nil, err
+	} else if text != "" {
+		out = append(out, renderedExtension{subtype: SubtypeMRSets, size: 1, payload: []byte(text)})
+	}
+
+	if spec.DisplayParams {
+		e := &enc{bo: binary.LittleEndian}
+		for _, v := range vars {
+			if v.Measure < MeasureUnset || v.Measure > MeasureScale {
+				return nil, fmt.Errorf("spsstest: %s has Measure %d, outside the 0..3 the record 7/11 measure field defines", v.Name, v.Measure)
+			}
+			if v.Align < AlignLeft || v.Align > AlignCenter {
+				return nil, fmt.Errorf("spsstest: %s has Align %d, outside the 0..2 the record 7/11 alignment field defines", v.Name, v.Align)
+			}
+			width := v.DisplayWidth
+			if width == 0 {
+				width = v.Print.Width
+			}
+			if width < 0 || width > 255 {
+				return nil, fmt.Errorf("spsstest: %s has DisplayWidth %d, outside 0..255", v.Name, width)
+			}
+			e.i32(int32(v.Measure))
+			if !spec.OmitDisplayWidth {
+				e.i32(int32(width))
+			}
+			e.i32(int32(v.Align))
+		}
+		out = append(out, renderedExtension{subtype: SubtypeDisplayParams, size: 4, payload: e.buf.Bytes()})
+	}
+
+	if text, err := renderLongNames(vars); err != nil {
+		return nil, err
+	} else if text != "" {
+		out = append(out, renderedExtension{subtype: SubtypeLongNames, size: 1, payload: []byte(text)})
+	}
+
+	if spec.CaseCount64 != nil {
+		if *spec.CaseCount64 < 0 {
+			return nil, fmt.Errorf("spsstest: CaseCount64 is %d; a case count cannot be negative", *spec.CaseCount64)
+		}
+		e := &enc{bo: binary.LittleEndian}
+		e.i64(1) // the spec's constant leading field, and an endianness probe
+		e.i64(*spec.CaseCount64)
+		out = append(out, renderedExtension{subtype: SubtypeNumberOfCases, size: 8, payload: e.buf.Bytes()})
+	}
+
+	if spec.FileAttributes != "" {
+		if err := checkExtensionText("FileAttributes", spec.FileAttributes); err != nil {
+			return nil, err
+		}
+		out = append(out, renderedExtension{subtype: SubtypeFileAttributes, size: 1, payload: []byte(spec.FileAttributes)})
+	}
+	if spec.VarAttributes != "" {
+		if err := checkExtensionText("VarAttributes", spec.VarAttributes); err != nil {
+			return nil, err
+		}
+		out = append(out, renderedExtension{subtype: SubtypeVarAttributes, size: 1, payload: []byte(spec.VarAttributes)})
+	}
+
+	if text, err := renderSetRecord(spec, SubtypeMRSetsExtended, byName); err != nil {
+		return nil, err
+	} else if text != "" {
+		out = append(out, renderedExtension{subtype: SubtypeMRSetsExtended, size: 1, payload: []byte(text)})
+	}
+
+	if spec.CharacterEncoding != "" {
+		if !isASCIIPrintable(spec.CharacterEncoding) {
+			return nil, fmt.Errorf("spsstest: CharacterEncoding %q is not printable 7-bit ASCII; a charset name that needs a charset to read is a contradiction", spec.CharacterEncoding)
+		}
+		out = append(out, renderedExtension{subtype: SubtypeCharacterEncoding, size: 1, payload: []byte(spec.CharacterEncoding)})
+	}
+
+	for i, raw := range spec.RawExtensions {
+		size := raw.Size
+		if size == 0 {
+			size = 1
+		}
+		if size < 0 {
+			return nil, fmt.Errorf("spsstest: RawExtensions[%d] declares element size %d; it cannot be negative", i, size)
+		}
+		if len(raw.Payload)%int(size) != 0 {
+			return nil, fmt.Errorf("spsstest: RawExtensions[%d] has a %d-byte payload, which is not a multiple of its %d-byte element size; the count field is derived from the two and would not describe the bytes", i, len(raw.Payload), size)
+		}
+		out = append(out, renderedExtension{subtype: raw.Subtype, size: size, payload: append([]byte(nil), raw.Payload...)})
+	}
+	return out, nil
+}
+
+// checkExtensionText validates a free-text extension payload. Newlines are
+// legal here — the attribute records are line-structured — so the check is
+// printable ASCII plus \n and \t, not the stricter isASCIIPrintable.
+func checkExtensionText(what, s string) error {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '\n' || c == '\t' {
+			continue
+		}
+		if c < 0x20 || c > 0x7E {
+			return fmt.Errorf("spsstest: %s contains byte 0x%02X at index %d; extension text must be printable 7-bit ASCII, tab or newline", what, c, i)
+		}
+	}
+	return nil
+}
+
+// renderLongNames builds the record 7/13 payload: TAB-separated SHORT=Long
+// pairs, no trailing tab.
+func renderLongNames(vars []resolvedVar) (string, error) {
+	var parts []string
+	for _, v := range vars {
+		if v.LongName == "" {
+			continue
+		}
+		if !isASCIIPrintable(v.LongName) {
+			return "", fmt.Errorf("spsstest: %s has a LongName that is not printable 7-bit ASCII; a non-ASCII name needs a declared encoding (record 7/20)", v.Name)
+		}
+		if strings.ContainsAny(v.LongName, "=\t\n") {
+			return "", fmt.Errorf("spsstest: %s has LongName %q containing '=', a tab or a newline; those are the record 7/13 payload's own delimiters and there is no escape for them", v.Name, v.LongName)
+		}
+		if len(v.LongName) > MaxLongNameLen {
+			return "", fmt.Errorf("spsstest: %s has a %d-byte LongName, over the %d-byte SPSS limit", v.Name, len(v.LongName), MaxLongNameLen)
+		}
+		parts = append(parts, v.Name+"="+v.LongName)
+	}
+	return strings.Join(parts, "\t"), nil
+}
+
+// renderSetRecord builds the text payload of one of the three set-carrying
+// subtypes: 5, 7 and 19. Subtype 5 additionally carries any VariableSets,
+// which are emitted after the response sets.
+func renderSetRecord(spec Spec, subtype int32, byName map[string]resolvedVar) (string, error) {
+	var b strings.Builder
+	for i, set := range spec.MultipleResponseSets {
+		st := set.Subtype
+		if st == 0 {
+			st = SubtypeMRSets
+		}
+		switch st {
+		case SubtypeVariableSets, SubtypeMRSets, SubtypeMRSetsExtended:
+		default:
+			return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) declares subtype %d; a response set rides record 7/5, 7/7 or 7/19", i, set.Name, st)
+		}
+		if st != subtype {
+			continue
+		}
+		text, err := renderMRSet(i, set, byName)
+		if err != nil {
+			return "", err
+		}
+		b.WriteString(text)
+	}
+
+	if subtype == SubtypeVariableSets {
+		for i, vs := range spec.VariableSets {
+			if vs.Name == "" || strings.HasPrefix(vs.Name, "$") {
+				return "", fmt.Errorf("spsstest: VariableSets[%d] name %q is empty or begins with '$'; a leading '$' is what marks a multiple-response set, so a variable set carrying one would be indistinguishable from one", i, vs.Name)
+			}
+			if len(vs.Vars) == 0 {
+				return "", fmt.Errorf("spsstest: VariableSets[%d] (%s) names no variables", i, vs.Name)
+			}
+			for _, name := range vs.Vars {
+				if _, ok := byName[name]; !ok {
+					return "", fmt.Errorf("spsstest: VariableSets[%d] (%s) names no declared variable: %q", i, vs.Name, name)
+				}
+			}
+			b.WriteString(vs.Name + "=")
+			for _, name := range vs.Vars {
+				b.WriteString(" " + name)
+			}
+			b.WriteString("\n")
+		}
+	}
+	return b.String(), nil
+}
+
+// renderMRSet builds one multiple-response set definition line.
+//
+// The grammar, from the specification:
+//
+//	name '=' ( 'C' ' ' | 'D' counted | 'E' ' ' ('1'|'11') ' ' counted )
+//	         ' ' counted-label ( ' ' varname )* '\n'
+//
+// where a counted string is a decimal byte length, a space, and that many
+// bytes.
+func renderMRSet(i int, set MRSet, byName map[string]resolvedVar) (string, error) {
+	if !strings.HasPrefix(set.Name, "$") {
+		return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] name %q does not begin with '$'; SPSS requires it, and it is the only thing separating a response set from a plain variable set inside record 7/5", i, set.Name)
+	}
+	if strings.ContainsAny(set.Name, "= \n") {
+		return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] name %q contains '=', a space or a newline, which are the payload's delimiters", i, set.Name)
+	}
+	if !isASCIIPrintable(set.Label) {
+		return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) has a label that is not printable 7-bit ASCII", i, set.Name)
+	}
+	if len(set.Vars) == 0 {
+		return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) names no variables", i, set.Name)
+	}
+	for _, name := range set.Vars {
+		if _, ok := byName[name]; !ok {
+			return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) names no declared variable: %q", i, set.Name, name)
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString(set.Name)
+	b.WriteString("=")
+	switch set.Kind {
+	case MRCategory:
+		if set.CountedValue != "" {
+			return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) is a multiple-category set but declares a CountedValue; only a dichotomy has one, and the wire form has nowhere to put it", i, set.Name)
+		}
+		if set.Extended {
+			return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) is a multiple-category set but sets Extended; the 'E' form is a dichotomy form", i, set.Name)
+		}
+		b.WriteString("C ")
+	case MRDichotomy:
+		if set.CountedValue == "" {
+			return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) is a multiple-dichotomy set with no CountedValue; without it nothing says which value counts as selected", i, set.Name)
+		}
+		if !isASCIIPrintable(set.CountedValue) {
+			return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) has a CountedValue that is not printable 7-bit ASCII", i, set.Name)
+		}
+		if set.Extended {
+			b.WriteString("E ")
+			if set.LabelFromVarLabel {
+				b.WriteString("11 ")
+			} else {
+				b.WriteString("1 ")
+			}
+		} else {
+			if set.LabelFromVarLabel {
+				return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) sets LabelFromVarLabel without Extended; the label source is only expressible in the 'E' form", i, set.Name)
+			}
+			b.WriteString("D")
+		}
+		b.WriteString(countedString(set.CountedValue))
+		b.WriteString(" ")
+	default:
+		return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) has no Kind; use MRDichotomy or MRCategory", i, set.Name)
+	}
+	b.WriteString(countedString(set.Label))
+	for _, name := range set.Vars {
+		b.WriteString(" " + name)
+	}
+	b.WriteString("\n")
+	return b.String(), nil
+}
+
+// countedString renders the format's counted-string form: a decimal byte
+// length, a space, then the bytes.
+func countedString(s string) string {
+	return strconv.Itoa(len(s)) + " " + s
 }
 
 // resolveLabelSet validates one record 3/4 pair and resolves its variable
@@ -389,6 +703,32 @@ func writeValueLabelRecords(e *enc, set resolvedLabelSet) {
 	}
 }
 
+// writeDocumentRecord emits record type 6: a line count, then that many
+// fixed-width space-padded lines.
+func writeDocumentRecord(e *enc, p plan) {
+	if len(p.spec.Documents) == 0 {
+		return
+	}
+	e.i32(recTypeDocument)
+	e.i32(int32(len(p.spec.Documents)))
+	for _, line := range p.spec.Documents {
+		e.ascii(line, DocumentLineLen)
+	}
+}
+
+// writeExtensionRecords emits every planned record type 7. The count field is
+// derived from the payload length rather than declared, so the two can never
+// disagree.
+func writeExtensionRecords(e *enc, p plan) {
+	for _, x := range p.extensions {
+		e.i32(recTypeExtension)
+		e.i32(x.subtype)
+		e.i32(x.size)
+		e.i32(int32(len(x.payload)) / x.size)
+		e.raw(x.payload)
+	}
+}
+
 // writeTerminator emits record type 999, which closes the dictionary.
 func writeTerminator(e *enc) {
 	e.i32(recTypeTerminator)
@@ -431,6 +771,12 @@ type enc struct {
 func (e *enc) i32(v int32) {
 	var b [4]byte
 	e.bo.PutUint32(b[:], uint32(v))
+	e.raw(b[:])
+}
+
+func (e *enc) i64(v int64) {
+	var b [8]byte
+	e.bo.PutUint64(b[:], uint64(v))
 	e.raw(b[:])
 }
 

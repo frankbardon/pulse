@@ -46,7 +46,7 @@ func FuzzParseDictionary(f *testing.F) {
 		if err != nil {
 			f.Fatalf("parseDictionary: %v", err)
 		}
-		f.Add(splice(b, d.dataOffset-8, concat(documentRecord(1), extensionRecord(3, 4, 8))))
+		f.Add(splice(b, d.dataOffset-8, concat(documentRecord(1), extRecordBytes(3, 4, 8))))
 	}
 	f.Add([]byte(nil))
 	f.Add([]byte("$FL2"))

@@ -657,27 +657,27 @@ func TestParseDictionary_SkipsDocumentAndExtensionRecords(t *testing.T) {
 		},
 		{
 			name:    "extension subtype 3 (machine integer info)",
-			inject:  extensionRecord(3, 4, 8),
+			inject:  extRecordBytes(3, 4, 8),
 			grownBy: 16 + 32,
 		},
 		{
 			name:    "extension subtype 4 (machine float info)",
-			inject:  extensionRecord(4, 8, 3),
+			inject:  extRecordBytes(4, 8, 3),
 			grownBy: 16 + 24,
 		},
 		{
 			name:    "extension subtype 13 (long variable names)",
-			inject:  extensionRecord(13, 1, 21),
+			inject:  extRecordBytes(13, 1, 21),
 			grownBy: 16 + 21,
 		},
 		{
 			name:    "an extension record with an empty payload",
-			inject:  extensionRecord(999, 1, 0),
+			inject:  extRecordBytes(999, 1, 0),
 			grownBy: 16,
 		},
 		{
 			name:    "several extension records in a row",
-			inject:  concat(extensionRecord(3, 4, 8), extensionRecord(4, 8, 3), documentRecord(1)),
+			inject:  concat(extRecordBytes(3, 4, 8), extRecordBytes(4, 8, 3), documentRecord(1)),
 			grownBy: (16 + 32) + (16 + 24) + (8 + 80),
 		},
 	}
@@ -1292,8 +1292,8 @@ func documentRecord(n int) []byte {
 	return append(out, padASCII("", n*documentLineLen)...)
 }
 
-// extensionRecord renders a record type 7 with a zero-filled payload.
-func extensionRecord(subtype, size, count int32) []byte {
+// extRecordBytes renders a record type 7 with a zero-filled payload.
+func extRecordBytes(subtype, size, count int32) []byte {
 	out := i32le(int32(recTypeExtension), subtype, size, count)
 	return append(out, make([]byte, int(size)*int(count))...)
 }
@@ -1314,6 +1314,14 @@ func i32le(vs ...int32) []byte {
 	out := make([]byte, 0, 4*len(vs))
 	for _, v := range vs {
 		out = binary.LittleEndian.AppendUint32(out, uint32(v))
+	}
+	return out
+}
+
+func i64le(vs ...int64) []byte {
+	out := make([]byte, 0, 8*len(vs))
+	for _, v := range vs {
+		out = binary.LittleEndian.AppendUint64(out, uint64(v))
 	}
 	return out
 }

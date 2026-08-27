@@ -1238,6 +1238,27 @@ const (
 	// carry the record under DetailSPSSRecord and the byte offset the
 	// read ran past under DetailSPSSOffset.
 	PULSE_SPSS_DICT_TRUNCATED Code = "PULSE_SPSS_DICT_TRUNCATED"
+
+	// PULSE_SPSS_EXTENSION_UNKNOWN indicates an SPSS `.sav` dictionary
+	// carries a record type 7 extension subtype this reader does not
+	// interpret. It is a WARNING, never a parse failure: real SPSS
+	// versions emit subtypes the published format description does not
+	// list, and refusing such a file would reject data that is otherwise
+	// perfectly readable. The record's bytes are retained verbatim so
+	// nothing is lost. Details carry the subtype under DetailSPSSSubtype
+	// and the record's byte offset under DetailSPSSOffset.
+	PULSE_SPSS_EXTENSION_UNKNOWN Code = "PULSE_SPSS_EXTENSION_UNKNOWN"
+
+	// PULSE_SPSS_EXTENSION_INVALID indicates a record type 7 extension
+	// subtype this reader does interpret carried a payload that does not
+	// match the shape the format defines for it — a declared element size
+	// or count the subtype does not allow, a truncated payload, or a
+	// field naming a variable the dictionary does not have. It is a
+	// WARNING: the record's framing was sound, so the dictionary walk
+	// stayed aligned, and the raw bytes are retained. Only the
+	// interpretation is dropped. Details carry the subtype under
+	// DetailSPSSSubtype and a byte offset under DetailSPSSOffset.
+	PULSE_SPSS_EXTENSION_INVALID Code = "PULSE_SPSS_EXTENSION_INVALID"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -1269,6 +1290,11 @@ const (
 	// byte offset into the `.sav` file at which a PULSE_SPSS_* error was
 	// detected.
 	DetailSPSSOffset = "offset"
+
+	// DetailSPSSSubtype is the CodedError.Details key carrying the record
+	// type 7 extension subtype a PULSE_SPSS_EXTENSION_* diagnostic refers
+	// to, as an int32.
+	DetailSPSSSubtype = "subtype"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1449,6 +1475,8 @@ var allCodes = []Code{
 	PULSE_TEMPLATE_RENDER_INVALID,
 	PULSE_SPSS_DICT_INVALID,
 	PULSE_SPSS_DICT_TRUNCATED,
+	PULSE_SPSS_EXTENSION_UNKNOWN,
+	PULSE_SPSS_EXTENSION_INVALID,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

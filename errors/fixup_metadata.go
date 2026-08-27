@@ -1803,4 +1803,24 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_EXTENSION_UNKNOWN: {
+		Message: "The SPSS .sav dictionary carries a record type 7 extension subtype this reader does not interpret. This is a warning, not a failure: the record's framing was read so the dictionary walk stayed aligned, its bytes were retained verbatim, and the rest of the file parsed normally. Real SPSS versions emit subtypes the published format description does not list, so an unrecognised subtype is expected rather than exceptional.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "No action is needed unless the subtype named in the details carries data you require. If it does, report the subtype so the reader can learn it; meanwhile re-saving the file from a different SPSS or PSPP version usually drops writer-specific extension records.",
+			},
+		},
+	},
+	PULSE_SPSS_EXTENSION_INVALID: {
+		Message: "A record type 7 extension subtype this reader does interpret carried a payload that does not match the shape the format defines for it — an element size or count the subtype does not allow, a payload that ran out early, or a field naming a variable the dictionary does not contain. This is a warning: the record's framing was sound so the dictionary walk stayed aligned and the raw bytes were retained; only the interpretation of that one record was dropped.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Check what the skipped subtype named in the details would have supplied — long variable names, measurement levels, the character encoding — and whether the import still carries it. Re-saving the file from SPSS or PSPP rewrites the extension records and usually clears a malformed one.",
+			},
+		},
+	},
 }

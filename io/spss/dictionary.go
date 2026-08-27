@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"math"
 	"strings"
+
+	"github.com/frankbardon/pulse/errors"
 )
 
 // Fixed sizes taken from the GNU PSPP System File Format specification.
@@ -188,9 +190,23 @@ func (m missingSpec) discreteCount() int {
 // variable is one SPSS variable: its record type 2 plus the continuation
 // records that carry the rest of a string wider than 8 bytes.
 type variable struct {
-	// name is the 8-byte short name with its space padding stripped. The
-	// real, case-preserving name lives in the record 7/13 extension (E2-S3).
+	// name is the 8-byte short name with its space padding stripped. It is
+	// the record type 2 field and nothing else; the real, case-preserving
+	// name lives in longName. Use fieldName, not this, when a name is
+	// wanted for display or for a Pulse field.
 	name string
+
+	// longName is the variable's real name as declared by the record 7/13
+	// long variable names extension, or "" when the file declares none.
+	// Where it is present it supersedes name — the short name is a
+	// truncated, upper-cased derivation SPSS keeps only for backward
+	// compatibility.
+	longName string
+
+	// display is the record 7/11 variable display parameters entry:
+	// measurement level, display width and alignment. Absent when the file
+	// carries no 7/11 record.
+	display displayParams
 
 	// index is the 1-based dictionary element index of the variable's first
 	// element. Records 4, the header weight_index and every other
@@ -230,6 +246,19 @@ type variable struct {
 
 // isString reports whether the variable is a string variable.
 func (v variable) isString() bool { return v.width > 0 }
+
+// fieldName returns the name to use for the variable: the record 7/13 long
+// name when the file declares one, and the 8-byte short name otherwise.
+//
+// This is the only name-selection rule in the package. Reading .name
+// directly anywhere a name reaches a caller would silently prefer "QN1A" to
+// "SatisfactionWithService", which is the whole reason record 7/13 exists.
+func (v variable) fieldName() string {
+	if v.longName != "" {
+		return v.longName
+	}
+	return v.name
+}
 
 // valueLabel is one (value, label) pair inside a record type 3.
 type valueLabel struct {
@@ -331,6 +360,73 @@ type dictionary struct {
 	// 999 terminator — that is, the first byte of the data section. It is
 	// the handoff point for E2-S4.
 	dataOffset int
+
+	// extensions are every record type 7 in the file, in file order, with
+	// their payloads copied verbatim. Interpreted subtypes ALSO appear
+	// here: the typed slots below are a projection of these bytes, never a
+	// replacement for them, so a subtype this reader interprets partially
+	// (or wrongly) has not lost anything.
+	extensions []extensionRecord
+
+	// documents are the record type 6 lines in file order, each still the
+	// full fixed-width 80-byte field. They are held verbatim and
+	// uninterpreted: document text is free-form user prose with no Pulse
+	// home, and trimming it here would be a guess about which trailing
+	// spaces were padding.
+	documents []string
+
+	// machineInteger is the record 7/3 payload. Its present field is false
+	// when the file carries no 7/3.
+	machineInteger machineIntegerInfo
+
+	// machineFloat is the record 7/4 payload, which declares the file's own
+	// sysmis/highest/lowest sentinels. Its present field is false when the
+	// file carries no 7/4 — the common case, which is why sysmis above is
+	// seeded from the spec default rather than from this.
+	machineFloat machineFloatInfo
+
+	// caseCount64 is the record 7/16 64-bit case count, valid only when
+	// hasCaseCount64 is set. It supersedes header.caseCount, which is an
+	// int32 and therefore cannot express a file of more than 2^31-1 cases.
+	caseCount64    int64
+	hasCaseCount64 bool
+
+	// charsetName is the record 7/20 character encoding name, or "" when
+	// the file declares none. It is the NAME only; decoding with it is
+	// E3-S3's job.
+	charsetName string
+
+	// mrSets are the multiple-response set definitions from records 7/5,
+	// 7/7 and 7/19, merged by name with the later subtype winning. Each
+	// element is either an *mrDichotomySet or an *mrCategorySet — a type
+	// switch, not a flag test, is what tells them apart.
+	mrSets []multipleResponseSet
+
+	// variableSets are the display groupings that also ride record 7/5.
+	// They are NOT response sets and must never be treated as one.
+	variableSets []variableSet
+
+	// hasDisplayParams records whether a record 7/11 was applied, so an
+	// absent record is distinguishable from one declaring every variable
+	// unset.
+	hasDisplayParams bool
+
+	// warnings are the non-fatal diagnostics raised while parsing: an
+	// extension subtype this reader does not interpret, or one whose
+	// payload did not match its declared shape. A warning never stops a
+	// parse; the bytes behind every one of them are still in extensions.
+	warnings []*errors.CodedError
+}
+
+// rawExtension returns the first record type 7 with the given subtype, and
+// whether the file carried one.
+func (d *dictionary) rawExtension(subtype int32) (extensionRecord, bool) {
+	for _, x := range d.extensions {
+		if x.subtype == subtype {
+			return x, true
+		}
+	}
+	return extensionRecord{}, false
 }
 
 // variableByIndex returns the variable owning the given 1-based dictionary

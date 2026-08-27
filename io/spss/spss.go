@@ -13,17 +13,32 @@
 //
 // # Scope today
 //
-// Record types 6 (documents) and 7 (extensions) are stepped over correctly —
-// their length prefixes are read so the walk stays aligned on the terminator
-// — but they are not interpreted. A dictionary containing no extension
-// records at all is legal and common, so nothing in this package may require
-// one; the system-missing sentinel in particular defaults to the spec value
-// and treats record 7/4 as an override rather than a precondition.
+// Record type 6 documents are captured verbatim, and the record type 7
+// extension subtypes that carry the metadata worth having are interpreted:
+// 7/3 machine integer info, 7/4 machine float sentinels, 7/5 / 7/7 / 7/19
+// multiple-response and variable sets, 7/11 measure level and display
+// parameters, 7/13 long variable names, 7/16 the 64-bit case count and 7/20
+// the character encoding NAME. Every extension record is ALSO retained
+// verbatim, interpreted or not, so the typed slots are a projection of the
+// bytes rather than a replacement for them.
+//
+// A dictionary containing no extension records at all is legal and common,
+// so nothing in this package may require one; the system-missing sentinel in
+// particular defaults to the spec value and treats record 7/4 as an override
+// rather than a precondition, and only adopts a declared sentinel from a
+// coherent sysmis < lowest < highest triple.
+//
+// Deliberately not interpreted: 7/10 extra product info and 7/17 / 7/18
+// attributes, which are free-form text with no Pulse home and are captured
+// verbatim without warning; 7/14, 7/21 and 7/22, the very-long-string
+// records, which belong to a later story and warn as unrecognised until it
+// lands. Charset DECODING is not done here either — 7/20's name is recorded,
+// and nothing is transcoded with it.
 //
 // The data section is not read yet. dictionary.dataOffset is the byte offset
 // of its first byte.
 //
-// # Errors
+// # Errors and warnings
 //
 // Every parse failure is a *errors.CodedError carrying
 // PULSE_SPSS_DICT_INVALID (structurally malformed) or
@@ -31,6 +46,17 @@
 // offset both in the message and in Details under errors.DetailSPSSRecord and
 // errors.DetailSPSSOffset. Malformed input never panics: every read is
 // bounds-checked before it happens.
+//
+// Extension records are the one place the parser tolerates rather than
+// rejects. An unrecognised subtype yields one PULSE_SPSS_EXTENSION_UNKNOWN
+// warning on dictionary.warnings; a recognised subtype whose payload does not
+// match its shape yields PULSE_SPSS_EXTENSION_INVALID. Neither stops a parse,
+// because real SPSS versions emit subtypes no published description lists and
+// refusing such a file would reject data that is otherwise perfectly
+// readable. The line is drawn at record FRAMING: a size or count that would
+// desynchronise the walk is still a hard error, since resuming from a
+// desynchronised offset would produce a plausible dictionary describing
+// nothing in the file.
 package spss
 
 import (

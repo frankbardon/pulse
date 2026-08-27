@@ -20,35 +20,55 @@
 //     hand. See the offset walkthrough on TestReferenceFixture_HandVerified in
 //     spsstest_test.go, and [ReferenceSpec], which produces it.
 //
-// The hand-verification was additionally corroborated against an independent
-// implementation — R's `foreign::read.spss`, whose C reader shares no code with
-// anything here — which recovered the reference fixture's variable names,
-// variable label, value labels, string widths and system-missing datum exactly
-// as declared, as well as a larger fixture exercising a shared value-label set,
-// a string value label, a weight variable and a 20-byte string. That check is
-// not automated (it needs R and is not a build dependency); it is recorded here
-// so a future change can repeat it:
+// The hand-verification was additionally corroborated against two independent
+// implementations whose C readers share no code with anything here — R's
+// `foreign::read.spss` and R's `haven` (ReadStat). They recovered the
+// reference fixture's variable names, variable label, value labels, string
+// widths and system-missing datum exactly as declared, as well as a larger
+// fixture exercising a shared value-label set, a string value label, a weight
+// variable and a 20-byte string.
+//
+// [ExtensionReferenceSpec] was cross-checked the same way. Both readers
+// recovered its record 7/13 long names (RespondentId, FullName); `haven`
+// additionally recovered its record 7/11 display widths (10, 4, 12) in the
+// right positions, which is what pins the measure/width/alignment field order
+// inside each triple; and `foreign` flagged exactly one record as
+// unrecognised — the deliberately-unknown subtype 4242 — which means it
+// accepted the framing and subtype tags of every other extension record.
+// ReadStat parses subtype 7 strictly and rejected a fixture with a bad type
+// code there, so the multiple-response grammar is corroborated too.
+//
+// Three constructs got NO independent corroboration, because neither reader
+// interprets them: the subtype 19 'E' extended form, multiple-response
+// definitions carried on subtype 5, and the two-int32-per-variable form of
+// record 7/11. Those follow the PSPP specification alone.
+//
+// None of this is automated (it needs R and is not a build dependency); it is
+// recorded here so a future change can repeat it:
 //
 //	write Build(ReferenceSpec()) to reference.sav, then
 //	Rscript -e 'print(foreign::read.spss("reference.sav", to.data.frame=FALSE))'
+//	Rscript -e 'print(haven::read_sav("reference.sav"))'
 //
 // # Scope
 //
-// This is the v1 subset: the file header, record type 2 variable records
-// (numeric and string, with string continuation records), record type 3/4
-// value labels, variable labels, the record type 999 dictionary terminator,
-// and an uncompressed data section. Little-endian only.
+// The file header, record type 2 variable records (numeric and string, with
+// string continuation records), record type 3/4 value labels, variable
+// labels, record type 6 documents, the record type 7 extension subtypes
+// listed on [Spec], the record type 999 dictionary terminator, and an
+// uncompressed data section. Little-endian only.
 //
-// Deliberately absent, each owned by a later story: extension records (type
-// 7 subtypes), bytecode compression, ZSAV, non-ASCII codepages, very long
-// strings (>255 bytes), big-endian output, missing-value specs and
-// multiple-response sets. The spec types carry the axes for those
+// Deliberately absent, each owned by a later story: bytecode compression,
+// ZSAV, non-ASCII codepages, very long strings (>255 bytes), big-endian
+// output and missing-value specs. The spec types carry the axes for those
 // ([Compression], [ByteOrder], Var.Width) so they can be filled in without
 // reshaping the API.
 //
-// No extension (type 7) records are emitted at all. They are all optional per
-// the spec; a reader that requires one is reading something the format does
-// not promise.
+// Every extension record is optional per the format, and a spec that asks for
+// none emits none: [ReferenceSpec] still produces a file with no record type
+// 7 at all, byte-for-byte as it did before extensions existed here. A reader
+// that requires an extension record is reading something the format does not
+// promise, and that fixture is what proves it.
 //
 // # Determinism
 //
@@ -136,8 +156,42 @@ const (
 	recTypeVariable   int32 = 2
 	recTypeValueLabel int32 = 3
 	recTypeLabelVars  int32 = 4
+	recTypeDocument   int32 = 6
+	recTypeExtension  int32 = 7
 	recTypeTerminator int32 = 999
 )
+
+// Record type 7 extension subtypes this package can emit.
+const (
+	// SubtypeMachineInteger is 7/3: eight int32s of machine integer info.
+	SubtypeMachineInteger int32 = 3
+	// SubtypeMachineFloat is 7/4: the sysmis, highest and lowest doubles.
+	SubtypeMachineFloat int32 = 4
+	// SubtypeVariableSets is 7/5, the older text set-definition record.
+	SubtypeVariableSets int32 = 5
+	// SubtypeMRSets is 7/7: multiple-response set definitions.
+	SubtypeMRSets int32 = 7
+	// SubtypeDisplayParams is 7/11: measure, display width and alignment.
+	SubtypeDisplayParams int32 = 11
+	// SubtypeLongNames is 7/13: the SHORT=Long name mapping.
+	SubtypeLongNames int32 = 13
+	// SubtypeNumberOfCases is 7/16: the 64-bit case count.
+	SubtypeNumberOfCases int32 = 16
+	// SubtypeFileAttributes is 7/17: data-file attribute text.
+	SubtypeFileAttributes int32 = 17
+	// SubtypeVarAttributes is 7/18: per-variable attribute text.
+	SubtypeVarAttributes int32 = 18
+	// SubtypeMRSetsExtended is 7/19: the extended multiple-response set
+	// record, which adds the E form carrying a counted-value label source.
+	SubtypeMRSetsExtended int32 = 19
+	// SubtypeCharacterEncoding is 7/20: the IANA-ish charset name.
+	SubtypeCharacterEncoding int32 = 20
+)
+
+// DocumentLineLen is the fixed width of one record type 6 document line.
+// Lines are space-padded out to it, which is why a document line cannot
+// carry a meaningful trailing space.
+const DocumentLineLen = 80
 
 // typeStringContinuation is the record type 2 `type` field value marking a
 // continuation record for a string wider than 8 bytes.
@@ -163,6 +217,11 @@ const (
 	// a single byte so 255 is the hard ceiling; the spec's documented maximum
 	// varies from 60 to 120.
 	MaxValueLabelLen = 120
+
+	// MaxLongNameLen is the longest name the record 7/13 long variable
+	// names extension may declare. SPSS 12 introduced long names with a
+	// 64-byte ceiling and it has not moved since.
+	MaxLongNameLen = 64
 
 	// MaxShortStringWidth is the widest string variable that can carry value
 	// labels through records 3/4. Anything wider needs record 7/21 long string
@@ -274,6 +333,236 @@ type Var struct {
 	// Write copies Print.
 	Print Format
 	Write Format
+
+	// LongName is the variable's real, case-preserving name, emitted in the
+	// record 7/13 long variable names extension as SHORT=LongName. Empty
+	// means the variable has no long name and the short Name is its only
+	// name.
+	//
+	// This is a separate slot rather than a loosening of Name on purpose:
+	// Name is the 8-byte record type 2 field and stays subject to the short
+	// name rules, because those two names really are two different fields
+	// with two different rule sets. Emitting a long name does not change
+	// what the record type 2 carries.
+	LongName string
+
+	// Measure is the variable's measurement level, emitted in the record
+	// 7/11 variable display parameters extension. MeasureUnset (the zero
+	// value) means the variable contributes no measure of its own; the
+	// record is emitted for every variable or for none, so an unset measure
+	// still occupies its slot with the value 0.
+	Measure Measure
+
+	// DisplayWidth is the column width the record 7/11 extension declares.
+	// Zero falls back to the print format width, which is what SPSS does.
+	DisplayWidth int
+
+	// Align is the alignment the record 7/11 extension declares. AlignLeft
+	// is the zero value and is a real alignment, not "unset" — 7/11 has no
+	// unset alignment.
+	Align Alignment
+}
+
+// Measure is the record 7/11 measurement level of a variable.
+type Measure int32
+
+const (
+	// MeasureUnset is the zero value. Files written by older SPSS versions
+	// carry it, and it means the writer declared no level.
+	MeasureUnset Measure = 0
+	// MeasureNominal is an unordered categorical level.
+	MeasureNominal Measure = 1
+	// MeasureOrdinal is an ordered categorical level.
+	MeasureOrdinal Measure = 2
+	// MeasureScale is a continuous / interval level.
+	MeasureScale Measure = 3
+)
+
+func (m Measure) String() string {
+	switch m {
+	case MeasureUnset:
+		return "unset"
+	case MeasureNominal:
+		return "nominal"
+	case MeasureOrdinal:
+		return "ordinal"
+	case MeasureScale:
+		return "scale"
+	default:
+		return "Measure(?)"
+	}
+}
+
+// Alignment is the record 7/11 column alignment of a variable.
+type Alignment int32
+
+const (
+	// AlignLeft is the zero value.
+	AlignLeft Alignment = 0
+	// AlignRight is right alignment.
+	AlignRight Alignment = 1
+	// AlignCenter is centre alignment.
+	AlignCenter Alignment = 2
+)
+
+func (a Alignment) String() string {
+	switch a {
+	case AlignLeft:
+		return "left"
+	case AlignRight:
+		return "right"
+	case AlignCenter:
+		return "center"
+	default:
+		return "Alignment(?)"
+	}
+}
+
+// MRSetKind discriminates the two multiple-response set flavours. They are
+// not two configurations of one thing: a dichotomy is N binary indicators
+// with one declared counted value, a category set is N variables sharing one
+// value-label set. The zero value is invalid so a bare MRSet{} cannot
+// silently mean either.
+type MRSetKind int
+
+const (
+	// The zero value is unnamed and invalid: a bare MRSet{} must not
+	// silently mean either flavour, and Build rejects one that leaves Kind
+	// unset.
+	_ MRSetKind = iota
+	// MRDichotomy is a multiple-dichotomy set: each member variable holding
+	// the counted value means that option was selected.
+	MRDichotomy
+	// MRCategory is a multiple-category set: each member variable holds a
+	// code from a shared value-label set.
+	MRCategory
+)
+
+func (k MRSetKind) String() string {
+	switch k {
+	case MRDichotomy:
+		return "multiple dichotomy"
+	case MRCategory:
+		return "multiple category"
+	default:
+		return "MRSetKind(?)"
+	}
+}
+
+// MRSet is one multiple-response set definition, emitted into the record
+// 7/5, 7/7 or 7/19 text payload.
+type MRSet struct {
+	// Name is the set name. SPSS requires it to begin with '$'.
+	Name string
+
+	// Kind selects the dichotomy or category flavour. Required.
+	Kind MRSetKind
+
+	// Label is the set's label. It may be empty, which is emitted as a
+	// zero-length counted string.
+	Label string
+
+	// CountedValue is the value that counts as "selected", for a dichotomy
+	// set only. It is written as a counted string exactly as given, because
+	// that is what the format stores — the wire form does not say whether it
+	// is a number or a string.
+	CountedValue string
+
+	// Extended writes the set with the 'E' type code, which carries an
+	// explicit label source, instead of the plain 'D'. Dichotomy sets only,
+	// and normally paired with Subtype 19.
+	Extended bool
+
+	// LabelFromVarLabel selects the '11' label source (the label comes from
+	// the first member variable's variable label) rather than '1' (the label
+	// is in this record). Only meaningful with Extended.
+	LabelFromVarLabel bool
+
+	// Vars names the member variables by short name, in order.
+	Vars []string
+
+	// Subtype selects which extension record carries the definition: 5, 7
+	// (the default when zero) or 19.
+	Subtype int32
+}
+
+// VariableSet is one entry of the older record 7/5 variable-sets text
+// payload: a display grouping, NOT a multiple-response set. It exists so a
+// fixture can prove a reader tells the two apart inside the same subtype.
+type VariableSet struct {
+	// Name is the set name. A variable set name does not begin with '$'.
+	Name string
+	// Vars names the member variables by short name.
+	Vars []string
+}
+
+// MachineIntegerInfo is the record 7/3 payload: eight int32s.
+type MachineIntegerInfo struct {
+	VersionMajor    int32
+	VersionMinor    int32
+	VersionRevision int32
+	// MachineCode identifies the writing machine; readers ignore it.
+	MachineCode int32
+	// FloatingPointRep is 1 for IEEE 754, 2 for IBM 370, 3 for DEC VAX E.
+	FloatingPointRep int32
+	// CompressionCode is 1 in every file the specification describes.
+	CompressionCode int32
+	// Endianness is 1 for big-endian, 2 for little-endian.
+	Endianness int32
+	// CharacterCode is the codepage: 2 or 3 for ASCII, 1252 for
+	// windows-1252, 65001 for UTF-8, and so on.
+	CharacterCode int32
+}
+
+// DefaultMachineIntegerInfo is what a little-endian IEEE-754 ASCII writer
+// declares. It is the value emitted when a Spec asks for 7/3 without
+// supplying one.
+func DefaultMachineIntegerInfo() MachineIntegerInfo {
+	return MachineIntegerInfo{
+		VersionMajor: 1, VersionMinor: 0, VersionRevision: 0,
+		MachineCode:      -1,
+		FloatingPointRep: 1,
+		CompressionCode:  1,
+		Endianness:       2,
+		CharacterCode:    2,
+	}
+}
+
+// MachineFloatInfo is the record 7/4 payload: three doubles.
+type MachineFloatInfo struct {
+	// SysMis is the system-missing sentinel. Every real writer puts
+	// -DBL_MAX here.
+	SysMis float64
+	// Highest is the "highest" sentinel, +DBL_MAX.
+	Highest float64
+	// Lowest is the "lowest" sentinel: the second-lowest double, i.e. the
+	// most negative value that is not the system-missing sentinel.
+	Lowest float64
+}
+
+// DefaultMachineFloatInfo returns the sentinels every conforming writer
+// declares.
+func DefaultMachineFloatInfo() MachineFloatInfo {
+	return MachineFloatInfo{
+		SysMis:  -math.MaxFloat64,
+		Highest: math.MaxFloat64,
+		Lowest:  math.Nextafter(-math.MaxFloat64, 0),
+	}
+}
+
+// RawExtension is a record type 7 emitted verbatim. It is the escape hatch
+// for the subtypes this package does not model — including deliberately
+// unrecognised ones, which is how a fixture exercises a reader's
+// skip-with-warning path.
+type RawExtension struct {
+	// Subtype is the extension subtype tag.
+	Subtype int32
+	// Size is the declared element size. Zero defaults to 1.
+	Size int32
+	// Payload is the record body. Its length must be a multiple of Size;
+	// the count field is derived as len(Payload)/Size, so a payload that
+	// does not divide evenly is rejected rather than padded.
+	Payload []byte
 }
 
 // IsString reports whether the variable is a string variable.
@@ -405,6 +694,64 @@ type Spec struct {
 	// ByteOrder selects the file byte order. Only LittleEndian (the zero
 	// value) is implemented.
 	ByteOrder ByteOrder
+
+	// Documents are record type 6 document lines, emitted verbatim and
+	// space-padded to DocumentLineLen. A line longer than that is rejected
+	// rather than wrapped, because wrapping would invent a line the author
+	// did not write. Empty means no record type 6 is emitted at all.
+	Documents []string
+
+	// MachineIntegerInfo emits record 7/3. Nil means the record is absent,
+	// which is legal; &MachineIntegerInfo{} is NOT a shorthand for the
+	// defaults, so use DefaultMachineIntegerInfo when that is what is meant.
+	MachineIntegerInfo *MachineIntegerInfo
+
+	// MachineFloatInfo emits record 7/4. Nil means absent — and absent is
+	// the common case, which is exactly why a reader must default its
+	// system-missing sentinel rather than require this record.
+	MachineFloatInfo *MachineFloatInfo
+
+	// CharacterEncoding emits record 7/20 with the given charset name.
+	// Empty means the record is absent.
+	CharacterEncoding string
+
+	// CaseCount64 emits record 7/16 with the given case count. Nil means
+	// absent. The record's leading "1" field is written for you.
+	CaseCount64 *int64
+
+	// DisplayParams emits record 7/11 for every variable, from each Var's
+	// Measure, DisplayWidth and Align. It is an explicit switch rather than
+	// being inferred from the Var fields because AlignLeft and a zero
+	// display width are legitimate values, so there is no zero state that
+	// could mean "no record".
+	DisplayParams bool
+
+	// OmitDisplayWidth writes the two-int32-per-variable form of record
+	// 7/11 (measure and alignment only), which older writers emit. Ignored
+	// unless DisplayParams is set.
+	OmitDisplayWidth bool
+
+	// MultipleResponseSets are emitted into record 7/5, 7/7 and/or 7/19
+	// according to each set's Subtype. Sets sharing a subtype share one
+	// record, in slice order.
+	MultipleResponseSets []MRSet
+
+	// VariableSets are emitted into record 7/5 alongside any 7/5 multiple-
+	// response sets. They are display groupings, not response sets; they
+	// exist here so a fixture can prove the two are told apart.
+	VariableSets []VariableSet
+
+	// FileAttributes is the record 7/17 payload, emitted verbatim. Empty
+	// means absent.
+	FileAttributes string
+
+	// VarAttributes is the record 7/18 payload, emitted verbatim. Empty
+	// means absent.
+	VarAttributes string
+
+	// RawExtensions are emitted verbatim after every modelled extension
+	// record, in slice order.
+	RawExtensions []RawExtension
 }
 
 // ReferenceSpec returns the fixture that is verified byte-by-byte against the
@@ -438,6 +785,59 @@ func ReferenceSpec() Spec {
 			{Num(2), SysMis(), Text("BOB")},
 		},
 	}
+}
+
+// ExtensionReferenceSpec returns the fixture that exercises every record
+// type 7 extension subtype this package emits, plus a record type 6 document
+// record and a deliberately unrecognised subtype.
+//
+// It builds on the same three variables as [ReferenceSpec] so the two can be
+// diffed byte-for-byte: everything before the first document record is
+// identical.
+func ExtensionReferenceSpec() Spec {
+	spec := ReferenceSpec()
+	spec.Vars[0].LongName = "RespondentId"
+	spec.Vars[0].Measure = MeasureScale
+	spec.Vars[0].DisplayWidth = 10
+	spec.Vars[0].Align = AlignRight
+	spec.Vars[1].Measure = MeasureNominal
+	spec.Vars[1].DisplayWidth = 4
+	spec.Vars[2].LongName = "FullName"
+	spec.Vars[2].Measure = MeasureNominal
+	spec.Vars[2].DisplayWidth = 12
+
+	mi := DefaultMachineIntegerInfo()
+	mf := DefaultMachineFloatInfo()
+	n := int64(len(spec.Cases))
+
+	spec.Documents = []string{"Collected 2024-01-01.", "Second line."}
+	spec.MachineIntegerInfo = &mi
+	spec.MachineFloatInfo = &mf
+	spec.CharacterEncoding = "UTF-8"
+	spec.CaseCount64 = &n
+	spec.DisplayParams = true
+	spec.FileAttributes = "$@Role('0'\n)\n"
+	spec.VarAttributes = "ID:$@Role('0'\n)\n"
+	spec.MultipleResponseSets = []MRSet{
+		{
+			Name: "$media", Kind: MRDichotomy, Label: "Media used",
+			CountedValue: "1", Vars: []string{"ID", "SEX"}, Subtype: SubtypeMRSets,
+		},
+		{
+			Name: "$brands", Kind: MRCategory, Label: "Brands",
+			Vars: []string{"ID", "SEX"}, Subtype: SubtypeMRSets,
+		},
+		{
+			Name: "$ext", Kind: MRDichotomy, Label: "Extended", Extended: true,
+			LabelFromVarLabel: true, CountedValue: "1",
+			Vars: []string{"SEX"}, Subtype: SubtypeMRSetsExtended,
+		},
+	}
+	spec.VariableSets = []VariableSet{{Name: "demographics", Vars: []string{"ID", "SEX"}}}
+	spec.RawExtensions = []RawExtension{
+		{Subtype: 4242, Size: 1, Payload: []byte("nobody knows what this is")},
+	}
+	return spec
 }
 
 // isASCIIPrintable reports whether s is entirely printable 7-bit ASCII.

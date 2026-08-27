@@ -4959,7 +4959,7 @@
         ]
       }
     ],
-    "error_codes_count": 169,
+    "error_codes_count": 171,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5104,6 +5104,8 @@
       "PULSE_SHARD_SCHEMA_MISMATCH",
       "PULSE_SPSS_DICT_INVALID",
       "PULSE_SPSS_DICT_TRUNCATED",
+      "PULSE_SPSS_EXTENSION_INVALID",
+      "PULSE_SPSS_EXTENSION_UNKNOWN",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
       "PULSE_TEMPLATE_INVALID",
@@ -9284,4 +9286,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 86f5dd7b6ea6fd2f3f706e553007d0e3283a0b7a59efd3cf904e5e34254e9134
+// golden-hash: e0d50d7fb0b079b3dfc8484c51fd5c7d8d0f965c85f2f11e2c8bacc1f405a233
