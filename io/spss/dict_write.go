@@ -498,6 +498,18 @@ type DictionaryPlan struct {
 	// schema alone.
 	Synthesised bool
 
+	// Renames are the variable names [WriterOptions.SanitiseNames]
+	// rewrote, in emission order. Nil when the flag is unset, when the
+	// plan came from a sidecar, and when every cohort name was already a
+	// legal SPSS name — so an export that renamed nothing is
+	// indistinguishable from one that could not have.
+	//
+	// The same set rides Warnings as a single
+	// PULSE_SPSS_NAME_SANITISED. It is repeated here in typed form
+	// because a caller that wants to map emitted variables back to
+	// cohort fields should not have to parse it out of a details map.
+	Renames []NameRename
+
 	// Warnings are the diagnostics to surface, the sidecar resolution's own
 	// warning first when it raised one.
 	Warnings []*errors.CodedError
@@ -660,6 +672,19 @@ func BuildDictionary(req DictionaryRequest) (*DictionaryPlan, error) {
 		return nil, err
 	}
 
+	// The opt-in name rewrite sits between the front-end and the transcode:
+	// after, because it has to see the names the front-end chose; before,
+	// because applyCharsetWrite measures and segments the names it is handed.
+	// It is synthesised-path only — a sidecar's names came from a `.sav` and
+	// are legal by construction. See WriterOptions.SanitiseNames.
+	var renames []NameRename
+	if synth && req.Options.SanitiseNames {
+		renames = sanitiseNames(f)
+		if len(renames) > 0 {
+			f.warnings = append(f.warnings, nameSanitised(renames))
+		}
+	}
+
 	// The transcode pass sits between the front-ends and the emitter, and
 	// it is not optional: until it has run, every string in the model is
 	// UTF-8 and every declared width is a count of UTF-8 bytes, which is
@@ -686,6 +711,7 @@ func BuildDictionary(req DictionaryRequest) (*DictionaryPlan, error) {
 		return nil, err
 	}
 	plan.Synthesised = synth
+	plan.Renames = renames
 	plan.Status = SidecarStatusUnknown
 	if req.Sidecar != nil {
 		plan.Status = req.Sidecar.Status

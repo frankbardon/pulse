@@ -13,8 +13,10 @@ variable's type, its missing-value rules and its value labels, so the
 adapter implements `io.SchemaAwareReader` and hands that dictionary
 straight to the encoder. Inference never runs.
 
-> **Read-only.** There is no `pulse export spss` and no SPSS writer.
-> An SPSS *output* target returns `PULSE_SPSS_EXPORT_UNSUPPORTED`.
+> **Writable too.** `pulse export spss -i cohort.pulse -o out.sav`
+> re-emits the `.sav`, reproducing the source dictionary from the
+> metadata sidecar this import writes. The write side is documented on
+> its own page; this one covers the read half.
 
 > **Codepages decode.** Text is transcoded out of the charset the file
 > declares (record `7/20` / `7/3`) into UTF-8, and a byte that charset
@@ -975,7 +977,7 @@ intact, so pointing at it would send you to the wrong place.
 | `PULSE_SPSS_CATEGORICAL_USER_MISSING` | Informational: one or more categorical columns carry user-missing codes as ordinary dictionary entries — one diagnostic per file, naming every flagged variable and entry under `details.missing_categories` — see [Categorical user-missing codes](#categorical-user-missing-codes) |
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` | The declared character encoding resolves to no decoder — see [Character encoding](#character-encoding) |
 | `PULSE_SPSS_CHARSET_INVALID` | A byte sequence is not decodable in the declared character encoding — names the variable and the value |
-| `PULSE_SPSS_EXPORT_UNSUPPORTED` | An SPSS output target was requested — Pulse cannot write `.sav` |
+| `PULSE_SPSS_EXPORT_UNSUPPORTED` | Something in the cohort has no honest `.sav` form — an empty `set_*` dictionary, a value with no recorded SPSS code, or a rendered row stream with no cohort behind it. Raised on the WRITE side |
 
 Parse-stage diagnostics (dictionary walk, data pass) carry `record_type`
 and `offset` details pinpointing where in the file they were raised, and
@@ -1092,9 +1094,14 @@ known, so a generic "unsupported format" would be misleading:
 pulse convert data.csv out.sav
 ```
 
+This works. If the CSV's header carries names a `.sav` cannot express —
+a space, a bracket, a hyphen, a leading digit — it stops with
+`PULSE_SPSS_NAME_INVALID` rather than mangling them; add
+`--sanitise-names` to rewrite them and have every rename reported:
+
 ```
-error: PULSE_SPSS_EXPORT_UNSUPPORTED: SPSS (.sav / .zsav) is an import-only
-format; Pulse cannot write it yet
+error: PULSE_SPSS_NAME_INVALID: spss: "household income (gross)" is not a
+name a .sav can carry as a variable: it contains ' ' at byte 9
 ```
 
 ## Related

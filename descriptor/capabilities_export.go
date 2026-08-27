@@ -25,7 +25,7 @@ package descriptor
 //     host stream is byte-identical to the overlay-
 //     free shape until the trailer.
 //   - "warn_and_skip"  — the format cannot embed overlays at all (CSV /
-//     TSV). The dispatcher emits one
+//     TSV / SPSS). The dispatcher emits one
 //     PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED warning
 //     and writes the host body verbatim; no overlay
 //     output lands. Setting IncludeOverlays=false
@@ -60,10 +60,19 @@ type ExportCapability struct {
 // exportCapability returns the canonical ExportCapability entry. The
 // per-format overlay-embedding labels mirror the dispatcher wiring
 // (Arrow + Parquet sidecar, Excel sheets, NDJSON trailing block, CSV /
-// TSV warn-and-skip). jsonarray and tsv share the warn-and-skip shape
-// with CSV — neither format carries an extension surface beyond the
-// host stream so embedded overlays would not round-trip through a
+// TSV / SPSS warn-and-skip). jsonarray and tsv share the warn-and-skip
+// shape with CSV — neither format carries an extension surface beyond
+// the host stream so embedded overlays would not round-trip through a
 // vanilla reader.
+//
+// SPSS is warn-and-skip for a different reason: a `.sav` DOES have an
+// extension surface (record type 7 subtypes), but every subtype in it is
+// specified, and a reader meeting an unknown one is entitled to ignore
+// it. An overlay layer smuggled into a private subtype would be dropped
+// by every tool that opens the file, which is warn-and-skip with extra
+// steps. The `.sav` writer also encodes from the cohort's raw storage
+// rather than from the rendered row stream, so it is the one target for
+// which overlays never reach the adapter at all.
 //
 // Sorted alphabetically by Name so the golden manifest stays stable.
 func exportCapability() ExportCapability {
@@ -75,6 +84,7 @@ func exportCapability() ExportCapability {
 			{Name: "jsonarray", OverlaySupport: "warn_and_skip"},
 			{Name: "ndjson", OverlaySupport: "trailing_block"},
 			{Name: "parquet", OverlaySupport: "sidecar"},
+			{Name: "spss", OverlaySupport: "warn_and_skip"},
 			{Name: "tsv", OverlaySupport: "warn_and_skip"},
 		},
 	}
@@ -104,11 +114,12 @@ func exportCapability() ExportCapability {
 //
 // Export reports whether the SAME format can also be written today. It
 // is deliberately not inferable from this block's presence: a format
-// being readable says nothing about whether a writer exists, and SPSS is
-// exactly that case (read yes, write no — see
-// errors.PULSE_SPSS_EXPORT_UNSUPPORTED). Cross-reference
-// ExportCapability.Formats for the per-format overlay-embedding shape of
-// the writable ones.
+// being readable says nothing about whether a writer exists. Every
+// format Pulse reads it can also write as of E5-S6, which mounted the
+// `.sav` writer and flipped the last false here to true — the slot stays
+// because the two halves are independent and a future read-only format
+// would need it again. Cross-reference ExportCapability.Formats for the
+// per-format overlay-embedding shape.
 type ImportFormatCapability struct {
 	// Name is the canonical format identifier matching the io/format
 	// package constants (csv / tsv / ndjson / jsonarray / parquet /
@@ -165,7 +176,7 @@ func importCapability() ImportCapability {
 			{Name: "jsonarray", Extensions: []string{".json"}, SchemaSource: "inferred", Export: true},
 			{Name: "ndjson", Extensions: []string{".ndjson", ".jsonl"}, SchemaSource: "inferred", Export: true},
 			{Name: "parquet", Extensions: []string{".parquet", ".pq"}, SchemaSource: "inferred", Export: true},
-			{Name: "spss", Extensions: []string{".sav", ".zsav"}, SchemaSource: "authoritative", Export: false},
+			{Name: "spss", Extensions: []string{".sav", ".zsav"}, SchemaSource: "authoritative", Export: true},
 			{Name: "tsv", Extensions: []string{".tsv"}, SchemaSource: "inferred", Export: true},
 		},
 	}

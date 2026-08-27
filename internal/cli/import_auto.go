@@ -40,7 +40,7 @@ func importAutoCmd() *cli.Command {
 			ttl, err := imports.ParseTTL(cmd.String("ttl"))
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -48,7 +48,7 @@ func importAutoCmd() *cli.Command {
 			p, err := pulse.New(pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -63,7 +63,7 @@ func importAutoCmd() *cli.Command {
 			})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
 				}
 				return err
 			}
@@ -106,14 +106,14 @@ func importsListCmd() *cli.Command {
 			p, err := pulse.New(pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
 			entries, err := p.Imports(ctx)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -152,13 +152,13 @@ func importDropCmd() *cli.Command {
 			p, err := pulse.New(pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
 			if err := p.Drop(ctx, handle); err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "DROP_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "DROP_ERROR", err)
 				}
 				return err
 			}

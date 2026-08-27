@@ -1,6 +1,7 @@
 package spss
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/spsstest"
+	pio "github.com/frankbardon/pulse/io"
 )
 
 // The ECOSYSTEM check: can something that is not us open what we write?
@@ -275,6 +277,89 @@ cat(h, "\n", g, "\n", sep="")
 				}
 			}
 		})
+	}
+}
+
+// TestExportedThroughTheAdapter_ReadsInReadStatAndForeign is the E5-S6
+// acceptance check: the whole user-facing path, not the encoder underneath
+// it.
+//
+// Every earlier ecosystem check in this file drove the encoder directly.
+// This one goes through pio.ExportJob — the same dispatch `pulse export
+// spss` uses, including SetPulseSchema, WriteHeader, the CohortWriter
+// hand-off and Close — against a cohort a real import produced. It is the
+// first point at which a mistake in the WIRING, as opposed to in the
+// bytes, becomes visible: a writer that quietly took the rendered-row path
+// would still emit a plausible file, and only an independent reader
+// comparing values catches it.
+//
+// Recorded result at E5-S6: haven 2.5.5 and foreign 0.8.91 both open the
+// file and report the same variables and the same values as the source
+// `.sav`. Cross-checked outside the test suite through the built binary —
+// `pulse import spss` then `pulse export spss`, opened in R — with the
+// value labels, variable labels and the response-set indicators intact.
+func TestExportedThroughTheAdapter_ReadsInReadStatAndForeign(t *testing.T) {
+	bin := rEnvironment(t)
+
+	fs, cohort, _ := importFixture(t, richSpec())
+	w := NewWriter(fs, "out.sav", WriterOptions{})
+	job := pio.NewExportJob(cohort, w)
+	job.FS = fs
+	if _, err := job.Run(context.Background()); err != nil {
+		t.Fatalf("ExportJob.Run: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "adapter.sav")
+	if err := os.WriteFile(path, w.Bytes(), 0o644); err != nil {
+		t.Fatalf("writing %s: %v", path, err)
+	}
+
+	script := `
+f <- Sys.getenv("PULSE_SAV")
+j <- function(x) paste(x, collapse="|")
+n <- function(x) j(ifelse(is.na(x), "NA", sprintf("%.4f", as.numeric(x))))
+h <- tryCatch({
+  d <- haven::read_sav(f, user_na=TRUE)
+  paste0("HAVEN OK|", j(names(d)), "|", n(unclass(d$Satisfaction)), "|", n(d$WT), "|",
+         j(trimws(as.character(d$REGION))), "|", n(d$MD1), "|", n(d$MD2), "|",
+         j(names(attr(d$Satisfaction, "labels"))))
+}, error=function(e) paste("HAVEN FAIL:", conditionMessage(e)))
+g <- tryCatch({
+  d <- suppressWarnings(foreign::read.spss(f, to.data.frame=FALSE, use.value.labels=FALSE))
+  paste0("FOREIGN OK|", n(d$Satisfaction), "|", n(d$WT), "|",
+         j(trimws(as.character(d$REGION))), "|", n(d$MD1), "|", n(d$MD2))
+}, error=function(e) paste("FOREIGN FAIL:", conditionMessage(e)))
+cat(h, "\n", g, "\n", sep="")
+`
+	cmd := exec.Command(bin, "-e", script)
+	cmd.Env = append(os.Environ(), "PULSE_SAV="+path)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("running Rscript: %v\n%s", err, out)
+	}
+	text := string(out)
+	t.Logf("%s\n%s", path, strings.TrimSpace(text))
+
+	// The source fixture's own values, per column, in case order. The
+	// derived `brands` set column must NOT appear: it is folded away, so a
+	// reader sees exactly the five variables the source declared.
+	values := "1.0000|5.0000|9.0000|" +
+		"1.5000|0.5000|2.5000|" +
+		"North|South|North|" +
+		"1.0000|0.0000|1.0000|" +
+		"0.0000|1.0000|1.0000"
+	for prefix, want := range map[string]string{
+		"HAVEN OK|": "HAVEN OK|Satisfaction|WT|REGION|MD1|MD2|" + values +
+			"|Very dissatisfied|Neutral|Never observed",
+		"FOREIGN OK|": "FOREIGN OK|" + values,
+	} {
+		line := readerLine(text, prefix)
+		if line != want {
+			t.Errorf("%s reported\n  %q\nwant\n  %q", strings.TrimSuffix(prefix, "|"), line, want)
+		}
 	}
 }
 

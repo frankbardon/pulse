@@ -103,11 +103,22 @@ Both table kinds surface under `manifest.extensions.{label_tables,range_tables}`
 
 ## Source-format CLI flags
 
-Three per-format knobs the file itself cannot always answer. All ride `format.ReaderOptions`; every other format ignores them.
+Three per-format READ knobs the file itself cannot always answer. All ride `format.ReaderOptions`; every other format ignores them.
 
 - `--sheet` (Excel) — `pulse import excel`, `import predict`, `import schema-template`. The `pulse_import` MCP tool carries it as `sheet`.
 - `--spss-missing` (SPSS `.sav` / `.zsav`), `auto` | `null`, default `auto` — `pulse import spss`, `import predict`, `import schema-template`, `convert`, `convert predict`. `auto` nulls every numeric user-missing value in its analytic column (so `AGG_SUM` / `AGG_MEAN` never add a refusal code) and adds a generated `<var>_missing` sibling carrying WHY — `sysmis`, the value label, or the code. `null` suppresses the siblings: same nulls, reason gone. **A `.sav` import may therefore yield more columns than the file has variables** — read `ReadHeader` / the returned schema, never the SPSS variable count. An unrecognised value is `PULSE_SPSS_MISSING_MODE_INVALID`, never a silent default. Same leaf coverage caveat as `--charset`.
 - `--charset` (SPSS `.sav` / `.zsav`) — `pulse import spss`, `import predict`, `import schema-template`, `convert`, `convert predict`. Overrides the encoding the file declares about itself; decoding only, the declaration is still retained. Reach for it on `PULSE_SPSS_CHARSET_INVALID` or `PULSE_SPSS_CHARSET_UNSUPPORTED` — most often a file transcoded by one tool and re-saved by another keeps a stale record `7/20` name, or declares nothing and fails the strict UTF-8 default on its first 8-bit byte. **Not yet on `pulse import auto` or `pulse_import`** — use `pulse import spss` for a file that needs it.
+
+## Target-format CLI flags
+
+Four `.sav` WRITE knobs, each one field of `spss.WriterOptions`. They ride `pulse export spss`; `--ignore-sidecar`, `--uncompressed` and `--sanitise-names` are also on `convert` / `convert predict` (`convert` reads `--charset` for the SOURCE, so the write charset is settable only on the export leaf). Every other target format ignores them.
+
+- `--ignore-sidecar` (SPSS) — do not read the metadata sidecar beside the source cohort; synthesise the dictionary from the `.pulse` schema alone. It suppresses the **read**, not merely the staleness verdict: a healthy sidecar is ignored too, and an unreadable one cannot block. Raises `PULSE_SPSS_SIDECAR_IGNORED`, which deliberately cannot say which refusal it silenced. **It cannot round-trip a cohort whose derived MD `set_*` column is still present** — that column's dictionary entries are its constituents' field names, so synthesis mints duplicate indicator variables and stops on `PULSE_SPSS_NAME_COLLISION`. Export without the flag instead.
+- `--uncompressed` (SPSS) — flat 8-byte elements instead of SPSS's bytecode compression. Losslessly equivalent; bytecode is the default because it is what SPSS's own SAVE writes. Does **not** select ZSAV — emission of that is `PULSE_SPSS_COMPRESSION_UNSUPPORTED`.
+- `--charset` (SPSS, on `pulse export spss` only) — the charset the emitted file is written in AND declares. Default: whatever the source declared, in the source's own spelling; UTF-8 for a cohort with no SPSS provenance. Set it when the cohort now holds text the source's codepage cannot express (otherwise `PULSE_SPSS_CHARSET_UNENCODABLE`).
+- `--sanitise-names` (SPSS) — rewrite cohort field names a `.sav` cannot carry (a space, bracket, hyphen, leading digit) instead of refusing. **The refusal is the default on purpose**; this is the opt-in for the synthesised path, where a CSV header's spaces are ordinary. Renames are deterministic and collision-safe against names that were already legal, and every one is reported as `PULSE_SPSS_NAME_SANITISED` with the full `field → name` list. Inert on the sidecar path — those names came from SPSS.
+
+Note two things `pulse export spss` refuses rather than ignores: `--include` and `--labels`. The `.sav` writer encodes from the cohort's raw storage, not from the rendered row stream those two transform, so honouring them would emit something other than what was asked for (`PULSE_SPSS_EXPORT_UNSUPPORTED`). Narrow or relabel into a cohort first, then export it.
 
 ## Cross-links
 
@@ -116,3 +127,4 @@ Three per-format knobs the file itself cannot always answer. All ride `format.Re
 - `mcp-integration` — every registered tool, full per-tool argument shape.
 - `debugging-with-predict` — predict loop in detail.
 - `getting-started` — vocabulary + pipeline order primer (cold-start fallback).
+- `spss-cohorts` — the whole `.sav` fidelity model, read and write.

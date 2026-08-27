@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 
@@ -63,6 +64,36 @@ func writeSourceWarnings(w io.Writer, warnings []*perrors.CodedError) {
 func writeErrorEnvelope(w io.Writer, code, message string) error {
 	env := descriptor.NewEnvelope(nil)
 	env.AddError(code, message, nil)
+	return writeJSON(w, env)
+}
+
+// writeCodedErrorEnvelope emits a fatal error into the --json envelope,
+// preserving the error's own code and details when it carries them.
+//
+// It exists because the obvious spelling loses exactly the thing the
+// envelope's `errors[0].code` is for. `writeErrorEnvelope(w,
+// "IMPORT_ERROR", err.Error())` stringifies a *errors.CodedError, so a
+// PULSE_SPSS_SIDECAR_STALE — a code with a message and fixups reachable
+// through `pulse errors lookup` — arrives at the consumer as the
+// placeholder "IMPORT_ERROR" with the real code buried in prose. Non-fatal
+// warnings on the same paths have always carried real codes
+// (writeEnvelopeWithWarnings), so the fatal path was the odd one out.
+//
+// fallback is the placeholder used when the error is NOT coded — an
+// ordinary fmt.Errorf from the shared jobs, which has no code to preserve
+// — so every existing non-coded failure keeps the envelope it had.
+//
+// It follows E2-S7's makeImportReader precedent: pass a *CodedError
+// through verbatim rather than re-wrapping it. errors.As rather than a
+// type assertion, so a code wrapped with %w on the way up still surfaces.
+func writeCodedErrorEnvelope(w io.Writer, fallback string, err error) error {
+	env := descriptor.NewEnvelope(nil)
+	var ce *perrors.CodedError
+	if stderrors.As(err, &ce) {
+		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	} else {
+		env.AddError(fallback, err.Error(), nil)
+	}
 	return writeJSON(w, env)
 }
 

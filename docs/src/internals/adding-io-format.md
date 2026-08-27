@@ -66,12 +66,16 @@ from `io/format`'s:
 - an `importFormatCmd("yourformat")` line in the `Commands:` slice on
   `ImportCommand()`.
 
-**`internal/cli/format.go`** — `newWriterForFormat`. Writers are *not*
-in `io/format`; this switch is their whole dispatch. If the format is
-import-only, do NOT leave it falling through to the generic
-`unsupported format` default: the extension is recognised, so that
-message says the wrong thing. Return a specific coded error instead —
-`PULSE_SPSS_EXPORT_UNSUPPORTED` is the worked example.
+**`internal/cli/format.go`** — `newWriterForFormat`, plus the
+`writerOptions` bag it takes. Writers are *not* in `io/format`; this
+switch is their whole dispatch, which is why a per-format write knob has
+no shared options struct to ride and gets a field on `writerOptions`
+instead. If the format is import-only, do NOT leave it falling through
+to the generic `unsupported format` default: the extension is
+recognised, so that message says the wrong thing. Return a specific
+coded error naming the format instead. (SPSS was the worked example
+until its writer landed; `PULSE_SPSS_EXPORT_UNSUPPORTED` has since been
+repurposed to mean "this cohort has no honest `.sav` form".)
 
 **`internal/cli/export.go`** — an `exportFormatCmd("yourformat")` line
 in `ExportCommand()`, when a writer exists.

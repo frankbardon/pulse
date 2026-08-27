@@ -116,10 +116,12 @@ func TestManifestImportCapability(t *testing.T) {
 	if spss.SchemaSource != "authoritative" {
 		t.Errorf("Import.Formats[spss].SchemaSource = %q, want authoritative", spss.SchemaSource)
 	}
-	// Read and write surfaces are NOT symmetric, and this slot is the
-	// only honest place to say so.
-	if spss.Export {
-		t.Error("Import.Formats[spss].Export = true; SPSS export does not exist yet")
+	// E5-S6 mounted the `.sav` writer, so this flipped. It is asserted
+	// rather than dropped because the two halves of the adapter are
+	// independent: a reader can exist without a writer, this slot is the
+	// only honest place to say which, and it said "no" for four epics.
+	if !spss.Export {
+		t.Error("Import.Formats[spss].Export = false; `pulse export spss` is mounted")
 	}
 }
 

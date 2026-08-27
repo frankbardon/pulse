@@ -4959,7 +4959,7 @@
         ]
       }
     ],
-    "error_codes_count": 207,
+    "error_codes_count": 208,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5130,6 +5130,7 @@
       "PULSE_SPSS_MR_SET_NOT_DERIVED",
       "PULSE_SPSS_NAME_COLLISION",
       "PULSE_SPSS_NAME_INVALID",
+      "PULSE_SPSS_NAME_SANITISED",
       "PULSE_SPSS_NULL_TOKEN_COLLISION",
       "PULSE_SPSS_SIDECAR_ABSENT",
       "PULSE_SPSS_SIDECAR_IGNORED",
@@ -5208,7 +5209,7 @@
       },
       {
         "name": "pulse_import",
-        "description": "Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. SPSS `.sav` / `.zsav` sources are schema-AUTHORITATIVE: the file's own dictionary supplies every column type, nullability and categorical dictionary ORDER, so inference is skipped entirely — and the cohort's categorical dictionaries hold the SPSS numeric CODES, not the value labels (two codes may share a label, so a label-keyed dictionary would collapse them); resolve labels at output time with a LabelTable. SPSS is import-only — there is no `pulse export spss`. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false."
+        "description": "Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. SPSS `.sav` / `.zsav` sources are schema-AUTHORITATIVE: the file's own dictionary supplies every column type, nullability and categorical dictionary ORDER, so inference is skipped entirely — and the cohort's categorical dictionaries hold the SPSS numeric CODES, not the value labels (two codes may share a label, so a label-keyed dictionary would collapse them); resolve labels at output time with a LabelTable. SPSS is now writable too: `pulse export spss` emits a `.sav` from a cohort, reproducing the source dictionary from the metadata sidecar an import wrote beside it. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false."
       },
       {
         "name": "pulse_imports_list",
@@ -7403,6 +7404,10 @@
           "overlay_support": "sidecar"
         },
         {
+          "name": "spss",
+          "overlay_support": "warn_and_skip"
+        },
+        {
           "name": "tsv",
           "overlay_support": "warn_and_skip"
         }
@@ -7469,7 +7474,7 @@
             ".zsav"
           ],
           "schema_source": "authoritative",
-          "export": false
+          "export": true
         },
         {
           "name": "tsv",
@@ -9399,4 +9404,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 52350ede9243eff67eb660b4b1e15b9d101b58c5d38bda27331a020016bccd71
+// golden-hash: cfdeea3d88c74503f49e0398daa4113f96ee8fb5decb645f950dca7d6aa25dbd

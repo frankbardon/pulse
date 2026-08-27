@@ -2239,17 +2239,38 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SPSS_EXPORT_UNSUPPORTED: {
-		Message: "SPSS was requested as an OUTPUT format, but Pulse reads .sav / .zsav and does not yet write them: the reader is registered and the writer is not. The extension is recognised — that is why this is a specific error rather than an unknown-format one — so `pulse convert survey.sav out.csv` works while `pulse convert data.csv out.sav` stops here.",
+		Message: "Something in this cohort has no honest .sav representation, so the export stopped instead of writing a file that says something the cohort did not. Three things raise it: a set_* column with an empty dictionary (a response set with no member variable to name), a value the dictionary plan records no SPSS code for (or one two source values collapsed onto), and a rendered row stream handed to the .sav writer with no cohort behind it. The details name the offending column where there is one.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Target"},
-				Hint:   "Choose an output format Pulse can write: csv, tsv, ndjson, jsonarray, parquet, arrow or excel. `pulse convert data.csv out.parquet` and `pulse export parquet -i cohort.pulse -o out.parquet` both work today; the target format is also settable explicitly with --to.",
+				Path:   []string{"Source"},
+				Hint:   "Export from a .pulse COHORT rather than from a row stream: `pulse export spss -i cohort.pulse -o out.sav`. The .sav writer encodes from the cohort's raw storage — dictionary IDs, set masks, the null bitmap — never from rendered cell text, so it needs the cohort itself. `pulse convert data.csv out.sav` reaches it by importing to an intermediate cohort first.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
-				Hint:   "If the intent was to READ an SPSS file, put the .sav on the INPUT side: `pulse import spss -i survey.sav -o cohort.pulse`, or `pulse convert survey.sav out.csv`. Import honours the .sav dictionary as the authoritative schema rather than re-inferring types from cell text.",
+				Path:   []string{"Schema"},
+				Hint:   "If the details name a column, that column is the problem. An empty set_* dictionary has no members to emit — drop the column from the export or populate it. A value with no recorded SPSS code comes from a cohort whose categorical dictionary moved since import; re-import from the source .sav, or export with --ignore-sidecar to synthesise a fresh dictionary from the cohort's own text.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Target"},
+				Hint:   "Any other output format sidesteps the question entirely: csv, tsv, ndjson, jsonarray, parquet, arrow and excel all take a rendered row stream. `pulse export parquet -i cohort.pulse -o out.parquet`.",
+			},
+		},
+	},
+	PULSE_SPSS_NAME_SANITISED: {
+		Message: "One or more cohort field names could not be an SPSS variable name — a space, a bracket, a hyphen, a leading digit, or a name past 64 bytes — and --sanitise-names rewrote them so the export could proceed. Every rename is listed under `renames` as {field, name} pairs in schema order. This is a WARNING, not a failure: the file was written, and its variables carry the rewritten names.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"SanitiseNames"},
+				Hint:     "To keep the cohort's own names, drop --sanitise-names and rename the offending columns at the source instead — an SPSS name must open with a letter and carry only letters, digits and '.', '_', '$', '#', '@'. Without the flag the same names are a hard PULSE_SPSS_NAME_INVALID refusal, which is the default precisely because a silent rename is worse.",
+				Examples: []any{false},
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Labels"},
+				Hint:   "If downstream syntax references the original names, keep the `renames` list: it is the only record of which emitted variable came from which cohort field. A sidecar-driven export never raises this — names that came from a .sav are legal by construction.",
 			},
 		},
 	},

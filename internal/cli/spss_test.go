@@ -2,7 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,6 +12,7 @@ import (
 	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 	pformat "github.com/frankbardon/pulse/io/format"
+	"github.com/frankbardon/pulse/io/spss"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
@@ -68,27 +71,172 @@ func TestImportCommand_HasSPSSSubcommand(t *testing.T) {
 	t.Error("`pulse import spss` is not mounted on the import command group")
 }
 
-// TestNewWriterForFormat_SPSSIsCodedError is the honest-failure half of
-// wiring formatFromExt. Mapping `.sav` makes `pulse convert data.csv
-// out.sav` reachable, and the answer must be "Pulse cannot WRITE .sav
-// yet" rather than the dispatcher's generic unknown-format message —
-// the extension is recognised, which is exactly what makes the generic
-// wording misleading.
-func TestNewWriterForFormat_SPSSIsCodedError(t *testing.T) {
-	_, err := newWriterForFormat("spss", afero.NewMemMapFs(), "out.sav")
-	if err == nil {
-		t.Fatal("newWriterForFormat(spss) = nil error; SPSS export does not exist yet")
+// TestNewWriterForFormat_SPSSBuildsTheWriter replaces the refusal this
+// arm used to be. `pulse convert data.csv out.sav` is now reachable, so
+// the dispatch must hand back a real writer — and one carrying the two
+// optional interfaces the export path keys off, because a Writer that
+// satisfied only pio.Writer would silently take the rendered-row path
+// and encode a `.sav` from resolved label text.
+func TestNewWriterForFormat_SPSSBuildsTheWriter(t *testing.T) {
+	w, err := newWriterForFormat("spss", afero.NewMemMapFs(), "out.sav", writerOptions{})
+	if err != nil {
+		t.Fatalf("newWriterForFormat(spss): %v", err)
 	}
-	ce, ok := err.(*perrors.CodedError)
-	if !ok {
-		t.Fatalf("error is %T, want *errors.CodedError so `pulse errors lookup` can explain it", err)
+	if _, ok := w.(pio.SchemaAwareWriter); !ok {
+		t.Error("the CLI's spss writer does not implement pio.SchemaAwareWriter; it would never see the source schema")
 	}
-	if ce.Code != perrors.PULSE_SPSS_EXPORT_UNSUPPORTED {
-		t.Errorf("code = %s, want %s", ce.Code, perrors.PULSE_SPSS_EXPORT_UNSUPPORTED)
+	if _, ok := w.(pio.CohortWriter); !ok {
+		t.Error("the CLI's spss writer does not implement pio.CohortWriter; ExportJob would hand it rendered rows")
 	}
-	if ce.Details["output_path"] != "out.sav" {
-		t.Errorf("details[output_path] = %v, want out.sav", ce.Details["output_path"])
+	if _, ok := w.(pio.TargetWarningEmitter); !ok {
+		t.Error("the CLI's spss writer does not implement pio.TargetWarningEmitter; sidecar and rename warnings would never print")
 	}
+}
+
+// TestWriterOptionsFrom_MapsEveryFlag pins the one-for-one projection of
+// the CLI flags onto spss.WriterOptions. A flag that parsed but did not
+// reach the option is the failure this catches: it changes nothing and
+// says nothing.
+func TestWriterOptionsFrom_MapsEveryFlag(t *testing.T) {
+	var got spss.WriterOptions
+	cmd := &cli.Command{
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "ignore-sidecar"},
+			&cli.BoolFlag{Name: "uncompressed"},
+			&cli.StringFlag{Name: "charset"},
+			&cli.BoolFlag{Name: "sanitise-names"},
+		},
+		Action: func(_ context.Context, c *cli.Command) error {
+			got = writerOptionsFrom(c).SPSS
+			return nil
+		},
+	}
+	args := []string{"x", "--ignore-sidecar", "--uncompressed", "--charset", "cp1252", "--sanitise-names"}
+	if err := cmd.Run(context.Background(), args); err != nil {
+		t.Fatalf("running: %v", err)
+	}
+	want := spss.WriterOptions{IgnoreSidecar: true, Uncompressed: true, Charset: "cp1252", SanitiseNames: true}
+	if got != want {
+		t.Errorf("writerOptionsFrom = %+v, want %+v", got, want)
+	}
+}
+
+// TestExportSPSS_HasEveryWriteFlag. The knobs have to be MOUNTED, which
+// is a different claim from spss.WriterOptions carrying the fields.
+func TestExportSPSS_HasEveryWriteFlag(t *testing.T) {
+	var spssCmd *cli.Command
+	for _, c := range ExportCommand().Commands {
+		if c.Name == "spss" {
+			spssCmd = c
+		}
+	}
+	if spssCmd == nil {
+		t.Fatal("`pulse export spss` is not mounted on the export command group")
+	}
+	if spssCmd.Action == nil {
+		t.Error("`pulse export spss` is mounted with a nil Action")
+	}
+	for _, name := range []string{"ignore-sidecar", "uncompressed", "charset", "sanitise-names"} {
+		assertHasFlag(t, spssCmd, name)
+	}
+	// The common export flags must survive being extended.
+	for _, name := range []string{"input", "output", "include", "labels", "json"} {
+		assertHasFlag(t, spssCmd, name)
+	}
+	// And the shared slice must not have been appended to in place.
+	for _, c := range ExportCommand().Commands {
+		if c.Name != "csv" {
+			continue
+		}
+		for _, f := range c.Flags {
+			for _, n := range f.Names() {
+				if n == "ignore-sidecar" || n == "sanitise-names" {
+					t.Errorf("`pulse export csv` grew a %q flag; the shared exportFlags slice was mutated in place", n)
+				}
+			}
+		}
+	}
+}
+
+// TestConvertHasTheWriteFlags mirrors the read side's own coverage: a
+// knob mounted on `export spss` alone would leave `pulse convert data.csv
+// out.sav` — the shortest path to a `.sav` — unable to ask for it.
+func TestConvertHasTheWriteFlags(t *testing.T) {
+	convert := ConvertCommand()
+	for _, name := range []string{"ignore-sidecar", "uncompressed", "sanitise-names"} {
+		assertHasFlag(t, convert, name)
+		for _, sub := range convert.Commands {
+			if sub.Name == "predict" {
+				assertHasFlag(t, sub, name)
+			}
+		}
+	}
+}
+
+// TestWriteCodedErrorEnvelope_PreservesTheCode is E2-S8's finding closed.
+//
+// The fatal --json arms on import / convert / export stringified a
+// *CodedError into writeErrorEnvelope, so `errors[0].code` read
+// "IMPORT_ERROR" and a consumer could not feed it to `pulse errors
+// lookup` — while non-fatal warnings on the same paths carried real
+// codes all along. This effort built a rich PULSE_SPSS_* error surface
+// that was unreachable on the path users hit first.
+func TestWriteCodedErrorEnvelope_PreservesTheCode(t *testing.T) {
+	t.Run("a coded error keeps its code and details", func(t *testing.T) {
+		var buf bytes.Buffer
+		err := perrors.NewCodedErrorWithDetails(perrors.PULSE_SPSS_SIDECAR_STALE,
+			"the sidecar no longer describes this cohort",
+			map[string]any{perrors.DetailSPSSCohort: "out.pulse"})
+		if werr := writeCodedErrorEnvelope(&buf, "IMPORT_ERROR", err); werr != nil {
+			t.Fatalf("writeCodedErrorEnvelope: %v", werr)
+		}
+		env := decodeEnvelope(t, buf.Bytes())
+		if len(env.Errors) != 1 {
+			t.Fatalf("errors = %d, want 1", len(env.Errors))
+		}
+		if env.Errors[0].Code != string(perrors.PULSE_SPSS_SIDECAR_STALE) {
+			t.Errorf("errors[0].code = %q, want %s — the placeholder swallowed the real code",
+				env.Errors[0].Code, perrors.PULSE_SPSS_SIDECAR_STALE)
+		}
+		if env.Errors[0].Details[perrors.DetailSPSSCohort] != "out.pulse" {
+			t.Errorf("errors[0].details lost the cohort key: %v", env.Errors[0].Details)
+		}
+	})
+
+	t.Run("a wrapped coded error still surfaces", func(t *testing.T) {
+		var buf bytes.Buffer
+		inner := perrors.NewCodedError(perrors.PULSE_SPSS_NAME_INVALID, "bad name")
+		if werr := writeCodedErrorEnvelope(&buf, "CONVERT_ERROR", fmt.Errorf("converting: %w", inner)); werr != nil {
+			t.Fatalf("writeCodedErrorEnvelope: %v", werr)
+		}
+		env := decodeEnvelope(t, buf.Bytes())
+		if env.Errors[0].Code != string(perrors.PULSE_SPSS_NAME_INVALID) {
+			t.Errorf("errors[0].code = %q, want %s", env.Errors[0].Code, perrors.PULSE_SPSS_NAME_INVALID)
+		}
+	})
+
+	t.Run("an uncoded error keeps the placeholder", func(t *testing.T) {
+		var plain, coded bytes.Buffer
+		err := fmt.Errorf("reading pulse file: no such file")
+		if werr := writeErrorEnvelope(&plain, "EXPORT_ERROR", err.Error()); werr != nil {
+			t.Fatalf("writeErrorEnvelope: %v", werr)
+		}
+		if werr := writeCodedErrorEnvelope(&coded, "EXPORT_ERROR", err); werr != nil {
+			t.Fatalf("writeCodedErrorEnvelope: %v", werr)
+		}
+		if plain.String() != coded.String() {
+			t.Errorf("an uncoded error changed shape:\n got %s\nwant %s", coded.String(), plain.String())
+		}
+	})
+}
+
+func decodeEnvelope(t *testing.T, raw []byte) descriptor.Envelope {
+	t.Helper()
+	var env descriptor.Envelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	return env
 }
 
 // TestNewWriterForFormat_WritableFormatsUnaffected keeps the new arm
@@ -96,7 +244,7 @@ func TestNewWriterForFormat_SPSSIsCodedError(t *testing.T) {
 func TestNewWriterForFormat_WritableFormatsUnaffected(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	for _, f := range []string{"csv", "tsv", "ndjson", "jsonarray", "parquet", "arrow", "excel"} {
-		if _, err := newWriterForFormat(f, fs, "out."+f); err != nil {
+		if _, err := newWriterForFormat(f, fs, "out."+f, writerOptions{}); err != nil {
 			t.Errorf("newWriterForFormat(%q): %v", f, err)
 		}
 	}

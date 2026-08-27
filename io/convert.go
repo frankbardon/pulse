@@ -204,6 +204,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		Schema:         schema,
 		RowErrors:      rowErrors,
 		SourceWarnings: j.sourceWarnings(),
+		TargetWarnings: targetWarnings(j.Target),
 	}
 	if j.LabelResolver != nil {
 		report.LabelWarnings = j.LabelResolver.Warnings()

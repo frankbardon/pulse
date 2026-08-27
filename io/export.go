@@ -99,6 +99,34 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		return nil, err
 	}
 
+	// A cohort writer encodes from the cohort's raw storage, so it takes
+	// the place of the row loop entirely rather than running beside it.
+	// The assertion sits AFTER WriteHeader so such a writer still receives
+	// the schema and the projection-aware column list; what it does not
+	// receive is a single WriteRow call. See CohortWriter.
+	if cw, ok := j.Target.(CohortWriter); ok {
+		n, err := cw.WriteCohort(ctx, CohortSource{
+			FS:       j.FS,
+			Path:     j.Source,
+			Includes: j.Includes,
+			Labelled: j.LabelResolver != nil,
+		})
+		if err != nil {
+			return nil, err
+		}
+		report := &ExportReport{RowsExported: n}
+		if j.LabelResolver != nil {
+			report.LabelWarnings = j.LabelResolver.Warnings()
+		}
+		report.TargetWarnings = targetWarnings(j.Target)
+		if owe, ok := j.Target.(OverlayWarningEmitter); ok {
+			if warns := owe.OverlayWarnings(); len(warns) > 0 {
+				report.OverlayWarnings = warns
+			}
+		}
+		return report, nil
+	}
+
 	_, schemaAware := j.Target.(SchemaAwareWriter)
 
 	// Read and export records until EOF. The values slice is hoisted out of
@@ -194,7 +222,25 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 			report.OverlayWarnings = warns
 		}
 	}
+	report.TargetWarnings = targetWarnings(j.Target)
 	return report, nil
+}
+
+// targetWarnings lifts a Writer's non-fatal encode diagnostics off the
+// optional TargetWarningEmitter contract. A target that does not
+// implement it contributes nil, so the report shape is unchanged for
+// every pre-existing adapter. Shared by ExportJob.Run and ConvertJob.Run
+// so the two verbs cannot diverge on where a target warning lands.
+func targetWarnings(w Writer) []*errors.CodedError {
+	twe, ok := w.(TargetWarningEmitter)
+	if !ok {
+		return nil
+	}
+	warns := twe.Warnings()
+	if len(warns) == 0 {
+		return nil
+	}
+	return warns
 }
 
 // shouldEmitOverlays maps the tri-state IncludeOverlays pointer onto

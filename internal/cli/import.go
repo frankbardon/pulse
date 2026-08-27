@@ -120,7 +120,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	reader, err := makeImportReader(format, fs, input, readerOptionsFrom(cmd))
 	if err != nil {
 		if jsonOut {
-			return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -133,7 +133,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 		schema, err := loadSchemaFromFile(fs, schemaPath)
 		if err != nil {
 			if jsonOut {
-				return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+				return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 			}
 			return err
 		}
@@ -143,7 +143,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	report, err := job.Run(ctx)
 	if err != nil {
 		if jsonOut {
-			return writeErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err.Error())
+			return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
 		}
 		return err
 	}
@@ -200,7 +200,7 @@ func importPredictCmd() *cli.Command {
 			reader, err := makeImportReader(format, fs, input, readerOptionsFrom(cmd))
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -213,7 +213,7 @@ func importPredictCmd() *cli.Command {
 				schema, loadErr := loadSchemaFromFile(fs, schemaPath)
 				if loadErr != nil {
 					if jsonOut {
-						return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", loadErr.Error())
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", loadErr)
 					}
 					return loadErr
 				}
@@ -223,7 +223,7 @@ func importPredictCmd() *cli.Command {
 			report, err := job.Predict(ctx)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
 				}
 				return err
 			}

@@ -1692,18 +1692,34 @@ const (
 	// entry has one, and the sidecar under DetailSPSSSidecar.
 	PULSE_SPSS_DERIVED_UNFOLDABLE Code = "PULSE_SPSS_DERIVED_UNFOLDABLE"
 
-	// PULSE_SPSS_EXPORT_UNSUPPORTED indicates a caller asked for `.sav`
-	// (or `.zsav`) as an OUTPUT target — `pulse convert data.csv
-	// out.sav`, or an io.Writer construction for the spss format. SPSS
-	// is import-only today: the reader is registered, the writer is not.
+	// PULSE_SPSS_EXPORT_UNSUPPORTED indicates something in a cohort has
+	// no honest `.sav` representation, so the export stops rather than
+	// writing a file that says something the cohort did not.
 	//
-	// It is a hard, specific error rather than the dispatcher's generic
-	// "unsupported format" so the answer to "why did my .sav not get
-	// written?" is "Pulse cannot write .sav yet" and not "Pulse does not
-	// know what .sav is" — the extension IS recognised, which is exactly
-	// what makes the generic message misleading here. Details carry the
-	// requested format under "format" and the output path under
-	// "output_path" when the caller supplied one.
+	// It was minted for a blunter claim — "Pulse cannot write .sav at
+	// all" — which stopped being true when E5-S6 mounted the writer. It
+	// is REPURPOSED rather than retired, on the same grounds E3-S2 kept
+	// PULSE_SPSS_COMPRESSION_UNSUPPORTED: the code is already load-
+	// bearing inside the writer, where it is the standing answer to "this
+	// column cannot be expressed", and removing a code has a wider blast
+	// radius (manifest golden, doc sites, an embedder-visible lookup
+	// surface) than re-aiming one.
+	//
+	// What raises it today:
+	//
+	//   - A `set_*` column with an empty dictionary: a response set with
+	//     no member variable to name (dict_synth.go).
+	//   - A value with no writable form — a dictionary ID the plan
+	//     records no SPSS code for, or an ID two source values collapsed
+	//     onto (data_write.go).
+	//   - A rendered ROW stream handed to the `.sav` writer with no
+	//     cohort behind it and no schema to rebuild one from. The writer
+	//     encodes from a cohort's raw storage, never from cell text; see
+	//     io/spss's Writer.
+	//
+	// Details name the offending column under DetailSPSSVariable where
+	// there is one, and carry the requested format under "format" plus
+	// the output path under "output_path" on the dispatch arm.
 	PULSE_SPSS_EXPORT_UNSUPPORTED Code = "PULSE_SPSS_EXPORT_UNSUPPORTED"
 
 	// PULSE_SPSS_DERIVED_NAME_COLLISION indicates the `<var>_missing`
@@ -1897,6 +1913,25 @@ const (
 	// perfectly healthy, and a detail that could only be guessed at
 	// would be worse than an absent one.
 	PULSE_SPSS_SIDECAR_IGNORED Code = "PULSE_SPSS_SIDECAR_IGNORED"
+
+	// PULSE_SPSS_NAME_SANITISED is the WARNING that accompanies
+	// --sanitise-names: one or more cohort field names could not be an
+	// SPSS variable name and were rewritten so the export could proceed.
+	//
+	// It exists because the rewrite is opt-in but must never be silent.
+	// The default is still the PULSE_SPSS_NAME_INVALID refusal — mangling
+	// a caller's column names behind their back is worse than stopping —
+	// and this warning is what makes the opt-in honest: every rename is
+	// reported, so a consumer reading the emitted file can map its
+	// variables back to the cohort's fields.
+	//
+	// It is raised only on the SYNTHESISED dictionary path. A
+	// sidecar-driven export re-emits names that came FROM an SPSS file
+	// and are legal by construction, so there is nothing to rewrite.
+	//
+	// Details carry every rename under DetailSPSSRenames as an ordered
+	// list of {"field","name"} objects, in cohort schema order.
+	PULSE_SPSS_NAME_SANITISED Code = "PULSE_SPSS_NAME_SANITISED"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -2076,6 +2111,17 @@ const (
 	// boolean verdict so a caller can see WHICH of size and mtime moved,
 	// which is what distinguishes a rewritten cohort from a touched one.
 	DetailSPSSActual = "actual_fingerprint"
+
+	// DetailSPSSRenames is the CodedError.Details key carrying every
+	// variable rename --sanitise-names performed, as an ordered list of
+	// {"field": <cohort field name>, "name": <emitted SPSS name>}
+	// objects in cohort schema order.
+	//
+	// It is a LIST of pairs rather than a field->name map because the
+	// prose caps how many it names and the details must not: a cohort
+	// whose every column carries a space would otherwise report a
+	// truncated list as if it were the whole of it.
+	DetailSPSSRenames = "renames"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -2294,6 +2340,7 @@ var allCodes = []Code{
 	PULSE_SPSS_SIDECAR_STALE,
 	PULSE_SPSS_SIDECAR_INVALID,
 	PULSE_SPSS_SIDECAR_IGNORED,
+	PULSE_SPSS_NAME_SANITISED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

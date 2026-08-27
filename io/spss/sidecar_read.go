@@ -135,6 +135,35 @@ type WriterOptions struct {
 	// declared as "cp1252". A name this package cannot write in is
 	// PULSE_SPSS_CHARSET_UNSUPPORTED, never a silent fall back to UTF-8.
 	Charset string
+
+	// SanitiseNames rewrites cohort field names that cannot be SPSS
+	// variable names, instead of refusing the export.
+	//
+	// The DEFAULT is the refusal, and that is not timidity. A `.pulse`
+	// field name is any UTF-8 string; an SPSS variable name is a
+	// constrained identifier, and the three ways an illegal one fails
+	// (see dict_names.go) all produce a well-formed file that says
+	// something other than what the cohort said. Renaming a caller's
+	// columns behind their back to avoid that is the same class of quiet
+	// substitution, one step further downstream.
+	//
+	// But the refusal is a usability cliff on the SYNTHESISED path, where
+	// the names came from a CSV header rather than from SPSS: a space, a
+	// bracket, a hyphen or a leading digit is ordinary there, and
+	// `pulse convert data.csv out.sav` on a column called
+	// "household income (gross)" would otherwise have no way through at
+	// all. This flag is that way through, and it pays for itself by being
+	// LOUD: every rename is reported as a PULSE_SPSS_NAME_SANITISED
+	// warning carrying the full field -> name list, so nothing about the
+	// emitted file is a surprise. Renames are deterministic — the same
+	// cohort always yields the same names — and collision-safe against
+	// both other renames and the names that were already legal.
+	//
+	// It has no effect on the SIDECAR-driven path. Those names came from
+	// a `.sav` and are legal by construction, so there is nothing to
+	// rewrite, and rewriting a source's own names would be the fidelity
+	// loss the whole write side exists to avoid.
+	SanitiseNames bool
 }
 
 // Compression is the header compression flag these options select: SPSS

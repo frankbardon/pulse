@@ -290,6 +290,103 @@ type SidecarEmitter interface {
 	WriteSidecar(fs afero.Fs, cohortPath string) error
 }
 
+// CohortSource describes the `.pulse` cohort an export is reading from,
+// handed to a [CohortWriter] so it can encode from the cohort's own
+// bytes instead of from the rendered row stream.
+//
+// It carries the two output-time transformations ExportJob.Run applies
+// to that row stream — projection and label translation — not because a
+// cohort writer is expected to implement them, but so it can REFUSE
+// them. A writer that silently ignored Includes would answer
+// `pulse export spss --include age` with a file carrying every column,
+// which is the quiet wrong answer this whole surface exists to avoid.
+type CohortSource struct {
+	// FS is the filesystem the cohort lives on — ExportJob.FS, so a
+	// hermetic MemMapFs export stays hermetic.
+	FS afero.Fs
+
+	// Path is the `.pulse` cohort path (ExportJob.Source). It is also
+	// where a format-specific metadata sidecar rides: io/spss derives
+	// `cohort.pulse.spss.json` from it, which is the only surviving
+	// record of the source SPSS dictionary.
+	Path string
+
+	// Includes is ExportJob.Includes verbatim — nil / empty when the
+	// export emits every field.
+	Includes []string
+
+	// Labelled reports that a label resolver is rewriting or augmenting
+	// cells in the row stream (ExportJob.Labels / LabelResolver).
+	Labelled bool
+}
+
+// CohortWriter is an optional extension of Writer for targets whose
+// encoding is defined on the cohort's RAW STORAGE rather than on the
+// rendered row stream ExportJob.Run produces.
+//
+// It is the one place the row-oriented Writer contract does not fit, and
+// the fit is not close enough to fake. io/spss is the case that forced
+// it: a `.sav` variable's on-wire value is derived from a categorical's
+// dictionary ID, a set_*'s mask bit and the null bitmap, and every one
+// of those is GONE by the time ExportJob has rendered a row —
+// `formatFieldValue` resolves a categorical to its label text and a null
+// to "", which a string categorical can hold legitimately. Rebuilding
+// the storage from the text would be a guess in exactly the places SPSS
+// fidelity is decided.
+//
+// # Dispatch
+//
+// ExportJob.Run type-asserts this interface AFTER SetPulseSchema and
+// AFTER WriteHeader — so a cohort writer still receives both, and the
+// header is still the projection-aware column list — and then calls
+// WriteCohort INSTEAD of its own row loop. Nothing is double-decoded:
+// the row loop does not run at all, and WriteRow is never called.
+// Writers that do not implement it take the unchanged row path,
+// byte-for-byte.
+//
+// # Obligations
+//
+// The returned count is ExportReport.RowsExported. An implementation
+// that cannot honour some part of the job — a projection it does not
+// implement, a label binding it cannot apply — must return a coded
+// error rather than writing a file that ignores it.
+type CohortWriter interface {
+	Writer
+	// WriteCohort encodes the cohort described by src, and returns the
+	// number of records written.
+	WriteCohort(ctx context.Context, src CohortSource) (int, error)
+}
+
+// TargetWarningEmitter is an optional extension a Writer can implement
+// to surface non-fatal diagnostics the ENCODE raised, so the shared jobs
+// lift them onto ExportReport.TargetWarnings / ConvertReport.TargetWarnings
+// instead of leaving them stranded inside the adapter.
+//
+// It is the write-side mirror of SourceWarningEmitter, and distinct from
+// OverlayWarningEmitter, which answers the narrower question "were
+// overlay layers dropped?". Writers that implement neither contribute no
+// warnings and their reports are byte-identical to the pre-interface
+// shape.
+//
+// The canonical user is io/spss, whose encode raises diagnostics that do
+// not stop an export but change what the file MEANS: a metadata sidecar
+// that was absent or deliberately ignored (so the dictionary was
+// synthesised rather than reproduced), and every variable rename
+// --sanitise-names performed. A user who never sees those cannot tell a
+// faithful re-emission from a reconstruction.
+//
+// # Timing
+//
+// The jobs collect AFTER the write pass, when the full set is knowable.
+// An implementation must be a pure accessor: calling it must not itself
+// trigger work, and calling it twice must not double the set.
+type TargetWarningEmitter interface {
+	Writer
+	// Warnings returns the non-fatal diagnostics raised so far. The
+	// returned slice is the caller's to retain.
+	Warnings() []*errors.CodedError
+}
+
 // OverlayWarningEmitter is an optional extension a Writer can implement
 // to surface per-format overlay warnings the dispatcher should lift onto
 // the ExportReport / ConvertReport. The canonical user is the CSV / TSV
@@ -338,6 +435,14 @@ type ExportReport struct {
 	RowErrors       []RowError
 	LabelWarnings   []LabelWarning
 	OverlayWarnings []*errors.CodedError
+	// TargetWarnings carries the non-fatal diagnostics the target
+	// Writer surfaced through the optional TargetWarningEmitter
+	// contract — today the PULSE_SPSS_SIDECAR_* and
+	// PULSE_SPSS_NAME_SANITISED codes the `.sav` encode raises. Nil
+	// for targets that do not implement the interface and for those
+	// that implement it and raised nothing, so the report shape is
+	// unchanged for every pre-existing adapter.
+	TargetWarnings []*errors.CodedError
 }
 
 // ConvertReport summarizes the result of a convert operation.
@@ -354,6 +459,9 @@ type ConvertReport struct {
 	// — see ImportReport.SourceWarnings. Distinct from OverlayWarnings,
 	// which come from the TARGET Writer.
 	SourceWarnings []*errors.CodedError
+	// TargetWarnings carries the target Writer's non-fatal diagnostics
+	// — see ExportReport.TargetWarnings.
+	TargetWarnings []*errors.CodedError
 }
 
 // RowError records a per-row error during import or export.
