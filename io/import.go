@@ -327,6 +327,15 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		return nil, err
 	}
 
+	// Persist whatever source metadata the `.pulse` format cannot hold.
+	// Strictly after the cohort write: a SidecarEmitter fingerprints the
+	// cohort it describes, so the bytes have to be on the filesystem
+	// first. A source that does not implement the interface takes no
+	// part in this and its import is unchanged.
+	if err := j.emitSidecar(); err != nil {
+		return nil, err
+	}
+
 	// Collect promoted field names in schema order for the report + warning.
 	var promotedFields []string
 	for i := range schema.Fields {
@@ -442,6 +451,23 @@ func (j *ImportJob) sourceWarnings() []*errors.CodedError {
 		return nil
 	}
 	return warns
+}
+
+// emitSidecar gives the source Reader a chance to persist metadata the
+// `.pulse` format has nowhere to hold, via the optional SidecarEmitter
+// contract. Called after the cohort write, so the cohort can be
+// fingerprinted; see SidecarEmitter for why a failure here fails the
+// import rather than warning.
+//
+// A Reader that does not implement the interface returns nil without
+// touching the filesystem, which is what keeps every other format's
+// import byte-identical.
+func (j *ImportJob) emitSidecar() error {
+	se, ok := j.Source.(SidecarEmitter)
+	if !ok {
+		return nil
+	}
+	return se.WriteSidecar(j.FS, j.Target)
 }
 
 // sourceSchema pulls the authoritative schema from a SchemaAwareReader

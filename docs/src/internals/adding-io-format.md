@@ -216,6 +216,67 @@ itself trigger a parse, and calling it twice must not double the set.
 Readers that do not implement the interface contribute `nil`, keeping
 every pre-existing report byte-identical.
 
+### Source metadata with no Pulse home: `io.SidecarEmitter`
+
+A source format may declare things a `.pulse` file has nowhere to put.
+An SPSS dictionary is the motivating case: measure levels, print
+formats, arbitrary value codes, missing-value specifications, declared
+string widths, multiple-response sets, document records and a source
+charset are all load-bearing for a round trip, and none of them fits a
+9-byte header, a schema block or a one-bit-per-field null bitmap.
+
+Such a reader implements the third optional interface:
+
+```go
+type SidecarEmitter interface {
+    Reader
+    WriteSidecar(fs afero.Fs, cohortPath string) error
+}
+```
+
+`ImportJob.Run` type-asserts it and calls it **after** the cohort has
+been written. The ordering is load-bearing: an implementation is
+expected to fingerprint the cohort it describes, which requires the
+cohort's bytes to exist. `fs` is `ImportJob.FS` and `cohortPath` is
+`ImportJob.Target`, so the sidecar lands on the same filesystem as the
+cohort and `fs.NewMemMap()` stays hermetic — never reach for `os`.
+`ConvertJob`'s `KeepPulseAt` path delegates to `ImportJob.Run`, so it
+inherits the hook with no extra wiring.
+
+Four conventions an implementation should follow:
+
+1. **Name it by suffix**, per the `imports.Sidecar` convention —
+   append to the cohort filename rather than replacing its extension,
+   so cohort and sidecar stay adjacent and sort together. Pick a suffix
+   that does not collide with `imports.SidecarSuffix` (`.meta.json`),
+   which a managed import writes for the same cohort.
+2. **Version the document** and carry a `kind`, so a reader can reject
+   one written by something else before trusting its shape.
+3. **Carry a fingerprint block** modelled on `encoding.Index`: a
+   32-byte SHA-256 plus `SourceSize` (u64) and `SourceModTime` (i64
+   Unix ns), over the **cohort** — never over the original source file,
+   which may be long gone. The read path then does an O(1) size+mtime
+   stat and reserves the full hash for a verify pass. The policy that
+   pairs with it: an **absent** sidecar is a warning (a cohort that was
+   never derived from that format correctly has none), a **stale** one
+   is an error (a stale dictionary over changed data yields a file that
+   looks authoritative and is wrong).
+4. **Keep the metadata payload flat and self-contained** — no
+   filesystem paths, no byte offsets into the source, no references to
+   anything outside itself — and hold it in a slot separate from the
+   fingerprint. A `.pulse` schema metadata block would delete the
+   sidecar entirely but needs a `FormatVersion` bump; a payload shaped
+   this way can be lifted into one verbatim if that ever lands.
+
+Build the document with `encoding/json` — never `fmt.Sprintf`. A
+returned error **fails the import**: the cohort write on the same
+filesystem has just succeeded, so a sidecar write that then fails is a
+genuine fault, and a cohort silently missing the only surviving record
+of its source dictionary is exactly the quiet degradation the sidecar
+exists to prevent. Readers that do not implement the interface write no
+extra file and take no extra stat, keeping every other format's import
+byte-identical.
+
 ## 5. Skill and doc update
 
 Add or update a skill that points users at the new format. Cohort-

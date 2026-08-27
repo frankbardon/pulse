@@ -212,6 +212,52 @@ type SourceWarningEmitter interface {
 	Warnings() []*errors.CodedError
 }
 
+// SidecarEmitter is an optional extension a Reader can implement to
+// persist source metadata that the `.pulse` format has nowhere to hold.
+//
+// It is the third member of the io/ optional-interface family
+// (SchemaAwareReader, SourceWarningEmitter): the dispatcher
+// type-asserts it and does nothing at all when the assertion fails, so
+// a Reader that does not implement it produces a byte-identical import
+// to the pre-interface shape — no extra file, no extra stat, no
+// behaviour change. Verified by TestImportJob_NoSidecarEmitter_WritesNothing.
+//
+// The canonical user is io/spss. An SPSS dictionary declares measure
+// levels, print formats, arbitrary value codes, missing-value
+// specifications, declared string widths, multiple-response sets,
+// document records and a source charset — none of which a `.pulse`
+// header, schema block or null bitmap can express, and all of which a
+// round trip needs. The adapter writes them to a JSON sidecar beside
+// the cohort.
+//
+// # Timing
+//
+// ImportJob.Run calls this AFTER the cohort has been written, and the
+// order is load-bearing: an implementation is expected to fingerprint
+// the cohort it is describing, which requires the cohort's bytes to
+// exist. cohortPath is ImportJob.Target and fs is ImportJob.FS, so the
+// sidecar lands on the same filesystem as the cohort — never through
+// os, so fs.NewMemMap() stays hermetic.
+//
+// # Failure
+//
+// A returned error FAILS the import. The cohort write on the same
+// filesystem has just succeeded, so a sidecar write that then fails is
+// a genuine fault rather than an expected condition, and a cohort
+// silently missing the only surviving record of its source dictionary
+// is precisely the quiet fidelity loss the sidecar exists to prevent.
+// (The "absent sidecar is only a warning" rule is a READ-path rule
+// about cohorts that never had one.) Implementations should return a
+// coded error.
+type SidecarEmitter interface {
+	Reader
+	// WriteSidecar writes the source-metadata sidecar describing the
+	// cohort at cohortPath, onto fs. Implementations derive the
+	// sidecar's own path from cohortPath by appending a suffix, per the
+	// imports.Sidecar convention.
+	WriteSidecar(fs afero.Fs, cohortPath string) error
+}
+
 // OverlayWarningEmitter is an optional extension a Writer can implement
 // to surface per-format overlay warnings the dispatcher should lift onto
 // the ExportReport / ConvertReport. The canonical user is the CSV / TSV

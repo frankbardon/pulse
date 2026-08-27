@@ -41,6 +41,17 @@
 // records, which belong to a later story and warn as unrecognised until it
 // lands.
 //
+// # The metadata sidecar
+//
+// An import writes what a `.pulse` file cannot hold — measure levels,
+// print formats, arbitrary value codes, missing-value specifications,
+// declared byte widths, multiple-response sets, documents, attributes
+// and the source charset — to a JSON sidecar beside the cohort, via the
+// optional pio.SidecarEmitter contract. Its most important payload is
+// the code / label / Pulse dictionary ID triple, because the cohort's
+// own dictionary holds CODES and the sidecar is therefore the only
+// place the LABELS live. See sidecar.go.
+//
 // All three data-section encodings the format defines are read:
 // uncompressed, SPSS's default bytecode compression (see data.go and
 // bytecode.go), and ZSAV zlib block compression (see zsav.go).
@@ -119,19 +130,21 @@ import (
 )
 
 // Compile-time contract assertions, the house block every Pulse adapter
-// carries. The last two are the load-bearing ones for this format:
+// carries. The last three are the load-bearing ones for this format:
 // SchemaAwareReader is what makes the `.sav` dictionary authoritative
-// instead of a hint the inference pass would overrule, and
+// instead of a hint the inference pass would overrule,
 // SourceWarningEmitter is what routes the PULSE_SPSS_* diagnostics out
-// of this package and onto the import / convert report. Losing either
-// silently would degrade an import rather than break it, which is
-// exactly the failure a compile-time assertion is cheap insurance
-// against.
+// of this package and onto the import / convert report, and
+// SidecarEmitter is what persists the dictionary metadata `.pulse`
+// cannot hold. Losing any of them silently would degrade an import
+// rather than break it, which is exactly the failure a compile-time
+// assertion is cheap insurance against.
 var (
 	_ pio.Reader               = (*Reader)(nil)
 	_ pio.ResetReader          = (*Reader)(nil)
 	_ pio.SchemaAwareReader    = (*Reader)(nil)
 	_ pio.SourceWarningEmitter = (*Reader)(nil)
+	_ pio.SidecarEmitter       = (*Reader)(nil)
 )
 
 // Reader reads an SPSS `.sav` system file.
