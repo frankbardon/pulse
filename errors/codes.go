@@ -1259,6 +1259,38 @@ const (
 	// interpretation is dropped. Details carry the subtype under
 	// DetailSPSSSubtype and a byte offset under DetailSPSSOffset.
 	PULSE_SPSS_EXTENSION_INVALID Code = "PULSE_SPSS_EXTENSION_INVALID"
+
+	// PULSE_SPSS_COMPRESSION_UNSUPPORTED indicates an SPSS `.sav` file
+	// whose dictionary parsed cleanly but whose data section uses an
+	// encoding this reader cannot yet decode: bytecode compression (the
+	// SPSS default, header compression flag 1) or ZSAV zlib block
+	// compression (flag 2). Only the uncompressed encoding (flag 0) is
+	// read today. It is a hard error rather than a warning because a
+	// compressed data section read as though it were uncompressed
+	// produces plausible-looking garbage, and silently wrong numbers are
+	// worse than no numbers. Details carry "data" under DetailSPSSRecord
+	// and the first byte of the data section under DetailSPSSOffset.
+	PULSE_SPSS_COMPRESSION_UNSUPPORTED Code = "PULSE_SPSS_COMPRESSION_UNSUPPORTED"
+
+	// PULSE_SPSS_DATA_TRUNCATED indicates an SPSS `.sav` data section
+	// ends part way through a case: the bytes after the record type 999
+	// terminator are not a whole multiple of the case stride the
+	// dictionary declares. The dictionary itself parsed cleanly, which is
+	// what distinguishes this from PULSE_SPSS_DICT_TRUNCATED. Details
+	// carry "data" under DetailSPSSRecord and the byte offset of the
+	// incomplete case under DetailSPSSOffset.
+	PULSE_SPSS_DATA_TRUNCATED Code = "PULSE_SPSS_DATA_TRUNCATED"
+
+	// PULSE_SPSS_DATA_CASE_COUNT_MISMATCH indicates the number of cases
+	// the data section actually contains disagrees with the count the
+	// file declares — the header ncases field, or the record 7/16 64-bit
+	// count where the file carries one. It is a WARNING: every complete
+	// case present is still read, because discarding readable rows to
+	// honour a writer's miscount would lose data the file plainly
+	// contains. Details carry "data" under DetailSPSSRecord, the byte
+	// offset of the data section under DetailSPSSOffset, and the declared
+	// and actual counts under "declared" and "actual".
+	PULSE_SPSS_DATA_CASE_COUNT_MISMATCH Code = "PULSE_SPSS_DATA_CASE_COUNT_MISMATCH"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -1295,6 +1327,15 @@ const (
 	// type 7 extension subtype a PULSE_SPSS_EXTENSION_* diagnostic refers
 	// to, as an int32.
 	DetailSPSSSubtype = "subtype"
+
+	// DetailSPSSDeclaredCases is the CodedError.Details key carrying the
+	// case count an SPSS `.sav` file DECLARES — the header ncases field,
+	// or the record 7/16 64-bit count where one is present.
+	DetailSPSSDeclaredCases = "declared"
+
+	// DetailSPSSActualCases is the CodedError.Details key carrying the
+	// number of whole cases an SPSS `.sav` data section actually holds.
+	DetailSPSSActualCases = "actual"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1477,6 +1518,9 @@ var allCodes = []Code{
 	PULSE_SPSS_DICT_TRUNCATED,
 	PULSE_SPSS_EXTENSION_UNKNOWN,
 	PULSE_SPSS_EXTENSION_INVALID,
+	PULSE_SPSS_COMPRESSION_UNSUPPORTED,
+	PULSE_SPSS_DATA_TRUNCATED,
+	PULSE_SPSS_DATA_CASE_COUNT_MISMATCH,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

@@ -1823,4 +1823,34 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_COMPRESSION_UNSUPPORTED: {
+		Message: "The SPSS .sav dictionary parsed cleanly but its data section uses a compressed encoding this reader cannot yet decode — bytecode compression (the SPSS default) or ZSAV zlib block compression. Only the uncompressed encoding is read today. Reading a compressed data section as though it were uncompressed would produce plausible-looking garbage, so the import stops instead.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-save the file without compression: in SPSS, File > Save As with the compression option cleared, or in PSPP `SAVE OUTFILE='plain.sav' /UNCOMPRESSED.` Import the uncompressed copy.",
+			},
+		},
+	},
+	PULSE_SPSS_DATA_TRUNCATED: {
+		Message: "The SPSS .sav data section ends part way through a case: the bytes following the dictionary terminator are not a whole multiple of the case width the dictionary declares. The dictionary parsed cleanly, so the file is a valid system file that was cut short rather than a malformed one.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-transfer or re-export the file — a data section ending mid-case is almost always an interrupted copy, download, or export. Compare the byte size against the source before importing again.",
+			},
+		},
+	},
+	PULSE_SPSS_DATA_CASE_COUNT_MISMATCH: {
+		Message: "The number of cases the SPSS .sav data section actually holds disagrees with the count the file declares in its header (or in the record 7/16 64-bit case count). This is a warning: every complete case present is read, because discarding rows the file plainly contains to honour a writer's miscount would lose data.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Compare the declared and actual counts in the error details against what SPSS or PSPP reports for the same file. A writer that miscounts is usually harmless, but a shortfall can also mean a truncated transfer — re-export the file and check the counts agree.",
+			},
+		},
+	},
 }

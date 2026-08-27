@@ -4959,7 +4959,7 @@
         ]
       }
     ],
-    "error_codes_count": 171,
+    "error_codes_count": 174,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5102,6 +5102,9 @@
       "PULSE_SHARD_NAME_COLLISION",
       "PULSE_SHARD_RESERVED_NAME",
       "PULSE_SHARD_SCHEMA_MISMATCH",
+      "PULSE_SPSS_COMPRESSION_UNSUPPORTED",
+      "PULSE_SPSS_DATA_CASE_COUNT_MISMATCH",
+      "PULSE_SPSS_DATA_TRUNCATED",
       "PULSE_SPSS_DICT_INVALID",
       "PULSE_SPSS_DICT_TRUNCATED",
       "PULSE_SPSS_EXTENSION_INVALID",
@@ -9286,4 +9289,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e0d50d7fb0b079b3dfc8484c51fd5c7d8d0f965c85f2f11e2c8bacc1f405a233
+// golden-hash: a1080fbc30aa8b0d037981dc694758f07d8327a71442dcd6dcb085d85825e111

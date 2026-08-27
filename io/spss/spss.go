@@ -35,8 +35,13 @@
 // lands. Charset DECODING is not done here either — 7/20's name is recorded,
 // and nothing is transcoded with it.
 //
-// The data section is not read yet. dictionary.dataOffset is the byte offset
-// of its first byte.
+// The data section is read in its uncompressed encoding only (see data.go);
+// dictionary.dataOffset is the byte offset of its first byte. A file whose
+// header declares bytecode or ZSAV compression parses its dictionary
+// normally and is then refused at ReadRows with
+// PULSE_SPSS_COMPRESSION_UNSUPPORTED, because a compressed data section read
+// as though it were uncompressed yields plausible numbers rather than an
+// error.
 //
 // # Errors and warnings
 //
@@ -62,6 +67,7 @@ package spss
 import (
 	"fmt"
 
+	"github.com/frankbardon/pulse/errors"
 	"github.com/spf13/afero"
 )
 
@@ -77,6 +83,17 @@ type Reader struct {
 
 	data []byte
 	dict *dictionary
+
+	// header is the memoised column-name slice ReadHeader returns. It is
+	// derived from dict and is cleared by Reset.
+	header []string
+
+	// dataWarnings are the non-fatal diagnostics the most recent ReadRows
+	// pass raised. They are held apart from dictionary.warnings because
+	// the dictionary is parsed once and memoised while ReadRows can run
+	// repeatedly — appending to the dictionary's slice would accumulate a
+	// duplicate set on every pass.
+	dataWarnings []*errors.CodedError
 }
 
 // NewReader creates a `.sav` reader over a filesystem path.
@@ -123,8 +140,20 @@ func (r *Reader) loadDictionary() (*dictionary, error) {
 }
 
 // Close releases the reader's buffers.
+//
+// It is idempotent: every field it clears is already cleared on a second
+// call, so calling it twice — which a deferred Close plus an explicit one in
+// the happy path routinely does — is a no-op rather than a fault.
+//
+// A reader built by NewReader can be used again after Close, because init
+// re-reads the file. One built by NewReaderFromBytes cannot: its only copy of
+// the bytes was the buffer Close just dropped, and a subsequent read reports
+// that there is no data source. That matches the csv adapter, whose Close is
+// likewise the end of a byte-backed reader's life.
 func (r *Reader) Close() error {
 	r.data = nil
 	r.dict = nil
+	r.header = nil
+	r.dataWarnings = nil
 	return nil
 }
