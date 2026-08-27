@@ -32,7 +32,7 @@ LabelTables: map[string]pulse.LabelTable{
 
 `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (filename without `.json` = table name). Either flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic + disk-loaded can't share a name (`pulse.New` rejects).
 
-**Pulse's own sidecars are skipped; anything else that fails to parse is fatal.** The loader excludes `*.spss.json` (SPSS metadata) and `*.meta.json` (managed import) by suffix before reading them, so pointing the variable at a directory that also holds cohorts is safe and a skipped sidecar registers no table. Every OTHER `*.json` under the root is still parsed as a label table and a file that fails hard-fails `pulse.New` naming the path — a typo must not become a silently missing table. A dedicated directory is still the cleaner habit.
+**Pulse's own sidecars are skipped; anything else that fails to parse is fatal.** The loader excludes `*.spss.json` (SPSS metadata) and `*.meta.json` (managed import) by suffix before reading them, so pointing the variable at a directory that also holds cohorts is safe and a skipped sidecar registers no table. Every OTHER `*.json` under the root is still parsed as a label table and a file that fails hard-fails `pulse.New` naming the path — a typo must not become a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically. A dedicated directory is still the cleaner habit.
 
 ### 2. Attach a binding
 

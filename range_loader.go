@@ -25,6 +25,13 @@ const envRangeTablesDir = "PULSE_RANGE_TABLES_DIR"
 // wrapped object {"description": "...", "ranges": [ ... ]}. The filename
 // without .json becomes the registered table name.
 //
+// Files matching a known Pulse sidecar suffix (imports.SidecarSuffix,
+// spss.SidecarSuffix — see isPulseSidecarName) are skipped without
+// being read: they are Pulse's own artefacts, they sit beside cohorts,
+// and this directory may legitimately be a data directory. Any other
+// *.json file that fails to parse is still a hard error naming the
+// path — an unreadable range table is a typo the caller must see.
+//
 // Empty dir + empty env var: the call is a no-op.
 func loadRangeTablesFromDir(opts *Options) error {
 	dir := opts.RangeTablesDir
@@ -54,6 +61,14 @@ func loadRangeTablesFromDir(opts *Options) error {
 		}
 		name := e.Name()
 		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		// Pulse's own sidecars are *.json and land next to cohorts,
+		// so a range-tables dir aimed at a data directory sees them.
+		// Skip by suffix BEFORE parsing: they are not range tables and
+		// a parse failure on one would blame the wrong thing. This is
+		// not tolerance of unparseable JSON — see isPulseSidecarName.
+		if isPulseSidecarName(name) {
 			continue
 		}
 		tableName := strings.TrimSuffix(name, ".json")
