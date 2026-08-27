@@ -54,6 +54,109 @@ type SchemaAwareWriter interface {
 	SetPulseSchema(s *encoding.Schema)
 }
 
+// SchemaAwareReader is an optional extension of Reader for sources that
+// already carry an authoritative schema — a source-side dictionary that
+// declares each column's type, nullability and category set as fact
+// rather than as a guess (SPSS `.sav`, and in principle Parquet /
+// Arrow). ImportJob.Run and ImportJob.Predict type-assert this
+// interface and, when it yields a schema, skip io/infer.go entirely:
+// no row sampling, no per-column type voting, no delimiter probing.
+// Readers that do not implement SchemaAwareReader take the unchanged
+// sample-then-infer path, byte-for-byte — pinned by
+// TestImportJob_NonSchemaAwareReader_ByteIdentical.
+//
+// It is the read-side mirror of SchemaAwareWriter: ExportJob.Run pushes
+// the .pulse schema INTO a writer via SetPulseSchema before WriteHeader;
+// ImportJob pulls the .pulse schema OUT of a reader via PulseSchema
+// before the row pass.
+//
+// # Implementer obligations
+//
+// The returned schema is used verbatim as the .pulse schema — Run does
+// not adjust, widen or re-order it. Every field must therefore be fully
+// specified:
+//
+//   - Name — the .pulse column name.
+//   - Type — the storage type. Chosen by the implementer from the source
+//     dictionary, never re-derived from cell text.
+//   - Nullable — authoritative. See "No null promotion" below.
+//   - CsvColumnIdx — the index into the []string row that ReadRows
+//     yields. Fields are NOT positionally matched to the header; this
+//     index is the only binding. Must be >= 0.
+//   - Dictionary — required (and pre-populated) for every type where
+//     Type.HasDictionary() reports true. This is the load-bearing slot:
+//     dictionary ENTRY ORDER is the on-wire encoding — position i is the
+//     categorical_* ID and the set_* mask bit — so handing over the
+//     source's own ordering is what preserves the source codes. A nil
+//     dictionary is allocated empty and filled in first-seen order from
+//     the row text, which is exactly the re-guessing this interface
+//     exists to prevent.
+//   - Precision / Scale — required for decimal128.
+//
+// ReadRows still yields []string, so a set_* cell must arrive as its
+// tokens joined by DefaultSetDelimiter ("|") — ImportJob.SetDelimiters is
+// inert on this path and the constant is the fixed contract.
+//
+// Cell text still passes through the same conversion the inferred path
+// uses, so an authoritative dictionary is pre-seeded, not sealed: a
+// value absent from it is appended (subject to the type's width limit)
+// rather than rejected. Source-declared entries keep their positions
+// either way.
+//
+// # Precedence over the inference-steering slots
+//
+// ImportJob carries four slots that exist only to steer inference. With
+// an authoritative schema there is no inference to steer, so all four
+// are inert — Run reads none of them:
+//
+//   - SampleRows, SetInferenceMinPct — sampling knobs with nothing to
+//     sample.
+//   - SetDelimiters — set_* masks come from the source's own set
+//     definitions, not from splitting delimited cell strings.
+//   - ColumnTypeOverrides — the managed-import force_type escape hatch.
+//     Inert deliberately, on two grounds. It is already documented as
+//     "ignored when Schema is supplied", and a reader-supplied schema is
+//     a supplied schema. More importantly, forcing a type onto a
+//     dictionary-carrying column would discard the source's category
+//     IDs / mask bit positions and silently rebuild them in first-seen
+//     order — a quiet fidelity loss. A caller who genuinely needs a
+//     different type sets ImportJob.Schema explicitly, which wins
+//     outright (below).
+//
+// # No null promotion
+//
+// ImportJob.InferredSchema's out-of-sample-null tolerance does NOT
+// apply. An authoritative schema is not inference-originated, so a null
+// in a field the source dictionary declares non-nullable is a genuine
+// data error: it stays a PULSE_IMPORT_ROW_ERROR and the field is not
+// widened. ImportReport.PromotedFields is always empty for such an
+// import. Setting InferredSchema alongside a SchemaAwareReader source
+// does not re-enable promotion.
+//
+// # Precedence and failure
+//
+//   - An explicit ImportJob.Schema wins outright; PulseSchema is not
+//     even called. The caller is the most specific instruction, and this
+//     keeps every existing explicit-schema path unchanged.
+//   - A non-nil error fails the import. There is no fallback to
+//     inference: a source that has a dictionary and could not read it
+//     must not quietly produce a differently-typed cohort.
+//   - A (nil, nil) return is the deliberate opt-out — "this particular
+//     source carries no authoritative schema" — and falls back to
+//     inference exactly as if the interface were not implemented. It
+//     then requires a ResetReader source like any inferred import.
+//   - A non-nil schema with no fields, or a field whose CsvColumnIdx is
+//     negative, is a malformed contract and fails the import.
+//
+// ConvertJob does not consult this interface; its import half runs off
+// the schema ConvertJob itself resolved.
+type SchemaAwareReader interface {
+	Reader
+	// PulseSchema returns the authoritative .pulse schema for this
+	// source, or (nil, nil) to decline and fall back to inference.
+	PulseSchema() (*encoding.Schema, error)
+}
+
 // OverlayAwareWriter is an optional extension of Writer for targets that
 // can embed Response.Overlays in the exported artefact (Arrow / Parquet /
 // Excel / NDJSON per research/export-embedding-shape.md). The ExportJob
@@ -138,10 +241,18 @@ type PredictReport struct {
 
 // ImportJob converts tabular source data into a .pulse file.
 type ImportJob struct {
-	Source     Reader
-	Target     string // output .pulse path
-	Schema     *encoding.Schema
-	SampleRows int // default 500, min 50
+	Source Reader
+	Target string // output .pulse path
+	// Schema is the caller-authored .pulse schema. When non-nil it wins
+	// over everything: inference is skipped AND a SchemaAwareReader
+	// source is not consulted at all. It is therefore the escape hatch
+	// for overriding an authoritative source dictionary.
+	Schema *encoding.Schema
+	// SampleRows caps the inference sample: default 500, min 50.
+	// Inert when Schema is supplied or the Source is a
+	// SchemaAwareReader that yields a schema — there is nothing to
+	// sample.
+	SampleRows int
 	FS         afero.Fs
 	// SetInferenceMinPct configures the delimited-cell heuristic for
 	// inferring set_* field types during the inference pass. A column
@@ -149,17 +260,27 @@ type ImportJob struct {
 	// null sampled cells contain the inferred delimiter, the
 	// post-split unique token count fits in set_u64 (≤64), and the
 	// average post-split cardinality is > 1. Zero is treated as 30%.
-	// Ignored when Schema is supplied.
+	// Ignored when Schema is supplied, and inert when the Source is a
+	// SchemaAwareReader that yields a schema.
 	SetInferenceMinPct int
 	// ColumnTypeOverrides bypasses inference for the named columns
 	// (keyed by column name). Used by the managed-import sidecar's
-	// force_type escape hatch. Ignored when Schema is supplied.
+	// force_type escape hatch. Ignored when Schema is supplied, and
+	// inert when the Source is a SchemaAwareReader that yields a
+	// schema — an authoritative source dictionary is not a guess to
+	// override, and forcing a type onto a dictionary-carrying column
+	// would silently discard the source's category IDs / mask bit
+	// positions. Override an authoritative schema by supplying Schema.
+	// See SchemaAwareReader.
 	ColumnTypeOverrides map[string]encoding.FieldType
 	// SetDelimiters maps set-typed column name to the delimiter the
 	// importer should use when splitting cell strings into tokens
 	// for per-row mask packing. Populated by inference; absent
 	// entries (explicit-schema imports or non-set columns) fall back
-	// to DefaultSetDelimiter ("|").
+	// to DefaultSetDelimiter ("|"). Inert when the Source is a
+	// SchemaAwareReader that yields a schema: such a source builds
+	// set_* masks from its own set definitions, not by splitting
+	// delimited cell strings.
 	SetDelimiters map[string]string
 	// InferredSchema marks a supplied Schema as inference-originated so
 	// the row pass promotes non-nullable fields to nullable on an
@@ -170,6 +291,11 @@ type ImportJob struct {
 	// re-import) so it inherits the same tolerance. Leave false for a
 	// user-authored explicit schema, where a null in a declared
 	// non-nullable field must stay a PULSE_IMPORT_ROW_ERROR.
+	//
+	// Inert when the Source is a SchemaAwareReader that yields a
+	// schema. Such a schema is authoritative, not inference-originated,
+	// so its declared nullability is a contract: an unexpected null is
+	// a row error, never a silent widening. See SchemaAwareReader.
 	InferredSchema bool
 }
 

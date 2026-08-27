@@ -22,6 +22,22 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
 
+	// A SchemaAwareReader source hands over an authoritative schema — a
+	// source-side dictionary, not a guess — and the whole inference pass is
+	// skipped. Only consulted when the caller supplied no explicit Schema:
+	// ImportJob.Schema is the most specific instruction and wins outright.
+	authoritative := false
+	if schema == nil {
+		src, err := j.sourceSchema()
+		if err != nil {
+			return nil, err
+		}
+		if src != nil {
+			schema = src
+			authoritative = true
+		}
+	}
+
 	// An inferred import (no user-authored schema) tolerates out-of-sample
 	// nulls: a null cell in a column the bounded inference sample marked
 	// non-nullable promotes that field to nullable rather than failing the
@@ -30,7 +46,10 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// schema into the same tolerance. A user-authored explicit schema keeps
 	// the strict PULSE_IMPORT_ROW_ERROR — the declared nullability is a
 	// contract, not a guess.
-	inferredSchema := schema == nil || j.InferredSchema
+	//
+	// An authoritative schema is never inference-originated, so it never
+	// promotes, and InferredSchema cannot re-enable the tolerance for it.
+	inferredSchema := !authoritative && (schema == nil || j.InferredSchema)
 
 	// Infer schema if not provided.
 	if schema == nil {
@@ -129,6 +148,16 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	wideUsed := make([]bool, len(schema.Fields))
 	nullMask := make([]bool, len(schema.Fields))
 
+	// set_* token delimiter. ImportJob.SetDelimiters is inference-derived
+	// (or caller-supplied to match an inference-derived schema), so it is
+	// inert for an authoritative schema: a SchemaAwareReader builds set_*
+	// membership from the source's own set definitions and joins the tokens
+	// with DefaultSetDelimiter. See SchemaAwareReader.
+	setDelimiterFor := j.setDelimiterFor
+	if authoritative {
+		setDelimiterFor = func(string) string { return DefaultSetDelimiter }
+	}
+
 	err := j.Source.ReadRows(ctx, func(row []string) error {
 		select {
 		case <-ctx.Done():
@@ -205,7 +234,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 				continue
 			}
 
-			v, err := convertValue(raw, f.Type, dicts[i], j.setDelimiterFor(f.Name))
+			v, err := convertValue(raw, f.Type, dicts[i], setDelimiterFor(f.Name))
 			if err != nil {
 				rowErrors = append(rowErrors, RowError{
 					Row: rowNum,
@@ -318,7 +347,22 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	schema := j.Schema
 	var warnings []InferenceWarning
-	inferredSchema := schema == nil || j.InferredSchema
+
+	// Predict mirrors Run's schema resolution so a predicted schema is the
+	// schema Run would write: an authoritative SchemaAwareReader schema
+	// bypasses inference here too, and never null-promotes.
+	authoritative := false
+	if schema == nil {
+		src, err := j.sourceSchema()
+		if err != nil {
+			return nil, err
+		}
+		if src != nil {
+			schema = src
+			authoritative = true
+		}
+	}
+	inferredSchema := !authoritative && (schema == nil || j.InferredSchema)
 
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
@@ -378,6 +422,42 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		EstimatedRows: rowCount,
 		Warnings:      warnings,
 	}, nil
+}
+
+// sourceSchema pulls the authoritative schema from a SchemaAwareReader
+// source, mirroring the SetPulseSchema push ExportJob.Run performs on a
+// SchemaAwareWriter target. Returns (nil, nil) — fall back to inference —
+// when the source does not implement the interface at all, or implements
+// it and declines by returning a nil schema. See SchemaAwareReader for the
+// full precedence contract.
+//
+// A non-nil error is never swallowed: a source that carries a dictionary
+// and failed to read it must not quietly produce a differently-typed
+// cohort from re-guessed cell text.
+func (j *ImportJob) sourceSchema() (*encoding.Schema, error) {
+	sar, ok := j.Source.(SchemaAwareReader)
+	if !ok {
+		return nil, nil
+	}
+	schema, err := sar.PulseSchema()
+	if err != nil {
+		return nil, fmt.Errorf("reading authoritative source schema: %w", err)
+	}
+	if schema == nil {
+		// Deliberate opt-out: this source has no authoritative schema.
+		return nil, nil
+	}
+	if len(schema.Fields) == 0 {
+		return nil, fmt.Errorf("authoritative source schema has no fields")
+	}
+	for i := range schema.Fields {
+		if schema.Fields[i].CsvColumnIdx < 0 {
+			return nil, fmt.Errorf(
+				"authoritative source schema: field %q has negative CsvColumnIdx %d",
+				schema.Fields[i].Name, schema.Fields[i].CsvColumnIdx)
+		}
+	}
+	return schema, nil
 }
 
 // isNullToken reports whether raw is one of the recognized null-sentinel
