@@ -6919,7 +6919,7 @@
       },
       {
         "name": "spss-cohorts",
-        "description": "SPSS .sav / .zsav import — the schema-authoritative dictionary, derived columns (\u003cvar\u003e_missing siblings and multiple-dichotomy set_* columns), the numeric-vs-categorical missing-value split, codes-not-labels dictionaries, the metadata sidecar, and the PULSE_SPSS_* diagnostics. Read this when a cohort came from SPSS, or when a cohort has more columns than its source file had variables."
+        "description": "SPSS .sav / .zsav import and .sav writing — the schema-authoritative dictionary, derived columns (\u003cvar\u003e_missing siblings and multiple-dichotomy set_* columns), the numeric-vs-categorical missing-value split, codes-not-labels dictionaries, the metadata sidecar, the dictionary + data-section writer, and the PULSE_SPSS_* diagnostics. Read this when a cohort came from SPSS, when a cohort has more columns than its source file had variables, or when emitting a .sav."
       },
       {
         "name": "statistical-testing",
@@ -9393,4 +9393,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 030a777b4077c2e5b643bd06880f561135d834bce91b50386641ef784b31bd97
+// golden-hash: e7776f9acf776a439f355c6d388fd7d89a97353d1da2a2dc3d2fed51fa88e560

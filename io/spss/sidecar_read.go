@@ -95,6 +95,32 @@ type WriterOptions struct {
 	// option that does; the choice is between the recorded metadata and
 	// the synthesised default, never between fresh and stale.
 	IgnoreSidecar bool
+
+	// Uncompressed writes the data section as flat 8-byte elements
+	// instead of SPSS's bytecode compression.
+	//
+	// The DEFAULT is compressed, because that is what SPSS's own SAVE
+	// writes: almost every `.sav` in the world is bytecode-compressed,
+	// so it is the path every tool that opens one exercises daily. The
+	// two encodings are losslessly equivalent — identical case data,
+	// re-importing to identical cohorts — so this knob trades size for
+	// a data section a human can read in a hex dump, and nothing else.
+	//
+	// It does NOT select ZSAV. ZSAV emission is not implemented; asking
+	// for it is PULSE_SPSS_COMPRESSION_UNSUPPORTED.
+	Uncompressed bool
+}
+
+// Compression is the header compression flag these options select: SPSS
+// bytecode by default, uncompressed when [WriterOptions.Uncompressed] is
+// set. It is what a caller passes as [DictionaryRequest.Compression], so
+// the flag the header declares and the encoding the data section is
+// written in are decided in one place.
+func (o WriterOptions) Compression() int32 {
+	if o.Uncompressed {
+		return compressionNone
+	}
+	return compressionBytecode
 }
 
 // ---------------------------------------------------------------------------

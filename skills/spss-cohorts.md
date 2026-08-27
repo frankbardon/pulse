@@ -1,10 +1,10 @@
 ---
 name: spss-cohorts
-description: SPSS .sav / .zsav import — the schema-authoritative dictionary, derived columns (<var>_missing siblings and multiple-dichotomy set_* columns), the numeric-vs-categorical missing-value split, codes-not-labels dictionaries, the metadata sidecar, and the PULSE_SPSS_* diagnostics. Read this when a cohort came from SPSS, or when a cohort has more columns than its source file had variables.
+description: SPSS .sav / .zsav import and .sav writing — the schema-authoritative dictionary, derived columns (<var>_missing siblings and multiple-dichotomy set_* columns), the numeric-vs-categorical missing-value split, codes-not-labels dictionaries, the metadata sidecar, the dictionary + data-section writer, and the PULSE_SPSS_* diagnostics. Read this when a cohort came from SPSS, when a cohort has more columns than its source file had variables, or when emitting a .sav.
 type: guide
 kind: design
 applies_to: inspect, predict, process, compose, sample, facet
-covers: [SPSS, sav, zsav, import, derived columns, user-missing values, multiple-response sets, metadata sidecar]
+covers: [SPSS, sav, zsav, import, export, derived columns, user-missing values, multiple-response sets, metadata sidecar]
 ---
 
 # SPSS cohorts
@@ -79,7 +79,7 @@ SPSS is the one source that DECLARES a multi-select question; every other path g
 
 `kind` is a **CLOSED vocabulary** (`spss.DerivedKinds()`), each mapping to one action via `spss.DerivedFoldFor`, which reports `false` for anything else so an older binary meeting a newer document stops rather than defaults. Every entry is self-sufficient (`Derived.Complete()`): a reason sibling carries its reason dictionary (ID ↔ reason ↔ SPSS code ↔ label), the only record of which state each row was in; a set column carries `set_name` plus `sources` in BIT order. Derived columns are INTERLEAVED, so `variables[].position` is a cohort position, not a source ordinal. **A cohort that derived nothing writes `"derived": []`, never a missing key** — "nothing was derived" and "this document cannot tell you" are different answers.
 
-**The fold is still not implemented.** The dictionary writer (below) emits exactly the source's variables — the sidecar's `variables` list holds only those — and reports every cohort field it did not bind on `DictionaryPlan.UnboundFields`, which is what a fold will check the registry against. Consuming a derived column (restoring a reason sibling's codes, dropping a set column) has no code behind it yet.
+**The fold is still not implemented.** The writer emits exactly the source's variables — the sidecar's `variables` list holds only those — and reports every cohort field it did not bind on `DictionaryPlan.UnboundFields`, which is what a fold will check the registry against. The data encoder is driven by `DictionaryPlan.Columns` alone, so an unbound field is decoded (the record stride demands it) and then written nowhere: **a derived column can never leak out as an SPSS variable**, and nothing has to filter the case stream before the encoder. What is missing is the MEANING — restoring a reason sibling's codes into its source variable, dropping a set column — which is a question about how the plan is built, not about the data pass.
 
 A generated sibling name colliding with a real variable (case-insensitively, as SPSS names are) is `PULSE_SPSS_DERIVED_NAME_COLLISION` naming both sides — a hard ERROR for a sibling, only a warning on the MD-set arm, because the set column is pure convenience.
 
@@ -128,13 +128,17 @@ Loading also normalises: `multiple_response_sets[].fields` arrived additively un
 
 **Warnings are load-bearing.** Every non-fatal `PULSE_SPSS_*` diagnostic changes what the cohort MEANS. They ride `ImportReport.SourceWarnings` / `ConvertReport.SourceWarnings` (the `io.SourceWarningEmitter` interface), the `--json` envelope's `warnings` array, and `Warning [CODE]` lines on the text path. `pulse errors lookup CODE` carries the per-code fixup.
 
-## Writing `.sav` — the dictionary only, so far
+## Writing `.sav` — a loadable file, no CLI leaf yet
 
-`spss.BuildDictionary(spss.DictionaryRequest{Schema, Sidecar, Cases, Compression, Options})` emits the dictionary section — header, record `2` variable records, records `3`/`4` value labels, the `7/*` subtypes and the `999` terminator — and returns a `DictionaryPlan`: the bytes, plus what a data encoder needs (`ByteOrder`, `Sysmis`, `ElementCount`, per-variable `Columns` with the cohort field each is written from, and two patchable case-count offsets).
+`spss.BuildDictionary(spss.DictionaryRequest{Schema, Sidecar, Cases, Compression, Options})` emits the dictionary section — header, record `2` variable records, records `3`/`4` value labels, the `7/*` subtypes, the `999` terminator — and returns a `DictionaryPlan`. `spss.NewDataEncoder(plan, schema)` writes the data section (`WriteCohort(r)` drains a `.pulse` record stream, `WriteCase` takes one record, `Finish()` returns the bytes); the file is `plan.Bytes` followed by them. **haven / ReadStat and `foreign` both read every value back exactly**, in both write modes.
 
-**There is no data-section encoder and no export wiring yet**, so the only complete file this makes is a ZERO-CASE dictionary. `pulse export` / `newWriterForFormat` still have no `.sav` arm, an SPSS output target still returns `PULSE_SPSS_EXPORT_UNSUPPORTED`, and `pulse convert data.csv out.sav` still does not work.
+**Bytecode compression is the default** — it is what SPSS's own SAVE writes. `WriterOptions{Uncompressed: true}` (`.Compression()` resolves the header flag) writes flat 8-byte elements instead; the two are losslessly equivalent, so the knob trades size for a readable hex dump. **ZSAV emission is not implemented** (`PULSE_SPSS_COMPRESSION_UNSUPPORTED`): Pulse reads it and does not write it. Pass `Cases: -1` when the count is not known up front and `Finish` patches it via `DictionaryPlan.SetCaseCount`, which writes the header int32 **and** record `7/16` together — two disagreeing counts are a file no reader can adjudicate. A `-1` plan emits no `7/16`, so it carries the header count alone.
 
-Two rules govern what it writes. **Original SPSS codes, never dictionary positions** — the sidecar triple supplies them; `IF q1 EQ 5` addresses a value, so renumbering silently re-points every reference. **With no sidecar, nothing is invented**: a categorical becomes a STRING variable holding the dictionary text rather than a numeric with codes taken from positions, a `set_*` expands into one indicator variable per entry (named for that entry, so the mask round-trips) plus a `7/7` dichotomy definition, and `CategoryCode.Known` stays `false` so the plan itself says which it is.
+**Still no CLI leaf and no export wiring** (`pulse export` / `newWriterForFormat` have no `.sav` arm; an SPSS output target is `PULSE_SPSS_EXPORT_UNSUPPORTED`), no name validation, no charset re-encoding — the writer declares UTF-8 and writes the cohort's own bytes.
+
+Nulls take the missing state the SPSS type actually has: numeric → the **sysmis sentinel**, string → **blanks** (no string sentinel exists, and blank reads back as null), and every member of a null `set_*` → sysmis, which is what keeps null apart from an empty mask on the way back. Anything with no honest form is `PULSE_SPSS_EXPORT_UNSUPPORTED` naming the variable, never a quiet substitution — a dictionary ID the plan records no SPSS code for, an ID two source values collapsed onto, a value wider than its declared variable.
+
+Two rules govern what the dictionary writes. **Original SPSS codes, never dictionary positions** — the sidecar triple supplies them; `IF q1 EQ 5` addresses a value, so renumbering silently re-points every reference. **With no sidecar, nothing is invented**: a categorical becomes a STRING variable holding the dictionary text rather than a numeric with codes taken from positions, a `set_*` expands into one indicator variable per entry (named for that entry, so the mask round-trips) plus a `7/7` dichotomy definition, and `CategoryCode.Known` stays `false` so the plan itself says which it is.
 
 Three things deliberately do NOT reproduce the source, because re-emitting them would be *wrong* rather than merely less faithful: byte order is always **little-endian** (`7/3` agrees), `prod_name` identifies pulse, and `7/20` declares **UTF-8** — the declaration follows the bytes until transcoding lands. Records `7/21` and `7/22` carry each variable's **FINAL** name; ReadStat (haven, pyreadstat) refuses a file that spells the short name there. MOYR/QYR/WKYR keep both their raw seconds and their format code, so such a column still renders as a month or a quarter.
 

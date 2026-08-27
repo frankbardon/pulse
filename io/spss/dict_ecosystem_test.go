@@ -160,3 +160,132 @@ cat(h, "\n", g, "\n", sep="")
 		})
 	}
 }
+
+// TestEmittedFile_ValuesReadInReadStatAndForeign is the E5-S2 structural
+// check taken one step further, now that there is a data section: it compares
+// the VALUES two independent readers see against the values that were
+// written.
+//
+// Structure was the only question E5-S2 could ask — a dictionary-only file
+// has nothing else in it — and structure is the weaker half. A file whose
+// dictionary is perfect and whose case bytes are laid out one element to the
+// left opens cleanly in every tool and reports the wrong numbers, which is
+// precisely the failure mode a Pulse-reads-its-own-Pulse test cannot catch.
+//
+// Both readers are asked for the same file in both write modes, because the
+// compressed and uncompressed sections are supposed to be equivalent to
+// something that is not us, not merely to each other.
+//
+// Recorded result at E5-S3: haven 2.5.5 (ReadStat) and foreign 0.8.91 both
+// read every value below back exactly, in both modes — the numerics, the
+// string, the DATE column as an R Date, the system-missing cells as NA, and
+// the set indicators as their counted value.
+func TestEmittedFile_ValuesReadInReadStatAndForeign(t *testing.T) {
+	bin := rEnvironment(t)
+
+	// A cohort covering the four things a data section can get wrong
+	// independently: element order, the numeric encoding, the string
+	// padding, and the two missing states.
+	s := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "ID", Type: encoding.FieldTypeU32},
+		{Name: "INCOME", Type: encoding.FieldTypeF64, Nullable: true},
+		{Name: "REGION", Type: encoding.FieldTypeCategoricalU8, Dictionary: dictOf(t, "north", "south")},
+		{Name: "WHEN", Type: encoding.FieldTypeDate},
+		{Name: "MEDIA", Type: encoding.FieldTypeSetU8, Dictionary: dictOf(t, "tv", "web")},
+	}}
+	const day = 19786 // 2024-03-04
+	cases := []Case{
+		{{Num: 1}, {Num: 1234.5}, {Num: 0}, {Num: day}, {Mask: 0b01}},
+		{{Num: 2}, {Num: -0.25}, {Num: 1}, {Num: day + 1}, {Mask: 0b11}},
+		{{Num: 3}, {Null: true}, {Num: 0}, {Num: day + 2}, {Mask: 0}},
+	}
+
+	dir := t.TempDir()
+	for _, mode := range []struct {
+		name string
+		opts WriterOptions
+	}{
+		{"bytecode", WriterOptions{}},
+		{"uncompressed", WriterOptions{Uncompressed: true}},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			plan := planFor(t, s, mode.opts)
+			path := filepath.Join(dir, mode.name+".sav")
+			if err := os.WriteFile(path, encodeCases(t, plan, s, cases...), 0o644); err != nil {
+				t.Fatalf("writing %s: %v", path, err)
+			}
+
+			// Every value is rendered to a canonical string on the R
+			// side, so a difference in R's own printing cannot be
+			// mistaken for a difference in the data. The two readers
+			// hand back a DATE column differently — haven converts it to
+			// an R Date, foreign leaves the raw SPSS second count — so
+			// each is brought to the same ISO text its own way, and both
+			// must name the same day.
+			script := `
+f <- Sys.getenv("PULSE_SAV")
+j <- function(x) paste(x, collapse="|")
+n <- function(x) j(ifelse(is.na(x), "NA", sprintf("%.4f", as.numeric(x))))
+h <- tryCatch({
+  d <- haven::read_sav(f)
+  paste0("HAVEN OK|", j(names(d)), "|", n(d$ID), "|", n(d$INCOME), "|",
+         j(as.character(d$REGION)), "|", j(format(as.Date(d$WHEN), "%Y-%m-%d")), "|",
+         n(d$tv), "|", n(d$web))
+}, error=function(e) paste("HAVEN FAIL:", conditionMessage(e)))
+g <- tryCatch({
+  d <- suppressWarnings(foreign::read.spss(f, to.data.frame=FALSE))
+  paste0("FOREIGN OK|", n(d$ID), "|", n(d$INCOME), "|",
+         j(trimws(as.character(d$REGION))), "|",
+         j(format(as.Date(as.numeric(d$WHEN)/86400, origin="1582-10-14"), "%Y-%m-%d")), "|",
+         n(d$tv), "|", n(d$web))
+}, error=function(e) paste("FOREIGN FAIL:", conditionMessage(e)))
+cat(h, "\n", g, "\n", sep="")
+`
+			cmd := exec.Command(bin, "-e", script)
+			cmd.Env = append(os.Environ(), "PULSE_SAV="+path)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("running Rscript: %v\n%s", err, out)
+			}
+			text := string(out)
+			t.Logf("%s\n%s", path, strings.TrimSpace(text))
+
+			// The values, per column, in case order — including the set
+			// indicators, which are tv on rows 1 and 2 and web on row 2.
+			// Each reader is checked on ITS OWN line: a substring test
+			// over the whole output would let one reader's answer stand
+			// in for the other's.
+			values := "1.0000|2.0000|3.0000|" +
+				"1234.5000|-0.2500|NA|" +
+				"north|south|north|" +
+				"2024-03-04|2024-03-05|2024-03-06|" +
+				"1.0000|1.0000|0.0000|" +
+				"0.0000|1.0000|0.0000"
+			for prefix, want := range map[string]string{
+				// Column order is asserted for haven only: it is the
+				// reader that names them, and the names are also proof
+				// the set expanded into two indicator variables rather
+				// than staying one column.
+				"HAVEN OK|":   "HAVEN OK|ID|INCOME|REGION|WHEN|tv|web|" + values,
+				"FOREIGN OK|": "FOREIGN OK|" + values,
+			} {
+				line := readerLine(text, prefix)
+				if line != want {
+					t.Errorf("%s reported\n  %q\nwant\n  %q", strings.TrimSuffix(prefix, "|"), line, want)
+				}
+			}
+		})
+	}
+}
+
+// readerLine picks the one output line a reader wrote. An absent line comes
+// back empty, which fails the comparison with the whole expectation in the
+// message — a reader that errored reports its own FAIL line in the log above.
+func readerLine(out, prefix string) string {
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return line
+		}
+	}
+	return ""
+}
