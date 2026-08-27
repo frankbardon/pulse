@@ -1291,6 +1291,84 @@ const (
 	// offset of the data section under DetailSPSSOffset, and the declared
 	// and actual counts under "declared" and "actual".
 	PULSE_SPSS_DATA_CASE_COUNT_MISMATCH Code = "PULSE_SPSS_DATA_CASE_COUNT_MISMATCH"
+
+	// PULSE_SPSS_CATEGORICAL_OVERFLOW indicates an SPSS variable maps to
+	// a Pulse categorical field whose dictionary would need more entries
+	// than categorical_u32 can hold. It is a hard error, not a warning:
+	// the alternative is dropping values, and a `.pulse` cohort missing
+	// rows of a free-text variable is worse than a refused import.
+	// Details carry the variable under DetailSPSSVariable and the
+	// distinct-value count under DetailSPSSDistinct.
+	PULSE_SPSS_CATEGORICAL_OVERFLOW Code = "PULSE_SPSS_CATEGORICAL_OVERFLOW"
+
+	// PULSE_SPSS_CARDINALITY_HIGH indicates an SPSS variable mapped to a
+	// Pulse categorical field whose distinct-value count is a large
+	// fraction of the case count — the free-text ("other, please
+	// specify") signature. It is a WARNING and never blocks an import:
+	// the mapping is lossless, and the cost is a large inline dictionary
+	// block every read pays for, which is a performance concern rather
+	// than a fidelity one. Details carry the variable under
+	// DetailSPSSVariable, the distinct count under DetailSPSSDistinct and
+	// the case count under DetailSPSSActualCases.
+	PULSE_SPSS_CARDINALITY_HIGH Code = "PULSE_SPSS_CARDINALITY_HIGH"
+
+	// PULSE_SPSS_TEMPORAL_PRECISION indicates an SPSS variable carrying a
+	// date or time print format holds at least one value the matching
+	// Pulse temporal type cannot represent exactly — a fractional second,
+	// a non-finite double, or a second count outside the int64 range —
+	// so the variable was mapped to `f64` raw SPSS seconds instead. It is
+	// a WARNING: the raw seconds are lossless and the original print
+	// format is retained for export, so nothing is discarded; only the
+	// ergonomics of a typed temporal column are. Details carry the
+	// variable under DetailSPSSVariable and the print format type code
+	// under DetailSPSSFormat.
+	PULSE_SPSS_TEMPORAL_PRECISION Code = "PULSE_SPSS_TEMPORAL_PRECISION"
+
+	// PULSE_SPSS_DATE_WIDENED indicates an SPSS variable carrying a
+	// day-resolution print format (DATE / ADATE / EDATE / SDATE / JDATE)
+	// was mapped to `datetime` rather than `date`, because at least one
+	// of its values carries a time of day the day-resolution type would
+	// truncate, or falls before 1970-01-01 — which the unsigned epoch-day
+	// `date` representation cannot express. It is a WARNING: `datetime`
+	// holds every such value exactly and the date-family groupers accept
+	// it by documented day truncation, so the widening costs 4 bytes per
+	// record and nothing else. Details carry the variable under
+	// DetailSPSSVariable and the print format type code under
+	// DetailSPSSFormat.
+	PULSE_SPSS_DATE_WIDENED Code = "PULSE_SPSS_DATE_WIDENED"
+
+	// PULSE_SPSS_VALUE_COLLISION indicates two distinct SPSS values of one
+	// variable resolve to the same Pulse categorical dictionary entry, so
+	// the original-value-to-dictionary-ID mapping is no longer one-to-one
+	// and an export cannot tell which value to re-emit. The reachable
+	// cause is leading whitespace: the shared import path trims every
+	// cell, so " X" and "X" become one entry. It is a WARNING because the
+	// file is otherwise readable, and the recorded code-to-label-to-ID
+	// triple carries both source values against the shared ID so the
+	// collision is visible rather than invisible. Details carry the
+	// variable under DetailSPSSVariable.
+	PULSE_SPSS_VALUE_COLLISION Code = "PULSE_SPSS_VALUE_COLLISION"
+
+	// PULSE_SPSS_MEASURE_LEVEL_MISMATCH indicates an SPSS variable whose
+	// record 7/11 measurement level is `scale` carries value labels and
+	// was therefore mapped to a Pulse categorical field, whose smart
+	// defaults are AGG_FREQUENCY / GROUP_CATEGORY rather than the
+	// AGG_SUM / GROUP_RANGE the declared level implies. It is a WARNING:
+	// the mapping is lossless — every code and label is preserved — but
+	// the analytic defaults will not be the ones the source file's author
+	// declared. Details carry the variable under DetailSPSSVariable.
+	PULSE_SPSS_MEASURE_LEVEL_MISMATCH Code = "PULSE_SPSS_MEASURE_LEVEL_MISMATCH"
+
+	// PULSE_SPSS_NULL_TOKEN_COLLISION indicates an SPSS string value or
+	// value-label key is one of the import pipeline's null sentinel
+	// tokens ("", "NA", "N/A", "NULL", in any case), so cells carrying it
+	// import as null and its dictionary entry is unreachable. It is a
+	// WARNING: an all-blank string is SPSS's own de facto missing-string
+	// convention and reading it as null is intended, but a literal "NA"
+	// stored as data is a real value the shared import path collapses,
+	// and that collapse must be visible. Details carry the variable under
+	// DetailSPSSVariable.
+	PULSE_SPSS_NULL_TOKEN_COLLISION Code = "PULSE_SPSS_NULL_TOKEN_COLLISION"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -1335,7 +1413,26 @@ const (
 
 	// DetailSPSSActualCases is the CodedError.Details key carrying the
 	// number of whole cases an SPSS `.sav` data section actually holds.
+	// The schema-mapping diagnostics reuse it for the case count a
+	// distinct-value count is measured against.
 	DetailSPSSActualCases = "actual"
+
+	// DetailSPSSVariable is the CodedError.Details key carrying the name
+	// of the SPSS variable a schema-mapping diagnostic refers to. It
+	// deliberately shares the "variable" spelling with DetailVariable —
+	// the two families never appear in the same Details map, and a
+	// caller reading either finds the name where it expects it.
+	DetailSPSSVariable = "variable"
+
+	// DetailSPSSDistinct is the CodedError.Details key carrying the
+	// number of distinct values a variable contributes to a Pulse
+	// categorical dictionary.
+	DetailSPSSDistinct = "distinct"
+
+	// DetailSPSSFormat is the CodedError.Details key carrying the SPSS
+	// print format TYPE CODE (5 = F, 20 = DATE, 22 = DATETIME, and so on)
+	// a schema-mapping diagnostic refers to.
+	DetailSPSSFormat = "format_code"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1521,6 +1618,13 @@ var allCodes = []Code{
 	PULSE_SPSS_COMPRESSION_UNSUPPORTED,
 	PULSE_SPSS_DATA_TRUNCATED,
 	PULSE_SPSS_DATA_CASE_COUNT_MISMATCH,
+	PULSE_SPSS_CATEGORICAL_OVERFLOW,
+	PULSE_SPSS_CARDINALITY_HIGH,
+	PULSE_SPSS_TEMPORAL_PRECISION,
+	PULSE_SPSS_DATE_WIDENED,
+	PULSE_SPSS_VALUE_COLLISION,
+	PULSE_SPSS_MEASURE_LEVEL_MISMATCH,
+	PULSE_SPSS_NULL_TOKEN_COLLISION,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

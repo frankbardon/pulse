@@ -18,16 +18,21 @@ package spss
 // # Rendering to strings
 //
 // pio.Reader is a string-only contract, so every SPSS datum is rendered to a
-// canonical string here. That is deliberate for this story: the
-// authoritative-schema bypass and the SPSS-format-code type mapping are
-// separate concerns, and this layer must not pre-empt either. The rules are
-// therefore the least opinionated ones available:
+// canonical string here. The rendering is driven by the schema mapping
+// (mapping.go), not by the raw bytes alone, because a cell and the field type
+// declared for it in PulseSchema must agree — a `date` field whose cells
+// arrived as raw seconds-since-1582 would fail every row of an import:
 //
-//   - A numeric is the shortest decimal string that round-trips back to the
-//     same float64. No format code is consulted, so an SPSS date arrives as
-//     the raw seconds-since-1582 count it literally is.
+//   - A plain numeric, a TIME / DTIME duration and any temporal column the
+//     mapping had to drop to f64 render as the shortest decimal string that
+//     round-trips back to the same float64.
+//   - A `date` column renders as a "2006-01-02" literal, and a `datetime`
+//     column as encoding.CanonicalDateTimeLayout — the exact layouts
+//     encoding.ParseDate and encoding.ParseDateTime read back.
 //   - A string is its declared-width bytes with trailing spaces removed,
-//     reassembled across its 8-byte segments.
+//     reassembled across its 8-byte segments. It is NOT re-rendered from the
+//     value label: the categorical dictionary the mapping builds holds the
+//     source VALUE, so the cell and the dictionary entry are the same text.
 //   - system-missing renders as the empty string — the house null token that
 //     io/import.go's isNullToken recognises — so a sysmis datum is seen as a
 //     null and never as a finite value of about -1.8e308.
@@ -43,7 +48,9 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 )
@@ -71,6 +78,13 @@ type dataColumn struct {
 	// width differ whenever the width is not a multiple of 8, and the
 	// bytes between them are padding that must not reach the caller.
 	width int
+
+	// kind is the resolved schema mapping for the column, which selects
+	// the cell rendering. buildDataPlan leaves it at the zero value
+	// (kindNumeric, the raw shortest-round-tripping decimal); the
+	// mapping pass overwrites it with the kind it settled on, so a cell
+	// and the field type declared for it can never disagree.
+	kind columnKind
 }
 
 // dataPlan is everything the per-case decode needs, resolved once.
@@ -140,25 +154,96 @@ func (p *dataPlan) decodeCase(c []byte, row []string) {
 	for i := range p.cols {
 		col := &p.cols[i]
 		seg := c[col.offset : col.offset+col.span]
-		if col.width == 0 {
-			row[i] = p.formatNumeric(seg)
+		if col.width > 0 {
+			row[i] = trimStringDatum(seg[:col.width])
 			continue
 		}
-		row[i] = trimStringDatum(seg[:col.width])
+		switch col.kind {
+		case kindDate:
+			row[i] = p.formatDate(seg)
+		case kindDateTime:
+			row[i] = p.formatDateTime(seg)
+		default:
+			row[i] = p.formatNumeric(seg)
+		}
 	}
+}
+
+// isSysmis reports whether a raw 8-byte element is the system-missing
+// sentinel. Both comparisons are deliberate: the bit test is exact for a
+// declared sentinel that is a NaN, where == is false against itself, and
+// the value test covers a sentinel written with a different but
+// numerically equal encoding.
+func (p *dataPlan) isSysmis(bits uint64) bool {
+	return bits == p.sysmisBits || math.Float64frombits(bits) == p.sysmis
+}
+
+// isSysmisValue is the isSysmis test for a value already decoded, used by
+// the schema mapping when it checks a declared value label against the
+// sentinel.
+func (p *dataPlan) isSysmisValue(v float64) bool {
+	return math.Float64bits(v) == p.sysmisBits || v == p.sysmis
 }
 
 // formatNumeric renders one 8-byte numeric element.
 func (p *dataPlan) formatNumeric(seg []byte) string {
 	bits := p.bo.Uint64(seg)
-	if bits == p.sysmisBits {
+	if p.isSysmis(bits) {
 		return ""
 	}
-	v := math.Float64frombits(bits)
-	if v == p.sysmis {
-		return ""
-	}
+	return formatNumericValue(math.Float64frombits(bits))
+}
+
+// formatNumericValue is the canonical numeric rendering: the shortest
+// decimal string that parses back to the same float64. It is the one
+// place the rule lives, so the schema mapping's dictionary keys and the
+// cells ReadRows emits are the same text by construction.
+//
+// A non-finite datum that is not the system-missing sentinel renders
+// "NaN" / "+Inf" / "-Inf" rather than a null token. That is deliberate:
+// SPSS's missing state is the sentinel, so a bare NaN is data this reader
+// has no licence to reinterpret, and strconv.ParseFloat reads all three
+// back exactly, so an f64 column round-trips them.
+func formatNumericValue(v float64) string {
 	return strconv.FormatFloat(v, 'g', -1, 64)
+}
+
+// formatDate renders a day-resolution temporal element as a date literal
+// in encoding.DateFormats[0], the layout encoding.ParseDate reads back to
+// the epoch day this mapping intended.
+//
+// The mapping only assigns kindDate to a column whose every value is a
+// whole, finite, midnight-aligned second count at or after the Unix
+// epoch, so the conversion here cannot lose anything. The guard is
+// nonetheless real rather than an assertion: a plan built by hand, or a
+// future caller setting kinds itself, must fall back to the lossless raw
+// rendering rather than emit a fabricated calendar date.
+func (p *dataPlan) formatDate(seg []byte) string {
+	bits := p.bo.Uint64(seg)
+	if p.isSysmis(bits) {
+		return ""
+	}
+	sec, ok := spssSecondsExact(math.Float64frombits(bits))
+	if !ok || sec < 0 {
+		return p.formatNumeric(seg)
+	}
+	return time.Unix(sec, 0).UTC().Format(dateLayout)
+}
+
+// formatDateTime renders a temporal element as a datetime literal through
+// encoding.FormatDateTime, the exact inverse of the encoding.ParseDateTime
+// call io/import.go makes — so the instant survives the round trip,
+// including before 1970.
+func (p *dataPlan) formatDateTime(seg []byte) string {
+	bits := p.bo.Uint64(seg)
+	if p.isSysmis(bits) {
+		return ""
+	}
+	sec, ok := spssSecondsExact(math.Float64frombits(bits))
+	if !ok {
+		return p.formatNumeric(seg)
+	}
+	return encoding.FormatDateTime(uint64(sec))
 }
 
 // trimStringDatum renders a string variable's declared-width bytes.
@@ -217,37 +302,23 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	if _, err := r.ReadHeader(); err != nil {
 		return err
 	}
-	if err := checkCompression(d); err != nil {
-		return err
-	}
-	plan, err := buildDataPlan(d)
+	// The mapping is what says how each column renders, so it is resolved
+	// before the first cell rather than alongside it. It also subsumes the
+	// compression check and the case geometry, and it is memoised, so a
+	// second pass pays for neither.
+	m, err := r.loadMapping()
 	if err != nil {
 		return err
 	}
+	plan := m.plan
+	cases := m.cases
 
 	// Each pass rebuilds its own diagnostics rather than appending to the
 	// last pass's: an infer-then-import sequence reads the same file twice
 	// and would otherwise report every warning twice.
 	r.dataWarnings = nil
 
-	end := len(r.data)
 	start := d.dataOffset
-	if start > end {
-		// Unreachable for a parsed dictionary — the walk cannot end past
-		// the buffer — but the arithmetic below would silently produce a
-		// negative count, so it is checked rather than assumed.
-		return dataError(errors.PULSE_SPSS_DATA_TRUNCATED, end,
-			"the dictionary ends at byte offset %d but the file is only %d byte(s) long",
-			start, end)
-	}
-
-	avail := end - start
-	if rem := avail % plan.stride; rem != 0 {
-		return dataError(errors.PULSE_SPSS_DATA_TRUNCATED, end-rem,
-			"the data section holds %d byte(s), which is %d whole case(s) of %d byte(s) plus %d trailing byte(s)",
-			avail, avail/plan.stride, plan.stride, rem)
-	}
-	cases := avail / plan.stride
 
 	if declared, ok := declaredCaseCount(d); ok && declared != int64(cases) {
 		r.dataWarnings = append(r.dataWarnings, caseCountMismatch(d, declared, cases))
@@ -287,10 +358,17 @@ func (r *Reader) Reset() error {
 	return nil
 }
 
-// Warnings returns the non-fatal diagnostics raised so far: the dictionary
-// parse's own (unrecognised or malformed record type 7 extension subtypes)
-// followed by the data section's (a case count disagreeing with the file's
-// declaration).
+// Warnings returns the non-fatal diagnostics raised so far, in the order
+// they became knowable: the dictionary parse's own (unrecognised or
+// malformed record type 7 extension subtypes), then the schema mapping's
+// (a widened or downcast temporal column, a near-unique categorical, a
+// value collision, a measurement level that disagrees with the mapped
+// type), then the data section's (a case count disagreeing with the
+// file's declaration).
+//
+// The first two channels are memoised with the parse and the mapping, and
+// the third is rebuilt per pass, so nothing accumulates across repeated
+// reads.
 //
 // It is a pure accessor and never triggers a parse: called before
 // ReadHeader or ReadRows it returns nothing, because nothing has been read.
@@ -301,6 +379,9 @@ func (r *Reader) Warnings() []*errors.CodedError {
 	if r.dict != nil {
 		out = append(out, r.dict.warnings...)
 	}
+	if r.mapped != nil {
+		out = append(out, r.mapped.warnings...)
+	}
 	out = append(out, r.dataWarnings...)
 	return out
 }
@@ -308,6 +389,31 @@ func (r *Reader) Warnings() []*errors.CodedError {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// caseSpan returns the number of whole cases the data section holds,
+// refusing a section that does not divide evenly into the case stride.
+//
+// It is the one place the case count is derived, so the mapping scan and
+// the ReadRows pass can never disagree about how many cases there are.
+func caseSpan(d *dictionary, data []byte, plan *dataPlan) (int, error) {
+	end := len(data)
+	start := d.dataOffset
+	if start > end {
+		// Unreachable for a parsed dictionary — the walk cannot end past
+		// the buffer — but the arithmetic below would silently produce a
+		// negative count, so it is checked rather than assumed.
+		return 0, dataError(errors.PULSE_SPSS_DATA_TRUNCATED, end,
+			"the dictionary ends at byte offset %d but the file is only %d byte(s) long",
+			start, end)
+	}
+	avail := end - start
+	if rem := avail % plan.stride; rem != 0 {
+		return 0, dataError(errors.PULSE_SPSS_DATA_TRUNCATED, end-rem,
+			"the data section holds %d byte(s), which is %d whole case(s) of %d byte(s) plus %d trailing byte(s)",
+			avail, avail/plan.stride, plan.stride, rem)
+	}
+	return avail / plan.stride, nil
+}
 
 // checkCompression refuses a data section this reader cannot decode.
 //
@@ -383,7 +489,13 @@ func dataError(code errors.Code, off int, format string, args ...any) *errors.Co
 // The adapter contract this package satisfies. Reset is what lets the shared
 // import path infer a schema from a sample and then re-read the same source
 // for the row pass.
+// SchemaAwareReader is the third: a `.sav` carries an authoritative
+// dictionary, so the import path takes the schema off this reader instead
+// of sampling rows and guessing. E2-S5 could not state this assertion from
+// package io — asserting it there would import io/spss into its own
+// parent — so it lives here, at the implementation.
 var (
-	_ pio.Reader      = (*Reader)(nil)
-	_ pio.ResetReader = (*Reader)(nil)
+	_ pio.Reader            = (*Reader)(nil)
+	_ pio.ResetReader       = (*Reader)(nil)
+	_ pio.SchemaAwareReader = (*Reader)(nil)
 )

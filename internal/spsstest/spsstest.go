@@ -38,6 +38,14 @@
 // ReadStat parses subtype 7 strictly and rejected a fixture with a bad type
 // code there, so the multiple-response grammar is corroborated too.
 //
+// The temporal format codes ([FormatDATE] and its siblings) were corroborated
+// the same way during E2-S6. Handed a fixture carrying one variable per code,
+// `haven` reported DATE / ADATE / EDATE / SDATE / JDATE as R `Date` values at
+// day resolution, DATETIME as a `POSIXct` instant with its time of day, and
+// TIME / DTIME as `hms`/`difftime` DURATIONS of 3661 and 90061 seconds — which
+// is what pins both the code values and the instant-versus-duration split the
+// reader's type mapping turns on.
+//
 // Three constructs got NO independent corroboration, because neither reader
 // interprets them: the subtype 19 'E' extended form, multiple-response
 // definitions carried on subtype 5, and the two-int32-per-variable form of
@@ -278,9 +286,13 @@ func (c Compression) String() string {
 	}
 }
 
-// FormatType is an SPSS print/write format type code. Only the two the v1
-// subset needs are named; the full table (date and currency formats in
-// particular) arrives with the format-decoding story.
+// FormatType is an SPSS print/write format type code.
+//
+// The two general formats plus the temporal family are named, because
+// those are the codes a reader's type mapping dispatches on. The values
+// are the PSPP output-format table's; the currency and scientific formats
+// are omitted only because nothing reads them yet, and any code may still
+// be written by spelling the number, since the wire field is a byte.
 type FormatType uint8
 
 const (
@@ -288,7 +300,33 @@ const (
 	FormatA FormatType = 1
 	// FormatF is the plain numeric format, code 5.
 	FormatF FormatType = 5
+
+	// FormatDATE is dd-mmm-yyyy, code 20. Day resolution.
+	FormatDATE FormatType = 20
+	// FormatTIME is hh:mm:ss.s, code 21. A DURATION — seconds of day —
+	// not an instant.
+	FormatTIME FormatType = 21
+	// FormatDATETIME is dd-mmm-yyyy hh:mm:ss.s, code 22. An instant at
+	// sub-day resolution.
+	FormatDATETIME FormatType = 22
+	// FormatADATE is mm/dd/yyyy, code 23. Day resolution.
+	FormatADATE FormatType = 23
+	// FormatJDATE is yyyyddd, code 24. Day resolution.
+	FormatJDATE FormatType = 24
+	// FormatDTIME is dd hh:mm:ss.s, code 25. A DURATION — a days-plus-time
+	// interval — not an instant.
+	FormatDTIME FormatType = 25
+	// FormatEDATE is dd.mm.yyyy, code 38. Day resolution.
+	FormatEDATE FormatType = 38
+	// FormatSDATE is yyyy/mm/dd, code 39. Day resolution.
+	FormatSDATE FormatType = 39
 )
+
+// SPSSEpochOffsetSeconds is the number of seconds between the SPSS epoch
+// (1582-10-14 00:00:00 UTC) and the Unix epoch. Every SPSS temporal datum
+// is a second count from the former, so a fixture author writes a
+// calendar instant as Num(float64(t.Unix() + SPSSEpochOffsetSeconds)).
+const SPSSEpochOffsetSeconds int64 = 12219379200
 
 // Format is a print or write format specification. It is packed into an int32
 // as 0x00TTWWDD: the most significant byte is unused and zero, then the type

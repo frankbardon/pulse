@@ -67,6 +67,7 @@ package spss
 import (
 	"fmt"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/spf13/afero"
 )
@@ -84,6 +85,15 @@ type Reader struct {
 	data []byte
 	dict *dictionary
 
+	// opts are the mapping tunables the functional options set.
+	opts mappingOptions
+
+	// mapped is the memoised schema mapping. It is resolved on first use
+	// — by PulseSchema or by ReadRows, whichever comes first — and kept
+	// across a Reset, because like the dictionary it is a pure function
+	// of bytes that have not changed.
+	mapped *mapping
+
 	// header is the memoised column-name slice ReadHeader returns. It is
 	// derived from dict and is cleared by Reset.
 	header []string
@@ -96,15 +106,48 @@ type Reader struct {
 	dataWarnings []*errors.CodedError
 }
 
+// Option configures a Reader at construction. The set is deliberately
+// small: everything about a `.sav` that can be read from the file is read
+// from the file, so an option exists only where the reader has to apply a
+// judgement the format does not supply.
+type Option func(*Reader)
+
+// WithCardinalityWarnFraction sets the share of the case count a
+// categorical column's distinct-value count must exceed before the
+// mapping raises PULSE_SPSS_CARDINALITY_HIGH — the schema-bloat signal of
+// a free-text variable. It defaults to 0.5, and any value above 1
+// disables the check.
+//
+// The warning never blocks an import. Mapping a near-unique string
+// variable to categorical_u32 is lossless; what it costs is a large
+// inline dictionary block that every read of the cohort pays for, which
+// is a performance concern and not a fidelity one.
+//
+// The check is skipped entirely below a small case-count floor, because
+// a distinct-count ratio over a handful of cases says nothing.
+func WithCardinalityWarnFraction(fraction float64) Option {
+	return func(r *Reader) { r.opts.cardinalityWarnFraction = fraction }
+}
+
 // NewReader creates a `.sav` reader over a filesystem path.
-func NewReader(fs afero.Fs, path string) *Reader {
-	return &Reader{fs: fs, path: path}
+func NewReader(fs afero.Fs, path string, opts ...Option) *Reader {
+	return newReader(&Reader{fs: fs, path: path}, opts)
 }
 
 // NewReaderFromBytes creates a `.sav` reader over raw bytes, for callers that
 // already hold the file — tests included.
-func NewReaderFromBytes(data []byte) *Reader {
-	return &Reader{data: data}
+func NewReaderFromBytes(data []byte, opts ...Option) *Reader {
+	return newReader(&Reader{data: data}, opts)
+}
+
+func newReader(r *Reader, opts []Option) *Reader {
+	r.opts = defaultMappingOptions()
+	for _, o := range opts {
+		if o != nil {
+			o(r)
+		}
+	}
+	return r
 }
 
 // init loads the file bytes, once.
@@ -139,6 +182,61 @@ func (r *Reader) loadDictionary() (*dictionary, error) {
 	return d, nil
 }
 
+// loadMapping resolves and memoises the schema mapping: the SPSS
+// dictionary and the whole data section reduced to one Pulse column per
+// variable.
+//
+// It is memoised for the same reason the dictionary is — it is a pure
+// function of bytes that do not change — and because it walks every case,
+// which an infer-then-import sequence would otherwise pay for twice.
+func (r *Reader) loadMapping() (*mapping, error) {
+	if r.mapped != nil {
+		return r.mapped, nil
+	}
+	d, err := r.loadDictionary()
+	if err != nil {
+		return nil, err
+	}
+	m, err := buildMapping(d, r.data, r.opts)
+	if err != nil {
+		return nil, err
+	}
+	r.mapped = m
+	return m, nil
+}
+
+// PulseSchema returns the authoritative .pulse schema for the file,
+// satisfying pio.SchemaAwareReader: a `.sav` carries a dictionary that
+// DECLARES each column's type, so the shared import path skips inference
+// entirely rather than sampling rows and voting on what it sees.
+//
+// Every obligation the interface names is met here. Types come from the
+// SPSS declared type plus its print format code, never from cell text.
+// Nullability is a fact, not a sample — the mapping scans every case, so
+// a field is nullable exactly when some case carries a value the import
+// path reads as null, and no out-of-sample promotion can be needed.
+// CsvColumnIdx is the variable's position in the row ReadRows yields, and
+// every dictionary-bearing field arrives with its dictionary PRE-SEEDED in
+// the file's own order, because entry order is the on-wire encoding and
+// handing over the source's ordering is what preserves the source codes.
+//
+// A fresh schema, with a fresh dictionary per categorical column, is
+// returned on every call: encoding.Dictionary is mutable and the import
+// path appends to it, so a shared instance would let one import's values
+// leak into another's IDs.
+//
+// It never declines. A `.sav` always has a dictionary, so there is no
+// (nil, nil) case; a file whose dictionary or data section cannot be read
+// returns the coded error, which fails the import rather than silently
+// falling back to inference.
+func (r *Reader) PulseSchema() (*encoding.Schema, error) {
+	m, err := r.loadMapping()
+	if err != nil {
+		return nil, err
+	}
+	return m.schema(), nil
+}
+
 // Close releases the reader's buffers.
 //
 // It is idempotent: every field it clears is already cleared on a second
@@ -153,6 +251,7 @@ func (r *Reader) loadDictionary() (*dictionary, error) {
 func (r *Reader) Close() error {
 	r.data = nil
 	r.dict = nil
+	r.mapped = nil
 	r.header = nil
 	r.dataWarnings = nil
 	return nil

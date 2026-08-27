@@ -1853,4 +1853,74 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_CATEGORICAL_OVERFLOW: {
+		Message: "An SPSS variable maps to a Pulse categorical field, but its distinct values would need more dictionary entries than categorical_u32 can hold. This is a hard error rather than a warning because the only alternative is discarding values, and a cohort silently missing rows of a variable is worse than a refused import.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "Supply an explicit ImportJob.Schema that maps the variable named in the details to a different type, or drop the variable from the source file before importing. A variable with more than four billion distinct values is almost always free text that belongs outside the analytic cohort.",
+			},
+		},
+	},
+	PULSE_SPSS_CARDINALITY_HIGH: {
+		Message: "An SPSS variable mapped to a Pulse categorical field whose distinct-value count is a large fraction of the case count — the signature of a free-text 'other, please specify' variable. This is a warning and the import proceeds: the mapping is lossless, and the cost is a large inline dictionary block that every read of the cohort pays for.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "If the variable named in the details is free text rather than a coded category, consider excluding it from the import, or raise the reader's cardinality warning fraction if a near-unique categorical is expected for this source.",
+			},
+		},
+	},
+	PULSE_SPSS_TEMPORAL_PRECISION: {
+		Message: "An SPSS variable carrying a date or time print format holds at least one value the matching Pulse temporal type cannot represent exactly — a fractional second, a non-finite double, or a second count outside the int64 range — so the variable was mapped to f64 raw SPSS seconds instead. This is a warning: the raw seconds are lossless and the print format is retained for export, so only the ergonomics of a typed temporal column are lost.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "No action is needed if second-resolution timestamps are not required. To force a typed temporal column, round the variable to whole seconds in SPSS or PSPP before exporting, or supply an explicit ImportJob.Schema naming the type you want.",
+			},
+		},
+	},
+	PULSE_SPSS_DATE_WIDENED: {
+		Message: "An SPSS variable carrying a day-resolution print format (DATE, ADATE, EDATE, SDATE or JDATE) was mapped to the Pulse datetime type rather than date, because at least one of its values carries a time of day that day resolution would truncate, or falls before 1970-01-01, which the unsigned epoch-day date representation cannot express. This is a warning: datetime holds every such value exactly and the date-family groupers accept it by documented day truncation.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "No action is needed — GROUP_DATE and the date-range operators accept a datetime field and truncate it to the day. Supply an explicit ImportJob.Schema only if the column must be a date, accepting that pre-1970 values and times of day will not survive.",
+			},
+		},
+	},
+	PULSE_SPSS_VALUE_COLLISION: {
+		Message: "Two distinct SPSS values of one variable resolve to the same Pulse categorical dictionary entry, so the original-code-to-dictionary-ID mapping is no longer one-to-one and an export back to .sav cannot tell which code to re-emit. This is a warning: the file is otherwise readable and the recorded code-to-label-to-ID triple carries both codes against the shared ID, so the collision is visible rather than silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Check the variable named in the details in SPSS or PSPP: two codes sharing one value label, or a label whose text equals another code's own value, is usually a data-entry mistake in the source dictionary. Give each code a distinct label and re-export.",
+			},
+		},
+	},
+	PULSE_SPSS_MEASURE_LEVEL_MISMATCH: {
+		Message: "An SPSS variable whose record 7/11 measurement level is 'scale' carries value labels, so it mapped to a Pulse categorical field. Its smart defaults are therefore AGG_FREQUENCY / GROUP_CATEGORY rather than the AGG_SUM / GROUP_RANGE the declared level implies. This is a warning: every code and label is preserved, but the analytic defaults will not be the ones the source file declared.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "This is the usual shape of a continuous variable that labels only its missing codes. Name the aggregator and grouper explicitly in the request instead of relying on smart defaults, or supply an explicit ImportJob.Schema typing the variable f64 if the labels are not needed.",
+			},
+		},
+	},
+	PULSE_SPSS_NULL_TOKEN_COLLISION: {
+		Message: "An SPSS string value or value-label key is one of the import pipeline's null sentinel tokens (the empty string, NA, N/A or NULL, in any case), so cells carrying it import as null and its dictionary entry is unreachable. An all-blank string is SPSS's own de facto missing-string convention and reading it as null is intended; a literal NA stored as data is a real value the shared import path collapses, and that collapse is reported here rather than left silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If the value named in the details is meant as data rather than as missing, recode it in SPSS or PSPP to a token the import path does not treat as null before exporting.",
+			},
+		},
+	},
 }
