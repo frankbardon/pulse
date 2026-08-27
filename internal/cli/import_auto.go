@@ -22,7 +22,7 @@ func importAutoCmd() *cli.Command {
 		Usage:     "Auto-detect a source format and import into the managed pool",
 		ArgsUsage: "SOURCE",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Format override (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, pulse)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Format override (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss, pulse)"},
 			&cli.StringFlag{Name: "handle", Usage: "Managed handle name (defaults to source basename)"},
 			&cli.StringFlag{Name: "ttl", Value: "7d", Usage: "Lifetime in the managed pool: Go duration (24h, 30m), day form (7d), or \"pin\""},
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name (ignored for non-Excel)"},

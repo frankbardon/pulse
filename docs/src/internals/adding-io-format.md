@@ -216,7 +216,7 @@ itself trigger a parse, and calling it twice must not double the set.
 Readers that do not implement the interface contribute `nil`, keeping
 every pre-existing report byte-identical.
 
-## 5. Skill update
+## 5. Skill and doc update
 
 Add or update a skill that points users at the new format. Cohort-
 schema considerations (field-type round-trip, dictionary behaviour,
@@ -225,9 +225,19 @@ null markers) belong in `skills/cohort-schema-design.md`.
 `skills/tool-import.md` carries the `format` enum the MCP tool accepts
 and must list the new identifier.
 
-If the format adds a CLI flag (e.g. `--sheet` for Excel), update
-`skills/session-bootstrap.md` so `TestSkillsCoverAllCliLeaves` keeps
-passing.
+Add a user-facing mdBook page under `docs/src/cli/` for the new leaf
+(`docs/src/cli/import-spss.md` is the worked model — synopsis, type
+mapping, flags and which of them the format ignores, the coded warning
+and error tables, a real failure transcript) and register it in
+`docs/src/SUMMARY.md`. Nothing gates this; it is missed unless written
+deliberately.
+
+`skills/session-bootstrap.md` only needs touching if the format adds a
+**CLI flag** (as `--sheet` did for Excel). Registering a new
+`pulse import <fmt>` subcommand alone does not: that file is the MCP
+session-order guide and carries no CLI leaf or format list. There is no
+automated CLI-leaf coverage gate today, so this judgement is the
+author's — see the follow-up note in `.claude/reference/update-demand.md`.
 
 ## 6. Convert and orchestration plumbing
 

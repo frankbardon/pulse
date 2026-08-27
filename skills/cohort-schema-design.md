@@ -20,23 +20,23 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | `u16` | 2 | no | no | 0..65,535 |
 | `u32` | 4 | no | no | 0..~4.29B |
 | `u64` | 8 | no | no | |
-| `f32` | 4 | no | no | ~7 sig digits |
-| `f64` | 8 | no | no | ~15 sig digits |
+| `f32` | 4 | no | no | ~7 sig digits; index key = raw bit pattern (`-0.0`/NaN caveat) |
+| `f64` | 8 | no | no | ~15 sig digits; same bit-pattern caveat |
 | `date` | 4 | no | no | epoch days since 1970-01-01 |
-| `datetime` | 8 | no | no | epoch **seconds**, naive UTC |
+| `datetime` | 8 | no | no | epoch **seconds**, naive UTC; index-key literal parses as a datetime, never a float |
 | `packed_bool` | 0 | no | yes | 1 bit |
-| `categorical_u8` | 1 | inline, ≤256 | no | dict-encoded |
+| `categorical_u8` | 1 | inline, ≤256 | no | dict-encoded; index key = dictionary ID |
 | `categorical_u16` | 2 | inline, ≤65,536 | no | |
 | `categorical_u32` | 4 | inline, ≤~4.29B | no | |
-| `decimal128` | 16 | no | no | per-field `(precision, scale)` |
-| `set_u8` | 1 | shared, ≤8 labels | no | multi-select bitmask |
+| `decimal128` | 16 | no | no | per-field `(precision, scale)`; index key = exact mantissa, no float round-trip |
+| `set_u8` | 1 | shared, ≤8 labels | no | multi-select bitmask; **not** index-keyable |
 | `set_u16` | 2 | shared, ≤16 | no | |
 | `set_u32` | 4 | shared, ≤32 | no | |
 | `set_u64` | 8 | shared, ≤64 | no | |
 
 `set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 18 types participate identically.
 
-`date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. `datetime` is second-resolution and naive UTC: sub-second input truncates toward the epoch and an offset-bearing literal normalises to the same instant with the offset discarded. Sub-second timestamps: store as `u64` microseconds. `GROUP_DATE` / `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES` accept `datetime` and truncate to the UTC calendar day.
+`date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by `GROUP_DATE` / `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`, which day-truncate `datetime` to the UTC calendar day. Sub-second timestamps: `u64` microseconds. Resolution, timezone and text-format detail belong to `type-date` / `type-datetime`.
 
 ## Selection heuristics
 
@@ -124,9 +124,9 @@ No concurrent-writer protection: two writers race, last wins. Readers snapshot a
 
 A lookup hashes the key, seeks its offset entry, seeks that bucket's data, then seeks to each matched record via `RecordLocator` — never a full-cohort or full-index read. Read-path staleness is an O(1) size+mtime stat (mismatch → `PULSE_INDEX_STALE`); `pulse index verify` recomputes the full SHA-256 instead.
 
-**Keyable-type policy** (`processing.IsIndexKeyableFieldType`): ALLOW `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (bit-pattern equality — `-0.0`/NaN caveat), `date`, `datetime` (epoch seconds; literal parses as a datetime, never a float), `decimal128` (exact mantissa, no float round-trip), `categorical_*` (dictionary ID), `packed_bool`. REJECT `set_*` — no single unambiguous equality value; use `FILTER_SET` instead.
+**Keyable types** (`processing.IsIndexKeyableFieldType`): every type in the matrix above EXCEPT `set_*` — a multi-select mask has no single unambiguous equality value, so use `FILTER_SET` instead. Per-type equality caveats live in that matrix's Notes column, not here.
 
-**Constraints:** single-file cohorts only — shards → `PULSE_INDEX_UNSUPPORTED_SHARDED` (`archive.pulse#shard.pulse` anchor is a tested single-shard workaround). Equality-only, full-key required, composite-key order significant end to end. Errors: `PULSE_INDEX_MISSING`, `PULSE_INDEX_STALE`, `PULSE_INDEX_UNSUPPORTED_SHARDED`, `PULSE_LOOKUP_NOT_FOUND`, `PULSE_LOOKUP_AMBIGUOUS`.
+**Constraints:** single-file cohorts only (`archive.pulse#shard.pulse` anchor is a tested single-shard workaround); equality-only, full-key required, composite-key order significant end to end. The `PULSE_INDEX_*` / `PULSE_LOOKUP_*` error set and its fixups are `tool-lookup`'s surface.
 
 ## SPSS import (`.sav` / `.zsav`)
 
@@ -146,7 +146,7 @@ An SPSS system file is the one source whose schema Pulse does **not** infer. Its
 
 **Warnings are load-bearing.** The `PULSE_SPSS_*` diagnostics above are non-fatal but they change what the cohort MEANS. They ride `ImportReport.SourceWarnings` / `ConvertReport.SourceWarnings` (via the `io.SourceWarningEmitter` optional interface) and surface on the `--json` envelope's `warnings` array and as `Warning [CODE]` lines on the text path. `pulse errors lookup CODE` carries the per-code fixup.
 
-**Read-only today.** Only the uncompressed data section is decoded; bytecode / ZSAV compression → `PULSE_SPSS_COMPRESSION_UNSUPPORTED` (reading compressed bytes as though uncompressed yields plausible garbage, which is worse than stopping). There is no SPSS writer: an SPSS *output* target returns `PULSE_SPSS_EXPORT_UNSUPPORTED`, deliberately distinct from an unknown-format error because the extension IS recognised. `pulse convert survey.sav out.csv` works; `pulse convert data.csv out.sav` does not.
+**Read-only today.** Only the uncompressed data section is decoded. Bytecode compression is **SPSS's own save default** and ZSAV is always compressed, so most real-world files fail today with `PULSE_SPSS_COMPRESSION_UNSUPPORTED` — re-save uncompressed (`SAVE OUTFILE='plain.sav' /UNCOMPRESSED.`). Reading compressed bytes as though uncompressed yields plausible garbage, which is worse than stopping. There is no SPSS writer: an SPSS *output* target returns `PULSE_SPSS_EXPORT_UNSUPPORTED`, deliberately distinct from an unknown-format error because the extension IS recognised. `pulse convert survey.sav out.csv` works; `pulse convert data.csv out.sav` does not.
 
 ## Cross-links
 
