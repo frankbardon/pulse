@@ -6189,7 +6189,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Field-type selection for .pulse cohorts — 17 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Field-type selection for .pulse cohorts — 18 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
         "name": "compose-requests",
@@ -6994,6 +6994,10 @@
       {
         "name": "type-date",
         "description": "Day-granularity date stored as epoch days (signed since 1970-01-01)."
+      },
+      {
+        "name": "type-datetime",
+        "description": "Second-granularity instant stored as epoch seconds in an 8-byte unsigned slot, naive UTC."
       },
       {
         "name": "type-decimal128",
@@ -9278,4 +9282,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a0321c9ff45ed7e596f57670884a29637b318e53e73dbc9698b675c0377420b6
+// golden-hash: 21fe2c6aad26d23966cece5c53bdf0f01df5ab26cccd9792f7cf1d9cdabe219d

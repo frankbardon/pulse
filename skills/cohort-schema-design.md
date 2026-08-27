@@ -1,17 +1,17 @@
 ---
 name: cohort-schema-design
-description: Field-type selection for .pulse cohorts — 17 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
+description: Field-type selection for .pulse cohorts — 18 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
 type: guide
 kind: design
 applies_to: inspect, predict, process, compose, sample, facet
-covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, set_u8, set_u16, set_u32, set_u64]
+covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, datetime, set_u8, set_u16, set_u32, set_u64]
 ---
 
 # Cohort schema design
 
 Pick the right `.pulse` field type, decide nullability, address shards. The schema lives in the cohort header; `pulse_inspect` is the surface for reading it.
 
-## Field-type matrix (all 17)
+## Field-type matrix (all 18)
 
 | Name | Bytes | Dict? | Bit-packed? | Notes |
 |---|---|---|---|---|
@@ -23,6 +23,7 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | `f32` | 4 | no | no | ~7 sig digits |
 | `f64` | 8 | no | no | ~15 sig digits |
 | `date` | 4 | no | no | epoch days since 1970-01-01 |
+| `datetime` | 8 | no | no | epoch **seconds**, naive UTC |
 | `packed_bool` | 0 | no | yes | 1 bit |
 | `categorical_u8` | 1 | inline, ≤256 | no | dict-encoded |
 | `categorical_u16` | 2 | inline, ≤65,536 | no | |
@@ -33,7 +34,9 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | `set_u32` | 4 | shared, ≤32 | no | |
 | `set_u64` | 8 | shared, ≤64 | no | |
 
-`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Sub-day timestamps: store as `u64` microseconds. Nullability is opt-in per field via the bitmap; all 17 types participate identically.
+`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 18 types participate identically.
+
+`date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. `datetime` is second-resolution and naive UTC: sub-second input truncates toward the epoch and an offset-bearing literal normalises to the same instant with the offset discarded. Sub-second timestamps: store as `u64` microseconds. `GROUP_DATE` / `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES` accept `datetime` and truncate to the UTC calendar day.
 
 ## Selection heuristics
 
@@ -88,7 +91,7 @@ Old single-file readers fail loud on archive magic.
 - Structural: **strict** at insert. Field count, names, type bytes, byte offsets, bit positions must match canonical. Mismatch → `PULSE_SHARD_SCHEMA_MISMATCH`.
 - Descriptions: **tolerant**. Divergence → `PULSE_SHARD_DESCRIPTION_DIVERGENCE` (warning); canonical wins.
 - Categorical / set dictionaries: union-merge. Canonical entries first; new entries appended; incoming records byte-rewritten with remapped indices.
-- Stricter prefix-only validator raises `PULSE_SHARD_DICT_DIVERGENCE` when embedders coordinate dicts upstream.
+- Prefix-only validator raises `PULSE_SHARD_DICT_DIVERGENCE` when embedders coordinate dicts upstream.
 
 ### Anchor syntax
 
@@ -105,21 +108,21 @@ Materializing ops (percentile / median aggs, `ATTR_PERCENTILE`, `GROUP_QUANTILE`
 
 ### Concurrency
 
-No concurrent-writer protection. Two writers race; last writer wins. Readers snapshot at open. Caller owns single-writer architecture or external advisory lock.
+No concurrent-writer protection: two writers race, last wins. Readers snapshot at open. Caller owns single-writer architecture or an advisory lock.
 
 ## Sidecar index
 
-`Pulse.Lookup` / `pulse index build` use a **separate file** next to the cohort — `cohort.pulse.<keyhash>.idx` — the `.pulse` byte layout above stays untouched. Format **v3**:
+`Pulse.Lookup` / `pulse index build` use a **separate file** — `cohort.pulse.<keyhash>.idx`; the `.pulse` layout above stays untouched. Format **v3**:
 
 1. 9-byte header: magic `PULSEIDX` + version `0x03` (own magic/version, distinct from `encoding.MagicBytes`/`FormatVersion`).
 2. 32-byte SHA-256 source fingerprint.
 3. Key-spec: ordered key columns + field types.
 4. `SourceSize` (u64) + `SourceModTime` (i64 Unix ns) — staleness snapshot.
 5. `u32 bucket_count`.
-6. Fixed-width `bucket_count × u64` bucket-offset table — each entry directly addressable, enabling O(1) single-bucket seek.
+6. Fixed-width `bucket_count × u64` offset table — directly addressable, O(1) single-bucket seek.
 7. Self-delimited bucket data: FNV-1a hash buckets → `[]uint64` row-id multimap.
 
-A lookup hashes the key to one bucket, seeks to that bucket's offset entry, seeks to its data, then seeks straight to each matched record via `RecordLocator` — never a full-cohort or full-index read. Staleness on the read path is an O(1) size+mtime stat (mismatch → `PULSE_INDEX_STALE`); `pulse index verify` recomputes the authoritative full SHA-256 fingerprint instead.
+A lookup hashes the key, seeks its offset entry, seeks that bucket's data, then seeks to each matched record via `RecordLocator` — never a full-cohort or full-index read. Read-path staleness is an O(1) size+mtime stat (mismatch → `PULSE_INDEX_STALE`); `pulse index verify` recomputes the full SHA-256 instead.
 
 **Keyable-type policy** (`processing.IsIndexKeyableFieldType`): ALLOW `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (bit-pattern equality — `-0.0`/NaN caveat), `date`, `datetime` (epoch seconds; literal parses as a datetime, never a float), `decimal128` (exact mantissa, no float round-trip), `categorical_*` (dictionary ID), `packed_bool`. REJECT `set_*` — no single unambiguous equality value; use `FILTER_SET` instead.
 
