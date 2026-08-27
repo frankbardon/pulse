@@ -180,6 +180,17 @@ type Manifest struct {
 	// inspecting the io/ packages.
 	Export ExportCapability `json:"export"`
 
+	// Import is the cross-format import envelope — the read-side peer
+	// of Export. Carries one ImportFormatCapability per format
+	// io/format.NewReader accepts, declaring the file extensions that
+	// resolve to it, whether its .pulse schema comes from the source's
+	// own dictionary ("authoritative") or from the shared inference
+	// pass ("inferred"), and whether the same format can also be
+	// written. Read and write surfaces are NOT symmetric — SPSS is
+	// import-only — so a planner must consult both blocks rather than
+	// assuming one implies the other.
+	Import ImportCapability `json:"import"`
+
 	// Overlays enumerates the registered overlay catalog — one
 	// OverlayCapability per types.AllOverlayKinds() entry. Each entry
 	// declares the supported OverlayShape × OverlayScope × OverlayRef
@@ -486,6 +497,7 @@ func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *Manifest {
 		Join:               joinCapability(),
 		Crosstab:           crosstabCapability(),
 		Export:             exportCapability(),
+		Import:             importCapability(),
 		Overlays:           OverlayCapabilities(),
 		ComponentsSchemas:  componentsSchemasBlock(snap),
 	}

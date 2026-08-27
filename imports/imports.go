@@ -1,7 +1,8 @@
 // Package imports manages tabular-source imports with a TTL-tracked
 // on-disk pool. It is the home of the pulse_import / pulse_drop tool
 // semantics: convert a CSV / TSV / NDJSON / JSON-array / Parquet /
-// Arrow / Excel file into a .pulse file in $PULSE_DATA_DIR/imports/,
+// Arrow / Excel / SPSS file into a .pulse file in
+// $PULSE_DATA_DIR/imports/,
 // write a sidecar with an expiry, and provide hooks for sliding-window
 // TTL renewal on every subsequent operation that touches the handle.
 //
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
+	perr "github.com/frankbardon/pulse/errors"
 )
 
 // DefaultImportsDir is the relative directory inside the Pulse fs where
@@ -98,6 +100,16 @@ type Result struct {
 	// io.ImportReport.PromotedFields; each also rides a
 	// PULSE_IMPORT_NULL_PROMOTED warning.
 	PromotedFields []string `json:"promoted_fields,omitempty"`
+	// SourceWarnings carries the non-fatal coded diagnostics the source
+	// adapter raised through io.SourceWarningEmitter — today the
+	// PULSE_SPSS_* family from the `.sav` dictionary walk, schema
+	// mapping and data pass. Mirrors io.ImportReport.SourceWarnings.
+	// These are warnings, not failures, but they change what the
+	// resulting cohort MEANS (a demoted temporal column, a near-unique
+	// categorical, a value collision), so the managed-import surface
+	// carries them rather than stranding them in the adapter. Omitted
+	// when empty, so a clean import's wire shape is unchanged.
+	SourceWarnings []*perr.CodedError `json:"source_warnings,omitempty"`
 }
 
 // Sidecar is the JSON payload written next to a managed .pulse file.

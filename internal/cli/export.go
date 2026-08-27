@@ -142,7 +142,7 @@ func exportPredictCmd() *cli.Command {
 		Usage: "Validate an export without writing output",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Output format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Output format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel; SPSS is import-only)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

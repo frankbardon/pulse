@@ -1369,6 +1369,20 @@ const (
 	// and that collapse must be visible. Details carry the variable under
 	// DetailSPSSVariable.
 	PULSE_SPSS_NULL_TOKEN_COLLISION Code = "PULSE_SPSS_NULL_TOKEN_COLLISION"
+
+	// PULSE_SPSS_EXPORT_UNSUPPORTED indicates a caller asked for `.sav`
+	// (or `.zsav`) as an OUTPUT target — `pulse convert data.csv
+	// out.sav`, or an io.Writer construction for the spss format. SPSS
+	// is import-only today: the reader is registered, the writer is not.
+	//
+	// It is a hard, specific error rather than the dispatcher's generic
+	// "unsupported format" so the answer to "why did my .sav not get
+	// written?" is "Pulse cannot write .sav yet" and not "Pulse does not
+	// know what .sav is" — the extension IS recognised, which is exactly
+	// what makes the generic message misleading here. Details carry the
+	// requested format under "format" and the output path under
+	// "output_path" when the caller supplied one.
+	PULSE_SPSS_EXPORT_UNSUPPORTED Code = "PULSE_SPSS_EXPORT_UNSUPPORTED"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -1625,6 +1639,7 @@ var allCodes = []Code{
 	PULSE_SPSS_VALUE_COLLISION,
 	PULSE_SPSS_MEASURE_LEVEL_MISMATCH,
 	PULSE_SPSS_NULL_TOKEN_COLLISION,
+	PULSE_SPSS_EXPORT_UNSUPPORTED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

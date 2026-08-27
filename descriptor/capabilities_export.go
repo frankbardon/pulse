@@ -79,3 +79,94 @@ func exportCapability() ExportCapability {
 		},
 	}
 }
+
+// ImportFormatCapability describes one tabular source format the import
+// dispatch (io/format.NewReader) accepts, surfaced on the manifest so an
+// LLM planner can answer "can Pulse read this file, and will the
+// resulting cohort's types be the source's or a guess?" without
+// crawling io/.
+//
+// SchemaSource is the load-bearing slot and carries exactly two values:
+//
+//   - "inferred"      — the adapter yields rows of text and the shared
+//     inference pass (io/infer.go) samples them and
+//     votes on a type per column. Correct in the
+//     common case, but it is a guess: a categorical
+//     column's dictionary is built in first-seen
+//     order, and a type can change with the sample
+//     window.
+//   - "authoritative" — the adapter implements io.SchemaAwareReader and
+//     hands over a schema its own source dictionary
+//     DECLARES. Inference is skipped entirely, so
+//     types, nullability and categorical dictionary
+//     ORDER come from the file rather than from its
+//     cell text.
+//
+// Export reports whether the SAME format can also be written today. It
+// is deliberately not inferable from this block's presence: a format
+// being readable says nothing about whether a writer exists, and SPSS is
+// exactly that case (read yes, write no — see
+// errors.PULSE_SPSS_EXPORT_UNSUPPORTED). Cross-reference
+// ExportCapability.Formats for the per-format overlay-embedding shape of
+// the writable ones.
+type ImportFormatCapability struct {
+	// Name is the canonical format identifier matching the io/format
+	// package constants (csv / tsv / ndjson / jsonarray / parquet /
+	// arrow / excel / spss).
+	Name string `json:"name"`
+
+	// Extensions lists the lowercase file extensions (leading dot
+	// included) that io/format.FromExt resolves to this format, in the
+	// dispatch's own order. Present so a planner can answer "what will
+	// this path be detected as" without a round trip.
+	Extensions []string `json:"extensions"`
+
+	// SchemaSource is "authoritative" when the adapter implements
+	// io.SchemaAwareReader and the source's own dictionary becomes the
+	// .pulse schema, "inferred" when the shared sample-and-vote pass
+	// decides the types. See ImportFormatCapability godoc.
+	SchemaSource string `json:"schema_source"`
+
+	// Export reports whether Pulse can also WRITE this format today.
+	// False for import-only formats; cross-reference
+	// ExportCapability.Formats for the writable set's overlay shapes.
+	Export bool `json:"export"`
+}
+
+// ImportCapability is the cross-format import envelope — the read-side
+// peer of ExportCapability. Carries the alphabetised per-format slice so
+// LLM planners can route a source file to `pulse import` (or
+// pulse_import) knowing both that the format is readable and whether the
+// cohort's types will be the source's own.
+type ImportCapability struct {
+	// Formats enumerates every format the import dispatch supports,
+	// sorted alphabetically by Name for deterministic golden output.
+	// The native "pulse" format is excluded: it needs no tabular
+	// reader and passes through untouched.
+	Formats []ImportFormatCapability `json:"formats"`
+}
+
+// importCapability returns the canonical ImportCapability entry.
+//
+// The table is hand-declared rather than derived from
+// io/format.SupportedImport because descriptor/ is the no-execute layer:
+// importing io/format would drag the arrow, parquet and excel adapters
+// into every manifest build for the sake of a list of seven strings.
+// TestManifestImportCapability_MatchesFormatRegistry pins the two
+// against each other so the hand-declaration cannot drift.
+//
+// Sorted alphabetically by Name so the golden manifest stays stable.
+func importCapability() ImportCapability {
+	return ImportCapability{
+		Formats: []ImportFormatCapability{
+			{Name: "arrow", Extensions: []string{".arrow", ".feather"}, SchemaSource: "inferred", Export: true},
+			{Name: "csv", Extensions: []string{".csv"}, SchemaSource: "inferred", Export: true},
+			{Name: "excel", Extensions: []string{".xlsx", ".xls"}, SchemaSource: "inferred", Export: true},
+			{Name: "jsonarray", Extensions: []string{".json"}, SchemaSource: "inferred", Export: true},
+			{Name: "ndjson", Extensions: []string{".ndjson", ".jsonl"}, SchemaSource: "inferred", Export: true},
+			{Name: "parquet", Extensions: []string{".parquet", ".pq"}, SchemaSource: "inferred", Export: true},
+			{Name: "spss", Extensions: []string{".sav", ".zsav"}, SchemaSource: "authoritative", Export: false},
+			{Name: "tsv", Extensions: []string{".tsv"}, SchemaSource: "inferred", Export: true},
+		},
+	}
+}

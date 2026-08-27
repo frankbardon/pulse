@@ -69,7 +69,24 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
+)
+
+// Compile-time contract assertions, the house block every Pulse adapter
+// carries. The last two are the load-bearing ones for this format:
+// SchemaAwareReader is what makes the `.sav` dictionary authoritative
+// instead of a hint the inference pass would overrule, and
+// SourceWarningEmitter is what routes the PULSE_SPSS_* diagnostics out
+// of this package and onto the import / convert report. Losing either
+// silently would degrade an import rather than break it, which is
+// exactly the failure a compile-time assertion is cheap insurance
+// against.
+var (
+	_ pio.Reader               = (*Reader)(nil)
+	_ pio.ResetReader          = (*Reader)(nil)
+	_ pio.SchemaAwareReader    = (*Reader)(nil)
+	_ pio.SourceWarningEmitter = (*Reader)(nil)
 )
 
 // Reader reads an SPSS `.sav` system file.

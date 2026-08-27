@@ -69,7 +69,7 @@ func importAutoCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, res)
+				return writeEnvelopeWithWarnings(cmd.Writer, res, res.SourceWarnings)
 			}
 			if res.Managed {
 				writeText(cmd.Writer, "Imported %d rows into managed handle %q at %s\n", res.RowsImported, res.Handle, res.Path)
@@ -77,6 +77,7 @@ func importAutoCmd() *cli.Command {
 					writeText(cmd.Writer, "%s: fields promoted to nullable (null found past the inference sample): %s\n",
 						errors.PULSE_IMPORT_NULL_PROMOTED, strings.Join(res.PromotedFields, ", "))
 				}
+				writeSourceWarnings(cmd.Writer, res.SourceWarnings)
 				if res.ExpiresAt != nil {
 					writeText(cmd.Writer, "Expires: %s\n", res.ExpiresAt.Format("2006-01-02 15:04:05 MST"))
 				} else {

@@ -1923,4 +1923,19 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_EXPORT_UNSUPPORTED: {
+		Message: "SPSS was requested as an OUTPUT format, but Pulse reads .sav / .zsav and does not yet write them: the reader is registered and the writer is not. The extension is recognised — that is why this is a specific error rather than an unknown-format one — so `pulse convert survey.sav out.csv` works while `pulse convert data.csv out.sav` stops here.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Target"},
+				Hint:   "Choose an output format Pulse can write: csv, tsv, ndjson, jsonarray, parquet, arrow or excel. `pulse convert data.csv out.parquet` and `pulse export parquet -i cohort.pulse -o out.parquet` both work today; the target format is also settable explicitly with --to.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If the intent was to READ an SPSS file, put the .sav on the INPUT side: `pulse import spss -i survey.sav -o cohort.pulse`, or `pulse convert survey.sav out.csv`. Import honours the .sav dictionary as the authoritative schema rather than re-inferring types from cell text.",
+			},
+		},
+	},
 }

@@ -148,8 +148,14 @@ type SchemaAwareWriter interface {
 //   - A non-nil schema with no fields, or a field whose CsvColumnIdx is
 //     negative, is a malformed contract and fails the import.
 //
-// ConvertJob does not consult this interface; its import half runs off
-// the schema ConvertJob itself resolved.
+// ConvertJob consults this interface too, through the same precedence:
+// an explicit ConvertJob.Schema wins outright, otherwise an
+// authoritative source schema is adopted before inference is
+// considered, and the intermediate .pulse file KeepPulseAt writes is
+// built from it. Without that, a convert FROM an authoritative source
+// would re-infer types from cell text and throw the source dictionary
+// away — the exact loss this interface exists to prevent, reached
+// through a different verb.
 type SchemaAwareReader interface {
 	Reader
 	// PulseSchema returns the authoritative .pulse schema for this
@@ -170,6 +176,40 @@ type SchemaAwareReader interface {
 type OverlayAwareWriter interface {
 	Writer
 	SetOverlays(layers []*types.OverlayLayer)
+}
+
+// SourceWarningEmitter is an optional extension a Reader can implement
+// to surface non-fatal diagnostics the source parse raised, so the
+// shared jobs can lift them onto the ImportReport / PredictReport /
+// ConvertReport instead of leaving them stranded inside the adapter.
+//
+// It is the read-side mirror of OverlayWarningEmitter: the dispatcher
+// type-asserts it after the row pass and copies whatever it yields.
+// Readers that do not implement it contribute no warnings and their
+// reports are byte-identical to the pre-interface shape.
+//
+// The canonical user is io/spss, whose `.sav` dictionary walk and
+// schema mapping raise warnings that do not stop an import but change
+// what the cohort means — an unrecognised record type 7 extension
+// subtype, a temporal column demoted to raw seconds, a near-unique
+// categorical, a value collision, a declared case count that disagrees
+// with the cases actually present. Every one of those is a
+// PULSE_SPSS_* code with a fixup, and a user who never sees them
+// cannot act on them.
+//
+// # Timing
+//
+// Warnings become knowable progressively — the dictionary's at parse,
+// the mapping's at schema resolution, the data pass's while reading
+// cases — so the jobs collect AFTER the row pass, when the full set is
+// available. An implementation must therefore be a pure accessor:
+// calling it must not itself trigger a parse, and calling it twice must
+// not double the set.
+type SourceWarningEmitter interface {
+	Reader
+	// Warnings returns the non-fatal diagnostics raised so far. The
+	// returned slice is the caller's to retain.
+	Warnings() []*errors.CodedError
 }
 
 // OverlayWarningEmitter is an optional extension a Writer can implement
@@ -197,6 +237,14 @@ type ImportReport struct {
 	Schema         *encoding.Schema
 	RowErrors      []RowError
 	PromotedFields []string
+	// SourceWarnings carries the non-fatal diagnostics the source
+	// Reader surfaced through the optional SourceWarningEmitter
+	// contract — today the PULSE_SPSS_* family raised by the `.sav`
+	// dictionary walk, schema mapping and data pass. Nil for sources
+	// that do not implement the interface and for sources that
+	// implement it and raised nothing, so the report shape is
+	// unchanged for every pre-existing adapter.
+	SourceWarnings []*errors.CodedError
 }
 
 // ExportReport summarizes the result of an export operation.
@@ -224,6 +272,10 @@ type ConvertReport struct {
 	RowErrors       []RowError
 	LabelWarnings   []LabelWarning
 	OverlayWarnings []*errors.CodedError
+	// SourceWarnings carries the source Reader's non-fatal diagnostics
+	// — see ImportReport.SourceWarnings. Distinct from OverlayWarnings,
+	// which come from the TARGET Writer.
+	SourceWarnings []*errors.CodedError
 }
 
 // RowError records a per-row error during import or export.
@@ -237,6 +289,12 @@ type PredictReport struct {
 	Schema        *encoding.Schema
 	EstimatedRows int
 	Warnings      []InferenceWarning
+	// SourceWarnings carries the source Reader's non-fatal coded
+	// diagnostics — see ImportReport.SourceWarnings. Held apart from
+	// Warnings, which is the inference pass's own untyped channel: a
+	// predict against an authoritative source runs no inference, so
+	// Warnings is empty there and SourceWarnings is the only signal.
+	SourceWarnings []*errors.CodedError
 }
 
 // ImportJob converts tabular source data into a .pulse file.

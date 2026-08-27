@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/io/jsonarray"
 	"github.com/frankbardon/pulse/io/ndjson"
 	"github.com/frankbardon/pulse/io/parquet"
+	"github.com/frankbardon/pulse/io/spss"
 	"github.com/frankbardon/pulse/io/tsv"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
@@ -41,6 +42,7 @@ func ImportCommand() *cli.Command {
 			importFormatCmd("jsonarray"),
 			importFormatCmd("parquet"),
 			importFormatCmd("arrow"),
+			importFormatCmd("spss"),
 			importExcelCmd(),
 			importPredictCmd(),
 			importSchemaTemplateCmd(),
@@ -117,13 +119,14 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	}
 
 	if jsonOut {
-		return writeEnvelope(cmd.Writer, report)
+		return writeEnvelopeWithWarnings(cmd.Writer, report, report.SourceWarnings)
 	}
 
 	writeText(cmd.Writer, "Imported %d rows to %s\n", report.RowsImported, output)
 	if len(report.RowErrors) > 0 {
 		writeText(cmd.Writer, "Warnings: %d row errors\n", len(report.RowErrors))
 	}
+	writeSourceWarnings(cmd.Writer, report.SourceWarnings)
 	if len(report.PromotedFields) > 0 {
 		writeText(cmd.Writer, "%s: fields promoted to nullable (null found past the inference sample): %s\n",
 			errors.PULSE_IMPORT_NULL_PROMOTED, strings.Join(report.PromotedFields, ", "))
@@ -138,7 +141,7 @@ func importPredictCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss)"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
@@ -193,7 +196,7 @@ func importPredictCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, report)
+				return writeEnvelopeWithWarnings(cmd.Writer, report, report.SourceWarnings)
 			}
 
 			writeText(cmd.Writer, "Schema: %d fields\n", len(report.Schema.Fields))
@@ -201,6 +204,7 @@ func importPredictCmd() *cli.Command {
 			for _, w := range report.Warnings {
 				writeText(cmd.Writer, "Warning [%s]: %s\n", w.Column, w.Message)
 			}
+			writeSourceWarnings(cmd.Writer, report.SourceWarnings)
 			return nil
 		},
 	}
@@ -212,7 +216,7 @@ func importSchemaTemplateCmd() *cli.Command {
 		Usage:     "Generate an editable schema template from input data",
 		ArgsUsage: "INPUT",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss)"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -284,6 +288,8 @@ func makeImportReader(format string, fs afero.Fs, path string, sheet string) (pi
 		return parquet.NewReader(fs, path), nil
 	case "arrow":
 		return parrow.NewReader(fs, path), nil
+	case "spss":
+		return spss.NewReader(fs, path), nil
 	case "excel":
 		opts := []excel.Option{}
 		if sheet != "" {

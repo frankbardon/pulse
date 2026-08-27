@@ -40,21 +40,60 @@ checks: write rows, read them back, verify equality. Hermetic tests
 should use `afero.NewMemMapFs()` — see [Testing
 Conventions](../contributing/testing.md).
 
-## 3. Wire it into the CLI
+## 3. Register and wire it up
 
-The CLI registers per-format leaves in `internal/cli/import.go` and
-`internal/cli/export.go`. Add the format string to:
+Registration is spread across **five** places, and a format wired into
+only some of them is reachable by one verb and mysteriously absent from
+another.
 
-- The switch in `makeImportReader(format, ...)` in `import.go`.
-- The corresponding `newWriterForFormat(format, ...)` switch in
-  `export.go`.
-- The `Commands:` slice on `ImportCommand()` and `ExportCommand()`
-  in the same files (one `importFormatCmd("yourformat")` /
-  `exportFormatCmd("yourformat")` line).
+**`io/format/format.go`** — the shared dispatch. All four of:
 
-The `pulse convert` leaf auto-detects format from extension via
-`formatFromExt`; add the extension mapping if the new format has a
-canonical file extension.
+- the format identifier constant;
+- an `ext → id` case in `FromExt` (this is what makes `pulse convert`,
+  `pulse import auto` and `pulse_import` detect the file at all);
+- an entry in `SupportedImport`;
+- a `NewReader` case.
+
+`SupportedImport` is what documentation and help output enumerate, so a
+reader with no entry there is reachable only by accident — and an entry
+with no `NewReader` case advertises a reader the engine cannot build.
+`TestSupportedImport_EveryEntryConstructs` closes that loop.
+
+**`internal/cli/import.go`** — the import leaf's own switch, separate
+from `io/format`'s:
+
+- the `makeImportReader(format, ...)` case;
+- an `importFormatCmd("yourformat")` line in the `Commands:` slice on
+  `ImportCommand()`.
+
+**`internal/cli/format.go`** — `newWriterForFormat`. Writers are *not*
+in `io/format`; this switch is their whole dispatch. If the format is
+import-only, do NOT leave it falling through to the generic
+`unsupported format` default: the extension is recognised, so that
+message says the wrong thing. Return a specific coded error instead —
+`PULSE_SPSS_EXPORT_UNSUPPORTED` is the worked example.
+
+**`internal/cli/export.go`** — an `exportFormatCmd("yourformat")` line
+in `ExportCommand()`, when a writer exists.
+
+**`descriptor/capabilities_export.go`** — the manifest capability
+blocks. `importCapability()` gains an `ImportFormatCapability`
+(name, extensions, `SchemaSource` — `inferred` or `authoritative` —
+and whether the same format can be written); `exportCapability()`
+gains an `ExportFormatCapability` only when a writer actually exists.
+Both slices are alphabetised so the golden manifest stays stable, and
+`TestManifestImportCapability_MatchesFormatRegistry` pins the
+hand-declared table against `io/format`.
+
+Two prose surfaces hardcode the format list and are easy to miss:
+`mcp/contract.go` (the `ImportIn.Format` jsonschema description) and
+`mcp/toolmeta/meta.go` (`DescImport`).
+
+Regenerate the manifest golden afterwards — never hand-edit it:
+
+```bash
+go test ./descriptor/ -run 'Test.*Golden' -update
+```
 
 ## 4. Schema mapping
 
@@ -140,14 +179,51 @@ inference, which then requires a `ResetReader` as usual. A schema
 with no fields, or a field with a negative `CsvColumnIdx`, is a
 malformed contract and fails the import.
 
-`ConvertJob` does not consult this interface; its import half runs
-off the schema `ConvertJob` itself resolved.
+`ConvertJob` consults this interface through the same precedence, via
+the shared `readerSchema` resolver: an explicit `ConvertJob.Schema`
+wins outright, otherwise an authoritative source schema is adopted
+before inference is considered, and the intermediate `.pulse` file
+`KeepPulseAt` writes is built from it. That matters because
+registering an extension on `FromExt` immediately makes
+`pulse convert source.ext out.csv` reachable — and a convert that
+re-inferred types from the text the reader rendered would throw the
+source dictionary away through a command the registration itself
+created.
+
+### Non-fatal diagnostics: `io.SourceWarningEmitter`
+
+A reader whose parse can raise warnings that do not stop an import —
+an unrecognised metadata record, a column mapped to a wider type than
+the ideal, a declared row count that disagrees with the rows present —
+implements the read-side peer of `OverlayWarningEmitter`:
+
+```go
+type SourceWarningEmitter interface {
+    Reader
+    Warnings() []*errors.CodedError
+}
+```
+
+`ImportJob.Run`, `ImportJob.Predict` and `ConvertJob.Run` type-assert
+it **after** the row pass (so progressively-discovered warnings are all
+knowable) and lift the result onto `ImportReport.SourceWarnings` /
+`PredictReport.SourceWarnings` / `ConvertReport.SourceWarnings`. The
+CLI then routes those onto the `--json` envelope's `warnings` array and
+prints `Warning [CODE]: message` lines on the text path.
+
+Implementations must be pure accessors: calling `Warnings()` must not
+itself trigger a parse, and calling it twice must not double the set.
+Readers that do not implement the interface contribute `nil`, keeping
+every pre-existing report byte-identical.
 
 ## 5. Skill update
 
 Add or update a skill that points users at the new format. Cohort-
 schema considerations (field-type round-trip, dictionary behaviour,
 null markers) belong in `skills/cohort-schema-design.md`.
+
+`skills/tool-import.md` carries the `format` enum the MCP tool accepts
+and must list the new identifier.
 
 If the format adds a CLI flag (e.g. `--sheet` for Excel), update
 `skills/session-bootstrap.md` so `TestSkillsCoverAllCliLeaves` keeps

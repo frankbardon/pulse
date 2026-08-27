@@ -381,6 +381,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		TTLSeconds:     sidecar.TTLSeconds,
 		Schema:         report.Schema,
 		PromotedFields: report.PromotedFields,
+		SourceWarnings: report.SourceWarnings,
 	}
 	if !sidecar.ExpiresAt.IsZero() {
 		exp := sidecar.ExpiresAt

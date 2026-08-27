@@ -340,6 +340,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		Schema:         schema,
 		RowErrors:      rowErrors,
 		PromotedFields: promotedFields,
+		SourceWarnings: j.sourceWarnings(),
 	}, nil
 }
 
@@ -418,10 +419,29 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	}
 
 	return &PredictReport{
-		Schema:        schema,
-		EstimatedRows: rowCount,
-		Warnings:      warnings,
+		Schema:         schema,
+		EstimatedRows:  rowCount,
+		Warnings:       warnings,
+		SourceWarnings: j.sourceWarnings(),
 	}, nil
+}
+
+// sourceWarnings lifts the source Reader's non-fatal diagnostics off the
+// optional SourceWarningEmitter contract. Called after the row pass, so
+// the dictionary's, the mapping's and the data pass's warnings are all
+// knowable. Returns nil — not an empty slice — for readers that do not
+// implement the interface, keeping the report byte-identical for every
+// adapter that predates it.
+func (j *ImportJob) sourceWarnings() []*errors.CodedError {
+	swe, ok := j.Source.(SourceWarningEmitter)
+	if !ok {
+		return nil
+	}
+	warns := swe.Warnings()
+	if len(warns) == 0 {
+		return nil
+	}
+	return warns
 }
 
 // sourceSchema pulls the authoritative schema from a SchemaAwareReader
@@ -435,7 +455,17 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 // and failed to read it must not quietly produce a differently-typed
 // cohort from re-guessed cell text.
 func (j *ImportJob) sourceSchema() (*encoding.Schema, error) {
-	sar, ok := j.Source.(SchemaAwareReader)
+	return readerSchema(j.Source)
+}
+
+// readerSchema is the shared SchemaAwareReader resolution both ImportJob
+// and ConvertJob run. It lives in one place so the two verbs cannot
+// diverge on what counts as a usable authoritative schema — a convert
+// that validated less strictly than an import would let a malformed
+// contract through on the path that also writes the intermediate .pulse
+// file.
+func readerSchema(source Reader) (*encoding.Schema, error) {
+	sar, ok := source.(SchemaAwareReader)
 	if !ok {
 		return nil, nil
 	}

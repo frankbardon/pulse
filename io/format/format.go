@@ -1,7 +1,7 @@
 // Package format dispatches tabular Reader construction by format
 // identifier, sitting between the io/ interface definitions and the
 // per-format leaf packages (io/csv, io/tsv, io/ndjson, io/jsonarray,
-// io/parquet, io/arrow, io/excel). It exists as a sub-package of io/
+// io/parquet, io/arrow, io/excel, io/spss). It exists as a sub-package of io/
 // to avoid an import cycle: io/csv (and siblings) already import io/
 // for the Reader / ResetReader interfaces, so the dispatch table
 // cannot live in io/ itself.
@@ -19,6 +19,7 @@ import (
 	"github.com/frankbardon/pulse/io/jsonarray"
 	"github.com/frankbardon/pulse/io/ndjson"
 	"github.com/frankbardon/pulse/io/parquet"
+	"github.com/frankbardon/pulse/io/spss"
 	"github.com/frankbardon/pulse/io/tsv"
 	"github.com/spf13/afero"
 )
@@ -36,6 +37,22 @@ const (
 	Arrow     = "arrow"
 	Excel     = "excel"
 	Pulse     = "pulse"
+
+	// SPSS is the SPSS system-file format, covering both the `.sav`
+	// extension and `.zsav`. Import-only today: NewReader builds a
+	// reader for it, and there is deliberately no writer — see
+	// errors.PULSE_SPSS_EXPORT_UNSUPPORTED, which the CLI writer
+	// dispatch returns instead of a generic unknown-format message so
+	// "Pulse cannot write .sav yet" is not confused with "Pulse does
+	// not recognise .sav".
+	//
+	// `.zsav` maps here rather than to its own identifier because it is
+	// the same dictionary and the same data section under zlib block
+	// compression, not a different format. It resolves to the same
+	// reader, which refuses the compressed data section with
+	// PULSE_SPSS_COMPRESSION_UNSUPPORTED — a specific, actionable
+	// answer that a "cannot detect format" error could not give.
+	SPSS = "spss"
 )
 
 // SupportedImport lists every format NewReader accepts. Excludes "pulse"
@@ -49,6 +66,7 @@ var SupportedImport = []string{
 	Parquet,
 	Arrow,
 	Excel,
+	SPSS,
 }
 
 // FromExt returns the canonical format identifier for a file path based
@@ -72,6 +90,8 @@ func FromExt(path string) string {
 		return Arrow
 	case ".xlsx", ".xls":
 		return Excel
+	case ".sav", ".zsav":
+		return SPSS
 	case ".pulse":
 		return Pulse
 	default:
@@ -110,6 +130,8 @@ func NewReader(format string, fs afero.Fs, path string, opts ReaderOptions) (pio
 			excelOpts = append(excelOpts, excel.WithSheet(opts.Sheet))
 		}
 		return excel.NewReader(fs, path, excelOpts...), nil
+	case SPSS:
+		return spss.NewReader(fs, path), nil
 	case Pulse:
 		return nil, fmt.Errorf("format.NewReader: %q is the native format, no tabular reader needed", format)
 	case "":

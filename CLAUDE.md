@@ -39,6 +39,7 @@ This is the compressed surface — the full per-contract trigger table lives at 
 | A `--json` envelope or `format_version` value (currently `"1.1"`) | CLAUDE.md "Output Format Contract" + the payload schema `$id` version (`descriptor.PayloadSchemaFormatVersion`, regenerate `descriptor/testdata/payload-schema.json`) | `TestClaudeMdMentionsFormatVersion`, `TestPayloadSchema_VersionMatchesEnvelope` |
 | The public payload contract: any `types` request/response struct slot reachable from a payload, a registry enum surfaced in the schema (`types.All*Types` / `AllOverlayKinds` / `AllRegressionTypes`), or a strict-union shape (`OverlayRef` / `OverlayPayload`) | regenerate `descriptor/testdata/payload-schema.json` (`go test ./descriptor/ -run TestPayloadSchemaGolden -update`) + `descriptor/schema.go` (only if enum/union wiring changes) + `docs/src/contract/payload-schema.md` | `TestPayloadSchemaGolden`, `TestPayloadSchema_EnumsMatchRegistry`, `TestPayloadSchema_VersionMatchesEnvelope`, `TestGoldensNotHandEdited` |
 | A `.pulse` file format change (header, field type) | CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` | `TestSkillsCoverAllFieldTypes`, `TestClaudeMdMentionsFormatVersion` |
+| A registered I/O format (`io/<fmt>/` adapter reachable from `io/format`) | `io/format/format.go` (const + `FromExt` + `SupportedImport` + `NewReader`) + `internal/cli/import.go` (`makeImportReader` + `Commands:`) + `internal/cli/format.go` (`newWriterForFormat`) + `descriptor/capabilities_export.go` (`importCapability` / `exportCapability`) + `mcp/contract.go` (`ImportIn.Format` enum prose) + `mcp/toolmeta/meta.go` (`DescImport`) + `skills/cohort-schema-design.md` + `skills/tool-import.md` + `docs/src/internals/adding-io-format.md` + CLAUDE.md "Architecture" `io/` line + "Manifest payload" | `TestFromExt_Matrix`, `TestSupportedImport_EveryEntryConstructs`, `TestManifestImportCapability`, `TestManifestImportCapability_MatchesFormatRegistry`, `TestMakeImportReader_SPSS`, `TestSkillsCoverAllMCPTools` |
 | A new non-skippable CI gate | CLAUDE.md "Non-Skippable CI Gates" list | `TestClaudeMdMentionsAllNonSkippableGates` |
 | An environment variable | CLAUDE.md "Build / Env" + `skills/session-bootstrap.md` | `TestClaudeMdMentionsAllEnvVars` |
 | `Response.Components` shape change | CLAUDE.md "Output Format Contract" + `skills/response-components.md` | `TestClaudeMdMentionsComponentsContract` |
@@ -63,7 +64,7 @@ pulse/
 │   ├── window/             # WIN_* operators
 │   └── feature/            # FEAT_* pre-filter feature engineers
 ├── encoding/               # .pulse binary codec (incl. archive + cohesion)
-├── io/                     # Tabular ↔ .pulse adapters (csv|tsv|ndjson|jsonarray|jsonshared|arrow|parquet|excel)
+├── io/                     # Tabular ↔ .pulse adapters (csv|tsv|ndjson|jsonarray|jsonshared|arrow|parquet|excel|spss)
 ├── fs/                     # afero-based filesystem abstraction
 ├── errors/                 # Typed error codes (CodedError system)
 ├── types/                  # Request/response structs + streamability table
@@ -207,7 +208,7 @@ Full contract: `skills/response-components.md`.
 
 ### Manifest payload
 
-`descriptor.BuildManifest()` returns deterministic LLM-bootstrap blob — one fetch per session, client-cached. Reachable via `pulse manifest --json` and `pulse_manifest`. Top-level: `format_version`, `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim), `mcp_tools`, `cohort_types`, `skills`, `extensions`, plus capability blocks `Facet`, `Join`, `ProcessChain`, `Crosstab`, `Overlays`. Sort-stable; golden-checked at `descriptor/testdata/manifest.json`. Capability declarations: `descriptor/capabilities_*.go`. MCP tool metadata: `mcp/toolmeta/meta.go`.
+`descriptor.BuildManifest()` returns deterministic LLM-bootstrap blob — one fetch per session, client-cached. Reachable via `pulse manifest --json` and `pulse_manifest`. Top-level: `format_version`, `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim), `mcp_tools`, `cohort_types`, `skills`, `extensions`, plus capability blocks `Facet`, `Join`, `ProcessChain`, `Crosstab`, `Export`, `Import`, `Overlays`. Sort-stable; golden-checked at `descriptor/testdata/manifest.json`. Capability declarations: `descriptor/capabilities_*.go`. MCP tool metadata: `mcp/toolmeta/meta.go`.
 
 ### Predict / Inspect contracts
 

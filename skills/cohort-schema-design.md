@@ -128,9 +128,31 @@ A lookup hashes the key, seeks its offset entry, seeks that bucket's data, then 
 
 **Constraints:** single-file cohorts only — shards → `PULSE_INDEX_UNSUPPORTED_SHARDED` (`archive.pulse#shard.pulse` anchor is a tested single-shard workaround). Equality-only, full-key required, composite-key order significant end to end. Errors: `PULSE_INDEX_MISSING`, `PULSE_INDEX_STALE`, `PULSE_INDEX_UNSUPPORTED_SHARDED`, `PULSE_LOOKUP_NOT_FOUND`, `PULSE_LOOKUP_AMBIGUOUS`.
 
+## SPSS import (`.sav` / `.zsav`)
+
+An SPSS system file is the one source whose schema Pulse does **not** infer. Its dictionary DECLARES every column, so `io/spss` implements `io.SchemaAwareReader` and the whole sample-and-vote pass in `io/infer.go` is skipped — for `pulse import spss`, `pulse import auto`, `pulse_import` and `pulse convert` alike. Consequences: the inference-steering slots (`SampleRows`, `SetInferenceMinPct`, `SetDelimiters`, `ColumnTypeOverrides`) are inert, and there is no null promotion — declared nullability is a contract, so an unexpected null is a `PULSE_IMPORT_ROW_ERROR`, never a silent widening. An explicit `ImportJob.Schema` still wins outright.
+
+| SPSS | Pulse | Why |
+|---|---|---|
+| numeric (F/E/COMMA/DOT/PCT…) | `f64` | No integer narrowing by range probe. A probe would type two otherwise identical files differently. |
+| numeric with value labels | `categorical_u8/u16/u32` | Width from the distinct count; overflow past `u32` → `PULSE_SPSS_CATEGORICAL_OVERFLOW` (hard error — dropping values is worse). |
+| string (A*) | `categorical_*` | Near-unique columns warn `PULSE_SPSS_CARDINALITY_HIGH` (free-text signature) but still import. |
+| DATE/ADATE/EDATE/SDATE/JDATE | `date`, or `datetime` on `PULSE_SPSS_DATE_WIDENED` | Widens when a value carries a time of day or predates 1970 — `date` is an unsigned epoch **day**. |
+| DATETIME/TIME/DTIME | `datetime` (epoch **seconds**) | A fractional second / non-finite / out-of-int64 value demotes the column to `f64` raw SPSS seconds with `PULSE_SPSS_TEMPORAL_PRECISION`. |
+| system-missing (sysmis) | null (bitmap bit) | The one missing state the format has a sentinel for. |
+| user-missing values | ordinary data, kept verbatim | The null bitmap records *that* a value is missing, never *why*, so collapsing a user-missing code to null would destroy the reason. The reason-preserving `<var>_missing` sibling is not built yet — today the codes simply survive as values. |
+
+**Dictionaries hold SPSS CODES, not labels.** A `categorical_*` dictionary for a labelled variable contains `"1"`, `"2"`, … — the source's own numeric codes, in the source's own order, because entry order IS the on-wire encoding. Two SPSS codes may legitimately share one value label, so a label-keyed dictionary would collapse them and destroy the code. Analysts get labels at output time through a `LabelTable` (`label-display`), never from the cohort itself. A cell whose text is a null sentinel (`""`, `NA`, `N/A`, `NULL`) imports as null and warns `PULSE_SPSS_NULL_TOKEN_COLLISION`.
+
+**Warnings are load-bearing.** The `PULSE_SPSS_*` diagnostics above are non-fatal but they change what the cohort MEANS. They ride `ImportReport.SourceWarnings` / `ConvertReport.SourceWarnings` (via the `io.SourceWarningEmitter` optional interface) and surface on the `--json` envelope's `warnings` array and as `Warning [CODE]` lines on the text path. `pulse errors lookup CODE` carries the per-code fixup.
+
+**Read-only today.** Only the uncompressed data section is decoded; bytecode / ZSAV compression → `PULSE_SPSS_COMPRESSION_UNSUPPORTED` (reading compressed bytes as though uncompressed yields plausible garbage, which is worse than stopping). There is no SPSS writer: an SPSS *output* target returns `PULSE_SPSS_EXPORT_UNSUPPORTED`, deliberately distinct from an unknown-format error because the extension IS recognised. `pulse convert survey.sav out.csv` works; `pulse convert data.csv out.sav` does not.
+
 ## Cross-links
 
 - `financial-cohorts` — `decimal128` rules.
 - `response-components` — `data.components.run.shard_count` + `partial_cohort_reason`.
 - `aggregation-guide` / `grouper-design` / `attribute-composition` — `set_*` operator surfaces.
 - `tool-lookup` — point-lookup MCP surface built on this sidecar format.
+- `tool-import` — the import MCP surface, incl. the SPSS format enum.
+- `label-display` — resolving SPSS value labels from the numeric codes the cohort stores.

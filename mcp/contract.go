@@ -86,7 +86,7 @@ type ErrorsLookupIn struct {
 // ImportIn is the input contract for pulse_import.
 type ImportIn struct {
 	Source    string `json:"source" jsonschema:"Filesystem path to the source file (relative to PULSE_DATA_DIR)"`
-	Format    string `json:"format,omitempty" jsonschema:"Format override: csv, tsv, ndjson, jsonarray, parquet, arrow, excel, pulse"`
+	Format    string `json:"format,omitempty" jsonschema:"Format override: csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss, pulse"`
 	Handle    string `json:"handle,omitempty" jsonschema:"Managed handle name; defaults to source basename without extension"`
 	TTL       string `json:"ttl,omitempty" jsonschema:"TTL: Go duration ('24h', '30m') or day form ('7d', '30d'); 'pin' disables expiry. Default 7d."`
 	Sheet     string `json:"sheet,omitempty" jsonschema:"Excel sheet name; ignored for non-Excel sources"`

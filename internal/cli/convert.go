@@ -111,13 +111,14 @@ func ConvertCommand() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, report)
+				return writeEnvelopeWithWarnings(cmd.Writer, report, report.SourceWarnings)
 			}
 
 			writeText(cmd.Writer, "Converted %d rows: %s -> %s\n", report.RowsConverted, input, output)
 			if len(report.RowErrors) > 0 {
 				writeText(cmd.Writer, "Warnings: %d row errors\n", len(report.RowErrors))
 			}
+			writeSourceWarnings(cmd.Writer, report.SourceWarnings)
 			return nil
 		},
 	}
@@ -190,11 +191,12 @@ func convertPredictCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, report)
+				return writeEnvelopeWithWarnings(cmd.Writer, report, report.SourceWarnings)
 			}
 
 			writeText(cmd.Writer, "Schema: %d fields\n", len(report.Schema.Fields))
 			writeText(cmd.Writer, "Estimated rows: %d\n", report.EstimatedRows)
+			writeSourceWarnings(cmd.Writer, report.SourceWarnings)
 			return nil
 		},
 	}

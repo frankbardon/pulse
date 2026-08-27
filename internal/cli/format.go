@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 	parrow "github.com/frankbardon/pulse/io/arrow"
 	"github.com/frankbardon/pulse/io/csv"
@@ -47,6 +48,19 @@ func newWriterForFormat(format string, fs afero.Fs, path string) (pio.Writer, er
 		return parrow.NewWriter(fs, path), nil
 	case pformat.Excel:
 		return excel.NewWriter(fs, path), nil
+	case pformat.SPSS:
+		// SPSS is import-only today: io/format registers a reader and
+		// there is no writer. Answer with the specific code rather than
+		// falling through to the generic "unsupported format" below —
+		// the extension IS recognised (that is why we are in this case
+		// arm at all), so "Pulse does not know what .sav is" would be
+		// actively misleading, and the fixups point at the two things a
+		// caller might have meant: a writable target format, or the
+		// .sav on the input side.
+		return nil, perrors.NewCodedErrorWithDetails(
+			perrors.PULSE_SPSS_EXPORT_UNSUPPORTED,
+			"SPSS (.sav / .zsav) is an import-only format; Pulse cannot write it yet",
+			map[string]any{"format": format, "output_path": path})
 	default:
 		return nil, fmt.Errorf("unsupported format: %s", format)
 	}
