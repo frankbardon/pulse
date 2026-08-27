@@ -467,6 +467,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -513,6 +514,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -564,6 +566,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -827,6 +830,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -893,6 +897,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -1076,6 +1081,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -1797,6 +1803,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2040,10 +2047,11 @@
         {
           "name": "FILTER_DATE_RANGES",
           "category": "filterer",
-          "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). Null dates and out-of-range rows are dropped.",
+          "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). A datetime field is truncated to the UTC calendar day containing its instant before matching. Null dates and out-of-range rows are dropped.",
           "params": null,
           "accepts_types": [
-            "date"
+            "date",
+            "datetime"
           ],
           "emits_type_note": "record-level predicate (no emitted column)",
           "streamable": true,
@@ -2078,6 +2086,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2129,6 +2138,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2180,6 +2190,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2231,6 +2242,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2282,6 +2294,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2510,6 +2523,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2563,6 +2577,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2612,7 +2627,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). A datetime field is truncated to the UTC calendar day containing its instant before bucketing. Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -2638,7 +2653,8 @@
             }
           ],
           "accepts_types": [
-            "date"
+            "date",
+            "datetime"
           ],
           "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1)",
           "streamable": false,
@@ -2687,7 +2703,7 @@
         {
           "name": "GROUP_DATE_RANGES",
           "category": "grouper",
-          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order.",
+          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is truncated to the UTC calendar day containing its instant before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order.",
           "params": [
             {
               "name": "ranges",
@@ -2704,7 +2720,8 @@
             }
           ],
           "accepts_types": [
-            "date"
+            "date",
+            "datetime"
           ],
           "emits_type_note": "labeled range key per row (the matching range's label, or the unmatched label)",
           "streamable": true,
@@ -3032,6 +3049,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -3230,6 +3248,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -3265,6 +3284,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -3566,6 +3586,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -6117,6 +6138,44 @@
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
+      },
+      {
+        "name": "datetime",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_DATE_RANGES",
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_INCLUDE",
+          "FILTER_NULL",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_DATE",
+          "GROUP_DATE_RANGES"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       }
     ],
     "skills": [
@@ -6358,7 +6417,7 @@
       },
       {
         "name": "op-filter-date-ranges",
-        "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges."
+        "description": "Keep records whose date/datetime field falls inside any of a validated set of labeled date ranges."
       },
       {
         "name": "op-filter-exclude",
@@ -6410,7 +6469,7 @@
       },
       {
         "name": "op-group-date",
-        "description": "Partition date records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar."
+        "description": "Partition date/datetime records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar."
       },
       {
         "name": "op-group-date-ranges",
@@ -9219,4 +9278,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8319dbaa27e3c86fe1c16ba7065ae1d33e028a8a83818b6d12b1819f8ac55bd3
+// golden-hash: a0321c9ff45ed7e596f57670884a29637b318e53e73dbc9698b675c0377420b6

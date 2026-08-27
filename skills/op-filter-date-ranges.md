@@ -1,6 +1,6 @@
 ---
 name: op-filter-date-ranges
-description: Keep records whose date field falls inside any of a validated set of labeled date ranges.
+description: Keep records whose date/datetime field falls inside any of a validated set of labeled date ranges.
 kind: operator
 category: FILTER
 operator: FILTER_DATE_RANGES
@@ -17,7 +17,7 @@ Exactly one range source in `Params json.RawMessage` (not `Values []string`) —
 
 ## Inputs
 
-`Field` — `date` only; non-`date` → `PROCESSING_CONFIG`.
+`Field` — `date` or `datetime`; anything else → `PROCESSING_CONFIG`. `datetime` truncates to the UTC calendar day, so a range's last day keeps rows through `23:59:59`.
 
 ## Output
 

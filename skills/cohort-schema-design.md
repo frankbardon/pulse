@@ -121,7 +121,7 @@ No concurrent-writer protection. Two writers race; last writer wins. Readers sna
 
 A lookup hashes the key to one bucket, seeks to that bucket's offset entry, seeks to its data, then seeks straight to each matched record via `RecordLocator` — never a full-cohort or full-index read. Staleness on the read path is an O(1) size+mtime stat (mismatch → `PULSE_INDEX_STALE`); `pulse index verify` recomputes the authoritative full SHA-256 fingerprint instead.
 
-**Keyable-type policy** (`processing.IsIndexKeyableFieldType`): ALLOW `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (bit-pattern equality — `-0.0`/NaN caveat), `date`, `decimal128` (exact mantissa, no float round-trip), `categorical_*` (dictionary ID), `packed_bool`. REJECT `set_*` — no single unambiguous equality value; use `FILTER_SET` instead.
+**Keyable-type policy** (`processing.IsIndexKeyableFieldType`): ALLOW `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (bit-pattern equality — `-0.0`/NaN caveat), `date`, `datetime` (epoch seconds; literal parses as a datetime, never a float), `decimal128` (exact mantissa, no float round-trip), `categorical_*` (dictionary ID), `packed_bool`. REJECT `set_*` — no single unambiguous equality value; use `FILTER_SET` instead.
 
 **Constraints:** single-file cohorts only — shards → `PULSE_INDEX_UNSUPPORTED_SHARDED` (`archive.pulse#shard.pulse` anchor is a tested single-shard workaround). Equality-only, full-key required, composite-key order significant end to end. Errors: `PULSE_INDEX_MISSING`, `PULSE_INDEX_STALE`, `PULSE_INDEX_UNSUPPORTED_SHARDED`, `PULSE_LOOKUP_NOT_FOUND`, `PULSE_LOOKUP_AMBIGUOUS`.
 

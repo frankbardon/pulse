@@ -63,7 +63,7 @@ Unknown keys are silently dropped on decode — the engine does NOT warn.
 | `output` | `outputs` |
 | `request` (Compose top-level) | `requests` |
 
-Per-operator slot: `type` (operator constant, e.g. `"AGG_SUM"`), `field`, `label`, optional `params`. Get per-operator key lists from `pulse_examples_*` + the category skill.
+Per-operator slot: `type` (operator constant, e.g. `"AGG_SUM"`), `field`, `label`, optional `params`. Per-operator key lists: `pulse_examples_*` + the category skill.
 
 ## Smart defaults
 
@@ -74,22 +74,23 @@ When a slot names `field` but omits `type`, the engine infers from schema type. 
 | numeric (`u4`, `u8`..`u64`, `f32`/`f64`, `decimal128`) | `AGG_SUM` | `GROUP_RANGE` (interval 10) |
 | `categorical_u8`/`u16`/`u32` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
 | `date` | (explicit only) | `GROUP_DATE` (`"day"`) |
+| `datetime` | (explicit only) | `GROUP_DATE` (`"day"`), truncated |
 | `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
 
-Rules: never override explicit `type`; never cross categories; `Nullable` irrelevant; tests / filterers / attrs / features / windows NEVER defaulted. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
+Rules: never override explicit `type`; never cross categories; `Nullable` irrelevant; tests / filterers / attrs / features / windows never defaulted. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
 
 ## Streamability
 
 `pulse_predict` returns `data.streamable: bool` + `data.streamable_reasons: []string`.
 
-- **Streams:** no-group online aggs; grouped when every grouper is `GROUP_CATEGORY`/`RANGE`/`ROUNDED` AND every agg is online; row-local attrs (`ATTR_FORMULA`/`DATE_PART`); two-pass attrs (`ATTR_ZSCORE`/`TSCORE`/`NORMALIZED`) via Welford pass-1.
-- **Buffers:** median/percentile/ZScore aggs; `ATTR_PERCENTILE`; `GROUP_QUANTILE`/`DATE`; any windows; decimal-typed aggs; two-pass attrs combined with features or groups; tier-2 post tests.
+- **Streams:** no-group online aggs; grouped when every grouper is `GROUP_CATEGORY`/`RANGE`/`ROUNDED` AND every agg is online; row-local attrs (`ATTR_FORMULA`/`DATE_PART`); two-pass attrs (`ATTR_ZSCORE`/`TSCORE`/`NORMALIZED`) via Welford.
+- **Buffers:** median/percentile/ZScore aggs; `ATTR_PERCENTILE`; `GROUP_QUANTILE`/`DATE`; any windows; decimal aggs; two-pass attrs with features or groups; tier-2 post tests.
 
-`streamable_reasons` is the source of truth.
+`streamable_reasons` is authoritative.
 
 ## Echo request
 
-`--echo-request` / `pulse.Options.EchoRequest: true` populates `envelope.request` with the *normalized* request (defaults applied, slots validated, schema bound). Streaming skips. Use to confirm defaults, archive normalized form, debug silent slot-key drops.
+`--echo-request` / `pulse.Options.EchoRequest: true` populates `envelope.request` with the *normalized* request (defaults applied, slots validated, schema bound). Streaming skips. Use it to confirm defaults or debug silent slot-key drops.
 
 ## Response.Components (v0.20.0, additive)
 
@@ -105,7 +106,7 @@ data.components.filterers[i]     -> {n_in, n_out, n_null_input}
 data.components.run              -> {total_records, filtered_records, null_records, shard_count, partial_cohort_reason}
 ```
 
-Universal floor filled by orchestrator. Per-operator keys ride inside `operator` (or directly inside cell maps for crosstab). Resolve keys via `manifest.components_schemas.{aggregators,groupers,filterers}[name].keys`.
+Universal floor filled by the orchestrator. Per-operator keys ride inside `operator` (cell maps for crosstab). Resolve keys via `manifest.components_schemas.{aggregators,groupers,filterers}[name].keys`.
 
 **First sight:** call `pulse_skills_get` with `name: "response-components"` — canonical consumption reference with full key tables, mergeability axis, streaming behaviour.
 

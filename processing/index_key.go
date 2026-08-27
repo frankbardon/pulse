@@ -30,6 +30,20 @@ import (
 //     numerically-equal literal diverge in the OTHER direction).
 //   - ALLOW — date: on-wire epoch-days (uint32), exact — no precision
 //     loss versus the persisted representation.
+//   - ALLOW — datetime: on-wire epoch-seconds (uint64), the same
+//     fixed-width unsigned-integer shape as u64 and admitted on the
+//     same rationale. A lookup literal resolves through
+//     encoding.ParseDateTime (never a ParseFloat round trip), so a
+//     literal probed here and the same literal imported as a cell land
+//     on identical key bytes. It inherits u64's one caveat verbatim:
+//     Record.NumericValue carries the value as float64, so a magnitude
+//     above 2^53 is not exactly representable. For datetime that range
+//     is reached only by a PRE-1970 instant (stored as a negative
+//     second count reinterpreted as uint64 two's-complement); the
+//     rounding is applied identically on the build and the probe path
+//     so equality lookups still resolve, but two pre-1970 instants
+//     inside one rounding step share a key. Post-epoch instants —
+//     every realistic cohort — are exact.
 //   - ALLOW — decimal128: exact 128-bit mantissa bytes via
 //     encoding.EncodeDecimal128, never the lossy Record.NumericValue
 //     Float64(scale) echo. See KeyFieldOnWireBytes and
@@ -57,7 +71,8 @@ func IsIndexKeyableFieldType(ft encoding.FieldType) bool {
 	switch ft {
 	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
 		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeDate, encoding.FieldTypeDecimal128, encoding.FieldTypePackedBool:
+		encoding.FieldTypeDate, encoding.FieldTypeDateTime,
+		encoding.FieldTypeDecimal128, encoding.FieldTypePackedBool:
 		return true
 	}
 	return false
@@ -213,7 +228,8 @@ func numericOnWireBytes(v float64, ft encoding.FieldType) []byte {
 	default:
 		// Plain unsigned-integer on-wire encodings: u8/u16/u32/u64, date
 		// (uint32 epoch-days — same 4-byte on-wire shape as u32, and
-		// already carried losslessly by NumericValue), and
+		// already carried losslessly by NumericValue), datetime (uint64
+		// epoch-seconds — same 8-byte on-wire shape as u64), and
 		// categorical_u8/u16/u32 (the dictionary ID IS the on-wire
 		// value already carried by NumericValue).
 		return encodeUintOnWire(uint64(v), ft.ByteSize())
@@ -244,8 +260,9 @@ func numericOnWireBytes(v float64, ft encoding.FieldType) []byte {
 // IndexKeyRejectionMessage's dedicated explanation), when a categorical
 // literal has no matching dictionary entry, when a date/decimal128
 // literal fails to parse or a decimal literal overflows the field's
-// declared precision, or when a numeric literal fails to parse as a
-// float.
+// declared precision, when a datetime literal fails to parse against
+// encoding.DateTimeFormats (same no-float-round-trip footing as date),
+// or when a numeric literal fails to parse as a float.
 func ResolveLookupKeyBytes(field *encoding.Field, literal string) ([]byte, error) {
 	if field == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
@@ -277,6 +294,22 @@ func ResolveLookupKeyBytes(field *encoding.Field, literal string) ([]byte, error
 				fmt.Sprintf("parsing lookup date value %q for field %q", literal, field.Name))
 		}
 		return numericOnWireBytes(float64(days), field.Type), nil
+	}
+
+	if field.Type == encoding.FieldTypeDateTime {
+		// Delegates to encoding.ParseDateTime — the same authority
+		// io/import.go's convertValue uses to persist a datetime cell —
+		// so a literal probed here and the same literal imported land
+		// on identical on-wire bytes. A bare integer second count is
+		// NOT accepted: the datetime literal grammar is the canonical
+		// one, and an ambiguous slash-date form fails loudly there
+		// rather than silently swapping day and month.
+		sec, err := encoding.ParseDateTime(literal)
+		if err != nil {
+			return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
+				fmt.Sprintf("parsing lookup datetime value %q for field %q", literal, field.Name))
+		}
+		return numericOnWireBytes(float64(sec), field.Type), nil
 	}
 
 	if field.Type == encoding.FieldTypeDecimal128 {

@@ -785,6 +785,11 @@ func TestPulseTypeToArrowType(t *testing.T) {
 		{encoding.FieldTypeF32, arrow.FLOAT32},
 		{encoding.FieldTypeF64, arrow.FLOAT64},
 		{encoding.FieldTypeDate, arrow.DATE32},
+		// datetime maps to UTF8, not a numeric or timestamp type: the
+		// export pipeline hands the writer the canonical datetime
+		// literal already stringified, and a non-string builder would
+		// reject it row by row.
+		{encoding.FieldTypeDateTime, arrow.STRING},
 		{encoding.FieldTypePackedBool, arrow.BOOL},
 		{encoding.FieldTypeU4, arrow.UINT8},
 		{encoding.FieldTypeCategoricalU8, arrow.STRING},
@@ -805,5 +810,63 @@ func TestPulseTypeToArrow_DefaultCase(t *testing.T) {
 	got := TypeFromPulse(encoding.FieldType(255))
 	if got.ID() != arrow.FLOAT64 {
 		t.Errorf("default: %v", got)
+	}
+}
+
+// TestArrow_DateTimeColumnRoundTripsAsCanonicalString is the fidelity
+// gate for a `datetime` column through the schema-aware (typed) Arrow
+// writer. io/export.go stringifies every non-decimal cell before the
+// writer sees it, so a datetime cell arrives as its canonical literal.
+// If TypeFromPulse mapped the column to a numeric or timestamp Arrow
+// type the typed builder would reject that literal and io/export.go
+// would record a RowError for EVERY row — the rows would vanish, not
+// merely be mistyped. Assert the literal survives verbatim.
+func TestArrow_DateTimeColumnRoundTripsAsCanonicalString(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "ts", Type: encoding.FieldTypeDateTime},
+		{Name: "d", Type: encoding.FieldTypeDate},
+	}}
+
+	w := NewWriterToBuffer()
+	w.SetPulseSchema(schema)
+	if err := w.WriteHeader([]string{"ts", "d"}); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	// Exactly what io/export.go's formatFieldValue emits for these two
+	// field types.
+	if err := w.WriteRow([]any{"2024-03-04T10:11:12Z", "2024-03-04"}); err != nil {
+		t.Fatalf("WriteRow: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	r := NewReaderFromBytes(w.Bytes())
+	defer func() { _ = r.Close() }()
+	if _, err := r.ReadHeader(); err != nil {
+		t.Fatalf("ReadHeader: %v", err)
+	}
+	var rows [][]string
+	if err := r.ReadRows(t.Context(), func(row []string) error {
+		rows = append(rows, append([]string(nil), row...))
+		return nil
+	}); err != nil {
+		t.Fatalf("ReadRows: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("read %d rows; want 1 (a rejected cell drops the whole row)", len(rows))
+	}
+	if rows[0][0] != "2024-03-04T10:11:12Z" {
+		t.Errorf("datetime cell = %q; want the canonical literal 2024-03-04T10:11:12Z", rows[0][0])
+	}
+
+	// And the re-imported literal must still parse back to the exact
+	// on-wire second count, so the round trip is lossless.
+	secs, err := encoding.ParseDateTime(rows[0][0])
+	if err != nil {
+		t.Fatalf("ParseDateTime on the exported literal: %v", err)
+	}
+	if got := encoding.FormatDateTime(secs); got != "2024-03-04T10:11:12Z" {
+		t.Errorf("round trip = %q; want 2024-03-04T10:11:12Z", got)
 	}
 }

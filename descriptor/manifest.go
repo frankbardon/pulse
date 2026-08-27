@@ -244,10 +244,21 @@ func commands() []Command {
 // rawCohortFieldTypes returns the bare (name, categorical) tuples for
 // every defined field type. Compatible* cross-refs are computed by
 // cohortFieldTypes() from the operator capability tables.
+//
+// The walk is bounded by FieldType.IsKnown() (which compares against
+// encoding's own fieldTypeCount sentinel) rather than a literal count.
+// A hardcoded bound silently drops any newly registered field type from
+// the manifest's cohort_types block — exactly what happened to
+// `datetime` when it was appended at type byte 17 — so the loop derives
+// its end from the registry instead. FieldType is a byte, hence the 256
+// ceiling.
 func rawCohortFieldTypes() []CohortFieldType {
 	var out []CohortFieldType
-	for i := range 17 {
+	for i := range 256 {
 		ft := encoding.FieldType(i)
+		if !ft.IsKnown() {
+			break
+		}
 		name := ft.String()
 		if len(name) > 7 && name[:7] == "unknown" {
 			continue

@@ -170,14 +170,14 @@ func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 			"FILTER_DATE_RANGES requires a Field")
 	}
 
-	// Field must be a date-typed column. Validate against the schema when
-	// present (the runtime always supplies one); a nil schema skips the
-	// check (probe path with no field).
-	if schema != nil {
-		if fld := schema.Field(filter.Field); fld != nil && fld.Type != encoding.FieldTypeDate {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("FILTER_DATE_RANGES requires a date field, got %q on field %q", fld.Type, filter.Field))
-		}
+	// Field must be a date-family column (`date` or `datetime`).
+	// Validate against the schema when present (the runtime always
+	// supplies one); a nil schema skips the check (probe path with no
+	// field). A `datetime` Field is day-truncated per record before the
+	// range set — which is compiled in epoch days — is consulted.
+	seconds, err := resolveDateFieldSeconds("FILTER_DATE_RANGES", filter.Field, schema, true)
+	if err != nil {
+		return nil, err
 	}
 
 	var params dateRangesFilterParams
@@ -208,7 +208,7 @@ func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 		if !ok {
 			return false, nil // null/missing date → drop
 		}
-		_, matched := set.Match(uint32(v))
+		_, matched := set.Match(uint32(epochDayFromValue(v, seconds)))
 		return matched, nil
 	}, nil
 }

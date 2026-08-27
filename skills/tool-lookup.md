@@ -17,10 +17,10 @@ O(1) row addressing by exact key, not a scan — requires a sidecar index alread
 - `cohort` (required).
 - `field` / `value`: single-key convenience path.
 - `keys` (`[{field, value}]`): ordered composite-key path, wins over `field`/`value`. Order MUST match the index's build-time key order — `[region, date]` != `[date, region]`.
-- `return_columns` (`string[]`, optional): project these fields; empty = every schema field.
-- `multiplicity` (default `assert_unique`): `assert_unique` errors on >1 match; `first` returns lowest row-id; `all` returns every match, ascending row-id.
+- `return_columns` (`string[]`, optional): project these fields; empty = all.
+- `multiplicity` (default `assert_unique`): errors on >1 match; `first` = lowest row-id; `all` = every match, ascending row-id.
 
-**Keyable types:** ALLOW `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (bit-pattern equality — `-0.0`/NaN caveat), `date`, `decimal128` (exact mantissa), `categorical_*` (dictionary ID), `packed_bool`. REJECT `set_*` (ambiguous mask equality) — use `FILTER_SET` instead.
+**Keyable types:** ALLOW `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (bit-pattern equality — `-0.0`/NaN caveat), `date`, `datetime` (literal `2024-03-04T10:11:12Z`), `decimal128` (exact mantissa), `categorical_*` (dictionary ID), `packed_bool`. REJECT `set_*` (ambiguous mask equality) — use `FILTER_SET` instead.
 
 ## Output
 

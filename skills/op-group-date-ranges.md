@@ -23,7 +23,9 @@ Exactly one range source — inline `ranges` XOR named `table`:
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | `date` |
+| `Field` | `date`, `datetime` |
+
+`datetime` truncates to the UTC calendar day before matching; ranges compile in whole days.
 
 ## Output
 
@@ -44,7 +46,7 @@ Mergeability `Mergeable`; `Streamable=true`.
 ## Gotchas
 
 - Exactly one of `ranges` / `table`; both or neither → `PULSE_RANGE_SOURCE_AMBIGUOUS`. Unknown table name → `PULSE_RANGE_TABLE_UNKNOWN`.
-- Non-`date` field → `PROCESSING_CONFIG`.
+- Field that is neither `date` nor `datetime` → `PROCESSING_CONFIG`.
 - Overlap / dup label / bad boundary → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL` / `_INVALID`.
 - `Group.Include` not honoured.
 

@@ -94,3 +94,36 @@ func ParseDateTime(raw string) (uint64, error) {
 func FormatDateTime(raw uint64) string {
 	return time.Unix(int64(raw), 0).UTC().Format(CanonicalDateTimeLayout)
 }
+
+// SecondsPerDay is the conversion factor between the two temporal
+// on-wire representations Pulse persists: a `datetime` cell holds whole
+// epoch SECONDS, a `date` cell holds whole epoch DAYS. Every conversion
+// between them goes through DateTimeToDay rather than open-coding this
+// constant at the call site.
+const SecondsPerDay = 86400
+
+// DateTimeToDay truncates an on-wire `datetime` value (epoch seconds,
+// naive UTC) to the epoch-day integer a `date` value carries. This is
+// THE day-truncation semantic the date-family operators (GROUP_DATE,
+// GROUP_DATE_RANGES, FILTER_DATE_RANGES) apply when their Field names a
+// `datetime` column: the time-of-day component is discarded so the row
+// buckets by the calendar day that contains its instant.
+//
+// Truncation, never rounding — 2024-03-04T23:59:59Z is 2024-03-04, not
+// 2024-03-05. And truncation toward the PAST, not toward zero: Go's
+// integer division truncates toward zero, which would map every
+// pre-1970 instant inside the first day before the epoch onto day 0
+// (1970-01-01) instead of day -1 (1969-12-31). The floor correction
+// below keeps the calendar day honest across the sign boundary.
+//
+// The int64 parameter is deliberate: ParseDateTime widens a negative
+// second count into uint64 two's-complement for storage, so callers
+// converting a stored value re-narrow with int64(raw) first — exactly
+// the reinterpretation FormatDateTime performs.
+func DateTimeToDay(sec int64) int64 {
+	day := sec / SecondsPerDay
+	if sec < 0 && sec%SecondsPerDay != 0 {
+		day--
+	}
+	return day
+}

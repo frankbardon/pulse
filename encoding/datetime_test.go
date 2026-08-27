@@ -216,3 +216,79 @@ func errorsAs(err error, target **errors.CodedError) bool {
 	}
 	return false
 }
+
+// TestDateTimeToDay_Truncates pins the day-truncation semantic the
+// date-family operators apply to a `datetime` column: the time of day
+// is discarded, never rounded, and the floor runs toward the past so a
+// pre-1970 instant lands on the calendar day that actually contains it.
+func TestDateTimeToDay_Truncates(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want int64 // epoch days
+	}{
+		{"midnight", "2024-03-04T00:00:00Z", 19786},
+		{"midday", "2024-03-04T12:00:00Z", 19786},
+		{"last second of the day", "2024-03-04T23:59:59Z", 19786},
+		{"first second of the next day", "2024-03-05T00:00:00Z", 19787},
+		{"epoch midnight", "1970-01-01T00:00:00Z", 0},
+		{"epoch last second", "1970-01-01T23:59:59Z", 0},
+		{"offset normalises before truncation", "2024-03-05T00:30:00+02:00", 19786},
+		{"pre-epoch one second before midnight", "1969-12-31T23:59:59Z", -1},
+		{"pre-epoch start of day", "1969-12-31T00:00:00Z", -1},
+		{"pre-epoch two days back", "1969-12-30T12:00:00Z", -2},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			secs, err := ParseDateTime(tc.raw)
+			if err != nil {
+				t.Fatalf("ParseDateTime(%q): %v", tc.raw, err)
+			}
+			if got := DateTimeToDay(int64(secs)); got != tc.want {
+				t.Errorf("DateTimeToDay(%q) = %d days; want %d", tc.raw, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDateTimeToDay_AgreesWithParseDate is the cross-authority check:
+// truncating a midnight datetime must land on the exact epoch-day
+// integer ParseDate produces for the same calendar day. If these two
+// ever diverge, a GROUP_DATE_RANGES set compiled from date literals
+// would silently mis-bucket every datetime row.
+func TestDateTimeToDay_AgreesWithParseDate(t *testing.T) {
+	days := []string{"1970-01-01", "2000-02-29", "2024-03-04", "2038-01-19"}
+	for _, d := range days {
+		t.Run(d, func(t *testing.T) {
+			want, err := ParseDate(d)
+			if err != nil {
+				t.Fatalf("ParseDate(%q): %v", d, err)
+			}
+			for _, clock := range []string{"T00:00:00Z", "T09:15:00Z", "T23:59:59Z"} {
+				secs, err := ParseDateTime(d + clock)
+				if err != nil {
+					t.Fatalf("ParseDateTime(%q): %v", d+clock, err)
+				}
+				if got := DateTimeToDay(int64(secs)); got != int64(want) {
+					t.Errorf("DateTimeToDay(%q) = %d; ParseDate(%q) = %d", d+clock, got, d, want)
+				}
+			}
+		})
+	}
+}
+
+// TestSecondsPerDay_MatchesParseDate guards the shared constant against
+// drift from the divisor ParseDate itself uses.
+func TestSecondsPerDay_MatchesParseDate(t *testing.T) {
+	if SecondsPerDay != 86400 {
+		t.Fatalf("SecondsPerDay = %d; want 86400", SecondsPerDay)
+	}
+	oneDay, err := ParseDateTime("1970-01-02T00:00:00Z")
+	if err != nil {
+		t.Fatalf("ParseDateTime: %v", err)
+	}
+	if oneDay != SecondsPerDay {
+		t.Errorf("one day after the epoch = %d seconds; want SecondsPerDay = %d", oneDay, SecondsPerDay)
+	}
+}

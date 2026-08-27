@@ -30,6 +30,9 @@ const (
 //     unsigned type at that width (Pulse has no signed integer types).
 //   - Both Date32 and Date64 collapse to FieldTypeDate; Pulse stores dates
 //     as days-since-epoch and discards the sub-day precision Date64 carries.
+//     There is no inverse arm for Pulse's `datetime`: TypeFromPulse maps it
+//     to UTF8 (see there), so a re-imported datetime column arrives as a
+//     string and is re-classified by io/infer.go's literal probe.
 //   - String and binary (in both standard and large variants), and any
 //     dictionary-encoded type, collapse to FieldTypeCategoricalU8. The
 //     import pipeline upgrades to wider categorical widths when the
@@ -93,6 +96,21 @@ func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
 		return arrow.PrimitiveTypes.Float64
 	case encoding.FieldTypeDate:
 		return arrow.FixedWidthTypes.Date32
+	case encoding.FieldTypeDateTime:
+		// Deliberately UTF8, not a native Arrow timestamp. The export
+		// pipeline hands every non-decimal cell to the writer already
+		// stringified by io/export.go's formatFieldValue, which renders
+		// a datetime through encoding.CanonicalDateTimeLayout. Mapping
+		// the column to a numeric or timestamp Arrow type would make
+		// the typed builder reject that string and io/export.go would
+		// record a RowError for EVERY row — the column would not
+		// degrade to a wrong value, the rows would vanish. UTF8 carries
+		// the canonical literal verbatim, matching the text adapters
+		// (CSV / TSV / NDJSON) exactly, so re-import re-infers
+		// `datetime` from the literal. A native Arrow timestamp arm is
+		// a fidelity upgrade, not a correctness fix, and is out of
+		// scope here.
+		return arrow.BinaryTypes.String
 	case encoding.FieldTypePackedBool:
 		return arrow.FixedWidthTypes.Boolean
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
