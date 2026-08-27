@@ -1634,6 +1634,115 @@ const (
 	// '$'), the member count under DetailSPSSDistinct, and, where one
 	// member is at fault, that member under DetailSPSSVariable.
 	PULSE_SPSS_MR_SET_NOT_DERIVED Code = "PULSE_SPSS_MR_SET_NOT_DERIVED"
+
+	// PULSE_SPSS_SIDECAR_ABSENT indicates an SPSS export found no
+	// metadata sidecar (`<cohort>.spss.json`) beside the cohort it was
+	// asked to write, so it will synthesise a default SPSS dictionary
+	// from the `.pulse` schema alone.
+	//
+	// It is a WARNING and never blocks an export. A cohort that was
+	// never SPSS-derived — synth output, a CSV import, a processed
+	// result — correctly has no sidecar, and that is the ordinary case
+	// rather than an error condition. What is lost is only what the
+	// `.pulse` schema cannot restate: value labels, measure levels,
+	// print/write formats, missing-value specifications, response-set
+	// definitions and the original short names. The columns and their
+	// data are unaffected.
+	//
+	// It is deliberately NOT the same condition as
+	// PULSE_SPSS_SIDECAR_STALE. Absent is benign; stale is the single
+	// highest-fidelity-risk state available, because applying an
+	// out-of-date dictionary to changed data produces a `.sav` that
+	// looks authoritative and is wrong. Collapsing the two into one
+	// warning is exactly the conflation this pair exists to prevent.
+	//
+	// Details carry the cohort path under DetailSPSSCohort and the
+	// sidecar path that was looked for under DetailSPSSSidecar.
+	PULSE_SPSS_SIDECAR_ABSENT Code = "PULSE_SPSS_SIDECAR_ABSENT"
+
+	// PULSE_SPSS_SIDECAR_STALE indicates an SPSS export found a metadata
+	// sidecar whose fingerprint no longer matches the cohort it
+	// describes: the cohort's byte size or modification time has moved
+	// since the sidecar was written, so the two are out of step.
+	//
+	// It is an ERROR, and the asymmetry with PULSE_SPSS_SIDECAR_ABSENT
+	// is the point. A stale sidecar still holds a complete, plausible
+	// SPSS dictionary — value codes, labels, missing-value
+	// specifications, response-set definitions — and applying it to a
+	// cohort whose columns or dictionaries have since changed yields a
+	// `.sav` in which `IF q1 EQ 5` addresses a category that is no
+	// longer there. The output carries every mark of authority and none
+	// of the correctness, and nothing downstream can detect it. Refusing
+	// to write is the only safe answer; there is no partial application
+	// and no silent fallback to defaults.
+	//
+	// The read-path check that raises it is the same cheap O(1) size +
+	// mtime comparison PULSE_INDEX_STALE uses, chosen for the same
+	// reason: hashing a multi-GB cohort on every export would cost more
+	// than the export. It has the same residual gap — an in-place edit
+	// preserving BOTH size and mtime goes unnoticed — and the same
+	// authoritative answer, a full SHA-256 recompute against the
+	// fingerprint the sidecar carries.
+	//
+	// Details carry the cohort path under DetailSPSSCohort, the sidecar
+	// path under DetailSPSSSidecar, and the mismatching pair under
+	// DetailSPSSExpected / DetailSPSSActual so a caller can see which of
+	// size and mtime moved.
+	PULSE_SPSS_SIDECAR_STALE Code = "PULSE_SPSS_SIDECAR_STALE"
+
+	// PULSE_SPSS_SIDECAR_INVALID indicates a file exists at the metadata
+	// sidecar's path but is not a sidecar this binary can read: it is
+	// not valid JSON, its `kind` is not "spss", its `format_version` is
+	// not one this binary understands, its fingerprint is not a
+	// well-formed digest, or a parallel array inside it violates the
+	// length contract its consumers index against.
+	//
+	// It is an ERROR for the same reason PULSE_SPSS_SIDECAR_STALE is:
+	// the file's presence is a statement that this cohort HAS source
+	// metadata, and proceeding as though it did not would silently
+	// substitute a synthesised default dictionary for the real one. It
+	// is held apart from _STALE because the fix is different — a stale
+	// sidecar is repaired by re-importing the source, an invalid one by
+	// finding out what wrote the file.
+	//
+	// A `format_version` this binary does not recognise lands here
+	// deliberately rather than being read optimistically: a document
+	// written by a newer Pulse may have moved a slot this one indexes,
+	// and misreading a dictionary is worse than declining it.
+	//
+	// Details carry the cohort path under DetailSPSSCohort and the
+	// sidecar path under DetailSPSSSidecar.
+	PULSE_SPSS_SIDECAR_INVALID Code = "PULSE_SPSS_SIDECAR_INVALID"
+
+	// PULSE_SPSS_SIDECAR_IGNORED indicates a metadata sidecar exists
+	// beside the cohort and the caller explicitly asked for it not to be
+	// read (`--ignore-sidecar` / spss.WriterOptions.IgnoreSidecar), so
+	// the export is synthesising a default SPSS dictionary from the
+	// `.pulse` schema alone.
+	//
+	// It is a WARNING: an explicit instruction is not an error
+	// condition. It exists as its own code rather than reusing
+	// PULSE_SPSS_SIDECAR_ABSENT because the two states are genuinely
+	// different — one cohort has no source metadata, the other has some
+	// and is not using it — and a diagnostic that said "no sidecar
+	// found" about a file sitting right there would be false.
+	//
+	// It is also the downgrade target for both sidecar refusals: with
+	// the flag set, a stale or invalid sidecar produces this warning and
+	// the synthesised-default path instead of PULSE_SPSS_SIDECAR_STALE /
+	// PULSE_SPSS_SIDECAR_INVALID. That is the escape hatch's whole
+	// purpose, which is also why the flag suppresses the READ rather
+	// than only the staleness verdict: a caller who has opted out of the
+	// sidecar gets the same output whatever state the file is in, and an
+	// unreadable one cannot block them.
+	//
+	// Details carry the cohort path under DetailSPSSCohort and the
+	// sidecar path under DetailSPSSSidecar — and deliberately NOT which
+	// refusal, if any, was silenced: because the flag skips the READ,
+	// nothing on this path knows whether the file was stale, invalid or
+	// perfectly healthy, and a detail that could only be guessed at
+	// would be worse than an absent one.
+	PULSE_SPSS_SIDECAR_IGNORED Code = "PULSE_SPSS_SIDECAR_IGNORED"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -1757,6 +1866,33 @@ const (
 	// two would leave a reader unable to connect the column to its
 	// declaration.
 	DetailSPSSSet = "response_set"
+
+	// DetailSPSSCohort is the CodedError.Details key carrying the path
+	// of the `.pulse` COHORT a PULSE_SPSS_SIDECAR_* diagnostic refers
+	// to. It is held apart from DetailSPSSSidecar because a sidecar
+	// diagnostic is always about a RELATIONSHIP between two files, and
+	// naming only one of them would not say what to look at.
+	DetailSPSSCohort = "cohort"
+
+	// DetailSPSSSidecar is the CodedError.Details key carrying the path
+	// of the metadata SIDECAR a PULSE_SPSS_SIDECAR_* diagnostic refers
+	// to — derived from the cohort path by SidecarPath, and reported
+	// even for PULSE_SPSS_SIDECAR_ABSENT, where it is the path that was
+	// looked for and found empty.
+	DetailSPSSSidecar = "sidecar"
+
+	// DetailSPSSExpected is the CodedError.Details key carrying the
+	// fingerprint values a metadata sidecar RECORDED for its cohort: a
+	// map of "size" and "mod_time" as they stood when the sidecar was
+	// written.
+	DetailSPSSExpected = "expected_fingerprint"
+
+	// DetailSPSSActual is the CodedError.Details key carrying the
+	// fingerprint values the cohort presents NOW, in the same shape as
+	// DetailSPSSExpected. The pair is reported rather than a single
+	// boolean verdict so a caller can see WHICH of size and mtime moved,
+	// which is what distinguishes a rewritten cohort from a touched one.
+	DetailSPSSActual = "actual_fingerprint"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1965,6 +2101,10 @@ var allCodes = []Code{
 	PULSE_SPSS_MISSING_MODE_INVALID,
 	PULSE_SPSS_CATEGORICAL_USER_MISSING,
 	PULSE_SPSS_MR_SET_NOT_DERIVED,
+	PULSE_SPSS_SIDECAR_ABSENT,
+	PULSE_SPSS_SIDECAR_STALE,
+	PULSE_SPSS_SIDECAR_INVALID,
+	PULSE_SPSS_SIDECAR_IGNORED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

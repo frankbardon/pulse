@@ -95,7 +95,26 @@ An import writes `cohort.pulse.spss.json` beside the cohort (`spss.SidecarSuffix
 
 Its load-bearing payload is the **`code ↔ label ↔ Pulse dictionary ID` triple** per categorical column: Pulse IDs are positional, SPSS codes arbitrary, so this is the only place the LABELS live. Per-entry flags `labelled` / `observed` / `missing` keep a declared-but-unused code, an appended unlabelled code and a user-missing code all representable. **This is the file to build a `LabelTable` from** — and the file that breaks `pulse.New` if you point `PULSE_LABEL_TABLES_DIR` at the directory holding it.
 
-The document is `{format_version, kind, fingerprint, payload}`, with `payload` flat and self-contained so it can later be lifted verbatim into a `.pulse` schema metadata block (deferred, not rejected: it needs a `FormatVersion` bump). `fingerprint` is SHA-256 + size + mtime over the **`.pulse` cohort**, not the source `.sav`, mirroring the sidecar index's O(1) staleness check. **Absent → warning** (a cohort that was never SPSS-derived correctly has none); **stale → error** (a stale dictionary over changed data looks authoritative and is wrong). Written via the optional `io.SidecarEmitter`, called by `ImportJob.Run` **after** the cohort write; a source not implementing it yields a byte-identical import and no sidecar.
+The document is `{format_version, kind, fingerprint, payload}`, with `payload` flat and self-contained so it can later be lifted verbatim into a `.pulse` schema metadata block (deferred, not rejected: it needs a `FormatVersion` bump). `fingerprint` is SHA-256 + size + mtime over the **`.pulse` cohort**, not the source `.sav`, mirroring the sidecar index's O(1) staleness check. Written via the optional `io.SidecarEmitter`, called by `ImportJob.Run` **after** the cohort write; a source not implementing it yields a byte-identical import and no sidecar.
+
+### Reading it back — and why absent and stale are not the same answer
+
+`spss.LoadSidecar(fs, cohort, spss.WriterOptions{})` is the library read path (there is no CLI leaf yet). It answers with a `SidecarResolution`; `resolution.Synthesise()` is the single question — *must I build a default dictionary from the `.pulse` schema alone?*
+
+| State | Verdict | Code | What follows |
+|---|---|---|---|
+| no file | warning | `PULSE_SPSS_SIDECAR_ABSENT` | synthesise a default; **the normal case** for synth / CSV output |
+| size or mtime moved | **error** | `PULSE_SPSS_SIDECAR_STALE` | nothing — no resolution is returned at all |
+| not JSON / foreign `kind` / unknown `format_version` / bad digest | **error** | `PULSE_SPSS_SIDECAR_INVALID` | nothing |
+| `IgnoreSidecar` set and a file present | warning | `PULSE_SPSS_SIDECAR_IGNORED` | synthesise a default |
+
+**The split is deliberate and overrides a flatter "a lost sidecar is a warning".** Absent is benign — the cohort never had source metadata. Stale is the highest-fidelity-risk state available: the dictionary is complete and plausible, so applying it to changed data yields a `.sav` where `IF q1 EQ 5` addresses a category that moved. It looks authoritative, it is wrong, and nothing downstream can tell. So a refusal returns **no resolution object** — there is no shape in which a caller holds the stale document and writes it by accident.
+
+The check is size + mtime, never a hash, for the reason `PULSE_INDEX_STALE` gives: hashing a multi-GB cohort per export costs more than the export. Same residual gap (an in-place edit preserving both), same authoritative answer — `Document.VerifyDigest(fs, cohort)` recomputes the full SHA-256 for a verify-style pass.
+
+`WriterOptions{IgnoreSidecar: true}` (a `--ignore-sidecar` flag once the export leaf lands) suppresses the **read**, not merely the verdict: a healthy sidecar is ignored too, so the flag's effect never flips with an mtime, and an unreadable one cannot block you. It downgrades both refusals to the warning path. **No option applies a stale dictionary** — the choice is recorded metadata or synthesised default, never fresh or stale.
+
+Loading also normalises: `multiple_response_sets[].fields` arrived additively under `omitempty` without a `SidecarFormatVersion` bump, so an **absent** `fields` key means "written before the slot existed" and is back-filled from `variables[].short_name` (case-insensitive, first declaration wins, unknown member → `""`) rather than rejected. A `fields` array of the **wrong length** is rejected — it is index-for-index with `variables` and a repaired one would bind members to the wrong columns.
 
 ## Reading real files
 
@@ -111,7 +130,9 @@ The document is `{format_version, kind, fingerprint, payload}`, with `payload` f
 
 ## Read-only
 
-There is no SPSS writer. An SPSS *output* target returns `PULSE_SPSS_EXPORT_UNSUPPORTED` — deliberately distinct from an unknown-format error, because the extension IS recognised. `pulse convert survey.sav out.csv` works; `pulse convert data.csv out.sav` does not.
+There is still no SPSS writer. An SPSS *output* target returns `PULSE_SPSS_EXPORT_UNSUPPORTED` — deliberately distinct from an unknown-format error, because the extension IS recognised. `pulse convert survey.sav out.csv` works; `pulse convert data.csv out.sav` does not, and neither `pulse export` nor `newWriterForFormat` has a `.sav` arm.
+
+What exists today is the write path's **input** side only: `spss.LoadSidecar` + `spss.WriterOptions` (above) and the `derived` registry's fold vocabulary. Nothing emits `.sav` bytes, so no fold runs yet.
 
 ## Cross-links
 

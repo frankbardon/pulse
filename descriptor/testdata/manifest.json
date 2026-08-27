@@ -4959,7 +4959,7 @@
         ]
       }
     ],
-    "error_codes_count": 197,
+    "error_codes_count": 201,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5126,6 +5126,10 @@
       "PULSE_SPSS_MISSING_MODE_INVALID",
       "PULSE_SPSS_MR_SET_NOT_DERIVED",
       "PULSE_SPSS_NULL_TOKEN_COLLISION",
+      "PULSE_SPSS_SIDECAR_ABSENT",
+      "PULSE_SPSS_SIDECAR_IGNORED",
+      "PULSE_SPSS_SIDECAR_INVALID",
+      "PULSE_SPSS_SIDECAR_STALE",
       "PULSE_SPSS_TEMPORAL_PRECISION",
       "PULSE_SPSS_VALUE_COLLISION",
       "PULSE_SPSS_VALUE_LABELS_DROPPED",
@@ -9389,4 +9393,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3edf9d2e66bd19786a5e0d56d739cf368db532422cb04d39e76ff530116c0c96
+// golden-hash: 030a777b4077c2e5b643bd06880f561135d834bce91b50386641ef784b31bd97

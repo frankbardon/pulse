@@ -2108,6 +2108,56 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_SIDECAR_ABSENT: {
+		Message: "No SPSS metadata sidecar (<cohort>.spss.json) was found beside this cohort, so the export is synthesising a default SPSS dictionary from the .pulse schema alone. This is the normal, correct state for a cohort that was never SPSS-derived — synth output, a CSV or Parquet import, a processed result — and the export proceeds. What is not restated is only what the .pulse schema cannot hold: value labels, measure levels, print/write formats, missing-value specifications, multiple-response set definitions and the original 8-byte short names. Every column and every value is unaffected.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "If the cohort DID come from an SPSS file and the labels are wanted, the sidecar has been moved or deleted — it is written beside the cohort at import time and travels with it, so copying a .pulse without its .spss.json leaves it behind. Restore the file, or re-run the import (`pulse import spss -i survey.sav -o cohort.pulse`) to regenerate it. If the cohort was never SPSS-derived, nothing is wrong and this warning needs no action.",
+			},
+		},
+	},
+	PULSE_SPSS_SIDECAR_STALE: {
+		Message: "The SPSS metadata sidecar beside this cohort no longer matches it: the cohort's byte size or modification time has moved since the sidecar was written, so the dictionary the sidecar carries describes a different version of the data. The export refuses rather than applying it. A stale dictionary is the highest-fidelity-risk state available here — its value codes, labels and missing-value specifications are all complete and plausible, so applying them to changed data produces a .sav that looks authoritative and is wrong, and downstream SPSS syntax reading `IF q1 EQ 5` would silently address a category that is no longer there. This is deliberately an error where an ABSENT sidecar (PULSE_SPSS_SIDECAR_ABSENT) is only a warning.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Regenerate the pair so they agree: re-run the import that produced the cohort (`pulse import spss -i survey.sav -o cohort.pulse`), which rewrites the sidecar against the cohort's current bytes. If the cohort was deliberately rewritten from a different source, delete the stale .spss.json — an absent sidecar is only a warning and the export will proceed on a synthesised default dictionary.",
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"IgnoreSidecar"},
+				Hint:     "To export anyway WITHOUT the sidecar's metadata, pass --ignore-sidecar (spss.WriterOptions.IgnoreSidecar). It downgrades this error to a PULSE_SPSS_SIDECAR_IGNORED warning and takes the synthesised-default-dictionary path — the same output an absent sidecar would give. It does NOT apply the stale dictionary; there is no option that does.",
+				Examples: []any{true},
+			},
+		},
+	},
+	PULSE_SPSS_SIDECAR_INVALID: {
+		Message: "A file exists at the SPSS metadata sidecar's path but is not a sidecar this binary can read — it is not valid JSON, its `kind` is not \"spss\", its `format_version` is not one this binary understands, its fingerprint is not a well-formed digest, or a parallel array inside it breaks the length contract its consumers index against. The export refuses rather than falling back to a synthesised default dictionary: the file's presence asserts that this cohort HAS source metadata, and quietly substituting defaults for it would lose the value labels and missing-value specifications without saying so. Held apart from PULSE_SPSS_SIDECAR_STALE because the fix is different — a stale sidecar is repaired by re-importing, an invalid one by finding out what wrote the file.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Regenerate the sidecar by re-running the import that produced the cohort (`pulse import spss -i survey.sav -o cohort.pulse`). If the file was hand-edited, restore it from the import instead of repairing it by hand — the fingerprint is over the cohort's bytes and will not survive an edit. A `format_version` this binary does not recognise means the document was written by a NEWER Pulse: upgrade rather than downgrade the document.",
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"IgnoreSidecar"},
+				Hint:     "To export without it, pass --ignore-sidecar (spss.WriterOptions.IgnoreSidecar). The flag suppresses the sidecar READ entirely, so an unreadable file cannot block the export; it downgrades this to a PULSE_SPSS_SIDECAR_IGNORED warning and synthesises a default dictionary.",
+				Examples: []any{true},
+			},
+		},
+	},
+	PULSE_SPSS_SIDECAR_IGNORED: {
+		Message: "An SPSS metadata sidecar exists beside this cohort and --ignore-sidecar (spss.WriterOptions.IgnoreSidecar) was set, so it was not read: the export is synthesising a default SPSS dictionary from the .pulse schema alone. This is an explicit instruction being honoured, not a fault. It is reported as its own code rather than as PULSE_SPSS_SIDECAR_ABSENT because a diagnostic saying \"no sidecar found\" about a file sitting right there would be false. It does not say whether the file it skipped was stale, invalid or perfectly healthy: the flag suppresses the READ, so nothing on this path knows.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"IgnoreSidecar"},
+				Hint:     "To use the sidecar's metadata after all, drop --ignore-sidecar and re-run — which will also report whether the sidecar is stale or invalid, since this warning cannot. If the flag was set to work around such a refusal, fix that instead: re-run the import that produced the cohort so the sidecar and the cohort agree, and the flag becomes unnecessary.",
+				Examples: []any{false},
+			},
+		},
+	},
 	PULSE_SPSS_EXPORT_UNSUPPORTED: {
 		Message: "SPSS was requested as an OUTPUT format, but Pulse reads .sav / .zsav and does not yet write them: the reader is registered and the writer is not. The extension is recognised — that is why this is a specific error rather than an unknown-format one — so `pulse convert survey.sav out.csv` works while `pulse convert data.csv out.sav` stops here.",
 		Fixups: []Fixup{
