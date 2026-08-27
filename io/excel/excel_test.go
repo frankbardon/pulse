@@ -832,3 +832,52 @@ func TestExcelReader_Reset(t *testing.T) {
 		t.Fatalf("second read: %d rows", count2)
 	}
 }
+
+// TestExcel_DateTimeColumnWritesCanonicalString documents (and pins)
+// the Excel writer's behaviour for a `datetime` column. Unlike Arrow /
+// Parquet, the Excel adapter has no typed schema to satisfy: formatCell
+// only special-cases decimal128 and passes everything else through to
+// excelize as a plain cell value, so the canonical datetime literal
+// io/export.go produces lands verbatim as text — the same treatment
+// `date` already gets. No adapter change was needed for datetime; this
+// test exists so a future typed arm cannot silently regress it.
+func TestExcel_DateTimeColumnWritesCanonicalString(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	w := NewWriter(fs, "out.xlsx")
+	w.SetPulseSchema(&encoding.Schema{Fields: []encoding.Field{
+		{Name: "ts", Type: encoding.FieldTypeDateTime},
+		{Name: "d", Type: encoding.FieldTypeDate},
+	}})
+	if err := w.WriteHeader([]string{"ts", "d"}); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	if err := w.WriteRow([]any{"2024-03-04T10:11:12Z", "2024-03-04"}); err != nil {
+		t.Fatalf("WriteRow: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	data, err := afero.ReadFile(fs, "out.xlsx")
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	r := NewReaderFromBytes(data)
+	defer func() { _ = r.Close() }()
+	if _, err := r.ReadHeader(); err != nil {
+		t.Fatalf("ReadHeader: %v", err)
+	}
+	var rows [][]string
+	if err := r.ReadRows(t.Context(), func(row []string) error {
+		rows = append(rows, append([]string(nil), row...))
+		return nil
+	}); err != nil {
+		t.Fatalf("ReadRows: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("read %d rows; want 1", len(rows))
+	}
+	if rows[0][0] != "2024-03-04T10:11:12Z" {
+		t.Errorf("datetime cell = %q; want the canonical literal 2024-03-04T10:11:12Z", rows[0][0])
+	}
+}

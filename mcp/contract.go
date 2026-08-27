@@ -86,12 +86,23 @@ type ErrorsLookupIn struct {
 // ImportIn is the input contract for pulse_import.
 type ImportIn struct {
 	Source    string `json:"source" jsonschema:"Filesystem path to the source file (relative to PULSE_DATA_DIR)"`
-	Format    string `json:"format,omitempty" jsonschema:"Format override: csv, tsv, ndjson, jsonarray, parquet, arrow, excel, pulse"`
+	Format    string `json:"format,omitempty" jsonschema:"Format override: csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss, pulse"`
 	Handle    string `json:"handle,omitempty" jsonschema:"Managed handle name; defaults to source basename without extension"`
 	TTL       string `json:"ttl,omitempty" jsonschema:"TTL: Go duration ('24h', '30m') or day form ('7d', '30d'); 'pin' disables expiry. Default 7d."`
 	Sheet     string `json:"sheet,omitempty" jsonschema:"Excel sheet name; ignored for non-Excel sources"`
+	Charset   string `json:"charset,omitempty" jsonschema:"SPSS ONLY: character encoding override for a .sav / .zsav source (e.g. 'windows-1252', 'cp1252', 'latin1'; spelling is forgiving). Ignored for every other format. Empty leaves the file's own declaration in force. Reach for it when an import fails PULSE_SPSS_CHARSET_INVALID or PULSE_SPSS_CHARSET_UNSUPPORTED — typically a file that kept a stale record 7/20 name after being transcoded, or a pre-Unicode file that declares no encoding at all and so fails the strict UTF-8 default on its first 8-bit byte. Decoding only; the file's own declaration is still retained."`
 	Overwrite bool   `json:"overwrite,omitempty" jsonschema:"Replace an existing handle of the same name. Default false."`
 }
+
+// There is deliberately no spss_missing slot on ImportIn. The mode's default
+// ("auto") is the fidelity-preserving one — every numeric user-missing value
+// is null in its analytic column AND a generated `<var>_missing` sibling
+// records why — and the only alternative, "null", drops those siblings. A knob
+// whose sole effect is to discard information does not belong on a
+// general-purpose import tool; `pulse import spss --spss-missing=null` is
+// where asking for it is an explicit act. Charset is the opposite case: it is
+// the only recourse for a file that is wrong about its own encoding, and
+// without it such a file is unimportable over MCP by any means.
 
 // DropIn is the input contract for pulse_drop.
 type DropIn struct {

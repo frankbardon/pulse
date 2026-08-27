@@ -209,6 +209,7 @@ func HandleImport(ctx context.Context, p *pulse.Pulse, in ImportIn) (ImportOut, 
 		Format:     in.Format,
 		Handle:     in.Handle,
 		Sheet:      in.Sheet,
+		Charset:    in.Charset,
 		Overwrite:  in.Overwrite,
 	}
 	if in.TTL != "" {

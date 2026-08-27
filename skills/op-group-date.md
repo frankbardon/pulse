@@ -1,6 +1,6 @@
 ---
 name: op-group-date
-description: Partition date records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar.
+description: Partition date/datetime records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar.
 kind: operator
 category: GROUP
 operator: GROUP_DATE
@@ -20,11 +20,13 @@ examples_tags: [time-series, streaming-friendly]
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | `date` |
+| `Field` | `date`, `datetime` |
+
+`datetime` truncates to the UTC calendar day (time of day discarded, never rounded — `23:59:59` stays on its day).
 
 ## Output
 
-String key per row (e.g. `2024-Q1`, `FY2025-Q1`). Smart default for `date`.
+String key per row (e.g. `2024-Q1`, `FY2025-Q1`). Smart default for `date` and `datetime`.
 
 ## Components
 
@@ -45,7 +47,7 @@ Universal floor `{total_n, n_null}` plus:
 
 - `day_of_week` weekday names lex-sort — sort explicitly.
 - `fiscal_offset` with sub-quarter components rejected.
-- `Group.Include` not honoured.
+- `Group.Include` not honoured; no sub-day `component` even for `datetime`.
 
 ## See
 

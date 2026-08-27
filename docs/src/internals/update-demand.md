@@ -18,7 +18,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A registered grouper | `skills/grouper-design.md` | `TestSkillsCoverAllComponents` |
 | A registered window operator | `skills/window-design.md` | `TestSkillsCoverAllWindowTypes` |
 | An error code (added/removed/renamed) | `errors/fixup_metadata.go` (`codeMetadata` Message + Fixups; surfaced per-code via `pulse_errors_lookup` / `pulse errors lookup CODE`) | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
-| A CLI leaf (added/removed/flag added) | `CLAUDE.md` "Common Claude Code Workflows" + `skills/session-bootstrap.md` if user-facing | `TestSkillsCoverAllCliLeaves` |
+| A CLI leaf (added/removed/flag added) | the command index in `docs/src/cli/flags.md` + `skills/session-bootstrap.md` if the leaf carries a user-facing flag | `TestSkillsCoverAllCliLeaves` (checks the leaf path is NAMED under `skills/` or `docs/src/`; it cannot check that the prose is adequate) |
 | A `--json` envelope or `format_version` | `CLAUDE.md` "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
 | A `.pulse` file format change (header layout, new field type) | `CLAUDE.md` "Code Conventions" + `skills/cohort-schema-design.md` | `TestClaudeMdMentionsFormatVersion`, `TestSkillsCoverAllFieldTypes` |
 | A new non-skippable CI gate | `CLAUDE.md` (gate listed by name in the relevant section) | `TestClaudeMdMentionsAllNonSkippableGates` |

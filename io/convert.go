@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
+	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/spf13/afero"
 )
 
@@ -14,10 +15,33 @@ import (
 func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
-	// When convert infers the schema, the intermediate .pulse re-import must
+
+	// A SchemaAwareReader source hands over an authoritative schema — the
+	// source's own dictionary, not a guess — and convert adopts it before
+	// inference is even considered, exactly as ImportJob.Run does. Without
+	// this, `pulse convert survey.sav out.csv` would re-infer every column
+	// type from the cell text the reader renders and throw the source
+	// dictionary away, which is the precise fidelity loss SchemaAwareReader
+	// exists to prevent. An explicit ConvertJob.Schema still wins outright:
+	// the caller is the most specific instruction.
+	authoritative := false
+	if schema == nil {
+		src, err := j.sourceSchema()
+		if err != nil {
+			return nil, err
+		}
+		if src != nil {
+			schema = src
+			authoritative = true
+		}
+	}
+
+	// When convert INFERS the schema, the intermediate .pulse re-import must
 	// inherit the same out-of-sample null tolerance (promote-on-null) — the
-	// schema handed to importJob is a guess, not a user contract.
-	inferredSchema := j.Schema == nil
+	// schema handed to importJob is a guess, not a user contract. An
+	// authoritative schema is not inference-originated, so it never promotes:
+	// a null in a field the source declares non-nullable stays a row error.
+	inferredSchema := !authoritative && j.Schema == nil
 
 	// Infer schema if not provided.
 	if schema == nil {
@@ -176,9 +200,11 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	}
 
 	report := &ConvertReport{
-		RowsConverted: converted,
-		Schema:        schema,
-		RowErrors:     rowErrors,
+		RowsConverted:  converted,
+		Schema:         schema,
+		RowErrors:      rowErrors,
+		SourceWarnings: j.sourceWarnings(),
+		TargetWarnings: targetWarnings(j.Target),
 	}
 	if j.LabelResolver != nil {
 		report.LabelWarnings = j.LabelResolver.Warnings()
@@ -197,6 +223,19 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 	schema := j.Schema
 	var warnings []InferenceWarning
+
+	// Mirror Run's schema resolution so a predicted convert reports the
+	// schema Run would actually use — an authoritative source schema
+	// bypasses inference here too.
+	if schema == nil {
+		src, err := j.sourceSchema()
+		if err != nil {
+			return nil, err
+		}
+		if src != nil {
+			schema = src
+		}
+	}
 
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
@@ -227,8 +266,33 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 	}
 
 	return &PredictReport{
-		Schema:        schema,
-		EstimatedRows: rowCount,
-		Warnings:      warnings,
+		Schema:         schema,
+		EstimatedRows:  rowCount,
+		Warnings:       warnings,
+		SourceWarnings: j.sourceWarnings(),
 	}, nil
+}
+
+// sourceSchema pulls the authoritative schema off a SchemaAwareReader
+// source. It delegates to the shared validation an ImportJob performs so
+// the two verbs cannot diverge on what counts as a usable authoritative
+// schema — a nil return is the deliberate opt-out and falls back to
+// inference; a non-nil error fails the convert rather than quietly
+// producing a differently-typed output.
+func (j *ConvertJob) sourceSchema() (*encoding.Schema, error) {
+	return readerSchema(j.Source)
+}
+
+// sourceWarnings lifts the source Reader's non-fatal diagnostics off the
+// optional SourceWarningEmitter contract. See ImportJob.sourceWarnings.
+func (j *ConvertJob) sourceWarnings() []*perrors.CodedError {
+	swe, ok := j.Source.(SourceWarningEmitter)
+	if !ok {
+		return nil
+	}
+	warns := swe.Warnings()
+	if len(warns) == 0 {
+		return nil
+	}
+	return warns
 }

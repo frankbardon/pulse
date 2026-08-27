@@ -1,7 +1,8 @@
 // Package imports manages tabular-source imports with a TTL-tracked
 // on-disk pool. It is the home of the pulse_import / pulse_drop tool
 // semantics: convert a CSV / TSV / NDJSON / JSON-array / Parquet /
-// Arrow / Excel file into a .pulse file in $PULSE_DATA_DIR/imports/,
+// Arrow / Excel / SPSS file into a .pulse file in
+// $PULSE_DATA_DIR/imports/,
 // write a sidecar with an expiry, and provide hooks for sliding-window
 // TTL renewal on every subsequent operation that touches the handle.
 //
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
+	perr "github.com/frankbardon/pulse/errors"
 )
 
 // DefaultImportsDir is the relative directory inside the Pulse fs where
@@ -58,6 +60,28 @@ type Spec struct {
 	// Sheet is honoured only for Excel sources; ignored otherwise.
 	Sheet string
 
+	// Charset overrides the character encoding an SPSS `.sav` / `.zsav`
+	// declares about itself, resolved by the same forgiving lookup the
+	// file's own record 7/20 name goes through. Ignored by every other
+	// format, exactly as Sheet is. Empty is not an instruction: it
+	// leaves the file's own declaration in force.
+	//
+	// It exists here because the managed pool is otherwise a dead end
+	// for a file that is wrong about itself. A pre-Unicode `.sav` that
+	// declares no encoding at all reads as strict UTF-8 and fails
+	// PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte, and the file
+	// has no further evidence to offer — only the caller can say what
+	// the bytes mean.
+	//
+	// There is deliberately NO SPSSMissing counterpart on this struct.
+	// That knob's default ("auto") is the fidelity-preserving mode and
+	// its only alternative SUPPRESSES information — the `<var>_missing`
+	// siblings recording why each numeric value is missing. A knob
+	// whose sole effect is to discard data does not belong on the
+	// auto-detect convenience path; `pulse import spss
+	// --spss-missing=null` is the deliberate way to ask for it.
+	Charset string
+
 	// Overwrite replaces an existing managed handle of the same name.
 	// Defaults to false (collision → PULSE_IMPORT_HANDLE_EXISTS).
 	Overwrite bool
@@ -98,6 +122,16 @@ type Result struct {
 	// io.ImportReport.PromotedFields; each also rides a
 	// PULSE_IMPORT_NULL_PROMOTED warning.
 	PromotedFields []string `json:"promoted_fields,omitempty"`
+	// SourceWarnings carries the non-fatal coded diagnostics the source
+	// adapter raised through io.SourceWarningEmitter — today the
+	// PULSE_SPSS_* family from the `.sav` dictionary walk, schema
+	// mapping and data pass. Mirrors io.ImportReport.SourceWarnings.
+	// These are warnings, not failures, but they change what the
+	// resulting cohort MEANS (a demoted temporal column, a near-unique
+	// categorical, a value collision), so the managed-import surface
+	// carries them rather than stranding them in the adapter. Omitted
+	// when empty, so a clean import's wire shape is unchanged.
+	SourceWarnings []*perr.CodedError `json:"source_warnings,omitempty"`
 }
 
 // Sidecar is the JSON payload written next to a managed .pulse file.

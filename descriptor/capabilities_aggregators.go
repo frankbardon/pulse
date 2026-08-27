@@ -94,11 +94,16 @@ var numericFieldTypesStrictScalar = []string{
 
 // allCohortFieldTypes lists every field type without restriction (used by
 // COUNT, MODE, FREQUENCY, DISTINCT_COUNT which operate on any field).
+// "every field type" is literal: a registered field type missing from
+// this list under-declares the operators that carry it, so the manifest
+// would tell a caller that AGG_COUNT cannot count a column it counts
+// fine. Keep it in step with encoding's FieldType registry.
 var allCohortFieldTypes = []string{
 	"categorical_u16",
 	"categorical_u32",
 	"categorical_u8",
 	"date",
+	"datetime",
 	"decimal128",
 	"f32",
 	"f64",

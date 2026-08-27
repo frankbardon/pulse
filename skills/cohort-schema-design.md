@@ -1,17 +1,17 @@
 ---
 name: cohort-schema-design
-description: Field-type selection for .pulse cohorts — 17 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
+description: Field-type selection for .pulse cohorts — 18 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
 type: guide
 kind: design
 applies_to: inspect, predict, process, compose, sample, facet
-covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, set_u8, set_u16, set_u32, set_u64]
+covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, datetime, set_u8, set_u16, set_u32, set_u64]
 ---
 
 # Cohort schema design
 
 Pick the right `.pulse` field type, decide nullability, address shards. The schema lives in the cohort header; `pulse_inspect` is the surface for reading it.
 
-## Field-type matrix (all 17)
+## Field-type matrix (all 18)
 
 | Name | Bytes | Dict? | Bit-packed? | Notes |
 |---|---|---|---|---|
@@ -20,20 +20,23 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | `u16` | 2 | no | no | 0..65,535 |
 | `u32` | 4 | no | no | 0..~4.29B |
 | `u64` | 8 | no | no | |
-| `f32` | 4 | no | no | ~7 sig digits |
-| `f64` | 8 | no | no | ~15 sig digits |
+| `f32` | 4 | no | no | ~7 sig digits; index key = raw bit pattern (`-0.0`/NaN caveat) |
+| `f64` | 8 | no | no | ~15 sig digits; same bit-pattern caveat |
 | `date` | 4 | no | no | epoch days since 1970-01-01 |
+| `datetime` | 8 | no | no | epoch **seconds**, naive UTC; index-key literal parses as a datetime, never a float |
 | `packed_bool` | 0 | no | yes | 1 bit |
-| `categorical_u8` | 1 | inline, ≤256 | no | dict-encoded |
+| `categorical_u8` | 1 | inline, ≤256 | no | dict-encoded; index key = dictionary ID |
 | `categorical_u16` | 2 | inline, ≤65,536 | no | |
 | `categorical_u32` | 4 | inline, ≤~4.29B | no | |
-| `decimal128` | 16 | no | no | per-field `(precision, scale)` |
-| `set_u8` | 1 | shared, ≤8 labels | no | multi-select bitmask |
+| `decimal128` | 16 | no | no | per-field `(precision, scale)`; index key = exact mantissa, no float round-trip |
+| `set_u8` | 1 | shared, ≤8 labels | no | multi-select bitmask; **not** index-keyable |
 | `set_u16` | 2 | shared, ≤16 | no | |
 | `set_u32` | 4 | shared, ≤32 | no | |
 | `set_u64` | 8 | shared, ≤64 | no | |
 
-`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Sub-day timestamps: store as `u64` microseconds. Nullability is opt-in per field via the bitmap; all 17 types participate identically.
+`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 18 types participate identically.
+
+`date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by `GROUP_DATE` / `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`, which day-truncate `datetime` to the UTC calendar day. Sub-second timestamps: `u64` microseconds. Resolution, timezone and text-format detail belong to `type-date` / `type-datetime`.
 
 ## Selection heuristics
 
@@ -88,7 +91,7 @@ Old single-file readers fail loud on archive magic.
 - Structural: **strict** at insert. Field count, names, type bytes, byte offsets, bit positions must match canonical. Mismatch → `PULSE_SHARD_SCHEMA_MISMATCH`.
 - Descriptions: **tolerant**. Divergence → `PULSE_SHARD_DESCRIPTION_DIVERGENCE` (warning); canonical wins.
 - Categorical / set dictionaries: union-merge. Canonical entries first; new entries appended; incoming records byte-rewritten with remapped indices.
-- Stricter prefix-only validator raises `PULSE_SHARD_DICT_DIVERGENCE` when embedders coordinate dicts upstream.
+- Prefix-only validator raises `PULSE_SHARD_DICT_DIVERGENCE` when embedders coordinate dicts upstream.
 
 ### Anchor syntax
 
@@ -105,25 +108,34 @@ Materializing ops (percentile / median aggs, `ATTR_PERCENTILE`, `GROUP_QUANTILE`
 
 ### Concurrency
 
-No concurrent-writer protection. Two writers race; last writer wins. Readers snapshot at open. Caller owns single-writer architecture or external advisory lock.
+No concurrent-writer protection: two writers race, last wins. Readers snapshot at open. Caller owns single-writer architecture or an advisory lock.
 
 ## Sidecar index
 
-`Pulse.Lookup` / `pulse index build` use a **separate file** next to the cohort — `cohort.pulse.<keyhash>.idx` — the `.pulse` byte layout above stays untouched. Format **v3**:
+`Pulse.Lookup` / `pulse index build` use a **separate file** — `cohort.pulse.<keyhash>.idx`; the `.pulse` layout above stays untouched. Format **v3**:
 
 1. 9-byte header: magic `PULSEIDX` + version `0x03` (own magic/version, distinct from `encoding.MagicBytes`/`FormatVersion`).
 2. 32-byte SHA-256 source fingerprint.
 3. Key-spec: ordered key columns + field types.
 4. `SourceSize` (u64) + `SourceModTime` (i64 Unix ns) — staleness snapshot.
 5. `u32 bucket_count`.
-6. Fixed-width `bucket_count × u64` bucket-offset table — each entry directly addressable, enabling O(1) single-bucket seek.
+6. Fixed-width `bucket_count × u64` offset table — directly addressable, O(1) single-bucket seek.
 7. Self-delimited bucket data: FNV-1a hash buckets → `[]uint64` row-id multimap.
 
-A lookup hashes the key to one bucket, seeks to that bucket's offset entry, seeks to its data, then seeks straight to each matched record via `RecordLocator` — never a full-cohort or full-index read. Staleness on the read path is an O(1) size+mtime stat (mismatch → `PULSE_INDEX_STALE`); `pulse index verify` recomputes the authoritative full SHA-256 fingerprint instead.
+A lookup hashes the key, seeks its offset entry, seeks that bucket's data, then seeks to each matched record via `RecordLocator` — never a full-cohort or full-index read. Read-path staleness is an O(1) size+mtime stat (mismatch → `PULSE_INDEX_STALE`); `pulse index verify` recomputes the full SHA-256 instead.
 
-**Keyable-type policy** (`processing.IsIndexKeyableFieldType`): ALLOW `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (bit-pattern equality — `-0.0`/NaN caveat), `date`, `decimal128` (exact mantissa, no float round-trip), `categorical_*` (dictionary ID), `packed_bool`. REJECT `set_*` — no single unambiguous equality value; use `FILTER_SET` instead.
+**Keyable types** (`processing.IsIndexKeyableFieldType`): every type in the matrix above EXCEPT `set_*` — a multi-select mask has no single unambiguous equality value, so use `FILTER_SET` instead. Per-type equality caveats live in that matrix's Notes column, not here.
 
-**Constraints:** single-file cohorts only — shards → `PULSE_INDEX_UNSUPPORTED_SHARDED` (`archive.pulse#shard.pulse` anchor is a tested single-shard workaround). Equality-only, full-key required, composite-key order significant end to end. Errors: `PULSE_INDEX_MISSING`, `PULSE_INDEX_STALE`, `PULSE_INDEX_UNSUPPORTED_SHARDED`, `PULSE_LOOKUP_NOT_FOUND`, `PULSE_LOOKUP_AMBIGUOUS`.
+**Constraints:** single-file cohorts only (`archive.pulse#shard.pulse` anchor is a tested single-shard workaround); equality-only, full-key required, composite-key order significant end to end. The `PULSE_INDEX_*` / `PULSE_LOOKUP_*` error set and its fixups are `tool-lookup`'s surface.
+
+## SPSS import (`.sav` / `.zsav`)
+
+Full surface: **`spss-cohorts`**. The two facts that belong here, because they change what a `.pulse` schema means:
+
+1. **The schema is not inferred.** An SPSS dictionary DECLARES every column, so `io/spss` implements `io.SchemaAwareReader` and the sample-and-vote pass in `io/infer.go` is skipped. The inference-steering slots (`SampleRows`, `SetInferenceMinPct`, `SetDelimiters`, `ColumnTypeOverrides`) are inert, and there is **no null promotion** — declared nullability is a contract, so an unexpected null is `PULSE_IMPORT_ROW_ERROR`. An explicit `ImportJob.Schema` still wins.
+2. **The cohort can be wider than the source.** Two kinds of derived column are added: a `<var>_missing` `categorical_*` sibling per numeric variable declaring user-missing values (the null bitmap is one bit and cannot say *why*), and one `set_*` column per multiple-dichotomy response set, emitted **beside** its constituents. Count columns from `pulse_inspect` / `ReadHeader`, never from the SPSS variable count. `--spss-missing=null` suppresses the siblings; the `set_*` column has no opt-out.
+
+Categorical columns hold SPSS **codes**, not labels (two codes may share a label, so a label-keyed dictionary would collapse them) — resolve labels at output time via `label-display`. An import also writes a JSON metadata sidecar, `cohort.pulse.spss.json`, holding what the `.pulse` header cannot: value labels, measure levels, missing-value specs, response-set definitions, and the registry of which columns were derived. Writable too: `pulse export spss -i cohort.pulse -o out.sav` re-emits the `.sav`, reproducing the source dictionary from that sidecar — value labels, measure levels, missing-value specs, response sets — and folding the derived columns back away. A cohort that never came from SPSS exports fine on a synthesised dictionary (`PULSE_SPSS_SIDECAR_ABSENT`, a warning); a **stale** sidecar is an error, never a quiet fallback. `--include` / `--labels` are refused rather than ignored, because the writer encodes from raw storage rather than from the rendered row stream.
 
 ## Cross-links
 
@@ -131,3 +143,6 @@ A lookup hashes the key to one bucket, seeks to that bucket's offset entry, seek
 - `response-components` — `data.components.run.shard_count` + `partial_cohort_reason`.
 - `aggregation-guide` / `grouper-design` / `attribute-composition` — `set_*` operator surfaces.
 - `tool-lookup` — point-lookup MCP surface built on this sidecar format.
+- `tool-import` — the import MCP surface, incl. the SPSS format enum.
+- `label-display` — resolving SPSS value labels from the numeric codes the cohort stores.
+- `spss-cohorts` — the full `.sav` / `.zsav` surface: type mapping, derived columns, missing-value split, metadata sidecar, `PULSE_SPSS_*` diagnostics.

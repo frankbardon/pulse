@@ -17,6 +17,8 @@
 - [api sample](cli/api-sample.md)
 - [api facet](cli/api-facet.md)
 - [api lookup](cli/api-lookup.md)
+- [import spss](cli/import-spss.md)
+- [export spss](cli/export-spss.md)
 - [index](cli/index.md)
 - [manifest](cli/manifest.md)
 - [schema](cli/schema.md)

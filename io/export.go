@@ -99,6 +99,34 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		return nil, err
 	}
 
+	// A cohort writer encodes from the cohort's raw storage, so it takes
+	// the place of the row loop entirely rather than running beside it.
+	// The assertion sits AFTER WriteHeader so such a writer still receives
+	// the schema and the projection-aware column list; what it does not
+	// receive is a single WriteRow call. See CohortWriter.
+	if cw, ok := j.Target.(CohortWriter); ok {
+		n, err := cw.WriteCohort(ctx, CohortSource{
+			FS:       j.FS,
+			Path:     j.Source,
+			Includes: j.Includes,
+			Labelled: j.LabelResolver != nil,
+		})
+		if err != nil {
+			return nil, err
+		}
+		report := &ExportReport{RowsExported: n}
+		if j.LabelResolver != nil {
+			report.LabelWarnings = j.LabelResolver.Warnings()
+		}
+		report.TargetWarnings = targetWarnings(j.Target)
+		if owe, ok := j.Target.(OverlayWarningEmitter); ok {
+			if warns := owe.OverlayWarnings(); len(warns) > 0 {
+				report.OverlayWarnings = warns
+			}
+		}
+		return report, nil
+	}
+
 	_, schemaAware := j.Target.(SchemaAwareWriter)
 
 	// Read and export records until EOF. The values slice is hoisted out of
@@ -194,7 +222,25 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 			report.OverlayWarnings = warns
 		}
 	}
+	report.TargetWarnings = targetWarnings(j.Target)
 	return report, nil
+}
+
+// targetWarnings lifts a Writer's non-fatal encode diagnostics off the
+// optional TargetWarningEmitter contract. A target that does not
+// implement it contributes nil, so the report shape is unchanged for
+// every pre-existing adapter. Shared by ExportJob.Run and ConvertJob.Run
+// so the two verbs cannot diverge on where a target warning lands.
+func targetWarnings(w Writer) []*errors.CodedError {
+	twe, ok := w.(TargetWarningEmitter)
+	if !ok {
+		return nil
+	}
+	warns := twe.Warnings()
+	if len(warns) == 0 {
+		return nil
+	}
+	return warns
 }
 
 // shouldEmitOverlays maps the tri-state IncludeOverlays pointer onto
@@ -372,6 +418,19 @@ func countTrue(bs []bool) int {
 }
 
 // Predict validates the export without writing.
+//
+// It reads the source header and schema, estimates the record count, and —
+// when the Target implements the optional CohortValidator contract — asks the
+// target whether it could encode this cohort at all. A Target that is nil or
+// does not implement that interface is predicted exactly as it was before the
+// interface existed; see CohortValidator for why that promise is the whole
+// compatibility story here.
+//
+// A validating target's refusal is returned as the error, carrying the code
+// the real export would carry, and its non-fatal diagnostics land on
+// PredictReport.TargetWarnings. Predict remains a SOUND but INCOMPLETE
+// filter: a validator only answers from schema and sidecar facts, so passing
+// means no schema-level refusal was found, never that the export cannot fail.
 func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	if j.FS == nil {
 		return nil, fmt.Errorf("ExportJob.FS is required")
@@ -400,10 +459,37 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		estimatedRows = r.Len() / recordSize
 	}
 
-	return &PredictReport{
+	report := &PredictReport{
 		Schema:        schema,
 		EstimatedRows: estimatedRows,
-	}, nil
+	}
+
+	// Ask the target whether it could encode this cohort. The assertion
+	// fails for a nil Target and for every writer that does not implement
+	// the interface, and the report is then exactly the one this function
+	// has always returned.
+	//
+	// CohortSource is built from the same three job slots Run builds it
+	// from, so a validator sees the projection and label state the real
+	// export would hand it and can refuse them on the same terms. What it
+	// deliberately does NOT get is SetPulseSchema or WriteHeader: predict
+	// starts no write lifecycle on a writer it will never Close.
+	if cv, ok := j.Target.(CohortValidator); ok {
+		warns, err := cv.ValidateCohort(ctx, CohortSource{
+			FS:       j.FS,
+			Path:     j.Source,
+			Includes: j.Includes,
+			Labelled: j.LabelResolver != nil,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(warns) > 0 {
+			report.TargetWarnings = warns
+		}
+	}
+
+	return report, nil
 }
 
 // formatFieldValue converts a raw uint64 value back to a string representation.
@@ -426,6 +512,14 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 		days := int64(uint32(raw))
 		t := time.Unix(days*86400, 0).UTC()
 		return t.Format("2006-01-02")
+
+	case encoding.FieldTypeDateTime:
+		// encoding.CanonicalDateTimeLayout — the exact inverse of the
+		// encoding.ParseDateTime call io/import.go's convertValue makes,
+		// so a datetime survives export → re-import byte-for-byte
+		// including its time-of-day. Always rendered in UTC, matching
+		// the naive-UTC storage policy.
+		return encoding.FormatDateTime(raw)
 
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		if dict != nil {

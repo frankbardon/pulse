@@ -1182,3 +1182,46 @@ func TestArrowTypeToPulse_Dictionary(t *testing.T) {
 
 // Suppress unused import warnings.
 var _ = math.MaxFloat32
+
+// TestParquet_DateTimeColumnRoundTripsAsCanonicalString mirrors the
+// Arrow adapter's datetime fidelity gate — the Parquet writer builds
+// its schema through the same parrow.FieldFromPulse mapping, so a
+// numeric or timestamp arm there would make every datetime row fail to
+// append and vanish from the export.
+func TestParquet_DateTimeColumnRoundTripsAsCanonicalString(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "ts", Type: encoding.FieldTypeDateTime},
+	}}
+
+	w := NewWriterToBuffer()
+	w.SetPulseSchema(schema)
+	if err := w.WriteHeader([]string{"ts"}); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	// Exactly what io/export.go's formatFieldValue emits for datetime.
+	if err := w.WriteRow([]any{"2024-03-04T10:11:12Z"}); err != nil {
+		t.Fatalf("WriteRow: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	r := NewReaderFromBytes(w.Bytes())
+	defer func() { _ = r.Close() }()
+	if _, err := r.ReadHeader(); err != nil {
+		t.Fatalf("ReadHeader: %v", err)
+	}
+	var rows [][]string
+	if err := r.ReadRows(t.Context(), func(row []string) error {
+		rows = append(rows, append([]string(nil), row...))
+		return nil
+	}); err != nil {
+		t.Fatalf("ReadRows: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("read %d rows; want 1 (a rejected cell drops the whole row)", len(rows))
+	}
+	if rows[0][0] != "2024-03-04T10:11:12Z" {
+		t.Errorf("datetime cell = %q; want the canonical literal 2024-03-04T10:11:12Z", rows[0][0])
+	}
+}

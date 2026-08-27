@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
@@ -79,26 +78,7 @@ func TestSkillsCoverAllComponents(t *testing.T) {
 func TestSkillsCoverAllFieldTypes(t *testing.T) {
 	embedded := embeddedSkillSet(t)
 
-	fieldTypes := []encoding.FieldType{
-		encoding.FieldTypeU4,
-		encoding.FieldTypeU8,
-		encoding.FieldTypeU16,
-		encoding.FieldTypeU32,
-		encoding.FieldTypeU64,
-		encoding.FieldTypeF32,
-		encoding.FieldTypeF64,
-		encoding.FieldTypeDate,
-		encoding.FieldTypePackedBool,
-		encoding.FieldTypeCategoricalU8,
-		encoding.FieldTypeCategoricalU16,
-		encoding.FieldTypeCategoricalU32,
-		encoding.FieldTypeDecimal128,
-		encoding.FieldTypeSetU8,
-		encoding.FieldTypeSetU16,
-		encoding.FieldTypeSetU32,
-		encoding.FieldTypeSetU64,
-	}
-	for _, ft := range fieldTypes {
+	for _, ft := range allFieldTypes() {
 		stem := "type-" + kebabName(ft.String())
 		if !embedded[stem] {
 			t.Errorf("field type %s: missing atomic skill skills/%s.md", ft.String(), stem)

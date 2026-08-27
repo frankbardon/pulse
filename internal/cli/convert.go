@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
+	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
@@ -19,6 +21,11 @@ func ConvertCommand() *cli.Command {
 			&cli.StringFlag{Name: "from", Usage: "Source format override"},
 			&cli.StringFlag{Name: "to", Usage: "Target format override"},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
+			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
+			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
+			&cli.BoolFlag{Name: "ignore-sidecar", Usage: ignoreSidecarFlagUsage},
+			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
+			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
 			&cli.StringFlag{Name: "keep-pulse", Usage: "Also write intermediate .pulse file at this path"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
@@ -63,18 +70,18 @@ func ConvertCommand() *cli.Command {
 
 			fs := afero.NewOsFs()
 
-			reader, err := newReaderForFormat(fromFmt, fs, input, "")
+			reader, err := newReaderForFormat(fromFmt, fs, input, pformat.ReaderOptions{Charset: cmd.String("charset"), SPSSMissing: cmd.String("spss-missing")})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
 
-			writer, err := newWriterForFormat(toFmt, fs, output)
+			writer, err := newWriterForFormat(toFmt, fs, output, writerOptionsFrom(cmd))
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -88,7 +95,7 @@ func ConvertCommand() *cli.Command {
 				schema, loadErr := loadSchemaFromFile(fs, schemaPath)
 				if loadErr != nil {
 					if jsonOut {
-						return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", loadErr.Error())
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", loadErr)
 					}
 					return loadErr
 				}
@@ -98,26 +105,38 @@ func ConvertCommand() *cli.Command {
 			report, err := job.Run(ctx)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CONVERT_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CONVERT_ERROR", err)
 				}
 				return err
 			}
 
 			if err := writer.Close(); err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CONVERT_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CONVERT_ERROR", err)
 				}
 				return err
 			}
 
+			// The target's diagnostics are read AFTER Close, because a
+			// writer that buffers and encodes at Close — which the `.sav`
+			// writer does on this path — has raised none of them by the
+			// time ConvertJob builds its report. See finishExport.
+			warnings := append([]*perrors.CodedError(nil), report.SourceWarnings...)
+			if twe, ok := writer.(pio.TargetWarningEmitter); ok {
+				warnings = append(warnings, twe.Warnings()...)
+			} else {
+				warnings = append(warnings, report.TargetWarnings...)
+			}
+
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, report)
+				return writeEnvelopeWithWarnings(cmd.Writer, report, warnings)
 			}
 
 			writeText(cmd.Writer, "Converted %d rows: %s -> %s\n", report.RowsConverted, input, output)
 			if len(report.RowErrors) > 0 {
 				writeText(cmd.Writer, "Warnings: %d row errors\n", len(report.RowErrors))
 			}
+			writeSourceWarnings(cmd.Writer, warnings)
 			return nil
 		},
 	}
@@ -131,6 +150,11 @@ func convertPredictCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "from", Usage: "Source format override"},
 			&cli.StringFlag{Name: "to", Usage: "Target format override"},
+			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
+			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
+			&cli.BoolFlag{Name: "ignore-sidecar", Usage: ignoreSidecarFlagUsage},
+			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
+			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
 		},
@@ -161,18 +185,18 @@ func convertPredictCmd() *cli.Command {
 
 			fs := afero.NewOsFs()
 
-			reader, err := newReaderForFormat(fromFmt, fs, input, "")
+			reader, err := newReaderForFormat(fromFmt, fs, input, pformat.ReaderOptions{Charset: cmd.String("charset"), SPSSMissing: cmd.String("spss-missing")})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
 
-			writer, err := newWriterForFormat(toFmt, fs, output)
+			writer, err := newWriterForFormat(toFmt, fs, output, writerOptionsFrom(cmd))
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -184,17 +208,18 @@ func convertPredictCmd() *cli.Command {
 			report, err := job.Predict(ctx)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
 				}
 				return err
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, report)
+				return writeEnvelopeWithWarnings(cmd.Writer, report, report.SourceWarnings)
 			}
 
 			writeText(cmd.Writer, "Schema: %d fields\n", len(report.Schema.Fields))
 			writeText(cmd.Writer, "Estimated rows: %d\n", report.EstimatedRows)
+			writeSourceWarnings(cmd.Writer, report.SourceWarnings)
 			return nil
 		},
 	}

@@ -3,22 +3,25 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
-	parrow "github.com/frankbardon/pulse/io/arrow"
-	"github.com/frankbardon/pulse/io/csv"
-	"github.com/frankbardon/pulse/io/excel"
-	"github.com/frankbardon/pulse/io/jsonarray"
-	"github.com/frankbardon/pulse/io/ndjson"
-	"github.com/frankbardon/pulse/io/parquet"
-	"github.com/frankbardon/pulse/io/tsv"
+	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
+
+// charsetFlagUsage is the one-line help for --charset. It is shared by every
+// leaf that can be handed a `.sav`, so the wording cannot drift between them.
+const charsetFlagUsage = "Character encoding override for SPSS .sav input (e.g. windows-1252, latin1, utf-8)"
+
+// spssMissingFlagUsage is the one-line help for --spss-missing, shared by
+// every leaf a `.sav` can arrive through so the wording cannot drift.
+const spssMissingFlagUsage = "How SPSS numeric user-missing values are represented: auto (default — null plus a <var>_missing sibling carrying the reason) or null (plain null, reason not preserved)"
 
 // importFlags are the common flags for all import format subcommands.
 var importFlags = []cli.Flag{
@@ -41,6 +44,7 @@ func ImportCommand() *cli.Command {
 			importFormatCmd("jsonarray"),
 			importFormatCmd("parquet"),
 			importFormatCmd("arrow"),
+			importSPSSCmd(),
 			importExcelCmd(),
 			importPredictCmd(),
 			importSchemaTemplateCmd(),
@@ -62,16 +66,44 @@ func importFormatCmd(format string) *cli.Command {
 	}
 }
 
+// withImportFlags returns the common import flags plus the format-specific
+// extras, without mutating the shared slice.
+func withImportFlags(extra ...cli.Flag) []cli.Flag {
+	flags := make([]cli.Flag, 0, len(importFlags)+len(extra))
+	flags = append(flags, importFlags...)
+	return append(flags, extra...)
+}
+
 func importExcelCmd() *cli.Command {
-	flags := make([]cli.Flag, len(importFlags))
-	copy(flags, importFlags)
-	flags = append(flags, &cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"})
 	return &cli.Command{
 		Name:  "excel",
 		Usage: "Import Excel file into .pulse format",
-		Flags: flags,
+		Flags: withImportFlags(&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"}),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runImport(ctx, cmd, "excel")
+		},
+	}
+}
+
+// importSPSSCmd is `pulse import spss`. It carries --charset for the same
+// reason the excel leaf carries --sheet: the format has one question the
+// file cannot always answer for itself.
+//
+// Without it a legacy `.sav` that declares no encoding at all — no record
+// 7/20, no record 7/3 character code — and carries any 8-bit byte fails
+// PULSE_SPSS_CHARSET_INVALID with no recourse from the CLI, because
+// spss.WithCharset was reachable only from the library. That is the gap this
+// flag closes.
+func importSPSSCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "spss",
+		Usage: "Import SPSS .sav / .zsav file into .pulse format",
+		Flags: withImportFlags(
+			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
+			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
+		),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return runImport(ctx, cmd, "spss")
 		},
 	}
 }
@@ -85,10 +117,10 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 
 	fs := afero.NewOsFs()
 
-	reader, err := makeImportReader(format, fs, input, cmd.String("sheet"))
+	reader, err := makeImportReader(format, fs, input, readerOptionsFrom(cmd))
 	if err != nil {
 		if jsonOut {
-			return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -101,7 +133,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 		schema, err := loadSchemaFromFile(fs, schemaPath)
 		if err != nil {
 			if jsonOut {
-				return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+				return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 			}
 			return err
 		}
@@ -111,19 +143,20 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	report, err := job.Run(ctx)
 	if err != nil {
 		if jsonOut {
-			return writeErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err.Error())
+			return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
 		}
 		return err
 	}
 
 	if jsonOut {
-		return writeEnvelope(cmd.Writer, report)
+		return writeEnvelopeWithWarnings(cmd.Writer, report, report.SourceWarnings)
 	}
 
 	writeText(cmd.Writer, "Imported %d rows to %s\n", report.RowsImported, output)
 	if len(report.RowErrors) > 0 {
 		writeText(cmd.Writer, "Warnings: %d row errors\n", len(report.RowErrors))
 	}
+	writeSourceWarnings(cmd.Writer, report.SourceWarnings)
 	if len(report.PromotedFields) > 0 {
 		writeText(cmd.Writer, "%s: fields promoted to nullable (null found past the inference sample): %s\n",
 			errors.PULSE_IMPORT_NULL_PROMOTED, strings.Join(report.PromotedFields, ", "))
@@ -138,7 +171,10 @@ func importPredictCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss)"},
+			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"},
+			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
+			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
@@ -161,10 +197,10 @@ func importPredictCmd() *cli.Command {
 			}
 
 			fs := afero.NewOsFs()
-			reader, err := makeImportReader(format, fs, input, "")
+			reader, err := makeImportReader(format, fs, input, readerOptionsFrom(cmd))
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -177,7 +213,7 @@ func importPredictCmd() *cli.Command {
 				schema, loadErr := loadSchemaFromFile(fs, schemaPath)
 				if loadErr != nil {
 					if jsonOut {
-						return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", loadErr.Error())
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", loadErr)
 					}
 					return loadErr
 				}
@@ -187,13 +223,13 @@ func importPredictCmd() *cli.Command {
 			report, err := job.Predict(ctx)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
 				}
 				return err
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, report)
+				return writeEnvelopeWithWarnings(cmd.Writer, report, report.SourceWarnings)
 			}
 
 			writeText(cmd.Writer, "Schema: %d fields\n", len(report.Schema.Fields))
@@ -201,6 +237,7 @@ func importPredictCmd() *cli.Command {
 			for _, w := range report.Warnings {
 				writeText(cmd.Writer, "Warning [%s]: %s\n", w.Column, w.Message)
 			}
+			writeSourceWarnings(cmd.Writer, report.SourceWarnings)
 			return nil
 		},
 	}
@@ -212,7 +249,10 @@ func importSchemaTemplateCmd() *cli.Command {
 		Usage:     "Generate an editable schema template from input data",
 		ArgsUsage: "INPUT",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss)"},
+			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"},
+			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
+			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -232,7 +272,7 @@ func importSchemaTemplateCmd() *cli.Command {
 			}
 
 			fs := afero.NewOsFs()
-			reader, err := makeImportReader(format, fs, input, "")
+			reader, err := makeImportReader(format, fs, input, readerOptionsFrom(cmd))
 			if err != nil {
 				return err
 			}
@@ -270,29 +310,40 @@ func importSchemaTemplateCmd() *cli.Command {
 	}
 }
 
-func makeImportReader(format string, fs afero.Fs, path string, sheet string) (pio.Reader, error) {
-	switch format {
-	case "csv":
-		return csv.NewReader(fs, path), nil
-	case "tsv":
-		return tsv.NewReader(fs, path), nil
-	case "ndjson":
-		return ndjson.NewReader(fs, path), nil
-	case "jsonarray":
-		return jsonarray.NewReader(fs, path), nil
-	case "parquet":
-		return parquet.NewReader(fs, path), nil
-	case "arrow":
-		return parrow.NewReader(fs, path), nil
-	case "excel":
-		opts := []excel.Option{}
-		if sheet != "" {
-			opts = append(opts, excel.WithSheet(sheet))
+// readerOptionsFrom lifts the per-format reader knobs off whichever leaf is
+// running. A leaf that does not declare a flag reads it as "", which is the
+// same as not setting the option, so one helper serves every leaf.
+func readerOptionsFrom(cmd *cli.Command) pformat.ReaderOptions {
+	return pformat.ReaderOptions{
+		Sheet:       cmd.String("sheet"),
+		Charset:     cmd.String("charset"),
+		SPSSMissing: cmd.String("spss-missing"),
+	}
+}
+
+// makeImportReader builds the source reader for `pulse import`.
+//
+// It delegates to pformat.NewReader rather than keeping a second dispatch
+// switch. The duplicate switch this replaces was a standing trap — a format
+// registered in io/format and not here produced a subcommand that existed and
+// immediately failed — and it is also where a new ReaderOptions field would
+// have silently gone unread.
+func makeImportReader(format string, fs afero.Fs, path string, opts pformat.ReaderOptions) (pio.Reader, error) {
+	r, err := pformat.NewReader(format, fs, path, opts)
+	if err != nil {
+		// A CODED failure is a per-option refusal — an unrecognised
+		// --spss-missing value, say — and is surfaced verbatim. Only the
+		// dispatch's own "no such format" is reworded, because that one
+		// is about the format identifier and nothing else. Flattening
+		// both into "unsupported import format" told an operator who
+		// typo'd a flag value that Pulse cannot read `.sav` at all.
+		var coded *errors.CodedError
+		if stderrors.As(err, &coded) {
+			return nil, err
 		}
-		return excel.NewReader(fs, path, opts...), nil
-	default:
 		return nil, fmt.Errorf("unsupported import format: %s", format)
 	}
+	return r, nil
 }
 
 func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {

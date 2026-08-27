@@ -336,7 +336,7 @@ func fixedWidthBytes(ft FieldType) int {
 		return 2
 	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeF32, FieldTypeSetU32:
 		return 4
-	case FieldTypeU64, FieldTypeF64, FieldTypeSetU64:
+	case FieldTypeU64, FieldTypeF64, FieldTypeSetU64, FieldTypeDateTime:
 		return 8
 	default:
 		return 0
@@ -355,7 +355,7 @@ func decodeFixed(ft FieldType, buf []byte) float64 {
 		return float64(binary.LittleEndian.Uint16(buf))
 	case FieldTypeU32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeSetU32:
 		return float64(binary.LittleEndian.Uint32(buf))
-	case FieldTypeU64, FieldTypeSetU64:
+	case FieldTypeU64, FieldTypeSetU64, FieldTypeDateTime:
 		return float64(binary.LittleEndian.Uint64(buf))
 	case FieldTypeF32:
 		return float64(math.Float32frombits(binary.LittleEndian.Uint32(buf)))

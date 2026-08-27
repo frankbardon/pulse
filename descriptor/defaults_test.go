@@ -37,14 +37,17 @@ func TestDefaults_Applied(t *testing.T) {
 		{encoding.FieldTypeCategoricalU32, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
 		// Date: no aggregation default, GROUP_DATE for grouper.
 		{encoding.FieldTypeDate, "", types.GROUP_DATE},
+		// Datetime mirrors date: no aggregation default, GROUP_DATE for
+		// the grouper (which day-truncates the epoch-seconds value).
+		{encoding.FieldTypeDateTime, "", types.GROUP_DATE},
 		{encoding.FieldTypePackedBool, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
 	}
 
 	// Verify coverage matches the FieldType enum exactly: every known
 	// field type must appear in the table (catches new types added to
 	// encoding without a corresponding default rule decision).
-	if got := len(cases); got != 13 {
-		t.Fatalf("defaults table covers %d field types; expected 13", got)
+	if got := len(cases); got != 14 {
+		t.Fatalf("defaults table covers %d field types; expected 14", got)
 	}
 
 	for _, tc := range cases {

@@ -46,6 +46,7 @@ When a manifest operator name or response key surfaces a topic, derive the skill
 | `OVERLAY_*` | `overlay-system` |
 | `synth_distributions[i].kind` | `synthetic-data` |
 | `cohort_types[i].name` (field type) | `cohort-schema-design` |
+| A `.sav` / `.zsav` source, or a cohort carrying a `.spss.json` sidecar | `spss-cohorts` |
 | `mcp_tools[i].name` | `mcp-integration` |
 | `pulse_lookup` / CLI `pulse index {build,list,verify,drop}` / `pulse api lookup` | `tool-lookup` (MCP surface), `cohort-schema-design` (sidecar format) |
 | `error_codes[i]` | `pulse_errors_lookup` (not a skill — the tool is the surface) |
@@ -94,11 +95,30 @@ Do not infer Components shape from memory or external documentation — it is bo
 
 Directories auto-loaded from disk at `pulse.New` time:
 
-- `PULSE_LABEL_TABLES_DIR` — output-time label tables.
+- `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Give it its own directory.** It parses *every* `*.json` beneath it as a label table and a file it cannot parse hard-fails `pulse.New`, so pointing it at a directory of cohorts trips over the `.spss.json` / `.meta.json` sidecars sitting there.
 - `PULSE_RANGE_TABLES_DIR` — named labeled-date-range tables (`{label,start,end}` sets referenced by `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`).
 - `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render via `RenderTemplate` / `RenderTemplateRequest`, then predict the rendered request. See the `request-templating` skill.
 
 Both table kinds surface under `manifest.extensions.{label_tables,range_tables}` — check there before assuming a named table exists. Templates are not manifest-projected; enumerate them with `ListTemplates` (`Summary.Broken` flags a file that has gone malformed since load).
+
+## Source-format CLI flags
+
+Three per-format READ knobs the file itself cannot always answer. All ride `format.ReaderOptions`; every other format ignores them.
+
+- `--sheet` (Excel) — `pulse import excel`, `import predict`, `import schema-template`, `import auto`. The `pulse_import` MCP tool carries it as `sheet`.
+- `--spss-missing` (SPSS `.sav` / `.zsav`), `auto` | `null`, default `auto` — `pulse import spss`, `import predict`, `import schema-template`, `convert`, `convert predict`. `auto` nulls every numeric user-missing value in its analytic column (so `AGG_SUM` / `AGG_MEAN` never add a refusal code) and adds a generated `<var>_missing` sibling carrying WHY — `sysmis`, the value label, or the code. `null` suppresses the siblings: same nulls, reason gone. **A `.sav` import may therefore yield more columns than the file has variables** — read `ReadHeader` / the returned schema, never the SPSS variable count. An unrecognised value is `PULSE_SPSS_MISSING_MODE_INVALID`, never a silent default. **Deliberately NOT on `pulse import auto` or `pulse_import`**, and that asymmetry with `--charset` is a decision, not a gap: the default is the fidelity-preserving mode and the only alternative discards information, so the dedicated leaf is where asking for it is an explicit act.
+- `--charset` (SPSS `.sav` / `.zsav`) — `pulse import spss`, `import predict`, `import schema-template`, `convert`, `convert predict`. Overrides the encoding the file declares about itself; decoding only, the declaration is still retained. Reach for it on `PULSE_SPSS_CHARSET_INVALID` or `PULSE_SPSS_CHARSET_UNSUPPORTED` — most often a file transcoded by one tool and re-saved by another keeps a stale record `7/20` name, or declares nothing and fails the strict UTF-8 default on its first 8-bit byte. Also on `pulse import auto` and the `pulse_import` MCP tool as `charset` — unlike `--spss-missing`, because without it such a file cannot be imported through the managed pool by any means.
+
+## Target-format CLI flags
+
+Four `.sav` WRITE knobs, each one field of `spss.WriterOptions`. They ride `pulse export spss`; `--ignore-sidecar`, `--uncompressed` and `--sanitize-names` are also on `convert` / `convert predict` (`convert` reads `--charset` for the SOURCE, so the write charset is settable only on the export leaf). Every other target format ignores them.
+
+- `--ignore-sidecar` (SPSS) — do not read the metadata sidecar beside the source cohort; synthesise the dictionary from the `.pulse` schema alone. It suppresses the **read**, not merely the staleness verdict: a healthy sidecar is ignored too, and an unreadable one cannot block. Raises `PULSE_SPSS_SIDECAR_IGNORED`, which deliberately cannot say which refusal it silenced. **It cannot round-trip a cohort whose derived MD `set_*` column is still present** — that column's dictionary entries are its constituents' field names, so synthesis mints duplicate indicator variables and stops on `PULSE_SPSS_NAME_COLLISION`. Export without the flag instead.
+- `--uncompressed` (SPSS) — flat 8-byte elements instead of SPSS's bytecode compression. Losslessly equivalent; bytecode is the default because it is what SPSS's own SAVE writes. Does **not** select ZSAV — emission of that is `PULSE_SPSS_COMPRESSION_UNSUPPORTED`.
+- `--charset` (SPSS, on `pulse export spss` only) — the charset the emitted file is written in AND declares. Default: whatever the source declared, in the source's own spelling; UTF-8 for a cohort with no SPSS provenance. Set it when the cohort now holds text the source's codepage cannot express (otherwise `PULSE_SPSS_CHARSET_UNENCODABLE`).
+- `--sanitize-names` (SPSS) — rewrite cohort field names a `.sav` cannot carry (a space, bracket, hyphen, leading digit) instead of refusing. **The refusal is the default on purpose**; this is the opt-in for the synthesised path, where a CSV header's spaces are ordinary. Renames are deterministic and collision-safe against names that were already legal, and every one is reported as `PULSE_SPSS_NAME_SANITIZED` with the full `field → name` list. Inert on the sidecar path — those names came from SPSS.
+
+Note two things `pulse export spss` refuses rather than ignores: `--include` and `--labels`. The `.sav` writer encodes from the cohort's raw storage, not from the rendered row stream those two transform, so honouring them would emit something other than what was asked for (`PULSE_SPSS_EXPORT_UNSUPPORTED`). Narrow or relabel into a cohort first, then export it.
 
 ## Cross-links
 
@@ -107,3 +127,4 @@ Both table kinds surface under `manifest.extensions.{label_tables,range_tables}`
 - `mcp-integration` — every registered tool, full per-tool argument shape.
 - `debugging-with-predict` — predict loop in detail.
 - `getting-started` — vocabulary + pipeline order primer (cold-start fallback).
+- `spss-cohorts` — the whole `.sav` fidelity model, read and write.

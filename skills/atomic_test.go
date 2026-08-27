@@ -281,29 +281,7 @@ func TestOperatorHasAtomicSkill(t *testing.T) {
 		add("overlay", string(v), "op-overlay-", strings.TrimPrefix(string(v), "OVERLAY_"))
 	}
 
-	// All 17 field types. The encoding package exposes them as exported
-	// FieldType constants; iterate by index up to the fieldTypeCount
-	// sentinel via the IsKnown() predicate.
-	fieldTypes := []encoding.FieldType{
-		encoding.FieldTypeU4,
-		encoding.FieldTypeU8,
-		encoding.FieldTypeU16,
-		encoding.FieldTypeU32,
-		encoding.FieldTypeU64,
-		encoding.FieldTypeF32,
-		encoding.FieldTypeF64,
-		encoding.FieldTypeDate,
-		encoding.FieldTypePackedBool,
-		encoding.FieldTypeCategoricalU8,
-		encoding.FieldTypeCategoricalU16,
-		encoding.FieldTypeCategoricalU32,
-		encoding.FieldTypeDecimal128,
-		encoding.FieldTypeSetU8,
-		encoding.FieldTypeSetU16,
-		encoding.FieldTypeSetU32,
-		encoding.FieldTypeSetU64,
-	}
-	for _, ft := range fieldTypes {
+	for _, ft := range allFieldTypes() {
 		add("field-type", ft.String(), "type-", ft.String())
 	}
 
@@ -335,4 +313,30 @@ func TestOperatorHasAtomicSkill(t *testing.T) {
 // chisq-col, etc.
 func kebab(s string) string {
 	return strings.ReplaceAll(strings.ToLower(s), "_", "-")
+}
+
+// allFieldTypes enumerates every registered .pulse field type, bounded by
+// FieldType.IsKnown() (which compares against encoding's own fieldTypeCount
+// sentinel) rather than by a hand-maintained literal list.
+//
+// The literal list this replaces is why the skill-coverage gates went blind
+// when `datetime` was appended at type byte 17: the gates iterated a frozen
+// slice, so a newly registered type was never asked for its type-<kebab>.md
+// skill and the Update Demand silently passed. Deriving the walk from the
+// registry means the next appended field type fails the gate on the commit
+// that registers it. Mirrors descriptor.rawCohortFieldTypes. FieldType is a
+// byte, hence the 256 ceiling.
+func allFieldTypes() []encoding.FieldType {
+	var out []encoding.FieldType
+	for i := range 256 {
+		ft := encoding.FieldType(i)
+		if !ft.IsKnown() {
+			break
+		}
+		if strings.HasPrefix(ft.String(), "unknown") {
+			continue
+		}
+		out = append(out, ft)
+	}
+	return out
 }

@@ -66,7 +66,7 @@ func grouperCapabilities() []Operator {
 		{
 			Name:        string(types.GROUP_DATE),
 			Category:    "grouper",
-			Description: "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+			Description: "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). A datetime field is truncated to the UTC calendar day containing its instant before bucketing. Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
 			Params: []Param{
 				{
 					Name:        "component",
@@ -84,7 +84,7 @@ func grouperCapabilities() []Operator {
 					Description: "Months after January when the fiscal year starts; valid only with component=year or component=quarter. Range [-11, 11]; offsets normalise mod 12 (offset=-3 == offset=9 => October start). 0 (default) = calendar year. Non-zero offsets prefix keys with FY using the end-year convention (Apr 2024-Mar 2025 with offset=3 => FY2025).",
 				},
 			},
-			AcceptsTypes:   []string{"date"},
+			AcceptsTypes:   []string{"date", "datetime"},
 			EmitsTypeNote:  "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1)",
 			Streamable:     false,
 			StreamableHint: "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.",
@@ -99,7 +99,7 @@ func grouperCapabilities() []Operator {
 		{
 			Name:        string(types.GROUP_DATE_RANGES),
 			Category:    "grouper",
-			Description: "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order.",
+			Description: "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is truncated to the UTC calendar day containing its instant before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order.",
 			Params: []Param{
 				{
 					Name:        "ranges",
@@ -115,7 +115,7 @@ func grouperCapabilities() []Operator {
 					Description: "Bucket label for rows outside every configured range. Must not collide with a range label.",
 				},
 			},
-			AcceptsTypes:  []string{"date"},
+			AcceptsTypes:  []string{"date", "datetime"},
 			EmitsTypeNote: "labeled range key per row (the matching range's label, or the unmatched label)",
 			Streamable:    true,
 			ComponentSchema: groupSchema(Mergeable,

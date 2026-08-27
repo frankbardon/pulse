@@ -20,7 +20,7 @@ Orthogonal. `Nullable: true` participates in the per-record null bitmap; null is
 
 ## Dictionary
 
-Present (`HasDictionary()` = `true`). Inline schema block, shared across all records; `MaxDictEntries()` = `64`. Shard cohesion: union-merge under the 64-label cap; width overflow → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`.
+Present (`HasDictionary()` = `true`). Inline schema block, shared across all records; `MaxDictEntries()` = `64`. Shard cohesion: union-merge under the 64-label cap; width overflow → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. An SPSS multiple-DICHOTOMY response set imports as one of these, with the constituent variables' field names as the entries — additively, beside the constituent columns themselves (`cohort-schema-design`, SPSS import).
 
 ## See
 

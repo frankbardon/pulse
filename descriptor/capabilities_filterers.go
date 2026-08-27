@@ -119,8 +119,8 @@ func filtererCapabilities() []Operator {
 		{
 			Name:            string(types.FILTER_DATE_RANGES),
 			Category:        "filterer",
-			Description:     "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). Null dates and out-of-range rows are dropped.",
-			AcceptsTypes:    []string{"date"},
+			Description:     "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). A datetime field is truncated to the UTC calendar day containing its instant before matching. Null dates and out-of-range rows are dropped.",
+			AcceptsTypes:    []string{"date", "datetime"},
 			EmitsTypeNote:   "record-level predicate (no emitted column)",
 			Streamable:      true,
 			ComponentSchema: filterSchema(Mergeable),

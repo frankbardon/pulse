@@ -1220,6 +1220,718 @@ const (
 	// template under DetailTemplate, the target type, and the decode
 	// fault.
 	PULSE_TEMPLATE_RENDER_INVALID Code = "PULSE_TEMPLATE_RENDER_INVALID"
+
+	// PULSE_SPSS_DICT_INVALID indicates an SPSS `.sav` dictionary is
+	// structurally malformed: the file does not open with the `$FL2` /
+	// `$FL3` magic, the layout code identifies neither byte order, a
+	// record carries an unknown type tag or an out-of-range field, or a
+	// record appears where the format does not allow it. Details carry
+	// the offending record under DetailSPSSRecord and its byte offset
+	// under DetailSPSSOffset.
+	PULSE_SPSS_DICT_INVALID Code = "PULSE_SPSS_DICT_INVALID"
+
+	// PULSE_SPSS_DICT_TRUNCATED indicates an SPSS `.sav` file ends part
+	// way through the dictionary: a record claims more bytes than remain,
+	// or the stream runs out before the record type 999 terminator is
+	// reached. The bytes present are well formed as far as they go, which
+	// is what distinguishes this from PULSE_SPSS_DICT_INVALID. Details
+	// carry the record under DetailSPSSRecord and the byte offset the
+	// read ran past under DetailSPSSOffset.
+	PULSE_SPSS_DICT_TRUNCATED Code = "PULSE_SPSS_DICT_TRUNCATED"
+
+	// PULSE_SPSS_FILE_EMPTY indicates an SPSS `.sav` source carries no
+	// bytes at all: a zero-length file, or an in-memory reader handed a
+	// nil or empty buffer. It is deliberately DISTINCT from
+	// PULSE_SPSS_DICT_TRUNCATED, which means a real file stops part way
+	// through a record — a zero-length file has no first record to be
+	// part way through, and the two have completely different causes (a
+	// touched-but-never-written path versus an interrupted transfer).
+	// Details carry "header" under DetailSPSSRecord and offset 0 under
+	// DetailSPSSOffset.
+	PULSE_SPSS_FILE_EMPTY Code = "PULSE_SPSS_FILE_EMPTY"
+
+	// PULSE_SPSS_ENDIANNESS_MISMATCH indicates an SPSS `.sav` file states
+	// its byte order twice and the two statements contradict each other:
+	// the header layout code reads as 2 or 3 in one order while the
+	// record 7/3 machine-integer endianness field names the other. It is
+	// an ERROR rather than a warning, unlike the sibling charset
+	// cross-check: every multi-byte field in the file — every count,
+	// every offset, every double — is read in whichever order wins, so
+	// choosing wrongly does not lose a label, it produces a whole file of
+	// plausible and incorrect numbers. Details carry the extension record
+	// under DetailSPSSRecord, the subtype under DetailSPSSSubtype and the
+	// record's byte offset under DetailSPSSOffset.
+	PULSE_SPSS_ENDIANNESS_MISMATCH Code = "PULSE_SPSS_ENDIANNESS_MISMATCH"
+
+	// PULSE_SPSS_MAGIC_FLAG_MISMATCH indicates an SPSS system file whose
+	// 4-byte magic and header compression flag disagree about whether it
+	// is a ZSAV: `$FL3` with compression flag 0 or 1, or `$FL2` with
+	// compression flag 2. It is a WARNING. The compression flag is the
+	// single dispatch point for how the data section is decoded, and it
+	// is the more specific statement of the two — the magic is a coarse
+	// generation label a re-saving tool can leave stale — so the flag
+	// wins and the file still reads. Details carry "header" under
+	// DetailSPSSRecord and the compression field's byte offset under
+	// DetailSPSSOffset.
+	PULSE_SPSS_MAGIC_FLAG_MISMATCH Code = "PULSE_SPSS_MAGIC_FLAG_MISMATCH"
+
+	// PULSE_SPSS_VALUE_LABELS_DROPPED indicates a record 3/4 value-label
+	// pair names variables it cannot be bound to — a set mixing variables
+	// of different type or width, a set attached to a string wider than
+	// the 8 bytes a record 3 value slot can hold, or an element index
+	// landing on a string continuation rather than on a variable. It is a
+	// WARNING that drops that one label set and imports everything else:
+	// a value label is display metadata, so refusing the file would cost
+	// the data to save the labels, and binding it anyway would mislabel
+	// values silently. Details carry the record under DetailSPSSRecord,
+	// the record type 4's byte offset under DetailSPSSOffset and the
+	// variable under DetailSPSSVariable where one is named.
+	PULSE_SPSS_VALUE_LABELS_DROPPED Code = "PULSE_SPSS_VALUE_LABELS_DROPPED"
+
+	// PULSE_SPSS_EXTENSION_UNKNOWN indicates an SPSS `.sav` dictionary
+	// carries a record type 7 extension subtype this reader does not
+	// interpret. It is a WARNING, never a parse failure: real SPSS
+	// versions emit subtypes the published format description does not
+	// list, and refusing such a file would reject data that is otherwise
+	// perfectly readable. The record's bytes are retained verbatim so
+	// nothing is lost. Details carry the subtype under DetailSPSSSubtype
+	// and the record's byte offset under DetailSPSSOffset.
+	PULSE_SPSS_EXTENSION_UNKNOWN Code = "PULSE_SPSS_EXTENSION_UNKNOWN"
+
+	// PULSE_SPSS_EXTENSION_INVALID indicates a record type 7 extension
+	// subtype this reader does interpret carried a payload that does not
+	// match the shape the format defines for it — a declared element size
+	// or count the subtype does not allow, a truncated payload, or a
+	// field naming a variable the dictionary does not have. It is a
+	// WARNING: the record's framing was sound, so the dictionary walk
+	// stayed aligned, and the raw bytes are retained. Only the
+	// interpretation is dropped. Details carry the subtype under
+	// DetailSPSSSubtype and a byte offset under DetailSPSSOffset.
+	PULSE_SPSS_EXTENSION_INVALID Code = "PULSE_SPSS_EXTENSION_INVALID"
+
+	// PULSE_SPSS_VERY_LONG_STRING_INVALID indicates the record 7/14 very
+	// long string segmentation could not be reassembled: the record names
+	// a variable the dictionary does not declare, states a width the
+	// scheme cannot express, or the physical variables following the head
+	// segment do not have the widths the declared width implies.
+	//
+	// It is a WARNING. The segmentation record only says how to JOIN
+	// physical variables that are already present, so a fold that cannot
+	// be performed loses no bytes — the physical segments simply surface
+	// as the separate columns the dictionary literally declares, under
+	// their own names. That is visibly wrong rather than quietly wrong,
+	// which is the whole reason it is not a silent skip. Details carry
+	// the subtype under DetailSPSSSubtype, the variable under
+	// DetailSPSSVariable where one was named, and a byte offset under
+	// DetailSPSSOffset.
+	PULSE_SPSS_VERY_LONG_STRING_INVALID Code = "PULSE_SPSS_VERY_LONG_STRING_INVALID"
+
+	// PULSE_SPSS_COMPRESSION_UNSUPPORTED indicates an SPSS `.sav` file
+	// whose dictionary parsed cleanly but whose data section declares an
+	// encoding this reader cannot decode.
+	//
+	// All three encodings the format defines are read today —
+	// uncompressed (header compression flag 0), bytecode compression
+	// (flag 1, the SPSS save default) and ZSAV zlib block compression
+	// (flag 2, what a `.zsav` carries) — so this fires only for a
+	// compression flag the format does not define. It is retained as
+	// the named refusal for a data-section encoding the reader does not
+	// implement, because a data section read under the wrong encoding
+	// produces plausible-looking garbage and silently wrong numbers are
+	// worse than no numbers. Details carry "data" under
+	// DetailSPSSRecord and the first byte of the data section under
+	// DetailSPSSOffset.
+	PULSE_SPSS_COMPRESSION_UNSUPPORTED Code = "PULSE_SPSS_COMPRESSION_UNSUPPORTED"
+
+	// PULSE_SPSS_ZSAV_INVALID indicates an SPSS `.zsav` file whose ZSAV
+	// block index does not describe the file it sits in. The index is
+	// the 24-byte ZHEADER at the head of the data section plus the
+	// ZTRAILER it points at, which carries one 24-byte entry per zlib
+	// block: the block's offset and size both compressed and
+	// uncompressed. The entries must tile the compressed region exactly
+	// — each block starting where the previous one ended, in both
+	// coordinate spaces — and the trailer length must match the block
+	// count it declares.
+	//
+	// It is a hard error because the index is the only thing that says
+	// where a block begins: an entry that disagrees with its neighbours
+	// means the reader would inflate from a byte offset the writer
+	// never wrote a stream at. Details carry "data" under
+	// DetailSPSSRecord, a byte offset under DetailSPSSOffset, and —
+	// where one block is implicated — its 1-based position under
+	// DetailSPSSBlock.
+	PULSE_SPSS_ZSAV_INVALID Code = "PULSE_SPSS_ZSAV_INVALID"
+
+	// PULSE_SPSS_ZSAV_BLOCK_CORRUPT indicates one zlib block of an SPSS
+	// `.zsav` data section could not be inflated, or inflated to a size
+	// other than the one its block-index entry declares. The index
+	// itself was coherent, which is what distinguishes this from
+	// PULSE_SPSS_ZSAV_INVALID: the offsets were right and the bytes at
+	// them are damaged.
+	//
+	// A short or long inflation is as fatal as a zlib failure. The
+	// decompressed blocks are concatenated into one command stream, so
+	// a block that yields the wrong number of bytes shifts every
+	// element after it onto the wrong variable. Details carry "data"
+	// under DetailSPSSRecord, the block's compressed byte offset under
+	// DetailSPSSOffset and its 1-based position under DetailSPSSBlock.
+	PULSE_SPSS_ZSAV_BLOCK_CORRUPT Code = "PULSE_SPSS_ZSAV_BLOCK_CORRUPT"
+
+	// PULSE_SPSS_COMPRESSION_INVALID indicates an SPSS `.sav` file
+	// declares bytecode compression and its command stream is corrupt:
+	// a command that cannot apply to the element position it fell on
+	// (an all-spaces string segment where the dictionary declares a
+	// numeric, or the system-missing sentinel where it declares a
+	// string), or a compression bias the header states as a value
+	// arithmetic cannot use.
+	//
+	// It is distinct from PULSE_SPSS_DATA_TRUNCATED, which is a stream
+	// that ran out of bytes, and from
+	// PULSE_SPSS_COMPRESSION_UNSUPPORTED, which is an encoding this
+	// reader does not implement. This one is a stream that is present,
+	// complete enough to keep reading, and no longer describing the
+	// dictionary that precedes it — so continuing would emit numbers
+	// rather than an error. Details carry "data" under
+	// DetailSPSSRecord and the byte offset of the offending command
+	// under DetailSPSSOffset.
+	PULSE_SPSS_COMPRESSION_INVALID Code = "PULSE_SPSS_COMPRESSION_INVALID"
+
+	// PULSE_SPSS_DATA_TRUNCATED indicates an SPSS `.sav` data section
+	// ends part way through a case: the bytes after the record type 999
+	// terminator are not a whole multiple of the case stride the
+	// dictionary declares. The dictionary itself parsed cleanly, which is
+	// what distinguishes this from PULSE_SPSS_DICT_TRUNCATED. Details
+	// carry "data" under DetailSPSSRecord and the byte offset of the
+	// incomplete case under DetailSPSSOffset.
+	PULSE_SPSS_DATA_TRUNCATED Code = "PULSE_SPSS_DATA_TRUNCATED"
+
+	// PULSE_SPSS_DATA_CASE_COUNT_MISMATCH indicates the number of cases
+	// the data section actually contains disagrees with the count the
+	// file declares — the header ncases field, or the record 7/16 64-bit
+	// count where the file carries one. It is a WARNING: every complete
+	// case present is still read, because discarding readable rows to
+	// honour a writer's miscount would lose data the file plainly
+	// contains. Details carry "data" under DetailSPSSRecord, the byte
+	// offset of the data section under DetailSPSSOffset, and the declared
+	// and actual counts under "declared" and "actual".
+	PULSE_SPSS_DATA_CASE_COUNT_MISMATCH Code = "PULSE_SPSS_DATA_CASE_COUNT_MISMATCH"
+
+	// PULSE_SPSS_CATEGORICAL_OVERFLOW indicates an SPSS variable maps to
+	// a Pulse categorical field whose dictionary would need more entries
+	// than categorical_u32 can hold. It is a hard error, not a warning:
+	// the alternative is dropping values, and a `.pulse` cohort missing
+	// rows of a free-text variable is worse than a refused import.
+	// Details carry the variable under DetailSPSSVariable and the
+	// distinct-value count under DetailSPSSDistinct.
+	PULSE_SPSS_CATEGORICAL_OVERFLOW Code = "PULSE_SPSS_CATEGORICAL_OVERFLOW"
+
+	// PULSE_SPSS_CARDINALITY_HIGH indicates an SPSS variable mapped to a
+	// Pulse categorical field whose distinct-value count is a large
+	// fraction of the case count — the free-text ("other, please
+	// specify") signature. It is a WARNING and never blocks an import:
+	// the mapping is lossless, and the cost is a large inline dictionary
+	// block every read pays for, which is a performance concern rather
+	// than a fidelity one. Details carry the variable under
+	// DetailSPSSVariable, the distinct count under DetailSPSSDistinct and
+	// the case count under DetailSPSSActualCases.
+	PULSE_SPSS_CARDINALITY_HIGH Code = "PULSE_SPSS_CARDINALITY_HIGH"
+
+	// PULSE_SPSS_TEMPORAL_PRECISION indicates an SPSS variable carrying a
+	// date or time print format holds at least one value the matching
+	// Pulse temporal type cannot represent exactly — a fractional second,
+	// a non-finite double, or a second count outside the int64 range —
+	// so the variable was mapped to `f64` raw SPSS seconds instead. It is
+	// a WARNING: the raw seconds are lossless and the original print
+	// format is retained for export, so nothing is discarded; only the
+	// ergonomics of a typed temporal column are. Details carry the
+	// variable under DetailSPSSVariable and the print format type code
+	// under DetailSPSSFormat.
+	PULSE_SPSS_TEMPORAL_PRECISION Code = "PULSE_SPSS_TEMPORAL_PRECISION"
+
+	// PULSE_SPSS_DATE_WIDENED indicates an SPSS variable carrying a
+	// day-resolution print format (DATE / ADATE / EDATE / SDATE / JDATE)
+	// was mapped to `datetime` rather than `date`, because at least one
+	// of its values carries a time of day the day-resolution type would
+	// truncate, or falls before 1970-01-01 — which the unsigned epoch-day
+	// `date` representation cannot express. It is a WARNING: `datetime`
+	// holds every such value exactly and the date-family groupers accept
+	// it by documented day truncation, so the widening costs 4 bytes per
+	// record and nothing else. Details carry the variable under
+	// DetailSPSSVariable and the print format type code under
+	// DetailSPSSFormat.
+	PULSE_SPSS_DATE_WIDENED Code = "PULSE_SPSS_DATE_WIDENED"
+
+	// PULSE_SPSS_VALUE_COLLISION indicates two distinct SPSS values of one
+	// variable resolve to the same Pulse categorical dictionary entry, so
+	// the original-value-to-dictionary-ID mapping is no longer one-to-one
+	// and an export cannot tell which value to re-emit. The reachable
+	// cause is leading whitespace: the shared import path trims every
+	// cell, so " X" and "X" become one entry. It is a WARNING because the
+	// file is otherwise readable, and the recorded code-to-label-to-ID
+	// triple carries both source values against the shared ID so the
+	// collision is visible rather than invisible. Details carry the
+	// variable under DetailSPSSVariable.
+	PULSE_SPSS_VALUE_COLLISION Code = "PULSE_SPSS_VALUE_COLLISION"
+
+	// PULSE_SPSS_MEASURE_LEVEL_MISMATCH indicates an SPSS variable whose
+	// record 7/11 measurement level is `scale` carries value labels and
+	// was therefore mapped to a Pulse categorical field, whose smart
+	// defaults are AGG_FREQUENCY / GROUP_CATEGORY rather than the
+	// AGG_SUM / GROUP_RANGE the declared level implies. It is a WARNING:
+	// the mapping is lossless — every code and label is preserved — but
+	// the analytic defaults will not be the ones the source file's author
+	// declared. Details carry the variable under DetailSPSSVariable.
+	PULSE_SPSS_MEASURE_LEVEL_MISMATCH Code = "PULSE_SPSS_MEASURE_LEVEL_MISMATCH"
+
+	// PULSE_SPSS_NULL_TOKEN_COLLISION indicates an SPSS string value or
+	// value-label key is one of the import pipeline's null sentinel
+	// tokens ("", "NA", "N/A", "NULL", in any case), so cells carrying it
+	// import as null and its dictionary entry is unreachable. It is a
+	// WARNING: an all-blank string is SPSS's own de facto missing-string
+	// convention and reading it as null is intended, but a literal "NA"
+	// stored as data is a real value the shared import path collapses,
+	// and that collapse must be visible. Details carry the variable under
+	// DetailSPSSVariable.
+	PULSE_SPSS_NULL_TOKEN_COLLISION Code = "PULSE_SPSS_NULL_TOKEN_COLLISION"
+
+	// PULSE_SPSS_CHARSET_UNSUPPORTED indicates an SPSS `.sav` file
+	// declares a character encoding this reader cannot decode with — a
+	// name record 7/20 spells that resolves to no known charset, a
+	// record 7/3 character code with no charset behind it (EBCDIC, DEC
+	// Kanji), or a charset that is not an ASCII superset and therefore
+	// cannot carry the format's own space padding and ASCII delimiters.
+	//
+	// It is a HARD error at dictionary parse rather than a warning that
+	// falls back to UTF-8. Decoding bytes with the wrong codepage
+	// produces text that is plausible and wrong, which is the single
+	// failure this reader exists to prevent; a file that cannot be
+	// decoded faithfully must not import at all. Details carry the
+	// declared charset under DetailSPSSCharset.
+	PULSE_SPSS_CHARSET_UNSUPPORTED Code = "PULSE_SPSS_CHARSET_UNSUPPORTED"
+
+	// PULSE_SPSS_CHARSET_INVALID indicates a byte sequence in an SPSS
+	// `.sav` file is not decodable in the charset the file declares —
+	// an undefined byte in a single-byte codepage, or invalid UTF-8 in a
+	// file declaring UTF-8.
+	//
+	// It is an error and never a silent substitution. golang.org/x/text
+	// decoders default to emitting U+FFFD for undecodable input, which
+	// would turn a codepage mismatch into a cohort full of replacement
+	// characters that no later stage could distinguish from real data;
+	// this reader opts out of that behaviour explicitly. Details carry
+	// the declared charset under DetailSPSSCharset and, where the fault
+	// is in a variable's own data or label, the variable under
+	// DetailSPSSVariable.
+	PULSE_SPSS_CHARSET_INVALID Code = "PULSE_SPSS_CHARSET_INVALID"
+
+	// PULSE_SPSS_CHARSET_MISMATCH indicates an SPSS `.sav` file states
+	// its character encoding twice and the two statements disagree: the
+	// record 7/20 NAME resolves to one charset and the record 7/3
+	// character code to another.
+	//
+	// It is a WARNING, and the 7/20 name wins. The name is strictly more
+	// expressive than the number — 7/3 cannot tell ISO-8859-1 from
+	// windows-1252 — and writers routinely leave the legacy numeric
+	// field at an ASCII default while naming the real charset in 7/20.
+	// A 7/3 code of 2 or 3 (ASCII) is therefore NOT a disagreement with
+	// any ASCII-superset name and never raises this. Details carry the
+	// charset actually used under DetailSPSSCharset.
+	//
+	// On the WRITE side it carries the same idea in the other direction:
+	// the emitted file's record 7/20 declares one charset while some
+	// payload it carries is in another. That happens in exactly one
+	// place — the records 7/10, 7/17 and 7/18 whose bytes the reader
+	// retains VERBATIM and never decodes, re-emitted verbatim into a
+	// file the caller asked to be written in a different charset. The
+	// bytes are the authoritative record of what the source said, so
+	// they are still emitted; the disagreement is reported rather than
+	// hidden. Pure-ASCII payloads are not a disagreement, because every
+	// charset this package supports encodes ASCII as itself.
+	PULSE_SPSS_CHARSET_MISMATCH Code = "PULSE_SPSS_CHARSET_MISMATCH"
+
+	// PULSE_SPSS_CHARSET_UNENCODABLE indicates a string held by a
+	// cohort being exported to `.sav` contains a character that has no
+	// representation in the charset the emitted file declares.
+	//
+	// It is the WRITE-side mirror of PULSE_SPSS_CHARSET_INVALID, and it
+	// exists for the same reason: golang.org/x/text will happily be
+	// asked to substitute — encoding.ReplaceUnsupported and the
+	// charmap EncodeRune sentinel 0x1A are both one call away — and a
+	// substituted character is indistinguishable from data once written.
+	// A `.sav` whose windows-1252 label reads "Z?rich" has lost the
+	// name of a city and says nothing about having done so. So the
+	// export stops, naming the variable, the offending value and the
+	// character.
+	//
+	// The usual cause is a cohort that has been edited since it was
+	// imported: text added by a Pulse operation is UTF-8 and need not be
+	// expressible in the legacy codepage the source file declared.
+	// Details carry the target charset under DetailSPSSCharset, the
+	// variable under DetailSPSSVariable where the fault is inside one,
+	// and the offending value under DetailSPSSValue.
+	PULSE_SPSS_CHARSET_UNENCODABLE Code = "PULSE_SPSS_CHARSET_UNENCODABLE"
+
+	// PULSE_SPSS_WIDTH_OVERFLOW indicates a string being written to a
+	// `.sav` does not fit the fixed-width field the format gives it,
+	// after it has been encoded into the emitted file's charset.
+	//
+	// SPSS widths are BYTE counts, never rune counts, so transcoding
+	// changes them: "Zürich" is six bytes in windows-1252 and seven in
+	// UTF-8. The writer therefore recomputes every declared width from
+	// the ENCODED bytes, and a value variable widens to fit. This code
+	// is what is left when widening is not available — a field whose
+	// width the format fixes:
+	//
+	//   - a string variable past the 32767-byte ceiling SPSS puts on one;
+	//   - a record type 2 short name past eight bytes;
+	//   - a value label past the 255 bytes its one-byte length field can
+	//     count;
+	//   - the 64-byte header file label, or an 80-byte record type 6
+	//     document line.
+	//
+	// It is an ERROR and never a truncation. Cutting a fixed-width field
+	// to fit would silently drop the tail of a value — and, with a
+	// multi-byte charset, would leave a half-character on the wire that
+	// no reader can decode. Details carry the variable under
+	// DetailSPSSVariable where one is at fault, the required byte width
+	// under DetailSPSSWidth, the available width under
+	// DetailSPSSDeclaredWidth and the target charset under
+	// DetailSPSSCharset.
+	PULSE_SPSS_WIDTH_OVERFLOW Code = "PULSE_SPSS_WIDTH_OVERFLOW"
+
+	// PULSE_SPSS_NAME_INVALID indicates a name being written into a `.sav`
+	// dictionary is not one SPSS can carry: it is empty, it is past the
+	// 64-byte ceiling once encoded in the emitted file's charset, it opens
+	// with something other than a letter, '@', '#' or '$', it carries a
+	// character outside the letters, digits and '.', '_', '$', '#', '@' an
+	// SPSS name is drawn from, or it ends with '.'.
+	//
+	// It is a WRITE-side boundary with no read-side twin, because Pulse
+	// names are permissive and SPSS names are not: `.pulse` validates
+	// nothing about a field name, so a cohort produced by synth, by a CSV
+	// import or by a processing run can carry a name no `.sav` can express,
+	// and nothing before this point would have noticed.
+	//
+	// It is a refusal rather than a rename because every way an illegal
+	// name fails is QUIET. Record 7/13 is a tab-separated list of
+	// `SHORT=LONG` pairs with no escape, so a name carrying '=' or a tab
+	// re-parses as a different, shorter pair list and some other variable
+	// silently acquires this one's name; record 7/7 is space-separated over
+	// the same namespace, so a space inside a name splits one set member
+	// into two that do not exist. Neither produces an unreadable file — both
+	// produce a well-formed one that says something the cohort did not.
+	//
+	// Non-ASCII letters are NOT rejected: SPSS in UTF-8 mode accepts them,
+	// and a file this reader has just read back can legitimately hold one.
+	// Neither are SPSS's reserved syntax keywords (ALL, BY, TO, WITH, …),
+	// which restrict the command language and not the file format. Details
+	// carry the offending name under DetailSPSSVariable and, when one
+	// column owns it, the cohort field under DetailSPSSField.
+	PULSE_SPSS_NAME_INVALID Code = "PULSE_SPSS_NAME_INVALID"
+
+	// PULSE_SPSS_NAME_COLLISION indicates two variables an SPSS export
+	// would emit answer to one name. SPSS variable names are unique
+	// without regard to case, so `Region` and `REGION` are one name and
+	// the second record 7/13 mapping for it is dropped — leaving a column
+	// in the file that no name reaches.
+	//
+	// It also covers the same fault one level down: two variables sharing
+	// an eight-byte record type 2 SHORT name, which records 7/5, 7/7, 7/14
+	// and 7/19 all key by, so each of those records would name only one of
+	// the two.
+	//
+	// It is distinct from PULSE_SPSS_DERIVED_NAME_COLLISION, which is the
+	// IMPORT-side collision between a generated `<var>_missing` sibling and
+	// a variable the source file already declares. This one is about the
+	// file being written. Details name both sides: the offending name under
+	// DetailSPSSVariable and the variable that claimed it first under
+	// DetailSPSSCollidesWith.
+	PULSE_SPSS_NAME_COLLISION Code = "PULSE_SPSS_NAME_COLLISION"
+
+	// PULSE_SPSS_COLUMN_UNMAPPED indicates an SPSS export found a cohort
+	// column that no emitted variable is written from and that the metadata
+	// sidecar's derived-column registry does not account for — a column
+	// about to leave the export silently, carried in the `.pulse` file and
+	// absent from the `.sav`.
+	//
+	// The registry is what makes the distinction decidable. An import
+	// synthesises columns the source dictionary never declared — a
+	// `<var>_missing` reason sibling and a multiple-dichotomy `set_*`
+	// convenience column — and those are CONSUMED on the way back out
+	// rather than emitted. Every one of them is named in the sidecar's
+	// `derived` block, so a column that is unbound and not in that block is
+	// not a derived column: it is data, and dropping it would be the quiet
+	// loss this export path exists to refuse.
+	//
+	// Details name the cohort field under DetailSPSSField, the cohort under
+	// DetailSPSSCohort and the sidecar under DetailSPSSSidecar.
+	PULSE_SPSS_COLUMN_UNMAPPED Code = "PULSE_SPSS_COLUMN_UNMAPPED"
+
+	// PULSE_SPSS_DERIVED_UNFOLDABLE indicates the metadata sidecar's
+	// derived-column registry describes a column an export cannot fold back
+	// into the file it came from.
+	//
+	// Four shapes reach it. The entry's `kind` is outside the vocabulary
+	// this binary knows — a document written by a NEWER import, describing
+	// a column whose fold-back is genuinely unknown, where both available
+	// guesses (emit it as a variable, or drop it) are silent data faults.
+	// The entry is under-populated for its kind: a `numeric_missing` entry
+	// without its `reasons` dictionary cannot restore a missing code
+	// without re-deriving the mapping and hoping it lands where the import
+	// did. The entry names a source column that no emitted variable is
+	// written from, so consuming the derived column would discard what it
+	// held. Or the entry names a column the export is ALSO emitting as a
+	// variable, which is a document disagreeing with itself about whether
+	// that column is synthetic.
+	//
+	// It is a refusal for the reason the registry exists: treating a
+	// derived column as real emits a phantom variable the source never had,
+	// and treating a real one as derived drops a respondent's data. Neither
+	// is visible in the output file. Details name the derived column under
+	// DetailSPSSDerived, its source under DetailSPSSVariable where the
+	// entry has one, and the sidecar under DetailSPSSSidecar.
+	PULSE_SPSS_DERIVED_UNFOLDABLE Code = "PULSE_SPSS_DERIVED_UNFOLDABLE"
+
+	// PULSE_SPSS_EXPORT_UNSUPPORTED indicates something in a cohort has
+	// no honest `.sav` representation, so the export stops rather than
+	// writing a file that says something the cohort did not.
+	//
+	// It was minted for a blunter claim — "Pulse cannot write .sav at
+	// all" — which stopped being true when E5-S6 mounted the writer. It
+	// is REPURPOSED rather than retired, on the same grounds E3-S2 kept
+	// PULSE_SPSS_COMPRESSION_UNSUPPORTED: the code is already load-
+	// bearing inside the writer, where it is the standing answer to "this
+	// column cannot be expressed", and removing a code has a wider blast
+	// radius (manifest golden, doc sites, an embedder-visible lookup
+	// surface) than re-aiming one.
+	//
+	// What raises it today:
+	//
+	//   - A `set_*` column with an empty dictionary: a response set with
+	//     no member variable to name (dict_synth.go).
+	//   - A value with no writable form — a dictionary ID the plan
+	//     records no SPSS code for, or an ID two source values collapsed
+	//     onto (data_write.go).
+	//   - A rendered ROW stream handed to the `.sav` writer with no
+	//     cohort behind it and no schema to rebuild one from. The writer
+	//     encodes from a cohort's raw storage, never from cell text; see
+	//     io/spss's Writer.
+	//
+	// Details name the offending column under DetailSPSSVariable where
+	// there is one, and carry the requested format under "format" plus
+	// the output path under "output_path" on the dispatch arm.
+	PULSE_SPSS_EXPORT_UNSUPPORTED Code = "PULSE_SPSS_EXPORT_UNSUPPORTED"
+
+	// PULSE_SPSS_DERIVED_NAME_COLLISION indicates the `<var>_missing`
+	// sibling column an SPSS import would generate for a user-missing
+	// specification carries the same name as a variable the file already
+	// declares.
+	//
+	// It is a hard error rather than a rename because both alternatives
+	// lose: emitting two fields of one name produces a cohort whose
+	// columns cannot be addressed unambiguously, and silently renaming
+	// one produces a column whose name no consumer — including this
+	// package's own export path, which drops derived columns and keeps
+	// real ones — can map back to its source. SPSS variable names are
+	// case-insensitive, so the comparison is too.
+	//
+	// Details name both sides: the generated sibling under
+	// DetailSPSSDerived, the source variable it was derived from under
+	// DetailSPSSVariable, and the colliding real variable under
+	// DetailSPSSCollidesWith. Fix it by renaming the real variable in
+	// SPSS, or by importing with --spss-missing=null, which suppresses
+	// the sibling entirely at the cost of the missing REASON.
+	PULSE_SPSS_DERIVED_NAME_COLLISION Code = "PULSE_SPSS_DERIVED_NAME_COLLISION"
+
+	// PULSE_SPSS_MISSING_MODE_INVALID indicates a caller asked for a
+	// user-missing handling mode that does not exist — a
+	// --spss-missing / format.ReaderOptions.SPSSMissing value other than
+	// "auto" or "null".
+	//
+	// It is a refusal rather than a fall back to the default because the
+	// two modes produce different cohorts: "auto" carries a
+	// `<var>_missing` sibling per user-missing variable and "null" does
+	// not, so silently substituting one for a typo of the other would
+	// hand the caller a schema they did not ask for. Details carry the
+	// offending value under DetailSPSSMissingMode.
+	PULSE_SPSS_MISSING_MODE_INVALID Code = "PULSE_SPSS_MISSING_MODE_INVALID"
+
+	// PULSE_SPSS_CATEGORICAL_USER_MISSING indicates one or more SPSS
+	// variables that mapped to a Pulse categorical column declare
+	// user-missing codes, and those codes were kept as ORDINARY
+	// dictionary entries rather than nulled or moved to a sibling.
+	//
+	// It is informational and never blocks an import: nothing was lost
+	// and nothing was changed. It exists because the loss it prevents is
+	// downstream rather than at import time — a percentage base computed
+	// over a coded question silently includes its "Refused" category
+	// unless the analyst excludes it, and an analyst who cannot see WHICH
+	// entry is the refusal cannot write that exclusion. The Pulse
+	// dictionary holds the SPSS CODES, so the value to exclude is "9",
+	// never "Refused".
+	//
+	// One diagnostic covers the whole file rather than one per variable:
+	// an all-categorical survey can have a missing code on every one of
+	// hundreds of variables, and a warning per variable would bury the
+	// signal it exists to carry. Details name every flagged variable and
+	// its flagged dictionary entries under DetailSPSSMissingCategories,
+	// and the count of flagged variables under DetailSPSSDistinct.
+	PULSE_SPSS_CATEGORICAL_USER_MISSING Code = "PULSE_SPSS_CATEGORICAL_USER_MISSING"
+
+	// PULSE_SPSS_MR_SET_NOT_DERIVED indicates an SPSS multiple-DICHOTOMY
+	// response set could not be given the derived `set_*` convenience
+	// column the mapping normally emits for one, and names why.
+	//
+	// It is a WARNING and never blocks an import, and that is a property
+	// of the mapping rather than a tolerance: the derived column is
+	// additive. Every constituent variable of the set is imported as its
+	// own ordinary column whether or not the set derives, so a set that
+	// does not derive costs ergonomics and never fidelity — there is
+	// nothing to lose by carrying on, and refusing the file would throw
+	// away data to protect a convenience.
+	//
+	// The reasons are all statements about what a Pulse `set_*` column
+	// can hold: more than the 64 constituents a set_u64 bitmask has bits
+	// for; a member variable no record type 2 declares; the same variable
+	// named twice, which would need one bit to be two; a counted value
+	// that will not compare against a numeric member; or a constituent
+	// whose Pulse field name cannot survive as a set dictionary entry —
+	// one containing the set-token delimiter "|", or one that IS a null
+	// sentinel token ("NA", "N/A", "NULL"), either of which would make
+	// the cell text ambiguous on the shared import path.
+	//
+	// Details name the set under DetailSPSSSet (including its leading
+	// '$'), the member count under DetailSPSSDistinct, and, where one
+	// member is at fault, that member under DetailSPSSVariable.
+	PULSE_SPSS_MR_SET_NOT_DERIVED Code = "PULSE_SPSS_MR_SET_NOT_DERIVED"
+
+	// PULSE_SPSS_SIDECAR_ABSENT indicates an SPSS export found no
+	// metadata sidecar (`<cohort>.spss.json`) beside the cohort it was
+	// asked to write, so it will synthesise a default SPSS dictionary
+	// from the `.pulse` schema alone.
+	//
+	// It is a WARNING and never blocks an export. A cohort that was
+	// never SPSS-derived — synth output, a CSV import, a processed
+	// result — correctly has no sidecar, and that is the ordinary case
+	// rather than an error condition. What is lost is only what the
+	// `.pulse` schema cannot restate: value labels, measure levels,
+	// print/write formats, missing-value specifications, response-set
+	// definitions and the original short names. The columns and their
+	// data are unaffected.
+	//
+	// It is deliberately NOT the same condition as
+	// PULSE_SPSS_SIDECAR_STALE. Absent is benign; stale is the single
+	// highest-fidelity-risk state available, because applying an
+	// out-of-date dictionary to changed data produces a `.sav` that
+	// looks authoritative and is wrong. Collapsing the two into one
+	// warning is exactly the conflation this pair exists to prevent.
+	//
+	// Details carry the cohort path under DetailSPSSCohort and the
+	// sidecar path that was looked for under DetailSPSSSidecar.
+	PULSE_SPSS_SIDECAR_ABSENT Code = "PULSE_SPSS_SIDECAR_ABSENT"
+
+	// PULSE_SPSS_SIDECAR_STALE indicates an SPSS export found a metadata
+	// sidecar whose fingerprint no longer matches the cohort it
+	// describes: the cohort's byte size or modification time has moved
+	// since the sidecar was written, so the two are out of step.
+	//
+	// It is an ERROR, and the asymmetry with PULSE_SPSS_SIDECAR_ABSENT
+	// is the point. A stale sidecar still holds a complete, plausible
+	// SPSS dictionary — value codes, labels, missing-value
+	// specifications, response-set definitions — and applying it to a
+	// cohort whose columns or dictionaries have since changed yields a
+	// `.sav` in which `IF q1 EQ 5` addresses a category that is no
+	// longer there. The output carries every mark of authority and none
+	// of the correctness, and nothing downstream can detect it. Refusing
+	// to write is the only safe answer; there is no partial application
+	// and no silent fallback to defaults.
+	//
+	// The read-path check that raises it is the same cheap O(1) size +
+	// mtime comparison PULSE_INDEX_STALE uses, chosen for the same
+	// reason: hashing a multi-GB cohort on every export would cost more
+	// than the export. It has the same residual gap — an in-place edit
+	// preserving BOTH size and mtime goes unnoticed — and the same
+	// authoritative answer, a full SHA-256 recompute against the
+	// fingerprint the sidecar carries.
+	//
+	// Details carry the cohort path under DetailSPSSCohort, the sidecar
+	// path under DetailSPSSSidecar, and the mismatching pair under
+	// DetailSPSSExpected / DetailSPSSActual so a caller can see which of
+	// size and mtime moved.
+	PULSE_SPSS_SIDECAR_STALE Code = "PULSE_SPSS_SIDECAR_STALE"
+
+	// PULSE_SPSS_SIDECAR_INVALID indicates a file exists at the metadata
+	// sidecar's path but is not a sidecar this binary can read: it is
+	// not valid JSON, its `kind` is not "spss", its `format_version` is
+	// not one this binary understands, its fingerprint is not a
+	// well-formed digest, or a parallel array inside it violates the
+	// length contract its consumers index against.
+	//
+	// It is an ERROR for the same reason PULSE_SPSS_SIDECAR_STALE is:
+	// the file's presence is a statement that this cohort HAS source
+	// metadata, and proceeding as though it did not would silently
+	// substitute a synthesised default dictionary for the real one. It
+	// is held apart from _STALE because the fix is different — a stale
+	// sidecar is repaired by re-importing the source, an invalid one by
+	// finding out what wrote the file.
+	//
+	// A `format_version` this binary does not recognise lands here
+	// deliberately rather than being read optimistically: a document
+	// written by a newer Pulse may have moved a slot this one indexes,
+	// and misreading a dictionary is worse than declining it.
+	//
+	// Details carry the cohort path under DetailSPSSCohort and the
+	// sidecar path under DetailSPSSSidecar.
+	PULSE_SPSS_SIDECAR_INVALID Code = "PULSE_SPSS_SIDECAR_INVALID"
+
+	// PULSE_SPSS_SIDECAR_IGNORED indicates a metadata sidecar exists
+	// beside the cohort and the caller explicitly asked for it not to be
+	// read (`--ignore-sidecar` / spss.WriterOptions.IgnoreSidecar), so
+	// the export is synthesising a default SPSS dictionary from the
+	// `.pulse` schema alone.
+	//
+	// It is a WARNING: an explicit instruction is not an error
+	// condition. It exists as its own code rather than reusing
+	// PULSE_SPSS_SIDECAR_ABSENT because the two states are genuinely
+	// different — one cohort has no source metadata, the other has some
+	// and is not using it — and a diagnostic that said "no sidecar
+	// found" about a file sitting right there would be false.
+	//
+	// It is also the downgrade target for both sidecar refusals: with
+	// the flag set, a stale or invalid sidecar produces this warning and
+	// the synthesised-default path instead of PULSE_SPSS_SIDECAR_STALE /
+	// PULSE_SPSS_SIDECAR_INVALID. That is the escape hatch's whole
+	// purpose, which is also why the flag suppresses the READ rather
+	// than only the staleness verdict: a caller who has opted out of the
+	// sidecar gets the same output whatever state the file is in, and an
+	// unreadable one cannot block them.
+	//
+	// Details carry the cohort path under DetailSPSSCohort and the
+	// sidecar path under DetailSPSSSidecar — and deliberately NOT which
+	// refusal, if any, was silenced: because the flag skips the READ,
+	// nothing on this path knows whether the file was stale, invalid or
+	// perfectly healthy, and a detail that could only be guessed at
+	// would be worse than an absent one.
+	PULSE_SPSS_SIDECAR_IGNORED Code = "PULSE_SPSS_SIDECAR_IGNORED"
+
+	// PULSE_SPSS_NAME_SANITIZED is the WARNING that accompanies
+	// --sanitize-names: one or more cohort field names could not be an
+	// SPSS variable name and were rewritten so the export could proceed.
+	//
+	// It exists because the rewrite is opt-in but must never be silent.
+	// The default is still the PULSE_SPSS_NAME_INVALID refusal — mangling
+	// a caller's column names behind their back is worse than stopping —
+	// and this warning is what makes the opt-in honest: every rename is
+	// reported, so a consumer reading the emitted file can map its
+	// variables back to the cohort's fields.
+	//
+	// It is raised only on the SYNTHESISED dictionary path. A
+	// sidecar-driven export re-emits names that came FROM an SPSS file
+	// and are legal by construction, so there is nothing to rewrite.
+	//
+	// Details carry every rename under DetailSPSSRenames as an ordered
+	// list of {"field","name"} objects, in cohort schema order.
+	PULSE_SPSS_NAME_SANITIZED Code = "PULSE_SPSS_NAME_SANITIZED"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -1235,6 +1947,181 @@ const (
 	// the offending variable on the variable-scoped members of the
 	// PULSE_TEMPLATE_* family.
 	DetailVariable = "variable"
+)
+
+// Detail map keys shared by the PULSE_SPSS_* family. Every SPSS parse
+// error names the record it was reading and the byte offset it was
+// reading at, so a caller can point at the exact spot in the file.
+const (
+	// DetailSPSSRecord is the CodedError.Details key carrying the SPSS
+	// record a PULSE_SPSS_* error was reading: "header", a decimal record
+	// type such as "2" or "999", or "unknown" when the tag itself is the
+	// problem.
+	DetailSPSSRecord = "record_type"
+
+	// DetailSPSSOffset is the CodedError.Details key carrying the 0-based
+	// byte offset into the `.sav` file at which a PULSE_SPSS_* error was
+	// detected.
+	DetailSPSSOffset = "offset"
+
+	// DetailSPSSSubtype is the CodedError.Details key carrying the record
+	// type 7 extension subtype a PULSE_SPSS_EXTENSION_* diagnostic refers
+	// to, as an int32.
+	DetailSPSSSubtype = "subtype"
+
+	// DetailSPSSBlock is the CodedError.Details key carrying the position
+	// of the ZSAV zlib block a PULSE_SPSS_ZSAV_* diagnostic refers to.
+	//
+	// It is 1-BASED, matching the number the message spells and the rest
+	// of the PULSE_SPSS_* family's "item N of M" prose. Subtract one to
+	// index the block-index entries themselves.
+	DetailSPSSBlock = "block"
+
+	// DetailSPSSDeclaredCases is the CodedError.Details key carrying the
+	// case count an SPSS `.sav` file DECLARES — the header ncases field,
+	// or the record 7/16 64-bit count where one is present.
+	DetailSPSSDeclaredCases = "declared"
+
+	// DetailSPSSActualCases is the CodedError.Details key carrying the
+	// number of whole cases an SPSS `.sav` data section actually holds.
+	// The schema-mapping diagnostics reuse it for the case count a
+	// distinct-value count is measured against.
+	DetailSPSSActualCases = "actual"
+
+	// DetailSPSSVariable is the CodedError.Details key carrying the name
+	// of the SPSS variable a schema-mapping diagnostic refers to. It
+	// deliberately shares the "variable" spelling with DetailVariable —
+	// the two families never appear in the same Details map, and a
+	// caller reading either finds the name where it expects it.
+	DetailSPSSVariable = "variable"
+
+	// DetailSPSSField is the CodedError.Details key carrying the name of
+	// the `.pulse` COHORT FIELD a write-side diagnostic came from.
+	//
+	// It is held apart from DetailSPSSVariable because on the export side
+	// the two are not always the same string: a multiple-dichotomy set
+	// member's variable name is a dictionary ENTRY of the `set_*` column it
+	// was expanded from, so naming only the variable would not say which
+	// cohort column to rename.
+	DetailSPSSField = "cohort_field"
+
+	// DetailSPSSDistinct is the CodedError.Details key carrying the
+	// number of distinct values a variable contributes to a Pulse
+	// categorical dictionary.
+	DetailSPSSDistinct = "distinct"
+
+	// DetailSPSSFormat is the CodedError.Details key carrying the SPSS
+	// print format TYPE CODE (5 = F, 20 = DATE, 22 = DATETIME, and so on)
+	// a schema-mapping diagnostic refers to.
+	DetailSPSSFormat = "format_code"
+
+	// DetailSPSSCharset is the CodedError.Details key carrying the
+	// character encoding a PULSE_SPSS_CHARSET_* diagnostic refers to:
+	// the canonical name the reader resolved where it resolved one, and
+	// the file's own spelling where it did not.
+	DetailSPSSCharset = "charset"
+
+	// DetailSPSSValue is the CodedError.Details key carrying the offending
+	// VALUE a PULSE_SPSS_CHARSET_UNENCODABLE diagnostic refers to: the
+	// whole string that could not be written, so the caller can find the
+	// row that holds it. It is held apart from DetailSPSSVariable, which
+	// names the column the value sits in.
+	DetailSPSSValue = "value"
+
+	// DetailSPSSWidth is the CodedError.Details key carrying the byte
+	// width a value REQUIRES after it has been encoded into the emitted
+	// file's charset. Reported with DetailSPSSDeclaredWidth, which
+	// carries what is available: a single number could not say which of
+	// the two moved.
+	DetailSPSSWidth = "width"
+
+	// DetailSPSSDeclaredWidth is the CodedError.Details key carrying the
+	// byte width a `.sav` field DECLARES or the format fixes it at, the
+	// companion of DetailSPSSWidth.
+	DetailSPSSDeclaredWidth = "declared_width"
+
+	// DetailSPSSDerived is the CodedError.Details key carrying the name
+	// of a DERIVED column — one the import synthesised rather than read
+	// from the file, such as a `<var>_missing` user-missing reason
+	// sibling.
+	DetailSPSSDerived = "derived"
+
+	// DetailSPSSCollidesWith is the CodedError.Details key carrying the
+	// name of the existing variable a derived column's generated name
+	// collides with. It is held apart from DetailSPSSVariable, which
+	// names the variable the derived column was derived FROM: in a
+	// collision those are two different variables and reporting only one
+	// of them would not say what to rename.
+	DetailSPSSCollidesWith = "collides_with"
+
+	// DetailSPSSMissingMode is the CodedError.Details key carrying the
+	// user-missing handling mode a PULSE_SPSS_MISSING_MODE_INVALID
+	// refers to, exactly as the caller spelled it.
+	DetailSPSSMissingMode = "missing_mode"
+
+	// DetailSPSSMissingCategories is the CodedError.Details key carrying
+	// the user-missing dictionary entries of every CATEGORICAL column a
+	// PULSE_SPSS_CATEGORICAL_USER_MISSING diagnostic covers: a
+	// map[string][]string of Pulse field name to the dictionary entry
+	// texts that are missing-coded, in dictionary ID order.
+	//
+	// The entry texts are what an exclusion filter takes verbatim —
+	// FILTER_EXCLUDE resolves its Values through the field's dictionary,
+	// which holds the SPSS CODES — so this is the value to exclude and
+	// not the label to read.
+	DetailSPSSMissingCategories = "missing_categories"
+
+	// DetailSPSSSet is the CodedError.Details key carrying the name of
+	// the SPSS multiple-response set a diagnostic refers to, INCLUDING
+	// its leading '$'.
+	//
+	// The '$' is kept because the set name is the identity of the
+	// definition in the source file and in the metadata sidecar's
+	// multiple_response_sets block. The DERIVED Pulse column drops it —
+	// a leading '$' is not a legal expr-lang identifier, so a field named
+	// "$media" would be unreachable from ATTR_FORMULA — and that name
+	// travels under DetailSPSSDerived instead. Reporting only one of the
+	// two would leave a reader unable to connect the column to its
+	// declaration.
+	DetailSPSSSet = "response_set"
+
+	// DetailSPSSCohort is the CodedError.Details key carrying the path
+	// of the `.pulse` COHORT a PULSE_SPSS_SIDECAR_* diagnostic refers
+	// to. It is held apart from DetailSPSSSidecar because a sidecar
+	// diagnostic is always about a RELATIONSHIP between two files, and
+	// naming only one of them would not say what to look at.
+	DetailSPSSCohort = "cohort"
+
+	// DetailSPSSSidecar is the CodedError.Details key carrying the path
+	// of the metadata SIDECAR a PULSE_SPSS_SIDECAR_* diagnostic refers
+	// to — derived from the cohort path by SidecarPath, and reported
+	// even for PULSE_SPSS_SIDECAR_ABSENT, where it is the path that was
+	// looked for and found empty.
+	DetailSPSSSidecar = "sidecar"
+
+	// DetailSPSSExpected is the CodedError.Details key carrying the
+	// fingerprint values a metadata sidecar RECORDED for its cohort: a
+	// map of "size" and "mod_time" as they stood when the sidecar was
+	// written.
+	DetailSPSSExpected = "expected_fingerprint"
+
+	// DetailSPSSActual is the CodedError.Details key carrying the
+	// fingerprint values the cohort presents NOW, in the same shape as
+	// DetailSPSSExpected. The pair is reported rather than a single
+	// boolean verdict so a caller can see WHICH of size and mtime moved,
+	// which is what distinguishes a rewritten cohort from a touched one.
+	DetailSPSSActual = "actual_fingerprint"
+
+	// DetailSPSSRenames is the CodedError.Details key carrying every
+	// variable rename --sanitize-names performed, as an ordered list of
+	// {"field": <cohort field name>, "name": <emitted SPSS name>}
+	// objects in cohort schema order.
+	//
+	// It is a LIST of pairs rather than a field->name map because the
+	// prose caps how many it names and the details must not: a cohort
+	// whose every column carries a space would otherwise report a
+	// truncated list as if it were the whole of it.
+	DetailSPSSRenames = "renames"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1413,6 +2300,47 @@ var allCodes = []Code{
 	PULSE_TEMPLATE_VAR_ENUM,
 	PULSE_TEMPLATE_UNRESOLVED,
 	PULSE_TEMPLATE_RENDER_INVALID,
+	PULSE_SPSS_DICT_INVALID,
+	PULSE_SPSS_DICT_TRUNCATED,
+	PULSE_SPSS_FILE_EMPTY,
+	PULSE_SPSS_ENDIANNESS_MISMATCH,
+	PULSE_SPSS_MAGIC_FLAG_MISMATCH,
+	PULSE_SPSS_VALUE_LABELS_DROPPED,
+	PULSE_SPSS_EXTENSION_UNKNOWN,
+	PULSE_SPSS_EXTENSION_INVALID,
+	PULSE_SPSS_VERY_LONG_STRING_INVALID,
+	PULSE_SPSS_COMPRESSION_UNSUPPORTED,
+	PULSE_SPSS_COMPRESSION_INVALID,
+	PULSE_SPSS_ZSAV_INVALID,
+	PULSE_SPSS_ZSAV_BLOCK_CORRUPT,
+	PULSE_SPSS_DATA_TRUNCATED,
+	PULSE_SPSS_DATA_CASE_COUNT_MISMATCH,
+	PULSE_SPSS_CATEGORICAL_OVERFLOW,
+	PULSE_SPSS_CARDINALITY_HIGH,
+	PULSE_SPSS_TEMPORAL_PRECISION,
+	PULSE_SPSS_DATE_WIDENED,
+	PULSE_SPSS_VALUE_COLLISION,
+	PULSE_SPSS_MEASURE_LEVEL_MISMATCH,
+	PULSE_SPSS_NULL_TOKEN_COLLISION,
+	PULSE_SPSS_CHARSET_UNSUPPORTED,
+	PULSE_SPSS_CHARSET_INVALID,
+	PULSE_SPSS_CHARSET_MISMATCH,
+	PULSE_SPSS_CHARSET_UNENCODABLE,
+	PULSE_SPSS_WIDTH_OVERFLOW,
+	PULSE_SPSS_NAME_INVALID,
+	PULSE_SPSS_NAME_COLLISION,
+	PULSE_SPSS_COLUMN_UNMAPPED,
+	PULSE_SPSS_DERIVED_UNFOLDABLE,
+	PULSE_SPSS_EXPORT_UNSUPPORTED,
+	PULSE_SPSS_DERIVED_NAME_COLLISION,
+	PULSE_SPSS_MISSING_MODE_INVALID,
+	PULSE_SPSS_CATEGORICAL_USER_MISSING,
+	PULSE_SPSS_MR_SET_NOT_DERIVED,
+	PULSE_SPSS_SIDECAR_ABSENT,
+	PULSE_SPSS_SIDECAR_STALE,
+	PULSE_SPSS_SIDECAR_INVALID,
+	PULSE_SPSS_SIDECAR_IGNORED,
+	PULSE_SPSS_NAME_SANITIZED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

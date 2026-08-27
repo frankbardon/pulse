@@ -27,6 +27,7 @@ const (
 	FieldTypeSetU16                          // 14 (≤16 members)
 	FieldTypeSetU32                          // 15 (≤32 members)
 	FieldTypeSetU64                          // 16 (≤64 members)
+	FieldTypeDateTime                        // 17 (epoch seconds, 8-byte u64)
 
 	fieldTypeCount // sentinel
 )
@@ -42,7 +43,7 @@ func (ft FieldType) ByteSize() int {
 		return 2
 	case FieldTypeU32, FieldTypeF32, FieldTypeDate, FieldTypeCategoricalU32, FieldTypeSetU32:
 		return 4
-	case FieldTypeU64, FieldTypeF64, FieldTypeSetU64:
+	case FieldTypeU64, FieldTypeF64, FieldTypeSetU64, FieldTypeDateTime:
 		return 8
 	case FieldTypeDecimal128:
 		return 16
@@ -90,6 +91,8 @@ func (ft FieldType) String() string {
 		return "set_u32"
 	case FieldTypeSetU64:
 		return "set_u64"
+	case FieldTypeDateTime:
+		return "datetime"
 	default:
 		return fmt.Sprintf("unknown(%d)", ft)
 	}
@@ -137,6 +140,8 @@ func ParseFieldType(name string) (FieldType, bool) {
 		return FieldTypeSetU32, true
 	case "set_u64":
 		return FieldTypeSetU64, true
+	case "datetime":
+		return FieldTypeDateTime, true
 	}
 	return 0, false
 }
@@ -169,14 +174,15 @@ func (ft FieldType) IsBitPacked() bool {
 // number math on a single column and wants to refuse anything bit-packed.
 //
 // IsNumericForAnalytics — the analytics layer's broader view. Includes
-// the bit-packed integer encodings and date. Aggregators, regressions,
-// and any other operator that consumes values via Record.NumericValue
-// should use this predicate.
+// the bit-packed integer encodings plus date and datetime. Aggregators,
+// regressions, and any other operator that consumes values via
+// Record.NumericValue should use this predicate.
 
 // IsNumeric reports whether the field type is a strict scalar number:
 // the unsigned-integer family (u8/u16/u32/u64), the float family
-// (f32/f64), and decimal128. Date and bit-packed integer encodings are
-// excluded — see IsNumericForAnalytics for the analytics-layer predicate.
+// (f32/f64), and decimal128. Date, datetime, and bit-packed integer
+// encodings are excluded — see IsNumericForAnalytics for the
+// analytics-layer predicate.
 func (ft FieldType) IsNumeric() bool {
 	if ft.IsDecimal() {
 		return true
@@ -192,9 +198,10 @@ func (ft FieldType) IsNumeric() bool {
 // IsNumericForAnalytics reports whether the field type carries a meaningful
 // scalar value for numeric analytics (regression, sum/avg/stddev/min/max/
 // variance aggregators). The set is broader than IsNumeric: bit-packed
-// integer encodings (u4, packed_bool) and date are included because their
-// stored representation is an ordinal / cardinal number the analytics layer
-// can average, sum, or regress without an explicit ATTR_FORMULA cast.
+// integer encodings (u4, packed_bool) plus date (epoch days) and datetime
+// (epoch seconds) are included because their stored representation is an
+// ordinal / cardinal number the analytics layer can average, sum, or
+// regress without an explicit ATTR_FORMULA cast.
 //
 // Null exclusion is the reader's responsibility: the per-record null
 // bitmap marks any field index as null at decode time so the downstream
@@ -205,7 +212,7 @@ func (ft FieldType) IsNumericForAnalytics() bool {
 		return true
 	}
 	switch ft {
-	case FieldTypeDate, FieldTypeU4, FieldTypePackedBool:
+	case FieldTypeDate, FieldTypeDateTime, FieldTypeU4, FieldTypePackedBool:
 		return true
 	}
 	return false

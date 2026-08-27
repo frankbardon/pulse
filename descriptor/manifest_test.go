@@ -110,9 +110,25 @@ func TestManifestIncludesCohortTypes(t *testing.T) {
 		t.Fatal("CohortTypes is empty")
 	}
 
-	// Must have 17 field types — the original 13 plus set_u8/u16/u32/u64.
-	if len(m.CohortTypes) != 17 {
-		t.Errorf("CohortTypes count = %d, want 17", len(m.CohortTypes))
+	// Must have 18 field types — the original 13, plus
+	// set_u8/u16/u32/u64, plus datetime.
+	if len(m.CohortTypes) != 18 {
+		t.Errorf("CohortTypes count = %d, want 18", len(m.CohortTypes))
+	}
+
+	// The walk is registry-bounded, so a newly registered field type
+	// must appear here without anyone remembering to bump a literal.
+	// Assert datetime specifically — it is the type a hardcoded bound
+	// silently dropped.
+	found := false
+	for _, ft := range m.CohortTypes {
+		if ft.Name == "datetime" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("CohortTypes missing datetime")
 	}
 
 	// Check that categorical fields are marked.

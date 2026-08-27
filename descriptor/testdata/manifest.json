@@ -467,6 +467,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -513,6 +514,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -564,6 +566,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -827,6 +830,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -893,6 +897,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -1076,6 +1081,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -1797,6 +1803,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2040,10 +2047,11 @@
         {
           "name": "FILTER_DATE_RANGES",
           "category": "filterer",
-          "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). Null dates and out-of-range rows are dropped.",
+          "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). A datetime field is truncated to the UTC calendar day containing its instant before matching. Null dates and out-of-range rows are dropped.",
           "params": null,
           "accepts_types": [
-            "date"
+            "date",
+            "datetime"
           ],
           "emits_type_note": "record-level predicate (no emitted column)",
           "streamable": true,
@@ -2078,6 +2086,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2129,6 +2138,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2180,6 +2190,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2231,6 +2242,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2282,6 +2294,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2510,6 +2523,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2563,6 +2577,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -2612,7 +2627,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). A datetime field is truncated to the UTC calendar day containing its instant before bucketing. Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -2638,7 +2653,8 @@
             }
           ],
           "accepts_types": [
-            "date"
+            "date",
+            "datetime"
           ],
           "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1)",
           "streamable": false,
@@ -2687,7 +2703,7 @@
         {
           "name": "GROUP_DATE_RANGES",
           "category": "grouper",
-          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order.",
+          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is truncated to the UTC calendar day containing its instant before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order.",
           "params": [
             {
               "name": "ranges",
@@ -2704,7 +2720,8 @@
             }
           ],
           "accepts_types": [
-            "date"
+            "date",
+            "datetime"
           ],
           "emits_type_note": "labeled range key per row (the matching range's label, or the unmatched label)",
           "streamable": true,
@@ -3032,6 +3049,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -3230,6 +3248,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -3265,6 +3284,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -3566,6 +3586,7 @@
             "categorical_u32",
             "categorical_u8",
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -4938,7 +4959,7 @@
         ]
       }
     ],
-    "error_codes_count": 167,
+    "error_codes_count": 208,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5081,6 +5102,47 @@
       "PULSE_SHARD_NAME_COLLISION",
       "PULSE_SHARD_RESERVED_NAME",
       "PULSE_SHARD_SCHEMA_MISMATCH",
+      "PULSE_SPSS_CARDINALITY_HIGH",
+      "PULSE_SPSS_CATEGORICAL_OVERFLOW",
+      "PULSE_SPSS_CATEGORICAL_USER_MISSING",
+      "PULSE_SPSS_CHARSET_INVALID",
+      "PULSE_SPSS_CHARSET_MISMATCH",
+      "PULSE_SPSS_CHARSET_UNENCODABLE",
+      "PULSE_SPSS_CHARSET_UNSUPPORTED",
+      "PULSE_SPSS_COLUMN_UNMAPPED",
+      "PULSE_SPSS_COMPRESSION_INVALID",
+      "PULSE_SPSS_COMPRESSION_UNSUPPORTED",
+      "PULSE_SPSS_DATA_CASE_COUNT_MISMATCH",
+      "PULSE_SPSS_DATA_TRUNCATED",
+      "PULSE_SPSS_DATE_WIDENED",
+      "PULSE_SPSS_DERIVED_NAME_COLLISION",
+      "PULSE_SPSS_DERIVED_UNFOLDABLE",
+      "PULSE_SPSS_DICT_INVALID",
+      "PULSE_SPSS_DICT_TRUNCATED",
+      "PULSE_SPSS_ENDIANNESS_MISMATCH",
+      "PULSE_SPSS_EXPORT_UNSUPPORTED",
+      "PULSE_SPSS_EXTENSION_INVALID",
+      "PULSE_SPSS_EXTENSION_UNKNOWN",
+      "PULSE_SPSS_FILE_EMPTY",
+      "PULSE_SPSS_MAGIC_FLAG_MISMATCH",
+      "PULSE_SPSS_MEASURE_LEVEL_MISMATCH",
+      "PULSE_SPSS_MISSING_MODE_INVALID",
+      "PULSE_SPSS_MR_SET_NOT_DERIVED",
+      "PULSE_SPSS_NAME_COLLISION",
+      "PULSE_SPSS_NAME_INVALID",
+      "PULSE_SPSS_NAME_SANITIZED",
+      "PULSE_SPSS_NULL_TOKEN_COLLISION",
+      "PULSE_SPSS_SIDECAR_ABSENT",
+      "PULSE_SPSS_SIDECAR_IGNORED",
+      "PULSE_SPSS_SIDECAR_INVALID",
+      "PULSE_SPSS_SIDECAR_STALE",
+      "PULSE_SPSS_TEMPORAL_PRECISION",
+      "PULSE_SPSS_VALUE_COLLISION",
+      "PULSE_SPSS_VALUE_LABELS_DROPPED",
+      "PULSE_SPSS_VERY_LONG_STRING_INVALID",
+      "PULSE_SPSS_WIDTH_OVERFLOW",
+      "PULSE_SPSS_ZSAV_BLOCK_CORRUPT",
+      "PULSE_SPSS_ZSAV_INVALID",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
       "PULSE_TEMPLATE_INVALID",
@@ -5147,7 +5209,7 @@
       },
       {
         "name": "pulse_import",
-        "description": "Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false."
+        "description": "Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. SPSS `.sav` / `.zsav` sources are schema-AUTHORITATIVE: the file's own dictionary supplies every column type, nullability and categorical dictionary ORDER, so inference is skipped entirely — and the cohort's categorical dictionaries hold the SPSS numeric CODES, not the value labels (two codes may share a label, so a label-keyed dictionary would collapse them); resolve labels at output time with a LabelTable. SPSS is now writable too: `pulse export spss` emits a `.sav` from a cohort, reproducing the source dictionary from the metadata sidecar an import wrote beside it. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false.\n\nSPSS read knobs: `charset` overrides the encoding a `.sav` declares about itself and is the ONLY recourse for a file that is wrong about itself — a stale record 7/20 name, or a pre-Unicode file declaring nothing at all, which reads as strict UTF-8 and fails PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte. It is ignored for every other format. There is deliberately NO missing-value mode here: the default is the fidelity-preserving split (numeric user-missing values are null in the analytic column, and a generated `\u003cvar\u003e_missing` sibling records why), and the only alternative discards those siblings — ask for that explicitly with `pulse import spss --spss-missing=null`."
       },
       {
         "name": "pulse_imports_list",
@@ -6117,6 +6179,44 @@
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
+      },
+      {
+        "name": "datetime",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_MODE",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_DATE_RANGES",
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_INCLUDE",
+          "FILTER_NULL",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_DATE",
+          "GROUP_DATE_RANGES"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       }
     ],
     "skills": [
@@ -6130,7 +6230,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Field-type selection for .pulse cohorts — 17 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Field-type selection for .pulse cohorts — 18 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
         "name": "compose-requests",
@@ -6358,7 +6458,7 @@
       },
       {
         "name": "op-filter-date-ranges",
-        "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges."
+        "description": "Keep records whose date/datetime field falls inside any of a validated set of labeled date ranges."
       },
       {
         "name": "op-filter-exclude",
@@ -6410,7 +6510,7 @@
       },
       {
         "name": "op-group-date",
-        "description": "Partition date records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar."
+        "description": "Partition date/datetime records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar."
       },
       {
         "name": "op-group-date-ranges",
@@ -6825,6 +6925,10 @@
         "description": "Canonical MCP session order — manifest once, then examples → predict → process → errors_lookup. Skill-name derivation from operator names. Use first on every new MCP session."
       },
       {
+        "name": "spss-cohorts",
+        "description": "SPSS .sav / .zsav import and .sav writing — the schema-authoritative dictionary, derived columns (\u003cvar\u003e_missing siblings and multiple-dichotomy set_* columns), the numeric-vs-categorical missing-value split, codes-not-labels dictionaries, the metadata sidecar, the dictionary + data-section writer, and the PULSE_SPSS_* diagnostics. Read this when a cohort came from SPSS, when a cohort has more columns than its source file had variables, or when emitting a .sav."
+      },
+      {
         "name": "statistical-testing",
         "description": "Tier-1 (`tests`) vs tier-2 (`post_tests`) pairing, assumption gates, ANOVA + post-hoc composition, p-value conventions. Topical design; per-TEST detail in atomic op-test-* skills."
       },
@@ -6935,6 +7039,10 @@
       {
         "name": "type-date",
         "description": "Day-granularity date stored as epoch days (signed since 1970-01-01)."
+      },
+      {
+        "name": "type-datetime",
+        "description": "Second-granularity instant stored as epoch seconds in an 8-byte unsigned slot, naive UTC."
       },
       {
         "name": "type-decimal128",
@@ -7296,8 +7404,85 @@
           "overlay_support": "sidecar"
         },
         {
+          "name": "spss",
+          "overlay_support": "warn_and_skip"
+        },
+        {
           "name": "tsv",
           "overlay_support": "warn_and_skip"
+        }
+      ]
+    },
+    "import": {
+      "formats": [
+        {
+          "name": "arrow",
+          "extensions": [
+            ".arrow",
+            ".feather"
+          ],
+          "schema_source": "inferred",
+          "export": true
+        },
+        {
+          "name": "csv",
+          "extensions": [
+            ".csv"
+          ],
+          "schema_source": "inferred",
+          "export": true
+        },
+        {
+          "name": "excel",
+          "extensions": [
+            ".xlsx",
+            ".xls"
+          ],
+          "schema_source": "inferred",
+          "export": true
+        },
+        {
+          "name": "jsonarray",
+          "extensions": [
+            ".json"
+          ],
+          "schema_source": "inferred",
+          "export": true
+        },
+        {
+          "name": "ndjson",
+          "extensions": [
+            ".ndjson",
+            ".jsonl"
+          ],
+          "schema_source": "inferred",
+          "export": true
+        },
+        {
+          "name": "parquet",
+          "extensions": [
+            ".parquet",
+            ".pq"
+          ],
+          "schema_source": "inferred",
+          "export": true
+        },
+        {
+          "name": "spss",
+          "extensions": [
+            ".sav",
+            ".zsav"
+          ],
+          "schema_source": "authoritative",
+          "export": true
+        },
+        {
+          "name": "tsv",
+          "extensions": [
+            ".tsv"
+          ],
+          "schema_source": "inferred",
+          "export": true
         }
       ]
     },
@@ -9219,4 +9404,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8319dbaa27e3c86fe1c16ba7065ae1d33e028a8a83818b6d12b1819f8ac55bd3
+// golden-hash: 12b170487a6d17f9d566493069cb13c154db896b7597ab39b0fc950aa56c8faa

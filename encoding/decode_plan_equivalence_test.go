@@ -221,7 +221,7 @@ func perTypeFixtures() []perTypeFixture {
 	// type to exercise within-type coalescing.
 	scalarTypes := []FieldType{
 		FieldTypeU8, FieldTypeU16, FieldTypeU32, FieldTypeU64,
-		FieldTypeF32, FieldTypeF64, FieldTypeDate,
+		FieldTypeF32, FieldTypeF64, FieldTypeDate, FieldTypeDateTime,
 	}
 	for _, ft := range scalarTypes {
 		ft := ft
@@ -450,6 +450,10 @@ func scalarGenValues(r *rand.Rand, idx int, ft FieldType, numericFields []string
 			out[name] = uint64(r.Uint32())
 		case FieldTypeU64:
 			out[name] = r.Uint64()
+		case FieldTypeDateTime:
+			// Epoch seconds; full u64 span so the 8-byte path is exercised
+			// beyond the float64-exact range.
+			out[name] = r.Uint64()
 		default:
 			out[name] = uint64(r.Intn(1 << 30))
 		}
@@ -559,6 +563,7 @@ func bigMixedSchema() *Schema {
 		{Name: "f32_a", Type: FieldTypeF32},
 		{Name: "date_a", Type: FieldTypeDate, Nullable: true},
 		{Name: "u64_a", Type: FieldTypeU64},
+		{Name: "dt_a", Type: FieldTypeDateTime},
 		{Name: "f64_a", Type: FieldTypeF64, Nullable: true},
 		{Name: "cat_u8", Type: FieldTypeCategoricalU8, Dictionary: buildCategoricalDict(200)},
 		{Name: "cat_u16", Type: FieldTypeCategoricalU16, Dictionary: buildCategoricalDict(5000)},
@@ -596,6 +601,7 @@ func generateBigSchemaRecords(t *testing.T, schema *Schema, seed int64) [][]byte
 			"f32_a":    uint64(math.Float32bits(float32(r.NormFloat64()) * 10)),
 			"date_a":   uint64(r.Uint32()),
 			"u64_a":    r.Uint64(),
+			"dt_a":     uint64(r.Int63n(4102444800)), // epoch seconds through 2100
 			"f64_a":    math.Float64bits(r.NormFloat64() * 100),
 			"cat_u8":   uint64(r.Intn(200)),
 			"cat_u16":  uint64(r.Intn(5000)),

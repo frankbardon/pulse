@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
@@ -16,16 +17,26 @@ import (
 // importAutoCmd wraps pulse.ImportFile as the auto-detect CLI leaf.
 // Source format is inferred from the extension when --format is unset.
 // On success the managed handle is written to PULSE_DATA_DIR/imports/.
+//
+// It carries the per-format READ knobs a source file cannot always answer for
+// itself — --sheet for Excel, --charset for SPSS — because auto-detection is
+// about the format identifier, not about the questions the format still has.
+// Without --charset a pre-Unicode `.sav` that declares no encoding fails
+// PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte and the managed pool has
+// no way to accept it at all.
+//
+// --spss-missing is deliberately absent; see importAutoSpec.
 func importAutoCmd() *cli.Command {
 	return &cli.Command{
 		Name:      "auto",
 		Usage:     "Auto-detect a source format and import into the managed pool",
 		ArgsUsage: "SOURCE",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Format override (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, pulse)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Format override (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss, pulse)"},
 			&cli.StringFlag{Name: "handle", Usage: "Managed handle name (defaults to source basename)"},
 			&cli.StringFlag{Name: "ttl", Value: "7d", Usage: "Lifetime in the managed pool: Go duration (24h, 30m), day form (7d), or \"pin\""},
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name (ignored for non-Excel)"},
+			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage + " (ignored for non-SPSS)"},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing managed handle"},
 			&cli.BoolFlag{Name: "json", Usage: "Emit the JSON envelope"},
 		},
@@ -40,7 +51,7 @@ func importAutoCmd() *cli.Command {
 			ttl, err := imports.ParseTTL(cmd.String("ttl"))
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -48,28 +59,21 @@ func importAutoCmd() *cli.Command {
 			p, err := pulse.New(pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
 
-			res, err := p.ImportFile(ctx, pulse.ImportSpec{
-				SourcePath: source,
-				Format:     cmd.String("format"),
-				Handle:     cmd.String("handle"),
-				TTL:        ttl,
-				Sheet:      cmd.String("sheet"),
-				Overwrite:  cmd.Bool("overwrite"),
-			})
+			res, err := p.ImportFile(ctx, importAutoSpec(cmd, source, ttl))
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
 				}
 				return err
 			}
 
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, res)
+				return writeEnvelopeWithWarnings(cmd.Writer, res, res.SourceWarnings)
 			}
 			if res.Managed {
 				writeText(cmd.Writer, "Imported %d rows into managed handle %q at %s\n", res.RowsImported, res.Handle, res.Path)
@@ -77,6 +81,7 @@ func importAutoCmd() *cli.Command {
 					writeText(cmd.Writer, "%s: fields promoted to nullable (null found past the inference sample): %s\n",
 						errors.PULSE_IMPORT_NULL_PROMOTED, strings.Join(res.PromotedFields, ", "))
 				}
+				writeSourceWarnings(cmd.Writer, res.SourceWarnings)
 				if res.ExpiresAt != nil {
 					writeText(cmd.Writer, "Expires: %s\n", res.ExpiresAt.Format("2006-01-02 15:04:05 MST"))
 				} else {
@@ -87,6 +92,33 @@ func importAutoCmd() *cli.Command {
 			}
 			return nil
 		},
+	}
+}
+
+// importAutoSpec projects the `import auto` flags onto the managed-import
+// spec. It is a separate function so the projection is assertable: a flag that
+// parses and then never reaches the spec changes nothing and says nothing,
+// which is the exact failure --charset existed to end elsewhere.
+//
+// It sets no SPSSMissing, and the leaf mounts no --spss-missing flag. That is
+// a decision, not an oversight. The mode's default ("auto") is the
+// fidelity-preserving one: the analytic column is null at every user-missing
+// position AND a generated `<var>_missing` sibling records WHY. The only other
+// value, "null", drops those siblings — its sole effect is to discard
+// information. A knob like that does not belong on the auto-detect convenience
+// path, where the caller has not even named the format; `pulse import spss
+// --spss-missing=null` is where asking for it is an explicit act. --charset is
+// the opposite case: without it, a file that is wrong about its own encoding
+// cannot be imported here by any means.
+func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) pulse.ImportSpec {
+	return pulse.ImportSpec{
+		SourcePath: source,
+		Format:     cmd.String("format"),
+		Handle:     cmd.String("handle"),
+		TTL:        ttl,
+		Sheet:      cmd.String("sheet"),
+		Charset:    cmd.String("charset"),
+		Overwrite:  cmd.Bool("overwrite"),
 	}
 }
 
@@ -105,14 +137,14 @@ func importsListCmd() *cli.Command {
 			p, err := pulse.New(pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
 			entries, err := p.Imports(ctx)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -151,13 +183,13 @@ func importDropCmd() *cli.Command {
 			p, err := pulse.New(pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
 			if err := p.Drop(ctx, handle); err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "DROP_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "DROP_ERROR", err)
 				}
 				return err
 			}

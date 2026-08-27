@@ -62,6 +62,12 @@ var defaultRules = map[encoding.FieldType]defaultRule{
 	// Date: no aggregation default (must be explicit); GROUP_DATE (day bucket).
 	encoding.FieldTypeDate: {Agg: "", Group: types.GROUP_DATE, FamilyTag: "date default"},
 
+	// Datetime: mirrors date exactly. No aggregation default (summing
+	// instants is never the intent); GROUP_DATE for the grouper slot,
+	// which day-truncates the epoch-seconds value before bucketing —
+	// see processing/date_field.go.
+	encoding.FieldTypeDateTime: {Agg: "", Group: types.GROUP_DATE, FamilyTag: "datetime default"},
+
 	// Booleans (single-bit): treated as categorical for defaulting.
 	encoding.FieldTypePackedBool: {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "boolean default"},
 

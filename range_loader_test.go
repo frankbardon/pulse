@@ -3,7 +3,11 @@ package pulse
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/frankbardon/pulse/imports"
+	"github.com/frankbardon/pulse/io/spss"
 )
 
 func TestLoadRangeTables_FlatArray(t *testing.T) {
@@ -88,5 +92,89 @@ func TestLoadRangeTables_NonexistentDir(t *testing.T) {
 	opts := Options{RangeTablesDir: "/path/that/should/not/exist/__pulse_range__"}
 	if err := loadRangeTablesFromDir(&opts); err != nil {
 		t.Fatalf("nonexistent dir should be tolerated: %v", err)
+	}
+}
+
+// A range-tables dir aimed at a data directory sees the sidecars Pulse
+// itself wrote beside each cohort. Skipping them by suffix is what keeps
+// pulse.New from dying on a file Pulse produced, blaming a malformed
+// range table. Mirrors TestLoadLabelTables_SkipsPulseSidecars.
+func TestLoadRangeTables_SkipsPulseSidecars(t *testing.T) {
+	cases := []struct {
+		name     string
+		filename string
+		body     string
+	}{
+		{
+			name:     "spss metadata sidecar",
+			filename: "cohort.pulse" + spss.SidecarSuffix,
+			body:     spssSidecarFixture,
+		},
+		{
+			name:     "managed import sidecar",
+			filename: "cohort.pulse" + imports.SidecarSuffix,
+			body:     `{"handle": "h1", "created_at": "2026-01-01T00:00:00Z", "ttl": "7d"}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "quarters.json"),
+				[]byte(`[{"label":"Q1","start":"2024-01-01","end":"2024-03-31"}]`), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, tc.filename), []byte(tc.body), 0644); err != nil {
+				t.Fatal(err)
+			}
+			opts := Options{RangeTablesDir: dir}
+			if err := loadRangeTablesFromDir(&opts); err != nil {
+				t.Fatalf("sidecar must not fail the load: %v", err)
+			}
+			if len(opts.Extensions.RangeTables["quarters"].Ranges) != 1 {
+				t.Fatalf("valid neighbour table not loaded: %+v", opts.Extensions.RangeTables)
+			}
+			if len(opts.Extensions.RangeTables) != 1 {
+				t.Fatalf("skipped sidecar registered a table: %+v", opts.Extensions.RangeTables)
+			}
+			skipped := strings.TrimSuffix(tc.filename, ".json")
+			if _, ok := opts.Extensions.RangeTables[skipped]; ok {
+				t.Fatalf("sidecar registered under %q", skipped)
+			}
+		})
+	}
+}
+
+// The skip is an exclusion list, not tolerance of unparseable JSON: a
+// malformed range table still hard-fails with its path named, even with
+// a sidecar sitting in the same directory.
+func TestLoadRangeTables_MalformedStillHardFails(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{name: "truncated json", body: `[{"label":"Q1","start":"2024-01-01"`},
+		{name: "wrong shape", body: `{"quarters": 5}`},
+		{name: "not json at all", body: `Q1 = 2024-01-01`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "cohort.pulse"+spss.SidecarSuffix),
+				[]byte(spssSidecarFixture), 0644); err != nil {
+				t.Fatal(err)
+			}
+			bad := filepath.Join(dir, "quarters.json")
+			if err := os.WriteFile(bad, []byte(tc.body), 0644); err != nil {
+				t.Fatal(err)
+			}
+			opts := Options{RangeTablesDir: dir}
+			err := loadRangeTablesFromDir(&opts)
+			if err == nil {
+				t.Fatal("malformed range table must still hard-fail")
+			}
+			if !strings.Contains(err.Error(), bad) {
+				t.Fatalf("error must name the offending path, got: %v", err)
+			}
+		})
 	}
 }

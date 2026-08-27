@@ -1781,4 +1781,497 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+
+	// ---------- PULSE (SPSS) ----------
+	PULSE_SPSS_DICT_INVALID: {
+		Message: "The SPSS .sav dictionary is structurally malformed: the file does not open with the $FL2/$FL3 magic, the layout code identifies neither byte order, a record carries an unknown type tag or an out-of-range field, or a record appears where the format does not allow it. The error details name the record and the byte offset at which the fault was detected.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Confirm the file really is an SPSS system file and not a .por, .zsav renamed, or an unrelated file with a .sav extension; open it in SPSS or PSPP and re-save it as a system file, then import the re-saved copy.",
+			},
+		},
+	},
+	PULSE_SPSS_DICT_TRUNCATED: {
+		Message: "The SPSS .sav file ends part way through its dictionary: a record claimed more bytes than the file contains, or the stream ran out before the record type 999 terminator. The bytes present parse cleanly as far as they go, which is what separates this from a malformed dictionary.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-transfer or re-export the file — a truncated .sav is almost always an interrupted copy, download, or export. Compare the byte size against the source before importing again.",
+			},
+		},
+	},
+	PULSE_SPSS_FILE_EMPTY: {
+		Message: "The SPSS source contains no bytes at all — a zero-length .sav / .zsav file, or an in-memory reader constructed over a nil or empty buffer. There is no header to read, so this is reported separately from a truncated dictionary: a truncated file stopped part way through a record, while an empty one never had a first record.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Check the path points at the file you meant and that the export or download actually wrote it — a zero-length file is usually a created-but-never-filled target, a failed transfer, or a shell redirection that truncated the destination before the writer ran.",
+			},
+		},
+	},
+	PULSE_SPSS_ENDIANNESS_MISMATCH: {
+		Message: "The SPSS .sav file states its byte order twice and the two statements contradict each other. The header layout code identifies one order (it is always 2 or 3, so reading it both ways is unambiguous) while the record 7/3 machine-integer endianness field names the other. Unlike the charset cross-check this is a hard error, because byte order governs every multi-byte field in the file: picking the wrong one does not lose a label, it yields a complete file of plausible and wrong numbers.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-save the file from SPSS or PSPP. A file whose header and 7/3 record disagree was almost certainly rewritten in place by a tool that byte-swapped one and not the other, and the values it holds cannot be trusted even where they decode.",
+			},
+		},
+	},
+	PULSE_SPSS_MAGIC_FLAG_MISMATCH: {
+		Message: "The SPSS system file's 4-byte magic and its header compression flag disagree about whether the file is a ZSAV: $FL3 (the ZSAV magic) with compression flag 0 or 1, or $FL2 with compression flag 2. This is a warning and the file still reads — the compression flag is the operative statement, because it is what says how the data section is encoded, while the magic is a coarse generation label a re-saving tool can leave stale.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "No action is needed if the data imported correctly; the compression flag decided and it is the field that describes the bytes. If the import failed further on, re-save the file from SPSS or PSPP so the magic and the flag agree.",
+			},
+		},
+	},
+	PULSE_SPSS_VALUE_LABELS_DROPPED: {
+		Message: "A record 3/4 value-label pair in the SPSS .sav dictionary names variables it cannot be bound to: a set mixing variables of different type or width, a set attached to a string wider than the 8 bytes a record type 3 value slot holds (those belong in the record 7/21 extension), or an element index landing on a string continuation rather than on a variable. That one label set was dropped and the rest of the file imported normally. Value labels are display metadata, so refusing the whole file would cost the data to save the labels — and binding the set anyway would attach labels to the wrong values without saying so.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "The imported values are unaffected; only the labels for the variable named in the details are missing. Re-saving the file from a current SPSS or PSPP normally rewrites long-string value labels into the record 7/21 extension, which Pulse does read.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels"},
+				Hint:   "Supply the labels yourself if they matter: register a label table (Options.Extensions.LabelTables or PULSE_LABEL_TABLES_DIR) and reference it from the request's LabelBinding.Table.",
+			},
+		},
+	},
+	PULSE_SPSS_EXTENSION_UNKNOWN: {
+		Message: "The SPSS .sav dictionary carries a record type 7 extension subtype this reader does not interpret. This is a warning, not a failure: the record's framing was read so the dictionary walk stayed aligned, its bytes were retained verbatim, and the rest of the file parsed normally. Real SPSS versions emit subtypes the published format description does not list, so an unrecognised subtype is expected rather than exceptional.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "No action is needed unless the subtype named in the details carries data you require. If it does, report the subtype so the reader can learn it; meanwhile re-saving the file from a different SPSS or PSPP version usually drops writer-specific extension records.",
+			},
+		},
+	},
+	PULSE_SPSS_EXTENSION_INVALID: {
+		Message: "A record type 7 extension subtype this reader does interpret carried a payload that does not match the shape the format defines for it — an element size or count the subtype does not allow, a payload that ran out early, or a field naming a variable the dictionary does not contain. This is a warning: the record's framing was sound so the dictionary walk stayed aligned and the raw bytes were retained; only the interpretation of that one record was dropped.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Check what the skipped subtype named in the details would have supplied — long variable names, measurement levels, the character encoding — and whether the import still carries it. Re-saving the file from SPSS or PSPP rewrites the extension records and usually clears a malformed one.",
+			},
+		},
+	},
+	PULSE_SPSS_VERY_LONG_STRING_INVALID: {
+		Message: "The SPSS .sav record 7/14 very-long-string segmentation could not be reassembled. SPSS stores a string wider than 255 bytes as several physical variables of 255 bytes each and records how to rejoin them in record 7/14; this file's record names a variable that is not in the dictionary, states a width the scheme cannot express, or is followed by physical variables whose widths do not match the width it declares. This is a warning, not a failure: the record only says how to JOIN columns that are already present, so nothing is lost — the segments import as the separate columns the dictionary literally declares, under their own generated names, with the value split across them.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Look for the segment columns in the imported cohort — the named variable plus the ones immediately after it — and concatenate them if the whole value is needed. Re-saving the file from SPSS or PSPP rewrites record 7/14 and usually clears a segmentation that disagrees with the variable records.",
+			},
+		},
+	},
+	PULSE_SPSS_COMPRESSION_UNSUPPORTED: {
+		Message: "The SPSS .sav dictionary parsed cleanly but its data section declares a compression flag the format does not define. All three defined encodings import: uncompressed (flag 0), bytecode compression (flag 1, SPSS's save default) and ZSAV zlib blocks (flag 2, what a .zsav carries). Reading a data section under the wrong encoding would produce plausible-looking garbage, so an unrecognised flag stops the import instead of being guessed at.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-export the file from SPSS or PSPP — `SAVE OUTFILE='survey.sav'.` writes a bytecode-compressed file, `SAVE OUTFILE='survey.sav' /UNCOMPRESSED.` an uncompressed one, and `SAVE OUTFILE='survey.zsav' /ZCOMPRESSED.` a ZSAV. All three import.",
+			},
+		},
+	},
+	PULSE_SPSS_ZSAV_INVALID: {
+		Message: "The SPSS .zsav file's ZSAV block index does not describe the file it sits in. The index is the 24-byte ZHEADER at the head of the data section plus the ZTRAILER it points at, carrying one entry per zlib block with that block's offset and size in both compressed and uncompressed form. Those entries must tile the compressed region exactly — each block beginning where the previous one ended — and the trailer's length must match the block count it declares. The reported block number is where the tiling first broke. Nothing else in the file says where a block starts, so the reader cannot inflate past that point.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-export the file rather than repairing the index by hand: in SPSS, File > Save As with type 'SPSS Statistics (*.zsav)', or in PSPP `SAVE OUTFILE='survey.zsav' /ZCOMPRESSED.`. `pulse errors lookup PULSE_SPSS_ZSAV_INVALID` prints the block-index semantics.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If re-exporting is not possible, save an uncompressed copy instead — `SAVE OUTFILE='survey.sav' /UNCOMPRESSED.` — which drops the block index entirely.",
+			},
+		},
+	},
+	PULSE_SPSS_ZSAV_BLOCK_CORRUPT: {
+		Message: "One zlib block of the SPSS .zsav data section could not be inflated, or inflated to a size other than the one its block-index entry declares. The index itself was coherent — the offsets were right — so the bytes at them are damaged rather than mis-addressed. A block that yields the wrong number of bytes is as fatal as one that fails outright: the decompressed blocks are concatenated into a single command stream, so a short or long block shifts every value after it onto the wrong variable.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Fetch the file again — a damaged zlib block is normally a truncated or corrupted transfer. Compare the byte length against the source before re-importing.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If the source copy is itself damaged, re-export from SPSS or PSPP: `SAVE OUTFILE='survey.zsav' /ZCOMPRESSED.`, or `SAVE OUTFILE='survey.sav'.` for a bytecode-compressed .sav.",
+			},
+		},
+	},
+	PULSE_SPSS_COMPRESSION_INVALID: {
+		Message: "The SPSS .sav file declares bytecode compression (the SPSS save default) but its command stream does not match the dictionary that precedes it: a command asked for an all-spaces string segment where the dictionary declares a numeric variable, or for the system-missing sentinel where it declares a string, or the header's compression bias is not a usable number. The stream has lost sync with the dictionary, so every element after that point would be read against the wrong variable. Decoding on would produce numbers rather than an error, so the import stops.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-export the file from SPSS or PSPP rather than repairing it by hand — a desynchronised command stream means the bytes on disk no longer describe the dictionary, and no reader can recover the intended values. `pulse errors lookup PULSE_SPSS_COMPRESSION_INVALID` prints the byte offset semantics; the reported offset is where the stream stopped agreeing.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If the file was produced by a non-SPSS writer, re-save it through SPSS or PSPP (`GET FILE='in.sav'. SAVE OUTFILE='out.sav'.`) so the data section is rewritten by a conforming encoder.",
+			},
+		},
+	},
+	PULSE_SPSS_DATA_TRUNCATED: {
+		Message: "The SPSS .sav data section ends part way through a case: the bytes following the dictionary terminator are not a whole multiple of the case width the dictionary declares. The dictionary parsed cleanly, so the file is a valid system file that was cut short rather than a malformed one.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-transfer or re-export the file — a data section ending mid-case is almost always an interrupted copy, download, or export. Compare the byte size against the source before importing again.",
+			},
+		},
+	},
+	PULSE_SPSS_DATA_CASE_COUNT_MISMATCH: {
+		Message: "The number of cases the SPSS .sav data section actually holds disagrees with the count the file declares in its header (or in the record 7/16 64-bit case count). This is a warning: every complete case present is read, because discarding rows the file plainly contains to honour a writer's miscount would lose data.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Compare the declared and actual counts in the error details against what SPSS or PSPP reports for the same file. A writer that miscounts is usually harmless, but a shortfall can also mean a truncated transfer — re-export the file and check the counts agree.",
+			},
+		},
+	},
+	PULSE_SPSS_CATEGORICAL_OVERFLOW: {
+		Message: "An SPSS variable maps to a Pulse categorical field, but its distinct values would need more dictionary entries than categorical_u32 can hold. This is a hard error rather than a warning because the only alternative is discarding values, and a cohort silently missing rows of a variable is worse than a refused import.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "Supply an explicit ImportJob.Schema that maps the variable named in the details to a different type, or drop the variable from the source file before importing. A variable with more than four billion distinct values is almost always free text that belongs outside the analytic cohort.",
+			},
+		},
+	},
+	PULSE_SPSS_CARDINALITY_HIGH: {
+		Message: "An SPSS variable mapped to a Pulse categorical field whose distinct-value count is a large fraction of the case count — the signature of a free-text 'other, please specify' variable. This is a warning and the import proceeds: the mapping is lossless, and the cost is a large inline dictionary block that every read of the cohort pays for.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "If the variable named in the details is free text rather than a coded category, consider excluding it from the import, or raise the reader's cardinality warning fraction if a near-unique categorical is expected for this source.",
+			},
+		},
+	},
+	PULSE_SPSS_TEMPORAL_PRECISION: {
+		Message: "An SPSS variable carrying a date or time print format holds at least one value the matching Pulse temporal type cannot represent exactly — a fractional second, a non-finite double, or a second count outside the int64 range — so the variable was mapped to f64 raw SPSS seconds instead. This is a warning: the raw seconds are lossless and the print format is retained for export, so only the ergonomics of a typed temporal column are lost.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "No action is needed if second-resolution timestamps are not required. To force a typed temporal column, round the variable to whole seconds in SPSS or PSPP before exporting, or supply an explicit ImportJob.Schema naming the type you want.",
+			},
+		},
+	},
+	PULSE_SPSS_DATE_WIDENED: {
+		Message: "An SPSS variable carrying a day-resolution print format (DATE, ADATE, EDATE, SDATE or JDATE) was mapped to the Pulse datetime type rather than date, because at least one of its values carries a time of day that day resolution would truncate, or falls before 1970-01-01, which the unsigned epoch-day date representation cannot express. This is a warning: datetime holds every such value exactly and the date-family groupers accept it by documented day truncation.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "No action is needed — GROUP_DATE and the date-range operators accept a datetime field and truncate it to the day. Supply an explicit ImportJob.Schema only if the column must be a date, accepting that pre-1970 values and times of day will not survive.",
+			},
+		},
+	},
+	PULSE_SPSS_VALUE_COLLISION: {
+		Message: "Two distinct SPSS values of one variable resolve to the same Pulse categorical dictionary entry, so the original-code-to-dictionary-ID mapping is no longer one-to-one and an export back to .sav cannot tell which code to re-emit. This is a warning: the file is otherwise readable and the recorded code-to-label-to-ID triple carries both codes against the shared ID, so the collision is visible rather than silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Check the variable named in the details in SPSS or PSPP: two codes sharing one value label, or a label whose text equals another code's own value, is usually a data-entry mistake in the source dictionary. Give each code a distinct label and re-export.",
+			},
+		},
+	},
+	PULSE_SPSS_MEASURE_LEVEL_MISMATCH: {
+		Message: "An SPSS variable whose record 7/11 measurement level is 'scale' carries value labels, so it mapped to a Pulse categorical field. Its smart defaults are therefore AGG_FREQUENCY / GROUP_CATEGORY rather than the AGG_SUM / GROUP_RANGE the declared level implies. This is a warning: every code and label is preserved, but the analytic defaults will not be the ones the source file declared.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "This is the usual shape of a continuous variable that labels only its missing codes. Name the aggregator and grouper explicitly in the request instead of relying on smart defaults, or supply an explicit ImportJob.Schema typing the variable f64 if the labels are not needed.",
+			},
+		},
+	},
+	PULSE_SPSS_NULL_TOKEN_COLLISION: {
+		Message: "An SPSS string value or value-label key is one of the import pipeline's null sentinel tokens (the empty string, NA, N/A or NULL, in any case), so cells carrying it import as null and its dictionary entry is unreachable. An all-blank string is SPSS's own de facto missing-string convention and reading it as null is intended; a literal NA stored as data is a real value the shared import path collapses, and that collapse is reported here rather than left silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If the value named in the details is meant as data rather than as missing, recode it in SPSS or PSPP to a token the import path does not treat as null before exporting.",
+			},
+		},
+	},
+	PULSE_SPSS_CHARSET_UNSUPPORTED: {
+		Message: "The SPSS .sav file declares a character encoding this reader cannot decode with: either record 7/20 names a charset that resolves to nothing known, record 7/3 carries a character code with no charset behind it (EBCDIC, DEC Kanji), or the charset is not an ASCII superset and so cannot carry the format's own space padding and ASCII record delimiters. Decoding the file with a guessed codepage would produce text that is plausible and wrong, so the import stops here instead.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-save the file from SPSS or PSPP with a Unicode encoding (`SET UNICODE ON` before `SAVE`, or `pspp-convert` with `--encoding=UTF-8`), which writes record 7/20 as UTF-8. If you know the real charset and the file mislabels it, pass spss.WithCharset(\"windows-1252\") to the reader to override the declaration.",
+			},
+		},
+	},
+	PULSE_SPSS_CHARSET_INVALID: {
+		Message: "A byte sequence in the SPSS .sav file is not decodable in the charset the file declares — an undefined byte in a single-byte codepage, or invalid UTF-8 in a file declaring UTF-8. It is reported rather than substituted: the usual behaviour of a text decoder is to emit U+FFFD replacement characters, which would turn a codepage mismatch into a cohort full of replacement characters no later stage could tell from real data. The details name the charset and, where the fault is in a variable, the variable.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "The file's declared charset is usually wrong rather than the bytes. Pass spss.WithCharset(\"<charset>\") to the reader with the encoding the data is really in, or re-save the file from SPSS or PSPP as UTF-8 so the declaration and the bytes agree.",
+			},
+		},
+	},
+	PULSE_SPSS_CHARSET_MISMATCH: {
+		Message: "The SPSS .sav file states its character encoding twice and the two statements disagree: the record 7/20 name resolves to one charset and the record 7/3 character code to another. This is a warning and the 7/20 name is used, because the name is strictly more expressive than the number — 7/3 cannot tell ISO-8859-1 from windows-1252 — and writers routinely leave the legacy numeric field at an ASCII default while naming the real charset in 7/20.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "No action is needed if the text imported correctly. If it did not, the 7/3 code may be the accurate one: pass spss.WithCharset with that charset to override the name the file declares.",
+			},
+		},
+	},
+	PULSE_SPSS_CHARSET_UNENCODABLE: {
+		Message: "A string held by the cohort contains a character that has no representation in the charset the emitted .sav declares, so the export stopped. It is reported rather than substituted: the encoders will replace an unsupported rune with '?' or 0x1A on request, and a substituted character is indistinguishable from data once it is on the wire — a windows-1252 label reading \"Z?rich\" has lost the name of a city and says nothing about having done so. The usual cause is a cohort edited since it was imported: text produced by a Pulse operation is UTF-8 and need not be expressible in the legacy codepage the source file declared. Details name the target charset, the variable and the offending value.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Charset"},
+				Hint:   "Write the file in a charset that can carry the text. Set spss.WriterOptions.Charset to \"UTF-8\" — modern SPSS, PSPP, haven and pyreadstat all read a UTF-8 .sav — and the emitted record 7/20 declares it, so the file stays self-describing.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Or change the value. The details carry the exact string; replace the offending character in the cohort (or in the source data) with one the target codepage defines.",
+			},
+		},
+	},
+	PULSE_SPSS_NAME_INVALID: {
+		Message: "A name being written into a .sav dictionary is not one SPSS can carry. An SPSS variable name is at most 64 BYTES once encoded in the emitted file's charset, opens with a letter or one of '@', '#', '$', carries only letters, digits and '.', '_', '$', '#', '@', and does not end with '.'. Pulse field names are unconstrained, so a cohort that was not itself read from a .sav routinely holds a name this rule rejects — a space, a leading digit, a bracket. It is a refusal rather than a rename because every way an illegal name fails is quiet: record 7/13 is a tab-separated list of SHORT=LONG pairs with no escape, so a name carrying '=' or a tab re-parses as a different pair list and some other variable silently acquires this one's name. Non-ASCII letters are accepted; SPSS's reserved syntax keywords are not rejected. Details carry the offending name under `variable` and the cohort field under `cohort_field`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Rename the cohort field named in `cohort_field` to a legal SPSS identifier before exporting — letters, digits and '.', '_', '$', '#', '@', opening with a letter, 64 bytes or fewer. `pulse inspect` lists the cohort's field names.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Charset"},
+				Hint:   "If the fault is the 64-BYTE ceiling on a name that is 64 characters or fewer, the name is overflowing because of the charset it is being encoded into. Set spss.WriterOptions.Charset to a single-byte codepage that covers the text, or shorten the name.",
+			},
+		},
+	},
+	PULSE_SPSS_NAME_COLLISION: {
+		Message: "Two variables an SPSS export would emit answer to one name. SPSS variable names are unique without regard to case, so `Region` and `REGION` are one name and the second record 7/13 mapping for it is dropped, leaving a column in the file that no name reaches. The same fault applies one level down to the eight-byte record type 2 SHORT name, which records 7/5, 7/7, 7/14 and 7/19 key by. It is distinct from PULSE_SPSS_DERIVED_NAME_COLLISION, which is the import-side collision between a generated `<var>_missing` sibling and a variable the source file already declares. Details name the offending name under `variable` and the variable that claimed it first under `collides_with`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Rename one of the two cohort fields so the names differ by more than case. A set_* column is expanded into one indicator variable per dictionary entry, named for that entry, so a collision can also be between a dictionary entry and an ordinary field of the same name — rename either side.",
+			},
+		},
+	},
+	PULSE_SPSS_COLUMN_UNMAPPED: {
+		Message: "An SPSS export found a cohort column that no emitted variable is written from and that the metadata sidecar's derived-column registry does not account for. Such a column would leave the export silently — present in the .pulse file, absent from the .sav. The registry is what makes this decidable: an import synthesises columns the source dictionary never declared (a `<var>_missing` reason sibling, a multiple-dichotomy `set_*` convenience column) and names every one of them in the sidecar's `derived` block, so a column that is unbound and not in that block is data rather than an artefact. Details name the cohort field under `cohort_field`, the cohort under `cohort` and the sidecar under `sidecar`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "The usual cause is a sidecar that describes an older shape of the cohort. Re-import the source .sav so the sidecar and the cohort are written together, or export with spss.WriterOptions.IgnoreSidecar (--ignore-sidecar) to synthesise the dictionary from the .pulse schema alone, which emits every column as its own variable and drops nothing.",
+			},
+		},
+	},
+	PULSE_SPSS_DERIVED_UNFOLDABLE: {
+		Message: "The metadata sidecar's derived-column registry describes a column an SPSS export cannot fold back into the file it came from. Four shapes reach it: the entry's `kind` is outside this binary's vocabulary (a document written by a newer import, describing a column whose fold-back is genuinely unknown); the entry is under-populated for its kind, such as a `numeric_missing` entry with no `reasons` dictionary to restore missing codes from; the entry names a source column no emitted variable is written from, so consuming the derived column would discard what it held; or the entry names a column the export is also emitting as a variable, which is the document disagreeing with itself. It is a refusal because both guesses lose — emitting a derived column invents a variable the source never had, and dropping a real one discards data. Details name the derived column under `derived`, its source under `variable` and the sidecar under `sidecar`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"IgnoreSidecar"},
+				Hint:   "Export with spss.WriterOptions.IgnoreSidecar (--ignore-sidecar) to synthesise the dictionary from the .pulse schema alone. Nothing is folded, so nothing can fail to fold — every cohort column becomes its own SPSS variable, including the derived ones, at the cost of the source's recorded metadata.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "If the sidecar was written by a newer Pulse than the one exporting, upgrade the exporting binary: an unrecognised derived `kind` describes a column this version has never heard of. Otherwise re-import the source .sav so the cohort and its sidecar are written together.",
+			},
+		},
+	},
+	PULSE_SPSS_WIDTH_OVERFLOW: {
+		Message: "A string does not fit the fixed-width .sav field the format gives it, measured in the emitted file's charset. SPSS widths are BYTE counts and never rune counts, so transcoding changes them — \"Zurich\" with an umlaut is six bytes in windows-1252 and seven in UTF-8. String VARIABLES are widened automatically to fit; this error is what is left when the format fixes the width: the 32767-byte ceiling on a string variable, an eight-byte record type 2 short name, a value label past the 255 bytes its one-byte length field can count, the 64-byte header file label, or an 80-byte record type 6 document line. It is never a truncation — cutting the field would drop the tail of a value and, in a multi-byte charset, leave a half-character no reader can decode. Details carry the required width, the available width, the variable and the charset.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Charset"},
+				Hint:   "If the text is ASCII-compatible but the target charset is multi-byte, a different charset may fit: set spss.WriterOptions.Charset to \"UTF-8\" or to the single-byte codepage the text belongs to and the byte count drops.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Otherwise shorten the offending text in the cohort. The details name which field overflowed and by how much; a value label, a file label and a document line are all metadata that can be shortened without touching data.",
+			},
+		},
+	},
+	PULSE_SPSS_DERIVED_NAME_COLLISION: {
+		Message: "An SPSS variable declares user-missing values, so the import would generate a `<var>_missing` sibling column holding the REASON each value is missing — but the file already declares a variable of that name. Two fields of one name cannot be addressed unambiguously, and renaming either one silently would break the mapping back to the source, so the import stops. SPSS variable names are case-insensitive, so the comparison is too. Details name the generated sibling under `derived`, the variable it came from under `variable`, and the existing variable it collides with under `collides_with`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"spss-missing"},
+				Hint:   "Import with --spss-missing=null (format.ReaderOptions.SPSSMissing = \"null\", spss.WithMissingMode(spss.MissingNull)). No sibling columns are generated, so no name can collide. The cost is real: every user-missing value becomes a plain null and the reason — refused vs. don't know vs. not applicable — is gone from the cohort. The full missing-value specification still rides the metadata sidecar either way.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Rename the colliding variable in SPSS (RENAME VARIABLES) and re-save the .sav. Renaming the real variable rather than the generated one keeps the sibling's `<var>_missing` convention intact, which is what the export path matches on.",
+			},
+		},
+	},
+	PULSE_SPSS_MISSING_MODE_INVALID: {
+		Message: "The SPSS user-missing handling mode is not one Pulse defines. There are exactly two: `auto` (the default) maps each user-missing value to a null in the analytic column plus a `<var>_missing` sibling carrying the reason, and `null` collapses every user-missing value to a plain null with no sibling. An unrecognised value is refused rather than defaulted, because the two produce different schemas.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"spss-missing"},
+				Hint:   "Use --spss-missing=auto or --spss-missing=null (case-insensitive). Omit the flag entirely for `auto`, the fidelity-preserving default.",
+			},
+		},
+	},
+	PULSE_SPSS_CATEGORICAL_USER_MISSING: {
+		Message: "One or more SPSS variables that mapped to a Pulse categorical column declare user-missing codes, and those codes were kept as ordinary dictionary entries. This is informational — nothing was lost. For a categorical the value IS the label, so the code is already preserved losslessly in the column's own dictionary and no `<var>_missing` sibling is generated; a sibling there would be pure redundancy and would double the schema width of an all-categorical survey. The reason it is reported at all is that a percentage base computed over a coded question silently includes its refusal category unless the analyst excludes it. Details name every flagged variable and its flagged dictionary entries under `missing_categories`; the same flags ride the metadata sidecar as `variables[].categories[].missing`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Filterers"},
+				Hint:   "Exclude the missing codes from an analysis base with FILTER_EXCLUDE on the field, listing the dictionary ENTRIES from `missing_categories` — the cohort dictionary holds the SPSS codes, so the value is \"9\", never \"Refused\". A value not in the dictionary is a PROCESSING_CONFIG error, so a mistyped exclusion fails loudly rather than filtering nothing.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Filterers"},
+				Hint:   "No action is needed to keep them: the codes are ordinary values and every aggregation counts them. Leave the filterer off when the missing categories belong in the base.",
+			},
+		},
+	},
+	PULSE_SPSS_MR_SET_NOT_DERIVED: {
+		Message: "An SPSS multiple-DICHOTOMY response set did not get the derived `set_*` convenience column the import normally emits for one. This is informational and the import succeeded: the derived column is ADDITIVE, so every constituent variable of the set was imported as its own ordinary column either way. What is lost is ergonomics — FILTER_SET and GROUP_SET_PER_ELEMENT over one column — never data. The reason is one of: the set names more than 64 constituents (a set_u64 bitmask has 64 bits); it names a variable no record type 2 declares; it names the same variable twice, which would need one bit to be two; its counted value will not compare against a numeric member; or a constituent's Pulse field name contains the set-token delimiter `|` or IS a null sentinel token (`NA`, `N/A`, `NULL`), either of which would make the derived cell ambiguous. Details name the set under `response_set`, the member count under `distinct`, and any single offending member under `variable`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Groupers"},
+				Hint:   "Work from the constituents, which are all present. Each is an ordinary column, so GROUP_CATEGORY / AGG_FREQUENCY per constituent gives the same per-option counts a GROUP_SET_PER_ELEMENT fan-out over the derived column would have, one request slot per option instead of one.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "For an over-64 set, split it in SPSS (MRSETS /MDGROUP) into sub-sets of 64 or fewer constituents and re-save; each sub-set then derives its own set_* column. For a name that collides with the `|` delimiter or a null token, RENAME VARIABLES on the offending constituent and re-save.",
+			},
+		},
+	},
+	PULSE_SPSS_SIDECAR_ABSENT: {
+		Message: "No SPSS metadata sidecar (<cohort>.spss.json) was found beside this cohort, so the export is synthesising a default SPSS dictionary from the .pulse schema alone. This is the normal, correct state for a cohort that was never SPSS-derived — synth output, a CSV or Parquet import, a processed result — and the export proceeds. What is not restated is only what the .pulse schema cannot hold: value labels, measure levels, print/write formats, missing-value specifications, multiple-response set definitions and the original 8-byte short names. Every column and every value is unaffected.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "If the cohort DID come from an SPSS file and the labels are wanted, the sidecar has been moved or deleted — it is written beside the cohort at import time and travels with it, so copying a .pulse without its .spss.json leaves it behind. Restore the file, or re-run the import (`pulse import spss -i survey.sav -o cohort.pulse`) to regenerate it. If the cohort was never SPSS-derived, nothing is wrong and this warning needs no action.",
+			},
+		},
+	},
+	PULSE_SPSS_SIDECAR_STALE: {
+		Message: "The SPSS metadata sidecar beside this cohort no longer matches it: the cohort's byte size or modification time has moved since the sidecar was written, so the dictionary the sidecar carries describes a different version of the data. The export refuses rather than applying it. A stale dictionary is the highest-fidelity-risk state available here — its value codes, labels and missing-value specifications are all complete and plausible, so applying them to changed data produces a .sav that looks authoritative and is wrong, and downstream SPSS syntax reading `IF q1 EQ 5` would silently address a category that is no longer there. This is deliberately an error where an ABSENT sidecar (PULSE_SPSS_SIDECAR_ABSENT) is only a warning.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Regenerate the pair so they agree: re-run the import that produced the cohort (`pulse import spss -i survey.sav -o cohort.pulse`), which rewrites the sidecar against the cohort's current bytes. If the cohort was deliberately rewritten from a different source, delete the stale .spss.json — an absent sidecar is only a warning and the export will proceed on a synthesised default dictionary.",
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"IgnoreSidecar"},
+				Hint:     "To export anyway WITHOUT the sidecar's metadata, pass --ignore-sidecar (spss.WriterOptions.IgnoreSidecar). It downgrades this error to a PULSE_SPSS_SIDECAR_IGNORED warning and takes the synthesised-default-dictionary path — the same output an absent sidecar would give. It does NOT apply the stale dictionary; there is no option that does.",
+				Examples: []any{true},
+			},
+		},
+	},
+	PULSE_SPSS_SIDECAR_INVALID: {
+		Message: "A file exists at the SPSS metadata sidecar's path but is not a sidecar this binary can read — it is not valid JSON, its `kind` is not \"spss\", its `format_version` is not one this binary understands, its fingerprint is not a well-formed digest, or a parallel array inside it breaks the length contract its consumers index against. The export refuses rather than falling back to a synthesised default dictionary: the file's presence asserts that this cohort HAS source metadata, and quietly substituting defaults for it would lose the value labels and missing-value specifications without saying so. Held apart from PULSE_SPSS_SIDECAR_STALE because the fix is different — a stale sidecar is repaired by re-importing, an invalid one by finding out what wrote the file.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Regenerate the sidecar by re-running the import that produced the cohort (`pulse import spss -i survey.sav -o cohort.pulse`). If the file was hand-edited, restore it from the import instead of repairing it by hand — the fingerprint is over the cohort's bytes and will not survive an edit. A `format_version` this binary does not recognise means the document was written by a NEWER Pulse: upgrade rather than downgrade the document.",
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"IgnoreSidecar"},
+				Hint:     "To export without it, pass --ignore-sidecar (spss.WriterOptions.IgnoreSidecar). The flag suppresses the sidecar READ entirely, so an unreadable file cannot block the export; it downgrades this to a PULSE_SPSS_SIDECAR_IGNORED warning and synthesises a default dictionary.",
+				Examples: []any{true},
+			},
+		},
+	},
+	PULSE_SPSS_SIDECAR_IGNORED: {
+		Message: "An SPSS metadata sidecar exists beside this cohort and --ignore-sidecar (spss.WriterOptions.IgnoreSidecar) was set, so it was not read: the export is synthesising a default SPSS dictionary from the .pulse schema alone. This is an explicit instruction being honoured, not a fault. It is reported as its own code rather than as PULSE_SPSS_SIDECAR_ABSENT because a diagnostic saying \"no sidecar found\" about a file sitting right there would be false. It does not say whether the file it skipped was stale, invalid or perfectly healthy: the flag suppresses the READ, so nothing on this path knows.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"IgnoreSidecar"},
+				Hint:     "To use the sidecar's metadata after all, drop --ignore-sidecar and re-run — which will also report whether the sidecar is stale or invalid, since this warning cannot. If the flag was set to work around such a refusal, fix that instead: re-run the import that produced the cohort so the sidecar and the cohort agree, and the flag becomes unnecessary.",
+				Examples: []any{false},
+			},
+		},
+	},
+	PULSE_SPSS_EXPORT_UNSUPPORTED: {
+		Message: "Something in this cohort has no honest .sav representation, so the export stopped instead of writing a file that says something the cohort did not. Three things raise it: a set_* column with an empty dictionary (a response set with no member variable to name), a value the dictionary plan records no SPSS code for (or one two source values collapsed onto), and a rendered row stream handed to the .sav writer with no cohort behind it. The details name the offending column where there is one.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Export from a .pulse COHORT rather than from a row stream: `pulse export spss -i cohort.pulse -o out.sav`. The .sav writer encodes from the cohort's raw storage — dictionary IDs, set masks, the null bitmap — never from rendered cell text, so it needs the cohort itself. `pulse convert data.csv out.sav` reaches it by importing to an intermediate cohort first.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "If the details name a column, that column is the problem. An empty set_* dictionary has no members to emit — drop the column from the export or populate it. A value with no recorded SPSS code comes from a cohort whose categorical dictionary moved since import; re-import from the source .sav, or export with --ignore-sidecar to synthesise a fresh dictionary from the cohort's own text.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Target"},
+				Hint:   "Any other output format sidesteps the question entirely: csv, tsv, ndjson, jsonarray, parquet, arrow and excel all take a rendered row stream. `pulse export parquet -i cohort.pulse -o out.parquet`.",
+			},
+		},
+	},
+	PULSE_SPSS_NAME_SANITIZED: {
+		Message: "One or more cohort field names could not be an SPSS variable name — a space, a bracket, a hyphen, a leading digit, or a name past 64 bytes — and --sanitize-names rewrote them so the export could proceed. Every rename is listed under `renames` as {field, name} pairs in schema order. This is a WARNING, not a failure: the file was written, and its variables carry the rewritten names.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"SanitizeNames"},
+				Hint:     "To keep the cohort's own names, drop --sanitize-names and rename the offending columns at the source instead — an SPSS name must open with a letter and carry only letters, digits and '.', '_', '$', '#', '@'. Without the flag the same names are a hard PULSE_SPSS_NAME_INVALID refusal, which is the default precisely because a silent rename is worse.",
+				Examples: []any{false},
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Labels"},
+				Hint:   "If downstream syntax references the original names, keep the `renames` list: it is the only record of which emitted variable came from which cohort field. A sidecar-driven export never raises this — names that came from a .sav are legal by construction.",
+			},
+		},
+	},
 }
