@@ -669,7 +669,8 @@ func TestBuild_Rejects(t *testing.T) {
 		{"name with a space", base(Var{Name: "A B"}), "legal SPSS short name"},
 		{"duplicate names", base(Var{Name: "A"}, Var{Name: "A"}), "repeats the name"},
 		{"negative width", base(Var{Name: "A", Width: -1}), "negative width"},
-		{"width over 255", base(Var{Name: "A", Width: 256}), "7/14"},
+		{"width over the SPSS string ceiling", base(Var{Name: "A", Width: MaxVeryLongStringWidth + 1}), "widest string variable SPSS supports"},
+		{"very long string with an explicit format", base(Var{Name: "A", Width: 300, Print: Format{Type: FormatA, Width: 255}}), "derived per physical segment"},
 		{"variable label too long", base(Var{Name: "A", Label: strings.Repeat("x", MaxVarLabelLen+1)}), "over the 120-byte limit"},
 		{"non-ASCII variable label", base(Var{Name: "A", Label: "café"}), "printable 7-bit ASCII"},
 		{

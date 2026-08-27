@@ -239,6 +239,18 @@ type variable struct {
 	// missing is the missing-value specification.
 	missing missingSpec
 
+	// vls is the record 7/14 very-long-string layout, non-nil only on a
+	// variable whose LOGICAL width exceeds 255 bytes.
+	//
+	// When it is set, this variable is the head of a fold: `width` above
+	// is the LOGICAL total, `segments` counts every 8-byte element of
+	// every physical variable the fold consumed, and the physical
+	// variables themselves are gone from dictionary.vars. `typeCode`
+	// still holds the head PHYSICAL variable's record type 2 field (255),
+	// because that field is a transcription of the wire and is not
+	// rewritten by a fold. See longstring.go.
+	vls *vlsLayout
+
 	// offset is the byte offset of the variable's record type 2, kept for
 	// diagnostics.
 	offset int
@@ -269,6 +281,18 @@ type valueLabel struct {
 
 	// label is the label text with its padding removed.
 	label string
+
+	// longValue is the record 7/21 VALUE of a long string value label,
+	// held verbatim. It supersedes raw when longString is set: a value
+	// label on a string wider than eight bytes cannot fit the eight-byte
+	// slot, which is the entire reason record 7/21 exists.
+	longValue string
+
+	// longString reports whether this label came from record 7/21 rather
+	// than from a record type 3. It is a separate flag rather than a
+	// `longValue != ""` test because a label declared on the empty value
+	// is legal.
+	longString bool
 }
 
 // numeric decodes the value slot as a double, for a set bound to numeric
@@ -288,6 +312,12 @@ func (l valueLabel) numeric(bo binary.ByteOrder) float64 {
 // which is trimmed to the declared width by construction. Skip the width trim
 // and every short-string label lookup misses.
 func (l valueLabel) text(width int) string {
+	if l.longString {
+		// A record 7/21 value carries its own length and is padded to
+		// the variable's full declared width, which may be far wider
+		// than the eight-byte slot. Only the 0x20 padding comes off.
+		return strings.TrimRight(l.longValue, " ")
+	}
 	n := width
 	if n <= 0 || n > elementSize {
 		n = elementSize
@@ -311,6 +341,14 @@ type valueLabelSet struct {
 	// for numeric, else the string byte width. It selects which of
 	// valueLabel.numeric and valueLabel.text decodes the value slot.
 	width int
+
+	// longString reports that the set did not come from a record type 3
+	// at all: it is a record 7/21 long string value label entry, staged
+	// here so that one binding path serves both records. A set carrying
+	// it has exactly one variable index and a width above
+	// maxShortStringWidth, which is the condition that forces 7/21 in the
+	// first place.
+	longString bool
 
 	// offset is the byte offset of the record type 3, kept for diagnostics.
 	offset int
@@ -421,6 +459,25 @@ type dictionary struct {
 	// absent record is distinguishable from one declaring every variable
 	// unset.
 	hasDisplayParams bool
+
+	// veryLongStrings are the record 7/14 declarations in file order:
+	// one (short name, logical byte width) pair per very long string.
+	//
+	// They are retained AFTER the fold, not consumed by it, because they
+	// plus each folded variable's vlsLayout are what a write path needs
+	// to re-segment the value into the same physical variables the source
+	// declared. See longstring.go.
+	veryLongStrings []vlsDeclaration
+
+	// longStringLabels are the record 7/21 entries as parsed, before
+	// binding. They are staged rather than applied inline because binding
+	// has to happen AFTER the record 7/14 fold: an entry naming a very
+	// long string must find the logical variable, not its head segment.
+	longStringLabels []longStringLabelSet
+
+	// longStringMissing are the record 7/22 entries as parsed, staged for
+	// the same reason.
+	longStringMissing []longStringMissing
 
 	// warnings are the non-fatal diagnostics raised while parsing: an
 	// extension subtype this reader does not interpret, or one whose

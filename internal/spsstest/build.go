@@ -136,6 +136,19 @@ func validate(spec Spec) (plan, error) {
 	if err != nil {
 		return p, err
 	}
+
+	// Very long strings expand BEFORE anything else looks at the variable
+	// list, so every rule below — width checks, element indices, datum
+	// widths, the record 7/11 slot count — is stated about the PHYSICAL
+	// variables the file carries. The caller's logical view is kept only
+	// where a record needs it: records 7/21 and 7/22 state a variable's
+	// declared width, and for a very long string that is the logical
+	// total, not the 255 its head segment declares.
+	logical := logicalIndex(spec.Vars)
+	spec, vlsDecls, err := expandVeryLongStrings(spec)
+	if err != nil {
+		return p, err
+	}
 	p.spec = spec
 
 	if spec.ByteOrder != LittleEndian {
@@ -184,7 +197,11 @@ func validate(spec Spec) (plan, error) {
 			return p, fmt.Errorf("spsstest: Vars[%d] (%s) has negative width %d; use 0 for numeric", i, v.Name, v.Width)
 		}
 		if v.Width > MaxStringWidth {
-			return p, fmt.Errorf("spsstest: Vars[%d] (%s) width %d exceeds %d; wider strings need the record 7/14 very-long-string scheme, which is out of scope", i, v.Name, v.Width, MaxStringWidth)
+			// Unreachable for a caller-declared variable: a width over
+			// MaxStringWidth was already expanded into physical segments
+			// of at most MaxStringWidth. It stays as defence in depth,
+			// because a record type 2 cannot express a wider type field.
+			return p, fmt.Errorf("spsstest: Vars[%d] (%s) width %d exceeds %d, the widest a record type 2 type field can express", i, v.Name, v.Width, MaxStringWidth)
 		}
 		if len(v.Label) > MaxVarLabelLen {
 			return p, fmt.Errorf("spsstest: Vars[%d] (%s) label is %d bytes, over the %d-byte limit", i, v.Name, len(v.Label), MaxVarLabelLen)
@@ -251,7 +268,7 @@ func validate(spec Spec) (plan, error) {
 		}
 	}
 
-	ext, err := planExtensions(spec, p.vars, byName)
+	ext, err := planExtensions(spec, p.vars, byName, vlsDecls, logical)
 	if err != nil {
 		return p, err
 	}
@@ -262,7 +279,9 @@ func validate(spec Spec) (plan, error) {
 // planExtensions renders every record type 7 the spec asks for, in ascending
 // subtype order, with RawExtensions last. The order is fixed rather than
 // caller-controlled so output stays byte-deterministic.
-func planExtensions(spec Spec, vars []resolvedVar, byName map[string]resolvedVar) ([]renderedExtension, error) {
+func planExtensions(spec Spec, vars []resolvedVar, byName map[string]resolvedVar,
+	vlsDecls []vlsSpecDecl, logical map[string]logicalVar,
+) ([]renderedExtension, error) {
 	var out []renderedExtension
 
 	if mi := spec.MachineIntegerInfo; mi != nil {
@@ -325,6 +344,13 @@ func planExtensions(spec Spec, vars []resolvedVar, byName map[string]resolvedVar
 		out = append(out, renderedExtension{subtype: SubtypeLongNames, size: 1, payload: []byte(text)})
 	}
 
+	if len(vlsDecls) > 0 {
+		out = append(out, renderedExtension{
+			subtype: SubtypeVeryLongStrings, size: 1,
+			payload: []byte(renderVeryLongStrings(vlsDecls)),
+		})
+	}
+
 	if spec.CaseCount64 != nil {
 		if *spec.CaseCount64 < 0 {
 			return nil, fmt.Errorf("spsstest: CaseCount64 is %d; a case count cannot be negative", *spec.CaseCount64)
@@ -359,6 +385,18 @@ func planExtensions(spec Spec, vars []resolvedVar, byName map[string]resolvedVar
 			return nil, fmt.Errorf("spsstest: CharacterEncoding %q is not printable 7-bit ASCII; a charset name that needs a charset to read is a contradiction", spec.CharacterEncoding)
 		}
 		out = append(out, renderedExtension{subtype: SubtypeCharacterEncoding, size: 1, payload: []byte(spec.CharacterEncoding)})
+	}
+
+	if payload, err := renderLongStringValueLabels(spec, logical); err != nil {
+		return nil, err
+	} else if len(payload) > 0 {
+		out = append(out, renderedExtension{subtype: SubtypeLongStringValueLabels, size: 1, payload: payload})
+	}
+
+	if payload, err := renderLongStringMissingValues(spec, logical); err != nil {
+		return nil, err
+	} else if len(payload) > 0 {
+		out = append(out, renderedExtension{subtype: SubtypeLongStringMissing, size: 1, payload: payload})
 	}
 
 	for i, raw := range spec.RawExtensions {

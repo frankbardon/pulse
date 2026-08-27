@@ -91,6 +91,18 @@ func parseDictionaryWithCharset(b []byte, override string) (*dictionary, error) 
 	// walk and a bad payload therefore cannot desynchronise anything.
 	p.applyExtensions(d)
 
+	// The record 7/14 very-long-string fold is a SECOND pass over the
+	// interpreted extensions, not part of the first. Subtypes 7/11 and
+	// 7/13 address the variable list positionally and by name, and the
+	// format does not promise 7/14 comes after them; folding mid-walk
+	// would move the ground under whichever of the three came later.
+	// Records 7/21 and 7/22 bind after the fold for the same reason from
+	// the other side — an entry naming a very long string has to find the
+	// LOGICAL variable, not its head segment. See longstring.go.
+	p.foldVeryLongStrings(d)
+	p.bindLongStringValueLabels(d)
+	p.bindLongStringMissingValues(d)
+
 	// The charset is resolved last for the same reason: records 7/3 and
 	// 7/20 declare it, and both come after every record that carries text.
 	// Until this point every string in the dictionary is the raw bytes the

@@ -151,6 +151,7 @@ package spsstest
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -257,6 +258,9 @@ const (
 	SubtypeDisplayParams int32 = 11
 	// SubtypeLongNames is 7/13: the SHORT=Long name mapping.
 	SubtypeLongNames int32 = 13
+	// SubtypeVeryLongStrings is 7/14: the NAME=WIDTH map of every string
+	// wider than 255 bytes.
+	SubtypeVeryLongStrings int32 = 14
 	// SubtypeNumberOfCases is 7/16: the 64-bit case count.
 	SubtypeNumberOfCases int32 = 16
 	// SubtypeFileAttributes is 7/17: data-file attribute text.
@@ -268,6 +272,12 @@ const (
 	SubtypeMRSetsExtended int32 = 19
 	// SubtypeCharacterEncoding is 7/20: the IANA-ish charset name.
 	SubtypeCharacterEncoding int32 = 20
+	// SubtypeLongStringValueLabels is 7/21: value labels for a string too
+	// wide to carry them in records 3/4.
+	SubtypeLongStringValueLabels int32 = 21
+	// SubtypeLongStringMissing is 7/22: missing values for a string too
+	// wide to carry them in its record type 2.
+	SubtypeLongStringMissing int32 = 22
 )
 
 // DocumentLineLen is the fixed width of one record type 6 document line.
@@ -287,9 +297,23 @@ const (
 	MaxShortNameLen = 8
 
 	// MaxStringWidth is the largest string width expressible in the record
-	// type 2 `type` field. Wider strings need the record 7/14 very-long-string
-	// segmentation scheme, which is out of scope here.
+	// type 2 `type` field, and hence the width of every very-long-string
+	// segment but the last.
 	MaxStringWidth = 255
+
+	// VeryLongStringSegmentWidth is how many bytes of a very long string's
+	// LOGICAL value each non-final physical segment carries.
+	//
+	// It is 252 and not the 255 the segment declares: a non-final segment's
+	// last three declared bytes are unused. Both PSPP and ReadStat divide
+	// by 252, and dividing by 255 shifts every byte after the first segment.
+	VeryLongStringSegmentWidth = 252
+
+	// MaxVeryLongStringWidth is the widest string variable SPSS supports.
+	// A [Var] wider than [MaxStringWidth] and no wider than this is emitted
+	// as a very long string: several physical variables plus a record 7/14
+	// stating how to rejoin them.
+	MaxVeryLongStringWidth = 32767
 
 	// MaxVarLabelLen is the longest variable label emitted. The spec gives the
 	// documented maximum as varying from 120 to 255 across SPSS versions.
@@ -306,9 +330,16 @@ const (
 	MaxLongNameLen = 64
 
 	// MaxShortStringWidth is the widest string variable that can carry value
-	// labels through records 3/4. Anything wider needs record 7/21 long string
-	// value labels, which is out of scope here.
+	// labels through records 3/4, and the widest whose missing values fit a
+	// record type 2. Anything wider needs record 7/21 long string value
+	// labels and record 7/22 long string missing values — see
+	// [Spec.LongStringValueLabels] and [Spec.LongStringMissingValues].
 	MaxShortStringWidth = 8
+
+	// MaxLongStringMissingValues is the most missing values record 7/22 can
+	// declare for one variable. The count rides a single byte and the format
+	// caps it at three, matching record type 2.
+	MaxLongStringMissingValues = 3
 )
 
 // ByteOrder selects the file's byte order. v1 emits little-endian only;
@@ -439,8 +470,20 @@ type Var struct {
 	// out of scope here.
 	Name string
 
-	// Width is 0 for a numeric variable, or the byte width (1..255) for a
-	// string variable.
+	// Width is 0 for a numeric variable, or the byte width for a string
+	// variable.
+	//
+	// A width of 1..[MaxStringWidth] is a plain string: one record type 2
+	// plus its 8-byte continuation records. A width above that and no more
+	// than [MaxVeryLongStringWidth] is a VERY LONG STRING, which SPSS
+	// cannot express in the record type 2 `type` field at all — the file
+	// carries several physical variables of 255 bytes each plus a record
+	// 7/14 saying how to rejoin them, and this package emits all of that
+	// for you. The [Spec] still names ONE variable and each case still
+	// carries ONE [Text] value; the split is an emission detail.
+	//
+	// A very long string derives its own print and write formats per
+	// physical segment, so Print and Write must be left zero on one.
 	Width int
 
 	// Label is the variable label, or "" for none. A non-empty label sets the
@@ -690,11 +733,76 @@ func (v Var) IsString() bool { return v.Width > 0 }
 
 // segments is the number of 8-byte data elements, and hence the number of
 // record type 2 entries (one real plus continuations), the variable occupies.
+//
+// It is meaningful only for a PHYSICAL variable. A very long string is
+// expanded into its physical segments before any plan is built, so nothing
+// ever calls this on one.
 func (v Var) segments() int {
 	if !v.IsString() {
 		return 1
 	}
 	return (v.Width + ElementSize - 1) / ElementSize
+}
+
+// IsVeryLongString reports whether the variable is wide enough to need the
+// record 7/14 segmentation scheme.
+func (v Var) IsVeryLongString() bool { return v.Width > MaxStringWidth }
+
+// VeryLongStringSegmentCount returns how many PHYSICAL variables a string of
+// the given logical byte width occupies.
+func VeryLongStringSegmentCount(width int) int {
+	if width <= MaxStringWidth {
+		return 1
+	}
+	return (width + VeryLongStringSegmentWidth - 1) / VeryLongStringSegmentWidth
+}
+
+// VeryLongStringSegmentWidthAt returns the DECLARED byte width of segment i
+// (0-based) of a string of the given logical width: [MaxStringWidth] for
+// every segment but the last, which declares whatever the 252-byte stride
+// has left over.
+func VeryLongStringSegmentWidthAt(width, i int) int {
+	if i < VeryLongStringSegmentCount(width)-1 {
+		return MaxStringWidth
+	}
+	return width - i*VeryLongStringSegmentWidth
+}
+
+// VeryLongStringSegmentContentAt returns how many bytes of the LOGICAL value
+// segment i carries: [VeryLongStringSegmentWidth] for every segment but the
+// last, and the remainder for the last.
+//
+// It is not the segment's declared width. A non-final segment declares 255
+// and carries 252; the difference is why a 256-byte string is stored as two
+// segments declaring 255 and 4, whose declared widths sum to 259.
+func VeryLongStringSegmentContentAt(width, i int) int {
+	if i < VeryLongStringSegmentCount(width)-1 {
+		return VeryLongStringSegmentWidth
+	}
+	return width - i*VeryLongStringSegmentWidth
+}
+
+// VeryLongStringSegmentName returns the record type 2 short name this package
+// gives segment i of a very long string named base.
+//
+// Segment 0 keeps the variable's own name — that is the name record 7/14, and
+// every other record that cross-references the variable, uses. Later segments
+// take a generated name: the base truncated to leave room for the decimal
+// index, then that index. SPSS generates names the same way and by the same
+// necessity, since eight bytes cannot hold a name plus an unbounded suffix.
+func VeryLongStringSegmentName(base string, i int) string {
+	if i == 0 {
+		return base
+	}
+	suffix := strconv.Itoa(i - 1)
+	keep := MaxShortNameLen - len(suffix)
+	if keep < 1 {
+		keep = 1
+	}
+	if len(base) > keep {
+		base = base[:keep]
+	}
+	return base + suffix
 }
 
 // ValueLabel is one (value, label) pair inside a record type 3.
@@ -901,9 +1009,71 @@ type Spec struct {
 	// means absent.
 	VarAttributes string
 
+	// LongStringValueLabels are emitted into record 7/21: value labels for
+	// a string variable too wide to carry them through records 3/4.
+	//
+	// They are a separate slot from ValueLabels rather than a widening of
+	// it because the two are different records with different shapes — a
+	// record type 3 value is a fixed eight-byte slot shared by several
+	// variables, a record 7/21 value is length-prefixed and belongs to
+	// exactly one. Collapsing them would hide which record a fixture is
+	// actually exercising.
+	LongStringValueLabels []LongStringValueLabels
+
+	// LongStringMissingValues are emitted into record 7/22: missing values
+	// for a string variable too wide to carry them in its record type 2.
+	LongStringMissingValues []LongStringMissingValues
+
 	// RawExtensions are emitted verbatim after every modelled extension
 	// record, in slice order.
 	RawExtensions []RawExtension
+}
+
+// LongStringValueLabels is one record 7/21 entry: the value labels of one
+// string variable wider than [MaxShortStringWidth].
+type LongStringValueLabels struct {
+	// Var names the variable. It is written into the record verbatim, so a
+	// fixture can state either the record type 2 short name or the record
+	// 7/13 long name.
+	//
+	// Prefer the variable's FINAL name — its LongName where it has one, its
+	// Name where it does not. That is what real writers emit, and ReadStat
+	// (R's haven, Python's pyreadstat) refuses to parse a file at all when a
+	// record 7/21 or 7/22 entry names a variable by its short name while a
+	// long name exists. A fixture using the short name is testing a reader's
+	// tolerance, not a file anyone else can read.
+	Var string
+
+	// Labels are the (value, label) pairs in emission order, which is the
+	// order a reader turns into dictionary IDs.
+	Labels []LongStringValueLabel
+}
+
+// LongStringValueLabel is one (value, label) pair of a record 7/21 entry.
+type LongStringValueLabel struct {
+	// Value is the labelled value. It is space-padded out to the
+	// variable's declared width on the wire, which is what the format
+	// specifies and what a datum of the same variable would look like.
+	Value string
+
+	// Label is the label text, written with its own byte length.
+	Label string
+}
+
+// LongStringMissingValues is one record 7/22 entry: the missing values of one
+// string variable wider than [MaxShortStringWidth].
+type LongStringMissingValues struct {
+	// Var names the variable, verbatim, exactly as
+	// [LongStringValueLabels.Var] does — including the reason to prefer the
+	// variable's final name over its short one.
+	Var string
+
+	// Values are the missing values, 1..[MaxLongStringMissingValues] of
+	// them. Each is written as an eight-byte slot: the format fixes the
+	// length there because SPSS compares only the first eight bytes of a
+	// long string, so a value shorter than eight bytes is space-padded and
+	// a longer one is rejected rather than silently cut.
+	Values []string
 }
 
 // ReferenceSpec returns the fixture that is verified byte-by-byte against the

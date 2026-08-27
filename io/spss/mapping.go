@@ -269,7 +269,20 @@ type columnMapping struct {
 	// variable, 0 for a numeric. Trailing spaces are trimmed on read, so
 	// this is what an export needs to re-pad the value to the width the
 	// source dictionary declared.
+	//
+	// For a record 7/14 very long string it is the LOGICAL total — 600
+	// for a 600-byte string — never the 255 any one physical segment
+	// declares. The per-segment widths live on vls below, because the two
+	// answer different questions: declaredWidth says how far to pad the
+	// value, vls says how to cut the padded result back into the physical
+	// variables the source had.
 	declaredWidth int
+
+	// vls is the record 7/14 physical segmentation, non-nil only for a
+	// string wider than 255 bytes. It is retained rather than discarded
+	// after reassembly so a write path can reproduce the source's own
+	// physical layout: how many variables, their widths, their names.
+	vls *vlsLayout
 
 	// printFormat and writeFormat are the SPSS output formats, carried
 	// verbatim. They are what lets an export reconstruct the display
@@ -577,7 +590,11 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 					code = math.Float64frombits(bits)
 					raw = formatNumericValue(code)
 				} else {
-					text, err := plan.decodeStringDatum(col, seg[:col.width])
+					// stringBytes, not seg[:col.width]: a record 7/14
+					// very long string is several physical variables
+					// with padding between them, and the scan must see
+					// the same reassembled value the decode will.
+					text, err := plan.decodeStringDatum(col, plan.stringBytes(col, c))
 					if err != nil {
 						return nil, err
 					}
@@ -637,6 +654,7 @@ func (m *mapping) resolveColumn(v variable, kind columnKind,
 		printFormat:   v.print,
 		writeFormat:   v.write,
 		measure:       v.display.measure,
+		vls:           v.vls,
 	}
 
 	if st.nullTokenValue != "" {

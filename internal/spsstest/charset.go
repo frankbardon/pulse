@@ -253,6 +253,30 @@ func transcodeSpec(spec Spec, c wireCodec) (Spec, error) {
 		}
 	}
 
+	spec.LongStringValueLabels = append([]LongStringValueLabels(nil), spec.LongStringValueLabels...)
+	for si := range spec.LongStringValueLabels {
+		lsvl := &spec.LongStringValueLabels[si]
+		lsvl.Labels = append([]LongStringValueLabel(nil), lsvl.Labels...)
+		for li := range lsvl.Labels {
+			l := &lsvl.Labels[li]
+			if !set(fmt.Sprintf("LongStringValueLabels[%d].Labels[%d] value", si, li), &l.Value) ||
+				!set(fmt.Sprintf("LongStringValueLabels[%d].Labels[%d] label", si, li), &l.Label) {
+				return spec, err
+			}
+		}
+	}
+
+	spec.LongStringMissingValues = append([]LongStringMissingValues(nil), spec.LongStringMissingValues...)
+	for mi := range spec.LongStringMissingValues {
+		entry := &spec.LongStringMissingValues[mi]
+		entry.Values = append([]string(nil), entry.Values...)
+		for vi := range entry.Values {
+			if !set(fmt.Sprintf("LongStringMissingValues[%d].Values[%d]", mi, vi), &entry.Values[vi]) {
+				return spec, err
+			}
+		}
+	}
+
 	spec.MultipleResponseSets = append([]MRSet(nil), spec.MultipleResponseSets...)
 	for i := range spec.MultipleResponseSets {
 		s := &spec.MultipleResponseSets[i]

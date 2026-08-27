@@ -4959,7 +4959,7 @@
         ]
       }
     ],
-    "error_codes_count": 188,
+    "error_codes_count": 189,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5121,6 +5121,7 @@
       "PULSE_SPSS_NULL_TOKEN_COLLISION",
       "PULSE_SPSS_TEMPORAL_PRECISION",
       "PULSE_SPSS_VALUE_COLLISION",
+      "PULSE_SPSS_VERY_LONG_STRING_INVALID",
       "PULSE_SPSS_ZSAV_BLOCK_CORRUPT",
       "PULSE_SPSS_ZSAV_INVALID",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
@@ -9376,4 +9377,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0e26ff9486f31859801715480f97f9f86253dc3b050178718903444bcb7cc5ae
+// golden-hash: 4be0ba53244b4744b701407f37b3e42bf2d8e4f5947ccedbbedcdf521ac82636

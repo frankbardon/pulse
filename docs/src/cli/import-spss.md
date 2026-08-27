@@ -85,6 +85,7 @@ is **always** `null` for an SPSS import — see
 | numeric (`F`, `E`, `COMMA`, `DOT`, `PCT`, …) | `f64` | No integer narrowing by range probe — a probe would type two otherwise identical files differently |
 | numeric with value labels | `categorical_u8` / `u16` / `u32` | Width from the distinct code count; past `u32` → `PULSE_SPSS_CATEGORICAL_OVERFLOW` |
 | string (`A*`) | `categorical_*` | Near-unique columns warn `PULSE_SPSS_CARDINALITY_HIGH` and still import |
+| very long string (wider than 255 bytes) | one `categorical_*` column | Reassembled from the record `7/14` segments — see [Very long strings](#very-long-strings) |
 | `DATE` / `ADATE` / `EDATE` / `SDATE` / `JDATE` | `date`, or `datetime` with `PULSE_SPSS_DATE_WIDENED` | Widens when a value carries a time of day or predates 1970 |
 | `DATETIME` / `TIME` / `DTIME` | `datetime` (epoch seconds) | A fractional-second / non-finite / out-of-`int64` value demotes the column to `f64` raw SPSS seconds with `PULSE_SPSS_TEMPORAL_PRECISION` |
 | system-missing (sysmis) | null (bitmap bit) | The one missing state the format has a sentinel for |
@@ -190,6 +191,7 @@ each.
 | `PULSE_SPSS_NULL_TOKEN_COLLISION` | A cell's text is a null sentinel (`""`, `NA`, `N/A`, `NULL`) and imports as null |
 | `PULSE_SPSS_EXTENSION_UNKNOWN` | A record type 7 extension subtype this reader does not interpret; its bytes are retained verbatim |
 | `PULSE_SPSS_EXTENSION_INVALID` | An interpreted subtype carried a payload of the wrong shape; framing stayed sound, only the interpretation is dropped |
+| `PULSE_SPSS_VERY_LONG_STRING_INVALID` | A record `7/14` segmentation could not be reassembled; the segments import as separate columns — see [Very long strings](#very-long-strings) |
 | `PULSE_SPSS_DATA_CASE_COUNT_MISMATCH` | The header's declared case count disagrees with the cases present |
 | `PULSE_SPSS_CHARSET_MISMATCH` | The file states its character encoding twice and the two disagree — see [Character encoding](#character-encoding) |
 
@@ -258,6 +260,85 @@ any encoding that is not an ASCII superset — UTF-16 among them, because
 a `.sav` pads its fields with the byte `0x20` and delimits its record
 `7/5` and `7/13` payloads with ASCII, so an encoding that does not write
 ASCII as itself cannot express the format at all.
+
+## Very long strings
+
+SPSS cannot state a string width above 255 in a variable record: the
+`type` field is one byte's worth of range. A wider string is therefore
+stored as **several physical variables**, and a record `7/14` extension
+says how to put them back together.
+
+That is a *second* segmentation, stacked on one that is already there.
+Every string over 8 bytes is spread across 8-byte data elements
+(continuation records); a very long string is spread across physical
+*variables*, each of which is itself spread across elements. A 600-byte
+string is three physical variables of 255, 255 and 96 declared bytes,
+occupying 32 + 32 + 12 = 76 elements.
+
+The number that decides everything is **252, not 255**. A non-final
+segment *declares* 255 bytes but only its first 252 carry the value; the
+remaining three are unused. The clearest proof is a 256-byte string: it
+is two segments declaring 255 and 4, whose declared widths sum to 259 —
+three more bytes than the variable can hold. Only a 252-byte stride
+reproduces a 256-byte value.
+
+Pulse folds all of that away. `pulse inspect` and the imported cohort
+show **one column**, under the variable's own name; the generated
+segment names (`COMMENT0`, `COMMENT1`, …) never appear:
+
+```console
+$ pulse import spss -i survey.sav -o survey.pulse
+Imported 2 rows to survey.pulse
+
+$ pulse cohort inspect survey.pulse
+Fields: 2
+  ID                             f64                  Numeric field: ID
+  Comments                       categorical_u8       Free text
+    dictionary: 2 entries
+```
+
+Two properties are worth knowing:
+
+- **Bytes are joined before they are decoded.** A segment boundary falls
+  at a fixed byte offset that knows nothing about characters, so a
+  multi-byte character can straddle it. Pulse concatenates the raw bytes
+  first and runs the charset decoder once over the result. Decoding each
+  segment separately would cut such a character in half.
+- **The layout is kept, not discarded.** The number of physical
+  variables, their names and their declared widths survive the fold, so
+  an export can re-segment the value the way the source had it. The
+  retained *width* is the logical total (600), not the 255 any one
+  segment declares.
+
+A record `7/14` that cannot be applied is
+`PULSE_SPSS_VERY_LONG_STRING_INVALID`, and it is a **warning**. The
+record only says how to *join* columns that are already in the file, so
+declining to join loses no bytes at all: the segments import as the
+separate columns the dictionary literally declares, under their own
+names, and the warning says which variable and why.
+
+Two sibling records decorate wide strings, and both apply to *any*
+string over 8 bytes — not only very long ones, because the 8-byte value
+slot in a variable record is what they exist to get around:
+
+| Record | Carries | Where it lands |
+|---|---|---|
+| `7/21` | value labels for a wide string | The column's `categorical_*` dictionary, in record order, exactly as records `3`/`4` do for narrow ones |
+| `7/22` | up to three missing values for a wide string | The variable's missing-value specification. The slot is fixed at 8 bytes because SPSS itself compares only a long string's first 8 |
+
+Both name their variable by its **long** name (record `7/13`) in every
+file the wider ecosystem will read; Pulse falls back to the short name
+for writers that used it.
+
+> **Cross-check note.** R's `foreign` reads `7/14` files but deliberately
+> does *not* reassemble — it imports each segment as its own variable and
+> says so in a warning. R's `haven` (ReadStat) does reassemble, but
+> concatenates each non-final segment's full **255** declared bytes
+> rather than its 252 content bytes, so it returns a 600-byte value as
+> 606 bytes with three spurious spaces at every segment boundary, and a
+> 256-byte value as 259. The divergence is invisible for the common case
+> — a wide field holding a short value, where trailing-space trimming
+> hides it — and only appears once a value actually exceeds 252 bytes.
 
 ## Compression
 

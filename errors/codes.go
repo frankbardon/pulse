@@ -1260,6 +1260,23 @@ const (
 	// DetailSPSSSubtype and a byte offset under DetailSPSSOffset.
 	PULSE_SPSS_EXTENSION_INVALID Code = "PULSE_SPSS_EXTENSION_INVALID"
 
+	// PULSE_SPSS_VERY_LONG_STRING_INVALID indicates the record 7/14 very
+	// long string segmentation could not be reassembled: the record names
+	// a variable the dictionary does not declare, states a width the
+	// scheme cannot express, or the physical variables following the head
+	// segment do not have the widths the declared width implies.
+	//
+	// It is a WARNING. The segmentation record only says how to JOIN
+	// physical variables that are already present, so a fold that cannot
+	// be performed loses no bytes — the physical segments simply surface
+	// as the separate columns the dictionary literally declares, under
+	// their own names. That is visibly wrong rather than quietly wrong,
+	// which is the whole reason it is not a silent skip. Details carry
+	// the subtype under DetailSPSSSubtype, the variable under
+	// DetailSPSSVariable where one was named, and a byte offset under
+	// DetailSPSSOffset.
+	PULSE_SPSS_VERY_LONG_STRING_INVALID Code = "PULSE_SPSS_VERY_LONG_STRING_INVALID"
+
 	// PULSE_SPSS_COMPRESSION_UNSUPPORTED indicates an SPSS `.sav` file
 	// whose dictionary parsed cleanly but whose data section declares an
 	// encoding this reader cannot decode.
@@ -1745,6 +1762,7 @@ var allCodes = []Code{
 	PULSE_SPSS_DICT_TRUNCATED,
 	PULSE_SPSS_EXTENSION_UNKNOWN,
 	PULSE_SPSS_EXTENSION_INVALID,
+	PULSE_SPSS_VERY_LONG_STRING_INVALID,
 	PULSE_SPSS_COMPRESSION_UNSUPPORTED,
 	PULSE_SPSS_COMPRESSION_INVALID,
 	PULSE_SPSS_ZSAV_INVALID,

@@ -29,6 +29,16 @@ const (
 	extVarAttributes     int32 = 18
 	extMRSetsExtended    int32 = 19
 	extCharacterEncoding int32 = 20
+
+	// extVeryLongStrings is 7/14: the NAME=WIDTH map of every string wider
+	// than 255 bytes, which SPSS stores as several physical variables.
+	extVeryLongStrings int32 = 14
+	// extLongStringValueLabels is 7/21: value labels for a string variable
+	// too wide to carry them in records 3/4.
+	extLongStringValueLabels int32 = 21
+	// extLongStringMissing is 7/22: missing values for a string variable
+	// too wide to carry them in its record type 2.
+	extLongStringMissing int32 = 22
 )
 
 // extensionRecord is one record type 7 exactly as it appeared on the wire.
@@ -301,6 +311,41 @@ func (c *extCursor) f64() (float64, bool) {
 	return v, true
 }
 
+// done reports whether the cursor has consumed the whole payload.
+func (c *extCursor) done() bool { return c.off >= len(c.b) }
+
+// byteAt reads one byte, which records 7/22 uses for its missing-value count.
+func (c *extCursor) byteAt() (byte, bool) {
+	if len(c.b)-c.off < 1 {
+		return 0, false
+	}
+	v := c.b[c.off]
+	c.off++
+	return v, true
+}
+
+// counted reads an int32 byte length followed by that many bytes, the
+// length-prefixed string form records 7/21 and 7/22 are built out of.
+//
+// A negative length, or one past the end of the payload, fails rather than
+// being clamped: a clamp would let a corrupt length silently swallow the
+// rest of the record and report a plausible-looking value.
+func (c *extCursor) counted() (string, bool) {
+	n, ok := c.i32()
+	if !ok {
+		return "", false
+	}
+	if n < 0 || int64(n) > int64(len(c.b)-c.off) {
+		// Rewind so the caller's diagnostic points at the length field
+		// rather than past it.
+		c.off -= 4
+		return "", false
+	}
+	s := string(c.b[c.off : c.off+int(n)])
+	c.off += int(n)
+	return s, true
+}
+
 // ---------------------------------------------------------------------------
 // Interpretation
 // ---------------------------------------------------------------------------
@@ -334,6 +379,12 @@ func (p *parser) applyExtensions(d *dictionary) {
 			p.applyNumberOfCases(d, x)
 		case extCharacterEncoding:
 			p.applyCharacterEncoding(d, x)
+		case extVeryLongStrings:
+			p.applyVeryLongStrings(d, x)
+		case extLongStringValueLabels:
+			p.applyLongStringValueLabels(d, x)
+		case extLongStringMissing:
+			p.applyLongStringMissingValues(d, x)
 		case extProductInfo, extFileAttributes, extVarAttributes:
 			// Captured verbatim in d.extensions and deliberately not
 			// interpreted: attribute and product-info text is free-form

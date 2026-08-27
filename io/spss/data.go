@@ -96,6 +96,29 @@ type dataColumn struct {
 	// byte offset into a case says nothing a reader of the message could
 	// act on.
 	name string
+
+	// pieces is the record 7/14 very-long-string reassembly plan: the
+	// byte ranges within a case that together hold the logical value, in
+	// order, with each physical segment's unused tail and its round-up
+	// padding already excluded.
+	//
+	// It is nil for every column that is not a very long string, and the
+	// nil case takes a path that is byte-identical to the pre-7/14 one —
+	// a plain string still reads as one contiguous slice.
+	pieces []dataPiece
+}
+
+// dataPiece is one contiguous run of a very long string's logical value
+// within a case: the offset of a physical segment's first byte and how many
+// of that segment's bytes belong to the value.
+//
+// length is NOT the segment's declared width. A non-final segment declares
+// 255 bytes and carries 252; the other three are unused padding that must
+// never reach the caller, and a further one to seven bytes of round-up
+// padding sit past them. See longstring.go.
+type dataPiece struct {
+	offset int
+	length int
 }
 
 // dataPlan is everything the per-case decode needs, resolved once.
@@ -130,6 +153,16 @@ type dataPlan struct {
 	// a nil one falls back to the raw bytes, which is what a plan
 	// assembled by hand in a test gets.
 	cs *charsetDecoder
+
+	// vlsBuf is the scratch buffer very-long-string reassembly joins
+	// segments into. It is on the plan rather than per call because a
+	// file of a million cases would otherwise allocate a million copies
+	// of a value that is thrown away as soon as it has been decoded.
+	//
+	// It makes a plan single-pass state, so one plan must not decode two
+	// cases concurrently. Nothing does: ReadRows and scanCases are both
+	// sequential, and the mapping is memoised per reader.
+	vlsBuf []byte
 }
 
 // buildDataPlan resolves the per-case geometry from the dictionary.
@@ -165,6 +198,25 @@ func buildDataPlan(d *dictionary) (*dataPlan, error) {
 		}
 		cols[i] = dataColumn{offset: off, span: span, width: width, name: v.fieldName()}
 
+		// A very long string is several PHYSICAL variables laid end to
+		// end inside the case. Each contributes only its content bytes;
+		// the tail of a non-final segment and the round-up padding of
+		// every segment are skipped, so the pieces do not tile the span.
+		if v.vls != nil {
+			at := off
+			pieces := make([]dataPiece, 0, len(v.vls.segments))
+			for _, sg := range v.vls.segments {
+				pieces = append(pieces, dataPiece{offset: at, length: sg.content})
+				at += sg.elements * elementSize
+			}
+			if at-off != span {
+				return nil, dataError(errors.PULSE_SPSS_DICT_INVALID, d.dataOffset,
+					"the very long string %q occupies %d byte(s) across its %d segment(s) but its variable claims %d",
+					v.fieldName(), at-off, len(v.vls.segments), span)
+			}
+			cols[i].pieces = pieces
+		}
+
 		// Every element the variable occupies takes its kind. A
 		// string's continuation elements are string segments in
 		// their own right, which is exactly what the command check
@@ -199,15 +251,15 @@ func buildDataPlan(d *dictionary) (*dataPlan, error) {
 func (p *dataPlan) decodeCase(c []byte, row []string) *errors.CodedError {
 	for i := range p.cols {
 		col := &p.cols[i]
-		seg := c[col.offset : col.offset+col.span]
 		if col.width > 0 {
-			text, err := p.decodeStringDatum(col, seg[:col.width])
+			text, err := p.decodeStringDatum(col, p.stringBytes(col, c))
 			if err != nil {
 				return err
 			}
 			row[i] = text
 			continue
 		}
+		seg := c[col.offset : col.offset+col.span]
 		switch col.kind {
 		case kindDate:
 			row[i] = p.formatDate(seg)
@@ -218,6 +270,30 @@ func (p *dataPlan) decodeCase(c []byte, row []string) *errors.CodedError {
 		}
 	}
 	return nil
+}
+
+// stringBytes returns one string column's RAW wire bytes within a case: the
+// declared-width run for a plain string, and the reassembled logical value
+// for a record 7/14 very long string.
+//
+// Reassembly happens HERE, on raw bytes, and not after decoding, because a
+// segment boundary falls at a fixed byte offset that knows nothing about
+// character boundaries. Decode each segment separately and any multi-byte
+// character straddling the boundary is destroyed — its leading bytes fail to
+// decode at the end of one segment and its trailing bytes fail at the start
+// of the next. Join first, decode once.
+//
+// The returned slice aliases either the case or the plan's scratch buffer.
+// It is valid only until the next call.
+func (p *dataPlan) stringBytes(col *dataColumn, c []byte) []byte {
+	if len(col.pieces) == 0 {
+		return c[col.offset : col.offset+col.width]
+	}
+	p.vlsBuf = p.vlsBuf[:0]
+	for _, piece := range col.pieces {
+		p.vlsBuf = append(p.vlsBuf, c[piece.offset:piece.offset+piece.length]...)
+	}
+	return p.vlsBuf
 }
 
 // decodeStringDatum renders one string datum: the declared-width bytes

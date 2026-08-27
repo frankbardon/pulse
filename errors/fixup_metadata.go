@@ -1823,6 +1823,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_VERY_LONG_STRING_INVALID: {
+		Message: "The SPSS .sav record 7/14 very-long-string segmentation could not be reassembled. SPSS stores a string wider than 255 bytes as several physical variables of 255 bytes each and records how to rejoin them in record 7/14; this file's record names a variable that is not in the dictionary, states a width the scheme cannot express, or is followed by physical variables whose widths do not match the width it declares. This is a warning, not a failure: the record only says how to JOIN columns that are already present, so nothing is lost — the segments import as the separate columns the dictionary literally declares, under their own generated names, with the value split across them.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Look for the segment columns in the imported cohort — the named variable plus the ones immediately after it — and concatenate them if the whole value is needed. Re-saving the file from SPSS or PSPP rewrites record 7/14 and usually clears a segmentation that disagrees with the variable records.",
+			},
+		},
+	},
 	PULSE_SPSS_COMPRESSION_UNSUPPORTED: {
 		Message: "The SPSS .sav dictionary parsed cleanly but its data section declares a compression flag the format does not define. All three defined encodings import: uncompressed (flag 0), bytecode compression (flag 1, SPSS's save default) and ZSAV zlib blocks (flag 2, what a .zsav carries). Reading a data section under the wrong encoding would produce plausible-looking garbage, so an unrecognised flag stops the import instead of being guessed at.",
 		Fixups: []Fixup{
