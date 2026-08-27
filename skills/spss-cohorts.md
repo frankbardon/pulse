@@ -89,7 +89,7 @@ A generated sibling name colliding with a real variable (case-insensitively, as 
 
 A `categorical_*` dictionary for a labelled variable holds `"1"`, `"2"`, … — the source's own codes in the source's own order, because entry order IS the on-wire encoding. Two SPSS codes may legitimately share one value label, so a label-keyed dictionary would collapse them and destroy the code. Analysts get labels at **output time** through a `LabelTable` (see `label-display`), never from the cohort. A cell whose text is a null sentinel (`""`, `NA`, `N/A`, `NULL`) imports as null and warns `PULSE_SPSS_NULL_TOKEN_COLLISION`.
 
-**Landmine — `PULSE_LABEL_TABLES_DIR` is not a cohort directory.** The loader parses **every** `*.json` under that directory as a label table and a file it cannot parse is a hard `pulse.New` failure, not a skip. Our sidecar is `cohort.pulse.spss.json` and a managed import writes `cohort.pulse.meta.json` — so pointing the variable at the directory holding your cohorts fails startup with `pulse: parsing label table …/survey.pulse.spss.json`. This is exactly the mistake an analyst chasing labels makes. Keep label tables in their own directory.
+**`PULSE_LABEL_TABLES_DIR` skips our sidecar.** The loader parses **every** `*.json` under that directory as a label table, but excludes Pulse's own sidecars by suffix first — `cohort.pulse.spss.json` (`spss.SidecarSuffix`) and the managed-import `cohort.pulse.meta.json` — so pointing the variable at the directory holding your cohorts no longer fails `pulse.New`, and the skipped sidecar registers no table. That exclusion is by name, not tolerance: any other unparseable `*.json` still hard-fails naming its path. Keeping label tables in their own directory is still tidier.
 
 ## The metadata sidecar
 

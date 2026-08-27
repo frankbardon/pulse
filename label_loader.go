@@ -22,6 +22,13 @@ const envLabelTablesDir = "PULSE_LABEL_TABLES_DIR"
 // {"description": "...", "rows": {"k": "v"}}. The filename without
 // .json becomes the registered table name.
 //
+// Files matching a known Pulse sidecar suffix (imports.SidecarSuffix,
+// spss.SidecarSuffix — see isPulseSidecarName) are skipped without
+// being read: they are Pulse's own artefacts, they sit beside cohorts,
+// and this directory may legitimately be a data directory. Any other
+// *.json file that fails to parse is still a hard error naming the
+// path — an unreadable label table is a typo the caller must see.
+//
 // Empty dir + empty env var: the call is a no-op.
 func loadLabelTablesFromDir(opts *Options) error {
 	dir := opts.LabelTablesDir
@@ -51,6 +58,14 @@ func loadLabelTablesFromDir(opts *Options) error {
 		}
 		name := e.Name()
 		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		// Pulse's own sidecars are *.json and land next to cohorts,
+		// so a label-tables dir aimed at a data directory sees them.
+		// Skip by suffix BEFORE parsing: they are not label tables and
+		// a parse failure on one would blame the wrong thing. This is
+		// not tolerance of unparseable JSON — see isPulseSidecarName.
+		if isPulseSidecarName(name) {
 			continue
 		}
 		tableName := strings.TrimSuffix(name, ".json")

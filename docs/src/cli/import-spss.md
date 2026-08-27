@@ -585,22 +585,27 @@ output-time projection, never a property of the stored cohort; the
 block is where the code → label pairs came from, so it is the natural
 place to generate a label table from.
 
-> **Do not point `PULSE_LABEL_TABLES_DIR` at a directory of cohorts.**
-> The loader parses **every** `*.json` beneath that root as a label
-> table, and a file it cannot parse fails `pulse.New` outright rather
-> than being skipped:
+> **`PULSE_LABEL_TABLES_DIR` may safely point at a directory of
+> cohorts.** The loader parses **every** `*.json` beneath that root as a
+> label table, but it excludes Pulse's own sidecars by suffix before
+> reading them — the SPSS metadata sidecar written next to every
+> imported cohort (`cohort.pulse.spss.json`, `spss.SidecarSuffix`) and
+> the managed-import sidecar (`cohort.pulse.meta.json`,
+> `imports.SidecarSuffix`). A skipped sidecar registers no label table
+> under any name.
+>
+> That is an exclusion of files Pulse knows are its own, **not**
+> tolerance of unparseable JSON. Any other `*.json` that fails to parse
+> still fails `pulse.New` outright, naming the offending path:
 >
 > ```
-> pulse: parsing label table /data/cohorts/survey.pulse.spss.json:
-> json: cannot unmarshal object into Go value of type string
+> pulse: parsing label table /data/cohorts/regions.json:
+> json: cannot unmarshal number into Go value of type string
 > ```
 >
-> The SPSS metadata sidecar written next to every imported cohort
-> (`cohort.pulse.spss.json`) and the managed-import sidecar
-> (`cohort.pulse.meta.json`) both trip it. The behaviour predates SPSS
-> support, but the sidecar makes it far easier to hit — and it hits
-> precisely the person who came looking for labels. Keep label tables in
-> a directory of their own.
+> A typo'd label table must surface as an error, not as a table that is
+> quietly not there. A dedicated label-tables directory remains the
+> tidier habit, but it is no longer a requirement.
 
 ## Flags and what SPSS ignores
 

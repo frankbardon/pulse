@@ -32,7 +32,7 @@ LabelTables: map[string]pulse.LabelTable{
 
 `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (filename without `.json` = table name). Either flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic + disk-loaded can't share a name (`pulse.New` rejects).
 
-**Point it at a dedicated directory, never at your cohorts.** The loader parses *every* `*.json` under the root and a file it cannot parse is a hard `pulse.New` failure, not a skip — so a cohort directory containing an SPSS metadata sidecar (`cohort.pulse.spss.json`) or a managed-import sidecar (`cohort.pulse.meta.json`) fails startup with `pulse: parsing label table …`. It bites the workflow that needs labels most: an SPSS cohort stores codes, so you reach for a label table — and the sidecar holding the labels sits next to the cohort.
+**Pulse's own sidecars are skipped; anything else that fails to parse is fatal.** The loader excludes `*.spss.json` (SPSS metadata) and `*.meta.json` (managed import) by suffix before reading them, so pointing the variable at a directory that also holds cohorts is safe and a skipped sidecar registers no table. Every OTHER `*.json` under the root is still parsed as a label table and a file that fails hard-fails `pulse.New` naming the path — a typo must not become a silently missing table. A dedicated directory is still the cleaner habit.
 
 ### 2. Attach a binding
 
