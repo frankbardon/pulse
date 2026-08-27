@@ -107,22 +107,22 @@ func TestValidateCohort_NameRefusalMatchesTheExport(t *testing.T) {
 	}
 }
 
-// TestValidateCohort_SanitiseNamesTurnsTheRefusalIntoAWarning is the
+// TestValidateCohort_SanitizeNamesTurnsTheRefusalIntoAWarning is the
 // never-refuse-what-the-export-accepts rule, exercised on the knob that
 // moves the verdict. Predict is told about the same options the export will
-// run under, so a --sanitise-names export predicts as a pass.
-func TestValidateCohort_SanitiseNamesTurnsTheRefusalIntoAWarning(t *testing.T) {
+// run under, so a --sanitize-names export predicts as a pass.
+func TestValidateCohort_SanitizeNamesTurnsTheRefusalIntoAWarning(t *testing.T) {
 	fs, cohort := cohortFromRows(t,
 		[]string{"household income", "age"},
 		[][]string{{"10", "1"}, {"20", "2"}})
 
-	opts := WriterOptions{SanitiseNames: true}
+	opts := WriterOptions{SanitizeNames: true}
 	report, err := predictSav(t, fs, cohort, opts)
 	if err != nil {
-		t.Fatalf("predict refused a --sanitise-names export that the export accepts: %v", err)
+		t.Fatalf("predict refused a --sanitize-names export that the export accepts: %v", err)
 	}
-	if !hasCode(report.TargetWarnings, perr.PULSE_SPSS_NAME_SANITISED) {
-		t.Errorf("predict raised no PULSE_SPSS_NAME_SANITISED; warnings = %v", codes(report.TargetWarnings))
+	if !hasCode(report.TargetWarnings, perr.PULSE_SPSS_NAME_SANITIZED) {
+		t.Errorf("predict raised no PULSE_SPSS_NAME_SANITIZED; warnings = %v", codes(report.TargetWarnings))
 	}
 	if err := runSav(t, fs, cohort, opts); err != nil {
 		t.Fatalf("the export failed after a passing predict: %v", err)

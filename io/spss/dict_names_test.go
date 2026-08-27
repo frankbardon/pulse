@@ -291,12 +291,12 @@ func TestNames_RefusalHappensBeforeAnythingIsEmitted(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// --sanitise-names
+// --sanitize-names
 // ---------------------------------------------------------------------------
 
-// sanitisePlan builds a synthesised dictionary from field names alone,
-// which is the only front-end --sanitise-names applies to.
-func sanitisePlan(t *testing.T, opts WriterOptions, names ...string) *DictionaryPlan {
+// sanitizePlan builds a synthesised dictionary from field names alone,
+// which is the only front-end --sanitize-names applies to.
+func sanitizePlan(t *testing.T, opts WriterOptions, names ...string) *DictionaryPlan {
 	t.Helper()
 	s := &encoding.Schema{}
 	for _, n := range names {
@@ -311,9 +311,9 @@ func sanitisePlan(t *testing.T, opts WriterOptions, names ...string) *Dictionary
 	return plan
 }
 
-// TestSanitiseNames_OffIsStillARefusal is the default, and it is the whole
+// TestSanitizeNames_OffIsStillARefusal is the default, and it is the whole
 // reason the flag is opt-in. A silent rename is worse than a stop.
-func TestSanitiseNames_OffIsStillARefusal(t *testing.T) {
+func TestSanitizeNames_OffIsStillARefusal(t *testing.T) {
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "household income (gross)", Type: encoding.FieldTypeF64},
 	}}
@@ -323,10 +323,10 @@ func TestSanitiseNames_OffIsStillARefusal(t *testing.T) {
 	}
 }
 
-// TestSanitiseNames_DerivesLegalNames covers the derivation rules one at a
+// TestSanitizeNames_DerivesLegalNames covers the derivation rules one at a
 // time: the punctuation map, the leading-digit prefix, the trailing dot,
 // and the 64-byte ceiling.
-func TestSanitiseNames_DerivesLegalNames(t *testing.T) {
+func TestSanitizeNames_DerivesLegalNames(t *testing.T) {
 	for _, tt := range []struct{ in, want string }{
 		{"household income (gross)", "household_income__gross_"},
 		{"2024 revenue", "V2024_revenue"},
@@ -336,24 +336,24 @@ func TestSanitiseNames_DerivesLegalNames(t *testing.T) {
 		{"Identität", "Identität"},
 		{strings.Repeat("a", 80), strings.Repeat("a", 64)},
 	} {
-		plan := sanitisePlan(t, WriterOptions{SanitiseNames: true}, tt.in)
+		plan := sanitizePlan(t, WriterOptions{SanitizeNames: true}, tt.in)
 		got := emittedNames(t, plan.Bytes)
 		if len(got) != 1 || got[0] != tt.want {
-			t.Errorf("sanitising %q emitted %v, want [%q]", tt.in, got, tt.want)
+			t.Errorf("sanitizing %q emitted %v, want [%q]", tt.in, got, tt.want)
 		}
 	}
 }
 
-// TestSanitiseNames_CollisionSafe is the rule that makes the rewrite
+// TestSanitizeNames_CollisionSafe is the rule that makes the rewrite
 // trustworthy rather than merely legal.
 //
 // The second sub-case is the one that would be easy to get wrong: a
 // rewritten name must not claim a slot a name that was ALREADY legal is
 // going to need. The column that was correct to begin with is the one that
 // must not move.
-func TestSanitiseNames_CollisionSafe(t *testing.T) {
+func TestSanitizeNames_CollisionSafe(t *testing.T) {
 	t.Run("two rewrites colliding", func(t *testing.T) {
-		plan := sanitisePlan(t, WriterOptions{SanitiseNames: true}, "q1 x", "q1-x")
+		plan := sanitizePlan(t, WriterOptions{SanitizeNames: true}, "q1 x", "q1-x")
 		got := emittedNames(t, plan.Bytes)
 		if len(got) != 2 || got[0] != "q1_x" || got[1] != "q1_x_2" {
 			t.Errorf("emitted %v, want [q1_x q1_x_2]", got)
@@ -361,7 +361,7 @@ func TestSanitiseNames_CollisionSafe(t *testing.T) {
 	})
 
 	t.Run("a rewrite must not displace an already-legal name", func(t *testing.T) {
-		plan := sanitisePlan(t, WriterOptions{SanitiseNames: true}, "q1 x", "q1_x")
+		plan := sanitizePlan(t, WriterOptions{SanitizeNames: true}, "q1 x", "q1_x")
 		got := emittedNames(t, plan.Bytes)
 		if len(got) != 2 || got[1] != "q1_x" {
 			t.Fatalf("emitted %v; the already-legal q1_x must keep its name", got)
@@ -372,25 +372,25 @@ func TestSanitiseNames_CollisionSafe(t *testing.T) {
 	})
 }
 
-// TestSanitiseNames_IsDeterministic. The same cohort must always produce
+// TestSanitizeNames_IsDeterministic. The same cohort must always produce
 // the same file — a rename that moved between runs would break every
 // downstream reference.
-func TestSanitiseNames_IsDeterministic(t *testing.T) {
+func TestSanitizeNames_IsDeterministic(t *testing.T) {
 	names := []string{"a b", "a-b", "a.b", "1st"}
-	first := emittedNames(t, sanitisePlan(t, WriterOptions{SanitiseNames: true}, names...).Bytes)
+	first := emittedNames(t, sanitizePlan(t, WriterOptions{SanitizeNames: true}, names...).Bytes)
 	for i := 0; i < 3; i++ {
-		got := emittedNames(t, sanitisePlan(t, WriterOptions{SanitiseNames: true}, names...).Bytes)
+		got := emittedNames(t, sanitizePlan(t, WriterOptions{SanitizeNames: true}, names...).Bytes)
 		if strings.Join(got, "|") != strings.Join(first, "|") {
 			t.Fatalf("run %d emitted %v, first run emitted %v", i, got, first)
 		}
 	}
 }
 
-// TestSanitiseNames_ReportsEveryRename is what pays for the opt-in. A
+// TestSanitizeNames_ReportsEveryRename is what pays for the opt-in. A
 // rewrite the caller cannot see is the silent mangling the default refusal
 // exists to prevent, one flag further along.
-func TestSanitiseNames_ReportsEveryRename(t *testing.T) {
-	plan := sanitisePlan(t, WriterOptions{SanitiseNames: true}, "a b", "legal", "c-d")
+func TestSanitizeNames_ReportsEveryRename(t *testing.T) {
+	plan := sanitizePlan(t, WriterOptions{SanitizeNames: true}, "a b", "legal", "c-d")
 
 	if len(plan.Renames) != 2 {
 		t.Fatalf("Renames = %v, want exactly the two illegal names", plan.Renames)
@@ -404,12 +404,12 @@ func TestSanitiseNames_ReportsEveryRename(t *testing.T) {
 
 	var warn *perr.CodedError
 	for _, w := range plan.Warnings {
-		if w.Code == perr.PULSE_SPSS_NAME_SANITISED {
+		if w.Code == perr.PULSE_SPSS_NAME_SANITIZED {
 			warn = w
 		}
 	}
 	if warn == nil {
-		t.Fatalf("no PULSE_SPSS_NAME_SANITISED among %v", plan.Warnings)
+		t.Fatalf("no PULSE_SPSS_NAME_SANITIZED among %v", plan.Warnings)
 	}
 	list, ok := warn.Details[perr.DetailSPSSRenames].([]any)
 	if !ok || len(list) != 2 {
@@ -417,12 +417,12 @@ func TestSanitiseNames_ReportsEveryRename(t *testing.T) {
 	}
 }
 
-// TestSanitiseNames_NothingToDoIsSilent. A cohort whose names are already
+// TestSanitizeNames_NothingToDoIsSilent. A cohort whose names are already
 // legal must be byte-identical with and without the flag, and must raise no
 // warning — otherwise the flag becomes noise people learn to ignore.
-func TestSanitiseNames_NothingToDoIsSilent(t *testing.T) {
-	with := sanitisePlan(t, WriterOptions{SanitiseNames: true}, "AGE", "REGION")
-	without := sanitisePlan(t, WriterOptions{}, "AGE", "REGION")
+func TestSanitizeNames_NothingToDoIsSilent(t *testing.T) {
+	with := sanitizePlan(t, WriterOptions{SanitizeNames: true}, "AGE", "REGION")
+	without := sanitizePlan(t, WriterOptions{}, "AGE", "REGION")
 	if string(with.Bytes) != string(without.Bytes) {
 		t.Error("the flag changed the emitted bytes for a cohort with nothing to rename")
 	}
@@ -430,25 +430,25 @@ func TestSanitiseNames_NothingToDoIsSilent(t *testing.T) {
 		t.Errorf("Renames = %v, want none", with.Renames)
 	}
 	for _, w := range with.Warnings {
-		if w.Code == perr.PULSE_SPSS_NAME_SANITISED {
-			t.Error("a PULSE_SPSS_NAME_SANITISED was raised with nothing renamed")
+		if w.Code == perr.PULSE_SPSS_NAME_SANITIZED {
+			t.Error("a PULSE_SPSS_NAME_SANITIZED was raised with nothing renamed")
 		}
 	}
 }
 
-// TestSanitiseNames_SidecarPathUnaffected. Names that came from a `.sav`
+// TestSanitizeNames_SidecarPathUnaffected. Names that came from a `.sav`
 // are legal by construction; rewriting a source's own names would be the
 // fidelity loss the write side exists to avoid.
-func TestSanitiseNames_SidecarPathUnaffected(t *testing.T) {
+func TestSanitizeNames_SidecarPathUnaffected(t *testing.T) {
 	schema, res := exportFixture(t, richSpec())
 	req := DictionaryRequest{Schema: schema, Sidecar: res, Cases: -1, Compression: compressionNone}
 
 	plain := emit(t, req)
-	req.Options = WriterOptions{SanitiseNames: true}
+	req.Options = WriterOptions{SanitizeNames: true}
 	flagged := emit(t, req)
 
 	if string(plain.Bytes) != string(flagged.Bytes) {
-		t.Error("--sanitise-names changed a sidecar-driven dictionary; it must be synthesised-path only")
+		t.Error("--sanitize-names changed a sidecar-driven dictionary; it must be synthesised-path only")
 	}
 	if len(flagged.Renames) != 0 {
 		t.Errorf("Renames = %v on a sidecar-driven plan, want none", flagged.Renames)

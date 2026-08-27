@@ -498,14 +498,14 @@ type DictionaryPlan struct {
 	// schema alone.
 	Synthesised bool
 
-	// Renames are the variable names [WriterOptions.SanitiseNames]
+	// Renames are the variable names [WriterOptions.SanitizeNames]
 	// rewrote, in emission order. Nil when the flag is unset, when the
 	// plan came from a sidecar, and when every cohort name was already a
 	// legal SPSS name — so an export that renamed nothing is
 	// indistinguishable from one that could not have.
 	//
 	// The same set rides Warnings as a single
-	// PULSE_SPSS_NAME_SANITISED. It is repeated here in typed form
+	// PULSE_SPSS_NAME_SANITIZED. It is repeated here in typed form
 	// because a caller that wants to map emitted variables back to
 	// cohort fields should not have to parse it out of a details map.
 	Renames []NameRename
@@ -676,12 +676,12 @@ func BuildDictionary(req DictionaryRequest) (*DictionaryPlan, error) {
 	// after, because it has to see the names the front-end chose; before,
 	// because applyCharsetWrite measures and segments the names it is handed.
 	// It is synthesised-path only — a sidecar's names came from a `.sav` and
-	// are legal by construction. See WriterOptions.SanitiseNames.
+	// are legal by construction. See WriterOptions.SanitizeNames.
 	var renames []NameRename
-	if synth && req.Options.SanitiseNames {
-		renames = sanitiseNames(f)
+	if synth && req.Options.SanitizeNames {
+		renames = sanitizeNames(f)
 		if len(renames) > 0 {
-			f.warnings = append(f.warnings, nameSanitised(renames))
+			f.warnings = append(f.warnings, nameSanitized(renames))
 		}
 	}
 

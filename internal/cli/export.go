@@ -31,7 +31,7 @@ const (
 
 	writeCharsetFlagUsage = "Character encoding the emitted .sav is written in, and declared as, e.g. windows-1252 or utf-8. Default: the charset the SOURCE declared, or UTF-8 for a cohort with no SPSS provenance. Set it when the cohort now holds text the source's codepage cannot express."
 
-	sanitiseNamesFlagUsage = "Rewrite cohort field names that cannot be SPSS variable names (a space, bracket, hyphen or leading digit) instead of refusing the export. Every rename is reported as a PULSE_SPSS_NAME_SANITISED warning. Only affects a synthesised dictionary — names from a sidecar came from SPSS and are already legal."
+	sanitizeNamesFlagUsage = "Rewrite cohort field names that cannot be SPSS variable names (a space, bracket, hyphen or leading digit) instead of refusing the export. Every rename is reported as a PULSE_SPSS_NAME_SANITIZED warning. Only affects a synthesised dictionary — names from a sidecar came from SPSS and are already legal."
 )
 
 // ExportCommand returns the export command group.
@@ -83,7 +83,7 @@ func exportSPSSCmd() *cli.Command {
 			&cli.BoolFlag{Name: "ignore-sidecar", Usage: ignoreSidecarFlagUsage},
 			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
 			&cli.StringFlag{Name: "charset", Usage: writeCharsetFlagUsage},
-			&cli.BoolFlag{Name: "sanitise-names", Usage: sanitiseNamesFlagUsage},
+			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
 		),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runExport(ctx, cmd, "spss")
@@ -101,7 +101,7 @@ func writerOptionsFrom(cmd *cli.Command) writerOptions {
 			IgnoreSidecar: cmd.Bool("ignore-sidecar"),
 			Uncompressed:  cmd.Bool("uncompressed"),
 			Charset:       cmd.String("charset"),
-			SanitiseNames: cmd.Bool("sanitise-names"),
+			SanitizeNames: cmd.Bool("sanitize-names"),
 		},
 	}
 }
@@ -234,7 +234,7 @@ const predictTargetPath = "predict.out"
 //
 // The four `.sav` write knobs are mounted here for the same reason
 // `pulse convert predict` carries them — the answer depends on them.
-// --sanitise-names in particular turns a PULSE_SPSS_NAME_INVALID refusal into
+// --sanitize-names in particular turns a PULSE_SPSS_NAME_INVALID refusal into
 // a warning, so a predict that could not be told about it would refuse an
 // export that would have succeeded.
 func exportPredictCmd() *cli.Command {
@@ -247,7 +247,7 @@ func exportPredictCmd() *cli.Command {
 			&cli.BoolFlag{Name: "ignore-sidecar", Usage: ignoreSidecarFlagUsage},
 			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
 			&cli.StringFlag{Name: "charset", Usage: writeCharsetFlagUsage},
-			&cli.BoolFlag{Name: "sanitise-names", Usage: sanitiseNamesFlagUsage},
+			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

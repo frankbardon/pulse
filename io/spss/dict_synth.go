@@ -387,7 +387,7 @@ func newNameMinter() *nameMinter { return &nameMinter{used: make(map[string]bool
 
 // mint derives a unique short name from want.
 func (m *nameMinter) mint(want string) string {
-	base := sanitiseShortName(want)
+	base := sanitizeShortName(want)
 	if !m.used[base] {
 		m.used[base] = true
 		return base
@@ -406,10 +406,10 @@ func (m *nameMinter) mint(want string) string {
 	}
 }
 
-// sanitiseShortName folds a Pulse name onto the record type 2 name field:
+// sanitizeShortName folds a Pulse name onto the record type 2 name field:
 // upper case, at most 8 bytes, opening with a letter, and carrying only the
 // bytes SPSS allows in a name.
-func sanitiseShortName(s string) string {
+func sanitizeShortName(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s) && b.Len() < shortNameLen; i++ {
 		c := s[i]

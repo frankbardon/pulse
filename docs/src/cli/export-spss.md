@@ -22,7 +22,7 @@ source dictionary rather than inventing one.
 > stream those two transform. See [What this leaf
 > refuses](#what-this-leaf-refuses).
 
-> **Illegal variable names stop the export by default.** `--sanitise-names`
+> **Illegal variable names stop the export by default.** `--sanitize-names`
 > is the opt-in escape hatch. See [The name boundary](#the-name-boundary).
 
 ## Synopsis
@@ -30,10 +30,10 @@ source dictionary rather than inventing one.
 ```
 pulse export spss --input PATH.pulse --output PATH.sav
                   [--ignore-sidecar] [--uncompressed]
-                  [--charset NAME] [--sanitise-names] [--json]
+                  [--charset NAME] [--sanitize-names] [--json]
 pulse export predict --input PATH.pulse --format spss
                      [--ignore-sidecar] [--uncompressed]
-                     [--charset NAME] [--sanitise-names] [--json]
+                     [--charset NAME] [--sanitize-names] [--json]
 pulse convert PATH.pulse OUT.sav
 pulse convert PATH.csv  OUT.sav
 ```
@@ -156,7 +156,7 @@ metadata or a synthesised default — never fresh-or-stale.
 ## Flags
 
 Four flags, each exactly one field of `spss.WriterOptions`.
-`--ignore-sidecar`, `--uncompressed` and `--sanitise-names` are also on
+`--ignore-sidecar`, `--uncompressed` and `--sanitize-names` are also on
 `pulse convert` / `convert predict`; `--charset` on `convert` names the
 *source* charset, so the write charset is settable only on this leaf.
 
@@ -199,7 +199,7 @@ express, which is otherwise `PULSE_SPSS_CHARSET_UNENCODABLE`.
 `spss.WithCharset` on the read side changes *decoding* only and is
 deliberately not consulted here.
 
-### `--sanitise-names`
+### `--sanitize-names`
 
 Rewrite cohort field names a `.sav` cannot carry, instead of refusing.
 
@@ -224,14 +224,14 @@ name may carry only letters, digits and '.', '_', '$', '#', '@'
 ```
 
 ```bash
-pulse convert bad.csv bad2.sav --sanitise-names
+pulse convert bad.csv bad2.sav --sanitize-names
 ```
 
 ```
 Converted 1 rows: bad.csv -> bad2.sav
 Warning [PULSE_SPSS_SIDECAR_ABSENT]: spss: no metadata sidecar found at
 converted-rows.pulse.spss.json; ...
-Warning [PULSE_SPSS_NAME_SANITISED]: spss: --sanitise-names rewrote 2
+Warning [PULSE_SPSS_NAME_SANITIZED]: spss: --sanitize-names rewrote 2
 name(s) that a .sav cannot carry: "household income (gross)" ->
 "household_income__gross_", "2024 total" -> "V2024_total". The full list
 is under "renames"; the emitted variables carry the rewritten names.
@@ -247,7 +247,7 @@ Note the sidecar path in that transcript: a `convert` from a text source
 builds an intermediate cohort named `converted-rows.pulse`, so the absent
 sidecar it reports is that intermediate's, not any file on disk.
 
-`--sanitise-names` is **inert on the sidecar path**: those names came from
+`--sanitize-names` is **inert on the sidecar path**: those names came from
 SPSS and are already legal by construction. It exists for the synthesised
 path, where a CSV header's spaces and brackets are perfectly ordinary.
 
@@ -351,9 +351,9 @@ writer it builds to ask the question is pointed at an in-memory
 filesystem it never flushes.
 
 **Pass the flags you will export with.** The four write knobs are mounted
-on this leaf too, and the answer depends on them: `--sanitise-names` in
+on this leaf too, and the answer depends on them: `--sanitize-names` in
 particular turns a `PULSE_SPSS_NAME_INVALID` refusal into a
-`PULSE_SPSS_NAME_SANITISED` warning, so a predict that could not be told
+`PULSE_SPSS_NAME_SANITIZED` warning, so a predict that could not be told
 about it would refuse an export that would have succeeded.
 
 **A refusal carries the export's own code**, not a `PREDICT_ERROR`
@@ -385,7 +385,7 @@ and every string lives in the schema block's dictionaries.
 
 | Reachable without records | Needs the data pass |
 |---|---|
-| `PULSE_SPSS_NAME_INVALID` / `_COLLISION` / `_SANITISED` | `PULSE_SPSS_WIDTH_OVERFLOW` on a value |
+| `PULSE_SPSS_NAME_INVALID` / `_COLLISION` / `_SANITIZED` | `PULSE_SPSS_WIDTH_OVERFLOW` on a value |
 | `PULSE_SPSS_SIDECAR_ABSENT` / `_STALE` / `_INVALID` / `_IGNORED` | `PULSE_SPSS_CHARSET_UNENCODABLE` in cell text |
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` / `_UNENCODABLE` in dictionary text | `PULSE_SPSS_EXPORT_UNSUPPORTED` for a dictionary ID with no source code |
 | `PULSE_SPSS_COLUMN_UNMAPPED`, `PULSE_SPSS_DERIVED_UNFOLDABLE` | |
@@ -420,7 +420,7 @@ A text source has no cohort behind it, so the writer buffers every row,
 builds an intermediate cohort in memory through the ordinary import path,
 and exports that. Consequences worth expecting: an **inferred** schema, no
 metadata sidecar (so `PULSE_SPSS_SIDECAR_ABSENT`), synthesised SPSS names
-(so `--sanitise-names` is live), and a memory profile proportional to the
+(so `--sanitize-names` is live), and a memory profile proportional to the
 input, because an intermediate cohort cannot be written until the last row
 has been seen. A row path with no rows at all is a refusal, not an empty
 file.
@@ -516,7 +516,7 @@ row path does — has raised none of them when the job builds its report.
 | `PULSE_SPSS_SIDECAR_INVALID` | error | Not JSON, foreign `kind`, unknown `format_version`, bad digest, or a broken `multiple_response_sets[].fields` array |
 | `PULSE_SPSS_NAME_INVALID` | error | A cohort field name a `.sav` cannot carry as a variable |
 | `PULSE_SPSS_NAME_COLLISION` | error | Two cohort fields resolve to one SPSS variable name (case-insensitively) |
-| `PULSE_SPSS_NAME_SANITISED` | warning | `--sanitise-names` rewrote names; details carry the full `field → name` list |
+| `PULSE_SPSS_NAME_SANITIZED` | warning | `--sanitize-names` rewrote names; details carry the full `field → name` list |
 | `PULSE_SPSS_COLUMN_UNMAPPED` | error | A cohort column would leave the export silently, and the registry does not account for it |
 | `PULSE_SPSS_DERIVED_UNFOLDABLE` | error | A registry entry this binary cannot fold back |
 | `PULSE_SPSS_EXPORT_UNSUPPORTED` | error | `--include` / `--labels` on a `.sav` export, or a value with no honest `.sav` form |

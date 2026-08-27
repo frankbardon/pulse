@@ -1125,7 +1125,7 @@ and exports that — an inferred schema and no metadata sidecar, which
 means synthesised SPSS names. If the CSV's header carries names a `.sav`
 cannot express — a space, a bracket, a hyphen, a leading digit — it stops
 with `PULSE_SPSS_NAME_INVALID` rather than mangling them; add
-`--sanitise-names` to rewrite them and have every rename reported:
+`--sanitize-names` to rewrite them and have every rename reported:
 
 ```
 error: PULSE_SPSS_NAME_INVALID: spss: "household income (gross)" is not a

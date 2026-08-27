@@ -239,10 +239,10 @@ func (w *Writer) ValidateCohort(ctx context.Context, src pio.CohortSource) ([]*e
 // the row path's warnings must ask after Close.
 func (w *Writer) Warnings() []*errors.CodedError { return w.warnings }
 
-// Renames returns the variable renames [WriterOptions.SanitiseNames]
+// Renames returns the variable renames [WriterOptions.SanitizeNames]
 // performed, in emission order. Nil when the flag was unset or nothing
 // needed rewriting. The same set rides Warnings as a single
-// PULSE_SPSS_NAME_SANITISED; this is the typed form.
+// PULSE_SPSS_NAME_SANITIZED; this is the typed form.
 func (w *Writer) Renames() []NameRename { return w.renames }
 
 // Close runs the ROW path's encode if it has not already run, then writes the

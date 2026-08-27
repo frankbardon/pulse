@@ -265,7 +265,7 @@ func shortNameCollision(name, short, previous, field string) error {
 // The opt-in rewrite
 // ---------------------------------------------------------------------------
 
-// NameRename records one variable a [WriterOptions.SanitiseNames] export
+// NameRename records one variable a [WriterOptions.SanitizeNames] export
 // renamed: the cohort field it came from, and the SPSS name it went out as.
 //
 // It is a pair rather than a map entry because the report is ORDERED — a
@@ -284,10 +284,10 @@ type NameRename struct {
 	Name string `json:"name"`
 }
 
-// sanitiseNames rewrites every emitted name that is not a legal SPSS name,
+// sanitizeNames rewrites every emitted name that is not a legal SPSS name,
 // and returns what it changed.
 //
-// It runs only when [WriterOptions.SanitiseNames] is set and only on the
+// It runs only when [WriterOptions.SanitizeNames] is set and only on the
 // SYNTHESISED front-end — see the option's own documentation for why the
 // sidecar path is exempt.
 //
@@ -306,7 +306,7 @@ type NameRename struct {
 //
 // # What it does NOT touch
 //
-// The record type 2 SHORT name. [sanitiseShortName] already folds any Pulse
+// The record type 2 SHORT name. [sanitizeShortName] already folds any Pulse
 // name onto a legal, unique 8-byte handle, so a short name is never the
 // illegal one; and re-minting it here would have to re-run the whole minter
 // to stay unique, for no gain. The record 7/13 LONG name IS updated, because
@@ -320,7 +320,7 @@ type NameRename struct {
 // overflows once encoded into a narrower codepage is still a hard
 // PULSE_SPSS_NAME_INVALID from validateNames. That is the honest answer —
 // the alternative is truncating a name against a width the caller cannot see.
-func sanitiseNames(f *outFile) []NameRename {
+func sanitizeNames(f *outFile) []NameRename {
 	taken := make(map[string]bool, len(f.vars))
 	sets := make(map[string]bool, len(f.mrSets))
 
@@ -352,7 +352,7 @@ func sanitiseNames(f *outFile) []NameRename {
 			continue
 		}
 		from := v.name
-		name := uniqueName(sanitiseVariableName(from), taken)
+		name := uniqueName(sanitizeVariableName(from), taken)
 		taken[nameKey(name)] = true
 		v.name = name
 
@@ -369,7 +369,7 @@ func sanitiseNames(f *outFile) []NameRename {
 	}
 
 	// The record type 2 SHORT name is almost always legal by
-	// construction — sanitiseShortName upper-cases, truncates and maps
+	// construction — sanitizeShortName upper-cases, truncates and maps
 	// every disallowed byte to '_'. Almost: it admits '.' anywhere, and a
 	// name ENDING in '.' is a command terminator to SPSS, so a cohort
 	// field called `total.` mints the illegal short name `TOTAL.`. Repair
@@ -419,8 +419,8 @@ func sanitiseNames(f *outFile) []NameRename {
 		}
 		// A response-set name is conventionally '$'-prefixed and the
 		// character rule admits that, so the prefix is held aside and the
-		// rest sanitised as an ordinary name.
-		name := "$" + uniqueName(sanitiseVariableName(strings.TrimPrefix(from, "$")), sets)
+		// rest sanitized as an ordinary name.
+		name := "$" + uniqueName(sanitizeVariableName(strings.TrimPrefix(from, "$")), sets)
 		sets[nameKey(name)] = true
 		f.mrSets[i].Name = name
 		out = append(out, NameRename{From: from, Name: name})
@@ -440,7 +440,7 @@ func sanitiseNames(f *outFile) []NameRename {
 	return out
 }
 
-// sanitiseVariableName derives a legal SPSS variable name from an arbitrary
+// sanitizeVariableName derives a legal SPSS variable name from an arbitrary
 // Pulse field name.
 //
 // Every rune the name rule rejects becomes '_' rather than being dropped, so
@@ -448,7 +448,7 @@ func sanitiseNames(f *outFile) []NameRename {
 // collision counter — not silence — is what resolves them. A name that does
 // not open with a letter is prefixed rather than trimmed, because trimming
 // "2024_revenue" to "revenue" throws away the part that made it distinct.
-func sanitiseVariableName(s string) string {
+func sanitizeVariableName(s string) string {
 	var b strings.Builder
 	for i, r := range s {
 		switch {
@@ -500,7 +500,7 @@ func repairInto(name string, taken map[string]bool) string {
 	return short
 }
 
-// repairShortName fixes the one fault sanitiseShortName can leave behind: a
+// repairShortName fixes the one fault sanitizeShortName can leave behind: a
 // trailing '.'. It replaces rather than trims so the name keeps its length
 // and two short names that differed only there stay different.
 func repairShortName(s string) string {
@@ -542,14 +542,14 @@ func truncateName(s string, n int) string {
 	return s[:cut]
 }
 
-// nameSanitised is the warning that makes the opt-in rewrite honest: it
+// nameSanitized is the warning that makes the opt-in rewrite honest: it
 // carries every rename, so an emitted file's variables can always be mapped
 // back to the cohort fields they came from.
 //
 // The prose caps the list at three and the details do not — a cohort whose
 // every column carries a space would otherwise report a truncated list as if
 // it were the whole of it.
-func nameSanitised(renames []NameRename) *errors.CodedError {
+func nameSanitized(renames []NameRename) *errors.CodedError {
 	pairs := make([]any, 0, len(renames))
 	shown := make([]string, 0, 3)
 	for i, r := range renames {
@@ -558,12 +558,12 @@ func nameSanitised(renames []NameRename) *errors.CodedError {
 			shown = append(shown, strconv.Quote(r.From)+" -> "+strconv.Quote(r.Name))
 		}
 	}
-	msg := "spss: --sanitise-names rewrote " + strconv.Itoa(len(renames)) +
+	msg := "spss: --sanitize-names rewrote " + strconv.Itoa(len(renames)) +
 		" name(s) that a .sav cannot carry: " + strings.Join(shown, ", ")
 	if len(renames) > len(shown) {
 		msg += ", and " + strconv.Itoa(len(renames)-len(shown)) + " more"
 	}
-	return errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_NAME_SANITISED,
+	return errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_NAME_SANITIZED,
 		msg+". The full list is under \"renames\"; the emitted variables carry the rewritten names.",
 		map[string]any{errors.DetailSPSSRenames: pairs})
 }

@@ -438,7 +438,7 @@ type CohortValidator interface {
 // not stop an export but change what the file MEANS: a metadata sidecar
 // that was absent or deliberately ignored (so the dictionary was
 // synthesised rather than reproduced), and every variable rename
-// --sanitise-names performed. A user who never sees those cannot tell a
+// --sanitize-names performed. A user who never sees those cannot tell a
 // faithful re-emission from a reconstruction.
 //
 // # Timing
@@ -504,7 +504,7 @@ type ExportReport struct {
 	// TargetWarnings carries the non-fatal diagnostics the target
 	// Writer surfaced through the optional TargetWarningEmitter
 	// contract — today the PULSE_SPSS_SIDECAR_* and
-	// PULSE_SPSS_NAME_SANITISED codes the `.sav` encode raises. Nil
+	// PULSE_SPSS_NAME_SANITIZED codes the `.sav` encode raises. Nil
 	// for targets that do not implement the interface and for those
 	// that implement it and raised nothing, so the report shape is
 	// unchanged for every pre-existing adapter.
@@ -550,7 +550,7 @@ type PredictReport struct {
 	// TargetWarnings carries the non-fatal diagnostics the TARGET
 	// Writer would raise if the export ran, lifted off the optional
 	// CohortValidator contract — today the PULSE_SPSS_SIDECAR_ABSENT /
-	// _IGNORED and PULSE_SPSS_NAME_SANITISED codes a `.sav` export
+	// _IGNORED and PULSE_SPSS_NAME_SANITIZED codes a `.sav` export
 	// raises before it reads a single record. Symmetric with
 	// ExportReport.TargetWarnings, and held apart from SourceWarnings
 	// for the same reason ConvertReport holds the two apart: one is

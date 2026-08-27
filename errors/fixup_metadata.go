@@ -2258,13 +2258,13 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	PULSE_SPSS_NAME_SANITISED: {
-		Message: "One or more cohort field names could not be an SPSS variable name — a space, a bracket, a hyphen, a leading digit, or a name past 64 bytes — and --sanitise-names rewrote them so the export could proceed. Every rename is listed under `renames` as {field, name} pairs in schema order. This is a WARNING, not a failure: the file was written, and its variables carry the rewritten names.",
+	PULSE_SPSS_NAME_SANITIZED: {
+		Message: "One or more cohort field names could not be an SPSS variable name — a space, a bracket, a hyphen, a leading digit, or a name past 64 bytes — and --sanitize-names rewrote them so the export could proceed. Every rename is listed under `renames` as {field, name} pairs in schema order. This is a WARNING, not a failure: the file was written, and its variables carry the rewritten names.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"SanitiseNames"},
-				Hint:     "To keep the cohort's own names, drop --sanitise-names and rename the offending columns at the source instead — an SPSS name must open with a letter and carry only letters, digits and '.', '_', '$', '#', '@'. Without the flag the same names are a hard PULSE_SPSS_NAME_INVALID refusal, which is the default precisely because a silent rename is worse.",
+				Path:     []string{"SanitizeNames"},
+				Hint:     "To keep the cohort's own names, drop --sanitize-names and rename the offending columns at the source instead — an SPSS name must open with a letter and carry only letters, digits and '.', '_', '$', '#', '@'. Without the flag the same names are a hard PULSE_SPSS_NAME_INVALID refusal, which is the default precisely because a silent rename is worse.",
 				Examples: []any{false},
 			},
 			{

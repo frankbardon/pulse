@@ -136,7 +136,7 @@ type WriterOptions struct {
 	// PULSE_SPSS_CHARSET_UNSUPPORTED, never a silent fall back to UTF-8.
 	Charset string
 
-	// SanitiseNames rewrites cohort field names that cannot be SPSS
+	// SanitizeNames rewrites cohort field names that cannot be SPSS
 	// variable names, instead of refusing the export.
 	//
 	// The DEFAULT is the refusal, and that is not timidity. A `.pulse`
@@ -153,7 +153,7 @@ type WriterOptions struct {
 	// `pulse convert data.csv out.sav` on a column called
 	// "household income (gross)" would otherwise have no way through at
 	// all. This flag is that way through, and it pays for itself by being
-	// LOUD: every rename is reported as a PULSE_SPSS_NAME_SANITISED
+	// LOUD: every rename is reported as a PULSE_SPSS_NAME_SANITIZED
 	// warning carrying the full field -> name list, so nothing about the
 	// emitted file is a surprise. Renames are deterministic — the same
 	// cohort always yields the same names — and collision-safe against
@@ -163,7 +163,7 @@ type WriterOptions struct {
 	// a `.sav` and are legal by construction, so there is nothing to
 	// rewrite, and rewriting a source's own names would be the fidelity
 	// loss the whole write side exists to avoid.
-	SanitiseNames bool
+	SanitizeNames bool
 }
 
 // Compression is the header compression flag these options select: SPSS

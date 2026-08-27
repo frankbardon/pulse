@@ -1914,8 +1914,8 @@ const (
 	// would be worse than an absent one.
 	PULSE_SPSS_SIDECAR_IGNORED Code = "PULSE_SPSS_SIDECAR_IGNORED"
 
-	// PULSE_SPSS_NAME_SANITISED is the WARNING that accompanies
-	// --sanitise-names: one or more cohort field names could not be an
+	// PULSE_SPSS_NAME_SANITIZED is the WARNING that accompanies
+	// --sanitize-names: one or more cohort field names could not be an
 	// SPSS variable name and were rewritten so the export could proceed.
 	//
 	// It exists because the rewrite is opt-in but must never be silent.
@@ -1931,7 +1931,7 @@ const (
 	//
 	// Details carry every rename under DetailSPSSRenames as an ordered
 	// list of {"field","name"} objects, in cohort schema order.
-	PULSE_SPSS_NAME_SANITISED Code = "PULSE_SPSS_NAME_SANITISED"
+	PULSE_SPSS_NAME_SANITIZED Code = "PULSE_SPSS_NAME_SANITIZED"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -2113,7 +2113,7 @@ const (
 	DetailSPSSActual = "actual_fingerprint"
 
 	// DetailSPSSRenames is the CodedError.Details key carrying every
-	// variable rename --sanitise-names performed, as an ordered list of
+	// variable rename --sanitize-names performed, as an ordered list of
 	// {"field": <cohort field name>, "name": <emitted SPSS name>}
 	// objects in cohort schema order.
 	//
@@ -2340,7 +2340,7 @@ var allCodes = []Code{
 	PULSE_SPSS_SIDECAR_STALE,
 	PULSE_SPSS_SIDECAR_INVALID,
 	PULSE_SPSS_SIDECAR_IGNORED,
-	PULSE_SPSS_NAME_SANITISED,
+	PULSE_SPSS_NAME_SANITIZED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

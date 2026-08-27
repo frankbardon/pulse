@@ -106,18 +106,18 @@ func TestWriterOptionsFrom_MapsEveryFlag(t *testing.T) {
 			&cli.BoolFlag{Name: "ignore-sidecar"},
 			&cli.BoolFlag{Name: "uncompressed"},
 			&cli.StringFlag{Name: "charset"},
-			&cli.BoolFlag{Name: "sanitise-names"},
+			&cli.BoolFlag{Name: "sanitize-names"},
 		},
 		Action: func(_ context.Context, c *cli.Command) error {
 			got = writerOptionsFrom(c).SPSS
 			return nil
 		},
 	}
-	args := []string{"x", "--ignore-sidecar", "--uncompressed", "--charset", "cp1252", "--sanitise-names"}
+	args := []string{"x", "--ignore-sidecar", "--uncompressed", "--charset", "cp1252", "--sanitize-names"}
 	if err := cmd.Run(context.Background(), args); err != nil {
 		t.Fatalf("running: %v", err)
 	}
-	want := spss.WriterOptions{IgnoreSidecar: true, Uncompressed: true, Charset: "cp1252", SanitiseNames: true}
+	want := spss.WriterOptions{IgnoreSidecar: true, Uncompressed: true, Charset: "cp1252", SanitizeNames: true}
 	if got != want {
 		t.Errorf("writerOptionsFrom = %+v, want %+v", got, want)
 	}
@@ -138,7 +138,7 @@ func TestExportSPSS_HasEveryWriteFlag(t *testing.T) {
 	if spssCmd.Action == nil {
 		t.Error("`pulse export spss` is mounted with a nil Action")
 	}
-	for _, name := range []string{"ignore-sidecar", "uncompressed", "charset", "sanitise-names"} {
+	for _, name := range []string{"ignore-sidecar", "uncompressed", "charset", "sanitize-names"} {
 		assertHasFlag(t, spssCmd, name)
 	}
 	// The common export flags must survive being extended.
@@ -152,7 +152,7 @@ func TestExportSPSS_HasEveryWriteFlag(t *testing.T) {
 		}
 		for _, f := range c.Flags {
 			for _, n := range f.Names() {
-				if n == "ignore-sidecar" || n == "sanitise-names" {
+				if n == "ignore-sidecar" || n == "sanitize-names" {
 					t.Errorf("`pulse export csv` grew a %q flag; the shared exportFlags slice was mutated in place", n)
 				}
 			}
@@ -163,7 +163,7 @@ func TestExportSPSS_HasEveryWriteFlag(t *testing.T) {
 // TestExportPredict_HasTheTargetFlags. E6-S1 made `pulse export predict`
 // target-aware, and a flag that is not mounted cannot be passed: --format
 // unmounted leaves predict answering from the source cohort alone, and
-// --sanitise-names unmounted leaves it refusing an export that would have
+// --sanitize-names unmounted leaves it refusing an export that would have
 // succeeded, with no way for the caller to say otherwise.
 func TestExportPredict_HasTheTargetFlags(t *testing.T) {
 	var predict *cli.Command
@@ -175,7 +175,7 @@ func TestExportPredict_HasTheTargetFlags(t *testing.T) {
 	if predict == nil {
 		t.Fatal("`pulse export predict` is not mounted on the export command group")
 	}
-	for _, name := range []string{"format", "ignore-sidecar", "uncompressed", "charset", "sanitise-names"} {
+	for _, name := range []string{"format", "ignore-sidecar", "uncompressed", "charset", "sanitize-names"} {
 		assertHasFlag(t, predict, name)
 	}
 	// It declares no --output, and must not grow one: predict writes nothing.
@@ -193,7 +193,7 @@ func TestExportPredict_HasTheTargetFlags(t *testing.T) {
 // out.sav` — the shortest path to a `.sav` — unable to ask for it.
 func TestConvertHasTheWriteFlags(t *testing.T) {
 	convert := ConvertCommand()
-	for _, name := range []string{"ignore-sidecar", "uncompressed", "sanitise-names"} {
+	for _, name := range []string{"ignore-sidecar", "uncompressed", "sanitize-names"} {
 		assertHasFlag(t, convert, name)
 		for _, sub := range convert.Commands {
 			if sub.Name == "predict" {

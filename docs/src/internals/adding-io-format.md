@@ -358,7 +358,7 @@ The canonical user is again `io/spss`, whose encode raises diagnostics
 that do not stop an export but change what the file MEANS: a metadata
 sidecar that was absent or deliberately ignored (so the dictionary was
 *synthesised* rather than reproduced), and every variable rename
-`--sanitise-names` performed. A user who never sees those cannot tell a
+`--sanitize-names` performed. A user who never sees those cannot tell a
 faithful re-emission from a reconstruction.
 
 > **Re-read after `Close`.** `internal/cli/export.go` deliberately calls
@@ -432,7 +432,7 @@ before, after or instead of a write pass.
 **CLI wiring.** `internal/cli/export.go`'s predict leaf builds the target
 through `newWriterForFormat` against a **MemMapFs and a throwaway path**,
 and never `Close`s it, so no adapter's bytes can reach any filesystem.
-It mounts the target format's write flags too (`--sanitise-names` turns a
+It mounts the target format's write flags too (`--sanitize-names` turns a
 `.sav` name refusal into a warning, so a predict that could not be told
 about it would refuse an export that would have succeeded), and with no
 `--format` it keeps the old target-blind behaviour and says so in the
