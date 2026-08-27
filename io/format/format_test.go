@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"testing"
 
+	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/spsstest"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
@@ -167,5 +168,43 @@ func TestNewReader_CharsetIgnoredElsewhere(t *testing.T) {
 		if _, err := NewReader(f, fs, "in."+f, ReaderOptions{Charset: "windows-1252"}); err != nil {
 			t.Errorf("NewReader(%q) with a charset: %v", f, err)
 		}
+	}
+}
+
+// TestNewReader_SPSSMissingMode covers the one ReaderOptions field that
+// can be REJECTED. Sheet and Charset are resolved inside their adapters;
+// SPSSMissing is resolved here because spss.Option has no error channel,
+// so this is the last place a typo can fail loudly instead of silently
+// producing a schema the caller did not ask for.
+func TestNewReader_SPSSMissingMode(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	for _, mode := range []string{"", "auto", "null", "NULL", " auto "} {
+		r, err := NewReader(SPSS, fs, "survey.sav", ReaderOptions{SPSSMissing: mode})
+		if err != nil {
+			t.Errorf("NewReader(SPSSMissing=%q) = %v, want a reader", mode, err)
+			continue
+		}
+		if r == nil {
+			t.Errorf("NewReader(SPSSMissing=%q) returned a nil reader", mode)
+		}
+	}
+
+	r, err := NewReader(SPSS, fs, "survey.sav", ReaderOptions{SPSSMissing: "nul"})
+	if err == nil {
+		t.Fatalf("NewReader(SPSSMissing=%q) succeeded; an unrecognised mode must not fall back to the default", "nul")
+	}
+	if r != nil {
+		t.Error("NewReader returned both a reader and an error")
+	}
+	ce, ok := err.(*perrors.CodedError)
+	if !ok || ce.Code != perrors.PULSE_SPSS_MISSING_MODE_INVALID {
+		t.Fatalf("error = %v, want PULSE_SPSS_MISSING_MODE_INVALID", err)
+	}
+
+	// Every other format ignores the field entirely, including a value
+	// SPSS itself would refuse.
+	if _, err := NewReader(CSV, fs, "in.csv", ReaderOptions{SPSSMissing: "nonsense"}); err != nil {
+		t.Errorf("NewReader(csv) = %v; SPSSMissing must be inert for every other format", err)
 	}
 }

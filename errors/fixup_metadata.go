@@ -2053,6 +2053,31 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_DERIVED_NAME_COLLISION: {
+		Message: "An SPSS variable declares user-missing values, so the import would generate a `<var>_missing` sibling column holding the REASON each value is missing — but the file already declares a variable of that name. Two fields of one name cannot be addressed unambiguously, and renaming either one silently would break the mapping back to the source, so the import stops. SPSS variable names are case-insensitive, so the comparison is too. Details name the generated sibling under `derived`, the variable it came from under `variable`, and the existing variable it collides with under `collides_with`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"spss-missing"},
+				Hint:   "Import with --spss-missing=null (format.ReaderOptions.SPSSMissing = \"null\", spss.WithMissingMode(spss.MissingNull)). No sibling columns are generated, so no name can collide. The cost is real: every user-missing value becomes a plain null and the reason — refused vs. don't know vs. not applicable — is gone from the cohort. The full missing-value specification still rides the metadata sidecar either way.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Rename the colliding variable in SPSS (RENAME VARIABLES) and re-save the .sav. Renaming the real variable rather than the generated one keeps the sibling's `<var>_missing` convention intact, which is what the export path matches on.",
+			},
+		},
+	},
+	PULSE_SPSS_MISSING_MODE_INVALID: {
+		Message: "The SPSS user-missing handling mode is not one Pulse defines. There are exactly two: `auto` (the default) maps each user-missing value to a null in the analytic column plus a `<var>_missing` sibling carrying the reason, and `null` collapses every user-missing value to a plain null with no sibling. An unrecognised value is refused rather than defaulted, because the two produce different schemas.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"spss-missing"},
+				Hint:   "Use --spss-missing=auto or --spss-missing=null (case-insensitive). Omit the flag entirely for `auto`, the fidelity-preserving default.",
+			},
+		},
+	},
 	PULSE_SPSS_EXPORT_UNSUPPORTED: {
 		Message: "SPSS was requested as an OUTPUT format, but Pulse reads .sav / .zsav and does not yet write them: the reader is registered and the writer is not. The extension is recognised — that is why this is a specific error rather than an unknown-format one — so `pulse convert survey.sav out.csv` works while `pulse convert data.csv out.sav` stops here.",
 		Fixups: []Fixup{

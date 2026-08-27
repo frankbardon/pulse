@@ -41,9 +41,20 @@ package spss
 //     io/import.go's isNullToken recognises — so a sysmis datum is seen as a
 //     null and never as a finite value of about -1.8e308.
 //
-// User-missing values are NOT treated as null here. They are ordinary data
-// with a declared meaning, and collapsing them would destroy exactly the
-// information the missing-value spec exists to carry.
+// # User-missing values, and why a case may yield more cells than variables
+//
+// A USER-missing datum — a `refused` / `don't know` / `not applicable`
+// code a variable's record type 2 specification names — also renders as
+// the empty string, so it too imports as null. Leaving the code in place
+// as ordinary data would let AGG_SUM add 99999 for every refusal, which
+// is a silently wrong answer rather than a visibly missing one.
+//
+// The REASON is not thrown away with it. Under the default missing mode
+// each such variable contributes a SECOND cell to the row, its generated
+// `<var>_missing` sibling, carrying the reason as text: "sysmis", the
+// value label the file declared for that code, or the code itself. So a
+// row is one cell per dataPlan.out slot, NOT one per variable, and
+// nothing may assume the two counts are equal. See missing.go.
 
 import (
 	"bytes"
@@ -97,6 +108,22 @@ type dataColumn struct {
 	// act on.
 	name string
 
+	// missing is the variable's USER-missing specification compiled to a
+	// predicate, nil when it declares none this reader acts on. Non-nil
+	// only for a non-dictionary-bearing numeric column.
+	//
+	// It is on the plan and not consulted from the dictionary per cell
+	// because deciding, for every datum of every case, which slots of a
+	// signed-count missing specification are range bounds would put the
+	// format's most easily misread field on the hot path.
+	missing *missingTest
+
+	// sibling is the generated `<var>_missing` reason column derived
+	// from this variable, nil when it has none. The sibling has no
+	// geometry of its own — it reads the SAME bytes this column does and
+	// renders them as a reason instead of a value.
+	sibling *missingSibling
+
 	// pieces is the record 7/14 very-long-string reassembly plan: the
 	// byte ranges within a case that together hold the logical value, in
 	// order, with each physical segment's unused tail and its round-up
@@ -124,6 +151,17 @@ type dataPiece struct {
 // dataPlan is everything the per-case decode needs, resolved once.
 type dataPlan struct {
 	cols []dataColumn
+
+	// out is the cohort's COLUMN LAYOUT: one entry per emitted cell, in
+	// row order. It is not one entry per variable — a variable carrying
+	// user-missing values contributes its own cell and its reason
+	// sibling's.
+	//
+	// buildDataPlan leaves it nil, which decodeCase reads as the
+	// identity layout (one cell per column, no siblings); the mapping
+	// pass installs the real one. That keeps a plan assembled by hand in
+	// a test working unchanged.
+	out []outputSlot
 
 	// stride is the byte width of one case: elementCount * 8.
 	stride int
@@ -249,8 +287,12 @@ func buildDataPlan(d *dictionary) (*dataPlan, error) {
 // read, because the alternative is a U+FFFD substitution that no later stage
 // could tell from data. See charset.go.
 func (p *dataPlan) decodeCase(c []byte, row []string) *errors.CodedError {
-	for i := range p.cols {
-		col := &p.cols[i]
+	for i, slot := range p.layout() {
+		col := &p.cols[slot.col]
+		if slot.sibling {
+			row[i] = p.missingReason(col, c)
+			continue
+		}
 		if col.width > 0 {
 			text, err := p.decodeStringDatum(col, p.stringBytes(col, c))
 			if err != nil {
@@ -260,6 +302,15 @@ func (p *dataPlan) decodeCase(c []byte, row []string) *errors.CodedError {
 			continue
 		}
 		seg := c[col.offset : col.offset+col.span]
+		// A USER-missing datum renders as the house null token under
+		// every missing mode. The reason it is missing rides the sibling
+		// column where one exists; what must never happen is that a
+		// refusal code of 99999 reaches an f64 field and is summed.
+		if col.missing != nil && !p.isSysmis(p.bo.Uint64(seg)) &&
+			col.missing.match(math.Float64frombits(p.bo.Uint64(seg))) {
+			row[i] = ""
+			continue
+		}
 		switch col.kind {
 		case kindDate:
 			row[i] = p.formatDate(seg)
@@ -270,6 +321,48 @@ func (p *dataPlan) decodeCase(c []byte, row []string) *errors.CodedError {
 		}
 	}
 	return nil
+}
+
+// layout returns the plan's column layout, defaulting to one cell per
+// column for a plan the mapping pass has not installed one on.
+func (p *dataPlan) layout() []outputSlot {
+	if p.out != nil {
+		return p.out
+	}
+	out := make([]outputSlot, len(p.cols))
+	for i := range p.cols {
+		out[i] = outputSlot{col: i, name: p.cols[i].name}
+	}
+	p.out = out
+	return out
+}
+
+// missingReason renders one generated `<var>_missing` cell.
+//
+// It reads the SOURCE variable's bytes: a sibling has no storage of its
+// own, it is a second reading of the same eight bytes. A present value
+// renders as the empty string, which the import path reads as null — the
+// empty reason IS the null bitmap bit, and materialising it as a
+// dictionary entry would create an ID no record could reference.
+//
+// System-missing is tested BEFORE the user-missing predicate, and that
+// order is load-bearing: SPSS spells an open-ended range with its LOWEST
+// sentinel, which is the same double as the default sysmis sentinel, so
+// the other order reports every sysmis datum as a user-missing one.
+func (p *dataPlan) missingReason(col *dataColumn, c []byte) string {
+	if col.sibling == nil {
+		return ""
+	}
+	seg := c[col.offset : col.offset+col.span]
+	bits := p.bo.Uint64(seg)
+	if p.isSysmis(bits) {
+		return SysmisReason
+	}
+	value := math.Float64frombits(bits)
+	if !col.missing.match(value) {
+		return ""
+	}
+	return col.sibling.reasonFor(value)
 }
 
 // stringBytes returns one string column's RAW wire bytes within a case: the
@@ -416,11 +509,17 @@ func trimStringDatum(b []byte) []byte {
 // The pio.Reader surface
 // ---------------------------------------------------------------------------
 
-// ReadHeader returns one column name per SPSS variable, in file order.
+// ReadHeader returns the cohort's column names, in file order.
 //
 // The name is the record 7/13 long name where the file declares one and the
 // 8-byte short name otherwise — see variable.fieldName. String continuation
 // records are not variables and contribute no column.
+//
+// It is NOT one name per SPSS variable. A numeric variable declaring
+// user-missing values contributes a second, GENERATED column immediately
+// after its own — `<var>_missing`, carrying why each value is missing —
+// unless the reader was built with spss.WithMissingMode(spss.MissingNull).
+// See missing.go.
 func (r *Reader) ReadHeader() ([]string, error) {
 	d, err := r.loadDictionary()
 	if err != nil {
@@ -429,9 +528,20 @@ func (r *Reader) ReadHeader() ([]string, error) {
 	if r.header != nil {
 		return r.header, nil
 	}
-	names := make([]string, len(d.vars))
-	for i, v := range d.vars {
-		names[i] = v.fieldName()
+	// planOutputs reads the dictionary only, never the data section, so
+	// ReadHeader stays a dictionary-cheap call even though the cohort's
+	// columns are no longer one per variable. It is also the SAME
+	// function the schema and the row decoder use, which is what
+	// guarantees the names returned here are the fields those two
+	// declare — a second derivation would silently disagree the first
+	// time the two rules drifted.
+	slots, err := planOutputs(d, r.opts)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, len(slots))
+	for i, slot := range slots {
+		names[i] = slot.name
 	}
 	r.header = names
 	return names, nil
@@ -476,7 +586,9 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		r.dataWarnings = append(r.dataWarnings, caseCountMismatch(d, declared, cases))
 	}
 
-	row := make([]string, len(plan.cols))
+	// One cell per LAYOUT slot, not per variable: a user-missing
+	// variable contributes its own value and its reason sibling's.
+	row := make([]string, len(plan.layout()))
 	for i := 0; i < cases; i++ {
 		select {
 		case <-ctx.Done():

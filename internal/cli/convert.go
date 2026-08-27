@@ -21,6 +21,7 @@ func ConvertCommand() *cli.Command {
 			&cli.StringFlag{Name: "to", Usage: "Target format override"},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
+			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.StringFlag{Name: "keep-pulse", Usage: "Also write intermediate .pulse file at this path"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
@@ -65,7 +66,7 @@ func ConvertCommand() *cli.Command {
 
 			fs := afero.NewOsFs()
 
-			reader, err := newReaderForFormat(fromFmt, fs, input, pformat.ReaderOptions{Charset: cmd.String("charset")})
+			reader, err := newReaderForFormat(fromFmt, fs, input, pformat.ReaderOptions{Charset: cmd.String("charset"), SPSSMissing: cmd.String("spss-missing")})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
@@ -135,6 +136,7 @@ func convertPredictCmd() *cli.Command {
 			&cli.StringFlag{Name: "from", Usage: "Source format override"},
 			&cli.StringFlag{Name: "to", Usage: "Target format override"},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
+			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
 		},
@@ -165,7 +167,7 @@ func convertPredictCmd() *cli.Command {
 
 			fs := afero.NewOsFs()
 
-			reader, err := newReaderForFormat(fromFmt, fs, input, pformat.ReaderOptions{Charset: cmd.String("charset")})
+			reader, err := newReaderForFormat(fromFmt, fs, input, pformat.ReaderOptions{Charset: cmd.String("charset"), SPSSMissing: cmd.String("spss-missing")})
 			if err != nil {
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())

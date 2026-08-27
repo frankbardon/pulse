@@ -341,6 +341,13 @@ const (
 	// declare for one variable. The count rides a single byte and the format
 	// caps it at three, matching record type 2.
 	MaxLongStringMissingValues = 3
+
+	// MaxDiscreteMissingValues is the most discrete missing values a
+	// record type 2 can carry on its own: the n_missing_values field
+	// tops out at 3. A range consumes two of the same slots, so a
+	// specification carrying one holds at most ONE discrete value
+	// beside it.
+	MaxDiscreteMissingValues = 3
 )
 
 // ByteOrder selects the file's byte order. Both orders are emitted: every
@@ -554,6 +561,89 @@ type Var struct {
 	// is the zero value and is a real alignment, not "unset" — 7/11 has no
 	// unset alignment.
 	Align Alignment
+
+	// Missing is the variable's record type 2 missing-value specification,
+	// nil when it declares none.
+	//
+	// This is the record-2 slot, distinct from
+	// [Spec.LongStringMissingValues], which is record 7/22. The two are
+	// not interchangeable: 7/22 cannot express a range, which only a
+	// numeric variable can have, and a record type 2 slot is fixed at
+	// eight bytes, which is why a wider string's missing values need
+	// 7/22 at all.
+	//
+	// A record type 2 Missing on a string WIDER than
+	// [MaxShortStringWidth] is nonetheless emitted rather than refused,
+	// and so is a variable carrying both it and a 7/22 entry. Real files
+	// contain both shapes — SPSS compares only a long string's first
+	// eight bytes — and a reader has to resolve the conflict, so a
+	// fixture has to be able to state it. What is refused is a Missing
+	// on a VERY long string (over [MaxStringWidth]), which after
+	// segmentation is not one record type 2 at all.
+	Missing *MissingValues
+}
+
+// MissingValues is one variable's record type 2 missing-value
+// specification: up to three discrete values, a lo..hi range, or a range
+// plus exactly one discrete value.
+//
+// The wire form is a single n_missing_values field carrying 0, 1, 2, 3, -2
+// or -3, followed by that many eight-byte slots. The sign is what says
+// whether the leading two slots are a range, so it is DERIVED here from
+// which fields are set rather than declared: a caller cannot state a code
+// that disagrees with the slots it supplied.
+//
+// Negative codes are numeric-only. The format has no range form for
+// strings, and a string variable declaring one is rejected rather than
+// emitted.
+type MissingValues struct {
+	// Range is the lo..hi bound, inclusive at both ends, or nil for a
+	// purely discrete specification. Numeric variables only.
+	//
+	// SPSS spells an open-ended range with its LOWEST / HIGHEST
+	// sentinels, which are -DBL_MAX and +DBL_MAX. Note that LOWEST is
+	// the SAME double as [SysMisDouble]: a reader must test for
+	// system-missing before it tests a range, or every sysmis datum
+	// falls inside a LOWEST-bounded one.
+	Range *MissingRange
+
+	// Discrete are the discrete missing values: up to three on their own,
+	// or exactly one alongside a Range.
+	//
+	// Every entry must match the variable's type — [Num] for a numeric
+	// variable, [Text] for a string one. [SysMis] is rejected: the system
+	// -missing state is not a user-missing code, and declaring it as one
+	// would produce a slot no datum could ever be compared against.
+	Discrete []Value
+}
+
+// MissingRange is the lo..hi half of a range missing-value specification.
+// Both bounds are inclusive.
+type MissingRange struct {
+	Low  float64
+	High float64
+}
+
+// code returns the record type 2 n_missing_values field value for the
+// specification: 0 for none, 1..3 discrete values, -2 for a bare range and
+// -3 for a range plus one discrete value.
+func (m *MissingValues) code() int32 {
+	if m == nil {
+		return 0
+	}
+	if m.Range != nil {
+		return -int32(2 + len(m.Discrete))
+	}
+	return int32(len(m.Discrete))
+}
+
+// slots returns the number of eight-byte slots the specification occupies.
+func (m *MissingValues) slots() int {
+	c := m.code()
+	if c < 0 {
+		return int(-c)
+	}
+	return int(c)
 }
 
 // Measure is the record 7/11 measurement level of a variable.

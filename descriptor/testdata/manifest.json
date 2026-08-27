@@ -4959,7 +4959,7 @@
         ]
       }
     ],
-    "error_codes_count": 193,
+    "error_codes_count": 195,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5112,6 +5112,7 @@
       "PULSE_SPSS_DATA_CASE_COUNT_MISMATCH",
       "PULSE_SPSS_DATA_TRUNCATED",
       "PULSE_SPSS_DATE_WIDENED",
+      "PULSE_SPSS_DERIVED_NAME_COLLISION",
       "PULSE_SPSS_DICT_INVALID",
       "PULSE_SPSS_DICT_TRUNCATED",
       "PULSE_SPSS_ENDIANNESS_MISMATCH",
@@ -5121,6 +5122,7 @@
       "PULSE_SPSS_FILE_EMPTY",
       "PULSE_SPSS_MAGIC_FLAG_MISMATCH",
       "PULSE_SPSS_MEASURE_LEVEL_MISMATCH",
+      "PULSE_SPSS_MISSING_MODE_INVALID",
       "PULSE_SPSS_NULL_TOKEN_COLLISION",
       "PULSE_SPSS_TEMPORAL_PRECISION",
       "PULSE_SPSS_VALUE_COLLISION",
@@ -9381,4 +9383,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8f3297da1c128fded0f1cb1f099262dae3854d9d458057d5b961a1249423f6a9
+// golden-hash: 23ea1d58fc97553028db3063e68477b9b28ade5ea4edbe332c29e547a6071cc8

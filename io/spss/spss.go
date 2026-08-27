@@ -41,6 +41,27 @@
 // records, which belong to a later story and warn as unrecognised until it
 // lands.
 //
+// # Missing values
+//
+// SPSS has more missing states than a null bitmap bit can hold: present,
+// system-missing, and up to three discrete USER-missing codes — or a
+// range, or a range plus one code — that separate `refused` from `don't
+// know` from `not applicable`. Both obvious mappings lose: keeping the
+// codes as data makes AGG_SUM add 99999 for every refusal, and
+// collapsing them all to null destroys the item-non-response
+// distinction survey analysis is built on.
+//
+// So a numeric variable declaring user-missing values gets TWO cohort
+// columns. The analytic column holds the real values and is null at
+// every missing position, so the arithmetic is right; a generated
+// `<var>_missing` sibling immediately after it carries the reason as a
+// categorical — "sysmis", the value label the file declared for the
+// code, or the code itself. Nothing is lost. WithMissingMode(MissingNull)
+// suppresses the siblings for callers who want the slimmer schema and
+// have accepted losing the reason. A CATEGORICAL column gets no sibling
+// either way: its missing code is already a dictionary entry. See
+// missing.go.
+//
 // # The metadata sidecar
 //
 // An import writes what a `.pulse` file cannot hold — measure levels,
@@ -214,6 +235,29 @@ type Option func(*Reader)
 // a distinct-count ratio over a handful of cases says nothing.
 func WithCardinalityWarnFraction(fraction float64) Option {
 	return func(r *Reader) { r.opts.cardinalityWarnFraction = fraction }
+}
+
+// WithMissingMode selects how a numeric variable's USER-missing values
+// are represented in the cohort.
+//
+// The default, [MissingAuto], is the fidelity-preserving split: the
+// analytic column is null at every missing position — so AGG_SUM and
+// AGG_MEAN never add a refusal code — and a generated `<var>_missing`
+// sibling carries WHY each value is missing, as "sysmis", the value
+// label the file declared for that code, or the code itself.
+//
+// [MissingNull] suppresses the siblings. The nulls are identical; what
+// is lost is the reason, and with it the refused / don't-know /
+// not-applicable distinction survey analysis reports separately and
+// weights on. It exists for callers who want the slimmer schema and have
+// accepted that; the full missing-value specification still rides the
+// metadata sidecar either way.
+//
+// Neither mode affects a CATEGORICAL column — a string variable or a
+// value-labelled numeric — where the missing code is already a
+// dictionary entry of its own and a sibling would be pure redundancy.
+func WithMissingMode(mode MissingMode) Option {
+	return func(r *Reader) { r.opts.missingMode = mode }
 }
 
 // WithCharset overrides the character encoding the file declares.

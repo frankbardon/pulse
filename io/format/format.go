@@ -125,6 +125,20 @@ type ReaderOptions struct {
 	// Decoding only. The file's own declaration is still retained
 	// verbatim. Ignored by every format other than SPSS.
 	Charset string
+
+	// SPSSMissing selects how an SPSS numeric variable's USER-missing
+	// values are represented: "auto" (the default) or "null". Empty is
+	// not an instruction and leaves the default in force; anything else
+	// is PULSE_SPSS_MISSING_MODE_INVALID.
+	//
+	// "auto" is the fidelity-preserving split — the analytic column is
+	// null at every missing position, so AGG_SUM never adds a refusal
+	// code, and a generated `<var>_missing` sibling carries WHY each
+	// value is missing. "null" suppresses the siblings: the nulls are
+	// identical and the reason is gone.
+	//
+	// Ignored by every format other than SPSS.
+	SPSSMissing string
 }
 
 // NewReader constructs a tabular Reader for the given format, reading
@@ -157,6 +171,16 @@ func NewReader(format string, fs afero.Fs, path string, opts ReaderOptions) (pio
 		if opts.Charset != "" {
 			spssOpts = append(spssOpts, spss.WithCharset(opts.Charset))
 		}
+		// Resolved HERE rather than inside the reader because this is
+		// the last place that can still return an error: spss.Option is
+		// a mutator with no error channel, so a typo'd mode would
+		// otherwise have to fail at first read or, worse, fall back to
+		// the default and hand back a schema the caller did not ask for.
+		mode, err := spss.ParseMissingMode(opts.SPSSMissing)
+		if err != nil {
+			return nil, err
+		}
+		spssOpts = append(spssOpts, spss.WithMissingMode(mode))
 		return spss.NewReader(fs, path, spssOpts...), nil
 	case Pulse:
 		return nil, fmt.Errorf("format.NewReader: %q is the native format, no tabular reader needed", format)

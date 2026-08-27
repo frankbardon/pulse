@@ -207,6 +207,27 @@ func transcodeSpec(spec Spec, c wireCodec) (Spec, error) {
 			!set(fmt.Sprintf("Vars[%d] (%s) LongName", i, v.Name), &v.LongName) {
 			return spec, err
 		}
+		// A string missing value is a DATUM, not metadata: it is compared
+		// byte-for-byte against the data section, so it has to be in the
+		// same wire charset the data is. The struct is copied before it is
+		// touched so a caller's spec is never mutated.
+		if v.Missing == nil {
+			continue
+		}
+		m := *v.Missing
+		m.Discrete = append([]Value(nil), m.Discrete...)
+		for di := range m.Discrete {
+			d := &m.Discrete[di]
+			if d.kind != kindText {
+				continue
+			}
+			out, terr := c.text(fmt.Sprintf("Vars[%d] (%s) Missing.Discrete[%d] %s", i, v.Name, di, *d), d.str)
+			if terr != nil {
+				return spec, terr
+			}
+			d.str = out
+		}
+		v.Missing = &m
 	}
 
 	spec.Documents = append([]string(nil), spec.Documents...)

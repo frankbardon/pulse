@@ -231,14 +231,19 @@ type Payload struct {
 	// Variables are the columns in cohort order, one per Pulse field.
 	Variables []Variable `json:"variables"`
 
-	// Derived is the reserved registry slot for columns this import
-	// SYNTHESISED rather than read: the `<var>_missing` siblings
-	// (E4-S2 / E4-S3) and the multiple-dichotomy `set_*` convenience
-	// columns (E4-S4). It is empty here because E4-S1 derives nothing;
-	// the slot exists so those stories add entries rather than
-	// restructure the document, and so an export can already tell
-	// "column absent from Variables" from "column absent from the
-	// source". Additive: entries may gain fields without a version bump.
+	// Derived is the registry of columns this import SYNTHESISED rather
+	// than read: the `<var>_missing` reason siblings and, later, the
+	// multiple-dichotomy `set_*` convenience columns (E4-S4). An export
+	// drops them and reconstructs the source from the real columns, so
+	// it needs to tell "column absent from Variables" from "column
+	// absent from the source" without pattern-matching on names.
+	//
+	// Derived columns are INTERLEAVED with the real ones, not appended:
+	// a sibling sits immediately after its source variable. Position on
+	// each entry is what says where.
+	//
+	// Additive: entries may gain fields without a SidecarFormatVersion
+	// bump, which is how Reasons arrived after the slot was reserved.
 	Derived []Derived `json:"derived,omitempty"`
 }
 
@@ -661,12 +666,77 @@ type Derived struct {
 	// Name is the derived Pulse field name.
 	Name string `json:"name"`
 
-	// Kind says what derived it. E4-S2/S3/S4 own the vocabulary.
+	// Kind says what derived it. E4-S2/S3/S4 own the vocabulary; the
+	// values this package emits are named constants —
+	// [DerivedKindNumericMissing] today.
 	Kind string `json:"kind"`
 
 	// Sources names the source variables it was derived FROM, by Pulse
 	// field name.
 	Sources []string `json:"sources,omitempty"`
+
+	// Position is the 0-based column position in the cohort. Derived
+	// columns are INTERLEAVED with the real ones — a `<var>_missing`
+	// sibling sits immediately after the variable it belongs to — so
+	// neither this slice nor Variables can be read as a contiguous run,
+	// and a consumer reconstructing the source's own column order needs
+	// both sorted together.
+	Position int `json:"position"`
+
+	// Reasons is the derived column's dictionary, one entry per ID, for
+	// a `<var>_missing` sibling. It is what makes the column FOLDABLE:
+	// an export re-emitting the source variable reads the sibling's ID,
+	// finds the entry, and writes back the system-missing sentinel or
+	// the original SPSS code. Without it the fold would have to
+	// re-derive the mapping from the source variable's missing
+	// specification and value labels, which is exactly the guess this
+	// document exists to remove.
+	//
+	// Empty for a derived kind that is not a reason column.
+	Reasons []DerivedReason `json:"reasons,omitempty"`
+}
+
+// DerivedReason is one entry of a `<var>_missing` sibling's dictionary:
+// the reason text the cohort stores, and the SPSS state it stands for.
+//
+// The empty reason — a value that is PRESENT — has no entry. It is the
+// sibling's null bitmap bit: the shared import path reads an empty cell
+// as null before it consults any dictionary, so an entry for it could
+// never be referenced by a record.
+type DerivedReason struct {
+	// ID is the Pulse dictionary ID, which is the entry's position and
+	// the value stored on the wire.
+	ID uint32 `json:"id"`
+
+	// Reason is the dictionary entry text.
+	Reason string `json:"reason"`
+
+	// Sysmis marks the one entry standing for the system-missing
+	// sentinel rather than for a user-missing code. It always occupies
+	// ID 0. Code is meaningless when it is set.
+	Sysmis bool `json:"sysmis,omitempty"`
+
+	// Code is the SPSS numeric value this reason stands for, nil for
+	// the Sysmis entry.
+	Code *Float `json:"code,omitempty"`
+
+	// Label is the value label the file declared for Code, "" when it
+	// declared none. It is recorded even where Reason fell back to the
+	// numeric code because the label collided with another reason, so a
+	// consumer can still see what the file said.
+	Label string `json:"label,omitempty"`
+
+	// Declared reports that Code appears in the variable's
+	// missing-value SPECIFICATION as a discrete value. False for a
+	// value only a RANGE plus the data section put here: a range is not
+	// a finite vocabulary, so its members are collected as observed
+	// rather than enumerated.
+	Declared bool `json:"declared"`
+
+	// Observed reports that at least one case carried this state. False
+	// for a declared code nothing used, which still occupies its ID so
+	// the specification's own order survives.
+	Observed bool `json:"observed"`
 }
 
 // ---------------------------------------------------------------------------

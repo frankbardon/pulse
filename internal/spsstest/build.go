@@ -145,6 +145,16 @@ func validate(spec Spec) (plan, error) {
 	// declared width, and for a very long string that is the logical
 	// total, not the 255 its head segment declares.
 	logical := logicalIndex(spec.Vars)
+	// The record-2 missing check for a very long string has to happen
+	// BEFORE the expansion, not after: expansion replaces the caller's one
+	// logical variable with several physical 255-byte ones, each a copy of
+	// the original struct, so a Missing declared on it would silently be
+	// emitted once per segment.
+	for i, v := range spec.Vars {
+		if v.Missing != nil && v.Width > MaxStringWidth {
+			return p, fmt.Errorf("spsstest: Vars[%d] (%s) is a %d-byte very long string with a record type 2 Missing; a record type 2 cannot carry a missing value for a string wider than %d bytes — use Spec.LongStringMissingValues, which is what record 7/22 exists for", i, v.Name, v.Width, MaxShortStringWidth)
+		}
+	}
 	spec, vlsDecls, err := expandVeryLongStrings(spec)
 	if err != nil {
 		return p, err
@@ -221,6 +231,9 @@ func validate(spec Spec) (plan, error) {
 		}
 		if err := checkFormat(i, v.Name, rv.Write, "write"); err != nil {
 			return p, err
+		}
+		if err := checkMissingValues(v.Missing, v); err != nil {
+			return p, fmt.Errorf("spsstest: Vars[%d] (%s) Missing: %w", i, v.Name, err)
 		}
 
 		p.vars = append(p.vars, rv)
@@ -654,6 +667,56 @@ func checkDatum(val Value, v Var) error {
 	return nil
 }
 
+// checkMissingValues validates one record type 2 missing-value
+// specification against the variable that declares it.
+//
+// Nothing is coerced. A specification that cannot be written exactly as
+// declared is an error, because a fixture whose missing spec quietly
+// differs from what its author wrote is worse than no fixture — the whole
+// point of one is to be the known-good answer a reader is checked against.
+func checkMissingValues(m *MissingValues, v Var) error {
+	if m == nil {
+		return nil
+	}
+	if m.Range == nil && len(m.Discrete) == 0 {
+		return fmt.Errorf("declares neither a range nor a discrete value; use a nil *MissingValues for a variable with no missing-value specification")
+	}
+
+	if m.Range != nil {
+		if v.IsString() {
+			return fmt.Errorf("declares a lo..hi range on a string variable of width %d; the format has no range form for strings, and n_missing_values would have to be negative to express one", v.Width)
+		}
+		if math.IsNaN(m.Range.Low) || math.IsNaN(m.Range.High) {
+			return fmt.Errorf("range bound is NaN; a NaN bound can never compare true against a datum, so the range would match nothing")
+		}
+		if m.Range.Low > m.Range.High {
+			return fmt.Errorf("range low %v is above high %v; the bounds are inclusive and ordered, and an inverted pair matches nothing", m.Range.Low, m.Range.High)
+		}
+		if len(m.Discrete) > 1 {
+			return fmt.Errorf("declares a range plus %d discrete value(s); the format's range-plus-discrete form (n_missing_values -3) carries exactly one", len(m.Discrete))
+		}
+	} else if len(m.Discrete) > MaxDiscreteMissingValues {
+		return fmt.Errorf("declares %d discrete missing value(s), over the %d a record type 2 can carry; a wider vocabulary needs a range", len(m.Discrete), MaxDiscreteMissingValues)
+	}
+
+	for i, val := range m.Discrete {
+		if val.kind == kindSysMis {
+			return fmt.Errorf("slot Discrete[%d] is SysMis(); the system-missing state is not a user-missing code, and a slot holding the sentinel could never be told apart from a sysmis datum", i)
+		}
+		if err := checkDatum(val, v); err != nil {
+			return fmt.Errorf("slot Discrete[%d]: %w", i, err)
+		}
+		// The slot is eight bytes whatever the variable declares,
+		// because that is what the format fixes it at. A value that does
+		// not fit is rejected rather than cut: a silently truncated
+		// missing code would compare equal to a different datum.
+		if val.kind == kindText && len(val.str) > MaxShortStringWidth {
+			return fmt.Errorf("slot Discrete[%d] (%s) is %d bytes, over the %d a record type 2 missing-value slot holds; a wider string's missing values ride record 7/22 (Spec.LongStringMissingValues)", i, val, len(val.str), MaxShortStringWidth)
+		}
+	}
+	return nil
+}
+
 // defaultFormat derives the print format for a variable that declared none:
 // F8.2 for numeric (the SPSS default), A<width> for string.
 func defaultFormat(v Var) Format {
@@ -743,7 +806,7 @@ func writeVariableRecords(e *enc, v resolvedVar) {
 	e.i32(recTypeVariable)
 	e.i32(varType)
 	e.i32(hasLabel)
-	e.i32(0) // n_missing_values: missing-value specs are out of scope
+	e.i32(v.Missing.code()) // 0, 1..3, -2 or -3; derived, never declared
 	e.i32(v.Print.pack())
 	e.i32(v.Write.pack())
 	e.ascii(v.Name, shortNameLen)
@@ -757,6 +820,12 @@ func writeVariableRecords(e *enc, v resolvedVar) {
 		e.zeros(roundUp(len(v.Label), 4) - len(v.Label))
 	}
 
+	// The missing-value slots come AFTER the label, not before it: the
+	// label is length-prefixed and 4-byte aligned, so a reader that swapped
+	// the two would desynchronise on the first labelled variable that also
+	// declares missing values.
+	writeMissingValueSlots(e, v.Missing)
+
 	for seg := 1; seg < v.segments(); seg++ {
 		e.i32(recTypeVariable)
 		e.i32(typeStringContinuation)
@@ -765,6 +834,30 @@ func writeVariableRecords(e *enc, v resolvedVar) {
 		e.i32(0) // print
 		e.i32(0) // write
 		e.ascii("", shortNameLen)
+	}
+}
+
+// writeMissingValueSlots emits the abs(n_missing_values) eight-byte slots a
+// missing-value specification occupies: the range bounds first when there is
+// a range, then the discrete values in declaration order.
+//
+// A string value occupies the same eight bytes, space-padded — the slot
+// width is fixed by the format regardless of the variable's declared width,
+// which is why a record type 2 cannot carry one for a wider string at all.
+func writeMissingValueSlots(e *enc, m *MissingValues) {
+	if m == nil {
+		return
+	}
+	if m.Range != nil {
+		e.f64(m.Range.Low)
+		e.f64(m.Range.High)
+	}
+	for _, val := range m.Discrete {
+		if val.kind == kindText {
+			e.ascii(val.str, ElementSize)
+			continue
+		}
+		e.f64(val.num)
 	}
 }
 

@@ -1551,6 +1551,40 @@ const (
 	// requested format under "format" and the output path under
 	// "output_path" when the caller supplied one.
 	PULSE_SPSS_EXPORT_UNSUPPORTED Code = "PULSE_SPSS_EXPORT_UNSUPPORTED"
+
+	// PULSE_SPSS_DERIVED_NAME_COLLISION indicates the `<var>_missing`
+	// sibling column an SPSS import would generate for a user-missing
+	// specification carries the same name as a variable the file already
+	// declares.
+	//
+	// It is a hard error rather than a rename because both alternatives
+	// lose: emitting two fields of one name produces a cohort whose
+	// columns cannot be addressed unambiguously, and silently renaming
+	// one produces a column whose name no consumer — including this
+	// package's own export path, which drops derived columns and keeps
+	// real ones — can map back to its source. SPSS variable names are
+	// case-insensitive, so the comparison is too.
+	//
+	// Details name both sides: the generated sibling under
+	// DetailSPSSDerived, the source variable it was derived from under
+	// DetailSPSSVariable, and the colliding real variable under
+	// DetailSPSSCollidesWith. Fix it by renaming the real variable in
+	// SPSS, or by importing with --spss-missing=null, which suppresses
+	// the sibling entirely at the cost of the missing REASON.
+	PULSE_SPSS_DERIVED_NAME_COLLISION Code = "PULSE_SPSS_DERIVED_NAME_COLLISION"
+
+	// PULSE_SPSS_MISSING_MODE_INVALID indicates a caller asked for a
+	// user-missing handling mode that does not exist — a
+	// --spss-missing / format.ReaderOptions.SPSSMissing value other than
+	// "auto" or "null".
+	//
+	// It is a refusal rather than a fall back to the default because the
+	// two modes produce different cohorts: "auto" carries a
+	// `<var>_missing` sibling per user-missing variable and "null" does
+	// not, so silently substituting one for a typo of the other would
+	// hand the caller a schema they did not ask for. Details carry the
+	// offending value under DetailSPSSMissingMode.
+	PULSE_SPSS_MISSING_MODE_INVALID Code = "PULSE_SPSS_MISSING_MODE_INVALID"
 )
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
@@ -1629,6 +1663,25 @@ const (
 	// the canonical name the reader resolved where it resolved one, and
 	// the file's own spelling where it did not.
 	DetailSPSSCharset = "charset"
+
+	// DetailSPSSDerived is the CodedError.Details key carrying the name
+	// of a DERIVED column — one the import synthesised rather than read
+	// from the file, such as a `<var>_missing` user-missing reason
+	// sibling.
+	DetailSPSSDerived = "derived"
+
+	// DetailSPSSCollidesWith is the CodedError.Details key carrying the
+	// name of the existing variable a derived column's generated name
+	// collides with. It is held apart from DetailSPSSVariable, which
+	// names the variable the derived column was derived FROM: in a
+	// collision those are two different variables and reporting only one
+	// of them would not say what to rename.
+	DetailSPSSCollidesWith = "collides_with"
+
+	// DetailSPSSMissingMode is the CodedError.Details key carrying the
+	// user-missing handling mode a PULSE_SPSS_MISSING_MODE_INVALID
+	// refers to, exactly as the caller spelled it.
+	DetailSPSSMissingMode = "missing_mode"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1833,6 +1886,8 @@ var allCodes = []Code{
 	PULSE_SPSS_CHARSET_INVALID,
 	PULSE_SPSS_CHARSET_MISMATCH,
 	PULSE_SPSS_EXPORT_UNSUPPORTED,
+	PULSE_SPSS_DERIVED_NAME_COLLISION,
+	PULSE_SPSS_MISSING_MODE_INVALID,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

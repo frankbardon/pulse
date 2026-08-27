@@ -89,7 +89,109 @@ is **always** `null` for an SPSS import — see
 | `DATE` / `ADATE` / `EDATE` / `SDATE` / `JDATE` | `date`, or `datetime` with `PULSE_SPSS_DATE_WIDENED` | Widens when a value carries a time of day or predates 1970 |
 | `DATETIME` / `TIME` / `DTIME` | `datetime` (epoch seconds) | A fractional-second / non-finite / out-of-`int64` value demotes the column to `f64` raw SPSS seconds with `PULSE_SPSS_TEMPORAL_PRECISION` |
 | system-missing (sysmis) | null (bitmap bit) | The one missing state the format has a sentinel for |
-| user-missing values | ordinary data, kept verbatim | The null bitmap records *that* a value is missing, never *why* — collapsing a user-missing code to null would destroy the reason |
+| numeric user-missing values | null, plus a generated `<var>_missing` sibling column | See [Missing values](#missing-values) — the analytic column stays arithmetically clean and the reason is kept beside it |
+| categorical user-missing values (string, or a value-labelled numeric) | ordinary dictionary entries | The value *is* the label, so nothing is lost and a sibling would be redundant |
+
+## Missing values
+
+SPSS separates more missing states than a `.pulse` null bitmap can hold.
+A variable can declare, on top of the system-missing sentinel, up to
+three discrete **user-missing** codes — or a `lo..hi` range, or a range
+plus one discrete code — and survey research reports `refused` versus
+`don't know` versus `not applicable` separately and weights on the
+difference. The null bitmap is **one bit**: it records *that* a value is
+absent and can never record *why*.
+
+Both simple answers lose something:
+
+- Keep the codes as ordinary data and `AGG_SUM` over an income column
+  silently adds `99999` for every refusal — a wrong answer that looks
+  like a right one.
+- Collapse every missing state to null and the item-non-response
+  distinction is gone.
+
+So Pulse does neither. A **numeric** variable that declares user-missing
+values contributes **two** columns to the cohort:
+
+| Column | Holds |
+|---|---|
+| `<var>` | the real values, and **null** at every missing position |
+| `<var>_missing` | a `categorical_*` whose value is *why* — `sysmis`, the value label the file declared for the code, or the code itself |
+
+```bash
+pulse import spss --input survey.sav --output survey.pulse
+pulse cohort inspect survey.pulse --json
+```
+
+```json
+{
+  "name": "income_missing",
+  "type": "categorical_u8",
+  "nullable": true,
+  "dictionary": { "values": ["sysmis", "Refused", "Don't know", "99"] }
+}
+```
+
+`AGG_MEAN` over `income` is now the mean of the incomes. `GROUP_CATEGORY`
+over `income_missing` is the item-non-response breakdown. Neither needed
+a filter.
+
+**Rules worth knowing.**
+
+- **Dictionary ID 0 is always `sysmis`.** After it come the *declared*
+  discrete codes in the file's own order, then any further missing value
+  the data carried, first-seen.
+- **A range is never enumerated.** Only its *observed* members get
+  entries, which is why a wide range can push the sibling from
+  `categorical_u8` to `u16`.
+- **A present value has no reason.** The sibling is null there. The empty
+  reason is the null bitmap bit and is deliberately *not* a dictionary
+  entry — the import path reads an empty cell as null before it consults
+  any dictionary, so such an entry could never appear on the wire.
+- **Reasons stay distinguishable.** If two missing codes carry the same
+  value label, the second falls back to its numeric code and
+  `PULSE_SPSS_VALUE_COLLISION` warns. Sharing one entry would destroy the
+  exact distinction the column exists for.
+- **A value-label set naming only missing codes does not make the
+  variable categorical.** `INCOME` labelled solely on 97/98/99 is a
+  continuous measurement whose labels annotate its missing states.
+  `Q1: 1=Yes, 2=No, 9=Refused` still maps categorical, because two of its
+  labels name ordinary answers.
+- **Name collisions are a hard error.** A file that already declares
+  `income_missing` alongside an `income` that needs a sibling is
+  `PULSE_SPSS_DERIVED_NAME_COLLISION`, naming both — never a silent
+  rename.
+- **Categorical columns get no sibling.** A string variable, and a
+  numeric one whose labels genuinely code it, keep their missing codes as
+  ordinary dictionary entries: the value *is* the label, so nothing is
+  lost.
+
+**The opt-out.** `--spss-missing=null` suppresses the sibling columns.
+The nulls are identical; what disappears is the reason.
+
+```bash
+pulse import spss -i survey.sav -o survey.pulse --spss-missing=null
+```
+
+An unrecognised value is `PULSE_SPSS_MISSING_MODE_INVALID` rather than a
+fall back to the default, because the two modes produce different
+schemas.
+
+**Cross-checked against R.** `haven::read_sav(user_na = TRUE)` and
+`foreign::read.spss`'s `missings` attribute report the same codes,
+labels and range bounds Pulse's siblings carry, for all three
+specification shapes. haven's *default* (`user_na = FALSE`) turns every
+user-missing value into `NA` — value for value, that is Pulse's
+`--spss-missing=null`.
+
+The full missing-value specification — all three shapes, with the raw
+eight-byte slots verbatim — rides the metadata sidecar
+(`survey.pulse.spss.json`) under both modes, alongside a `derived`
+registry naming each generated column, its cohort position, its source
+variable and its reason dictionary: reason ID ↔ text ↔ original SPSS code
+↔ label. That registry is what lets an export drop the derived column and
+write the original codes back, rather than re-deriving the mapping and
+hoping it lands on the same answer.
 
 ## Value labels: the cohort stores codes
 
@@ -133,12 +235,14 @@ output-time projection, never a property of the stored cohort; the
 | `--output` | `-o` | required — the `.pulse` path to write |
 | `--schema` | | **wins outright.** An explicit schema file overrides the SPSS dictionary and the adapter's `PulseSchema()` is never called |
 | `--charset` | | override the encoding the file declares about itself — see [Character encoding](#character-encoding) |
+| `--spss-missing` | | `auto` (default) or `null` — how numeric user-missing values are represented; see [Missing values](#missing-values) |
 | `--sample-rows` | | **inert.** Nothing is sampled |
 | `--json` | | standard envelope |
 
-`--charset` is also on `pulse import predict`, `pulse import
-schema-template`, `pulse convert` and `pulse convert predict`, since a
-`.sav` can arrive through any of them. Every other format ignores it.
+`--charset` and `--spss-missing` are also on `pulse import predict`,
+`pulse import schema-template`, `pulse convert` and `pulse convert
+predict`, since a `.sav` can arrive through any of them. Every other
+format ignores both.
 
 The same inertness applies to the library and managed-import knobs that
 exist only to steer inference — `ImportJob.SampleRows`,
@@ -191,7 +295,7 @@ each.
 | `PULSE_SPSS_CARDINALITY_HIGH` | A string column is near-unique — a free-text signature |
 | `PULSE_SPSS_DATE_WIDENED` | A date column widened to `datetime` |
 | `PULSE_SPSS_TEMPORAL_PRECISION` | A temporal column demoted to `f64` raw seconds |
-| `PULSE_SPSS_VALUE_COLLISION` | Two distinct SPSS values resolve to one dictionary entry (reachable cause: the shared import path trims cells, so `" X"` and `"X"` merge) |
+| `PULSE_SPSS_VALUE_COLLISION` | Two distinct SPSS values resolve to one dictionary entry (reachable causes: the shared import path trims cells, so `" X"` and `"X"` merge; or two user-missing codes share a value label, in which case the second reason falls back to its code — see [Missing values](#missing-values)) |
 | `PULSE_SPSS_MEASURE_LEVEL_MISMATCH` | A `scale`-level variable carries value labels, so it mapped to a categorical whose smart defaults are `AGG_FREQUENCY` / `GROUP_CATEGORY` rather than `AGG_SUM` / `GROUP_RANGE` |
 | `PULSE_SPSS_NULL_TOKEN_COLLISION` | A cell's text is a null sentinel (`""`, `NA`, `N/A`, `NULL`) and imports as null |
 | `PULSE_SPSS_EXTENSION_UNKNOWN` | A record type 7 extension subtype this reader does not interpret; its bytes are retained verbatim |
@@ -488,6 +592,8 @@ intact, so pointing at it would send you to the wrong place.
 | `PULSE_SPSS_ZSAV_BLOCK_CORRUPT` | A ZSAV zlib block that will not inflate, or inflates to the wrong length — names the block — see above |
 | `PULSE_SPSS_DATA_TRUNCATED` | The data section ends mid-case, or a `253` command's value is missing |
 | `PULSE_SPSS_CATEGORICAL_OVERFLOW` | A labelled variable has more distinct codes than `categorical_u32` holds |
+| `PULSE_SPSS_DERIVED_NAME_COLLISION` | A generated `<var>_missing` column has the same name as a real variable — names both sides — see [Missing values](#missing-values) |
+| `PULSE_SPSS_MISSING_MODE_INVALID` | `--spss-missing` was given a value other than `auto` or `null` |
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` | The declared character encoding resolves to no decoder — see [Character encoding](#character-encoding) |
 | `PULSE_SPSS_CHARSET_INVALID` | A byte sequence is not decodable in the declared character encoding — names the variable and the value |
 | `PULSE_SPSS_EXPORT_UNSUPPORTED` | An SPSS output target was requested — Pulse cannot write `.sav` |

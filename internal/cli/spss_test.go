@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -192,9 +193,46 @@ func TestImportSPSS_HasCharsetFlag(t *testing.T) {
 		t.Fatal("`pulse import spss` is not mounted")
 	}
 	assertHasFlag(t, spssCmd, "charset")
+	assertHasFlag(t, spssCmd, "spss-missing")
 	// The common import flags must survive being extended.
 	for _, name := range []string{"input", "output", "schema", "sample-rows", "json"} {
 		assertHasFlag(t, spssCmd, name)
+	}
+}
+
+// TestSPSSMissingFlagOnEverySPSSReachableLeaf mirrors the --charset
+// check. A knob mounted on `import spss` alone would leave `convert
+// survey.sav out.csv` — the shortest path from a `.sav` to something
+// readable — unable to ask for the slim schema, and would make the
+// default silently unoverridable there.
+func TestSPSSMissingFlagOnEverySPSSReachableLeaf(t *testing.T) {
+	convert := ConvertCommand()
+	assertHasFlag(t, convert, "spss-missing")
+	for _, sub := range convert.Commands {
+		if sub.Name == "predict" {
+			assertHasFlag(t, sub, "spss-missing")
+		}
+	}
+	for _, sub := range ImportCommand().Commands {
+		switch sub.Name {
+		case "spss", "predict", "schema-template":
+			assertHasFlag(t, sub, "spss-missing")
+		}
+	}
+}
+
+// TestMakeImportReader_RejectsUnknownMissingMode checks the refusal
+// survives the CLI's own reader construction rather than being swallowed
+// into the generic "unsupported import format" message. A typo'd
+// --spss-missing must not silently import under the default.
+func TestMakeImportReader_RejectsUnknownMissingMode(t *testing.T) {
+	_, err := makeImportReader("spss", afero.NewMemMapFs(), "survey.sav",
+		pformat.ReaderOptions{SPSSMissing: "nul"})
+	if err == nil {
+		t.Fatal("makeImportReader accepted an unknown --spss-missing value")
+	}
+	if !strings.Contains(err.Error(), "nul") {
+		t.Errorf("error %q does not name the offending value", err)
 	}
 }
 

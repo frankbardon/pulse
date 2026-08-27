@@ -37,6 +37,7 @@ func buildPayload(d *dictionary, m *mapping) Payload {
 		VariableSets:         buildVarSets(d),
 		VeryLongStrings:      buildVLSDeclarations(d),
 		Variables:            buildVariables(d, m),
+		Derived:              buildDerived(m),
 	}
 	return p
 }
@@ -228,13 +229,83 @@ func buildVLSDeclarations(d *dictionary) []VLSDeclaration {
 // Pulse half of half its columns would be worse than one that records
 // the declaration alone.
 func buildVariables(d *dictionary, m *mapping) []Variable {
+	positions := cohortPositions(d, m)
 	out := make([]Variable, 0, len(d.vars))
 	for i, v := range d.vars {
 		var col *columnMapping
 		if m != nil && i < len(m.cols) {
 			col = &m.cols[i]
 		}
-		out = append(out, buildVariable(i, v, col))
+		out = append(out, buildVariable(positions[i], v, col))
+	}
+	return out
+}
+
+// cohortPositions returns each source variable's 0-based COLUMN position
+// in the cohort.
+//
+// It is not the variable's ordinal position once derived columns exist: a
+// `<var>_missing` sibling is interleaved immediately after the variable
+// it belongs to, so every variable after the first one carrying a missing
+// specification sits one column further right than its index. Recording
+// the index here would give an export a coordinate that addresses the
+// wrong column, which is the quiet kind of wrong this document exists to
+// prevent.
+func cohortPositions(d *dictionary, m *mapping) []int {
+	pos := make([]int, len(d.vars))
+	if m == nil || len(m.out) == 0 {
+		for i := range pos {
+			pos[i] = i
+		}
+		return pos
+	}
+	for at, slot := range m.out {
+		if !slot.sibling && slot.col < len(pos) {
+			pos[slot.col] = at
+		}
+	}
+	return pos
+}
+
+// buildDerived records every column the import SYNTHESISED rather than
+// read, in cohort order.
+//
+// The reason dictionary rides along because it is what makes the column
+// foldable: an export re-emitting the source variable reads the sibling's
+// ID and finds the SPSS state it stands for, rather than re-deriving the
+// mapping from the missing specification and the value labels and hoping
+// it lands on the same answer this import did.
+func buildDerived(m *mapping) []Derived {
+	if m == nil {
+		return nil
+	}
+	var out []Derived
+	for at, slot := range m.out {
+		if !slot.sibling || slot.col >= len(m.cols) {
+			continue
+		}
+		sib := m.cols[slot.col].sibling
+		if sib == nil {
+			continue
+		}
+		e := Derived{
+			Name:     sib.name,
+			Kind:     DerivedKindNumericMissing,
+			Sources:  []string{sib.source},
+			Position: at,
+		}
+		for _, r := range sib.reasons {
+			entry := DerivedReason{
+				ID: r.id, Reason: r.text, Sysmis: r.sysmis,
+				Label: r.label, Declared: r.declared, Observed: r.observed,
+			}
+			if !r.sysmis {
+				code := Float(r.code)
+				entry.Code = &code
+			}
+			e.Reasons = append(e.Reasons, entry)
+		}
+		out = append(out, e)
 	}
 	return out
 }

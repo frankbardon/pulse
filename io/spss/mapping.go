@@ -103,6 +103,7 @@ package spss
 // than resolved by guessing.
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"strconv"
@@ -308,6 +309,22 @@ type columnMapping struct {
 	// categories is the code ↔ label ↔ ID triple, one entry per source
 	// value. Empty for a non-categorical column.
 	categories []categoryEntry
+
+	// missing is the variable's user-missing specification compiled to a
+	// predicate, nil when it declares none this mapping acts on. Non-nil
+	// ONLY for the non-dictionary-bearing numeric arm — a categorical
+	// column's missing codes stay in its own dictionary.
+	//
+	// It is independent of the missing MODE: a user-missing datum is a
+	// null in the analytic column under both, because the arithmetic is
+	// wrong either way if a refusal code is summed. The mode decides only
+	// whether the REASON is preserved beside it.
+	missing *missingTest
+
+	// sibling is the generated `<var>_missing` reason column, nil when
+	// the column gets none — no missing specification, a categorical
+	// column, or MissingNull.
+	sibling *missingSibling
 }
 
 // mapping is the whole dictionary resolved against the whole data
@@ -315,6 +332,17 @@ type columnMapping struct {
 // ReadRows decodes with.
 type mapping struct {
 	cols []columnMapping
+
+	// out is the cohort's COLUMN LAYOUT: one entry per emitted Pulse
+	// field, in field order. It is not one entry per SPSS variable —
+	// a variable carrying user-missing values contributes two, itself
+	// and its generated reason sibling.
+	//
+	// Everything that addresses a cohort column addresses it through
+	// here: ReadHeader's names, schema()'s fields and decodeCase's row
+	// slots. A second, independent derivation of the layout would put a
+	// cell under the wrong field name the first time the two disagreed.
+	out []outputSlot
 
 	// plan carries the per-case geometry with each column's resolved
 	// kind applied, so decoding and mapping can never disagree about
@@ -377,6 +405,11 @@ type mappingOptions struct {
 	// categorical column's distinct count must exceed to warn. A value
 	// above 1 disables the check.
 	cardinalityWarnFraction float64
+
+	// missingMode selects how numeric USER-missing values are
+	// represented. See MissingMode; the zero value is MissingAuto, the
+	// fidelity-preserving split.
+	missingMode MissingMode
 }
 
 func defaultMappingOptions() mappingOptions {
@@ -409,7 +442,29 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 	labels := valueLabelsByVariable(d)
 	kinds := make([]columnKind, len(d.vars))
 	for i, v := range d.vars {
-		kinds[i] = classify(v, len(labels[i]) > 0)
+		kinds[i] = classify(v, labelsCodeTheVariable(v, labels[i], d.byteOrder, d.sysmis))
+	}
+
+	// The cohort's column layout is decided from the dictionary alone,
+	// before a single case is read, so ReadHeader can answer without a
+	// scan and cannot drift from what the schema declares. It is also
+	// where a generated sibling name colliding with a real variable is
+	// refused, which is a whole-file fault and should not wait until
+	// after the data has been walked.
+	out, err := planOutputs(d, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// The user-missing predicate has to be in force DURING the scan, not
+	// merely at decode time: the scan is what establishes nullability,
+	// the categorical widths and the temporal widening rules, and a
+	// refusal code counted as an ordinary datum corrupts all three.
+	for _, slot := range out {
+		if slot.sibling || kinds[slot.col] == kindCategorical {
+			continue
+		}
+		plan.cols[slot.col].missing = compileMissingTest(d.vars[slot.col])
 	}
 
 	stats, err := scanCases(plan, kinds, body, 0, cases)
@@ -418,9 +473,9 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 	}
 
 	m := &mapping{plan: plan, cases: cases, body: body, charset: d.charset,
-		cols: make([]columnMapping, len(d.vars))}
+		out: out, cols: make([]columnMapping, len(d.vars))}
 	for i, v := range d.vars {
-		col, err := m.resolveColumn(v, kinds[i], labels[i], &stats[i], opts)
+		col, err := m.resolveColumn(i, v, kinds[i], labels[i], &stats[i], opts)
 		if err != nil {
 			return nil, err
 		}
@@ -431,7 +486,74 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 		// declared field type in agreement.
 		plan.cols[i].kind = col.kind
 	}
+
+	// Sibling resolution runs after every column has settled, because a
+	// sibling is named from its source column's FINAL Pulse field name.
+	for _, slot := range out {
+		if !slot.sibling {
+			continue
+		}
+		sib, err := m.buildMissingSibling(&m.cols[slot.col], d.vars[slot.col],
+			labels[slot.col], &stats[slot.col])
+		if err != nil {
+			return nil, err
+		}
+		m.cols[slot.col].sibling = sib
+		plan.cols[slot.col].sibling = sib
+	}
+	plan.out = out
 	return m, nil
+}
+
+// labelsCodeTheVariable reports whether a numeric variable's value labels
+// CODE the variable — the categorical case — or merely annotate its
+// missing states.
+//
+// The distinction is the difference between two very different files.
+// `Q1: 1 = Yes, 2 = No, 9 = Refused` with a missing specification naming
+// 9 is a coded question: two of its three labels are ordinary answers,
+// so it is categorical and 9 is one dictionary entry among them.
+// `INCOME: 97 = Refused, 98 = Don't know, 99 = N/A` with a missing
+// specification naming all three is a CONTINUOUS variable whose only
+// labels sit on its missing states — the near-universal shape in real
+// survey files, and the reason this test exists.
+//
+// Treating the second as categorical would build a dictionary entry per
+// distinct income, which is the free-text pathology the mapping warns
+// about, applied to a column that is plainly a measurement. It also
+// makes the labels unreachable as REASONS, which is what a
+// `<var>_missing` sibling is for.
+//
+// So the rule is: labels code the variable when at least one of them
+// names a value that is neither user-missing nor the system-missing
+// sentinel. A label on the sentinel is skipped for the same reason
+// resolveCategories skips it — no case can carry the sentinel as a datum,
+// so the label names nothing and is not evidence of anything.
+//
+// It is independent of the missing MODE. The mode decides whether the
+// reason is preserved beside the null, never what the column IS: two
+// imports of one file must not disagree about a field's type.
+func labelsCodeTheVariable(v variable, labels []valueLabel, bo binary.ByteOrder, sysmis float64) bool {
+	if len(labels) == 0 {
+		return false
+	}
+	if v.isString() {
+		return true
+	}
+	t := compileMissingTest(v)
+	if t == nil {
+		return true
+	}
+	for _, l := range labels {
+		code := l.numeric(bo)
+		if math.Float64bits(code) == math.Float64bits(sysmis) || code == sysmis {
+			continue
+		}
+		if !t.match(code) {
+			return true
+		}
+	}
+	return false
 }
 
 // classify picks a variable's kind from the dictionary alone — before any
@@ -439,6 +561,11 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 // set: a labelled date is pathological, and preserving the instant is
 // worth more than a category. The labels are still recorded on the
 // column, so nothing is lost either way.
+//
+// labelled is labelsCodeTheVariable's answer, not merely "the file bound
+// a label set to this variable": a set that names only user-missing codes
+// annotates the missing states and does not make the variable
+// categorical.
 func classify(v variable, labelled bool) columnKind {
 	if v.isString() {
 		return kindCategorical
@@ -523,6 +650,41 @@ type columnStats struct {
 	// against the shared id — an export that has to pick between them
 	// needs to see that there was a choice.
 	extras []extraValue
+
+	// sawSysmis records that at least one case carried the
+	// system-missing sentinel. It is held apart from sawNull, which is
+	// true for every state the import path reads as null — a
+	// user-missing datum and a null sentinel token set that one too, and
+	// a reason vocabulary has to be able to say whether SYSMIS itself
+	// occurred.
+	sawSysmis bool
+
+	// missingValues are the distinct USER-missing values the data
+	// carried, in first-seen order, and missingSeen indexes them by
+	// canonical rendering.
+	//
+	// Distinctness is by rendering rather than by float64 because that is
+	// how the rest of this package defines it, so two bit patterns that
+	// render alike are one reason here too. Only OBSERVED values are
+	// collected: a range specification is not a finite vocabulary and
+	// enumerating one would produce a dictionary of every double between
+	// the bounds.
+	missingValues []float64
+	missingSeen   map[string]bool
+}
+
+// observeMissing records one user-missing datum, keeping the distinct
+// values in first-seen order.
+func (s *columnStats) observeMissing(v float64) {
+	raw := formatNumericValue(v)
+	if s.missingSeen == nil {
+		s.missingSeen = make(map[string]bool)
+	}
+	if s.missingSeen[raw] {
+		return
+	}
+	s.missingSeen[raw] = true
+	s.missingValues = append(s.missingValues, v)
 }
 
 // extraValue is one source value that collided with an entry already
@@ -585,6 +747,7 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 					bits := plan.bo.Uint64(seg)
 					if plan.isSysmis(bits) {
 						st.sawNull = true
+						st.sawSysmis = true
 						continue
 					}
 					code = math.Float64frombits(bits)
@@ -616,9 +779,22 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 				bits := plan.bo.Uint64(seg)
 				if plan.isSysmis(bits) {
 					st.sawNull = true
+					st.sawSysmis = true
 					continue
 				}
-				sec, ok := spssSecondsExact(math.Float64frombits(bits))
+				value := math.Float64frombits(bits)
+				if col.missing.match(value) {
+					// A user-missing code on a temporal variable is a
+					// REASON, not an instant. It has to be excluded here
+					// and not merely at decode time: a refusal code of
+					// 999 on a DATE column would otherwise read as an
+					// instant three days after the SPSS epoch and widen
+					// the whole column to datetime for being pre-1970.
+					st.sawNull = true
+					st.observeMissing(value)
+					continue
+				}
+				sec, ok := spssSecondsExact(value)
 				if !ok {
 					st.inexact = true
 					continue
@@ -631,8 +807,20 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 				}
 
 			default: // kindNumeric, kindDuration
-				if plan.isSysmis(plan.bo.Uint64(seg)) {
+				bits := plan.bo.Uint64(seg)
+				if plan.isSysmis(bits) {
 					st.sawNull = true
+					st.sawSysmis = true
+					continue
+				}
+				// A user-missing datum is a null in the analytic column
+				// under EVERY missing mode: summing a refusal code is
+				// arithmetically wrong whether or not the reason is
+				// preserved beside it. Nullability is therefore a fact
+				// this pass establishes, exactly as it does for sysmis.
+				if value := math.Float64frombits(bits); col.missing.match(value) {
+					st.sawNull = true
+					st.observeMissing(value)
 				}
 			}
 		}
@@ -642,7 +830,7 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 }
 
 // resolveColumn turns one variable plus its scan into a finished mapping.
-func (m *mapping) resolveColumn(v variable, kind columnKind,
+func (m *mapping) resolveColumn(at int, v variable, kind columnKind,
 	labels []valueLabel, st *columnStats, opts mappingOptions,
 ) (columnMapping, error) {
 	col := columnMapping{
@@ -655,6 +843,12 @@ func (m *mapping) resolveColumn(v variable, kind columnKind,
 		writeFormat:   v.write,
 		measure:       v.display.measure,
 		vls:           v.vls,
+	}
+	if kind != kindCategorical {
+		// Read back off the decode plan rather than recompiled, so the
+		// predicate the scan ran under and the one the column records
+		// are the same object by construction.
+		col.missing = m.plan.cols[at].missing
 	}
 
 	if st.nullTokenValue != "" {
@@ -897,21 +1091,35 @@ func defaultHints(ft encoding.FieldType, m measureLevel) (types.AggregationType,
 // import path appends to it, so handing the same instance to two imports
 // would let one import's values leak into the other's IDs.
 func (m *mapping) schema() *encoding.Schema {
-	fields := make([]encoding.Field, len(m.cols))
+	fields := make([]encoding.Field, len(m.out))
 	offset := 0
-	for i := range m.cols {
-		c := &m.cols[i]
+	for i, slot := range m.out {
+		c := &m.cols[slot.col]
+
+		name, ft, nullable, description := c.name, c.fieldType, c.nullable, c.description
+		values := c.values
+		if slot.sibling {
+			sib := c.sibling
+			name, ft, values = sib.name, sib.fieldType, sib.values()
+			// A sibling is nullable by construction: a PRESENT value has
+			// no reason, renders as the empty string and lands in the
+			// null bitmap. Declaring it non-nullable would fail every
+			// row of a column that is not missing everywhere.
+			nullable = true
+			description = missingSiblingDescription(c)
+		}
+
 		f := encoding.Field{
-			Name:         c.name,
-			Type:         c.fieldType,
-			Nullable:     c.nullable,
+			Name:         name,
+			Type:         ft,
+			Nullable:     nullable,
 			ByteOffset:   offset,
 			CsvColumnIdx: i,
-			Description:  c.description,
+			Description:  description,
 		}
-		if c.fieldType.HasDictionary() {
+		if ft.HasDictionary() {
 			dict := encoding.NewDictionary()
-			for _, v := range c.values {
+			for _, v := range values {
 				// Add never fails without a limit, and the width was
 				// chosen to fit these exact entries.
 				_, _ = dict.Add(v)
@@ -919,9 +1127,22 @@ func (m *mapping) schema() *encoding.Schema {
 			f.Dictionary = dict
 		}
 		fields[i] = f
-		offset += c.fieldType.ByteSize()
+		offset += ft.ByteSize()
 	}
 	return &encoding.Schema{Fields: fields}
+}
+
+// missingSiblingDescription is the Pulse field description of a generated
+// reason column. It names the variable it belongs to rather than
+// borrowing that variable's own label: a sibling described "Annual
+// household income" reads as a second income column, which is the one
+// thing an analyst must not believe about it.
+func missingSiblingDescription(c *columnMapping) string {
+	desc := "Why " + strconv.Quote(c.name) + " is missing, or null where it is present"
+	if c.description != "" {
+		desc += " (" + c.description + ")"
+	}
+	return desc
 }
 
 // ---------------------------------------------------------------------------

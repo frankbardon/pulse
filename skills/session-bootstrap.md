@@ -102,9 +102,10 @@ Both table kinds surface under `manifest.extensions.{label_tables,range_tables}`
 
 ## Source-format CLI flags
 
-Two per-format knobs the file itself cannot always answer. Both ride `format.ReaderOptions`; every other format ignores them.
+Three per-format knobs the file itself cannot always answer. All ride `format.ReaderOptions`; every other format ignores them.
 
 - `--sheet` (Excel) — `pulse import excel`, `import predict`, `import schema-template`. The `pulse_import` MCP tool carries it as `sheet`.
+- `--spss-missing` (SPSS `.sav` / `.zsav`), `auto` | `null`, default `auto` — `pulse import spss`, `import predict`, `import schema-template`, `convert`, `convert predict`. `auto` nulls every numeric user-missing value in its analytic column (so `AGG_SUM` / `AGG_MEAN` never add a refusal code) and adds a generated `<var>_missing` sibling carrying WHY — `sysmis`, the value label, or the code. `null` suppresses the siblings: same nulls, reason gone. **A `.sav` import may therefore yield more columns than the file has variables** — read `ReadHeader` / the returned schema, never the SPSS variable count. An unrecognised value is `PULSE_SPSS_MISSING_MODE_INVALID`, never a silent default. Same leaf coverage caveat as `--charset`.
 - `--charset` (SPSS `.sav` / `.zsav`) — `pulse import spss`, `import predict`, `import schema-template`, `convert`, `convert predict`. Overrides the encoding the file declares about itself; decoding only, the declaration is still retained. Reach for it on `PULSE_SPSS_CHARSET_INVALID` or `PULSE_SPSS_CHARSET_UNSUPPORTED` — most often a file transcoded by one tool and re-saved by another keeps a stale record `7/20` name, or declares nothing and fails the strict UTF-8 default on its first 8-bit byte. **Not yet on `pulse import auto` or `pulse_import`** — use `pulse import spss` for a file that needs it.
 
 ## Cross-links

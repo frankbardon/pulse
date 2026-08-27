@@ -2,7 +2,6 @@ package spss
 
 import (
 	"context"
-	"encoding/binary"
 	"strconv"
 	"strings"
 	"testing"
@@ -593,36 +592,70 @@ func TestLongStringMissingValues_CharsetDecoded(t *testing.T) {
 	}
 }
 
-// TestLongStringMissingValues_RecordTypeTwoConflict covers the one path no
-// fixture can reach through the emitter: a file carrying BOTH a record type 2
-// missing spec and a record 7/22 one for the same variable. The record type 2
-// form cannot express a missing value for a string over eight bytes, so 7/22
-// wins and the collision is surfaced rather than resolved silently.
+// TestLongStringMissingValues_RecordTypeTwoConflict covers a file carrying
+// BOTH a record type 2 missing spec and a record 7/22 one for the same
+// variable. Real files do: a record type 2 slot is eight bytes and SPSS
+// compares only a long string's first eight, so a writer can state the
+// pair. 7/22 wins — it is the record that can express the whole value —
+// and the collision is surfaced rather than resolved silently.
+//
+// E3-S4 could only assert this against a hand-built dictionary, because
+// internal/spsstest had no record type 2 missing-value slot at the time.
+// It has one now, so the claim is made against real bytes: a hand-built
+// dictionary can only prove that bindLongStringMissingValues does the
+// right thing with a shape, never that the shape survives a parse.
 func TestLongStringMissingValues_RecordTypeTwoConflict(t *testing.T) {
-	p := &parser{b: []byte{}, bo: binary.LittleEndian}
-	d := &dictionary{
-		vars: []variable{{
-			name:  "NOTE",
-			index: 1,
-			width: 20,
-			missing: missingSpec{
-				code: 1,
-				raw:  [][elementSize]byte{{'O', 'L', 'D', ' ', ' ', ' ', ' ', ' '}},
-				text: []string{"OLD"},
-			},
+	spec := spsstest.Spec{
+		Vars: []spsstest.Var{{
+			Name: "NOTE", Width: 20,
+			Missing: &spsstest.MissingValues{Discrete: []spsstest.Value{spsstest.Text("OLD")}},
 		}},
-		longStringMissing: []longStringMissing{{
-			name:   "NOTE",
-			values: [][elementSize]byte{{'N', 'E', 'W', ' ', ' ', ' ', ' ', ' '}},
+		Cases: [][]spsstest.Value{{spsstest.Text("hello")}},
+		LongStringMissingValues: []spsstest.LongStringMissingValues{{
+			Var: "NOTE", Values: []string{"NEW"},
 		}},
 	}
-	p.bindLongStringMissingValues(d)
-
+	r := NewReaderFromBytes(buildFixture(t, spec))
+	d, err := r.loadDictionary()
+	if err != nil {
+		t.Fatalf("loadDictionary: %v", err)
+	}
 	if got := d.vars[0].missing.text; len(got) != 1 || got[0] != "NEW" {
 		t.Fatalf("missing spec = %v, want the record 7/22 value to win", got)
 	}
 	if !hasCode(d.warnings, errors.PULSE_SPSS_EXTENSION_INVALID) {
 		t.Fatalf("the collision was resolved silently:\n%s", warningText(d.warnings))
+	}
+}
+
+// TestRecordTypeTwoMissingValues_ShortStringParsed is the plain,
+// well-formed half of the pair: a string narrow enough for its missing
+// values to ride its own record type 2, with no 7/22 anywhere.
+func TestRecordTypeTwoMissingValues_ShortStringParsed(t *testing.T) {
+	spec := spsstest.Spec{
+		Vars: []spsstest.Var{{
+			Name: "CODE", Width: 4,
+			Missing: &spsstest.MissingValues{
+				Discrete: []spsstest.Value{spsstest.Text("REF"), spsstest.Text("DK")},
+			},
+		}},
+		Cases: [][]spsstest.Value{{spsstest.Text("AB")}, {spsstest.Text("REF")}},
+	}
+	r := NewReaderFromBytes(buildFixture(t, spec))
+	d, err := r.loadDictionary()
+	if err != nil {
+		t.Fatalf("loadDictionary: %v", err)
+	}
+	v := d.vars[0]
+	if v.missing.code != 2 || v.missing.isRange() {
+		t.Fatalf("missing code = %d (range %v), want 2 discrete values", v.missing.code, v.missing.isRange())
+	}
+	if !equalStrings(v.missing.text, []string{"REF", "DK"}) {
+		t.Errorf("missing values = %q, want [REF DK]", v.missing.text)
+	}
+	// The slot is the full eight bytes regardless of the declared width.
+	if got := string(v.missing.raw[0][:]); got != "REF     " {
+		t.Errorf("missing slot 0 = %q, want the value space-padded to eight bytes", got)
 	}
 }
 
