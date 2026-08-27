@@ -16,6 +16,11 @@ straight to the encoder. Inference never runs.
 > **Read-only.** There is no `pulse export spss` and no SPSS writer.
 > An SPSS *output* target returns `PULSE_SPSS_EXPORT_UNSUPPORTED`.
 
+> **Codepages decode.** Text is transcoded out of the charset the file
+> declares (record `7/20` / `7/3`) into UTF-8, and a byte that charset
+> cannot decode is a coded error rather than a `?`. See
+> [Character encoding](#character-encoding).
+
 > **`.zsav` imports directly.** All three data-section encodings read:
 > uncompressed, bytecode (SPSS's own save default) and ZSAV zlib blocks.
 > Nothing needs to be re-saved or converted first. See
@@ -186,6 +191,73 @@ each.
 | `PULSE_SPSS_EXTENSION_UNKNOWN` | A record type 7 extension subtype this reader does not interpret; its bytes are retained verbatim |
 | `PULSE_SPSS_EXTENSION_INVALID` | An interpreted subtype carried a payload of the wrong shape; framing stayed sound, only the interpretation is dropped |
 | `PULSE_SPSS_DATA_CASE_COUNT_MISMATCH` | The header's declared case count disagrees with the cases present |
+| `PULSE_SPSS_CHARSET_MISMATCH` | The file states its character encoding twice and the two disagree — see [Character encoding](#character-encoding) |
+
+## Character encoding
+
+Pre-Unicode `.sav` files hold text in a codepage — windows-1252,
+ISO-8859-1, Shift_JIS and the rest — not in UTF-8. Pulse decodes every
+string it reads into UTF-8, so a French or German survey saved in 2004
+imports as `Zürich` and `Männlich`, not as `Z?rich` and `M?nnlich`.
+
+Decoding is done with [`golang.org/x/text`](https://pkg.go.dev/golang.org/x/text/encoding),
+which this feature promoted from an indirect to a **direct** module
+dependency — it was already in the graph via the Arrow and Excel
+adapters. No cgo, so the `CGO_ENABLED=0` build is unaffected.
+
+**Where the charset comes from**, highest precedence first:
+
+1. the record `7/20` character-encoding **name** (`windows-1252`,
+   `UTF-8`, …), which is what PSPP and modern SPSS write;
+2. the record `7/3` **character code** — the legacy numeric field
+   (`2`/`3` ASCII, `1252`, `65001`, …);
+3. UTF-8, for a file that declares neither.
+
+Spelling is forgiving on purpose: `windows-1252`, `Windows_1252`,
+`cp1252`, `CP-1252` and `1252` are the same request. It is not *loose* —
+`1250` never resolves to windows-1252 no matter how it is punctuated.
+
+**When both are present and they disagree, the `7/20` name wins** and
+`PULSE_SPSS_CHARSET_MISMATCH` is raised as a warning. The name is
+strictly the more informative statement — code `3` ("8-bit ASCII") is
+what a writer emits for ISO-8859-1, windows-1252 and half a dozen
+national codepages alike — and writers routinely leave the numeric field
+at an ASCII default while filling in `7/20` correctly. A `7/3` code of
+`2` or `3` is therefore never treated as a disagreement.
+
+**A byte the declared charset cannot decode is an error, never a
+replacement character.** The usual behaviour of a text decoder is to
+substitute U+FFFD and carry on, which would fill a cohort with
+replacement characters no later stage could tell from data:
+
+```
+error: PULSE_SPSS_CHARSET_INVALID: spss: a data value of variable "CITY":
+byte 0x81 at position 1 of the value "Z\x81rich" is not decodable in the
+declared character encoding windows-1252
+```
+
+Almost always the file is wrong about itself rather than the bytes being
+wrong — a dictionary transcoded by one tool and re-saved by another keeps
+its old `7/20` name. Only the caller can say which is right, so the
+library reader takes an override:
+
+```go
+r := spss.NewReader(fs, "survey.sav", spss.WithCharset("windows-1252"))
+```
+
+It changes **decoding only**; the file's own declaration is still
+retained, so a future export re-encodes into what the source said.
+
+> There is no CLI charset override yet — `pulse import spss` always uses
+> the file's declaration. Use the library reader when you need one.
+
+**A charset with no decoder is refused** rather than read as UTF-8:
+`PULSE_SPSS_CHARSET_UNSUPPORTED` names it. That covers an unregistered
+name, a registered one with no implementation (EBCDIC codepages), and
+any encoding that is not an ASCII superset — UTF-16 among them, because
+a `.sav` pads its fields with the byte `0x20` and delimits its record
+`7/5` and `7/13` payloads with ASCII, so an encoding that does not write
+ASCII as itself cannot express the format at all.
 
 ## Compression
 
@@ -316,6 +388,8 @@ intact, so pointing at it would send you to the wrong place.
 | `PULSE_SPSS_ZSAV_BLOCK_CORRUPT` | A ZSAV zlib block that will not inflate, or inflates to the wrong length — names the block — see above |
 | `PULSE_SPSS_DATA_TRUNCATED` | The data section ends mid-case, or a `253` command's value is missing |
 | `PULSE_SPSS_CATEGORICAL_OVERFLOW` | A labelled variable has more distinct codes than `categorical_u32` holds |
+| `PULSE_SPSS_CHARSET_UNSUPPORTED` | The declared character encoding resolves to no decoder — see [Character encoding](#character-encoding) |
+| `PULSE_SPSS_CHARSET_INVALID` | A byte sequence is not decodable in the declared character encoding — names the variable and the value |
 | `PULSE_SPSS_EXPORT_UNSUPPORTED` | An SPSS output target was requested — Pulse cannot write `.sav` |
 
 Parse-stage diagnostics (dictionary walk, data pass) carry `record_type`

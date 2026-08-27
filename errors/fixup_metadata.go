@@ -1968,6 +1968,36 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_CHARSET_UNSUPPORTED: {
+		Message: "The SPSS .sav file declares a character encoding this reader cannot decode with: either record 7/20 names a charset that resolves to nothing known, record 7/3 carries a character code with no charset behind it (EBCDIC, DEC Kanji), or the charset is not an ASCII superset and so cannot carry the format's own space padding and ASCII record delimiters. Decoding the file with a guessed codepage would produce text that is plausible and wrong, so the import stops here instead.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "Re-save the file from SPSS or PSPP with a Unicode encoding (`SET UNICODE ON` before `SAVE`, or `pspp-convert` with `--encoding=UTF-8`), which writes record 7/20 as UTF-8. If you know the real charset and the file mislabels it, pass spss.WithCharset(\"windows-1252\") to the reader to override the declaration.",
+			},
+		},
+	},
+	PULSE_SPSS_CHARSET_INVALID: {
+		Message: "A byte sequence in the SPSS .sav file is not decodable in the charset the file declares — an undefined byte in a single-byte codepage, or invalid UTF-8 in a file declaring UTF-8. It is reported rather than substituted: the usual behaviour of a text decoder is to emit U+FFFD replacement characters, which would turn a codepage mismatch into a cohort full of replacement characters no later stage could tell from real data. The details name the charset and, where the fault is in a variable, the variable.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "The file's declared charset is usually wrong rather than the bytes. Pass spss.WithCharset(\"<charset>\") to the reader with the encoding the data is really in, or re-save the file from SPSS or PSPP as UTF-8 so the declaration and the bytes agree.",
+			},
+		},
+	},
+	PULSE_SPSS_CHARSET_MISMATCH: {
+		Message: "The SPSS .sav file states its character encoding twice and the two statements disagree: the record 7/20 name resolves to one charset and the record 7/3 character code to another. This is a warning and the 7/20 name is used, because the name is strictly more expressive than the number — 7/3 cannot tell ISO-8859-1 from windows-1252 — and writers routinely leave the legacy numeric field at an ASCII default while naming the real charset in 7/20.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Source"},
+				Hint:   "No action is needed if the text imported correctly. If it did not, the 7/3 code may be the accurate one: pass spss.WithCharset with that charset to override the name the file declares.",
+			},
+		},
+	},
 	PULSE_SPSS_EXPORT_UNSUPPORTED: {
 		Message: "SPSS was requested as an OUTPUT format, but Pulse reads .sav / .zsav and does not yet write them: the reader is registered and the writer is not. The extension is recognised — that is why this is a specific error rather than an unknown-format one — so `pulse convert survey.sav out.csv` works while `pulse convert data.csv out.sav` stops here.",
 		Fixups: []Fixup{

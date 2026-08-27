@@ -116,8 +116,26 @@ type resolvedLabelSet struct {
 }
 
 // validate checks every rule the spec imposes and returns the emission plan.
+//
+// The FIRST thing it does is transcode the spec into its wire charset (see
+// charset.go). Everything after that point — width checks, delimiter checks,
+// fixed-field checks — therefore operates on wire bytes, which is the only
+// way an SPSS width check can be right: a declared width is a BYTE count,
+// and a UTF-8 string authored in Go source is not the byte sequence the file
+// will hold. It is also where the printable-text rule now lives, because
+// only the codec knows whether a high byte is ambiguous (no record 7/20) or
+// perfectly well defined (one is declared).
 func validate(spec Spec) (plan, error) {
 	var p plan
+
+	cs, err := specWireCodec(spec.CharacterEncoding)
+	if err != nil {
+		return p, err
+	}
+	spec, err = transcodeSpec(spec, cs)
+	if err != nil {
+		return p, err
+	}
 	p.spec = spec
 
 	if spec.ByteOrder != LittleEndian {
@@ -170,9 +188,6 @@ func validate(spec Spec) (plan, error) {
 		}
 		if len(v.Label) > MaxVarLabelLen {
 			return p, fmt.Errorf("spsstest: Vars[%d] (%s) label is %d bytes, over the %d-byte limit", i, v.Name, len(v.Label), MaxVarLabelLen)
-		}
-		if !isASCIIPrintable(v.Label) {
-			return p, fmt.Errorf("spsstest: Vars[%d] (%s) label is not printable 7-bit ASCII; a non-ASCII label needs a declared encoding (record 7/20), which is out of scope", i, v.Name)
 		}
 
 		rv := resolvedVar{Var: v, elemIndex: elem}
@@ -233,9 +248,6 @@ func validate(spec Spec) (plan, error) {
 	for i, line := range spec.Documents {
 		if len(line) > DocumentLineLen {
 			return p, fmt.Errorf("spsstest: Documents[%d] is %d bytes, over the %d-byte document line width; a document line is a fixed-width field, and wrapping it here would invent a line the caller did not write", i, len(line), DocumentLineLen)
-		}
-		if !isASCIIPrintable(line) {
-			return p, fmt.Errorf("spsstest: Documents[%d] is not printable 7-bit ASCII; non-ASCII document text needs a declared encoding (record 7/20) to be unambiguous", i)
 		}
 	}
 
@@ -389,9 +401,6 @@ func renderLongNames(vars []resolvedVar) (string, error) {
 		if v.LongName == "" {
 			continue
 		}
-		if !isASCIIPrintable(v.LongName) {
-			return "", fmt.Errorf("spsstest: %s has a LongName that is not printable 7-bit ASCII; a non-ASCII name needs a declared encoding (record 7/20)", v.Name)
-		}
 		if strings.ContainsAny(v.LongName, "=\t\n") {
 			return "", fmt.Errorf("spsstest: %s has LongName %q containing '=', a tab or a newline; those are the record 7/13 payload's own delimiters and there is no escape for them", v.Name, v.LongName)
 		}
@@ -467,9 +476,6 @@ func renderMRSet(i int, set MRSet, byName map[string]resolvedVar) (string, error
 	if strings.ContainsAny(set.Name, "= \n") {
 		return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] name %q contains '=', a space or a newline, which are the payload's delimiters", i, set.Name)
 	}
-	if !isASCIIPrintable(set.Label) {
-		return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) has a label that is not printable 7-bit ASCII", i, set.Name)
-	}
 	if len(set.Vars) == 0 {
 		return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) names no variables", i, set.Name)
 	}
@@ -494,9 +500,6 @@ func renderMRSet(i int, set MRSet, byName map[string]resolvedVar) (string, error
 	case MRDichotomy:
 		if set.CountedValue == "" {
 			return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) is a multiple-dichotomy set with no CountedValue; without it nothing says which value counts as selected", i, set.Name)
-		}
-		if !isASCIIPrintable(set.CountedValue) {
-			return "", fmt.Errorf("spsstest: MultipleResponseSets[%d] (%s) has a CountedValue that is not printable 7-bit ASCII", i, set.Name)
 		}
 		if set.Extended {
 			b.WriteString("E ")
@@ -566,9 +569,6 @@ func resolveLabelSet(si int, set ValueLabelSet, byName map[string]resolvedVar) (
 		if l.Label == "" || len(l.Label) > MaxValueLabelLen {
 			return rs, fmt.Errorf("spsstest: ValueLabels[%d].Labels[%d] is %d bytes; a value label must be 1..%d bytes", si, li, len(l.Label), MaxValueLabelLen)
 		}
-		if !isASCIIPrintable(l.Label) {
-			return rs, fmt.Errorf("spsstest: ValueLabels[%d].Labels[%d] is not printable 7-bit ASCII; a non-ASCII label needs a declared encoding (record 7/20), which is out of scope", si, li)
-		}
 		if l.Value.kind == kindSysMis {
 			return rs, fmt.Errorf("spsstest: ValueLabels[%d].Labels[%d] labels the system-missing value; SPSS labels user-missing codes instead", si, li)
 		}
@@ -599,9 +599,6 @@ func checkDatum(val Value, v Var) error {
 		if len(val.str) > v.Width {
 			return fmt.Errorf("%s is %d bytes, over the declared width %d; widening would silently change the file's dictionary", val, len(val.str), v.Width)
 		}
-		if !isASCIIPrintable(val.str) {
-			return fmt.Errorf("%s is not printable 7-bit ASCII; non-ASCII data needs a declared encoding (record 7/20), which is out of scope", val)
-		}
 	case kindSysMis:
 		if v.IsString() {
 			return fmt.Errorf("SysMis() given for string variable; SPSS has no system-missing state for strings, use Text(\"\") for an all-spaces value")
@@ -629,11 +626,18 @@ func checkFormat(i int, name string, f Format, which string) error {
 	return nil
 }
 
+// checkFixed and checkExact see WIRE bytes: validate transcodes the spec
+// before it checks anything, so both the length and the printability rules
+// below are statements about the file and not about the Go source. That is
+// why they use isWirePrintable rather than isASCIIPrintable — a high byte
+// here has already been proved to be the declared charset's encoding of a
+// printable character, and the ASCII gate for an undeclared charset has
+// already run.
 func checkFixed(what, s string, n int) error {
 	if len(s) > n {
 		return fmt.Errorf("spsstest: %s is %d bytes, over the %d-byte header field", what, len(s), n)
 	}
-	if !isASCIIPrintable(s) {
+	if !isWirePrintable(s) {
 		return fmt.Errorf("spsstest: %s is not printable 7-bit ASCII", what)
 	}
 	return nil
@@ -643,7 +647,7 @@ func checkExact(what, s string, n int) error {
 	if len(s) != n {
 		return fmt.Errorf("spsstest: %s must be exactly %d bytes, got %d (%q)", what, n, len(s), s)
 	}
-	if !isASCIIPrintable(s) {
+	if !isWirePrintable(s) {
 		return fmt.Errorf("spsstest: %s is not printable 7-bit ASCII", what)
 	}
 	return nil

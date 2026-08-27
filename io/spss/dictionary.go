@@ -391,10 +391,21 @@ type dictionary struct {
 	caseCount64    int64
 	hasCaseCount64 bool
 
-	// charsetName is the record 7/20 character encoding name, or "" when
-	// the file declares none. It is the NAME only; decoding with it is
-	// E3-S3's job.
+	// charsetName is the record 7/20 character encoding name exactly as
+	// the file spelled it, or "" when the file declares none. It is the
+	// raw declaration; charset below is what was made of it.
 	charsetName string
+
+	// charset is the resolved character encoding: the file's own
+	// declarations (the 7/20 name and the 7/3 character code) retained
+	// verbatim for the write path, plus the decoder every string in this
+	// dictionary has already been put through.
+	//
+	// Resolution and the dictionary-wide transcode happen at the END of
+	// the parse, after applyExtensions, because record 7/20 appears after
+	// every record that carries text — no forward walk can decode a
+	// variable label at the moment it reads it. See charset.go.
+	charset charsetInfo
 
 	// mrSets are the multiple-response set definitions from records 7/5,
 	// 7/7 and 7/19, merged by name with the later subtype winning. Each

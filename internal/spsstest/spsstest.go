@@ -993,10 +993,35 @@ func ExtensionReferenceSpec() Spec {
 }
 
 // isASCIIPrintable reports whether s is entirely printable 7-bit ASCII.
-// Anything else needs a declared character encoding (record 7/20), which this
-// package does not emit, so it would be ambiguous on the wire.
+//
+// It is the rule for a Spec that declares NO character encoding: without a
+// record 7/20 a high byte on the wire means nothing in particular, so a
+// fixture carrying one would be asserting a decoding the file does not
+// justify. A Spec that does declare an encoding is held to the equivalent
+// rule in that charset's own alphabet instead — see wireCodec.text.
 func isASCIIPrintable(s string) bool {
 	for i := 0; i < len(s); i++ {
+		if s[i] < 0x20 || s[i] > 0x7E {
+			return false
+		}
+	}
+	return true
+}
+
+// isWirePrintable reports whether s is acceptable as text ON THE WIRE.
+//
+// It is isASCIIPrintable with the high bytes allowed, and it is what the
+// structural checks use once validate has transcoded the spec: a byte at or
+// above 0x80 in a wire string is by then the declared charset's encoding of
+// a character already proved printable, so re-judging it as ASCII would
+// reject every non-ASCII fixture. What it still catches is the thing that
+// stays wrong in any charset — a C0 control byte in a fixed-width field or a
+// delimiter-separated payload.
+func isWirePrintable(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			continue
+		}
 		if s[i] < 0x20 || s[i] > 0x7E {
 			return false
 		}

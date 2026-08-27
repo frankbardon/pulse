@@ -28,12 +28,18 @@
 // rather than a precondition, and only adopts a declared sentinel from a
 // coherent sysmis < lowest < highest triple.
 //
+// Every string the dictionary holds is decoded from the file's declared
+// character encoding into UTF-8, strictly: an undecodable byte is a coded
+// error naming the variable and the offending value, never a U+FFFD
+// substitution (see charset.go). The declaration itself — the record 7/20
+// name and the record 7/3 character code — is retained verbatim for the
+// write path, and a caller can override it with WithCharset.
+//
 // Deliberately not interpreted: 7/10 extra product info and 7/17 / 7/18
 // attributes, which are free-form text with no Pulse home and are captured
 // verbatim without warning; 7/14, 7/21 and 7/22, the very-long-string
 // records, which belong to a later story and warn as unrecognised until it
-// lands. Charset DECODING is not done here either — 7/20's name is recorded,
-// and nothing is transcoded with it.
+// lands.
 //
 // All three data-section encodings the format defines are read:
 // uncompressed, SPSS's default bytecode compression (see data.go and
@@ -111,6 +117,10 @@ type Reader struct {
 	// opts are the mapping tunables the functional options set.
 	opts mappingOptions
 
+	// charsetOverride is the WithCharset name, "" when the file's own
+	// declaration decides.
+	charsetOverride string
+
 	// mapped is the memoised schema mapping. It is resolved on first use
 	// — by PulseSchema or by ReadRows, whichever comes first — and kept
 	// across a Reset, because like the dictionary it is a pure function
@@ -150,6 +160,28 @@ type Option func(*Reader)
 // a distinct-count ratio over a handful of cases says nothing.
 func WithCardinalityWarnFraction(fraction float64) Option {
 	return func(r *Reader) { r.opts.cardinalityWarnFraction = fraction }
+}
+
+// WithCharset overrides the character encoding the file declares.
+//
+// It exists because the commonest reason a real `.sav` fails to decode is
+// that the file is wrong about itself: a dictionary transcoded by one tool
+// and re-saved by another keeps the old record 7/20 name, and a pre-Unicode
+// file often declares nothing at all. Where the bytes and the declaration
+// disagree, only the caller can say which is right, so the override is the
+// documented answer to both PULSE_SPSS_CHARSET_UNSUPPORTED and
+// PULSE_SPSS_CHARSET_INVALID.
+//
+// The name is resolved by the same lookup the file's own declaration goes
+// through, so "windows-1252", "cp1252" and "1252" are the same request; an
+// unresolvable one is PULSE_SPSS_CHARSET_UNSUPPORTED naming it. An empty
+// string is not an override and leaves the file's declaration in force.
+//
+// It changes only DECODING. The file's own declaration is still retained
+// verbatim, because the write path has to re-encode into the charset the
+// source declared and not into the one a reader was told to read with.
+func WithCharset(name string) Option {
+	return func(r *Reader) { r.charsetOverride = name }
 }
 
 // NewReader creates a `.sav` reader over a filesystem path.
@@ -197,7 +229,7 @@ func (r *Reader) loadDictionary() (*dictionary, error) {
 	if err := r.init(); err != nil {
 		return nil, err
 	}
-	d, err := parseDictionary(r.data)
+	d, err := parseDictionaryWithCharset(r.data, r.charsetOverride)
 	if err != nil {
 		return nil, err
 	}

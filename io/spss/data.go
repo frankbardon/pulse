@@ -46,12 +46,12 @@ package spss
 // information the missing-value spec exists to carry.
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -89,6 +89,13 @@ type dataColumn struct {
 	// mapping pass overwrites it with the kind it settled on, so a cell
 	// and the field type declared for it can never disagree.
 	kind columnKind
+
+	// name is the variable's Pulse field name, carried so a per-cell
+	// fault — today only an undecodable string datum — can name the
+	// variable it came from. The data section has no other coordinate: a
+	// byte offset into a case says nothing a reader of the message could
+	// act on.
+	name string
 }
 
 // dataPlan is everything the per-case decode needs, resolved once.
@@ -117,6 +124,12 @@ type dataPlan struct {
 	// bo is the file's byte order, which governs the data section exactly
 	// as it governs the dictionary.
 	bo binary.ByteOrder
+
+	// cs decodes a string datum from the file's declared character
+	// encoding into UTF-8. Never nil for a plan built by buildDataPlan;
+	// a nil one falls back to the raw bytes, which is what a plan
+	// assembled by hand in a test gets.
+	cs *charsetDecoder
 }
 
 // buildDataPlan resolves the per-case geometry from the dictionary.
@@ -150,7 +163,7 @@ func buildDataPlan(d *dictionary) (*dataPlan, error) {
 				"variable %q declares width %d but occupies only %d byte(s)",
 				v.fieldName(), width, span)
 		}
-		cols[i] = dataColumn{offset: off, span: span, width: width}
+		cols[i] = dataColumn{offset: off, span: span, width: width, name: v.fieldName()}
 
 		// Every element the variable occupies takes its kind. A
 		// string's continuation elements are string segments in
@@ -172,16 +185,27 @@ func buildDataPlan(d *dictionary) (*dataPlan, error) {
 		sysmis:     d.sysmis,
 		sysmisBits: math.Float64bits(d.sysmis),
 		bo:         d.byteOrder,
+		cs:         d.charset.dec,
 	}, nil
 }
 
 // decodeCase renders one case into row, which must have one slot per column.
-func (p *dataPlan) decodeCase(c []byte, row []string) {
+//
+// It fails only on a string datum the file's declared character encoding
+// cannot decode. That is a per-CELL fault rather than a per-file one — the
+// bytes are only wrong for this one value — but it is still fatal to the
+// read, because the alternative is a U+FFFD substitution that no later stage
+// could tell from data. See charset.go.
+func (p *dataPlan) decodeCase(c []byte, row []string) *errors.CodedError {
 	for i := range p.cols {
 		col := &p.cols[i]
 		seg := c[col.offset : col.offset+col.span]
 		if col.width > 0 {
-			row[i] = trimStringDatum(seg[:col.width])
+			text, err := p.decodeStringDatum(col, seg[:col.width])
+			if err != nil {
+				return err
+			}
+			row[i] = text
 			continue
 		}
 		switch col.kind {
@@ -193,6 +217,27 @@ func (p *dataPlan) decodeCase(c []byte, row []string) {
 			row[i] = p.formatNumeric(seg)
 		}
 	}
+	return nil
+}
+
+// decodeStringDatum renders one string datum: the declared-width bytes
+// stripped of their padding, then decoded out of the file's charset.
+//
+// The trim happens FIRST, on raw bytes, because the declared width is a
+// BYTE count and the padding SPSS writes is the byte 0x20 — both are
+// statements about the wire form, and applying them after a decode that has
+// changed the byte length would be applying them to the wrong string.
+func (p *dataPlan) decodeStringDatum(col *dataColumn, b []byte) (string, *errors.CodedError) {
+	raw := trimStringDatum(b)
+	if p.cs == nil {
+		return string(raw), nil
+	}
+	text, at := p.cs.decode(raw)
+	if at >= 0 {
+		return "", charsetInvalid(p.cs, "a data value of variable "+strconv.Quote(col.name),
+			col.name, raw, at)
+	}
+	return text, nil
 }
 
 // isSysmis reports whether a raw 8-byte element is the system-missing
@@ -272,7 +317,7 @@ func (p *dataPlan) formatDateTime(seg []byte) string {
 	return encoding.FormatDateTime(uint64(sec))
 }
 
-// trimStringDatum renders a string variable's declared-width bytes.
+// trimStringDatum strips a string variable's padding, on the RAW bytes.
 //
 // SPSS space-pads a string value out to its declared width and then on out to
 // the 8-byte segment boundary; the caller has already cut the segment padding
@@ -281,8 +326,14 @@ func (p *dataPlan) formatDateTime(seg []byte) string {
 // — so trimming loses nothing that was ever there. Only spaces are trimmed,
 // matching valueLabel.text, so a data value compares equal to the value-label
 // key naming it.
-func trimStringDatum(b []byte) string {
-	return strings.TrimRight(string(b), " ")
+//
+// It returns bytes rather than a string, and it runs BEFORE the charset
+// decode rather than after, because both the declared width and the 0x20
+// padding are statements about the wire form. Applying them to a decoded
+// string would be applying a byte-count rule to text whose byte length the
+// decode has already changed.
+func trimStringDatum(b []byte) []byte {
+	return bytes.TrimRight(b, " ")
 }
 
 // ---------------------------------------------------------------------------
@@ -358,7 +409,9 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 
 		off := i * plan.stride
-		plan.decodeCase(body[off:off+plan.stride], row)
+		if err := plan.decodeCase(body[off:off+plan.stride], row); err != nil {
+			return err
+		}
 
 		if err := fn(row); err != nil {
 			if err == pio.ErrStopIteration() {

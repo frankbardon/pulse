@@ -65,6 +65,13 @@ type parser struct {
 // On return, dictionary.dataOffset is the offset of the first byte after the
 // terminator. The data section is untouched.
 func parseDictionary(b []byte) (*dictionary, error) {
+	return parseDictionaryWithCharset(b, "")
+}
+
+// parseDictionaryWithCharset is parseDictionary with a caller-supplied
+// charset that overrides whatever the file declares. An empty override means
+// the file's own declaration decides — see resolveCharset.
+func parseDictionaryWithCharset(b []byte, override string) (*dictionary, error) {
 	p := &parser{b: b, record: recordHeader}
 
 	d := &dictionary{sysmis: defaultSysmis}
@@ -83,6 +90,17 @@ func parseDictionary(b []byte) (*dictionary, error) {
 	// warning, because the record framing was already validated during the
 	// walk and a bad payload therefore cannot desynchronise anything.
 	p.applyExtensions(d)
+
+	// The charset is resolved last for the same reason: records 7/3 and
+	// 7/20 declare it, and both come after every record that carries text.
+	// Until this point every string in the dictionary is the raw bytes the
+	// file held; applyCharset is what turns them into UTF-8.
+	if err := resolveCharset(d, override); err != nil {
+		return nil, err
+	}
+	if err := applyCharset(d); err != nil {
+		return nil, err
+	}
 	return d, nil
 }
 

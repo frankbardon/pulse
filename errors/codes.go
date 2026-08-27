@@ -1428,6 +1428,50 @@ const (
 	// DetailSPSSVariable.
 	PULSE_SPSS_NULL_TOKEN_COLLISION Code = "PULSE_SPSS_NULL_TOKEN_COLLISION"
 
+	// PULSE_SPSS_CHARSET_UNSUPPORTED indicates an SPSS `.sav` file
+	// declares a character encoding this reader cannot decode with — a
+	// name record 7/20 spells that resolves to no known charset, a
+	// record 7/3 character code with no charset behind it (EBCDIC, DEC
+	// Kanji), or a charset that is not an ASCII superset and therefore
+	// cannot carry the format's own space padding and ASCII delimiters.
+	//
+	// It is a HARD error at dictionary parse rather than a warning that
+	// falls back to UTF-8. Decoding bytes with the wrong codepage
+	// produces text that is plausible and wrong, which is the single
+	// failure this reader exists to prevent; a file that cannot be
+	// decoded faithfully must not import at all. Details carry the
+	// declared charset under DetailSPSSCharset.
+	PULSE_SPSS_CHARSET_UNSUPPORTED Code = "PULSE_SPSS_CHARSET_UNSUPPORTED"
+
+	// PULSE_SPSS_CHARSET_INVALID indicates a byte sequence in an SPSS
+	// `.sav` file is not decodable in the charset the file declares —
+	// an undefined byte in a single-byte codepage, or invalid UTF-8 in a
+	// file declaring UTF-8.
+	//
+	// It is an error and never a silent substitution. golang.org/x/text
+	// decoders default to emitting U+FFFD for undecodable input, which
+	// would turn a codepage mismatch into a cohort full of replacement
+	// characters that no later stage could distinguish from real data;
+	// this reader opts out of that behaviour explicitly. Details carry
+	// the declared charset under DetailSPSSCharset and, where the fault
+	// is in a variable's own data or label, the variable under
+	// DetailSPSSVariable.
+	PULSE_SPSS_CHARSET_INVALID Code = "PULSE_SPSS_CHARSET_INVALID"
+
+	// PULSE_SPSS_CHARSET_MISMATCH indicates an SPSS `.sav` file states
+	// its character encoding twice and the two statements disagree: the
+	// record 7/20 NAME resolves to one charset and the record 7/3
+	// character code to another.
+	//
+	// It is a WARNING, and the 7/20 name wins. The name is strictly more
+	// expressive than the number — 7/3 cannot tell ISO-8859-1 from
+	// windows-1252 — and writers routinely leave the legacy numeric
+	// field at an ASCII default while naming the real charset in 7/20.
+	// A 7/3 code of 2 or 3 (ASCII) is therefore NOT a disagreement with
+	// any ASCII-superset name and never raises this. Details carry the
+	// charset actually used under DetailSPSSCharset.
+	PULSE_SPSS_CHARSET_MISMATCH Code = "PULSE_SPSS_CHARSET_MISMATCH"
+
 	// PULSE_SPSS_EXPORT_UNSUPPORTED indicates a caller asked for `.sav`
 	// (or `.zsav`) as an OUTPUT target — `pulse convert data.csv
 	// out.sav`, or an io.Writer construction for the spss format. SPSS
@@ -1513,6 +1557,12 @@ const (
 	// print format TYPE CODE (5 = F, 20 = DATE, 22 = DATETIME, and so on)
 	// a schema-mapping diagnostic refers to.
 	DetailSPSSFormat = "format_code"
+
+	// DetailSPSSCharset is the CodedError.Details key carrying the
+	// character encoding a PULSE_SPSS_CHARSET_* diagnostic refers to:
+	// the canonical name the reader resolved where it resolved one, and
+	// the file's own spelling where it did not.
+	DetailSPSSCharset = "charset"
 )
 
 // allCodes is the authoritative registry of every defined error code.
@@ -1708,6 +1758,9 @@ var allCodes = []Code{
 	PULSE_SPSS_VALUE_COLLISION,
 	PULSE_SPSS_MEASURE_LEVEL_MISMATCH,
 	PULSE_SPSS_NULL_TOKEN_COLLISION,
+	PULSE_SPSS_CHARSET_UNSUPPORTED,
+	PULSE_SPSS_CHARSET_INVALID,
+	PULSE_SPSS_CHARSET_MISMATCH,
 	PULSE_SPSS_EXPORT_UNSUPPORTED,
 }
 

@@ -320,10 +320,42 @@ type mapping struct {
 	// zero either way.
 	body []byte
 
+	// charset is the file's character encoding declaration and the
+	// decoder built from it, carried through from the dictionary.
+	//
+	// It is on the mapping and not only on the dictionary because the
+	// write path consumes the mapping: re-encoding a column's values
+	// needs the same charset the source declared, next to the same
+	// declaredWidth the source declared, and separating the two would
+	// invite an export that re-pads a UTF-8 string to a byte width
+	// measured in another encoding.
+	charset charsetInfo
+
 	// warnings are the non-fatal mapping diagnostics. They are built
 	// once with the mapping and never re-raised, because the mapping is
 	// memoised for the life of the reader.
 	warnings []*errors.CodedError
+}
+
+// decodeLabelKey decodes a short-string value label's VALUE slot.
+//
+// The key is a datum, not metadata: it is the same bytes a case of the same
+// variable would carry, so it is trimmed to the declared byte width and
+// stripped of its 0x20 padding before decoding, exactly as
+// dataPlan.decodeStringDatum does. Doing it in the other order would leave a
+// label key unable to compare equal to the datum it names.
+func (m *mapping) decodeLabelKey(v variable, l valueLabel) (string, *errors.CodedError) {
+	raw := l.text(v.width)
+	if m.plan == nil || m.plan.cs == nil {
+		return raw, nil
+	}
+	text, at := m.plan.cs.decodeString(raw)
+	if at >= 0 {
+		return "", charsetInvalid(m.plan.cs,
+			"a value-label key of variable "+strconv.Quote(v.fieldName()),
+			v.fieldName(), []byte(raw), at)
+	}
+	return text, nil
 }
 
 // mappingOptions are the tunables of the mapping pass.
@@ -367,9 +399,13 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 		kinds[i] = classify(v, len(labels[i]) > 0)
 	}
 
-	stats := scanCases(plan, kinds, body, 0, cases)
+	stats, err := scanCases(plan, kinds, body, 0, cases)
+	if err != nil {
+		return nil, err
+	}
 
-	m := &mapping{plan: plan, cases: cases, body: body, cols: make([]columnMapping, len(d.vars))}
+	m := &mapping{plan: plan, cases: cases, body: body, charset: d.charset,
+		cols: make([]columnMapping, len(d.vars))}
 	for i, v := range d.vars {
 		col, err := m.resolveColumn(v, kinds[i], labels[i], &stats[i], opts)
 		if err != nil {
@@ -512,7 +548,13 @@ func (s *columnStats) observe(key, raw string, code float64) bool {
 
 // scanCases walks every case once, accumulating per column exactly what
 // the type resolution needs and nothing more.
-func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int) []columnStats {
+//
+// It is also where a string datum is first DECODED out of the file's
+// declared character encoding, and therefore where an undecodable one is
+// first seen. That placement is deliberate: this pass already visits every
+// case, so the check costs nothing extra, and it means an import fails
+// before it has produced a schema rather than part-way through the rows.
+func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int) ([]columnStats, error) {
 	stats := make([]columnStats, len(plan.cols))
 
 	for n := 0; n < cases; n++ {
@@ -535,7 +577,11 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 					code = math.Float64frombits(bits)
 					raw = formatNumericValue(code)
 				} else {
-					raw = trimStringDatum(seg[:col.width])
+					text, err := plan.decodeStringDatum(col, seg[:col.width])
+					if err != nil {
+						return nil, err
+					}
+					raw = text
 				}
 				key := dictKey(raw)
 				if rendersAsNull(key) {
@@ -575,7 +621,7 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 		}
 	}
 
-	return stats
+	return stats, nil
 }
 
 // resolveColumn turns one variable plus its scan into a finished mapping.
@@ -671,7 +717,11 @@ func (m *mapping) resolveCategories(col *columnMapping, v variable,
 			}
 			raw = formatNumericValue(code)
 		} else {
-			raw = l.text(v.width)
+			text, err := m.decodeLabelKey(v, l)
+			if err != nil {
+				return err
+			}
+			raw = text
 		}
 		key := dictKey(raw)
 		if rendersAsNull(key) {
