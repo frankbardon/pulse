@@ -97,6 +97,38 @@ type SchemaAwareWriter interface {
 // tokens joined by DefaultSetDelimiter ("|") — ImportJob.SetDelimiters is
 // inert on this path and the constant is the fixed contract.
 //
+// # The empty-mask cell, and the two rules that keep it distinct
+//
+// A set_* column has THREE states, not two: some elements selected, NO
+// element selected, and null. CLAUDE.md's byte-layout invariants make
+// the middle one real — "an empty mask is a valid no-selection,
+// distinct from null" — and for a source that can tell them apart it is
+// load-bearing data, not a nicety. io/spss is the canonical case: a
+// survey respondent who worked through a "select all that apply"
+// battery and ticked nothing gave an answer, and one who was never
+// shown the battery did not.
+//
+// The row form for "no selection" is a cell of ONE BARE DELIMITER
+// ("|"). The empty string cannot serve, because it is a null token and
+// is consumed before any dictionary is consulted. That the bare
+// delimiter works is not a trick but the composition of two documented
+// behaviours in the shared import path, and BOTH are part of this
+// contract:
+//
+//   - isNullToken (io/import.go) recognises exactly "", "na", "n/a" and
+//     "null", case-insensitively. "|" is not among them, so the cell
+//     reaches value conversion instead of being read as null.
+//   - splitSetTokens (io/infer.go) trims each part and DROPS the empty
+//     ones, so "|" yields zero tokens: mask 0, and no dictionary
+//     mutation.
+//
+// Widening the null-token set to cover a lone delimiter, or making
+// splitSetTokens retain empty tokens, would collapse the empty-mask and
+// null states into one — SILENTLY, since both spellings would keep
+// importing and only the meaning would change. An end-to-end
+// FILTER_SET EQUALS-empty assertion in io/spss guards the composition;
+// a change to either rule must keep that green rather than update it.
+//
 // Cell text still passes through the same conversion the inferred path
 // uses, so an authoritative dictionary is pre-seeded, not sealed: a
 // value absent from it is appended (subject to the type's width limit)

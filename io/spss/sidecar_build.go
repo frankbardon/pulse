@@ -10,7 +10,10 @@ package spss
 // RESOLVED it to. A round trip needs both: the declaration to write
 // back, and the resolution to know which cohort column carries it.
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"strings"
+)
 
 // buildDocument assembles the whole sidecar.
 func buildDocument(d *dictionary, m *mapping, fp Fingerprint) *Document {
@@ -33,7 +36,7 @@ func buildPayload(d *dictionary, m *mapping) Payload {
 		ProductInfo:          buildRawText(d, extProductInfo),
 		FileAttributes:       buildRawText(d, extFileAttributes),
 		VariableAttributes:   buildRawText(d, extVarAttributes),
-		MultipleResponseSets: buildMRSets(d),
+		MultipleResponseSets: buildMRSets(d, m),
 		VariableSets:         buildVarSets(d),
 		VeryLongStrings:      buildVLSDeclarations(d),
 		Variables:            buildVariables(d, m),
@@ -168,31 +171,88 @@ func buildRawText(d *dictionary, subtype int32) *RawText {
 // The type switch is preserved as the discriminant rather than erased:
 // a category set gets no CountedValue field at all, so a consumer that
 // forgets to check Kind reads nil instead of a meaningless "".
-func buildMRSets(d *dictionary) []MRSet {
+//
+// EVERY set is recorded, including the multiple-CATEGORY sets that
+// derive no column and the multiple-dichotomy ones that refused to.
+// This block is the write-back record for the definitions themselves;
+// the derived-column registry is a separate answer to a separate
+// question (see derived.go), and letting a set fall out of this list
+// because its convenience column did not materialise would drop a
+// definition from the exported file.
+func buildMRSets(d *dictionary, m *mapping) []MRSet {
 	if len(d.mrSets) == 0 {
 		return nil
 	}
+	resolve := setFieldResolver(d, m)
 	out := make([]MRSet, 0, len(d.mrSets))
 	for _, set := range d.mrSets {
+		members := set.setVars()
 		e := MRSet{
 			Name:      set.setName(),
 			Label:     set.setLabel(),
 			Subtype:   set.setSubtype(),
-			Variables: copyStrings(set.setVars()),
+			Variables: copyStrings(members),
+			Fields:    resolve(members),
 		}
 		switch s := set.(type) {
 		case *mrDichotomySet:
-			e.Kind = "dichotomy"
+			e.Kind = MRSetKindDichotomy
 			counted := s.countedValue
 			e.CountedValue = &counted
 			e.LabelFromVariableLabel = s.labelFromVarLabel
 			e.Extended = s.extended
 		case *mrCategorySet:
-			e.Kind = "category"
+			e.Kind = MRSetKindCategory
 		}
 		out = append(out, e)
 	}
 	return out
+}
+
+// setFieldResolver builds the SHORT name -> Pulse field name lookup a
+// set's member list is projected through, and returns it as a function
+// over one member list so the index is built once per document.
+//
+// The lookup is case-insensitive because SPSS variable names are, and
+// the FIRST declaration of a name wins — the same rule planMRSets
+// applies when it assigns bits, so the sidecar cannot name a different
+// column from the one a derived mask actually read.
+//
+// Member order is preserved exactly, duplicates included: an MC set is
+// positional and may legitimately name one variable twice, and
+// de-duplicating here would silently shorten a parallel array whose
+// whole contract is that it is index-for-index with Variables.
+func setFieldResolver(d *dictionary, m *mapping) func([]string) []string {
+	byShortName := make(map[string]int, len(d.vars))
+	for i, v := range d.vars {
+		key := strings.ToUpper(v.name)
+		if _, dup := byShortName[key]; !dup {
+			byShortName[key] = i
+		}
+	}
+	return func(members []string) []string {
+		if len(members) == 0 {
+			return nil
+		}
+		out := make([]string, len(members))
+		for i, short := range members {
+			at, found := byShortName[strings.ToUpper(short)]
+			if !found {
+				// The member names a variable no record type 2 declares.
+				// "" says so rather than guessing a name; the parser has
+				// already warned about the definition.
+				continue
+			}
+			out[i] = d.vars[at].fieldName()
+			if m != nil && at < len(m.cols) && m.cols[at].name != "" {
+				// The mapping is what actually named the cohort column,
+				// so it wins over the dictionary's own rendering wherever
+				// the two could differ.
+				out[i] = m.cols[at].name
+			}
+		}
+		return out
+	}
 }
 
 // buildVarSets records the record 7/5 display groupings. They are
@@ -284,11 +344,18 @@ func cohortPositions(d *dictionary, m *mapping) []int {
 // so an export drops the column outright and re-emits the constituents.
 // SetName ties it back to the payload's multiple_response_sets entry,
 // which is where the counted value and the set label live.
+//
+// The result is NEVER nil. A cohort with no derived columns serialises
+// as an empty array, because the registry's value is that a column
+// absent from it is a source variable BY CONSTRUCTION — and an absent
+// `derived` key cannot say that, it can only say that this document
+// does not know. An export must refuse on the second and proceed on the
+// first, so the two need different spellings on the wire.
 func buildDerived(m *mapping) []Derived {
+	out := []Derived{}
 	if m == nil {
-		return nil
+		return out
 	}
-	var out []Derived
 	for at, slot := range m.out {
 		if slot.mrSet {
 			set := m.mrSets[slot.mrIndex]

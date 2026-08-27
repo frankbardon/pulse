@@ -413,17 +413,50 @@ convenience column would be the wrong trade — which is why the same
 | a constituent whose name contains `\|` or *is* a null token (`NA`, `N/A`, `NULL`) | `PULSE_SPSS_MR_SET_NOT_DERIVED` |
 | the derived name is one a real variable already holds | `PULSE_SPSS_DERIVED_NAME_COLLISION` |
 
+### Multiple-category sets stay N categorical columns
+
+An MC set gets **no** derived column, and that is a fidelity decision
+rather than an omission. Its N members are *slots*, and two facts about
+them survive only as separate columns:
+
+| | MC set | `set_*` bitmask |
+|---|---|---|
+| slot order | first choice ≠ third choice | unordered |
+| a repeated code | two slots may both hold `2` | idempotent — one bit |
+
+Collapsing an MC set would lose both. So each member imports as its own
+ordinary `categorical_*` column over the shared value-label set, exactly
+as it would if the set definition were not there, and only the
+*definition* rides the sidecar.
+
+```json
+{ "R1": "2", "R2": "2", "R3": "1" }
+```
+
+Both `2`s are still there, in the slots they arrived in.
+
 ### On the sidecar
 
 The set definitions ride `payload.multiple_response_sets` verbatim —
-name, kind, label, subtype, member short names, and (dichotomy only)
-`counted_value`. Each derived column gets a `payload.derived` entry of
-kind `multiple_dichotomy` carrying its cohort position, its `set_name`
-and its `sources` **in bit order**.
+name, kind (`dichotomy` / `category`), label, subtype, member short
+names, and (dichotomy only) `counted_value`. `fields` sits beside
+`variables` and resolves each member, index for index, to the Pulse
+field name that member became — `""` for a member no record type 2
+declares. Duplicate members are kept, because for an MC set a repeated
+member is meaningful.
 
-It needs no reason dictionary, unlike a `<var>_missing` sibling: nothing
-it shows is absent from the cohort, so an export drops the column
-outright and re-emits the constituents.
+Every set is recorded, including the MC sets that derive nothing by
+design and the MD sets that [refused to derive](#when-a-set-does-not-derive).
+The block is the write-back record for the *definitions*; the derived
+registry below answers the different question of which cohort columns
+are synthetic, and a set that produced no column must still be written
+back.
+
+Each derived column gets a `payload.derived` entry of kind
+`multiple_dichotomy` carrying its cohort position, its `set_name` and its
+`sources` **in bit order**. It needs no reason dictionary, unlike a
+`<var>_missing` sibling: nothing it shows is absent from the cohort, so
+an export drops the column outright and re-emits the constituents.
 
 **Cross-checked against R — and there is nothing to check against.**
 Neither `haven` (ReadStat) nor `foreign::read.spss` exposes
@@ -434,6 +467,88 @@ extended `E` grammar rests on the PSPP specification alone. The residual
 risk is bounded by the additive design: a misread definition can only
 mis-derive or fail to derive a *convenience* column, and can never touch
 a constituent.
+
+## Derived columns
+
+Two of the mappings above add columns the `.sav` never declared. They
+are the only two, they are always **additive**, and they are the reason
+an imported cohort can be wider than the file it came from.
+
+| Kind | Where it comes from | What it holds |
+|---|---|---|
+| `numeric_missing` | a numeric variable declaring user-missing values | `<var>_missing`, the *reason* each null had — see [Missing values](#missing-values) |
+| `multiple_dichotomy` | a multiple-dichotomy response set | a `set_*` bitmask over the constituents — see [Multiple-response sets](#multiple-response-sets) |
+
+Both are **interleaved**, not appended. A reason sibling sits
+immediately after its source variable; a set column sits immediately
+after the **last** of its constituents, because a summary must not
+precede its parts. So a cohort position is a cohort position — never an
+ordinal into the source dictionary — which is why the sidecar records
+`variables[].position` explicitly.
+
+### They are export-transparent
+
+Neither kind is ever written back as an SPSS variable. An export folds
+them away and reconstructs exactly the variables the source declared:
+
+- a `multiple_dichotomy` column is **dropped**. Every bit it shows is a
+  second reading of a constituent that is still in the cohort under its
+  own name, so there is nothing to reconstruct.
+- a `numeric_missing` column is **consumed**. Its per-row value decides
+  what its source variable writes wherever that variable is null — the
+  original SPSS code, or the system-missing sentinel.
+
+That fold is driven by the sidecar's `payload.derived` registry, never by
+matching on names. `_missing` is a legal SPSS name suffix and a survey
+that genuinely declares `income_missing` is not hypothetical; a set
+column's name is whatever the set was called minus its `$`, which matches
+no pattern at all. Guessing wrong is silent in both directions — a
+phantom variable that was never in the source, or a real column dropped.
+
+```json
+{
+  "derived": [
+    {
+      "name": "income_missing",
+      "kind": "numeric_missing",
+      "sources": ["income"],
+      "position": 1,
+      "reasons": [
+        { "id": 0, "reason": "sysmis", "sysmis": true, "observed": true },
+        { "id": 1, "reason": "Refused", "code": 97, "label": "Refused",
+          "declared": true, "observed": true }
+      ]
+    },
+    {
+      "name": "media",
+      "kind": "multiple_dichotomy",
+      "set_name": "$media",
+      "sources": ["Q1A", "Q1B", "Q1C"],
+      "position": 4
+    }
+  ]
+}
+```
+
+`kind` is a **closed vocabulary** — those two values today. A consumer
+meeting a third must refuse rather than skip it: a column whose fold-back
+is unknown has no safe default.
+
+**A cohort with no derived columns writes `"derived": []`**, not a
+missing key. "Nothing was derived" and "this document cannot tell you"
+are different answers, and the second is the one an export has to stop
+on.
+
+### Opting out
+
+| Kind | Opt out | Cost |
+|---|---|---|
+| `numeric_missing` | `--spss-missing=null` / `spss.WithMissingMode(spss.MissingNull)` | Identical nulls in the analytic column; the *reason* is no longer in the cohort. The full specification still rides the sidecar, so a re-import recovers the vocabulary — but not which row had which reason. |
+| `multiple_dichotomy` | no flag | It is the ergonomic half of the additive design and costs one column per set. The constituents carry the fidelity either way, so suppressing it would remove convenience and change nothing else. |
+
+Neither knob changes the categorical arm: a `categorical_*` column keeps
+its user-missing codes in its own dictionary and never gets a sibling
+(see [Categorical user-missing codes](#categorical-user-missing-codes)).
 
 ## Value labels: the cohort stores codes
 

@@ -232,19 +232,31 @@ type Payload struct {
 	Variables []Variable `json:"variables"`
 
 	// Derived is the registry of columns this import SYNTHESISED rather
-	// than read: the `<var>_missing` reason siblings and, later, the
-	// multiple-dichotomy `set_*` convenience columns (E4-S4). An export
-	// drops them and reconstructs the source from the real columns, so
-	// it needs to tell "column absent from Variables" from "column
-	// absent from the source" without pattern-matching on names.
+	// than read: the `<var>_missing` reason siblings (kind
+	// [DerivedKindNumericMissing]) and the multiple-dichotomy `set_*`
+	// convenience columns (kind [DerivedKindMultipleDichotomy]). An
+	// export drops or consumes them and reconstructs the source from the
+	// real columns, so it needs to tell "column absent from Variables"
+	// from "column absent from the source" without pattern-matching on
+	// names. See derived.go for the closed kind vocabulary and the fold
+	// action each one prescribes.
 	//
 	// Derived columns are INTERLEAVED with the real ones, not appended:
-	// a sibling sits immediately after its source variable. Position on
-	// each entry is what says where.
+	// a reason sibling sits immediately after its source variable, and a
+	// set column immediately after the LAST of its constituents (a
+	// summary must not precede its parts). Position on each entry is what
+	// says where; constituents need not be contiguous.
+	//
+	// NOT `omitempty`, deliberately. An import that derived nothing
+	// writes an EMPTY ARRAY, because "this cohort has no derived columns"
+	// and "this document cannot tell me" are different answers and an
+	// absent key collapses them — the second is what an export must
+	// refuse on, and the first is the overwhelmingly common case it must
+	// proceed on.
 	//
 	// Additive: entries may gain fields without a SidecarFormatVersion
 	// bump, which is how Reasons arrived after the slot was reserved.
-	Derived []Derived `json:"derived,omitempty"`
+	Derived []Derived `json:"derived"`
 }
 
 // Source is the file-header metadata plus the case geometry.
@@ -365,7 +377,34 @@ type RawText struct {
 	Text string `json:"text,omitempty"`
 }
 
+// Multiple-response set kinds. They are the JSON discriminant standing
+// in for the two Go types the parser keeps apart, and they are named
+// constants for the same reason the derived-column kinds are: a
+// consumer branching on the flavour of a set is deciding whether the
+// members are indicator variables or positional category slots, and a
+// mistyped string literal at that fork is a silent misread.
+const (
+	// MRSetKindDichotomy is N binary indicator variables plus one
+	// counted value. This is the flavour that derives a `set_*` column;
+	// see mrset.go.
+	MRSetKindDichotomy = "dichotomy"
+
+	// MRSetKindCategory is N variables each holding a code from a
+	// shared value-label set. It derives NOTHING: it is positional,
+	// permits duplicates and has no counted value, so it is genuinely N
+	// categorical columns and not a set. Only its definition rides this
+	// document.
+	MRSetKindCategory = "category"
+)
+
 // MRSet is one multiple-response set definition.
+//
+// It is the write-back record for EVERY set the file declared, whether
+// or not the set produced a derived column: a multiple-CATEGORY set
+// derives nothing by design, and a multiple-dichotomy one may have
+// refused to derive (PULSE_SPSS_MR_SET_NOT_DERIVED). Both must still be
+// re-emitted as record 7/5, 7/7 or 7/19 definitions, so nothing here is
+// consumed by the derived-column registry — see derived.go.
 //
 // Kind is the JSON discriminant standing in for the two Go types the
 // parser keeps apart, and CountedValue is a POINTER so a consumer that
@@ -375,7 +414,7 @@ type MRSet struct {
 	// Name is the set name, including its leading '$'.
 	Name string `json:"name"`
 
-	// Kind is "dichotomy" or "category".
+	// Kind is [MRSetKindDichotomy] or [MRSetKindCategory].
 	Kind string `json:"kind"`
 
 	// Label is the set label, possibly empty.
@@ -386,8 +425,34 @@ type MRSet struct {
 	Subtype int32 `json:"subtype"`
 
 	// Variables names the member variables by SHORT name, in file
-	// order — the name the record itself carries.
+	// order — the name the record itself carries, and what a write path
+	// re-emits verbatim.
+	//
+	// ORDER IS LOAD-BEARING and duplicates are NOT collapsed. For a
+	// multiple-category set the member order is the answer order — "first
+	// choice, second choice, third choice" — and two slots may
+	// legitimately hold the same code, which is exactly why an MC set is
+	// not a Pulse `set_*`: a bitmask is unordered and idempotent, so
+	// collapsing one would lose both facts.
 	Variables []string `json:"variables"`
+
+	// Fields resolves each entry of Variables to its PULSE FIELD NAME,
+	// index for index, so a consumer never has to re-derive the mapping
+	// the import already performed. An entry is "" for a member no
+	// record type 2 declares, which is the one case where the set names
+	// a variable this cohort has no column for.
+	//
+	// It exists because Variables holds SHORT names and the cohort holds
+	// long ones: matching them back up means a case-insensitive walk of
+	// Variables[].ShortName, and a set whose members were renamed,
+	// truncated or long-name-mapped is precisely where that walk goes
+	// wrong. Same slot-pair precedent as Variable.ShortName / .Name.
+	//
+	// Present whenever Variables is; len(Fields) == len(Variables)
+	// always, including the duplicate entries an MC set may carry.
+	// Additive and `omitempty` — a SidecarFormatVersion 1 document
+	// written before this slot existed simply has no `fields` key.
+	Fields []string `json:"fields,omitempty"`
 
 	// CountedValue is the value meaning "selected", held verbatim as
 	// the text the record carried; the wire form does not say whether
