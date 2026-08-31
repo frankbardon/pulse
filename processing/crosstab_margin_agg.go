@@ -73,6 +73,21 @@ type auxMarginFigure struct {
 	Present bool
 	N       int
 	NNull   int
+
+	// Components is the wire-facing components payload for this figure:
+	// the universal floor {n, n_null} over the ADMITTED records merged
+	// with the aggregator's own MetaAggregator.Components() keys, built
+	// by the same buildCellComponentMap the cell aggregator's own
+	// margins go through. Built HERE, while the finalised aggregator
+	// instance is still in hand, because nothing re-runs an aggregation
+	// at emission time — the fused path's mirror of this is
+	// auxMarginAccumulator's live instance, interrogated in
+	// finalizeAuxMargins.
+	//
+	// Non-nil even when Present is false, carrying the floor alone: n =
+	// 0 is a true statement about a slot that admitted nothing, whereas
+	// a Value there would be invented.
+	Components map[string]any
 }
 
 // computeAuxMargins evaluates every declared auxiliary margin
@@ -312,19 +327,123 @@ func admitRecords(bucket []*Record, memberA, memberB map[*Record]struct{}, cellF
 func (p *Processor) auxFiguresFor(spec *types.CrosstabSpec, admitted []*Record) ([]auxMarginFigure, error) {
 	figures := make([]auxMarginFigure, len(spec.MarginAggregations))
 	if len(admitted) == 0 {
+		for i := range figures {
+			// Floor-only components, no aggregation run. Mirrors the
+			// fused path's never-constructed accumulator, whose n and
+			// nNull are likewise both zero.
+			floor, err := buildCellComponentMap(nil, 0, 0)
+			if err != nil {
+				return nil, err
+			}
+			figures[i].Components = floor
+		}
 		return figures, nil
 	}
 	for i, aux := range spec.MarginAggregations {
-		val, _, n, nNull, err := p.runCellAggregation(aux, admitted)
+		val, instance, n, nNull, err := p.runCellAggregation(aux, admitted)
+		if err != nil {
+			return nil, err
+		}
+		// The instance is captured rather than discarded so the
+		// operator-specific component keys are available at all: an
+		// AGG_DISTINCT_SUM auxiliary's distinct_count lives there and
+		// nowhere else, and re-deriving it later would mean a second
+		// pass over records this path has already finished with.
+		comps, err := buildCellComponentMap(instance, n, nNull)
 		if err != nil {
 			return nil, err
 		}
 		figures[i] = auxMarginFigure{
-			Value:   val.value,
-			Present: val.present,
-			N:       n,
-			NNull:   nNull,
+			Value:      val.value,
+			Present:    val.present,
+			N:          n,
+			NNull:      nNull,
+			Components: comps,
 		}
 	}
 	return figures, nil
+}
+
+// crosstabAuxComponents is the EMISSION shape of the auxiliary margin
+// figures: the one form populateCrosstabComponents projects onto
+// Response.Components.Crosstab, keyed by the composite axis key on the
+// outside and by the auxiliary's effective label on the inside.
+//
+// IT IS A THIRD SHAPE ON PURPOSE, and E2-S3 said so in advance. The two
+// accumulation paths hold their figures differently because they must —
+// the fused walk holds LIVE online accumulators addressed by rowIdx /
+// colIdx because it sees each record once, while the buffered path holds
+// FINISHED figures in declaration order because it had every record in
+// hand. Neither shape is reachable from the other without a conversion,
+// so rather than bend one path's carrier into the other's, each
+// normalises into this at its own call site:
+// crosstabAuxMargins.components for the buffered path,
+// FusedCrosstabState.finalizeAuxMargins for the fused one. What must
+// match is the numbers, not the plumbing.
+//
+// A nil pointer means "no auxiliary was declared" and is what keeps an
+// undeclared request byte-identical; a nil map inside means that
+// particular margin slot is not emitted.
+type crosstabAuxComponents struct {
+	Rows  map[string]map[string]types.MarginAggregationFigure
+	Cols  map[string]map[string]types.MarginAggregationFigure
+	Grand map[string]types.MarginAggregationFigure
+}
+
+// components normalises the buffered carrier into the emission shape.
+//
+// Labels[i] names figure i — the two slices are parallel by construction
+// (TestCrosstab_BufferedAuxMarginLabelsTrackDeclarationOrder), and the
+// validators already forced every label unique across the slot and
+// distinct from CellLabel, so no figure can be overwritten by another as
+// the map is built.
+//
+// THE DISPLAY FLAG GATES EMISSION, NOT ACCUMULATION. A slot is computed
+// whenever NeedsRowMargin / NeedsColumnMargin / NeedsGrandMargin says
+// so, which is true for a margin a normalization mode needs but the
+// caller never asked to see; the cell aggregator's own margin counts and
+// components are withheld in exactly that case, and an auxiliary follows
+// the same rule rather than inventing a second one. An auxiliary is
+// never a denominator, so nothing downstream reads a withheld one.
+func (a *crosstabAuxMargins) components(margins types.CrosstabMargins) *crosstabAuxComponents {
+	if a == nil || len(a.Labels) == 0 {
+		return nil
+	}
+	out := &crosstabAuxComponents{}
+	if a.Rows != nil && margins.Rows {
+		out.Rows = make(map[string]map[string]types.MarginAggregationFigure, len(a.Rows))
+		for key, figures := range a.Rows {
+			out.Rows[key] = labelAuxFigures(a.Labels, figures)
+		}
+	}
+	if a.Cols != nil && margins.Columns {
+		out.Cols = make(map[string]map[string]types.MarginAggregationFigure, len(a.Cols))
+		for key, figures := range a.Cols {
+			out.Cols[key] = labelAuxFigures(a.Labels, figures)
+		}
+	}
+	if a.Grand != nil && margins.Grand {
+		out.Grand = labelAuxFigures(a.Labels, a.Grand)
+	}
+	return out
+}
+
+// labelAuxFigures keys one slot's declaration-ordered figures by label.
+// A figure beyond the label slice is impossible — both are sized from
+// spec.MarginAggregations — but the bound is checked rather than
+// assumed, because the failure it would otherwise produce is a panic
+// inside a response builder.
+func labelAuxFigures(labels []string, figures []auxMarginFigure) map[string]types.MarginAggregationFigure {
+	out := make(map[string]types.MarginAggregationFigure, len(figures))
+	for i, fig := range figures {
+		if i >= len(labels) {
+			break
+		}
+		out[labels[i]] = types.MarginAggregationFigure{
+			Value:      fig.Value,
+			Present:    fig.Present,
+			Components: fig.Components,
+		}
+	}
+	return out
 }

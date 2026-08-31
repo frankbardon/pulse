@@ -1980,13 +1980,18 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		}
 		rowKeyComponents := projectAxisKeyComponents(s.spec.Rows, rowPart.Tuples, rowAxisComponents)
 		colKeyComponents := projectAxisKeyComponents(s.spec.Columns, colPart.Tuples, colAxisComponents)
+		auxComponents, err := s.finalizeAuxMargins()
+		if err != nil {
+			return nil, err
+		}
 		populateCrosstabComponents(resp, rowKeys, colKeys,
 			cellCountsMap, cellComponentsMap,
 			rowMarginCountsSlot, rowMarginComponentsSlot,
 			colMarginCountsSlot, colMarginComponentsSlot,
 			grandMarginCountSlot, grandMarginComponentsSlot, s.spec.Margins.Grand,
 			s.includedRecords, excludedRecords,
-			rowKeyComponents, colKeyComponents)
+			rowKeyComponents, colKeyComponents,
+			auxComponents)
 	}
 
 	return resp, nil
@@ -2165,6 +2170,110 @@ func (s *FusedCrosstabState) finalizeColMargins() (map[string]any, map[string]bo
 		components[key] = compMap
 	}
 	return values, present, counts, components, nil
+}
+
+// finalizeAuxMargins normalises the live auxiliary margin accumulators
+// into the one emission shape populateCrosstabComponents projects — the
+// fused counterpart of crosstabAuxMargins.components on the buffered
+// path.
+//
+// Returns nil when no auxiliary was declared, which is what keeps such a
+// request's response byte-identical to the pre-auxiliary wire form. A
+// margin slot the spec did not ask for allocated no accumulator slice at
+// all, so its map stays nil and no JSON key is emitted for it.
+//
+// EMISSION additionally honours the DISPLAY flag, matching the cell
+// aggregator's own margin counts and components: a margin accumulated
+// only because a normalization mode needed it is not one the caller
+// asked to see, and an auxiliary is never a denominator, so nothing
+// downstream reads a withheld one.
+//
+// AN ACCUMULATOR THAT WAS NEVER CONSTRUCTED IS NOT A ZERO. foldAuxSlot
+// builds an instance on a slot's first ADMITTED record, so a nil agg
+// means the slot admitted nothing — and it is emitted as Present false
+// with no Value rather than as a finalised zero, because an aggregator
+// over an empty set has no defined output and a fabricated 0 is
+// indistinguishable on the wire from a real one. Its components carry
+// the floor alone, whose n = 0 is a true statement about the slot. The
+// buffered path's auxFiguresFor takes the identical decision from the
+// other direction (an empty admitted set), which is what makes the two
+// arms agree here.
+//
+// Unlike finalizeRowMargins, an unreached slot is still WRITTEN rather
+// than dropped: a row key present in the interner has a position in the
+// emitted vector either way, and leaving the label out of that
+// position's map would make "this auxiliary was not requested" and "this
+// auxiliary saw nothing" the same absence.
+func (s *FusedCrosstabState) finalizeAuxMargins() (*crosstabAuxComponents, error) {
+	if len(s.auxAggs) == 0 {
+		return nil, nil
+	}
+	labels := s.spec.MarginAggregationLabels()
+
+	slot := func(accs []auxMarginAccumulator) (map[string]types.MarginAggregationFigure, error) {
+		out := make(map[string]types.MarginAggregationFigure, len(accs))
+		for i, acc := range accs {
+			if i >= len(labels) {
+				break
+			}
+			fig := types.MarginAggregationFigure{}
+			if acc.agg != nil {
+				scalar, err := acc.agg.Finalize()
+				if err != nil {
+					return nil, err
+				}
+				// The same rich/scalar dispatch the cell margins go
+				// through, so a map-valued auxiliary lands in the shape
+				// it would on the buffered path's runCellAggregation.
+				v, err := dispatchAggregatorCellResult(acc.agg, scalar)
+				if err != nil {
+					return nil, err
+				}
+				fig.Value = v
+				fig.Present = true
+			}
+			// buildCellComponentMap tolerates a nil instance, returning
+			// the floor alone — which is exactly the unreached-slot
+			// payload.
+			comps, err := buildCellComponentMap(acc.agg, acc.n, acc.nNull)
+			if err != nil {
+				return nil, err
+			}
+			fig.Components = comps
+			out[labels[i]] = fig
+		}
+		return out, nil
+	}
+
+	out := &crosstabAuxComponents{}
+	if s.rowMarginAux != nil && s.spec.Margins.Rows {
+		out.Rows = make(map[string]map[string]types.MarginAggregationFigure, len(s.rowMarginAux))
+		for i, accs := range s.rowMarginAux {
+			figs, err := slot(accs)
+			if err != nil {
+				return nil, err
+			}
+			out.Rows[s.rowKeys[i]] = figs
+		}
+	}
+	if s.colMarginAux != nil && s.spec.Margins.Columns {
+		out.Cols = make(map[string]map[string]types.MarginAggregationFigure, len(s.colMarginAux))
+		for i, accs := range s.colMarginAux {
+			figs, err := slot(accs)
+			if err != nil {
+				return nil, err
+			}
+			out.Cols[s.colKeys[i]] = figs
+		}
+	}
+	if s.grandMarginAux != nil && s.spec.Margins.Grand {
+		figs, err := slot(s.grandMarginAux)
+		if err != nil {
+			return nil, err
+		}
+		out.Grand = figs
+	}
+	return out, nil
 }
 
 // finalizePartialRowMargins is the scalar-only variant for partial-

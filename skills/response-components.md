@@ -95,6 +95,38 @@ type ResponseComponents struct {
   counterparts. See `skills/crosstab-guide.md` for the full indexing
   contract.
 
+  **Auxiliary margin figures.** When the Request declared
+  `crosstab.margin_aggregations`, the block additionally carries
+  `RowMarginAggregations[r]` / `ColumnMarginAggregations[c]` /
+  `GrandTotalAggregations` — one map per margin slot, keyed by each
+  auxiliary's effective label (`label`, else `TYPE_field`; the validators
+  force them unique across the slot and distinct from the cell's, so a
+  label addresses exactly one figure). They sit BESIDE the margin
+  components rather than inside them because they are not the same
+  figure: `RowMarginComponents[r]` describes the CELL aggregator's own
+  margin, which counts every filter-passing record routed to that row,
+  while an auxiliary observes the cell's ADMISSION instead.
+
+  Each entry is a `MarginAggregationFigure{value, present, components}`.
+  `components` is the universal floor `{n, n_null}` over the ADMITTED
+  records merged with that aggregator's own `ComponentSchema` keys — so
+  an `AGG_DISTINCT_SUM` auxiliary surfaces its `distinct_count` per
+  margin slot alongside the scalar sum in `value`, which is what lets one
+  operator serve two rendered figures off one scan.
+
+  **`present` is load-bearing and is not a zero.** A slot that admitted
+  no record carries `present: false` and NO `value` key: an aggregator
+  over an empty set has no defined output, and a fabricated `0` is
+  indistinguishable on the wire from a real one. Its `components` still
+  carry the floor, whose `n = 0` is a true statement about the slot. The
+  three keys are `omitempty` and are emitted only when the matching
+  margin is DISPLAYED (`margins.rows` / `.columns` / `.grand`), matching
+  the emission rule the cell's own margin counts and components follow —
+  a margin computed only as a normalize denominator stays off the wire on
+  both. A request declaring no auxiliary emits none of the three, so the
+  wire form is byte-identical to the pre-slot baseline and
+  `format_version` does not move.
+
 - **`Filterers []FiltererComponents`** — one entry per `Request.Filterers`
   slot in matching declared order. Slot identity rides on `Label`. Universal
   floor fields `NIn`, `NOut`, `NNullInput` — there is no operator-specific

@@ -437,6 +437,18 @@
             "null"
           ]
         },
+        "column_margin_aggregations": {
+          "items": {
+            "additionalProperties": {
+              "$ref": "#/$defs/MarginAggregationFigure"
+            },
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "column_margin_components": {
           "items": {
             "additionalProperties": true,
@@ -459,6 +471,12 @@
         "excluded_records": {
           "type": "integer"
         },
+        "grand_total_aggregations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MarginAggregationFigure"
+          },
+          "type": "object"
+        },
         "grand_total_components": {
           "additionalProperties": true,
           "type": "object"
@@ -472,6 +490,18 @@
         "row_key_components": {
           "items": {
             "additionalProperties": true,
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "row_margin_aggregations": {
+          "items": {
+            "additionalProperties": {
+              "$ref": "#/$defs/MarginAggregationFigure"
+            },
             "type": "object"
           },
           "type": [
@@ -1223,6 +1253,23 @@
       },
       "required": [
         "rows"
+      ],
+      "type": "object"
+    },
+    "MarginAggregationFigure": {
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "value": true
+      },
+      "required": [
+        "present"
       ],
       "type": "object"
     },
@@ -2576,4 +2623,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 05d6872a2c44c6d3beba015f61bd813d3fdcd6ff6595716bedebae273f9f67ed
+// golden-hash: 683bb68d0129d2d447e267657baccffaa97642caee42acecb9a0adcb2ec536ca

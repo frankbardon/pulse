@@ -349,6 +349,42 @@ type MatrixPayload struct {
 	NormalizeApplied CrosstabNormalize `json:"normalize_applied"`
 }
 
+// MarginAggregationFigure is one auxiliary margin-only aggregation's
+// finished figure in one margin slot — the counterpart of a single
+// entry in CrosstabComponents.RowMarginComponents, but for an
+// aggregation from CrosstabSpec.MarginAggregations rather than for the
+// cell aggregator itself.
+//
+// PRESENT IS LOAD-BEARING AND IS NOT A ZERO VALUE. An auxiliary slot
+// that admitted no record at all carries Present false and NO Value:
+// an aggregator over an empty set has no defined output, and emitting
+// 0 would put a fabricated base beside real cells — indistinguishable,
+// on the wire, from a genuine zero. Present therefore carries no
+// omitempty, so a false survives the round trip rather than
+// disappearing into the same absence a consumer must not read as a
+// figure.
+//
+// Components carries the universal floor {n, n_null} over the ADMITTED
+// records merged with this aggregator's own ComponentSchema keys — so
+// AGG_DISTINCT_SUM surfaces its distinct_count here alongside the
+// scalar sum in Value, which is the entire reason one auxiliary can
+// serve two rendered sample-size rows off one scan. It is present even
+// when Present is false, carrying the floor alone, because n = 0 is a
+// true statement about the slot where a value would be an invented one.
+type MarginAggregationFigure struct {
+	// Value is the aggregator's own finalised output. Omitted entirely
+	// when Present is false.
+	Value any `json:"value,omitempty"`
+
+	// Present reports whether any record was admitted to this slot.
+	// Deliberately not omitempty — see the type comment.
+	Present bool `json:"present"`
+
+	// Components is the universal floor {n, n_null} over the admitted
+	// records merged with the aggregator's operator-specific keys.
+	Components map[string]any `json:"components,omitempty"`
+}
+
 // CrosstabComponents carries the constituent-parts metadata for a
 // crosstab response. Mirrors MatrixPayload coordinate-for-coordinate so
 // consumers can index components by the same (row, column) tuple they
@@ -373,6 +409,12 @@ type MatrixPayload struct {
 //     MatrixPayload.ColumnMargins).
 //   - GrandTotalCount / GrandTotalComponents — grand-total counterparts
 //     (mirror MatrixPayload.GrandTotal).
+//   - RowMarginAggregations[r] / ColumnMarginAggregations[c] /
+//     GrandTotalAggregations — the AUXILIARY margin-only aggregation
+//     figures (CrosstabSpec.MarginAggregations), keyed by effective
+//     label. Present only when the request declared an auxiliary AND
+//     the matching margin is emitted; absent otherwise, so a caller
+//     can gate on presence rather than on a partial payload.
 //   - RowKeyComponents[r] / ColumnKeyComponents[c] — per-axis grouper
 //     components carried alongside each row / column tuple (bucket
 //     edges, dict mappings, etc. — same shape as
@@ -419,6 +461,33 @@ type CrosstabComponents struct {
 	// GrandTotalComponents is the grand-total aggregator components
 	// payload (mirrors the components behind MatrixPayload.GrandTotal).
 	GrandTotalComponents map[string]any `json:"grand_total_components,omitempty"`
+
+	// RowMarginAggregations carries the AUXILIARY margin-only
+	// aggregation figures for each row, indexed in
+	// MatrixPayload.RowKeys order and keyed inside each entry by the
+	// auxiliary's effective label (CrosstabSpec.MarginAggregationLabels,
+	// which the validators already forced unique across the slot AND
+	// distinct from CellLabel — so a label can address exactly one
+	// figure). A row that admitted no record at all emits nil in its
+	// slot, exactly as RowMarginComponents does.
+	//
+	// These sit BESIDE RowMarginComponents rather than inside it
+	// because they are not the same figure: RowMarginComponents
+	// describes the CELL aggregator's own row margin, which counts
+	// every filter-passing record routed to that row; an auxiliary
+	// observes the cell's ADMISSION instead. Merging the two key sets
+	// into one map would put two differently-based figures under one
+	// roof with nothing saying so.
+	RowMarginAggregations []map[string]MarginAggregationFigure `json:"row_margin_aggregations,omitempty"`
+
+	// ColumnMarginAggregations is the column-axis sibling of
+	// RowMarginAggregations, indexed in MatrixPayload.ColumnKeys order.
+	ColumnMarginAggregations []map[string]MarginAggregationFigure `json:"column_margin_aggregations,omitempty"`
+
+	// GrandTotalAggregations is the grand-slot sibling of
+	// RowMarginAggregations — one entry per declared auxiliary, keyed
+	// by effective label.
+	GrandTotalAggregations map[string]MarginAggregationFigure `json:"grand_total_aggregations,omitempty"`
 
 	// RowKeyComponents carries one grouper-components payload per row,
 	// indexed in MatrixPayload.RowKeys order. The key set on each

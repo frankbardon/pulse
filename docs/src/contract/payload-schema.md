@@ -81,6 +81,17 @@ The schema is faithful but not maximally strict in two places, by design:
   typed as plain strings rather than `enum`s — they have no registry
   helper, and a hardcoded list would drift silently.
 
+One shape reads oddly against the rest and is deliberate rather than an
+oversight: `MarginAggregationFigure.present` (on the crosstab's auxiliary
+margin figures — `row_margin_aggregations` / `column_margin_aggregations`
+/ `grand_total_aggregations`) is `required`, so a `false` is on the wire,
+while its sibling `value` is optional and open. A margin slot that
+admitted no record has no defined aggregate; emitting `0` there would be
+indistinguishable from a genuine zero, so the figure carries no `value`
+at all and `present` is what says so. Dropping `present` when false would
+put that statement back into an absence — exactly what it exists to
+avoid. Every other field of every response sub-shape stays `omitempty`.
+
 Cross-slot validation rules that depend on more than one field (e.g. a
 crosstab requires at least one row **and** one column, mutually exclusive
 with top-level `groups`; every `crosstab.margin_aggregations` entry needs

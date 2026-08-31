@@ -219,8 +219,10 @@ func TestCrosstabAuxMargin_ExcludedRecordsStayInTheCellsOwnMargins(t *testing.T)
 	}
 
 	// The auxiliary side of the same three slots, read off each path's
-	// own carrier because nothing is on the wire yet (E2-S5 widens
-	// populateCrosstabComponents).
+	// own carrier. The same figures are now also on the wire
+	// (crosstab_margin_agg_wire_test.go), and reading them here as well
+	// is deliberate: this file's job is the admission RULE, so it asserts
+	// where a wrong rule originates rather than where it surfaces.
 	t.Run("fused auxiliary is admission-scoped", func(t *testing.T) {
 		state := driveAuxMargin(t, auxMarginSpec())
 		got := map[string]float64{}

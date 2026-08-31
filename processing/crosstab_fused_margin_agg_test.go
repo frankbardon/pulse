@@ -86,8 +86,10 @@ func auxMarginSpec() *types.CrosstabSpec {
 
 // driveAuxMargin runs the fused state over the fixture and hands the
 // state back unfinalized, so a test can read the auxiliary accumulators
-// the way E2-S5 eventually will. Finalize is deliberately not called:
-// these figures are accumulated and held, not yet exposed.
+// as they were accumulated. Finalize is deliberately not called — these
+// assertions are about the WALK, and finalizeAuxMargins' projection of
+// the same accumulators onto the response is covered separately by
+// crosstab_margin_agg_wire_test.go.
 func driveAuxMargin(t *testing.T, spec *types.CrosstabSpec) *FusedCrosstabState {
 	t.Helper()
 	schema := auxMarginSchema(t)

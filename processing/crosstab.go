@@ -669,20 +669,22 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// the cell, and an auxiliary is never a denominator, so neither gets
 	// one — on either path.
 	//
-	// THE FIGURES ARE ACCUMULATED AND HELD. Nothing reaches the wire on
-	// either dispatch arm yet — E2-S5 widens populateCrosstabComponents,
-	// and the blank assignment below is the single line it replaces with
-	// the call that carries auxMargins into the components block. Until
-	// then this call site is still LIVE rather than dead: it is what
-	// refuses an auxiliary naming an operator no registry knows, which
-	// the fused arm refuses at construction, so both arms answer that
-	// request the same way
+	// THE FIGURES REACH THE WIRE through the components block below:
+	// auxMargins.components() normalises this path's carrier into the one
+	// emission shape populateCrosstabComponents projects, and the fused
+	// path normalises its live accumulators into the same shape.
+	//
+	// Computed HERE rather than inside that block, i.e. OUTSIDE the
+	// disableComponents gate, because this call is also what refuses an
+	// auxiliary naming an operator no registry knows — which the fused
+	// arm refuses at construction, unconditionally. Moving it inside the
+	// gate would make that refusal depend on whether components happened
+	// to be enabled
 	// (TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused).
 	auxMargins, err := p.computeAuxMargins(spec, filtered, rowPart, colPart)
 	if err != nil {
 		return nil, err
 	}
-	_ = auxMargins
 
 	mode := spec.NormalizeOrDefault()
 
@@ -970,7 +972,8 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			colMarginCountsSlot, colMarginComponentsSlot,
 			grandMarginCountSlot, grandMarginComponentsSlot, spec.Margins.Grand,
 			includedRecords, excludedRecords,
-			rowKeyComponents, colKeyComponents)
+			rowKeyComponents, colKeyComponents,
+			auxMargins.components(spec.Margins))
 	}
 
 	// Tier-2 post-tests run over the materialized cell rows. Margin rows
@@ -1352,6 +1355,13 @@ func buildLongRows(spec *types.CrosstabSpec,
 // requested with zero count" from "grand margin not requested"; the
 // other margins use the nil-map sentinel because per-axis maps are
 // allocated only when display is on.
+//
+// aux carries the AUXILIARY margin-only aggregation figures
+// (CrosstabSpec.MarginAggregations), already normalised out of whichever
+// path produced them. Nil means the request declared no auxiliary, which
+// is what keeps such a request's response byte-identical to the
+// pre-auxiliary wire form — no slice header, no map, no JSON key. A nil
+// map INSIDE it means that particular margin slot is not emitted.
 func populateCrosstabComponents(resp *types.Response,
 	rowKeys, colKeys []string,
 	cellCounts map[crosstabCellKey]int,
@@ -1366,6 +1376,7 @@ func populateCrosstabComponents(resp *types.Response,
 	includedRecords, excludedRecords int,
 	rowKeyComponents []map[string]any,
 	columnKeyComponents []map[string]any,
+	aux *crosstabAuxComponents,
 ) {
 	if resp == nil {
 		return
@@ -1467,6 +1478,42 @@ func populateCrosstabComponents(resp *types.Response,
 		ct.GrandTotalCount = grandMarginCount
 		ct.GrandTotalComponents = grandMarginComponents
 	}
+	// Auxiliary margin-only aggregation figures, projected onto the same
+	// sorted axis-key order every other margin vector uses so a consumer
+	// dereferences RowMarginAggregations[r] with the r it already used
+	// for RowMarginCounts[r] and MatrixPayload.RowKeys[r]. An axis key
+	// with no entry (the slot admitted no record, so computeAuxMargins /
+	// finalizeAuxMargins wrote nothing for it) leaves nil in its
+	// position, matching RowMarginComponents' own missing-entry rule.
+	//
+	// The whole block is skipped when aux is nil, which is the
+	// undeclared-request case and the reason a response for a request
+	// with no margin_aggregations is byte-identical to one built before
+	// the slot existed.
+	if aux != nil {
+		if aux.Rows != nil && len(rowKeys) > 0 {
+			figs := make([]map[string]types.MarginAggregationFigure, len(rowKeys))
+			for i, rk := range rowKeys {
+				if m, ok := aux.Rows[rk]; ok {
+					figs[i] = m
+				}
+			}
+			ct.RowMarginAggregations = figs
+		}
+		if aux.Cols != nil && len(colKeys) > 0 {
+			figs := make([]map[string]types.MarginAggregationFigure, len(colKeys))
+			for i, ck := range colKeys {
+				if m, ok := aux.Cols[ck]; ok {
+					figs[i] = m
+				}
+			}
+			ct.ColumnMarginAggregations = figs
+		}
+		if len(aux.Grand) > 0 {
+			ct.GrandTotalAggregations = aux.Grand
+		}
+	}
+
 	// Per-axis grouper components projected onto sorted axis-key
 	// order. Single-axis crosstabs surface the bucket map directly; multi-
 	// axis crosstabs wrap each axis position's bucket in an "axes" slice

@@ -15,10 +15,12 @@ import (
 // prove that.
 //
 // Like the fused tests, these read the accumulated figures directly off
-// the path's own carrier rather than off a Response. Nothing is on the
-// wire on either arm yet — E2-S5 widens populateCrosstabComponents — so
-// there is no response field to assert against, and reading the carrier
-// is the only way to see the numbers at all.
+// the path's own carrier rather than off a Response, and they stay that
+// way now that E2-S5 has put the figures on the wire: the carrier is
+// where a buffered defect ORIGINATES, so an assertion here names the
+// accumulation while crosstab_margin_agg_wire_test.go names the
+// projection. Losing that separation would leave one failure meaning
+// either.
 
 // driveBufferedAuxMargin runs the buffered auxiliary-margin computation
 // over the shared fixture and hands back the carrier RunCrosstab builds.
@@ -236,7 +238,7 @@ func assertAuxMarginParity(t *testing.T, spec *types.CrosstabSpec) {
 			// report whatever it returns. The two are numerically
 			// indistinguishable for the distinct operators (both read 0),
 			// which is exactly why the difference has to be asserted
-			// directly: E2-S5 emits these per margin slot, and an honest
+			// directly: these are emitted per margin slot, and an honest
 			// blank and a fabricated base of 0 are not the same claim.
 			if fp, bp := fusedSlot[i].agg != nil, bufSlot[i].Present; fp != bp {
 				t.Errorf("%s auxiliary %d: fused figure present=%v, buffered present=%v",
@@ -490,7 +492,9 @@ func TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused(t *testing.T) {
 }
 
 // TestCrosstab_BufferedAuxMarginLabelsTrackDeclarationOrder pins the one
-// piece of the carrier E2-S5 keys its wire payload on. Margin components
+// piece of the carrier the wire payload is keyed on
+// (crosstabAuxMargins.components reads Labels[i] to name figure i).
+// Margin components
 // are keyed by effective label, so a carrier whose Labels drifted out of
 // step with its figure slices would key every auxiliary figure under the
 // wrong name — a silent mislabelling, not a missing field.
