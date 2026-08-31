@@ -25,6 +25,7 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_NULL_COUNT:     newNullCountAggregator,
 	types.AGG_WEIGHTED_MEAN:  newWeightedMeanAggregator,
 	types.AGG_RATIO:          newRatioAggregator,
+	types.AGG_DISTINCT_SUM:   newDistinctSumAggregator,
 	types.AGG_CI_LOWER:       newCIAggregator(ciLower),
 	types.AGG_CI_UPPER:       newCIAggregator(ciUpper),
 	types.AGG_WELFORD:        newWelfordAggregator,

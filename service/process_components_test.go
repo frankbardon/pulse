@@ -1005,6 +1005,13 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 			field:      "num",
 			params:     json.RawMessage(`{"numerator_field":"num","denominator_field":"den"}`),
 		},
+		types.AGG_DISTINCT_SUM: {
+			svc:        scoreSvc,
+			schema:     scoreSchema,
+			cohortName: "scores.pulse",
+			field:      "score",
+			params:     json.RawMessage(`{"distinct_by":"id"}`),
+		},
 
 		// Set ops use the set_u8 dictionary cohort.
 		types.AGG_SET_UNION:           {svc: setSvc, schema: setSchema, cohortName: "predict_tags.pulse", field: "tags"},

@@ -2,10 +2,12 @@ package processing
 
 import (
 	"encoding/json"
+	stderrors "errors"
 	"math"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -1136,4 +1138,293 @@ func makeAggregator(t *testing.T, aggType types.AggregationType, field string, s
 		t.Fatalf("create aggregator: %v", err)
 	}
 	return agg
+}
+
+// ---------------------------------------------------------------------
+// AGG_DISTINCT_SUM — sums a value field once per distinct key.
+//
+// field names the value summed (Orbit's use: `weight`); Params.distinct_by
+// names the key field (Orbit's use: `respondent`). The scalar return is the
+// sum over distinct keys; Components() additionally carries the distinct
+// count so one operator yields both figures from one scan.
+// ---------------------------------------------------------------------
+
+// distinctSumSchema reuses the shared numeric schema: `score` is the
+// summed value, `age` stands in as the distinct key.
+func distinctSumRecords(schema *encoding.Schema, keys, values []float64) []*Record {
+	recs := make([]*Record, len(keys))
+	for i := range keys {
+		recs[i] = NewRecord(schema, map[string]float64{"age": keys[i], "score": values[i]})
+	}
+	return recs
+}
+
+func newDistinctSum(t *testing.T, distinctBy string) Aggregator {
+	t.Helper()
+	spec := &types.Aggregation{
+		Type:   types.AGG_DISTINCT_SUM,
+		Field:  "score",
+		Params: json.RawMessage(`{"distinct_by":"` + distinctBy + `"}`),
+	}
+	factory, ok := aggregatorRegistry[types.AGG_DISTINCT_SUM]
+	if !ok {
+		t.Fatalf("AGG_DISTINCT_SUM not registered in aggregatorRegistry")
+	}
+	agg, err := factory(spec, numericSchema())
+	if err != nil {
+		t.Fatalf("create AGG_DISTINCT_SUM: %v", err)
+	}
+	return agg
+}
+
+func TestAggregator_DistinctSum_Buffered(t *testing.T) {
+	schema := numericSchema()
+	// Keys 1,1,1,2,3 carrying a constant value per key: 10,10,10,20,30.
+	// The distinct sum is 10+20+30 = 60, not the 80 a plain AGG_SUM gives.
+	recs := distinctSumRecords(schema,
+		[]float64{1, 1, 1, 2, 3},
+		[]float64{10, 10, 10, 20, 30})
+
+	agg := newDistinctSum(t, "age")
+	got, err := agg.Aggregate(recs, "score")
+	if err != nil {
+		t.Fatalf("Aggregate: %v", err)
+	}
+	if !floatClose(got, 60, 1e-9) {
+		t.Errorf("distinct sum = %v, want 60 (each key counted once)", got)
+	}
+}
+
+func TestAggregator_DistinctSum_Streaming(t *testing.T) {
+	schema := numericSchema()
+	recs := distinctSumRecords(schema,
+		[]float64{1, 1, 1, 2, 3},
+		[]float64{10, 10, 10, 20, 30})
+
+	agg := newDistinctSum(t, "age")
+	online, ok := agg.(OnlineAggregator)
+	if !ok {
+		t.Fatalf("AGG_DISTINCT_SUM does not implement OnlineAggregator — it is declared Streamable")
+	}
+	for _, r := range recs {
+		if err := online.UpdateRow(r, "score"); err != nil {
+			t.Fatalf("UpdateRow: %v", err)
+		}
+	}
+	got, err := online.Finalize()
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if !floatClose(got, 60, 1e-9) {
+		t.Errorf("streaming distinct sum = %v, want 60 (parity with the buffered path)", got)
+	}
+}
+
+// TestAggregator_DistinctSum_FirstValueWins pins the documented tie rule:
+// when one key carries conflicting values, the FIRST value observed is the
+// one summed. Both execution paths must agree.
+func TestAggregator_DistinctSum_FirstValueWins(t *testing.T) {
+	schema := numericSchema()
+	// Key 1 arrives as 10 then 999; key 2 arrives once as 20.
+	recs := distinctSumRecords(schema,
+		[]float64{1, 1, 2},
+		[]float64{10, 999, 20})
+
+	buffered := newDistinctSum(t, "age")
+	got, err := buffered.Aggregate(recs, "score")
+	if err != nil {
+		t.Fatalf("Aggregate: %v", err)
+	}
+	if !floatClose(got, 30, 1e-9) {
+		t.Errorf("buffered first-value-wins = %v, want 30 (10 + 20, not 999 + 20)", got)
+	}
+
+	streaming := newDistinctSum(t, "age").(OnlineAggregator)
+	for _, r := range recs {
+		if err := streaming.UpdateRow(r, "score"); err != nil {
+			t.Fatalf("UpdateRow: %v", err)
+		}
+	}
+	gotOnline, err := streaming.Finalize()
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if !floatClose(gotOnline, 30, 1e-9) {
+		t.Errorf("streaming first-value-wins = %v, want 30", gotOnline)
+	}
+}
+
+// TestAggregator_DistinctSum_MissingDistinctBy asserts a missing or empty
+// params.distinct_by is REFUSED with a coded error rather than defaulted to
+// the aggregation's own field (which would silently degrade the operator
+// into a distinct-value sum).
+func TestAggregator_DistinctSum_MissingDistinctBy(t *testing.T) {
+	factory, ok := aggregatorRegistry[types.AGG_DISTINCT_SUM]
+	if !ok {
+		t.Fatalf("AGG_DISTINCT_SUM not registered in aggregatorRegistry")
+	}
+	cases := []struct {
+		name   string
+		params json.RawMessage
+	}{
+		{"absent params", nil},
+		{"empty object", json.RawMessage(`{}`)},
+		{"empty distinct_by", json.RawMessage(`{"distinct_by":""}`)},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := factory(&types.Aggregation{
+				Type:   types.AGG_DISTINCT_SUM,
+				Field:  "score",
+				Params: tc.params,
+			}, numericSchema())
+			if err == nil {
+				t.Fatalf("factory accepted a spec with no distinct_by; want a coded refusal")
+			}
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) {
+				t.Fatalf("error %v is not a *errors.CodedError", err)
+			}
+			if ce.Code != errors.PROCESSING_CONFIG {
+				t.Errorf("code = %v, want PROCESSING_CONFIG", ce.Code)
+			}
+		})
+	}
+}
+
+// TestAggregator_DistinctSum_Components pins the two-figures-one-scan
+// contract: the scalar is the distinct sum and Components() carries the
+// distinct count alongside it.
+func TestAggregator_DistinctSum_Components(t *testing.T) {
+	schema := numericSchema()
+	recs := distinctSumRecords(schema,
+		[]float64{1, 1, 1, 2, 3},
+		[]float64{10, 10, 10, 20, 30})
+
+	agg := newDistinctSum(t, "age")
+	if _, err := agg.Aggregate(recs, "score"); err != nil {
+		t.Fatalf("Aggregate: %v", err)
+	}
+	meta, ok := agg.(MetaAggregator)
+	if !ok {
+		t.Fatalf("AGG_DISTINCT_SUM does not implement MetaAggregator")
+	}
+	comps, err := meta.Components()
+	if err != nil {
+		t.Fatalf("Components: %v", err)
+	}
+	sum, ok := comps["sum"].(float64)
+	if !ok {
+		t.Fatalf("components[sum] = %#v, want float64", comps["sum"])
+	}
+	if !floatClose(sum, 60, 1e-9) {
+		t.Errorf("components[sum] = %v, want 60", sum)
+	}
+	dc, ok := comps["distinct_count"].(int)
+	if !ok {
+		t.Fatalf("components[distinct_count] = %#v, want int", comps["distinct_count"])
+	}
+	if dc != 3 {
+		t.Errorf("components[distinct_count] = %d, want 3", dc)
+	}
+	if _, present := comps["n"]; present {
+		t.Error("Components() re-emitted the universal floor key n; the orchestrator owns it")
+	}
+	if _, present := comps["n_null"]; present {
+		t.Error("Components() re-emitted the universal floor key n_null; the orchestrator owns it")
+	}
+}
+
+// TestAggregator_DistinctSum_Nulls asserts a row missing either half of
+// the (key, value) pair contributes nothing — the key is not registered, so
+// a later row carrying the same key with a real value still counts.
+func TestAggregator_DistinctSum_Nulls(t *testing.T) {
+	schema := numericSchema()
+	recs := []*Record{
+		NewRecordWithNulls(schema, map[string]float64{"age": 1, "score": 10}, map[string]bool{"score": true}),
+		NewRecord(schema, map[string]float64{"age": 1, "score": 10}),
+		NewRecordWithNulls(schema, map[string]float64{"age": 2, "score": 20}, map[string]bool{"age": true}),
+		NewRecord(schema, map[string]float64{"age": 3, "score": 30}),
+	}
+
+	agg := newDistinctSum(t, "age")
+	got, err := agg.Aggregate(recs, "score")
+	if err != nil {
+		t.Fatalf("Aggregate: %v", err)
+	}
+	if !floatClose(got, 40, 1e-9) {
+		t.Errorf("distinct sum with nulls = %v, want 40 (key 1 via its non-null row, plus key 3)", got)
+	}
+	comps, err := agg.(MetaAggregator).Components()
+	if err != nil {
+		t.Fatalf("Components: %v", err)
+	}
+	if dc, _ := comps["distinct_count"].(int); dc != 2 {
+		t.Errorf("components[distinct_count] = %d, want 2 (the null-keyed row registers no key)", dc)
+	}
+}
+
+// TestAggregator_DistinctSum_MergeOnline asserts the parallel/shard fold
+// unions the per-key maps, and that the RECEIVER's value wins on a key
+// present in both — partials merge in deterministic shard order, so
+// receiver-wins IS first-value-wins across the whole input.
+func TestAggregator_DistinctSum_MergeOnline(t *testing.T) {
+	schema := numericSchema()
+	left := newDistinctSum(t, "age").(OnlineAggregator)
+	right := newDistinctSum(t, "age").(OnlineAggregator)
+
+	for _, r := range distinctSumRecords(schema, []float64{1, 2}, []float64{10, 20}) {
+		if err := left.UpdateRow(r, "score"); err != nil {
+			t.Fatalf("UpdateRow(left): %v", err)
+		}
+	}
+	// Key 2 repeats with a conflicting value; key 3 is new.
+	for _, r := range distinctSumRecords(schema, []float64{2, 3}, []float64{999, 30}) {
+		if err := right.UpdateRow(r, "score"); err != nil {
+			t.Fatalf("UpdateRow(right): %v", err)
+		}
+	}
+
+	mergeable, ok := left.(MergeableAggregator)
+	if !ok {
+		t.Fatalf("AGG_DISTINCT_SUM does not implement MergeableAggregator — it is declared Mergeable")
+	}
+	if err := mergeable.MergeOnline(right); err != nil {
+		t.Fatalf("MergeOnline: %v", err)
+	}
+	got, err := left.Finalize()
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if !floatClose(got, 60, 1e-9) {
+		t.Errorf("merged distinct sum = %v, want 60 (10 + 20 + 30; the receiver's key 2 wins)", got)
+	}
+}
+
+// TestAggregator_DistinctSum_EmptyInput asserts Finalize is safe with no
+// UpdateRow calls, per the OnlineAggregator contract.
+func TestAggregator_DistinctSum_EmptyInput(t *testing.T) {
+	agg := newDistinctSum(t, "age")
+	got, err := agg.(OnlineAggregator).Finalize()
+	if err != nil {
+		t.Fatalf("Finalize on empty input: %v", err)
+	}
+	if got != 0 {
+		t.Errorf("empty-input distinct sum = %v, want 0", got)
+	}
+}
+
+// TestAggregator_DistinctSum_Classification pins the two declarations the
+// whole effort's memory premise rests on. Both switches in
+// types/streamability.go default to the restrictive branch, so an operator
+// that forgets to opt in silently loses crosstab fusion — same numbers, no
+// warning, several times the peak heap.
+func TestAggregator_DistinctSum_Classification(t *testing.T) {
+	if !types.AGG_DISTINCT_SUM.Streamable() {
+		t.Error("AGG_DISTINCT_SUM.Streamable() = false, want true (per-key map, online)")
+	}
+	if !types.AGG_DISTINCT_SUM.Mergeable() {
+		t.Error("AGG_DISTINCT_SUM.Mergeable() = false, want true (per-key maps union)")
+	}
 }

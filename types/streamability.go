@@ -27,8 +27,8 @@ const (
 	// ComponentsPartial signals that the components map merges across
 	// chunks but at non-trivial allocation cost — map / set unions
 	// where the fold is associative but not constant-space.
-	// AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT, and
-	// AGG_SET_FREQUENCY are partial. The orchestrator may stage the
+	// AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT,
+	// AGG_DISTINCT_SUM, and AGG_SET_FREQUENCY are partial. The orchestrator may stage the
 	// merge at terminal flush.
 	ComponentsPartial ComponentsMergeability = "partial"
 
@@ -57,7 +57,7 @@ func (t AggregationType) Streamable() bool {
 		AGG_STDDEV, AGG_VARIANCE, AGG_RANGE,
 		AGG_FREQUENCY, AGG_MODE,
 		AGG_SKEWNESS, AGG_KURTOSIS,
-		AGG_DISTINCT_COUNT,
+		AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
@@ -93,6 +93,7 @@ func (t AggregationType) Mergeable() bool {
 	case AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX,
 		AGG_RANGE, AGG_VARIANCE, AGG_STDDEV,
 		AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT,
+		AGG_DISTINCT_SUM,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
@@ -136,6 +137,7 @@ func (t AggregationType) Mergeable() bool {
 func (t AggregationType) MarginReducibility() MarginReducibility {
 	switch t {
 	case AGG_COUNT, AGG_SUM, AGG_NULL_COUNT, AGG_DISTINCT_COUNT,
+		AGG_DISTINCT_SUM,
 		AGG_FREQUENCY,
 		// Set unions, popcount sums, and per-element frequency
 		// histograms all reduce by addition across cells.

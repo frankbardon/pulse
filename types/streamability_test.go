@@ -20,6 +20,7 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_SKEWNESS:       true,
 		AGG_KURTOSIS:       true,
 		AGG_DISTINCT_COUNT: true,
+		AGG_DISTINCT_SUM:   true,
 		AGG_MEDIAN:         false,
 		AGG_PERCENTILE:     false,
 		AGG_ZSCORE:         false,

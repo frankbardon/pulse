@@ -527,3 +527,23 @@ func TestCanFuseCrosstab_ExtensionGrouperOnAxisWithoutFieldInputs(t *testing.T) 
 		t.Fatalf("unexpected reason %q", reason)
 	}
 }
+
+// TestCanFuseCrosstab_DistinctSumCell asserts a crosstab celled on
+// AGG_DISTINCT_SUM is fused-eligible. Both halves of the requirement are
+// in types/streamability.go and BOTH default to the restrictive branch,
+// so an operator that forgets to opt in loses fusion SILENTLY — identical
+// numbers, no warning, several times the peak heap. This is the assertion
+// that reddens if either declaration is dropped.
+func TestCanFuseCrosstab_DistinctSumCell(t *testing.T) {
+	schema := crosstabFusedGateSchema()
+	req := happyPathCrosstabRequest()
+	req.Crosstab.Cell = &types.Aggregation{
+		Type:   types.AGG_DISTINCT_SUM,
+		Field:  "score",
+		Params: json.RawMessage(`{"distinct_by":"brand"}`),
+	}
+	ok, reason := CanFuseCrosstab(req, schema, nil)
+	if !ok {
+		t.Fatalf("AGG_DISTINCT_SUM cell declined fusion: %q — check Mergeable() and MarginReducibility() in types/streamability.go", reason)
+	}
+}
