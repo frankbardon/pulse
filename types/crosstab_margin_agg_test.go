@@ -200,8 +200,18 @@ func TestCrosstabSpec_MarginAggregationFaults(t *testing.T) {
 
 // TestCrosstabSpec_MarginAggregationsObserved pins the "declared but
 // nothing will carry it" predicate. Auxiliary aggregations land in the
-// margin accumulators only, so a spec that emits no margin at all
-// computes them into nowhere.
+// margin accumulators only and are emitted only where that margin is
+// DISPLAYED, so a spec with every display flag false computes them into
+// nowhere.
+//
+// The normalize case is the load-bearing one and it deliberately reads
+// FALSE, reversing what this test asserted when the slot first landed.
+// A normalize direction makes its margin required — NeedsRowMargin and
+// friends say so — but required as a DENOMINATOR, and an auxiliary is
+// never a denominator: the Components emission gate is the display flag,
+// so not one auxiliary figure reaches the wire in that shape while both
+// execution paths still accumulate it. Answering "is a margin computed"
+// here would leave the one genuinely unobservable shape unwarned.
 func TestCrosstabSpec_MarginAggregationsObserved(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -212,8 +222,12 @@ func TestCrosstabSpec_MarginAggregationsObserved(t *testing.T) {
 		{"row margin", func(s *CrosstabSpec) { s.Margins = CrosstabMargins{Rows: true} }, true},
 		{"column margin", func(s *CrosstabSpec) { s.Margins = CrosstabMargins{Columns: true} }, true},
 		{"grand margin", func(s *CrosstabSpec) { s.Margins = CrosstabMargins{Grand: true} }, true},
-		{"normalize implies a margin", func(s *CrosstabSpec) {
+		{"normalize computes a denominator, not a landing site", func(s *CrosstabSpec) {
 			s.Margins = CrosstabMargins{}
+			s.Normalize = CrosstabNormalizeColumn
+		}, false},
+		{"normalize alongside a displayed margin", func(s *CrosstabSpec) {
+			s.Margins = CrosstabMargins{Columns: true}
 			s.Normalize = CrosstabNormalizeColumn
 		}, true},
 	} {

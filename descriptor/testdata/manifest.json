@@ -7448,7 +7448,7 @@
       "margin_aggregation_rules": [
         "every margin_aggregations entry needs an aggregation type; null entries are refused (PULSE_CROSSTAB_MARGIN_AGG_INVALID)",
         "margin_aggregations effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
-        "margin_aggregations declared on a section that emits no margin and requests no normalization are computed into nowhere — advisory warning, not a refusal (PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED)"
+        "auxiliary figures are emitted only where the margin is DISPLAYED (margins.rows / margins.columns / margins.grand), matching the emission rule the cell aggregator's own margin counts and components follow; declaring margin_aggregations on a section that displays no margin computes them into nowhere — advisory warning, not a refusal (PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) — and a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator"
       ],
       "map_valued_cell_aggregators": [
         "AGG_SET_FREQUENCY",
@@ -9507,4 +9507,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f79fc85237c6cb786dd484ae0b58491030ccf65baeeb35bf53f2935aa5604ace
+// golden-hash: 44480744bd0f8adbcc2651a16732286e6caab3e8e15f8dad2e40a414bcfdabd3

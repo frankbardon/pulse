@@ -224,12 +224,19 @@ func validateCrosstabMarginAggregations(
 	}
 
 	// Auxiliary aggregations land in the margin accumulators only, so a
-	// section emitting no margin computes them into nowhere and returns
-	// nothing that says so. Advisory rather than a refusal: the request
-	// is structurally legal and runs unchanged.
+	// section that DISPLAYS no margin computes them into nowhere and
+	// returns nothing that says so. Advisory rather than a refusal: the
+	// request is structurally legal and runs unchanged.
+	//
+	// A normalize direction does NOT satisfy this, even though it makes
+	// its margin required: that margin is a denominator, an auxiliary is
+	// never a denominator, and the Components emission gate is the
+	// display flag. Both execution paths still accumulate the auxiliary
+	// in that shape, so the warning is also the only notice that the
+	// work is being paid for and discarded.
 	if !spec.MarginAggregationsObserved() {
 		env.AddWarning(string(errors.PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED),
-			"crosstab margin_aggregations were declared but the section emits no margin and requests no normalization — the auxiliary figures have nowhere to land",
+			"crosstab margin_aggregations were declared but the section displays no margin (margins.rows / margins.columns / margins.grand are all false) — the auxiliary figures have nowhere to land. A normalize direction does not carry them: it computes its margin as a denominator, and an auxiliary is never a denominator",
 			map[string]any{"margin_aggregations": len(spec.MarginAggregations)})
 	}
 }

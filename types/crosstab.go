@@ -60,8 +60,11 @@ type CrosstabMargins struct {
 //     aggregation Type (PULSE_CROSSTAB_MARGIN_AGG_INVALID), and their
 //     effective labels must be unique across the slot and distinct from
 //     CellLabel (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL). Declaring
-//     them on a section that emits no margin warns
+//     them on a section that DISPLAYS no margin warns
 //     PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED — an advisory, not a refusal.
+//     A margin computed only as a normalization denominator does not
+//     satisfy it: an auxiliary is never a denominator, so it is not
+//     emitted there. See MarginAggregationsObserved.
 type CrosstabSpec struct {
 	Rows    []*Group     `json:"rows"`
 	Columns []*Group     `json:"columns"`
@@ -97,8 +100,10 @@ type CrosstabSpec struct {
 	// it: one sanctioned behaviour, stated here rather than made
 	// configurable.
 	//
-	// Auxiliary figures are only observable where a margin is emitted;
-	// see MarginAggregationsObserved.
+	// Auxiliary figures are only observable where a margin is
+	// DISPLAYED (margins.rows / .columns / .grand) — a margin computed
+	// only as a normalization denominator carries none of them. See
+	// MarginAggregationsObserved.
 	MarginAggregations []*Aggregation `json:"margin_aggregations,omitempty"`
 
 	Margins   CrosstabMargins   `json:"margins,omitzero"`
@@ -689,16 +694,35 @@ func (s *CrosstabSpec) MarginAggregationLabels() []string {
 	return out
 }
 
-// MarginAggregationsObserved reports whether any margin is emitted or
-// computed for this spec, i.e. whether a declared auxiliary margin
-// aggregation has somewhere to land. False means the auxiliary
-// aggregations would be computed into nowhere — structurally legal but
-// almost certainly a mistake, which predict surfaces as a warning.
+// MarginAggregationsObserved reports whether a declared auxiliary margin
+// aggregation has somewhere to LAND — i.e. whether any margin is
+// DISPLAYED. False means the auxiliary figures are computed into
+// nowhere: structurally legal but almost certainly a mistake, which
+// predict surfaces as a warning.
+//
+// It reads the display flags DIRECTLY rather than going through
+// NeedsRowMargin / NeedsColumnMargin / NeedsGrandMargin, and that is the
+// whole point of it. Those three answer "is this margin required", which
+// is also true of a margin needed ONLY as a normalization denominator —
+// a different question, and the cell aggregator's. An auxiliary is never
+// a denominator; its only landing site is the Components block, whose
+// row_margin_aggregations / column_margin_aggregations /
+// grand_total_aggregations keys ride the display flags exactly as the
+// cell's own margin counts and components do. So a spec with every
+// margin off and normalize=row DOES accumulate its auxiliaries (both
+// execution paths allocate on Needs*Margin) and then emits not one of
+// them — the one shape where "declared with nowhere to land" was
+// previously silent AND paid for. Answering the cell's question here
+// would leave it that way.
+//
+// Keep this predicate and the Components emission gate stating the same
+// rule. They are two sites, so drift is possible; the failure is a
+// request that quietly does the work and returns none of it.
 func (s *CrosstabSpec) MarginAggregationsObserved() bool {
 	if s == nil {
 		return false
 	}
-	return s.NeedsRowMargin() || s.NeedsColumnMargin() || s.NeedsGrandMargin()
+	return s.Margins.Rows || s.Margins.Columns || s.Margins.Grand
 }
 
 // MarginAggregationFaultKind classifies a structural defect in the

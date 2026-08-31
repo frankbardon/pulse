@@ -15,9 +15,11 @@ and required for extension-registered operators (probe-validation rejects an
 emitter without a matching `ComponentSchema`). The shape is additive
 omitempty — `Response.Components` itself is `*ResponseComponents` so a run that
 produces nothing components-shaped marshals to no `components` key at all,
-byte-identical to the pre-Components wire form. `format_version` stays at
-`"1.0"` because the slot is additive — only renames/removals bump per the
-Output Format Contract in CLAUDE.md.
+byte-identical to the pre-Components wire form. Adding the slot did not
+move `format_version` because it is additive — only renames/removals bump
+per the Output Format Contract in CLAUDE.md, which is the single source
+for the current value (`"1.1"` today, moved by the Compose facade lift,
+not by anything in this file).
 
 This is the single source of truth for the universal contract; the per-category
 skills (`aggregation-design.md`, `grouper-design.md`, `crosstab-guide.md`,
@@ -107,6 +109,21 @@ type ResponseComponents struct {
   margin, which counts every filter-passing record routed to that row,
   while an auxiliary observes the cell's ADMISSION instead.
 
+  **The admission rule, stated in full — it is the least guessable
+  property of this surface.** A record contributes to an auxiliary
+  margin ONLY IF IT CONTRIBUTED TO A CELL. Two exclusions follow, and
+  they are the entire difference from the margin components beside it:
+  a record whose CELL FIELD IS NULL, and a record whose AXIS KEY A
+  GROUPER `Include` EXCLUDED. The cell's own margins count both. That is
+  deliberate and there is no knob: an auxiliary exists to be a base the
+  cells beside it are read against, so it has to see the records they
+  saw — a cohort-wide base would answer a different question while
+  looking identical. Reading `n` off an auxiliary's `components` as a
+  cohort count is therefore wrong, and wrong SILENTLY: every figure
+  still renders and only the base is off. Both execution arms implement
+  the same rule and must agree, because dispatch picks fused or buffered
+  on request SHAPE and nothing in `Response` reports which one ran.
+
   Each entry is a `MarginAggregationFigure{value, present, components}`.
   `components` is the universal floor `{n, n_null}` over the ADMITTED
   records merged with that aggregator's own `ComponentSchema` keys — so
@@ -126,6 +143,21 @@ type ResponseComponents struct {
   both. A request declaring no auxiliary emits none of the three, so the
   wire form is byte-identical to the pre-slot baseline and
   `format_version` does not move.
+
+  **Allocation is wider than emission, and the gap is warned rather
+  than closed.** Both paths ALLOCATE auxiliary accumulators on
+  `NeedsRowMargin` / `NeedsColumnMargin` / `NeedsGrandMargin` — display
+  OR normalize — while emission rides the display flag alone. So a spec
+  with every margin flag false, a normalize direction set and an
+  auxiliary declared accumulates every figure and emits not one of them.
+  `pulse predict` warns `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` on
+  exactly that shape: its predicate
+  (`types.CrosstabSpec.MarginAggregationsObserved`) reads the display
+  flags directly and deliberately NOT the `Needs*Margin` trio, which
+  answers the CELL's question. An auxiliary is never a denominator, so a
+  normalize direction is not a landing site for one. If you are looking
+  for auxiliary figures and the block is absent, check the display flag
+  before checking anything else.
 
 - **`Filterers []FiltererComponents`** — one entry per `Request.Filterers`
   slot in matching declared order. Slot identity rides on `Label`. Universal

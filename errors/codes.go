@@ -738,11 +738,16 @@ const (
 	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL Code = "PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL"
 
 	// PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED indicates margin_aggregations
-	// were declared on a Crosstab section that emits no margin and
-	// requests no normalization. Auxiliary aggregations land in the row
-	// / column / grand accumulators only, so nothing carries them back.
-	// Surfaced as a predict WARNING — the request is structurally legal
-	// and runs — never as an error.
+	// were declared on a Crosstab section that DISPLAYS no margin
+	// (margins.rows / .columns / .grand all false). Auxiliary
+	// aggregations land in the row / column / grand accumulators only
+	// and are emitted only where that margin is displayed, so nothing
+	// carries them back. A normalize direction does not satisfy it: the
+	// margin it requires is a denominator, and an auxiliary is never a
+	// denominator — both execution paths still accumulate it in that
+	// shape, so this warning is also the only notice that the work is
+	// paid for and discarded. Surfaced as a predict WARNING — the
+	// request is structurally legal and runs — never as an error.
 	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED Code = "PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED"
 
 	// PULSE_REQUEST_UNKNOWN_FIELD indicates a request JSON carried a

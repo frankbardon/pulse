@@ -1264,12 +1264,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED: {
-		Message: "margin_aggregations were declared on a Crosstab section that emits no margin and requests no normalization. Auxiliary aggregations are evaluated into the row / column / grand margin accumulators only, so nothing carries them back. The request is legal and runs; the figures are simply unobservable.",
+		Message: "margin_aggregations were declared on a Crosstab section that displays no margin (margins.rows / margins.columns / margins.grand are all false). Auxiliary aggregations are evaluated into the row / column / grand margin accumulators only, and are emitted only where that margin is displayed, so nothing carries them back. A normalize direction does not carry them either: the margin it requires is a normalization denominator, and an auxiliary is never a denominator. The request is legal and runs; the figures are accumulated and then discarded.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Margins"},
-				Hint:     "Turn on the margin that should carry the auxiliary figure (margins.rows / margins.columns / margins.grand), or drop margin_aggregations. A normalize direction also computes its implied margin.",
+				Hint:     "Turn on the margin that should carry the auxiliary figure (margins.rows / margins.columns / margins.grand), or drop margin_aggregations. Setting a normalize direction is NOT enough — it computes its implied margin as a denominator and emits no auxiliary figure there.",
 				Examples: []any{map[string]any{"columns": true}, map[string]any{"rows": true, "grand": true}},
 			},
 		},

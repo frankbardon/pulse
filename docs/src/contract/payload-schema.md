@@ -97,3 +97,30 @@ crosstab requires at least one row **and** one column, mutually exclusive
 with top-level `groups`; every `crosstab.margin_aggregations` entry needs
 a type and a label distinct from every other entry's and from the cell's)
 are enforced by `pulse predict` at request time, not by the schema.
+
+## What the schema cannot say about `margin_aggregations`
+
+The auxiliary margin-only slot is fully described structurally — it is an
+array of the same `Aggregation` shape the `cell` slot takes — but two of
+its contracts are semantic, so validating a request against the schema
+tells you nothing about either. Both are reported by `pulse predict`.
+
+**Whether the figures will be emitted at all.** The auxiliary figures
+land only on `components.crosstab.row_margin_aggregations` /
+`column_margin_aggregations` / `grand_total_aggregations`, and each rides
+the matching DISPLAY flag (`crosstab.margins.rows` / `.columns` /
+`.grand`). A schema-valid request with every display flag false produces
+no auxiliary figure at all. Setting a `normalize` direction does not
+help: it makes its margin required as a normalization *denominator*, and
+an auxiliary is never a denominator. That shape warns
+`PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED`.
+
+**Which records each figure is built from.** An auxiliary observes the
+same record admission as the CELL aggregator — a record contributes only
+if it contributed to a cell — so a record whose cell field is null, and a
+record whose axis key a grouper `include` excluded, are absent from every
+auxiliary figure while the cell's own `row_margin_components` beside them
+still count both. Nothing in the schema distinguishes the two, and the
+consequence is silent: a consumer reading an auxiliary's `components.n`
+as a cohort count gets a well-formed, plausible, wrong number. See
+`skills/crosstab-guide.md` and `skills/response-components.md`.

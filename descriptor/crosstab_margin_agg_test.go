@@ -110,9 +110,18 @@ func TestPredict_Crosstab_MarginAggregationsUnknownField(t *testing.T) {
 
 // TestPredict_Crosstab_MarginAggregationsUnobserved covers the footgun
 // this slot introduces: auxiliary aggregations land in the margin
-// accumulators only, so a crosstab that emits no margin computes them
-// into nowhere and returns nothing to say so. A warning, never an error
-// — the request is structurally legal and runs.
+// accumulators only and are emitted only where that margin is DISPLAYED,
+// so a crosstab with every display flag false computes them into nowhere
+// and returns nothing to say so. A warning, never an error — the request
+// is structurally legal and runs.
+//
+// The normalize arm below deliberately expects the warning, reversing
+// what it asserted when the slot first landed. See
+// types.CrosstabSpec.MarginAggregationsObserved: a normalize direction
+// makes its margin required as a DENOMINATOR, an auxiliary is never a
+// denominator, and both execution paths accumulate the auxiliary in that
+// shape and then emit none of it — the one case where "declared with
+// nowhere to land" was silent AND paid for.
 func TestPredict_Crosstab_MarginAggregationsUnobserved(t *testing.T) {
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
@@ -143,14 +152,30 @@ func TestPredict_Crosstab_MarginAggregationsUnobserved(t *testing.T) {
 		t.Errorf("margins are on; the unobserved warning must not fire. warnings=%v", env.Warnings)
 	}
 
-	// Normalization implies its margin, so it too satisfies the rule.
+	// Normalization computes its margin as a DENOMINATOR, which carries
+	// no auxiliary figure: still warned.
 	env = PredictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
 		s.Margins = types.CrosstabMargins{}
 		s.Normalize = types.CrosstabNormalizeColumn
 		aux(s)
 	}), nil)
+	if !envHasWarningCode(env, errors.PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) {
+		t.Errorf("normalize=column computes the column margin only as a denominator and emits no auxiliary figure; the unobserved warning must fire. warnings=%v", env.Warnings)
+	}
+	if envHasCode(env, errors.PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) {
+		t.Error("the normalize-only shape must warn, not refuse — the request is legal and runs")
+	}
+
+	// The same normalize direction WITH its margin displayed: not
+	// warned. Non-vacuity control for the arm above, which would
+	// otherwise pass against a validator that warns on any normalize.
+	env = PredictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
+		s.Margins = types.CrosstabMargins{Columns: true}
+		s.Normalize = types.CrosstabNormalizeColumn
+		aux(s)
+	}), nil)
 	if envHasWarningCode(env, errors.PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) {
-		t.Errorf("normalize=column computes the column margin; the unobserved warning must not fire. warnings=%v", env.Warnings)
+		t.Errorf("margins.columns is on; the unobserved warning must not fire. warnings=%v", env.Warnings)
 	}
 
 	// Slot absent: never warned.
