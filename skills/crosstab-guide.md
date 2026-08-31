@@ -41,6 +41,8 @@ Effective label = `label`, else `TYPE_field`. Must be unique across the slot **a
 
 Admission contract: an auxiliary observes the **same record admission as the cell aggregator** — a record contributes only if it contributed to a cell. Deliberately unlike the cell's own margins, which see every filter-passing record with a non-null axis key; it is what makes an auxiliary base reconcilable against the cells beside it. No knob.
 
+So a null cell field, and an axis key an `Include` excluded, are both absent from every auxiliary slot while the cell's own margins still count them. Accumulators are allocated per declared auxiliary per REQUESTED margin slot; an undeclared slot costs nothing.
+
 Manifest: `crosstab.supports_margin_aggregations` + `crosstab.margin_aggregation_rules`.
 
 ## Normalize
@@ -62,7 +64,7 @@ Buffered when `shape: matrix`, any `margins`, non-`none` `normalize`, or nested 
 
 When the cell aggregator is mergeable + non-recompute AND every axis grouper implements a per-record keying interface — `StreamableGrouper.KeyFor`, or `MultiKeyStreamingGrouper.KeysForRow` (`GROUP_SET_PER_ELEMENT` fan-out, admitted at ANY position, on either or both axes) — records fold into per-cell / per-margin online state in one decode pass. Memory `O(records) → O(cells + margins)`: ~30–47% faster, peak heap 8.8–20.8× lower across 25k→400k rows.
 
-`Request.Overlays` does NOT disqualify — `RunCrosstabFused` folds layers after `Finalize()` through the same `applyOverlaysToResponse` hook the buffered exit uses, so cells, components, layers and warnings are byte-identical across paths. Other disqualifiers: non-mergeable / recompute cell (incl. `AGG_WELFORD`), `GROUP_QUANTILE`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 cell, opaque extension (no `FieldInputs`).
+`Request.Overlays` does NOT disqualify — `RunCrosstabFused` folds layers after `Finalize()` through the same `applyOverlaysToResponse` hook the buffered exit uses, so cells, components, layers and warnings are byte-identical across paths. Other disqualifiers: non-mergeable / recompute cell (incl. `AGG_WELFORD`), `GROUP_QUANTILE`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 cell, opaque extension (no `FieldInputs`), a non-mergeable or decimal128 `margin_aggregations` entry (an auxiliary rides the same `UpdateRow` walk; its `MarginReducibility` is NOT consulted — it has no cells to reduce from).
 
 Margins still recompute from raw rows, and under a fan-out axis are non-additive on BOTH paths — a 3-label record counts 3× across row margins, once in the grand total.
 

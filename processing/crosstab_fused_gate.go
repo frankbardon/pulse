@@ -22,11 +22,13 @@ import (
 // Eligibility = ALL of:
 //
 //   - req.Crosstab != nil — nothing to fuse otherwise.
+//
 //   - The cell aggregator is mergeable per AggregationType.Mergeable().
 //     The fused path folds per-cell online state row-by-row; non-
 //     mergeable aggregators (median/percentile/zscore/skewness/kurtosis)
 //     need a finalize-time sorted view that the fused walk cannot
 //     provide.
+//
 //   - The cell aggregator's MarginReducibility is MarginSummable,
 //     MarginMeanReducible, or MarginIndependent. MarginRecompute
 //     aggregators force a re-scan of raw rows for margin derivation,
@@ -36,6 +38,7 @@ import (
 //     margin follows from the cells, MarginIndependent because the
 //     operator keeps its own row / column / grand accumulators, which
 //     FusedCrosstabState already feeds record-by-record.
+//
 //   - Every grouper on req.Crosstab.Rows ∪ req.Crosstab.Columns is
 //     constructable and the resulting instance implements ONE of the
 //     two per-record keying interfaces: StreamableGrouper (a per-record
@@ -50,25 +53,49 @@ import (
 //     gate while still rejecting truly key-non-derivable groupers
 //     (GROUP_QUANTILE, which needs a finalize-time sorted view and
 //     implements neither).
+//
 //   - No req.Features — every FEAT_* operator forces a buffered
 //     pre-filter pass that the fused path skips.
+//
 //   - No req.Attributes of type ATTR_FORMULA with a non-empty
 //     Expression. Expression-runtime field extraction is conservative;
 //     #59 bail rules treat it as a forced widen, which the fused path
 //     can't honour while keeping per-field decode bounds tight.
+//
 //   - No req.Filterers of type FILTER_EXPRESSION (same reason).
+//
 //   - No req.Tests and no req.PostTests. Tier-1 row tests and tier-2
 //     post-tests fold over the buffered row set after aggregation;
 //     the fused path doesn't buffer.
+//
 //   - No extension-bound operator anywhere in the request without a
 //     registered FieldInputs hook. The fused path's projection bound
 //     is built from NeededFields; an opaque extension operator would
 //     widen the projection to "every field", which collapses the fused
 //     path's decode-cost advantage and is treated as ineligible here.
+//
 //   - No mergeable-but-decimal aggregation target on the cell. Decimal-
 //     typed fields aggregate via AggregateDecimalField (the wide
 //     decimal path); Pulse forces buffered for those today and the
 //     fused gate mirrors that constraint.
+//
+//   - Every entry of req.Crosstab.MarginAggregations is mergeable and
+//     does not target a decimal-typed field — the same two checks the
+//     cell gets, for the same two reasons: an auxiliary rides the same
+//     per-record UpdateRow walk (so it must be online, which Mergeable
+//     implies) and the wide decimal path is buffered-only. An auxiliary
+//     that fails either declines fusion rather than being dropped,
+//     because dropping it returns a margin with the requested figure
+//     silently missing.
+//
+//     Their MarginReducibility is deliberately NOT consulted, and that
+//     is not an oversight. The classification answers "can this
+//     aggregator's margin be derived from its CELLS", which is a
+//     question an auxiliary does not have: it has no cells, and both
+//     paths give it its own row / column / grand accumulator fed record
+//     by record. Every auxiliary is therefore MarginIndependent in role
+//     whatever its declared class, and requiring a class here would
+//     decline fusion for a request the fused walk computes exactly.
 //
 // req.Overlays is explicitly NOT an exclusion. Overlays decorate a
 // finalised response and consume no records, so RunCrosstabFused folds
@@ -121,6 +148,32 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 	if schema != nil && cell.Field != "" {
 		if f := schema.Field(cell.Field); f != nil && f.Type.IsDecimal() {
 			return false, fmt.Sprintf("decimal128 cell field (%s)", cell.Field)
+		}
+	}
+
+	// Auxiliary margin-only aggregations ride the same per-record
+	// UpdateRow walk as the cell, so the fused path can only accumulate
+	// one that is online (Mergeable implies Streamable implies
+	// OnlineAggregator) and whose field is not decimal-typed. Declining
+	// sends the request to the buffered path, which computes the same
+	// figures from raw rows — the auxiliary is never silently dropped.
+	//
+	// MarginReducibility is not consulted here; see the doc comment.
+	for _, aux := range req.Crosstab.MarginAggregations {
+		if aux == nil || aux.Type == "" {
+			// Structurally malformed. validateCrosstabSpec refuses both
+			// shapes with a coded error on EITHER path, so the gate has
+			// no answer worth giving — declining would only change which
+			// entry point reported the identical error.
+			continue
+		}
+		if !aux.Type.Mergeable() {
+			return false, fmt.Sprintf("non-mergeable margin aggregation (%s)", aux.Type)
+		}
+		if schema != nil && aux.Field != "" {
+			if f := schema.Field(aux.Field); f != nil && f.Type.IsDecimal() {
+				return false, fmt.Sprintf("decimal128 margin aggregation field (%s)", aux.Field)
+			}
 		}
 	}
 
