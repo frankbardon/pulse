@@ -33,6 +33,16 @@ Defaults: `shape: matrix`, `normalize: none`. Result: `Response.Crosstab.Matrix`
 
 Load-bearing: row / column / grand margins aggregate **raw rows for that margin**, NOT cell values. Mean / median / stddev / percentile margins are correct under this rule; cell-sum agreement holds only for true sums. `AGG_DISTINCT_COUNT` / `AGG_DISTINCT_SUM` margins are the **union**, never the sum of cells — a respondent in two rows counts once. Manifest: `crosstab.{summable,mean_reducible,independent,recompute}_aggregators`; `independent` means the operator keeps its own margin accumulator, so it fuses.
 
+## Auxiliary margin-only aggregations
+
+`margin_aggregations` (optional, additive) carries zero or more extra `Aggregation`s evaluated into the row / column / grand margin accumulators **only, never into a cell**. `cell` is a single aggregation, so this is how a second figure — canonically an unweighted respondent base beside a weighted metric — rides the same request instead of costing a whole second scan.
+
+Effective label = `label`, else `TYPE_field`. Must be unique across the slot **and** distinct from the cell's, because margin components are keyed by label. Rejections: `PULSE_CROSSTAB_MARGIN_AGG_INVALID` (null entry / no type), `PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL`. Declared with no margin and no normalize ⇒ `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` **warning** — the figures have nowhere to land; the request still runs.
+
+Admission contract: an auxiliary observes the **same record admission as the cell aggregator** — a record contributes only if it contributed to a cell. Deliberately unlike the cell's own margins, which see every filter-passing record with a non-null axis key; it is what makes an auxiliary base reconcilable against the cells beside it. No knob.
+
+Manifest: `crosstab.supports_margin_aggregations` + `crosstab.margin_aggregation_rules`.
+
 ## Normalize
 
 `none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. Normalize implies the matching margin even when `margins.*` is false.

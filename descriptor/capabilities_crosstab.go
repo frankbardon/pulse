@@ -73,6 +73,18 @@ type CrosstabCapability struct {
 	// NormalizeWithin slot.
 	NormalizeWithinRules []string `json:"normalize_within_rules"`
 
+	// SupportsMarginAggregations reports whether the engine honors
+	// CrosstabSpec.MarginAggregations — the auxiliary aggregations
+	// evaluated into the row / column / grand margin accumulators only
+	// and never into a cell. The canonical use is a respondent base
+	// riding alongside a weighted metric without a second scan.
+	SupportsMarginAggregations bool `json:"supports_margin_aggregations"`
+
+	// MarginAggregationRules names the rejection rules specific to the
+	// MarginAggregations slot, plus the advisory that fires when the
+	// section emits no margin to carry the auxiliary figures.
+	MarginAggregationRules []string `json:"margin_aggregation_rules"`
+
 	// MapValuedCellAggregators is the alphabetized list of aggregator
 	// names whose Crosstab Cell output is map-valued (rich payload
 	// per cell, e.g. AGG_SET_FREQUENCY's per-label row counts). These
@@ -122,6 +134,12 @@ func crosstabCapability() CrosstabCapability {
 			"normalize_within must be in [0, len(other-axis)-1] where other-axis is columns when normalize=row and rows when normalize=column (PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE)",
 			"normalize_within requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS)",
 			"normalize_within cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE)",
+		},
+		SupportsMarginAggregations: true,
+		MarginAggregationRules: []string{
+			"every margin_aggregations entry needs an aggregation type; null entries are refused (PULSE_CROSSTAB_MARGIN_AGG_INVALID)",
+			"margin_aggregations effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
+			"margin_aggregations declared on a section that emits no margin and requests no normalization are computed into nowhere — advisory warning, not a refusal (PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED)",
 		},
 	}
 	cap.RejectionRules = append(cap.RejectionRules,

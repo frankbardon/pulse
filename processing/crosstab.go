@@ -1685,19 +1685,54 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request) error {
 			}
 		}
 	}
+	// Auxiliary margin-only aggregations. Detection is shared with
+	// predict via types.CrosstabSpec.MarginAggregationFaults so the two
+	// validators cannot drift on WHICH specs they refuse; only the
+	// coded rendering differs. First fault wins — execution returns one
+	// error, where predict accumulates them all onto the envelope.
+	for _, fault := range spec.MarginAggregationFaults() {
+		return errors.NewCodedErrorWithDetails(
+			marginAggregationFaultCode(fault.Kind), fault.Message, fault.Details)
+	}
 	// Internal guard: every aggregator must carry a reducibility
 	// classification. The default branch returns MarginRecompute, so
 	// reaching unclassified means a new aggregator was added without
 	// updating AggregationType.MarginReducibility — fail fast so the
-	// missing classification is fixed.
-	switch spec.Cell.Type.MarginReducibility() {
-	case types.MarginSummable, types.MarginMeanReducible,
-		types.MarginIndependent, types.MarginRecompute:
-		// classified
-	default:
-		return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_AGG_UNCLASSIFIED,
-			"crosstab cell aggregator has no MarginReducibility classification",
-			map[string]any{"aggregation": string(spec.Cell.Type)})
+	// missing classification is fixed. Applied to the cell aggregator
+	// and to every auxiliary margin aggregation alike: an auxiliary
+	// lands in the same margin accumulators, so an unclassified one is
+	// the same defect in the same place.
+	for _, agg := range append([]*types.Aggregation{spec.Cell}, spec.MarginAggregations...) {
+		switch agg.Type.MarginReducibility() {
+		case types.MarginSummable, types.MarginMeanReducible,
+			types.MarginIndependent, types.MarginRecompute:
+			// classified
+		default:
+			slot := "cell"
+			if agg != spec.Cell {
+				slot = "margin_aggregations"
+			}
+			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_AGG_UNCLASSIFIED,
+				"crosstab "+slot+" aggregator has no MarginReducibility classification",
+				map[string]any{"aggregation": string(agg.Type), "slot": slot})
+		}
 	}
 	return nil
+}
+
+// marginAggregationFaultCode maps a shared structural fault kind onto
+// this package's coded surface. descriptor/crosstab.go holds the
+// predict-side twin; keeping the MAPPING separate from the DETECTION is
+// what lets one report an envelope entry and the other a CodedError
+// without either owning the rules.
+func marginAggregationFaultCode(kind types.MarginAggregationFaultKind) errors.Code {
+	switch kind {
+	case types.MarginAggregationFaultDuplicateLabel:
+		return errors.PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL
+	default:
+		// Nil entry, missing type, and any kind added later without a
+		// dedicated code: all are "this entry is not a usable
+		// aggregation", which is exactly what _INVALID says.
+		return errors.PULSE_CROSSTAB_MARGIN_AGG_INVALID
+	}
 }

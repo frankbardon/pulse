@@ -56,10 +56,50 @@ type CrosstabMargins struct {
 //     requires column margins; normalize=total requires the grand total.
 //     The margins are computed even when the corresponding display flag is
 //     false; only emission depends on the display flag.
+//   - Every MarginAggregations entry must be non-nil and carry an
+//     aggregation Type (PULSE_CROSSTAB_MARGIN_AGG_INVALID), and their
+//     effective labels must be unique across the slot and distinct from
+//     CellLabel (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL). Declaring
+//     them on a section that emits no margin warns
+//     PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED — an advisory, not a refusal.
 type CrosstabSpec struct {
 	Rows    []*Group     `json:"rows"`
 	Columns []*Group     `json:"columns"`
 	Cell    *Aggregation `json:"cell"`
+
+	// MarginAggregations declares zero or more AUXILIARY aggregations
+	// that are evaluated into the row / column / grand MARGIN
+	// accumulators only and never into a cell. It exists because Cell
+	// is a single *Aggregation: a second figure over the same axes —
+	// the canonical case is an unweighted respondent base beside a
+	// weighted metric — would otherwise cost a whole second scan of
+	// the cohort.
+	//
+	// Additive and `omitempty`: a request that does not declare the
+	// slot marshals byte-identically to one written before the slot
+	// existed (TestCrosstabSpec_MarginAggregationsAbsentByteIdentical).
+	//
+	// Each entry carries the same shape as Cell (Type / Field / Label
+	// / Params). Effective labels — Label when set, otherwise
+	// TYPE_field, see MarginAggregationLabels — must be unique across
+	// the auxiliary set AND distinct from CellLabel, because the
+	// margin-components payload is keyed by label and the cell
+	// aggregator's own margin already occupies its own.
+	//
+	// ADMISSION CONTRACT (normative for the accumulation paths): an
+	// auxiliary margin aggregation observes the SAME record admission
+	// as the cell aggregator — a record contributes to these
+	// accumulators only if it contributed to a cell. That is
+	// deliberately NOT how the cell aggregator's own margins behave
+	// (those see every filter-passing record with a non-null axis
+	// key), and it is what makes an auxiliary base reconcilable
+	// against the cells it sits beside. The slot carries no knob for
+	// it: one sanctioned behaviour, stated here rather than made
+	// configurable.
+	//
+	// Auxiliary figures are only observable where a margin is emitted;
+	// see MarginAggregationsObserved.
+	MarginAggregations []*Aggregation `json:"margin_aggregations,omitempty"`
 
 	Margins   CrosstabMargins   `json:"margins,omitzero"`
 	Normalize CrosstabNormalize `json:"normalize,omitempty"`
@@ -536,13 +576,145 @@ func (s *CrosstabSpec) LowerGrandOnly(src *Request) *Request {
 // a long-form result row. Mirrors processing.AggregationLabel without
 // importing processing/.
 func (s *CrosstabSpec) CellLabel() string {
-	if s == nil || s.Cell == nil {
+	if s == nil {
 		return ""
 	}
-	if s.Cell.Label != "" {
-		return s.Cell.Label
+	return AggregationLabelOf(s.Cell)
+}
+
+// AggregationLabelOf returns the output label an aggregation emits in a
+// long-form result row: the explicit Label when set, otherwise
+// TYPE_field. Mirrors processing.AggregationLabel without importing
+// processing/ (types must stay dependency-free). A nil aggregation
+// yields the empty string.
+func AggregationLabelOf(a *Aggregation) string {
+	if a == nil {
+		return ""
 	}
-	return string(s.Cell.Type) + "_" + s.Cell.Field
+	if a.Label != "" {
+		return a.Label
+	}
+	return string(a.Type) + "_" + a.Field
+}
+
+// HasMarginAggregations reports whether the spec declares at least one
+// auxiliary margin aggregation.
+func (s *CrosstabSpec) HasMarginAggregations() bool {
+	return s != nil && len(s.MarginAggregations) > 0
+}
+
+// MarginAggregationLabels returns the effective label of every declared
+// auxiliary margin aggregation, in declaration order. These are the keys
+// the margin-components payload carries the auxiliary figures under. A
+// nil entry contributes an empty string so positions stay aligned with
+// CrosstabSpec.MarginAggregations; the validators refuse such an entry
+// before it reaches an accumulator.
+func (s *CrosstabSpec) MarginAggregationLabels() []string {
+	if s == nil || len(s.MarginAggregations) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(s.MarginAggregations))
+	for _, a := range s.MarginAggregations {
+		out = append(out, AggregationLabelOf(a))
+	}
+	return out
+}
+
+// MarginAggregationsObserved reports whether any margin is emitted or
+// computed for this spec, i.e. whether a declared auxiliary margin
+// aggregation has somewhere to land. False means the auxiliary
+// aggregations would be computed into nowhere — structurally legal but
+// almost certainly a mistake, which predict surfaces as a warning.
+func (s *CrosstabSpec) MarginAggregationsObserved() bool {
+	if s == nil {
+		return false
+	}
+	return s.NeedsRowMargin() || s.NeedsColumnMargin() || s.NeedsGrandMargin()
+}
+
+// MarginAggregationFaultKind classifies a structural defect in the
+// MarginAggregations slot. It deliberately carries no error code: the
+// types package stays free of a dependency on errors/, so predict
+// (descriptor) and execution (processing) each map a kind onto their own
+// coded surface. Sharing the DETECTION is what keeps the two validators
+// from drifting on WHICH specs they refuse.
+type MarginAggregationFaultKind string
+
+const (
+	// MarginAggregationFaultNilEntry marks a nil element in the slot —
+	// reachable from JSON as a literal null.
+	MarginAggregationFaultNilEntry MarginAggregationFaultKind = "nil_entry"
+
+	// MarginAggregationFaultMissingType marks an entry with no
+	// aggregation Type. There is no default auxiliary aggregator.
+	MarginAggregationFaultMissingType MarginAggregationFaultKind = "missing_type"
+
+	// MarginAggregationFaultDuplicateLabel marks an effective label
+	// claimed twice — by two auxiliary entries, or by an auxiliary
+	// entry and the cell aggregation whose own margin already occupies
+	// it.
+	MarginAggregationFaultDuplicateLabel MarginAggregationFaultKind = "duplicate_label"
+)
+
+// MarginAggregationFault is one structural defect found in the
+// MarginAggregations slot. Message and Details are rendered verbatim by
+// both validators so the predict envelope and the runtime error read
+// identically for the same defect.
+type MarginAggregationFault struct {
+	// Kind classifies the defect; each validator maps it to a code.
+	Kind MarginAggregationFaultKind
+	// Message is the human-readable sentence, ready to render.
+	Message string
+	// Details is the structured payload, ready to attach.
+	Details map[string]any
+}
+
+// MarginAggregationFaults returns every structural defect in the
+// MarginAggregations slot, in declaration order. An empty result means
+// the slot is well-formed; it says nothing about whether the named
+// aggregators exist (extensions register their own) or whether a margin
+// is emitted to carry them (see MarginAggregationsObserved).
+func (s *CrosstabSpec) MarginAggregationFaults() []MarginAggregationFault {
+	if s == nil || len(s.MarginAggregations) == 0 {
+		return nil
+	}
+	var faults []MarginAggregationFault
+	// The cell aggregator's own margin already claims CellLabel in the
+	// margin-components namespace, so it seeds the seen set.
+	seen := map[string]bool{}
+	if cl := s.CellLabel(); cl != "" {
+		seen[cl] = true
+	}
+	for i, a := range s.MarginAggregations {
+		if a == nil {
+			faults = append(faults, MarginAggregationFault{
+				Kind:    MarginAggregationFaultNilEntry,
+				Message: "crosstab margin_aggregations contains a null entry",
+				Details: map[string]any{"index": i},
+			})
+			continue
+		}
+		if a.Type == "" {
+			faults = append(faults, MarginAggregationFault{
+				Kind:    MarginAggregationFaultMissingType,
+				Message: "crosstab margin_aggregations entry has no aggregation type",
+				Details: map[string]any{"index": i, "field": a.Field},
+			})
+			continue
+		}
+		label := AggregationLabelOf(a)
+		if seen[label] {
+			faults = append(faults, MarginAggregationFault{
+				Kind: MarginAggregationFaultDuplicateLabel,
+				Message: "crosstab margin_aggregations effective label is already claimed: " + label +
+					" — margin components are keyed by label, so the duplicate would overwrite the figure beside it",
+				Details: map[string]any{"index": i, "label": label, "aggregation": string(a.Type)},
+			})
+			continue
+		}
+		seen[label] = true
+	}
+	return faults
 }
 
 // AxisFieldNames returns the field names making up an axis in axis order.

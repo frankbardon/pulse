@@ -722,6 +722,29 @@ const (
 	// normalize=row or normalize=column.
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE Code = "PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE"
 
+	// PULSE_CROSSTAB_MARGIN_AGG_INVALID indicates an entry in the
+	// Crosstab section's margin_aggregations slot is structurally
+	// malformed — a null element, or an entry carrying no aggregation
+	// type. There is no default auxiliary aggregator, so the entry is
+	// refused rather than dropped: silently skipping it would return a
+	// margin with the requested figure missing and nothing saying so.
+	PULSE_CROSSTAB_MARGIN_AGG_INVALID Code = "PULSE_CROSSTAB_MARGIN_AGG_INVALID"
+
+	// PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL indicates two
+	// margin_aggregations entries resolve to the same effective label
+	// (Label when set, otherwise TYPE_field), or one collides with the
+	// cell aggregation's label. Margin components are keyed by label,
+	// so the second figure would overwrite the first.
+	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL Code = "PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL"
+
+	// PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED indicates margin_aggregations
+	// were declared on a Crosstab section that emits no margin and
+	// requests no normalization. Auxiliary aggregations land in the row
+	// / column / grand accumulators only, so nothing carries them back.
+	// Surfaced as a predict WARNING — the request is structurally legal
+	// and runs — never as an error.
+	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED Code = "PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED"
+
 	// PULSE_REQUEST_UNKNOWN_FIELD indicates a request JSON carried a
 	// top-level key that is not a recognised Request slot. JSON
 	// decoding silently ignores unknown keys, so the offending slot
@@ -2261,6 +2284,9 @@ var allCodes = []Code{
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE,
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS,
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE,
+	PULSE_CROSSTAB_MARGIN_AGG_INVALID,
+	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL,
+	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED,
 	PULSE_REQUEST_UNKNOWN_FIELD,
 	PULSE_OVERLAY_KIND_UNKNOWN,
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

@@ -83,5 +83,6 @@ The schema is faithful but not maximally strict in two places, by design:
 
 Cross-slot validation rules that depend on more than one field (e.g. a
 crosstab requires at least one row **and** one column, mutually exclusive
-with top-level `groups`) are enforced by `pulse predict` at request time,
-not by the schema.
+with top-level `groups`; every `crosstab.margin_aggregations` entry needs
+a type and a label distinct from every other entry's and from the cell's)
+are enforced by `pulse predict` at request time, not by the schema.

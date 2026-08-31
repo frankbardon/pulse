@@ -546,6 +546,15 @@
             "null"
           ]
         },
+        "margin_aggregations": {
+          "items": {
+            "$ref": "#/$defs/Aggregation"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "margins": {
           "$ref": "#/$defs/CrosstabMargins"
         },
@@ -2567,4 +2576,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: c598f0af875271ee209b0fef165e10592f2d1da9692c9980433409713d2cddd9
+// golden-hash: 05d6872a2c44c6d3beba015f61bd813d3fdcd6ff6595716bedebae273f9f67ed
